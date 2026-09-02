@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **632 passing** (`pytest`, 41 files) |
+| Backend tests | **650 passing** (`pytest`, 41 files) |
 | Frontend tests | **88 passing** (`vitest`, 10 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -747,6 +747,16 @@ patient imaging.
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
 | `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
 
+**Where the clip sits.** `pose_transform` puts a device's LOCAL ORIGIN on the
+neck, and the synthetic catalogue clips are drawn with the jaw straddling that
+origin. The NAVARRO origin is not in the jaw at all — for the drawn 7 mm straight
+the jaw runs −9.50..−2.50 mm while the 14.30 mm body runs to +11.80 mm — so the
+neck landed at the HINGE, with the whole jaw hanging off to one side and the body
+crossing the aneurysm. `to_device_frame` now also shifts each design by
+`jaw_root + jaw/2`, putting the middle of the useful grip on the origin, which is
+where the neck belongs. The shift is measured off the mesh rather than assumed,
+so it follows the bend: the knee at 15° pushes the root from 2.50 mm to 3.95 mm.
+
 **The report shows the plan in 3D, from fixed viewpoints.** Four server-rendered
 views — anterior, left, superior and oblique — of the segmented vasculature
 (translucent grey), the sac (blue) and whatever devices are placed (gold clip,
@@ -760,6 +770,14 @@ first version framed the sac alone and cropped the clip, which is several times
 larger than the aneurysm it closes. Rendering is best effort: a viewpoint that
 fails is dropped and the report still goes out.
 
+They are rendered at twice the requested size and averaged down. The offscreen
+window runs with MSAA off — some drivers fail outright with it on — so without
+that every edge was a hard staircase, which a PDF viewer smears into a blur.
+
+A report generated BEFORE a device is placed shows four pictures of bare anatomy
+and reads as a plan with no device in it. It now says so under the images, with
+the remedy: place the device and generate the report again.
+
 They are diagrams of the segmentation, not radiological images, and the caption
 under them says so.
 
@@ -769,11 +787,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 632 tests
+.venv\Scripts\python -m pytest -q                        # all 650 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **632 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **650 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

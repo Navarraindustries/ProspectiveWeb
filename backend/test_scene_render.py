@@ -32,6 +32,7 @@ import vtk
 
 from services.clip_dossier import render_dossier
 from services.report_generator import ReportData, ReportGenerator, _render_plan_views
+from services import scene_render
 from services.scene_render import (DEVICE_RGB, VIEWS, render_clip_views,
                                    render_plan_views, render_views, union_bounds)
 from services.segmentation import write_vtp
@@ -120,6 +121,34 @@ class TestTheRendererWorksHeadless:
         args = ([(_sphere(), DEVICE_RGB, 1.0)], ["oblicua"])
         assert render_views(*args, width=200, height=160)["oblicua"] == \
                render_views(*args, width=200, height=160)["oblicua"]
+
+
+# ── 1b. Sharpness ─────────────────────────────────────────────────────────── #
+
+class TestTheFramesAreNotJagged:
+    """The offscreen window runs with MSAA off — some drivers fail outright with
+    it on — so every edge came out a hard staircase, which a PDF viewer smears
+    into the blur the user saw. Drawing at 2x and averaging down is the
+    antialiasing, and it works on any driver."""
+
+    def _render(self, size):
+        return render_views([(_sphere(), DEVICE_RGB, 1.0)], ["oblicua"],
+                            width=size[0], height=size[1])["oblicua"]
+
+    def test_the_frame_comes_back_at_the_size_that_was_asked_for(self):
+        # Supersampling is internal: a caller asking for 300x240 gets 300x240.
+        px = _pixels(self._render((300, 240)))
+        assert px.shape[:2] == (240, 300)
+
+    def test_edges_carry_intermediate_tones(self, monkeypatch):
+        # An aliased edge jumps from background to object in one pixel. Averaging
+        # four samples per pixel puts real values in between, and those extra
+        # tones are what "sharp" looks like on paper.
+        smooth = len(np.unique(_pixels(self._render((300, 240))).reshape(-1, 3), axis=0))
+        monkeypatch.setattr(scene_render, "SUPERSAMPLE", 1)
+        jagged = len(np.unique(_pixels(self._render((300, 240))).reshape(-1, 3), axis=0))
+        assert smooth > jagged * 1.2, (
+            f"el supermuestreo no está suavizando nada ({smooth} vs {jagged} tonos)")
 
 
 # ── 2. Framing: the device is in the picture ──────────────────────────────── #
@@ -266,6 +295,27 @@ class TestTheReportCarriesThePlan:
         # and a reader must not take them for radiological images.
         assert "no imágenes radiológicas" in text
         assert _pdf_images(out) == 4
+
+    def test_a_plan_with_no_device_says_so_instead_of_looking_like_a_plan(self, tmp_path):
+        # Generar el informe ANTES de colocar el clip daba cuatro imágenes de una
+        # vasculatura sin dispositivo, y se leían como si el plan no llevara
+        # ninguno. Lo que faltaba no era el render: era decirlo.
+        views = render_plan_views(dome=_sphere(radius=4.0), width=200, height=160)
+        out = ReportGenerator(ReportData(plan_views=views)).generate(tmp_path / "sin.pdf")
+        text = _pdf_text(out)
+        assert "Sin dispositivo colocado" in text
+        assert "volver a generar el informe" in text
+
+    def test_a_plan_with_a_device_does_not_carry_that_warning(self, tmp_path):
+        from services.report_generator import ClipEntry
+
+        views = render_plan_views(dome=_sphere(radius=4.0),
+                                  devices=[(_bar(), DEVICE_RGB)], width=200, height=160)
+        data = ReportData(plan_views=views, clips=[ClipEntry(
+            index=1, name="NAVARRO™ T1 Recto 7.0 mm", position_mm=(0.0, 0.0, 0.0),
+            orientation_deg=(0.0, 0.0, 0.0))])
+        assert "Sin dispositivo colocado" not in _pdf_text(
+            ReportGenerator(data).generate(tmp_path / "con.pdf"))
 
     def test_a_report_without_views_omits_the_section(self, tmp_path):
         out = ReportGenerator(ReportData()).generate(tmp_path / "vacio.pdf")

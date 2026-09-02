@@ -642,6 +642,11 @@ class ReportGenerator:
         views = self._data.plan_views
         if not views:
             return []
+        # Un informe generado ANTES de colocar el clip enseña cuatro imágenes de
+        # una vasculatura sin dispositivo, y se lee como si el plan no tuviera
+        # ninguno. Decirlo es la diferencia entre una imagen y una imagen que
+        # engaña.
+        no_device = not (self._data.clips or self._data.coils or self._data.stent)
         order = [n for n in ("anterior", "izquierda", "superior", "oblicua") if n in views]
         if not order:
             return []
@@ -663,17 +668,26 @@ class ReportGenerator:
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
         ]))
-        return [
+        caption = (
+            "Vasculatura segmentada (gris, translúcida), saco del aneurisma (azul) "
+            "y dispositivos colocados (dorado: clip · violeta: coils · azul claro: "
+            "stent), desde puntos de vista fijos. Son representaciones de la "
+            "segmentación, no imágenes radiológicas."
+        )
+        out = [
             Spacer(1, 0.2*cm),
             Paragraph("Plan quirúrgico en 3D", self._style_h2),
             t,
-            Paragraph(
-                "Vasculatura segmentada (gris, translúcida), saco del aneurisma (azul) "
-                "y dispositivos colocados (dorado: clip · violeta: coils · azul claro: "
-                "stent), desde puntos de vista fijos. Son representaciones de la "
-                "segmentación, no imágenes radiológicas.",
-                self._style_small),
+            Paragraph(caption, self._style_small),
         ]
+        if no_device:
+            out.append(Paragraph(
+                "<b>Sin dispositivo colocado.</b> Estas vistas son de la anatomía "
+                "segmentada tal y como estaba al generar el informe: el plan todavía "
+                "no tenía clip, coils ni stent. Si ya se ha colocado uno, hay que "
+                "volver a generar el informe para verlo.",
+                self._style_small))
+        return out
 
     def _section_screenshot(self) -> list:
         if not self._data.screenshot_png:

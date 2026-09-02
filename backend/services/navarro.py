@@ -280,31 +280,54 @@ def resize_jaw(poly, from_jaw_mm: float, to_jaw_mm: float, angle_deg: float):
     return out
 
 
-def to_device_frame(poly):
-    """Rotate a NAVARRO mesh from its own frame into the app's device frame.
+def to_device_frame(poly, jaw_mm: float, angle_deg: float):
+    """Put a NAVARRO mesh in the app's device frame: rotated AND centred on its jaw.
 
-    The two frames disagree, and until this existed the disagreement placed every
-    NAVARRO clip wrong. `pose_transform` aligns a device's local +Z to the neck
+    Two separate disagreements with the app's convention, and both placed the
+    clip wrong.
+
+    **Orientation.** `pose_transform` aligns a device's local +Z to the neck
     normal, and `make_clip_shaped` is drawn for that: blade length along +X, jaw
-    opening along +Y, blade DEPTH along +Z. So the blade ends up lying in the
-    neck plane, spanning it — which is what clipping a neck means.
+    opening along +Y, blade DEPTH along +Z, so the blade lies in the neck plane
+    and spans it — which is what clipping a neck means. The NAVARRO exports use
+    +Z for the clip's long axis instead, so posed as-is the jaw pointed straight
+    up the neck normal, into the dome: the 10 mm clip reached +12.5 mm along the
+    normal while the synthetic Yasargil of the same size stayed within ±0.5 mm.
+    A -90° turn about Y reconciles them — the file's X (blade depth, ±1.80 mm)
+    becomes +Z, its Z (the jaw axis) lies in the plane, its Y (the jaw opening)
+    stays in the plane.
 
-    The NAVARRO exports use +Z for the clip's long axis instead. Posed as-is, the
-    jaw pointed straight up the neck normal — i.e. into the dome. Measured on a
-    neck at z=0 with the dome above: the 10 mm clip reached +12.5 mm along the
-    normal, driving the blades 12.5 mm into the aneurysm, while the synthetic
-    Yasargil of the same size stayed within ±0.5 mm and spanned 6 mm across the
-    plane, as it should.
+    **Origin.** Rotating was not enough. `pose_transform` puts the mesh's LOCAL
+    ORIGIN on the neck, and the synthetic clips are drawn with the jaw straddling
+    that origin (a 7 mm blade spans -3.75..+3.54 mm). The NAVARRO origin is not
+    in the jaw at all: for the 7 mm straight design the jaw runs -9.50..-2.50 mm
+    and the 14.30 mm body runs the other way to +11.80 mm. So the neck landed at
+    the HINGE, with the whole jaw hanging off to one side and the body crossing
+    the aneurysm — visible on screen as a clip whose blades never meet the neck
+    they are supposed to close.
 
-    A -90° turn about Y reconciles them: the file's X (the thin blade depth,
-    ±1.80 mm) becomes +Z, its Z (the jaw axis) lies in the plane, and its Y (the
-    jaw opening) stays in the plane. Applied last, after any resizing, because
-    `resize_jaw` and `jaw_root_offset` both reason in the file's own frame.
+    Shifting by `jaw_root + jaw/2` along the jaw axis puts the MIDDLE OF THE
+    USEFUL GRIP on the origin, which is where the neck belongs: the blades then
+    close on the neck with half the grip either side. The shift is measured off
+    this mesh (`jaw_root_offset`) rather than assumed, so a redrawn CAD cannot
+    silently invalidate it, and it follows the bend — the knee at 15° pushes the
+    root from 2.50 mm to 3.95 mm.
+
+    Applied after any resizing, because `resize_jaw` and `jaw_root_offset` both
+    reason in the file's own frame.
     """
     import vtk
 
+    root = jaw_root_offset(poly, jaw_mm, angle_deg)
+    mid = root + float(jaw_mm) / 2.0
+    theta = math.radians(angle_deg)
+
     t = vtk.vtkTransform()
+    # PreMultiply (VTK default): the LAST call is applied to a point FIRST, so
+    # the translation happens in the file's own frame and the rotation after it.
     t.RotateY(-90.0)
+    t.Translate(-mid * math.sin(theta), 0.0, -mid * math.cos(theta))
+
     f = vtk.vtkTransformPolyDataFilter()
     f.SetInputData(poly)
     f.SetTransform(t)
@@ -328,7 +351,7 @@ def build_jaw(angle_deg: float, jaw_mm: float, root: Path | None = None):
     exact = abs(src.jaw_mm - jaw_mm) < 1e-6 and abs(src.angle_deg - angle_deg) < 1e-6
     if not exact:
         mesh = resize_jaw(mesh, src.jaw_mm, jaw_mm, src.angle_deg)
-    return to_device_frame(mesh), src, exact
+    return to_device_frame(mesh, jaw_mm, src.angle_deg), src, exact
 
 
 # ── Feeding the selector ───────────────────────────────────────────────────── #

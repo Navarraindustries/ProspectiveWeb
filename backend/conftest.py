@@ -24,6 +24,18 @@ for _suffix in ("", "-wal", "-shm"):
             pass
 os.environ["PROSPECTIVE_DB_URL"] = f"sqlite:///{_TEST_DB}"
 
+# The audit chain too. Without this the suite appended thousands of blocks to
+# the developer's real chain, and the endpoint test then asserted a property of
+# that file rather than of the code: one break anywhere in it — a crash, two
+# processes appending at once — turned the suite red for reasons no test caused.
+_TEST_CHAIN = Path(tempfile.gettempdir()) / "prospective_test_chain.db"
+if _TEST_CHAIN.exists():
+    try:
+        _TEST_CHAIN.unlink()
+    except OSError:
+        pass
+os.environ["AUDIT_DB_PATH"] = str(_TEST_CHAIN)
+
 # Create tables + seed the default admin (admin/admin123) on the fresh test DB,
 # mirroring the app's startup lifespan which TestClient does not run at import.
 from services.database import SessionLocal, init_db  # noqa: E402

@@ -117,14 +117,22 @@ class TestJawGeometryIsDerived:
     def test_every_navarro_size_reads_the_same_way(self):
         # A real family hinges in one place; a reading that wandered between
         # sizes would mean the derivation, not the design, was moving.
+        #
+        # "One place" is now measured FROM THE JAW, not from the mesh origin.
+        # `to_device_frame` centres each clip on the middle of its own useful
+        # grip, so the origin sits half a jaw ahead of the root and the hinge
+        # coordinate necessarily walks by jaw/2 between sizes — 1.5 mm per 3 mm
+        # step, which is exactly what it does. What must stay put is the hinge's
+        # distance from the jaw, and that is the number the animation swings on.
         seen = []
         for jaw in navarro.STOCK_JAW_MM:
             g = jaw_geometry(navarro.mesh_for_id(f"navarro:t1:0:{jaw}.0"))
-            seen.append((g["open_axis"], g["long_axis"], g["jaw_direction"], g["hinge"]))
+            seen.append((g["open_axis"], g["long_axis"], g["jaw_direction"],
+                         g["hinge"] - jaw / 2.0))
         axes = {(a, l, d) for a, l, d, _h in seen}
         assert len(axes) == 1, f"la derivación cambia entre tallas: {axes}"
-        hinges = [h for *_r, h in seen]
-        assert max(hinges) - min(hinges) < 1.0, f"la bisagra se mueve: {hinges}"
+        from_jaw = [h for *_r, h in seen]
+        assert max(from_jaw) - min(from_jaw) < 1.0, f"la bisagra se mueve: {from_jaw}"
 
     @pytest.mark.skipif(not _HAS_NAVARRO, reason="biblioteca NAVARRO no instalada")
     def test_the_lever_grows_with_the_jaw(self):

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -27,7 +28,13 @@ ACT_REPORT_GENERATED   = "REPORT_GENERATED"
 ACT_SR_GENERATED       = "DICOM_SR_GENERATED"
 ACT_INTEGRITY_CHECK    = "INTEGRITY_CHECK"
 
-_DB_PATH = Path(__file__).resolve().parents[1] / "data" / "audit" / "chain.db"
+#: Overridable so a test run cannot append to the real chain. The suite used to
+#: write thousands of blocks into the developer's own audit trail — a
+#: tamper-evident record is the last file that should collect test traffic.
+_DB_PATH = Path(
+    os.environ.get("AUDIT_DB_PATH", "")
+    or (Path(__file__).resolve().parents[1] / "data" / "audit" / "chain.db")
+)
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS blocks (
@@ -53,7 +60,11 @@ class SkullChain:
     def __init__(self, db_path: Path | None = None) -> None:
         self._path = db_path or _DB_PATH
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._path), check_same_thread=False)
+        # `isolation_level=None` hands transaction control to us, which is what
+        # `append` needs to take SQLite's write lock BEFORE reading the tip.
+        # `timeout` makes a second writer wait for that lock instead of failing.
+        self._conn = sqlite3.connect(str(self._path), check_same_thread=False,
+                                     isolation_level=None, timeout=30.0)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute(_CREATE_TABLE)
         self._conn.commit()
@@ -103,15 +114,27 @@ class SkullChain:
         iso_ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
         payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         payload_hash = sha256(payload_json.encode("utf-8")).hexdigest()
+        # Reading the tip and writing the next block must be ONE atomic step.
+        # `self._lock` only serialises threads inside this process, so two
+        # processes appending at once each read the same tip and wrote blocks
+        # both claiming it as predecessor — a fork that `verify_integrity`
+        # correctly reports as a break, with nobody having tampered with
+        # anything. BEGIN IMMEDIATE takes the write lock before the read, so
+        # SQLite serialises writers across processes too.
         with self._lock:
-            prev_hash = self._last_hash()
-            block_hash = self._compute_block_hash(iso_ts, username, patient_hash, action, payload_hash, prev_hash)
-            self._conn.execute(
-                "INSERT INTO blocks (iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash)"
-                " VALUES (?,?,?,?,?,?,?,?)",
-                (iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash),
-            )
-            self._conn.commit()
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                prev_hash = self._last_hash()
+                block_hash = self._compute_block_hash(iso_ts, username, patient_hash, action, payload_hash, prev_hash)
+                self._conn.execute(
+                    "INSERT INTO blocks (iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash),
+                )
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
         logger.debug("SkullChain: appended block %s action=%s", block_hash[:12], action)
         return block_hash
 

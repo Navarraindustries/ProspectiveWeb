@@ -323,6 +323,78 @@ class TestPlacementUsesTheRealClip:
             navarro.mesh_for_id("custom:3")
 
 
+class TestTheJawStraddlesTheNeck:
+    """Where the clip sits, not just which way it points.
+
+    `pose_transform` puts a device's LOCAL ORIGIN on the neck. The synthetic
+    catalogue clips are drawn with the jaw straddling that origin, so the blades
+    close on the neck with half the grip either side. The NAVARRO origin is not
+    in the jaw at all — for the drawn 7 mm straight the jaw runs -9.50..-2.50 mm
+    while the 14.30 mm body runs to +11.80 mm — so the neck landed at the HINGE
+    and the whole jaw hung off to one side, with the body crossing the aneurysm.
+    On screen: a clip whose blades never meet the neck they are meant to close.
+    """
+
+    def _jaw_axis(self, angle_deg: float) -> tuple[float, float, float]:
+        # File axis (sin, 0, cos) after RotateY(-90): (x, y, z) -> (-z, y, x).
+        t = math.radians(angle_deg)
+        return (-math.cos(t), 0.0, math.sin(t))
+
+    def _tip_and_root(self, mesh, angle_deg: float) -> tuple[float, float]:
+        ax = self._jaw_axis(angle_deg)
+        pts = mesh.GetPoints()
+        projections = [
+            sum(pts.GetPoint(i)[k] * ax[k] for k in range(3))
+            for i in range(pts.GetNumberOfPoints())
+        ]
+        return max(projections), min(projections)
+
+    @pytest.mark.parametrize("angle", [0.0, 15.0, 45.0])
+    @pytest.mark.parametrize("jaw", [7.0, 13.0, 22.0])
+    def test_the_useful_grip_is_centred_on_the_origin(self, angle, jaw):
+        # The tip sits half a jaw beyond the origin, so the neck ends up in the
+        # middle of the grip: exactly where a clip closes.
+        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
+        navarro.clear_cache()
+        mesh, _src, _exact = navarro.build_jaw(angle, jaw)
+        tip, _root = self._tip_and_root(mesh, angle)
+        assert tip == pytest.approx(jaw / 2.0, abs=0.05)
+
+    def test_a_stretched_jaw_is_centred_too(self):
+        # The size that is machined rather than drawn is the one a surgeon is
+        # most likely to order, and it must not be the one that lands wrong.
+        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
+        navarro.clear_cache()
+        mesh, _src, exact = navarro.build_jaw(0.0, 11.5)
+        assert not exact, "11.5 mm no es talla dibujada; este test mira la estirada"
+        tip, _root = self._tip_and_root(mesh, 0.0)
+        assert tip == pytest.approx(11.5 / 2.0, abs=0.05)
+
+    def test_it_matches_how_the_catalogue_clips_are_drawn(self):
+        # Same convention as `make_clip_shaped`, or the two families would need
+        # the surgeon to aim differently depending on which clip was chosen.
+        from services import devices
+
+        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
+        navarro.clear_cache()
+        synthetic = devices.make_clip_shaped(7.0, 0.5, 1.4, "STRAIGHT")
+        sb = synthetic.GetBounds()
+        navarro_mesh, _s, _e = navarro.build_jaw(0.0, 7.0)
+        tip, _root = self._tip_and_root(navarro_mesh, 0.0)
+        # The synthetic blade reaches ~+3.5 mm from the origin; so must ours.
+        assert tip == pytest.approx(sb[1], abs=0.5)
+
+    def test_the_body_still_hangs_off_the_back(self):
+        # Centring the JAW must not centre the whole clip: the spring belongs
+        # behind the blades, not draped over the aneurysm.
+        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
+        navarro.clear_cache()
+        mesh, _src, _exact = navarro.build_jaw(0.0, 7.0)
+        tip, root = self._tip_and_root(mesh, 0.0)
+        assert tip == pytest.approx(3.5, abs=0.05)
+        assert root < -10.0, "el cuerpo de 14.30 mm tiene que quedar por detrás"
+
+
 class TestListingIsCached:
     def test_a_repeated_listing_does_not_rewalk_the_tree(self):
         navarro.clear_cache()

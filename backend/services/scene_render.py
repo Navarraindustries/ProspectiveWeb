@@ -92,6 +92,37 @@ def union_bounds(polys) -> tuple[float, ...] | None:
     return (lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
 
 
+#: Rendered at this multiple of the requested size and scaled back down. The
+#: offscreen window runs with MSAA off (some drivers fail outright with it on),
+#: so without this every edge in the report is a hard staircase that a PDF
+#: viewer smears into a blur. Drawing at 2x and averaging down is the
+#: antialiasing, and it works on any driver.
+SUPERSAMPLE = 2
+
+
+def _downscale(png: bytes, width: int, height: int) -> bytes:
+    """Average a supersampled frame down to its final size.
+
+    Best effort: without Pillow the frame is returned as rendered — larger than
+    asked for, which a PDF simply prints at higher density, rather than no
+    picture at all.
+    """
+    try:
+        import io
+
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(png)).convert("RGB")
+        if img.size == (width, height):
+            return png
+        buf = io.BytesIO()
+        img.resize((width, height), Image.LANCZOS).save(buf, format="PNG", optimize=True)
+        return buf.getvalue()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not downscale a rendered view (%s); using it as rendered", exc)
+        return png
+
+
 def render_views(
     layers: list[tuple["object", tuple[float, float, float], float]],
     views: list[str] | None = None,
@@ -130,7 +161,7 @@ def render_views(
     win = vtk.vtkRenderWindow()
     win.SetOffScreenRendering(1)           # no display needed; servers have none
     win.AddRenderer(renderer)
-    win.SetSize(width, height)
+    win.SetSize(width * SUPERSAMPLE, height * SUPERSAMPLE)
     win.SetMultiSamples(0)                 # some offscreen drivers fail with MSAA
 
     bounds = focus_bounds
@@ -170,7 +201,7 @@ def render_views(
                 writer.SetInputConnection(w2i.GetOutputPort())
                 writer.Write()
                 data = writer.GetResult()
-                out[name] = bytes(memoryview(data))
+                out[name] = _downscale(bytes(memoryview(data)), width, height)
             except Exception as exc:  # noqa: BLE001 — one bad view is not fatal
                 logger.warning("View %r failed to render: %s", name, exc)
     finally:

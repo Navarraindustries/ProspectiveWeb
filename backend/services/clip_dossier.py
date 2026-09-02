@@ -82,8 +82,47 @@ def _bullets(items, style):
     )
 
 
-def render_dossier(dossier: dict, output_path: str | Path) -> Path:
-    """Write one dossier to PDF. The dict decides which of the two this is."""
+def _view_grid(images: dict, st, cell_mm: float = 52.0):
+    """The rendered views laid out in a row, each under its own name.
+
+    A dimensioned table says what to make; the pictures say what it looks like,
+    which is what catches an order that is dimensionally right and shaped wrong.
+    """
+    import io
+
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm as MM
+    from reportlab.platypus import Image, Paragraph, Table, TableStyle
+
+    names = [n for n in ("superior", "anterior", "oblicua", "izquierda") if n in images]
+    if not names:
+        return []
+    pics, labels = [], []
+    for n in names:
+        img = Image(io.BytesIO(images[n]), width=cell_mm * MM,
+                    height=cell_mm * 0.75 * MM, kind="proportional")
+        img.hAlign = "CENTER"
+        pics.append(img)
+        labels.append(Paragraph(f"<font size=7>{n}</font>", st["foot"]))
+    t = Table([pics, labels], colWidths=[cell_mm * MM] * len(names), hAlign="LEFT")
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 1), (-1, 1), 2),
+        ("BOX", (0, 0), (-1, 0), 0.4, colors.HexColor(_RULE)),
+        ("INNERGRID", (0, 0), (-1, 0), 0.4, colors.HexColor(_RULE)),
+    ]))
+    return [t]
+
+
+def render_dossier(dossier: dict, output_path: str | Path,
+                   images: dict | None = None) -> Path:
+    """Write one dossier to PDF. The dict decides which of the two this is.
+
+    `images` are rendered views of the piece, keyed by view name. Both copies get
+    them: the workshop needs to see the shape it is quoting, and they carry no
+    patient information — they are pictures of a clip.
+    """
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
@@ -112,6 +151,9 @@ def render_dossier(dossier: dict, output_path: str | Path) -> Path:
             ident.append([k, v])
         story += [Paragraph("Identificación del caso", st["h"]),
                   _table(ident, [45 * mm, 115 * mm])]
+
+    if images:
+        story += [Paragraph("La pieza", st["h"])] + _view_grid(images, st)
 
     story += [Paragraph("Especificación dimensional", st["h"]),
               _table([["Dimensión", "Valor", "Tolerancia"]] + [list(r) for r in dossier["dimensions"]],

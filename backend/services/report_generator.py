@@ -100,6 +100,10 @@ class ReportData:
     stent: StentEntry | None = None
     trajectory: dict[str, Any] = field(default_factory=dict)
     screenshot_png: bytes | None = None
+    #: Server-rendered views of the plan, keyed by view name. Unlike the
+    #: screenshot these are fixed viewpoints, so two reports of the same case are
+    #: comparable and a report generated with no viewer open still has pictures.
+    plan_views: dict[str, bytes] = field(default_factory=dict)
     risk_label: str = ""
     treatment: dict[str, Any] = field(default_factory=dict)
     # Clinical context recorded on the decision step but deliberately not
@@ -291,9 +295,52 @@ def build_report_data_from_session(
         phases       = phases,
         trajectory   = trajectory,
         screenshot_png = screenshot_bytes,
+        plan_views   = _render_plan_views(session_id),
         risk_label   = risk_label,
         treatment    = treatment,
     )
+
+
+def _render_plan_views(session_id: str) -> dict[str, bytes]:
+    """Fixed viewpoints of the plan, rendered from the session's own meshes.
+
+    Best effort: a report with no pictures is worth more than no report, so any
+    failure here is logged and the rest of the document goes out regardless.
+    """
+    from pathlib import Path as _Path
+
+    try:
+        from services.scene_render import (COIL_RGB, DEVICE_RGB, STENT_RGB,
+                                           render_plan_views)
+        from services.segmentation import read_vtp
+        from services.sessions import read_state, session_subdir
+
+        meshes = session_subdir(session_id, "meshes")
+
+        def _read(name: str):
+            path = _Path(meshes) / name
+            return read_vtp(path) if path.exists() else None
+
+        vessel = _read("vessel_tree.vtp")
+        # The isolated sac when one was measured, else the detector's candidate.
+        dome = _read("aneurysm_sac.vtp") or _read(
+            read_state(session_id, "detect.best_vtp_name", "") or "candidate_001.vtp")
+
+        devices = []
+        for fname, rgb in (("clips_placed.vtp", DEVICE_RGB),
+                           ("coils_packed.vtp", COIL_RGB),
+                           ("stent_deployed.vtp", STENT_RGB),
+                           ("cl_stent.vtp", STENT_RGB)):
+            poly = _read(fname)
+            if poly is not None:
+                devices.append((poly, rgb))
+
+        if vessel is None and dome is None and not devices:
+            return {}
+        return render_plan_views(vessel=vessel, dome=dome, devices=devices)
+    except Exception as exc:  # noqa: BLE001 — pictures are not worth failing a report
+        logger.warning("Plan views failed to render for %s: %s", session_id, exc)
+        return {}
 
 
 def read_trajectory_state(session_id: str) -> dict:
@@ -396,6 +443,7 @@ class ReportGenerator:
         story: list = []
         story += self._section_header()
         story += self._section_patient()
+        story += self._section_plan_views()
         story += self._section_screenshot()
         story += self._section_morphometrics()
         story += self._section_treatment_decision()
@@ -582,6 +630,50 @@ class ReportGenerator:
         ]))
         elems.append(tbl)
         return elems
+
+    def _section_plan_views(self) -> list:
+        """The plan from fixed viewpoints, with whatever devices are placed.
+
+        Four named views rather than one camera position: a single picture from
+        wherever the user happened to be looking cannot show whether a clip
+        clears the vessel behind it, and cannot be compared with the same case
+        six months later.
+        """
+        views = self._data.plan_views
+        if not views:
+            return []
+        order = [n for n in ("anterior", "izquierda", "superior", "oblicua") if n in views]
+        if not order:
+            return []
+
+        cells, labels = [], []
+        for n in order:
+            img = Image(io.BytesIO(views[n]), width=7.6*cm, height=5.7*cm, kind="proportional")
+            img.hAlign = "CENTER"
+            cells.append(img)
+            labels.append(Paragraph(f"<font size=7>Vista {n}</font>", self._style_small))
+        # Two per row: four across an A4 column would be thumbnails.
+        rows: list = []
+        for i in range(0, len(order), 2):
+            rows.append(cells[i:i + 2])
+            rows.append(labels[i:i + 2])
+        t = Table(rows, colWidths=[7.8*cm] * min(2, len(order)), hAlign="CENTER")
+        t.setStyle(TableStyle([
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        return [
+            Spacer(1, 0.2*cm),
+            Paragraph("Plan quirúrgico en 3D", self._style_h2),
+            t,
+            Paragraph(
+                "Vasculatura segmentada (gris, translúcida), saco del aneurisma (azul) "
+                "y dispositivos colocados (dorado: clip · violeta: coils · azul claro: "
+                "stent), desde puntos de vista fijos. Son representaciones de la "
+                "segmentación, no imágenes radiológicas.",
+                self._style_small),
+        ]
 
     def _section_screenshot(self) -> list:
         if not self._data.screenshot_png:

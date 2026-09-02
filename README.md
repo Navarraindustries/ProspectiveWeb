@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **571 passing** (`pytest`, 39 files) |
+| Backend tests | **592 passing** (`pytest`, 40 files) |
 | Frontend tests | **88 passing** (`vitest`, 10 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -148,6 +148,7 @@ Key backend services (all ported from the desktop `prospective/processing`):
 | `stent_deployment.py` | Centerline-guided braided stent along real vessel curvature |
 | `phases.py` | PHASES 5-year rupture risk (Greving 2014) |
 | `mesh_prep.py` | 3D-print preparation + printer-bed presets |
+| `scene_render.py` | Offscreen VTK renders of the scene from named, fixed viewpoints |
 | `report_generator.py` / `dicom_sr.py` / `mesh_exporter.py` | PDF · DICOM SR · STL |
 | `audit.py` | SkullChain SHA-256 tamper-evident event chain |
 | `storage.py` / `study_archive.py` | Durable study archive (local or S3) + previews |
@@ -455,6 +456,12 @@ later. The workshop PDF carries no patient data by construction — dimensions,
 tolerances, material and the checks to run on the finished part. They share a
 part number, which is the only thread between them.
 
+**Both dossiers show the piece.** Three renders of the very solid that goes
+into the STL — superior, anterior and oblique — so a workshop can see the shape
+it is quoting. A dimension table catches an order that is dimensionally wrong; a
+picture catches one that is dimensionally right and shaped wrong. They carry no
+patient data: they are pictures of a clip.
+
 **The closing force is a target, never a result.** It comes from the spring, the
 alloy and the heat treatment; an STL has no material. Both dossiers demand it be
 measured on the finished part before anyone calls the order done.
@@ -678,17 +685,33 @@ patient imaging.
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
 | `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
 
+**The report shows the plan in 3D, from fixed viewpoints.** Four server-rendered
+views — anterior, left, superior and oblique — of the segmented vasculature
+(translucent grey), the sac (blue) and whatever devices are placed (gold clip,
+violet coils, light-blue stent), so the clip is visible sitting on the neck.
+
+They replace a single browser screenshot taken from wherever the camera happened
+to be: two reports of the same case are now comparable against each other and
+against a follow-up, and a report generated from a resumed session or a script
+has pictures at all. The camera frames the sac **and** the devices together — the
+first version framed the sac alone and cropped the clip, which is several times
+larger than the aneurysm it closes. Rendering is best effort: a viewpoint that
+fails is dropped and the report still goes out.
+
+They are diagrams of the segmentation, not radiological images, and the caption
+under them says so.
+
 ---
 
 ## Running Tests
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 571 tests
+.venv\Scripts\python -m pytest -q                        # all 592 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **571 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **592 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

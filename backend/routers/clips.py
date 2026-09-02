@@ -738,14 +738,22 @@ async def clip_manufacture_spec(
     part_no = f"PR-{session_id[:8].upper()}-{int(spec.blade_length_mm * 10):04d}"
 
     stl_url = None
+    piece_views: dict = {}
     if perfect.can_manufacture:
         try:
             from services.clip_manufacture import build_manufacture_mesh
             from services.devices import write_stl
+            from services.scene_render import render_clip_views
 
             mesh, _src, _exact = build_manufacture_mesh(perfect)
             exports = session_subdir(session_id, "exports")
             write_stl(mesh, exports / "clip_a_medida.stl")
+            # The same solid that goes in the STL, so the pictures cannot show a
+            # different part from the one being ordered.
+            try:
+                piece_views = render_clip_views(mesh)
+            except Exception as exc:  # noqa: BLE001 — a dossier without pictures still works
+                logger.warning("Clip views failed to render: %s", exc)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Custom clip STL generation failed")
             raise HTTPException(status_code=500, detail=f"No se pudo generar el STL del clip: {exc}")
@@ -758,9 +766,9 @@ async def clip_manufacture_spec(
 
         render_dossier(internal_dossier(perfect, case, part_no=part_no, patient=patient,
                                         case_label=case_label, session_id=session_id),
-                       reports / "dossier_interno.pdf")
+                       reports / "dossier_interno.pdf", images=piece_views)
         render_dossier(external_dossier(perfect, part_no=part_no),
-                       reports / "dossier_taller.pdf")
+                       reports / "dossier_taller.pdf", images=piece_views)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Clip dossier generation failed")
         raise HTTPException(status_code=500, detail=f"No se pudieron generar los dossiers: {exc}")

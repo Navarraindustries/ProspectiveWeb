@@ -24,6 +24,7 @@ import { Button } from "../Button";
 import { Input } from "../Input";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
+import { Slider } from "../Slider";
 
 const STATUS_VARIANT: Record<OrderStatus, "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive"> = {
   borrador: "outline",
@@ -61,16 +62,31 @@ function problemsFrom(err: unknown): string[] {
   return [msg];
 }
 
+const DRAWN_ANGLES = [0, 15, 30, 45, 60, 75, 90] as const;
+
 const row: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const cell: React.CSSProperties = { flex: "1 1 130px", minWidth: 0 };
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ flex: "1 1 120px", minWidth: 0 }}>
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "var(--tracking-label)", color: "var(--muted-foreground)", fontWeight: 700 }}>
+      {/* Misma etiqueta que la de Input y Select: un dato de solo lectura no
+          tiene por qué rotularse distinto de uno editable. */}
+      <div style={{
+        fontSize: "var(--text-label)", fontWeight: "var(--weight-semibold)",
+        letterSpacing: "var(--tracking-label)", textTransform: "uppercase",
+        color: "var(--muted-foreground)",
+      }}>
         {label}
       </div>
-      <div style={{ fontSize: 13, color: "var(--foreground)" }}>{value}</div>
+      {/* Mono: es una medida, y en toda la aplicación las medidas se leen en
+          JetBrains Mono para que las cifras se alineen y se comparen. */}
+      <div style={{
+        fontFamily: "var(--font-mono)", fontSize: "var(--text-desc)",
+        color: "var(--foreground)",
+      }}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -79,12 +95,17 @@ function Check({
   checked, onChange, children,
 }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
   return (
-    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12, lineHeight: 1.45, cursor: "pointer" }}>
+    <label style={{
+      display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12,
+      lineHeight: 1.45, color: "var(--foreground)", cursor: "pointer",
+    }}>
+      {/* alignItems arriba, no centrado: estas etiquetas ocupan dos líneas y
+          la casilla debe quedar a la altura de la primera. */}
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        style={{ marginTop: 2, accentColor: "var(--primary)", cursor: "pointer" }}
+        style={{ marginTop: 2, cursor: "pointer" }}
       />
       <span>{children}</span>
     </label>
@@ -172,6 +193,13 @@ export function ClipOrderForm({
   const differs = Math.abs(jaw - pre.advised_jaw_mm) > 1e-6
     || Math.abs(angle - pre.advised_angle_deg) > 1e-6;
   const usingNew = workshopId === "__nuevo__";
+  // Las tallas van de 3 en 3, así que una mordaza a mitad de camino (11.5 mm)
+  // está EXACTAMENTE igual de cerca de dos. Nombrar solo una sería inventar un
+  // desempate que el backend tampoco garantiza.
+  const gap = Math.min(...pre.stock_sizes_mm.map((x) => Math.abs(x - jaw)));
+  const nearestDrawn = pre.stock_sizes_mm
+    .filter((x) => Math.abs(Math.abs(x - jaw) - gap) < 1e-9)
+    .join(" o ");
   const outsideRange = jaw < Math.min(...pre.stock_sizes_mm) || jaw > Math.max(...pre.stock_sizes_mm);
 
   const submit = (sign: boolean) => {
@@ -207,247 +235,268 @@ export function ClipOrderForm({
   };
 
   return (
-    <Card>
-      <SectionLabel>Solicitar clip NAVARRO™</SectionLabel>
-
-      {/* ── De dónde salen las medidas. Solo lectura: si están mal, se
-             corrigen en Morfometría, no aquí. ── */}
-      <div style={{ ...row, marginBottom: 6 }}>
-        <Field label="Cuello" value={`${pre.neck_mm.toFixed(2)} mm`} />
-        <Field label="Altura domo" value={`${pre.dome_height_mm.toFixed(2)} mm`} />
-        <Field label="Ø máximo" value={`${pre.max_diameter_mm.toFixed(2)} mm`} />
-        <Field label="Vaso padre" value={pre.parent_artery_mm > 0 ? `${pre.parent_artery_mm.toFixed(2)} mm` : "sin medir"} />
-      </div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 12 }}>
-        El cuello está <b>{NECK_SOURCE[pre.neck_source] ?? pre.neck_source}</b>. Toda la
-        pieza se deriva de esa medida: si no es correcta, corrígela en Morfometría antes
-        de pedir nada.
-      </div>
-
-      {/* ── La pieza ── */}
-      <SectionLabel style={{ marginTop: 4 }}>La pieza</SectionLabel>
-      <div style={{ fontSize: 12, marginBottom: 8 }}>
-        El sistema recomienda <b>{pre.advised_label}</b>
-        {pre.is_drawn_size ? " (talla dibujada)" : " (mordaza a medida sobre el diseño más cercano)"}.
-      </div>
-      <div style={row}>
-        <div style={cell}>
-          <Select
-            label="Mordaza (mm)"
-            value={pre.stock_sizes_mm.includes(jaw) ? String(jaw) : "__medida__"}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v !== "__medida__") setJaw(Number(v));
-            }}
-            options={[
-              ...pre.stock_sizes_mm.map((s) => ({ value: String(s), label: `${s} mm · talla dibujada` })),
-              { value: "__medida__", label: `${jaw.toFixed(1)} mm · a medida` },
-            ]}
-          />
-        </div>
-        <div style={cell}>
-          <Input
-            label="A medida (mm)"
-            type="number" step="0.5" min="3" max="33"
-            value={jaw}
-            onChange={(e) => setJaw(Number(e.target.value))}
-          />
-        </div>
-        <div style={cell}>
-          <Input
-            label="Ángulo (°)"
-            type="number" step="15" min="0" max="90"
-            value={angle}
-            onChange={(e) => setAngle(Number(e.target.value))}
-          />
-        </div>
-        <div style={cell}>
-          <Input
-            label="Cantidad"
-            type="number" min="1" max="20"
-            value={quantity}
-            onChange={(e) => setQuantity(Number(e.target.value))}
-          />
-        </div>
-      </div>
-
-      {outsideRange && (
-        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8, lineHeight: 1.45 }}>
-          Una mordaza de {jaw.toFixed(1)} mm queda fuera del rango dibujado
-          ({Math.min(...pre.stock_sizes_mm)}–{Math.max(...pre.stock_sizes_mm)} mm): el perfil
-          se extiende más allá de cualquier talla diseñada, no se interpola entre dos.
-        </div>
-      )}
-
-      <div style={{ marginTop: 10 }}>
-        <Check checked={extras} onChange={setExtras}>
-          Pedir también las tallas contiguas ({pre.suggested_extra_sizes_mm.map((s) => `${s} mm`).join(", ")}).
-          <span style={{ color: "var(--muted-foreground)" }}> {pre.extra_sizes_reason}</span>
-        </Check>
-      </div>
-
-      {differs && (
-        <div style={{ marginTop: 10 }}>
-          <Input
-            label="Por qué se aparta de lo recomendado"
-            placeholder="El motivo queda impreso en nuestra copia del dossier"
-            value={overrideReason}
-            onChange={(e) => setOverrideReason(e.target.value)}
-            invalid={!overrideReason.trim()}
-          />
-        </div>
-      )}
-
-      {/* ── El pedido ── */}
-      <SectionLabel style={{ marginTop: 16 }}>El pedido</SectionLabel>
-      <div style={row}>
-        <div style={cell}>
-          <Select
-            label="Uso previsto"
-            value={use}
-            onChange={(e) => setUse(e.target.value as ClipOrderIn["intended_use"])}
-            options={[
-              { value: "implante", label: "Implante en paciente" },
-              { value: "prototipo", label: "Prototipo / ensayo no clínico" },
-              { value: "inventario", label: "Repuesto de inventario" },
-            ]}
-          />
-        </div>
-        <div style={cell}>
-          <Input label="Fecha necesaria" type="date" value={neededBy}
-                 onChange={(e) => setNeededBy(e.target.value)} />
-        </div>
-        <div style={cell}>
-          <Select
-            label="Prioridad" value={urgency}
-            onChange={(e) => setUrgency(e.target.value as ClipOrderIn["urgency"])}
-            options={[
-              { value: "programada", label: "Programada" },
-              { value: "preferente", label: "Preferente" },
-            ]}
-          />
-        </div>
-      </div>
-
-      <div style={{ ...row, marginTop: 10 }}>
-        <div style={cell}>
-          <Select
-            label="Esterilización" value={steriliser}
-            onChange={(e) => setSteriliser(e.target.value as ClipOrderIn["steriliser"])}
-            options={[
-              { value: "hospital", label: "La hace el hospital" },
-              { value: "taller", label: "La hace el taller" },
-            ]}
-          />
-        </div>
-        <div style={cell}>
-          <Select
-            label="Marcado" value={marking}
-            onChange={(e) => setMarking(e.target.value as ClipOrderIn["marking"])}
-            options={[
-              { value: "cuerpo", label: "Nº de pieza en el cuerpo" },
-              { value: "ninguno", label: "Sin marcado" },
-            ]}
-          />
-        </div>
-        {use === "implante" && (
-          <div style={cell}>
-            <Input label="Referencia de autorización" placeholder="Comité, expediente o «pendiente»"
-                   value={authRef} onChange={(e) => setAuthRef(e.target.value)} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Un rótulo por bloque y una tarjeta debajo, como en el resto del panel.
+          Con los cuatro rótulos dentro de una sola tarjeta se confundían con las
+          etiquetas de campo: mismo tamaño, mismas mayúsculas, mismo gris. */}
+      <div>
+        <SectionLabel>De dónde salen las medidas</SectionLabel>
+        <Card>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Field label="Cuello" value={`${pre.neck_mm.toFixed(2)} mm`} />
+            <Field label="Altura domo" value={`${pre.dome_height_mm.toFixed(2)} mm`} />
+            <Field label="Ø máximo" value={`${pre.max_diameter_mm.toFixed(2)} mm`} />
+            <Field
+              label="Vaso padre"
+              value={pre.parent_artery_mm > 0 ? `${pre.parent_artery_mm.toFixed(2)} mm` : "sin medir"}
+            />
           </div>
-        )}
-      </div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
-        Esterilización y marcado van como <b>supuestos declarados</b> en los dos dossiers:
-        nadie ha confirmado todavía cómo se hace aquí, así que el taller puede
-        contradecirlos antes de fabricar. El marcado nunca toca la mordaza ni el muelle.
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
+            El cuello está <b>{NECK_SOURCE[pre.neck_source] ?? pre.neck_source}</b>. Toda la
+            pieza se deriva de esa medida: si no es correcta, corrígela en Morfometría
+            antes de pedir nada.
+          </div>
+        </Card>
       </div>
 
-      {/* ── El taller ── */}
-      <SectionLabel style={{ marginTop: 16 }}>El taller</SectionLabel>
-      <Select
-        label="Destinatario"
-        value={workshopId}
-        onChange={(e) => setWorkshopId(e.target.value)}
-        options={[
-          ...pre.workshops.map((w) => ({ value: w.id, label: w.name })),
-          { value: "__nuevo__", label: "＋ Registrar un taller nuevo" },
-        ]}
-      />
-      {usingNew && (
-        <>
-          <div style={{ ...row, marginTop: 10 }}>
-            <div style={cell}>
-              <Input label="Nombre" value={newWorkshop.name}
-                     onChange={(e) => setNewWorkshop({ ...newWorkshop, name: e.target.value })}
-                     invalid={!newWorkshop.name.trim()} />
+      <div>
+        <SectionLabel>La pieza</SectionLabel>
+        <Card>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--foreground)", flex: 1 }}>
+              {pre.advised_label}
             </div>
-            <div style={cell}>
-              <Input label="Contacto" value={newWorkshop.contact_name}
-                     onChange={(e) => setNewWorkshop({ ...newWorkshop, contact_name: e.target.value })} />
+            <Badge variant="subtle">{pre.is_drawn_size ? "talla dibujada" : "a medida"}</Badge>
+          </div>
+
+          {/* Un solo control para la mordaza. Antes había un desplegable de tallas
+              Y un número al lado: dos mandos para el mismo dato. El Slider es
+              además el que ya se usa para elegir mordaza en la ficha a medida, en
+              umbralización y en suavizado. */}
+          <div style={{ marginTop: 12 }}>
+            <Slider
+              label="Mordaza (longitud útil de agarre)"
+              min={5} max={30} step={0.5} value={jaw} unit=" mm"
+              onChange={setJaw}
+            />
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+              Tallas dibujadas: {pre.stock_sizes_mm.join(" · ")} mm. Se mecaniza sobre
+              la de {nearestDrawn} mm, estirando solo la mordaza.
             </div>
           </div>
-          <div style={{ ...row, marginTop: 10 }}>
+
+          <div style={{ ...row, marginTop: 12 }}>
             <div style={cell}>
-              <Input label="Correo" type="email" value={newWorkshop.email}
-                     onChange={(e) => setNewWorkshop({ ...newWorkshop, email: e.target.value })} />
+              <Select
+                label="Acodado"
+                value={String(angle)}
+                onChange={(e) => setAngle(Number(e.target.value))}
+                options={DRAWN_ANGLES.map((a) => ({
+                  value: String(a), label: a === 0 ? "Recto (T1)" : `${a}° (T3)`,
+                }))}
+              />
             </div>
             <div style={cell}>
-              <Input label="Teléfono" value={newWorkshop.phone}
-                     onChange={(e) => setNewWorkshop({ ...newWorkshop, phone: e.target.value })} />
-            </div>
-            <div style={cell}>
-              <Input label="Dirección" value={newWorkshop.address}
-                     onChange={(e) => setNewWorkshop({ ...newWorkshop, address: e.target.value })} />
+              <Input
+                label="Cantidad" type="number" min="1" max="20"
+                value={quantity} onChange={(e) => setQuantity(Number(e.target.value))}
+              />
             </div>
           </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
-            Queda guardado: el próximo pedido lo elige de la lista.
+
+          {outsideRange && (
+            <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
+              Una mordaza de {jaw.toFixed(1)} mm queda fuera del rango dibujado
+              ({Math.min(...pre.stock_sizes_mm)}–{Math.max(...pre.stock_sizes_mm)} mm): el
+              perfil se extiende más allá de cualquier talla diseñada, no se interpola
+              entre dos.
+            </div>
+          )}
+
+          <div style={{ marginTop: 12 }}>
+            <Check checked={extras} onChange={setExtras}>
+              Pedir también las tallas contiguas
+              ({pre.suggested_extra_sizes_mm.map((x) => `${x} mm`).join(", ")}).
+              <span style={{ color: "var(--muted-foreground)" }}> {pre.extra_sizes_reason}</span>
+            </Check>
           </div>
-        </>
-      )}
 
-      <div style={{ marginTop: 10 }}>
-        <Input label="Observaciones para el taller" value={notes}
-               onChange={(e) => setNotes(e.target.value)} />
+          {differs && (
+            <div style={{ marginTop: 12 }}>
+              <Input
+                label="Por qué se aparta de lo recomendado"
+                placeholder="El motivo queda impreso en nuestra copia del dossier"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                invalid={!overrideReason.trim()}
+              />
+            </div>
+          )}
+        </Card>
       </div>
 
-      {/* ── Quién responde ── */}
-      <SectionLabel style={{ marginTop: 16 }}>Quién responde de la pieza</SectionLabel>
-      <Input label="Cirujano responsable" value={surgeon}
-             onChange={(e) => setSurgeon(e.target.value)}
-             hint={pre.can_sign ? undefined : "Tu perfil no puede firmar: guarda el borrador y pide la firma."} />
+      <div>
+        <SectionLabel>El pedido</SectionLabel>
+        <Card>
+          <div style={row}>
+            <div style={cell}>
+              <Select
+                label="Uso previsto" value={use}
+                onChange={(e) => setUse(e.target.value as ClipOrderIn["intended_use"])}
+                options={[
+                  { value: "implante", label: "Implante en paciente" },
+                  { value: "prototipo", label: "Prototipo / ensayo no clínico" },
+                  { value: "inventario", label: "Repuesto de inventario" },
+                ]}
+              />
+            </div>
+            <div style={cell}>
+              <Input label="Fecha necesaria" type="date" value={neededBy}
+                     onChange={(e) => setNeededBy(e.target.value)} />
+            </div>
+          </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-        <Check checked={d1} onChange={setD1}>
-          He revisado las medidas del caso y las asumo.
-        </Check>
-        <Check checked={d2} onChange={setD2}>
-          Sé que la fuerza de cierre ({pre.force_band_g[0]}–{pre.force_band_g[1]} g) es un
-          <b> objetivo</b>, no una propiedad del modelo, y hay que medirla en la pieza terminada.
-        </Check>
-        <Check checked={d3} onChange={setD3}>
-          Sé que el STL es geometría, no un dispositivo autorizado.
-        </Check>
+          <div style={{ ...row, marginTop: 12 }}>
+            <div style={cell}>
+              <Select
+                label="Prioridad" value={urgency}
+                onChange={(e) => setUrgency(e.target.value as ClipOrderIn["urgency"])}
+                options={[
+                  { value: "programada", label: "Programada" },
+                  { value: "preferente", label: "Preferente" },
+                ]}
+              />
+            </div>
+            <div style={cell}>
+              <Select
+                label="Esterilización" value={steriliser}
+                onChange={(e) => setSteriliser(e.target.value as ClipOrderIn["steriliser"])}
+                options={[
+                  { value: "hospital", label: "La hace el hospital" },
+                  { value: "taller", label: "La hace el taller" },
+                ]}
+              />
+            </div>
+            <div style={cell}>
+              <Select
+                label="Marcado" value={marking}
+                onChange={(e) => setMarking(e.target.value as ClipOrderIn["marking"])}
+                options={[
+                  { value: "cuerpo", label: "Nº en el cuerpo" },
+                  { value: "ninguno", label: "Sin marcado" },
+                ]}
+              />
+            </div>
+          </div>
+
+          {use === "implante" && (
+            <div style={{ marginTop: 12 }}>
+              <Input label="Referencia de autorización"
+                     placeholder="Comité, expediente o «pendiente»"
+                     value={authRef} onChange={(e) => setAuthRef(e.target.value)} />
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
+            Esterilización y marcado van como <b>supuestos declarados</b> en los dos
+            dossiers: nadie ha confirmado todavía cómo se hace aquí, así que el taller
+            puede contradecirlos antes de fabricar. El marcado nunca toca la mordaza ni
+            el muelle.
+          </div>
+        </Card>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => submit(false)}>
-          Guardar borrador
-        </Button>
-        <Button size="sm" disabled={busy || !pre.can_sign} onClick={() => submit(true)}>
-          {busy ? "Generando…" : "Firmar y generar pedido"}
-        </Button>
+      <div>
+        <SectionLabel>El taller</SectionLabel>
+        <Card>
+          <Select
+            label="Destinatario" value={workshopId}
+            onChange={(e) => setWorkshopId(e.target.value)}
+            options={[
+              ...pre.workshops.map((w) => ({ value: w.id, label: w.name })),
+              { value: "__nuevo__", label: "＋ Registrar un taller nuevo" },
+            ]}
+          />
+          {usingNew && (
+            <>
+              <div style={{ ...row, marginTop: 12 }}>
+                <div style={cell}>
+                  <Input label="Nombre" value={newWorkshop.name}
+                         onChange={(e) => setNewWorkshop({ ...newWorkshop, name: e.target.value })}
+                         invalid={!newWorkshop.name.trim()} />
+                </div>
+                <div style={cell}>
+                  <Input label="Contacto" value={newWorkshop.contact_name}
+                         onChange={(e) => setNewWorkshop({ ...newWorkshop, contact_name: e.target.value })} />
+                </div>
+              </div>
+              <div style={{ ...row, marginTop: 12 }}>
+                <div style={cell}>
+                  <Input label="Correo" type="email" value={newWorkshop.email}
+                         onChange={(e) => setNewWorkshop({ ...newWorkshop, email: e.target.value })} />
+                </div>
+                <div style={cell}>
+                  <Input label="Teléfono" value={newWorkshop.phone}
+                         onChange={(e) => setNewWorkshop({ ...newWorkshop, phone: e.target.value })} />
+                </div>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <Input label="Dirección" value={newWorkshop.address}
+                       onChange={(e) => setNewWorkshop({ ...newWorkshop, address: e.target.value })} />
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8 }}>
+                Queda guardado: el próximo pedido lo elige de la lista.
+              </div>
+            </>
+          )}
+          <div style={{ marginTop: 12 }}>
+            <Input label="Observaciones para el taller" value={notes}
+                   onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </Card>
       </div>
 
-      {problems.length > 0 && (
-        <ErrorNote>
-          <ul style={{ margin: 0, paddingLeft: 16 }}>
-            {problems.map((p, i) => <li key={i} style={{ marginBottom: 2 }}>{p}</li>)}
-          </ul>
-        </ErrorNote>
-      )}
-    </Card>
+      <div>
+        <SectionLabel>Quién responde de la pieza</SectionLabel>
+        <Card>
+          <Input label="Cirujano responsable" value={surgeon}
+                 onChange={(e) => setSurgeon(e.target.value)}
+                 hint={pre.can_sign ? undefined
+                   : "Tu perfil no puede firmar: guarda el borrador y pide la firma."} />
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
+            <Check checked={d1} onChange={setD1}>
+              He revisado las medidas del caso y las asumo.
+            </Check>
+            <Check checked={d2} onChange={setD2}>
+              Sé que la fuerza de cierre ({pre.force_band_g[0]}–{pre.force_band_g[1]} g) es
+              un <b>objetivo</b>, no una propiedad del modelo, y hay que medirla en la
+              pieza terminada.
+            </Check>
+            <Check checked={d3} onChange={setD3}>
+              Sé que el STL es geometría, no un dispositivo autorizado.
+            </Check>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => submit(false)}>
+              Guardar borrador
+            </Button>
+            <Button size="sm" disabled={busy || !pre.can_sign} onClick={() => submit(true)}>
+              {busy ? "Generando…" : "Firmar y generar pedido"}
+            </Button>
+          </div>
+
+          {problems.length > 0 && (
+            <ErrorNote>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {problems.map((x, i) => <li key={i} style={{ marginBottom: 2 }}>{x}</li>)}
+              </ul>
+            </ErrorNote>
+          )}
+        </Card>
+      </div>
+    </div>
   );
 }
 
@@ -461,7 +510,7 @@ function Reception({ order, onDone }: { order: ClipOrder; onDone: () => void }) 
   const [busy, setBusy] = useState(false);
 
   return (
-    <div style={{ marginTop: 8, padding: 10, borderRadius: "var(--radius-md)", background: "var(--muted)" }}>
+    <Card style={{ marginTop: 8, background: "var(--muted)" }}>
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
         Aquí la fuerza deja de ser un objetivo: hay que medirla en la pieza que llegó.
       </div>
@@ -489,7 +538,7 @@ function Reception({ order, onDone }: { order: ClipOrder; onDone: () => void }) 
         Registrar recepción
       </Button>
       <ErrorNote>{error}</ErrorNote>
-    </div>
+    </Card>
   );
 }
 
@@ -500,6 +549,7 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
   const r = order.reception;
   const outOfSpec = order.status === "recibida"
     && (r.jaw_within_tolerance === false || r.force_within_band === false);
+  const hasFiles = Boolean(order.files.packet || order.files.dossier_internal || order.files.stl);
 
   const act = (p: Promise<unknown>) => {
     setError("");
@@ -509,9 +559,11 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
   return (
     <div style={{ padding: "10px 0", borderTop: "1px solid var(--border)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <b style={{ fontSize: 12 }}>{order.part_no}</b>
+        <b style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}>{order.part_no}</b>
         <Badge variant={STATUS_VARIANT[order.status]}>{order.status_label}</Badge>
-        <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+        <span style={{
+          fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)",
+        }}>
           {order.series} {order.angle_deg > 0 ? `${order.angle_deg}°` : "recto"} ·
           mordaza {order.jaw_mm.toFixed(1)} mm · {order.total_pieces} pieza(s)
           {order.workshop_name ? ` · ${order.workshop_name}` : ""}
@@ -525,31 +577,50 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
       )}
 
       {order.status === "recibida" && (
-        <div style={{ fontSize: 11, marginTop: 4, color: outOfSpec ? "var(--destructive)" : "var(--success)" }}>
+        <div style={{
+          fontSize: 11, marginTop: 4, fontFamily: "var(--font-mono)",
+          color: outOfSpec ? "var(--destructive)" : "var(--success)",
+        }}>
           Medido: mordaza {r.measured_jaw_mm?.toFixed(2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g
           {outOfSpec ? " — fuera de especificación" : " — dentro de especificación"}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-        {order.files.packet && (
-          <Button size="sm" variant="ghost"
-                  onClick={() => void api.downloadClipOrderFile(order.part_no, "packet")}>
-            Paquete para el taller (ZIP)
-          </Button>
-        )}
-        {order.files.dossier_internal && (
-          <Button size="sm" variant="ghost"
-                  onClick={() => void api.downloadClipOrderFile(order.part_no, "dossier_internal")}>
-            Copia interna (PDF)
-          </Button>
-        )}
-        {order.files.stl && (
-          <Button size="sm" variant="ghost"
-                  onClick={() => void api.downloadClipOrderFile(order.part_no, "stl")}>
-            STL
-          </Button>
-        )}
+      {/* Dos filas, no una. Descargar un PDF y rechazar una pieza no son
+          acciones del mismo peso, y mezcladas dejaban el botón «STL» varado
+          entre «Aceptar» y «Rechazar». */}
+      {hasFiles && (
+        <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+          {order.files.packet && (
+            <Button size="sm" variant="ghost"
+                    onClick={() => void api.downloadClipOrderFile(order.part_no, "packet")}>
+              Paquete taller (ZIP)
+            </Button>
+          )}
+          {order.files.dossier_internal && (
+            <Button size="sm" variant="ghost"
+                    onClick={() => void api.downloadClipOrderFile(order.part_no, "dossier_internal")}>
+              Copia interna (PDF)
+            </Button>
+          )}
+          {order.files.stl && (
+            <Button size="sm" variant="ghost"
+                    onClick={() => void api.downloadClipOrderFile(order.part_no, "stl")}>
+              STL
+            </Button>
+          )}
+        </div>
+      )}
+
+      {outOfSpec && (
+        <div style={{ marginTop: 10 }}>
+          <Input label="Justificación para aceptar la desviación"
+                 placeholder="Sin esto solo se puede rechazar"
+                 value={deviation} onChange={(e) => setDeviation(e.target.value)} />
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         {order.next_states.filter((s) => s !== "borrador").map((s) => (
           s === "recibida" ? (
             <Button key={s} size="sm" variant="outline" onClick={() => setReceiving(true)}>
@@ -565,7 +636,7 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
         {order.status === "recibida" && (
           <>
             <Button size="sm" onClick={() => act(api.verifyClipOrder(order.part_no, deviation))}>
-              Aceptar
+              Aceptar la pieza
             </Button>
             <Button size="sm" variant="destructive"
                     onClick={() => act(api.rejectClipOrder(order.part_no, deviation || "Pieza no conforme"))}>
@@ -576,18 +647,10 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
         {order.status === "borrador" && (
           <Button size="sm" variant="destructive"
                   onClick={() => act(api.deleteClipOrder(order.part_no))}>
-            Borrar
+            Borrar borrador
           </Button>
         )}
       </div>
-
-      {outOfSpec && (
-        <div style={{ marginTop: 8 }}>
-          <Input label="Justificación para aceptar la desviación"
-                 placeholder="Sin esto solo se puede rechazar"
-                 value={deviation} onChange={(e) => setDeviation(e.target.value)} />
-        </div>
-      )}
 
       {receiving && <Reception order={order} onDone={() => { setReceiving(false); onChange(); }} />}
       <ErrorNote>{error}</ErrorNote>
@@ -609,10 +672,12 @@ export function ClipOrderList({ sessionId, refreshKey }: { sessionId: string; re
 
   if (!orders.length) return null;
   return (
-    <Card style={{ marginTop: 12 }}>
+    <div style={{ marginTop: 14 }}>
       <SectionLabel>Pedidos de este caso</SectionLabel>
-      {orders.map((o) => <OrderRow key={o.part_no} order={o} onChange={load} />)}
-      <ErrorNote>{error}</ErrorNote>
-    </Card>
+      <Card>
+        {orders.map((o) => <OrderRow key={o.part_no} order={o} onChange={load} />)}
+        <ErrorNote>{error}</ErrorNote>
+      </Card>
+    </div>
   );
 }

@@ -85,8 +85,24 @@ describe("what the form already knows", () => {
     clipOrderPrefill.mockResolvedValue(prefill());
     draw();
     expect(await screen.findByText(/NAVARRO™ T1 Recto, mordaza 10.0 mm/)).toBeTruthy();
-    const jaw = screen.getByLabelText(/A medida/i) as HTMLInputElement;
+    const jaw = screen.getByLabelText(/Mordaza/i) as HTMLInputElement;
     expect(jaw.value).toBe("10");
+  });
+
+  it("offers ONE control for the jaw, not a size list and a number beside it", async () => {
+    // Dos mandos para el mismo dato invitan a que discrepen.
+    clipOrderPrefill.mockResolvedValue(prefill());
+    draw();
+    await screen.findByLabelText(/Mordaza/i);
+    expect(screen.getAllByLabelText(/Mordaza/i)).toHaveLength(1);
+    expect(screen.getByText(/Se mecaniza sobre la de 10 mm/)).toBeTruthy();
+  });
+
+  it("names both drawn sizes when the jaw sits exactly between two", async () => {
+    // 11.5 mm está a 1.5 mm de 10 y de 13: elegir una sería inventar un desempate.
+    clipOrderPrefill.mockResolvedValue(prefill({ advised_jaw_mm: 11.5 }));
+    draw();
+    expect(await screen.findByText(/Se mecaniza sobre la de 10 o 13 mm/)).toBeTruthy();
   });
 
   it("says where the neck measurement came from, because everything derives from it", async () => {
@@ -114,7 +130,7 @@ describe("what it refuses to send quietly", () => {
   it("asks why when the piece is not the advised one", async () => {
     clipOrderPrefill.mockResolvedValue(prefill());
     draw();
-    const jaw = await screen.findByLabelText(/A medida/i);
+    const jaw = await screen.findByLabelText(/Mordaza/i);
     fireEvent.change(jaw, { target: { value: "16" } });
     expect(await screen.findByText(/Por qué se aparta de lo recomendado/i)).toBeTruthy();
   });
@@ -122,7 +138,7 @@ describe("what it refuses to send quietly", () => {
   it("warns when the jaw leaves the drawn range, where the profile extrapolates", async () => {
     clipOrderPrefill.mockResolvedValue(prefill());
     draw();
-    const jaw = await screen.findByLabelText(/A medida/i);
+    const jaw = await screen.findByLabelText(/Mordaza/i);
     fireEvent.change(jaw, { target: { value: "28" } });
     expect(await screen.findByText(/fuera del rango dibujado/i)).toBeTruthy();
   });

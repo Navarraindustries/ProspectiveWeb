@@ -4818,6 +4818,817 @@
         }
       }
     },
+    "/api/clip-orders/workshops": {
+      "get": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Workshops on file, most recently used first",
+        "description": "Typed once and reused. Orders copy these fields at signing time, so correcting an address here never rewrites where a past order was sent.",
+        "operationId": "workshops_api_clip_orders_workshops_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkshopOut"
+                  },
+                  "type": "array",
+                  "title": "Response Workshops Api Clip Orders Workshops Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Register a workshop for reuse",
+        "operationId": "add_workshop_api_clip_orders_workshops_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkshopIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkshopOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/clip-orders/workshops/{workshop_id}": {
+      "put": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Correct a workshop's details",
+        "operationId": "edit_workshop_api_clip_orders_workshops__workshop_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workshop_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workshop Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkshopIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkshopOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Remove a workshop (admin) — past orders keep their own copy",
+        "operationId": "remove_workshop_api_clip_orders_workshops__workshop_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workshop_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workshop Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Remove Workshop Api Clip Orders Workshops  Workshop Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/prefill/{session_id}": {
+      "get": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "What the request form starts with for this case",
+        "description": "Everything the system already knows: the advised series, bend and jaw, the measurements they came from, the family's fixed properties, and the workshops on file. The form asks the user only for what none of this can answer.\n\n`suggest_extra_sizes` is true when the neck was ESTIMATED rather than measured off a marked rim: the jaw is only as certain as the neck it was derived from, so the adjacent drawn sizes are worth having in theatre.",
+        "operationId": "prefill_api_clip_orders_prefill__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "case_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrefillOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/{session_id}": {
+      "post": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Request a clip — draft, or signed and ready to send",
+        "description": "Records the request and freezes what was ordered. Signing needs a responsible surgeon, the `medico` or `admin` role, and the three declarations accepted; a resident can prepare the draft.\n\nSigning also builds the paperwork into the order's own directory: the STL, our copy of the dossier, the workshop's copy, and the ZIP to send. The dimensions are copied into the order, so re-running morphometry afterwards cannot change what was ordered.",
+        "operationId": "create_order_api_clip_orders__session_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders": {
+      "get": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Every clip order, newest first",
+        "operationId": "list_orders_api_clip_orders_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status",
+              "title": "Status"
+            },
+            "description": "Filter by status"
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Only orders raised from this session",
+              "default": "",
+              "title": "Session Id"
+            },
+            "description": "Only orders raised from this session"
+          },
+          {
+            "name": "open_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Hide verified and rejected orders",
+              "default": false,
+              "title": "Open Only"
+            },
+            "description": "Hide verified and rejected orders"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderOut"
+                  },
+                  "title": "Response List Orders Api Clip Orders Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/{part_no}": {
+      "get": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "One order",
+        "operationId": "get_order_api_clip_orders__part_no__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Part No"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Delete a DRAFT (a signed order is a record)",
+        "operationId": "delete_order_api_clip_orders__part_no__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Part No"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Order Api Clip Orders  Part No  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/{part_no}/status": {
+      "post": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Advance an order through the workflow",
+        "description": "borrador → firmado → enviado → en fabricación → recibida → verificada. A jump the workflow does not allow is refused with the states that are.",
+        "operationId": "advance_api_clip_orders__part_no__status_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Part No"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/{part_no}/reception": {
+      "post": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Record the piece that arrived, measured",
+        "description": "The measured closing force is mandatory. Until it exists the force is a target the model cannot confirm — it comes from the spring, the alloy and the heat treatment, none of which an STL carries.",
+        "operationId": "receive_api_clip_orders__part_no__reception_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Part No"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceptionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/{part_no}/verify": {
+      "post": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Accept the received piece",
+        "description": "A piece measured outside the jaw tolerance or the force band cannot be accepted in silence: either it is rejected, or the deviation is justified in writing and that justification stays with the order.",
+        "operationId": "verify_api_clip_orders__part_no__verify_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Part No"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/{part_no}/reject": {
+      "post": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Reject the received piece, with a reason",
+        "operationId": "reject_api_clip_orders__part_no__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Part No"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/{part_no}/files/{what}": {
+      "get": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "Download one of an order's documents",
+        "description": "`stl` · `dossier_internal` · `dossier_workshop`. Authenticated: the order directory is private, outside the public static mount.",
+        "operationId": "order_file_api_clip_orders__part_no__files__what__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Part No"
+            }
+          },
+          {
+            "name": "what",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "What"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip-orders/{part_no}/packet": {
+      "get": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "The ZIP to send to the workshop — STL and specification, nothing else",
+        "description": "Contains the STL and the workshop's copy of the dossier. No patient name, no case, no session: the part number is the only thread back. Downloaded and sent by a person — this application does not mail anything itself.",
+        "operationId": "packet_api_clip_orders__part_no__packet_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Part No"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -8084,6 +8895,349 @@
         "title": "NeckPlaneRequest",
         "description": "User-defined neck plane for semi-automatic closed-sac morphometry.\n\nThe user places a point on the neck and a normal pointing toward the dome.\nThe backend clips the vessel tree at this plane, keeps the dome-side\nconnected component, caps the opening into a closed watertight sac, and\nmeasures the neck directly from the plane∩tree contour."
       },
+      "OrderIn": {
+        "properties": {
+          "case_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Id"
+          },
+          "series": {
+            "type": "string",
+            "title": "Series",
+            "default": ""
+          },
+          "angle_deg": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": 0.0,
+            "title": "Angle Deg",
+            "default": 0.0
+          },
+          "jaw_mm": {
+            "type": "number",
+            "maximum": 40.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Jaw Mm",
+            "description": "Useful grip length (mm)"
+          },
+          "quantity": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Quantity",
+            "default": 1
+          },
+          "extra_sizes_mm": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Extra Sizes Mm",
+            "description": "Adjacent jaw sizes to order as spares — the neck is an estimate"
+          },
+          "override_reason": {
+            "type": "string",
+            "title": "Override Reason",
+            "description": "Required when the piece differs from what was advised",
+            "default": ""
+          },
+          "intended_use": {
+            "type": "string",
+            "title": "Intended Use",
+            "description": "implante | prototipo | inventario",
+            "default": "implante"
+          },
+          "needed_by": {
+            "type": "string",
+            "title": "Needed By",
+            "default": ""
+          },
+          "urgency": {
+            "type": "string",
+            "title": "Urgency",
+            "description": "programada | preferente",
+            "default": "programada"
+          },
+          "steriliser": {
+            "type": "string",
+            "title": "Steriliser",
+            "description": "hospital | taller",
+            "default": "hospital"
+          },
+          "marking": {
+            "type": "string",
+            "title": "Marking",
+            "description": "cuerpo | ninguno",
+            "default": "cuerpo"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          },
+          "authorization_ref": {
+            "type": "string",
+            "title": "Authorization Ref",
+            "default": ""
+          },
+          "workshop_id": {
+            "type": "string",
+            "title": "Workshop Id",
+            "default": ""
+          },
+          "new_workshop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkshopIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "surgeon": {
+            "type": "string",
+            "title": "Surgeon",
+            "default": ""
+          },
+          "sign": {
+            "type": "boolean",
+            "title": "Sign",
+            "default": false
+          },
+          "accepts_measurements": {
+            "type": "boolean",
+            "title": "Accepts Measurements",
+            "default": false
+          },
+          "accepts_force_is_target": {
+            "type": "boolean",
+            "title": "Accepts Force Is Target",
+            "default": false
+          },
+          "accepts_not_approved_device": {
+            "type": "boolean",
+            "title": "Accepts Not Approved Device",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "jaw_mm"
+        ],
+        "title": "OrderIn",
+        "description": "The form. Everything the system cannot work out on its own."
+      },
+      "OrderOut": {
+        "properties": {
+          "part_no": {
+            "type": "string",
+            "title": "Part No"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "status_label": {
+            "type": "string",
+            "title": "Status Label"
+          },
+          "created_at": {
+            "type": "number",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "number",
+            "title": "Updated At"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "case_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Id"
+          },
+          "patient": {
+            "type": "string",
+            "title": "Patient",
+            "default": ""
+          },
+          "case_label": {
+            "type": "string",
+            "title": "Case Label",
+            "default": ""
+          },
+          "requested_by": {
+            "type": "string",
+            "title": "Requested By",
+            "default": ""
+          },
+          "requested_by_name": {
+            "type": "string",
+            "title": "Requested By Name",
+            "default": ""
+          },
+          "surgeon": {
+            "type": "string",
+            "title": "Surgeon",
+            "default": ""
+          },
+          "signed_at": {
+            "type": "number",
+            "title": "Signed At",
+            "default": 0.0
+          },
+          "institution": {
+            "type": "string",
+            "title": "Institution",
+            "default": ""
+          },
+          "series": {
+            "type": "string",
+            "title": "Series",
+            "default": ""
+          },
+          "angle_deg": {
+            "type": "number",
+            "title": "Angle Deg",
+            "default": 0.0
+          },
+          "jaw_mm": {
+            "type": "number",
+            "title": "Jaw Mm",
+            "default": 0.0
+          },
+          "is_drawn_size": {
+            "type": "boolean",
+            "title": "Is Drawn Size",
+            "default": false
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          },
+          "extra_sizes_mm": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Extra Sizes Mm",
+            "default": []
+          },
+          "total_pieces": {
+            "type": "integer",
+            "title": "Total Pieces",
+            "default": 1
+          },
+          "intended_use": {
+            "type": "string",
+            "title": "Intended Use",
+            "default": ""
+          },
+          "needed_by": {
+            "type": "string",
+            "title": "Needed By",
+            "default": ""
+          },
+          "urgency": {
+            "type": "string",
+            "title": "Urgency",
+            "default": ""
+          },
+          "steriliser": {
+            "type": "string",
+            "title": "Steriliser",
+            "default": ""
+          },
+          "marking": {
+            "type": "string",
+            "title": "Marking",
+            "default": ""
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          },
+          "authorization_ref": {
+            "type": "string",
+            "title": "Authorization Ref",
+            "default": ""
+          },
+          "workshop_id": {
+            "type": "string",
+            "title": "Workshop Id",
+            "default": ""
+          },
+          "workshop_name": {
+            "type": "string",
+            "title": "Workshop Name",
+            "default": ""
+          },
+          "advised_label": {
+            "type": "string",
+            "title": "Advised Label",
+            "default": ""
+          },
+          "override_reason": {
+            "type": "string",
+            "title": "Override Reason",
+            "default": ""
+          },
+          "spec_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Spec Snapshot",
+            "default": {}
+          },
+          "reception": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Reception",
+            "default": {}
+          },
+          "next_states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next States",
+            "default": []
+          },
+          "files": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Files",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "part_no",
+          "status",
+          "status_label",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrderOut"
+      },
       "PatientCreate": {
         "properties": {
           "surname": {
@@ -8782,6 +9936,197 @@
         ],
         "title": "Position3D"
       },
+      "PrefillOut": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "can_order": {
+            "type": "boolean",
+            "title": "Can Order",
+            "description": "False when the family cannot build this shape"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Why not, when can_order is false",
+            "default": ""
+          },
+          "advised_series": {
+            "type": "string",
+            "title": "Advised Series",
+            "default": ""
+          },
+          "advised_angle_deg": {
+            "type": "number",
+            "title": "Advised Angle Deg",
+            "default": 0.0
+          },
+          "advised_jaw_mm": {
+            "type": "number",
+            "title": "Advised Jaw Mm",
+            "default": 0.0
+          },
+          "advised_label": {
+            "type": "string",
+            "title": "Advised Label",
+            "default": ""
+          },
+          "advised_shape": {
+            "type": "string",
+            "title": "Advised Shape",
+            "default": ""
+          },
+          "is_drawn_size": {
+            "type": "boolean",
+            "title": "Is Drawn Size",
+            "default": false
+          },
+          "outside_drawn_range": {
+            "type": "boolean",
+            "title": "Outside Drawn Range",
+            "default": false
+          },
+          "commercial_name": {
+            "type": "string",
+            "title": "Commercial Name",
+            "default": ""
+          },
+          "neck_mm": {
+            "type": "number",
+            "title": "Neck Mm",
+            "default": 0.0
+          },
+          "neck_source": {
+            "type": "string",
+            "title": "Neck Source",
+            "default": ""
+          },
+          "dome_height_mm": {
+            "type": "number",
+            "title": "Dome Height Mm",
+            "default": 0.0
+          },
+          "max_diameter_mm": {
+            "type": "number",
+            "title": "Max Diameter Mm",
+            "default": 0.0
+          },
+          "parent_artery_mm": {
+            "type": "number",
+            "title": "Parent Artery Mm",
+            "default": 0.0
+          },
+          "region": {
+            "type": "string",
+            "title": "Region",
+            "default": ""
+          },
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Caveats",
+            "default": []
+          },
+          "suggested_extra_sizes_mm": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Suggested Extra Sizes Mm",
+            "default": []
+          },
+          "suggest_extra_sizes": {
+            "type": "boolean",
+            "title": "Suggest Extra Sizes",
+            "default": false
+          },
+          "extra_sizes_reason": {
+            "type": "string",
+            "title": "Extra Sizes Reason",
+            "default": ""
+          },
+          "stock_sizes_mm": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Stock Sizes Mm",
+            "default": []
+          },
+          "force_band_g": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Force Band G",
+            "default": []
+          },
+          "max_tip_opening_mm": {
+            "type": "number",
+            "title": "Max Tip Opening Mm",
+            "default": 0.0
+          },
+          "material": {
+            "type": "string",
+            "title": "Material",
+            "default": ""
+          },
+          "tolerance_jaw_mm": {
+            "type": "number",
+            "title": "Tolerance Jaw Mm",
+            "default": 0.0
+          },
+          "tolerance_other_mm": {
+            "type": "number",
+            "title": "Tolerance Other Mm",
+            "default": 0.0
+          },
+          "requester_name": {
+            "type": "string",
+            "title": "Requester Name",
+            "default": ""
+          },
+          "can_sign": {
+            "type": "boolean",
+            "title": "Can Sign",
+            "default": false
+          },
+          "institution": {
+            "type": "string",
+            "title": "Institution",
+            "default": ""
+          },
+          "patient": {
+            "type": "string",
+            "title": "Patient",
+            "default": ""
+          },
+          "case_label": {
+            "type": "string",
+            "title": "Case Label",
+            "default": ""
+          },
+          "workshops": {
+            "items": {
+              "$ref": "#/components/schemas/WorkshopOut"
+            },
+            "type": "array",
+            "title": "Workshops",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "can_order"
+        ],
+        "title": "PrefillOut",
+        "description": "What the form starts with, so nothing measured has to be retyped."
+      },
       "PreprocessRequest": {
         "properties": {
           "clip_hu": {
@@ -9109,6 +10454,48 @@
           "fits_in_bed"
         ],
         "title": "PrintPrepResult"
+      },
+      "ReceptionIn": {
+        "properties": {
+          "measured_jaw_mm": {
+            "type": "number",
+            "maximum": 60.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Measured Jaw Mm"
+          },
+          "measured_force_g": {
+            "type": "number",
+            "maximum": 1000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Measured Force G"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "measured_jaw_mm",
+          "measured_force_g"
+        ],
+        "title": "ReceptionIn",
+        "description": "The piece that actually arrived, measured."
+      },
+      "RejectIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "RejectIn"
       },
       "ReportRequest": {
         "properties": {
@@ -9855,6 +11242,20 @@
           "z"
         ],
         "title": "SpacingXYZ"
+      },
+      "StatusIn": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "borrador | firmado | enviado | en_fabricacion | recibida"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "StatusIn"
       },
       "StentLibraryItem": {
         "properties": {
@@ -10743,6 +12144,129 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerifyIn": {
+        "properties": {
+          "accept_deviation_reason": {
+            "type": "string",
+            "title": "Accept Deviation Reason",
+            "description": "Required when the measured piece is out of specification",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "VerifyIn"
+      },
+      "WorkshopIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "contact_name": {
+            "type": "string",
+            "title": "Contact Name",
+            "default": ""
+          },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "default": ""
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone",
+            "default": ""
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "default": ""
+          },
+          "tax_id": {
+            "type": "string",
+            "title": "Tax Id",
+            "default": ""
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "WorkshopIn",
+        "description": "A workshop, typed once and reused by every later order."
+      },
+      "WorkshopOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "contact_name": {
+            "type": "string",
+            "title": "Contact Name",
+            "default": ""
+          },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "default": ""
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone",
+            "default": ""
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "default": ""
+          },
+          "tax_id": {
+            "type": "string",
+            "title": "Tax Id",
+            "default": ""
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "number",
+            "title": "Created At",
+            "default": 0.0
+          },
+          "last_used_at": {
+            "type": "number",
+            "title": "Last Used At",
+            "default": 0.0
+          },
+          "order_count": {
+            "type": "integer",
+            "title": "Order Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "id"
+        ],
+        "title": "WorkshopOut"
       }
     },
     "securitySchemes": {

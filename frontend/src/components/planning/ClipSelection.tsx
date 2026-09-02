@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
+import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
 import type {
   ClipCandidateOut,
   ClipCriterion,
@@ -383,6 +384,8 @@ export function ClipSelectionPanel({
   const [sel, setSel] = useState<ClipSelectionResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Cambia al firmar un pedido, para que el registro de abajo se recargue.
+  const [ordersKey, setOrdersKey] = useState(0);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -474,6 +477,22 @@ export function ClipSelectionPanel({
           </div>
         </div>
       )}
+
+      {/* Pedir la pieza de verdad. Va después de la ficha técnica porque es el
+          paso siguiente: primero qué clip, luego mandarlo a fabricar. */}
+      <Collapsible
+        title="Solicitar un clip a fabricación"
+        subtitle="Formulario de pedido, dossiers y seguimiento hasta la pieza medida"
+        storageKey={`clipsel.order.${sessionId}`}
+      >
+        <ClipOrderForm
+          sessionId={sessionId}
+          caseId={caseId}
+          onPlaced={() => setOrdersKey((k) => k + 1)}
+        />
+      </Collapsible>
+
+      <ClipOrderList sessionId={sessionId} refreshKey={ordersKey} />
 
       {/* Los que se quedaron cerca. Sin esto la lista de arriba es una caja
           negra: no se puede saber si el catálogo se consideró entero. */}

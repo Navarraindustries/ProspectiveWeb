@@ -11,12 +11,18 @@ const clipManufacture = vi.fn();
 
 const buildNavarroClip = vi.fn();
 
+const listClipOrders = vi.fn(async () => []);
+const clipOrderPrefill = vi.fn(async () => ({ can_order: false, reason: "" }));
+
 vi.mock("../../api/client", () => ({
   api: {
     clipSelection: (...a: unknown[]) => clipSelection(...a),
     clipManufacture: (...a: unknown[]) => clipManufacture(...a),
     buildNavarroClip: (...a: unknown[]) => buildNavarroClip(...a),
+    listClipOrders: (...a: unknown[]) => listClipOrders(...(a as [])),
+    clipOrderPrefill: (...a: unknown[]) => clipOrderPrefill(...(a as [])),
   },
+  ApiError: class ApiError extends Error {},
 }));
 
 import { ClipSelectionPanel } from "./ClipSelection";

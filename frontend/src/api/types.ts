@@ -1081,3 +1081,147 @@ export interface OpenStudyResult {
   study_id: number;
   n_files: number;
 }
+
+/* ── Pedidos de clip ──────────────────────────────────────────────────────── */
+
+/** Un taller registrado, para reutilizar en pedidos sucesivos. */
+export interface Workshop {
+  id: string;
+  name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  address: string;
+  tax_id: string;
+  notes: string;
+  created_at: number;
+  last_used_at: number;
+  order_count: number;
+}
+
+export type WorkshopIn = Omit<
+  Workshop, "id" | "created_at" | "last_used_at" | "order_count"
+>;
+
+/** Con qué arranca el formulario: todo lo que el sistema ya sabe del caso. */
+export interface ClipOrderPrefill {
+  session_id: string;
+  can_order: boolean;
+  reason: string;
+  advised_series: string;
+  advised_angle_deg: number;
+  advised_jaw_mm: number;
+  advised_label: string;
+  advised_shape: string;
+  is_drawn_size: boolean;
+  outside_drawn_range: boolean;
+  commercial_name: string;
+  neck_mm: number;
+  neck_source: string;
+  dome_height_mm: number;
+  max_diameter_mm: number;
+  parent_artery_mm: number;
+  region: string;
+  caveats: string[];
+  suggested_extra_sizes_mm: number[];
+  suggest_extra_sizes: boolean;
+  extra_sizes_reason: string;
+  stock_sizes_mm: number[];
+  force_band_g: number[];
+  max_tip_opening_mm: number;
+  material: string;
+  tolerance_jaw_mm: number;
+  tolerance_other_mm: number;
+  requester_name: string;
+  can_sign: boolean;
+  institution: string;
+  patient: string;
+  case_label: string;
+  workshops: Workshop[];
+}
+
+export type OrderStatus =
+  | "borrador" | "firmado" | "enviado" | "en_fabricacion"
+  | "recibida" | "verificada" | "rechazada";
+
+/** Lo que el usuario rellena. Todo lo demás lo pone el sistema. */
+export interface ClipOrderIn {
+  case_id?: number | null;
+  series: string;
+  angle_deg: number;
+  jaw_mm: number;
+  quantity: number;
+  extra_sizes_mm: number[];
+  override_reason: string;
+  intended_use: "implante" | "prototipo" | "inventario";
+  needed_by: string;
+  urgency: "programada" | "preferente";
+  steriliser: "hospital" | "taller";
+  marking: "cuerpo" | "ninguno";
+  notes: string;
+  authorization_ref: string;
+  workshop_id: string;
+  new_workshop?: WorkshopIn | null;
+  surgeon: string;
+  sign: boolean;
+  accepts_measurements: boolean;
+  accepts_force_is_target: boolean;
+  accepts_not_approved_device: boolean;
+}
+
+/** Lo que la pieza midió al llegar. La fuerza no es un hecho hasta aquí. */
+export interface ClipOrderReception {
+  received_at?: number;
+  by?: string;
+  notes?: string;
+  measured_jaw_mm?: number;
+  measured_force_g?: number;
+  jaw_within_tolerance?: boolean;
+  force_within_band?: boolean;
+  expected_jaw_mm?: number;
+  expected_force_band_g?: number[];
+  verified_at?: number;
+  verified_by?: string;
+  deviation_accepted?: string;
+  rejected_at?: number;
+  rejection_reason?: string;
+}
+
+export interface ClipOrder {
+  part_no: string;
+  status: OrderStatus;
+  status_label: string;
+  created_at: number;
+  updated_at: number;
+  session_id: string;
+  case_id: number | null;
+  patient: string;
+  case_label: string;
+  requested_by: string;
+  requested_by_name: string;
+  surgeon: string;
+  signed_at: number;
+  institution: string;
+  series: string;
+  angle_deg: number;
+  jaw_mm: number;
+  is_drawn_size: boolean;
+  quantity: number;
+  extra_sizes_mm: number[];
+  total_pieces: number;
+  intended_use: string;
+  needed_by: string;
+  urgency: string;
+  steriliser: string;
+  marking: string;
+  notes: string;
+  authorization_ref: string;
+  workshop_id: string;
+  workshop_name: string;
+  advised_label: string;
+  override_reason: string;
+  spec_snapshot: Record<string, unknown>;
+  reception: ClipOrderReception;
+  next_states: OrderStatus[];
+  files: Record<string, string>;
+}

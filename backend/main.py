@@ -27,6 +27,7 @@ from routers import (
     auth, patients, treatment, clips, coils, longitudinal,
     report, session_state, mpr, phases, centerline, audit,
     mesh_edit, print_prep, preprocess, studies, devices, clip_library,
+    clip_orders,
 )
 
 logger = logging.getLogger(__name__)
@@ -194,6 +195,7 @@ app.include_router(print_prep.router,    dependencies=_private)
 app.include_router(preprocess.router,    dependencies=_private)
 app.include_router(devices.router,        dependencies=_private)
 app.include_router(clip_library.router,  dependencies=_private)
+app.include_router(clip_orders.router,   dependencies=_private)
 
 
 # ── Health check ──────────────────────────────────────────────────────────── #

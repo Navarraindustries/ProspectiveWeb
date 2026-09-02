@@ -239,12 +239,29 @@ def _verification_notes() -> list[str]:
     ]
 
 
+def _order_blocks(order) -> tuple[list, list, list]:
+    """(rows for both copies, rows for ours only, extra verification lines).
+
+    Empty when the dossier is a preview rather than a placed order — the piece
+    is specified the same way either way, and only the paperwork differs.
+    """
+    if order is None:
+        return [], [], []
+    from services.clip_orders import (internal_order_rows, order_rows,
+                                      sterilisation_notes)
+
+    return list(order_rows(order)), list(internal_order_rows(order)),         list(sterilisation_notes(order))
+
+
 def internal_dossier(perfect: PerfectClip, case: ClipCase, *, part_no: str,
                      patient: str = "", case_label: str = "",
-                     session_id: str = "") -> dict:
+                     session_id: str = "", order=None) -> dict:
     """The institution's own record: what was ordered and what it came from."""
     spec = perfect.spec
+    order_common, order_internal, delivery = _order_blocks(order)
     return {
+        "order": order_common,
+        "order_internal": order_internal,
         "kind": "internal",
         "part_no": part_no,
         "title": "Solicitud de fabricación de clip — copia interna",
@@ -267,12 +284,12 @@ def internal_dossier(perfect: PerfectClip, case: ClipCase, *, part_no: str,
         ],
         "why_not_stock": spec.reasons,
         "assumptions": spec.confidence_notes + perfect.notes,
-        "verification": _verification_notes(),
+        "verification": _verification_notes() + delivery,
         "fallback_reason": perfect.fallback_reason,
     }
 
 
-def external_dossier(perfect: PerfectClip, *, part_no: str) -> dict:
+def external_dossier(perfect: PerfectClip, *, part_no: str, order=None) -> dict:
     """The workshop's copy. No patient data, by construction.
 
     A third-party workshop needs dimensions, tolerances, material and the
@@ -282,13 +299,15 @@ def external_dossier(perfect: PerfectClip, *, part_no: str) -> dict:
     outside the institution.
     """
     spec = perfect.spec
+    order_common, _internal, delivery = _order_blocks(order)
     return {
         "kind": "external",
         "part_no": part_no,
         "title": "Especificación de fabricación — clip de aneurisma",
         "label": perfect.label,
+        "order": order_common,
         "dimensions": _dimension_rows(spec, perfect),
-        "verification": _verification_notes(),
+        "verification": _verification_notes() + delivery,
         "notes": [n for n in perfect.notes if "paciente" not in n.lower()],
         "confidentiality": (
             "Este documento no contiene datos de paciente. Cualquier consulta se "

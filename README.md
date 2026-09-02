@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **592 passing** (`pytest`, 40 files) |
+| Backend tests | **632 passing** (`pytest`, 41 files) |
 | Frontend tests | **88 passing** (`vitest`, 10 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -145,6 +145,7 @@ Key backend services (all ported from the desktop `prospective/processing`):
 | `clip_animation.py` | Splits a clip into body + blades and derives its hinge, for rehearsal |
 | `clip_manufacture.py` | The clip to have made: family, commercial fallback, or neither |
 | `clip_dossier.py` | The two order PDFs — internal record and workshop copy |
+| `clip_orders.py` | The order register and the workshop directory — global, persistent, frozen |
 | `stent_deployment.py` | Centerline-guided braided stent along real vessel curvature |
 | `phases.py` | PHASES 5-year rupture risk (Greving 2014) |
 | `mesh_prep.py` | 3D-print preparation + printer-bed presets |
@@ -516,6 +517,61 @@ assumed — it is 2.50 mm at 0° and 90° but 3.95 mm at 15°, because the knee 
 up room. A stretched mesh is a faithful preview for display and collision
 testing, **not** the manufacturing master.
 
+### Requesting a clip
+
+`POST /api/clip-orders/{sid}` turns a recommendation into a real order. Most of
+the form is already answered: the system knows the series, the bend, the jaw, the
+tolerances and the force band, so the user is asked only what it cannot know —
+who answers for the piece, how many, by when, and where it goes.
+
+**Nothing measured is retyped.** The dangerous version of this screen is a blank
+form where the surgeon re-enters the jaw length: the moment the typed number and
+the STL can disagree, a workshop receives a dimension nobody derived. Changing a
+computed figure is allowed — it is the surgeon's call — but it needs a reason,
+and the reason is printed in our copy of the dossier next to what the system had
+advised.
+
+**A signed order is frozen.** The dimensions are copied into it, not looked up
+when it is read. Re-running morphometry afterwards changes what the system would
+advise today; it must not change what was ordered and sent.
+
+**Two defects the register exposed and fixed.** The part number used to be
+derived from the session and the jaw (`PR-{session}-{jaw×10}`), so two clips
+ordered from one session with the same jaw and different bends got the *same*
+number — on the only thread between our copy and the workshop's. And the files
+had fixed names per session, so a second order overwrote the first one's STL and
+dossiers. Orders now take a correlative `PR-YYYY-NNNN` and own a directory.
+
+**Who signs.** `medico` and `admin` sign; a `residente` prepares the draft.
+Signing needs a responsible surgeon, a workshop, and three declarations that the
+UI may not pre-tick: the measurements are accepted, the closing force is a target
+to be measured on the finished part, and the STL is geometry rather than an
+approved device. When the intended use is *implant in a patient* the order also
+records an authorisation reference — it does not block, it records.
+
+**What leaves the building** is a ZIP with the STL and the workshop's dossier,
+and nothing else: no patient name, no case, no session. A person downloads it and
+sends it; the application mails nothing on its own.
+
+**The order is not done until the piece is measured.** Reception demands the
+measured jaw and the measured closing force — the only point at which the force
+stops being a target — and a piece outside the jaw tolerance or the 120–200 g
+band cannot be accepted in silence: either it is rejected, or someone states in
+writing why the deviation is acceptable and that stays with the order.
+
+**Workshops are typed once.** A workshop entered in the form is saved and picked
+from a list next time. Orders copy its details at signing, so correcting an
+address later never rewrites where a past order was actually sent.
+
+**Sterilisation and marking are stated assumptions, not policy.** Nobody has yet
+confirmed how this institution handles either, so the order assumes the hospital
+sterilises (a machine shop rarely delivers sterile, and titanium takes steam) and
+that the part number is engraved on the **body** — never on the jaw, which is the
+dimension measured against the neck, and never on the spring, where a mark
+concentrates stress exactly where the closing force comes from. Both assumptions
+are written into the two dossiers so the workshop can contradict them before
+cutting metal.
+
 ### The clip library
 
 `clip_library/` is a global, persistent store outside `data/`, holding two kinds
@@ -669,6 +725,12 @@ patient imaging.
 | `GET` `POST` | `/api/clip-library` | Institutional clip store · import (admin) |
 | `POST` | `/api/clip-library/measure` | Measure a mesh to pre-fill the import form (admin) |
 | `GET` `DELETE` | `/api/clip-library/{id}/mesh` · `/api/clip-library/{id}` | Geometry · remove (admin) |
+| `GET` | `/api/clip-orders/prefill/{sid}` | What the request form starts with for this case |
+| `GET` `POST` | `/api/clip-orders/workshops` | Workshops on file · register one for reuse |
+| `PUT` `DELETE` | `/api/clip-orders/workshops/{id}` | Correct one · remove (admin) |
+| `GET` `POST` | `/api/clip-orders` · `/api/clip-orders/{sid}` | The register · place a request (draft or signed) |
+| `POST` | `/api/clip-orders/{part}/status` · `/reception` · `/verify` · `/reject` | Move an order · record the measured piece · accept · reject |
+| `GET` | `/api/clip-orders/{part}/packet` · `/files/{what}` | ZIP for the workshop · STL and dossiers |
 | `POST` | `/api/clips/plan` | Placement + real VTK collision |
 | `GET` `POST` `DELETE` | `/api/clips/custom/{sid}` | Imported clip library: list · upload · remove one |
 | `POST` | `/api/coils/plan` · `/api/plan` | Coil packing · stent deployment |
@@ -707,17 +769,17 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 592 tests
+.venv\Scripts\python -m pytest -q                        # all 632 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **592 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **632 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 88 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 102 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

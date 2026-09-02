@@ -104,6 +104,10 @@ backend/mesh_quality_report*.json
 # fabricación. Privada, fuera del montaje público data/ (ver clip_library.py).
 backend/clip_library/
 
+# Registro de pedidos de clips: lleva nombre de paciente y caso en la copia
+# interna, y los talleres con sus datos de contacto. Privado, fuera de data/.
+backend/clip_orders/
+
 # Diseños propios de clips NAVARRO™ (fuente CAD del usuario). Los .stl/.obj ya
 # caen por extensión, pero los .mtl no: se ignora la carpeta entera para que un
 # «git add» accidental no publique geometría propietaria.

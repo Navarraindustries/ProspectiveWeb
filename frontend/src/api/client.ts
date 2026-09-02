@@ -10,6 +10,12 @@ import type {
   CenterlineRequest,
   CenterlineResult,
   ClipAnimationResult,
+  ClipOrder,
+  ClipOrderIn,
+  ClipOrderPrefill,
+  OrderStatus,
+  Workshop,
+  WorkshopIn,
   ClipLibraryItem,
   ClipPlanRequest,
   ClipPlanResult,
@@ -379,6 +385,55 @@ export const api = {
   /** The body + two blades, the hinge and the approach run, for the rehearsal. */
   clipAnimation: (sessionId: string, req: ClipPlanRequest) =>
     post<ClipAnimationResult>(`/api/clips/animation/${sessionId}`, req),
+
+  /* ── Pedidos de clip ─────────────────────────────────────────────────── */
+
+  /** Everything the form starts with, so nothing measured is retyped. */
+  clipOrderPrefill: (sessionId: string, caseId?: number | null) =>
+    get<ClipOrderPrefill>(
+      `/api/clip-orders/prefill/${sessionId}` + (caseId ? `?case_id=${caseId}` : ""),
+    ),
+  listWorkshops: () => get<Workshop[]>("/api/clip-orders/workshops"),
+  addWorkshop: (w: WorkshopIn) => post<Workshop>("/api/clip-orders/workshops", w),
+  /** Place the request. `sign: false` leaves a draft a resident can prepare. */
+  createClipOrder: (sessionId: string, req: ClipOrderIn) =>
+    post<ClipOrder>(`/api/clip-orders/${sessionId}`, req),
+  listClipOrders: (opts: { sessionId?: string; openOnly?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.sessionId) q.set("session_id", opts.sessionId);
+    if (opts.openOnly) q.set("open_only", "true");
+    const qs = q.toString();
+    return get<ClipOrder[]>("/api/clip-orders" + (qs ? `?${qs}` : ""));
+  },
+  clipOrder: (partNo: string) => get<ClipOrder>(`/api/clip-orders/${partNo}`),
+  advanceClipOrder: (partNo: string, status: OrderStatus) =>
+    post<ClipOrder>(`/api/clip-orders/${partNo}/status`, { status }),
+  receiveClipOrder: (
+    partNo: string, measured_jaw_mm: number, measured_force_g: number, notes = "",
+  ) =>
+    post<ClipOrder>(`/api/clip-orders/${partNo}/reception`,
+                    { measured_jaw_mm, measured_force_g, notes }),
+  verifyClipOrder: (partNo: string, accept_deviation_reason = "") =>
+    post<ClipOrder>(`/api/clip-orders/${partNo}/verify`, { accept_deviation_reason }),
+  rejectClipOrder: (partNo: string, reason: string) =>
+    post<ClipOrder>(`/api/clip-orders/${partNo}/reject`, { reason }),
+  deleteClipOrder: (partNo: string) =>
+    request<{ deleted: boolean }>(`/api/clip-orders/${partNo}`, { method: "DELETE" }),
+  /** The documents are behind auth: the order directory is private. */
+  downloadClipOrderFile: async (
+    partNo: string, what: "stl" | "dossier_internal" | "dossier_workshop" | "packet",
+  ) => {
+    const path = what === "packet"
+      ? `/api/clip-orders/${partNo}/packet`
+      : `/api/clip-orders/${partNo}/files/${what}`;
+    const ext = what === "packet" ? "zip" : what === "stl" ? "stl" : "pdf";
+    const url = URL.createObjectURL(await getBlob(path));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${partNo}_${what}.${ext}`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  },
   listCoils: () => get<CoilLibraryItem[]>("/api/coils"),
   planCoils: (sessionId: string, placements: CoilPlacement[]) =>
     post<CoilPlanResult>("/api/coils/plan", { session_id: sessionId, placements }),

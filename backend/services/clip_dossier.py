@@ -152,6 +152,16 @@ def render_dossier(dossier: dict, output_path: str | Path,
         story += [Paragraph("Identificación del caso", st["h"]),
                   _table(ident, [45 * mm, 115 * mm])]
 
+    # The order block: what is being asked for, beyond what the piece is. The
+    # workshop copy carries it too — quantity, date, sterilisation and marking
+    # are instructions to the workshop, and none of them identifies anyone.
+    if dossier.get("order"):
+        rows = [list(r) for r in dossier["order"]]
+        if not is_external and dossier.get("order_internal"):
+            rows += [list(r) for r in dossier["order_internal"]]
+        story += [Paragraph("Pedido", st["h"]),
+                  _table([["Campo", "Valor"]] + rows, [55 * mm, 105 * mm])]
+
     if images:
         story += [Paragraph("La pieza", st["h"])] + _view_grid(images, st)
 

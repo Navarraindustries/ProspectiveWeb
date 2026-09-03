@@ -19,6 +19,7 @@ import { AuthProvider, useAuth } from "./store/auth";
 import { PlanningProvider, usePlanning } from "./store/planning";
 import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
 import { ClipOrdersPage } from "./pages/ClipOrders";
+import { WorkshopsPage } from "./pages/Workshops";
 import type { Screen } from "./store/nav";
 
 function Router() {
@@ -259,6 +260,7 @@ function Router() {
         onClearPatient={() => setOrdersPatient(null)}
       />
     );
+  else if (effective === "workshops") view = <WorkshopsPage />;
   else if (effective === "pending") view = <PendingRequests onBack={() => setScreen("patients")} />;
   else if (effective === "users") view = <UsersAdmin onBack={() => setScreen("patients")} />;
   else if (effective === "audit") view = <AuditTrail onBack={() => setScreen("patients")} />;

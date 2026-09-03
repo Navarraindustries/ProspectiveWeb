@@ -396,6 +396,13 @@ export const api = {
     ),
   listWorkshops: () => get<Workshop[]>("/api/clip-orders/workshops"),
   addWorkshop: (w: WorkshopIn) => post<Workshop>("/api/clip-orders/workshops", w),
+  updateWorkshop: (id: string, w: WorkshopIn) =>
+    request<Workshop>(`/api/clip-orders/workshops/${id}`, {
+      method: "PUT", body: JSON.stringify(w),
+    }),
+  /** Solo admin: un taller borrado desaparece de la lista de todos. */
+  deleteWorkshop: (id: string) =>
+    request<{ deleted: boolean }>(`/api/clip-orders/workshops/${id}`, { method: "DELETE" }),
   /** Place the request. `sign: false` leaves a draft a resident can prepare. */
   createClipOrder: (sessionId: string, req: ClipOrderIn) =>
     post<ClipOrder>(`/api/clip-orders/${sessionId}`, req),

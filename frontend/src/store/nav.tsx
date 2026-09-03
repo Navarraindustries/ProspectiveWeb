@@ -8,7 +8,7 @@
 
 import { createContext, useContext } from "react";
 
-export type Screen = "login" | "signup" | "patients" | "studies" | "workspace" | "orders" | "pending" | "audit" | "users";
+export type Screen = "login" | "signup" | "patients" | "studies" | "workspace" | "orders" | "workshops" | "pending" | "audit" | "users";
 
 /** Screen → path segment under /app. Spanish, because the UI is. */
 export const SCREEN_PATH: Record<Screen, string> = {
@@ -17,6 +17,7 @@ export const SCREEN_PATH: Record<Screen, string> = {
   patients: "/app/pacientes",
   studies: "/app/estudios",
   orders: "/app/pedidos",
+  workshops: "/app/talleres",
   workspace: "/app/sesion",
   pending: "/app/solicitudes",
   users: "/app/usuarios",

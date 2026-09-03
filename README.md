@@ -64,7 +64,7 @@ approval, and a tamper-evident audit chain.
 | | |
 |---|---|
 | Backend tests | **650 passing** (`pytest`, 41 files) |
-| Frontend tests | **115 passing** (`vitest`, 13 files) · `tsc -b` clean · production build clean |
+| Frontend tests | **122 passing** (`vitest`, 14 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -597,9 +597,19 @@ workshop, one for a piece already in the building that nobody has accepted or
 rejected. And it **surfaces pieces received out of specification**, which is
 exactly what must not be buried in a list.
 
-**Workshops are typed once.** A workshop entered in the form is saved and picked
-from a list next time. Orders copy its details at signing, so correcting an
-address later never rewrites where a past order was actually sent.
+**Workshops are typed once**, and have a screen of their own (`/app/talleres`).
+A workshop entered in an order form is saved and picked from a list next time,
+but that was the ONLY way in — and the order form does not render at all when the
+NAVARRO™ family cannot build the shape the case asks for, so a fenestrated case
+had no door to the workshop directory, and registering the workshops of an
+agreement up front meant opening an order and deleting it. Registering who
+manufactures has nothing to do with whether THIS case is buildable.
+
+Anyone may add and correct one — a surgeon placing an order needs to. Deleting is
+admin-only, because a deleted workshop leaves everyone's list. Neither rewrites
+history: orders copy the workshop's details at signing, so a past order still
+says where it was actually sent. The screen also carries the two fields the order
+form never asked for, `tax_id` and `notes`, which a real agreement needs.
 
 **Sterilisation and marking are stated assumptions, not policy.** Nobody has yet
 confirmed how this institution handles either, so the order assumes the hospital
@@ -836,7 +846,7 @@ Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 115 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 122 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

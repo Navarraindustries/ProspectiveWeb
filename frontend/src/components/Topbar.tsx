@@ -140,6 +140,7 @@ function UserMenu() {
 
           <MenuItem icon="STEP_PATIENT" label="Pacientes" onClick={() => { setOpen(false); nav.go("patients"); }} />
           <MenuItem icon="SETTINGS" label="Pedidos de clips" onClick={() => { setOpen(false); nav.go("orders"); }} />
+          <MenuItem icon="CLIPS" label="Talleres" onClick={() => { setOpen(false); nav.go("workshops"); }} />
           {isAdmin && (
             <MenuItem
               icon="USERS"

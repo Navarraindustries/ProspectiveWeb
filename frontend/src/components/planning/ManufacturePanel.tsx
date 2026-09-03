@@ -17,6 +17,7 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
+import { useNav } from "../../store/nav";
 import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
 
 
@@ -180,6 +181,7 @@ function ManufactureSheet({
 
 export function ManufacturePanel({ onNext }: { onNext: () => void }) {
   const { sessionId, caseId } = usePlanning();
+  const nav = useNav();
   const [sel, setSel] = useState<ClipSelectionResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -211,6 +213,16 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
         <b>Paso opcional.</b> La mayoría de los casos se resuelven con un clip del
         catálogo y no pasan por aquí. Un pedido tarda semanas, así que el informe
         del caso se genera sin esperarlo.
+      </div>
+
+      {/* La puerta al directorio de talleres. Vive aquí porque es aquí donde se
+          echa en falta, y porque el formulario de pedido —única vía hasta ahora
+          para dar de alta uno— no se dibuja cuando la familia no puede construir
+          la forma que el caso pide. */}
+      <div style={{ marginBottom: 14 }}>
+        <Button size="sm" variant="ghost" onClick={() => nav.go("workshops")}>
+          Gestionar talleres
+        </Button>
       </div>
 
       {!sessionId && (

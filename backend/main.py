@@ -48,6 +48,32 @@ async def _purge_loop(interval_sec: int = 3600) -> None:
             logger.warning("Session purge loop error: %s", exc)
 
 
+def _backfill_clip_order_patients() -> None:
+    """Orders raised before the register knew about `patient_id` get one now.
+
+    Idempotent: only rows missing it and carrying a case are touched, so it can
+    run on every boot without doing anything the second time.
+    """
+    from services import clip_orders
+    from services.database import SessionLocal
+    from services.db_models import Study
+
+    def resolve(case_id: int) -> int | None:
+        db = SessionLocal()
+        try:
+            study = db.get(Study, int(case_id))
+            return int(study.patient_id) if study is not None and study.patient_id else None
+        except Exception:  # noqa: BLE001
+            return None
+        finally:
+            db.close()
+
+    try:
+        clip_orders.backfill_patient_ids(resolve)
+    except Exception as exc:  # noqa: BLE001 — never block startup on housekeeping
+        logger.warning("Clip order backfill skipped: %s", exc)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
     """Initialise DB, seed admin, purge stale sessions, start the purge loop."""
@@ -60,6 +86,8 @@ async def _lifespan(app: FastAPI):  # noqa: ARG001
         seed_default_user(db)
     finally:
         db.close()
+
+    _backfill_clip_order_patients()
 
     # Reclaim disk from sessions left over past their TTL, then keep purging.
     freed = await asyncio.to_thread(purge_expired_sessions)
@@ -196,8 +224,6 @@ app.include_router(preprocess.router,    dependencies=_private)
 app.include_router(devices.router,        dependencies=_private)
 app.include_router(clip_library.router,  dependencies=_private)
 app.include_router(clip_orders.router,   dependencies=_private)
-
-
 # ── Health check ──────────────────────────────────────────────────────────── #
 
 @app.get("/health", tags=["system"], summary="Health check")

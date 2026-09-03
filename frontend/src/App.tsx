@@ -18,6 +18,7 @@ import { ConfirmDialog } from "./components/ConfirmDialog";
 import { AuthProvider, useAuth } from "./store/auth";
 import { PlanningProvider, usePlanning } from "./store/planning";
 import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
+import { ClipOrdersPage } from "./pages/ClipOrders";
 import type { Screen } from "./store/nav";
 
 function Router() {
@@ -33,6 +34,8 @@ function Router() {
     [navigate],
   );
   const [patient, setPatient] = useState<PatientSummary | null>(null);
+  // Paciente por el que se abre el registro de pedidos, cuando se llega desde su ficha.
+  const [ordersPatient, setOrdersPatient] = useState<PatientSummary | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
   const [loadingIn, setLoadingIn] = useState(false);
@@ -231,13 +234,29 @@ function Router() {
       />
     );
   else if (effective === "patients")
-    view = <Patients onOpenPatient={openPatient} onResume={resumeSession} onPlanCase={planCase} onOpenStudy={(s) => void openStudy(s)} onOpenPending={() => setScreen("pending")} />;
+    view = (
+      <Patients
+        onOpenPatient={openPatient}
+        onResume={resumeSession}
+        onPlanCase={planCase}
+        onOpenStudy={(s) => void openStudy(s)}
+        onOpenPending={() => setScreen("pending")}
+        onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}
+      />
+    );
   else if (effective === "studies")
     view = (
       <Studies
         onOpen={(s) => void openStudy(s)}
         onResume={(s) => void resumeStudySession(s)}
         onBack={() => setScreen("patients")}
+      />
+    );
+  else if (effective === "orders")
+    view = (
+      <ClipOrdersPage
+        patientFilter={ordersPatient}
+        onClearPatient={() => setOrdersPatient(null)}
       />
     );
   else if (effective === "pending") view = <PendingRequests onBack={() => setScreen("patients")} />;

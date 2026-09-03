@@ -36,6 +36,10 @@ const STATUS_VARIANT: Record<OrderStatus, "default" | "secondary" | "outline" | 
   rechazada: "destructive",
 };
 
+/** Los estados a los que se avanza con un botón «siguiente».
+    `verificada` y `rechazada` quedan fuera a propósito: son el juicio sobre la
+    pieza recibida y tienen botones propios. Sin este filtro aparecían dos veces,
+    una con el nombre crudo del estado. */
 const NEXT_LABEL: Partial<Record<OrderStatus, string>> = {
   firmado: "Firmar",
   enviado: "Marcar enviado",
@@ -621,7 +625,7 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
       )}
 
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-        {order.next_states.filter((s) => s !== "borrador").map((s) => (
+        {order.next_states.filter((s) => NEXT_LABEL[s]).map((s) => (
           s === "recibida" ? (
             <Button key={s} size="sm" variant="outline" onClick={() => setReceiving(true)}>
               {NEXT_LABEL[s]}
@@ -629,7 +633,7 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
           ) : (
             <Button key={s} size="sm" variant="outline"
                     onClick={() => act(api.advanceClipOrder(order.part_no, s))}>
-              {NEXT_LABEL[s] ?? s}
+              {NEXT_LABEL[s]}
             </Button>
           )
         ))}

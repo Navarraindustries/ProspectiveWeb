@@ -5119,12 +5119,42 @@
         }
       }
     },
+    "/api/clip-orders/summary": {
+      "get": {
+        "tags": [
+          "clip-orders"
+        ],
+        "summary": "How many orders sit in each state",
+        "description": "For the register's header. Every state is present, zeroes included, so the row does not jump around as orders move.",
+        "operationId": "summary_api_clip_orders_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Summary Api Clip Orders Summary Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/clip-orders": {
       "get": {
         "tags": [
           "clip-orders"
         ],
         "summary": "Every clip order, newest first",
+        "description": "The register. Filter by state, by patient, by the session that raised it, or search `q` across the part number, patient, case, surgeon and workshop — the things somebody has in hand when they come asking about a piece.",
         "operationId": "list_orders_api_clip_orders_get",
         "security": [
           {
@@ -5161,6 +5191,36 @@
               "title": "Session Id"
             },
             "description": "Only orders raised from this session"
+          },
+          {
+            "name": "patient_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only orders for this patient",
+              "title": "Patient Id"
+            },
+            "description": "Only orders for this patient"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Free text over part number, patient, case, surgeon, workshop",
+              "default": "",
+              "title": "Q"
+            },
+            "description": "Free text over part number, patient, case, surgeon, workshop"
           },
           {
             "name": "open_only",
@@ -9077,6 +9137,17 @@
             "type": "string",
             "title": "Patient",
             "default": ""
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id"
           },
           "case_label": {
             "type": "string",

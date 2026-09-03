@@ -132,6 +132,7 @@ class OrderOut(BaseModel):
     session_id: str = ""
     case_id: int | None = None
     patient: str = ""
+    patient_id: int | None = None
     case_label: str = ""
     requested_by: str = ""
     requested_by_name: str = ""
@@ -356,7 +357,8 @@ def _out(order: store.ClipOrder) -> OrderOut:
         status_label=store.STATUS_LABELS.get(order.status, order.status),
         created_at=order.created_at, updated_at=order.updated_at,
         session_id=order.session_id, case_id=order.case_id,
-        patient=order.patient, case_label=order.case_label,
+        patient=order.patient, patient_id=order.patient_id,
+        case_label=order.case_label,
         requested_by=order.requested_by, requested_by_name=order.requested_by_name,
         surgeon=order.surgeon, signed_at=order.signed_at, institution=order.institution,
         series=order.series, angle_deg=order.angle_deg, jaw_mm=order.jaw_mm,
@@ -371,6 +373,28 @@ def _out(order: store.ClipOrder) -> OrderOut:
         next_states=list(store.TRANSITIONS.get(order.status, ())),
         files=order.files,
     )
+
+
+def _patient_id_for(session_id: str, case_id: int | None) -> int | None:
+    """Which patient this order is for. None when the case is not registered."""
+    from services.database import SessionLocal
+    from services.db_models import PlanningSession, Study
+
+    db = SessionLocal()
+    try:
+        study = db.get(Study, int(case_id)) if case_id else None
+        if study is None:
+            ps = (db.query(PlanningSession)
+                    .filter(PlanningSession.session_id == session_id)
+                    .order_by(PlanningSession.id.desc()).first())
+            if ps is not None and ps.study_id:
+                study = db.get(Study, ps.study_id)
+        return int(study.patient_id) if study is not None and study.patient_id else None
+    except Exception as exc:  # noqa: BLE001 — an order must not fail on a DB hiccup
+        logger.warning("Patient lookup failed for %s: %s", session_id, exc)
+        return None
+    finally:
+        db.close()
 
 
 def _need(part_no: str) -> store.ClipOrder:
@@ -595,6 +619,7 @@ async def create_order(session_id: str, req: OrderIn, user: CurrentUser) -> Orde
         accepts_measurements=req.accepts_measurements,
         accepts_force_is_target=req.accepts_force_is_target,
         accepts_not_approved_device=req.accepts_not_approved_device,
+        patient_id=_patient_id_for(session_id, req.case_id),
         spec_snapshot=snap, case_snapshot=asdict(case),
         advised_label=advised_piece.label, override_reason=req.override_reason.strip(),
         surgeon=req.surgeon, sign=req.sign,
@@ -621,17 +646,35 @@ async def create_order(session_id: str, req: OrderIn, user: CurrentUser) -> Orde
 # ── The register ───────────────────────────────────────────────────────────── #
 
 @router.get(
+    "/clip-orders/summary",
+    summary="How many orders sit in each state",
+    description="For the register's header. Every state is present, zeroes included, "
+                "so the row does not jump around as orders move.",
+)
+async def summary(_user: CurrentUser) -> dict:
+    return {"counts": store.status_counts(), "labels": store.STATUS_LABELS}
+
+
+@router.get(
     "/clip-orders",
     response_model=list[OrderOut],
     summary="Every clip order, newest first",
+    description=(
+        "The register. Filter by state, by patient, by the session that raised it, "
+        "or search `q` across the part number, patient, case, surgeon and workshop "
+        "— the things somebody has in hand when they come asking about a piece."
+    ),
 )
 async def list_orders(
     _user: CurrentUser,
     status: str | None = Query(None, description="Filter by status"),
     session_id: str = Query("", description="Only orders raised from this session"),
+    patient_id: int | None = Query(None, description="Only orders for this patient"),
+    q: str = Query("", description="Free text over part number, patient, case, surgeon, workshop"),
     open_only: bool = Query(False, description="Hide verified and rejected orders"),
 ) -> list[OrderOut]:
     return [_out(o) for o in store.list_orders(status=status, session_id=session_id,
+                                               patient_id=patient_id, q=q,
                                                open_only=open_only)]
 
 

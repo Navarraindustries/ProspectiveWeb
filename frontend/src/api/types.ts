@@ -1196,6 +1196,7 @@ export interface ClipOrder {
   session_id: string;
   case_id: number | null;
   patient: string;
+  patient_id: number | null;
   case_label: string;
   requested_by: string;
   requested_by_name: string;
@@ -1224,4 +1225,10 @@ export interface ClipOrder {
   reception: ClipOrderReception;
   next_states: OrderStatus[];
   files: Record<string, string>;
+}
+
+/** Cuántos pedidos hay en cada estado, para la cabecera del registro. */
+export interface ClipOrderSummary {
+  counts: Record<string, number>;
+  labels: Record<string, string>;
 }

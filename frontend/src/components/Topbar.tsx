@@ -139,6 +139,7 @@ function UserMenu() {
           <div style={{ height: 1, background: "var(--border)", margin: "2px 0" }} />
 
           <MenuItem icon="STEP_PATIENT" label="Pacientes" onClick={() => { setOpen(false); nav.go("patients"); }} />
+          <MenuItem icon="SETTINGS" label="Pedidos de clips" onClick={() => { setOpen(false); nav.go("orders"); }} />
           {isAdmin && (
             <MenuItem
               icon="USERS"

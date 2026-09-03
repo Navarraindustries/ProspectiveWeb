@@ -64,7 +64,7 @@ approval, and a tamper-evident audit chain.
 | | |
 |---|---|
 | Backend tests | **650 passing** (`pytest`, 41 files) |
-| Frontend tests | **105 passing** (`vitest`, 12 files) · `tsc -b` clean · production build clean |
+| Frontend tests | **115 passing** (`vitest`, 13 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -584,6 +584,19 @@ stops being a target — and a piece outside the jaw tolerance or the 120–200 
 band cannot be accepted in silence: either it is rejected, or someone states in
 writing why the deviation is acceptable and that stays with the order.
 
+**The register is a screen of its own** (`/app/pedidos`), outside the pipeline:
+the pipeline walks ONE case, this crosses all of them and answers a management
+question — what is ordered, and what is going stale. Reached from the top menu,
+or from a patient's sheet, which opens it already filtered by that patient, so
+one view serves both questions.
+
+Two things separate it from a plain table. It **sorts by what is rotting**, not
+by creation date: an order sent forty days ago with no news matters more than one
+signed yesterday, and the thresholds follow the state — three weeks for a
+workshop, one for a piece already in the building that nobody has accepted or
+rejected. And it **surfaces pieces received out of specification**, which is
+exactly what must not be buried in a list.
+
 **Workshops are typed once.** A workshop entered in the form is saved and picked
 from a list next time. Orders copy its details at signing, so correcting an
 address later never rewrites where a past order was actually sent.
@@ -756,6 +769,7 @@ patient imaging.
 | `GET` `POST` | `/api/clip-orders` · `/api/clip-orders/{sid}` | The register · place a request (draft or signed) |
 | `POST` | `/api/clip-orders/{part}/status` · `/reception` · `/verify` · `/reject` | Move an order · record the measured piece · accept · reject |
 | `GET` | `/api/clip-orders/{part}/packet` · `/files/{what}` | ZIP for the workshop · STL and dossiers |
+| `GET` | `/api/clip-orders/summary` | How many orders sit in each state |
 | `POST` | `/api/clips/plan` | Placement + real VTK collision |
 | `GET` `POST` `DELETE` | `/api/clips/custom/{sid}` | Imported clip library: list · upload · remove one |
 | `POST` | `/api/coils/plan` · `/api/plan` | Coil packing · stent deployment |
@@ -822,7 +836,7 @@ Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 105 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 115 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

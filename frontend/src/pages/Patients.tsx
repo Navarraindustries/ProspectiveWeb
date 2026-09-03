@@ -37,12 +37,15 @@ function PatientSheet({
   onResume,
   onPlanCase,
   onOpenStudy,
+  onOpenOrders,
 }: {
   open: boolean;
   patientId: number | null;   // null → create, otherwise edit
   onClose: () => void;
   onSaved: () => void;
   onResume?: (sessionId: string) => void;
+  /** Abre el registro de pedidos ya filtrado por este paciente. */
+  onOpenOrders?: () => void;
   /** Enter the pipeline for this clinical case (patient + case already known). */
   onPlanCase?: (study: StudySummary) => void;
   /** Open one archived imaging study of the case. */
@@ -149,6 +152,16 @@ function PatientSheet({
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted-foreground)", flex: 1 }}>
                   Casos / estudios ({studies.length})
                 </div>
+                {onOpenOrders && (
+                  <button
+                    type="button"
+                    title="Pedidos de clips de este paciente"
+                    onClick={onOpenOrders}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "transparent", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "4px 10px", fontSize: 12, fontWeight: 600, color: "var(--brand-deep)", cursor: "pointer", marginRight: 6 }}
+                  >
+                    <Icon name="SETTINGS" size={12} /> Pedidos
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => { setEditStudy(null); setStudyOpen(true); }}
@@ -344,6 +357,7 @@ export function Patients({
   onPlanCase,
   onOpenStudy,
   onOpenPending,
+  onOpenOrders,
 }: {
   onOpenPatient: (p: PatientSummary) => void;
   onResume: (sessionId: string, patient: PatientSummary) => void;
@@ -352,6 +366,8 @@ export function Patients({
   /** Open an archived imaging study straight from the patient sheet. */
   onOpenStudy: (img: StudyCard) => void;
   onOpenPending: () => void;
+  /** Abre el registro de pedidos filtrado por un paciente. */
+  onOpenOrders?: (p: PatientSummary) => void;
 }) {
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -581,6 +597,10 @@ export function Patients({
           const p = patients.find((x) => x.id === sheetPatientId);
           if (p) onPlanCase(st, p);
         }}
+        onOpenOrders={onOpenOrders && (() => {
+          const p = patients.find((x) => x.id === sheetPatientId);
+          if (p) { setSheetOpen(false); onOpenOrders(p); }
+        })}
         onOpenStudy={onOpenStudy}
       />
       {/* Nuevo caso = elegir paciente existente → formulario del caso para ese paciente. */}

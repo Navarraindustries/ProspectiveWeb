@@ -235,6 +235,10 @@ class ClipOrder:
     session_id: str = ""
     case_id: int | None = None
     patient: str = ""            # internal only — never reaches the workshop copy
+    #: Who the piece is for, as an id rather than a name. A name is what the
+    #: dossier prints; an id is what a register groups by, and it survives the
+    #: patient being renamed or two patients sharing a surname.
+    patient_id: int | None = None
     case_label: str = ""
 
     # Who asks and who answers for it.
@@ -323,17 +327,61 @@ def next_part_no(now: float | None = None) -> str:
 
 
 def list_orders(status: str | None = None, session_id: str = "",
-                open_only: bool = False) -> list[ClipOrder]:
-    """Orders newest first, optionally filtered."""
+                open_only: bool = False, patient_id: int | None = None,
+                q: str = "") -> list[ClipOrder]:
+    """Orders newest first, optionally filtered.
+
+    `q` searches the fields someone actually has in hand when they come looking:
+    a part number off a delivery note, a workshop's name, the surgeon who signed.
+    """
     out = [_from_dict(e) for e in _read(_ORDERS_FILE) if isinstance(e, dict)]
     if status:
         out = [o for o in out if o.status == status]
     if session_id:
         out = [o for o in out if o.session_id == session_id]
+    if patient_id is not None:
+        out = [o for o in out if o.patient_id == patient_id]
     if open_only:
         out = [o for o in out if o.is_open]
+    if q:
+        needle = q.strip().lower()
+        out = [o for o in out if needle in " ".join((
+            o.part_no, o.patient, o.case_label, o.surgeon,
+            o.workshop.get("name", ""), o.series,
+        )).lower()]
     out.sort(key=lambda o: o.created_at, reverse=True)
     return out
+
+
+def status_counts() -> dict[str, int]:
+    """How many orders sit in each state. Zeroes included, so the UI is stable."""
+    counts = {s: 0 for s in STATUS_LABELS}
+    for o in list_orders():
+        counts[o.status] = counts.get(o.status, 0) + 1
+    return counts
+
+
+def backfill_patient_ids(resolve) -> int:
+    """Fill `patient_id` on orders raised before the register knew about it.
+
+    `resolve(case_id) -> int | None` is passed in rather than imported, so this
+    module keeps knowing nothing about the clinical database.
+    """
+    with _LOCK:
+        entries = _read(_ORDERS_FILE)
+        changed = 0
+        for e in entries:
+            if e.get("patient_id") is not None or not e.get("case_id"):
+                continue
+            pid = resolve(e["case_id"])
+            if pid is not None:
+                e["patient_id"] = pid
+                changed += 1
+        if changed:
+            _write(_ORDERS_FILE, entries)
+    if changed:
+        logger.info("Backfilled patient_id on %d clip order(s)", changed)
+    return changed
 
 
 def get_order(part_no: str) -> ClipOrder | None:
@@ -433,6 +481,7 @@ def outside_drawn_range(jaw_mm: float) -> bool:
 
 
 def create_order(*, session_id: str, case_id: int | None, patient: str, case_label: str,
+                 patient_id: int | None = None,
                  requested_by: str, requested_by_name: str, institution: str,
                  series: str, angle_deg: float, jaw_mm: float, is_drawn_size: bool,
                  quantity: int, extra_sizes_mm: list[float],
@@ -449,6 +498,7 @@ def create_order(*, session_id: str, case_id: int | None, patient: str, case_lab
         part_no=part_no or next_part_no(),
         status=SIGNED if sign else DRAFT,
         session_id=session_id, case_id=case_id, patient=patient, case_label=case_label,
+        patient_id=patient_id,
         requested_by=requested_by, requested_by_name=requested_by_name,
         institution=institution, surgeon=surgeon.strip(),
         series=series, angle_deg=float(angle_deg), jaw_mm=float(jaw_mm),

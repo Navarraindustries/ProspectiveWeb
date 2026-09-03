@@ -13,6 +13,7 @@ import type {
   ClipOrder,
   ClipOrderIn,
   ClipOrderPrefill,
+  ClipOrderSummary,
   OrderStatus,
   Workshop,
   WorkshopIn,
@@ -398,13 +399,20 @@ export const api = {
   /** Place the request. `sign: false` leaves a draft a resident can prepare. */
   createClipOrder: (sessionId: string, req: ClipOrderIn) =>
     post<ClipOrder>(`/api/clip-orders/${sessionId}`, req),
-  listClipOrders: (opts: { sessionId?: string; openOnly?: boolean } = {}) => {
-    const q = new URLSearchParams();
-    if (opts.sessionId) q.set("session_id", opts.sessionId);
-    if (opts.openOnly) q.set("open_only", "true");
-    const qs = q.toString();
+  listClipOrders: (opts: {
+    sessionId?: string; openOnly?: boolean; patientId?: number; status?: string; q?: string;
+  } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.sessionId) p.set("session_id", opts.sessionId);
+    if (opts.openOnly) p.set("open_only", "true");
+    if (opts.patientId != null) p.set("patient_id", String(opts.patientId));
+    if (opts.status) p.set("status", opts.status);
+    if (opts.q) p.set("q", opts.q);
+    const qs = p.toString();
     return get<ClipOrder[]>("/api/clip-orders" + (qs ? `?${qs}` : ""));
   },
+  /** Cuántos pedidos hay en cada estado. */
+  clipOrdersSummary: () => get<ClipOrderSummary>("/api/clip-orders/summary"),
   clipOrder: (partNo: string) => get<ClipOrder>(`/api/clip-orders/${partNo}`),
   advanceClipOrder: (partNo: string, status: OrderStatus) =>
     post<ClipOrder>(`/api/clip-orders/${partNo}/status`, { status }),

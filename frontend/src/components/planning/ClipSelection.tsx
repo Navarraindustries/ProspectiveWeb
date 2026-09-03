@@ -11,14 +11,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
-import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
 import type {
   ClipCandidateOut,
   ClipCriterion,
   ClipSelectionResult,
   ClipVerdict,
   CustomJawOut,
-  ManufactureSpecOut,
 } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
@@ -130,161 +128,6 @@ function CandidateCard({
   );
 }
 
-function ManufactureSheet({
-  spec, sessionId, caseId,
-}: {
-  spec: ManufactureSpecOut;
-  sessionId: string;
-  caseId?: number | null;
-}) {
-  const [built, setBuilt] = useState<ManufactureSpecOut | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const shown = built ?? spec;
-
-  const rows: [string, string][] = [
-    ["Forma", `${shown.shape}${shown.angle_deg ? ` · ${shown.angle_deg.toFixed(0)}°` : ""}`],
-    ["Longitud de hoja", `${shown.blade_length_mm.toFixed(1)} mm`],
-    ["Anchura de hoja", `${shown.blade_width_mm.toFixed(2)} mm`],
-    ["Altura de hoja", `${shown.blade_height_mm.toFixed(2)} mm`],
-    ["Longitud de muelle", `${shown.spring_length_mm.toFixed(1)} mm`],
-    ["Fuerza de cierre", `${shown.closing_force_g.toFixed(0)} g`],
-    ...(shown.fenestration_mm > 0
-      ? ([["Ventana (interior)", `${shown.fenestration_mm.toFixed(1)} mm`]] as [string, string][])
-      : []),
-    ["Cuello medido", `${shown.neck_mm.toFixed(2)} mm`],
-  ];
-
-  const generate = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      setBuilt(await api.clipManufacture(sessionId, caseId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo generar el STL");
-    } finally {
-      setBusy(false);
-    }
-  }, [sessionId, caseId]);
-
-  const copy = () => {
-    const text = [
-      `Clip a medida — ${shown.label}`,
-      ...rows.map(([k, v]) => `${k}: ${v}`),
-      "",
-      "Motivo:",
-      ...shown.reasons.map((r) => `- ${r}`),
-      "",
-      "A confirmar antes de fabricar:",
-      ...shown.confidence_notes.map((n) => `- ${n}`),
-    ].join("\n");
-    void navigator.clipboard?.writeText(text);
-  };
-
-  return (
-    <Card>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
-          {shown.piece_label || `Clip a medida · ${shown.label}`}
-        </div>
-        {shown.part_no && (
-          <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
-            {shown.part_no}
-          </span>
-        )}
-      </div>
-
-      {/* De dónde sale la pieza. Un clip de catálogo se compra y no lleva STL:
-          ofrecer uno sería decir que se fabrica algo que no se fabrica. */}
-      {shown.source && shown.source !== "navarro" && (
-        <div style={{
-          fontSize: 11, lineHeight: 1.5, marginTop: 6, padding: "8px 10px",
-          borderRadius: "var(--radius-sm)",
-          background: "color-mix(in srgb, var(--warning) 12%, transparent)",
-          color: "var(--warning)",
-        }}>
-          {shown.fallback_reason}
-        </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 12px", marginTop: 10 }}>
-        {rows.map(([k, v]) => (
-          <div key={k} style={{ display: "contents" }}>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{k}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
-              {v}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {shown.reasons.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <SectionLabel>Por qué no sirve el inventario</SectionLabel>
-          <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-            {shown.reasons.map((r) => <li key={r}>{r}</li>)}
-          </ul>
-        </div>
-      )}
-
-      {/* Lo que la ficha NO sabe. Una especificación que esconde sus supuestos
-          es peor que una que los declara: aquí es lo que un taller tiene que
-          confirmar antes de mecanizar nada. */}
-      {shown.confidence_notes.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <SectionLabel>A confirmar antes de fabricar</SectionLabel>
-          <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 11, color: "var(--warning)", lineHeight: 1.5 }}>
-            {shown.confidence_notes.map((n) => <li key={n}>{n}</li>)}
-          </ul>
-        </div>
-      )}
-
-      <ErrorNote>{error}</ErrorNote>
-
-      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-        <Button size="sm" onClick={() => void generate()} disabled={busy}>
-          {busy ? "Generando…"
-            : shown.part_no ? "Regenerar STL y dossiers"
-            : "Generar STL y dossiers"}
-        </Button>
-        {shown.stl_url && (
-          <Button size="sm" variant="ghost" onClick={() => window.open(shown.stl_url!, "_blank")}>
-            Descargar STL
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" onClick={copy}>Copiar especificación</Button>
-      </div>
-
-      {/* Dos documentos, y la diferencia importa: el del taller no lleva ningún
-          dato de paciente, por construcción. */}
-      {(shown.dossier_internal_url || shown.dossier_workshop_url) && (
-        <div style={{ marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
-          <SectionLabel>Dossier de fabricación</SectionLabel>
-          <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-            {shown.dossier_internal_url && (
-              <Button size="sm" variant="ghost"
-                      onClick={() => window.open(shown.dossier_internal_url!, "_blank")}>
-                Copia interna (PDF)
-              </Button>
-            )}
-            {shown.dossier_workshop_url && (
-              <Button size="sm" variant="ghost"
-                      onClick={() => window.open(shown.dossier_workshop_url!, "_blank")}>
-                Para el taller (PDF)
-              </Button>
-            )}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
-            La copia interna lleva el paciente, el caso y las medidas de las que
-            sale el pedido. La del taller no lleva ningún dato de paciente: solo
-            cotas, tolerancias, material y las verificaciones a realizar.
-          </div>
-        </div>
-      )}
-    </Card>
-  );
-}
-
 /** A made-to-order clip sized to this case, with a slider to override the jaw.
 
     These designs are manufactured per case, so the jaw is not restricted to the
@@ -384,8 +227,6 @@ export function ClipSelectionPanel({
   const [sel, setSel] = useState<ClipSelectionResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Cambia al firmar un pedido, para que el registro de abajo se recargue.
-  const [ordersKey, setOrdersKey] = useState(0);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -455,44 +296,19 @@ export function ClipSelectionPanel({
         </div>
       )}
 
-      {/* El clip ideal para este cuello se ofrece siempre, no solo cuando el
-          inventario falla: son preguntas distintas y la segunda tiene respuesta
-          haya o no algo en el armario. El rótulo dice cuál de las dos es. */}
+      {/* La ficha de fabricación y el pedido se fueron al paso «Fabricación»:
+          aquí se decide QUÉ clip y DÓNDE va, que es cosa de una sentada; pedir
+          la pieza tarda semanas y sigue vivo después de cerrar el plan. */}
       {sel.manufacture && (
-        <div>
-          <SectionLabel>
-            {sel.outcome === "manufacture" ? "Especificación de fabricación"
-              : sel.outcome === "stock" ? "Clip ideal a medida (opcional)"
-              : "Alternativa a medida"}
-          </SectionLabel>
-          {sel.outcome === "stock" && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "4px 0 0", lineHeight: 1.5 }}>
-              Ya hay clips del inventario que cumplen todos los criterios. Esta es
-              la pieza que se ajustaría exactamente al cuello, por si se prefiere
-              mandarla a fabricar.
-            </div>
-          )}
-          <div style={{ marginTop: 6 }}>
-            <ManufactureSheet spec={sel.manufacture} sessionId={sessionId} caseId={caseId} />
-          </div>
+        <div style={{
+          fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
+          padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--muted)",
+        }}>
+          Para este cuello hay una pieza a medida especificada
+          (<b>{sel.manufacture.label}</b>). Mandarla a fabricar, con su STL, los
+          dossiers y el pedido, se hace en el paso <b>Fabricación</b>.
         </div>
       )}
-
-      {/* Pedir la pieza de verdad. Va después de la ficha técnica porque es el
-          paso siguiente: primero qué clip, luego mandarlo a fabricar. */}
-      <Collapsible
-        title="Solicitar un clip a fabricación"
-        subtitle="Formulario de pedido, dossiers y seguimiento hasta la pieza medida"
-        storageKey={`clipsel.order.${sessionId}`}
-      >
-        <ClipOrderForm
-          sessionId={sessionId}
-          caseId={caseId}
-          onPlaced={() => setOrdersKey((k) => k + 1)}
-        />
-      </Collapsible>
-
-      <ClipOrderList sessionId={sessionId} refreshKey={ordersKey} />
 
       {/* Los que se quedaron cerca. Sin esto la lista de arriba es una caja
           negra: no se puede saber si el catálogo se consideró entero. */}

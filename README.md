@@ -64,7 +64,7 @@ approval, and a tamper-evident audit chain.
 | | |
 |---|---|
 | Backend tests | **650 passing** (`pytest`, 41 files) |
-| Frontend tests | **88 passing** (`vitest`, 10 files) · `tsc -b` clean · production build clean |
+| Frontend tests | **105 passing** (`vitest`, 12 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -517,6 +517,31 @@ assumed — it is 2.50 mm at 0° and 90° but 3.95 mm at 15°, because the knee 
 up room. A stretched mesh is a faithful preview for display and collision
 testing, **not** the manufacturing master.
 
+### «Fabricación», a step of its own
+
+Ordering a piece is not planning a case. Everything in **Dispositivos** answers
+*what do I put in this patient, and where* — one sitting, all inside the session.
+Ordering answers *how do I get the piece made*: it takes weeks, involves an
+outside workshop, its register lives outside the session, and it stays alive
+after the plan is closed, because the piece still has to arrive and be measured.
+
+So it is step 7 of 8, between Dispositivos and Informe, and it is **optional** —
+most cases are served by a catalogue clip and never go near it. The rail labels
+it as such: a new step between two mandatory ones reads as mandatory unless
+something says otherwise.
+
+It took the manufacturing sheet (STL and dossiers) and the order workflow out of
+the clips tab: **844 lines, more than a third of a step that held ~2,270.**
+
+Two things that had to move with it. The step list was written out **four
+times** — the workspace rail, the landing page, the patient sheet and the study
+gallery — and sessions store the step they were saved at as an **integer**. With
+four copies, inserting a step renumbers some views and not others; and every
+session saved on «Informe» (index 6) would have resumed on «Fabricación». The
+list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
+migration renumbers saved sessions once. Data migrations that are not idempotent
+now register themselves in `applied_migrations` rather than relying on luck.
+
 ### Requesting a clip
 
 `POST /api/clip-orders/{sid}` turns a recommendation into a real order. Most of
@@ -797,7 +822,7 @@ Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 102 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 105 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

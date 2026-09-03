@@ -3,6 +3,7 @@
    how it works → technology → security → team → disclaimer → CTA.
    "Entrar" routes to the app (/app). Uses the design system, light + dark. */
 
+import { STEP_LABELS } from "../pipeline/steps";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BorderBeam } from "border-beam";
@@ -265,7 +266,7 @@ function PipelinePlayer({ src, label = "", note = "" }: { src: string; label?: s
 }
 
 function Pipeline() {
-  const steps = ["Carga DICOM", "Segmentación", "Detección", "Morfometría", "Decisión", "Dispositivos", "Informe"];
+  const steps = STEP_LABELS;
   return (
     <Section id="pipeline" style={{ background: "var(--background)" }}>
       <div style={{ textAlign: "center", maxWidth: 720, margin: "0 auto 40px" }}>

@@ -130,7 +130,9 @@ describe("showing the reasoning, not a score", () => {
 });
 
 describe("when nothing in the inventory fits", () => {
-  it("shows the manufacturing specification instead of an empty list", async () => {
+  it("says the inventory does not serve, and points to where the piece is ordered", async () => {
+    // La ficha de fabricación se mudó al paso «Fabricación»; aquí solo queda el
+    // veredicto y el puntero, para que nadie la busque en esta pantalla.
     clipSelection.mockResolvedValue(result({
       outcome: "manufacture",
       summary: "Ningún clip del inventario sirve para un cuello de 20.0 mm.",
@@ -140,25 +142,11 @@ describe("when nothing in the inventory fits", () => {
     render(<ClipSelectionPanel sessionId="s1" />);
 
     expect(await screen.findByText("Requiere fabricación")).toBeInTheDocument();
-    // The heading names the actual piece to order, not a generic label.
-    expect(screen.getByText(/NAVARRO™ T3 Angulado 90°/)).toBeInTheDocument();
-    expect(screen.getByText("27.0 mm")).toBeInTheDocument();
-    expect(screen.getByText("155 g")).toBeInTheDocument();
+    expect(screen.getByText(/paso/)).toBeInTheDocument();
+    expect(screen.getByText("Fabricación")).toBeInTheDocument();
   });
 
-  it("states the assumptions a workshop still has to confirm", async () => {
-    // A specification that hides its assumptions is worse than one that owns them.
-    clipSelection.mockResolvedValue(result({
-      outcome: "manufacture", recommended: [], manufacture: spec,
-    }));
-    render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText("A confirmar antes de fabricar")).toBeInTheDocument();
-    expect(screen.getByText(/ventana heurística/)).toBeInTheDocument();
-  });
-
-  it("offers a custom alternative even when usable clips exist", async () => {
-    // "Marginal" means everything on the shelf carries a caveat; the surgeon
-    // should see the alternative rather than assume the top row is a clean fit.
+  it("names the piece that would be ordered", async () => {
     clipSelection.mockResolvedValue(result({
       outcome: "marginal",
       recommended: [candidate({ verdict: "warn" })],
@@ -166,7 +154,7 @@ describe("when nothing in the inventory fits", () => {
     }));
     render(<ClipSelectionPanel sessionId="s1" />);
     expect(await screen.findByText("Utilizable con reservas")).toBeInTheDocument();
-    expect(screen.getByText("Alternativa a medida")).toBeInTheDocument();
+    expect(screen.getByText(spec.label)).toBeInTheDocument();
   });
 });
 
@@ -285,83 +273,3 @@ describe("sizing a made-to-order clip", () => {
 });
 
 
-describe("the manufacturing package", () => {
-  const spec2 = { ...spec, part_no: "PR-ABC-0270",
-    dossier_internal_url: "/data/interno.pdf?v=1",
-    dossier_workshop_url: "/data/taller.pdf?v=1" };
-
-  it("offers both dossiers and says how they differ", async () => {
-    // The workshop copy carries no patient data; that has to be visible, not a
-    // property the user is expected to trust silently.
-    clipSelection.mockResolvedValue(result({
-      outcome: "manufacture", recommended: [], manufacture: spec2,
-    }));
-    render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByRole("button", { name: /Copia interna/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Para el taller/ })).toBeInTheDocument();
-    expect(screen.getByText(/no lleva ningún dato de paciente/)).toBeInTheDocument();
-  });
-
-  it("shows the traceability number", async () => {
-    clipSelection.mockResolvedValue(result({
-      outcome: "manufacture", recommended: [], manufacture: spec2,
-    }));
-    render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText("PR-ABC-0270")).toBeInTheDocument();
-  });
-
-  it("explains when the family cannot build the shape", async () => {
-    // A catalogue clip is bought, not made: no STL, and the reason on screen.
-    clipSelection.mockResolvedValue(result({
-      outcome: "manufacture", recommended: [],
-      manufacture: { ...spec2, source: "commercial", stl_url: null,
-        commercial_name: "Yasargil Fenestrado 9mm",
-        fallback_reason: "La familia NAVARRO™ no tiene todavía un diseño fenestrado." },
-    }));
-    render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText(/no tiene todavía un diseño fenestrado/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Descargar STL/ })).not.toBeInTheDocument();
-  });
-
-  it("offers the STL when the family does build it", async () => {
-    clipSelection.mockResolvedValue(result({
-      outcome: "manufacture", recommended: [],
-      manufacture: { ...spec2, source: "navarro", stl_url: "/data/clip.stl?v=1" },
-    }));
-    render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByRole("button", { name: /Descargar STL/ })).toBeInTheDocument();
-  });
-});
-
-
-describe("the ideal clip is reachable whatever the outcome", () => {
-  // Reported while testing: with a stock clip already fitting, the whole
-  // manufacturing section was absent, so the STL and the dossiers could not be
-  // reached at all. "What is on the shelf" and "what would fit best" are
-  // different questions; the second has an answer either way.
-  // As the selection endpoint returns it: the part number and the documents
-  // only exist once the manufacturing package has actually been generated.
-  const withSpec = { ...spec, part_no: "",
-    piece_label: "NAVARRO™ T1 Recto, mordaza 8.5 mm" };
-
-  it("offers it even when the inventory already serves", async () => {
-    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: withSpec }));
-    render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText(/Clip ideal a medida/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Generar STL y dossiers/ })).toBeInTheDocument();
-  });
-
-  it("says it is an option, not a recommendation to manufacture", async () => {
-    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: withSpec }));
-    render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText(/Ya hay clips del inventario que cumplen/)).toBeInTheDocument();
-  });
-
-  it("reads as the only route when nothing fits", async () => {
-    clipSelection.mockResolvedValue(result({
-      outcome: "manufacture", recommended: [], manufacture: withSpec,
-    }));
-    render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText("Especificación de fabricación")).toBeInTheDocument();
-  });
-});

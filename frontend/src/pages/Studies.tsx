@@ -15,7 +15,7 @@ import { Input } from "../components/Input";
 import { Topbar } from "../components/Topbar";
 import { ErrorNote } from "../components/PanelHead";
 
-const STEP_LABELS = ["Carga", "Segmentación", "Detección", "Morfometría", "Decisión", "Dispositivos", "Informe"];
+import { STEP_LABELS } from "../pipeline/steps";
 
 /** Preview image of a study — fetched with the JWT, so it goes through a blob. */
 function Thumbnail({ study }: { study: StudyCard }) {

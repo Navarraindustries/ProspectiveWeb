@@ -835,8 +835,8 @@ export function DevicesPanel({ onNext }: { onNext: () => void }) {
       {tab === "Coils" && <CoilsTab />}
       {tab === "Stents" && <StentsTab />}
       {tab === "Stent CL" && <ClStentTab />}
-      <Button variant="outline" style={{ marginTop: 18, width: "100%" }} onClick={onNext} trailingIcon={<Icon name="STEP_EXPORT" />}>
-        Continuar al informe
+      <Button variant="outline" style={{ marginTop: 18, width: "100%" }} onClick={onNext} trailingIcon={<Icon name="SETTINGS" />}>
+        Continuar a fabricación
       </Button>
     </div>
   );

@@ -20,7 +20,7 @@ import { useNav } from "../store/nav";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { StudyGallery } from "./Studies";
 
-const STEP_LABELS = ["Carga", "Segmentación", "Detección", "Morfometría", "Decisión", "Dispositivos", "Informe"];
+import { STEP_LABELS } from "../pipeline/steps";
 
 const BLANK = {
   surname: "", given_name: "", hospital_id: "", sex: "F", dob: "",

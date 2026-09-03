@@ -6,7 +6,7 @@ import type { PatientSummary } from "../api/types";
 import { Badge, riskVariant } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
-import type { IconName } from "../components/Icon";
+import { STEPS } from "../pipeline/steps";
 import { Topbar } from "../components/Topbar";
 import { SectionLabel, Card, Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -18,19 +18,11 @@ import { CenterlinePanel } from "../components/vessels/CenterlinePanel";
 import { MeasurementPanel } from "../components/vessels/MeasurementPanel";
 import { TreatmentPanel } from "../components/planning/TreatmentPanel";
 import { DevicesPanel } from "../components/planning/DevicesPanel";
+import { ManufacturePanel } from "../components/planning/ManufacturePanel";
 import { ReportPanel } from "../components/planning/ReportPanel";
 import { Viewer, MprStrip } from "../vtk/Viewer";
 import { usePlanning } from "../store/planning";
 
-const STEPS: { key: string; icon: IconName; label: string; short: string }[] = [
-  { key: "upload", icon: "STEP_PATIENT", label: "Carga DICOM", short: "Carga" },
-  { key: "segment", icon: "STEP_SEGMENT", label: "Segmentación", short: "Segm." },
-  { key: "detect", icon: "STEP_DETECT", label: "Detección", short: "Detec." },
-  { key: "morpho", icon: "STEP_MORPHO", label: "Morfometría", short: "Morfo." },
-  { key: "treatment", icon: "STEP_PLAN", label: "Decisión", short: "Decis." },
-  { key: "devices", icon: "CLIPS", label: "Dispositivos", short: "Disp." },
-  { key: "report", icon: "STEP_EXPORT", label: "Informe", short: "Informe" },
-];
 
 /** What each step needs before it can say anything true, or null when it's ready.
  *
@@ -112,7 +104,7 @@ export function Workspace({
 
   // Teclado: Escape cancela el modo de marcado activo (antes había que volver al
   // panel y pulsar el mismo botón otra vez, con el banner ocupando el visor), y
-  // 1–7 saltan de paso. Se ignora mientras se escribe en un campo.
+  // los dígitos saltan de paso. Se ignora mientras se escribe en un campo.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
@@ -167,6 +159,7 @@ export function Workspace({
     ),
     treatment: <TreatmentPanel onNext={next} />,
     devices: <DevicesPanel onNext={next} />,
+    manufacture: <ManufacturePanel onNext={next} />,
     report: <ReportPanel onFinish={onFinish} />,
   }[step];
 
@@ -263,7 +256,7 @@ export function Workspace({
         {/* Rail de flujo — ancho fluido; en pantallas estrechas colapsa a iconos
             y bajo 820px se oculta (ver styles/responsive.css). */}
         <div className="ws-rail" style={{ width: "clamp(176px, 15vw, 232px)", flexShrink: 0, background: "var(--background)", borderRight: "1px solid var(--border)", padding: "18px 12px", overflowY: "auto" }}>
-          <div title="Atajos: 1–7 para cambiar de paso · Esc cancela el marcado">
+          <div title={`Atajos: 1–${STEPS.length} para cambiar de paso · Esc cancela el marcado`}>
             <SectionLabel className="ws-rail-label" style={{ margin: "0 6px 14px" }}>
               Flujo de planificación
             </SectionLabel>
@@ -320,6 +313,9 @@ export function Workspace({
                   </span>
                   <div className="ws-rail-label" style={{ flex: 1, minWidth: 0 }}>
                     <div className="truncate" style={{ fontSize: 13, fontWeight: active ? 700 : 500 }}>{s.label}</div>
+                    {s.optional && (
+                      <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>opcional</div>
+                    )}
                   </div>
                   <Icon name={s.icon} size={14} color={active ? "var(--brand-subtle-foreground)" : "var(--muted-foreground)"} />
                 </button>

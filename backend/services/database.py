@@ -78,6 +78,7 @@ def init_db() -> None:
     _migrate_study_columns()
     _migrate_session_columns()
     _migrate_imaging_studies()
+    _migrate_step_after_manufacture()
     logger.info("Database initialised at %s", DATA_DIR / "prospective.db")
 
 
@@ -153,6 +154,59 @@ def _migrate_session_columns() -> None:
         if "imaging_study_id" not in existing:
             conn.execute(text("ALTER TABLE planning_sessions ADD COLUMN imaging_study_id INTEGER"))
             logger.info("Migrated planning_sessions: added column imaging_study_id")
+
+
+#: Migrations that CHANGE DATA rather than shape. Unlike an ADD COLUMN they are
+#: not idempotent by nature, so each one records that it ran.
+_APPLIED_TABLE = """
+CREATE TABLE IF NOT EXISTS applied_migrations (
+    name       TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+)
+"""
+
+
+def _already_applied(conn, name: str) -> bool:
+    from sqlalchemy import text
+
+    conn.execute(text(_APPLIED_TABLE))
+    row = conn.execute(text("SELECT 1 FROM applied_migrations WHERE name = :n"),
+                       {"n": name}).fetchone()
+    return row is not None
+
+
+def _mark_applied(conn, name: str) -> None:
+    from sqlalchemy import text
+
+    conn.execute(text("INSERT OR IGNORE INTO applied_migrations (name) VALUES (:n)"),
+                 {"n": name})
+
+
+def _migrate_step_after_manufacture() -> None:
+    """Renumber saved sessions after «Fabricación» was inserted before «Informe».
+
+    Sessions store the step they were saved at as an INTEGER, and «Informe» moved
+    from index 6 to 7. Without this, every session saved on the report step would
+    resume on the manufacturing step instead — the «Reanudar» button silently
+    landing somewhere the user never was.
+
+    Runs once and records that it ran: unlike the ADD COLUMN migrations above,
+    +1 on a step index is not safe to repeat.
+    """
+    from sqlalchemy import text
+
+    name = "2026_09_step_manufacture_before_report"
+    with engine.begin() as conn:
+        if _already_applied(conn, name):
+            return
+        tables = {r[0] for r in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))}
+        if "planning_sessions" in tables:
+            moved = conn.execute(text(
+                "UPDATE planning_sessions SET current_step = 7 WHERE current_step = 6"
+            )).rowcount
+            if moved:
+                logger.info("Migrated %d session(s) from step 6 to 7 (Fabricación inserted)", moved)
+        _mark_applied(conn, name)
 
 
 def _migrate_imaging_studies() -> None:

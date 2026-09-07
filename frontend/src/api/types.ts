@@ -808,7 +808,10 @@ export interface ClipCaseOut {
 /** A made-to-order clip sized exactly to this case. */
 export interface CustomJawOut {
   series: string;
+  shape: NavarroShape;
   angle_deg: number;
+  window_mm: number;
+  resizable: boolean;
   jaw_mm: number;
   nearest_drawn_mm: number;
   label: string;

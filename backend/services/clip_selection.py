@@ -747,6 +747,14 @@ class CustomJaw:
     jaw_mm: float
     nearest_drawn_mm: float
     reason: str
+    #: Which of the four drawn series, and its window. Deriving only a BEND from
+    #: the winning candidate meant a fenestrated case was offered a custom
+    #: straight jaw — the shape silently traded away for a size, which is the
+    #: one thing a fenestrated clip cannot give up.
+    shape: str = "straight"
+    window_mm: float = 0.0
+    #: False for the curved series, whose jaw is an arc and is not stretched.
+    resizable: bool = True
 
     @property
     def label(self) -> str:
@@ -757,6 +765,18 @@ class CustomJaw:
 def ideal_jaw_mm(case: ClipCase) -> float:
     """The jaw this neck actually wants, before any catalogue is consulted."""
     return max(case.neck_mm * COVERAGE_IDEAL, case.neck_mm + BLADE_MIN_OVER_MM)
+
+
+def _best_resizable(recommended: list[ClipCandidate]) -> ClipCandidate | None:
+    """The best candidate whose jaw can actually be made to size.
+
+    The custom jaw is an offer about SIZE, and the curved series cannot take part
+    — its jaw is an arc. Handing `suggest_custom_jaw` whatever won the ranking
+    made the offer vanish for most cases the moment curved clips started winning
+    ties: the answer to «can I have this exact length» became silence, when the
+    honest answer is «yes, in one of the three series that stretch».
+    """
+    return next((c for c in recommended if c.clip.shape != ClipShape.CURVED), None)
 
 
 def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw | None:
@@ -775,17 +795,35 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
     if case.neck_mm <= 0:
         return None
 
+    from services.navarro import ANGLED, CURVED, STRAIGHT, navarro_shape_for
+
     want = round(ideal_jaw_mm(case), 1)
-    # Keep the bend the winning candidate already argued for; fall back to the
-    # shape the region prefers when nothing was recommended.
+    # Keep BOTH the shape and the bend the winning candidate argued for. Taking
+    # only the bend answered a fenestrated case with a straight clip of the right
+    # length, which is the wrong piece at the right size.
     angle = 0.0
+    clip_shape = _preferred_shape(case) if best is None else best.clip.shape
     if best is not None and getattr(best.clip, "bend_angle_deg", 0.0):
         angle = float(best.clip.bend_angle_deg)
     elif best is None:
-        pref = _preferred_shape(case)
-        angle = {ClipShape.ANGLED: 90.0, ClipShape.ANGLED_45: 45.0}.get(pref, 0.0)
+        angle = {ClipShape.ANGLED: 90.0, ClipShape.ANGLED_45: 45.0}.get(clip_shape, 0.0)
+    shape = navarro_shape_for(clip_shape)
+    window = float(getattr(best.clip, "fenestration_mm", 0.0) or 0.0) if best is not None else 0.0
 
-    src = nearest_variant(angle, want)
+    # The curved jaw is an arc and is never stretched, so no custom size exists
+    # with that curvature. That is a fact about the curved series, not an answer
+    # to «can I have this exact length» — which is yes, in any of the three that
+    # stretch. Returning None told the surgeon nothing and hid the offer from
+    # most cases, because curved clips win ties often.
+    curved_note = ""
+    if shape == CURVED:
+        shape = ANGLED if case.is_deep_dome else STRAIGHT
+        angle = 45.0 if shape == ANGLED else 0.0
+        window = 0.0
+        curved_note = (" La serie curva solo existe en las tallas dibujadas, así que "
+                       "la mordaza exacta se ofrece en la serie que sí se estira.")
+
+    src = nearest_variant(angle, want, shape=shape, window_mm=window)
     if src is None:
         return None
     gap = abs(src.jaw_mm - want)
@@ -799,8 +837,11 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
     else:
         reason = (f"Un cuello de {case.neck_mm:.1f} mm pide {want:.1f} mm de mordaza; "
                   f"la talla dibujada más cercana es {src.jaw_mm} mm ({gap:.1f} mm de diferencia).")
+    reason += curved_note
     return CustomJaw(series=src.series, angle_deg=src.angle_deg, jaw_mm=want,
-                     nearest_drawn_mm=float(src.jaw_mm), reason=reason)
+                     nearest_drawn_mm=float(src.jaw_mm), reason=reason,
+                     shape=src.shape, window_mm=float(src.window_mm),
+                     resizable=src.can_resize)
 
 
 # ── Selection ─────────────────────────────────────────────────────────────── #
@@ -1056,7 +1097,7 @@ def select_clips(
             manufacture=derive_manufacture_spec(case, failed),
             caveats=(_caveats(case) + _availability_caveats(recommended)
                      + _tie_caveat(recommended)),
-            custom_jaw=suggest_custom_jaw(case, recommended[0] if recommended else None),
+            custom_jaw=suggest_custom_jaw(case, _best_resizable(recommended)),
         )
 
     # Usable but every one carries a caveat: offer the alternative rather than
@@ -1073,5 +1114,5 @@ def select_clips(
         case=case, recommended=recommended, rejected=rejected, manufacture=spec,
         caveats=(_caveats(case) + _availability_caveats(recommended)
                  + _tie_caveat(recommended)),
-        custom_jaw=suggest_custom_jaw(case, recommended[0] if recommended else None),
+        custom_jaw=suggest_custom_jaw(case, _best_resizable(recommended)),
     )

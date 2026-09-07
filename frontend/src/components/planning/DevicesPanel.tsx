@@ -127,12 +127,17 @@ function NumField({ label, value, onChange, step = 1 }: { label: string; value: 
   );
 }
 
+/** «Qué clip» y «dónde va» son dos tareas, y se hacían en la misma columna. */
+const CLIP_STEPS = ["Elegir", "Colocar"] as const;
+
 function ClipsTab() {
   const { sessionId, caseId, morphometry, setDeviceMesh } = usePlanning();
   const clearer = useClearDevice("clips");
   const [recs, setRecs] = useState<ClipRecommendation[]>([]);
   const [customs, setCustoms] = useState<CustomClipInfo[]>([]);
   const [sel, setSel] = useState<string>("");
+  // Cuál de las dos preguntas se está respondiendo.
+  const [step, setStep] = useState<string>(CLIP_STEPS[0]);
   // A clip chosen from the criteria panel is not in the legacy dropdown's list:
   // its options come from `/clips/recommendations`, which knows nothing about
   // the library or the NAVARRO™ family. Without remembering the pick here the
@@ -239,112 +244,156 @@ function ClipsTab() {
 
   return (
     <div style={{ marginTop: 12 }}>
-      {/* Qué sirve para ESTE caso y por qué. Va antes del selector: elegir un
-          clip de una lista sin haber leído el razonamiento es exactamente lo
-          que hacía el panel anterior. */}
-      {sessionId && (
-        <div style={{ marginBottom: 14 }}>
-          <ClipSelectionPanel
-            sessionId={sessionId}
-            caseId={caseId}
-            selectedClipId={sel}
-            onPick={(clipId, clipName) => { setPicked({ id: clipId, name: clipName }); setSel(clipId); }}
-          />
-        </div>
-      )}
+      {/* Dos preguntas, dos pantallas. «Qué clip» y «dónde va» se hacían en una
+          sola columna de más de mil píxeles, con el razonamiento, el ensayo, el
+          selector, los colocados, sus coordenadas y la verificación seguidos:
+          para mover un clip un milímetro había que pasar por delante de toda la
+          recomendación otra vez. Son dos tareas distintas y ahora se leen
+          separadas — el estado es el mismo, así que elegir aquí coloca allí. */}
+      <Tabs tabs={CLIP_STEPS} value={step} onChange={setStep} size="sm" />
 
-      {/* Con un clip elegido, ensayar la maniobra antes de colocarlo. */}
-      {sessionId && sel && (
-        <div style={{ marginBottom: 14 }}>
-          <ClipRehearsal clipId={sel} clipName={nameFor(sel)} />
-        </div>
-      )}
-
-      <SectionLabel>Modelo de clip</SectionLabel>
-      {recs.length === 0 && customs.length === 0 && (
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "8px 0" }}>
-          {morphometry?.reliable
-            ? "Sin recomendación automática de clip para esta geometría. Elige un modelo del catálogo o importa un clip."
-            : "Marca el plano de cuello en Morfometría (para obtener cuello y AR) o importa un clip."}
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Select label={`Catálogo + personalizados (${options.length})`} options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
-        </div>
-        <Button size="sm" onClick={addClip} disabled={!sel} leadingIcon={<Icon name="CLIP_PLACE" size={14} />}>Añadir</Button>
-      </div>
-      <input ref={fileRef} type="file" accept=".stl,.obj" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void importClip(f); }} />
-      <button
-        onClick={() => fileRef.current?.click()} disabled={uploading}
-        style={{ width: "100%", padding: "7px 10px", fontSize: 12, fontWeight: 600, cursor: uploading ? "wait" : "pointer", borderRadius: "var(--radius-md)", border: "1px dashed var(--border)", background: "transparent", color: "var(--brand-deep)", marginBottom: customs.length ? 8 : 12 }}
-      >
-        {uploading ? "Importando…" : "＋ Importar clip personalizado (STL/OBJ)"}
-      </button>
-      {/* Without a way out, importing the wrong file left it in the dropdown for
-          the rest of the session. */}
-      {customs.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
-          {customs.map((c) => (
-            <div key={c.clip_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--card)" }}>
-              <Icon name="CLIPS" size={12} color="var(--muted-foreground)" />
-              <span className="truncate" style={{ flex: 1, fontSize: 12, color: "var(--foreground)" }}>{c.name}</span>
-              <button
-                onClick={() => void removeCustom(c.clip_id)}
-                title="Quitar del catálogo"
-                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, lineHeight: 1, padding: 2 }}
-              >
-                ✕
-              </button>
+      {step === CLIP_STEPS[0] && (
+        <div style={{ marginTop: 12 }}>
+          {/* El razonamiento va antes del selector: elegir un clip de una lista
+              sin haber leído por qué es exactamente lo que hacía el panel viejo. */}
+          {sessionId && (
+            <div style={{ marginBottom: 14 }}>
+              <ClipSelectionPanel
+                sessionId={sessionId}
+                caseId={caseId}
+                selectedClipId={sel}
+                onPick={(clipId, clipName) => { setPicked({ id: clipId, name: clipName }); setSel(clipId); }}
+              />
             </div>
-          ))}
+          )}
+
+          <SectionLabel>Modelo de clip</SectionLabel>
+          {recs.length === 0 && customs.length === 0 && (
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "8px 0" }}>
+              {morphometry?.reliable
+                ? "Sin recomendación automática de clip para esta geometría. Elige un modelo del catálogo o importa un clip."
+                : "Marca el plano de cuello en Morfometría (para obtener cuello y AR) o importa un clip."}
+            </div>
+          )}
+          <Select label={`Catálogo + personalizados (${options.length})`} options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
+          <input ref={fileRef} type="file" accept=".stl,.obj" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void importClip(f); }} />
+          <button
+            onClick={() => fileRef.current?.click()} disabled={uploading}
+            style={{ width: "100%", padding: "7px 10px", fontSize: 12, fontWeight: 600, cursor: uploading ? "wait" : "pointer", borderRadius: "var(--radius-md)", border: "1px dashed var(--border)", background: "transparent", color: "var(--brand-deep)", margin: "10px 0" }}
+          >
+            {uploading ? "Importando…" : "＋ Importar clip personalizado (STL/OBJ)"}
+          </button>
+          {/* Without a way out, importing the wrong file left it in the dropdown
+              for the rest of the session. */}
+          {customs.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
+              {customs.map((c) => (
+                <div key={c.clip_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--card)" }}>
+                  <Icon name="CLIPS" size={12} color="var(--muted-foreground)" />
+                  <span className="truncate" style={{ flex: 1, fontSize: 12, color: "var(--foreground)" }}>{c.name}</span>
+                  <button
+                    onClick={() => void removeCustom(c.clip_id)}
+                    title="Quitar del catálogo"
+                    style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, lineHeight: 1, padding: 2 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Button
+            style={{ marginTop: 6, width: "100%" }}
+            onClick={() => { addClip(); setStep(CLIP_STEPS[1]); }}
+            disabled={!sel}
+            trailingIcon={<Icon name="CLIP_PLACE" />}
+          >
+            Añadir al plan y colocar
+          </Button>
+          <ErrorNote>{error}</ErrorNote>
         </div>
       )}
 
-      {placed.length > 0 && (
-        <>
-          <SectionLabel>Clips colocados ({placed.length})</SectionLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
-            {placed.map((c, i) => (
-              <Card key={c.key} style={{ padding: "10px 12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>#{i + 1} · {c.name}</span>
-                  <button onClick={() => removeClip(c.key)} title="Quitar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
-                </div>
-                <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                  <NumField label="X" value={c.position.x} onChange={(v) => updateClip(c.key, { position: { ...c.position, x: v } })} />
-                  <NumField label="Y" value={c.position.y} onChange={(v) => updateClip(c.key, { position: { ...c.position, y: v } })} />
-                  <NumField label="Z" value={c.position.z} onChange={(v) => updateClip(c.key, { position: { ...c.position, z: v } })} />
-                  <NumField label="Rot°" value={c.rotation_deg} onChange={(v) => updateClip(c.key, { rotation_deg: v })} step={5} />
-                </div>
-              </Card>
-            ))}
-          </div>
-        </>
-      )}
+      {step === CLIP_STEPS[1] && (
+        <div style={{ marginTop: 12 }}>
+          {/* Qué se está colocando, dicho aquí: en la otra pestaña se eligió, y
+              sin repetirlo esta pantalla no dice sobre qué pieza se trabaja. */}
+          {sel && (
+            <Card style={{ marginBottom: 12, background: "var(--muted)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Clip elegido</span>
+                <b style={{ fontSize: 12, flex: 1, minWidth: 0 }}>{nameFor(sel)}</b>
+                <Button size="sm" variant="ghost" onClick={() => setStep(CLIP_STEPS[0])}>
+                  Cambiar
+                </Button>
+                <Button size="sm" onClick={addClip} leadingIcon={<Icon name="CLIP_PLACE" size={13} />}>
+                  Añadir
+                </Button>
+              </div>
+            </Card>
+          )}
 
-      {plan && (
-        <Card style={{ marginTop: 14 }}>
-          <Metric label="Cobertura de cuello" value={plan.neck_coverage_pct.toFixed(1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Óptimo", "success"] : ["Parcial", "warning"]} />
-          <Metric label="Colisión clip–vaso" value={plan.collision_detected ? "Sí" : "No"} badge={plan.collision_detected ? ["Colisión", "destructive"] : ["OK", "success"]} />
-          {plan.warning && <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>}
-        </Card>
-      )}
-      <ErrorNote>{error}</ErrorNote>
+          {/* Con un clip elegido, ensayar la maniobra antes de colocarlo. */}
+          {sessionId && sel && (
+            <div style={{ marginBottom: 14 }}>
+              <ClipRehearsal clipId={sel} clipName={nameFor(sel)} />
+            </div>
+          )}
 
-      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void place()} disabled={busy || placed.length === 0} leadingIcon={<Icon name="CLIP_PLACE" />}>
-        {busy ? "Verificando…" : `Colocar ${placed.length || ""} y verificar`}
-      </Button>
-      {/* Removing a clip from the list above only changes what the NEXT «Colocar»
-          will send; the clips already placed stay in the scene and in the report
-          until they are cleared here. */}
-      <ClearDeviceButton
-        label="Limpiar clips colocados"
-        disabled={!clearer.placed && !plan}
-        busy={clearer.busy}
-        onClick={() => void clearer.clear(() => { setPlan(null); setPlaced([]); })}
-      />
-      <ErrorNote>{clearer.error}</ErrorNote>
+          {placed.length === 0 && (
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "8px 0", lineHeight: 1.5 }}>
+              Todavía no hay ningún clip en el plan. Añade el elegido con el botón de
+              arriba, o vuelve a <b>Elegir</b> para escoger otro.
+            </div>
+          )}
+
+          {placed.length > 0 && (
+            <>
+              <SectionLabel>Clips colocados ({placed.length})</SectionLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                {placed.map((c, i) => (
+                  <Card key={c.key} style={{ padding: "10px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>#{i + 1} · {c.name}</span>
+                      <button onClick={() => removeClip(c.key)} title="Quitar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      <NumField label="X" value={c.position.x} onChange={(v) => updateClip(c.key, { position: { ...c.position, x: v } })} />
+                      <NumField label="Y" value={c.position.y} onChange={(v) => updateClip(c.key, { position: { ...c.position, y: v } })} />
+                      <NumField label="Z" value={c.position.z} onChange={(v) => updateClip(c.key, { position: { ...c.position, z: v } })} />
+                      <NumField label="Rot°" value={c.rotation_deg} onChange={(v) => updateClip(c.key, { rotation_deg: v })} step={5} />
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </>
+          )}
+
+          {plan && (
+            <Card style={{ marginTop: 14 }}>
+              <Metric label="Cobertura de cuello" value={plan.neck_coverage_pct.toFixed(1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Óptimo", "success"] : ["Parcial", "warning"]} />
+              <Metric label="Colisión clip–vaso" value={plan.collision_detected ? "Sí" : "No"} badge={plan.collision_detected ? ["Colisión", "destructive"] : ["OK", "success"]} />
+              {plan.warning && <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>}
+            </Card>
+          )}
+          <ErrorNote>{error}</ErrorNote>
+
+          <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void place()} disabled={busy || placed.length === 0} leadingIcon={<Icon name="CLIP_PLACE" />}>
+            {busy ? "Verificando…" : `Colocar ${placed.length || ""} y verificar`}
+          </Button>
+          {/* Removing a clip from the list above only changes what the NEXT
+              «Colocar» will send; the clips already placed stay in the scene and
+              in the report until they are cleared here. */}
+          <ClearDeviceButton
+            label="Limpiar clips colocados"
+            disabled={!clearer.placed && !plan}
+            busy={clearer.busy}
+            onClick={() => void clearer.clear(() => { setPlan(null); setPlaced([]); })}
+          />
+          <ErrorNote>{clearer.error}</ErrorNote>
+        </div>
+      )}
     </div>
   );
 }

@@ -63,8 +63,8 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **699 passing** (`pytest`, 43 files) |
-| Frontend tests | **131 passing** (`vitest`, 14 files) · `tsc -b` clean · production build clean |
+| Backend tests | **714 passing** (`pytest`, 43 files) |
+| Frontend tests | **132 passing** (`vitest`, 14 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -560,6 +560,32 @@ list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
 
+### A jaw made to size, in every series that can take one
+
+The geometry always did this correctly — straight, angled and fenestrated all
+come out the exact length asked for, measured on the mesh. The two paths that
+EXPOSE it did not. `suggest_custom_jaw` derived only a BEND from the winning
+candidate and never a shape, so a bifurcation case was offered a custom straight
+jaw: the wrong piece at the right size, the same silent substitution the
+commercial fallback used to make. And the endpoint that builds the preview had no
+shape or window parameter at all, so a fenestrated custom jaw was unreachable.
+
+Both now carry the shape and the window. The curved series still has no custom
+size — its jaw is an arc — but that is a fact about the curved series, not an
+answer to «can I have this exact length», which is yes in the three that stretch.
+Returning nothing told the surgeon that, and hid the offer from most cases the
+moment curved clips started winning ties.
+
+### «Elegir» and «colocar» are two tabs
+
+The clips tab held the reasoning, the rehearsal, the model picker, the placed
+list with its coordinates, and the verification in one column past a thousand
+pixels: moving a clip a millimetre meant scrolling past the whole recommendation
+again. They are two tasks — which clip, and where it goes — and they now read
+separately. The state is shared, so choosing in one places in the other, and the
+sub-tabs sit at `size="sm"` because two bars at the same weight read as two
+choices of equal rank.
+
 ### The recommendation, after the catalogue became one family
 
 Measured across nine cases once the family was the whole catalogue: the top two
@@ -936,17 +962,17 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 699 tests
+.venv\Scripts\python -m pytest -q                        # all 714 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **699 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **714 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 131 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 132 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

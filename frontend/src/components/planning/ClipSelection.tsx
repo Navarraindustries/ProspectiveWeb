@@ -149,13 +149,15 @@ function CustomJawSheet({
     setBusy(true);
     setError(null);
     try {
-      setBuilt(await api.buildNavarroClip(sessionId, jaw, suggestion.angle_deg));
+      setBuilt(await api.buildNavarroClip(
+        sessionId, jaw, suggestion.angle_deg,
+        suggestion.shape, suggestion.window_mm));
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo generar el clip");
     } finally {
       setBusy(false);
     }
-  }, [sessionId, jaw, suggestion.angle_deg]);
+  }, [sessionId, jaw, suggestion.angle_deg, suggestion.shape, suggestion.window_mm]);
 
   return (
     <Card>

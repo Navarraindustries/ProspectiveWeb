@@ -2656,6 +2656,32 @@
               "title": "Angle Deg"
             },
             "description": "Bend angle (0 = straight)"
+          },
+          {
+            "name": "shape",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "straight | curved | angled | fenestrated",
+              "default": "",
+              "title": "Shape"
+            },
+            "description": "straight | curved | angled | fenestrated"
+          },
+          {
+            "name": "window_mm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 12.0,
+              "minimum": 0.0,
+              "description": "Inner window diameter, fenestrated only",
+              "default": 0.0,
+              "title": "Window Mm"
+            },
+            "description": "Inner window diameter, fenestrated only"
           }
         ],
         "responses": {
@@ -7590,9 +7616,27 @@
             "type": "string",
             "title": "Series"
           },
+          "shape": {
+            "type": "string",
+            "title": "Shape",
+            "description": "straight | curved | angled | fenestrated",
+            "default": "straight"
+          },
           "angle_deg": {
             "type": "number",
             "title": "Angle Deg"
+          },
+          "window_mm": {
+            "type": "number",
+            "title": "Window Mm",
+            "description": "Inner window diameter, fenestrated only",
+            "default": 0.0
+          },
+          "resizable": {
+            "type": "boolean",
+            "title": "Resizable",
+            "description": "False for the curved series: its jaw is an arc",
+            "default": true
           },
           "jaw_mm": {
             "type": "number",

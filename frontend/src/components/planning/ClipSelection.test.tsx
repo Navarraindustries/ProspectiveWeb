@@ -229,7 +229,8 @@ describe("made-to-order designs", () => {
 
 describe("sizing a made-to-order clip", () => {
   const custom: CustomJawOut = {
-    series: "T1", angle_deg: 0, jaw_mm: 27, nearest_drawn_mm: 22,
+    series: "T1", shape: "straight", angle_deg: 0, window_mm: 0, resizable: true,
+    jaw_mm: 27, nearest_drawn_mm: 22,
     label: "NAVARRO™ T1 Recto, mordaza 27.0 mm",
     reason: "Un cuello de 20.0 mm pide 27.0 mm de mordaza, fuera de las tallas dibujadas (7–22 mm).",
     mesh_url: null, stl_url: null,
@@ -260,7 +261,8 @@ describe("sizing a made-to-order clip", () => {
     clipSelection.mockResolvedValue(result({ custom_jaw: custom }));
     render(<ClipSelectionPanel sessionId="s1" />);
     fireEvent.click(await screen.findByRole("button", { name: /Generar clip/ }));
-    await waitFor(() => expect(buildNavarroClip).toHaveBeenCalledWith("s1", 27, 0));
+    await waitFor(() => expect(buildNavarroClip)
+      .toHaveBeenCalledWith("s1", 27, 0, "straight", 0));
     expect(await screen.findByText(/estirada desde la talla dibujada/)).toBeInTheDocument();
   });
 
@@ -273,3 +275,26 @@ describe("sizing a made-to-order clip", () => {
 });
 
 
+
+describe("a custom jaw keeps the shape the case argued for", () => {
+  it("asks the server for the fenestrated piece, window and all", async () => {
+    // Antes solo viajaban mordaza y ángulo, así que una sugerencia fenestrada
+    // volvía como hoja maciza: la pieza equivocada con la medida correcta.
+    const fen: CustomJawOut = {
+      series: "T4", shape: "fenestrated", angle_deg: 0, window_mm: 5,
+      resizable: true, jaw_mm: 8.5, nearest_drawn_mm: 7,
+      label: "NAVARRO™ T4 Fenestrado ventana 5 mm, mordaza 8.5 mm",
+      reason: "El cuello pide 8.5 mm.", mesh_url: null, stl_url: null,
+    };
+    clipSelection.mockResolvedValue(result({ outcome: "stock", custom_jaw: fen }));
+    buildNavarroClip.mockResolvedValue({ ...fen, stl_url: "/data/c.stl" });
+    render(<ClipSelectionPanel sessionId="s1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /Generar clip/ }));
+    await waitFor(() => expect(buildNavarroClip).toHaveBeenCalled());
+    const [, jaw, angle, shape, win] = buildNavarroClip.mock.calls.at(-1)!;
+    expect(jaw).toBe(8.5);
+    expect(angle).toBe(0);
+    expect(shape).toBe("fenestrated");
+    expect(win).toBe(5);
+  });
+});

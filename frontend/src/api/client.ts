@@ -14,6 +14,7 @@ import type {
   ClipOrderIn,
   ClipOrderPrefill,
   ClipOrderSummary,
+  NavarroShape,
   OrderStatus,
   Workshop,
   WorkshopIn,
@@ -361,10 +362,18 @@ export const api = {
   listClipLibrary: (kind?: "stock" | "made_to_order" | "template") =>
     get<LibraryClip[]>("/api/clip-library" + (kind ? `?kind=${kind}` : "")),
   /** Build a NAVARRO™ clip at any jaw length — drawn size or stretched. */
-  buildNavarroClip: (sessionId: string, jawMm: number, angleDeg = 0) =>
-    post<CustomJawOut>(
-      `/api/clips/navarro/${sessionId}?jaw_mm=${jawMm}&angle_deg=${angleDeg}`, {},
-    ),
+  buildNavarroClip: (
+    sessionId: string, jawMm: number, angleDeg = 0,
+    shape: NavarroShape = "straight", windowMm = 0,
+  ) => {
+    // La forma y la ventana viajan: sin ellas el endpoint solo podía construir
+    // rectos y angulados, y una sugerencia fenestrada volvía como hoja maciza.
+    const q = new URLSearchParams({
+      jaw_mm: String(jawMm), angle_deg: String(angleDeg), shape,
+    });
+    if (windowMm > 0) q.set("window_mm", String(windowMm));
+    return post<CustomJawOut>(`/api/clips/navarro/${sessionId}?${q}`, {});
+  },
   /** Measure a mesh before importing, to pre-fill the form. */
   measureClipMesh: (file: File) => {
     const fd = new FormData();

@@ -236,7 +236,10 @@ class CustomJawOut(BaseModel):
     """A made-to-order clip sized exactly to this case."""
 
     series: str
+    shape: str = Field("straight", description="straight | curved | angled | fenestrated")
     angle_deg: float
+    window_mm: float = Field(0.0, description="Inner window diameter, fenestrated only")
+    resizable: bool = Field(True, description="False for the curved series: its jaw is an arc")
     jaw_mm: float = Field(..., description="The jaw this neck wants (mm of useful grip)")
     nearest_drawn_mm: float = Field(
         ..., description="Closest jaw length that exists as drawn CAD"

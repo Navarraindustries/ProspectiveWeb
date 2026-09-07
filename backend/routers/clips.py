@@ -698,7 +698,10 @@ async def clip_selection(
         manufacture = None if selection.manufacture is None else _spec_out(selection.manufacture),
         custom_jaw  = None if selection.custom_jaw is None else CustomJawOut(
             series=selection.custom_jaw.series,
+            shape=selection.custom_jaw.shape,
             angle_deg=selection.custom_jaw.angle_deg,
+            window_mm=selection.custom_jaw.window_mm,
+            resizable=selection.custom_jaw.resizable,
             jaw_mm=selection.custom_jaw.jaw_mm,
             nearest_drawn_mm=selection.custom_jaw.nearest_drawn_mm,
             label=selection.custom_jaw.label,
@@ -831,6 +834,9 @@ async def build_navarro_clip(
     session_id: str,
     jaw_mm: float = Query(..., gt=0.5, le=40.0, description="Useful grip length (mm)"),
     angle_deg: float = Query(0.0, ge=0.0, le=90.0, description="Bend angle (0 = straight)"),
+    shape: str = Query("", description="straight | curved | angled | fenestrated"),
+    window_mm: float = Query(0.0, ge=0.0, le=12.0,
+                             description="Inner window diameter, fenestrated only"),
 ) -> CustomJawOut:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
@@ -839,7 +845,11 @@ async def build_navarro_clip(
         from services.navarro import build_jaw
         from services.devices import write_stl
         from services.segmentation import write_vtp
-        mesh, src, exact = build_jaw(angle_deg, jaw_mm)
+        # Without the shape this could only ever build a straight or an angled
+        # clip: a fenestrated preview was unreachable, and asking for one came
+        # back as a solid blade of the right length.
+        mesh, src, exact = build_jaw(angle_deg, jaw_mm, shape=shape or None,
+                                     window_mm=window_mm)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -848,7 +858,9 @@ async def build_navarro_clip(
 
     meshes  = session_subdir(session_id, "meshes")
     exports = session_subdir(session_id, "exports")
-    stem = f"navarro_{src.series.lower()}_{angle_deg:.0f}deg_{jaw_mm:.1f}mm".replace(".", "_")
+    win = f"_w{window_mm:.0f}" if window_mm > 0 else ""
+    stem = (f"navarro_{src.series.lower()}_{angle_deg:.0f}deg_{jaw_mm:.1f}mm{win}"
+            .replace(".", "_"))
     try:
         write_vtp(mesh, meshes / f"{stem}.vtp")
         write_stl(mesh, exports / f"{stem}.stl")
@@ -857,7 +869,6 @@ async def build_navarro_clip(
         raise HTTPException(status_code=500, detail=f"No se pudo guardar el clip: {exc}")
 
     stamp = int(time.time() * 1000)
-    shape = "Recto" if src.angle_deg == 0 else f"Angulado {src.angle_deg:.0f}°"
     reason = (
         f"Talla dibujada de {src.jaw_mm} mm, tal cual."
         if exact else
@@ -869,10 +880,13 @@ async def build_navarro_clip(
                 session_id, src.name, jaw_mm, exact)
     return CustomJawOut(
         series=src.series,
+        shape=src.shape,
         angle_deg=float(src.angle_deg),
+        window_mm=float(src.window_mm),
+        resizable=src.can_resize,
         jaw_mm=float(jaw_mm),
         nearest_drawn_mm=float(src.jaw_mm),
-        label=f"NAVARRO™ {src.series} {shape}, mordaza {jaw_mm:.1f} mm",
+        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw_mm:.1f} mm",
         reason=reason,
         mesh_url=f"{mesh_url(session_id, stem + '.vtp')}?v={stamp}",
         stl_url=f"{export_url(session_id, stem + '.stl')}?v={stamp}",

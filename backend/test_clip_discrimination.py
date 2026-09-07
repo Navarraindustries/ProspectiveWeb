@@ -163,3 +163,54 @@ class TestTheRankingActuallySeparates:
         a = [c.clip.clip_id for c in select_clips(_case(6.0)).recommended[:5]]
         b = [c.clip.clip_id for c in select_clips(_case(18.0)).recommended[:5]]
         assert len(set(a) & set(b)) <= 1, "cuellos muy distintos dan casi la misma lista"
+
+
+# ── 6. A jaw made to size, in every series that can take one ──────────────── #
+
+class TestTheCustomJawWorksForEverySeriesThatStretches:
+    """«Does the custom jaw work for the three families?» — measured, not assumed.
+
+    The geometry always did. The two paths that EXPOSE it did not: the
+    suggestion derived only a BEND from the winning candidate and never a shape,
+    so a fenestrated case was offered a straight jaw of the right length — the
+    wrong piece at the right size — and the endpoint that builds the preview had
+    no shape or window parameter at all.
+    """
+
+    @pytest.mark.parametrize("shape,angle,window", [
+        ("straight", 0.0, 0.0), ("angled", 45.0, 0.0),
+        ("angled", 90.0, 0.0), ("fenestrated", 0.0, 5.0),
+    ])
+    @pytest.mark.parametrize("jaw", [8.5, 11.5, 20.5])
+    def test_the_piece_comes_out_the_length_that_was_asked_for(self, shape, angle, window, jaw):
+        mesh, _src, exact = navarro.build_jaw(angle, jaw, shape=shape, window_mm=window)
+        assert not exact, "esta talla no está dibujada; se está estirando"
+        pts = mesh.GetPoints()
+        tip = max(-pts.GetPoint(i)[0] for i in range(pts.GetNumberOfPoints()))
+        assert tip * 2 == pytest.approx(jaw, abs=0.05)
+
+    def test_the_curved_series_is_the_only_one_that_refuses(self):
+        curved = [v for v in navarro.list_variants() if v.shape == navarro.CURVED]
+        rest = [v for v in navarro.list_variants() if v.shape != navarro.CURVED]
+        assert curved and rest
+        assert all(not v.can_resize for v in curved)
+        assert all(v.can_resize for v in rest)
+
+    def test_a_fenestrated_case_is_offered_a_fenestrated_custom_jaw(self):
+        # The one that used to come back straight.
+        case = _case(neck=4.0, region="ACM bifurcacion")
+        cj = select_clips(case).custom_jaw
+        assert cj is not None, "una mordaza exacta sigue siendo una opción real"
+        assert cj.shape == "fenestrated"
+        assert cj.window_mm > 0, "un fenestrado a medida sin ventana no es un fenestrado"
+
+    def test_the_offer_does_not_vanish_when_a_curved_clip_wins(self):
+        # Curved clips win ties often now, and their jaw cannot be stretched —
+        # which silently removed the custom-size offer from almost every case.
+        # «Can I have this exact length» is answered by the series that stretch.
+        case = _case(neck=4.0)
+        sel = select_clips(case)
+        assert sel.recommended
+        assert sel.custom_jaw is not None
+        assert sel.custom_jaw.shape != "curved"
+        assert sel.custom_jaw.resizable

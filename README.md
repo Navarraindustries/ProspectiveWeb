@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **686 passing** (`pytest`, 42 files) |
+| Backend tests | **699 passing** (`pytest`, 43 files) |
 | Frontend tests | **131 passing** (`vitest`, 14 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -560,6 +560,39 @@ list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
 
+### The recommendation, after the catalogue became one family
+
+Measured across nine cases once the family was the whole catalogue: the top two
+candidates scored **identically in eight of them**, the whole top five sat within
+0–7 points, and a deep dome and a plain neck came back with the same five clips.
+The selector was built to choose among 42 clips from four makers; pointed at 66
+variants of one family — same body, same alloy, same uncharacterised force band —
+it had stopped separating anything. Three causes:
+
+**A criterion that is constant cannot rank, only dilute.** The closing force
+scored 0.60 on all 66, and took a third of the weight doing it. It now carries
+weight 0 while the band is provisional. It is not hidden — the caveat stays on
+screen, and a band that could not hold the neck still fails the clip outright.
+
+**The list did not answer the question being asked.** Six T3 angled 7 mm
+differing only in bend, while the straight, curved and fenestrated never
+appeared. «Straight, curved, angled or fenestrated» is the decision; «60° or 75°»
+is a detail inside it. Each shape now contributes its best candidate, and no
+shape takes more than two of the six slots. Scoring 90° above 60° above 45° also
+went: what a bend buys is a shaft clear of the sac, which any bend gives, and how
+much bend is best is not something the measurements answer.
+
+**A warning that scored zero was indistinguishable from a failure.** The coverage
+Gaussian bottoms out well before the ratio becomes disqualifying, so a 3 mm neck
+came back with six clips at 0.00 points labelled usable. A `warn` means usable
+with a caveat, so it keeps a floor; zero goes back to meaning what `fail` means.
+
+Result: the top-five spread went from 0–7 points to 15, and the number of case
+pairs returning near-identical lists fell from eight to three. **Ties at the top
+are still common, and are now said out loud** rather than resolved by an
+arbitrary tie-break — with most of what used to separate clips now identical,
+a tie means the measurements do not choose, and the shape is the surgeon's call.
+
 ### Where a bent clip actually sits
 
 `pose_transform` puts the device's origin on the neck and aligns its +Z with the
@@ -903,11 +936,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 686 tests
+.venv\Scripts\python -m pytest -q                        # all 699 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **686 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **699 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

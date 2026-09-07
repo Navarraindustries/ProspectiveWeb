@@ -299,6 +299,13 @@ class ClipCandidate:
                 f"margen {self.safety_margin_mm:.1f} mm")
 
 
+#: Floor for a criterion that warns rather than fails. A warning means the clip
+#: is usable with a caveat, and a score of exactly zero says the opposite — it is
+#: what a failed criterion scores. Small enough that a warned clip never
+#: outranks a clean one, non-zero so a list of warned clips still has an order.
+WARN_SCORE_FLOOR = 0.05
+
+
 def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
     neck = case.neck_mm
     bl = clip.blade_length_mm
@@ -319,7 +326,15 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
             f"el extremo distal queda sobre tejido sano",
             0.0, weight=2.0,
         )
-    score = math.exp(-0.5 * ((cov - COVERAGE_IDEAL) / COVERAGE_SIGMA) ** 2)
+    # The Gaussian bottoms out at 0.00 well before the ratio becomes
+    # disqualifying, so «poor» and «impossible» scored the same. That was hidden
+    # while the force criterion contributed a flat 0.60 to everything; with the
+    # force no longer voting it surfaced as a 3 mm neck answered by six clips at
+    # zero points, all of them labelled usable. A verdict of `warn` MEANS usable
+    # with a caveat, so it keeps a floor — the ranking still separates them, and
+    # zero goes back to meaning what `fail` means.
+    score = max(WARN_SCORE_FLOOR,
+                math.exp(-0.5 * ((cov - COVERAGE_IDEAL) / COVERAGE_SIGMA) ** 2))
     if margin < SAFETY_MARGIN_WARN_MM:
         return Criterion(
             "coverage", "Cobertura", "warn",
@@ -386,17 +401,28 @@ def _reach_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
     """A deep dome needs a shape that clears the sac to reach the neck."""
     if not case.is_deep_dome:
         return None
-    fit = {ClipShape.ANGLED: 1.0, ClipShape.BAYONET: 0.95, ClipShape.ANGLED_45: 0.85,
-           ClipShape.CURVED: 0.70, ClipShape.STRAIGHT: 0.50, ClipShape.FENESTRATED: 0.45}
-    s = fit.get(clip.shape, 0.5)
+    # What a bend buys is a shaft that leaves the neck plane, so the sac does not
+    # have to be retracted to get the applier in. WHETHER the shaft clears is
+    # what the geometry supports; HOW MUCH bend is best is not — and scoring 90°
+    # above 60° above 45° said it was, which is why a neutral case came back with
+    # six angled clips whose only difference was an angle nobody had justified.
+    #
+    # So: bent clears, straight does not, and every bend scores the same. The
+    # actual angle is on screen and in the order form, as the surgeon's choice.
+    bent = clip.shape in (ClipShape.ANGLED, ClipShape.ANGLED_45,
+                          ClipShape.BAYONET, ClipShape.CURVED)
     head = (f"Domo profundo (AR {case.ar:.2f}, altura {case.dome_height_mm:.1f} mm): "
             f"{clip.shape.value.lower()}")
-    if s >= 0.85:
-        return Criterion("reach", "Alcance", "ok", f"{head} libra el saco para alcanzar el cuello", s)
-    if s >= 0.65:
-        return Criterion("reach", "Alcance", "warn", f"{head} obliga a más retracción del saco", s)
+    if bent:
+        bend = f" con acodado de {clip.bend_angle_deg:.0f}°" if clip.bend_angle_deg else ""
+        return Criterion(
+            "reach", "Alcance", "ok",
+            f"{head}{bend} aparta el mango del saco para alcanzar el cuello. "
+            f"Cuánto acodado conviene lo decide el corredor de abordaje, no esta "
+            f"puntuación: las variantes acodadas puntúan igual entre sí.", 1.0)
     return Criterion("reach", "Alcance", "warn",
-                     f"{head} es poco adecuado para este AR; considerar angulado o bayoneta", s)
+                     f"{head} deja el mango sobre el saco: obliga a más retracción. "
+                     f"Considerar una variante acodada o curva.", 0.55)
 
 
 def _shape_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
@@ -412,6 +438,16 @@ def _shape_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
                          f"{clip.shape.value} es viable pero no la primera opción. {note}", s)
     return Criterion("shape", "Forma / localización", "warn",
                      f"{clip.shape.value} poco habitual en esta localización. {note}", s)
+
+
+def _force_weight(clip: ClipSpec) -> float:
+    """How much the force criterion votes. Zero while the band is a design target.
+
+    Not a way of hiding it: the verdict and the numbers stay on screen, and a
+    band that could not hold the neck still fails the clip outright. What it
+    stops doing is ordering a list where it is identical for every candidate.
+    """
+    return 0.0 if clip.force_provisional else 1.0
 
 
 def _force_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
@@ -444,19 +480,19 @@ def _force_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
             "force", "Fuerza de cierre", "warn",
             f"{shown} por encima de lo necesario (máx. {acc_hi:.0f} g): "
             f"riesgo de lesión de la pared{tail}",
-            0.30,
+            0.30, _force_weight(clip),
         )
 
     inside_opt = lo >= opt_lo and hi <= opt_hi
     if inside_opt and not clip.force_provisional:
         return Criterion("force", "Fuerza de cierre", "ok",
-                         f"{shown} dentro de la ventana {opt_lo:.0f}–{opt_hi:.0f} g", 1.0)
+                         f"{shown} dentro de la ventana {opt_lo:.0f}–{opt_hi:.0f} g", 1.0, _force_weight(clip))
     if inside_opt:
         return Criterion(
             "force", "Fuerza de cierre", "warn",
             f"{shown} cae entera en la ventana {opt_lo:.0f}–{opt_hi:.0f} g, pero la "
             f"fuerza real está sin caracterizar: confirmar antes de fabricar",
-            0.80,
+            0.80, _force_weight(clip),
         )
     # Part of the band is usable. Say which part, so the figure to ask the
     # manufacturer for is on screen instead of left to be worked out.
@@ -466,12 +502,12 @@ def _force_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
             "force", "Fuerza de cierre", "warn",
             f"{shown} solo es óptima entre {ov_lo:.0f} y {ov_hi:.0f} g para este "
             f"cuello ({opt_lo:.0f}–{opt_hi:.0f} g){tail}",
-            0.60,
+            0.60, _force_weight(clip),
         )
     return Criterion(
         "force", "Fuerza de cierre", "warn",
         f"{shown} aceptable pero fuera del óptimo {opt_lo:.0f}–{opt_hi:.0f} g{tail}",
-        0.55,
+        0.55, _force_weight(clip),
     )
 
 
@@ -500,8 +536,13 @@ def evaluate_clip(clip: ClipSpec, case: ClipCase) -> ClipCandidate:
         if maybe is not None:
             crits.append(maybe)
 
-    total_w = sum(c.weight for c in crits) or 1.0
-    raw = 100.0 * sum(c.score * c.weight for c in crits) / total_w
+    # A criterion that scores the same for every candidate cannot order anything;
+    # it only dilutes the ones that can. The closing force is exactly that today:
+    # one uncharacterised band for the whole family, 0.60 on all 66. It stays in
+    # the list — it is a real caveat and it still FAILS a clip whose band could
+    # not hold the neck, which zeroes the score below — but it stops voting.
+    total_w = sum(c.weight for c in crits if c.weight > 0) or 1.0
+    raw = 100.0 * sum(c.score * c.weight for c in crits if c.weight > 0) / total_w
     failed = any(c.verdict == "fail" for c in crits)
     cov = clip.blade_length_mm / case.neck_mm if case.neck_mm > 0 else 0.0
 
@@ -885,35 +926,64 @@ def repartition_after_verification(selection: "ClipSelection") -> None:
         )
 
 
-def _with_every_kind_represented(viable: list[ClipCandidate], n: int) -> list[ClipCandidate]:
-    """Top `n` by score, but never a whole kind of clip left off the list.
+def _with_every_shape_represented(viable: list[ClipCandidate], n: int) -> list[ClipCandidate]:
+    """Top `n` by score, but never a whole SHAPE left off the list.
 
-    Ranking alone hid an entire family. A clip whose closing force is still a
-    design band is capped at `warn` on that criterion — correctly, nobody can
-    call it met — while a catalogue clip with a characterised force scores `ok`.
-    The gap is small per clip and fatal in aggregate: with a 6 mm neck, 28 of the
-    42 NAVARRO™ designs were viable and the best of them ranked 12th of 60, so
-    the six visible slots were always stock and the institution's own clips never
-    appeared at all.
+    Ranking alone hid an entire family once: a design whose closing force is a
+    band is capped at `warn` on that criterion — correctly, nobody can call it
+    met — and with a 6 mm neck the best of 42 NAVARRO™ designs ranked 12th of 60,
+    so every visible slot went to stock. That guarantee split on availability,
+    stock against made-to-order.
 
-    Stock and made-to-order answer different questions — what can be picked up
-    today, and what would be made for this case — so each gets at least its best
-    candidate. The scores are untouched: the uncertainty is real and stays
-    visible in the criteria; what changes is that it no longer decides
-    visibility.
+    It stopped meaning anything the day the family became the whole catalogue:
+    one kind, so nothing to balance. And what replaced it was worse — the six
+    recommended clips for a neutral case were six T3 angled 7 mm differing only
+    in bend, while the straight, the curved and the fenestrated never appeared.
+    That is not the question a surgeon is asking. «Straight, curved, angled or
+    fenestrated» is the decision; «60° or 75°» is a detail inside it.
+
+    So the balance is now across SHAPE. Each shape that has a usable candidate
+    contributes its best one; the remaining slots go to score, as before. The
+    scores are untouched — what changes is what gets seen.
     """
-    out = list(viable[:n])
+    by_shape: dict = {}
+    for c in viable:
+        by_shape.setdefault(c.clip.shape, c)      # `viable` is already sorted
+    out = list(by_shape.values())
     shown = {id(c) for c in out}
-    for kind in ("stock", "made_to_order"):
-        if any(getattr(c.clip, "availability", "stock") == kind for c in out):
+    # The free slots go by score, but no more than two of any one shape: filling
+    # them purely by score put three T3 variants that differ only in bend on a
+    # list of six, which is three ways of saying the same thing.
+    per_shape = {c.clip.shape: 1 for c in out}
+    for c in viable:
+        if len(out) >= max(n, len(by_shape)):
+            break
+        if id(c) in shown or per_shape.get(c.clip.shape, 0) >= 2:
             continue
-        best = next((c for c in viable
-                     if getattr(c.clip, "availability", "stock") == kind
-                     and id(c) not in shown), None)
-        if best is not None:
-            out.append(best)
-            shown.add(id(best))
+        out.append(c)
+        shown.add(id(c))
+        per_shape[c.clip.shape] = per_shape.get(c.clip.shape, 0) + 1
     return sorted(out, key=lambda c: -c.score)
+
+
+def _tie_caveat(recommended: list[ClipCandidate]) -> list[str]:
+    """Say when the measurements do not actually choose between the top clips.
+
+    They tie often, and for a real reason: with the catalogue reduced to one
+    family, most of what used to separate clips — maker, alloy, characterised
+    force — is now identical across every candidate. Presenting an arbitrary
+    tie-break as «the best» would be inventing a preference the case does not
+    support. Ties are information: it means the choice is the surgeon's.
+    """
+    if len(recommended) < 2:
+        return []
+    top = recommended[0].score
+    tied = [c for c in recommended if abs(c.score - top) < 0.05]
+    if len(tied) < 2 or top <= 0:
+        return []
+    names = ", ".join(c.clip.name.replace("NAVARRO™ ", "") for c in tied[:4])
+    return [f"{len(tied)} clips empatan en la primera posición ({names}): las medidas "
+            f"del caso no eligen entre ellos, la forma la decide el abordaje."]
 
 
 def select_clips(
@@ -949,7 +1019,7 @@ def select_clips(
     failed = sorted([c for c in evaluated if not c.viable],
                     key=lambda c: abs(c.clip.blade_length_mm - case.neck_mm * COVERAGE_IDEAL))
 
-    recommended = _with_every_kind_represented(viable, n)
+    recommended = _with_every_shape_represented(viable, n)
     # The near-misses worth showing: the ones that came closest to the ideal blade.
     rejected = failed[:n]
 
@@ -984,7 +1054,8 @@ def select_clips(
             # whatever is in the cupboard. The outcome still says a stock clip
             # meets every criterion, so this reads as the option it is.
             manufacture=derive_manufacture_spec(case, failed),
-            caveats=_caveats(case) + _availability_caveats(recommended),
+            caveats=(_caveats(case) + _availability_caveats(recommended)
+                     + _tie_caveat(recommended)),
             custom_jaw=suggest_custom_jaw(case, recommended[0] if recommended else None),
         )
 
@@ -1000,6 +1071,7 @@ def select_clips(
             f"ninguno sin reservas. La alternativa a medida sería: {spec.label}."
         ),
         case=case, recommended=recommended, rejected=rejected, manufacture=spec,
-        caveats=_caveats(case) + _availability_caveats(recommended),
+        caveats=(_caveats(case) + _availability_caveats(recommended)
+                 + _tie_caveat(recommended)),
         custom_jaw=suggest_custom_jaw(case, recommended[0] if recommended else None),
     )

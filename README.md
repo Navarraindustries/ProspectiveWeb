@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **665 passing** (`pytest`, 42 files) |
+| Backend tests | **686 passing** (`pytest`, 42 files) |
 | Frontend tests | **131 passing** (`vitest`, 14 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -560,6 +560,33 @@ list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
 
+### Where a bent clip actually sits
+
+`pose_transform` puts the device's origin on the neck and aligns its +Z with the
+neck normal, so «on the neck» means two things: the jaw's middle at that origin,
+and the jaw square to that normal. A bent clip failed both, and each failure had
+its own cause.
+
+**The rotation turned the shaft into the plane, not the jaw.** A flat −90° put
+the file's long axis in the neck plane — and the long axis is the shaft, so the
+blades came out lifted by exactly the bend: `sin(60°)` of the jaw off-plane at
+60°, two thirds at 90°. On screen the blades hovered beside the aneurysm. An
+angled clip IS blades at an angle to the shaft: the blades go on the neck, the
+shaft is what comes in angled. The turn now follows the JAW direction, which
+lands all four series on the device's X, inside the plane.
+
+**The centring assumed the jaw ran through the file's origin.** It does for a
+straight clip and not for a bent one — the knee lifts the jaw sideways, 2.69 mm
+for a 90° design — so the blades ended up in a plane *parallel* to the neck.
+Right attitude, wrong height: a 13 mm jaw covered 64 % of a 6 mm neck. The middle
+along the jaw axis is still `root + jaw/2` by definition (the measured centroid
+is biased toward the root, because the jaw is tapered), but the offset ACROSS the
+axis is now measured off the mesh, where it was being assumed to be zero.
+
+All nine drawn configurations now span 100 % of a 6 mm neck, and
+`test_the_blade_actually_closes_on_the_neck` keeps them there with the same
+`plane_span` figure the plan reports as coverage.
+
 ### The clip you chose is the clip that gets made
 
 Reported from the application: a Sugita curved stayed as the chosen device after
@@ -876,11 +903,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 665 tests
+.venv\Scripts\python -m pytest -q                        # all 686 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **665 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **686 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

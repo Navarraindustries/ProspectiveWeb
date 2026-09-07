@@ -324,75 +324,133 @@ class TestPlacementUsesTheRealClip:
 
 
 class TestTheJawStraddlesTheNeck:
-    """Where the clip sits, not just which way it points.
+    """Where the clip sits and which way it faces — the two halves of «on the neck».
 
-    `pose_transform` puts a device's LOCAL ORIGIN on the neck. The synthetic
-    catalogue clips are drawn with the jaw straddling that origin, so the blades
-    close on the neck with half the grip either side. The NAVARRO origin is not
-    in the jaw at all — for the drawn 7 mm straight the jaw runs -9.50..-2.50 mm
-    while the 14.30 mm body runs to +11.80 mm — so the neck landed at the HINGE
-    and the whole jaw hung off to one side, with the body crossing the aneurysm.
-    On screen: a clip whose blades never meet the neck they are meant to close.
+    `pose_transform` puts a device's LOCAL ORIGIN on the neck and aligns the
+    device's +Z with the neck normal. Two things follow, and both were wrong
+    once:
+
+    1. **The origin has to be in the middle of the jaw.** The NAVARRO origin is
+       not in the jaw at all — for the drawn 7 mm straight the jaw runs
+       -9.50..-2.50 mm while the 14.30 mm body runs to +11.80 — so the neck
+       landed at the HINGE and the whole jaw hung off to one side.
+    2. **The jaw has to lie IN the neck plane**, i.e. square to that +Z. A flat
+       -90° turn put the file's long axis in the plane, and the long axis is the
+       SHAFT: a bent clip then came out with its blades lifted out of the plane
+       by its own bend — half the jaw off-plane at 60°, two thirds at 90°. On
+       screen the blades hovered beside the aneurysm instead of closing on it.
+
+    An angled clip IS blades at an angle to the shaft. The blades go on the neck;
+    the shaft is what comes in angled, which is the point of buying a bent clip.
     """
 
-    def _jaw_axis(self, angle_deg: float) -> tuple[float, float, float]:
-        # File axis (sin, 0, cos) after RotateY(-90): (x, y, z) -> (-z, y, x).
-        t = math.radians(angle_deg)
-        return (-math.cos(t), 0.0, math.sin(t))
+    #: After the transform the jaw runs along the device's X for every series,
+    #: whatever the bend. That is the invariant, and it is what makes «half a jaw
+    #: either side of the origin» mean the same thing for all 66 designs.
+    JAW_AXIS = (-1.0, 0.0, 0.0)
 
-    def _tip_and_root(self, mesh, angle_deg: float) -> tuple[float, float]:
-        ax = self._jaw_axis(angle_deg)
+    def _project(self, mesh) -> list[float]:
         pts = mesh.GetPoints()
-        projections = [
-            sum(pts.GetPoint(i)[k] * ax[k] for k in range(3))
-            for i in range(pts.GetNumberOfPoints())
-        ]
-        return max(projections), min(projections)
+        return [sum(pts.GetPoint(i)[k] * self.JAW_AXIS[k] for k in range(3))
+                for i in range(pts.GetNumberOfPoints())]
+
+    def _build(self, angle: float, jaw: float, shape: str = "straight", window: float = 0.0):
+        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
+        navarro.clear_cache()
+        return navarro.build_jaw(angle, jaw, shape=shape, window_mm=window)
 
     @pytest.mark.parametrize("angle", [0.0, 15.0, 45.0])
     @pytest.mark.parametrize("jaw", [7.0, 13.0, 22.0])
     def test_the_useful_grip_is_centred_on_the_origin(self, angle, jaw):
         # The tip sits half a jaw beyond the origin, so the neck ends up in the
         # middle of the grip: exactly where a clip closes.
-        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
-        navarro.clear_cache()
-        mesh, _src, _exact = navarro.build_jaw(angle, jaw)
-        tip, _root = self._tip_and_root(mesh, angle)
-        assert tip == pytest.approx(jaw / 2.0, abs=0.05)
+        shape = "angled" if angle > 0 else "straight"
+        mesh, _src, _exact = self._build(angle, jaw, shape)
+        assert max(self._project(mesh)) == pytest.approx(jaw / 2.0, abs=0.05)
+
+    @pytest.mark.parametrize("angle", [0.0, 15.0, 30.0, 45.0, 60.0, 75.0, 90.0])
+    def test_the_jaw_lies_in_the_neck_plane_whatever_the_bend(self, angle):
+        # The regression this class exists for. Before the fix the off-plane
+        # component was sin(bend): 0.87 of the jaw length at 60°.
+        shape = "angled" if angle > 0 else "straight"
+        _mesh, src, _exact = self._build(angle, 13.0, shape)
+        raw = navarro.load_mesh(src)
+        axis, _mid = navarro._jaw_axis_and_midpoint(raw, src.jaw_mm, src.angle_deg, src.shape)
+        phi = math.degrees(math.atan2(axis[0], axis[2]))
+        a = math.radians(-90.0 - phi)
+        out_of_plane = abs(-axis[0] * math.sin(a) + axis[2] * math.cos(a))
+        assert out_of_plane < 0.01, (
+            f"la mordaza a {angle:.0f}° queda {out_of_plane * 100:.1f} % fuera del plano")
+
+    @pytest.mark.parametrize("shape,angle,window", [
+        ("straight", 0.0, 0.0), ("curved", 0.0, 0.0),
+        ("angled", 60.0, 0.0), ("fenestrated", 0.0, 5.0),
+    ])
+    def test_every_series_faces_the_neck_the_same_way(self, shape, angle, window):
+        # One rule for the four, or the surgeon has to aim differently depending
+        # on which clip they picked.
+        mesh, _src, _exact = self._build(angle, 13.0, shape, window)
+        b = mesh.GetBounds()
+        span_across = b[5] - b[4]          # thickness along the neck normal
+        span_along = b[1] - b[0]           # jaw axis + shaft
+        assert span_along > span_across, "el clip tiene que tenderse sobre el cuello"
+
+    def test_the_shaft_leaves_the_plane_when_the_clip_is_bent(self):
+        # The other half of the same coin: a bent clip is bought so the shaft
+        # clears the corridor. If the jaw is in the plane, the shaft must not be.
+        straight, _s, _e = self._build(0.0, 13.0, "straight")
+        bent, _s2, _e2 = self._build(90.0, 13.0, "angled")
+        assert (straight.GetBounds()[5] - straight.GetBounds()[4]) < 4.0
+        assert (bent.GetBounds()[5] - bent.GetBounds()[4]) > 10.0
+
+    @pytest.mark.parametrize("shape,angle,window", [
+        ("straight", 0.0, 0.0),
+        ("angled", 15.0, 0.0), ("angled", 30.0, 0.0), ("angled", 45.0, 0.0),
+        ("angled", 60.0, 0.0), ("angled", 75.0, 0.0), ("angled", 90.0, 0.0),
+        ("curved", 0.0, 0.0), ("fenestrated", 0.0, 5.0),
+    ])
+    def test_the_blade_actually_closes_on_the_neck(self, shape, angle, window):
+        """The number that says it, not just the picture.
+
+        `plane_span` cuts the posed clip with the neck plane, so this is the
+        width the blades really present AT the neck — the same figure the plan
+        reports as coverage. It caught what the orientation fix alone did not:
+        with the jaw square to the plane but the knee holding it 2.69 mm above,
+        a 13 mm jaw covered 64 % of a 6 mm neck. Right attitude, wrong height.
+        """
+        from services import devices
+
+        neck, normal = (0.0, 0.0, 0.0), (0.0, 0.0, 1.0)
+        mesh, _src, _exact = self._build(angle, 13.0, shape, window)
+        world = devices.apply_transform(
+            mesh, devices.pose_transform(neck, normal, 0.0))
+        coverage = devices.clip_neck_coverage(world, neck, normal, 6.0)
+        assert coverage == pytest.approx(100.0), (
+            f"{shape} {angle:.0f}° cubre solo el {coverage:.0f} % del cuello")
 
     def test_a_stretched_jaw_is_centred_too(self):
         # The size that is machined rather than drawn is the one a surgeon is
         # most likely to order, and it must not be the one that lands wrong.
-        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
-        navarro.clear_cache()
-        mesh, _src, exact = navarro.build_jaw(0.0, 11.5)
+        mesh, _src, exact = self._build(0.0, 11.5, "straight")
         assert not exact, "11.5 mm no es talla dibujada; este test mira la estirada"
-        tip, _root = self._tip_and_root(mesh, 0.0)
-        assert tip == pytest.approx(11.5 / 2.0, abs=0.05)
+        assert max(self._project(mesh)) == pytest.approx(11.5 / 2.0, abs=0.05)
 
     def test_it_matches_how_the_catalogue_clips_are_drawn(self):
         # Same convention as `make_clip_shaped`, or the two families would need
         # the surgeon to aim differently depending on which clip was chosen.
         from services import devices
 
-        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
-        navarro.clear_cache()
         synthetic = devices.make_clip_shaped(7.0, 0.5, 1.4, "STRAIGHT")
-        sb = synthetic.GetBounds()
-        navarro_mesh, _s, _e = navarro.build_jaw(0.0, 7.0)
-        tip, _root = self._tip_and_root(navarro_mesh, 0.0)
-        # The synthetic blade reaches ~+3.5 mm from the origin; so must ours.
-        assert tip == pytest.approx(sb[1], abs=0.5)
+        mesh, _s, _e = self._build(0.0, 7.0, "straight")
+        assert max(self._project(mesh)) == pytest.approx(synthetic.GetBounds()[1], abs=0.5)
 
     def test_the_body_still_hangs_off_the_back(self):
         # Centring the JAW must not centre the whole clip: the spring belongs
         # behind the blades, not draped over the aneurysm.
-        os.environ["NAVARRO_ROOT"] = str(navarro.DEFAULT_ROOT)
-        navarro.clear_cache()
-        mesh, _src, _exact = navarro.build_jaw(0.0, 7.0)
-        tip, root = self._tip_and_root(mesh, 0.0)
-        assert tip == pytest.approx(3.5, abs=0.05)
-        assert root < -10.0, "el cuerpo de 14.30 mm tiene que quedar por detrás"
+        mesh, _src, _exact = self._build(0.0, 7.0, "straight")
+        proj = self._project(mesh)
+        assert max(proj) == pytest.approx(3.5, abs=0.05)
+        assert min(proj) < -10.0, "el cuerpo de 14.30 mm tiene que quedar por detrás"
 
 
 class TestListingIsCached:

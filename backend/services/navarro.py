@@ -373,6 +373,89 @@ def resize_jaw(poly, from_jaw_mm: float, to_jaw_mm: float, angle_deg: float):
     return out
 
 
+def _jaw_axis_and_midpoint(poly, jaw_mm: float, angle_deg: float,
+                           shape: str) -> tuple[tuple[float, float, float],
+                                                tuple[float, float, float]]:
+    """Where the jaw runs and where its middle is, both in the file's own frame.
+
+    Two numbers, one per shape, and everything downstream is the same for all
+    four: rotate that direction into the neck plane, then slide that midpoint
+    onto the origin.
+    """
+    if shape == CURVED:
+        mid = _curved_jaw_midpoint(poly)
+        root = _curved_jaw_root(poly)
+        dx, dz = mid[0] - root[0], mid[2] - root[2]
+        n = math.hypot(dx, dz)
+        if n < 1e-6:                       # degenerate: fall back to the shaft
+            return (0.0, 0.0, 1.0), mid
+        return (dx / n, 0.0, dz / n), mid
+
+    theta = math.radians(angle_deg)
+    axis = (math.sin(theta), 0.0, math.cos(theta))
+    return axis, _jaw_centroid(poly, jaw_mm, axis)
+
+
+def _jaw_centroid(poly, jaw_mm: float,
+                  axis: tuple[float, float, float]) -> tuple[float, float, float]:
+    """Middle of the jaw, measured on the mesh rather than assumed.
+
+    Taking a point `root + jaw/2` ALONG the axis from the file origin assumes the
+    jaw's centreline passes through that origin. It does for a straight clip and
+    it does not for a bent one: the knee lifts the jaw sideways, so the jaw of a
+    90° design runs 2.69 mm off the origin's plane. Centring on that ray left the
+    blades in a plane PARALLEL to the neck — right orientation, wrong height,
+    and the neck coverage came out 64 % for a 13 mm jaw on a 6 mm neck.
+
+    The centroid of the points that actually belong to the jaw has no such
+    assumption in it.
+    """
+    pts = poly.GetPoints()
+    n = pts.GetNumberOfPoints()
+    proj = [pts.GetPoint(i)[0] * axis[0] + pts.GetPoint(i)[2] * axis[2] for i in range(n)]
+    tip = max(proj)
+    root = tip - float(jaw_mm)
+    sx = sy = sz = 0.0
+    k = 0
+    for i in range(n):
+        if proj[i] >= root:
+            x, y, z = pts.GetPoint(i)
+            sx += x; sy += y; sz += z; k += 1
+    half = root + float(jaw_mm) / 2.0
+    if k == 0:
+        return (half * axis[0], 0.0, half * axis[2])
+
+    # Two different questions, and only one of them is answered by measuring.
+    #
+    # ALONG the axis the middle is `root + jaw/2` by definition, and it has to
+    # be: the centroid is biased toward the root, because the jaw is tapered and
+    # the blades flare where they meet the hinge, so more points sit at the back.
+    # Using it put the tip 1.92 mm out instead of 3.50 for a 7 mm jaw — half the
+    # grip stopped being half the grip.
+    #
+    # ACROSS the axis, though, nothing can be assumed: the knee lifts a bent jaw
+    # off the origin's plane, and that offset is only knowable by looking. So the
+    # measured centroid contributes its perpendicular part, and nothing else.
+    cx, cy, cz = sx / k, 0.0, sz / k
+    along = cx * axis[0] + cz * axis[2]
+    perp = (cx - along * axis[0], cy, cz - along * axis[2])
+    return (half * axis[0] + perp[0], perp[1], half * axis[2] + perp[2])
+
+
+def _curved_jaw_root(poly) -> tuple[float, float, float]:
+    """Centre of the curved jaw where it leaves the body."""
+    pts = poly.GetPoints()
+    band = []
+    for i in range(pts.GetNumberOfPoints()):
+        x, _y, z = pts.GetPoint(i)
+        if abs(z - JAW_ROOT_Z_MM) <= 0.35:
+            band.append((x, z))
+    if not band:
+        return (0.0, 0.0, JAW_ROOT_Z_MM)
+    return (sum(b[0] for b in band) / len(band), 0.0,
+            sum(b[1] for b in band) / len(band))
+
+
 def _curved_jaw_midpoint(poly) -> tuple[float, float, float]:
     """Middle of a curved jaw, measured on the mesh.
 
@@ -444,22 +527,25 @@ def to_device_frame(poly, jaw_mm: float, angle_deg: float,
     """
     import vtk
 
-    if shape == CURVED:
-        # The grip runs along an arc, so there is no axis to project onto: the
-        # root offset would come out ~0.6 mm instead of the measured 2.65 and
-        # the clip would sit two millimetres off the neck. The midpoint of the
-        # chord from the jaw root to the tip is measured off this mesh instead.
-        shift = _curved_jaw_midpoint(poly)
-    else:
-        root = jaw_root_offset(poly, jaw_mm, angle_deg)
-        mid = root + float(jaw_mm) / 2.0
-        theta = math.radians(angle_deg)
-        shift = (mid * math.sin(theta), 0.0, mid * math.cos(theta))
+    axis, shift = _jaw_axis_and_midpoint(poly, jaw_mm, angle_deg, shape)
+
+    # Turn the JAW into the neck plane, not the shaft. A flat -90° put the
+    # file's long axis in the plane, which is the shaft — so a bent clip came
+    # out with its blades lifted out of the plane by exactly its bend: 50 % of
+    # the jaw length off-plane at 60°, two thirds at 90°. On screen the blades
+    # hovered beside the aneurysm instead of straddling the neck.
+    #
+    # What an angled clip IS, is blades at an angle to the shaft: the blades lie
+    # on the neck and the shaft comes in angled, clear of the corridor. So the
+    # rotation follows the JAW direction — φ is where the jaw points in the
+    # file's frame, and -90° - φ lands it on the device's X, inside the plane,
+    # for all four shapes at once. Straight clips have φ = 0 and are unchanged.
+    phi = math.degrees(math.atan2(axis[0], axis[2]))
 
     t = vtk.vtkTransform()
     # PreMultiply (VTK default): the LAST call is applied to a point FIRST, so
     # the translation happens in the file's own frame and the rotation after it.
-    t.RotateY(-90.0)
+    t.RotateY(-90.0 - phi)
     t.Translate(-shift[0], -shift[1], -shift[2])
 
     f = vtk.vtkTransformPolyDataFilter()

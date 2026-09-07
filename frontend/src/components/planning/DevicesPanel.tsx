@@ -150,7 +150,13 @@ function ClipsTab() {
   useEffect(() => {
     if (!sessionId) return;
     api.clipRecommendations(sessionId)
-      .then((r) => { setRecs(r); if (r.length > 0 && !sel) setSel(r[0].clip_id); })
+      // Functional update, and it matters: the effect closes over `sel` as it
+      // was when it ran — empty, on mount — so a pick made from the criteria
+      // panel WHILE this request was in flight was overwritten the moment it
+      // landed, silently swapping the chosen clip for the top of the legacy
+      // ranking. Reading the current value instead makes the preselection what
+      // it was meant to be: a default for an empty box, never a correction.
+      .then((r) => { setRecs(r); if (r.length > 0) setSel((cur) => cur || r[0].clip_id); })
       .catch((e) => setError(e instanceof Error ? e.message : "Error cargando recomendaciones"));
     // Imported clips live in the session directory, but the browser forgets them
     // on resume — the dropdown lost geometry that was still on disk.

@@ -40,6 +40,11 @@ const prefill = (over: Partial<ClipOrderPrefill> = {}): ClipOrderPrefill => ({
   advised_jaw_mm: 10,
   advised_label: "NAVARRO™ T1 Recto, mordaza 10.0 mm",
   advised_shape: "Recto",
+  advised_navarro_shape: "straight",
+  advised_window_mm: 0,
+  jaw_is_free: true,
+  stock_window_mm: [3, 5, 7],
+  drawn_angles_deg: [15, 30, 45, 60, 75, 90],
   is_drawn_size: true,
   outside_drawn_range: false,
   commercial_name: "",
@@ -205,5 +210,119 @@ describe("when the family cannot build it", () => {
     expect(await screen.findByText(/no tiene todavía un diseño fenestrado/)).toBeTruthy();
     expect(screen.getByText(/Yasargil Fenestrado 7mm/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Firmar/i })).toBeNull();
+  });
+});
+
+describe("what each series lets you change", () => {
+  const withShape = (over: Partial<ClipOrderPrefill>) =>
+    clipOrderPrefill.mockResolvedValue(prefill(over));
+
+  it("offers the four drawn series", async () => {
+    withShape({});
+    draw();
+    await screen.findByLabelText("Serie");
+    for (const s of ["T1 · Recta", "T2 · Curva", "T3 · Angulada", "T4 · Fenestrada"]) {
+      expect(screen.getByRole("option", { name: s })).toBeTruthy();
+    }
+  });
+
+  it("asks for a bend only on the angled series", async () => {
+    withShape({ advised_navarro_shape: "straight" });
+    draw();
+    await screen.findByLabelText("Serie");
+    expect(screen.queryByLabelText("Acodado")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "angled" } });
+    expect(await screen.findByLabelText("Acodado")).toBeTruthy();
+  });
+
+  it("asks for a window only on the fenestrated series, and only the drawn ones", async () => {
+    withShape({ advised_navarro_shape: "straight" });
+    draw();
+    await screen.findByLabelText("Serie");
+    expect(screen.queryByLabelText("Ventana")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "fenestrated" } });
+    const win = await screen.findByLabelText("Ventana");
+    expect(win).toBeTruthy();
+    for (const w of ["3 mm de diámetro", "5 mm de diámetro", "7 mm de diámetro"]) {
+      expect(screen.getByRole("option", { name: w })).toBeTruthy();
+    }
+  });
+
+  it("turns the jaw into a size list on the curved series, because an arc is not stretched", async () => {
+    withShape({ advised_navarro_shape: "straight" });
+    draw();
+    // Libre en la recta: un deslizador continuo.
+    const free = await screen.findByLabelText(/Mordaza/);
+    expect((free as HTMLInputElement).type).toBe("range");
+
+    fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "curved" } });
+    const fixed = await screen.findByLabelText(/Mordaza/);
+    expect(fixed.tagName).toBe("SELECT");
+    expect(screen.getByText(/estirarla cambiaría la curvatura/i)).toBeTruthy();
+  });
+
+  it("sends the series and the window it was told to send", async () => {
+    withShape({ advised_navarro_shape: "straight" });
+    draw();
+    await screen.findByLabelText("Serie");
+    fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "fenestrated" } });
+    fireEvent.change(await screen.findByLabelText("Ventana"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText(/Por qué se aparta/i), { target: { value: "el vaso obliga" } });
+    fireEvent.click(screen.getByRole("button", { name: /Guardar borrador/i }));
+    await waitFor(() => expect(createClipOrder).toHaveBeenCalled());
+    const [, body] = createClipOrder.mock.calls[0];
+    expect(body.shape).toBe("fenestrated");
+    expect(body.window_mm).toBe(5);
+  });
+});
+
+describe("the heading never contradicts the controls", () => {
+  it("names the piece that is selected, not the one that was advised", async () => {
+    // Con la etiqueta congelada en la recomendación, cambiar de serie dejaba la
+    // cabecera anunciando un T4 mientras los controles decían T2.
+    clipOrderPrefill.mockResolvedValue(prefill({
+      advised_navarro_shape: "fenestrated", advised_window_mm: 5,
+      advised_label: "NAVARRO™ T4 Fenestrado ventana 5 mm, mordaza 10.0 mm",
+    }));
+    draw();
+    await screen.findByLabelText("Serie");
+    fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "curved" } });
+    expect(await screen.findByText(/T2 Curvo/)).toBeTruthy();
+    // Y lo recomendado sigue visible, como contraste, no como título.
+    expect(screen.getByText(/El sistema recomendaba/)).toBeTruthy();
+  });
+});
+
+describe("switching series leaves every field valid for it", () => {
+  it("snaps the bend to a drawn angle instead of leaving a 0 the list cannot show", async () => {
+    // El título decía «Angulado 0°» mientras el desplegable mostraba 15°.
+    clipOrderPrefill.mockResolvedValue(prefill({ advised_navarro_shape: "straight" }));
+    draw();
+    await screen.findByLabelText("Serie");
+    fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "angled" } });
+    const bend = await screen.findByLabelText("Acodado") as HTMLSelectElement;
+    expect(bend.value).toBe("15");
+    expect(screen.getByText(/T3 Angulado 15°/)).toBeTruthy();
+  });
+
+  it("gives a fenestrated order a drawn window rather than none", async () => {
+    clipOrderPrefill.mockResolvedValue(prefill({ advised_navarro_shape: "straight" }));
+    draw();
+    await screen.findByLabelText("Serie");
+    fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "fenestrated" } });
+    const win = await screen.findByLabelText("Ventana") as HTMLSelectElement;
+    expect(win.value).toBe("3");
+    expect(screen.getByText(/ventana 3 mm/)).toBeTruthy();
+  });
+
+  it("moves a stretched jaw onto a drawn size when the series is curved", async () => {
+    clipOrderPrefill.mockResolvedValue(prefill({
+      advised_navarro_shape: "straight", advised_jaw_mm: 11.5,
+    }));
+    draw();
+    await screen.findByLabelText("Serie");
+    fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "curved" } });
+    const jaw = await screen.findByLabelText(/Mordaza/) as HTMLSelectElement;
+    expect([10, 13].map(String)).toContain(jaw.value);
   });
 });

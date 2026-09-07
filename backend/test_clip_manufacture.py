@@ -103,51 +103,106 @@ class TestTheSTLIsManufacturable:
         c, pc = _perfect(neck=6.0, region="pericallosa")
         assert pc.navarro_jaw_mm == pytest.approx(pc.spec.blade_length_mm)
 
-    def test_a_commercial_fallback_has_nothing_to_build(self):
-        # A catalogue clip is bought, not made; offering an STL would be a lie.
-        _c, pc = _perfect(neck=6.0, region="ACM bifurcacion")
-        assert pc.source == "commercial"
+    def test_a_piece_with_no_family_design_has_nothing_to_build(self):
+        # The guard is still needed: `build_manufacture_mesh` must refuse rather
+        # than invent geometry for a piece the family does not draw.
+        from services.clip_manufacture import PerfectClip
+
+        pc = PerfectClip(source="unavailable", spec=_perfect()[1].spec,
+                         label="sin proveedor")
         with pytest.raises(ValueError):
             build_manufacture_mesh(pc)
 
 
-# ── 2. Shapes the family does not have ────────────────────────────────────── #
+# ── 2. Every shape comes from the family ──────────────────────────────────── #
 
 @pytest.mark.skipif(not _HAS_NAVARRO, reason="biblioteca NAVARRO no instalada")
-class TestShapesOutsideTheFamily:
-    def test_the_available_shapes_are_read_off_the_disk(self):
-        # So the curved and fenestrated series arrive by dropping in files.
-        shapes = family_shapes()
-        assert ClipShape.STRAIGHT in shapes
-        assert ClipShape.FENESTRATED not in shapes, "aún no hay serie fenestrada"
-        assert ClipShape.CURVED not in shapes, "aún no hay serie curva"
+class TestTheFamilyCoversEveryShape:
+    """The curved (T2) and fenestrated (T4) series arrived, and with them the
+    reason the commercial fallback existed at all.
 
-    def test_a_fenestrated_case_is_not_served_a_straight_clip(self):
+    What it used to do, and why it was a dead end: a bifurcation case asks for a
+    fenestrated clip, the family had none, so the answer was a Sugita — a piece
+    this institution cannot obtain, cannot personalise, and which then travelled
+    into the manufacturing dossier as if it were the plan. Now every shape the
+    selector can ask for is drawn."""
+
+    def test_the_available_shapes_are_read_off_the_disk(self):
+        # Dropping the files in was the whole import step, as designed.
+        shapes = family_shapes()
+        for want in (ClipShape.STRAIGHT, ClipShape.CURVED, ClipShape.FENESTRATED,
+                     ClipShape.ANGLED, ClipShape.ANGLED_45):
+            assert want in shapes, f"falta la serie {want.value}"
+
+    def test_a_fenestrated_case_is_served_by_the_family(self):
+        # This is the case that used to end in a Sugita.
         _c, pc = _perfect(neck=6.0, region="ACM bifurcacion")
         assert pc.spec.shape == ClipShape.FENESTRATED
-        assert pc.source != "navarro", "no hay diseño fenestrado; no puede fabricarse"
-        assert "fenestrado" in pc.fallback_reason.lower()
+        assert pc.source == "navarro"
+        assert pc.navarro_series == "T4"
+        assert pc.navarro_window_mm > 0, "un fenestrado sin ventana no es un fenestrado"
 
-    def test_the_commercial_substitute_is_of_the_shape_asked_for(self):
-        from services.clips import CLIP_CATALOGUE
+    def test_the_window_comes_from_the_drawn_ones_and_says_so(self):
+        # 3, 5 and 7 mm are what exist; anything else is rounded to one of them
+        # and the note tells the surgeon which way it went.
+        from services.navarro import STOCK_WINDOW_MM
 
         _c, pc = _perfect(neck=6.0, region="ACM bifurcacion")
-        assert pc.source == "commercial"
-        match = next(c for c in CLIP_CATALOGUE if c.name == pc.commercial_name)
-        assert match.shape == ClipShape.FENESTRATED
+        assert pc.navarro_window_mm in [float(w) for w in STOCK_WINDOW_MM]
+        if abs(pc.navarro_window_mm - pc.spec.fenestration_mm) > 1e-6:
+            assert any("ventana" in n.lower() for n in pc.notes)
 
-    def test_a_substitute_that_cannot_close_the_neck_is_not_offered(self):
-        # None of the six fenestrated clips reaches 13 mm of blade, so a 12 mm
-        # neck has no substitute — and the 7 mm one used to be offered anyway.
+    def test_a_wide_neck_that_needs_a_window_is_no_longer_unanswerable(self):
+        # None of the six commercial fenestrated clips reached 13 mm of blade, so
+        # a 12 mm neck came back "unavailable". The family goes to 22 mm.
         _c, pc = _perfect(neck=12.0, region="Carotida paraclinoidea")
-        assert pc.source == "unavailable"
-        assert not pc.commercial_name
-        assert "se queda corto" in pc.fallback_reason
+        assert pc.source == "navarro"
+        assert pc.navarro_jaw_mm >= 12.0
 
     def test_a_shape_the_family_has_is_built_by_the_family(self):
         _c, pc = _perfect(neck=6.0, region="pericallosa")
         assert pc.source == "navarro"
         assert pc.navarro_series
+
+    def test_no_case_is_ever_answered_with_another_manufacturer(self):
+        # The catalogue of other makers is dimensional reference, never an offer.
+        for region in ("ACM bifurcacion", "pericallosa", "Carotida paraclinoidea",
+                       "Comunicante anterior", ""):
+            for neck in (3.0, 6.0, 12.0):
+                _c, pc = _perfect(neck=neck, region=region)
+                assert pc.source != "commercial", f"{region} {neck} mm cayó en comercial"
+                assert not pc.commercial_name
+
+
+@pytest.mark.skipif(not _HAS_NAVARRO, reason="biblioteca NAVARRO no instalada")
+class TestTheCurvedSeriesIsNotStretched:
+    """A curved jaw runs along an arc. Stretching it along a straight axis, the
+    way the straight and angled series are stretched, would change its curvature
+    into a shape nobody drew — and hand it back under the size that was asked
+    for. So the curved series is offered in its six drawn sizes only."""
+
+    def test_a_curved_design_refuses_to_be_resized(self):
+        from services import navarro
+
+        curved = [v for v in navarro.list_variants() if v.shape == navarro.CURVED]
+        assert curved, "no hay serie curva instalada"
+        assert all(not v.can_resize for v in curved)
+        straight = [v for v in navarro.list_variants() if v.shape == navarro.STRAIGHT]
+        assert all(v.can_resize for v in straight), "la recta sí se estira"
+
+    def test_an_in_between_size_falls_back_to_the_drawn_one_and_admits_it(self):
+        from services import navarro
+
+        mesh, src, exact = navarro.build_jaw(0.0, 11.5, shape=navarro.CURVED)
+        assert src.jaw_mm == 10, "la talla dibujada más cercana"
+        assert exact is False, "11.5 mm no es lo que se entrega; decir True sería mentir"
+        assert mesh.GetNumberOfPoints() > 5000
+
+    def test_a_drawn_size_comes_back_exact(self):
+        from services import navarro
+
+        _mesh, src, exact = navarro.build_jaw(0.0, 13.0, shape=navarro.CURVED)
+        assert src.jaw_mm == 13 and exact is True
 
 
 # ── 3. The two dossiers ───────────────────────────────────────────────────── #
@@ -239,19 +294,12 @@ class TestEndpoint:
         assert b["source"] == "navarro"
         assert b["piece_label"].startswith("NAVARRO")
 
-    def test_a_commercial_fallback_offers_dossiers_but_no_stl(self):
-        # Driven at the service level: a fenestrated case has no NAVARRO design.
-        from services.clip_dossier import render_dossier
-
-        case, pc = _perfect(neck=6.0, region="ACM bifurcacion")
-        assert pc.source == "commercial"
-        assert pc.commercial_name
-        with pytest.raises(ValueError):
-            build_manufacture_mesh(pc)
-        # The workshop copy still exists: it documents what was ordered.
-        out = render_dossier(external_dossier(pc, part_no="PR-X"),
-                             Path(_tmp) / "fallback.pdf")
-        assert out.stat().st_size > 0
+    def test_every_shape_reaches_an_stl(self):
+        # The fenestrated path used to stop here: no NAVARRO design, so a
+        # commercial clip, so no STL and nothing to personalise.
+        b = client.post(f"/api/clips/manufacture/{_session()}").json()
+        assert b["source"] == "navarro"
+        assert b["stl_url"]
 
     def test_the_part_number_is_stable_for_the_same_case(self):
         sid = _session()

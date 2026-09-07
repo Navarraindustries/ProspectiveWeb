@@ -62,22 +62,12 @@ def family_shapes() -> set[ClipShape]:
     Derived rather than listed so the curved and fenestrated series become
     available by dropping their files into the folder, with no code change.
     """
-    from services.navarro import list_variants
+    from services.navarro import _shape_for, list_variants
 
-    out: set[ClipShape] = set()
-    for v in list_variants():
-        name = v.name.lower()
-        if "fenestr" in name:
-            out.add(ClipShape.FENESTRATED)
-        elif "curv" in name:
-            out.add(ClipShape.CURVED)
-        elif v.angle_deg == 0:
-            out.add(ClipShape.STRAIGHT)
-        elif v.angle_deg >= 67.5:
-            out.add(ClipShape.ANGLED)
-        else:
-            out.add(ClipShape.ANGLED_45)
-    return out
+    # Ask the design what it is. This used to grep the display name for "curv"
+    # and "fenestr", which happened to work in Spanish and would have stopped
+    # working the day a label was reworded.
+    return {_shape_for(v.angle_deg, v.shape) for v in list_variants()}
 
 
 @dataclass
@@ -95,6 +85,11 @@ class PerfectClip:
     navarro_angle_deg: float = 0.0
     navarro_jaw_mm: float = 0.0
     navarro_is_drawn_size: bool = False
+    #: Which of the four drawn series, and its window. Without these the mesh
+    #: could only be rebuilt by guessing the shape from the bend angle — which
+    #: reads a fenestrated clip as a straight one.
+    navarro_shape: str = "straight"
+    navarro_window_mm: float = 0.0
     #: Set when it does not: the catalogue clip to reach for instead.
     commercial_name: str = ""
     commercial_blade_mm: float = 0.0
@@ -117,6 +112,13 @@ def _commercial_alternative(spec: ManufactureSpec, case: ClipCase):
     7 mm one — a clip that cannot close the neck, presented as the alternative.
     """
     from services.clip_selection import evaluate_clip
+    from services.clips import OFFER_COMMERCIAL_CLIPS
+
+    # With the family covering all four shapes there is nothing a catalogue clip
+    # could answer that NAVARRO cannot, and offering one led straight into a
+    # dead end: fabricación cannot personalise a piece it does not draw.
+    if not OFFER_COMMERCIAL_CLIPS:
+        return None
     from services.clips import CLIP_CATALOGUE
 
     same_shape = [c for c in CLIP_CATALOGUE if c.shape == spec.shape]
@@ -126,29 +128,100 @@ def _commercial_alternative(spec: ManufactureSpec, case: ClipCase):
     return next((c for c in scored if c.viable), None)
 
 
+def placed_navarro_id(session_id: str) -> str | None:
+    """The NAVARRO id of the clip this session actually placed, if any.
+
+    Manufacturing used to re-derive the piece from the measurements, which meant
+    the surgeon could choose one clip on the devices step and find a different
+    one waiting in fabricación — the recommendation, not the decision. What was
+    placed is a decision, and it wins.
+    """
+    try:
+        from services.device_state import read_clips
+    except Exception:  # noqa: BLE001
+        return None
+    for c in read_clips(session_id) or []:
+        cid = str(c.get("clip_id") or "")
+        if cid.startswith("navarro:"):
+            return cid
+    return None
+
+
+def perfect_from_id(clip_id: str, spec: ManufactureSpec) -> PerfectClip | None:
+    """Build the piece named by a NAVARRO id, keeping the case's spec around it.
+
+    The spec still carries the measurements and the caveats; only the geometry
+    is pinned to what the surgeon chose.
+    """
+    from dataclasses import replace
+
+    from services.navarro import SERIES_SHAPE, _shape_for, nearest_variant, parse_clip_id
+
+    parsed = parse_clip_id(clip_id)
+    if parsed is None:
+        return None
+    series, angle, jaw, window = parsed
+    shape = SERIES_SHAPE.get(series, "straight")
+    src = nearest_variant(angle, jaw, shape=shape, window_mm=window)
+    if src is None:
+        return None
+    pinned = replace(spec, blade_length_mm=float(jaw), angle_deg=float(angle),
+                     shape=_shape_for(angle, shape),
+                     fenestration_mm=float(window))
+    return PerfectClip(
+        source="navarro", spec=pinned,
+        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw:.1f} mm",
+        navarro_series=src.series, navarro_angle_deg=float(src.angle_deg),
+        navarro_jaw_mm=float(jaw),
+        navarro_is_drawn_size=abs(src.jaw_mm - jaw) < 1e-6,
+        navarro_shape=src.shape, navarro_window_mm=float(src.window_mm),
+        notes=["Es el clip colocado en el plan, no una recomendación recalculada."],
+    )
+
+
 def resolve_perfect_clip(case: ClipCase, spec: ManufactureSpec) -> PerfectClip:
     """Turn a specification into something that can actually be obtained."""
-    from services.navarro import STOCK_JAW_MM, nearest_variant
+    from services.navarro import (STOCK_JAW_MM, navarro_shape_for,
+                                  nearest_variant)
 
     shapes = family_shapes()
     notes: list[str] = []
 
     if spec.shape in shapes:
-        src = nearest_variant(spec.angle_deg, spec.blade_length_mm)
+        want = navarro_shape_for(spec.shape)
+        src = nearest_variant(spec.angle_deg, spec.blade_length_mm,
+                              shape=want, window_mm=spec.fenestration_mm)
         if src is not None:
             drawn = abs(src.jaw_mm - spec.blade_length_mm) < 1e-6
-            if not drawn:
+            jaw = float(spec.blade_length_mm)
+            if not drawn and not src.can_resize:
+                # The curved jaw is an arc; stretching it would invent a
+                # curvature. The drawn size is what gets made, and the note says
+                # the piece is not the size that was asked for.
                 notes.append(
-                    f"La mordaza de {spec.blade_length_mm:.1f} mm no es una talla dibujada "
+                    f"La serie curva no se estira: la mordaza sale de {jaw:.1f} mm "
+                    f"pedidos a los {src.jaw_mm} mm dibujados, que es la talla más "
+                    f"cercana que existe con esa curvatura."
+                )
+                jaw, drawn = float(src.jaw_mm), True
+            elif not drawn:
+                notes.append(
+                    f"La mordaza de {jaw:.1f} mm no es una talla dibujada "
                     f"({min(STOCK_JAW_MM)}–{max(STOCK_JAW_MM)} mm en pasos de 3): se mecaniza "
                     f"a partir del diseño de {src.jaw_mm} mm, estirando SOLO la mordaza."
                 )
-            shape_txt = "Recto" if src.angle_deg == 0 else f"Angulado {src.angle_deg:.0f}°"
+            if src.window_mm and abs(src.window_mm - spec.fenestration_mm) > 1e-6:
+                notes.append(
+                    f"La ventana se lleva a {src.window_mm} mm, la dibujada más cercana "
+                    f"a los {spec.fenestration_mm:.1f} mm que pide el vaso "
+                    f"({', '.join(str(x) for x in (3, 5, 7))} mm son las que existen)."
+                )
             return PerfectClip(
                 source="navarro", spec=spec,
-                label=f"NAVARRO™ {src.series} {shape_txt}, mordaza {spec.blade_length_mm:.1f} mm",
+                label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw:.1f} mm",
                 navarro_series=src.series, navarro_angle_deg=float(src.angle_deg),
-                navarro_jaw_mm=float(spec.blade_length_mm), navarro_is_drawn_size=drawn,
+                navarro_jaw_mm=jaw, navarro_is_drawn_size=drawn,
+                navarro_shape=src.shape, navarro_window_mm=float(src.window_mm),
                 notes=notes,
             )
 
@@ -200,7 +273,9 @@ def build_manufacture_mesh(perfect: PerfectClip):
         raise ValueError(
             "Este caso se resuelve con un clip de catálogo; no hay pieza que fabricar."
         )
-    mesh, src, exact = build_jaw(perfect.navarro_angle_deg, perfect.navarro_jaw_mm)
+    mesh, src, exact = build_jaw(perfect.navarro_angle_deg, perfect.navarro_jaw_mm,
+                                 shape=perfect.navarro_shape,
+                                 window_mm=perfect.navarro_window_mm)
     return mesh, src, exact
 
 

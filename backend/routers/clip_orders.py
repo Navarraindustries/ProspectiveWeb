@@ -31,6 +31,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from services import clip_orders as store
+from services.clip_manufacture import PerfectClip
 from services.audit import audit_append
 from services.auth_service import require_admin, require_user
 from services.db_models import User
@@ -69,8 +70,11 @@ class OrderIn(BaseModel):
     case_id: int | None = None
     # The piece. Pre-filled from the recommendation; changing it needs a reason.
     series: str = ""
+    shape: str = Field("", description="straight | curved | angled | fenestrated")
     angle_deg: float = Field(0.0, ge=0.0, le=90.0)
     jaw_mm: float = Field(..., gt=0.0, le=40.0, description="Useful grip length (mm)")
+    window_mm: float = Field(0.0, ge=0.0, le=12.0,
+                             description="Inner window diameter, fenestrated only")
     quantity: int = Field(1, ge=1, le=20)
     extra_sizes_mm: list[float] = Field(
         default_factory=list,
@@ -140,8 +144,10 @@ class OrderOut(BaseModel):
     signed_at: float = 0.0
     institution: str = ""
     series: str = ""
+    shape: str = ""
     angle_deg: float = 0.0
     jaw_mm: float = 0.0
+    window_mm: float = 0.0
     is_drawn_size: bool = False
     quantity: int = 1
     extra_sizes_mm: list[float] = []
@@ -175,6 +181,15 @@ class PrefillOut(BaseModel):
     advised_jaw_mm: float = 0.0
     advised_label: str = ""
     advised_shape: str = ""
+    #: The drawn series, in the family's own vocabulary, so the form can show
+    #: the controls that series actually has.
+    advised_navarro_shape: str = "straight"
+    advised_window_mm: float = 0.0
+    #: What this shape lets the user change. A curved jaw is an arc and cannot
+    #: be stretched, so its size is a choice among the drawn ones.
+    jaw_is_free: bool = True
+    stock_window_mm: list[int] = []
+    drawn_angles_deg: list[float] = []
     is_drawn_size: bool = False
     outside_drawn_range: bool = False
     commercial_name: str = ""
@@ -228,57 +243,86 @@ def _advice(session_id: str, case_id: int | None):
     from services.clip_manufacture import resolve_perfect_clip
     from services.clip_selection import derive_manufacture_spec
 
+    from services.clip_manufacture import perfect_from_id, placed_navarro_id
+
     selection = _run_selection(session_id, case_id, verify=False)
     case = selection.case
     spec = selection.manufacture or derive_manufacture_spec(case, [])
+
+    # What the surgeon PLACED wins over what the selector would advise now. The
+    # two used to be able to disagree without anyone noticing: you chose one
+    # clip on the devices step and fabricación offered another.
+    placed = placed_navarro_id(session_id)
+    if placed:
+        pinned = perfect_from_id(placed, spec)
+        if pinned is not None:
+            return case, pinned.spec, pinned, selection.caveats
+
     return case, spec, resolve_perfect_clip(case, spec), selection.caveats
 
 
 def _ordered_piece(case, advised_spec, *, angle_deg: float, jaw_mm: float,
-                   override_reason: str):
+                   override_reason: str, shape: str = "straight",
+                   window_mm: float = 0.0):
     """The PerfectClip actually being ordered, which need not be the advised one.
 
-    A surgeon may order a bend or a jaw the recommender did not propose. That is
-    allowed — it is their call — but the piece is then built from what THEY
+    A surgeon may order a shape, a bend or a jaw the recommender did not
+    propose. That is their call — but the piece is then built from what THEY
     asked for, and the reason travels with the order into our copy of the
     dossier. Silently shipping the advised geometry under an overridden label
     would be the worst of both.
     """
     from dataclasses import replace
 
-    from services.clip_manufacture import PerfectClip
-    from services.navarro import nearest_variant
+    from services.navarro import CURVED, _shape_for, nearest_variant
 
-    shape = _shape_for_angle(angle_deg)
+    clip_shape = _shape_for(angle_deg, shape)
     notes = list(advised_spec.confidence_notes)
     changed = (abs(jaw_mm - advised_spec.blade_length_mm) > 1e-6
-               or abs(angle_deg - advised_spec.angle_deg) > 1e-6)
+               or abs(angle_deg - advised_spec.angle_deg) > 1e-6
+               or clip_shape != advised_spec.shape)
     if changed and override_reason:
         notes.append(
             f"Pieza modificada respecto a lo recomendado "
-            f"({advised_spec.blade_length_mm:.1f} mm · {advised_spec.angle_deg:.0f}°): "
-            f"{override_reason}"
+            f"({advised_spec.shape.value}, {advised_spec.blade_length_mm:.1f} mm · "
+            f"{advised_spec.angle_deg:.0f}°): {override_reason}"
         )
-    if store.outside_drawn_range(jaw_mm):
+
+    src = nearest_variant(angle_deg, jaw_mm, shape=shape, window_mm=window_mm)
+    if src is None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"La familia NAVARRO™ no tiene la serie «{shape}» en este servidor.")
+
+    # A curved jaw is an arc: it is not stretched, so the order is for the drawn
+    # size and the note says which one, rather than printing a number the piece
+    # will not have.
+    if shape == CURVED and abs(src.jaw_mm - jaw_mm) > 1e-6:
+        notes.append(
+            f"La serie curva no se estira: se pidieron {jaw_mm:.1f} mm y se fabrica "
+            f"la talla dibujada de {src.jaw_mm} mm.")
+        jaw_mm = float(src.jaw_mm)
+    elif store.outside_drawn_range(jaw_mm):
         notes.append(
             f"La mordaza de {jaw_mm:.1f} mm queda FUERA del rango dibujado: el perfil "
             f"se extiende más allá de cualquier talla diseñada, no se interpola entre "
-            f"dos. Confirmar con el diseñador antes de mecanizar."
-        )
-    spec = replace(advised_spec, blade_length_mm=float(jaw_mm), angle_deg=float(angle_deg),
-                   shape=shape, confidence_notes=notes)
+            f"dos. Confirmar con el diseñador antes de mecanizar.")
 
-    src = nearest_variant(angle_deg, jaw_mm)
-    if src is None:
-        raise HTTPException(status_code=409,
-                            detail="No hay ningún diseño NAVARRO™ del que partir para esa pieza.")
+    if src.window_mm and abs(src.window_mm - window_mm) > 1e-6:
+        notes.append(
+            f"La ventana se lleva a {src.window_mm} mm, la dibujada más cercana a los "
+            f"{window_mm:.1f} mm pedidos.")
+
+    spec = replace(advised_spec, blade_length_mm=float(jaw_mm),
+                   angle_deg=float(angle_deg), shape=clip_shape,
+                   fenestration_mm=float(src.window_mm), confidence_notes=notes)
     drawn = abs(src.jaw_mm - jaw_mm) < 1e-6
-    shape_txt = "Recto" if src.angle_deg == 0 else f"Angulado {src.angle_deg:.0f}°"
     return PerfectClip(
         source="navarro", spec=spec,
-        label=f"NAVARRO™ {src.series} {shape_txt}, mordaza {jaw_mm:.1f} mm",
+        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw_mm:.1f} mm",
         navarro_series=src.series, navarro_angle_deg=float(src.angle_deg),
         navarro_jaw_mm=float(jaw_mm), navarro_is_drawn_size=drawn,
+        navarro_shape=src.shape, navarro_window_mm=float(src.window_mm),
     )
 
 
@@ -298,12 +342,18 @@ def _rebuild_piece(order: store.ClipOrder):
                               if k in ManufactureSpec.__annotations__})
     case = ClipCase(**{k: v for k, v in order.case_snapshot.items()
                        if k in ClipCase.__annotations__})
-    shape_txt = "Recto" if order.angle_deg == 0 else f"Angulado {order.angle_deg:.0f}°"
+    from services.navarro import nearest_variant
+
+    src = nearest_variant(order.angle_deg, order.jaw_mm, shape=order.shape or "straight",
+                          window_mm=order.window_mm)
+    label = (f"NAVARRO™ {order.series} "
+             f"{src.shape_label if src else ''}, mordaza {order.jaw_mm:.1f} mm")
     piece = PerfectClip(
         source="navarro", spec=spec,
-        label=f"NAVARRO™ {order.series} {shape_txt}, mordaza {order.jaw_mm:.1f} mm",
+        label=label,
         navarro_series=order.series, navarro_angle_deg=order.angle_deg,
         navarro_jaw_mm=order.jaw_mm, navarro_is_drawn_size=order.is_drawn_size,
+        navarro_shape=order.shape or "straight", navarro_window_mm=order.window_mm,
     )
     return case, piece
 
@@ -320,7 +370,9 @@ def _build_paperwork(order: store.ClipOrder) -> dict:
     out = store.order_dir(order.part_no)
     files: dict[str, str] = {}
 
-    mesh, _src, _exact = build_jaw(order.angle_deg, order.jaw_mm)
+    mesh, _src, _exact = build_jaw(order.angle_deg, order.jaw_mm,
+                                   shape=order.shape or "straight",
+                                   window_mm=order.window_mm)
     write_stl(mesh, out / "clip.stl")
     files["stl"] = "clip.stl"
 
@@ -361,7 +413,8 @@ def _out(order: store.ClipOrder) -> OrderOut:
         case_label=order.case_label,
         requested_by=order.requested_by, requested_by_name=order.requested_by_name,
         surgeon=order.surgeon, signed_at=order.signed_at, institution=order.institution,
-        series=order.series, angle_deg=order.angle_deg, jaw_mm=order.jaw_mm,
+        series=order.series, shape=order.shape, angle_deg=order.angle_deg,
+        jaw_mm=order.jaw_mm, window_mm=order.window_mm,
         is_drawn_size=order.is_drawn_size, quantity=order.quantity,
         extra_sizes_mm=order.extra_sizes_mm, total_pieces=order.total_pieces,
         intended_use=order.intended_use, needed_by=order.needed_by, urgency=order.urgency,
@@ -484,7 +537,7 @@ async def prefill(session_id: str, user: CurrentUser,
     from services.clip_manufacture import MATERIAL, TOL_JAW_MM, TOL_OTHER_MM
     from services.clip_animation import MAX_TIP_OPENING_MM
     from services.navarro import (CLOSING_FORCE_MAX_G, CLOSING_FORCE_MIN_G,
-                                  STOCK_JAW_MM)
+                                  STOCK_JAW_MM, STOCK_WINDOW_MM, list_variants)
 
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
@@ -506,6 +559,12 @@ async def prefill(session_id: str, user: CurrentUser,
         advised_jaw_mm=jaw,
         advised_label=piece.label,
         advised_shape=spec.shape.value,
+        advised_navarro_shape=piece.navarro_shape,
+        advised_window_mm=piece.navarro_window_mm,
+        jaw_is_free=piece.navarro_shape != "curved",
+        stock_window_mm=list(STOCK_WINDOW_MM),
+        drawn_angles_deg=sorted({v.angle_deg for v in list_variants()
+                                 if v.shape == "angled"}),
         is_drawn_size=piece.navarro_is_drawn_size,
         outside_drawn_range=store.outside_drawn_range(jaw),
         commercial_name=piece.commercial_name,
@@ -598,8 +657,11 @@ async def create_order(session_id: str, req: OrderIn, user: CurrentUser) -> Orde
         raise HTTPException(status_code=422,
                             detail=["Un pedido firmado necesita un taller destinatario."])
 
+    shape = req.shape or advised_piece.navarro_shape or "straight"
+    window = req.window_mm or (advised_piece.navarro_window_mm if shape == "fenestrated" else 0.0)
     piece = _ordered_piece(case, advised, angle_deg=angle, jaw_mm=jaw,
-                           override_reason=req.override_reason.strip())
+                           override_reason=req.override_reason.strip(),
+                           shape=shape, window_mm=window)
     from routers.clips import _case_identity
     patient, case_label = _case_identity(session_id, req.case_id)
 
@@ -612,6 +674,7 @@ async def create_order(session_id: str, req: OrderIn, user: CurrentUser) -> Orde
         institution=user.hospital or user.institution or "",
         series=piece.navarro_series, angle_deg=piece.navarro_angle_deg,
         jaw_mm=piece.navarro_jaw_mm, is_drawn_size=piece.navarro_is_drawn_size,
+        shape=piece.navarro_shape, window_mm=piece.navarro_window_mm,
         quantity=req.quantity, extra_sizes_mm=req.extra_sizes_mm,
         intended_use=req.intended_use, needed_by=req.needed_by, urgency=req.urgency,
         steriliser=req.steriliser, marking=req.marking, notes=req.notes,

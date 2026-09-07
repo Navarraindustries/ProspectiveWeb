@@ -8973,6 +8973,12 @@
             "title": "Series",
             "default": ""
           },
+          "shape": {
+            "type": "string",
+            "title": "Shape",
+            "description": "straight | curved | angled | fenestrated",
+            "default": ""
+          },
           "angle_deg": {
             "type": "number",
             "maximum": 90.0,
@@ -8986,6 +8992,14 @@
             "exclusiveMinimum": 0.0,
             "title": "Jaw Mm",
             "description": "Useful grip length (mm)"
+          },
+          "window_mm": {
+            "type": "number",
+            "maximum": 12.0,
+            "minimum": 0.0,
+            "title": "Window Mm",
+            "description": "Inner window diameter, fenestrated only",
+            "default": 0.0
           },
           "quantity": {
             "type": "integer",
@@ -9184,6 +9198,11 @@
             "title": "Series",
             "default": ""
           },
+          "shape": {
+            "type": "string",
+            "title": "Shape",
+            "default": ""
+          },
           "angle_deg": {
             "type": "number",
             "title": "Angle Deg",
@@ -9192,6 +9211,11 @@
           "jaw_mm": {
             "type": "number",
             "title": "Jaw Mm",
+            "default": 0.0
+          },
+          "window_mm": {
+            "type": "number",
+            "title": "Window Mm",
             "default": 0.0
           },
           "is_drawn_size": {
@@ -10048,6 +10072,37 @@
             "type": "string",
             "title": "Advised Shape",
             "default": ""
+          },
+          "advised_navarro_shape": {
+            "type": "string",
+            "title": "Advised Navarro Shape",
+            "default": "straight"
+          },
+          "advised_window_mm": {
+            "type": "number",
+            "title": "Advised Window Mm",
+            "default": 0.0
+          },
+          "jaw_is_free": {
+            "type": "boolean",
+            "title": "Jaw Is Free",
+            "default": true
+          },
+          "stock_window_mm": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Stock Window Mm",
+            "default": []
+          },
+          "drawn_angles_deg": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Drawn Angles Deg",
+            "default": []
           },
           "is_drawn_size": {
             "type": "boolean",

@@ -97,6 +97,19 @@ class ClipSpec:
 # Simplified subset covering the most common sizes used in intracranial
 # aneurysm surgery.  All lengths in mm; closing force in grams.
 
+#: Whether clips from other manufacturers are OFFERED to the surgeon.
+#: Turned off: this institution plans with its own NAVARRO™ family, which now
+#: covers all four shapes (straight, curved, angled, fenestrated), so a Sugita
+#: or an Aesculap in the list is a piece nobody here can obtain — and one that
+#: cannot be sent to fabricación, which is where a stray commercial pick used to
+#: dead-end.
+#:
+#: The table below is NOT deleted, because it is also the dimensional reference
+#: the manufacturing spec is derived from — the proportions of real clips, and
+#: the floors (smallest spring, smallest blade) that stop the spec proposing a
+#: part nobody can wind. Reference, never an offer: see `offered_catalogue`.
+OFFER_COMMERCIAL_CLIPS = False
+
 CLIP_CATALOGUE: list[ClipSpec] = [
 
     # ══════════════════════════════════════════════════════════════════════

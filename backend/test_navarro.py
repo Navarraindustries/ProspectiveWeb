@@ -480,25 +480,30 @@ class TestTheFamilyIsNeverHiddenByRanking:
                 if getattr(c.clip, "availability", "stock") == "made_to_order"]
         assert made, f"con cuello {neck} mm no se ofreció ningún clip bajo pedido"
 
-    def test_stock_is_still_offered_too(self):
-        # Symmetric: the guarantee must not turn into the opposite blind spot.
+    def test_the_guarantee_survives_a_catalogue_of_one_kind(self):
+        # Symmetric check, rewritten: there is no longer a "stock" kind to
+        # contrast with — clips from other manufacturers are reference, not an
+        # offer — so what has to hold is that the guarantee does not break when
+        # every candidate is made-to-order.
         sel = select_clips(ClipCase(neck_mm=6.0, ar=1.4, dome_height_mm=8.4,
                                     neck_source="rim"))
-        assert any(getattr(c.clip, "availability", "stock") == "stock"
+        assert sel.recommended, "con una familia completa siempre hay algo que ofrecer"
+        assert all(getattr(c.clip, "availability", "stock") == "made_to_order"
                    for c in sel.recommended)
 
     def test_the_scores_are_left_alone(self):
         # The uncertainty is real and stays visible; only visibility changes.
+        # The force criterion is capped at `warn` for this family however well
+        # the band sits, because the band is a design target and not a
+        # measurement — and making the family the whole catalogue must not have
+        # quietly promoted it.
         sel = select_clips(ClipCase(neck_mm=6.0, ar=1.4, dome_height_mm=8.4,
                                     neck_source="rim"))
-        made = [c for c in sel.recommended
-                if getattr(c.clip, "availability", "stock") == "made_to_order"]
-        stock = [c for c in sel.recommended
-                 if getattr(c.clip, "availability", "stock") == "stock"]
-        assert made and stock
-        assert made[0].score < stock[0].score, "no se ha inflado la puntuación"
-        force = next(c for c in made[0].criteria if c.key == "force")
-        assert force.verdict == "warn"
+        assert sel.recommended
+        forces = [k for c in sel.recommended for k in c.criteria if k.key == "force"]
+        assert forces, "el criterio de fuerza tiene que seguir evaluándose"
+        assert all(str(getattr(k.verdict, "value", k.verdict)) != "ok" for k in forces), (
+            "la fuerza sigue sin caracterizar: ningún clip puede declararla cumplida")
 
     def test_the_list_stays_sorted_by_score(self):
         sel = select_clips(ClipCase(neck_mm=6.0, ar=1.4, dome_height_mm=8.4,

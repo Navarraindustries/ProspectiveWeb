@@ -63,8 +63,8 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **650 passing** (`pytest`, 41 files) |
-| Frontend tests | **122 passing** (`vitest`, 14 files) · `tsc -b` clean · production build clean |
+| Backend tests | **665 passing** (`pytest`, 42 files) |
+| Frontend tests | **131 passing** (`vitest`, 14 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -474,10 +474,28 @@ instead of quietly falling back to a plain clip.
 
 ### The NAVARRO™ family (made to order)
 
-`NAVARRO™ - Variantes/` holds the institution's own designs — 42 of them: T1
-straight and T3 angled at 15/30/45/60/75/90°, each in 7/10/13/16/19/22 mm. They
-are read straight off disk with no import step, so dropping the curved and
-fenestrated series into the folder is all it takes to make them selectable.
+`NAVARRO™ - Variantes/` holds the institution's own designs — **66 of them,
+across all four series**:
+
+| Serie | Diseños | Se varía |
+|---|---|---|
+| **T1 recta** | 6 (7–22 mm de mordaza) | mordaza |
+| **T2 curva** | 6 | mordaza, **solo tallas dibujadas** |
+| **T3 angulada** | 36 (6 acodados × 6 mordazas) | mordaza y acodado |
+| **T4 fenestrada** | 18 (6 mordazas × 3 ventanas) | mordaza y ventana (3/5/7 mm) |
+
+The curved and fenestrated series arrived by being dropped into the folder, with
+no import step and no code change to read them — which was the point of reading
+the library off disk. All 66 exports are watertight solids in millimetres, on the
+same frame, verified before wiring them in.
+
+**Only this family is offered.** Clips from Sugita, Aesculap, Yasargil and Codman
+are no longer proposed to a surgeon: the family now covers every shape the
+selector can ask for, and a clip nobody here can obtain was a dead end — it could
+not be personalised and it dragged the wrong piece into the manufacturing
+dossier. That table is not deleted, because it is also the dimensional reference
+the manufacturing spec derives its proportions and its floors from. Reference,
+never an offer (`OFFER_COMMERCIAL_CLIPS`).
 
 Three things about them are easy to get wrong, and each is enforced in code:
 
@@ -541,6 +559,28 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The clip you chose is the clip that gets made
+
+Reported from the application: a Sugita curved stayed as the chosen device after
+a NAVARRO was picked, fabricación then refused to personalise it, and the
+workshop dossier printed the Sugita. Three faults met in that one symptom.
+
+**A race in the devices panel.** The effect that preselects a default clip closed
+over `sel` as it was when it ran — empty, on mount — so a pick made while
+`/clips/recommendations` was still in flight was overwritten the moment it
+landed. A functional update reads the current value instead, and the
+preselection is what it was meant to be: a default for an empty box, never a
+correction.
+
+**The placement recorded a name, not an id.** So nothing downstream could tell a
+T1 from a T4, and the manufacturing step re-derived a piece from the
+measurements. Recommendation and decision could disagree in silence. The plan now
+stores the `clip_id`, and both the dossier and the order form start from the clip
+that was PLACED — advice loses to a decision.
+
+**The fenestrated path had no family answer**, so a bifurcation case fell through
+to a commercial clip by construction. With T4 drawn, it no longer can.
 
 ### Requesting a clip
 
@@ -836,17 +876,17 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 650 tests
+.venv\Scripts\python -m pytest -q                        # all 665 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **650 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **665 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 122 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 131 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

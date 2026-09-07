@@ -359,6 +359,11 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
     save_clips(req.session_id, [
         {
             "index": i,
+            # The id, not only the display name. Without it the manufacturing
+            # step could not tell WHICH design was placed and re-derived one
+            # from the case instead — so a clip chosen on screen and the clip in
+            # the dossier could be different pieces.
+            "clip_id": pl.clip_id,
             "name": (_custom_clip_name(req.session_id, pl.clip_id)
                      if pl.clip_id.startswith("custom:")
                      else (index[pl.clip_id].name if pl.clip_id in index else pl.clip_id)),
@@ -731,7 +736,17 @@ async def clip_manufacture_spec(
         )
     selection = select_clips(case)
     spec = selection.manufacture or derive_manufacture_spec(case, [])
-    perfect = resolve_perfect_clip(case, spec)
+    # The placed clip is a decision; the derived one is only advice. When the
+    # session has placed a NAVARRO, the dossier describes THAT piece — this is
+    # where a clip chosen on screen used to be replaced by a re-derived one.
+    from services.clip_manufacture import perfect_from_id, placed_navarro_id
+
+    perfect = None
+    placed_id = placed_navarro_id(session_id)
+    if placed_id:
+        perfect = perfect_from_id(placed_id, spec)
+    if perfect is None:
+        perfect = resolve_perfect_clip(case, spec)
 
     # Traceable and stable: the same case re-ordered keeps its number, and the
     # workshop's copy can be reconciled with ours by nothing else.

@@ -16,6 +16,7 @@ import type {
   ClipOrder,
   ClipOrderIn,
   ClipOrderPrefill,
+  NavarroShape,
   OrderStatus,
   WorkshopIn,
 } from "../../api/types";
@@ -66,7 +67,21 @@ function problemsFrom(err: unknown): string[] {
   return [msg];
 }
 
-const DRAWN_ANGLES = [0, 15, 30, 45, 60, 75, 90] as const;
+/** Qué deja cambiar cada serie. Es la diferencia entre las cuatro, y la razón
+    de que el formulario no pueda ser una sola caja de «ángulo»:
+
+    - **T1 recta** y **T3 angulada**: la mordaza es libre; se mecaniza estirando
+      la talla dibujada más cercana sobre su propio eje.
+    - **T2 curva**: la mordaza corre por un arco. Estirarla cambiaría la
+      curvatura, así que solo existen las seis tallas dibujadas.
+    - **T4 fenestrada**: mordaza libre, y además una ventana que solo existe en
+      3, 5 y 7 mm — es el vaso que el clip tiene que respetar. */
+const SERIES = [
+  { value: "straight" as const,    label: "T1 · Recta" },
+  { value: "curved" as const,      label: "T2 · Curva" },
+  { value: "angled" as const,      label: "T3 · Angulada" },
+  { value: "fenestrated" as const, label: "T4 · Fenestrada" },
+];
 
 const row: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const cell: React.CSSProperties = { flex: "1 1 130px", minWidth: 0 };
@@ -133,6 +148,8 @@ export function ClipOrderForm({
   // La pieza. Se rellena desde el prefill; cambiarla exige motivo.
   const [jaw, setJaw] = useState(0);
   const [angle, setAngle] = useState(0);
+  const [shape, setShape] = useState<NavarroShape>("straight");
+  const [window_, setWindow] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [extras, setExtras] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
@@ -164,6 +181,8 @@ export function ClipOrderForm({
         setPre(p);
         setJaw(p.advised_jaw_mm);
         setAngle(p.advised_angle_deg);
+        setShape(p.advised_navarro_shape);
+        setWindow(p.advised_window_mm);
         setExtras(p.suggest_extra_sizes);
         setSurgeon((s) => s || (p.can_sign ? p.requester_name : ""));
         setWorkshopId(p.workshops[0]?.id ?? "");
@@ -195,7 +214,38 @@ export function ClipOrderForm({
   }
 
   const differs = Math.abs(jaw - pre.advised_jaw_mm) > 1e-6
-    || Math.abs(angle - pre.advised_angle_deg) > 1e-6;
+    || Math.abs(angle - pre.advised_angle_deg) > 1e-6
+    || shape !== pre.advised_navarro_shape
+    || (shape === "fenestrated" && Math.abs(window_ - pre.advised_window_mm) > 1e-6);
+  // El arco no se estira: en la curva la mordaza se elige entre las dibujadas.
+  const jawIsFree = shape !== "curved";
+  const SHAPE_TEXT: Record<NavarroShape, string> = {
+    straight: "T1 Recto",
+    curved: "T2 Curvo",
+    angled: `T3 Angulado ${angle}°`,
+    fenestrated: `T4 Fenestrado ventana ${window_} mm`,
+  };
+  const currentLabel = `NAVARRO™ ${SHAPE_TEXT[shape]}, mordaza ${jaw.toFixed(1)} mm`;
+
+  /** Cambiar de serie tiene que dejar los demás campos en un valor que esa
+      serie admita. Sin esto el título decía «Angulado 0°» mientras el
+      desplegable mostraba 15°: 0 no es un acodado dibujado, así que el navegador
+      enseñaba la primera opción y el estado se quedaba con otra cosa. */
+  const pickShape = (next: NavarroShape) => {
+    setShape(next);
+    const angles = pre.drawn_angles_deg.length ? pre.drawn_angles_deg : [15, 30, 45, 60, 75, 90];
+    if (next === "angled" && !angles.includes(angle)) setAngle(angles[0]);
+    if (next !== "angled") setAngle(0);
+    if (next === "fenestrated" && !pre.stock_window_mm.includes(window_)) {
+      setWindow(pre.stock_window_mm[0] ?? 3);
+    }
+    if (next !== "fenestrated") setWindow(0);
+    // La curva solo existe en tallas dibujadas: llevar la mordaza a una de ellas.
+    if (next === "curved" && !pre.stock_sizes_mm.includes(jaw)) {
+      setJaw(pre.stock_sizes_mm.reduce(
+        (b, x) => (Math.abs(x - jaw) < Math.abs(b - jaw) ? x : b), pre.stock_sizes_mm[0]));
+    }
+  };
   const usingNew = workshopId === "__nuevo__";
   // Las tallas van de 3 en 3, así que una mordaza a mitad de camino (11.5 mm)
   // está EXACTAMENTE igual de cerca de dos. Nombrar solo una sería inventar un
@@ -212,8 +262,10 @@ export function ClipOrderForm({
     const req: ClipOrderIn = {
       case_id: caseId ?? null,
       series: pre.advised_series,
-      angle_deg: angle,
+      shape,
+      angle_deg: shape === "angled" ? angle : 0,
       jaw_mm: jaw,
+      window_mm: shape === "fenestrated" ? window_ : 0,
       quantity,
       extra_sizes_mm: extras ? pre.suggested_extra_sizes_mm : [],
       override_reason: overrideReason.trim(),
@@ -266,40 +318,57 @@ export function ClipOrderForm({
       <div>
         <SectionLabel>La pieza</SectionLabel>
         <Card>
+          {/* El título dice lo que está SELECCIONADO, no lo que se recomendó.
+              Con la etiqueta congelada en la recomendación, cambiar de serie
+              dejaba la cabecera anunciando una pieza y los controles debajo
+              describiendo otra — la misma discrepancia que trajo aquí. */}
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "var(--foreground)", flex: 1 }}>
-              {pre.advised_label}
+              {currentLabel}
             </div>
-            <Badge variant="subtle">{pre.is_drawn_size ? "talla dibujada" : "a medida"}</Badge>
+            <Badge variant="subtle">
+              {pre.stock_sizes_mm.includes(jaw) ? "talla dibujada" : "a medida"}
+            </Badge>
           </div>
+          {differs && (
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+              El sistema recomendaba <b>{pre.advised_label}</b>.
+            </div>
+          )}
 
           {/* Un solo control para la mordaza. Antes había un desplegable de tallas
               Y un número al lado: dos mandos para el mismo dato. El Slider es
               además el que ya se usa para elegir mordaza en la ficha a medida, en
               umbralización y en suavizado. */}
-          <div style={{ marginTop: 12 }}>
-            <Slider
-              label="Mordaza (longitud útil de agarre)"
-              min={5} max={30} step={0.5} value={jaw} unit=" mm"
-              onChange={setJaw}
-            />
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
-              Tallas dibujadas: {pre.stock_sizes_mm.join(" · ")} mm. Se mecaniza sobre
-              la de {nearestDrawn} mm, estirando solo la mordaza.
-            </div>
-          </div>
-
           <div style={{ ...row, marginTop: 12 }}>
             <div style={cell}>
               <Select
-                label="Acodado"
-                value={String(angle)}
-                onChange={(e) => setAngle(Number(e.target.value))}
-                options={DRAWN_ANGLES.map((a) => ({
-                  value: String(a), label: a === 0 ? "Recto (T1)" : `${a}° (T3)`,
-                }))}
+                label="Serie" value={shape}
+                onChange={(e) => pickShape(e.target.value as NavarroShape)}
+                options={SERIES}
               />
             </div>
+            {shape === "angled" && (
+              <div style={cell}>
+                <Select
+                  label="Acodado" value={String(angle)}
+                  onChange={(e) => setAngle(Number(e.target.value))}
+                  options={(pre.drawn_angles_deg.length ? pre.drawn_angles_deg : [15, 30, 45, 60, 75, 90])
+                    .map((a) => ({ value: String(a), label: `${a}°` }))}
+                />
+              </div>
+            )}
+            {shape === "fenestrated" && (
+              <div style={cell}>
+                <Select
+                  label="Ventana" value={String(window_)}
+                  onChange={(e) => setWindow(Number(e.target.value))}
+                  options={pre.stock_window_mm.map((w) => ({
+                    value: String(w), label: `${w} mm de diámetro`,
+                  }))}
+                />
+              </div>
+            )}
             <div style={cell}>
               <Input
                 label="Cantidad" type="number" min="1" max="20"
@@ -308,7 +377,43 @@ export function ClipOrderForm({
             </div>
           </div>
 
-          {outsideRange && (
+          {/* Un solo control para la mordaza, y cuál depende de la serie: la
+              curva no se estira, así que ahí es una talla, no una medida. */}
+          <div style={{ marginTop: 12 }}>
+            {jawIsFree ? (
+              <>
+                <Slider
+                  label="Mordaza (longitud útil de agarre)"
+                  min={5} max={30} step={0.5} value={jaw} unit=" mm"
+                  onChange={setJaw}
+                />
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+                  Tallas dibujadas: {pre.stock_sizes_mm.join(" · ")} mm. Se mecaniza sobre
+                  la de {nearestDrawn} mm, estirando solo la mordaza.
+                </div>
+              </>
+            ) : (
+              <>
+                <Select
+                  label="Mordaza (longitud útil de agarre)"
+                  value={String(pre.stock_sizes_mm.reduce(
+                    (b, x) => (Math.abs(x - jaw) < Math.abs(b - jaw) ? x : b),
+                    pre.stock_sizes_mm[0]))}
+                  onChange={(e) => setJaw(Number(e.target.value))}
+                  options={pre.stock_sizes_mm.map((x) => ({
+                    value: String(x), label: `${x} mm`,
+                  }))}
+                />
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+                  La mordaza curva corre por un arco: estirarla cambiaría la curvatura
+                  a una que nadie ha diseñado, así que esta serie existe solo en las
+                  seis tallas dibujadas.
+                </div>
+              </>
+            )}
+          </div>
+
+          {outsideRange && jawIsFree && (
             <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
               Una mordaza de {jaw.toFixed(1)} mm queda fuera del rango dibujado
               ({Math.min(...pre.stock_sizes_mm)}–{Math.max(...pre.stock_sizes_mm)} mm): el

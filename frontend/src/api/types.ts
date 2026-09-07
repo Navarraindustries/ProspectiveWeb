@@ -1113,6 +1113,11 @@ export interface ClipOrderPrefill {
   advised_jaw_mm: number;
   advised_label: string;
   advised_shape: string;
+  advised_navarro_shape: NavarroShape;
+  advised_window_mm: number;
+  jaw_is_free: boolean;
+  stock_window_mm: number[];
+  drawn_angles_deg: number[];
   is_drawn_size: boolean;
   outside_drawn_range: boolean;
   commercial_name: string;
@@ -1140,6 +1145,9 @@ export interface ClipOrderPrefill {
   workshops: Workshop[];
 }
 
+/** Las cuatro series dibujadas de la familia. */
+export type NavarroShape = "straight" | "curved" | "angled" | "fenestrated";
+
 export type OrderStatus =
   | "borrador" | "firmado" | "enviado" | "en_fabricacion"
   | "recibida" | "verificada" | "rechazada";
@@ -1148,8 +1156,10 @@ export type OrderStatus =
 export interface ClipOrderIn {
   case_id?: number | null;
   series: string;
+  shape: NavarroShape;
   angle_deg: number;
   jaw_mm: number;
+  window_mm: number;
   quantity: number;
   extra_sizes_mm: number[];
   override_reason: string;
@@ -1204,8 +1214,10 @@ export interface ClipOrder {
   signed_at: number;
   institution: string;
   series: string;
+  shape: NavarroShape;
   angle_deg: number;
   jaw_mm: number;
+  window_mm: number;
   is_drawn_size: boolean;
   quantity: number;
   extra_sizes_mm: number[];

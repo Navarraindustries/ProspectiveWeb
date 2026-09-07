@@ -15,16 +15,20 @@ The behaviour these pin down, in the order it matters:
 from __future__ import annotations
 
 import os
+import pathlib
 import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="prospective_clipsel_")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
-# The NAVARRO™ family joins the catalogue straight off disk, so what this suite
-# sees would otherwise depend on what happens to be installed on the machine.
-# Point it at an empty directory: these tests are about the built-in behaviour.
-os.environ["NAVARRO_ROOT"] = os.path.join(_tmp, "no-navarro")
+# The NAVARRO™ family IS the catalogue now — clips from other manufacturers are
+# dimensional reference, not an offer — so pointing this suite at an empty
+# directory would leave nothing to select and every assertion here would pass
+# vacuously. It reads the real library, and skips when it is not installed.
+os.environ["NAVARRO_ROOT"] = str(
+    pathlib.Path(__file__).resolve().parent.parent / "NAVARRO™ - Variantes"
+)
 
 import vtk
 from fastapi.testclient import TestClient
@@ -70,7 +74,11 @@ class TestNeverSilent:
         assert sel.manufacture.reasons, "a rejection has to say why"
 
     def test_a_neck_too_large_for_any_clip_yields_a_specification(self):
-        sel = select_clips(_case(neck_mm=20.0))
+        # 25 mm, not the 20 this used to use: the NAVARRO™ family reaches 22 mm
+        # of jaw and covers a 20 mm neck with caveats, so the old figure now
+        # tests the marginal path instead of the empty one. The frontier moved
+        # because the catalogue got better, and the test has to move with it.
+        sel = select_clips(_case(neck_mm=25.0))
         assert sel.outcome == "manufacture"
         assert sel.manufacture is not None
         # Must overshoot the neck, or it cannot close on it.
@@ -305,7 +313,7 @@ class TestEndpoint:
         assert all(c["fit"] is None for c in body["recommended"])
 
     def test_an_impossible_neck_returns_a_manufacturing_spec_over_the_api(self):
-        sid = _session(neck_mm=20.0, with_plane=False)
+        sid = _session(neck_mm=25.0, with_plane=False)
         body = client.get(f"/api/clips/selection/{sid}").json()
         assert body["outcome"] == "manufacture"
         assert body["manufacture"]["blade_length_mm"] > 20.0
@@ -315,7 +323,7 @@ class TestEndpoint:
         # A 20 mm neck with no region asks for a CURVED clip, and the NAVARRO
         # family has no curved series yet — so there is no STL to hand over. The
         # dossiers still exist: they document what was ordered either way.
-        sid = _session(neck_mm=20.0, with_plane=False)
+        sid = _session(neck_mm=25.0, with_plane=False)
         r = client.post(f"/api/clips/manufacture/{sid}")
         assert r.status_code == 200, r.text
         body = r.json()

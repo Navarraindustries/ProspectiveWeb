@@ -14,6 +14,7 @@ Two things matter here beyond CRUD:
 from __future__ import annotations
 
 import os
+import pathlib
 import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="prospective_cliplib_")
@@ -21,10 +22,13 @@ os.environ["CLIP_LIBRARY_ROOT"] = os.path.join(_tmp, "clip_library")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
-# The NAVARRO™ family joins the catalogue straight off disk, so what this suite
-# sees would otherwise depend on what happens to be installed on the machine.
-# Point it at an empty directory: these tests are about the built-in behaviour.
-os.environ["NAVARRO_ROOT"] = os.path.join(_tmp, "no-navarro")
+# The NAVARRO™ family IS the catalogue now — clips from other manufacturers are
+# dimensional reference, not an offer — so pointing this suite at an empty
+# directory would leave nothing to select and every assertion here would pass
+# vacuously. It reads the real library, and skips when it is not installed.
+os.environ["NAVARRO_ROOT"] = str(
+    pathlib.Path(__file__).resolve().parent.parent / "NAVARRO™ - Variantes"
+)
 
 import pytest
 import vtk
@@ -148,10 +152,13 @@ class TestDeclaredSpecification:
 
 class TestLibraryFeedsTheSelector:
     def test_a_stock_clip_joins_the_catalogue_the_selector_scores(self):
-        from services.clips import CLIP_CATALOGUE
-
+        # What the selector sees is the NAVARRO™ family plus whatever this
+        # institution holds. Clips from other manufacturers are dimensional
+        # reference and are NOT offered, so the baseline is the family, not the
+        # reference table — and what matters is that importing one adds exactly
+        # one more, whatever the baseline happens to be.
         before = len(clip_library.catalogue_with_library())
-        assert before == len(CLIP_CATALOGUE)
+        assert before > 0, "sin familia NAVARRO™ no hay catálogo que puntuar"
         _add(name="Clip del hospital", length=9.0, force=110.0)
         assert len(clip_library.catalogue_with_library()) == before + 1
         assert any(c.name == "Clip del hospital" for c in clip_library.catalogue_with_library())
@@ -163,11 +170,12 @@ class TestLibraryFeedsTheSelector:
         assert "Plantilla A" not in names
 
     def test_an_institution_clip_can_be_recommended_for_a_real_case(self):
-        # A 20 mm neck has nothing in the built-in catalogue; a long enough clip
-        # in the library has to turn that "manufacture" into a real option.
-        assert select_clips(ClipCase(neck_mm=20.0, neck_source="rim")).outcome == "manufacture"
+        # A neck past the family's longest jaw (22 mm) has nothing to reach for;
+        # a long enough clip in the library has to turn that "manufacture" into
+        # a real option.
+        assert select_clips(ClipCase(neck_mm=25.0, neck_source="rim")).outcome == "manufacture"
         _add(name="Clip XXL institucional", length=27.0, force=160.0)
-        after = select_clips(ClipCase(neck_mm=20.0, neck_source="rim"))
+        after = select_clips(ClipCase(neck_mm=25.0, neck_source="rim"))
         assert after.outcome in ("stock", "marginal")
         assert any("institucional" in c.clip.name for c in after.recommended)
 

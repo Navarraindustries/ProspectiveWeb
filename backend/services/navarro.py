@@ -103,43 +103,111 @@ CLOSING_FORCE_MAX_G: float = 200.0
 FORCE_IS_PROVISIONAL: bool = True
 
 
+#: The four drawn series and what each one is.
+STRAIGHT, CURVED, ANGLED, FENESTRATED = "straight", "curved", "angled", "fenestrated"
+
+#: Window diameters drawn for the fenestrated series, in millimetres.
+STOCK_WINDOW_MM: tuple[int, ...] = (3, 5, 7)
+
+#: The jaw of a curved clip runs along an ARC, so nothing that assumes a
+#: straight axis applies to it — not the root offset, and not the stretch. It is
+#: offered in its six drawn sizes only; see `can_resize`.
+CURVED_IS_DRAWN_ONLY = True
+
+
 @dataclass(frozen=True)
 class NavarroVariant:
-    """One drawn design: a series, a bend angle and a jaw length."""
-    series: str            # "T1" | "T3"
-    angle_deg: float       # 0 for T1; 15/30/45/60/75/90 for T3
+    """One drawn design: a series, its shape, a bend angle and a jaw length."""
+    series: str            # "T1" | "T2" | "T3" | "T4"
+    angle_deg: float       # 0 except T3: 15/30/45/60/75/90
     jaw_mm: int
     path: Path
+    #: straight | curved | angled | fenestrated. Derived from the series, not
+    #: from the angle: a 0° fenestrated is not a straight clip.
+    shape: str = STRAIGHT
+    #: Inner window diameter, fenestrated only. 0 for every other series.
+    window_mm: int = 0
+
+    @property
+    def shape_label(self) -> str:
+        if self.shape == CURVED:
+            return "Curvo"
+        if self.shape == FENESTRATED:
+            return f"Fenestrado ventana {self.window_mm} mm"
+        if self.angle_deg > 0:
+            return f"Angulado {self.angle_deg:.0f}°"
+        return "Recto"
 
     @property
     def name(self) -> str:
-        shape = "Recto" if self.angle_deg == 0 else f"Angulado {self.angle_deg:.0f}°"
-        return f"NAVARRO™ {self.series} {shape} {self.jaw_mm} mm"
+        return f"NAVARRO™ {self.series} {self.shape_label} {self.jaw_mm} mm"
 
     @property
     def total_length_mm(self) -> float:
+        """Developed length along the centreline — body plus jaw, unrolled.
+
+        Not the end-to-end extent: a curved clip measures 19.50 mm across its
+        bounding box for a developed 21.30, because the jaw bends away instead
+        of running on. Developed length is the one that is the same question for
+        all four series, so it is the one this reports.
+
+        The window lengthens the piece for real: measured across all 18
+        fenestrated exports the tip sits at `jaw + window + 4.50` against
+        `jaw + 2.50` for a straight clip, so the window costs `window + 2.00`.
+        """
+        if self.shape == FENESTRATED:
+            return self.jaw_mm + BODY_LENGTH_MM + self.window_mm + 2.0
         return self.jaw_mm + BODY_LENGTH_MM
 
     @property
+    def can_resize(self) -> bool:
+        """Whether a jaw length other than the drawn one may be machined from this.
+
+        Straight, angled and fenestrated jaws run in a straight line, and the
+        taper profile is the same shape across the drawn sizes (~0.05 mm), so
+        stretching along that line reproduces the family's own design language.
+        A curved jaw does not: stretching an arc along a straight axis changes
+        its curvature into something nobody drew.
+        """
+        return self.shape != CURVED
+
+    @property
     def jaw_axis(self) -> tuple[float, float, float]:
-        """Unit vector the jaw runs along, in the file's own frame."""
+        """Unit vector the jaw runs along, in the file's own frame.
+
+        Meaningless for the curved series, which is why `can_resize` is false
+        there and the centring reads the arc off the mesh instead.
+        """
         t = math.radians(self.angle_deg)
         return (math.sin(t), 0.0, math.cos(t))
 
 
-_NAME_RE = re.compile(r"(T\d)\s*—\s*(Straight|Angled)(?:\s*(\d+)°)?\s*\((\d+)\s*mm\)", re.I)
+#: `T1 — Straight (7mm)` · `T2 — Curved(7mm)` (no space, as exported) ·
+#: `T3 — Angled 45° (7mm)` · `T4 — Fenestrated (7x3mm)` = jaw × window.
+_NAME_RE = re.compile(
+    r"(T\d)\s*—\s*(Straight|Curved|Angled|Fenestrated)"
+    r"(?:\s*(\d+)\s*°)?"
+    r"\s*\(\s*(\d+)\s*(?:[x×]\s*(\d+)\s*)?mm\s*\)",
+    re.I,
+)
+
+_KIND_SHAPE = {"straight": STRAIGHT, "curved": CURVED,
+               "angled": ANGLED, "fenestrated": FENESTRATED}
 
 
 def _parse(path: Path) -> NavarroVariant | None:
     m = _NAME_RE.search(path.name)
     if not m:
         return None
-    series, kind, angle, jaw = m.groups()
+    series, kind, angle, jaw, window = m.groups()
+    shape = _KIND_SHAPE[kind.lower()]
     return NavarroVariant(
         series=series.upper(),
         angle_deg=float(angle) if angle else 0.0,
         jaw_mm=int(jaw),
         path=path,
+        shape=shape,
+        window_mm=int(window) if (window and shape == FENESTRATED) else 0,
     )
 
 
@@ -169,18 +237,20 @@ def list_variants(root: Path | None = None) -> list[NavarroVariant]:
     if hit is not None and (time.monotonic() - hit[0]) < REVALIDATE_SEC:
         return hit[1]
     out: list[NavarroVariant] = []
-    seen: set[tuple[str, float, int]] = set()
+    seen: set[tuple[str, str, float, int, int]] = set()
     for p in sorted(base.rglob("*.stl")):
         v = _parse(p)
         if v is None:
             logger.warning("NAVARRO: unrecognised file name, skipped: %s", p.name)
             continue
-        sig = (v.series, v.angle_deg, v.jaw_mm)
+        # The window is part of the identity: a 10×3 and a 10×5 fenestrated are
+        # different pieces, and a signature without it would drop one of them.
+        sig = (v.series, v.shape, v.angle_deg, v.jaw_mm, v.window_mm)
         if sig in seen:            # the same design is exported under two folders
             continue
         seen.add(sig)
         out.append(v)
-    out = sorted(out, key=lambda v: (v.series, v.angle_deg, v.jaw_mm))
+    out = sorted(out, key=lambda v: (v.series, v.angle_deg, v.jaw_mm, v.window_mm))
     _CACHE[key] = (time.monotonic(), out)
     return out
 
@@ -189,17 +259,40 @@ def available_angles(root: Path | None = None) -> list[float]:
     return sorted({v.angle_deg for v in list_variants(root)})
 
 
-def nearest_variant(angle_deg: float, jaw_mm: float,
-                    root: Path | None = None) -> NavarroVariant | None:
-    """The drawn design closest to a requested angle and jaw length.
+def _implied_shape(angle_deg: float, shape: str | None) -> str:
+    """The series a caller meant when it named only a bend.
 
-    Angle wins over jaw length: the bend is a different part, whereas the jaw is
-    the dimension the family is designed to vary.
+    Defaulting to straight would silently drop the angle: `build_jaw(45, 7)`
+    came back with a T1 recto, an entirely different piece under the number the
+    caller asked for. A bend means the angled series unless told otherwise.
     """
-    variants = list_variants(root)
-    if not variants:
+    if shape is not None:
+        return shape
+    return ANGLED if angle_deg > 0 else STRAIGHT
+
+
+def nearest_variant(angle_deg: float, jaw_mm: float,
+                    root: Path | None = None, shape: str | None = None,
+                    window_mm: float = 0.0) -> NavarroVariant | None:
+    """The drawn design closest to what was asked for, within the SHAPE asked for.
+
+    Shape is not negotiable and never traded away: a fenestrated case answered
+    with the nearest straight clip is a different operation, and that
+    substitution is exactly what used to happen when the search ranked only on
+    angle and jaw. Within one shape, the bend wins over the jaw length — the
+    bend is a different part, the jaw is the dimension the family varies — and
+    for the fenestrated series the window is compared before the jaw, for the
+    same reason: the window is the branch it has to spare.
+    """
+    want = _implied_shape(angle_deg, shape)
+    pool = [v for v in list_variants(root) if v.shape == want]
+    if not pool:
         return None
-    return min(variants, key=lambda v: (abs(v.angle_deg - angle_deg), abs(v.jaw_mm - jaw_mm)))
+    if want == FENESTRATED:
+        return min(pool, key=lambda v: (abs(v.window_mm - window_mm),
+                                        abs(v.jaw_mm - jaw_mm)))
+    return min(pool, key=lambda v: (abs(v.angle_deg - angle_deg),
+                                    abs(v.jaw_mm - jaw_mm)))
 
 
 # ── Geometry ───────────────────────────────────────────────────────────────── #
@@ -280,7 +373,40 @@ def resize_jaw(poly, from_jaw_mm: float, to_jaw_mm: float, angle_deg: float):
     return out
 
 
-def to_device_frame(poly, jaw_mm: float, angle_deg: float):
+def _curved_jaw_midpoint(poly) -> tuple[float, float, float]:
+    """Middle of a curved jaw, measured on the mesh.
+
+    The body is identical across the whole family, so everything above
+    `JAW_ROOT_Z_MM` is jaw. Its centre at the root and its centre at the tip
+    give the chord; the midpoint of that chord is where the neck belongs. For
+    the shallow arcs this family draws the chord midpoint sits within a few
+    tenths of the arc midpoint, and unlike the arc it needs no assumption about
+    the curve's shape.
+    """
+    pts = poly.GetPoints()
+    n = pts.GetNumberOfPoints()
+    root_band: list[tuple[float, float, float]] = []
+    tip_band: list[tuple[float, float, float]] = []
+    z_top = max(pts.GetPoint(i)[2] for i in range(n))
+    for i in range(n):
+        x, y, z = pts.GetPoint(i)
+        if abs(z - JAW_ROOT_Z_MM) <= 0.35:
+            root_band.append((x, y, z))
+        if z >= z_top - 0.35:
+            tip_band.append((x, y, z))
+    if not root_band or not tip_band:
+        return (0.0, 0.0, JAW_ROOT_Z_MM)
+
+    def mean(band):
+        k = len(band)
+        return (sum(b[0] for b in band) / k, 0.0, sum(b[2] for b in band) / k)
+
+    r, t = mean(root_band), mean(tip_band)
+    return ((r[0] + t[0]) / 2.0, 0.0, (r[2] + t[2]) / 2.0)
+
+
+def to_device_frame(poly, jaw_mm: float, angle_deg: float,
+                    shape: str = STRAIGHT):
     """Put a NAVARRO mesh in the app's device frame: rotated AND centred on its jaw.
 
     Two separate disagreements with the app's convention, and both placed the
@@ -318,15 +444,23 @@ def to_device_frame(poly, jaw_mm: float, angle_deg: float):
     """
     import vtk
 
-    root = jaw_root_offset(poly, jaw_mm, angle_deg)
-    mid = root + float(jaw_mm) / 2.0
-    theta = math.radians(angle_deg)
+    if shape == CURVED:
+        # The grip runs along an arc, so there is no axis to project onto: the
+        # root offset would come out ~0.6 mm instead of the measured 2.65 and
+        # the clip would sit two millimetres off the neck. The midpoint of the
+        # chord from the jaw root to the tip is measured off this mesh instead.
+        shift = _curved_jaw_midpoint(poly)
+    else:
+        root = jaw_root_offset(poly, jaw_mm, angle_deg)
+        mid = root + float(jaw_mm) / 2.0
+        theta = math.radians(angle_deg)
+        shift = (mid * math.sin(theta), 0.0, mid * math.cos(theta))
 
     t = vtk.vtkTransform()
     # PreMultiply (VTK default): the LAST call is applied to a point FIRST, so
     # the translation happens in the file's own frame and the rotation after it.
     t.RotateY(-90.0)
-    t.Translate(-mid * math.sin(theta), 0.0, -mid * math.cos(theta))
+    t.Translate(-shift[0], -shift[1], -shift[2])
 
     f = vtk.vtkTransformPolyDataFilter()
     f.SetInputData(poly)
@@ -335,36 +469,58 @@ def to_device_frame(poly, jaw_mm: float, angle_deg: float):
     return f.GetOutput()
 
 
-def build_jaw(angle_deg: float, jaw_mm: float, root: Path | None = None):
-    """Geometry for any jaw length, drawn or stretched.
+def build_jaw(angle_deg: float, jaw_mm: float, root: Path | None = None,
+              shape: str | None = None, window_mm: float = 0.0):
+    """Geometry for a jaw length, drawn or stretched, in the shape asked for.
 
-    Returns `(polydata, source_variant, exact)`. `exact` is True when a design
-    with that jaw length exists as drawn CAD and nothing was stretched.
+    Returns `(polydata, source_variant, exact)`. `exact` is True when the design
+    exists as drawn CAD and nothing was stretched.
+
+    A curved jaw is never stretched: `can_resize` is false for that series, so
+    the nearest DRAWN size is returned and `exact` reports honestly whether that
+    is the size that was asked for. Silently returning a stretched arc under the
+    requested label would be a piece nobody drew wearing a number somebody
+    trusted.
     """
-    src = nearest_variant(angle_deg, jaw_mm, root)
+    src = nearest_variant(angle_deg, jaw_mm, root, shape=shape, window_mm=window_mm)
     if src is None:
         raise FileNotFoundError(
-            "La biblioteca NAVARRO™ no está disponible en este servidor "
+            f"La biblioteca NAVARRO™ no tiene la serie «{shape}» en este servidor "
             f"({library_root()})."
         )
     mesh = load_mesh(src)
-    exact = abs(src.jaw_mm - jaw_mm) < 1e-6 and abs(src.angle_deg - angle_deg) < 1e-6
-    if not exact:
+    same_jaw = abs(src.jaw_mm - jaw_mm) < 1e-6
+    same_bend = abs(src.angle_deg - angle_deg) < 1e-6
+    exact = same_jaw and same_bend
+    if not exact and src.can_resize:
         mesh = resize_jaw(mesh, src.jaw_mm, jaw_mm, src.angle_deg)
-    return to_device_frame(mesh, jaw_mm, src.angle_deg), src, exact
+    elif not exact:
+        # Curved: fall back to the drawn size rather than deform the arc. `exact`
+        # stays False — the caller asked for a size this series does not have,
+        # and saying otherwise would put a number on a piece that is not it.
+        jaw_mm = float(src.jaw_mm)
+    return to_device_frame(mesh, jaw_mm, src.angle_deg, src.shape), src, exact
 
 
 # ── Feeding the selector ───────────────────────────────────────────────────── #
 
-def _shape_for(angle_deg: float):
-    """Map a bend angle onto the selector's shape vocabulary.
+def _shape_for(angle_deg: float, shape: str = STRAIGHT):
+    """Map a drawn design onto the selector's shape vocabulary.
 
-    The family bends in 15° steps but the selector knows three straight-ish
-    classes, so each angle lands on the nearest one. The real angle travels
-    separately in the spec, and it is the real angle that gets manufactured.
+    The SERIES decides, not the angle: a fenestrated clip is drawn at 0° and is
+    emphatically not a straight clip — reading the angle alone is what let a
+    fenestrated case be answered with a straight piece. Only within the angled
+    series does the bend pick between the two angled classes, because the
+    selector knows three straight-ish classes and the family bends in 15° steps.
+    The real angle travels separately in the spec, and it is the real angle that
+    gets manufactured.
     """
     from services.clips import ClipShape
 
+    if shape == CURVED:
+        return ClipShape.CURVED
+    if shape == FENESTRATED:
+        return ClipShape.FENESTRATED
     if angle_deg <= 7.5:
         return ClipShape.STRAIGHT
     if angle_deg <= 52.5:
@@ -372,24 +528,59 @@ def _shape_for(angle_deg: float):
     return ClipShape.ANGLED
 
 
+def navarro_shape_for(clip_shape) -> str:
+    """The drawn series that answers a `ClipShape` the selector asked for.
+
+    The inverse of `_shape_for`. Both angled classes come from the same T3
+    series — the bend that separates them travels as a number, not as a series.
+    """
+    from services.clips import ClipShape
+
+    if clip_shape == ClipShape.CURVED:
+        return CURVED
+    if clip_shape == ClipShape.FENESTRATED:
+        return FENESTRATED
+    if clip_shape in (ClipShape.ANGLED, ClipShape.ANGLED_45):
+        return ANGLED
+    return STRAIGHT
+
+
 #: Prefix marking an id this module owns.
 ID_PREFIX = "navarro"
 
 
-def clip_id(series: str, angle_deg: float, jaw_mm: float) -> str:
-    """`navarro:t1:0:7.0` — everything needed to rebuild the geometry."""
-    return f"{ID_PREFIX}:{series.lower()}:{angle_deg:.0f}:{jaw_mm:.1f}"
+#: Which series carries which shape. The id records the series, so the shape
+#: comes back with it and nothing has to be inferred from a bend angle.
+SERIES_SHAPE = {"T1": STRAIGHT, "T2": CURVED, "T3": ANGLED, "T4": FENESTRATED}
 
 
-def parse_clip_id(cid: str) -> tuple[str, float, float] | None:
-    """Inverse of `clip_id`. None when the id is not one of ours."""
+def clip_id(series: str, angle_deg: float, jaw_mm: float,
+            window_mm: float = 0.0) -> str:
+    """`navarro:t1:0:7.0`, or `navarro:t4:0:7.0:3.0` for a fenestrated one.
+
+    The window is a fifth field rather than a change of format, so ids already
+    written into signed orders keep parsing.
+    """
+    base = f"{ID_PREFIX}:{series.lower()}:{angle_deg:.0f}:{jaw_mm:.1f}"
+    return f"{base}:{window_mm:.1f}" if window_mm > 0 else base
+
+
+def parse_clip_id(cid: str) -> tuple[str, float, float, float] | None:
+    """`(series, angle, jaw, window)`. None when the id is not one of ours."""
     parts = (cid or "").split(":")
-    if len(parts) != 4 or parts[0] != ID_PREFIX:
+    if len(parts) not in (4, 5) or parts[0] != ID_PREFIX:
         return None
     try:
-        return parts[1].upper(), float(parts[2]), float(parts[3])
+        return (parts[1].upper(), float(parts[2]), float(parts[3]),
+                float(parts[4]) if len(parts) == 5 else 0.0)
     except ValueError:
         return None
+
+
+def shape_of_id(cid: str) -> str:
+    """The drawn shape an id names, or straight when it says nothing."""
+    parsed = parse_clip_id(cid)
+    return SERIES_SHAPE.get(parsed[0], STRAIGHT) if parsed else STRAIGHT
 
 
 def mesh_for_id(cid: str):
@@ -397,8 +588,10 @@ def mesh_for_id(cid: str):
     parsed = parse_clip_id(cid)
     if parsed is None:
         raise ValueError(f"'{cid}' no es un identificador NAVARRO™")
-    _series, angle, jaw = parsed
-    mesh, _src, _exact = build_jaw(angle, jaw)
+    series, angle, jaw, window = parsed
+    mesh, _src, _exact = build_jaw(angle, jaw,
+                                   shape=SERIES_SHAPE.get(series, STRAIGHT),
+                                   window_mm=window)
     return mesh
 
 
@@ -413,14 +606,13 @@ def to_spec(variant: NavarroVariant, jaw_mm: float | None = None):
 
     jaw = float(jaw_mm if jaw_mm is not None else variant.jaw_mm)
     custom = jaw_mm is not None and abs(jaw - variant.jaw_mm) > 1e-6
-    shape = _shape_for(variant.angle_deg)
-    label = (f"NAVARRO™ {variant.series} "
-             f"{'Recto' if variant.angle_deg == 0 else f'Angulado {variant.angle_deg:.0f}°'} "
-             f"{jaw:.1f} mm" + (" (a medida)" if custom else ""))
+    shape = _shape_for(variant.angle_deg, variant.shape)
+    label = (f"NAVARRO™ {variant.series} {variant.shape_label} {jaw:.1f} mm"
+             + (" (a medida)" if custom else ""))
     return ClipSpec(
         # Structured, so the placement endpoint can rebuild the real geometry
         # from the id alone instead of guessing from a slugged display name.
-        clip_id=clip_id(variant.series, variant.angle_deg, jaw),
+        clip_id=clip_id(variant.series, variant.angle_deg, jaw, variant.window_mm),
         name=label,
         shape=shape,
         blade_length_mm=jaw,
@@ -430,7 +622,9 @@ def to_spec(variant: NavarroVariant, jaw_mm: float | None = None):
         spring_length_mm=BODY_LENGTH_MM,
         closing_force_g=CLOSING_FORCE_MIN_G,
         manufacturer=MANUFACTURER,
-        fenestration_mm=0.0,
+        # The drawn window, so the selector can check it against the branch the
+        # clip has to spare instead of treating every clip as solid-bladed.
+        fenestration_mm=float(variant.window_mm),
         closing_force_max_g=CLOSING_FORCE_MAX_G,
         force_provisional=FORCE_IS_PROVISIONAL,
         availability="made_to_order",

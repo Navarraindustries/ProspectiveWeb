@@ -251,8 +251,15 @@ class ClipOrder:
 
     # The piece. `jaw_mm` outside the drawn sizes means a stretched jaw.
     series: str = ""
+    #: Which of the four drawn series: straight | curved | angled | fenestrated.
+    #: Kept beside the bend because a bend of 0° describes a straight clip, a
+    #: curved one and a fenestrated one alike — reading the angle alone is how a
+    #: fenestrated order used to come back as a straight piece.
+    shape: str = "straight"
     angle_deg: float = 0.0
     jaw_mm: float = 0.0
+    #: Inner window diameter, fenestrated only.
+    window_mm: float = 0.0
     is_drawn_size: bool = False
     quantity: int = 1
     extra_sizes_mm: list[float] = field(default_factory=list)
@@ -484,6 +491,7 @@ def create_order(*, session_id: str, case_id: int | None, patient: str, case_lab
                  patient_id: int | None = None,
                  requested_by: str, requested_by_name: str, institution: str,
                  series: str, angle_deg: float, jaw_mm: float, is_drawn_size: bool,
+                 shape: str = "straight", window_mm: float = 0.0,
                  quantity: int, extra_sizes_mm: list[float],
                  intended_use: str, needed_by: str, urgency: str,
                  steriliser: str, marking: str, notes: str, authorization_ref: str,
@@ -501,7 +509,8 @@ def create_order(*, session_id: str, case_id: int | None, patient: str, case_lab
         patient_id=patient_id,
         requested_by=requested_by, requested_by_name=requested_by_name,
         institution=institution, surgeon=surgeon.strip(),
-        series=series, angle_deg=float(angle_deg), jaw_mm=float(jaw_mm),
+        series=series, shape=shape, angle_deg=float(angle_deg),
+        jaw_mm=float(jaw_mm), window_mm=float(window_mm),
         is_drawn_size=is_drawn_size, quantity=int(quantity),
         extra_sizes_mm=[float(x) for x in extra_sizes_mm],
         intended_use=intended_use, needed_by=needed_by, urgency=urgency,
@@ -691,6 +700,17 @@ def sterilisation_notes(order: ClipOrder) -> list[str]:
     return out
 
 
+def _shape_label(order: ClipOrder) -> str:
+    """How the piece is named on paper. The window is part of the name."""
+    if order.shape == "curved":
+        return "Curvo"
+    if order.shape == "fenestrated":
+        return f"Fenestrado, ventana {order.window_mm:.0f} mm"
+    if order.angle_deg > 0:
+        return f"Angulado {order.angle_deg:.0f}°"
+    return "Recto"
+
+
 def order_rows(order: ClipOrder) -> list[tuple[str, str]]:
     """The order block both dossiers show. No patient data in it."""
     pieces = f"{order.quantity}"
@@ -699,6 +719,7 @@ def order_rows(order: ClipOrder) -> list[tuple[str, str]]:
         pieces += f" + tallas contiguas ({extra})"
     return [
         ("Nº de pedido", order.part_no),
+        ("Serie", f"{order.series} · {_shape_label(order)}"),
         ("Piezas", pieces),
         ("Fecha necesaria", order.needed_by or "sin fecha comprometida"),
         ("Prioridad", "Preferente" if order.urgency == "preferente" else "Programada"),

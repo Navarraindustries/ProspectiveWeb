@@ -339,7 +339,7 @@ def catalogue_with_library() -> list:
     `template` is excluded: a design that cannot yet be manufactured is not
     something to plan an operation around.
     """
-    from services.clips import CLIP_CATALOGUE
+    from services.clips import CLIP_CATALOGUE, OFFER_COMMERCIAL_CLIPS
 
     extra = [to_spec(c) for c in list_clips() if c.kind in ("stock", "made_to_order")]
     navarro: list = []
@@ -348,4 +348,9 @@ def catalogue_with_library() -> list:
         navarro = family_specs()
     except Exception as exc:  # noqa: BLE001 — a missing library must not break selection
         logger.warning("NAVARRO family unavailable: %s", exc)
-    return list(CLIP_CATALOGUE) + extra + navarro
+    # Clips from other manufacturers are reference dimensions, not an offer:
+    # recommending one leads to a piece this institution cannot obtain and
+    # cannot send to fabricación. What the hospital actually holds still counts,
+    # because that comes from its own library, not from this table.
+    commercial = list(CLIP_CATALOGUE) if OFFER_COMMERCIAL_CLIPS else []
+    return commercial + extra + navarro

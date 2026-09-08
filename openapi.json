@@ -7731,6 +7731,12 @@
             "minimum": 0.0,
             "title": "Points",
             "description": "Weight / magnitude of this factor"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "Where the threshold comes from and where the WEIGHT comes from — rarely the same place. The thresholds are largely published; the weights are heuristic and say so, rather than looking derived.",
+            "default": ""
           }
         },
         "type": "object",
@@ -12001,19 +12007,41 @@
       },
       "TreatmentDecisionResult": {
         "properties": {
+          "clip_points": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Clip Points",
+            "description": "Raw points that argued for clipping — the actual sum",
+            "default": 0
+          },
+          "endo_points": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Endo Points",
+            "description": "Raw points that argued for endovascular treatment",
+            "default": 0
+          },
           "clip_pct": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Clip Pct",
-            "description": "Clip score as percentage (0–100)"
+            "description": "Clip points as a share of the total, 0–100. NOT a probability and not a proportion of patients: the ratio of two heuristic sums. Use it to draw a proportional bar, and show `clip_points` as the figure."
           },
           "endo_pct": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Endo Pct",
-            "description": "Endo score as percentage (0–100)"
+            "description": "Endo share of the total, 0–100"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "Reasoning that is not a scored factor: why a small aneurysm is or is not a surveillance case, what the PHASES score says about it, and what the engine could not settle."
           },
           "balance": {
             "type": "integer",

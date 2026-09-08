@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **755 passing** (`pytest`, 44 files) |
+| Backend tests | **773 passing** (`pytest`, 45 files) |
 | Frontend tests | **151 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -559,6 +559,77 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The rupture risk the app had already computed did not reach the decision
+
+PHASES lives in the morphometry step and estimates a 5-year rupture risk. The
+clip-vs-endovascular engine lives two steps later and takes eight inputs, none of
+which is PHASES. The only thing connecting them was a button that clears both.
+
+That was tolerable while they answered different questions — PHASES asks whether
+to treat, the engine asks how — except the engine also answers the first one: an
+aneurysm under 3 mm short-circuits to «VIGILANCIA ACTIVA», confidence **Alta**,
+before evaluating a single factor. On diameter alone. So:
+
+| same 2.8 mm aneurysm | PHASES | 5-year risk | engine said |
+|---|---|---|---|
+| Finnish, hypertensive, prior SAH, ACoA | 14 | **17.0 %** | vigilancia activa, confianza Alta |
+| no risk factors, ICA, general population | 0 | **0.4 %** | vigilancia activa, confianza Alta |
+
+Forty-two times the risk, same verdict, same stated confidence — two screens of
+one application contradicting each other about one patient.
+
+The shortcut now reads the stored score. A low or moderate risk still gets
+surveillance and cites the figure; **a high one returns «discusión
+multidisciplinaria»** and prints both numbers, because the two disagree and
+saying so is more useful than picking one. With no PHASES computed the verdict
+stands but confidence drops to Baja and the note says the recommendation rests on
+diameter alone. A ruptured aneurysm never reaches the branch at all: PHASES is
+validated on incidental aneurysms and says nothing about one that has bled.
+
+No new threshold was invented for this. The bands are the ones `phases.py`
+already applied, and where the app cannot resolve the comparison ESO 2022 frames
+— rupture risk against procedural risk, and the procedural risk is not in this
+application — it stops pretending the comparison is resolved.
+
+### Every weight now says where it comes from
+
+Two different things were being called evidence-based. The **thresholds** mostly
+are published: a 4 mm neck and a dome-to-neck ratio of 2.0 are the standard
+wide-neck definition (Brinjikji, AJNR 2009). The **weights** are not — no
+published model assigns 25 points to a wide neck and 20 to an MCA location, and
+nothing in this repository attributed them.
+
+Every factor now carries a `source` naming both, and it travels to the panel and
+into the PDF under the factor name. Three things it makes visible:
+
+- the heuristic weights say `heurístico, sin fuente` rather than looking derived;
+- the Aspect Ratio, Bottleneck Factor and Undulation Index say they come from
+  **rupture-risk** literature (Dhar 2008, Raghavan 2005) and are not validated
+  for choosing a modality — they are 42 of the available points;
+- the rupture factor cites AHA/ASA 2023 Class I LOE A, and notes that its weight
+  (15) is below the neck's (25) and the location's (25) despite resting on the
+  strongest evidence of the eight.
+
+Sitting in the same file is what a full literature review turned up and this
+engine does not do: the two validated modality-selection models — the Japan
+Stroke Data Bank score and SHARP — are built on age, WFNS grade, Fisher grade,
+prior stroke, size and location. Six of these eight factors are morphological
+instead. Age and comorbidities are collected here and deliberately not scored;
+WFNS and Fisher are not collected at all.
+
+### The bar was reading as a probability
+
+«CLIP 72 % · ENDO 28 %» is the ratio of two heuristic sums normalised to 100. It
+is not a probability, not a proportion of patients, and not a confidence
+interval. The bar stays proportional — that is what a bar is for — but the figure
+is now the points that were actually added, with a line saying what they are.
+
+One thing had to be fixed to make any of this visible: the engine computed
+`notes` and threw them away. `_to_dict` never emitted them, the model had no
+field, and the report's notes loop had always printed an empty list. The whole
+reasoning of the small-aneurysm branch — the part that now carries the PHASES
+comparison — had never left the engine.
 
 ### Every placement collided, because the neck counted as an obstacle
 
@@ -1244,11 +1315,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 755 tests
+.venv\Scripts\python -m pytest -q                        # all 773 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **755 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **773 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

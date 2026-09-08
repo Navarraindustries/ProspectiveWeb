@@ -51,7 +51,20 @@ async def compute_treatment_decision(
     bottleneck_factor = _load_float(req.session_id, "morpho.bf",               0.0)
     undulation_index  = _load_float(req.session_id, "morpho.ui",               0.0)
 
+    # El PHASES que ya calculó el paso de morfometría. No entra en la aritmética
+    # clip-vs-endo —responde otra pregunta— pero decide si el atajo del aneurisma
+    # pequeño puede decir «vigilancia» sin contradecir un riesgo de rotura alto
+    # que la propia aplicación estimó dos pasos antes.
+    phases = None
+    raw_phases = read_state(req.session_id, "phases.json", "")
+    if raw_phases:
+        try:
+            phases = json.loads(raw_phases)
+        except (ValueError, TypeError):
+            pass
+
     result = compute_decision(
+        phases=phases,
         neck_mm=neck_mm,
         aspect_ratio=aspect_ratio,
         dnr=dnr,
@@ -68,12 +81,18 @@ async def compute_treatment_decision(
     write_state(req.session_id, "treatment.confidence",         result["confidence"])
     write_state(req.session_id, "treatment.clip_pct",           str(result["clip_pct"]))
     write_state(req.session_id, "treatment.endo_pct",           str(result["endo_pct"]))
-    # Serialise factors list as JSON for report builder
+    write_state(req.session_id, "treatment.clip_points",        str(result["clip_points"]))
+    write_state(req.session_id, "treatment.endo_points",        str(result["endo_points"]))
+    # Serialise factors list as JSON for report builder. `source` travels with
+    # them: a weight without its provenance reads as if it had been derived.
     factors_for_json = [
-        {"name": f["name"], "direction": f["direction"], "points": f["points"]}
+        {"name": f["name"], "direction": f["direction"], "points": f["points"],
+         "source": f.get("source", "")}
         for f in result.get("factors", [])
     ]
     write_state(req.session_id, "treatment.factors_json", json.dumps(factors_for_json))
+    write_state(req.session_id, "treatment.notes_json",
+                json.dumps(result.get("notes", [])))
 
     # Clinical context the engine does NOT score (see TreatmentDecisionRequest):
     # persisted so the report can print it alongside the recommendation, which
@@ -95,7 +114,8 @@ async def compute_treatment_decision(
 TREATMENT_STATE_KEYS = (
     "treatment.recommendation", "treatment.recommendation_key",
     "treatment.confidence", "treatment.clip_pct", "treatment.endo_pct",
-    "treatment.factors_json",
+    "treatment.clip_points", "treatment.endo_points",
+    "treatment.factors_json", "treatment.notes_json",
     "clinical.patient_age", "clinical.has_comorbidities",
 )
 

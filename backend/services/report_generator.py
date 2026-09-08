@@ -210,6 +210,8 @@ def build_report_data_from_session(
             "confidence":         _rs("treatment.confidence"),
             "clip_pct":           int(_rf("treatment.clip_pct")),
             "endo_pct":           int(_rf("treatment.endo_pct")),
+            "clip_points":        int(_rf("treatment.clip_points")),
+            "endo_points":        int(_rf("treatment.endo_points")),
             "factors":            [],   # serialised separately if needed
             "notes":              [],
         }
@@ -218,6 +220,14 @@ def build_report_data_from_session(
         if factors_raw:
             try:
                 treatment["factors"] = json.loads(factors_raw)
+            except Exception:
+                pass
+        # The engine's notes. The section has always been ready to print these;
+        # nothing ever wrote them, so it always printed none.
+        notes_raw = _rs("treatment.notes_json", "")
+        if notes_raw:
+            try:
+                treatment["notes"] = json.loads(notes_raw)
             except Exception:
                 pass
 
@@ -610,6 +620,10 @@ class ReportGenerator:
             fontSize=8, fontName="Helvetica-Bold",
             textColor=colors.white, alignment=TA_LEFT,
         )
+        self._style_td_factor = ParagraphStyle(
+            "ProspTdFactor", parent=base, fontSize=8, leading=10.2,
+            textColor=self._INK if hasattr(self, "_INK") else colors.black,
+        )
         self._style_td_bar_clip = ParagraphStyle(
             "ProspTDBarClip", parent=base,
             fontSize=8, fontName="Helvetica-Bold",
@@ -889,9 +903,17 @@ class ReportGenerator:
             endo_w = max(min_w, total_w * endo_pct / 100)
             clip_w = total_w - endo_w
 
+        # Puntos, no porcentajes. «CLIP 72 % · ENDO 28 %» se lee como una
+        # probabilidad —o como la proporción de pacientes a los que les fue
+        # mejor— y no es ninguna de las dos: es el cociente de dos sumas de
+        # pesos heurísticos, normalizado a 100. La barra sigue siendo
+        # proporcional, que para eso sirve; la cifra ahora es la que de verdad
+        # se ha sumado.
+        clip_pts = int(t.get("clip_points", 0))
+        endo_pts = int(t.get("endo_points", 0))
         bar_data = [[
-            Paragraph(f"ENDO  {endo_pct}%", self._style_td_bar_endo),
-            Paragraph(f"{clip_pct}%  CLIP", self._style_td_bar_clip),
+            Paragraph(f"ENDO  {endo_pts} pts", self._style_td_bar_endo),
+            Paragraph(f"{clip_pts} pts  CLIP", self._style_td_bar_clip),
         ]]
         bar_tbl = Table(bar_data, colWidths=[endo_w, clip_w])
         bar_tbl.setStyle(TableStyle([
@@ -904,21 +926,33 @@ class ReportGenerator:
             ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ]))
         elems.append(bar_tbl)
+        elems.append(Paragraph(
+            "Puntos de un sumatorio con pesos elegidos a mano. No es una "
+            "probabilidad ni una proporción de pacientes: mide cuántos de los "
+            "factores evaluados apuntan a cada lado, y con qué peso. La columna "
+            "«Procedencia» dice de dónde sale cada uno.",
+            self._style_td_note))
         elems.append(Spacer(1, 0.25*cm))
 
         # Factors table
         factors = t.get("factors", [])
         if factors:
             elems.append(Paragraph("Factores determinantes:", self._style_h3))
-            rows = [["Factor", "Estrategia", "Pts"]]
+            rows = [["Factor y procedencia", "Estrategia", "Pts"]]
             for f in factors:
                 direction = f.get("direction", "neutral")
                 pts       = f.get("points", 0)
                 dir_label = {"clip": "Clipping", "endo": "Endovascular"}.get(
                     direction, "Neutro"
                 )
+                # El nombre y su origen en la misma celda: un peso sin su
+                # procedencia se lee como si estuviera derivado de algo.
+                name = f.get("name", "")
+                src  = f.get("source", "")
+                cell = (f"<b>{name}</b><br/><font size='6.4' color='#64748B'>{src}</font>"
+                        if src else f"<b>{name}</b>")
                 rows.append([
-                    f.get("name", ""),
+                    Paragraph(cell, self._style_td_factor),
                     dir_label,
                     f"+{pts}" if pts > 0 else "—",
                 ])
@@ -931,9 +965,10 @@ class ReportGenerator:
                 ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE",   (0, 0), (-1, -1), 8),
                 ("GRID",       (0, 0), (-1, -1), 0.4, self._GREY_MED),
-                ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("VALIGN",     (0, 0), (-1, -1), "TOP"),
+                ("VALIGN",     (1, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LEFTPADDING",   (0, 0), (-1, -1), 5),
                 ("ALIGN",      (2, 0), (2, -1), "CENTER"),
             ])

@@ -665,6 +665,8 @@ export interface DecisionFactor {
   detail: string;
   direction: "clip" | "endo" | "neutral";
   points: number;
+  /** De dónde sale el umbral y de dónde el peso. Rara vez del mismo sitio. */
+  source: string;
 }
 
 export interface TreatmentDecisionRequest {
@@ -676,8 +678,16 @@ export interface TreatmentDecisionRequest {
 }
 
 export interface TreatmentDecisionResult {
+  /** Los puntos que de verdad se han sumado. */
+  clip_points: number;
+  endo_points: number;
+  /** Su cociente normalizado a 100. Sirve para dibujar la barra, no para leerlo
+      como una probabilidad: son pesos heurísticos, no frecuencias. */
   clip_pct: number;
   endo_pct: number;
+  /** Razonamiento que no es un factor puntuado: por qué un aneurisma pequeño es
+      —o no— un caso de vigilancia, y qué dice el PHASES al respecto. */
+  notes: string[];
   balance: number;
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";

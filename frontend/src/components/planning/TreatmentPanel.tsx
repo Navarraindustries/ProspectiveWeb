@@ -12,15 +12,20 @@ import { PanelHead, SectionLabel, ErrorNote } from "../PanelHead";
 import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
 
-function ScoreBar({ label, pct, fill }: { label: string; pct: number; fill: string }) {
+/* La barra es proporcional —para eso sirve— pero la cifra son PUNTOS. Un
+   «CLIP 72 %» se lee como una probabilidad, o como la proporción de pacientes a
+   los que les fue mejor, y no es ninguna de las dos: es el cociente de dos sumas
+   de pesos elegidos a mano. */
+function ScoreBar({ label, pct, points, fill }:
+  { label: string; pct: number; points: number; fill: string }) {
   return (
     <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center" }}>
       <span style={{ fontSize: 11, fontWeight: 700, width: 40, color: "var(--brand-subtle-foreground)" }}>{label}</span>
       <div style={{ flex: 1, height: 10, borderRadius: 5, background: "color-mix(in srgb, var(--brand-deep) 20%, transparent)", overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${pct}%`, background: fill, transition: "width var(--dur-base) var(--ease-out)" }} />
       </div>
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, width: 34, textAlign: "right", color: "var(--brand-subtle-foreground)" }}>
-        {pct}%
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, width: 52, textAlign: "right", color: "var(--brand-subtle-foreground)" }}>
+        {points} pts
       </span>
     </div>
   );
@@ -156,10 +161,29 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
               </span>
             </div>
             <div style={{ marginTop: 12 }}>
-              <ScoreBar label="CLIP" pct={t.clip_pct} fill="var(--brand-deep)" />
-              <ScoreBar label="ENDO" pct={t.endo_pct} fill="var(--brand-slate)" />
+              <ScoreBar label="CLIP" pct={t.clip_pct} points={t.clip_points} fill="var(--brand-deep)" />
+              <ScoreBar label="ENDO" pct={t.endo_pct} points={t.endo_points} fill="var(--brand-slate)" />
+              <div style={{ fontSize: 11, color: "var(--brand-subtle-foreground)", marginTop: 8, lineHeight: 1.5, opacity: 0.85 }}>
+                Puntos de un sumatorio con pesos elegidos a mano. No es una
+                probabilidad: mide cuántos factores apuntan a cada lado y con qué
+                peso. Cada factor dice debajo de dónde sale el suyo.
+              </div>
             </div>
           </div>
+
+          {t.notes.length > 0 && (
+            <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+              {t.notes.map((n, i) => (
+                <div key={i} style={{
+                  fontSize: 12, lineHeight: 1.55, color: "var(--foreground)",
+                  background: "var(--muted)", borderRadius: "var(--radius-md)",
+                  borderLeft: "3px solid var(--warning)", padding: "8px 10px",
+                }}>
+                  {n}
+                </div>
+              ))}
+            </div>
+          )}
 
           <SectionLabel>Factores contribuyentes</SectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -183,6 +207,11 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{f.name}</div>
                   <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{f.detail}</div>
+                  {f.source && (
+                    <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45, opacity: 0.85 }}>
+                      {f.source}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

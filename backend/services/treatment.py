@@ -3,13 +3,36 @@
 Adapted from prospective/processing/treatment_decision.py — pure Python, zero Qt dependencies.
 All logic is identical to the desktop version (same factor weights, thresholds and references).
 
+What is published and what is not
+---------------------------------
+Two different things get called "evidence-based" here, and separating them is the
+point of the `source` carried by every factor.
+
+The **thresholds** mostly are published: a 4 mm neck and a dome-to-neck ratio of
+2.0 are the standard definition of a wide neck, and the direction each factor
+pushes reflects positions any review would recognise.
+
+The **weights** are not. No published model assigns 25 points to a wide neck and
+20 to an MCA location; those numbers were chosen by hand and no source in this
+repository attributes them. They are stated as heuristic in each factor's
+`source` rather than left to look derived.
+
+Worth knowing about the shape of this engine: the two validated models that do
+choose between clipping and coiling — the Japan Stroke Data Bank score
+(Neurol Med Chir 2020) and SHARP — are built on age, WFNS grade, Fisher grade,
+prior stroke, size and location. Six of the eight factors below are
+morphological instead, and four of those come from rupture-risk literature.
+
 References
 ----------
-- Molyneux et al., ISAT 2002 (NEJM) — ruptured aneurysms
-- Spetzler et al., BRAT 2013 — unruptured aneurysms
-- Dhar et al. 2008 — bottleneck factor / shape indices
-- Raghavan et al. 2005 — undulation index
-- AHA/ASA Guidelines 2015 — aneurysm management
+- Hoh et al., AHA/ASA 2023 guideline on aneurysmal SAH — Class I LOE A for
+  coiling in ruptured anterior-circulation aneurysms equally suitable for both
+- Molyneux et al., ISAT 18-year follow-up (Lancet 2015)
+- Spetzler et al., BRAT 10-year saccular analysis (J Neurosurg 2019)
+- Brinjikji et al., AJNR 2009 — wide-neck definition
+- Dhar et al. 2008, Raghavan et al. 2005 — shape indices, RUPTURE RISK
+- Etminan et al., ESO 2022 — unruptured aneurysm management
+- Greving et al., Lancet Neurol 2014 — PHASES
 """
 from __future__ import annotations
 
@@ -45,6 +68,60 @@ class _Factor:
     detail:    str
     direction: str  # "clip" | "endo" | "neutral"
     points:    int
+    #: Where the threshold comes from, and where the weight comes from. They are
+    #: rarely the same place, and a factor that does not say so reads as if the
+    #: number had been derived from something.
+    source:    str = ""
+
+
+#: Provenance per factor. Written out rather than inferred so that adding a
+#: factor without a source is a visible omission.
+_SOURCE: dict[str, str] = {
+    "neck": (
+        "Umbral: cuello ≥ 4 mm es la definición estándar de cuello ancho "
+        "(Brinjikji, AJNR 2009). Peso: heurístico, sin fuente. Nota: hoy el "
+        "coiling asistido con stent es alternativa aceptada en cuello ancho."
+    ),
+    "ar": (
+        "Índice de RIESGO DE ROTURA (Dhar 2008; Raghavan 2005). Su uso para "
+        "elegir entre clipaje y endovascular no está validado. Peso: heurístico."
+    ),
+    "dnr": (
+        "Umbral: relación domo-cuello < 2 es la definición estándar de cuello "
+        "ancho (Brinjikji, AJNR 2009). Peso: heurístico, sin fuente."
+    ),
+    "size": (
+        "Umbrales de tamaño de uso corriente; el corte de gigante (25 mm) es "
+        "convencional. Peso: heurístico. La diversión de flujo en gigantes tiene "
+        "tasas de complicación notables y no es una elección automática."
+    ),
+    "bf": (
+        "Índice de RIESGO DE ROTURA (Dhar 2008). No validado para elegir "
+        "modalidad. Peso: heurístico."
+    ),
+    "ui": (
+        "Índice de RIESGO DE ROTURA (Raghavan 2005; Dhar 2008). No validado "
+        "para elegir modalidad. Peso: heurístico."
+    ),
+    "location": (
+        "Dirección: práctica establecida y recogida en guía para circulación "
+        "posterior (AHA/ASA 2023). En ACM los metaanálisis de 2024-2025 dan "
+        "mejor oclusión y menos retratamiento con clipaje, pero SIN diferencia "
+        "en resultado funcional. Peso: heurístico, sin fuente."
+    ),
+    "ruptured": (
+        "AHA/ASA 2023: en circulación anterior rota igualmente abordable por "
+        "ambas vías, coiling preferente — Clase I, nivel A, la recomendación "
+        "más fuerte que toca este motor. ISAT a 18 años. Peso: heurístico, y "
+        "menor que el de cuello o localización pese a apoyarse en la evidencia "
+        "más fuerte de las ocho."
+    ),
+    "small": (
+        "Umbral heurístico. No procede de ninguna guía: ESO 2022 plantea la "
+        "decisión como comparar el riesgo de rotura contra el del procedimiento, "
+        "no como un corte de diámetro."
+    ),
+}
 
 
 @dataclass
@@ -61,6 +138,87 @@ class _Decision:
     notes:   list[str]     = field(default_factory=list)
 
 
+def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
+                    ruptured: bool) -> dict[str, Any]:
+    """«Tratar o vigilar» para un aneurisma menor de 3 mm.
+
+    Esto no es la pregunta que responde el resto del módulo. El resto elige
+    ENTRE dos tratamientos; esto decide si hay tratamiento, que es la pregunta
+    anterior y se contesta con otros datos.
+
+    Se contestaba con el diámetro y nada más, y con confianza «Alta». Dos
+    pacientes con el mismo aneurisma de 2.8 mm —uno finlandés, hipertenso, con
+    HSA previa, PHASES 14 y 17 % de riesgo a cinco años; otro sin factores, con
+    PHASES 0 y 0.4 %— recibían el mismo veredicto y la misma confianza. Un
+    riesgo 42 veces mayor no movía nada, porque el PHASES lo calcula el paso de
+    morfometría y este cálculo no lo miraba.
+
+    ESO 2022 plantea la decisión como comparar el riesgo de rotura contra el del
+    procedimiento. El riesgo del procedimiento no está en esta aplicación, así
+    que aquí no se resuelve esa comparación: lo que se hace es dejar de fingir
+    que está resuelta cuando las dos cifras no apuntan al mismo sitio.
+    """
+    notes = [
+        f"Aneurisma muy pequeño (Ø {diameter_mm:.1f} mm < 3 mm): el riesgo "
+        f"procedimental generalmente supera el riesgo de rotura."
+    ]
+
+    if ruptured:
+        # Un aneurisma roto ya no plantea la pregunta de vigilar, y el PHASES
+        # —construido sobre aneurismas incidentales— no dice nada sobre él.
+        notes.append(
+            "Pero está roto: la vigilancia no es una opción y el tamaño no la "
+            "reabre. Tratamiento según la guía de HSA aneurismática, por la vía "
+            "que la anatomía permita."
+        )
+        return _to_dict(_Decision(
+            clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
+            recommendation="DISCUSIÓN MULTIDISCIPLINARIA",
+            recommendation_key="mdt", confidence="Baja",
+            factors=[], notes=notes,
+        ))
+
+    band = (phases or {}).get("risk_band", "")
+    risk = (phases or {}).get("risk_5yr_pct")
+    score = (phases or {}).get("total_score")
+
+    if not band:
+        notes.append(
+            "No se ha estimado el riesgo de rotura: esta recomendación descansa "
+            "solo en el diámetro. Calcula el PHASES en Morfometría para que la "
+            "comparación entre riesgo de rotura y riesgo del procedimiento —que "
+            "es como plantea la decisión la guía ESO 2022— se pueda hacer."
+        )
+        confidence = "Baja"
+    elif band == "high":
+        # Las dos cifras se contradicen, y decirlo es más útil que elegir una.
+        notes.append(
+            f"Pero el PHASES es {score} → {risk:.1f} % de riesgo de rotura a 5 "
+            f"años, que es una estimación ALTA. El tamaño sugiere vigilar y el "
+            f"riesgo estimado sugiere lo contrario: la decisión no se sostiene "
+            f"en el diámetro y corresponde a sesión multidisciplinar."
+        )
+        return _to_dict(_Decision(
+            clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
+            recommendation="DISCUSIÓN MULTIDISCIPLINARIA",
+            recommendation_key="mdt", confidence="Baja",
+            factors=[], notes=notes,
+        ))
+    else:
+        notes.append(
+            f"El PHASES lo acompaña: {score} → {risk:.1f} % de riesgo de rotura "
+            f"a 5 años ({'moderado' if band == 'moderate' else 'bajo'}). "
+            f"Seguimiento con imagen."
+        )
+        confidence = "Alta" if band == "low" else "Moderada"
+
+    return _to_dict(_Decision(
+        clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
+        recommendation="VIGILANCIA ACTIVA", recommendation_key="surveillance",
+        confidence=confidence, factors=[], notes=notes,
+    ))
+
+
 # ── Public engine ──────────────────────────────────────────────────────────── #
 
 def compute_decision(
@@ -72,11 +230,17 @@ def compute_decision(
     undulation_index:  float,
     location:          str  = LOCATION_UNKNOWN,
     ruptured:          bool = False,
+    phases:            dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compute CLIP vs ENDOVASCULAR recommendation.
 
     All morpho inputs accept 0.0 as "not available" — factors are skipped
     when the input is zero so that partial morpho data still yields a result.
+
+    `phases` is the score the morphometry step already computed, when there is
+    one. It does not enter the clip-vs-endo arithmetic — it answers a different
+    question — but it decides whether the small-aneurysm shortcut below is
+    entitled to say «watch and wait».
 
     Returns a dict matching TreatmentDecisionResult Pydantic model fields.
     """
@@ -85,9 +249,9 @@ def compute_decision(
     factors: list[_Factor] = []
     notes:   list[str]     = []
 
-    def _add(name: str, detail: str, direction: str, pts: int) -> None:
+    def _add(name: str, detail: str, direction: str, pts: int, key: str) -> None:
         nonlocal clip_pts, endo_pts
-        factors.append(_Factor(name, detail, direction, pts))
+        factors.append(_Factor(name, detail, direction, pts, _SOURCE[key]))
         if direction == "clip":
             clip_pts += pts
         elif direction == "endo":
@@ -95,18 +259,7 @@ def compute_decision(
 
     # ── Special case: very small aneurysm (< 3 mm) ────────────────────── #
     if 0 < max_diameter_mm < 3.0:
-        notes.append(
-            "Aneurisma muy pequeño (<3 mm): el riesgo procedimental generalmente "
-            "supera el riesgo de ruptura. Se recomienda seguimiento con imagen."
-        )
-        return _to_dict(_Decision(
-            clip_raw=0, endo_raw=0, balance=0,
-            clip_pct=50, endo_pct=50,
-            recommendation="VIGILANCIA ACTIVA",
-            recommendation_key="surveillance",
-            confidence="Alta",
-            factors=[], notes=notes,
-        ))
+        return _small_aneurysm(max_diameter_mm, phases, ruptured)
 
     # ── Factor 1: Neck diameter ────────────────────────────────────────── #
     if neck_mm > 0:
@@ -114,19 +267,19 @@ def compute_decision(
             _add(
                 f"Cuello estrecho ({neck_mm:.1f} mm < 4 mm)",
                 "Cuello < 4 mm: retención óptima del coil sin stent de soporte.",
-                "endo", 25,
+                "endo", 25, "neck",
             )
         elif neck_mm <= 5.0:
             _add(
                 f"Cuello intermedio ({neck_mm:.1f} mm, 4–5 mm)",
                 "Cuello borderline: posible stent-assisted coiling o clipping.",
-                "endo", 5,
+                "endo", 5, "neck",
             )
         else:
             _add(
                 f"Cuello ancho ({neck_mm:.1f} mm > 5 mm)",
                 "Cuello ≥ 5 mm: retención de coil difícil; clipping o flow diverter.",
-                "clip", 25,
+                "clip", 25, "neck",
             )
 
     # ── Factor 2: Aspect Ratio (AR = dome_height / neck) ──────────────── #
@@ -135,19 +288,19 @@ def compute_decision(
             _add(
                 f"Aspect Ratio alto (AR = {aspect_ratio:.2f} > 2.0)",
                 "AR > 2: domo profundo relativo al cuello — geometría favorable para coiling.",
-                "endo", 20,
+                "endo", 20, "ar",
             )
         elif aspect_ratio > 1.3:
             _add(
                 f"Aspect Ratio moderado (AR = {aspect_ratio:.2f}, 1.3–2.0)",
                 "AR 1.3–2.0: geometría ligeramente favorable para coiling.",
-                "endo", 10,
+                "endo", 10, "ar",
             )
         else:
             _add(
                 f"Aspect Ratio bajo (AR = {aspect_ratio:.2f} < 1.3)",
                 "AR < 1.3: saco corto y ancho — acceso quirúrgico favorable.",
-                "clip", 10,
+                "clip", 10, "ar",
             )
 
     # ── Factor 3: Dome-to-Neck Ratio (DNR) ────────────────────────────── #
@@ -156,19 +309,19 @@ def compute_decision(
             _add(
                 f"DNR favorable para coiling (DNR = {dnr:.2f} > 2.0)",
                 "DNR > 2: domo amplio relativo al cuello — buena retención de coils.",
-                "endo", 15,
+                "endo", 15, "dnr",
             )
         elif dnr > 1.5:
             _add(
                 f"DNR moderado (DNR = {dnr:.2f}, 1.5–2.0)",
                 "DNR 1.5–2.0: leve preferencia por coiling.",
-                "endo", 8,
+                "endo", 8, "dnr",
             )
         else:
             _add(
                 f"DNR bajo (DNR = {dnr:.2f} < 1.5)",
                 "DNR < 1.5: cuello ancho relativo al domo — clipping más efectivo.",
-                "clip", 15,
+                "clip", 15, "dnr",
             )
 
     # ── Factor 4: Maximum diameter ─────────────────────────────────────── #
@@ -177,7 +330,7 @@ def compute_decision(
             _add(
                 f"Aneurisma gigante (Ø = {max_diameter_mm:.1f} mm > 25 mm)",
                 "Gigante (>25 mm): flow diverter (PED) es tratamiento de elección.",
-                "endo", 20,
+                "endo", 20, "size",
             )
             notes.append(
                 "Aneurisma gigante: considerar flow diverter (Pipeline, Surpass) "
@@ -187,13 +340,13 @@ def compute_decision(
             _add(
                 f"Aneurisma grande (Ø = {max_diameter_mm:.1f} mm, 12–25 mm)",
                 "Grande (12–25 mm): ligera preferencia endovascular; valorar complejidad.",
-                "endo", 5,
+                "endo", 5, "size",
             )
         elif max_diameter_mm < 5.0:
             _add(
                 f"Aneurisma pequeño (Ø = {max_diameter_mm:.1f} mm < 5 mm)",
                 "Pequeño (<5 mm): clipping más fiable para exclusión completa.",
-                "clip", 8,
+                "clip", 8, "size",
             )
         # 5–12 mm: neutral (no factor added)
 
@@ -203,19 +356,19 @@ def compute_decision(
             _add(
                 f"Bottleneck Factor alto (BF = {bottleneck_factor:.2f} > 2.0)",
                 "BF > 2: cuello muy estrecho relativo al domo — ideal para coiling.",
-                "endo", 12,
+                "endo", 12, "bf",
             )
         elif bottleneck_factor > 1.5:
             _add(
                 f"Bottleneck Factor moderado (BF = {bottleneck_factor:.2f}, 1.5–2.0)",
                 "BF 1.5–2.0: cuello moderadamente estrecho.",
-                "endo", 6,
+                "endo", 6, "bf",
             )
         elif bottleneck_factor <= 1.2:
             _add(
                 f"Bottleneck Factor bajo (BF = {bottleneck_factor:.2f} ≤ 1.2)",
                 "BF ≤ 1.2: domo ancho (no hay efecto de cuello) — clipping favorable.",
-                "clip", 8,
+                "clip", 8, "bf",
             )
 
     # ── Factor 6: Undulation Index (UI — dome irregularity) ───────────── #
@@ -224,19 +377,19 @@ def compute_decision(
             _add(
                 f"Domo muy irregular (UI = {undulation_index:.3f} > 0.20)",
                 "UI > 0.20: morfología lobulada; riesgo de llenado incompleto con coils.",
-                "clip", 10,
+                "clip", 10, "ui",
             )
         elif undulation_index > 0.10:
             _add(
                 f"Domo moderadamente irregular (UI = {undulation_index:.3f}, 0.10–0.20)",
                 "UI 0.10–0.20: cierta irregularidad; leve preferencia por clipping.",
-                "clip", 5,
+                "clip", 5, "ui",
             )
         elif undulation_index < 0.05:
             _add(
                 f"Domo regular (UI = {undulation_index:.3f} < 0.05)",
                 "Domo esférico regular — favorable para empaquetado con coils.",
-                "endo", 5,
+                "endo", 5, "ui",
             )
 
     # ── Factor 7: Location (clinical input) ───────────────────────────── #
@@ -245,43 +398,43 @@ def compute_decision(
         _add(
             "Localización ACM (Arteria Cerebral Media)",
             "ACM: acceso quirúrgico directo — clipping de elección en la mayoría de centros.",
-            "clip", 20,
+            "clip", 20, "location",
         )
     elif loc == LOCATION_ACA_ACOA:
         _add(
             "Localización ACA / ACoA",
             "ACoA: abordaje quirúrgico bien establecido; ligera preferencia por clipping.",
-            "clip", 10,
+            "clip", 10, "location",
         )
     elif loc == LOCATION_ICA_PROX:
         _add(
             "Localización ACI proximal (cavernoso / clinoideo)",
             "ACI proximal: acceso endovascular más seguro en la mayoría de casos.",
-            "endo", 10,
+            "endo", 10, "location",
         )
     elif loc == LOCATION_ICA_DIST:
         _add(
             "Localización ACI distal (PCOM / oftálmica)",
             "ACI distal: factible por ambas vías; leve preferencia endovascular.",
-            "endo", 5,
+            "endo", 5, "location",
         )
     elif loc == LOCATION_PCOM:
         _add(
             "Localización ACoP (Comunicante Posterior)",
             "PCOM: tratable por ambas vías; el tamaño y morfología determinan la estrategia.",
-            "neutral", 0,
+            "neutral", 0, "location",
         )
     elif loc == LOCATION_BASILAR:
         _add(
             "Localización Basilar (punta, tronco o AICA)",
             "Basilar: acceso quirúrgico de alta complejidad — endovascular de elección.",
-            "endo", 25,
+            "endo", 25, "location",
         )
     elif loc == LOCATION_PICA:
         _add(
             "Localización PICA / Vertebral",
             "Circulación posterior: endovascular preferido por acceso quirúrgico difícil.",
-            "endo", 20,
+            "endo", 20, "location",
         )
 
     # ── Factor 8: Rupture status ───────────────────────────────────────── #
@@ -289,7 +442,7 @@ def compute_decision(
         _add(
             "Aneurisma roto (HSA activa)",
             "Roto: ISAT 2002 demostró superioridad de coiling en aneurismas accesibles.",
-            "endo", 15,
+            "endo", 15, "ruptured",
         )
         notes.append(
             "Aneurisma roto: el coiling es de primera elección si la morfología lo permite "
@@ -346,10 +499,17 @@ def _to_dict(d: _Decision) -> dict[str, Any]:
             "detail":    f.detail,
             "direction": f.direction,
             "points":    f.points,
+            "source":    f.source,
         }
         for f in d.factors
     ]
     return {
+        # Los puntos, además del cociente. La barra «CLIP 72 % · ENDO 28 %» se
+        # lee como una probabilidad y no lo es: es la proporción de unos puntos
+        # heurísticos normalizada a 100. Publicar el crudo permite enseñar lo que
+        # de verdad se ha sumado.
+        "clip_points":        d.clip_raw,
+        "endo_points":        d.endo_raw,
         "clip_pct":           d.clip_pct,
         "endo_pct":           d.endo_pct,
         "balance":            d.balance,
@@ -359,4 +519,9 @@ def _to_dict(d: _Decision) -> dict[str, Any]:
         "factors":            factor_dicts,
         "clip_factors":       [f.name for f in d.factors if f.direction == "clip"],
         "endo_factors":       [f.name for f in d.factors if f.direction == "endo"],
+        # Las notas se calculaban y se tiraban: no salían del motor, así que ni
+        # la pantalla ni el informe las veían nunca. Es donde vive el
+        # razonamiento del caso pequeño —incluida ahora la comparación con el
+        # PHASES— y sin ellas el veredicto llega sin el porqué.
+        "notes":              list(d.notes),
     }

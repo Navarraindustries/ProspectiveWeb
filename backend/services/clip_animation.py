@@ -168,13 +168,26 @@ def tip_opening_mm(blade_mm: float) -> float:
 def blade_swing_deg(geom: dict, blade_mm: float) -> float:
     """How far each blade turns to reach full opening, in degrees.
 
-    Half the tip separation over the lever arm from the hinge — the geometry is
+    Half the tip separation over the lever arm from the hinge. The geometry is
     exact once the opening is known, so the only uncertainty left is the opening
     itself, and above the ceiling there is none.
+
+    **Arcsine, not arctangent.** The tip does not slide along a line at the end
+    of the lever: it rides an arc, so turning by θ carries it `lever·sin θ` to
+    the side, not `lever·tan θ`. Solving with the tangent set an angle whose
+    TANGENT equalled the half-gap, and since sin θ < tan θ every clip in the
+    rehearsal opened short of its own mechanism — measured, 2.0 % on the 22 mm
+    jaw up to 6.7 % on the 10 mm one, always in the same direction, never wide.
+    Small in millimetres and wrong in the way that matters: the picture showed
+    less clearance around the neck than the applier actually gives.
     """
     lever = max(0.5, geom["lever_mm"])
     half_gap = tip_opening_mm(blade_mm) / 2.0
-    return min(MAX_BLADE_SWING_DEG, math.degrees(math.atan2(half_gap, lever)))
+    # A half-gap past the lever has no angle that reaches it; the rail below
+    # would clamp it anyway, but asin is undefined there rather than merely
+    # large.
+    ratio = min(1.0, half_gap / lever)
+    return min(MAX_BLADE_SWING_DEG, math.degrees(math.asin(ratio)))
 
 
 def split_blades(poly):

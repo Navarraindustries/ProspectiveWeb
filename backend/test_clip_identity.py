@@ -317,3 +317,91 @@ class TestVerificationMeasuresTheRealPiece:
         spec = ClipSpec("Clip del hospital", ClipShape.STRAIGHT, 9.0, 1.3, 1.0, 7.0, 120,
                         "Biblioteca")
         assert self._mesh(spec).GetNumberOfPoints() > 0
+
+
+# ── 6. A custom jaw is a piece, not a picture ─────────────────────────────── #
+
+class TestTheCustomJawCanBePlaced:
+    """Dialling a length has to end in the plan, not in a preview window.
+
+    `CustomJawOut` carried a mesh and an STL and no id, so the piece could be
+    looked at and downloaded but never placed: never collision-checked, never
+    recorded, and never seen by the order form — which went back to the length
+    derived from morphometry. The same number typed twice, with nothing holding
+    the two together.
+    """
+
+    def _build(self, sid, jaw=8.5, shape="straight", angle=0.0, window=0.0):
+        q = f"jaw_mm={jaw}&angle_deg={angle}&shape={shape}&window_mm={window}"
+        r = client.post(f"/api/clips/navarro/{sid}?{q}", json={})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def test_the_generated_piece_carries_an_id(self):
+        built = self._build(_session())
+        assert built["clip_id"].startswith("navarro:")
+        assert built["clip_id"].endswith(":8.5"), built["clip_id"]
+
+    def test_that_id_builds_the_very_mesh_that_was_previewed(self):
+        from services.navarro import build_jaw, mesh_for_id
+
+        built = self._build(_session(), jaw=11.5, shape="angled", angle=45.0)
+        preview, _src, _exact = build_jaw(45.0, 11.5, shape="angled")
+        again = mesh_for_id(built["clip_id"])
+        assert again.GetNumberOfPoints() == preview.GetNumberOfPoints()
+        assert again.GetBounds() == preview.GetBounds()
+
+    def test_a_custom_jaw_can_be_placed_like_any_other_clip(self):
+        from services.device_state import read_clips
+
+        sid = _session()
+        built = self._build(sid, jaw=8.5)
+        r = client.post("/api/clips/plan", json={"session_id": sid, "placements": [
+            {"clip_id": built["clip_id"], "position": {"x": 0, "y": 0, "z": 0},
+             "normal": [0, 0, 1], "rotation_deg": 0},
+        ]})
+        assert r.status_code == 200, r.text
+        assert [c["clip_id"] for c in read_clips(sid)] == [built["clip_id"]]
+
+    def test_the_length_chosen_is_the_length_fabricación_offers(self):
+        # El traspaso que faltaba. Marcar 8.5 en dispositivos y encontrarse otra
+        # vez la medida sugerida en fabricación es cómo se separan las dos.
+        sid = _session()
+        built = self._build(sid, jaw=8.5)
+        client.post("/api/clips/plan", json={"session_id": sid, "placements": [
+            {"clip_id": built["clip_id"], "position": {"x": 0, "y": 0, "z": 0},
+             "normal": [0, 0, 1], "rotation_deg": 0},
+        ]})
+        pre = client.get(f"/api/clip-orders/prefill/{sid}").json()
+        assert pre["advised_jaw_mm"] == pytest.approx(8.5)
+
+    def test_the_rehearsal_opens_a_custom_jaw_by_its_own_length(self):
+        # El índice solo tiene las tallas dibujadas, así que el id es el único
+        # sitio donde consta la longitud de una pieza a medida. Sin leerlo, el
+        # ensayo caía a la PALANCA —la distancia bisagra-punta, otra cota— y
+        # 8.5 mm lo separa todo: por mordaza abre 8.5 mm y la cifra es una
+        # inferencia; por palanca son 11.4 mm, pasa del techo de 10, y la
+        # aplicación lo habría presentado como un dato del diseñador.
+        from services.clip_animation import blade_swing_deg, jaw_geometry
+        from services.navarro import build_jaw
+
+        sid = _session()
+        built = self._build(sid, jaw=8.5)
+        client.post("/api/clips/plan", json={"session_id": sid, "placements": [
+            {"clip_id": built["clip_id"], "position": {"x": 0, "y": 0, "z": 0},
+             "normal": [0, 0, 1], "rotation_deg": 0},
+        ]})
+        r = client.post(f"/api/clips/animation/{sid}", json={
+            "session_id": sid, "placements": [
+                {"clip_id": built["clip_id"], "position": {"x": 0, "y": 0, "z": 0},
+                 "normal": [0, 0, 1], "rotation_deg": 0}]})
+        assert r.status_code == 200, r.text
+
+        poly, _src, _exact = build_jaw(0.0, 8.5, shape="straight")
+        geom = jaw_geometry(poly)
+        by_jaw = blade_swing_deg(geom, 8.5)
+        by_lever = blade_swing_deg(geom, geom["lever_mm"])
+        assert r.json()["swing_deg"] == pytest.approx(by_jaw, abs=0.05)
+        assert r.json()["swing_deg"] != pytest.approx(by_lever, abs=0.05)
+        assert r.json()["mechanics_assumed"] is True, (
+            "8.5 mm no llega al techo: la apertura sigue siendo una inferencia")

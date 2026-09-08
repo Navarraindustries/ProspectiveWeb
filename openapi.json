@@ -7612,6 +7612,11 @@
       },
       "CustomJawOut": {
         "properties": {
+          "clip_id": {
+            "type": "string",
+            "title": "Clip Id",
+            "default": ""
+          },
           "series": {
             "type": "string",
             "title": "Series"

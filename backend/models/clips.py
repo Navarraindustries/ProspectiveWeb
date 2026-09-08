@@ -235,6 +235,12 @@ class ClipCaseOut(BaseModel):
 class CustomJawOut(BaseModel):
     """A made-to-order clip sized exactly to this case."""
 
+    #: The id this piece is placed under. Without it the custom jaw was a
+    #: picture: you could dial a length, look at it and download the STL, but
+    #: not put it in the plan — so it was never collision-checked, never
+    #: reached `placed_navarro_id`, and the order form went back to the length
+    #: derived from morphometry instead of the one that had just been chosen.
+    clip_id: str = ""
     series: str
     shape: str = Field("straight", description="straight | curved | angled | fenestrated")
     angle_deg: float

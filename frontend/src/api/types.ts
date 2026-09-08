@@ -807,6 +807,8 @@ export interface ClipCaseOut {
 
 /** A made-to-order clip sized exactly to this case. */
 export interface CustomJawOut {
+  /** El id con el que se coloca. Vacío hasta que la pieza se genera. */
+  clip_id: string;
   series: string;
   shape: NavarroShape;
   angle_deg: number;

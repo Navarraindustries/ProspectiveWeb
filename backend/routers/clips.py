@@ -88,6 +88,16 @@ def _clip_geometry_for(clip_id: str, meshes_dir):
     )
 
 
+def _jaw_from_id(clip_id: str) -> float:
+    """The jaw a NAVARRO id names, or 0.0 when it names nothing."""
+    try:
+        from services.navarro import parse_clip_id
+        parsed = parse_clip_id(clip_id)
+    except Exception:  # noqa: BLE001
+        return 0.0
+    return float(parsed[2]) if parsed else 0.0
+
+
 def _catalogue_index() -> dict[str, "object"]:
     """id → ClipSpec across every source the selector can recommend from.
 
@@ -908,7 +918,13 @@ async def build_navarro_clip(
     )
     logger.info("NAVARRO clip built — session=%s %s jaw=%.1f exact=%s",
                 session_id, src.name, jaw_mm, exact)
+    from services.navarro import clip_id as navarro_clip_id
+
     return CustomJawOut(
+        # The DRAWN angle, not the requested one: the bend comes from the variant
+        # on disk and is never synthesised, so the id has to name the mesh that
+        # actually exists. `mesh_for_id` then rebuilds this exact piece.
+        clip_id=navarro_clip_id(src.series, src.angle_deg, jaw_mm, window_mm),
         series=src.series,
         shape=src.shape,
         angle_deg=float(src.angle_deg),
@@ -978,7 +994,12 @@ async def clip_animation(
         write_vtp(poly, meshes_dir / fn)
         names[tag] = f"{mesh_url(session_id, fn)}?v={stamp}"
 
-    blade_mm = spec.blade_length_mm if spec is not None else geom["lever_mm"]
+    # A custom jaw is not in the catalogue index — that only holds the drawn
+    # sizes — so the id is the only place its length is written down. Falling
+    # through to the lever arm measured the hinge-to-tip distance instead, which
+    # is a different number, and the rehearsal opened the wrong amount for
+    # exactly the piece that is made to order.
+    blade_mm = spec.blade_length_mm if spec is not None else _jaw_from_id(pl.clip_id) or geom["lever_mm"]
     swing = blade_swing_deg(geom, blade_mm)
 
     hinge = [0.0, 0.0, 0.0]

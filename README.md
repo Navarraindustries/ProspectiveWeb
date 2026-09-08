@@ -63,8 +63,8 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **737 passing** (`pytest`, 43 files) |
-| Frontend tests | **149 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
+| Backend tests | **749 passing** (`pytest`, 43 files) |
+| Frontend tests | **151 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -559,6 +559,59 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The blades never opened as far as the mechanism does
+
+Noticed from the application, watching the rehearsal: the jaw did not look wide
+enough for the neck it was going onto. Two separate things behind that, and only
+one of them was a bug.
+
+**The angle was solved with a tangent.** `blade_swing_deg` set the swing so that
+`lever · tan θ` equalled the half-gap. But a blade tip does not slide along a
+line at the end of the lever — it rides an arc, so turning by θ carries it
+`lever · sin θ` sideways, and sin θ < tan θ. Every clip in the rehearsal opened
+short of its own applier: measured, 2.0 % on the 22 mm jaw up to 6.7 % on the
+10 mm one, always in the same direction, never wide. Arcsine now, and the tips
+part by exactly the specified opening on all six drawn sizes.
+
+**And a whole dimension was going unjudged.** The jaw LENGTH has to span the
+neck; the OPENING is perpendicular to it and is capped by the applier rather
+than the blade — a 22 mm jaw parts no further than a 10 mm one. The criteria
+were `coverage`, `reach` and `force`, none of which looks at that axis, so a
+15 mm neck was handed a 19 mm jaw, correct on everything it was asked, whose
+tips never part beyond 10 mm. Nothing said so.
+
+There is an `opening` criterion now, and it **warns without voting** — weight
+0.0, like the closing force, but for the opposite reason. The force is a
+constant and cannot rank anything; the opening discriminates perfectly well, and
+the problem is that how much clearance over a neck is enough is a clinical
+judgement nobody here has signed. Weighting an unvalidated threshold would
+reorder the list on an opinion. The arithmetic is not an opinion: the tips part
+this much, the neck measures that much, and when the first does not exceed the
+second it says so — along with whether the figure is the designer's or inferred
+from commercial clips.
+
+### The custom jaw was a picture, not a piece
+
+`CustomJawOut` carried a preview mesh and an STL and no id. So a made-to-order
+length could be dialled, looked at and downloaded — and not placed. It never went
+through the collision check, never reached `placed_navarro_id`, and the order
+form went back to the length derived from morphometry instead of the one that
+had just been chosen. The same number typed twice in two screens, with nothing
+holding them together: the shape of the bug the Sugita report was about.
+
+The id was already expressible — `navarro:t1:0:8.5` parses and `mesh_for_id`
+rebuilds that exact mesh, verified identical across straight, angled and
+fenestrated — it simply was not being emitted. Now it is, the sheet offers
+«Elegir esta medida» through the same `onPick` the candidate cards use, and the
+length chosen on Dispositivos is the length Fabricación prefills.
+
+One thing that had to move with it: the rehearsal read the jaw off the catalogue
+index, which holds only the drawn sizes, and fell through to the lever arm for
+anything else. For a custom 8.5 mm jaw that is 11.4 mm — past the 10 mm ceiling
+— so the application would have shown a wider opening than the piece has and
+labelled the figure specified when it is still inferred. It reads the jaw off
+the id instead.
 
 ### The report did not know the device was still being made
 
@@ -1151,17 +1204,17 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 737 tests
+.venv\Scripts\python -m pytest -q                        # all 749 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **737 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **749 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 149 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 151 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

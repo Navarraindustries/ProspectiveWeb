@@ -135,10 +135,12 @@ function CandidateCard({
     the size the neck asks for; the surgeon can still dial it by hand, which is
     why the slider exists next to the suggestion rather than instead of it. */
 function CustomJawSheet({
-  suggestion, sessionId,
+  suggestion, sessionId, onPick,
 }: {
   suggestion: CustomJawOut;
   sessionId: string;
+  /** El mismo que usan las tarjetas de candidato: elegir aquí es elegir allí. */
+  onPick?: (clipId: string, clipName: string) => void;
 }) {
   const [jaw, setJaw] = useState(suggestion.jaw_mm);
   const [built, setBuilt] = useState<CustomJawOut | null>(null);
@@ -197,6 +199,17 @@ function CustomJawSheet({
         <Button size="sm" onClick={() => void build()} disabled={busy}>
           {busy ? "Generando…" : built ? "Regenerar" : "Generar clip"}
         </Button>
+        {/* Hasta aquí esto era un mirador: se podía marcar una longitud, verla y
+            bajarse el STL, pero no llevarla al plan. Así nunca pasaba por la
+            comprobación de colisión, y fabricación volvía a proponer la medida
+            deducida de la morfometría en vez de la que se acababa de elegir —
+            el mismo número tecleado dos veces, sin nada que garantice que
+            coinciden. Elegir aquí usa la misma vía que las tarjetas de arriba. */}
+        {built?.clip_id && onPick && (
+          <Button size="sm" onClick={() => onPick(built.clip_id, built.label)}>
+            Elegir esta medida
+          </Button>
+        )}
         {built?.stl_url && (
           <Button size="sm" variant="ghost" onClick={() => window.open(built.stl_url!, "_blank")}>
             Descargar STL
@@ -293,7 +306,7 @@ export function ClipSelectionPanel({
         <div>
           <SectionLabel>Clip a medida sobre un diseño propio</SectionLabel>
           <div style={{ marginTop: 6 }}>
-            <CustomJawSheet suggestion={sel.custom_jaw} sessionId={sessionId} />
+            <CustomJawSheet suggestion={sel.custom_jaw} sessionId={sessionId} onPick={onPick} />
           </div>
         </div>
       )}

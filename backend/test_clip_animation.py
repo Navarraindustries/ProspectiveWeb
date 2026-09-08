@@ -150,6 +150,46 @@ class TestJawGeometryIsDerived:
         assert tip_opening_mm(22.0) == pytest.approx(MAX_TIP_OPENING_MM)
         assert tip_opening_mm(200.0) == pytest.approx(MAX_TIP_OPENING_MM)
 
+    def test_the_tips_actually_part_by_what_was_asked_for(self, ):
+        """La punta va por un arco, así que el ángulo se despeja con arcoseno.
+
+        Estaba despejado con arcotangente: el giro cumplía `L·tan θ = medio
+        hueco`, pero al girar la punta se desplaza `L·sin θ`, y sin θ < tan θ.
+        Todos los clips del ensayo abrían menos que su propio mecanismo —del
+        2.0 % en la mordaza de 22 mm al 6.7 % en la de 10— siempre corto, nunca
+        de más. Poco en milímetros y equivocado donde importa: la escena
+        enseñaba menos holgura alrededor del cuello de la que da el aplicador.
+        """
+        import math
+
+        from services import navarro
+        from services.clip_animation import blade_swing_deg, jaw_geometry, tip_opening_mm
+
+        for jaw in navarro.STOCK_JAW_MM:
+            poly, _src, _exact = navarro.build_jaw(0.0, float(jaw), shape="straight")
+            geom = jaw_geometry(poly)
+            swing = blade_swing_deg(geom, float(jaw))
+            # Lo que de verdad separan las puntas: dos hojas, cada una girando.
+            parted = 2 * geom["lever_mm"] * math.sin(math.radians(swing))
+            assert parted == pytest.approx(tip_opening_mm(jaw), abs=0.01), (
+                f"mordaza {jaw}: abre {parted:.2f} y dice abrir {tip_opening_mm(jaw):.2f}")
+
+    def test_no_clip_opens_past_the_appliers_travel(self):
+        # El techo es del aplicador, no de la hoja: corregir el ángulo no puede
+        # haber abierto una puerta por arriba.
+        import math
+
+        from services import navarro
+        from services.clip_animation import (MAX_TIP_OPENING_MM, blade_swing_deg,
+                                             jaw_geometry)
+
+        for jaw in navarro.STOCK_JAW_MM:
+            poly, _src, _exact = navarro.build_jaw(0.0, float(jaw), shape="straight")
+            geom = jaw_geometry(poly)
+            parted = 2 * geom["lever_mm"] * math.sin(
+                math.radians(blade_swing_deg(geom, float(jaw))))
+            assert parted <= MAX_TIP_OPENING_MM + 0.01, f"mordaza {jaw} abre {parted:.2f}"
+
     def test_a_longer_blade_needs_less_swing_for_the_same_opening(self):
         # Same 10 mm at the tips over a longer lever is a smaller angle. Getting
         # this backwards would open a long clip like a pair of scissors.

@@ -522,6 +522,54 @@ def recompute_score(cand: ClipCandidate) -> None:
     cand.score = 0.0 if any(c.verdict == "fail" for c in cand.criteria) else round(raw, 1)
 
 
+def _opening_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
+    """How wide the tips part, against the neck they have to go around.
+
+    A different dimension from the one the whole selector was built on. The jaw
+    LENGTH has to span the neck; the OPENING is perpendicular to it, and it is
+    capped by the applier, not by the blade — a 22 mm jaw parts no further than
+    a 10 mm one. So the ranking could hand a 15 mm neck a 19 mm jaw, correct on
+    every criterion it had, whose tips never part beyond 10 mm.
+
+    Nothing said so. `coverage`, `reach` and `force` were the three criteria, and
+    none of them looks at this axis.
+
+    **This one warns and does not vote** — weight 0.0, like the closing force.
+    Saying how much clearance over the neck is enough is a clinical judgement,
+    and no figure here is validated; inventing a threshold would reorder the list
+    on an opinion nobody has signed. What is not an opinion is the arithmetic:
+    the tips part this much, the neck measures that much, and when the first does
+    not exceed the second it goes on screen.
+    """
+    if case.neck_mm <= 0:
+        return None
+    try:
+        from services.clip_animation import MAX_TIP_OPENING_MM, tip_opening_mm
+    except Exception:  # noqa: BLE001 — no animation module, no claim to make
+        return None
+
+    opening = tip_opening_mm(clip.blade_length_mm)
+    capped = opening >= MAX_TIP_OPENING_MM
+    how = ("el aplicador limita el recorrido" if capped
+           else "por debajo del tope, estimada de clips comerciales")
+
+    if opening > case.neck_mm:
+        return Criterion(
+            "opening", "Apertura de las hojas", "ok",
+            f"Las puntas separan {opening:.1f} mm, más que el cuello "
+            f"({case.neck_mm:.1f} mm) — {how}",
+            1.0, 0.0,
+        )
+    return Criterion(
+        "opening", "Apertura de las hojas", "warn",
+        f"Las puntas separan {opening:.1f} mm y el cuello mide "
+        f"{case.neck_mm:.1f} mm: la apertura no lo supera, así que hay que "
+        f"comprobar en el ensayo que el clip llega a montarse sobre él "
+        f"({how})",
+        0.0, 0.0,
+    )
+
+
 def evaluate_clip(clip: ClipSpec, case: ClipCase) -> ClipCandidate:
     """Judge one clip against one case, criterion by criterion.
 
@@ -532,15 +580,19 @@ def evaluate_clip(clip: ClipSpec, case: ClipCase) -> ClipCandidate:
     for maybe in (_fenestration_criterion(clip, case),
                   _reach_criterion(clip, case),
                   _shape_criterion(clip, case),
+                  _opening_criterion(clip, case),
                   _force_criterion(clip, case)):
         if maybe is not None:
             crits.append(maybe)
 
-    # A criterion that scores the same for every candidate cannot order anything;
-    # it only dilutes the ones that can. The closing force is exactly that today:
-    # one uncharacterised band for the whole family, 0.60 on all 66. It stays in
-    # the list — it is a real caveat and it still FAILS a clip whose band could
-    # not hold the neck, which zeroes the score below — but it stops voting.
+    # Two criteria are shown and do not vote, for different reasons. The closing
+    # force scores the same for every candidate — one uncharacterised band for
+    # the whole family, 0.60 on all 66 — and a constant cannot order anything, it
+    # only dilutes the criteria that can; it still FAILS a clip whose band could
+    # not hold the neck, which zeroes the score below. The blade opening is the
+    # opposite case: it discriminates perfectly well, but how much clearance over
+    # the neck is enough is a clinical call nobody here has signed, and weighting
+    # an unvalidated threshold would reorder the list on an opinion.
     total_w = sum(c.weight for c in crits if c.weight > 0) or 1.0
     raw = 100.0 * sum(c.score * c.weight for c in crits if c.weight > 0) / total_w
     failed = any(c.verdict == "fail" for c in crits)

@@ -229,6 +229,7 @@ describe("made-to-order designs", () => {
 
 describe("sizing a made-to-order clip", () => {
   const custom: CustomJawOut = {
+    clip_id: "",
     series: "T1", shape: "straight", angle_deg: 0, window_mm: 0, resizable: true,
     jaw_mm: 27, nearest_drawn_mm: 22,
     label: "NAVARRO™ T1 Recto, mordaza 27.0 mm",
@@ -266,6 +267,35 @@ describe("sizing a made-to-order clip", () => {
     expect(await screen.findByText(/estirada desde la talla dibujada/)).toBeInTheDocument();
   });
 
+  it("hands the chosen length to the plan, not just to a download", async () => {
+    // Esto era un mirador: se podía marcar una longitud, verla y bajarse el
+    // STL, pero no llevarla al plan. Así nunca pasaba por la comprobación de
+    // colisión y fabricación volvía a proponer la medida deducida de la
+    // morfometría, no la que se acababa de elegir.
+    const onPick = vi.fn();
+    buildNavarroClip.mockResolvedValue({
+      ...custom, clip_id: "navarro:t1:0:18.5", jaw_mm: 18.5,
+      label: "NAVARRO™ T1 Recto, mordaza 18.5 mm", stl_url: "/x.stl",
+    });
+    clipSelection.mockResolvedValue(result({ custom_jaw: custom }));
+    render(<ClipSelectionPanel sessionId="s1" onPick={onPick} />);
+
+    fireEvent.change(await screen.findByRole("slider"), { target: { value: "18.5" } });
+    fireEvent.click(screen.getByRole("button", { name: /Generar clip/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Elegir esta medida/ }));
+
+    expect(onPick).toHaveBeenCalledWith("navarro:t1:0:18.5",
+                                        "NAVARRO™ T1 Recto, mordaza 18.5 mm");
+  });
+
+  it("does not offer to place a piece that has not been generated", async () => {
+    // Sin generar no hay id, y sin id no hay nada que colocar.
+    clipSelection.mockResolvedValue(result({ custom_jaw: custom }));
+    render(<ClipSelectionPanel sessionId="s1" onPick={vi.fn()} />);
+    await screen.findByRole("slider");
+    expect(screen.queryByRole("button", { name: /Elegir esta medida/ })).not.toBeInTheDocument();
+  });
+
   it("says nothing about a custom size when a drawn one fits", async () => {
     clipSelection.mockResolvedValue(result({ custom_jaw: null }));
     render(<ClipSelectionPanel sessionId="s1" />);
@@ -281,6 +311,7 @@ describe("a custom jaw keeps the shape the case argued for", () => {
     // Antes solo viajaban mordaza y ángulo, así que una sugerencia fenestrada
     // volvía como hoja maciza: la pieza equivocada con la medida correcta.
     const fen: CustomJawOut = {
+      clip_id: "",
       series: "T4", shape: "fenestrated", angle_deg: 0, window_mm: 5,
       resizable: true, jaw_mm: 8.5, nearest_drawn_mm: 7,
       label: "NAVARRO™ T4 Fenestrado ventana 5 mm, mordaza 8.5 mm",

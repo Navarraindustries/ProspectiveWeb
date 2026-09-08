@@ -273,3 +273,61 @@ class TestTheCustomJawWorksForEverySeriesThatStretches:
         assert sel.custom_jaw is not None
         assert sel.custom_jaw.shape != "curved"
         assert sel.custom_jaw.resizable
+
+
+# ── 7. The opening is a second dimension, and it warns ────────────────────── #
+
+class TestTheOpeningIsJudgedAgainstTheNeck:
+    """The jaw LENGTH spans the neck; the OPENING goes around it.
+
+    The applier caps the opening at 10 mm whatever the blade, so a 22 mm jaw
+    parts no further than a 10 mm one. The selector ranked on `coverage`, `reach`
+    and `force` — none of which looks at this axis — so a 15 mm neck was handed a
+    19 mm jaw, correct on every criterion it had, whose tips never part beyond
+    10 mm. Nothing said so.
+    """
+
+    def _opening(self, neck: float):
+        sel = select_clips(_case(neck=neck))
+        top = sel.recommended[0]
+        return next(k for k in top.criteria if k.key == "opening"), top
+
+    def test_a_neck_wider_than_the_opening_is_flagged(self):
+        crit, _top = self._opening(15.0)
+        assert crit.verdict == "warn", crit.detail
+        assert "10.0 mm" in crit.detail and "15.0 mm" in crit.detail
+
+    def test_a_neck_the_clip_clears_is_not_flagged(self):
+        crit, _top = self._opening(6.0)
+        assert crit.verdict == "ok", crit.detail
+
+    def test_it_warns_and_does_not_vote(self):
+        # Cuánta holgura sobre el cuello basta es un juicio clínico que nadie ha
+        # firmado aquí; ponderar un umbral sin validar reordenaría la lista sobre
+        # una opinión. Se dice, y no se puntúa.
+        crit, top = self._opening(15.0)
+        assert crit.weight == 0.0
+        assert top.score > 0.0, "un aviso no es un suspenso"
+
+    def test_the_warning_does_not_move_the_ranking(self):
+        # Mismo caso con y sin el criterio: el orden tiene que ser idéntico.
+        from services.clip_selection import evaluate_clip
+        from services.clip_library import catalogue_with_library
+
+        case = _case(neck=15.0)
+        for spec in catalogue_with_library()[:12]:
+            cand = evaluate_clip(spec, case)
+            crits = [k for k in cand.criteria if k.key != "opening"]
+            voting = [k for k in crits if k.weight > 0]
+            total = sum(k.weight for k in voting) or 1.0
+            without = 100.0 * sum(k.score * k.weight for k in voting) / total
+            expected = 0.0 if any(k.verdict == "fail" for k in cand.criteria) else round(without, 1)
+            assert cand.score == pytest.approx(expected, abs=0.05), spec.name
+
+    def test_it_says_whether_the_figure_is_specified_or_inferred(self):
+        # Por encima del techo la apertura es un dato del diseñador; por debajo
+        # sigue siendo una inferencia de clips comerciales, y no es lo mismo.
+        wide, _ = self._opening(15.0)
+        narrow, _ = self._opening(5.0)
+        assert "aplicador limita" in wide.detail
+        assert "estimada" in narrow.detail

@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **727 passing** (`pytest`, 43 files) |
+| Backend tests | **729 passing** (`pytest`, 43 files) |
 | Frontend tests | **149 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -559,6 +559,40 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The one shape the case can ask for and the family cannot draw
+
+Filed as a housekeeping item — «BAYONET is still admitted in a couple of enums»
+— and it was not housekeeping. `_preferred_shape` reads a region table, and the
+paraclinoid carotid table rates BAYONET **first**, at 1.0. That is one of the
+commonest locations there is, and the reason is real: a deep field under the
+clinoid needs the shaft carried out of the line of sight.
+
+The family draws four series and none of them is a bayonet, so
+`navarro_shape_for` fell through its final `return STRAIGHT`. A paraclinoid case
+was offered a custom jaw in the *straight* series — the worst of the four for
+that field, because a straight clip is precisely the one whose shaft stays in the
+way. Silently, with the reason text talking only about millimetres.
+
+It now falls to ANGLED, which is what the family has that does the bayonet's job,
+and the offer says it substituted:
+
+> La familia no dibuja bayoneta: se ofrece angulada, que es lo que aparta el
+> mango de la línea de visión en un campo profundo.
+
+**What was already right and stayed untouched.** `resolve_perfect_clip` refuses a
+bayonet outright — «Sin pieza ni sustituto: replantear el abordaje, o esperar a la
+serie bayoneta» — and that is the correct answer for MANUFACTURE, as opposed to
+for an offer. And `clip_library.VALID_SHAPES` keeps BAYONET on purpose: a hospital
+can physically hold a bayonet clip, and the library records what is on the shelf,
+not what this family makes. There is a test for each half, so the two do not get
+levelled into one another later.
+
+Two smaller things in the same pass: `services/__init__` still described `clips`
+as a «Surgical clip library (42 models)», which stopped being what that module is
+for; and `routers/clip_orders._shape_for_angle` was dead code that could only
+ever return straight or angled — a sixth copy of the naming rule, waiting to be
+called.
 
 ### The landing page was advertising the catalogue that was withdrawn
 
@@ -1070,11 +1104,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 727 tests
+.venv\Scripts\python -m pytest -q                        # all 729 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **727 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **729 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

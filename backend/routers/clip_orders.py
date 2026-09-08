@@ -223,20 +223,6 @@ class PrefillOut(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────── #
 
-def _shape_for_angle(angle_deg: float):
-    """The shape class an angled NAVARRO design belongs to.
-
-    Same cut as `clip_manufacture.family_shapes`, which reads the shapes off the
-    disk: below 67.5° the design behaves as a 45° angled clip, above it as a
-    90° one.
-    """
-    from services.clips import ClipShape
-
-    if angle_deg <= 0.0:
-        return ClipShape.STRAIGHT
-    return ClipShape.ANGLED_45 if angle_deg < 67.5 else ClipShape.ANGLED
-
-
 def _advice(session_id: str, case_id: int | None):
     """(case, advised spec, advised PerfectClip) for this session."""
     from routers.clips import _run_selection

@@ -5,7 +5,9 @@ Modules
 sessions           — UUID-based session directory management and TTL cleanup
 thresholds         — Auto-threshold computation for any DICOM modality (XA/CT/MR)
 treatment          — CLIP vs ENDOVASCULAR decision engine (8-factor scoring)
-clips              — Surgical clip library (42 models) + recommendation algorithm
+clips              — Clip dimensional reference + the legacy scorer. What is OFFERED
+                     comes from `clip_library.catalogue_with_library`; the table here
+                     is proportions and floors, never a list to choose from.
 coils              — Endovascular coil library (39 models) + sizing helpers
 dicom_loader       — DICOM loading with SimpleITK + pydicom (multi-series, Enhanced XA)
 segmentation       — Marching-cubes segmentation pipeline (VTK) + mesh I/O

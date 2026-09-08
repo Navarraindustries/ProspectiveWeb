@@ -811,7 +811,8 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
     if best is not None and getattr(best.clip, "bend_angle_deg", 0.0):
         angle = float(best.clip.bend_angle_deg)
     elif best is None:
-        angle = {ClipShape.ANGLED: 90.0, ClipShape.ANGLED_45: 45.0}.get(clip_shape, 0.0)
+        angle = {ClipShape.ANGLED: 90.0, ClipShape.ANGLED_45: 45.0,
+                 ClipShape.BAYONET: 90.0}.get(clip_shape, 0.0)
     shape = navarro_shape_for(clip_shape)
     window = float(getattr(best.clip, "fenestration_mm", 0.0) or 0.0) if best is not None else 0.0
 
@@ -828,6 +829,16 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
         curved_note = (" La serie curva solo existe en las tallas dibujadas, así que "
                        "la mordaza exacta se ofrece en la serie que sí se estira.")
 
+    # Same silent trade, one shape further out: the paraclinoid carotid table
+    # rates BAYONET top, and a case there was being offered a jaw in whichever
+    # series the mapping happened to land on. The family draws no bayonet; the
+    # angled series is its nearest answer, and that is a substitution, not a
+    # match, so it is said out loud rather than left for the surgeon to notice.
+    bayonet_note = ""
+    if clip_shape == ClipShape.BAYONET:
+        bayonet_note = (" La familia no dibuja bayoneta: se ofrece angulada, que es lo que "
+                        "aparta el mango de la línea de visión en un campo profundo.")
+
     src = nearest_variant(angle, want, shape=shape, window_mm=window)
     if src is None:
         return None
@@ -842,7 +853,7 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
     else:
         reason = (f"Un cuello de {case.neck_mm:.1f} mm pide {want:.1f} mm de mordaza; "
                   f"la talla dibujada más cercana es {src.jaw_mm} mm ({gap:.1f} mm de diferencia).")
-    reason += curved_note
+    reason += curved_note + bayonet_note
     return CustomJaw(series=src.series, angle_deg=src.angle_deg, jaw_mm=want,
                      nearest_drawn_mm=float(src.jaw_mm), reason=reason,
                      shape=src.shape, window_mm=float(src.window_mm),

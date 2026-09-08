@@ -34,7 +34,8 @@ import pytest
 
 from services import navarro
 from services.clip_library import catalogue_with_library
-from services.clip_selection import ClipCase, evaluate_clip, select_clips
+from services.clip_selection import (ClipCase, evaluate_clip, select_clips,
+                                     suggest_custom_jaw)
 
 _HAS_NAVARRO = bool(navarro.list_variants(root=navarro.DEFAULT_ROOT))
 pytestmark = pytest.mark.skipif(not _HAS_NAVARRO, reason="biblioteca NAVARRO no instalada")
@@ -227,6 +228,40 @@ class TestTheCustomJawWorksForEverySeriesThatStretches:
         # arrastrarlos a «Recto».
         assert shape_label("curved", 0.0) != "Recto"
         assert shape_label("fenestrated", 0.0, 3.0) != "Recto"
+
+    def test_a_shape_the_family_cannot_draw_falls_to_the_nearest_one_and_says_so(self):
+        # La carótida paraclinoidea es de las localizaciones más frecuentes, y su
+        # tabla puntúa la BAYONETA la primera. La familia no la dibuja, y el
+        # mapeo caía por defecto a RECTA: la peor de las cuatro, porque la
+        # bayoneta existe justo para apartar el mango de la línea de visión en un
+        # campo profundo, que es lo que una recta no hace.
+        from services.clip_selection import _preferred_shape
+        from services.clips import ClipShape
+
+        # Sin arteria madre declarada: con ella, el caso pide fenestrado antes de
+        # llegar a la tabla de la región, y la premisa de esta prueba se cae.
+        case = ClipCase(neck_mm=4.0, ar=1.3, dome_height_mm=5.2, max_diameter_mm=7.2,
+                        region="carotida paraclinoidea", parent_artery_mm=0.0,
+                        neck_source="rim")
+        assert _preferred_shape(case) == ClipShape.BAYONET, "la premisa: el caso pide bayoneta"
+
+        cj = suggest_custom_jaw(case, None)
+        assert cj is not None
+        assert cj.shape == "angled", f"cayó en {cj.shape}"
+        assert cj.angle_deg > 0
+        assert "bayoneta" in cj.reason.lower(), "sustituir en silencio es el fallo, no el arreglo"
+
+    def test_the_family_still_refuses_to_pretend_it_makes_a_bayonet(self):
+        # Una cosa es ofrecer la más parecida diciéndolo, y otra fabricar. La
+        # especificación de fabricación sigue negándose, que es lo correcto.
+        from services.clip_manufacture import resolve_perfect_clip
+        from services.clip_selection import derive_manufacture_spec
+
+        case = ClipCase(neck_mm=5.0, ar=2.4, dome_height_mm=12.0, max_diameter_mm=9.0,
+                        region="carotida paraclinoidea", parent_artery_mm=0.0,
+                        neck_source="rim")
+        pc = resolve_perfect_clip(case, derive_manufacture_spec(case, []))
+        assert any("bayoneta" in n.lower() for n in pc.notes), pc.notes
 
     def test_the_offer_does_not_vanish_when_a_curved_clip_wins(self):
         # Curved clips win ties often now, and their jaw cannot be stretched —

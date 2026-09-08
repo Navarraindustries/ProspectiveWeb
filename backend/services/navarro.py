@@ -638,7 +638,12 @@ def navarro_shape_for(clip_shape) -> str:
         return CURVED
     if clip_shape == ClipShape.FENESTRATED:
         return FENESTRATED
-    if clip_shape in (ClipShape.ANGLED, ClipShape.ANGLED_45):
+    if clip_shape in (ClipShape.ANGLED, ClipShape.ANGLED_45, ClipShape.BAYONET):
+        # The family draws no bayonet, and the fall-through used to answer one
+        # with STRAIGHT — the worst of the four. A bayonet exists to carry the
+        # shaft out of the line of sight in a deep field, which is precisely what
+        # a straight clip does not do and an angled one does. Nearest answer, not
+        # nearest alphabetically. Whoever asks has to SAY they substituted.
         return ANGLED
     return STRAIGHT
 

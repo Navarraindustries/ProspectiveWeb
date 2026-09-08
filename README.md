@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **729 passing** (`pytest`, 43 files) |
+| Backend tests | **737 passing** (`pytest`, 43 files) |
 | Frontend tests | **149 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -559,6 +559,34 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The report did not know the device was still being made
+
+Fabricación went in between Dispositivos and Informe, and the Informe was never
+told. `report_generator` reads placed devices out of `device_state` and nothing
+else, so the PDF printed «NAVARRO™ T4 Fenestrado ventana 5 mm, mordaza 8.5 mm»
+and stopped — identically whether that piece was in the surgeon's hand or still a
+drawing at a workshop three weeks out. A name says nothing about whether anyone
+has made one.
+
+The report now carries the order: number, piece, state, workshop, and what was
+measured on the piece that came back. Three things it insists on.
+
+**A piece outside specification is not a footnote.** Reception is the only place
+the closing force stops being a design target, so a piece outside the band gets
+its own sentence, in bold, saying not to implant it without the responsible
+surgeon accepting the deviation in writing.
+
+**The standing condition is stated on every made-to-order piece**, not only the
+ones that go wrong: it is not a device with market approval, and its closing
+force is a design target until it is measured.
+
+**Nothing is said when there is nothing to say.** Most cases take a drawn size,
+and a «no manufacturing order» heading on every report is noise that trains
+people to skip the section on the reports where it matters. The one exception is
+the case worth catching: a custom jaw placed with no order on file for the
+session — a report describing a device that does not exist and that nobody has
+asked anyone to make.
 
 ### The one shape the case can ask for and the family cannot draw
 
@@ -1104,11 +1132,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 729 tests
+.venv\Scripts\python -m pytest -q                        # all 737 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **729 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **737 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

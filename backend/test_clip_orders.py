@@ -13,6 +13,9 @@ accepted without anyone measuring the force it closes with.
    extractor and a positive control.
 4. **The force is not a fact until somebody measures it**, and a piece outside
    the band cannot be accepted in silence.
+5. **The patient's report says the device is being made.** Fabricación sits
+   between Dispositivos and Informe, and the report used to read the same
+   whether the piece was in the surgeon's hand or still a drawing at a workshop.
 """
 from __future__ import annotations
 
@@ -499,3 +502,97 @@ class TestTheRegister:
         from conftest import anonymous_client
 
         assert anonymous_client(app).get("/api/clip-orders").status_code == 401
+
+
+# ── 6. The report knows the piece is being made ───────────────────────────── #
+
+def _report_text(sid: str, tmp_path) -> str:
+    from services.report_generator import ReportGenerator, build_report_data_from_session
+
+    out = ReportGenerator(build_report_data_from_session(sid)).generate(tmp_path / "informe.pdf")
+    # Con el espaciado normalizado: ReportLab parte las líneas donde le cabe, y
+    # una frase que cruza el salto no se encuentra como subcadena.
+    return " ".join(_pdf_text(out).split())
+
+
+class TestTheReportSaysThePieceIsBeingMade:
+    """The report describes the plan, and «not in hand yet» is part of the plan.
+
+    It read identically whether the clip existed or not: it prints the placed
+    device's name, and a name says nothing about whether anyone has made one.
+    """
+
+    def test_the_order_reaches_the_patients_report(self, medico, tmp_path):
+        sid, _pre, r = _place(medico)
+        part_no = r.json()["part_no"]
+        text = _report_text(sid, tmp_path)
+        assert "Fabricación de la pieza" in text
+        assert part_no in text, "sin el número de pedido no hay trazabilidad"
+        assert store.get_order(part_no).workshop.get("name", "") in text
+
+    def test_it_says_what_state_the_piece_is_in(self, medico, tmp_path):
+        # Un informe que nombra la pieza sin decir que sigue en el taller se lee
+        # como si estuviera encima de la mesa.
+        sid, _pre, r = _place(medico)
+        part_no = r.json()["part_no"]
+        store.set_status(part_no, store.SENT, by="cirujano")
+        assert store.STATUS_LABELS[store.SENT] in _report_text(sid, tmp_path)
+
+    def test_a_piece_outside_specification_is_not_a_footnote(self, medico, tmp_path):
+        # La fuerza de cierre solo deja de ser un objetivo aquí. Una pieza fuera
+        # de banda es lo único de la página que no puede leerse como un detalle.
+        sid, _pre, r = _place(medico)
+        part_no = r.json()["part_no"]
+        store.set_status(part_no, store.SENT, by="cirujano")
+        order = store.get_order(part_no)
+        store.receive(part_no, measured_jaw_mm=order.jaw_mm, measured_force_g=40.0,
+                      by="taller")
+        text = _report_text(sid, tmp_path)
+        assert "fuera de especificación" in text
+        assert "fuerza de cierre" in text
+        assert "No implantar" in text
+
+    def test_a_piece_within_specification_says_so_too(self, medico, tmp_path):
+        sid, _pre, r = _place(medico)
+        part_no = r.json()["part_no"]
+        store.set_status(part_no, store.SENT, by="cirujano")
+        order = store.get_order(part_no)
+        force = (navarro.CLOSING_FORCE_MIN_G + navarro.CLOSING_FORCE_MAX_G) / 2.0
+        store.receive(part_no, measured_jaw_mm=order.jaw_mm, measured_force_g=force,
+                      by="taller")
+        text = _report_text(sid, tmp_path)
+        assert "Dentro de especificación" in text
+        assert "fuera de especificación" not in text
+
+    def test_it_declares_the_piece_is_not_an_approved_device(self, medico, tmp_path):
+        # No solo cuando algo va mal: es la condición permanente bajo la que se
+        # usa una pieza hecha para un caso.
+        sid, _pre, _r = _place(medico)
+        assert "aprobación de mercado" in _report_text(sid, tmp_path)
+
+    def test_a_case_with_no_order_says_nothing_at_all(self, tmp_path):
+        # La mayoría de casos van con talla dibujada. Un epígrafe «sin pedido» en
+        # todos los informes enseña a saltarse la sección justo en los que sí lo
+        # llevan.
+        assert "Fabricación de la pieza" not in _report_text(_session(), tmp_path)
+
+    def test_a_custom_jaw_placed_with_nobody_asked_to_make_it_is_flagged(self, tmp_path):
+        # El informe describiría un dispositivo que todavía no existe y que nadie
+        # ha encargado.
+        from services.device_state import save_clips
+
+        sid = _session()
+        save_clips(sid, [{"index": 0, "name": "NAVARRO™ T1 Recto 8.5 mm (a medida)",
+                          "clip_id": "navarro:t1:0:8.5",
+                          "position": [0, 0, 0], "orientation": [0, 0, 0]}])
+        text = _report_text(sid, tmp_path)
+        assert "no consta ningún pedido" in text
+
+    def test_a_drawn_size_placed_is_not_flagged(self, tmp_path):
+        from services.device_state import save_clips
+
+        sid = _session()
+        save_clips(sid, [{"index": 0, "name": "NAVARRO™ T1 Recto 7.0 mm",
+                          "clip_id": "navarro:t1:0:7.0",
+                          "position": [0, 0, 0], "orientation": [0, 0, 0]}])
+        assert "no consta ningún pedido" not in _report_text(sid, tmp_path)

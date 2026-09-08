@@ -92,6 +92,35 @@ class StentEntry:
 
 
 @dataclass
+class OrderEntry:
+    """A clip being made for this case, as the report needs to state it.
+
+    The report describes the plan, and «the device is being manufactured» is part
+    of the plan — arguably the part with the longest tail. Reading the placed
+    clip's name alone, a report says «NAVARRO™ T3 Angulado 90° 8.5 mm» whether
+    that piece is in the surgeon's hand or still a drawing at a workshop.
+    """
+    part_no: str
+    piece: str                     # series, shape and jaw, named as on the order
+    status: str                    # the label, not the code
+    workshop: str = ""
+    needed_by: str = ""
+    urgency: str = ""
+    surgeon: str = ""
+    pieces: int = 1
+    is_drawn_size: bool = True
+    override_reason: str = ""
+    advised_label: str = ""
+    #: Declared on signing: a made-to-order piece is not an approved device.
+    not_approved_device: bool = False
+    #: What actually arrived, when it has. Empty until reception is recorded.
+    measured_jaw_mm: float = 0.0
+    measured_force_g: float = 0.0
+    jaw_within_tolerance: bool | None = None
+    force_within_band: bool | None = None
+
+
+@dataclass
 class ReportData:
     patient: PatientInfo = field(default_factory=PatientInfo)
     morphometrics: dict[str, Any] = field(default_factory=dict)
@@ -112,6 +141,13 @@ class ReportData:
     # PHASES 5-year rupture risk, as recorded by POST /api/phases (score,
     # per-factor points and the inputs it was computed from). {} when not run.
     phases: dict[str, Any] = field(default_factory=dict)
+    #: Clips being made for this case. Empty for the common case, where the piece
+    #: comes off a drawn size.
+    manufacture: list[OrderEntry] = field(default_factory=list)
+    #: True when a placed clip has a jaw nobody draws and no order is on file for
+    #: this session — a report describing a piece that does not exist yet and
+    #: that nobody has asked anyone to make.
+    unordered_custom_piece: bool = False
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -252,6 +288,45 @@ def build_report_data_from_session(
         for i, c in enumerate(read_coils(session_id))
     ]
 
+    # ── 6b. Clips being manufactured for this case ────────────────────── #
+    # A breadcrumb, not a dependency: the order store is a separate file and an
+    # unreadable one must not cost the surgeon their report.
+    manufacture: list[OrderEntry] = []
+    unordered_custom = False
+    try:
+        from services.clip_orders import STATUS_LABELS, _shape_label, list_orders
+
+        for o in list_orders(session_id=session_id):
+            r = o.reception or {}
+            manufacture.append(OrderEntry(
+                part_no=o.part_no,
+                piece=f"{o.series} {_shape_label(o)}, mordaza {o.jaw_mm:.1f} mm",
+                status=STATUS_LABELS.get(o.status, o.status),
+                workshop=str(o.workshop.get("name", "")),
+                needed_by=o.needed_by,
+                urgency=o.urgency,
+                surgeon=o.surgeon,
+                pieces=o.total_pieces,
+                is_drawn_size=bool(o.is_drawn_size),
+                override_reason=o.override_reason,
+                advised_label=o.advised_label,
+                not_approved_device=bool(o.accepts_not_approved_device),
+                measured_jaw_mm=float(r.get("measured_jaw_mm", 0.0) or 0.0),
+                measured_force_g=float(r.get("measured_force_g", 0.0) or 0.0),
+                jaw_within_tolerance=r.get("jaw_within_tolerance"),
+                force_within_band=r.get("force_within_band"),
+            ))
+
+        if not manufacture:
+            from services.navarro import STOCK_JAW_MM, parse_clip_id
+            for c in read_clips(session_id):
+                parsed = parse_clip_id(str(c.get("clip_id", "")))
+                if parsed and round(parsed[2], 1) not in STOCK_JAW_MM:
+                    unordered_custom = True
+                    break
+    except Exception as exc:  # noqa: BLE001 — never fail a report on the register
+        logger.warning("Manufacturing orders unavailable for %s: %s", session_id, exc)
+
     # Both stent planners (straight catalogue device and centreline-guided)
     # write the same shape; an empty dict means none was deployed.
     raw_stent = read_stent(session_id)
@@ -289,6 +364,8 @@ def build_report_data_from_session(
         patient      = patient,
         morphometrics= morpho,
         clips        = clips,
+        manufacture  = manufacture,
+        unordered_custom_piece = unordered_custom,
         coils        = coils,
         stent        = stent,
         clinical     = clinical,
@@ -448,6 +525,7 @@ class ReportGenerator:
         story += self._section_morphometrics()
         story += self._section_treatment_decision()
         story += self._section_clips()
+        story += self._section_manufacture()
         story += self._section_coils()
         story += self._section_stent()
         story += self._section_trajectory()
@@ -949,6 +1027,94 @@ class ReportGenerator:
         tbl.setStyle(ts)
         elems.append(tbl)
         return elems
+
+    def _section_manufacture(self) -> list:
+        """The piece that is being made, and whether it has arrived.
+
+        Absent when there is nothing to say: most cases take a drawn size, and a
+        «no manufacturing order» heading on every report is noise that trains
+        people to skip the section on the reports where it matters.
+        """
+        orders = self._data.manufacture
+        if not orders:
+            if not self._data.unordered_custom_piece:
+                return []
+            return [
+                Paragraph("Fabricación de la pieza", self._style_h2),
+                Paragraph(
+                    "<b>Se ha planificado una mordaza a medida y no consta ningún "
+                    "pedido para este caso.</b> La talla colocada no existe entre las "
+                    "dibujadas, así que la pieza hay que encargarla antes de la "
+                    "intervención: hasta que se haga, este informe describe un "
+                    "dispositivo que todavía no existe.",
+                    self._style_body,
+                ),
+            ]
+
+        elems = [Paragraph("Fabricación de la pieza", self._style_h2)]
+        rows = [["Nº de pedido", "Pieza", "Estado", "Taller", "Piezas"]]
+        for o in orders:
+            rows.append([o.part_no, o.piece, o.status, o.workshop or "por asignar",
+                         str(o.pieces)])
+        tbl = Table(rows, colWidths=[3.0*cm, 6.2*cm, 3.4*cm, 3.6*cm, 1.0*cm])
+        ts = TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), self._BLUE_DARK),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 8),
+            ("GRID",          (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ])
+        for i in range(1, len(rows)):
+            ts.add("BACKGROUND", (0, i), (-1, i),
+                   colors.white if i % 2 else self._GREY_LIGHT)
+        tbl.setStyle(ts)
+        elems.append(tbl)
+
+        for o in orders:
+            elems += self._order_notes(o)
+        return elems
+
+    def _order_notes(self, o: "OrderEntry") -> list:
+        """Everything about one order that a table cell would bury."""
+        out = []
+
+        # What came back, measured. This is the only place the closing force
+        # stops being a design target, so a piece outside the band is the single
+        # thing on the page that cannot be allowed to read like a detail.
+        if o.measured_jaw_mm > 0:
+            bad = [n for n, ok in (("mordaza", o.jaw_within_tolerance),
+                                   ("fuerza de cierre", o.force_within_band))
+                   if ok is False]
+            measured = (f"Pieza recibida: mordaza {o.measured_jaw_mm:.2f} mm, "
+                        f"fuerza {o.measured_force_g:.0f} g.")
+            if bad:
+                out.append(Paragraph(
+                    f"<b>{o.part_no} — fuera de especificación en "
+                    f"{' y '.join(bad)}.</b> {measured} No implantar sin que el "
+                    f"cirujano responsable lo acepte por escrito.",
+                    self._style_body))
+            else:
+                out.append(Paragraph(f"{o.part_no} — {measured} Dentro de "
+                                     f"especificación.", self._style_body))
+
+        if o.override_reason:
+            out.append(Paragraph(
+                f"{o.part_no} — se aparta de lo recomendado"
+                + (f" ({o.advised_label})" if o.advised_label else "")
+                + f": {o.override_reason}", self._style_body))
+
+        # Said on every made-to-order piece, not only the ones that go wrong: it
+        # is the standing condition under which the whole thing is used.
+        if not o.is_drawn_size or o.not_approved_device:
+            out.append(Paragraph(
+                f"{o.part_no} — pieza fabricada bajo pedido para este caso. No es "
+                f"un dispositivo con marcado ni aprobación de mercado, y su fuerza "
+                f"de cierre es un objetivo de diseño hasta que se mide en la pieza "
+                f"recibida.", self._style_body))
+        return out
 
     def _section_coils(self) -> list:
         coils = self._data.coils

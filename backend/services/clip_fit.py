@@ -85,14 +85,40 @@ def vessel_beyond_neck(
 
 
 def build_candidate_mesh(cand: ClipCandidate) -> vtk.vtkPolyData:
-    """The candidate clip at its catalogue dimensions, in the local frame."""
+    """The candidate clip in the local frame — its drawn geometry when there is one.
+
+    A NAVARRO™ clip is a real part on disk, and placement has always used that
+    mesh. Verification did not: it swept boxes from the catalogue dimensions, so
+    the collision test and the coverage figure described a different object from
+    the one the surgeon then saw on the neck.
+
+    The gap was not cosmetic. `shape` is the selector's COARSE class, and the
+    family bends in 15° steps: reading the angle off the class collapsed six
+    drawn bends onto two, and verified the 15° and 30° clips as a 45° one, the
+    60° and 75° as a 90° one. Four of the six angled variants were checked
+    against a bend they do not have — on the one criterion, clearance around the
+    parent artery, where the bend is the whole point.
+    """
     spec = cand.clip
+    clip_id = getattr(spec, "clip_id", "") or ""
+    if clip_id.startswith("navarro:"):
+        try:
+            from services.navarro import mesh_for_id
+            return mesh_for_id(clip_id)
+        except Exception as exc:  # noqa: BLE001 — fall back rather than skip the check
+            logger.warning("NAVARRO geometry unavailable for %s (%s); "
+                           "verifying an approximation instead", clip_id, exc)
+
     return make_clip_shaped(
         blade_length_mm=spec.blade_length_mm,
         blade_width_mm=spec.blade_width_mm,
         blade_height_mm=spec.blade_height_mm,
         shape=spec.shape.name,
-        angle_deg=90.0 if spec.shape.name == "ANGLED" else (45.0 if spec.shape.name == "ANGLED_45" else 0.0),
+        # The drawn angle first: the class is only a fallback for a spec that
+        # never carried one.
+        angle_deg=spec.bend_angle_deg or (
+            90.0 if spec.shape.name == "ANGLED" else 45.0 if spec.shape.name == "ANGLED_45" else 0.0
+        ),
         fenestration_mm=spec.fenestration_mm,
     )
 

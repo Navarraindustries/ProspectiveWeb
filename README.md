@@ -63,8 +63,8 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **722 passing** (`pytest`, 43 files) |
-| Frontend tests | **137 passing** (`vitest`, 15 files) · `tsc -b` clean · production build clean |
+| Backend tests | **727 passing** (`pytest`, 43 files) |
+| Frontend tests | **144 passing** (`vitest`, 16 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -560,6 +560,44 @@ list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
 
+### A piece named by its bend alone
+
+Five copies of one rule: how a piece of this family is named. `navarro`, the
+order dossier, the order form, the orders register and the custom-jaw offer each
+had their own. Three of them derived the name from the BEND — and a bend of zero
+is the only thing a straight clip, a curved clip and a fenestrated clip have in
+common.
+
+So a curved order and a fenestrated order both read «recto» on screen, while the
+delivery note the workshop received said «Curvo» or «Fenestrado ventana 5 mm».
+The surgeon and the workshop were naming different pieces and believed they were
+naming the same one. The custom-jaw offer did it to itself in a single object:
+`shape` said `fenestrated` two fields above a `label` that said «T4 Recto».
+
+The `shape` field was already there in every one of them. One function now, per
+side: `navarro.shape_label` and its mirror in `components/planning/clipShape.ts`,
+tested against the same pieces.
+
+### Verification measured a different clip from the one being placed
+
+Placement has always used the drawn mesh. `clip_fit.build_candidate_mesh` swept
+boxes from the catalogue dimensions instead, so the collision test and the
+coverage figure described a different object from the one that appears on the
+neck — and the panel presents those numbers as a check on the clip you chose.
+
+Worse, it read the bend off `shape`, the selector's COARSE class, which the
+family outgrew when it started bending in 15° steps. Six drawn bends collapsed
+onto two: 15° and 30° were verified as a 45°, 60° and 75° as a 90°. Four of the
+six angled variants were checked against a bend they do not have, on the one
+criterion — clearance around the parent artery — where the bend is the entire
+point.
+
+It now loads the drawn geometry by id, the same mesh placement uses, and falls
+back to the approximation (with the real `bend_angle_deg`) only for a library
+entry that has no mesh on disk. The end-to-end span of the six angled variants
+now differs six ways and shrinks as the bend grows, which is the shape of the
+truth: a clip that bends more reaches less far.
+
 ### The picker was still serving the catalogue that was withdrawn
 
 Found by auditing what the recent changes left behind, not by a report. Dropping
@@ -1007,17 +1045,17 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 722 tests
+.venv\Scripts\python -m pytest -q                        # all 727 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **722 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **727 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 137 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 144 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

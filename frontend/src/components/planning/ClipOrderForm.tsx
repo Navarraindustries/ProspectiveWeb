@@ -26,6 +26,7 @@ import { Input } from "../Input";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { Slider } from "../Slider";
+import { seriesAndShape, shapeLabel } from "./clipShape";
 
 const STATUS_VARIANT: Record<OrderStatus, "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive"> = {
   borrador: "outline",
@@ -219,13 +220,10 @@ export function ClipOrderForm({
     || (shape === "fenestrated" && Math.abs(window_ - pre.advised_window_mm) > 1e-6);
   // El arco no se estira: en la curva la mordaza se elige entre las dibujadas.
   const jawIsFree = shape !== "curved";
-  const SHAPE_TEXT: Record<NavarroShape, string> = {
-    straight: "T1 Recto",
-    curved: "T2 Curvo",
-    angled: `T3 Angulado ${angle}°`,
-    fenestrated: `T4 Fenestrado ventana ${window_} mm`,
-  };
-  const currentLabel = `NAVARRO™ ${SHAPE_TEXT[shape]}, mordaza ${jaw.toFixed(1)} mm`;
+  // La cuarta copia de la misma regla: esta acertaba, pero al lado de tres que
+  // no, y una regla escrita cuatro veces se separa a la cuarta modificación.
+  const currentLabel =
+    `NAVARRO™ ${seriesAndShape(shape, angle, window_)}, mordaza ${jaw.toFixed(1)} mm`;
 
   /** Cambiar de serie tiene que dejar los demás campos en un valor que esa
       serie admita. Sin esto el título decía «Angulado 0°» mientras el
@@ -673,7 +671,7 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
         <span style={{
           fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)",
         }}>
-          {order.series} {order.angle_deg > 0 ? `${order.angle_deg}°` : "recto"} ·
+          {order.series} {shapeLabel(order.shape, order.angle_deg, order.window_mm)} ·
           mordaza {order.jaw_mm.toFixed(1)} mm · {order.total_pieces} pieza(s)
           {order.workshop_name ? ` · ${order.workshop_name}` : ""}
         </span>

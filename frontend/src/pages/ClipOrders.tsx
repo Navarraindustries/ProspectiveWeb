@@ -23,6 +23,7 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
 import { Topbar } from "../components/Topbar";
+import { shapeLabel } from "../components/planning/clipShape";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
 
@@ -115,7 +116,7 @@ function Row({ order, onOpen, selected }: {
         </div>
       </td>
       <td style={{ ...cell, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
-        {order.series} {order.angle_deg > 0 ? `${order.angle_deg}°` : "recto"}
+        {order.series} {shapeLabel(order.shape, order.angle_deg, order.window_mm)}
         <div style={{ color: "var(--muted-foreground)" }}>
           {order.jaw_mm.toFixed(1)} mm · {order.total_pieces} pza
         </div>
@@ -172,7 +173,7 @@ function Detail({ order, onChanged, onClose }: {
         {([
           ["Paciente", order.patient || "—"],
           ["Caso", order.case_label || "—"],
-          ["Pieza", `${order.series} ${order.angle_deg > 0 ? `${order.angle_deg}°` : "recto"} · mordaza ${order.jaw_mm.toFixed(1)} mm`],
+          ["Pieza", `${order.series} ${shapeLabel(order.shape, order.angle_deg, order.window_mm)} · mordaza ${order.jaw_mm.toFixed(1)} mm`],
           ["Piezas", String(order.total_pieces)],
           ["Cirujano", order.surgeon || "sin firmar"],
           ["Taller", order.workshop_name || "por asignar"],

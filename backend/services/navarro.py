@@ -115,6 +115,24 @@ STOCK_WINDOW_MM: tuple[int, ...] = (3, 5, 7)
 CURVED_IS_DRAWN_ONLY = True
 
 
+def shape_label(shape: str, angle_deg: float = 0.0, window_mm: float = 0.0) -> str:
+    """How a piece of this family is named, from the three things that name it.
+
+    The rule was written out five times — here, in the order dossier, in the
+    order form, in the orders register and in the custom-jaw offer — and the
+    copies drifted exactly where it matters: the ones that only had an angle to
+    hand called a curved clip and a fenestrated clip «Recto», because a bend of
+    zero is all a straight clip and a curved clip have in common.
+    """
+    if shape == CURVED:
+        return "Curvo"
+    if shape == FENESTRATED:
+        return f"Fenestrado ventana {window_mm:.0f} mm"
+    if angle_deg > 0:
+        return f"Angulado {angle_deg:.0f}°"
+    return "Recto"
+
+
 @dataclass(frozen=True)
 class NavarroVariant:
     """One drawn design: a series, its shape, a bend angle and a jaw length."""
@@ -130,13 +148,7 @@ class NavarroVariant:
 
     @property
     def shape_label(self) -> str:
-        if self.shape == CURVED:
-            return "Curvo"
-        if self.shape == FENESTRATED:
-            return f"Fenestrado ventana {self.window_mm} mm"
-        if self.angle_deg > 0:
-            return f"Angulado {self.angle_deg:.0f}°"
-        return "Recto"
+        return shape_label(self.shape, self.angle_deg, self.window_mm)
 
     @property
     def name(self) -> str:

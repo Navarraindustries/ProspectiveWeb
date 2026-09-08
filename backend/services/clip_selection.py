@@ -758,8 +758,13 @@ class CustomJaw:
 
     @property
     def label(self) -> str:
-        shape = "Recto" if self.angle_deg == 0 else f"Angulado {self.angle_deg:.0f}°"
-        return f"NAVARRO™ {self.series} {shape}, mordaza {self.jaw_mm:.1f} mm"
+        # Deducido solo del ángulo, esto rotulaba «NAVARRO™ T4 Recto» una mordaza
+        # fenestrada a medida: el propio objeto ya decía `shape=fenestrated` dos
+        # campos más arriba, y el rótulo lo contradecía.
+        from services.navarro import shape_label
+        return (f"NAVARRO™ {self.series} "
+                f"{shape_label(self.shape, self.angle_deg, self.window_mm)}, "
+                f"mordaza {self.jaw_mm:.1f} mm")
 
 
 def ideal_jaw_mm(case: ClipCase) -> float:

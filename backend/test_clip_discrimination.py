@@ -204,6 +204,30 @@ class TestTheCustomJawWorksForEverySeriesThatStretches:
         assert cj.shape == "fenestrated"
         assert cj.window_mm > 0, "un fenestrado a medida sin ventana no es un fenestrado"
 
+    def test_the_offer_is_named_after_the_piece_it_is(self):
+        # El rótulo se deducía solo del ángulo, así que una mordaza fenestrada a
+        # medida salía como «NAVARRO™ T4 Recto»: el propio objeto decía
+        # `shape=fenestrated` dos campos más arriba y el rótulo lo contradecía.
+        cj = select_clips(_case(neck=4.0, region="ACM bifurcacion")).custom_jaw
+        assert cj is not None and cj.shape == "fenestrated"
+        assert "Fenestrado" in cj.label, cj.label
+        assert "Recto" not in cj.label
+        assert f"{cj.window_mm:.0f} mm" in cj.label, "la ventana es parte del nombre"
+
+    def test_every_series_names_itself_the_same_way_everywhere(self):
+        # Cinco copias de la misma regla se habían separado justo donde importa:
+        # las que solo tenían el ángulo llamaban «Recto» a un curvo y a un
+        # fenestrado, porque un acodado de cero es lo único que comparten.
+        from services.navarro import shape_label
+        assert shape_label("curved") == "Curvo"
+        assert shape_label("straight") == "Recto"
+        assert shape_label("angled", 60.0) == "Angulado 60°"
+        assert shape_label("fenestrated", 0.0, 5.0) == "Fenestrado ventana 5 mm"
+        # Un curvo no tiene acodado, y un fenestrado tampoco: el ángulo no puede
+        # arrastrarlos a «Recto».
+        assert shape_label("curved", 0.0) != "Recto"
+        assert shape_label("fenestrated", 0.0, 3.0) != "Recto"
+
     def test_the_offer_does_not_vanish_when_a_curved_clip_wins(self):
         # Curved clips win ties often now, and their jaw cannot be stretched —
         # which silently removed the custom-size offer from almost every case.

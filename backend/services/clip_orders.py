@@ -702,13 +702,9 @@ def sterilisation_notes(order: ClipOrder) -> list[str]:
 
 def _shape_label(order: ClipOrder) -> str:
     """How the piece is named on paper. The window is part of the name."""
-    if order.shape == "curved":
-        return "Curvo"
-    if order.shape == "fenestrated":
-        return f"Fenestrado, ventana {order.window_mm:.0f} mm"
-    if order.angle_deg > 0:
-        return f"Angulado {order.angle_deg:.0f}°"
-    return "Recto"
+    from services.navarro import shape_label
+
+    return shape_label(order.shape, order.angle_deg, order.window_mm)
 
 
 def order_rows(order: ClipOrder) -> list[tuple[str, str]]:

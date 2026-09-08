@@ -267,3 +267,53 @@ class TestThePickerOffersOnlyWhatCanBePlaced:
     def test_a_measured_case_is_not_labelled_general(self):
         recs = client.get(f"/api/clips/recommendations/{_session()}").json()
         assert not any("orden general" in r["reason"] for r in recs)
+
+
+# ── 5. What gets verified is what gets placed ─────────────────────────────── #
+
+class TestVerificationMeasuresTheRealPiece:
+    """The geometric check used to describe a different object than placement.
+
+    Placement has always used the drawn mesh; verification swept boxes from the
+    catalogue dimensions. And it read the bend off `shape`, the selector's coarse
+    class, which the family outgrew the moment it started bending in 15° steps.
+    """
+
+    def _mesh(self, spec):
+        from services.clip_fit import build_candidate_mesh
+        from services.clip_selection import ClipCandidate
+        return build_candidate_mesh(
+            ClipCandidate(clip=spec, criteria=[], coverage_ratio=0.0, safety_margin_mm=0.0))
+
+    def _angled(self, angle: float):
+        return next(c for c in catalogue_with_library()
+                    if c.bend_angle_deg == angle and c.blade_length_mm == 7.0)
+
+    def test_each_drawn_bend_is_verified_as_itself(self):
+        # 15 and 30 were both checked as a 45; 60 and 75 as a 90. Four of the six
+        # angled variants were measured against a bend they do not have — on the
+        # criterion where the bend is the entire point.
+        spans = {a: self._mesh(self._angled(a)).GetBounds()[1]
+                    - self._mesh(self._angled(a)).GetBounds()[0]
+                 for a in (15.0, 30.0, 45.0, 60.0, 75.0, 90.0)}
+        assert len(set(round(v, 2) for v in spans.values())) == 6, spans
+        # And the more it bends the less it reaches: a monotonic check is worth
+        # more here than six pinned numbers.
+        ordered = [spans[a] for a in (15.0, 30.0, 45.0, 60.0, 75.0, 90.0)]
+        assert ordered == sorted(ordered, reverse=True), spans
+
+    def test_the_mesh_verified_is_the_mesh_placed(self):
+        from services.navarro import mesh_for_id
+        spec = self._angled(60.0)
+        placed = mesh_for_id(spec.clip_id)
+        checked = self._mesh(spec)
+        assert checked.GetNumberOfPoints() == placed.GetNumberOfPoints()
+        assert checked.GetBounds() == placed.GetBounds()
+
+    def test_a_spec_with_no_drawn_geometry_still_gets_checked(self):
+        # A hospital library entry has no mesh on disk. Falling through to the
+        # approximation is right; skipping the check would not be.
+        from services.clips import ClipShape, ClipSpec
+        spec = ClipSpec("Clip del hospital", ClipShape.STRAIGHT, 9.0, 1.3, 1.0, 7.0, 120,
+                        "Biblioteca")
+        assert self._mesh(spec).GetNumberOfPoints() > 0

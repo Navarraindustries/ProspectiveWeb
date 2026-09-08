@@ -176,3 +176,44 @@ describe("the actions on a received piece", () => {
     expect(screen.getByRole("button", { name: /Registrar recepción/ })).toBeInTheDocument();
   });
 });
+
+describe("cómo se nombra la pieza en la lista", () => {
+  /* La fila deducía el nombre SOLO del acodado, y un acodado de cero es lo único
+     que un recto, un curvo y un fenestrado tienen en común: los tres salían como
+     «recto» mientras el albarán que recibía el taller decía otra cosa. */
+
+  it("no llama «recto» a un curvo", async () => {
+    listClipOrders.mockResolvedValue([
+      order({ part_no: "PR-CUR", series: "T2", shape: "curved", angle_deg: 0 }),
+    ]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0]).toHaveTextContent("T2 Curvo");
+    expect(rows()[0]).not.toHaveTextContent("recto");
+  });
+
+  it("no llama «recto» a un fenestrado, y dice su ventana", async () => {
+    // La ventana es parte del nombre de la pieza: un fenestrado sin calibre no
+    // identifica nada que el taller pueda fabricar.
+    listClipOrders.mockResolvedValue([
+      order({ part_no: "PR-FEN", series: "T4", shape: "fenestrated",
+              angle_deg: 0, window_mm: 5 }),
+    ]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0]).toHaveTextContent("T4 Fenestrado ventana 5 mm");
+    expect(rows()[0]).not.toHaveTextContent("recto");
+  });
+
+  it("sigue nombrando bien lo que ya nombraba bien", async () => {
+    listClipOrders.mockResolvedValue([
+      order({ part_no: "PR-REC", series: "T1", shape: "straight", angle_deg: 0 }),
+      order({ part_no: "PR-ANG", series: "T3", shape: "angled", angle_deg: 60 }),
+    ]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    const text = rows().map((r) => r.textContent).join(" | ");
+    expect(text).toContain("T1 Recto");
+    expect(text).toContain("T3 Angulado 60°");
+  });
+});

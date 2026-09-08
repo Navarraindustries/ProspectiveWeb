@@ -58,16 +58,30 @@ class TreatmentDecisionRequest(BaseModel):
     is_ruptured: bool = Field(
         False, description="True if the aneurysm is acutely ruptured (SAH)"
     )
-    # Recorded context, NOT scored. The engine is an 8-factor port of the
-    # desktop app (ISAT 2002 / BRAT 2013 / AHA-ASA 2015), and those references
-    # establish the *direction* of age and comorbidity but no point weight.
-    # Inventing one would be indistinguishable from the sourced thresholds, so
-    # both fields are stored and printed in the report instead of scored.
     patient_age: int | None = Field(
         None, ge=0, le=120,
         description=(
-            "Patient age in years. Clinical context only — recorded in the report, "
-            "not weighted by the decision engine."
+            "Patient age in years. Now scored: the validated Japan Stroke Data "
+            "Bank model penalises clipping from 72 and coiling only from 80. "
+            "Optional — the engine reports how much of the case it could see "
+            "rather than refusing to answer."
+        ),
+    )
+    wfns_grade: int | None = Field(
+        None, ge=1, le=5,
+        description=(
+            "WFNS grade (1–5). Only exists for a ruptured aneurysm — it grades a "
+            "subarachnoid haemorrhage — so it is ignored when `is_ruptured` is "
+            "false, and never required. It is the heaviest variable in the "
+            "validated model."
+        ),
+    )
+    fisher_grade: int | None = Field(
+        None, ge=1, le=4,
+        description=(
+            "Fisher grade (1–4) of blood on CT. Ruptured aneurysms only. Grade 4 "
+            "argues for clipping: the validated model penalises coiling there, "
+            "and a bulky haematoma can be evacuated in the same operation."
         ),
     )
     has_comorbidities: bool = Field(
@@ -98,6 +112,20 @@ class TreatmentDecisionResult(BaseModel):
         ),
     )
     endo_pct: int = Field(..., ge=0, le=100, description="Endo share of the total, 0–100")
+    coverage_pct: int = Field(
+        100, ge=0, le=100,
+        description=(
+            "How much of the case the engine could actually evaluate, as a share "
+            "of the weight available. Nothing is mandatory — and WFNS and Fisher "
+            "cannot be, since they do not exist for an unruptured aneurysm — but "
+            "confidence is capped by this, because agreement among the factors "
+            "that were seen cannot make up for the ones that were not."
+        ),
+    )
+    missing_inputs: list[str] = Field(
+        default_factory=list,
+        description="Inputs that applied to this case and were not supplied.",
+    )
     notes: list[str] = Field(
         default_factory=list,
         description=(

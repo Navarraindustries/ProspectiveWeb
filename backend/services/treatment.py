@@ -60,6 +60,35 @@ LOCATIONS: list[str] = [
 ]
 
 
+#: Lo máximo que puede aportar cada grupo. Sirve para una sola cosa: saber qué
+#: parte del caso se ha podido evaluar, y por tanto cuánto vale el veredicto.
+_MAX_WEIGHT: dict[str, int] = {
+    "neck": 25, "ar": 20, "dnr": 15, "size": 20, "bf": 12, "ui": 10,
+    "location": 25, "ruptured": 30, "age": 12, "wfns": 15, "fisher": 10,
+}
+
+#: Cómo se llama cada dato cuando hay que pedirlo.
+_INPUT_LABEL: dict[str, str] = {
+    "neck": "diámetro del cuello", "ar": "aspect ratio",
+    "dnr": "relación domo-cuello", "size": "diámetro máximo",
+    "bf": "bottleneck factor", "ui": "undulation index",
+    "location": "localización", "age": "edad del paciente",
+    "wfns": "grado WFNS", "fisher": "grado de Fisher",
+}
+
+
+def _coverage(known: set[str], applicable: set[str]) -> float:
+    """Qué fracción del peso evaluable se ha podido mirar, entre 0 y 1.
+
+    No es lo mismo que «cuántos factores han sumado». Un diámetro de 8 mm cae en
+    la franja neutra y no aporta puntos, pero es un dato conocido: el motor lo ha
+    mirado y ha decidido que no inclina. Falta de dato y factor neutro son cosas
+    distintas y sólo la primera resta certeza.
+    """
+    total = sum(_MAX_WEIGHT[k] for k in applicable) or 1
+    return sum(_MAX_WEIGHT[k] for k in (known & applicable)) / total
+
+
 # ── Internal dataclasses ───────────────────────────────────────────────────── #
 
 @dataclass
@@ -112,9 +141,34 @@ _SOURCE: dict[str, str] = {
     "ruptured": (
         "AHA/ASA 2023: en circulación anterior rota igualmente abordable por "
         "ambas vías, coiling preferente — Clase I, nivel A, la recomendación "
-        "más fuerte que toca este motor. ISAT a 18 años. Peso: heurístico, y "
-        "menor que el de cuello o localización pese a apoyarse en la evidencia "
-        "más fuerte de las ocho."
+        "más fuerte que toca este motor. ISAT a 18 años: más vivos e "
+        "independientes en el brazo endovascular. Peso: heurístico (30), "
+        "elegido por una regla que se puede discutir: una recomendación "
+        "Clase I nivel A no "
+        "puede quedar por debajo de ningún otro factor suelto, y el mayor de "
+        "los demás vale 25. Antes valía 15 y una localización en ACM la "
+        "volteaba ella sola."
+    ),
+    "age": (
+        "Dirección: el modelo del Japan Stroke Data Bank (Neurol Med Chir 2020) "
+        "penaliza el clipaje desde los 72 años y el coiling solo desde los 80, "
+        "es decir la edad avanzada tolera peor la cirugía. Magnitud contenida a "
+        "propósito: el metaanálisis de 2025 sobre 51 415 pacientes ≥60 años no "
+        "halló diferencia en resultado (RR 1,03) ni mortalidad, solo estancia "
+        "más corta con coiling, y con certeza muy baja. Peso: heurístico."
+    ),
+    "wfns": (
+        "Variable de mayor peso del modelo validado del Japan Stroke Data Bank, "
+        "que la puntúa hasta 3 de 5 puntos y penaliza antes al clipaje (desde "
+        "WFNS II-III) que al coiling (desde III). Peso aquí: heurístico, "
+        "trasladado por analogía de esa estructura."
+    ),
+    "fisher": (
+        "El modelo del Japan Stroke Data Bank penaliza el COILING en Fisher 4. "
+        "Coincide con la posición referida para el hematoma intraparenquimatoso "
+        "voluminoso, donde el clipaje permite evacuar en el mismo acto. Peso: "
+        "heurístico. No sustituye a medir el hematoma, que esta aplicación aún "
+        "no recoge."
     ),
     "small": (
         "Umbral heurístico. No procede de ninguna guía: ESO 2022 plantea la "
@@ -136,6 +190,9 @@ class _Decision:
     confidence:        str
     factors: list[_Factor] = field(default_factory=list)
     notes:   list[str]     = field(default_factory=list)
+    #: Qué parte del caso se ha podido evaluar, y qué datos faltaban.
+    coverage_pct:   int       = 100
+    missing_inputs: list[str] = field(default_factory=list)
 
 
 def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
@@ -162,6 +219,9 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
         f"Aneurisma muy pequeño (Ø {diameter_mm:.1f} mm < 3 mm): el riesgo "
         f"procedimental generalmente supera el riesgo de rotura."
     ]
+    # Este camino no evalúa ningún factor, así que no hay cobertura que declarar:
+    # lo que decide es el tamaño y, ahora, el riesgo de rotura estimado.
+    cov = 0
 
     if ruptured:
         # Un aneurisma roto ya no plantea la pregunta de vigilar, y el PHASES
@@ -173,6 +233,7 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
         )
         return _to_dict(_Decision(
             clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
+            coverage_pct=cov,
             recommendation="DISCUSIÓN MULTIDISCIPLINARIA",
             recommendation_key="mdt", confidence="Baja",
             factors=[], notes=notes,
@@ -200,6 +261,7 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
         )
         return _to_dict(_Decision(
             clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
+            coverage_pct=cov,
             recommendation="DISCUSIÓN MULTIDISCIPLINARIA",
             recommendation_key="mdt", confidence="Baja",
             factors=[], notes=notes,
@@ -214,6 +276,7 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
 
     return _to_dict(_Decision(
         clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
+        coverage_pct=cov,
         recommendation="VIGILANCIA ACTIVA", recommendation_key="surveillance",
         confidence=confidence, factors=[], notes=notes,
     ))
@@ -231,6 +294,9 @@ def compute_decision(
     location:          str  = LOCATION_UNKNOWN,
     ruptured:          bool = False,
     phases:            dict[str, Any] | None = None,
+    patient_age:       int | None = None,
+    wfns_grade:        int | None = None,
+    fisher_grade:      int | None = None,
 ) -> dict[str, Any]:
     """Compute CLIP vs ENDOVASCULAR recommendation.
 
@@ -441,13 +507,45 @@ def compute_decision(
     if ruptured:
         _add(
             "Aneurisma roto (HSA activa)",
-            "Roto: ISAT 2002 demostró superioridad de coiling en aneurismas accesibles.",
-            "endo", 15, "ruptured",
+            "Roto: coiling preferente en circulación anterior abordable por ambas "
+            "vías (AHA/ASA 2023, Clase I nivel A).",
+            "endo", 30, "ruptured",
         )
         notes.append(
             "Aneurisma roto: el coiling es de primera elección si la morfología lo permite "
             "(ISAT 2002). Si no es factible endovascularmente, clipping de urgencia."
         )
+
+    # ── Factor 9: Age ──────────────────────────────────────────────────── #
+    if patient_age is not None and patient_age > 0:
+        if patient_age >= 80:
+            _add(f"Edad ≥ 80 años ({patient_age})",
+                 "Edad muy avanzada: el modelo japonés penaliza ya ambas vías, y "
+                 "más la cirugía.", "endo", 12, "age")
+        elif patient_age >= 72:
+            _add(f"Edad 72–79 años ({patient_age})",
+                 "Desde los 72 el modelo japonés penaliza el clipaje y todavía no "
+                 "el coiling.", "endo", 6, "age")
+
+    # ── Factores 10-11: sólo existen si hay hemorragia ─────────────────── #
+    # WFNS gradúa una hemorragia subaracnoidea y Fisher la sangre del TC. En un
+    # aneurisma incidental no hay nada que graduar, así que no se piden ni se
+    # echan en falta: se ignoran en silencio si llegaran.
+    if ruptured:
+        if wfns_grade:
+            if wfns_grade >= 4:
+                _add(f"WFNS {wfns_grade} (mal grado)",
+                     "Mal grado clínico: es la variable de mayor peso del modelo "
+                     "validado, y penaliza antes al clipaje.", "endo", 15, "wfns")
+            elif wfns_grade == 3:
+                _add("WFNS 3",
+                     "Grado intermedio: el modelo validado ya lo penaliza en ambas "
+                     "vías, algo más en la quirúrgica.", "endo", 8, "wfns")
+        if fisher_grade == 4:
+            _add("Fisher 4 (sangre intraparenquimatosa o intraventricular)",
+                 "El modelo validado penaliza el coiling en Fisher 4; con hematoma "
+                 "voluminoso el clipaje permite evacuar en el mismo acto.",
+                 "clip", 10, "fisher")
 
     # ── Compute percentages ────────────────────────────────────────────── #
     total = clip_pts + endo_pts
@@ -459,9 +557,57 @@ def compute_decision(
 
     balance = clip_pts - endo_pts
 
+    # ── Qué parte del caso se ha podido mirar ──────────────────────────── #
+    #
+    # Nada es obligatorio, y dos de estos datos ni siquiera pueden serlo: WFNS
+    # gradúa una hemorragia y Fisher la sangre del TC, así que en un aneurisma
+    # incidental no existen. Lo que sí hacía falta era dejar de tratar «no lo sé»
+    # como si fuera «no inclina».
+    #
+    # La confianza se sacaba de |saldo|, y el saldo crece sumando factores. Un
+    # caso con un único dato —el cuello— salía con «CLIPPING QUIRÚRGICO» y
+    # confianza Moderada: un veredicto sobre una sola medida. Medía cuántos
+    # factores había, no cuánto se sabía.
+    applicable = {"neck", "ar", "dnr", "size", "bf", "ui", "location", "ruptured"}
+    known = {"ruptured"}
+    for key, value in (("neck", neck_mm), ("ar", aspect_ratio), ("dnr", dnr),
+                       ("size", max_diameter_mm), ("bf", bottleneck_factor),
+                       ("ui", undulation_index)):
+        if value > 0:
+            known.add(key)
+    if (location or "").strip() and location != LOCATION_UNKNOWN:
+        known.add("location")
+    # La edad siempre aplica; el grado clínico sólo con hemorragia.
+    applicable.add("age")
+    if patient_age is not None and patient_age > 0:
+        known.add("age")
+    if ruptured:
+        applicable |= {"wfns", "fisher"}
+        if wfns_grade:
+            known.add("wfns")
+        if fisher_grade:
+            known.add("fisher")
+
+    coverage = _coverage(known, applicable)
+    missing = [_INPUT_LABEL[k] for k in sorted(applicable - known) if k in _INPUT_LABEL]
+
     # ── Confidence & recommendation ────────────────────────────────────── #
     abs_bal    = abs(balance)
     confidence = "Alta" if abs_bal >= 50 else "Moderada" if abs_bal >= 25 else "Baja"
+
+    # El acuerdo entre factores no puede compensar los que no se han mirado.
+    if coverage < 0.5:
+        confidence = "Baja"
+    elif coverage < 0.8 and confidence == "Alta":
+        confidence = "Moderada"
+
+    if missing:
+        notes.append(
+            f"Evaluado el {round(coverage * 100)} % del caso: falta "
+            f"{', '.join(missing)}. La recomendación se calcula igualmente con lo "
+            f"disponible, pero la confianza está limitada por lo que no se ha "
+            f"podido mirar, no sólo por el acuerdo entre lo que sí."
+        )
 
     if balance >= 20:
         rec, rec_key = "CLIPPING QUIRÚRGICO", "clip"
@@ -486,6 +632,7 @@ def compute_decision(
         recommendation=rec, recommendation_key=rec_key,
         confidence=confidence,
         factors=factors, notes=notes,
+        coverage_pct=round(coverage * 100), missing_inputs=missing,
     ))
 
 
@@ -524,4 +671,6 @@ def _to_dict(d: _Decision) -> dict[str, Any]:
         # razonamiento del caso pequeño —incluida ahora la comparación con el
         # PHASES— y sin ellas el veredicto llega sin el porqué.
         "notes":              list(d.notes),
+        "coverage_pct":       d.coverage_pct,
+        "missing_inputs":     list(d.missing_inputs),
     }

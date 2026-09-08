@@ -201,3 +201,131 @@ class TestThePhasesScoreTravelsFromTheMorphometryStep:
         assert client.delete(f"/api/treatment-decision/{sid}").status_code in (200, 204)
         assert read_state(sid, "treatment.notes_json", "") == ""
         assert read_state(sid, "treatment.clip_points", "") == ""
+
+
+# ── 5. Faltar un dato no es lo mismo que no inclinar ──────────────────────── #
+
+class TestTheScoreSaysHowMuchOfTheCaseItSaw:
+    """Nada es obligatorio, y dos de los datos no pueden serlo.
+
+    WFNS gradúa una hemorragia y Fisher la sangre del TC: en un aneurisma
+    incidental no existen. Lo que había que arreglar no era eso, era que la
+    confianza salía de |saldo| y el saldo crece sumando factores. Con un único
+    dato —el cuello— el motor emitía «CLIPPING QUIRÚRGICO» con confianza
+    Moderada: un veredicto sobre una sola medida, presentado como medio fiable.
+    """
+
+    MORFO = dict(neck_mm=6.5, aspect_ratio=1.1, dnr=1.2, max_diameter_mm=8.0,
+                 bottleneck_factor=1.1, undulation_index=0.25)
+
+    def test_a_full_case_is_full_coverage(self):
+        d = compute_decision(**self.MORFO, location=LOCATION_MCA, patient_age=55)
+        assert d["coverage_pct"] == 100
+        assert d["missing_inputs"] == []
+
+    def test_one_measurement_alone_is_not_a_confident_verdict(self):
+        d = compute_decision(neck_mm=6.5, aspect_ratio=0.0, dnr=0.0,
+                             max_diameter_mm=0.0, bottleneck_factor=0.0,
+                             undulation_index=0.0)
+        assert d["coverage_pct"] < 50
+        assert d["confidence"] == "Baja", "antes salía Moderada con un solo dato"
+
+    def test_confidence_is_capped_by_what_was_not_seen(self):
+        # Mismo saldo, distinta cobertura: la de menos datos no puede declarar
+        # más certeza. El acuerdo entre factores no sustituye a los que faltan.
+        partial = compute_decision(neck_mm=6.5, aspect_ratio=1.1, dnr=0.0,
+                                   max_diameter_mm=0.0, bottleneck_factor=0.0,
+                                   undulation_index=0.0, location=LOCATION_MCA)
+        full = compute_decision(**self.MORFO, location=LOCATION_MCA, patient_age=55)
+        assert partial["coverage_pct"] < full["coverage_pct"]
+        assert partial["confidence"] != "Alta"
+
+    def test_it_names_what_is_missing(self):
+        d = compute_decision(neck_mm=6.5, aspect_ratio=0.0, dnr=0.0,
+                             max_diameter_mm=0.0, bottleneck_factor=0.0,
+                             undulation_index=0.0)
+        assert "localización" in d["missing_inputs"]
+        assert "edad del paciente" in d["missing_inputs"]
+        assert any("Evaluado el" in n for n in d["notes"])
+
+    def test_a_neutral_factor_is_not_a_missing_one(self):
+        # Un diámetro de 8 mm cae en la franja neutra y no suma puntos, pero es
+        # un dato conocido: el motor lo miró y decidió que no inclina.
+        d = compute_decision(neck_mm=6.5, aspect_ratio=1.1, dnr=1.2,
+                             max_diameter_mm=8.0, bottleneck_factor=1.1,
+                             undulation_index=0.25, location=LOCATION_MCA,
+                             patient_age=55)
+        assert "diámetro máximo" not in d["missing_inputs"]
+        assert not any(f["name"].startswith("Aneurisma") for f in d["factors"])
+
+    def test_the_clinical_grades_are_only_asked_for_when_they_exist(self):
+        # En un aneurisma no roto no hay hemorragia que graduar, así que no se
+        # cuentan como ausencia.
+        electivo = compute_decision(**self.MORFO, location=LOCATION_MCA,
+                                    patient_age=55, ruptured=False)
+        roto = compute_decision(**self.MORFO, location=LOCATION_MCA,
+                                patient_age=55, ruptured=True)
+        assert "grado WFNS" not in electivo["missing_inputs"]
+        assert "grado WFNS" in roto["missing_inputs"]
+        assert "grado de Fisher" in roto["missing_inputs"]
+
+    def test_the_verdict_is_still_produced_without_them(self):
+        # No son obligatorios: se contesta con lo que hay y se dice cuánto era.
+        roto = compute_decision(**self.MORFO, location=LOCATION_MCA, ruptured=True)
+        assert roto["recommendation_key"] in ("clip", "endo", "mdt")
+        assert 0 < roto["coverage_pct"] < 100
+
+
+# ── 6. El grado clínico, y lo que pesa la rotura ──────────────────────────── #
+
+class TestTheClinicalGradesAndTheWeightOfRupture:
+    NEUTRAL = dict(neck_mm=0.0, aspect_ratio=0.0, dnr=0.0, max_diameter_mm=8.0,
+                   bottleneck_factor=0.0, undulation_index=0.0)
+
+    def test_a_ruptured_mca_no_longer_falls_to_clipping_on_location_alone(self):
+        # Era el punto donde el motor contradecía a la guía: rotura valía 15 y
+        # una localización en ACM valía 20, así que la volteaba ella sola pese a
+        # apoyarse en una recomendación Clase I nivel A.
+        electivo = compute_decision(**self.NEUTRAL, location=LOCATION_MCA)
+        roto = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, ruptured=True)
+        assert electivo["recommendation_key"] == "clip"
+        assert roto["recommendation_key"] != "clip"
+
+    def test_no_single_factor_outweighs_the_class_I_recommendation(self):
+        # La regla con la que se eligió el 30, escrita para que se pueda discutir.
+        from services.treatment import _MAX_WEIGHT
+        others = {k: v for k, v in _MAX_WEIGHT.items() if k != "ruptured"}
+        assert _MAX_WEIGHT["ruptured"] > max(others.values())
+
+    def test_a_poor_grade_pushes_endovascular(self):
+        base = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, ruptured=True)
+        malo = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
+                                ruptured=True, wfns_grade=5)
+        assert malo["balance"] < base["balance"]
+        assert malo["recommendation_key"] == "endo"
+
+    def test_fisher_four_pushes_back_toward_clipping(self):
+        # Sangre intraparenquimatosa: el modelo validado penaliza ahí el coiling,
+        # y con hematoma voluminoso el clipaje permite evacuar en el mismo acto.
+        sin_ = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
+                                ruptured=True, wfns_grade=5)
+        con = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
+                               ruptured=True, wfns_grade=5, fisher_grade=4)
+        assert con["balance"] > sin_["balance"]
+
+    def test_the_grades_are_ignored_on_an_unruptured_aneurysm(self):
+        # No es que se descarten por prudencia: es que no existen.
+        a = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, ruptured=False)
+        b = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, ruptured=False,
+                             wfns_grade=5, fisher_grade=4)
+        assert a["balance"] == b["balance"]
+        assert len(a["factors"]) == len(b["factors"])
+
+    def test_advanced_age_leans_endovascular_but_not_hard(self):
+        # El metaanálisis de 2025 sobre 51 415 pacientes no halló diferencia de
+        # resultado en ≥60 años, así que el peso es contenido a propósito.
+        from services.treatment import _MAX_WEIGHT
+        assert _MAX_WEIGHT["age"] < _MAX_WEIGHT["wfns"] < _MAX_WEIGHT["ruptured"]
+        joven = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, patient_age=50)
+        mayor = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, patient_age=82)
+        assert mayor["balance"] < joven["balance"]

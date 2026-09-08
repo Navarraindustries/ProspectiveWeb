@@ -11989,7 +11989,35 @@
               }
             ],
             "title": "Patient Age",
-            "description": "Patient age in years. Clinical context only — recorded in the report, not weighted by the decision engine."
+            "description": "Patient age in years. Now scored: the validated Japan Stroke Data Bank model penalises clipping from 72 and coiling only from 80. Optional — the engine reports how much of the case it could see rather than refusing to answer."
+          },
+          "wfns_grade": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wfns Grade",
+            "description": "WFNS grade (1–5). Only exists for a ruptured aneurysm — it grades a subarachnoid haemorrhage — so it is ignored when `is_ruptured` is false, and never required. It is the heaviest variable in the validated model."
+          },
+          "fisher_grade": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 4.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fisher Grade",
+            "description": "Fisher grade (1–4) of blood on CT. Ruptured aneurysms only. Grade 4 argues for clipping: the validated model penalises coiling there, and a bulky haematoma can be evacuated in the same operation."
           },
           "has_comorbidities": {
             "type": "boolean",
@@ -12034,6 +12062,22 @@
             "minimum": 0.0,
             "title": "Endo Pct",
             "description": "Endo share of the total, 0–100"
+          },
+          "coverage_pct": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Coverage Pct",
+            "description": "How much of the case the engine could actually evaluate, as a share of the weight available. Nothing is mandatory — and WFNS and Fisher cannot be, since they do not exist for an unruptured aneurysm — but confidence is capped by this, because agreement among the factors that were seen cannot make up for the ones that were not.",
+            "default": 100
+          },
+          "missing_inputs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Inputs",
+            "description": "Inputs that applied to this case and were not supplied."
           },
           "notes": {
             "items": {

@@ -73,6 +73,9 @@ async def compute_treatment_decision(
         undulation_index=undulation_index,
         location=req.location,
         ruptured=req.is_ruptured,
+        patient_age=req.patient_age,
+        wfns_grade=req.wfns_grade,
+        fisher_grade=req.fisher_grade,
     )
 
     # Persist treatment result to session state for report generation (Session E).
@@ -94,9 +97,13 @@ async def compute_treatment_decision(
     write_state(req.session_id, "treatment.notes_json",
                 json.dumps(result.get("notes", [])))
 
-    # Clinical context the engine does NOT score (see TreatmentDecisionRequest):
-    # persisted so the report can print it alongside the recommendation, which
-    # is where it actually matters — the multidisciplinary discussion.
+    # El contexto clínico. La edad ya puntúa; las comorbilidades siguen sin
+    # hacerlo —no hay estructura publicada que trasladar— y se imprimen junto a
+    # la recomendación, que es donde de verdad pesan: la sesión multidisciplinar.
+    write_state(req.session_id, "clinical.wfns_grade",
+                "" if req.wfns_grade is None else str(req.wfns_grade))
+    write_state(req.session_id, "clinical.fisher_grade",
+                "" if req.fisher_grade is None else str(req.fisher_grade))
     write_state(req.session_id, "clinical.patient_age",
                 "" if req.patient_age is None else str(req.patient_age))
     write_state(req.session_id, "clinical.has_comorbidities",
@@ -117,6 +124,7 @@ TREATMENT_STATE_KEYS = (
     "treatment.clip_points", "treatment.endo_points",
     "treatment.factors_json", "treatment.notes_json",
     "clinical.patient_age", "clinical.has_comorbidities",
+    "clinical.wfns_grade", "clinical.fisher_grade",
 )
 
 #: The PHASES score is a rupture risk built on the same morphometry, so it goes

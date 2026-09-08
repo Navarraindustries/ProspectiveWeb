@@ -52,6 +52,11 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
   // Pre-filled from the patient record — no reason to re-type what we know.
   const [age, setAge] = useState<string>(() => ageFromDob(patient?.dob));
   const [comorbid, setComorbid] = useState(false);
+  // WFNS gradúa una hemorragia subaracnoidea y Fisher la sangre del TC: en un
+  // aneurisma incidental no hay nada que graduar, así que sólo se piden cuando
+  // el caso está roto. Vacío significa «no lo sé», no «grado 1».
+  const [wfns, setWfns] = useState<string>("");
+  const [fisher, setFisher] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +72,8 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
         is_ruptured: ruptured,
         patient_age: age ? Number(age) : null,
         has_comorbidities: comorbid,
+        wfns_grade: ruptured && wfns ? Number(wfns) : null,
+        fisher_grade: ruptured && fisher ? Number(fisher) : null,
       });
       planning.setTreatment(res);
     } catch (err) {
@@ -123,16 +130,53 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
           Comorbilidad quirúrgica
         </label>
       </div>
-      {/* These two are recorded, not scored — saying so prevents reading the
-          recommendation as if it had already accounted for them. */}
+      {/* La comorbilidad sigue sin puntuar: no hay estructura publicada que
+          trasladar, y un peso inventado sería indistinguible de los umbrales
+          que sí tienen fuente. La edad ya no está en ese grupo. */}
       <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
         <Icon name="INFO" size={13} color="var(--muted-foreground)" />
         <span>
-          No se ponderan en el cálculo: la evidencia citada (ISAT, AHA/ASA) fija su
-          dirección pero no una puntuación. Se registran y aparecen en el informe
-          junto a la recomendación.
+          La edad sí puntúa (el modelo del Japan Stroke Data Bank penaliza el clipaje
+          desde los 72 y el coiling desde los 80). La comorbilidad no: se registra y
+          aparece en el informe, porque no hay puntuación publicada que trasladar.
         </span>
       </div>
+
+      {/* Sólo con hemorragia. Es la variable de mayor peso del modelo validado,
+          y hasta ahora la aplicación no la recogía en absoluto. */}
+      {ruptured && (
+        <>
+          <SectionLabel style={{ marginTop: 14 }}>Grado de la hemorragia</SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Select
+              label="WFNS"
+              options={[
+                { value: "", label: "Sin graduar" },
+                ...[1, 2, 3, 4, 5].map((g) => ({ value: String(g), label: `WFNS ${g}` })),
+              ]}
+              value={wfns}
+              onChange={(e) => setWfns(e.target.value)}
+            />
+            <Select
+              label="Fisher (sangre en TC)"
+              options={[
+                { value: "", label: "Sin graduar" },
+                ...[1, 2, 3, 4].map((g) => ({ value: String(g), label: `Fisher ${g}` })),
+              ]}
+              value={fisher}
+              onChange={(e) => setFisher(e.target.value)}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+            <Icon name="INFO" size={13} color="var(--muted-foreground)" />
+            <span>
+              Opcionales: se evalúa igualmente con lo que haya. Pero el WFNS es la
+              variable de mayor peso del único modelo validado que elige entre las
+              dos vías, así que dejarlo sin graduar baja la confianza del resultado.
+            </span>
+          </div>
+        </>
+      )}
 
       <Button style={{ marginTop: 14, width: "100%" }} variant={t ? "outline" : "default"} onClick={() => void run()} disabled={busy || clearing || !sessionId}>
         {busy ? "Evaluando…" : t ? "Re-evaluar" : "Evaluar CLIP vs ENDOVASCULAR"}
@@ -156,7 +200,13 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
               <span style={{ fontSize: 15, fontWeight: 800, color: "var(--brand-subtle-foreground)", flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
                 Recomendación: {t.recommendation}
               </span>
-              <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+              <span style={{ flexShrink: 0, whiteSpace: "nowrap", display: "flex", gap: 6 }}>
+                {/* La cobertura al lado de la confianza, porque es lo que la
+                    limita: antes la confianza medía cuántos factores había, y
+                    un caso con un solo dato salía como «Moderada». */}
+                <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}>
+                  {t.coverage_pct} % del caso
+                </Badge>
                 <Badge variant="subtle">Confianza {t.confidence.toLowerCase()}</Badge>
               </span>
             </div>

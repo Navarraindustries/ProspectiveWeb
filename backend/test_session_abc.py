@@ -186,14 +186,19 @@ class TestTreatmentDecision:
         )
         assert read_state(sid, "treatment.factors_json") != ""
 
-    def test_age_and_comorbidity_are_recorded_but_never_scored(self):
-        """They are clinical context, not factors.
+    def test_age_is_now_scored_and_comorbidity_still_is_not(self):
+        """La edad puntúa; la comorbilidad sigue sin hacerlo.
 
-        Regression: both fields were accepted by the API and shown in the UI
-        while `compute_decision()` never received them, so a clinician could
-        enter «85 años, con comorbilidad» and read a recommendation that had
-        silently ignored it. They must now change nothing in the score and be
-        persisted for the report instead.
+        Antes ninguna de las dos entraba: la API las aceptaba y la interfaz las
+        pedía mientras `compute_decision()` no las recibía, así que se podía
+        escribir «85 años, con comorbilidad» y leer una recomendación que las
+        había ignorado en silencio.
+
+        La edad ya no. El modelo validado del Japan Stroke Data Bank penaliza el
+        clipaje desde los 72 y el coiling sólo desde los 80, y eso es una
+        estructura publicada que se puede trasladar. Para la comorbilidad no hay
+        ninguna equivalente, así que sigue registrándose y no puntuando: sumar
+        un peso inventado la volvería indistinguible de los umbrales con fuente.
         """
         from services.sessions import read_state
         from services.treatment import LOCATIONS
@@ -204,22 +209,31 @@ class TestTreatmentDecision:
         }).json()
 
         sid2 = _make_session()
-        ctx = client.post(self._URL, json={
+        mayor = client.post(self._URL, json={
             "session_id": sid2, "location": LOCATIONS[1], "is_ruptured": False,
-            "patient_age": 85, "has_comorbidities": True,
+            "patient_age": 85,
         }).json()
 
-        # Same score, same recommendation, no extra factor.
-        assert ctx["clip_pct"] == base["clip_pct"]
-        assert ctx["endo_pct"] == base["endo_pct"]
-        assert ctx["recommendation_key"] == base["recommendation_key"]
-        assert len(ctx["factors"]) == len(base["factors"])
-        names = " ".join(f["name"].lower() for f in ctx["factors"])
-        assert "edad" not in names and "comorbil" not in names
+        # La edad avanzada añade un factor, y empuja a endovascular.
+        assert len(mayor["factors"]) == len(base["factors"]) + 1
+        edad = next(f for f in mayor["factors"] if "edad" in f["name"].lower())
+        assert edad["direction"] == "endo" and edad["points"] > 0
+        assert "Japan Stroke Data Bank" in edad["source"]
+        assert mayor["endo_pct"] > base["endo_pct"]
 
-        # …but recorded, so the report can print them.
-        assert read_state(sid2, "clinical.patient_age") == "85"
-        assert read_state(sid2, "clinical.has_comorbidities") == "1"
+        # La comorbilidad no mueve nada.
+        sid3 = _make_session()
+        comorb = client.post(self._URL, json={
+            "session_id": sid3, "location": LOCATIONS[1], "is_ruptured": False,
+            "patient_age": 85, "has_comorbidities": True,
+        }).json()
+        assert comorb["clip_pct"] == mayor["clip_pct"]
+        assert len(comorb["factors"]) == len(mayor["factors"])
+        assert "comorbil" not in " ".join(f["name"].lower() for f in comorb["factors"])
+
+        # Las dos quedan registradas para el informe.
+        assert read_state(sid3, "clinical.patient_age") == "85"
+        assert read_state(sid3, "clinical.has_comorbidities") == "1"
 
     def test_clinical_context_reaches_the_report(self):
         from services.report_generator import build_report_data_from_session, ReportGenerator

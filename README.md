@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **773 passing** (`pytest`, 45 files) |
+| Backend tests | **786 passing** (`pytest`, 45 files) |
 | Frontend tests | **151 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -559,6 +559,65 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The engine now scores what the validated models score
+
+A literature review of the clip-vs-endovascular decision turned up a gap that was
+about variables, not weights: the two published models that actually choose a
+modality — the Japan Stroke Data Bank score (Neurol Med Chir 2020, 3 547 patients)
+and SHARP — are built on age, WFNS grade, Fisher grade, prior stroke, size and
+location. This engine had six morphological factors and none of the clinical ones.
+Age was collected and thrown away; WFNS and Fisher were not collected at all.
+
+Three factors added, each with the published structure it was mapped from:
+
+| factor | direction | mapped from |
+|---|---|---|
+| Age ≥ 80 / 72–79 | endovascular, 12 / 6 | the Japan model penalises clipping from 72 and coiling only from 80 — advanced age tolerates surgery worse. Weight held down on purpose: the 2025 meta-analysis of 51 415 patients ≥60 found no outcome difference, only shorter stays |
+| WFNS ≥ 4 / = 3 | endovascular, 15 / 8 | the heaviest variable in the validated model, and it penalises clipping from a lower grade than coiling |
+| Fisher 4 | clipping, 10 | the validated model penalises *coiling* at Fisher 4, and a bulky haematoma can be evacuated in the same operation |
+
+**And rupture went from 15 to 30.** It rested on the strongest evidence the engine
+touches — AHA/ASA 2023 Class I, LOE A — and was outweighed by a single location
+factor: a ruptured MCA aneurysm came out of the engine leaning toward *clipping*,
+the opposite of the guideline when the case is equally suitable for both. The
+number comes from a rule that can be argued with, and is written down so it can
+be: a Class I LOE A recommendation must not sit below any other single factor,
+and the largest of the others is 25.
+
+    ACM no roto                     saldo +20  →  CLIPPING QUIRÚRGICO
+    ACM ROTO                        saldo −10  →  DISCUSIÓN MULTIDISCIPLINARIA
+    ACM roto + WFNS 5               saldo −25  →  TRATAMIENTO ENDOVASCULAR
+    ACM roto + WFNS 5 + Fisher 4    saldo −15  →  DISCUSIÓN MULTIDISCIPLINARIA
+    Basilar ROTO                    saldo −55  →  TRATAMIENTO ENDOVASCULAR
+
+### «What if the fields are empty?» — nothing is mandatory, and two cannot be
+
+WFNS grades a subarachnoid haemorrhage and Fisher grades the blood on a CT. For an
+incidental aneurysm neither exists, so neither can be required, and the panel only
+asks for them when the case is marked as ruptured.
+
+Nothing else is required either — a missing input has always just skipped its
+factor. What was wrong was the reporting. Confidence came from |balance|, and the
+balance grows by *adding factors*, so it measured how much data existed rather
+than how much was known:
+
+| data available | before | now |
+|---|---|---|
+| everything | Alta | 100 % · Alta |
+| neck + AR + location | **Alta** | 59 % · Moderada |
+| neck only | **Moderada** | 33 % · **Baja** |
+
+A verdict from one measurement was being presented as moderately reliable. The
+result now carries `coverage_pct` — the share of the *available weight* the engine
+could evaluate — and `missing_inputs`, naming what it did not see. Confidence is
+capped by coverage, because agreement among the factors that were seen cannot make
+up for the ones that were not.
+
+One distinction the coverage keeps: a **neutral** factor is not a **missing** one.
+An 8 mm diameter falls in the 5–12 mm band and scores nothing, but it was known —
+the engine looked and decided it does not tilt. Only genuinely absent inputs cost
+confidence.
 
 ### The rupture risk the app had already computed did not reach the decision
 
@@ -1315,11 +1374,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 773 tests
+.venv\Scripts\python -m pytest -q                        # all 786 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **773 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **786 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

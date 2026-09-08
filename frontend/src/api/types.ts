@@ -675,6 +675,10 @@ export interface TreatmentDecisionRequest {
   is_ruptured: boolean;
   patient_age: number | null;
   has_comorbidities: boolean;
+  /** Sólo existen si el aneurisma está roto: gradúan la hemorragia, no el
+      aneurisma. Nunca obligatorios. */
+  wfns_grade: number | null;
+  fisher_grade: number | null;
 }
 
 export interface TreatmentDecisionResult {
@@ -688,6 +692,10 @@ export interface TreatmentDecisionResult {
   /** Razonamiento que no es un factor puntuado: por qué un aneurisma pequeño es
       —o no— un caso de vigilancia, y qué dice el PHASES al respecto. */
   notes: string[];
+  /** Qué parte del caso se ha podido evaluar. La confianza está limitada por
+      esto: el acuerdo entre los factores vistos no cubre a los que faltan. */
+  coverage_pct: number;
+  missing_inputs: string[];
   balance: number;
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";

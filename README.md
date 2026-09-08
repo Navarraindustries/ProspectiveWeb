@@ -642,10 +642,29 @@ receive; omitting the new is the other half of advertising the withdrawn.
 `STEPS.length`, every step label has to appear, and no withdrawn maker's name may
 appear anywhere in the rendered page.
 
-**Still stale, and not fixed here:** `public/media/pipeline-hf.mp4`, the animated
-walkthrough, was rendered before the manufacturing step existed and shows seven.
-Re-rendering it is a HyperFrames job in `frontend/hyperframes/pipeline-hf/`, not
-a copy edit.
+The animated walkthrough the page plays, `public/media/pipeline-hf.mp4`, was the
+last copy of the seven-step claim: rendered in July, before the manufacturing
+step existed, with «PASO 0N / 07» burnt into the pixels. Its source is a
+HyperFrames composition in `frontend/hyperframes/pipeline-hf/`, so fixing it
+meant editing the composition and re-rendering, not editing text.
+
+Fabricación now has its own card between Dispositivos and Informe, labelled as
+the optional step it is. The devices card was carrying the same withdrawn
+catalogue the page did — «42 clips» were the Yasargil, Sugita, Aesculap and
+Codman ones — and now reads «66 clips NAVARRO™ · 39 coils · stents».
+
+Two things the extra 2.33 s forced. The video is 23.4 s → 25.7333 s (772 frames
+at 30 fps), so the outro and the timeline loop moved with it. And the background
+is one 12.200 s plate repeated, which no longer covered the running time in two
+passes: there is a third now, and all three cuts were moved onto scene changes
+— 11.5333 s is where Morfometría starts, 23.2 s the outro — so the jump in the
+plate lands inside a cross-fade that was already there. Re-encoded at the same
+1.55 Mbps the original used: like for like, 2.33 s longer.
+
+Rendering it needs FFmpeg on PATH, which this machine did not have. Playwright
+ships one built `--disable-everything` (VP8/WebM only — it cannot even decode the
+h264 plate), and `imageio-ffmpeg` in the backend venv has a full build but no
+`ffprobe`, which the renderer probes media with.
 
 ### A piece named by its bend alone
 

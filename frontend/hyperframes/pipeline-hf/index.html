@@ -75,7 +75,7 @@
       id="root"
       data-composition-id="pipeline"
       data-start="0"
-      data-duration="23.4"
+      data-duration="25.7333"
       data-fps="30"
       data-width="1280"
       data-height="720"
@@ -83,13 +83,19 @@
       <!-- Fondo: intro.mp4 dura 12.2 s y la pieza 23.4 s, así que se encadenan
            dos instancias en la misma pista en lugar de un bucle infinito
            (repeat:-1 lo prohíben las reglas de determinismo). -->
-      <video id="bg-a" class="clip fill" src="assets/intro.mp4" data-start="0" data-duration="12.2" data-track-index="0" muted playsinline></video>
-      <video id="bg-b" class="clip fill" src="assets/intro.mp4" data-start="12.2" data-duration="11.2" data-track-index="0" muted playsinline></video>
+      <!-- El fondo es el mismo plano repetido, y `intro.mp4` dura 12.200 s
+           exactos: con ocho pasos ya no llega en dos pases. El tercero obliga a
+           recolocar los cortes, y se ponen donde una escena cambia — 11.5333 es
+           el inicio de Morfometría y 23.2 el del cierre — para que el salto del
+           plano caiga dentro del fundido que ya hay ahí. -->
+      <video id="bg-a" class="clip fill" src="assets/intro.mp4" data-start="0" data-duration="11.5333" data-track-index="0" muted playsinline></video>
+      <video id="bg-b" class="clip fill" src="assets/intro.mp4" data-start="11.5333" data-duration="11.6667" data-track-index="0" muted playsinline></video>
+      <video id="bg-c" class="clip fill" src="assets/intro.mp4" data-start="23.2" data-duration="2.5333" data-track-index="0" muted playsinline></video>
 
       <div id="scrim" class="fill"></div>
       <div id="grid" class="fill"></div>
 
-      <div id="wordmark" class="clip fill" data-start="0" data-duration="23.4" data-track-index="9">
+      <div id="wordmark" class="clip fill" data-start="0" data-duration="25.7333" data-track-index="9">
         <span class="dot"></span><span class="name">PROSPECTIVE</span>
       </div>
 
@@ -105,89 +111,93 @@
       <section id="sc-hook" class="clip fill scene" data-start="2.6" data-duration="1.9333" data-track-index="1">
         <div class="scene-inner" id="in-hook">
           <div class="kicker mono" id="el-hook-k">EL PIPELINE</div>
-          <div class="hook-h" id="el-hook-h">Del estudio de imagen al plan quirúrgico, en 7 pasos</div>
+          <div class="hook-h" id="el-hook-h">Del estudio de imagen al plan quirúrgico, en 8 pasos</div>
         </div>
       </section>
 
       <!-- ── Paso 01 ── -->
       <section id="sc-step-0" class="clip fill scene" data-start="4.5333" data-duration="2.3333" data-track-index="1">
         <div class="scene-inner" id="in-step-0">
-          <div class="step-n mono" id="el-n-0">PASO 01 / 07</div>
+          <div class="step-n mono" id="el-n-0">PASO 01 / 08</div>
           <div class="step-title" id="el-t-0">Carga DICOM</div>
           <div class="step-desc" id="el-d-0">Sube el estudio del paciente</div>
           <div class="step-metric mono" id="el-m-0">CTA · MRA · 3DRA</div>
         </div>
-        <div class="stepper"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="stepper"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       </section>
 
-      <!-- ── Paso 02 ── -->
       <section id="sc-step-1" class="clip fill scene" data-start="6.8667" data-duration="2.3333" data-track-index="1">
         <div class="scene-inner" id="in-step-1">
-          <div class="step-n mono" id="el-n-1">PASO 02 / 07</div>
+          <div class="step-n mono" id="el-n-1">PASO 02 / 08</div>
           <div class="step-title" id="el-t-1">Reconstrucción 3D de las arterias</div>
           <div class="step-desc" id="el-d-1">Del estudio a un modelo medible</div>
           <div class="step-metric mono" id="el-m-1">≈ 285 000 vértices</div>
         </div>
-        <div class="stepper"><i class="done"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="stepper"><i class="done"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       </section>
 
-      <!-- ── Paso 03 ── -->
       <section id="sc-step-2" class="clip fill scene" data-start="9.2" data-duration="2.3333" data-track-index="1">
         <div class="scene-inner" id="in-step-2">
-          <div class="step-n mono" id="el-n-2">PASO 03 / 07</div>
+          <div class="step-n mono" id="el-n-2">PASO 03 / 08</div>
           <div class="step-title" id="el-t-2">Detección del aneurisma</div>
           <div class="step-desc" id="el-d-2">Lo localiza y aísla su forma</div>
           <div class="step-metric mono" id="el-m-2">candidatos + domo aislado</div>
         </div>
-        <div class="stepper"><i class="done"></i><i class="done"></i><i class="on"></i><i></i><i></i><i></i><i></i></div>
+        <div class="stepper"><i class="done"></i><i class="done"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
       </section>
 
-      <!-- ── Paso 04 ── -->
       <section id="sc-step-3" class="clip fill scene" data-start="11.5333" data-duration="2.3333" data-track-index="1">
         <div class="scene-inner" id="in-step-3">
-          <div class="step-n mono" id="el-n-3">PASO 04 / 07</div>
+          <div class="step-n mono" id="el-n-3">PASO 04 / 08</div>
           <div class="step-title" id="el-t-3">Morfometría</div>
           <div class="step-desc" id="el-d-3">Medidas e índices clínicos</div>
           <div class="step-metric mono" id="el-m-3">Ø 6.2 mm · cuello 2.9 · AR 1.42</div>
         </div>
-        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i><i></i><i></i><i></i><i></i></div>
       </section>
 
-      <!-- ── Paso 05 ── -->
       <section id="sc-step-4" class="clip fill scene" data-start="13.8667" data-duration="2.3333" data-track-index="1">
         <div class="scene-inner" id="in-step-4">
-          <div class="step-n mono" id="el-n-4">PASO 05 / 07</div>
+          <div class="step-n mono" id="el-n-4">PASO 05 / 08</div>
           <div class="step-title" id="el-t-4">Decisión terapéutica</div>
           <div class="step-desc" id="el-d-4">Motor de 8 factores</div>
           <div class="step-metric mono" id="el-m-4">CLIP 72%  ·  ENDO 28%</div>
         </div>
-        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i><i></i><i></i></div>
+        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i><i></i><i></i><i></i></div>
       </section>
 
-      <!-- ── Paso 06 ── -->
       <section id="sc-step-5" class="clip fill scene" data-start="16.2" data-duration="2.3333" data-track-index="1">
         <div class="scene-inner" id="in-step-5">
-          <div class="step-n mono" id="el-n-5">PASO 06 / 07</div>
+          <div class="step-n mono" id="el-n-5">PASO 06 / 08</div>
           <div class="step-title" id="el-t-5">Planificación de dispositivos</div>
           <div class="step-desc" id="el-d-5">Catálogos reales</div>
-          <div class="step-metric mono" id="el-m-5">42 clips · 39 coils · stents</div>
+          <div class="step-metric mono" id="el-m-5">66 clips NAVARRO™ · 39 coils · stents</div>
         </div>
-        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i><i></i></div>
+        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i><i></i><i></i></div>
       </section>
 
-      <!-- ── Paso 07 ── -->
       <section id="sc-step-6" class="clip fill scene" data-start="18.5333" data-duration="2.3333" data-track-index="1">
         <div class="scene-inner" id="in-step-6">
-          <div class="step-n mono" id="el-n-6">PASO 07 / 07</div>
-          <div class="step-title" id="el-t-6">Informe y export</div>
-          <div class="step-desc" id="el-d-6">Documenta y comparte</div>
-          <div class="step-metric mono" id="el-m-6">PDF · STL · seguimiento</div>
+          <div class="step-n mono" id="el-n-6">PASO 07 / 08</div>
+          <div class="step-title" id="el-t-6">Fabricación de la pieza</div>
+          <div class="step-desc" id="el-d-6">Paso opcional: la mordaza a medida</div>
+          <div class="step-metric mono" id="el-m-6">pedido · taller · trazabilidad</div>
         </div>
-        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i></div>
+        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i><i></i></div>
+      </section>
+
+      <section id="sc-step-7" class="clip fill scene" data-start="20.8667" data-duration="2.3333" data-track-index="1">
+        <div class="scene-inner" id="in-step-7">
+          <div class="step-n mono" id="el-n-7">PASO 08 / 08</div>
+          <div class="step-title" id="el-t-7">Informe y export</div>
+          <div class="step-desc" id="el-d-7">Documenta y comparte</div>
+          <div class="step-metric mono" id="el-m-7">PDF · STL · seguimiento</div>
+        </div>
+        <div class="stepper"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="on"></i></div>
       </section>
 
       <!-- ── Cierre ── -->
-      <section id="sc-outro" class="clip fill scene" data-start="20.8667" data-duration="2.5333" data-track-index="1">
+      <section id="sc-outro" class="clip fill scene" data-start="23.2" data-duration="2.5333" data-track-index="1">
         <div class="scene-inner" id="in-outro">
           <div class="outro-h" id="el-outro-h">Planificación neurovascular, medible.</div>
           <div class="outro-sub mono" id="el-outro-sub">SkullApp · Laboratorio de Imagen Médica</div>
@@ -234,8 +244,8 @@
       rise("#el-hook-k", f(78), 4);
       rise("#el-hook-h", f(78), 4);
 
-      // Los 7 pasos
-      for (let i = 0; i < 7; i++) {
+      // Los 8 pasos
+      for (let i = 0; i < 8; i++) {
         const start = START_STEPS + i * STEP_D;
         scene("#in-step-" + i, start, STEP_D);
         rise("#el-n-" + i, start, 2, 14);
@@ -245,9 +255,9 @@
       }
 
       // Cierre
-      scene("#in-outro", f(626), f(76));
-      rise("#el-outro-h", f(626), 4);
-      rise("#el-outro-sub", f(626), 16);
+      scene("#in-outro", f(696), f(76));
+      rise("#el-outro-h", f(696), 4);
+      rise("#el-outro-sub", f(696), 16);
 
       window.__timelines["pipeline"] = tl;
     </script>

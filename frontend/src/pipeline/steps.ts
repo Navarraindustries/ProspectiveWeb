@@ -35,5 +35,15 @@ export const STEPS: PipelineStep[] = [
 /** Etiquetas por índice, para las vistas que solo guardan el número. */
 export const STEP_LABELS: string[] = STEPS.map((s) => s.label);
 
+/** Un paso guardado, traído al rango que existe hoy.
+
+    Las sesiones guardan el paso como NÚMERO, así que el tope depende de cuántos
+    pasos haya — y estaba escrito a mano (`6`) en el punto donde se reanuda. Al
+    insertar «Fabricación» el pipeline pasó a ocho, el backend migró los datos
+    del 6 al 7 a propósito, y ese 6 los devolvía: una sesión guardada en
+    «Informe» reanudaba en «Fabricación», un paso que nadie había abierto. */
+export const clampStep = (n: number): number =>
+  Math.min(Math.max(Number.isFinite(n) ? Math.trunc(n) : 0, 0), STEPS.length - 1);
+
 /** Índice del paso, por clave. -1 si no existe. */
 export const stepIndex = (key: string): number => STEPS.findIndex((s) => s.key === key);

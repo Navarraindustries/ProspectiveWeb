@@ -2170,7 +2170,7 @@
           "clips"
         ],
         "summary": "Get clip device library",
-        "description": "Returns the full surgical clip library (40+ models across Yasargil, Sugita, Aesculap and Codman systems). Each entry includes blade length, shape, closing force, and the required applier.",
+        "description": "Returns every clip this institution can actually obtain: the NAVARRO™ family read off disk, plus the hospital's own library entries. Each one carries blade length, shape, closing force and the required applier. Clips from other manufacturers are dimensional reference rather than an offer, and are not listed here (`OFFER_COMMERCIAL_CLIPS`).",
         "operationId": "get_clip_library_api_clips_get",
         "responses": {
           "200": {
@@ -2201,7 +2201,7 @@
           "clips"
         ],
         "summary": "Get clip recommendations from the Clip Recommender assistant",
-        "description": "Scores all clips in the catalogue against the patient's neck diameter and aspect ratio (loaded from session morphometry). Returns up to 8 ranked recommendations.\n\nScoring weights: coverage ratio 45%, shape fit 40%, closing force 15%.",
+        "description": "Ranks the clips this institution can obtain against the session's morphometry and clinical case, and returns the shortlist flat, for the model picker. This is the same ranking that `/clips/selection/{session_id}` explains criterion by criterion, reduced to id, name and score — not a second opinion.",
         "operationId": "get_clip_recommendations_api_clips_recommendations__session_id__get",
         "security": [
           {

@@ -8,6 +8,7 @@ _tmp = tempfile.mkdtemp(prefix="prospective_customclip_")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
+import pytest
 import vtk
 from fastapi.testclient import TestClient
 
@@ -45,7 +46,10 @@ class TestCustomClip:
         assert (session_subdir(sid, "meshes") / "custom_clip_0.vtp").exists()
 
         # multi-clip plan mixing catalogue + custom
-        cat = catalogue_to_api()[0]["id"]
+        offered = catalogue_to_api()
+        if not offered:
+            pytest.skip("no hay catálogo instalado (biblioteca NAVARRO ausente)")
+        cat = offered[0]["id"]
         r = client.post("/api/clips/plan", json={"session_id": sid, "placements": [
             {"clip_id": cat, "position": {"x": 0, "y": 0, "z": 0}, "normal": [0, 0, 1], "rotation_deg": 0},
             {"clip_id": cid, "position": {"x": 5, "y": 0, "z": 0}, "normal": [0, 0, 1], "rotation_deg": 30},

@@ -21,6 +21,7 @@ import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
 import { ClipOrdersPage } from "./pages/ClipOrders";
 import { WorkshopsPage } from "./pages/Workshops";
 import type { Screen } from "./store/nav";
+import { clampStep } from "./pipeline/steps";
 
 function Router() {
   const { user, ready, expiredNotice } = useAuth();
@@ -176,7 +177,7 @@ function Router() {
           }
         } catch { /* leave morphometry empty */ }
       }
-      setResumeStep(Math.min(Math.max(r.current_step, 0), 6));
+      setResumeStep(clampStep(r.current_step));
       // The store now mirrors what is on disk, so the session is NOT dirty: it
       // was, because rehydrating goes through the same setters a real edit does,
       // and resuming then immediately asked "tienes cambios sin guardar" before

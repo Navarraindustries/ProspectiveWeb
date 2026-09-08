@@ -107,7 +107,9 @@ class ClipSpec:
 #: The table below is NOT deleted, because it is also the dimensional reference
 #: the manufacturing spec is derived from — the proportions of real clips, and
 #: the floors (smallest spring, smallest blade) that stop the spec proposing a
-#: part nobody can wind. Reference, never an offer: see `offered_catalogue`.
+#: part nobody can wind. Reference, never an offer: what IS offered comes from
+#: `clip_library.catalogue_with_library`, and that is what `catalogue_to_api`
+#: serialises.
 OFFER_COMMERCIAL_CLIPS = False
 
 CLIP_CATALOGUE: list[ClipSpec] = [
@@ -371,7 +373,11 @@ clip_slug = _slug
 def spec_to_api(c: ClipSpec) -> dict:
     """Serialise ClipSpec to a ClipLibraryItem-compatible dict."""
     return {
-        "id":               _slug(c.name),
+        # `identifier`, not a slug of the name. The placement endpoint looks the
+        # geometry up by identifier, and a NAVARRO™ name slugged down to
+        # "navarro-t1-recto-70-mm" matches nothing: the clip was accepted, no
+        # spec was found, and a generic 9 mm box was placed in its stead.
+        "id":               c.identifier,
         "name":             c.name,
         "manufacturer":     c.manufacturer,
         "length_mm":        c.blade_length_mm,
@@ -383,14 +389,27 @@ def spec_to_api(c: ClipSpec) -> dict:
 
 
 def catalogue_to_api(catalogue: list[ClipSpec] | None = None) -> list[dict]:
-    """Return the full clip library as a list of ClipLibraryItem dicts."""
-    return [spec_to_api(c) for c in (catalogue or CLIP_CATALOGUE)]
+    """Serialise what the surgeon is actually OFFERED, not the reference table.
+
+    Defaulting to `CLIP_CATALOGUE` outlived the day it was true. That table is
+    now dimensional reference — `OFFER_COMMERCIAL_CLIPS` is off — so this handed
+    out 42 clips from four makers that nothing else in the app knows about:
+    ids no index resolves, pieces this institution cannot obtain, and no route
+    into fabricación. Pass a list explicitly to serialise a specific one.
+    """
+    if catalogue is None:
+        from services.clip_library import catalogue_with_library
+        catalogue = catalogue_with_library()
+    return [spec_to_api(c) for c in catalogue]
 
 
 def recommendation_to_api(rec: _Recommendation) -> dict:
     """Serialise _Recommendation to a ClipRecommendation-compatible dict."""
     return {
-        "clip_id":   _slug(rec.clip.name),
+        # `identifier` here too: this serialiser is no longer wired to an
+        # endpoint, and a slug of the name is exactly the trap that made the one
+        # it used to feed hand out ids nothing resolves.
+        "clip_id":   rec.clip.identifier,
         "clip_name": rec.clip.name,
         "score":     rec.score / 100.0,          # API uses 0–1 scale
         "reason":    "; ".join(rec.reasons),

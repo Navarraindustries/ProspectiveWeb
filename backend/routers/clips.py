@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import replace
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
@@ -20,7 +21,7 @@ from models.clips import (
     CustomJawOut,
     ManufactureSpecOut,
 )
-from services.clips   import catalogue_to_api, recommend_clips, recommendations_to_api
+from services.clips   import catalogue_to_api
 from services.clip_manufacture import resolve_perfect_clip
 from services.clip_selection import (
     ClipCandidate,
@@ -37,6 +38,12 @@ from services.sessions import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["clips"])
+
+#: The neck the picker ranks against when the case has none. Not a measurement
+#: and never presented as one — a middling anterior-circulation neck, there so
+#: that an unmeasurable mesh leaves the clip step usable instead of empty.
+_TYPICAL_NECK_MM = 4.0
+_TYPICAL_AR = 1.4
 
 def _clip_geometry_for(clip_id: str, meshes_dir):
     """The real geometry for this clip id, in the clip's own local frame.
@@ -153,9 +160,11 @@ def _custom_clip_name(session_id: str, clip_id: str) -> str:
     response_model=list[ClipLibraryItem],
     summary="Get clip device library",
     description=(
-        "Returns the full surgical clip library (40+ models across Yasargil, Sugita, "
-        "Aesculap and Codman systems). Each entry includes blade length, shape, "
-        "closing force, and the required applier."
+        "Returns every clip this institution can actually obtain: the NAVARRO™ "
+        "family read off disk, plus the hospital's own library entries. Each one "
+        "carries blade length, shape, closing force and the required applier. "
+        "Clips from other manufacturers are dimensional reference rather than an "
+        "offer, and are not listed here (`OFFER_COMMERCIAL_CLIPS`)."
     ),
 )
 async def get_clip_library() -> list[ClipLibraryItem]:
@@ -167,30 +176,51 @@ async def get_clip_library() -> list[ClipLibraryItem]:
     response_model=list[ClipRecommendation],
     summary="Get clip recommendations from the Clip Recommender assistant",
     description=(
-        "Scores all clips in the catalogue against the patient's neck diameter and "
-        "aspect ratio (loaded from session morphometry). Returns up to 8 ranked "
-        "recommendations.\n\n"
-        "Scoring weights: coverage ratio 45%, shape fit 40%, closing force 15%."
+        "Ranks the clips this institution can obtain against the session's "
+        "morphometry and clinical case, and returns the shortlist flat, for the "
+        "model picker. This is the same ranking that "
+        "`/clips/selection/{session_id}` explains criterion by criterion, reduced "
+        "to id, name and score — not a second opinion."
     ),
 )
 async def get_clip_recommendations(session_id: str) -> list[ClipRecommendation]:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
-    neck_mm      = _load_float(session_id, "morpho.neck_mm", 0.0)
-    aspect_ratio = _load_float(session_id, "morpho.ar",       0.0)
+    # One ranker for the whole application. There used to be two: this endpoint
+    # ran the legacy scorer over the commercial reference table while the panel
+    # directly above it in the same screen ran `select_clips` over the NAVARRO™
+    # family. They disagreed about everything — which clips, in what order, under
+    # what ids — and the picker won, because the picker is what feeds placement.
+    # It offered eight clips no index resolves, preselected the first, and placing
+    # one silently substituted a generic 9 mm box. Two rankings is one too many.
+    #
+    selection = _run_selection(session_id, case_id=None, verify=False)
 
-    # Without a usable neck (no morphometry yet, or an open detector cap where
-    # the neck can't be measured) we used to return NOTHING — which left the
-    # clip dropdown empty and the clinician unable to place any clip at all,
-    # while the coil catalogue stayed fully available. Fall back to a typical
-    # neck instead, so the catalogue is offered as a GENERAL (non case-specific)
-    # ranking that the clinician can override, keeping the workflow unblocked.
-    eff_neck = neck_mm if neck_mm >= 1.0 else 4.0
-    eff_ar   = aspect_ratio if aspect_ratio > 0 else 1.4
+    # A neck that could not be measured still has to leave the surgeon able to
+    # place something: on an open mesh the selector has nothing to rank and used
+    # to answer with an empty picker, which blocked the clip step outright while
+    # the coil catalogue stayed available. So the ranking falls back to a typical
+    # neck — but it says so on every line, which the version this replaced did
+    # not: it returned a general ordering that read exactly like a case-specific
+    # one, and nothing on screen distinguished the two.
+    note = ""
+    if selection.outcome == "unmeasured":
+        generic = replace(_build_case(session_id, None),
+                          neck_mm=_TYPICAL_NECK_MM, ar=_TYPICAL_AR)
+        selection = select_clips(generic)
+        note = "Sin medida de cuello: orden general, no específico de este caso. "
 
-    recs = recommend_clips(neck_mm=eff_neck, aspect_ratio=eff_ar, n=8)
-    return [ClipRecommendation(**r) for r in recommendations_to_api(recs)]
+    return [
+        ClipRecommendation(
+            clip_id=c.clip.identifier,
+            clip_name=c.clip.name,
+            score=round(c.score / 100.0, 3),      # the API scale is 0-1
+            reason=note + c.headline,
+            suggested_placement=None,             # the plan endpoint poses it
+        )
+        for c in selection.recommended
+    ]
 
 
 @router.post(

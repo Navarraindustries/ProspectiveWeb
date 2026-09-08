@@ -63,8 +63,8 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **714 passing** (`pytest`, 43 files) |
-| Frontend tests | **132 passing** (`vitest`, 14 files) · `tsc -b` clean · production build clean |
+| Backend tests | **722 passing** (`pytest`, 43 files) |
+| Frontend tests | **137 passing** (`vitest`, 15 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -560,6 +560,51 @@ list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
 
+### The picker was still serving the catalogue that was withdrawn
+
+Found by auditing what the recent changes left behind, not by a report. Dropping
+the commercial clips turned off `OFFER_COMMERCIAL_CLIPS`, and `select_clips`,
+`catalogue_with_library` and the placement index all honoured it. Two endpoints
+did not: `GET /clips` and `GET /clips/recommendations/{sid}` still read
+`CLIP_CATALOGUE` directly.
+
+That is what fed the model picker on the devices step. So the panel above it
+argued for a NAVARRO™ clip while the dropdown below offered eight from Yasargil,
+Sugita, Aesculap and Codman — and preselected the first. Worse, the ids did not
+match anything: the listing slugged clip NAMES while the placement index keys on
+`identifier`, so every option was an orphan. `POST /clips/plan` does not reject
+an unknown id — it logs and places a default 9 mm box. Choosing a clip and
+getting a generic block, silently, is the same failure the Sugita report was
+about, alive through a second door.
+
+Three causes, three fixes. `spec_to_api` emits `identifier` instead of a slug of
+the name. `catalogue_to_api` defaults to what is offered rather than to the
+reference table. And the recommendations endpoint delegates to `select_clips`,
+so there is **one ranker in the application** instead of two that could disagree
+about which clips, in what order, under what ids.
+
+One thing survived the merge deliberately: a session whose neck cannot be
+measured — an open mesh — still gets a ranking against a typical 4 mm neck,
+because answering with an empty picker blocked clip placement outright while the
+coil catalogue stayed available. There is a regression test for that from the
+first time it happened. What changed is that every line now says «orden general,
+no específico de este caso». The version this replaces returned a generic
+ordering that read exactly like a case-specific one.
+
+### Resuming a session landed one step before where it was saved
+
+`current_step` is stored as a NUMBER, and the resume path clamped it to `6` —
+written by hand when the pipeline had seven steps. Inserting «Fabricación»
+between Dispositivos and Informe made it eight, and the backend migrated saved
+sessions from 6 to 7 on purpose, with a named migration. The clamp undid that
+migration from the other side: a session saved on **Informe** reopened on
+**Fabricación**, a step that user had never opened.
+
+The number is gone. `clampStep` lives in `pipeline/steps.ts` next to the list
+that defines it, which is the whole point of that module — its own docstring
+warned that four hand-written copies of the step list would drift, and this was
+the fifth copy, hiding as a magic number.
+
 ### A jaw made to size, in every series that can take one
 
 The geometry always did this correctly — straight, angled and fenestrated all
@@ -962,17 +1007,17 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 714 tests
+.venv\Scripts\python -m pytest -q                        # all 722 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **714 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **722 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 132 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 137 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

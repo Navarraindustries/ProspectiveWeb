@@ -47,9 +47,22 @@ def _session_with_mesh(radius=10.0) -> str:
     return sid
 
 
+def _some_clip_id() -> str:
+    """Any clip the app actually offers, for tests that just need one placed.
+
+    Skips rather than fails when nothing is installed: the offered catalogue is
+    read off disk, and the NAVARRO™ library is not part of the repository.
+    """
+    cat = clips_api()
+    if not cat:
+        import pytest
+        pytest.skip("no hay catálogo instalado (biblioteca NAVARRO ausente)")
+    return cat[0]["id"]
+
+
 def _place_clip(sid: str) -> None:
     r = client.post("/api/clips/plan", json={"session_id": sid, "placements": [
-        {"clip_id": clips_api()[0]["id"], "position": {"x": 0, "y": 0, "z": 0},
+        {"clip_id": _some_clip_id(), "position": {"x": 0, "y": 0, "z": 0},
          "normal": [0, 0, 1], "rotation_deg": 0},
     ]})
     assert r.status_code == 200, r.text

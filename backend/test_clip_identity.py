@@ -13,6 +13,11 @@ faults met in that one symptom, and each gets a test here:
    silence.
 3. **The fenestrated path had no NAVARRO answer**, so a bifurcation case fell
    through to a commercial clip by construction.
+
+A fourth surfaced later, in the endpoints that feed the model picker: they kept
+serving the commercial reference table under ids nothing resolves, so the
+picker offered eight unobtainable clips, preselected one, and placing it
+substituted a generic 9 mm box in silence.
 """
 from __future__ import annotations
 
@@ -184,3 +189,81 @@ class TestTheFenestratedPath:
     def test_an_old_four_field_id_still_parses(self):
         # Orders signed before the window existed carry four fields.
         assert navarro.parse_clip_id("navarro:t1:0:7.0") == ("T1", 0.0, 7.0, 0.0)
+
+
+# ── 4. What the picker offers is what the app can place ───────────────────── #
+
+class TestThePickerOffersOnlyWhatCanBePlaced:
+    """The dropdown feeds placement, so an id it offers has to resolve.
+
+    `POST /clips/plan` does not reject an unknown id: it logs and places a
+    default 9 mm box, which is why this was invisible. The condition that
+    decides between the real geometry and that box is membership in
+    `_catalogue_index`, so that is what these assert.
+    """
+
+    def _index(self):
+        from routers.clips import _catalogue_index
+        return _catalogue_index()
+
+    def test_the_library_listing_is_the_family(self):
+        makers = {item["manufacturer"] for item in client.get("/api/clips").json()}
+        assert makers == {navarro.MANUFACTURER}, f"se cuela otro fabricante: {makers}"
+
+    def test_every_listed_clip_can_actually_be_placed(self):
+        index = self._index()
+        orphans = [i["id"] for i in client.get("/api/clips").json() if i["id"] not in index]
+        assert not orphans, f"ids que nadie resuelve: {orphans[:5]}"
+
+    def test_every_recommended_clip_can_actually_be_placed(self):
+        sid = _session()
+        index = self._index()
+        recs = client.get(f"/api/clips/recommendations/{sid}").json()
+        assert recs, "la sesión tiene morfometría; debe haber recomendaciones"
+        orphans = [r["clip_id"] for r in recs if r["clip_id"] not in index]
+        assert not orphans, f"ids que nadie resuelve: {orphans[:5]}"
+
+    def test_the_picker_and_the_panel_agree(self):
+        # Two rankings is one too many: the panel explains the choice and the
+        # picker makes it, and they used to be computed by different scorers over
+        # different catalogues. Whatever the panel argues for has to be what the
+        # picker preselects.
+        sid = _session()
+        panel = client.get(f"/api/clips/selection/{sid}?verify=false").json()
+        picker = client.get(f"/api/clips/recommendations/{sid}").json()
+        assert panel["recommended"], panel["summary"]
+        assert [c["clip_id"] for c in panel["recommended"]] == [r["clip_id"] for r in picker]
+
+    def test_placing_the_preselected_clip_keeps_its_identity(self):
+        # The whole symptom in one assertion: what the picker hands over first is
+        # what ends up in the plan, under the same id.
+        sid = _session()
+        first = client.get(f"/api/clips/recommendations/{sid}").json()[0]
+        r = client.post("/api/clips/plan", json={"session_id": sid, "placements": [
+            {"clip_id": first["clip_id"], "position": {"x": 0, "y": 0, "z": 0},
+             "normal": [0, 0, 1], "rotation_deg": 0},
+        ]})
+        assert r.status_code == 200, r.text
+        from services.device_state import read_clips
+        assert [c["clip_id"] for c in read_clips(sid)] == [first["clip_id"]]
+        assert first["clip_id"].startswith("navarro:")
+
+    def test_an_unmeasurable_neck_still_leaves_the_step_usable(self):
+        # Kept from the endpoint this replaced: on an open mesh the neck cannot
+        # be measured, and answering with an empty picker blocked clip placement
+        # entirely while the coil catalogue stayed available.
+        sid = create_session()
+        recs = client.get(f"/api/clips/recommendations/{sid}").json()
+        assert recs, "sin morfometría el paso de clips no puede quedar bloqueado"
+        assert all(r["clip_id"] in self._index() for r in recs)
+
+    def test_and_says_that_ranking_is_not_about_this_case(self):
+        # What the old fallback did not do: a general ordering that reads like a
+        # case-specific one is worse than no ordering.
+        sid = create_session()
+        recs = client.get(f"/api/clips/recommendations/{sid}").json()
+        assert all("orden general" in r["reason"] for r in recs), recs[0]["reason"]
+
+    def test_a_measured_case_is_not_labelled_general(self):
+        recs = client.get(f"/api/clips/recommendations/{_session()}").json()
+        assert not any("orden general" in r["reason"] for r in recs)

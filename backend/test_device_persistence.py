@@ -28,10 +28,23 @@ def _session_with_volume() -> str:
     return sid
 
 
+def _some_clip_id() -> str:
+    """Any clip the app actually offers, for tests that just need one placed.
+
+    Skips rather than fails when nothing is installed: the offered catalogue is
+    read off disk, and the NAVARRO™ library is not part of the repository.
+    """
+    cat = clips_api()
+    if not cat:
+        import pytest
+        pytest.skip("no hay catálogo instalado (biblioteca NAVARRO ausente)")
+    return cat[0]["id"]
+
+
 class TestPersistence:
     def test_clip_plan_persists_to_report(self):
         sid = _session_with_volume()
-        clip_id = clips_api()[0]["id"]
+        clip_id = _some_clip_id()
         r = client.post("/api/clips/plan", json={"session_id": sid, "placements": [
             {"clip_id": clip_id, "position": {"x": 1, "y": 2, "z": 3}, "normal": [0, 0, 1], "rotation_deg": 15},
         ]})

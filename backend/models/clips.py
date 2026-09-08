@@ -77,7 +77,20 @@ class ClipPlanResult(BaseModel):
     )
     collision_detected: bool = Field(
         False,
-        description="True if any clip intersects a vessel wall or another clip"
+        description=(
+            "True when a clip intersects anatomy OUTSIDE the neck region. "
+            "Touching the neck is what a clip is for, so it is not reported "
+            "here: testing against a mesh that still contains the neck answers "
+            "«is the clip where it should be?» and calls «yes» a collision."
+        ),
+    )
+    neck_region_excluded: bool = Field(
+        False,
+        description=(
+            "Whether the neck could be carved out before testing. False without "
+            "a measured neck — the figure then includes the neck itself and is "
+            "not a judgement about fit."
+        ),
     )
     warning: str | None = Field(
         None, description="Warning when collision or poor coverage is detected"

@@ -355,16 +355,7 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
 
     clips_world = devices.combine(clip_polys)
 
-    # ── Real collision against the vessel mesh ───────────────────────────── #
-    collision, n_contacts = False, 0
-    if vessel_path.exists():
-        try:
-            vessel = read_vtp(vessel_path)
-            collision, n_contacts = devices.check_collision(vessel, clips_world)
-        except Exception as exc:
-            logger.warning("Clip collision check skipped: %s", exc)
-
-    # ── Real neck coverage from the neck plane ───────────────────────────── #
+    # ── The neck, needed by both the collision test and the coverage ─────── #
     neck_mm = _load_float(req.session_id, "morpho.neck_mm", 0.0)
     neck_origin = (
         _load_float(req.session_id, "morpho.neck_origin_x", 0.0),
@@ -376,6 +367,33 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
         _load_float(req.session_id, "morpho.axis_y", 0.0),
         _load_float(req.session_id, "morpho.axis_z", 1.0),
     )
+
+    # ── Real collision, against everything the clip has no business touching ─ #
+    #
+    # The neck region comes out first. A clip that is correctly placed closes ON
+    # the neck — that is the whole manoeuvre — so testing it against a mesh that
+    # still contains the neck asks «is the clip where it should be?» and reports
+    # «yes» as a collision. Measured on the same geometry and the same six rolls
+    # the verification uses: 0 of 6 clean against the whole tree, 4 of 6 once the
+    # neck is carved out. Every placement looked fouled, and the two rolls that
+    # really did foul the parent vessel were buried in the noise.
+    #
+    # `clip_fit` had always done this; only this path never learnt it, so the
+    # panel that judges a candidate and the panel that places it disagreed about
+    # the same clip on the same mesh.
+    collision, n_contacts, neck_excluded = False, 0, False
+    if vessel_path.exists():
+        try:
+            vessel = read_vtp(vessel_path)
+            obstacles = vessel
+            if neck_mm > 0.1:
+                from services.clip_fit import vessel_beyond_neck
+                obstacles = vessel_beyond_neck(vessel, neck_origin, neck_mm)
+                neck_excluded = True
+            collision, n_contacts = devices.check_collision(obstacles, clips_world)
+        except Exception as exc:
+            logger.warning("Clip collision check skipped: %s", exc)
+
     coverage = devices.clip_neck_coverage(clips_world, neck_origin, neck_axis, neck_mm)
 
     # ── Trajectory cylinder (entry → target) ─────────────────────────────── #
@@ -415,8 +433,15 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
     ])
 
     warning = None
-    if collision:
-        warning = f"Colisión detectada entre clip y vaso ({n_contacts} contactos) — reposicionar."
+    if collision and neck_excluded:
+        warning = (f"El clip toca el vaso fuera del cuello ({n_contacts} contactos) — "
+                   f"probar otro giro o reposicionar.")
+    elif collision:
+        # Sin cuello medido no se puede separar lo que el clip debe tocar de lo
+        # que no, así que el número está, y lo que significa también.
+        warning = (f"Contacto con la malla ({n_contacts} puntos), sin poder separar el "
+                   f"cuello: un clip bien puesto lo toca por definición. Ejecuta la "
+                   f"morfometría para que esta comprobación distinga una cosa de la otra.")
     elif neck_mm <= 0.1:
         warning = "Ejecuta la morfometría para calcular la cobertura del cuello."
     elif coverage < 95.0:
@@ -427,6 +452,7 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
         trajectory_mesh_url=trajectory_url,
         neck_coverage_pct=round(coverage, 1),
         collision_detected=collision,
+        neck_region_excluded=neck_excluded,
         warning=warning,
     )
 

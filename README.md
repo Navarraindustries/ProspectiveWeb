@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **749 passing** (`pytest`, 43 files) |
+| Backend tests | **755 passing** (`pytest`, 44 files) |
 | Frontend tests | **151 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -559,6 +559,46 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### Every placement collided, because the neck counted as an obstacle
+
+Reported from the application: «I have tried several clips and there is always a
+clip–vessel collision». There was. `POST /clips/plan` tested the clip against the
+whole vessel mesh — sac and neck included — so it was asking «is the clip where it
+should be?» and reporting «yes» as a collision. Closing on the neck is the
+manoeuvre.
+
+Measured on one geometry across the six rolls the verification uses:
+
+| | whole tree | neck carved out |
+|---|---|---|
+| clean rolls | **0 of 6** | **4 of 6** |
+| contacts at 0° | 1331 | 539 |
+| contacts at 90° | 677 | 0 |
+
+Every placement looked fouled, and the two rolls where the clip's body really did
+sweep the parent vessel — 0° and 150° — were buried in the noise, which is the
+part of the check worth having.
+
+`clip_fit` had carved the neck since it was written; `test_clip_selection` even
+says why, in a comment: «Without this every clip "collides", because the neck IS
+vessel.» Only the placement path never learnt it, so the panel that judges a
+candidate and the panel that places it disagreed about the same clip on the same
+mesh. They now use the same obstacles, and there is a test that asserts they
+agree roll by roll.
+
+Two things came with it. `collision_detected` now means «touches anatomy outside
+the neck», which is what a surgeon can act on, and the panel's label says which
+question was answered rather than showing a bare Yes/No. And when no neck has
+been measured the region cannot be carved: rather than report a number that
+cannot separate the two cases, the result carries `neck_region_excluded: false`
+and says the check needs morphometry to mean anything. The contact count is still
+shown — what is withheld is the interpretation, not the data.
+
+**The clips are not oversized.** A 7 mm jaw on a 5 mm neck is the coverage the
+selector aims for; the 18–25 mm behind it is the spring and the grip, which the
+applier holds outside the field. That body can foul the vessel at a bad roll, and
+now that the noise is gone, the check says so.
 
 ### The blades never opened as far as the mechanism does
 
@@ -1204,11 +1244,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 749 tests
+.venv\Scripts\python -m pytest -q                        # all 755 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **749 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **755 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

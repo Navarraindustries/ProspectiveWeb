@@ -373,7 +373,21 @@ function ClipsTab() {
           {plan && (
             <Card style={{ marginTop: 14 }}>
               <Metric label="Cobertura de cuello" value={plan.neck_coverage_pct.toFixed(1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Óptimo", "success"] : ["Parcial", "warning"]} />
-              <Metric label="Colisión clip–vaso" value={plan.collision_detected ? "Sí" : "No"} badge={plan.collision_detected ? ["Colisión", "destructive"] : ["OK", "success"]} />
+              {/* «Colisión clip–vaso» a secas se leía como un veredicto sobre la
+                  colocación, y era un artefacto: se comprobaba contra la malla
+                  entera, cuello incluido, que es justo lo que un clip bien puesto
+                  tiene que tocar. Ahora el rótulo dice contra qué se ha medido, y
+                  cuando no se ha podido separar el cuello lo dice en vez de dar
+                  un sí o un no que no significan nada. */}
+              <Metric
+                label={plan.neck_region_excluded ? "Choque fuera del cuello" : "Contacto con la malla"}
+                value={plan.collision_detected ? "Sí" : "No"}
+                badge={
+                  !plan.neck_region_excluded ? ["Sin cuello medido", "warning"]
+                  : plan.collision_detected ? ["Choca", "destructive"]
+                  : ["Libre", "success"]
+                }
+              />
               {plan.warning && <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>}
             </Card>
           )}

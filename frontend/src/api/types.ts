@@ -901,7 +901,10 @@ export interface ClipPlanResult {
   clips_mesh_url: string;
   trajectory_mesh_url: string | null;
   neck_coverage_pct: number;
+  /** Choque con anatomía FUERA del cuello. Tocar el cuello es a lo que va el clip. */
   collision_detected: boolean;
+  /** Si se pudo recortar el cuello antes de comprobar. Sin él la cifra no juzga nada. */
+  neck_region_excluded: boolean;
   warning: string | null;
 }
 

@@ -64,7 +64,7 @@ approval, and a tamper-evident audit chain.
 | | |
 |---|---|
 | Backend tests | **727 passing** (`pytest`, 43 files) |
-| Frontend tests | **144 passing** (`vitest`, 16 files) · `tsc -b` clean · production build clean |
+| Frontend tests | **149 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -559,6 +559,31 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The landing page was advertising the catalogue that was withdrawn
+
+The one page a stranger reads before deciding whether any of this is worth their
+time, and the last one anybody updated. It offered «42 modelos» from Aesculap,
+Sugita and Codman months after those clips stopped being served — a catalogue the
+application does not return and this institution cannot obtain — and promised a
+«siete pasos» workflow directly above the eight step chips it draws from `STEPS`
+itself.
+
+Both are the same mistake: a hand-written claim sitting next to the data that
+contradicts it. The step count is now spelled from the list. The clips card names
+the family that is actually offered, with the four series and what is adjustable
+about them. And «Fabricación» — a whole pipeline step, with an order, a workshop
+and a dossier — was missing from the feature list and from what the page says you
+receive; omitting the new is the other half of advertising the withdrawn.
+
+`Landing.test.tsx` ties the copy to the data: the spelled number has to match
+`STEPS.length`, every step label has to appear, and no withdrawn maker's name may
+appear anywhere in the rendered page.
+
+**Still stale, and not fixed here:** `public/media/pipeline-hf.mp4`, the animated
+walkthrough, was rendered before the manufacturing step existed and shows seven.
+Re-rendering it is a HyperFrames job in `frontend/hyperframes/pipeline-hf/`, not
+a copy edit.
 
 ### A piece named by its bend alone
 
@@ -1055,7 +1080,7 @@ Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 144 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 149 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

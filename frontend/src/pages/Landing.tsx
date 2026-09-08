@@ -265,13 +265,21 @@ function PipelinePlayer({ src, label = "", note = "" }: { src: string; label?: s
   );
 }
 
+/* La portada decía «siete pasos» debajo de una lista que ya tenía ocho, porque
+   los rótulos se derivan de `STEPS` y el número estaba escrito a mano. Se
+   deletrea desde la misma lista: la frase no puede volver a contradecir a las
+   fichas que tiene justo debajo. */
+const NUM_WORD = ["cero", "uno", "dos", "tres", "cuatro", "cinco",
+                  "seis", "siete", "ocho", "nueve", "diez", "once", "doce"];
+const spell = (n: number): string => NUM_WORD[n] ?? String(n);
+
 function Pipeline() {
   const steps = STEP_LABELS;
   return (
     <Section id="pipeline" style={{ background: "var(--background)" }}>
       <div style={{ textAlign: "center", maxWidth: 720, margin: "0 auto 40px" }}>
         <Kicker>El proceso</Kicker>
-        <H2>Del estudio de imagen al plan quirúrgico, en siete pasos</H2>
+        <H2>Del estudio de imagen al plan quirúrgico, en {spell(steps.length)} pasos</H2>
         <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 16 }}>
           Un recorrido animado por el flujo completo de PROSPECTIVE, desde que se cargan las imágenes
           del paciente hasta el informe final.
@@ -301,6 +309,7 @@ const FEATURES: [IconName, string, string][] = [
   ["MARK_PERF", "Aviso de arterias sensibles", "Señala las pequeñas arterias (perforantes) cercanas al aneurisma y las clasifica por riesgo según su distancia."],
   ["STEP_PLAN", "Ayuda a la decisión", "Compara cirugía abierta y tratamiento endovascular ponderando 8 factores, y muestra el porqué de cada uno."],
   ["CLIPS", "Planificación del dispositivo", "Catálogos reales de clips, coils y stents; sugiere el dispositivo adecuado y comprueba su colocación en 3D."],
+  ["SETTINGS", "Clip a medida y pedido al taller", "Cuando ninguna talla dibujada encaja, genera la pieza a la medida del cuello y el expediente que el taller necesita para fabricarla, con su número de pedido y su seguimiento."],
   ["STEP_EXPORT", "Informe y modelo para imprimir", "Genera un informe en PDF del plan quirúrgico y exporta el modelo 3D para impresión."],
   ["GROWTH", "Seguimiento en el tiempo", "Compara estudios del mismo paciente entre controles y avisa automáticamente si el aneurisma crece."],
 ];
@@ -363,7 +372,7 @@ function HowItWorks() {
   const steps: [string, string, string][] = [
     ["01", "Sube el estudio", "Arrastra la carpeta con las imágenes del paciente (tomografía, resonancia o angiografía). El sistema las prepara automáticamente."],
     ["02", "El sistema analiza", "Reconstruye las arterias en 3D, detecta y mide el aneurisma, y evalúa su riesgo de rotura y las arterias sensibles alrededor."],
-    ["03", "Recibes el plan", "Tratamiento recomendado, dispositivo sugerido con su cobertura, informe en PDF y modelo 3D para imprimir."],
+    ["03", "Recibes el plan", "Tratamiento recomendado, dispositivo sugerido con su cobertura, informe en PDF y modelo 3D para imprimir. Si la pieza hay que fabricarla, también el pedido y el expediente para el taller."],
   ];
   return (
     <Section style={{ background: "var(--canvas)" }}>
@@ -502,7 +511,13 @@ function Indices() {
 /* ── Device catalogs ────────────────────────────────────────────────────── */
 function Devices() {
   const groups: [IconName, string, string, string[]][] = [
-    ["CLIPS", "Clips quirúrgicos", "42 modelos, en distintas formas y ángulos, para la cirugía abierta", ["Aesculap Yasargil", "Sugita (Mizuho)", "Codman (DePuy)"]],
+    // Los clips de otras marcas dejaron de ofrecerse: el centro planifica con
+    // su propia familia, que ya cubre las cuatro formas. La portada seguía
+    // anunciando un catálogo que la aplicación no sirve y que este centro no
+    // puede conseguir.
+    ["CLIPS", "Clips quirúrgicos NAVARRO™",
+     "66 diseños propios en cuatro series, fabricados bajo pedido para cada caso; la mordaza puede hacerse a la medida exacta del cuello",
+     ["T1 recta", "T2 curva", "T3 angulada 15–90°", "T4 fenestrada 3 · 5 · 7 mm"]],
     ["COIL", "Coils (rellenos)", "39 modelos que rellenan el aneurisma desde dentro de la arteria", ["Target 360", "GDC", "Axium Prime"]],
     ["STENT", "Stents y desviadores de flujo", "Mallas que se colocan en la arteria para apoyar o desviar el flujo", ["Pipeline (Medtronic)", "Surpass (Stryker)", "FRED · Enterprise 2 · Leo+"]],
   ];

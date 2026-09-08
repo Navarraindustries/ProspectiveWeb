@@ -23,3 +23,11 @@ if (!globalThis.ResizeObserver) {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+// Ni un <video> que sepa reproducirse: en jsdom `play()` devuelve undefined, y
+// el autoplay silencioso de la portada encadena un `.catch` sobre la promesa que
+// un navegador real sí devuelve.
+// Sin guarda, a diferencia de los de arriba: jsdom SÍ define `play`, solo que
+// lanza «not implemented» y no devuelve nada.
+HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
+HTMLMediaElement.prototype.pause = vi.fn();

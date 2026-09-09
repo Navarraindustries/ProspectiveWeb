@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **804 passing** (`pytest`, 46 files) |
+| Backend tests | **811 passing** (`pytest`, 47 files) |
 | Frontend tests | **151 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -559,6 +559,45 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### A recommendation outliving the measurements it came from
+
+`_clear_detection_state` had guarded this since it was written, with the reason
+next to it: «leaving them behind made the PDF recommend a treatment for an
+aneurysm the same PDF reported as unmeasured». It guarded the re-detect path.
+Two routes by which the same numbers change in ordinary use were not guarded.
+
+**Re-measuring the neck by hand.** The automatic morphometry of an open detector
+cap reports a neck of 0. The clinician evaluates the treatment anyway — the neck
+factor is skipped — then marks the neck plane and the neck becomes 3 mm.
+Measured, before the fix:
+
+    2) decisión: CLIPPING QUIRÚRGICO · cobertura 59 %   ← computed with neck 0.0
+    3) neck re-measured by hand: 2.99 mm (manual)
+    4) stored decision: CLIPPING QUIRÚRGICO             ← the old one, untouched
+
+The report would print a hand-marked 2.99 mm neck beside a recommendation
+computed when that neck did not exist.
+
+**Recomputing PHASES.** Since the small-aneurysm branch started consulting the
+risk band, correcting the hypertension flag or a previous SAH changes what the
+engine would have answered, and nothing told the stored decision.
+
+Both now invalidate — and **only when the number actually changes**. That
+condition is not caution, it is required: resuming a session re-runs the
+morphometry to replay the hand-marked plane, so clearing on every read would make
+the decision vanish by opening the step.
+
+The frontend keeps its own copy, so it had the same hole on both routes.
+`DetectPanel` and `MeshEditTools` already cleared it; `MorphometryPanel` and
+`PhasesCalculator` were the two that had been missed.
+
+**Still open, and deliberately not fixed here:** placed clips survive a neck
+re-measurement. Their coordinates are what the surgeon chose, so a clip is not
+wrong — but it was placed on the neck *as it was measured then*, and after
+re-marking it may no longer sit on it. Silently deleting someone's placed devices
+because they refined a rim is the wrong fix; the right one is a warning, and that
+needs a design decision rather than a patch.
 
 ### The shape indices stopped voting and started describing
 
@@ -1419,11 +1458,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 804 tests
+.venv\Scripts\python -m pytest -q                        # all 811 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **804 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **811 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

@@ -55,6 +55,13 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
           : [],
       });
       planning.setMorphometry(m);
+      // Volver a medir el cuello a mano deja obsoleta la recomendación que se
+      // calculó con el anterior — el backend la borra cuando las medidas
+      // cambian, y sin esto la pantalla seguiría enseñando la vieja mientras el
+      // informe ya no la lleva. Se limpia siempre en esta ruta: si el plano
+      // reprodujera exactamente la medida anterior el backend la conservaría y
+      // aquí se pediría reevaluar de más, que es el lado seguro.
+      planning.setTreatment(null);
       setNeckOrigin(null);
       setNeckDome(null);
       setNeckRim([]);

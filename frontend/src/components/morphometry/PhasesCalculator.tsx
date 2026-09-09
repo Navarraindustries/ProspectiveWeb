@@ -9,6 +9,7 @@ import { Input } from "../Input";
 import { Select } from "../Select";
 import { Metric } from "../Metric";
 import { ErrorNote, SectionLabel } from "../PanelHead";
+import { usePlanning } from "../../store/planning";
 
 const POPULATIONS: { value: PhasesPopulation; label: string }[] = [
   { value: "other", label: "Otra población" },
@@ -42,6 +43,7 @@ export function PhasesCalculator({
   maxDiameterMm: number;
   sessionId: string | null;
 }) {
+  const planning = usePlanning();
   const [population, setPopulation] = useState<PhasesPopulation>("other");
   const [hypertension, setHypertension] = useState(false);
   const [age, setAge] = useState("60");
@@ -66,6 +68,11 @@ export function PhasesCalculator({
         site,
       });
       setResult(res);
+      // El atajo del aneurisma pequeño decide «vigilancia» o «discusión
+      // multidisciplinaria» según la banda de riesgo, así que un PHASES nuevo
+      // deja obsoleta la recomendación anterior. El backend la borra cuando el
+      // riesgo cambia; esto evita que la pantalla siga enseñando la vieja.
+      planning.setTreatment(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error calculando PHASES");
     } finally {

@@ -8,10 +8,36 @@ from fastapi import APIRouter, HTTPException
 
 from models.phases import PhasesRequest, PhasesResult
 from services.phases import compute_phases
-from services.sessions import session_exists, write_state
+from services.sessions import read_state, session_exists, write_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["phases"])
+
+
+def _invalidate_decision_if_risk_changed(session_id: str, result: PhasesResult) -> None:
+    """Tira la recomendación si el riesgo de rotura estimado ha cambiado.
+
+    Sólo si ha cambiado: volver a abrir la calculadora y pulsar sin tocar nada
+    no puede borrar una decisión.
+    """
+    from routers.treatment import clear_treatment_state
+
+    if not read_state(session_id, "treatment.recommendation_key", ""):
+        return
+    raw = read_state(session_id, "phases.json", "")
+    if not raw:
+        return                      # no había score previo: nada que contradecir
+    try:
+        before = json.loads(raw)
+    except (ValueError, TypeError):
+        return
+    if (before.get("total_score") == result.total_score
+            and before.get("risk_band") == result.risk_band):
+        return
+    logger.info("PHASES changed (%s → %s) — clearing the stale treatment decision "
+                "for session %s", before.get("total_score"), result.total_score,
+                session_id)
+    clear_treatment_state(session_id)
 
 
 @router.post(
@@ -35,6 +61,14 @@ async def phases(req: PhasesRequest) -> PhasesResult:
             raise HTTPException(
                 status_code=404, detail=f"Session '{req.session_id}' not found"
             )
+        # Una decisión ya tomada pudo consultar este riesgo: el atajo del
+        # aneurisma pequeño devuelve «vigilancia» o «discusión multidisciplinaria»
+        # según la banda. Si la banda cambia —se corrigen la hipertensión o una
+        # HSA previa— lo que se decidió con la anterior deja de valer, y el
+        # informe lo imprimiría junto al riesgo nuevo. Se invalida sólo cuando
+        # cambia de verdad, como en la morfometría.
+        _invalidate_decision_if_risk_changed(req.session_id, result)
+
         # Store the inputs alongside the score: the size auto-fills from the
         # morphometry, so a later re-measurement would otherwise leave a number
         # in the report that nothing on file explains.

@@ -471,6 +471,56 @@ async def morphometry_neck_plane(
     return result
 
 
+#: Las medidas de las que dependen la recomendación, el perfil endovascular y el
+#: PHASES. Si alguna cambia, lo que se calculó con las anteriores describe un
+#: aneurisma que ya no es el medido.
+_DECISION_INPUTS: tuple[str, ...] = (
+    "morpho.neck_mm", "morpho.ar", "morpho.dnr",
+    "morpho.max_diameter_mm", "morpho.bf", "morpho.ui",
+)
+
+
+def _snapshot_decision_inputs(session_id: str) -> dict[str, str]:
+    return {k: read_state(session_id, k, "") for k in _DECISION_INPUTS}
+
+
+def _invalidate_stale_decision(session_id: str, before: dict[str, str]) -> None:
+    """Tira la recomendación cuando las medidas de las que salió han cambiado.
+
+    Sólo cuando cambian. Reanudar una sesión vuelve a pasar por aquí para
+    reproducir el plano del cuello marcado a mano, y borrar la decisión en cada
+    lectura la haría desaparecer por abrir el paso de morfometría.
+
+    El caso que esto arregla: la morfometría automática de un casquete abierto
+    da cuello 0, se evalúa el tratamiento igualmente —con el factor del cuello
+    saltado— y después se marca el plano a mano y el cuello pasa a medir 3 mm.
+    La recomendación guardada seguía siendo la anterior, y el informe la imprimía
+    junto a la medida nueva. `_clear_detection_state` ya protegía la otra ruta,
+    la de re-detectar, con este mismo razonamiento escrito al lado.
+    """
+    after = _snapshot_decision_inputs(session_id)
+    changed = [k for k in _DECISION_INPUTS if not _same_measure(before[k], after[k])]
+    if not changed:
+        return
+    if not read_state(session_id, "treatment.recommendation_key", ""):
+        return          # no había nada que invalidar
+    from routers.treatment import clear_treatment_state
+
+    logger.info("Morphometry changed (%s) — clearing the stale treatment decision "
+                "for session %s", ", ".join(changed), session_id)
+    clear_treatment_state(session_id)
+
+
+def _same_measure(a: str, b: str) -> bool:
+    """Igualdad tolerante: las medidas viajan como texto de un float."""
+    if a == b:
+        return True
+    try:
+        return abs(float(a or 0.0) - float(b or 0.0)) < 1e-6
+    except ValueError:
+        return False
+
+
 def _run_morphometry_sync(
     session_id: str,
     vtp_path:   Path,
@@ -484,6 +534,7 @@ def _run_morphometry_sync(
     valid volume/DNR/AR/BF instead of the degenerate numbers an open detector
     cap produces.
     """
+    before = _snapshot_decision_inputs(session_id)
     analyzer    = MorphometricAnalyzer()
     neck_source = "auto"
     plane_arg   = None
@@ -683,6 +734,8 @@ def _run_morphometry_sync(
     # analyze() nulls volume/neck metrics when the mesh is an open patch or the
     # sac is not physically plausible; surface that reason first so the UI can
     # flag the whole analysis, not just the neck.
+    _invalidate_stale_decision(session_id, before)
+
     warning = None
     if not mr.reliable and mr.reliability_note:
         warning = mr.reliability_note

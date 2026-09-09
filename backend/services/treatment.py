@@ -62,18 +62,19 @@ LOCATIONS: list[str] = [
 
 #: Lo máximo que puede aportar cada grupo. Sirve para una sola cosa: saber qué
 #: parte del caso se ha podido evaluar, y por tanto cuánto vale el veredicto.
+#: Sin los índices de forma: no votan, así que su ausencia no resta certeza a la
+#: decisión. Sí importan para el perfil endovascular, que lo dice por su cuenta.
 _MAX_WEIGHT: dict[str, int] = {
-    "neck": 25, "ar": 20, "dnr": 15, "size": 20, "bf": 12, "ui": 10,
+    "neck": 25, "dnr": 15, "size": 20,
     "location": 25, "ruptured": 30, "age": 12, "wfns": 15, "fisher": 10,
 }
 
 #: Cómo se llama cada dato cuando hay que pedirlo.
 _INPUT_LABEL: dict[str, str] = {
-    "neck": "diámetro del cuello", "ar": "aspect ratio",
-    "dnr": "relación domo-cuello", "size": "diámetro máximo",
-    "bf": "bottleneck factor", "ui": "undulation index",
-    "location": "localización", "age": "edad del paciente",
-    "wfns": "grado WFNS", "fisher": "grado de Fisher",
+    "neck": "diámetro del cuello", "dnr": "relación domo-cuello",
+    "size": "diámetro máximo", "location": "localización",
+    "age": "edad del paciente", "wfns": "grado WFNS",
+    "fisher": "grado de Fisher",
 }
 
 
@@ -101,6 +102,10 @@ class _Factor:
     #: rarely the same place, and a factor that does not say so reads as if the
     #: number had been derived from something.
     source:    str = ""
+    #: False para lo que se enseña y no suma. Mismo patrón que la fuerza de
+    #: cierre y la apertura en el selector de clips: borrar una medida porque no
+    #: puede votar la esconde; dejarla con su motivo la deja discutible.
+    votes:     bool = True
 
 
 #: Provenance per factor. Written out rather than inferred so that adding a
@@ -112,8 +117,14 @@ _SOURCE: dict[str, str] = {
         "coiling asistido con stent es alternativa aceptada en cuello ancho."
     ),
     "ar": (
-        "Índice de RIESGO DE ROTURA (Dhar 2008; Raghavan 2005). Su uso para "
-        "elegir entre clipaje y endovascular no está validado. Peso: heurístico."
+        "Ya no vota. Índice de RIESGO DE ROTURA (Dhar 2008; Raghavan 2005), sin "
+        "validación para elegir modalidad. Y la evidencia más directa sobre el AR "
+        "y el coiling apunta al revés que el +20 que daba a endovascular: un AR "
+        "≥ 1.6 se asocia a RECANALIZACIÓN, OR 4.15 (IC 95 % 1.57–11.00) sobre 307 "
+        "aneurismas con 79 meses de seguimiento (Neurol Med Chir 2022). Un domo "
+        "profundo sobre cuello estrecho retiene bien el coil el día de la "
+        "intervención y recanaliza más después: son momentos distintos y ahora se "
+        "dicen los dos, en el perfil endovascular."
     ),
     "dnr": (
         "Umbral: relación domo-cuello < 2 es la definición estándar de cuello "
@@ -125,12 +136,17 @@ _SOURCE: dict[str, str] = {
         "tasas de complicación notables y no es una elección automática."
     ),
     "bf": (
-        "Índice de RIESGO DE ROTURA (Dhar 2008). No validado para elegir "
-        "modalidad. Peso: heurístico."
+        "Ya no vota. Índice de RIESGO DE ROTURA (Dhar 2008), sin validación para "
+        "elegir modalidad. Lo que la relación domo-cuello sí predice —la "
+        "necesidad de balón o stent— se dice en el perfil endovascular, con la "
+        "fuente que lo mide."
     ),
     "ui": (
-        "Índice de RIESGO DE ROTURA (Raghavan 2005; Dhar 2008). No validado "
-        "para elegir modalidad. Peso: heurístico."
+        "Ya no vota. Índice de RIESGO DE ROTURA (Raghavan 2005; Dhar 2008), sin "
+        "validación para elegir modalidad ni para predecir el resultado del "
+        "coiling. Que un saco lobulado se llene peor es un argumento mecánico "
+        "razonable, y razonable no es lo mismo que medido: se enuncia como "
+        "cautela en el perfil endovascular, no como puntos."
     ),
     "location": (
         "Dirección: práctica establecida y recogida en guía para circulación "
@@ -315,9 +331,13 @@ def compute_decision(
     factors: list[_Factor] = []
     notes:   list[str]     = []
 
-    def _add(name: str, detail: str, direction: str, pts: int, key: str) -> None:
+    def _add(name: str, detail: str, direction: str, pts: int, key: str,
+             votes: bool = True) -> None:
         nonlocal clip_pts, endo_pts
-        factors.append(_Factor(name, detail, direction, pts, _SOURCE[key]))
+        factors.append(_Factor(name, detail, direction, pts if votes else 0,
+                               _SOURCE[key], votes))
+        if not votes:
+            return
         if direction == "clip":
             clip_pts += pts
         elif direction == "endo":
@@ -354,19 +374,19 @@ def compute_decision(
             _add(
                 f"Aspect Ratio alto (AR = {aspect_ratio:.2f} > 2.0)",
                 "AR > 2: domo profundo relativo al cuello — geometría favorable para coiling.",
-                "endo", 20, "ar",
+                "endo", 20, "ar", votes=False,
             )
         elif aspect_ratio > 1.3:
             _add(
                 f"Aspect Ratio moderado (AR = {aspect_ratio:.2f}, 1.3–2.0)",
                 "AR 1.3–2.0: geometría ligeramente favorable para coiling.",
-                "endo", 10, "ar",
+                "endo", 10, "ar", votes=False,
             )
         else:
             _add(
                 f"Aspect Ratio bajo (AR = {aspect_ratio:.2f} < 1.3)",
                 "AR < 1.3: saco corto y ancho — acceso quirúrgico favorable.",
-                "clip", 10, "ar",
+                "clip", 10, "ar", votes=False,
             )
 
     # ── Factor 3: Dome-to-Neck Ratio (DNR) ────────────────────────────── #
@@ -422,19 +442,19 @@ def compute_decision(
             _add(
                 f"Bottleneck Factor alto (BF = {bottleneck_factor:.2f} > 2.0)",
                 "BF > 2: cuello muy estrecho relativo al domo — ideal para coiling.",
-                "endo", 12, "bf",
+                "endo", 12, "bf", votes=False,
             )
         elif bottleneck_factor > 1.5:
             _add(
                 f"Bottleneck Factor moderado (BF = {bottleneck_factor:.2f}, 1.5–2.0)",
                 "BF 1.5–2.0: cuello moderadamente estrecho.",
-                "endo", 6, "bf",
+                "endo", 6, "bf", votes=False,
             )
         elif bottleneck_factor <= 1.2:
             _add(
                 f"Bottleneck Factor bajo (BF = {bottleneck_factor:.2f} ≤ 1.2)",
                 "BF ≤ 1.2: domo ancho (no hay efecto de cuello) — clipping favorable.",
-                "clip", 8, "bf",
+                "clip", 8, "bf", votes=False,
             )
 
     # ── Factor 6: Undulation Index (UI — dome irregularity) ───────────── #
@@ -443,19 +463,19 @@ def compute_decision(
             _add(
                 f"Domo muy irregular (UI = {undulation_index:.3f} > 0.20)",
                 "UI > 0.20: morfología lobulada; riesgo de llenado incompleto con coils.",
-                "clip", 10, "ui",
+                "clip", 10, "ui", votes=False,
             )
         elif undulation_index > 0.10:
             _add(
                 f"Domo moderadamente irregular (UI = {undulation_index:.3f}, 0.10–0.20)",
                 "UI 0.10–0.20: cierta irregularidad; leve preferencia por clipping.",
-                "clip", 5, "ui",
+                "clip", 5, "ui", votes=False,
             )
         elif undulation_index < 0.05:
             _add(
                 f"Domo regular (UI = {undulation_index:.3f} < 0.05)",
                 "Domo esférico regular — favorable para empaquetado con coils.",
-                "endo", 5, "ui",
+                "endo", 5, "ui", votes=False,
             )
 
     # ── Factor 7: Location (clinical input) ───────────────────────────── #
@@ -568,11 +588,9 @@ def compute_decision(
     # caso con un único dato —el cuello— salía con «CLIPPING QUIRÚRGICO» y
     # confianza Moderada: un veredicto sobre una sola medida. Medía cuántos
     # factores había, no cuánto se sabía.
-    applicable = {"neck", "ar", "dnr", "size", "bf", "ui", "location", "ruptured"}
+    applicable = {"neck", "dnr", "size", "location", "ruptured"}
     known = {"ruptured"}
-    for key, value in (("neck", neck_mm), ("ar", aspect_ratio), ("dnr", dnr),
-                       ("size", max_diameter_mm), ("bf", bottleneck_factor),
-                       ("ui", undulation_index)):
+    for key, value in (("neck", neck_mm), ("dnr", dnr), ("size", max_diameter_mm)):
         if value > 0:
             known.add(key)
     if (location or "").strip() and location != LOCATION_UNKNOWN:
@@ -626,7 +644,9 @@ def compute_decision(
         clip_pts, endo_pts, balance, rec_key, confidence,
     )
 
-    return _to_dict(_Decision(
+    from services.endovascular import endovascular_profile, profile_to_dict
+
+    out = _to_dict(_Decision(
         clip_raw=clip_pts, endo_raw=endo_pts, balance=balance,
         clip_pct=clip_pct, endo_pct=endo_pct,
         recommendation=rec, recommendation_key=rec_key,
@@ -634,6 +654,15 @@ def compute_decision(
         factors=factors, notes=notes,
         coverage_pct=round(coverage * 100), missing_inputs=missing,
     ))
+    # Lo que la morfología SÍ describe con respaldo: cómo sería la vía
+    # endovascular. Se calcula siempre, también cuando la recomendación es
+    # clipaje, porque una sesión multidisciplinar compara las dos opciones y no
+    # sólo la ganadora.
+    out["endovascular"] = profile_to_dict(endovascular_profile(
+        neck_mm=neck_mm, dnr=dnr, aspect_ratio=aspect_ratio,
+        max_diameter_mm=max_diameter_mm, undulation_index=undulation_index,
+    ))
+    return out
 
 
 # ── Serialiser ─────────────────────────────────────────────────────────────── #
@@ -647,6 +676,7 @@ def _to_dict(d: _Decision) -> dict[str, Any]:
             "direction": f.direction,
             "points":    f.points,
             "source":    f.source,
+            "votes":     f.votes,
         }
         for f in d.factors
     ]

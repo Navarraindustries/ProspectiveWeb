@@ -35,6 +35,16 @@ class DecisionFactor(BaseModel):
         ..., description="Which direction this factor pushes the recommendation"
     )
     points: int = Field(..., ge=0, description="Weight / magnitude of this factor")
+    votes: bool = Field(
+        True,
+        description=(
+            "False for a factor that is shown but does not add points. The shape "
+            "indices are the case: they come from rupture-risk literature, are "
+            "not validated for choosing a modality, and what they DO support is "
+            "in `endovascular`. Deleting a measurement because it cannot vote "
+            "hides it; showing it with its reason leaves it arguable."
+        ),
+    )
     source: str = Field(
         "",
         description=(
@@ -43,6 +53,28 @@ class DecisionFactor(BaseModel):
             "weights are heuristic and say so, rather than looking derived."
         ),
     )
+
+
+class EndovascularProfileOut(BaseModel):
+    """What the endovascular option looks like for this geometry.
+
+    Not a second recommendation. The engine chooses BETWEEN two treatments; this
+    describes one of them, using the part of the morphology that has published
+    backing for that question: the wide-neck definition predicts the need for a
+    balloon or a stent, and a high aspect ratio predicts recanalisation after
+    coiling.
+    """
+
+    technique: str = Field(
+        "unknown", description="simple | assisted | diverter | unknown"
+    )
+    technique_label: str = ""
+    rationale: str = ""
+    durability: str = Field(
+        "", description="What to expect of long-term occlusion, when the geometry says."
+    )
+    cautions: list[str] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
 
 
 class TreatmentDecisionRequest(BaseModel):
@@ -125,6 +157,15 @@ class TreatmentDecisionResult(BaseModel):
     missing_inputs: list[str] = Field(
         default_factory=list,
         description="Inputs that applied to this case and were not supplied.",
+    )
+    endovascular: EndovascularProfileOut | None = Field(
+        None,
+        description=(
+            "How the endovascular option looks here — technique, expected "
+            "durability and caveats. Computed even when the recommendation is "
+            "clipping: a multidisciplinary discussion compares both options, not "
+            "just the winning one."
+        ),
     )
     notes: list[str] = Field(
         default_factory=list,

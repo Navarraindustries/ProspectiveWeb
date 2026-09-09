@@ -109,16 +109,29 @@ class TestEveryWeightCarriesItsProvenance:
     def test_no_factor_arrives_without_a_source(self):
         assert all(f["source"] for f in self._factors())
 
-    def test_the_heuristic_weights_admit_it(self):
+    def test_every_weight_that_votes_admits_it_is_heuristic(self):
         # Un 25 sin procedencia se lee como si estuviera derivado de algo.
-        assert all("heurístico" in f["source"].lower() for f in self._factors())
+        votantes = [f for f in self._factors() if f["votes"]]
+        assert votantes
+        assert all("heurístico" in f["source"].lower() for f in votantes)
 
-    def test_the_shape_indices_say_which_question_they_answer(self):
+    def test_the_shape_indices_do_not_vote_and_say_why(self):
         # AR, BF y UI vienen de literatura de riesgo de ROTURA, no de elección
-        # de modalidad. Es la extrapolación más grande del motor.
+        # de modalidad. Se enseñan —borrar una medida la esconde— pero no suman.
         for key in ("ar", "bf", "ui"):
             assert "ROTURA" in _SOURCE[key]
-            assert "no está validado" in _SOURCE[key] or "No validado" in _SOURCE[key]
+            assert "Ya no vota" in _SOURCE[key]
+            assert "sin validación para elegir modalidad" in _SOURCE[key]
+        mudos = [f for f in self._factors() if not f["votes"]]
+        assert len(mudos) == 3
+        assert all(f["points"] == 0 for f in mudos)
+
+    def test_the_aspect_ratio_says_the_evidence_points_the_other_way(self):
+        # Daba +20 a endovascular llamándolo «geometría favorable para coiling»,
+        # y la evidencia más directa sobre el AR y el coiling es que un AR ≥ 1.6
+        # multiplica por cuatro las probabilidades de recanalización.
+        assert "RECANALIZACIÓN" in _SOURCE["ar"]
+        assert "4.15" in _SOURCE["ar"]
 
     def test_the_published_thresholds_are_credited(self):
         assert "Brinjikji" in _SOURCE["neck"] and "Brinjikji" in _SOURCE["dnr"]

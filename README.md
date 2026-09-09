@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **786 passing** (`pytest`, 45 files) |
+| Backend tests | **804 passing** (`pytest`, 46 files) |
 | Frontend tests | **151 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -559,6 +559,51 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The shape indices stopped voting and started describing
+
+Three of the eight factors — aspect ratio, bottleneck factor, undulation index —
+came from rupture-risk literature (Dhar 2008, Raghavan 2005). Neither paper
+studies the choice between clipping and coiling, and neither validated
+modality-selection model uses a shape index. They were 42 of the available
+points.
+
+Looking for where morphology *does* have backing turned up something sharper than
+«unvalidated». The engine gave **+20 to endovascular for AR > 2**, reasoning
+«geometry favourable for coiling». The most direct evidence about aspect ratio and
+coiling says the opposite about durability: **AR ≥ 1.6 is associated with
+recanalisation, OR 4.15 (95 % CI 1.57–11.00)**, in 307 unruptured aneurysms with
+79 months' mean follow-up (Neurol Med Chir 2022).
+
+Both claims are true and they are about different moments. A deep dome on a narrow
+neck holds coils well on the day and recanalises more afterwards. Collapsing that
+into one vote lost exactly the distinction that matters, so now both are said.
+
+**`services/endovascular.py`** describes the endovascular option instead of voting
+on it, using the morphology that is published for that question:
+
+| what it says | from |
+|---|---|
+| Coiling simple / asistido (balón o stent) | the wide-neck definition exists *because* it predicts the need for adjuncts, with a measured gradient: above 1.6 usually not needed, below 1.2 almost always (Brinjikji, AJNR 2009) |
+| Valorar diversor de flujo | large and giant aneurysms, and it prints the complication figure rather than burying it — up to 25 % in giant ICA (2026 meta-analysis, 1 893 patients) |
+| Durabilidad | the AR/recanalisation odds above, framed as «plan the follow-up», not as a contraindication |
+| Domo irregular | stated as a caution and explicitly labelled a **rupture-risk** index with no validation for treatment outcome — reasonable is not the same as measured |
+
+The profile is computed **even when clipping wins**: a multidisciplinary session
+compares both options, and describing only the winner leaves half the conversation
+out of the report.
+
+The three indices are still shown on the panel and in the PDF, tagged «no puntúa»
+with their reason — the same pattern as the closing force and the blade opening in
+the clip selector. Deleting a measurement because it cannot vote hides it; showing
+it with its provenance leaves it arguable.
+
+Two consequences worth stating. The engine's voting factors are now neck, DNR,
+size, location, rupture, age, WFNS and Fisher — which is the shape the validated
+models have, six clinical and anatomical against two morphological, rather than
+the reverse. And a missing aspect ratio no longer costs confidence in the
+decision, because it no longer decides anything; it costs detail in the profile,
+which the profile says for itself.
 
 ### The engine now scores what the validated models score
 
@@ -1374,11 +1419,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 786 tests
+.venv\Scripts\python -m pytest -q                        # all 804 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **786 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **804 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

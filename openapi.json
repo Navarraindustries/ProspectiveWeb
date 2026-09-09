@@ -7732,6 +7732,12 @@
             "title": "Points",
             "description": "Weight / magnitude of this factor"
           },
+          "votes": {
+            "type": "boolean",
+            "title": "Votes",
+            "description": "False for a factor that is shown but does not add points. The shape indices are the case: they come from rupture-risk literature, are not validated for choosing a modality, and what they DO support is in `endovascular`. Deleting a measurement because it cannot vote hides it; showing it with its reason leaves it arguable.",
+            "default": true
+          },
           "source": {
             "type": "string",
             "title": "Source",
@@ -7853,6 +7859,49 @@
         "type": "object",
         "title": "DeviceClearResult",
         "description": "Outcome of removing placed devices from a session's plan."
+      },
+      "EndovascularProfileOut": {
+        "properties": {
+          "technique": {
+            "type": "string",
+            "title": "Technique",
+            "description": "simple | assisted | diverter | unknown",
+            "default": "unknown"
+          },
+          "technique_label": {
+            "type": "string",
+            "title": "Technique Label",
+            "default": ""
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale",
+            "default": ""
+          },
+          "durability": {
+            "type": "string",
+            "title": "Durability",
+            "description": "What to expect of long-term occlusion, when the geometry says.",
+            "default": ""
+          },
+          "cautions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cautions"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "title": "EndovascularProfileOut",
+        "description": "What the endovascular option looks like for this geometry.\n\nNot a second recommendation. The engine chooses BETWEEN two treatments; this\ndescribes one of them, using the part of the morphology that has published\nbacking for that question: the wide-neck definition predicts the need for a\nballoon or a stent, and a high aspect ratio predicts recanalisation after\ncoiling."
       },
       "ExportRequest": {
         "properties": {
@@ -12078,6 +12127,17 @@
             "type": "array",
             "title": "Missing Inputs",
             "description": "Inputs that applied to this case and were not supplied."
+          },
+          "endovascular": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EndovascularProfileOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the endovascular option looks here — technique, expected durability and caveats. Computed even when the recommendation is clipping: a multidisciplinary discussion compares both options, not just the winning one."
           },
           "notes": {
             "items": {

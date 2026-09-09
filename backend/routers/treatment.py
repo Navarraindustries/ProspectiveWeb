@@ -96,6 +96,8 @@ async def compute_treatment_decision(
     write_state(req.session_id, "treatment.factors_json", json.dumps(factors_for_json))
     write_state(req.session_id, "treatment.notes_json",
                 json.dumps(result.get("notes", [])))
+    write_state(req.session_id, "treatment.endovascular_json",
+                json.dumps(result.get("endovascular") or {}))
 
     # El contexto clínico. La edad ya puntúa; las comorbilidades siguen sin
     # hacerlo —no hay estructura publicada que trasladar— y se imprimen junto a
@@ -123,6 +125,7 @@ TREATMENT_STATE_KEYS = (
     "treatment.confidence", "treatment.clip_pct", "treatment.endo_pct",
     "treatment.clip_points", "treatment.endo_points",
     "treatment.factors_json", "treatment.notes_json",
+    "treatment.endovascular_json",
     "clinical.patient_age", "clinical.has_comorbidities",
     "clinical.wfns_grade", "clinical.fisher_grade",
 )

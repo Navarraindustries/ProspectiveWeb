@@ -230,6 +230,12 @@ def build_report_data_from_session(
                 treatment["notes"] = json.loads(notes_raw)
             except Exception:
                 pass
+        endo_raw = _rs("treatment.endovascular_json", "")
+        if endo_raw:
+            try:
+                treatment["endovascular"] = json.loads(endo_raw) or {}
+            except Exception:
+                pass
 
     # ── 3. Patient info — request params > DB > defaults ─────────────── #
     db_patient_name  = ""
@@ -989,6 +995,26 @@ class ReportGenerator:
         for note in t.get("notes", []):
             elems.append(Spacer(1, 0.1*cm))
             elems.append(Paragraph(f"<i>Nota:</i> {note}", self._style_td_note))
+
+        # La vía endovascular descrita, gane o no. Una sesión multidisciplinar
+        # compara las dos opciones; imprimir sólo la ganadora deja media
+        # conversación fuera del documento.
+        endo = t.get("endovascular") or {}
+        if endo.get("technique") and endo["technique"] != "unknown":
+            elems.append(Spacer(1, 0.2*cm))
+            elems.append(Paragraph("Si se opta por la vía endovascular:",
+                                   self._style_h3))
+            elems.append(Paragraph(
+                f"<b>{endo.get('technique_label', '')}.</b> "
+                f"{endo.get('rationale', '')}", self._style_body))
+            if endo.get("durability"):
+                elems.append(Paragraph(f"<b>Durabilidad.</b> {endo['durability']}",
+                                       self._style_body))
+            for caution in endo.get("cautions", []):
+                elems.append(Paragraph(f"— {caution}", self._style_td_note))
+            if endo.get("sources"):
+                elems.append(Paragraph(
+                    "Fuentes: " + " · ".join(endo["sources"]), self._style_td_note))
 
         # Clinical context the engine does not weight. It belongs next to the
         # recommendation because it is exactly what the multidisciplinary

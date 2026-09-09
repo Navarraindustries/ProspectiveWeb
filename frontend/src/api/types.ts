@@ -667,6 +667,21 @@ export interface DecisionFactor {
   points: number;
   /** De dónde sale el umbral y de dónde el peso. Rara vez del mismo sitio. */
   source: string;
+  /** False para lo que se enseña y no suma: los índices de forma, que vienen de
+      literatura de riesgo de rotura y describen la vía endovascular en vez de
+      elegir modalidad. Borrarlos los escondería; enseñarlos los deja discutibles. */
+  votes: boolean;
+}
+
+/** Cómo sería la vía endovascular para esta geometría. No es una segunda
+    recomendación: describe una de las dos opciones. */
+export interface EndovascularProfile {
+  technique: "simple" | "assisted" | "diverter" | "unknown";
+  technique_label: string;
+  rationale: string;
+  durability: string;
+  cautions: string[];
+  sources: string[];
 }
 
 export interface TreatmentDecisionRequest {
@@ -696,6 +711,9 @@ export interface TreatmentDecisionResult {
       esto: el acuerdo entre los factores vistos no cubre a los que faltan. */
   coverage_pct: number;
   missing_inputs: string[];
+  /** Se calcula también cuando gana el clipaje: una sesión multidisciplinar
+      compara las dos opciones, no sólo la ganadora. */
+  endovascular: EndovascularProfile | null;
   balance: number;
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";

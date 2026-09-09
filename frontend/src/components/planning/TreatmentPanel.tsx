@@ -8,7 +8,7 @@ import { Badge } from "../Badge";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Input } from "../Input";
-import { PanelHead, SectionLabel, ErrorNote } from "../PanelHead";
+import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
 
@@ -103,7 +103,7 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
 
   return (
     <div className="fade-rise">
-      <PanelHead title="Decisión terapéutica" desc="Compara clipaje y tratamiento endovascular ponderando 8 factores." />
+      <PanelHead title="Decisión terapéutica" desc="Compara clipaje y tratamiento endovascular. Los índices de forma no puntúan: describen la vía endovascular, que es donde tienen respaldo." />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
         <Select
@@ -252,10 +252,19 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                   }}
                 >
                   {f.direction === "clip" ? "CLIP" : f.direction === "endo" ? "ENDO" : "—"}
-                  {f.points > 0 ? ` +${f.points}` : ""}
+                  {f.votes ? (f.points > 0 ? ` +${f.points}` : "") : " ·"}
                 </span>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{f.name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+                    {f.name}
+                    {/* Lo que se mide, se enseña y no suma. Sin esta marca el
+                        factor se lee como si estuviera pesando. */}
+                    {!f.votes && (
+                      <span style={{ fontSize: 10, fontWeight: 700, marginLeft: 6, padding: "1px 5px", borderRadius: 4, background: "var(--muted)", color: "var(--muted-foreground)", verticalAlign: "middle" }}>
+                        no puntúa
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{f.detail}</div>
                   {f.source && (
                     <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45, opacity: 0.85 }}>
@@ -266,6 +275,38 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
               </div>
             ))}
           </div>
+
+          {/* La otra opción, descrita gane o no. Es donde la morfología sí tiene
+              respaldo publicado: la definición de cuello ancho predice si hará
+              falta balón o stent, y el aspect ratio predice recanalización. */}
+          {t.endovascular && t.endovascular.technique !== "unknown" && (
+            <>
+              <SectionLabel style={{ marginTop: 16 }}>Si se opta por la vía endovascular</SectionLabel>
+              <Card>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>
+                  {t.endovascular.technique_label}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+                  {t.endovascular.rationale}
+                </div>
+                {t.endovascular.durability && (
+                  <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 8, lineHeight: 1.5 }}>
+                    <b>Durabilidad. </b>{t.endovascular.durability}
+                  </div>
+                )}
+                {t.endovascular.cautions.map((c, i) => (
+                  <div key={i} style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+                    — {c}
+                  </div>
+                ))}
+                {t.endovascular.sources.length > 0 && (
+                  <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45, opacity: 0.85 }}>
+                    {t.endovascular.sources.join(" · ")}
+                  </div>
+                )}
+              </Card>
+            </>
+          )}
         </>
       )}
 

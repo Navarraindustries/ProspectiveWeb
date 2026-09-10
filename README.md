@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **811 passing** (`pytest`, 47 files) |
+| Backend tests | **826 passing** (`pytest`, 48 files) |
 | Frontend tests | **156 passing** (`vitest`, 18 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -559,6 +559,67 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The perforator detector was measuring the triangulation, not the vessel
+
+Asked to explain what the feature does. Its docstring states the premise:
+«Branching points have significantly higher vertex valence than straight vessel
+segments». Measured on a marching-cubes isosurface with three real bifurcations,
+that premise does not hold:
+
+    valence:  median 6.00 · std 0.31 · range 4-8
+
+On a manifold triangulation every vertex has ~6 triangles wherever it sits —
+valence describes the mesh, not the shape. With the threshold it used (z ≥ 1.5)
+the result was worse than chance:
+
+    near a junction ..........  30.3 % of the surface
+    of the FLAGGED vertices ..  20.9 %      → enrichment ×0.69
+
+A flagged vertex was *less* likely than a random one to be at a branch. And the
+`radius_mm` the API reported as «estimated vessel radius» was the constant 0.4,
+identical for every candidate, because the valence algorithm computes no calibre.
+
+**`services/branch_origins.py` measures calibre instead**, which is what a branch
+actually is — a thin tube attached to a thick one:
+
+1. Rasterise the interior (`vtkPolyDataToImageStencil`: 42 M voxels in 0.1 s,
+   against minutes for `vtkSelectEnclosedPoints`).
+2. Euclidean distance transform → distance to the wall.
+3. From each vertex, march inward along its normal and keep the largest distance
+   found: the radius of the tube that vertex belongs to. A max over a cubic
+   window cannot do this — the window must be at least as wide as your own
+   radius to see your own axis, and once it is that wide a branch vertex reaches
+   the *trunk's* axis and stops looking thin. The march stops on leaving the
+   vessel, so a neighbouring artery cannot lend its radius.
+4. Connected thin regions are branches, accepted only if what they attach to is
+   ≥1.6× thicker — which is what separates a branch from a vessel that tapers.
+
+On the same synthetic tree: **3 of 3 junctions, at x = −6.01, 3.00, 7.97**
+(truth −6, 3, 8), with the calibre and the parent calibre measured rather than
+assumed.
+
+### Why the scan runs at segmentation and not later
+
+The question that prompted this: after cropping the mesh to a box or a sphere,
+where are the branches in the full tree?
+
+Cropping **overwrites `vessel_tree.vtp`** — the endpoint's own description says
+«re-run segmentation to restore» — and the analysis reads that file. Measured on
+the test tree cropped to ±5 mm: the junction at x = −6 is simply gone, and the
+open rim left by the cut reads as thin-attached-to-thick, **inventing an origin
+at x = −4.3 where no junction exists**.
+
+So the scan runs on the full tree the moment segmentation finishes, and its world
+coordinates are frozen into the session. They keep landing where they belong over
+the cropped mesh, because it is the same coordinate frame. The detector also
+ignores open boundary rims now, so a cut can no longer manufacture a branch.
+
+**What it still is not.** A true perforator is 0.1–0.5 mm and CT or MR
+angiography does not resolve it, so it never reaches the mesh. This finds
+*visible branch origins*. The result carries `calibre_floor_mm` — the diameter
+the voxel size cannot resolve — so an empty list cannot be read as «there are
+none».
 
 ### The verdict was breaking one letter per line
 
@@ -1477,11 +1538,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 811 tests
+.venv\Scripts\python -m pytest -q                        # all 826 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **811 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **826 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

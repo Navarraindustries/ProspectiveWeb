@@ -128,38 +128,48 @@ def _run_perforators_sync(
             search_radius_mm=_ZONE_RADII[2], zone_radii_mm=list(_ZONE_RADII),
         )
 
+    from services.branch_origins import scan_and_freeze, thaw_scan
+
+    # El barrido congelado del árbol COMPLETO, si lo hay. Se prefiere al que se
+    # haría ahora sobre `vessel_tree.vtp`, porque ese fichero puede haber sido
+    # sobrescrito por un recorte de ROI y las ramas de fuera de la caja ya no
+    # estarían. Las coordenadas son de mundo, así que siguen cayendo donde deben
+    # sobre la malla recortada.
+    scan = thaw_scan(session_id)
+    if scan is None:
+        logger.info("No frozen branch scan for %s — scanning the current mesh", session_id)
+        scan = scan_and_freeze(session_id, poly)
+
+    # La malla teñida por zonas, para el color en el visor 3D.
     risk_result = compute_perforator_risk(
-        vessel_poly       = poly,
-        neck_origin       = neck_origin,
-        zone_radii        = _ZONE_RADII,
-        min_valence_zscore= 1.5,
-        cluster_radius_mm = 2.0,
-        max_candidates    = 12,
+        vessel_poly=poly, neck_origin=neck_origin, zone_radii=_ZONE_RADII,
     )
+    write_vtp(risk_result.risk_poly, meshes_dir / "perforators_risk.vtp")
 
-    # Write the risk-tagged VTP for 3D visualisation
-    risk_vtp_path = meshes_dir / "perforators_risk.vtp"
-    write_vtp(risk_result.risk_poly, risk_vtp_path)
+    # ── Orígenes de rama → candidatos, con su distancia al cuello ─────── #
+    import math
 
-    # ── Map service dataclasses → Pydantic models ─────────────────────── #
-    # The service PerforatorCandidate does not compute vessel radius
-    # (the valence algorithm identifies branching topology, not lumen size).
-    # A clinically plausible default radius of 0.4 mm is used for display.
-    _TYPICAL_RADIUS_MM = 0.4
-
+    origin = neck_origin
     candidates: list[PerforatorCandidate] = []
-    for i, cand in enumerate(risk_result.candidates, start=1):
-        rl = cand.risk_level
+    scored = []
+    for o in scan.origins:
+        d = math.dist(o.position, origin)
+        if d > _ZONE_RADII[2]:
+            continue                       # fuera de la zona de interés
+        rl = 1 if d <= _ZONE_RADII[0] else 2 if d <= _ZONE_RADII[1] else 3
+        scored.append((d, rl, o))
+    scored.sort(key=lambda t: t[0])
+
+    for i, (d, rl, o) in enumerate(scored, start=1):
         candidates.append(
             PerforatorCandidate(
-                id=f"prf-{i:03d}",
-                position_mm=Position3D(
-                    x=cand.position[0],
-                    y=cand.position[1],
-                    z=cand.position[2],
-                ),
-                radius_mm=_TYPICAL_RADIUS_MM,
-                distance_to_neck_mm=round(cand.distance_to_neck_mm, 2),
+                id=f"br-{i:03d}",
+                position_mm=Position3D(x=o.position[0], y=o.position[1], z=o.position[2]),
+                # Medido sobre la malla, no una constante: antes todos los
+                # candidatos salían con 0.4 mm porque el detector de valencia no
+                # calculaba calibre y el campo se rellenaba con un valor «típico».
+                radius_mm=max(0.1, min(5.0, round(o.calibre_mm / 2.0, 2))),
+                distance_to_neck_mm=round(d, 2),
                 risk_level=rl,
                 risk_label=RISK_LABELS[rl],
                 risk_color=RISK_COLORS[rl],
@@ -180,6 +190,8 @@ def _run_perforators_sync(
         high_count     = high,
         medium_count   = medium,
         low_count      = low,
-        search_radius_mm = float(risk_result.zone_radii_mm[2]),
-        zone_radii_mm  = [float(r) for r in risk_result.zone_radii_mm],
+        search_radius_mm = float(_ZONE_RADII[2]),
+        zone_radii_mm  = [float(r) for r in _ZONE_RADII],
+        calibre_floor_mm = scan.calibre_floor_mm,
+        scanned_mesh_points = scan.mesh_points,
     )

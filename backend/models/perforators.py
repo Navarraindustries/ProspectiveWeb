@@ -54,10 +54,27 @@ class PerforatorCandidate(BaseModel):
 
 
 class PerforatorsResult(BaseModel):
-    """All perforator candidates detected near the aneurysm neck."""
+    """Branch origins found near the aneurysm neck.
 
+    Not perforators in the strict sense: a true perforator is 0.1–0.5 mm and CT
+    or MR angiography does not resolve it, so it never reaches the mesh. What is
+    listed here are VISIBLE branch origins — the most the imaging allows — and an
+    empty list is not evidence that there are none.
+    """
+
+    calibre_floor_mm: float = Field(
+        0.0,
+        description=(
+            "Vessel diameter below which this scan cannot resolve anything, set "
+            "by the voxel size it ran at. Travels with the result so an empty "
+            "list cannot be read as «there are none»."
+        ),
+    )
+    scanned_mesh_points: int = Field(
+        0, description="Points in the mesh the scan actually ran on."
+    )
     candidates: list[PerforatorCandidate] = Field(
-        ..., description="List of all detected perforator candidates"
+        ..., description="List of all detected branch origins"
     )
     high_count: int = Field(..., description="Number of high-risk candidates (risk_level=1)")
     medium_count: int = Field(..., description="Number of medium-risk candidates (risk_level=2)")

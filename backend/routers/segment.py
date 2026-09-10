@@ -436,6 +436,18 @@ def _run_segmentation_sync(
     mesh_backup.snapshot(session_id, "segment")
     write_vtp(seg_result.poly_data, vtp_path)
 
+    # Las ramas se buscan AQUÍ, sobre el árbol entero, porque es el único
+    # momento en que están todas. Recortar a una caja o una esfera sobrescribe
+    # este mismo fichero —«re-run segmentation to restore»— y lo que quede fuera
+    # deja de existir para cualquier análisis posterior. Congelado en
+    # coordenadas de mundo, el resultado sigue cayendo donde debe sobre la malla
+    # recortada, que es lo que permite seguir viendo dónde estaban.
+    try:
+        from services.branch_origins import scan_and_freeze
+        scan_and_freeze(session_id, seg_result.poly_data)
+    except Exception as exc:  # noqa: BLE001 — nunca hundir una segmentación por esto
+        logger.warning("Branch scan skipped for session %s: %s", session_id, exc)
+
     url = mesh_url(session_id, vtp_name)
     # The .vtp filename is reused on every re-segmentation, so append a
     # generation token to the URL returned to the client — otherwise the

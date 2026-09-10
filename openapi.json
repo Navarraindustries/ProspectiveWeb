@@ -9868,13 +9868,25 @@
       },
       "PerforatorsResult": {
         "properties": {
+          "calibre_floor_mm": {
+            "type": "number",
+            "title": "Calibre Floor Mm",
+            "description": "Vessel diameter below which this scan cannot resolve anything, set by the voxel size it ran at. Travels with the result so an empty list cannot be read as «there are none».",
+            "default": 0.0
+          },
+          "scanned_mesh_points": {
+            "type": "integer",
+            "title": "Scanned Mesh Points",
+            "description": "Points in the mesh the scan actually ran on.",
+            "default": 0
+          },
           "candidates": {
             "items": {
               "$ref": "#/components/schemas/PerforatorCandidate"
             },
             "type": "array",
             "title": "Candidates",
-            "description": "List of all detected perforator candidates"
+            "description": "List of all detected branch origins"
           },
           "high_count": {
             "type": "integer",
@@ -9914,7 +9926,7 @@
           "search_radius_mm"
         ],
         "title": "PerforatorsResult",
-        "description": "All perforator candidates detected near the aneurysm neck."
+        "description": "Branch origins found near the aneurysm neck.\n\nNot perforators in the strict sense: a true perforator is 0.1–0.5 mm and CT\nor MR angiography does not resolve it, so it never reaches the mesh. What is\nlisted here are VISIBLE branch origins — the most the imaging allows — and an\nempty list is not evidence that there are none."
       },
       "PhasesRequest": {
         "properties": {

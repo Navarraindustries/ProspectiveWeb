@@ -136,7 +136,7 @@ export function Workspace({
       // píxeles de scroll con la línea central enterrada al fondo.
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <MorphometryPanel onNext={next} />
-        <Collapsible title="Perforantes" subtitle="Proximidad al cuello del aneurisma" storageKey="ws.morpho.perforators">
+        <Collapsible title="Ramas cerca del cuello" subtitle="Orígenes visibles, con su calibre" storageKey="ws.morpho.perforators">
           <PerforatorsPanel />
         </Collapsible>
         <Collapsible

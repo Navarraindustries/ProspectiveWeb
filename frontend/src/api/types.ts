@@ -634,6 +634,12 @@ export interface PerforatorCandidate {
 }
 
 export interface PerforatorsResult {
+  /** Diámetro por debajo del cual este barrido no resuelve nada, fijado por el
+      tamaño de vóxel. Viaja con el resultado para que una lista vacía no se lea
+      como «no hay ninguna»: una perforante verdadera mide 0,1–0,5 mm y la
+      angiografía no la resuelve. */
+  calibre_floor_mm: number;
+  scanned_mesh_points: number;
   candidates: PerforatorCandidate[];
   high_count: number;
   medium_count: number;

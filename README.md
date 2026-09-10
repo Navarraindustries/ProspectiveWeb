@@ -64,7 +64,7 @@ approval, and a tamper-evident audit chain.
 | | |
 |---|---|
 | Backend tests | **826 passing** (`pytest`, 48 files) |
-| Frontend tests | **156 passing** (`vitest`, 18 files) · `tsc -b` clean · production build clean |
+| Frontend tests | **159 passing** (`vitest`, 18 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -598,6 +598,27 @@ actually is — a thin tube attached to a thick one:
 On the same synthetic tree: **3 of 3 junctions, at x = −6.01, 3.00, 7.97**
 (truth −6, 3, 8), with the calibre and the parent calibre measured rather than
 assumed.
+
+### The feature is now called what it is
+
+«Perforantes» promised something the imaging cannot give, in both directions: no
+row was necessarily a perforator, and an empty list was being read as «there are
+none» when it means «none are visible».
+
+It reads **«Ramas cerca del cuello»** now — in the panel, in the workflow rail,
+in the viewer legend and on the landing page — and says the rest out loud:
+
+- each row carries its **measured calibre** (`⌀1.1`), where every row used to
+  show the same 0.4 mm constant under an API field that called it «estimated
+  vessel radius»;
+- with results, a line stating that these are not perforators and why: below the
+  scan's calibre floor the image does not resolve a vessel, and a perforator is
+  0.1–0.5 mm;
+- with no results, the same floor turns «none found» into «none visible above
+  N mm», which is the only claim the scan can support.
+
+The endpoint description says the same, so the OpenAPI page cannot promise
+perforators either.
 
 ### Why the scan runs at segmentation and not later
 
@@ -1548,7 +1569,7 @@ Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 156 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 159 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

@@ -314,7 +314,7 @@ export function Viewer({ step }: { step: string }) {
   const perforatorBands = useMemo(() => {
     const [hi, mid, lo] = perforatorZones ?? [3, 5, 8];
     return [
-      { color: "#ef4444", label: `perforante <${hi} mm` },
+      { color: "#ef4444", label: `rama <${hi} mm` },
       { color: "#eab308", label: `${hi}–${mid} mm` },
       { color: "#22c55e", label: `${mid}–${lo} mm` },
     ];

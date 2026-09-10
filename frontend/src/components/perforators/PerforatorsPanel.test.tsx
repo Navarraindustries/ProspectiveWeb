@@ -19,16 +19,17 @@ import type { PerforatorsResult } from "../../api/types";
 const result: PerforatorsResult = {
   candidates: [
     {
-      id: "prf-001", position_mm: { x: 1, y: 2, z: 3 }, radius_mm: 0.4,
+      id: "br-001", position_mm: { x: 1, y: 2, z: 3 }, radius_mm: 0.55,
       distance_to_neck_mm: 2.1, risk_level: 1, risk_label: "Alto", risk_color: "#ef4444",
     },
     {
-      id: "prf-002", position_mm: { x: 4, y: 5, z: 6 }, radius_mm: 0.4,
+      id: "br-002", position_mm: { x: 4, y: 5, z: 6 }, radius_mm: 0.9,
       distance_to_neck_mm: 4.4, risk_level: 2, risk_label: "Medio", risk_color: "#eab308",
     },
   ],
   high_count: 1, medium_count: 1, low_count: 0,
   search_radius_mm: 8, zone_radii_mm: [3, 5, 8],
+  calibre_floor_mm: 1.0, scanned_mesh_points: 48000,
 };
 
 /** Renders the panel with a live session, exposing the store to assertions. */
@@ -51,6 +52,22 @@ function withSession(seen: { perforators?: unknown[]; visible?: string[]; zones?
 beforeEach(() => {
   perforators.mockReset();
   perforators.mockResolvedValue(result);
+});
+
+describe("cómo se nombra lo que se ha encontrado", () => {
+  it("no promete perforantes, que la imagen no resuelve", async () => {
+    withSession({});
+    expect(await screen.findByText(/Ramas cerca del cuello/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Perforantes/)).not.toBeInTheDocument();
+  });
+
+  it("enseña el calibre medido de cada rama", async () => {
+    // Antes todas las filas llevaban 0.4 mm: una constante que el API declaraba
+    // como «estimated vessel radius» y que nadie había medido.
+    withSession({});
+    expect(await screen.findByText("⌀1.1")).toBeInTheDocument();
+    expect(screen.getByText("⌀1.8")).toBeInTheDocument();
+  });
 });
 
 describe("handing the perforators to the 3D scene", () => {
@@ -87,16 +104,16 @@ describe("showing and hiding", () => {
   it("clicking a row shows that perforator", async () => {
     const seen: { visible?: string[] } = {};
     withSession(seen);
-    fireEvent.click(await screen.findByRole("button", { name: /prf-002/ }));
-    await waitFor(() => expect(seen.visible).toEqual(["prf-002"]));
+    fireEvent.click(await screen.findByRole("button", { name: /br-002/ }));
+    await waitFor(() => expect(seen.visible).toEqual(["br-002"]));
   });
 
   it("clicking it again hides it", async () => {
     const seen: { visible?: string[] } = {};
     withSession(seen);
-    const row = await screen.findByRole("button", { name: /prf-001/ });
+    const row = await screen.findByRole("button", { name: /br-001/ });
     fireEvent.click(row);
-    await waitFor(() => expect(seen.visible).toEqual(["prf-001"]));
+    await waitFor(() => expect(seen.visible).toEqual(["br-001"]));
     fireEvent.click(row);
     await waitFor(() => expect(seen.visible).toEqual([]));
   });
@@ -104,18 +121,18 @@ describe("showing and hiding", () => {
   it("several can be shown at once, to compare them", async () => {
     const seen: { visible?: string[] } = {};
     withSession(seen);
-    fireEvent.click(await screen.findByRole("button", { name: /prf-001/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /prf-002/ }));
-    await waitFor(() => expect(seen.visible).toEqual(["prf-001", "prf-002"]));
+    fireEvent.click(await screen.findByRole("button", { name: /br-001/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /br-002/ }));
+    await waitFor(() => expect(seen.visible).toEqual(["br-001", "br-002"]));
   });
 
   it("hiding one leaves the others on screen", async () => {
     const seen: { visible?: string[] } = {};
     withSession(seen);
-    fireEvent.click(await screen.findByRole("button", { name: /prf-001/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /prf-002/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /prf-001/ }));
-    await waitFor(() => expect(seen.visible).toEqual(["prf-002"]));
+    fireEvent.click(await screen.findByRole("button", { name: /br-001/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /br-002/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /br-001/ }));
+    await waitFor(() => expect(seen.visible).toEqual(["br-002"]));
   });
 
   it("«Mostrar todas» switches every marker on, and off again", async () => {
@@ -123,14 +140,14 @@ describe("showing and hiding", () => {
     withSession(seen);
     const toggle = await screen.findByRole("button", { name: /Mostrar todas/ });
     fireEvent.click(toggle);
-    await waitFor(() => expect(seen.visible).toEqual(["prf-001", "prf-002"]));
+    await waitFor(() => expect(seen.visible).toEqual(["br-001", "br-002"]));
     fireEvent.click(await screen.findByRole("button", { name: /Ocultar todas/ }));
     await waitFor(() => expect(seen.visible).toEqual([]));
   });
 
   it("exposes the shown/hidden state to assistive technology", async () => {
     withSession({});
-    const row = await screen.findByRole("button", { name: /prf-001/ });
+    const row = await screen.findByRole("button", { name: /br-001/ });
     expect(row).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(row);
     await waitFor(() => expect(row).toHaveAttribute("aria-pressed", "true"));
@@ -141,7 +158,17 @@ describe("when there is nothing to show", () => {
   it("says so instead of rendering an empty list", async () => {
     perforators.mockResolvedValue({ ...result, candidates: [], high_count: 0, medium_count: 0 });
     withSession({});
-    expect(await screen.findByText(/Sin perforantes detectadas/)).toBeInTheDocument();
+    expect(await screen.findByText(/Ninguna rama visible/)).toBeInTheDocument();
+  });
+
+  it("does not let an empty list read as «there are no perforators»", async () => {
+    // Una perforante mide 0,1–0,5 mm y la angiografía no la resuelve, así que
+    // no llega a la malla. Callar el suelo de calibre convierte «no se ven» en
+    // «no hay», que es lo contrario de lo que el barrido puede afirmar.
+    perforators.mockResolvedValue({ ...result, candidates: [], high_count: 0, medium_count: 0 });
+    withSession({});
+    expect(await screen.findByText(/no resuelve un vaso/)).toBeInTheDocument();
+    expect(screen.getByText(/1\.0 mm/)).toBeInTheDocument();
   });
 
   it("explains what to run first when the endpoint fails", async () => {

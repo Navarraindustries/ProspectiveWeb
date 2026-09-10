@@ -1,12 +1,14 @@
-/* Perforantes — GET /api/perforators/{session}. Card auxiliar bajo morfometría.
+/* Ramas cerca del cuello — GET /api/perforators/{session}.
 
-   La lista daba distancias («prf-003 · 4,2 mm · Medio») sin nada que dijera A
-   QUÉ vaso se refería cada fila. Ahora cada perforante se puede mostrar en la
-   escena 3D con su color de gravedad, pulsando su fila.
+   Se llamaba «Perforantes», y eso prometía algo que la imagen no da: una
+   perforante mide 0,1–0,5 mm y una angio-TC no la resuelve, así que no llega a
+   la malla y no puede detectarse. Lo que el barrido encuentra son ORÍGENES DE
+   RAMA VISIBLES, y decirlo importa por las dos direcciones: ninguna fila es
+   necesariamente una perforante, y una lista vacía no significa que no las haya.
 
-   Ninguna se muestra de entrada: hasta doce marcadores apareciendo sin pedirlos
-   alrededor del cuello tapan justo la geometría sobre la que se apoyan. El
-   usuario enciende las que quiere mirar y las apaga al terminar. */
+   Cada fila se puede encender en la escena 3D. Ninguna se muestra de entrada:
+   doce marcadores apareciendo sin pedirlos alrededor del cuello tapan justo la
+   geometría sobre la que se apoyan. */
 
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
@@ -52,7 +54,7 @@ export function PerforatorsPanel() {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Icon name="MARK_PERF" size={15} color="var(--muted-foreground)" />
         <SectionLabel style={{ marginBottom: 0 }}>
-          Perforantes {result ? `(radio ${result.search_radius_mm.toFixed(0)} mm)` : ""}
+          Ramas cerca del cuello {result ? `(radio ${result.search_radius_mm.toFixed(0)} mm)` : ""}
         </SectionLabel>
         {/* Encender doce marcadores de uno en uno para comparar, y apagarlos
             luego, es el gesto que más se repite en cuanto hay más de dos. */}
@@ -68,13 +70,21 @@ export function PerforatorsPanel() {
         )}
       </div>
       {result && result.candidates.length > 0 && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
-          Distancia al cuello del aneurisma y riesgo por proximidad. El calibre del vaso no se mide.
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+          Orígenes de rama visibles, con su calibre medido sobre la malla y su
+          distancia al cuello.
           {zones && zones.length === 3 && (
             <> Zonas: alto &lt;{zones[0]} mm · medio {zones[0]}–{zones[1]} mm · bajo {zones[1]}–{zones[2]} mm.</>
           )}
           <br />
           Pulsa una fila para mostrarla u ocultarla en el visor 3D.
+          {result.calibre_floor_mm > 0 && (
+            <>
+              <br />
+              No son perforantes: por debajo de {result.calibre_floor_mm.toFixed(1)} mm de
+              diámetro la imagen no resuelve un vaso, y una perforante mide 0,1–0,5 mm.
+            </>
+          )}
         </div>
       )}
       <div style={{ marginTop: 10 }}>
@@ -84,8 +94,12 @@ export function PerforatorsPanel() {
           </div>
         )}
         {result && result.candidates.length === 0 && (
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            Sin perforantes detectadas cerca del cuello.
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+            Ninguna rama visible cerca del cuello.
+            {result.calibre_floor_mm > 0 && (
+              <> Esto no dice que no las haya: por debajo de {result.calibre_floor_mm.toFixed(1)} mm
+              de diámetro esta imagen no resuelve un vaso.</>
+            )}
           </div>
         )}
         {result?.candidates.map((p) => {
@@ -121,6 +135,15 @@ export function PerforatorsPanel() {
               />
               <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1, fontWeight: active ? 700 : 400 }}>
                 {p.id}
+              </span>
+              {/* El calibre, ahora que se mide. Antes todas las filas llevaban
+                  0.4 mm: una constante que el API declaraba como «estimated
+                  vessel radius» porque el detector de valencia no lo calculaba. */}
+              <span
+                style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}
+                title="Calibre del vaso, medido sobre la malla"
+              >
+                ⌀{(p.radius_mm * 2).toFixed(1)}
               </span>
               <span
                 style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}

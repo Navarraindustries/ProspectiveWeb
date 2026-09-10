@@ -306,7 +306,7 @@ const FEATURES: [IconName, string, string][] = [
   ["STEP_SEGMENT", "Reconstrucción 3D de las arterias", "Convierte la imagen médica en un modelo 3D de la red arterial. Compatible con TC, resonancia y angiografía rotacional."],
   ["STEP_DETECT", "Detección del aneurisma", "Localiza el aneurisma sobre el modelo y aísla su forma para poder medirla con exactitud."],
   ["STEP_MORPHO", "Medidas e índices de riesgo", "Mide cuello, domo y volumen, y calcula los índices de forma y riesgo usados en la literatura clínica."],
-  ["MARK_PERF", "Aviso de arterias sensibles", "Señala las pequeñas arterias (perforantes) cercanas al aneurisma y las clasifica por riesgo según su distancia."],
+  ["MARK_PERF", "Aviso de ramas cercanas", "Mide el calibre del árbol vascular y marca dónde nace un vaso fino junto al aneurisma, con su distancia al cuello. Las perforantes finas no se ven en la imagen: esto señala las ramas que sí."],
   ["STEP_PLAN", "Ayuda a la decisión", "Compara cirugía abierta y tratamiento endovascular ponderando 8 factores, y muestra el porqué de cada uno."],
   ["CLIPS", "Planificación del dispositivo", "Catálogos reales de clips, coils y stents; sugiere el dispositivo adecuado y comprueba su colocación en 3D."],
   ["SETTINGS", "Clip a medida y pedido al taller", "Cuando ninguna talla dibujada encaja, genera la pieza a la medida del cuello y el expediente que el taller necesita para fabricarla, con su número de pedido y su seguimiento."],

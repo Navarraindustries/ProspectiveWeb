@@ -31,9 +31,17 @@ _ZONE_RADII = (3.0, 5.0, 8.0)
     response_model=PerforatorsResult,
     summary="Detect perforator vessels at risk",
     description=(
-        "Analyses the full vascular mesh around the aneurysm neck to identify "
-        "suspected perforator / branch-point candidates based on vertex-valence "
-        "anomaly detection.\n\n"
+        "Lists the VISIBLE BRANCH ORIGINS near the aneurysm neck: points where a "
+        "thin vessel attaches to a thicker one, found by measuring calibre on the "
+        "mesh — distance transform plus an inward march along the normals.\n\n"
+        "**These are not perforators.** A true perforator is 0.1-0.5 mm and CT or "
+        "MR angiography does not resolve it, so it never reaches the mesh. "
+        "`calibre_floor_mm` states the diameter this scan could not have seen, so "
+        "an empty list is not evidence that there are none.\n\n"
+        "The scan runs on the FULL tree when segmentation finishes and is frozen "
+        "in world coordinates: cropping to a ROI overwrites the mesh, so anything "
+        "outside the box would otherwise be lost, and the open rim left by the cut "
+        "would read as a branch that is not there.\n\n"
         "**Risk zones** (centred on neck origin):\n"
         "- Zone 1 (high / red)   — ≤ 3 mm from neck\n"
         "- Zone 2 (medium / yellow) — 3–5 mm from neck\n"

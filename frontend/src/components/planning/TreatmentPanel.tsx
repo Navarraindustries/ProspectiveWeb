@@ -255,15 +255,20 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {t.factors.map((f) => (
-              <div key={f.name} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              /* Rejilla, no flex: la insignia se ajustaba a su contenido, así
+                 que «ENDO +25» y «CLIP ·» dejaban el texto arrancando en sitios
+                 distintos y el borde izquierdo quedaba dentado. Una columna fija
+                 alinea las seis filas por construcción. */
+              <div key={f.name} style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 10, alignItems: "start" }}>
                 <span
                   style={{
                     fontSize: 10,
                     fontWeight: 700,
-                    padding: "2px 6px",
+                    padding: "2px 0",
                     borderRadius: 5,
-                    flexShrink: 0,
                     marginTop: 1,
+                    textAlign: "center",
+                    whiteSpace: "nowrap",
                     background: f.direction === "neutral" ? "var(--muted)" : "var(--brand-subtle)",
                     color: f.direction === "neutral" ? "var(--muted-foreground)" : "var(--brand-subtle-foreground)",
                   }}
@@ -271,13 +276,13 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                   {f.direction === "clip" ? "CLIP" : f.direction === "endo" ? "ENDO" : "—"}
                   {f.votes ? (f.points > 0 ? ` +${f.points}` : "") : " ·"}
                 </span>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
                     {f.name}
                     {/* Lo que se mide, se enseña y no suma. Sin esta marca el
                         factor se lee como si estuviera pesando. */}
                     {!f.votes && (
-                      <span style={{ fontSize: 10, fontWeight: 700, marginLeft: 6, padding: "1px 5px", borderRadius: 4, background: "var(--muted)", color: "var(--muted-foreground)", verticalAlign: "middle" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, marginLeft: 6, padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", background: "var(--muted)", color: "var(--muted-foreground)", verticalAlign: "middle" }}>
                         no puntúa
                       </span>
                     )}

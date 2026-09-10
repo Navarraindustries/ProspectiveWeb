@@ -237,3 +237,68 @@ class TestTheScanSurvivesCropping:
         from services.sessions import create_session
 
         assert thaw_scan(create_session()) is None
+
+
+# ── 5. El aviso llega donde se elige la pieza ─────────────────────────────── #
+
+class TestTheWarningReachesTheDeviceStep:
+    """El barrido se calculaba desde el principio y moría en una tarjeta.
+
+    No entraba en la elección de clip —cuando la longitud de la mordaza es
+    justamente lo que decide qué queda dentro de la línea de cierre— ni en el
+    informe. Aquí se fija que la medida sea contra la GEOMETRÍA del clip: medir
+    contra el centro del cuello daría la misma respuesta para una mordaza de 7 mm
+    y otra de 22, que es la pregunta que se está haciendo.
+    """
+
+    def _blade(self, half_length: float) -> vtk.vtkPolyData:
+        """Una hoja recta centrada en el origen, de la longitud pedida."""
+        box = vtk.vtkCubeSource()
+        box.SetXLength(2 * half_length)
+        box.SetYLength(1.0)
+        box.SetZLength(1.0)
+        box.SetCenter(0.0, 0.0, 0.0)
+        box.Update()
+        return box.GetOutput()
+
+    def _session_with(self, tree) -> str:
+        from services.branch_origins import scan_and_freeze
+        from services.sessions import create_session
+
+        sid = create_session()
+        scan_and_freeze(sid, tree)
+        return sid
+
+    def test_a_longer_jaw_reaches_more_branches(self, tree):
+        from services.branch_origins import branches_under_clip
+
+        sid = self._session_with(tree)
+        corta = branches_under_clip(sid, self._blade(2.0))
+        larga = branches_under_clip(sid, self._blade(9.0))
+        assert len(larga) > len(corta), "la longitud de la mordaza tiene que importar"
+
+    def test_it_reports_the_distance_and_the_calibre(self, tree):
+        from services.branch_origins import branches_under_clip
+
+        found = branches_under_clip(self._session_with(tree), self._blade(9.0))
+        assert found
+        for b in found:
+            assert b.distance_to_clip_mm >= 0.0
+            assert b.calibre_mm > 0.0
+        # La más próxima primero: es la que decide.
+        assert found == sorted(found, key=lambda b: b.distance_to_clip_mm)
+
+    def test_a_clip_far_from_everything_reaches_nothing(self, tree):
+        from services.branch_origins import branches_under_clip
+
+        lejos = vtk.vtkCubeSource()
+        lejos.SetXLength(2); lejos.SetYLength(2); lejos.SetZLength(2)
+        lejos.SetCenter(0.0, 60.0, 0.0)
+        lejos.Update()
+        assert branches_under_clip(self._session_with(tree), lejos.GetOutput()) == []
+
+    def test_without_a_frozen_scan_it_says_nothing_rather_than_guessing(self):
+        from services.branch_origins import branches_under_clip
+        from services.sessions import create_session
+
+        assert branches_under_clip(create_session(), self._blade(9.0)) == []

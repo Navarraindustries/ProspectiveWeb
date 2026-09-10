@@ -148,6 +148,12 @@ class ReportData:
     #: this session — a report describing a piece that does not exist yet and
     #: that nobody has asked anyone to make.
     unordered_custom_piece: bool = False
+    #: Orígenes de rama visibles cerca del cuello, con lo que el barrido admite
+    #: no poder ver. Se calculaba y se quedaba en una tarjeta plegable de
+    #: morfometría: no entraba en el informe, ni en el SR, ni en la elección de
+    #: clip. La lista puede estar vacía; `branch_floor_mm` dice desde qué calibre.
+    branches: list[dict[str, Any]] = field(default_factory=list)
+    branch_floor_mm: float = 0.0
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -343,6 +349,31 @@ def build_report_data_from_session(
     except Exception as exc:  # noqa: BLE001 — never fail a report on the register
         logger.warning("Manufacturing orders unavailable for %s: %s", session_id, exc)
 
+    # ── 6c. Ramas visibles cerca del cuello ───────────────────────────── #
+    branches: list[dict[str, Any]] = []
+    branch_floor = 0.0
+    try:
+        import math
+
+        from services.branch_origins import thaw_scan
+
+        scan = thaw_scan(session_id)
+        if scan is not None:
+            branch_floor = scan.calibre_floor_mm
+            neck = (_rf("morpho.neck_origin_x"), _rf("morpho.neck_origin_y"),
+                    _rf("morpho.neck_origin_z"))
+            for o in scan.origins:
+                d = math.dist(o.position, neck)
+                if d <= 8.0:                      # la zona que mira el panel
+                    branches.append({
+                        "distance_mm": round(d, 1),
+                        "calibre_mm": o.calibre_mm,
+                        "parent_calibre_mm": o.parent_calibre_mm,
+                    })
+            branches.sort(key=lambda b: b["distance_mm"])
+    except Exception as exc:  # noqa: BLE001 — nunca hundir un informe por esto
+        logger.warning("Branch scan unavailable for %s: %s", session_id, exc)
+
     # Both stent planners (straight catalogue device and centreline-guided)
     # write the same shape; an empty dict means none was deployed.
     raw_stent = read_stent(session_id)
@@ -380,6 +411,8 @@ def build_report_data_from_session(
         patient      = patient,
         morphometrics= morpho,
         clips        = clips,
+        branches     = branches,
+        branch_floor_mm = branch_floor,
         manufacture  = manufacture,
         unordered_custom_piece = unordered_custom,
         coils        = coils,
@@ -541,6 +574,7 @@ class ReportGenerator:
         story += self._section_morphometrics()
         story += self._section_treatment_decision()
         story += self._section_clips()
+        story += self._section_branches()
         story += self._section_manufacture()
         story += self._section_coils()
         story += self._section_stent()
@@ -1087,6 +1121,60 @@ class ReportGenerator:
                    colors.white if i % 2 else self._GREY_LIGHT)
         tbl.setStyle(ts)
         elems.append(tbl)
+        return elems
+
+    def _section_branches(self) -> list:
+        """Las ramas visibles alrededor del cuello.
+
+        Se calculaba desde el principio y no salía de una tarjeta plegable del
+        paso de morfometría: ni informe, ni DICOM SR, ni elección de clip. La
+        longitud de la mordaza decide qué queda dentro de la línea de cierre, así
+        que este dato pertenece al documento que describe la pieza elegida.
+
+        Se imprime también cuando la lista está vacía, y ahí está el motivo: sin
+        el suelo de calibre al lado, «no se encontró ninguna» se lee como «no hay
+        ninguna», y son cosas distintas.
+        """
+        floor = self._data.branch_floor_mm
+        branches = self._data.branches
+        if not branches and floor <= 0:
+            return []                     # no se ha barrido: nada que declarar
+
+        elems = [Paragraph("Ramas visibles cerca del cuello", self._style_h2)]
+        if not branches:
+            elems.append(Paragraph(
+                f"Ninguna rama visible a menos de 8 mm del cuello. "
+                f"<b>Esto no afirma que no las haya:</b> por debajo de "
+                f"{floor:.1f} mm de diámetro esta imagen no resuelve un vaso, y "
+                f"una arteria perforante mide 0,1–0,5 mm.", self._style_body))
+            return elems
+
+        rows = [["Distancia al cuello", "Calibre", "Nace de"]]
+        for b in branches:
+            rows.append([f"{b['distance_mm']:.1f} mm",
+                         f"Ø {b['calibre_mm']:.1f} mm",
+                         f"Ø {b['parent_calibre_mm']:.1f} mm"])
+        tbl = Table(rows, colWidths=[5.4 * cm, 4.0 * cm, 4.0 * cm])
+        ts = TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), self._BLUE_DARK),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ])
+        for i in range(1, len(rows)):
+            ts.add("BACKGROUND", (0, i), (-1, i),
+                   colors.white if i % 2 else self._GREY_LIGHT)
+        tbl.setStyle(ts)
+        elems.append(tbl)
+        elems.append(Paragraph(
+            f"Orígenes de rama medidos sobre la malla, no arterias perforantes: "
+            f"una perforante mide 0,1–0,5 mm y la angiografía no la resuelve. "
+            f"Este barrido no ve por debajo de {floor:.1f} mm de diámetro.",
+            self._style_td_note))
         return elems
 
     def _section_manufacture(self) -> list:

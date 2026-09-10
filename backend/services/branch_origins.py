@@ -419,3 +419,60 @@ def scan_and_freeze(session_id: str, vessel_poly: vtk.vtkPolyData) -> BranchScan
     scan = scan_branch_origins(vessel_poly)
     freeze_scan(session_id, scan)
     return scan
+
+
+# ── Contra el clip colocado ────────────────────────────────────────────────── #
+
+#: Hasta dónde se mira. Más allá de esto una rama no está en la línea de cierre,
+#: está en otro sitio del campo.
+NEAR_CLIP_MM: float = 3.0
+
+
+@dataclass
+class BranchUnderClip:
+    """Una rama que el clip colocado alcanza, y a qué distancia."""
+
+    index: int
+    position: tuple[float, float, float]
+    calibre_mm: float
+    distance_to_clip_mm: float
+
+
+def branches_under_clip(session_id: str, clips_world: vtk.vtkPolyData,
+                        within_mm: float = NEAR_CLIP_MM) -> list[BranchUnderClip]:
+    """Ramas a menos de `within_mm` de la GEOMETRÍA del clip ya colocado.
+
+    Contra la malla del clip, no contra el centro del cuello. La longitud de la
+    mordaza es justo lo que decide hasta dónde llega la línea de cierre, así que
+    medir contra el cuello daría la misma respuesta para una mordaza de 7 mm y
+    otra de 22, que es la pregunta que se está haciendo.
+
+    Sigue sin ser una perforante: son orígenes de rama visibles, con el suelo de
+    calibre que el barrido declara. Lo que esto añade es que el aviso deje de
+    vivir en una tarjeta plegable de morfometría y llegue al sitio donde se
+    elige la pieza.
+    """
+    scan = thaw_scan(session_id)
+    if scan is None or not scan.origins or clips_world is None:
+        return []
+    if clips_world.GetNumberOfPoints() == 0:
+        return []
+
+    # Distancia a la SUPERFICIE, no al vértice más cercano. Un localizador de
+    # puntos mide contra la teselación: sobre una hoja de pocos vértices —o
+    # sobre cualquier zona de malla gruesa— la esquina más próxima puede estar
+    # varios milímetros más lejos que la cara, y una rama que el clip cruza se
+    # queda fuera del aviso.
+    dist = vtk.vtkImplicitPolyDataDistance()
+    dist.SetInput(clips_world)
+
+    out: list[BranchUnderClip] = []
+    for o in scan.origins:
+        d = abs(float(dist.EvaluateFunction(*o.position)))
+        if d <= within_mm:
+            out.append(BranchUnderClip(
+                index=o.index, position=o.position, calibre_mm=o.calibre_mm,
+                distance_to_clip_mm=round(d, 2),
+            ))
+    out.sort(key=lambda b: b.distance_to_clip_mm)
+    return out

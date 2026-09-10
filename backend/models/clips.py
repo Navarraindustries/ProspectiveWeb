@@ -62,6 +62,17 @@ class ClipPlanRequest(BaseModel):
     )
 
 
+class BranchUnderClipOut(BaseModel):
+    """A visible branch origin within reach of the placed clip."""
+
+    index: int
+    position_mm: Position3D
+    calibre_mm: float = Field(..., description="Branch diameter measured on the mesh (mm)")
+    distance_to_clip_mm: float = Field(
+        ..., description="Distance from the branch origin to the clip surface (mm)"
+    )
+
+
 class ClipPlanResult(BaseModel):
     """Result of a clip placement plan."""
 
@@ -90,6 +101,15 @@ class ClipPlanResult(BaseModel):
             "Whether the neck could be carved out before testing. False without "
             "a measured neck — the figure then includes the neck itself and is "
             "not a judgement about fit."
+        ),
+    )
+    branches_under_clip: list["BranchUnderClipOut"] = Field(
+        default_factory=list,
+        description=(
+            "Visible branch origins the placed clip reaches, nearest first. "
+            "Measured against the clip's geometry rather than the neck centre, "
+            "because the jaw length is exactly what decides how far the closing "
+            "line extends. Not perforators \u2014 see the branch scan's calibre floor."
         ),
     )
     warning: str | None = Field(

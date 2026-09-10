@@ -939,6 +939,14 @@ export interface ClipPlanRequest {
   trajectory_target?: Position3D | null;
 }
 
+/** Un origen de rama visible al alcance del clip colocado. */
+export interface BranchUnderClip {
+  index: number;
+  position_mm: Position3D;
+  calibre_mm: number;
+  distance_to_clip_mm: number;
+}
+
 export interface ClipPlanResult {
   clips_mesh_url: string;
   trajectory_mesh_url: string | null;
@@ -947,6 +955,10 @@ export interface ClipPlanResult {
   collision_detected: boolean;
   /** Si se pudo recortar el cuello antes de comprobar. Sin él la cifra no juzga nada. */
   neck_region_excluded: boolean;
+  /** Ramas visibles que el clip colocado alcanza, la más próxima primero. Se
+      miden contra la geometría del clip y no contra el centro del cuello, porque
+      la longitud de la mordaza es lo que decide hasta dónde llega el cierre. */
+  branches_under_clip: BranchUnderClip[];
   warning: string | null;
 }
 

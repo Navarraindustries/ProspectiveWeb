@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from models import ClipLibraryItem, ClipPlanRequest, ClipPlanResult, ClipRecommendation
 from models.detection import Position3D
 from models.clips import (
+    BranchUnderClipOut,
     ClipAnimationResult,
     ClipCandidateOut,
     ClipCaseOut,
@@ -432,7 +433,31 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
         for i, pl in enumerate(req.placements)
     ])
 
+    # Las ramas que la pieza elegida alcanza. Se calculaba en morfometría y se
+    # quedaba allí: el aviso vivía en una tarjeta plegable, y la longitud de la
+    # mordaza —que es lo que decide hasta dónde llega la línea de cierre— se
+    # elegía sin verlo.
+    branches: list[BranchUnderClipOut] = []
+    try:
+        from services.branch_origins import branches_under_clip
+        branches = [
+            BranchUnderClipOut(
+                index=b.index,
+                position_mm=Position3D(x=b.position[0], y=b.position[1], z=b.position[2]),
+                calibre_mm=b.calibre_mm,
+                distance_to_clip_mm=b.distance_to_clip_mm,
+            )
+            for b in branches_under_clip(req.session_id, clips_world)
+        ]
+    except Exception as exc:  # noqa: BLE001 — nunca hundir un plan por esto
+        logger.warning("Branch check skipped for %s: %s", req.session_id, exc)
+
     warning = None
+    if branches:
+        closest = branches[0]
+        warning = (f"{len(branches)} rama(s) visible(s) al alcance del clip; la más "
+                   f"próxima a {closest.distance_to_clip_mm:.1f} mm "
+                   f"(⌀ {closest.calibre_mm:.1f} mm). Comprobar en el ensayo.")
     if collision and neck_excluded:
         warning = (f"El clip toca el vaso fuera del cuello ({n_contacts} contactos) — "
                    f"probar otro giro o reposicionar.")
@@ -453,6 +478,7 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
         neck_coverage_pct=round(coverage, 1),
         collision_detected=collision,
         neck_region_excluded=neck_excluded,
+        branches_under_clip=branches,
         warning=warning,
     )
 

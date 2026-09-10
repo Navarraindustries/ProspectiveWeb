@@ -389,6 +389,32 @@ function ClipsTab() {
                 }
               />
               {plan.warning && <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>}
+
+              {/* Lo que la mordaza alcanza. Este dato se calculaba desde el
+                  principio y se quedaba en una tarjeta plegable de morfometría:
+                  la longitud de la hoja se elegía sin verlo, y es justo la
+                  longitud lo que decide qué queda dentro de la línea de cierre. */}
+              {plan.branches_under_clip.length > 0 && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--foreground)", marginBottom: 6 }}>
+                    Ramas al alcance de esta mordaza
+                  </div>
+                  {plan.branches_under_clip.map((b) => (
+                    <div key={b.index} style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 10, alignItems: "baseline", marginTop: 4 }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--warning)", textAlign: "center" }}>
+                        {b.distance_to_clip_mm.toFixed(1)} mm
+                      </span>
+                      <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                        rama de Ø {b.calibre_mm.toFixed(1)} mm
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45, opacity: 0.85 }}>
+                    Orígenes de rama visibles, no perforantes: la angiografía no
+                    resuelve un vaso de 0,1–0,5 mm. Comprobar en el ensayo.
+                  </div>
+                </div>
+              )}
             </Card>
           )}
           <ErrorNote>{error}</ErrorNote>

@@ -6231,6 +6231,36 @@
         ],
         "title": "Body_upload_custom_clip_api_clips_custom__session_id__post"
       },
+      "BranchUnderClipOut": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "position_mm": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "calibre_mm": {
+            "type": "number",
+            "title": "Calibre Mm",
+            "description": "Branch diameter measured on the mesh (mm)"
+          },
+          "distance_to_clip_mm": {
+            "type": "number",
+            "title": "Distance To Clip Mm",
+            "description": "Distance from the branch origin to the clip surface (mm)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "position_mm",
+          "calibre_mm",
+          "distance_to_clip_mm"
+        ],
+        "title": "BranchUnderClipOut",
+        "description": "A visible branch origin within reach of the placed clip."
+      },
       "BrokenBlock": {
         "properties": {
           "id": {
@@ -7214,6 +7244,14 @@
             "title": "Neck Region Excluded",
             "description": "Whether the neck could be carved out before testing. False without a measured neck — the figure then includes the neck itself and is not a judgement about fit.",
             "default": false
+          },
+          "branches_under_clip": {
+            "items": {
+              "$ref": "#/components/schemas/BranchUnderClipOut"
+            },
+            "type": "array",
+            "title": "Branches Under Clip",
+            "description": "Visible branch origins the placed clip reaches, nearest first. Measured against the clip's geometry rather than the neck centre, because the jaw length is exactly what decides how far the closing line extends. Not perforators — see the branch scan's calibre floor."
           },
           "warning": {
             "anyOf": [

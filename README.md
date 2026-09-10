@@ -63,7 +63,7 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **826 passing** (`pytest`, 48 files) |
+| Backend tests | **830 passing** (`pytest`, 48 files) |
 | Frontend tests | **159 passing** (`vitest`, 18 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
@@ -598,6 +598,30 @@ actually is — a thin tube attached to a thick one:
 On the same synthetic tree: **3 of 3 junctions, at x = −6.01, 3.00, 7.97**
 (truth −6, 3, 8), with the calibre and the parent calibre measured rather than
 assumed.
+
+### The warning now reaches the decisions it should inform
+
+The scan was computed from the beginning and died in a collapsible card under
+Morfometría. `perforator` appeared nowhere in `report_generator`, `dicom_sr`,
+`clip_selection` or `clip_fit` — so the branches near the neck never entered the
+choice of clip, and never reached the PDF.
+
+**In the device step**, `POST /clips/plan` now returns the branch origins the
+placed clip actually reaches, nearest first, with their measured calibre. The
+distance is to the **clip's geometry**, not to the neck centre, and that is the
+whole point: the jaw length is what decides how far the closing line extends, so
+measuring from the neck would answer identically for a 7 mm jaw and a 22 mm one.
+
+Two implementation notes worth keeping. A point locator measures to the nearest
+**vertex**, so on a coarsely tessellated blade a branch the clip crosses can sit
+several millimetres from the closest corner and fall out of the warning; it uses
+`vtkImplicitPolyDataDistance` against the surface. And the check never sinks a
+plan — a failure logs and returns nothing.
+
+**In the report**, a «Ramas visibles cerca del cuello» table with distance,
+calibre and parent calibre. It prints **even when the list is empty**, and that
+is deliberate: without the calibre floor beside it, «none found» reads as «none
+there», and those are different claims.
 
 ### The feature is now called what it is
 
@@ -1559,11 +1583,11 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 826 tests
+.venv\Scripts\python -m pytest -q                        # all 830 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **826 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **830 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 

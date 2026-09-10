@@ -110,9 +110,9 @@ def endovascular_profile(
     if not wide:
         technique, label = "simple", "Coiling simple"
         rationale = (
-            f"Cuello de {neck_mm:.1f} mm y relación domo-cuello {dnr:.2f}: fuera "
-            f"de la definición de cuello ancho (≥ {WIDE_NECK_MM:.0f} mm o DNR "
-            f"< {WIDE_DNR:.0f}), donde no suelen hacer falta técnicas adyuvantes."
+            f"Cuello {neck_mm:.1f} mm, DNR {dnr:.2f}: fuera de la definición de "
+            f"cuello ancho (≥ {WIDE_NECK_MM:.0f} mm o DNR < {WIDE_DNR:.0f}), "
+            f"donde no suelen hacer falta adyuvantes."
         )
     elif 0 < dnr < DNR_ALWAYS_ADJUNCT:
         technique, label = "assisted", "Coiling asistido (balón o stent)"
@@ -126,31 +126,28 @@ def endovascular_profile(
         motivo = (f"cuello de {neck_mm:.1f} mm" if neck_mm >= WIDE_NECK_MM
                   else f"relación domo-cuello {dnr:.2f}")
         rationale = (
-            f"Cuello ancho por {motivo}. Es la definición que se usa justo porque "
-            f"predice la necesidad de adyuvante; por encima de una relación de "
-            f"{DNR_NO_ADJUNCT} suele bastar el coiling simple."
+            f"Cuello ancho por {motivo}: esa definición existe porque predice la "
+            f"necesidad de adyuvante. Por encima de {DNR_NO_ADJUNCT} suele "
+            f"bastar el coiling simple."
         )
 
     # ── Grandes y gigantes: otra familia de dispositivo ───────────────── #
     if max_diameter_mm >= GIANT_MM:
         technique, label = "diverter", "Valorar diversor de flujo"
         rationale = (
-            f"Aneurisma gigante ({max_diameter_mm:.1f} mm). La diversión de flujo "
-            f"es la vía endovascular habitual a este tamaño, pero no es una "
-            f"elección automática: en gigantes de carótida interna se describen "
-            f"complicaciones de hasta el 25 %."
+            f"Gigante ({max_diameter_mm:.1f} mm). La diversión de flujo es lo "
+            f"habitual a este tamaño, pero no automática: en gigantes de "
+            f"carótida interna se describen complicaciones de hasta el 25 %."
         )
         cautions.append(
-            "En grandes y gigantes el volumen permeable baja con el diversor, pero "
-            "el volumen total del aneurisma no se reduce en la misma medida: el "
-            "efecto de masa puede persistir."
+            "El volumen permeable baja con el diversor, pero el total no en la "
+            "misma medida: el efecto de masa puede persistir."
         )
         sources.append(SRC_DIVERTER)
     elif max_diameter_mm >= LARGE_MM:
         cautions.append(
-            f"Aneurisma grande ({max_diameter_mm:.1f} mm): a este tamaño entra en "
-            f"juego la diversión de flujo, sola o combinada con coils — combinada "
-            f"logra mejor oclusión completa (OR 1.59)."
+            f"Grande ({max_diameter_mm:.1f} mm): entra en juego la diversión de "
+            f"flujo; combinada con coils ocluye mejor (OR 1.59)."
         )
         sources.append(SRC_DIVERTER)
 
@@ -159,27 +156,24 @@ def endovascular_profile(
     if aspect_ratio > 0:
         if aspect_ratio >= AR_RECANALIZATION:
             durability = (
-                f"Aspect ratio {aspect_ratio:.2f}: por encima de "
-                f"{AR_RECANALIZATION}, que se asocia a recanalización tras "
-                f"coiling — {AR_RECANALIZATION_OR} sobre 307 aneurismas con 79 "
-                f"meses de seguimiento medio. No contraindica la vía: pide "
-                f"empaquetado alto y seguimiento por imagen previsto de antemano."
+                f"AR {aspect_ratio:.2f}, por encima de {AR_RECANALIZATION}: se "
+                f"asocia a recanalización tras coiling ({AR_RECANALIZATION_OR}). "
+                f"No contraindica la vía; pide empaquetado alto y seguimiento."
             )
             sources.append(SRC_RECANALIZATION)
         else:
             durability = (
-                f"Aspect ratio {aspect_ratio:.2f}, por debajo del umbral de "
-                f"{AR_RECANALIZATION} asociado a más recanalización tras coiling."
+                f"AR {aspect_ratio:.2f}, por debajo del umbral de "
+                f"{AR_RECANALIZATION} asociado a recanalización tras coiling."
             )
             sources.append(SRC_RECANALIZATION)
 
     # ── Lo que no tiene respaldo, dicho como tal ──────────────────────── #
     if undulation_index >= 0.20:
         cautions.append(
-            f"Domo irregular (UI {undulation_index:.2f}). Es un índice de riesgo "
-            f"de ROTURA, no de resultado del tratamiento: el llenado incompleto de "
-            f"un saco lobulado es un argumento mecánico razonable y no se ha "
-            f"encontrado validación de que prediga el resultado del coiling."
+            f"Domo irregular (UI {undulation_index:.2f}): índice de riesgo de "
+            f"ROTURA, no de resultado. Que un saco lobulado se llene peor es "
+            f"razonable y no se ha encontrado validación de ello."
         )
 
     return EndovascularProfile(

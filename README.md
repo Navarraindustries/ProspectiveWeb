@@ -64,7 +64,7 @@ approval, and a tamper-evident audit chain.
 | | |
 |---|---|
 | Backend tests | **811 passing** (`pytest`, 47 files) |
-| Frontend tests | **151 passing** (`vitest`, 17 files) · `tsc -b` clean · production build clean |
+| Frontend tests | **156 passing** (`vitest`, 18 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -559,6 +559,25 @@ session saved on «Informe» (index 6) would have resumed on «Fabricación». T
 list now lives in `frontend/src/pipeline/steps.ts` alone, and a recorded
 migration renumbers saved sessions once. Data migrations that are not idempotent
 now register themselves in `applied_migrations` rather than relying on luck.
+
+### The verdict was breaking one letter per line
+
+Reported from the application with a screenshot. «Recomendación: TRATAMIENTO
+ENDOVASCULAR» rendered as `TRAT / AMIE / NTO / ENDO / VASC / ULAR` in the 265 px
+side panel.
+
+The heading shared a flex row with badges that do not shrink, and it carried
+`overflow-wrap: anywhere`. Adding the coverage badge left the text roughly sixty
+pixels, and `anywhere` does exactly what it says: it breaks mid-word rather than
+overflow. The heading now owns its line and the badges wrap on their own row
+below, with normal word wrapping — no rule that can shatter a word.
+
+**And the provenance was shouting.** Every factor carried its full source
+underneath, so seven factors meant seven paragraphs burying the thing being read.
+The sources are now one line each — the long reasoning lives in the PDF and in
+this file, where there is room — and they sit behind a «Ver procedencia» toggle,
+folded by default. Still there, no longer in the way. The endovascular profile's
+copy was trimmed on the same grounds.
 
 ### A recommendation outliving the measurements it came from
 
@@ -1468,7 +1487,7 @@ Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 151 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 156 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

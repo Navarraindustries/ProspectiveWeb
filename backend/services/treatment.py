@@ -112,86 +112,59 @@ class _Factor:
 #: factor without a source is a visible omission.
 _SOURCE: dict[str, str] = {
     "neck": (
-        "Umbral: cuello ≥ 4 mm es la definición estándar de cuello ancho "
-        "(Brinjikji, AJNR 2009). Peso: heurístico, sin fuente. Nota: hoy el "
-        "coiling asistido con stent es alternativa aceptada en cuello ancho."
+        "Umbral: cuello ≥ 4 mm, definición estándar de cuello ancho (Brinjikji, "
+        "AJNR 2009). Peso: heurístico."
     ),
     "ar": (
-        "Ya no vota. Índice de RIESGO DE ROTURA (Dhar 2008; Raghavan 2005), sin "
-        "validación para elegir modalidad. Y la evidencia más directa sobre el AR "
-        "y el coiling apunta al revés que el +20 que daba a endovascular: un AR "
-        "≥ 1.6 se asocia a RECANALIZACIÓN, OR 4.15 (IC 95 % 1.57–11.00) sobre 307 "
-        "aneurismas con 79 meses de seguimiento (Neurol Med Chir 2022). Un domo "
-        "profundo sobre cuello estrecho retiene bien el coil el día de la "
-        "intervención y recanaliza más después: son momentos distintos y ahora se "
-        "dicen los dos, en el perfil endovascular."
+        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
+        "modalidad. Un AR ≥ 1.6 se asocia a RECANALIZACIÓN tras coiling "
+        "(OR 4.15) — va al perfil endovascular."
     ),
     "dnr": (
-        "Umbral: relación domo-cuello < 2 es la definición estándar de cuello "
-        "ancho (Brinjikji, AJNR 2009). Peso: heurístico, sin fuente."
+        "Umbral: DNR < 2, definición estándar de cuello ancho (Brinjikji, "
+        "AJNR 2009). Peso: heurístico."
     ),
     "size": (
-        "Umbrales de tamaño de uso corriente; el corte de gigante (25 mm) es "
-        "convencional. Peso: heurístico. La diversión de flujo en gigantes tiene "
-        "tasas de complicación notables y no es una elección automática."
+        "Umbrales de tamaño de uso corriente; el corte de gigante es "
+        "convencional. Peso: heurístico."
     ),
     "bf": (
-        "Ya no vota. Índice de RIESGO DE ROTURA (Dhar 2008), sin validación para "
-        "elegir modalidad. Lo que la relación domo-cuello sí predice —la "
-        "necesidad de balón o stent— se dice en el perfil endovascular, con la "
-        "fuente que lo mide."
+        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
+        "modalidad. Lo que sí predice va al perfil endovascular."
     ),
     "ui": (
-        "Ya no vota. Índice de RIESGO DE ROTURA (Raghavan 2005; Dhar 2008), sin "
-        "validación para elegir modalidad ni para predecir el resultado del "
-        "coiling. Que un saco lobulado se llene peor es un argumento mecánico "
-        "razonable, y razonable no es lo mismo que medido: se enuncia como "
-        "cautela en el perfil endovascular, no como puntos."
+        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
+        "modalidad ni para el resultado del coiling."
     ),
     "location": (
-        "Dirección: práctica establecida y recogida en guía para circulación "
-        "posterior (AHA/ASA 2023). En ACM los metaanálisis de 2024-2025 dan "
-        "mejor oclusión y menos retratamiento con clipaje, pero SIN diferencia "
-        "en resultado funcional. Peso: heurístico, sin fuente."
+        "Dirección recogida en guía para circulación posterior (AHA/ASA 2023). "
+        "En ACM el clipaje ocluye mejor sin diferencia funcional. "
+        "Peso: heurístico."
     ),
     "ruptured": (
-        "AHA/ASA 2023: en circulación anterior rota igualmente abordable por "
-        "ambas vías, coiling preferente — Clase I, nivel A, la recomendación "
-        "más fuerte que toca este motor. ISAT a 18 años: más vivos e "
-        "independientes en el brazo endovascular. Peso: heurístico (30), "
-        "elegido por una regla que se puede discutir: una recomendación "
-        "Clase I nivel A no "
-        "puede quedar por debajo de ningún otro factor suelto, y el mayor de "
-        "los demás vale 25. Antes valía 15 y una localización en ACM la "
-        "volteaba ella sola."
+        "AHA/ASA 2023: coiling preferente en circulación anterior rota "
+        "abordable por ambas vías — Clase I, nivel A. Peso: heurístico (30), "
+        "por encima de cualquier otro factor suelto."
     ),
     "age": (
-        "Dirección: el modelo del Japan Stroke Data Bank (Neurol Med Chir 2020) "
-        "penaliza el clipaje desde los 72 años y el coiling solo desde los 80, "
-        "es decir la edad avanzada tolera peor la cirugía. Magnitud contenida a "
-        "propósito: el metaanálisis de 2025 sobre 51 415 pacientes ≥60 años no "
-        "halló diferencia en resultado (RR 1,03) ni mortalidad, solo estancia "
-        "más corta con coiling, y con certeza muy baja. Peso: heurístico."
+        "El modelo del Japan Stroke Data Bank penaliza el clipaje desde los 72 "
+        "y el coiling desde los 80. Peso: heurístico y contenido — no hay "
+        "diferencia de resultado demostrada en ≥60."
     ),
     "wfns": (
         "Variable de mayor peso del modelo validado del Japan Stroke Data Bank, "
-        "que la puntúa hasta 3 de 5 puntos y penaliza antes al clipaje (desde "
-        "WFNS II-III) que al coiling (desde III). Peso aquí: heurístico, "
-        "trasladado por analogía de esa estructura."
+        "que penaliza antes al clipaje. Peso: heurístico."
     ),
     "fisher": (
-        "El modelo del Japan Stroke Data Bank penaliza el COILING en Fisher 4. "
-        "Coincide con la posición referida para el hematoma intraparenquimatoso "
-        "voluminoso, donde el clipaje permite evacuar en el mismo acto. Peso: "
-        "heurístico. No sustituye a medir el hematoma, que esta aplicación aún "
-        "no recoge."
+        "El modelo validado penaliza el COILING en Fisher 4; un hematoma "
+        "voluminoso se evacúa con el clipaje. Peso: heurístico."
     ),
     "small": (
-        "Umbral heurístico. No procede de ninguna guía: ESO 2022 plantea la "
-        "decisión como comparar el riesgo de rotura contra el del procedimiento, "
-        "no como un corte de diámetro."
+        "Umbral heurístico, no de guía: ESO 2022 plantea comparar el riesgo de "
+        "rotura contra el del procedimiento, no cortar por diámetro."
     ),
 }
+
 
 
 @dataclass

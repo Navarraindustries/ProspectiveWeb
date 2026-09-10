@@ -55,6 +55,9 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
   // WFNS gradúa una hemorragia subaracnoidea y Fisher la sangre del TC: en un
   // aneurisma incidental no hay nada que graduar, así que sólo se piden cuando
   // el caso está roto. Vacío significa «no lo sé», no «grado 1».
+  // La procedencia importa y no es lo que se lee a diario: doce líneas de
+  // fuentes bajo siete factores tapan los factores. Plegada por defecto.
+  const [showSources, setShowSources] = useState(false);
   const [wfns, setWfns] = useState<string>("");
   const [fisher, setFisher] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -196,19 +199,21 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
       {t && (
         <>
           <div style={{ background: "var(--brand-subtle)", borderRadius: "var(--radius-lg)", padding: "16px 18px", margin: "16px 0" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 15, fontWeight: 800, color: "var(--brand-subtle-foreground)", flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
-                Recomendación: {t.recommendation}
-              </span>
-              <span style={{ flexShrink: 0, whiteSpace: "nowrap", display: "flex", gap: 6 }}>
-                {/* La cobertura al lado de la confianza, porque es lo que la
-                    limita: antes la confianza medía cuántos factores había, y
-                    un caso con un solo dato salía como «Moderada». */}
-                <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}>
-                  {t.coverage_pct} % del caso
-                </Badge>
-                <Badge variant="subtle">Confianza {t.confidence.toLowerCase()}</Badge>
-              </span>
+            {/* El titular manda en su propia línea. Compartiendo un flex con dos
+                insignias que no encogen se quedaba sin ancho, y con
+                `overflow-wrap: anywhere` no envolvía por palabras sino por
+                letras: «TRAT / AMIE / NTO / ENDO / VASC / ULAR». */}
+            <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.3, color: "var(--brand-subtle-foreground)" }}>
+              Recomendación: {t.recommendation}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {/* La cobertura al lado de la confianza, porque es lo que la
+                  limita: antes la confianza medía cuántos factores había, y un
+                  caso con un solo dato salía como «Moderada». */}
+              <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}>
+                {t.coverage_pct} % del caso
+              </Badge>
+              <Badge variant="subtle">Confianza {t.confidence.toLowerCase()}</Badge>
             </div>
             <div style={{ marginTop: 12 }}>
               <ScoreBar label="CLIP" pct={t.clip_pct} points={t.clip_points} fill="var(--brand-deep)" />
@@ -235,7 +240,19 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
             </div>
           )}
 
-          <SectionLabel>Factores contribuyentes</SectionLabel>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <SectionLabel style={{ flex: 1 }}>Factores contribuyentes</SectionLabel>
+            <button
+              onClick={() => setShowSources((v) => !v)}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                padding: 0, fontSize: 11, fontWeight: 600,
+                color: "var(--brand-deep)",
+              }}
+            >
+              {showSources ? "Ocultar procedencia" : "Ver procedencia"}
+            </button>
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {t.factors.map((f) => (
               <div key={f.name} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -266,7 +283,7 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                     )}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{f.detail}</div>
-                  {f.source && (
+                  {showSources && f.source && (
                     <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45, opacity: 0.85 }}>
                       {f.source}
                     </div>
@@ -299,7 +316,7 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                     — {c}
                   </div>
                 ))}
-                {t.endovascular.sources.length > 0 && (
+                {showSources && t.endovascular.sources.length > 0 && (
                   <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45, opacity: 0.85 }}>
                     {t.endovascular.sources.join(" · ")}
                   </div>

@@ -679,6 +679,19 @@ export interface DecisionFactor {
   votes: boolean;
 }
 
+/** Las perforantes que la anatomía hace esperar en una localización.
+
+    NO es una medida de este paciente: una perforante mide 0,1–0,5 mm y el vóxel
+    de una angio-TC ronda 0,5–1,0 mm, así que no llega a la malla. Esto es lo que
+    un cirujano usa en su lugar — saber dónde nacen. */
+export interface PerforatorTerritory {
+  arteries: string;
+  supplies: string;
+  consequence: string;
+  surgical_note: string;
+  sources: string[];
+}
+
 /** Cómo sería la vía endovascular para esta geometría. No es una segunda
     recomendación: describe una de las dos opciones. */
 export interface EndovascularProfile {
@@ -720,6 +733,8 @@ export interface TreatmentDecisionResult {
   /** Se calcula también cuando gana el clipaje: una sesión multidisciplinar
       compara las dos opciones, no sólo la ganadora. */
   endovascular: EndovascularProfile | null;
+  /** Null sin localización: inventar un territorio por defecto sería relleno. */
+  perforators: PerforatorTerritory | null;
   balance: number;
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";

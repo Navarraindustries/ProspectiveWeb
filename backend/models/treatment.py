@@ -77,6 +77,22 @@ class EndovascularProfileOut(BaseModel):
     sources: list[str] = Field(default_factory=list)
 
 
+class PerforatorTerritoryOut(BaseModel):
+    """Las perforantes que la anatomía hace esperar en esta localización.
+
+    **No es una medida de este paciente.** Una perforante mide 0.1-0.5 mm y el
+    vóxel de una angio-TC ronda 0.5-1.0 mm, así que no llega a la malla y no se
+    puede detectar. Esto es lo que un cirujano usa en su lugar: saber dónde
+    nacen. Las variantes anatómicas son frecuentes.
+    """
+
+    arteries: str = ""
+    supplies: str = ""
+    consequence: str = ""
+    surgical_note: str = ""
+    sources: list[str] = Field(default_factory=list)
+
+
 class TreatmentDecisionRequest(BaseModel):
     """Clinical context inputs needed to compute the CLIP vs ENDO recommendation."""
 
@@ -165,6 +181,15 @@ class TreatmentDecisionResult(BaseModel):
             "durability and caveats. Computed even when the recommendation is "
             "clipping: a multidisciplinary discussion compares both options, not "
             "just the winning one."
+        ),
+    )
+    perforators: PerforatorTerritoryOut | None = Field(
+        None,
+        description=(
+            "Perforator territory expected at this location, from anatomy \u2014 not "
+            "from this patient's imaging, which cannot resolve a 0.1-0.5 mm "
+            "vessel. Null when no location was given: inventing a default "
+            "territory would be filler."
         ),
     )
     notes: list[str] = Field(

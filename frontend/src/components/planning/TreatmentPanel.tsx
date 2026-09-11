@@ -298,6 +298,37 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
             ))}
           </div>
 
+          {/* Lo que la imagen no puede dar. Una perforante mide 0,1–0,5 mm y el
+              vóxel de una angio-TC ronda 0,5–1,0 mm: no llega a la malla, así
+              que el barrido de ramas no la encuentra y su silencio no significa
+              que no esté. Lo que sí se sabe sin verla es dónde nace. */}
+          {t.perforators && (
+            <>
+              <SectionLabel style={{ marginTop: 16 }}>Perforantes que esperar aquí</SectionLabel>
+              <Card style={{ borderLeft: "3px solid var(--warning)" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.4 }}>
+                  {t.perforators.arteries}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+                  Irrigan {t.perforators.supplies}. Lesionarlas: {t.perforators.consequence}.
+                </div>
+                {t.perforators.surgical_note && (
+                  <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 8, lineHeight: 1.5 }}>
+                    {t.perforators.surgical_note}
+                  </div>
+                )}
+                <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45, opacity: 0.85 }}>
+                  No es una medida de este paciente: es la anatomía de esa localización,
+                  y las variantes son frecuentes. La imagen no resuelve un vaso de
+                  0,1–0,5 mm.
+                  {showSources && t.perforators.sources.length > 0 && (
+                    <> {t.perforators.sources.join(" · ")}</>
+                  )}
+                </div>
+              </Card>
+            </>
+          )}
+
           {/* La otra opción, descrita gane o no. Es donde la morfología sí tiene
               respaldo publicado: la definición de cuello ancho predice si hará
               falta balón o stent, y el aspect ratio predice recanalización. */}

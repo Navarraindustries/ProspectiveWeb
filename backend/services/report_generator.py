@@ -236,6 +236,12 @@ def build_report_data_from_session(
                 treatment["notes"] = json.loads(notes_raw)
             except Exception:
                 pass
+        perf_raw = _rs("treatment.perforators_json", "")
+        if perf_raw:
+            try:
+                treatment["perforators"] = json.loads(perf_raw) or {}
+            except Exception:
+                pass
         endo_raw = _rs("treatment.endovascular_json", "")
         if endo_raw:
             try:
@@ -1137,11 +1143,15 @@ class ReportGenerator:
         """
         floor = self._data.branch_floor_mm
         branches = self._data.branches
+        territory = self._perforator_territory()
         if not branches and floor <= 0:
-            return []                     # no se ha barrido: nada que declarar
+            # Sin barrido no hay nada medido que contar, pero la anatomía de la
+            # localización sigue valiendo: es independiente de la imagen.
+            return self._perforator_territory(standalone=True)
 
         elems = [Paragraph("Ramas visibles cerca del cuello", self._style_h2)]
         if not branches:
+            elems += self._perforator_territory()
             elems.append(Paragraph(
                 f"Ninguna rama visible a menos de 8 mm del cuello. "
                 f"<b>Esto no afirma que no las haya:</b> por debajo de "
@@ -1170,12 +1180,42 @@ class ReportGenerator:
                    colors.white if i % 2 else self._GREY_LIGHT)
         tbl.setStyle(ts)
         elems.append(tbl)
+        elems += self._perforator_territory()
         elems.append(Paragraph(
             f"Orígenes de rama medidos sobre la malla, no arterias perforantes: "
             f"una perforante mide 0,1–0,5 mm y la angiografía no la resuelve. "
             f"Este barrido no ve por debajo de {floor:.1f} mm de diámetro.",
             self._style_td_note))
         return elems
+
+    def _perforator_territory(self, standalone: bool = False) -> list:
+        """Las perforantes que la anatomía hace esperar en esta localización.
+
+        Va dentro de la sección de ramas y no aparte, a propósito: es lo que
+        completa una lista corta o vacía. Un informe de punta de basilar que solo
+        dijera «ninguna rama visible» estaría callando justo lo que ahí importa.
+        """
+        t = (self._data.treatment or {}).get("perforators") or {}
+        if not t.get("arteries"):
+            return []
+        # Encabezado de sección cuando va sola —sin barrido de ramas que la
+        # acompañe— y subtítulo cuando cuelga de la tabla de ramas. Con los dos
+        # salía «Perforantes en esta localización» seguido de «Perforantes
+        # esperadas por la localización», que es decir lo mismo dos veces.
+        out = [Paragraph("Perforantes esperadas por la localización",
+                         self._style_h2 if standalone else self._style_h3)]
+        out.append(Paragraph(
+            f"<b>{t['arteries']}.</b> Irrigan {t.get('supplies', '')}. "
+            f"Lesionarlas: {t.get('consequence', '')}.", self._style_body))
+        if t.get("surgical_note"):
+            out.append(Paragraph(t["surgical_note"], self._style_body))
+        out.append(Paragraph(
+            "Esto no es una medida de este paciente: es la anatomía de esa "
+            "localización. Las variantes son frecuentes, y una perforante puede "
+            "nacer donde esta nota no la pone."
+            + (" Fuente: " + " · ".join(t["sources"]) if t.get("sources") else ""),
+            self._style_td_note))
+        return out
 
     def _section_manufacture(self) -> list:
         """The piece that is being made, and whether it has arrived.

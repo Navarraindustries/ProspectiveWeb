@@ -631,6 +631,14 @@ def compute_decision(
     # endovascular. Se calcula siempre, también cuando la recomendación es
     # clipaje, porque una sesión multidisciplinar compara las dos opciones y no
     # sólo la ganadora.
+    # Las perforantes que cabe esperar aquí. No sale de la imagen —no puede— sino
+    # de la anatomía de la localización, que es lo que un cirujano usa cuando el
+    # vóxel no resuelve el vaso.
+    from services.perforator_anatomy import expected_perforators, territory_to_dict
+
+    territory = expected_perforators(location)
+    out["perforators"] = territory_to_dict(territory) if territory else None
+
     out["endovascular"] = profile_to_dict(endovascular_profile(
         neck_mm=neck_mm, dnr=dnr, aspect_ratio=aspect_ratio,
         max_diameter_mm=max_diameter_mm, undulation_index=undulation_index,

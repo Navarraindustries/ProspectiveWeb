@@ -342,3 +342,61 @@ class TestTheClinicalGradesAndTheWeightOfRupture:
         joven = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, patient_age=50)
         mayor = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, patient_age=82)
         assert mayor["balance"] < joven["balance"]
+
+
+# ── 7. Lo que la imagen no puede ver, dicho por anatomía ──────────────────── #
+
+class TestTheExpectedPerforatorTerritory:
+    """Una perforante mide 0,1-0,5 mm y el vóxel de una angio-TC ronda 0,5-1,0.
+
+    Medido sobre los estudios de este proyecto: una de 0,3 mm ocupa el 8 % de un
+    vóxel de 0,96 mm y el 28 % de uno de 0,50, y con lumen a ~350 HU sobre
+    parénquima a ~40 el vóxel se lee a 64 y 128 HU. No hay umbral que lo separe
+    del ruido. Así que no se detecta: se sabe por dónde está el aneurisma.
+    """
+
+    def _perf(self, location: str):
+        return compute_decision(neck_mm=6.0, aspect_ratio=1.4, dnr=1.8,
+                                max_diameter_mm=9.0, bottleneck_factor=1.5,
+                                undulation_index=0.1,
+                                location=location)["perforators"]
+
+    def test_the_basilar_apex_names_what_costs_most(self):
+        from services.treatment import LOCATION_BASILAR
+
+        t = self._perf(LOCATION_BASILAR)
+        assert "alamoperforantes" in t["arteries"]
+        assert "coma" in t["consequence"]
+        assert t["sources"], "una tabla clínica sin fuente es una opinión"
+
+    def test_the_acom_names_the_recurrent_artery(self):
+        from services.treatment import LOCATION_ACA_ACOA
+
+        t = self._perf(LOCATION_ACA_ACOA)
+        assert "Heubner" in t["arteries"]
+
+    def test_the_mca_names_the_lenticulostriates(self):
+        t = self._perf(LOCATION_MCA)
+        assert "entriculoestriadas" in t["arteries"] or "enticuloestriadas" in t["arteries"]
+
+    def test_where_it_does_not_apply_it_says_so(self):
+        # Un silencio en la carótida cavernosa significa algo distinto que en la
+        # basilar, y callarlo igual en las dos sería perder esa diferencia.
+        from services.treatment import LOCATION_ICA_PROX
+
+        t = self._perf(LOCATION_ICA_PROX)
+        assert t is not None
+        assert "Sin perforantes cerebrales" in t["arteries"]
+
+    def test_no_location_invents_no_territory(self):
+        from services.treatment import LOCATION_UNKNOWN
+
+        assert self._perf(LOCATION_UNKNOWN) is None
+
+    def test_every_territory_that_claims_a_risk_carries_a_source(self):
+        from services.perforator_anatomy import TERRITORIES
+
+        for loc, t in TERRITORIES.items():
+            if "Sin perforantes" in t.arteries:
+                continue          # la entrada que dice que aquí no aplica
+            assert t.sources, f"{loc} afirma un riesgo sin fuente"

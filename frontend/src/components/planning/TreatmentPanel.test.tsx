@@ -41,6 +41,13 @@ const RESULT: TreatmentDecisionResult = {
   recommendation: "TRATAMIENTO ENDOVASCULAR", recommendation_key: "endo",
   confidence: "Moderada", coverage_pct: 100, missing_inputs: [], notes: [],
   endovascular: null,
+  perforators: {
+    arteries: "Talamoperforantes posteriores",
+    supplies: "tálamo y mesencéfalo",
+    consequence: "infarto talámico, coma, muerte",
+    surgical_note: "Pueden nacer directamente del ápex.",
+    sources: ["Acta Neurochir 2025"],
+  },
   factors: [
     {
       name: "Cuello intermedio (4.1 mm, 4–5 mm)",
@@ -100,5 +107,28 @@ describe("la procedencia de cada factor", () => {
     // Sin la marca, un factor que no suma se lee como si estuviera pesando.
     render(<TreatmentPanel onNext={() => {}} />);
     expect(screen.getByText("no puntúa")).toBeInTheDocument();
+  });
+});
+
+describe("las perforantes que la imagen no ve", () => {
+  it("dice qué esperar por la localización", () => {
+    // Una perforante mide 0,1–0,5 mm y el vóxel de una angio-TC ronda 0,5–1,0:
+    // no llega a la malla. Callar aquí dejaría un informe de punta de basilar
+    // sin lo único que en esa localización importa.
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText(/Talamoperforantes posteriores/)).toBeInTheDocument();
+    expect(screen.getByText(/infarto talámico, coma, muerte/)).toBeInTheDocument();
+  });
+
+  it("no lo presenta como una medida de este paciente", () => {
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText(/No es una medida de este paciente/)).toBeInTheDocument();
+    expect(screen.getByText(/no resuelve un vaso de/)).toBeInTheDocument();
+  });
+
+  it("no inventa un territorio cuando no hay localización", () => {
+    stored = { ...RESULT, perforators: null };
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByText(/Perforantes que esperar/)).not.toBeInTheDocument();
   });
 });

@@ -63,8 +63,8 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **830 passing** (`pytest`, 48 files) |
-| Frontend tests | **159 passing** (`vitest`, 18 files) · `tsc -b` clean · production build clean |
+| Backend tests | **836 passing** (`pytest`, 48 files) |
+| Frontend tests | **162 passing** (`vitest`, 18 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
 | Feature parity with desktop | **Complete** |
 
@@ -598,6 +598,46 @@ actually is — a thin tube attached to a thick one:
 On the same synthetic tree: **3 of 3 junctions, at x = −6.01, 3.00, 7.97**
 (truth −6, 3, 8), with the calibre and the parent calibre measured rather than
 assumed.
+
+### Why real perforators cannot be seen, and what to do instead
+
+Asked directly: why can the app not see real perforators — is something missing?
+Nothing in the software. Measured across the 2 725 DICOM files in the project,
+the typical CT voxel is **0.963 × 0.963 × 0.800 mm** and the best is
+**0.500 × 0.500 × 0.670**. A perforator is 0.1–0.5 mm.
+
+With a lumen around 350 HU against parenchyma at 40, partial volume settles it:
+
+| vessel | voxel | fills | reads as | passes a 150 HU threshold? |
+|---|---|---:|---:|---|
+| **0.3 mm** | 0.96 × 0.96 × 0.80 | 8 % | **64 HU** | **no** |
+| **0.3 mm** | 0.50 × 0.50 × 0.67 | 28 % | **128 HU** | **no** |
+| 1.0 mm | 0.96 × 0.96 × 0.80 | 85 % | 303 HU | yes |
+| 0.3 mm | 0.23 iso (XA) | 100 % | 350 HU | yes |
+
+A 0.3 mm perforator lifts its voxel 24 HU above parenchyma in the common series.
+No threshold separates that from noise, and no algorithm reconstructs data that
+is not in the voxel — super-resolution would be guessing, which is worse than
+silence. Only the rotational-angiography series in the corpus (0.23 mm isotropic)
+could resolve one, and that is an invasive study, not routine planning.
+
+What a surgeon uses instead is the microscope, and knowing **where they arise**.
+`services/perforator_anatomy.py` is the second of those: a table from location to
+expected perforator territory, with what it supplies, what an infarct looks like,
+the surgical note, and a source for every entry that claims a risk — there is a
+test that fails if one does not have one.
+
+It is stated for what it is: anatomy of that location, **not a measurement of
+this patient**, with variants common. And the entry for the cavernous carotid
+says the territory does not apply there, because a silence at the basilar apex
+and a silence in the cavernous segment mean different things.
+
+It surfaces in the decision step beside the recommendation, and in the report
+inside the branch section — where it completes a short or empty list. A basilar
+apex report that said only «ninguna rama visible» would be withholding the one
+thing that matters at that location: thalamoperforators arise there, within
+0.4–4.7 mm of the apex and sometimes **from the apex itself**, and injuring them
+means thalamic infarct, coma or death.
 
 ### The warning now reaches the decisions it should inform
 
@@ -1583,17 +1623,17 @@ under them says so.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 830 tests
+.venv\Scripts\python -m pytest -q                        # all 836 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **830 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **836 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
 
 Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 159 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # 162 unit tests (vitest + Testing Library, jsdom)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

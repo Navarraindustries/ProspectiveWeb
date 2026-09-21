@@ -43,6 +43,8 @@ import type {
   LongitudinalResult,
   ManufactureSpecOut,
   MeshCropRequest,
+  MeshComponentDeleteResult,
+  MeshComponentList,
   MeshCropResult,
   MeshHistoryResult,
   MeshRestoreResult,
@@ -263,6 +265,19 @@ export const api = {
     get<MeshHistoryResult>(`/api/mesh-restore/${sessionId}`),
   meshCrop: (sessionId: string, req: MeshCropRequest) =>
     post<MeshCropResult>(`/api/mesh-crop/${sessionId}`, req),
+  /** Las piezas conexas de la malla, la mayor primero. */
+  meshComponents: (sessionId: string) =>
+    get<MeshComponentList>(`/api/mesh-components/${sessionId}`),
+  /** Borra de un clic la pieza que contiene el punto. El ruido angiográfico
+      viene en piezas enteras, así que no hace falta un borrador de pintar. */
+  meshComponentDelete: (
+    sessionId: string,
+    point: { x: number; y: number; z: number },
+    maxDistanceMm = 5,
+  ) =>
+    post<MeshComponentDeleteResult>(`/api/mesh-component-delete/${sessionId}`, {
+      point, max_distance_mm: maxDistanceMm,
+    }),
   detect: (sessionId: string) =>
     post<AneurysmDetectionResult>(`/api/detect/${sessionId}`),
   morphometry: (sessionId: string) =>

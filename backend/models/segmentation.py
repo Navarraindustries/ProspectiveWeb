@@ -58,6 +58,19 @@ class SegmentRequest(BaseModel):
         3, ge=0, le=10,
         description="Cleanup level 0–10 (removes disconnected mesh fragments)",
     )
+    main_tree_only: bool = Field(
+        False,
+        description=(
+            "Keep only the largest connected component. Measured on this "
+            "project's angiographic studies, that component IS the vessel tree "
+            "(case 3: 60.3%, case 9: 63.7%) and everything else is bone: pieces "
+            "of 228-2948 mm3 sitting 37-92 mm away, which no speck filter "
+            "reaches and no HU threshold separates (99% of the bone falls inside "
+            "the tree's own intensity range). Refused with a message on CTA, "
+            "where contrast touches bone and the largest component is the whole "
+            "head (795000-1220000 mm3) - there the seed-grow tool is the answer."
+        ),
+    )
     full_resolution: bool = Field(
         False,
         description=(
@@ -126,6 +139,20 @@ class SegmentResult(BaseModel):
     )
     fragments_removed: int = Field(
         0, description="Connected components discarded by the cleanup filter"
+    )
+    main_tree_applied: bool = Field(
+        False,
+        description="True when 'keep only the main tree' actually ran.",
+    )
+    main_tree_warning: str = Field(
+        "",
+        description=(
+            "Why it did not run, when it was asked for and refused. A button "
+            "that silently does nothing is worse than one that explains."
+        ),
+    )
+    main_tree_removed: int = Field(
+        0, description="Connected components the main-tree filter discarded"
     )
     downsample_factor: int = Field(
         1,

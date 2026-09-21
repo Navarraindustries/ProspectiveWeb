@@ -22,6 +22,7 @@ export function MeshEditTools() {
     cropShape: shape, setCropShape: setShape,
     cropInvert: invert, setCropInvert: setInvert,
     mprSeedMode, setMprSeedMode, setPreviewBand,
+    erasePick, setErasePick,
     setSegmentation, setCandidates, setSelectedCandidate,
     setMorphometry, setTreatment, setCenterlineMesh,
   } = usePlanning();
@@ -29,6 +30,10 @@ export function MeshEditTools() {
   const [lower, setLower] = useState(SEG_LOWER_DEFAULT);
   const [upper, setUpper] = useState(SEG_UPPER_DEFAULT);
   const [autoBand, setAutoBand] = useState(true);   // derive band from the seed
+  // Resultado del último clic del borrador. Se enseña siempre: cuando borra,
+  // qué borró; cuando no, por qué no.
+  const [eraseMsg, setEraseMsg] = useState<string | null>(null);
+  const [eraseLeft, setEraseLeft] = useState<number | null>(null);
   const [huRange, setHuRange] = useState<{ min: number; max: number }>({ min: -200, max: 3000 });
   const [busy, setBusy] = useState<"grow" | "crop" | "undo" | "redo" | "original" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +56,45 @@ export function MeshEditTools() {
       const pad = Math.max(1, (b.vmax - b.vmin) * 0.05);
       setHuRange({ min: Math.floor(b.vmin - pad), max: Math.ceil(b.vmax + pad) });
     }).catch(() => { /* keep defaults */ });
-    return () => { alive = false; };
+    // ── El borrador de un clic ──────────────────────────────────────────── #
+  //
+  // El visor solo señala el punto; la llamada vive aquí, con el resto de las
+  // ediciones de malla, para que deshacer, invalidar la morfometría y refrescar
+  // la malla sigan el mismo camino que el recorte y el crecimiento.
+  useEffect(() => {
+    if (!erasePick || !sessionId) return;
+    const [x, y, z] = erasePick;
+    setErasePick(null);
+    let cancelado = false;
+    void (async () => {
+      try {
+        const res = await api.meshComponentDelete(sessionId, { x, y, z });
+        if (cancelado) return;
+        if (!res.removed) {
+          setEraseMsg(res.warning || "No se borró nada.");
+          setEraseLeft(res.components_left);
+          return;
+        }
+        setSegmentation(segmentation
+          ? { ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces }
+          : segmentation);
+        // La pieza que se acaba de borrar puede ser la que sostenía un
+        // candidato o una medida: se tiran, igual que tras un recorte.
+        setCandidates([]); setSelectedCandidate(0);
+        setMorphometry(null); setTreatment(null); setCenterlineMesh(null);
+        setEraseMsg(
+          `Borrada una pieza de ${res.removed.volume_mm3.toFixed(0)} mm³ ` +
+          `(${res.removed.extent_mm.toFixed(0)} mm).`,
+        );
+        setEraseLeft(res.components_left);
+      } catch (err) {
+        if (!cancelado) setEraseMsg(err instanceof Error ? err.message : "Error al borrar la pieza");
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [erasePick, sessionId]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  return () => { alive = false; };
   }, [sessionId]);
 
   // Live green tint on the MPR slices for the grow band — so you set the band
@@ -103,7 +146,7 @@ export function MeshEditTools() {
         vertices: res.vertices,
         faces: res.faces,
         // Region-grow keeps a single connected region by construction.
-        kept_fraction: 1, fragments_removed: 0, largest_removed_mm3: 0, downsample_factor: 1,
+        kept_fraction: 1, fragments_removed: 0, largest_removed_mm3: 0, downsample_factor: 1, main_tree_applied: false, main_tree_warning: "", main_tree_removed: 0,
       });
       clearDownstream();
       void refreshHistory();
@@ -268,6 +311,40 @@ export function MeshEditTools() {
         >
           {busy === "grow" ? "Creciendo…" : "Regenerar malla desde semillas"}
         </Button>
+      </Card>
+
+      {/* ── Borrador de piezas ──────────────────────────────────────────── */}
+      {/* Medido en case 3: la malla sale con once piezas y diez son hueso,
+          bloques de 228-2948 mm³ a 37-92 mm del árbol. Como vienen enteras y
+          separadas, un clic basta: pintar sobre ellas dejaría bordes a medio
+          borrar y no haría nada que esto no haga. */}
+      <Card>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+          Borrar piezas sueltas
+        </div>
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+          Pincha una estructura suelta en el visor y desaparece entera. El ruido de
+          una malla angiográfica viene en piezas separadas, así que no hace falta
+          pintar sobre él. Se deshace como cualquier otra edición.
+        </div>
+        <button
+          onClick={() => {
+            const on = pickMode !== "erase_piece";
+            setPickMode(on ? "erase_piece" : null);
+            if (on) { setMprSeedMode(false); setEraseMsg(null); }
+          }}
+          style={{ ...toolBtn(pickMode === "erase_piece"), width: "100%" }}
+        >
+          {pickMode === "erase_piece"
+            ? "Pincha la pieza a borrar… (pulsa para salir)"
+            : "Activar borrador"}
+        </button>
+        {eraseMsg && (
+          <div style={{ fontSize: 11, lineHeight: 1.5, marginTop: 8, color: "var(--muted-foreground)" }}>
+            {eraseMsg}
+            {eraseLeft !== null && <> Quedan {eraseLeft} {eraseLeft === 1 ? "pieza" : "piezas"}.</>}
+          </div>
+        )}
       </Card>
 
       {/* ── ROI crop ────────────────────────────────────────────────────── */}

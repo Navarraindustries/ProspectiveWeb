@@ -4086,6 +4086,112 @@
         }
       }
     },
+    "/api/mesh-components/{session_id}": {
+      "get": {
+        "tags": [
+          "mesh-edit"
+        ],
+        "summary": "List the mesh's connected pieces",
+        "description": "Every connected component of the working mesh, largest first, with the shape descriptors that tell a vessel tree from a slab of bone. Also says whether the largest one looks like a tree at all — on CTA it does not, because contrast touches bone and the whole head is one piece.",
+        "operationId": "mesh_components_api_mesh_components__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentListResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mesh-component-delete/{session_id}": {
+      "post": {
+        "tags": [
+          "mesh-edit"
+        ],
+        "summary": "Delete the connected piece under the picked point",
+        "description": "One click removes one whole piece. The noise in an angiographic mesh arrives as separate pieces, so a painting eraser is not needed and would leave half-erased edges. Undoable like any other mesh edit; a click that lands away from the surface removes nothing and says so.",
+        "operationId": "mesh_component_delete_api_mesh_component_delete__session_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentDeleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentDeleteResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segment/grow/{session_id}": {
       "post": {
         "tags": [
@@ -7532,6 +7638,144 @@
         ],
         "title": "CoilPlanResult",
         "description": "Result of a coil embolization plan."
+      },
+      "ComponentDeleteRequest": {
+        "properties": {
+          "point": {
+            "$ref": "#/components/schemas/Position3D",
+            "description": "Punto señalado sobre la superficie de la pieza a borrar"
+          },
+          "max_distance_mm": {
+            "type": "number",
+            "maximum": 50.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Max Distance Mm",
+            "description": "Tolerancia del clic. Más allá no se borra nada y se dice, en vez de borrar la pieza que casualmente quedara más cerca.",
+            "default": 5.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "point"
+        ],
+        "title": "ComponentDeleteRequest",
+        "description": "Borrar de un clic la pieza conexa señalada.\n\nEl borrador manual, con la granularidad que el dato ya tiene: el ruido de\nuna malla angiográfica viene en piezas enteras y separadas —medido en case\n3, diez bloques de 228 a 2948 mm3 a 37-92 mm del árbol—, así que pintar\nsobre él no hace falta y dejaría bordes a medio borrar."
+      },
+      "ComponentDeleteResult": {
+        "properties": {
+          "mesh_url": {
+            "type": "string",
+            "title": "Mesh Url",
+            "description": "URL de la malla resultante (.vtp)"
+          },
+          "vertices": {
+            "type": "integer",
+            "title": "Vertices"
+          },
+          "faces": {
+            "type": "integer",
+            "title": "Faces"
+          },
+          "removed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComponentInfoOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "La pieza borrada. Null si no se borró ninguna."
+          },
+          "components_left": {
+            "type": "integer",
+            "title": "Components Left",
+            "description": "Piezas conexas que quedan",
+            "default": 0
+          },
+          "warning": {
+            "type": "string",
+            "title": "Warning",
+            "description": "Por qué no se borró nada, cuando no se borró nada.",
+            "default": ""
+          },
+          "undo_depth": {
+            "type": "integer",
+            "title": "Undo Depth",
+            "description": "Ediciones que se pueden deshacer",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "mesh_url",
+          "vertices",
+          "faces"
+        ],
+        "title": "ComponentDeleteResult"
+      },
+      "ComponentInfoOut": {
+        "properties": {
+          "n_points": {
+            "type": "integer",
+            "title": "N Points",
+            "default": 0
+          },
+          "volume_mm3": {
+            "type": "number",
+            "title": "Volume Mm3",
+            "default": 0.0
+          },
+          "extent_mm": {
+            "type": "number",
+            "title": "Extent Mm",
+            "default": 0.0
+          },
+          "thickness_mm": {
+            "type": "number",
+            "title": "Thickness Mm",
+            "default": 0.0
+          },
+          "sphericity": {
+            "type": "number",
+            "title": "Sphericity",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "ComponentInfoOut",
+        "description": "Lo que se acaba de borrar, para poder decir qué era."
+      },
+      "ComponentListResult": {
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentInfoOut"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "largest_is_tree": {
+            "type": "boolean",
+            "title": "Largest Is Tree",
+            "description": "Si la mayor parece un árbol vascular y no un bloque",
+            "default": true
+          },
+          "warning": {
+            "type": "string",
+            "title": "Warning",
+            "description": "Por qué la mayor no parece un árbol",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ComponentListResult",
+        "description": "Las piezas de la malla, para poder enseñar cuántas hay y de qué tamaño."
       },
       "CrossSectionRequest": {
         "properties": {
@@ -11153,6 +11397,12 @@
             "description": "Cleanup level 0–10 (removes disconnected mesh fragments)",
             "default": 3
           },
+          "main_tree_only": {
+            "type": "boolean",
+            "title": "Main Tree Only",
+            "description": "Keep only the largest connected component. Measured on this project's angiographic studies, that component IS the vessel tree (case 3: 60.3%, case 9: 63.7%) and everything else is bone: pieces of 228-2948 mm3 sitting 37-92 mm away, which no speck filter reaches and no HU threshold separates (99% of the bone falls inside the tree's own intensity range). Refused with a message on CTA, where contrast touches bone and the largest component is the whole head (795000-1220000 mm3) - there the seed-grow tool is the answer.",
+            "default": false
+          },
           "full_resolution": {
             "type": "boolean",
             "title": "Full Resolution",
@@ -11220,6 +11470,24 @@
             "type": "integer",
             "title": "Fragments Removed",
             "description": "Connected components discarded by the cleanup filter",
+            "default": 0
+          },
+          "main_tree_applied": {
+            "type": "boolean",
+            "title": "Main Tree Applied",
+            "description": "True when 'keep only the main tree' actually ran.",
+            "default": false
+          },
+          "main_tree_warning": {
+            "type": "string",
+            "title": "Main Tree Warning",
+            "description": "Why it did not run, when it was asked for and refused. A button that silently does nothing is worse than one that explains.",
+            "default": ""
+          },
+          "main_tree_removed": {
+            "type": "integer",
+            "title": "Main Tree Removed",
+            "description": "Connected components the main-tree filter discarded",
             "default": 0
           },
           "downsample_factor": {

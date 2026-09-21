@@ -136,7 +136,7 @@ export function Viewer({ step }: { step: string }) {
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
-    growSeeds, setGrowSeeds, cropCenter, setCropCenter,
+    growSeeds, setGrowSeeds, cropCenter, setCropCenter, setErasePick,
     cropRadius, cropShape, cropInvert,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
@@ -345,6 +345,9 @@ export function Viewer({ step }: { step: string }) {
       else if (pickMode === "neck_origin") { setNeckOrigin(xyz); setPickMode(null); }
       else if (pickMode === "neck_dome") { setNeckDome(xyz); setPickMode(null); }
       else if (pickMode === "crop_center") { setCropCenter(xyz); setPickMode(null); }
+      // Sigue armado: borrar una pieza y tener que rearmar para la siguiente
+      // convierte una limpieza de diez clics en veinte.
+      else if (pickMode === "erase_piece") { setErasePick(xyz); }
       else if (pickMode === "traj_entry") { setTrajEntry(xyz); setPickMode(null); }
       else if (pickMode === "traj_target") { setTrajTarget(xyz); setPickMode(null); }
       else if (pickMode === "grow_seed") { setGrowSeeds([...growSeeds, xyz]); }  // stay armed for multiple seeds
@@ -362,7 +365,7 @@ export function Viewer({ step }: { step: string }) {
         }
       }
     },
-    [pickMode, measurePending, measurements, growSeeds, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setGrowSeeds, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements],
+    [pickMode, measurePending, measurements, growSeeds, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setErasePick, setGrowSeeds, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements],
   );
 
   return (

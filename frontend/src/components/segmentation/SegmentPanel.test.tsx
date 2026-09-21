@@ -28,6 +28,7 @@ const base: SegmentResult = {
   fragments_removed: 1319,
   largest_removed_mm3: 175.4,
   downsample_factor: 2,
+  main_tree_applied: false, main_tree_warning: "", main_tree_removed: 0,
 };
 
 /** Renders the panel with a segmentation already in the store. */
@@ -83,5 +84,35 @@ describe("what the cleanup discarded", () => {
   it("calls a native-resolution mesh native", async () => {
     withResult({ ...base, downsample_factor: 1 });
     expect(await screen.findByText("Nativa")).toBeInTheDocument();
+  });
+
+  /* El hueso no se quita con el umbral: medido en case 3, el 99 % del hueso cae
+     DENTRO del rango de intensidad del propio árbol. Lo que sí lo separa es que
+     no se toca — de ahí «solo el árbol principal». Pero en angio-TC todo está
+     conectado y la regla no vale, así que el backend se niega y el panel tiene
+     que decir por qué: un botón que no hace nada en silencio parece roto. */
+  it("dice cuántas estructuras sueltas dejó fuera el árbol principal", async () => {
+    withResult({ ...base, main_tree_applied: true, main_tree_removed: 10 });
+    expect(await screen.findByText(/Árbol principal aislado/)).toBeInTheDocument();
+    expect(screen.getByText(/fuera 10 estructuras sueltas/)).toBeInTheDocument();
+  });
+
+  it("explica por qué NO lo aisló en vez de callarse", async () => {
+    withResult({
+      ...base,
+      main_tree_applied: false,
+      main_tree_warning: "La estructura mayor ocupa 1220 cm³: no es un árbol vascular.",
+    });
+    expect(await screen.findByText(/No se aisló el árbol principal/)).toBeInTheDocument();
+    expect(screen.getByText(/1220 cm³/)).toBeInTheDocument();
+  });
+
+  it("no informa de nada cuando no se pidió", async () => {
+    // Ojo con el matcher: la casilla se llama «Solo el árbol principal» y está
+    // siempre en pantalla. Lo que no debe aparecer es el RESULTADO.
+    withResult(base);
+    await screen.findByText("Submuestreada");
+    expect(screen.queryByText(/Árbol principal aislado/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No se aisló el árbol principal/)).not.toBeInTheDocument();
   });
 });

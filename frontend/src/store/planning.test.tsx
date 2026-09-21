@@ -15,6 +15,7 @@ const fakeMesh: SegmentResult = {
   mesh_url: "/data/x.vtp", voxel_fraction: 0.01, strategy: "dsa", is_dsa: true,
   vertices: 100, faces: 200, kept_fraction: 1, fragments_removed: 0,
   largest_removed_mm3: 0, downsample_factor: 1,
+  main_tree_applied: false, main_tree_warning: "", main_tree_removed: 0,
 };
 
 const fakeMorpho = { max_diameter_mm: 7.5 } as unknown as MorphometryResult;

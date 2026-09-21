@@ -338,6 +338,13 @@ export interface SegmentRequest {
   /** Segment at native resolution. Downsampling halves the tree's connectivity,
    *  which is what leaves gaps in thin vessels. Costs minutes, not seconds. */
   full_resolution?: boolean;
+  /** Quedarse solo con el componente conexo mayor. Medido en los estudios
+   *  angiográficos de este proyecto ESE componente es el árbol (case 3: 60,3 %;
+   *  case 9: 63,7 %) y lo demás es hueso: bloques de 228–2948 mm³ a 37–92 mm,
+   *  que ningún filtro de motas alcanza y ningún umbral HU separa — el 99 % del
+   *  hueso cae dentro del rango de intensidad del propio árbol. En angio-TC se
+   *  rechaza con un mensaje: allí la pieza mayor es la cabeza entera. */
+  main_tree_only?: boolean;
 }
 
 export interface SegmentResult {
@@ -354,6 +361,12 @@ export interface SegmentResult {
   fragments_removed: number;
   /** Biggest discarded component, mm³. Tens of mm³ = a vessel segment left out. */
   largest_removed_mm3: number;
+  /** Si «solo el árbol principal» llegó a aplicarse. */
+  main_tree_applied: boolean;
+  /** Y si no, por qué: un botón que no hace nada en silencio es peor que uno
+   *  que explica. */
+  main_tree_warning: string;
+  main_tree_removed: number;
 }
 
 /* ── interactive mesh editing: ROI crop + grow-from-seeds ───────────────── */
@@ -1358,4 +1371,35 @@ export interface ClipOrder {
 export interface ClipOrderSummary {
   counts: Record<string, number>;
   labels: Record<string, string>;
+}
+
+/* ── Piezas sueltas de la malla ─────────────────────────────────────────── */
+
+/** Una pieza conexa, con la forma que distingue un vaso de una lámina de hueso. */
+export interface MeshComponentInfo {
+  n_points: number;
+  volume_mm3: number;
+  extent_mm: number;
+  thickness_mm: number;
+  sphericity: number;
+}
+
+export interface MeshComponentList {
+  components: MeshComponentInfo[];
+  total: number;
+  /** False en angio-TC, donde el contraste toca el hueso y la pieza mayor es
+      la cabeza entera (795 000–1 220 000 mm³ medidos). */
+  largest_is_tree: boolean;
+  warning: string;
+}
+
+export interface MeshComponentDeleteResult {
+  mesh_url: string;
+  vertices: number;
+  faces: number;
+  /** Null cuando el clic no borró nada. */
+  removed: MeshComponentInfo | null;
+  components_left: number;
+  warning: string;
+  undo_depth: number;
 }

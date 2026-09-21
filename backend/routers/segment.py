@@ -207,6 +207,7 @@ async def segment(req: SegmentRequest) -> SegmentResult:
                 top_n=        top_n,
                 closing_mm=   closing_mm,
                 full_resolution= req.full_resolution,
+                main_tree_only= req.main_tree_only,
             ),
         )
     except ValueError as exc:
@@ -347,6 +348,7 @@ def _run_segmentation_sync(
     top_n:         int,
     closing_mm:    float,
     full_resolution: bool = False,
+    main_tree_only: bool = False,
 ) -> SegmentResult:
     """Load DICOM → run VTK pipeline → write .vtp → update session state.
 
@@ -427,6 +429,25 @@ def _run_segmentation_sync(
     )
     seg_result = pipeline.run(seg_volume, seg_spacing)
 
+    # ── Quedarse solo con el árbol, si se ha pedido ───────────────────────── #
+    #
+    # Va DESPUÉS de marching cubes y ANTES de escribir el .vtp, para que el
+    # barrido de ramas de más abajo trabaje sobre el árbol y no cuente como
+    # rama un trozo de cráneo.
+    main_applied, main_warning, main_removed = False, "", 0
+    if main_tree_only:
+        from services.mesh_components import keep_main_tree
+        mt = keep_main_tree(seg_result.poly_data)
+        main_applied, main_warning, main_removed = mt.applied, mt.warning, len(mt.removed)
+        if mt.applied:
+            seg_result.poly_data = mt.poly
+            seg_result.n_vertices = mt.poly.GetNumberOfPoints()
+            seg_result.n_triangles = mt.poly.GetNumberOfPolys()
+            logger.info("Árbol principal: %d → %d verts, %d piezas fuera",
+                        mt.n_before, mt.n_after, main_removed)
+        else:
+            logger.info("Árbol principal no aplicado: %s", mt.warning)
+
     # ── Write VTP mesh ────────────────────────────────────────────────────── #
     vtp_name = "vessel_tree.vtp"
     vtp_path = meshes_dir / vtp_name
@@ -486,4 +507,7 @@ def _run_segmentation_sync(
         kept_fraction=       seg_result.kept_fraction,
         fragments_removed=   seg_result.n_fragments_removed,
         largest_removed_mm3= round(seg_result.largest_removed_mm3, 1),
+        main_tree_applied=   main_applied,
+        main_tree_warning=   main_warning,
+        main_tree_removed=   main_removed,
     )

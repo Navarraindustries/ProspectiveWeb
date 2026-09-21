@@ -41,6 +41,62 @@ class MeshCropResult(BaseModel):
     )
 
 
+class ComponentDeleteRequest(BaseModel):
+    """Borrar de un clic la pieza conexa señalada.
+
+    El borrador manual, con la granularidad que el dato ya tiene: el ruido de
+    una malla angiográfica viene en piezas enteras y separadas —medido en case
+    3, diez bloques de 228 a 2948 mm3 a 37-92 mm del árbol—, así que pintar
+    sobre él no hace falta y dejaría bordes a medio borrar.
+    """
+
+    point: Position3D = Field(
+        ..., description="Punto señalado sobre la superficie de la pieza a borrar"
+    )
+    max_distance_mm: float = Field(
+        5.0, gt=0, le=50,
+        description=(
+            "Tolerancia del clic. Más allá no se borra nada y se dice, en vez "
+            "de borrar la pieza que casualmente quedara más cerca."
+        ),
+    )
+
+
+class ComponentInfoOut(BaseModel):
+    """Lo que se acaba de borrar, para poder decir qué era."""
+
+    n_points: int = 0
+    volume_mm3: float = 0.0
+    extent_mm: float = 0.0
+    thickness_mm: float = 0.0
+    sphericity: float = 0.0
+
+
+class ComponentDeleteResult(BaseModel):
+    mesh_url: str = Field(..., description="URL de la malla resultante (.vtp)")
+    vertices: int
+    faces: int
+    removed: ComponentInfoOut | None = Field(
+        None, description="La pieza borrada. Null si no se borró ninguna."
+    )
+    components_left: int = Field(0, description="Piezas conexas que quedan")
+    warning: str = Field(
+        "", description="Por qué no se borró nada, cuando no se borró nada."
+    )
+    undo_depth: int = Field(0, description="Ediciones que se pueden deshacer")
+
+
+class ComponentListResult(BaseModel):
+    """Las piezas de la malla, para poder enseñar cuántas hay y de qué tamaño."""
+
+    components: list[ComponentInfoOut] = Field(default_factory=list)
+    total: int = 0
+    largest_is_tree: bool = Field(
+        True, description="Si la mayor parece un árbol vascular y no un bloque"
+    )
+    warning: str = Field("", description="Por qué la mayor no parece un árbol")
+
+
 class GrowRequest(BaseModel):
     """Region-grow a fresh vessel mesh from seed points placed on the volume."""
 

@@ -34,6 +34,10 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const [cleanup, setCleanup] = useState(7);   // level 7 → top-N isolation, mesh limpia
   // Off by default: on a 384³ study this is minutes instead of seconds.
   const [fullRes, setFullRes] = useState(false);
+  // Marcada por defecto: en angiografía el componente mayor ES el árbol y el
+  // resto es hueso, medido en los dos estudios XA del proyecto. En angio-TC el
+  // backend se niega y lo explica, así que dejarla puesta no rompe nada.
+  const [mainTree, setMainTree] = useState(true);
   const [busy, setBusy] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +128,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         smoothing,
         cleanup,
         full_resolution: fullRes,
+        main_tree_only: mainTree,
       });
       planning.setSegmentation(res);
       setPreviewBand(null);       // final mesh now shows
@@ -173,6 +178,36 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
         {/* Los huecos en los vasos finos vienen sobre todo de segmentar el
             volumen a la mitad de su resolución. */}
+        {/* El hueso no se quita con el umbral: medido en case 3, el 99 % del
+            hueso cae DENTRO del rango de intensidad del propio árbol, y el
+            mejor umbral posible conservaría el 61 % del árbol dejando aún el
+            4,9 % del hueso. Lo que sí los separa es que no se tocan. */}
+        <label
+          style={{
+            display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer",
+            padding: "10px 12px", marginBottom: 10, borderRadius: "var(--radius-md)",
+            border: "1px solid var(--border)", background: "var(--card)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={mainTree}
+            onChange={(e) => setMainTree(e.target.checked)}
+            style={{ marginTop: 2 }}
+          />
+          <span style={{ minWidth: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+              Solo el árbol principal
+            </span>
+            <span style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45, marginTop: 2 }}>
+              Conserva la estructura conectada mayor y descarta el resto. En
+              angiografía esa estructura es el árbol y lo que sobra es hueso, que
+              el umbral no puede quitar porque comparte brillo con el contraste.
+              En angio-TC no se aplica —allí todo está conectado— y lo avisa.
+            </span>
+          </span>
+        </label>
+
         <label
           style={{
             display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer",
@@ -266,6 +301,25 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
                 <> Un fragmento de ese tamaño puede ser un segmento de vaso desconectado:
                 baja la limpieza si echas en falta alguna rama.</>
               )}
+            </div>
+          )}
+
+          {/* Lo que hizo —o no— «Solo el árbol principal». Cuando se niega,
+              decir por qué: un botón que no hace nada en silencio deja al
+              usuario pensando que la aplicación está rota. */}
+          {segmentation.main_tree_applied && segmentation.main_tree_removed > 0 && (
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+              Árbol principal aislado: fuera {segmentation.main_tree_removed}{" "}
+              {segmentation.main_tree_removed === 1 ? "estructura suelta" : "estructuras sueltas"}.
+            </div>
+          )}
+          {segmentation.main_tree_warning && (
+            <div style={{
+              fontSize: 11, lineHeight: 1.5, marginTop: 8, padding: "8px 10px",
+              borderRadius: "var(--radius-md)", background: "var(--muted)",
+              borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
+            }}>
+              <b>No se aisló el árbol principal.</b> {segmentation.main_tree_warning}
             </div>
           )}
         </Card>

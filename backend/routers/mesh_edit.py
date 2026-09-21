@@ -15,8 +15,10 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 
 from models.mesh_edit import (
-    GrowRequest, GrowResult, MeshCropRequest, MeshCropResult,
-    MeshHistoryResult, MeshHistoryStep, MeshRestoreRequest, MeshRestoreResult,
+    ComponentDeleteRequest, ComponentDeleteResult, ComponentInfoOut,
+    ComponentListResult, GrowRequest, GrowResult, MeshCropRequest,
+    MeshCropResult, MeshHistoryResult, MeshHistoryStep, MeshRestoreRequest,
+    MeshRestoreResult,
 )
 from services import mesh_backup
 from services.grow import grow_from_seeds
@@ -124,6 +126,112 @@ async def mesh_crop(session_id: str, req: MeshCropRequest) -> MeshCropResult:
         vertices=n_after,
         faces=n_faces,
         removed_vertices=max(0, n_before - n_after),
+        undo_depth=mesh_backup.depth(session_id),
+    )
+
+
+# ── Piezas sueltas: listarlas y borrarlas de un clic ───────────────────────── #
+#
+# Medido en case 3: la malla sale con once piezas conexas, y diez son hueso —
+# bloques de 228 a 2948 mm3 a 37-92 mm del árbol. No son motas (el filtro por
+# tamaño descarta por debajo de 5 mm3) y ningún umbral HU las separa: el 99 %
+# del hueso cae dentro del rango de intensidad del propio árbol. Lo que sí las
+# separa es que no se tocan.
+
+def _mesh_or_404(session_id: str) -> Path:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    path = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
+    if not path.exists():
+        raise HTTPException(
+            status_code=409, detail="No hay malla vascular. Ejecuta la segmentación primero."
+        )
+    return path
+
+
+def _info_out(c) -> ComponentInfoOut:
+    return ComponentInfoOut(
+        n_points=c.n_points,
+        volume_mm3=round(c.volume_mm3, 2),
+        extent_mm=round(c.extent_mm, 2),
+        thickness_mm=round(c.thickness_mm, 3),
+        sphericity=round(c.sphericity, 4),
+    )
+
+
+@router.get(
+    "/mesh-components/{session_id}",
+    response_model=ComponentListResult,
+    summary="List the mesh's connected pieces",
+    description=(
+        "Every connected component of the working mesh, largest first, with the "
+        "shape descriptors that tell a vessel tree from a slab of bone. Also "
+        "says whether the largest one looks like a tree at all — on CTA it does "
+        "not, because contrast touches bone and the whole head is one piece."
+    ),
+)
+async def mesh_components(session_id: str) -> ComponentListResult:
+    path = _mesh_or_404(session_id)
+    from services.mesh_components import describe_components, looks_like_tree
+
+    comps = await asyncio.to_thread(lambda: describe_components(read_vtp(path)))
+    if not comps:
+        return ComponentListResult(components=[], total=0, largest_is_tree=False,
+                                   warning="La malla está vacía.")
+    ok, motivo = looks_like_tree(comps[0])
+    return ComponentListResult(
+        components=[_info_out(c) for c in comps],
+        total=len(comps), largest_is_tree=ok, warning=motivo,
+    )
+
+
+@router.post(
+    "/mesh-component-delete/{session_id}",
+    response_model=ComponentDeleteResult,
+    summary="Delete the connected piece under the picked point",
+    description=(
+        "One click removes one whole piece. The noise in an angiographic mesh "
+        "arrives as separate pieces, so a painting eraser is not needed and "
+        "would leave half-erased edges. Undoable like any other mesh edit; a "
+        "click that lands away from the surface removes nothing and says so."
+    ),
+)
+async def mesh_component_delete(
+    session_id: str, req: ComponentDeleteRequest
+) -> ComponentDeleteResult:
+    path = _mesh_or_404(session_id)
+    from services.mesh_components import (describe_components,
+                                          remove_component_at)
+
+    mesh = read_vtp(path)
+    out, removed, warning = await asyncio.to_thread(
+        remove_component_at, mesh,
+        (req.point.x, req.point.y, req.point.z), req.max_distance_mm,
+    )
+
+    if removed is None:
+        # No se ha borrado nada: ni instantánea ni invalidación. Un clic fallido
+        # no debe gastar un paso de deshacer ni tirar la morfometría.
+        comps = describe_components(mesh)
+        return ComponentDeleteResult(
+            mesh_url=_versioned(session_id, "vessel_tree.vtp"),
+            vertices=mesh.GetNumberOfPoints(), faces=mesh.GetNumberOfPolys(),
+            removed=None, components_left=len(comps), warning=warning,
+            undo_depth=mesh_backup.depth(session_id),
+        )
+
+    await asyncio.to_thread(mesh_backup.snapshot, session_id, "edit")
+    await asyncio.to_thread(write_vtp, out, path)
+
+    write_state(session_id, "seg.n_vertices", str(out.GetNumberOfPoints()))
+    write_state(session_id, "seg.n_faces", str(out.GetNumberOfPolys()))
+    _invalidate_derived(session_id)
+
+    comps = describe_components(out)
+    return ComponentDeleteResult(
+        mesh_url=_versioned(session_id, "vessel_tree.vtp"),
+        vertices=out.GetNumberOfPoints(), faces=out.GetNumberOfPolys(),
+        removed=_info_out(removed), components_left=len(comps), warning="",
         undo_depth=mesh_backup.depth(session_id),
     )
 

@@ -87,6 +87,10 @@ interface PlanningState {
   mprSeedMode: boolean;
   /** Picked centre of the mesh-crop ROI (box/sphere). */
   cropCenter: Vec3 | null;
+  /** Último punto señalado con el borrador de piezas. El visor solo señala; el
+   *  panel de edición es quien llama a la API y lo vuelve a poner en null,
+   *  igual que hace con el resto de ediciones de malla. */
+  erasePick: Vec3 | null;
   /** Mesh-crop ROI shape/size/mode — shared with the viewer so it can draw a
    *  translucent preview of exactly what the crop will keep/remove. */
   cropRadius: number;
@@ -145,6 +149,7 @@ interface PlanningState {
   setVisiblePerforators: (ids: string[]) => void;
   setMprSeedMode: (v: boolean) => void;
   setCropCenter: (p: Vec3 | null) => void;
+  setErasePick: (p: Vec3 | null) => void;
   setCropRadius: (r: number) => void;
   setCropShape: (s: "sphere" | "box") => void;
   setCropInvert: (v: boolean) => void;
@@ -162,7 +167,7 @@ export type Vec3 = [number, number, number];
 export type PickMode =
   | "cl_source" | "cl_target" | "measure" | "neck_origin" | "neck_dome"
   | "neck_rim"
-  | "grow_seed" | "crop_center" | "traj_entry" | "traj_target" | null;
+  | "grow_seed" | "crop_center" | "erase_piece" | "traj_entry" | "traj_target" | null;
 
 export interface Measurement {
   id: number;
@@ -223,6 +228,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   }, []);
   const [mprSeedMode, setMprSeedMode] = useState(false);
   const [cropCenter, setCropCenter] = useState<Vec3 | null>(null);
+  const [erasePick, setErasePick] = useState<Vec3 | null>(null);
   const [cropRadius, setCropRadius] = useState(10);
   const [cropShape, setCropShape] = useState<"sphere" | "box">("sphere");
   const [cropInvert, setCropInvert] = useState(false);
@@ -280,6 +286,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setGrowSeeds([]);
     setMprSeedMode(false);
     setCropCenter(null);
+    setErasePick(null);
     setTrajEntry(null);
     setTrajTarget(null);
     setMorphoOverlay(false);
@@ -300,13 +307,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, growSeeds, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, mprSeedMode, cropCenter, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
+        measurements, measurePending, growSeeds, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, mprSeedMode, cropCenter, erasePick, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setMeasurements, setMeasurePending, setGrowSeeds, setMprSeedMode, setCropCenter, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setMeasurements, setMeasurePending, setGrowSeeds, setMprSeedMode, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, markSaved,
         reset, resetDownstream,
       }}

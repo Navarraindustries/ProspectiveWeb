@@ -272,7 +272,7 @@ def _run_detection_sync(
 
     for rank, hit in enumerate(hits, start=1):
         cand_name = f"aneurysm_cand_{rank:03d}.vtp"
-        patch = hit_patch(poly, hit)
+        patch, patch_kind = hit_patch(poly, hit)
         write_vtp(patch, meshes_dir / cand_name)
         url = mesh_url(session_id, cand_name)
         diameter = hit_diameter_mm(hit)
@@ -288,6 +288,7 @@ def _run_detection_sync(
         write_state(session_id, f"{prefix}.diameter_mm", str(diameter))
         write_state(session_id, f"{prefix}.score",       str(confidence))
         write_state(session_id, f"{prefix}.channels",    ",".join(hit.channels))
+        write_state(session_id, f"{prefix}.patch_kind",  patch_kind)
 
         pyd_candidates.append(
             PydAneurysmCandidate(
@@ -299,6 +300,7 @@ def _run_detection_sync(
                 dome_mesh_url=url,
                 selected=(rank == 1),
                 channels=hit.channels,
+                patch_kind=patch_kind,
             )
         )
 

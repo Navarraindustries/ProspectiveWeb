@@ -5987,6 +5987,16 @@
             "description": "True when this candidate is the user-selected one",
             "default": false
           },
+          "patch_kind": {
+            "type": "string",
+            "enum": [
+              "region",
+              "locator"
+            ],
+            "title": "Patch Kind",
+            "description": "Qué es la malla de `dome_mesh_url`. «region»: la región que el canal de curvatura detectó — el azul ES lo marcado. «locator»: una bola alrededor del punto que propusieron los canales geométricos, así que enseña DÓNDE mirar y no qué parte es la lesión; incluye pared de vaso alrededor. En ninguno de los dos casos afecta a la morfometría, que se mide sobre el saco aislado desde el volumen a partir del plano de cuello marcado.",
+            "default": "region"
+          },
           "channels": {
             "items": {
               "type": "string"

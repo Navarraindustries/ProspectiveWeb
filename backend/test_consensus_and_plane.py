@@ -36,9 +36,11 @@ from fastapi.testclient import TestClient
 
 from main import app
 from services.aneurysm_consensus import (CH_CALIBRE, CH_CURVATURE, CH_RATIO,
+                                         PATCH_LOCATOR, PATCH_REGION,
                                          ConsensusHit, calibre_ratio,
                                          consensus, hit_confidence,
-                                         hit_diameter_mm, local_calibre)
+                                         hit_diameter_mm, hit_patch,
+                                         local_calibre)
 from services.aneurysm_detector import AneurysmDetector
 from services.database import Base, engine
 from services.mesh_crop import clip_plane
@@ -161,6 +163,44 @@ class TestTheConsensusOrdering:
     def test_the_diameter_of_a_geometric_hit_is_twice_its_radius(self):
         h = ConsensusHit(position=(0, 0, 0), ranks={CH_CALIBRE: 1}, radius_mm=2.5)
         assert hit_diameter_mm(h) == pytest.approx(5.0)
+
+
+class TestWhatTheBlueRegionMeans:
+    """El usuario preguntó qué denota el azul, y tenía razón en sospechar.
+
+    Para un sitio geométrico no es la lesión: es una bola alrededor del punto,
+    e incluye pared de vaso. Se etiqueta como tal en vez de dejar que aparente
+    una segmentación del saco.
+    """
+
+    def test_a_curvature_hit_paints_the_region_it_detected(self, vaso_con_saco):
+        det = AneurysmDetector(min_radius_mm=0.8, min_positive_gauss_frac=0.40,
+                               min_sphericity=0.25, pre_smooth_iterations=10)
+        hits = consensus(vaso_con_saco, det, top=5)
+        curv = [h for h in hits if h.candidate is not None]
+        if curv:
+            _patch, kind = hit_patch(vaso_con_saco, curv[0])
+            assert kind == PATCH_REGION
+
+    def test_a_geometric_hit_paints_a_locator_and_says_so(self, vaso_con_saco):
+        h = ConsensusHit(position=tuple(SACO), ranks={CH_CALIBRE: 1},
+                         radius_mm=3.0)
+        patch, kind = hit_patch(vaso_con_saco, h)
+        assert kind == PATCH_LOCATOR
+        assert patch.GetNumberOfPoints() > 0
+
+    def test_the_locator_never_reaches_morphometry(self, vaso_con_saco):
+        # Es lo que el usuario temía: que el azul cambiara las medidas. No
+        # puede — sobre un parche abierto la morfometría se declara no fiable
+        # y anula volumen, cuello e índices.
+        from services.morphometrics import MorphometricAnalyzer
+
+        h = ConsensusHit(position=tuple(SACO), ranks={CH_CALIBRE: 1},
+                         radius_mm=3.0)
+        patch, _ = hit_patch(vaso_con_saco, h)
+        mr = MorphometricAnalyzer().analyze(patch)
+        assert mr.reliable is False
+        assert mr.volume_mm3 == 0.0 and mr.neck_diameter_mm == 0.0
 
 
 # ── 3. Dónde los canales geométricos NO se ejecutan ──────────────────────── #

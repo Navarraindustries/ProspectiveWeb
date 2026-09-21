@@ -41,6 +41,18 @@ class AneurysmCandidate(BaseModel):
     selected: bool = Field(
         False, description="True when this candidate is the user-selected one"
     )
+    patch_kind: Literal["region", "locator"] = Field(
+        "region",
+        description=(
+            "Qué es la malla de `dome_mesh_url`. «region»: la región que el "
+            "canal de curvatura detectó — el azul ES lo marcado. «locator»: "
+            "una bola alrededor del punto que propusieron los canales "
+            "geométricos, así que enseña DÓNDE mirar y no qué parte es la "
+            "lesión; incluye pared de vaso alrededor. En ninguno de los dos "
+            "casos afecta a la morfometría, que se mide sobre el saco aislado "
+            "desde el volumen a partir del plano de cuello marcado."
+        ),
+    )
     channels: list[str] = Field(
         default_factory=list,
         description=(

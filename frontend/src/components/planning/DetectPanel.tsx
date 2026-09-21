@@ -133,8 +133,14 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           <br />
           Es una <b>lista para recorrer, no un veredicto</b>: el orden no está validado
           contra casos anotados. En el único caso con diagnóstico que tenemos, la lesión
-          la encontró solo el canal de calibre y la curvatura no la veía. El diámetro es
-          una <b>estimación</b>; la medida real la da Morfometría sobre el saco.
+          la encontró solo el canal de calibre y la curvatura no la veía.
+          <br />
+          <b>Lo que se pinta de azul no es el saco.</b> Cuando lo encontró la curvatura
+          es la región detectada; cuando lo encontró el calibre es una bola alrededor del
+          punto, que incluye pared de vaso — señala dónde mirar. El diámetro es una
+          estimación del grosor ahí. <b>La medida real la da Morfometría</b>, marcando el
+          cuello y el ápice: se vuelve a aislar el saco desde el volumen, así que nada de
+          esto altera los números.
         </div>
       )}
 
@@ -180,6 +186,11 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                   </b>
                   {" "}est.
                 </span>
+                {c.patch_kind === "locator" && (
+                  <span style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
+                    azul = dónde, no el saco
+                  </span>
+                )}
                 <span style={{ fontSize: 12, color: "var(--muted-foreground)", flex: 1 }}>Confianza</span>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)" }}>
                   {(c.confidence * 100).toFixed(0)}%

@@ -558,6 +558,12 @@ export interface AneurysmCandidate {
       (más gruesa que el vaso de al lado). Que coincidan varios es información;
       el ORDEN no está validado contra casos anotados. */
   channels: string[];
+  /** Qué es la malla azul. «region»: lo que el canal de curvatura detectó.
+      «locator»: una bola alrededor del punto — enseña DÓNDE mirar, no qué
+      parte es la lesión, e incluye pared de vaso. Ninguno de los dos afecta a
+      la morfometría, que se mide sobre el saco aislado desde el volumen a
+      partir del plano de cuello marcado. */
+  patch_kind: "region" | "locator";
 }
 
 /** Why the detector kept or rejected what it did. An empty result used to be

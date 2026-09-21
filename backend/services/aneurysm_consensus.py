@@ -277,15 +277,38 @@ def _merge(hits: list[ConsensusHit], position, channel: str, rank: int,
                              radius_mm=radius_mm, ratio=ratio))
 
 
-def hit_patch(poly: vtk.vtkPolyData, hit: ConsensusHit) -> vtk.vtkPolyData:
-    """Un trozo de malla alrededor del sitio, para poder dibujarlo.
+#: Qué es lo que se pinta de azul en el visor.
+PATCH_REGION = "region"     # la región que el canal de curvatura detectó
+PATCH_LOCATOR = "locator"   # una bola alrededor del punto: dice DÓNDE, no QUÉ
 
-    Los canales geométricos proponen un PUNTO, no una región: el visor necesita
-    algo que pintar. Se recorta la esfera de radio proporcional al calibre
-    estimado, con un mínimo para que un bulto pequeño siga siendo visible.
+
+def hit_patch(poly: vtk.vtkPolyData,
+              hit: ConsensusHit) -> tuple[vtk.vtkPolyData, str]:
+    """Lo que se dibuja para este sitio, y qué significa.
+
+    Hay dos cosas distintas y conviene no confundirlas:
+
+    - **region** — el canal de curvatura detecta una REGIÓN de superficie, y
+      eso es lo que se pinta. El azul es entonces lo que el detector marcó.
+    - **locator** — los canales geométricos proponen un PUNTO. Para poder
+      pintarlo se recorta una bola a su alrededor, así que el azul enseña
+      **dónde mirar, no qué parte es la lesión**: incluye pared de vaso
+      alrededor.
+
+    Se intentó delimitar el bulto de verdad creciendo por calibre desde el
+    punto mientras superase el del vaso vecino. **No funciona**: el tronco es
+    genuinamente grueso, así que la región se derrama por él — medido sobre
+    case 3, 31 mm de extensión para una lesión de unos 5. Separar saco de
+    arteria gruesa necesita el cuello, que es justo lo que el usuario marca a
+    mano en Morfometría.
+
+    En ninguno de los dos casos esto altera la morfometría: sobre un parche
+    abierto `MorphometricAnalyzer` devuelve `reliable=False` y anula volumen,
+    cuello e índices. La medida sale del plano de cuello marcado, que vuelve a
+    aislar el saco desde el VOLUMEN.
     """
     if hit.candidate is not None:
-        return hit.candidate.poly_data
+        return hit.candidate.poly_data, PATCH_REGION
 
     r = max(3.0, hit.radius_mm * 1.8)
     sphere = vtk.vtkSphere()
@@ -299,7 +322,7 @@ def hit_patch(poly: vtk.vtkPolyData, hit: ConsensusHit) -> vtk.vtkPolyData:
     cl = vtk.vtkCleanPolyData()
     cl.SetInputConnection(clip.GetOutputPort())
     cl.Update()
-    return cl.GetOutput()
+    return cl.GetOutput(), PATCH_LOCATOR
 
 
 def hit_diameter_mm(hit: ConsensusHit) -> float:

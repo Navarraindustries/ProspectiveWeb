@@ -55,6 +55,9 @@ class AneurysmCandidate:
     poly_data: vtk.vtkPolyData = field(repr=False)
     cv_gauss: float       = 0.0
     normal_isotropy: float = 0.5
+    #: "sphere_fit" (esfera ajustada a los puntos) o "area" (estimación por
+    #: área, usada cuando el parche es casi plano y el ajuste se dispara).
+    radius_method: str = "area"
 
 
 @dataclass
@@ -79,6 +82,53 @@ class DetectionResult:
 # ──────────────────────────────────────────────────────────────────────────── #
 # Detector                                                                      #
 # ──────────────────────────────────────────────────────────────────────────── #
+
+def _dome_radius_mm(region: "vtk.vtkPolyData", area: float) -> tuple[float, str]:
+    """Radio de la CÚPULA, no del parche.
+
+    El radio se estimaba como ``sqrt(area / 4π)``, que trata el parche de
+    curvatura como una esfera COMPLETA. No lo es: es el casquete convexo de la
+    cúpula, así que el radio salía sistemáticamente corto. Medido sobre las
+    ocho regiones de case 3, la esfera ajustada a los puntos del parche da un
+    radio **1,75× mayor** de media (p10 1,53× · p90 2,35×).
+
+    La consecuencia era que ``min_radius_mm = 1.5`` no pedía un aneurisma de
+    3 mm de diámetro sino de unos 5, y descartaba **124 de 144 regiones**.
+
+    Aquí se ajusta una esfera por mínimos cuadrados a los puntos del parche
+    —lineal y cerrado, sin iterar—. Un casquete casi plano da un radio enorme o
+    numéricamente inestable; en ese caso se vuelve a la estimación por área,
+    que al menos está acotada, y se dice cuál se usó.
+
+    Devuelve ``(radio_mm, método)`` con método ``"sphere_fit"`` o ``"area"``.
+    """
+    fallback = math.sqrt(area / (4.0 * math.pi)) if area > 0 else 0.0
+    n = region.GetNumberOfPoints()
+    if n < 4:
+        return fallback, "area"
+
+    pts = np.asarray([region.GetPoint(i) for i in range(n)], dtype=np.float64)
+    # |p - c|² = r²  →  2p·c + (r² - |c|²) = |p|², lineal en (c, r²-|c|²).
+    A = np.hstack([2.0 * pts, np.ones((n, 1))])
+    b = (pts ** 2).sum(axis=1)
+    try:
+        sol, *_ = np.linalg.lstsq(A, b, rcond=None)
+    except np.linalg.LinAlgError:
+        return fallback, "area"
+
+    centre = sol[:3]
+    r2 = sol[3] + float((centre ** 2).sum())
+    if not np.isfinite(r2) or r2 <= 0.0:
+        return fallback, "area"
+    r_fit = math.sqrt(r2)
+
+    # Cordura: una esfera ajustada a un casquete plano se dispara. El parche no
+    # puede pertenecer a una esfera mucho mayor que su propia extensión.
+    extent = float(np.linalg.norm(pts.max(axis=0) - pts.min(axis=0)))
+    if not np.isfinite(r_fit) or r_fit <= 0.0 or r_fit > max(4.0 * extent, 60.0):
+        return fallback, "area"
+    return r_fit, "sphere_fit"
+
 
 class AneurysmDetector:
     """
@@ -326,7 +376,7 @@ class AneurysmDetector:
             mass.SetInputData(region)
             mass.Update()
             area   = mass.GetSurfaceArea()
-            radius = math.sqrt(area / (4.0 * math.pi)) if area > 0 else 0.0
+            radius, radius_method = _dome_radius_mm(region, area)
 
             if radius < self.min_radius_mm or radius > self.max_radius_mm:
                 n_fail_size += 1
@@ -434,6 +484,7 @@ class AneurysmDetector:
                     centroid=(cx, cy, cz),
                     radius_mm=radius,
                     diameter_mm=radius * 2.0,
+                    radius_method=radius_method,
                     mean_curvature=mean_curv_region,
                     gauss_curvature=gauss_curv_region,
                     positive_gauss_frac=positive_gauss_frac,

@@ -127,7 +127,10 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
 
       {ran && candidates.length > 1 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
-          Ordenados por relevancia. El <b>principal</b> es el más probable; revise con criterio clínico los de <b>baja confianza</b> (posibles falsos positivos).
+          Lista ordenada por puntuación, no un veredicto: <b>el orden no está validado</b>
+          contra casos anotados. Recórrelos todos — en el único caso con diagnóstico
+          médico que tenemos, el que salía primero no era el bueno. El diámetro es una
+          <b>estimación de detección</b>; la medida real la da Morfometría sobre el saco.
         </div>
       )}
 
@@ -149,7 +152,11 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
-                {i === 0 && <Badge variant="success">Principal</Badge>}
+                {/* Antes decía «Principal» en verde. Con 38 % de confianza eso
+                    afirma más de lo que el dato sostiene, y en el único caso con
+                    diagnóstico médico el primero era el equivocado. Un número de
+                    orden dice lo mismo sin prometer nada. */}
+                <Badge variant="subtle">{`#${i + 1}`}</Badge>
                 {c.confidence < 0.5 && <Badge variant="warning">Baja confianza</Badge>}
                 <div style={{ flex: 1 }} />
                 {on && <Icon name="STATUS_OK" size={15} color="var(--brand-deep)" />}
@@ -160,6 +167,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                   <b style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
                     {c.max_diameter_mm.toFixed(1)} mm
                   </b>
+                  {" "}est.
                 </span>
                 <span style={{ fontSize: 12, color: "var(--muted-foreground)", flex: 1 }}>Confianza</span>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)" }}>

@@ -42,20 +42,47 @@ def _clamp01(v: float) -> float:
 
 
 def _detector_for_modality(modality: str) -> AneurysmDetector:
-    """Build the detector with the desktop app's modality preset.
+    """Build the detector with the modality preset.
 
-    Mirrors aneurysm_panel._apply_preset_xa / _apply_preset_cta: XA/3DRA meshes
-    are much noisier than CTA, so they need heavier Laplacian pre-smoothing and
-    lower curvature percentiles or the hard gates reject every real dome.
+    XA/3DRA meshes are much noisier than CTA, so they need heavier Laplacian
+    pre-smoothing and lower curvature percentiles or the hard gates reject
+    every real dome.
+
+    Por qué la fracción de gauss+ bajó de 0.55 a 0.40
+    -------------------------------------------------
+    Medido sobre case 3, el único caso con diagnóstico médico: el detector
+    generaba 144 regiones y devolvía UNA, y no era la buena. La lesión que los
+    médicos sitúan en el tronco basilar salía como la región **mejor puntuada**
+    (214 puntos, score 0.52) y la tiraba este umbral, por tener una fracción de
+    curvatura gaussiana positiva de 0.42.
+
+    El motivo es estructural: una región grande llega hasta el cuello, y el
+    cuello es una silla de montar — curvatura negativa. **Cuanto mejor recorta
+    la cúpula, peor puntúa aquí.** En las ocho regiones de case 3 la correlación
+    entre tamaño y fracción gauss+ es −0.29, y la fracción más alta (0.75) es
+    una mota de veinte puntos.
+
+    Con 0.40, y con el radio ya medido sobre la esfera ajustada en vez del
+    parche (`_dome_radius_mm`), la lesión del tronco **entra en la lista**.
+
+    Lo que NO se promete es el orden. Entre dos mallas del mismo estudio que
+    difieren en 17 vértices de 12 776 esa misma lesión pasa del puesto 1 al 4,
+    con el pipeline siendo determinista: los cuatro primeros puntúan entre 0,40
+    y 0,57 y la puntuación no los separa. Ver `test_detector_case3.py`.
+
+    Así que esto es una **lista corta**, no un veredicto — y por eso la pantalla
+    dejó de etiquetar al primero como «Principal».
     """
     if modality.upper() in _XA_MODALITIES:
         return AneurysmDetector(
             gauss_percentile          = 60.0,
             mean_curv_gate_percentile = 40.0,
-            min_radius_mm             = 1.5,
+            # Radio de la cúpula, no del parche: 1.25 mm ≈ un aneurisma de
+            # 2.5 mm de diámetro, por debajo del corte de «tratar o vigilar».
+            min_radius_mm             = 1.25,
             max_radius_mm             = 20.0,
             min_points                = 4,
-            min_positive_gauss_frac   = 0.55,
+            min_positive_gauss_frac   = 0.40,
             min_sphericity            = 0.25,
             pre_smooth_iterations     = 25,
         )
@@ -65,7 +92,9 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         min_radius_mm             = 1.0,
         max_radius_mm             = 20.0,
         min_points                = 8,
-        min_positive_gauss_frac   = 0.60,
+        # Mismo razonamiento, con margen: en TC las mallas son mucho más
+        # densas y aflojar de más llena la lista de hueso.
+        min_positive_gauss_frac   = 0.50,
         min_sphericity            = 0.35,
         pre_smooth_iterations     = 10,
     )

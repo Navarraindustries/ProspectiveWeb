@@ -56,7 +56,28 @@ export function MeshEditTools() {
       const pad = Math.max(1, (b.vmax - b.vmin) * 0.05);
       setHuRange({ min: Math.floor(b.vmin - pad), max: Math.ceil(b.vmax + pad) });
     }).catch(() => { /* keep defaults */ });
-    // ── El borrador de un clic ──────────────────────────────────────────── #
+    return () => { alive = false; };
+  }, [sessionId]);
+
+  // Live green tint on the MPR slices for the grow band — so you set the band
+  // watching what turns green (vessel yes, bone no) BEFORE regenerating once.
+  useEffect(() => {
+    if (!segmentation) return;
+    const t = setTimeout(() => setPreviewBand([lower, upper]), 140);
+    return () => clearTimeout(t);
+  }, [lower, upper, segmentation, setPreviewBand]);
+  useEffect(() => () => setPreviewBand(null), [setPreviewBand]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let alive = true;
+    api.meshHistory(sessionId)
+      .then((h) => { if (alive) setHist(h); })
+      .catch(() => { /* no history yet */ });
+    return () => { alive = false; };
+  }, [sessionId]);
+
+  // ── El borrador de un clic ──────────────────────────────────────────── #
   //
   // El visor solo señala el punto; la llamada vive aquí, con el resto de las
   // ediciones de malla, para que deshacer, invalidar la morfometría y refrescar
@@ -93,27 +114,6 @@ export function MeshEditTools() {
     })();
     return () => { cancelado = true; };
   }, [erasePick, sessionId]);   // eslint-disable-line react-hooks/exhaustive-deps
-
-  return () => { alive = false; };
-  }, [sessionId]);
-
-  // Live green tint on the MPR slices for the grow band — so you set the band
-  // watching what turns green (vessel yes, bone no) BEFORE regenerating once.
-  useEffect(() => {
-    if (!segmentation) return;
-    const t = setTimeout(() => setPreviewBand([lower, upper]), 140);
-    return () => clearTimeout(t);
-  }, [lower, upper, segmentation, setPreviewBand]);
-  useEffect(() => () => setPreviewBand(null), [setPreviewBand]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    let alive = true;
-    api.meshHistory(sessionId)
-      .then((h) => { if (alive) setHist(h); })
-      .catch(() => { /* no history yet */ });
-    return () => { alive = false; };
-  }, [sessionId]);
 
   if (!segmentation) return null;
 

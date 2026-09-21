@@ -1,0 +1,408 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ProspectiveWeb — Arquitectura del sistema",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1360,
+      680
+    ],
+    "views": [
+      {
+        "id": "camino-principal",
+        "label": "Camino principal",
+        "focus": [
+          "clinico",
+          "spa",
+          "api",
+          "services",
+          "sessionfs"
+        ],
+        "note": "Del navegador del clínico al almacén de sesión: la ruta que recorre cada paso del pipeline."
+      },
+      {
+        "id": "render-3d",
+        "label": "Render 3D",
+        "focus": [
+          "spa",
+          "store",
+          "vtk",
+          "sessionfs"
+        ],
+        "note": "La malla y los cortes se descargan directamente desde /data; React solo guarda las URLs."
+      },
+      {
+        "id": "persistencia",
+        "label": "Persistencia y entregables",
+        "focus": [
+          "services",
+          "db",
+          "sessionfs",
+          "archive",
+          "deliverables"
+        ],
+        "note": "Qué sobrevive a la sesión: registro clínico en SQLite, píxeles y geometría en disco."
+      }
+    ],
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": {
+          "label": "Interfaz"
+        },
+        "backend": {
+          "label": "Servidor"
+        },
+        "security": {
+          "label": "Seguridad"
+        },
+        "database": {
+          "label": "Almacén"
+        },
+        "cloud": {
+          "label": "Entrega"
+        },
+        "external": {
+          "label": "Externo"
+        }
+      }
+    }
+  },
+  "components": [
+    {
+      "id": "clinico",
+      "type": "external",
+      "label": "Clínico",
+      "sublabel": "Navegador",
+      "pos": [
+        40,
+        330
+      ],
+      "size": [
+        150,
+        66
+      ]
+    },
+    {
+      "id": "vtk",
+      "type": "frontend",
+      "label": "Visores VTK.js",
+      "sublabel": "Malla 3D · MPR · Volumen",
+      "pos": [
+        250,
+        100
+      ],
+      "size": [
+        196,
+        66
+      ]
+    },
+    {
+      "id": "spa",
+      "type": "frontend",
+      "label": "SPA React 19",
+      "sublabel": "Vite · TypeScript · Router",
+      "pos": [
+        250,
+        330
+      ],
+      "size": [
+        196,
+        66
+      ],
+      "tag": "9 pantallas"
+    },
+    {
+      "id": "store",
+      "type": "frontend",
+      "label": "Estado de planificación",
+      "sublabel": "Context: auth · planning · nav",
+      "pos": [
+        250,
+        520
+      ],
+      "size": [
+        196,
+        66
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API FastAPI",
+      "sublabel": "uvicorn :8000",
+      "pos": [
+        540,
+        330
+      ],
+      "size": [
+        160,
+        66
+      ],
+      "tag": "25 routers"
+    },
+    {
+      "id": "authsvc",
+      "type": "security",
+      "label": "Auth JWT",
+      "sublabel": "bcrypt · roles · guardia",
+      "pos": [
+        540,
+        195
+      ],
+      "size": [
+        160,
+        66
+      ]
+    },
+    {
+      "id": "services",
+      "type": "backend",
+      "label": "Capa de servicios",
+      "sublabel": "imagen · geometría · clips",
+      "pos": [
+        820,
+        330
+      ],
+      "size": [
+        190,
+        66
+      ],
+      "tag": "~45 módulos"
+    },
+    {
+      "id": "imaging",
+      "type": "external",
+      "label": "SimpleITK · VTK · pydicom",
+      "sublabel": "NumPy · SciPy · ReportLab",
+      "pos": [
+        811,
+        520
+      ],
+      "size": [
+        208,
+        66
+      ]
+    },
+    {
+      "id": "clips",
+      "type": "external",
+      "label": "Catálogo NAVARRO™",
+      "sublabel": "42 diseños STL",
+      "pos": [
+        600,
+        520
+      ],
+      "size": [
+        180,
+        66
+      ]
+    },
+    {
+      "id": "sessionfs",
+      "type": "database",
+      "label": "Almacén de sesión",
+      "sublabel": "data/sessions · session_saves",
+      "pos": [
+        1140,
+        100
+      ],
+      "size": [
+        200,
+        66
+      ],
+      "tag": "TTL + purga"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "pacientes · casos · estudios",
+      "pos": [
+        1140,
+        240
+      ],
+      "size": [
+        200,
+        66
+      ]
+    },
+    {
+      "id": "archive",
+      "type": "cloud",
+      "label": "Archivo de estudios",
+      "sublabel": "disco local o S3",
+      "pos": [
+        1140,
+        380
+      ],
+      "size": [
+        200,
+        66
+      ]
+    },
+    {
+      "id": "deliverables",
+      "type": "cloud",
+      "label": "Entregables",
+      "sublabel": "PDF · STL · DICOM SR",
+      "pos": [
+        1140,
+        520
+      ],
+      "size": [
+        200,
+        66
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Navegador",
+      "wraps": [
+        "vtk",
+        "spa",
+        "store"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Servidor PROSPECTIVE",
+      "wraps": [
+        "api",
+        "authsvc",
+        "services"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "acceso",
+      "from": "clinico",
+      "to": "spa",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "escena",
+      "from": "spa",
+      "to": "vtk",
+      "label": "escena y marcadores"
+    },
+    {
+      "id": "estado",
+      "from": "spa",
+      "to": "store",
+      "label": "resultados de cada paso",
+      "labelDy": 20
+    },
+    {
+      "id": "rest",
+      "from": "spa",
+      "to": "api",
+      "label": "REST /api · JWT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "guardia",
+      "from": "authsvc",
+      "to": "api",
+      "label": "verifica token y rol",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 26
+    },
+    {
+      "id": "orquesta",
+      "from": "api",
+      "to": "services",
+      "label": "delega cálculo"
+    },
+    {
+      "id": "libs",
+      "from": "services",
+      "to": "imaging",
+      "label": "carga DICOM · mallado",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 40,
+      "labelDx": 50
+    },
+    {
+      "id": "catalogo",
+      "from": "services",
+      "to": "clips",
+      "label": "lee catálogo",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "registro",
+      "from": "services",
+      "to": "db",
+      "label": "SQLAlchemy",
+      "labelDx": -60
+    },
+    {
+      "id": "disco",
+      "from": "services",
+      "to": "sessionfs",
+      "label": "volumen · mallas"
+    },
+    {
+      "id": "archiva",
+      "from": "services",
+      "to": "archive",
+      "label": "archiva estudio",
+      "variant": "dashed",
+      "labelDy": 28,
+      "labelDx": -50
+    },
+    {
+      "id": "genera",
+      "from": "services",
+      "to": "deliverables",
+      "label": "genera"
+    },
+    {
+      "id": "fetch",
+      "from": "vtk",
+      "to": "sessionfs",
+      "label": "GET /data/… (.vtp, PNG)",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Frontend",
+      "items": [
+        "React 19 + Vite + TypeScript; la URL manda sobre la pantalla",
+        "vtk.js descarga la malla por URL: React no toca geometría",
+        "Avisa si sales del caso con resultados sin guardar"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Backend y seguridad",
+      "items": [
+        "FastAPI con 25 routers que delegan en la capa de servicios",
+        "JWT con bcrypt; el alta de usuario la aprueba un administrador",
+        "Middleware que bloquea /data: el DICOM lleva datos del paciente"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Persistencia",
+      "items": [
+        "SQLite guarda paciente → caso → estudio de imagen → sesión",
+        "Píxeles y geometría en disco bajo data/, con purga por TTL",
+        "Una sesión guardada se rehidrata y reanuda en el paso exacto"
+      ]
+    }
+  ]
+}

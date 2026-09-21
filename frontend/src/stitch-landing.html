@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><title>PROSPECTIVE - Neurovascular Surgical AI Platform</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-error":"#690005","primary":"#dbfcff","on-primary-container":"#006970","tertiary-fixed":"#ffd9dc","surface-bright":"#31394a","tertiary-fixed-dim":"#ffb2ba","surface-container-highest":"#2d3545","outline-variant":"#3b494b","inverse-on-surface":"#293041","background":"#0b1322","surface-variant":"#2d3545","on-primary-fixed":"#002022","on-error-container":"#ffdad6","secondary-container":"#00b2d6","error-container":"#93000a","on-primary":"#00363a","on-background":"#dbe2f8","primary-fixed-dim":"#00dbe9","secondary":"#4cd6fb","inverse-surface":"#dbe2f8","on-tertiary":"#670020","on-secondary-fixed":"#001f27","surface-dim":"#0b1322","inverse-primary":"#006970","on-secondary-container":"#003f4e","on-tertiary-fixed":"#400011","tertiary":"#fff3f3","on-tertiary-fixed-variant":"#910030","on-surface":"#dbe2f8","error":"#ffb4ab","surface-container":"#18202f","outline":"#849495","surface-container-lowest":"#060e1d","on-surface-variant":"#b9cacb","on-secondary":"#003642","on-primary-fixed-variant":"#004f54","surface-tint":"#00dbe9","on-tertiary-container":"#be0042","primary-fixed":"#7df4ff","secondary-fixed":"#b3ebff","secondary-fixed-dim":"#4cd6fb","on-secondary-fixed-variant":"#004e5f","surface":"#0b1322","surface-container-high":"#222a3a","primary-container":"#00f0ff","surface-container-low":"#141c2b","tertiary-container":"#ffcdd1"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"space-xs":"0.25rem","space-lg":"1.5rem","margin":"1rem","space-md":"1rem","margin-md":"1.5rem","space-sm":"0.5rem","gutter":"1rem","space-xl":"2.5rem","margin-lg":"2rem","gutter-lg":"1.5rem"},"fontFamily":{"body-sm":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"],"metric-md":["JetBrains Mono"],"body-md":["Plus Jakarta Sans"],"display-lg-mobile":["Space Grotesk"],"headline-md":["Space Grotesk"],"display-lg":["Space Grotesk"],"headline-lg-mobile":["Space Grotesk"],"headline-lg":["Space Grotesk"],"label-md":["JetBrains Mono"],"metric-lg":["JetBrains Mono"],"label-sm":["JetBrains Mono"],"headline-sm":["Space Grotesk"]},"fontSize":{"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"metric-md":["16px",{"lineHeight":"20px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],"display-lg-mobile":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"700"}],"headline-md":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"500"}],"display-lg":["48px",{"lineHeight":"56px","letterSpacing":"-0.03em","fontWeight":"700"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"600"}],"headline-lg":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"600"}],"label-md":["11px",{"lineHeight":"14px","letterSpacing":"0.06em","fontWeight":"500"}],"metric-lg":["28px",{"lineHeight":"32px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-sm":["9px",{"lineHeight":"12px","letterSpacing":"0.08em","fontWeight":"600"}],"headline-sm":["18px",{"lineHeight":"26px","letterSpacing":"0em","fontWeight":"600"}]}}}}</script></head><body class="bg-surface font-body-md text-body-md text-on-surface selection:bg-secondary selection:text-on-secondary"><header class="fixed top-0 w-full z-50 bg-surface-container-lowest/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.5)]"><div class="h-20 w-full px-margin-lg flex items-center justify-between gap-gutter"><div class="flex items-center gap-gutter"><div class="flex items-center gap-space-sm"><div class="w-9 h-9 rounded bg-surface-container-high flex items-center justify-center"><span class="material-symbols-outlined text-secondary text-[22px]">neurology</span></div><div class="flex flex-col"><span class="font-headline-sm text-headline-sm tracking-tight text-primary font-bold">PROSPECTIVE</span><span class="font-label-sm text-label-sm text-on-surface-variant tracking-wider">NEUROVASCULAR AI</span></div></div><div class="hidden xl:flex items-center gap-space-xs px-space-sm py-space-xs rounded bg-surface-container-low"><span class="inline-block w-2 h-2 rounded-full bg-primary-container shadow-[0_0_8px_#00f0ff]"></span><span class="font-label-sm text-label-sm text-secondary tracking-wider font-semibold">ACTIVE AI CLINICAL SUITE v2.4</span></div></div><nav class="hidden lg:flex items-center gap-space-xs" data-active-classes="bg-surface-container-highest text-primary font-semibold"><a class="px-space-sm py-space-xs rounded font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="que-es" href="#">Qué es</a><a class="px-space-sm py-space-xs rounded font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="pipeline-3d" href="#">Pipeline 3D</a><a class="px-space-sm py-space-xs rounded font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="funcionalidades" href="#">Funcionalidades</a><a class="px-space-sm py-space-xs rounded font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="indices-clinicos" href="#">Índices Clínicos</a><a class="px-space-sm py-space-xs rounded font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="dispositivos" href="#">Dispositivos</a><a class="px-space-sm py-space-xs rounded font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="tecnologia" href="#">Tecnología</a><a class="px-space-sm py-space-xs rounded font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="contacto" href="#">Contacto</a></nav><div class="flex items-center gap-space-md"><div class="hidden 2xl:flex items-center gap-space-xs px-space-sm py-space-xs rounded bg-surface-container-low"><span class="material-symbols-outlined text-secondary text-[16px]">pulse_alert</span><span class="font-label-sm text-label-sm text-on-surface-variant">SIMULACIÓN EN TIEMPO REAL</span></div><div class="flex items-center gap-space-xs px-space-xs py-space-xs rounded bg-surface-container-high"><span class="material-symbols-outlined text-on-surface-variant text-[18px]">dark_mode</span></div><a class="hidden sm:inline-flex items-center justify-center px-space-md py-space-xs rounded bg-primary-container text-on-primary-container font-headline-sm text-headline-sm font-semibold tracking-wide hover:bg-primary hover:text-on-primary transition-all shadow-[0_0_16px_rgba(0,240,255,0.4)]" data-path="acceso-medico" href="#"><span class="font-body-sm text-body-sm font-bold tracking-wide">Acceso Médico</span></a><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="w-full pt-20 bg-surface min-h-screen"><div class="flex flex-col w-full text-on-surface">
+<!-- ========================================================================= -->
+<!-- 1. HERO SECTION: IMMERSIVE 3D SURGICAL WORKBENCH -->
+<!-- ========================================================================= -->
+<section class="relative w-full min-h-[942px] flex items-center justify-center overflow-hidden -mt-20 pt-20 px-margin-lg">
+<!-- WebGL Dynamic Shader Backdrop -->
+<!-- STITCH_SHADER_START:ANIMATION_3 class="absolute inset-0 w-full h-full opacity-60 pointer-events-none" -->
+<div class="absolute inset-0 w-full h-full opacity-60 pointer-events-none" style="display:block;">
+<canvas id="shader-canvas-ANIMATION_3" style="display:block;width:100%;height:100%"></canvas>
+<script>
+(function() {
+  const canvas = document.getElementById('shader-canvas-ANIMATION_3');
+
+  // Sync the WebGL drawing-buffer size with the CSS-driven layout size.
+  // This fires on initial layout and whenever the element is resized.
+  function syncSize() {
+    const w = canvas.clientWidth  || 1280;
+    const h = canvas.clientHeight || 720;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncSize).observe(canvas);
+  }
+  syncSize();
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+  const fs = `precision highp float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+
+// Simplex-like noise helper
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+
+float snoise(vec2 v) {
+  const vec4 C = vec4(0.211324865405187,  // (3.0-sqrt(3.0))/6.0
+                      0.366025403784439,  // 0.5*(sqrt(3.0)-1.0)
+                     -0.577350269189626,  // -1.0 + 2.0 * C.x
+                      0.024390243902439); // 1.0 / 41.0
+  vec2 i  = floor(v + dot(v, C.yy) );
+  vec2 x0 = v -   i + dot(i, C.xx);
+  vec2 i1;
+  i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod289(i);
+  vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+        + i.x + vec3(0.0, i1.x, 1.0 ));
+  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+  m = m*m ;
+  m = m*m ;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+  vec3 g;
+  g.x  = a0.x  * x0.x  + h.x  * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+void main() {
+    vec2 st = gl_FragCoord.xy / u_resolution.xy;
+    vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution) / min(u_resolution.x, u_resolution.y);
+    
+    float t = u_time * 0.25;
+    
+    // Neural vascular flow simulation
+    float n1 = snoise(p * 1.5 + vec2(t * 0.3, t * 0.1));
+    float n2 = snoise(p * 3.0 - vec2(t * 0.2, n1 * 0.8));
+    float n3 = snoise(p * 6.0 + vec2(n2 * 0.5, t * 0.4));
+    
+    float pulse = sin(u_time * 1.8) * 0.5 + 0.5; // Heartbeat / arterial pulsation
+    
+    // Vascular stream lines
+    float lines = sin(p.x * 2.5 + n1 * 2.0 + t) * cos(p.y * 2.0 + n2 * 2.0 + t * 0.7);
+    float glow = smoothstep(0.7, 0.98, abs(lines));
+    
+    // Deep dark obsidian base with bioluminescent cyan & neural crimson accents
+    vec3 bg = vec3(0.02, 0.035, 0.06); // Deep midnight navy
+    vec3 cyanGlow = vec3(0.0, 0.88, 1.0) * glow * (0.35 + 0.25 * pulse);
+    vec3 deepBlue = vec3(0.05, 0.2, 0.45) * smoothstep(-0.5, 0.8, n2);
+    vec3 crimsonHint = vec3(1.0, 0.15, 0.38) * smoothstep(0.82, 0.98, n3) * (0.6 + 0.4 * pulse);
+    
+    vec3 finalColor = bg + deepBlue * 0.4 + cyanGlow + crimsonHint * 0.35;
+    
+    // Vignette
+    float vig = smoothstep(1.6, 0.2, length(p));
+    finalColor *= vig;
+    
+    gl_FragColor = vec4(finalColor, 1.0);
+}`;
+  function cs(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  // u_mouse is in pixel coordinates matching u_resolution (ShaderToy convention).
+  // Shaders that need normalized coords should use: u_mouse / u_resolution.
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+  window.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = 1.0 - (event.clientY - rect.top) / rect.height;
+      mouse.x = nx * canvas.width;
+      mouse.y = ny * canvas.height;
+    }
+  });
+
+  function render(t) {
+    if (typeof ResizeObserver === 'undefined') syncSize();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+  render(0);
+})();
+</script>
+</div>
+<!-- STITCH_SHADER_END:ANIMATION_3 -->
+<!-- 3D Interactive Vascular Model (Pointer Events Active) -->
+<!-- STITCH_THREEJS_START:ANIMATION_4 class="absolute inset-0 w-full h-full bg-transparent cursor-grab active:cursor-grabbing" -->
+<div class="absolute inset-0 w-full h-full bg-transparent cursor-grab active:cursor-grabbing" style="display:block;">
+<script src="https://ajax.googleapis.com/ajax/libs/threejs/r125/three.min.js"></script>
+<div id="threejs-container-ANIMATION_4" style="width:100%;height:100%"></div>
+<script>
+(function() {
+  const container = document.getElementById('threejs-container-ANIMATION_4');
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  // Three.js interactive 3D Cerebral Arterial Tree with Aneurysm Simulation
+const width = container.clientWidth || window.innerWidth;
+const height = container.clientHeight || window.innerHeight;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
+camera.position.set(0, 0, 16);
+
+const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+renderer.setSize(width, height);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0x0f2b48, 2.5);
+scene.add(ambientLight);
+
+const dirLight1 = new THREE.DirectionalLight(0x00f0ff, 3.5);
+dirLight1.position.set(10, 12, 10);
+scene.add(dirLight1);
+
+const dirLight2 = new THREE.DirectionalLight(0xff3366, 2.8);
+dirLight2.position.set(-10, -8, 8);
+scene.add(dirLight2);
+
+const pointLight = new THREE.PointLight(0x00f0ff, 4, 30);
+pointLight.position.set(0, 2, 6);
+scene.add(pointLight);
+
+// Group to hold the entire vascular anatomy
+const vascularGroup = new THREE.Group();
+scene.add(vascularGroup);
+
+// Materials
+const vesselMaterial = new THREE.MeshPhongMaterial({
+  color: 0x112d4e,
+  emissive: 0x05162a,
+  specular: 0x00f0ff,
+  shininess: 90,
+  wireframe: false,
+  transparent: true,
+  opacity: 0.88,
+});
+
+const vesselGlowWire = new THREE.MeshBasicMaterial({
+  color: 0x00f0ff,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.25,
+});
+
+const aneurysmMaterial = new THREE.MeshPhongMaterial({
+  color: 0x991133,
+  emissive: 0x440815,
+  specular: 0xff3366,
+  shininess: 120,
+  transparent: true,
+  opacity: 0.92,
+});
+
+const clipMaterial = new THREE.MeshStandardMaterial({
+  color: 0xdde8f0,
+  roughness: 0.2,
+  metalness: 0.85,
+});
+
+// Build vascular branches using spline curves & tubes
+function createVesselBranch(points, radius, tubularSegments = 40) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const geom = new THREE.TubeGeometry(curve, tubularSegments, radius, 16, false);
+  const mesh = new THREE.Mesh(geom, vesselMaterial);
+  const wire = new THREE.Mesh(geom, vesselGlowWire);
+  mesh.add(wire);
+  return { mesh, curve };
+}
+
+// Main Carotid / MCA trunk
+const mainTrunk = createVesselBranch([
+  new THREE.Vector3(0, -6, 0),
+  new THREE.Vector3(0.4, -3, 0.2),
+  new THREE.Vector3(0, 0, 0),
+  new THREE.Vector3(-0.8, 2.5, 0.5),
+  new THREE.Vector3(-2.2, 4.8, 1.2)
+], 0.65);
+vascularGroup.add(mainTrunk.mesh);
+
+// Bifurcation / ACA Branch
+const acaBranch = createVesselBranch([
+  new THREE.Vector3(0, 0, 0),
+  new THREE.Vector3(1.2, 2.0, -0.4),
+  new THREE.Vector3(2.8, 3.8, -1.0),
+  new THREE.Vector3(4.2, 5.0, -1.2)
+], 0.5);
+vascularGroup.add(acaBranch.mesh);
+
+// Side branches (PCOM / Sylvian branches)
+const branch1 = createVesselBranch([
+  new THREE.Vector3(-0.8, 2.5, 0.5),
+  new THREE.Vector3(-2.5, 2.2, -0.8),
+  new THREE.Vector3(-4.5, 2.8, -1.5)
+], 0.35);
+vascularGroup.add(branch1.mesh);
+
+const branch2 = createVesselBranch([
+  new THREE.Vector3(1.2, 2.0, -0.4),
+  new THREE.Vector3(2.5, 1.2, 1.0),
+  new THREE.Vector3(4.0, 1.5, 1.8)
+], 0.32);
+vascularGroup.add(branch2.mesh);
+
+// The Saccular Aneurysm located at the bifurcation (0, 0, 0)
+const aneurysmGeom = new THREE.SphereGeometry(1.4, 32, 32);
+// Deform to make it an organic saccular aneurysm shape
+const pos = aneurysmGeom.attributes.position;
+for(let i=0; i<pos.count; i++) {
+  let x = pos.getX(i);
+  let y = pos.getY(i);
+  let z = pos.getZ(i);
+  // Asymmetrical sac protrusion
+  let factor = 1.0 + 0.25 * Math.sin(y * 2.0) + 0.15 * Math.cos(x * 3.0);
+  pos.setXYZ(i, x * factor, y * (1.1 + 0.1*z), z * factor);
+}
+aneurysmGeom.computeVertexNormals();
+
+const aneurysmMesh = new THREE.Mesh(aneurysmGeom, aneurysmMaterial);
+aneurysmMesh.position.set(0.7, 0.8, 0.3);
+vascularGroup.add(aneurysmMesh);
+
+// Aneurysm Glow Cage / Wire
+const aneurysmWireGeom = new THREE.SphereGeometry(1.48, 16, 16);
+const aneurysmWireMat = new THREE.MeshBasicMaterial({
+  color: 0xff3366,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.45
+});
+const aneurysmWire = new THREE.Mesh(aneurysmWireGeom, aneurysmWireMat);
+aneurysmMesh.add(aneurysmWire);
+
+// Surgical Clip Model placed precisely across the neck of aneurysm
+const clipGroup = new THREE.Group();
+const bladeGeom = new THREE.BoxGeometry(0.18, 2.0, 0.12);
+const blade1 = new THREE.Mesh(bladeGeom, clipMaterial);
+blade1.position.set(-0.15, 0, 0);
+const blade2 = new THREE.Mesh(bladeGeom, clipMaterial);
+blade2.position.set(0.15, 0, 0);
+const springGeom = new THREE.TorusGeometry(0.35, 0.08, 12, 24, Math.PI * 1.5);
+const spring = new THREE.Mesh(springGeom, clipMaterial);
+spring.rotation.z = Math.PI / 2;
+spring.position.set(0, -1.0, 0);
+
+clipGroup.add(blade1);
+clipGroup.add(blade2);
+clipGroup.add(spring);
+clipGroup.position.set(0.1, -0.1, 0.3);
+clipGroup.rotation.z = -0.7;
+clipGroup.rotation.y = 0.4;
+vascularGroup.add(clipGroup);
+
+// Floating glowing measurement callout markers (HUD rings)
+function createMarkerRing(radius, color) {
+  const geom = new THREE.RingGeometry(radius * 0.9, radius, 32);
+  const mat = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide, transparent: true, opacity: 0.75 });
+  return new THREE.Mesh(geom, mat);
+}
+
+const neckMarker = createMarkerRing(0.85, 0x00f0ff);
+neckMarker.position.set(0.1, -0.1, 0.4);
+vascularGroup.add(neckMarker);
+
+const domeMarker = createMarkerRing(1.6, 0xff3366);
+domeMarker.position.set(0.7, 0.8, 0.3);
+domeMarker.rotation.x = 1.2;
+vascularGroup.add(domeMarker);
+
+// Floating particles for blood flow/hemodynamic visualization
+const particleCount = 200;
+const particleGeom = new THREE.BufferGeometry();
+const particlePos = new Float32Array(particleCount * 3);
+for(let i=0; i<particleCount*3; i+=3) {
+  particlePos[i] = (Math.random() - 0.5) * 12;
+  particlePos[i+1] = (Math.random() - 0.5) * 14;
+  particlePos[i+2] = (Math.random() - 0.5) * 8;
+}
+particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+const particleMat = new THREE.PointsMaterial({
+  color: 0x00f0ff,
+  size: 0.12,
+  transparent: true,
+  opacity: 0.65,
+  blending: THREE.AdditiveBlending
+});
+const particles = new THREE.Points(particleGeom, particleMat);
+vascularGroup.add(particles);
+
+// Mouse interaction
+let mouseX = 0;
+let mouseY = 0;
+let targetRotationX = 0;
+let targetRotationY = 0;
+
+window.addEventListener('mousemove', (e) => {
+  mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+  targetRotationY = mouseX * 0.65;
+  targetRotationX = -mouseY * 0.45;
+});
+
+// Render loop with cardiac systolic pulsation
+let clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  
+  // Smooth mouse inertia
+  vascularGroup.rotation.y += (targetRotationY - vascularGroup.rotation.y) * 0.05 + 0.003;
+  vascularGroup.rotation.x += (targetRotationX - vascularGroup.rotation.x) * 0.05;
+  
+  // Floating gently
+  vascularGroup.position.y = Math.sin(t * 1.2) * 0.25;
+  
+  // Arterial heartbeat systolic expansion
+  const pulse = Math.sin(t * 3.5);
+  const systolicFactor = 1.0 + (pulse > 0.4 ? (pulse - 0.4) * 0.06 : 0.0);
+  aneurysmMesh.scale.set(systolicFactor, systolicFactor, systolicFactor);
+  
+  // Rotating markers
+  neckMarker.rotation.z += 0.015;
+  domeMarker.rotation.z -= 0.02;
+  
+  // Particle flow drift
+  const pPositions = particleGeom.attributes.position.array;
+  for(let i=1; i<particleCount*3; i+=3) {
+    pPositions[i] += 0.035;
+    if(pPositions[i] > 7) pPositions[i] = -7;
+  }
+  particleGeom.attributes.position.needsUpdate = true;
+  
+  renderer.render(scene, camera);
+}
+animate();
+
+// Resize handling
+window.addEventListener('resize', () => {
+  const w = container.clientWidth || window.innerWidth;
+  const h = container.clientHeight || window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+})();
+</script>
+</div>
+<!-- STITCH_THREEJS_END:ANIMATION_4 -->
+<!-- Ambient Vignette & Depth Masking -->
+<div class="absolute inset-0 pointer-events-none bg-gradient-to-t from-surface via-surface/30 to-surface/80"></div>
+<div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_30%,#0b1322_95%)]"></div>
+<!-- Main Container -->
+<div class="relative z-10 w-full max-w-7xl mx-auto py-space-xl grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-center">
+<!-- Left Content Column -->
+<div class="lg:col-span-7 flex flex-col gap-space-md pointer-events-auto">
+<!-- Live AI Core Pip -->
+<div class="inline-flex items-center gap-space-xs self-start px-space-sm py-space-xs rounded-full bg-surface-container-high/90 backdrop-blur-xl shadow-[0_0_20px_rgba(0,240,255,0.15)]">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-ping"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container -ml-2.5"></span>
+<span class="font-label-sm text-label-sm tracking-widest text-primary uppercase font-bold">Plataforma de IA Neurovascular · SkullApp Medical Core</span>
+</div>
+<!-- Hero Headline with Surgical Scale -->
+<h1 class="font-display-lg text-display-lg font-bold tracking-tight text-white leading-tight">
+          Planificar la cirugía de un <span class="bg-gradient-to-r from-primary via-primary-container to-secondary bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(0,240,255,0.4)]">aneurisma cerebral</span> con datos milimétricos en 3D interactivo.
+        </h1>
+<!-- High Precision Subheadline -->
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl leading-relaxed">
+          Reconstrucción vascular biométrica automática desde TC o Angiografía 3D, cuantificación morfométrica estricta, índice de riesgo hemodinámico y simulación cinemática de clips o coils directo en el navegador web sin latencia.
+        </p>
+<!-- CTA Cluster -->
+<div class="flex flex-wrap items-center gap-space-md pt-space-xs">
+<a class="inline-flex items-center gap-space-sm px-space-lg py-space-sm rounded-lg bg-primary-container text-on-primary-container font-headline-sm text-headline-sm font-bold shadow-[0_0_25px_rgba(0,240,255,0.5)] hover:bg-primary hover:scale-[1.02] transition-all" href="#acceso-medico">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">vital_signs</span>
+<span>Iniciar Sesión Médica</span>
+</a>
+<a class="inline-flex items-center gap-space-sm px-space-lg py-space-sm rounded-lg bg-surface-container-high/80 text-secondary hover:text-primary hover:bg-surface-container-highest backdrop-blur-md transition-all shadow-md" href="#pipeline-section">
+<span class="font-body-md text-body-md font-semibold">Explorar Pipeline y Casos</span>
+<span class="material-symbols-outlined text-[18px]">south</span>
+</a>
+</div>
+<!-- Live Metrics Ticker -->
+<div class="flex flex-wrap items-center gap-space-lg pt-space-sm text-on-surface-variant font-label-md text-label-md">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[16px]">cloud_done</span>
+<span>0 INSTALACIONES LOCALES</span>
+</div>
+<div class="w-1 h-1 rounded-full bg-outline-variant"></div>
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[16px]">view_in_ar</span>
+<span>EXPORTACIÓN STL / OBJ / GLTF</span>
+</div>
+<div class="w-1 h-1 rounded-full bg-outline-variant"></div>
+<div class="flex items-center gap-space-xs text-primary font-semibold">
+<span class="material-symbols-outlined text-primary-container text-[16px]">precision_manufacturing</span>
+<span>PRECISIÓN DE MALLA &lt; 0.18 mm</span>
+</div>
+</div>
+</div>
+<!-- Right HUD Telemetry Glass Card -->
+<div class="lg:col-span-5 flex justify-center pointer-events-auto">
+<div class="w-full max-w-md rounded-xl bg-surface-container-lowest/80 backdrop-blur-2xl p-space-md shadow-[0_4px_35px_rgba(5,9,19,0.9),inset_0_1px_0_0_rgba(255,255,255,0.08)] flex flex-col gap-space-sm relative overflow-hidden">
+<!-- Top Neon Highlight Strip -->
+<div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary-container to-transparent"></div>
+<!-- Card Header & Coordinate Metadata -->
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-error animate-pulse shadow-[0_0_10px_#ffb4ab]"></span>
+<span class="font-label-sm text-label-sm font-bold text-error tracking-wider uppercase">ANOMALÍA DETECTADA</span>
+</div>
+<span class="font-metric-md text-label-sm text-on-surface-variant">ID: PAC-7842-MCA</span>
+</div>
+<!-- Vessel Case Identification -->
+<div class="p-space-xs rounded bg-surface-container-low/70">
+<span class="font-label-sm text-label-sm text-secondary uppercase font-semibold block">Topografía Vascular</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-primary">Arteria Cerebral Media (MCA M1-M2)</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant block mt-0.5">Bifurcación Silviana Derecha · Ángulo de flujo: 68.4°</span>
+</div>
+<!-- Morphometric Grid -->
+<div class="grid grid-cols-3 gap-space-xs text-center py-space-xs">
+<div class="p-space-xs rounded bg-surface-container-high/60">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Domo Máx</span>
+<span class="font-metric-lg text-metric-lg text-primary font-bold">6.42<span class="font-body-sm text-[10px] text-on-surface-variant ml-0.5">mm</span></span>
+</div>
+<div class="p-space-xs rounded bg-surface-container-high/60">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Cuello</span>
+<span class="font-metric-lg text-metric-lg text-on-surface font-bold">3.15<span class="font-body-sm text-[10px] text-on-surface-variant ml-0.5">mm</span></span>
+</div>
+<div class="p-space-xs rounded bg-surface-container-high/60 bg-error/10">
+<span class="font-label-sm text-label-sm text-error font-semibold block">Aspect Ratio</span>
+<span class="font-metric-lg text-metric-lg text-error font-bold">2.04</span>
+</div>
+</div>
+<!-- Live Dynamic ECG / Pulse Sparkline -->
+<div class="p-space-xs rounded bg-surface-container-low/80 flex flex-col gap-1">
+<div class="flex items-center justify-between text-label-sm font-label-sm">
+<span class="text-on-surface-variant">FLUJO PULSÁTIL CAROTÍDEO (WSS Max)</span>
+<span class="text-secondary font-metric-md">4.28 Pa</span>
+</div>
+<div class="w-full h-8 flex items-center justify-center overflow-hidden">
+<svg class="w-full h-full text-secondary stroke-current fill-none" viewbox="0 0 300 40">
+<path class="opacity-90" d="M 0,20 L 40,20 L 48,10 L 56,32 L 64,4 L 72,25 L 80,20 L 140,20 L 148,10 L 156,32 L 164,4 L 172,25 L 180,20 L 240,20 L 248,10 L 256,32 L 264,4 L 272,25 L 280,20 L 300,20" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+</div>
+<!-- Clinical Rupture Alert -->
+<div class="p-space-xs rounded bg-error/10 flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-error text-[20px]">warning</span>
+<div>
+<span class="font-label-sm text-label-sm text-error font-bold block">RIESGO RUPTURA (PHASES / Greving 5a)</span>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">14.2% · Criterio Quirúrgico de Urgencia</span>
+</div>
+</div>
+<span class="px-space-xs py-0.5 rounded bg-error text-on-error font-label-sm text-[10px] font-bold">CRÍTICO</span>
+</div>
+<!-- Recommendation Banner -->
+<div class="p-space-xs rounded bg-primary-container/10 flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-primary-container text-[18px] shrink-0 mt-0.5">neurology</span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-primary font-bold">RECOMENDACIÓN ALGORÍTMICA PROSPECTIVE™</span>
+<span class="font-body-sm text-body-sm text-on-surface">Clipaje microquirúrgico sugerido con <strong class="text-primary-container font-semibold">Clip NAVARRO™ T2 Curvo 7.0 mm</strong> (Cierre de cuello estimado: 99.1% sin compromiso de rama M2).</span>
+</div>
+</div>
+<!-- Micro Quick Action -->
+<button class="w-full py-space-xs rounded bg-surface-container-high hover:bg-surface-bright text-primary font-label-md text-label-md uppercase tracking-wider font-semibold transition-colors flex items-center justify-center gap-space-xs">
+<span class="material-symbols-outlined text-[16px]">visibility</span>
+<span>Aislar Volumen 3D y Ramas M2</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- 2. SECTION: QUÉ ES / POR QUÉ (MÉTODO TRADICIONAL VS PROSPECTIVE) -->
+<!-- ========================================================================= -->
+<section class="w-full py-space-xl px-margin-lg bg-surface-container-lowest relative" id="que-es">
+<div class="max-w-7xl mx-auto flex flex-col gap-space-xl">
+<!-- Section Header -->
+<div class="flex flex-col items-center text-center gap-space-xs max-w-3xl mx-auto">
+<span class="px-space-sm py-0.5 rounded bg-surface-container-high font-label-sm text-label-sm text-secondary font-bold tracking-widest uppercase">Evolución del Estándar Neuroquirúrgico</span>
+<h2 class="font-headline-lg text-headline-lg text-primary font-bold">Superando la ambigüedad del diagnóstico 2D convencional</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+          Las angiografías planas ocultan cuellos complejos y bifurcaciones superpuestas. PROSPECTIVE genera certezas matemáticas previas a la apertura dural.
+        </p>
+</div>
+<!-- Contrast Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter-lg">
+<!-- Left: Metodo Tradicional -->
+<div class="p-space-lg rounded-xl bg-surface-container-low shadow-lg flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline font-semibold uppercase tracking-wider">Protocolo Histórico</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container-highest text-outline font-label-sm text-[10px]">SUBJETIVO</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface font-semibold">Estimación 2D y Regla de Calibre</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+              Cálculo manual del domo y cuello mediante planos ortogonales simples en monitor radiológico. Alto margen de error por efecto de magnificación y rotación de proyección incompleta.
+            </p>
+<ul class="flex flex-col gap-space-xs pt-space-xs text-on-surface-variant font-body-sm text-body-sm">
+<li class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-error text-[18px]">close</span>
+<span>Subestimación del cuello aneurismático hasta en un 28%</span>
+</li>
+<li class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-error text-[18px]">close</span>
+<span>Elección del clip por ensayo y error visual durante la disección</span>
+</li>
+<li class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-error text-[18px]">close</span>
+<span>Oclusión inadvertida de micro-perforantes invisibles en 2D</span>
+</li>
+</ul>
+</div>
+<div class="p-space-sm rounded bg-surface-container-highest flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
+<span>Variabilidad Inter-observador</span>
+<span class="font-metric-md text-error font-bold">± 1.84 mm</span>
+</div>
+</div>
+<!-- Right: PROSPECTIVE Precision Paradigm -->
+<div class="p-space-lg rounded-xl bg-surface-container-high shadow-[0_0_30px_rgba(0,240,255,0.1)] flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-primary-container/10 blur-3xl pointer-events-none"></div>
+<div class="flex flex-col gap-space-sm relative z-10">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-secondary font-bold uppercase tracking-wider">Algoritmo PROSPECTIVE™ AI</span>
+<span class="px-space-xs py-0.5 rounded bg-primary-container text-on-primary-container font-label-sm text-[10px] font-bold">PRECISIÓN SUB-VÓXEL</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-primary font-bold">Geometría Volumétrica 3D Verificable</h3>
+<p class="font-body-lg text-body-lg text-on-surface leading-relaxed">
+              Malla isosuperficial de alta fidelidad basada en Marching Cubes ajustados por gradientes de atenuación HU. Segmentación automatizada de arteria madre, domo, cuello y perforantes milimétricas.
+            </p>
+<ul class="flex flex-col gap-space-xs pt-space-xs text-on-surface font-body-sm text-body-sm">
+<li class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Medición volumétrica completa con cálculo instantáneo de DNR, AR y NSI</span>
+</li>
+<li class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Pruebas de aposición virtual de clips quirúrgicos y estimación de oclusión</span>
+</li>
+<li class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Mapeo espacial de arterias lenticuloestriadas y perforantes críticas</span>
+</li>
+</ul>
+</div>
+<div class="p-space-sm rounded bg-surface-container-lowest flex items-center justify-between text-on-surface font-label-sm text-label-sm relative z-10">
+<span class="text-secondary font-semibold">Tolerancia Biométrica Media</span>
+<span class="font-metric-md text-primary-container font-bold">&lt; 0.12 mm</span>
+</div>
+</div>
+</div>
+<!-- Treatment Modalities Split (Clips vs Coils) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter-lg pt-space-sm">
+<!-- Clipaje Quirurgico Card -->
+<div class="p-space-lg rounded-xl bg-surface-container-low flex items-start gap-space-md shadow-md">
+<div class="w-12 h-12 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+<span class="material-symbols-outlined text-secondary text-[26px]">medical_services</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<h4 class="font-headline-sm text-headline-sm text-primary font-bold">Clipaje Microquirúrgico</h4>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+              Selección anticipada de la morfología del clip (recto, curvo, fenestrado). Simulación de la línea de cierre sobre el cuello aneurismático y predicción de estenosis en las ramas eferentes.
+            </p>
+<div class="flex items-center gap-space-xs pt-space-xs">
+<span class="font-label-sm text-label-sm text-secondary font-semibold">Familias:</span>
+<span class="font-label-sm text-label-sm text-on-surface">NAVARRO™ T1, T2, T3, T4 Fenestrado</span>
+</div>
+</div>
+</div>
+<!-- Tratamiento Endovascular Card -->
+<div class="p-space-lg rounded-xl bg-surface-container-low flex items-start gap-space-md shadow-md">
+<div class="w-12 h-12 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+<span class="material-symbols-outlined text-secondary text-[26px]">stream</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<h4 class="font-headline-sm text-headline-sm text-primary font-bold">Embolización Endovascular</h4>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+              Planificación del empaquetamiento volumétrico (Packing Density) con microcoils y cálculo de aposición parietal de desviadores de flujo para arterias tortuosas.
+            </p>
+<div class="flex items-center gap-space-xs pt-space-xs">
+<span class="font-label-sm text-label-sm text-secondary font-semibold">Dispositivos:</span>
+<span class="font-label-sm text-label-sm text-on-surface">Coils Target 360, Pipeline Vantage, Surpass</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 4 Pillars of Surgical Value -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-gutter">
+<div class="p-space-md rounded-lg bg-surface-container flex flex-col gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[22px]">straighten</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-primary">Objetivo</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Métricas euclidianas y de volumen calculadas de manera reproducible sin sesgo de operador.</span>
+</div>
+<div class="p-space-md rounded-lg bg-surface-container flex flex-col gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[22px]">verified</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-primary">Con Respaldo</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Estratificación fundamentada en estudios multicéntricos (PHASES Lancet, Greving et al.).</span>
+</div>
+<div class="p-space-md rounded-lg bg-surface-container flex flex-col gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[22px]">build_circle</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-primary">Accionable</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Sugerencia paramétrica directa del modelo de clip o coil con ángulo de abordaje sugerido.</span>
+</div>
+<div class="p-space-md rounded-lg bg-surface-container flex flex-col gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[22px]">receipt_long</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-primary">Trazable</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Generación automática de reporte clínico PDF / DICOM SR integrable a la historia electrónica.</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- 3. PIPELINE DE 8 PASOS INTERACTIVO -->
+<!-- ========================================================================= -->
+<section class="w-full py-space-xl px-margin-lg bg-surface relative" id="pipeline-section">
+<div class="max-w-7xl mx-auto flex flex-col gap-space-xl">
+<!-- Section Title and Flow Ribbon -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-sm text-label-sm text-secondary tracking-widest uppercase font-bold">Pipeline Neuro-Computacional</span>
+<h2 class="font-headline-lg text-headline-lg text-primary font-bold">Del vóxel DICOM a la confirmación quirúrgica</h2>
+</div>
+<div class="flex items-center gap-space-xs text-on-surface-variant font-label-sm text-label-sm">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span>TIEMPO TOTAL PROMEDIO: 42 SEGUNDOS</span>
+</div>
+</div>
+<!-- 8-Step Interactive Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
+<!-- Step 1 -->
+<div class="group p-space-md rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-all shadow-sm flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-metric-lg text-metric-lg font-bold text-outline-variant group-hover:text-secondary transition-colors">01</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">upload_file</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Ingesta DICOM</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Carga por arrastre de series TC o Angiografía con anonimización estricta de metadatos de paciente.</p>
+</div>
+<span class="font-label-sm text-[10px] text-outline font-mono">PyDicom / Orthanc Link</span>
+</div>
+<!-- Step 2 -->
+<div class="group p-space-md rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-all shadow-sm flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-metric-lg text-metric-lg font-bold text-outline-variant group-hover:text-secondary transition-colors">02</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">hub</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Reconstrucción 3D</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Generación de malla vascular mediante algoritmos de Frangi Vesselness y filtros anisotrópicos.</p>
+</div>
+<span class="font-label-sm text-[10px] text-outline font-mono">SimpleITK / VTK.js WebGL</span>
+</div>
+<!-- Step 3 -->
+<div class="group p-space-md rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-all shadow-sm flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-metric-lg text-metric-lg font-bold text-outline-variant group-hover:text-secondary transition-colors">03</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">crop_free</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Segmentación Saco</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Aislamiento por redes neuronales del saco aneurismático respecto a la arteria madre portadora.</p>
+</div>
+<span class="font-label-sm text-[10px] text-outline font-mono">U-Net 3D / Voronoi Cut</span>
+</div>
+<!-- Step 4 -->
+<div class="group p-space-md rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-all shadow-sm flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-metric-lg text-metric-lg font-bold text-outline-variant group-hover:text-secondary transition-colors">04</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">calculate</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Índices Morfométricos</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Cálculo matemático instantáneo de Aspect Ratio, DNR, Bottleneck Factor y NSI de Wadell.</p>
+</div>
+<span class="font-label-sm text-[10px] text-outline font-mono">Dhar &amp; Raghavan Form</span>
+</div>
+<!-- Step 5 -->
+<div class="group p-space-md rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-all shadow-sm flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-metric-lg text-metric-lg font-bold text-outline-variant group-hover:text-secondary transition-colors">05</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">grain</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Arterias Perforantes</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Mapeo y resaltado de micro-ramas críticas (&lt; 0.6 mm) para prevenir infartos isquémicos focales.</p>
+</div>
+<span class="font-label-sm text-[10px] text-outline font-mono">Micro-Ridge Detection</span>
+</div>
+<!-- Step 6 -->
+<div class="group p-space-md rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-all shadow-sm flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-metric-lg text-metric-lg font-bold text-outline-variant group-hover:text-secondary transition-colors">06</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">alt_route</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Matriz Decisión AI</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Evaluación comparada multidisciplinar: puntaje de idoneidad para Clipaje vs Coiling/Stent.</p>
+</div>
+<span class="font-label-sm text-[10px] text-outline font-mono">Multi-Factor Clinical Score</span>
+</div>
+<!-- Step 7 -->
+<div class="group p-space-md rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-all shadow-sm flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-metric-lg text-metric-lg font-bold text-outline-variant group-hover:text-secondary transition-colors">07</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">precision_manufacturing</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Simulación Virtual</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Inserción tridimensional de prótesis con detección de colisión y verificación del cierre del cuello.</p>
+</div>
+<span class="font-label-sm text-[10px] text-outline font-mono">Kinematic Mesh Solver</span>
+</div>
+<!-- Step 8 -->
+<div class="group p-space-md rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-all shadow-sm flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-metric-lg text-metric-lg font-bold text-outline-variant group-hover:text-secondary transition-colors">08</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">print</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Informe y Malla 3D</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Exportación de reporte médico legal firmado y gemelo digital en STL apto para bio-impresión prequirúrgica.</p>
+</div>
+<span class="font-label-sm text-[10px] text-outline font-mono">DICOM SR / STL Biomédico</span>
+</div>
+</div>
+<!-- Live Pipeline Visual Mockup Banner -->
+<div class="w-full rounded-2xl bg-surface-container-lowest p-space-lg shadow-2xl relative overflow-hidden flex flex-col lg:flex-row items-center gap-space-lg">
+<div class="w-full lg:w-1/2 flex flex-col gap-space-sm">
+<span class="px-space-xs py-0.5 rounded bg-surface-container-high font-label-sm text-label-sm text-secondary font-bold tracking-wider uppercase self-start">Monitoreo de Procesamiento Neuronal</span>
+<h3 class="font-headline-md text-headline-md text-primary font-semibold">Reconstrucción Isométrica Multiplanar Activa</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+            El motor VTK en entorno WebGL procesa volúmenes de tomografía computarizada sin transitar por servidores externos de terceros, preservando la latencia en milisegundos y la privacidad total del paciente.
+          </p>
+<div class="grid grid-cols-2 gap-space-sm pt-space-xs">
+<div class="p-space-xs rounded bg-surface-container-low">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Resolución Vóxel</span>
+<span class="font-metric-md text-metric-md text-primary font-bold">512 x 512 x 380</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container-low">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Rango Hounsfield</span>
+<span class="font-metric-md text-metric-md text-secondary font-bold">180 HU - 940 HU</span>
+</div>
+</div>
+</div>
+<div class="w-full lg:w-1/2 relative h-64 rounded-xl overflow-hidden bg-surface-container-high flex items-center justify-center">
+<img class="w-full h-full object-cover opacity-80" data-alt="Dark medical 3D rendering of cerebral vasculature with a glowing neon cyan intracranial aneurysm highlighted at the bifurcation, displayed on a high-tech clinical workstation with isometric grid overlays, deep cybernetic aesthetic and dark obsidian background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8mSUx1YSs-aLIks4fj26vLiE_n2nSsVQQhjrSoIup0HFu3-sNVirpuu5Kck4l4pV_MMPyhVcfWujwmhSK_gvKHKb8EorKuCNnwpxOAG8MwpQ4p18a4xnE6HDkr52zEUHYiIogaPJY4aK9PszGr98nsoBSB0NrTcQ-RhWLQZRrQP7QPzIskEDL3JKtyh2O3abejeqeKigWwtH64yarHyD9sl-EYPtNBr7u9VkiqBdpKyLyv7jFOg-P"/>
+<div class="absolute inset-0 bg-gradient-to-r from-surface-container-lowest/80 via-transparent to-surface-container-lowest/80 pointer-events-none"></div>
+<!-- Scanning Laser Line -->
+<div class="absolute inset-0 bg-gradient-to-b from-transparent via-primary-container/20 to-transparent animate-pulse pointer-events-none"></div>
+<div class="absolute bottom-space-sm left-space-sm px-space-sm py-space-xs rounded bg-surface-container-lowest/90 backdrop-blur-md flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[16px]">radar</span>
+<span class="font-label-sm text-label-sm text-on-surface font-mono">SCAN 412/512 · ARTERIA BASILAR Y ACM OK</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- 4. SECTION: ÍNDICES CLÍNICOS Y RIGOR CIENTÍFICO -->
+<!-- ========================================================================= -->
+<section class="w-full py-space-xl px-margin-lg bg-surface-container-lowest relative" id="indices-clinicos">
+<div class="max-w-7xl mx-auto flex flex-col gap-space-xl">
+<!-- Section Header -->
+<div class="flex flex-col items-center text-center gap-space-xs max-w-3xl mx-auto">
+<div class="inline-flex items-center gap-space-xs px-space-sm py-0.5 rounded bg-surface-container-high">
+<span class="material-symbols-outlined text-secondary text-[16px]">menu_book</span>
+<span class="font-label-sm text-label-sm text-secondary font-bold tracking-wider uppercase">Validación en Literatura Neurovascular Indexada</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-primary font-bold">Fórmulas morfométricas y escalas con valor predictivo real</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+          Cada índice biométrico implementado en PROSPECTIVE responde a correlaciones estadísticas validadas por Greving et al., Dhar et al., y Raghavan et al.
+        </p>
+</div>
+<!-- Formula Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+<!-- DNR Card -->
+<div class="p-space-md rounded-xl bg-surface-container-low shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-bold">DNR (Dome-to-Neck Ratio)</span>
+<span class="px-space-xs py-0.5 rounded bg-error/20 text-error font-label-sm text-[10px] font-bold">UMBRAL ≥ 2.0</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container font-mono text-center text-secondary font-bold text-body-md my-space-xs">
+              DNR = H_domo / D_cuello
+            </div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Cociente entre la altura máxima del saco y el diámetro medio del orificio del cuello. Un valor menor a 1.6 suele contraindicar coils simples por riesgo de prolapso arterial.
+            </p>
+</div>
+<div class="pt-space-xs flex items-center justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>Sensibilidad Coiling</span>
+<span class="text-primary font-bold">Dhar et al. (Stroke 2008)</span>
+</div>
+</div>
+<!-- AR Card -->
+<div class="p-space-md rounded-xl bg-surface-container-low shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-bold">AR (Aspect Ratio)</span>
+<span class="px-space-xs py-0.5 rounded bg-error/20 text-error font-label-sm text-[10px] font-bold">ALERTA ≥ 1.6</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container font-mono text-center text-secondary font-bold text-body-md my-space-xs">
+              AR = Altura_máx / Ancho_cuello
+            </div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Indicador crítico de riesgo de ruptura intraoperatoria y espontánea. Valores &gt; 1.6 multiplican por 3.8 el estrés tangencial de cizallamiento en el ápice.
+            </p>
+</div>
+<div class="pt-space-xs flex items-center justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>Validación Hemodinámica</span>
+<span class="text-primary font-bold">Ujiie et al. (Neurosurgery)</span>
+</div>
+</div>
+<!-- Bottleneck Factor (BF) -->
+<div class="p-space-md rounded-xl bg-surface-container-low shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-bold">BF (Bottleneck Factor)</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container-highest text-secondary font-label-sm text-[10px] font-bold">FACTOR ESTENOSIS</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container font-mono text-center text-secondary font-bold text-body-md my-space-xs">
+              BF = Ancho_domo / Ancho_cuello
+            </div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Evalúa la convexidad proximal del saco. Fundamental para verificar si un clip estándar provocará fruncimiento o pinzamiento de la arteria principal adyacente.
+            </p>
+</div>
+<div class="pt-space-xs flex items-center justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>Criterio Geométrico</span>
+<span class="text-primary font-bold">Hoh et al. (J Neurointerv)</span>
+</div>
+</div>
+<!-- NSI (Non-Sphericity Index) -->
+<div class="p-space-md rounded-xl bg-surface-container-low shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-bold">NSI (Non-Sphericity Wadell)</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container-highest text-secondary font-label-sm text-[10px] font-bold">0.0 (ESFERA) - 1.0</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container font-mono text-center text-secondary font-bold text-body-md my-space-xs">
+              NSI = 1 - (36π × Vol^2)^(1/3) / Área
+            </div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Mide la irregularidad multilocular de la pared. Un NSI elevado indica la presencia de lobulaciones secundarias o blebs con pared adelgazada de altísimo riesgo.
+            </p>
+</div>
+<div class="pt-space-xs flex items-center justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>Biometría de Superficie</span>
+<span class="text-primary font-bold">Raghavan et al. (Stroke)</span>
+</div>
+</div>
+<!-- UI & EI -->
+<div class="p-space-md rounded-xl bg-surface-container-low shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-bold">UI &amp; EI (Undulation &amp; Ellipticity)</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container-highest text-secondary font-label-sm text-[10px] font-bold">MORFOLOGÍA FINA</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container font-mono text-center text-secondary font-bold text-body-md my-space-xs">
+              UI = 1 - (Vol_aneurisma / Vol_envolvente)
+            </div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Identifica micro-ondulaciones parietales causadas por fatiga de la lámina elástica interna, discriminando sacos estables de aquellos con adelgazamiento activo.
+            </p>
+</div>
+<div class="pt-space-xs flex items-center justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>Convex Hull Convexidad</span>
+<span class="text-primary font-bold">Kasper et al. (World Neurosurg)</span>
+</div>
+</div>
+<!-- PHASES Score -->
+<div class="p-space-md rounded-xl bg-surface-container-low shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-bold">PHASES Score Global</span>
+<span class="px-space-xs py-0.5 rounded bg-primary-container text-on-primary-container font-label-sm text-[10px] font-bold">ESTUDIO LANCET</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container font-mono text-center text-secondary font-bold text-body-md my-space-xs">
+              PHASES = Población + HTA + Edad + Tamaño + HSA + Sitio
+            </div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Cálculo integrado del riesgo de rotura a 5 años estandarizado en más de 8,300 pacientes a nivel mundial. Vinculado automáticamente con la anatomía computada.
+            </p>
+</div>
+<div class="pt-space-xs flex items-center justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>Nivel de Evidencia 1A</span>
+<span class="text-primary font-bold">Greving et al. (Lancet Neurol 2014)</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- 5. SECTION: CATÁLOGO DE DISPOSITIVOS VIRTUALES (SPECS REALES) -->
+<!-- ========================================================================= -->
+<section class="w-full py-space-xl px-margin-lg bg-surface relative" id="dispositivos">
+<div class="max-w-7xl mx-auto flex flex-col gap-space-xl">
+<!-- Section Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-sm text-label-sm text-secondary tracking-widest uppercase font-bold">Librería de Implantes Quirúrgicos</span>
+<h2 class="font-headline-lg text-headline-lg text-primary font-bold">Dispositivos y Prótesis 3D Calibradas</h2>
+</div>
+<div class="p-space-xs rounded bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
+<span>Actualizado trimestralmente conforme a normativas CE / FDA</span>
+</div>
+</div>
+<!-- Devices Tabs & Category Display -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter-lg">
+<!-- Category 1: Surgical Clips NAVARRO -->
+<div class="p-space-lg rounded-xl bg-surface-container-low shadow-md flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm font-bold text-primary">Clips NAVARRO™ Pro</span>
+<span class="material-symbols-outlined text-secondary text-[22px]">content_cut</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+              Aleación de titanio biocompatible de grado médico (Ti6Al4V ELI). Resonancia magnética condicional hasta 3.0 Tesla con fuerza de cierre constante calibrada.
+            </p>
+<div class="flex flex-col gap-space-xs pt-space-xs text-body-sm font-body-sm">
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Serie T1 (Recto estándar):</span>
+<span class="text-primary font-mono font-semibold">5.0, 7.0, 9.0, 11.0 mm</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Serie T2 (Curvo oblicuo):</span>
+<span class="text-primary font-mono font-semibold">Curvatura 15° - 45°</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Serie T3 (Bayoneta &amp; Ángulo):</span>
+<span class="text-primary font-mono font-semibold">Ángulos 65° a 90°</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Serie T4 (Fenestrado):</span>
+<span class="text-primary font-mono font-semibold">Luz de 3.5 a 5.0 mm</span>
+</div>
+</div>
+</div>
+<div class="p-space-xs rounded bg-surface-container-high text-secondary font-label-sm text-label-sm text-center font-bold">
+            Simulación de fuerza de oclusión activa (1.8 a 2.1 N)
+          </div>
+</div>
+<!-- Category 2: Detachable Coils -->
+<div class="p-space-lg rounded-xl bg-surface-container-low shadow-md flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm font-bold text-primary">Microcoils Desprendibles</span>
+<span class="material-symbols-outlined text-secondary text-[22px]">all_inclusive</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+              Platino de memoria helicoidal y conformación tridimensional para enmarcado periférico y relleno concéntrico del domo sin herniación arterial.
+            </p>
+<div class="flex flex-col gap-space-xs pt-space-xs text-body-sm font-body-sm">
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Target 360™ Framing:</span>
+<span class="text-primary font-mono font-semibold">2 mm x 4 cm a 18 mm x 50 cm</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Axium™ Prime Helical:</span>
+<span class="text-primary font-mono font-semibold">Soft / Extra Soft 1.5 - 6 mm</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">GDC Detachable System:</span>
+<span class="text-primary font-mono font-semibold">Desprendimiento térmico</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Packing Density Ideal:</span>
+<span class="text-primary font-mono font-semibold">&gt; 24.0% Volumen Total</span>
+</div>
+</div>
+</div>
+<div class="p-space-xs rounded bg-surface-container-high text-secondary font-label-sm text-label-sm text-center font-bold">
+            Algoritmo de empaquetamiento estocástico en 3D
+          </div>
+</div>
+<!-- Category 3: Flow Diverters & Stents -->
+<div class="p-space-lg rounded-xl bg-surface-container-low shadow-md flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm font-bold text-primary">Desviadores &amp; Stents</span>
+<span class="material-symbols-outlined text-secondary text-[22px]">grid_4x4</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+              Mallas trenzadas de Nitinol y platino con alta porosidad para inducción de trombosis intra-sacular y preservación activa de ramas colaterales.
+            </p>
+<div class="flex flex-col gap-space-xs pt-space-xs text-body-sm font-body-sm">
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Pipeline™ Vantage (Medtronic):</span>
+<span class="text-primary font-mono font-semibold">Escudo Shield Surface</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Surpass Evolve (Stryker):</span>
+<span class="text-primary font-mono font-semibold">64 filamentos entrelazados</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">FRED™ Flow Re-Direction:</span>
+<span class="text-primary font-mono font-semibold">Doble capa micrométrica</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high/40 px-2 rounded">
+<span class="text-on-surface-variant">Aposición Parietal:</span>
+<span class="text-primary font-mono font-semibold">Monitoreo de malaposición</span>
+</div>
+</div>
+</div>
+<div class="p-space-xs rounded bg-surface-container-high text-secondary font-label-sm text-label-sm text-center font-bold">
+            Simulación de elongación y foreshortening
+          </div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- 6. SECTION: TECNOLOGÍA & SEGURIDAD HOSPITALARIA -->
+<!-- ========================================================================= -->
+<section class="w-full py-space-xl px-margin-lg bg-surface-container-lowest relative" id="tecnologia">
+<div class="max-w-7xl mx-auto flex flex-col gap-space-xl">
+<!-- Split View: Tech Architecture & Hospital Grade Security -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-center">
+<!-- Left: Computational Stack -->
+<div class="lg:col-span-6 flex flex-col gap-space-md">
+<span class="font-label-sm text-label-sm text-secondary tracking-widest uppercase font-bold">Arquitectura de Procesamiento Clínico</span>
+<h2 class="font-headline-lg text-headline-lg text-primary font-bold">Computación GPU WebGL sin descarga de datos pesados</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
+            PROSPECTIVE desacopla la carga computacional pesada entre microservicios asíncronos en Python de alta velocidad y renderizado local cliente mediante VTK.js y WebGL 2.0.
+          </p>
+<!-- Stack Tags Matrix -->
+<div class="flex flex-wrap gap-space-xs pt-space-xs">
+<span class="px-space-sm py-space-xs rounded bg-surface-container-high font-mono text-label-md text-primary font-semibold">VTK.js v28</span>
+<span class="px-space-sm py-space-xs rounded bg-surface-container-high font-mono text-label-md text-primary font-semibold">SimpleITK C++</span>
+<span class="px-space-sm py-space-xs rounded bg-surface-container-high font-mono text-label-md text-primary font-semibold">FastAPI Async</span>
+<span class="px-space-sm py-space-xs rounded bg-surface-container-high font-mono text-label-md text-primary font-semibold">PyDicom 2.4</span>
+<span class="px-space-sm py-space-xs rounded bg-surface-container-high font-mono text-label-md text-primary font-semibold">WebGL 2.0 Shaders</span>
+<span class="px-space-sm py-space-xs rounded bg-surface-container-high font-mono text-label-md text-primary font-semibold">SQLite Embedded</span>
+</div>
+<!-- Performance Metric Pill -->
+<div class="p-space-sm rounded-lg bg-surface-container-low flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[20px]">bolt</span>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">Tiempo medio de mallado 3D:</span>
+</div>
+<span class="font-metric-md text-metric-md text-primary-container font-bold">&lt; 3.4 s en navegador</span>
+</div>
+</div>
+<!-- Right: Hospital Security & Data Compliance -->
+<div class="lg:col-span-6 flex flex-col gap-space-md p-space-lg rounded-xl bg-surface-container-low shadow-xl">
+<div class="flex items-center justify-between pb-space-xs">
+<span class="font-label-md text-label-md text-primary font-bold uppercase tracking-wider">Cumplimiento y Privacidad Estricta</span>
+<span class="material-symbols-outlined text-secondary text-[22px]">health_and_safety</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm">
+<div class="p-space-sm rounded bg-surface-container-high flex flex-col gap-1">
+<span class="font-headline-sm text-[16px] text-primary font-bold">Zero PII Garantizado</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Despojo irreversible de nombres, historiales y fechas de nacimiento en la cabecera DICOM en memoria volátil.</span>
+</div>
+<div class="p-space-sm rounded bg-surface-container-high flex flex-col gap-1">
+<span class="font-headline-sm text-[16px] text-primary font-bold">Comité Médico Validante</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Activación de cuentas profesionales supeditada a acreditación de matrícula de neurocirugía o radiología.</span>
+</div>
+<div class="p-space-sm rounded bg-surface-container-high flex flex-col gap-1">
+<span class="font-headline-sm text-[16px] text-primary font-bold">Cifrado TLS 1.3 de Extremo</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Túneles criptográficos certificados con AES-256 en reposo y tránsito entre el PACS y la estación.</span>
+</div>
+<div class="p-space-sm rounded bg-surface-container-high flex flex-col gap-1">
+<span class="font-headline-sm text-[16px] text-primary font-bold">Auditoría Clínico-Legal</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Registro inmutable de trazabilidad que documenta cada ajuste de clip y confirmación prequirúrgica.</span>
+</div>
+</div>
+<div class="flex items-center gap-space-xs text-on-surface-variant font-label-sm text-label-sm pt-space-xs">
+<span class="material-symbols-outlined text-secondary text-[16px]">verified_user</span>
+<span>Compatible con normativas HIPAA (EE.UU.) y RGPD Salud (Unión Europea).</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- 7. SECTION: PRÓXIMAMENTE & HOJA DE RUTA QUIRÚRGICA -->
+<!-- ========================================================================= -->
+<section class="w-full py-space-xl px-margin-lg bg-surface relative">
+<div class="max-w-7xl mx-auto flex flex-col gap-space-xl">
+<!-- Section Header -->
+<div class="flex flex-col items-center text-center gap-space-xs max-w-2xl mx-auto">
+<span class="font-label-sm text-label-sm text-secondary tracking-widest uppercase font-bold">Innovación en Fase de Ensayos</span>
+<h2 class="font-headline-lg text-headline-lg text-primary font-bold">La frontera de la simulación neurovascular</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+          Nuevos módulos en codesarrollo con quirófanos universitarios y servicios de hemodinamia de alta complejidad.
+        </p>
+</div>
+<!-- Roadmap 3-Card Cluster -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<!-- Module 1 -->
+<div class="p-space-lg rounded-xl bg-surface-container-low shadow-md flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="px-space-xs py-0.5 rounded bg-surface-container-high font-label-sm text-label-sm text-secondary font-mono">Q3 · 2024</span>
+<span class="material-symbols-outlined text-secondary text-[22px]">cloud_sync</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<h3 class="font-headline-sm text-headline-sm text-primary font-bold">SkullCloud Inter-Hospitalario</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+              Ateneo clínico remoto síncrono. Múltiples especialistas manipulan simultáneamente el mismo modelo 3D con cursores espaciales compartidos y telemetría de discusión.
+            </p>
+</div>
+<span class="font-label-sm text-label-sm text-outline font-semibold uppercase">Fase Beta Hospitalaria</span>
+</div>
+<!-- Module 2 -->
+<div class="p-space-lg rounded-xl bg-surface-container-low shadow-md flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="px-space-xs py-0.5 rounded bg-surface-container-high font-label-sm text-label-sm text-secondary font-mono">Q4 · 2024</span>
+<span class="material-symbols-outlined text-secondary text-[22px]">view_in_ar</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<h3 class="font-headline-sm text-headline-sm text-primary font-bold">Realidad Mixta Intraoperatoria</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+              Superposición holográfica estereoscópica para Apple Vision Pro y HoloLens 2. Anclaje del modelo vascular 3D directamente sobre el campo microscópico del neurocirujano.
+            </p>
+</div>
+<span class="font-label-sm text-label-sm text-outline font-semibold uppercase">Prototipo Funcional</span>
+</div>
+<!-- Module 3 -->
+<div class="p-space-lg rounded-xl bg-surface-container-low shadow-md flex flex-col justify-between gap-space-md relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="px-space-xs py-0.5 rounded bg-surface-container-high font-label-sm text-label-sm text-secondary font-mono">Q1 · 2025</span>
+<span class="material-symbols-outlined text-secondary text-[22px]">waterfall_chart</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<h3 class="font-headline-sm text-headline-sm text-primary font-bold">Hemodinámica CFD en Tiempo Real</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+              Resolución de ecuaciones de Navier-Stokes en GPU para mapeo de turbulencia de vórtices y caída de tensión de cizallamiento parietal (WSS) post-clipaje virtual.
+            </p>
+</div>
+<span class="font-label-sm text-label-sm text-outline font-semibold uppercase">Investigación Académica</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- 8. SECTION: CONTACTO Y CTA FINAL DE ALTO IMPACTO -->
+<!-- ========================================================================= -->
+<section class="w-full py-space-xl px-margin-lg bg-surface-container-lowest relative overflow-hidden" id="contacto">
+<!-- Bioluminescent Ambient Radial Burst -->
+<div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,240,255,0.08)_0%,transparent_70%)] pointer-events-none"></div>
+<div class="max-w-5xl mx-auto rounded-3xl bg-surface-container-low p-space-xl shadow-[0_0_50px_rgba(0,240,255,0.1)] relative z-10 flex flex-col items-center text-center gap-space-lg">
+<!-- Top Badge -->
+<div class="inline-flex items-center gap-space-xs px-space-md py-space-xs rounded-full bg-surface-container-high shadow-inner">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-ping"></span>
+<span class="font-label-sm text-label-sm text-primary uppercase font-bold tracking-widest">Admisión Médica e Integración Hospitalaria</span>
+</div>
+<!-- Core CTA Headline -->
+<div class="flex flex-col gap-space-xs max-w-2xl">
+<h2 class="font-display-lg text-display-lg text-primary font-bold tracking-tight">
+          Eleve la seguridad de su equipo neurovascular al estándar sub-milimétrico.
+        </h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
+          Solicite una credencial clínica institucional para evaluar el motor PROSPECTIVE™ con sus propias series DICOM anonimizadas o solicite una integración directa con su sistema PACS hospitalario.
+        </p>
+</div>
+<!-- Interactive Form / Access Request Module -->
+<div class="w-full max-w-md flex flex-col gap-space-sm" id="acceso-medico">
+<div class="flex flex-col sm:flex-row gap-space-xs">
+<input class="w-full px-space-md py-space-sm rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary-container shadow-inner" placeholder="dr.apellido@hospital.org" type="email"/>
+<button class="shrink-0 px-space-lg py-space-sm rounded-lg bg-primary-container text-on-primary-container font-headline-sm text-headline-sm font-bold shadow-[0_0_20px_rgba(0,240,255,0.4)] hover:bg-primary transition-all">
+            Solicitar Acceso
+          </button>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Verificación en menos de 24 hs mediante validación colegiada de matrícula.</span>
+</div>
+<!-- Lab Contact Metadata Footprint -->
+<div class="pt-space-md flex flex-wrap justify-center items-center gap-space-xl text-on-surface-variant font-label-md text-label-md">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[18px]">domain</span>
+<span>SkullApp Advanced Medical Imaging Lab</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[18px]">alternate_email</span>
+<span>clinical@skullapp.org</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[18px]">verified</span>
+<span>CE Mark Medical Software (Class IIa Pending)</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+<script>
+  // Simple smooth scroll handling for clinical platform anchors
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      const targetId = this.getAttribute('href');
+      if (targetId && targetId !== '#') {
+        const targetElement = document.querySelector(targetId);
+        if (targetElement) {
+          e.preventDefault();
+          targetElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      }
+    });
+  });
+</script></main><footer class="w-full bg-surface-container-lowest py-space-xl shadow-[0_-1px_12px_rgba(0,0,0,0.5)]"><div class="w-full px-margin-lg flex flex-col gap-space-lg"><div class="p-space-md rounded bg-surface-container-low flex items-start gap-space-md"><span class="material-symbols-outlined text-secondary text-[20px] shrink-0 mt-0.5">clinical_notes</span><p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">PROSPECTIVE™ es una herramienta de apoyo a la planificación y navegación neurovascular. No sustituye el juicio clínico del equipo médico ni la responsabilidad diagnóstica en sala de operaciones o hemodinamia.</p></div><div class="flex flex-wrap items-center justify-between gap-gutter"><div class="flex flex-col gap-space-xs"><span class="font-headline-sm text-headline-sm text-primary font-semibold tracking-tight">SkullApp · Laboratorio de Imagen Médica Avanzada</span><span class="font-label-sm text-label-sm text-on-surface-variant">© 2024 SkullApp Inc. Todos los derechos reservados. Arquitectura Neuro-Computacional de Precisión.</span></div><div class="flex flex-wrap items-center gap-space-sm"><div class="px-space-sm py-space-xs rounded bg-surface-container-high flex items-center gap-space-xs"><span class="material-symbols-outlined text-secondary text-[16px]">task_alt</span><span class="font-label-sm text-label-sm text-on-surface font-semibold">DICOM COMPATIBLE</span></div><div class="px-space-sm py-space-xs rounded bg-surface-container-high flex items-center gap-space-xs"><span class="material-symbols-outlined text-secondary text-[16px]">security</span><span class="font-label-sm text-label-sm text-on-surface font-semibold">HIPAA COMPLIANT</span></div><div class="px-space-sm py-space-xs rounded bg-surface-container-high flex items-center gap-space-xs"><span class="material-symbols-outlined text-secondary text-[16px]">view_in_ar</span><span class="font-label-sm text-label-sm text-on-surface font-semibold">3D MESH EXPORT</span></div></div></div></div></footer></body></html>

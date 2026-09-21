@@ -31,3 +31,11 @@ if (!globalThis.ResizeObserver) {
 // lanza «not implemented» y no devuelve nada.
 HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
 HTMLMediaElement.prototype.pause = vi.fn();
+
+// Ni un <canvas> con WebGL: jsdom no implementa `getContext` y lanza un error
+// aparatoso por cada intento. El hero de la portada monta dos escenas (el shader
+// y el modelo vascular), así que sin esto la salida de las pruebas se llena de
+// trazas «not implemented» que no señalan ningún fallo. Devolver null es lo que
+// hace un navegador que no puede dar el contexto, y ambos componentes ya saben
+// retirarse en ese caso.
+HTMLCanvasElement.prototype.getContext = vi.fn(() => null);

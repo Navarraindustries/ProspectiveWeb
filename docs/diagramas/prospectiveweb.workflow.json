@@ -1,0 +1,385 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "ProspectiveWeb — Flujo funcional del caso",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "pipeline",
+        "label": "Pipeline de 8 pasos",
+        "focus": [
+          "carga",
+          "segment",
+          "detect",
+          "morfo",
+          "decision",
+          "devices",
+          "informe"
+        ],
+        "note": "El camino que sigue un caso desde el DICOM hasta el informe."
+      },
+      {
+        "id": "clinico",
+        "label": "Registro clínico",
+        "focus": [
+          "paciente",
+          "caso",
+          "auditoria",
+          "informe"
+        ],
+        "note": "A qué paciente pertenece el caso y qué queda registrado de él."
+      },
+      {
+        "id": "continuidad",
+        "label": "Continuidad",
+        "focus": [
+          "galeria",
+          "guardar",
+          "fabricacion"
+        ],
+        "note": "Lo que permite dejar un caso a medias, recuperarlo y encargar la pieza."
+      }
+    ],
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": {
+          "label": "Interfaz"
+        },
+        "backend": {
+          "label": "Servidor"
+        },
+        "security": {
+          "label": "Seguridad"
+        },
+        "database": {
+          "label": "Almacén"
+        },
+        "cloud": {
+          "label": "Entrega"
+        },
+        "external": {
+          "label": "Externo"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "caso",
+      "label": "Caso clínico"
+    },
+    {
+      "id": "imagen",
+      "label": "Análisis de imagen"
+    },
+    {
+      "id": "plan",
+      "label": "Decisión y dispositivos"
+    },
+    {
+      "id": "opcional",
+      "label": "Ramas opcionales",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "ingesta",
+      "label": "Ingesta",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "analisis",
+      "label": "Análisis de imagen",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "planificacion",
+      "label": "Plan y cierre",
+      "fromCol": 4,
+      "toCol": 5
+    }
+  ],
+  "mainPath": [
+    "paciente",
+    "caso",
+    "carga",
+    "segment",
+    "detect",
+    "morfo",
+    "decision",
+    "devices",
+    "informe"
+  ],
+  "semanticChecks": {
+    "allowedRoots": [
+      "paciente",
+      "galeria"
+    ],
+    "allowedTerminals": [
+      "informe",
+      "fabricacion",
+      "auditoria"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "paciente",
+      "lane": "caso",
+      "col": 0,
+      "type": "external",
+      "label": "Paciente",
+      "sublabel": "alta o búsqueda",
+      "width": 100,
+      "height": 46
+    },
+    {
+      "id": "caso",
+      "lane": "caso",
+      "col": 1,
+      "type": "external",
+      "label": "Caso clínico",
+      "sublabel": "dx principal",
+      "width": 124,
+      "height": 46
+    },
+    {
+      "id": "auditoria",
+      "lane": "caso",
+      "col": 3,
+      "type": "security",
+      "label": "Auditoría",
+      "sublabel": "registro encadenado",
+      "width": 106,
+      "height": 46
+    },
+    {
+      "id": "informe",
+      "lane": "caso",
+      "col": 5,
+      "type": "frontend",
+      "label": "Informe",
+      "sublabel": "paso 8 · PDF, STL, SR",
+      "width": 126,
+      "height": 46
+    },
+    {
+      "id": "carga",
+      "lane": "imagen",
+      "col": 1,
+      "type": "backend",
+      "label": "Carga DICOM",
+      "sublabel": "paso 1 · series y HU",
+      "width": 124,
+      "height": 46
+    },
+    {
+      "id": "segment",
+      "lane": "imagen",
+      "col": 2,
+      "type": "backend",
+      "label": "Segmentar",
+      "sublabel": "paso 2 · malla 3D",
+      "width": 106,
+      "height": 46
+    },
+    {
+      "id": "detect",
+      "lane": "imagen",
+      "col": 3,
+      "type": "backend",
+      "label": "Detección",
+      "sublabel": "paso 3 · candidatos",
+      "width": 106,
+      "height": 46
+    },
+    {
+      "id": "morfo",
+      "lane": "imagen",
+      "col": 4,
+      "type": "backend",
+      "label": "Morfometría",
+      "sublabel": "paso 4 · cuello/domo",
+      "width": 120,
+      "height": 46
+    },
+    {
+      "id": "decision",
+      "lane": "plan",
+      "col": 4,
+      "type": "security",
+      "label": "Decisión",
+      "sublabel": "paso 5 · clip o endo",
+      "width": 120,
+      "height": 46
+    },
+    {
+      "id": "devices",
+      "lane": "plan",
+      "col": 5,
+      "type": "backend",
+      "label": "Dispositivos",
+      "sublabel": "paso 6 · clip y stent",
+      "width": 126,
+      "height": 46
+    },
+    {
+      "id": "galeria",
+      "lane": "opcional",
+      "col": 0,
+      "type": "database",
+      "label": "Galería",
+      "sublabel": "archivo del centro",
+      "width": 100,
+      "height": 46
+    },
+    {
+      "id": "guardar",
+      "lane": "opcional",
+      "col": 2,
+      "type": "database",
+      "label": "Guardar",
+      "sublabel": "sesión reanudable",
+      "width": 106,
+      "height": 46
+    },
+    {
+      "id": "fabricacion",
+      "lane": "opcional",
+      "col": 5,
+      "type": "cloud",
+      "label": "Fabricación",
+      "sublabel": "paso 7 · a taller",
+      "width": 126,
+      "height": 46
+    }
+  ],
+  "edges": [
+    {
+      "id": "abre",
+      "from": "paciente",
+      "to": "caso",
+      "label": "abre o crea",
+      "variant": "emphasis"
+    },
+    {
+      "id": "traza",
+      "from": "caso",
+      "to": "auditoria",
+      "label": "abre su traza",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "adjunta",
+      "from": "caso",
+      "to": "carga",
+      "label": "adjunta estudio",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e1",
+      "from": "carga",
+      "to": "segment",
+      "label": "volumen listo",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e2",
+      "from": "segment",
+      "to": "detect",
+      "label": "malla vascular",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e3",
+      "from": "detect",
+      "to": "morfo",
+      "label": "saco elegido",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e4",
+      "from": "morfo",
+      "to": "decision",
+      "label": "medidas del cuello",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e5",
+      "from": "decision",
+      "to": "devices",
+      "label": "vía elegida",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e6",
+      "from": "devices",
+      "to": "informe",
+      "label": "plan cerrado",
+      "variant": "emphasis"
+    },
+    {
+      "id": "amedida",
+      "from": "devices",
+      "to": "fabricacion",
+      "label": "clip a medida",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "guarda",
+      "from": "segment",
+      "to": "guardar",
+      "label": "guarda el progreso",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "reanuda",
+      "from": "guardar",
+      "to": "carga",
+      "label": "reanuda en su paso",
+      "role": "return"
+    },
+    {
+      "id": "reabre",
+      "from": "galeria",
+      "to": "carga",
+      "label": "reabre archivado",
+      "variant": "dashed",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Entrada al caso",
+      "items": [
+        "Acceso JWT, alta aprobada por admin",
+        "El caso se adjunta a un paciente ya existente"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Análisis y plan",
+      "items": [
+        "Malla, edición manual, centerline y MPR",
+        "Clips, coils y stents con ensayo de colisión"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Cierre y continuidad",
+      "items": [
+        "Clip NAVARRO™ a medida: pedido a taller",
+        "Reanudar, seguimiento longitudinal y auditoría"
+      ]
+    }
+  ]
+}

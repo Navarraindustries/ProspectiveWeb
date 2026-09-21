@@ -1,0 +1,286 @@
+/* ============================================================================
+   PROSPECTIVE — Identidad visual de la landing pública
+   Generada con Stitch (proyecto «Aneurysm AI Landing Page», 2026-09-15):
+   glassmorphism cibernético + minimalismo de precisión técnica.
+
+   ALCANCE: todo vive bajo `.landing-stitch`. La landing es lo único que ve un
+   desconocido, y puede permitirse una estética de quirófano que la aplicación
+   clínica no quiere: dentro de /app siguen mandando los tokens grises de
+   `tokens/colors.css`, que son los del escritorio (resources/IDENTIDAD_VISUAL.md).
+   Redefinir los tokens aquí —en vez de reescribir los estilos de Landing.tsx—
+   basta para reskinear la página entera, porque ya estaba escrita contra ellos.
+
+   La paleta es dark-only por diseño: Stitch la calibró para «entornos de baja
+   luminancia y revisiones diagnósticas prolongadas», y no definió variante
+   clara. Por eso la landing fija su propio tema y no ofrece el conmutador.
+   ============================================================================ */
+
+/* El <body> sigue mandando el tema que el usuario eligió para /app, así que con
+   el tema claro activo asomaría #F4F7FA por detrás: en el rebote del scroll y en
+   cualquier franja que la página no llegue a pintar. Mientras la landing esté en
+   pantalla, el suelo del documento se pinta de obsidiana. */
+:root:has(.landing-stitch) body {
+  background: #060e1d;
+}
+
+.landing-stitch {
+  /* ---- Profundidades obsidiana ---- */
+  --canvas:             #060e1d;   /* suelo abisal: raíz y secciones pares */
+  --background:         #0b1322;   /* superficie base: secciones impares */
+  --foreground:         #dbe2f8;   /* hueso vascular */
+  --card:               #18202f;
+  --card-foreground:    #dbe2f8;
+  --popover:            #141c2b;
+  --popover-foreground: #dbe2f8;
+
+  /* ---- Acentos bioluminiscentes ---- */
+  --primary:            #00f0ff;   /* cian: CTA, trazas de morfología, foco */
+  --primary-foreground: #050913;   /* texto sobre relleno cian */
+  --primary-hover:      #7df4ff;
+  --secondary:          #141c2b;
+  --secondary-foreground: #dbe2f8;
+  --muted:              #18202f;
+  --muted-foreground:   #b9cacb;
+  --accent:             #222a3a;
+  --accent-foreground:  #4cd6fb;
+
+  --brand-smoke:        #4cd6fb;
+  --brand-mist:         #7df4ff;
+  --brand-slate:        #4cd6fb;   /* Kicker: rótulo mono sobre el titular */
+  --brand-steel:        #00b4d8;
+  --brand-deep:         #4cd6fb;   /* enlaces */
+  --brand-ink:          #0d1524;
+
+  --brand-subtle:       #0d1524;
+  --brand-subtle-foreground: #4cd6fb;
+
+  /* ---- Estado ---- */
+  --destructive:        #ff3366;   /* carmesí neural: riesgo de rotura */
+  --destructive-foreground: #ffffff;
+  --success:            #4ade80;
+  --success-bg:         #08261a;
+  --warning:            #fbbf24;
+  --warning-bg:         #2a1f06;
+  --info:               #00b4d8;
+
+  /* ---- Estructura ---- */
+  --border:             #1b2a4a;   /* pizarra biológica */
+  --input:              #1b2a4a;
+  --ring:               #00f0ff;
+
+  --chart-1:            #00f0ff;
+  --chart-2:            #00b4d8;
+  --chart-3:            #4cd6fb;
+  --chart-4:            #7df4ff;
+  --chart-5:            #ff3366;
+
+  /* ---- Tipografía de la identidad ----
+     Titulares geométricos, texto ergonómico, métricas monoespaciadas. */
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  /* ---- Radios: micro-geometría, nunca pastilla ----
+     Stitch rechaza el pill a propósito («disciplina científica inflexible»). */
+  --radius-sm:   2px;
+  --radius-md:   4px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
+
+  /* ---- Sombras y resplandor ---- */
+  --shadow-xs: 0 1px 2px rgba(5, 9, 19, 0.6);
+  --shadow-sm: 0 2px 8px rgba(5, 9, 19, 0.7);
+  --shadow-md: 0 4px 24px -1px rgba(5, 9, 19, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  --shadow-lg: 0 20px 70px rgba(5, 9, 19, 0.9);
+  --glow-primary: 0 0 20px -2px rgba(0, 240, 255, 0.35), inset 0 0 12px 0 rgba(0, 240, 255, 0.1);
+  --glow-alert:   0 0 24px -2px rgba(255, 51, 102, 0.45), inset 0 0 14px 0 rgba(255, 51, 102, 0.12);
+
+  color-scheme: dark;
+  background: var(--canvas);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Los titulares pasan a Space Grotesk. Landing.tsx fija tamaño y peso inline;
+   aquí solo se cambia la familia y el tracking, sin tocar la escala. */
+.landing-stitch h1,
+.landing-stitch h2,
+.landing-stitch h3,
+.landing-stitch h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* El logotipo del escritorio es negro sobre transparente: sobre obsidiana hay
+   que invertirlo igual que hace el tema oscuro de la app. */
+.landing-stitch .logo-mark {
+  filter: invert(1) brightness(1.7);
+}
+
+.landing-stitch a {
+  color: var(--brand-deep);
+}
+.landing-stitch a:hover {
+  color: var(--primary);
+}
+
+.landing-stitch ::selection {
+  background: rgba(0, 240, 255, 0.25);
+  color: #dbfcff;
+}
+
+/* ---- Rótulos y métricas monoespaciadas ----------------------------------
+   La identidad exige que toda etiqueta de estado y toda métrica caiga en
+   JetBrains Mono con caja alta: es lo que da la lectura de instrumental. */
+.landing-stitch .stitch-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.landing-stitch .stitch-metric {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Panel de instrumental (elevación 2) --------------------------------
+   Vidrio translúcido sobre el fondo, borde cian tenue, desenfoque detrás. */
+.landing-stitch .stitch-glass {
+  background: rgba(13, 21, 36, 0.65);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out),
+              transform var(--dur-base) var(--ease-out);
+}
+.landing-stitch .stitch-glass:hover {
+  border-color: rgba(0, 240, 255, 0.45);
+  box-shadow: var(--shadow-md), var(--glow-primary);
+  transform: translateY(-2px);
+}
+
+/* Carcasa estructural acoplada (elevación 1): navbar y pies de sección. */
+.landing-stitch .stitch-shell {
+  background: rgba(9, 14, 23, 0.9);
+  border-color: rgba(27, 42, 74, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ---- Modelo 3D del hero --------------------------------------------------
+   A sangre y centrado, como en el diseño de Stitch: es la pieza que cuenta de
+   qué va la aplicación, así que manda en el hero y el texto se le superpone.
+   El contraste del titular lo resuelve el velo, no el encogimiento del modelo.
+   En estrecho se atenúa para que quede como textura y el texto siga mandando. */
+.landing-stitch .landing-hero-model {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  pointer-events: none;
+}
+@media (max-width: 1100px) {
+  .landing-stitch .landing-hero-model {
+    opacity: 0.45;
+  }
+}
+
+/* ---- Figura 3D de sección ------------------------------------------------
+   Las escenas repartidas por la página se presentan como figuras: un panel de
+   vidrio con la escena dentro y altura fija, para que la sección no dé saltos
+   mientras el chunk de Three.js todavía está cargando. Sin `pointer-events`:
+   son ilustrativas, el 3D que se manipula está dentro de la aplicación. */
+.landing-stitch .landing-figure {
+  position: relative;
+  height: 340px;
+  overflow: hidden;
+  pointer-events: none;
+  /* Halo cian tenue desde el centro: asienta la escena sobre el panel. */
+  background:
+    radial-gradient(60% 70% at 50% 50%, rgba(0, 240, 255, 0.07), transparent 70%),
+    rgba(13, 21, 36, 0.55);
+}
+@media (max-width: 760px) {
+  .landing-stitch .landing-figure { height: 240px; }
+}
+/* Solo el contenedor de la escena se estira: el pie es un hermano posicionado y
+   con `> div` a secas también se estiraba a toda la altura, empujando su texto
+   fuera de la vista. */
+.landing-stitch .landing-figure > div:not(.stitch-label) { width: 100%; height: 100%; }
+
+/* El pie se lee sobre la escena, así que lleva su propio fondo. */
+.landing-stitch .landing-figure > .stitch-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 10px 16px;
+  color: var(--brand-slate);
+  background: linear-gradient(transparent, rgba(6, 14, 29, 0.85) 55%);
+}
+
+/* ---- Rejilla de calibración ---------------------------------------------
+   Retícula espacial muy tenue; da la sensación de viewport calibrado sin
+   competir con el contenido. Decorativa: siempre detrás y sin eventos. */
+.landing-stitch .stitch-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(0, 240, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 75%);
+}
+
+/* ---- CTA primaria: cian sólido con resplandor especular ---------------- */
+.landing-stitch .stitch-cta {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: box-shadow var(--dur-base) var(--ease-out),
+              background var(--dur-base) var(--ease-out);
+}
+.landing-stitch .stitch-cta:hover {
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.6);
+}
+
+/* Secundaria / fantasma: relleno de vidrio y filo cian. */
+.landing-stitch .stitch-ghost {
+  background: rgba(13, 21, 36, 0.6);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  color: var(--primary);
+  transition: background var(--dur-base) var(--ease-out);
+}
+.landing-stitch .stitch-ghost:hover {
+  background: rgba(0, 240, 255, 0.12);
+}
+
+/* ---- Pip de estado: late para indicar sistema vivo --------------------- */
+.landing-stitch .stitch-pip {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .landing-stitch .stitch-pip {
+    animation: stitch-pulse 2.4s var(--ease-in-out) infinite;
+  }
+}
+@keyframes stitch-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--primary); }
+  50%      { opacity: 0.45; box-shadow: 0 0 2px var(--primary); }
+}

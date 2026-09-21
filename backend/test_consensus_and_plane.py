@@ -295,3 +295,35 @@ class TestThroughTheApi:
         assert client.get(f"/api/mesh-bounds/{sid}").status_code == 409
         assert client.post(f"/api/mesh-plane-cut/{sid}", json={
             "axis": "y", "offset_mm": 0.0}).status_code == 409
+
+
+# ── 6. El cuerpo del aneurisma sí existe, y ahora sale del backend ──────── #
+
+class TestTheClosedSacTravels:
+    """El saco cerrado se escribía al disco y no lo pintaba nadie.
+
+    Es la ÚNICA malla de este flujo que delimita el cuerpo del aneurisma. La
+    del candidato solo señala dónde mirar, y no hay forma de sacar el cuerpo
+    automáticamente de los tres criterios: el calibre se derrama por el tronco
+    (31 mm para una lesión de 5), el cociente no tiene corte natural, y la
+    curvatura gaussiana no frena en un vaso porque un cilindro la tiene CERO
+    — validado con sacos sintéticos de 4, 6 y 8 mm, que devolvían los tres la
+    misma región de 27,5 mm.
+    """
+
+    def test_the_field_exists_and_is_empty_without_a_marked_neck(self):
+        from models.detection import MorphometryResult
+        campo = MorphometryResult.model_fields["sac_mesh_url"]
+        assert campo.default == ""
+
+    def test_the_description_says_why_it_cannot_be_automatic(self):
+        from models.detection import MorphometryResult
+        d = MorphometryResult.model_fields["sac_mesh_url"].description
+        assert "cuello" in d
+        assert "27,5 mm" in d, "la medida que descartó la vía automática"
+
+    def test_the_candidate_patch_is_not_the_body_and_says_so(self):
+        from models.detection import AneurysmCandidate
+        d = AneurysmCandidate.model_fields["patch_kind"].description
+        assert "DÓNDE mirar" in d and "no qué parte es la lesión" in d
+

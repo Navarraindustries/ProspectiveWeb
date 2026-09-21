@@ -609,6 +609,16 @@ export interface MorphometryResult {
   sr: number;
   rupture_risk_label: RiskLabel;
   reliable: boolean;
+  /** El saco CERRADO aislado al marcar el cuello. Es la única malla que
+      delimita el cuerpo del aneurisma: la del candidato en Detección solo
+      señala dónde mirar. Vacío mientras no se marque el cuello.
+
+      No se puede sacar automáticamente de los criterios de detección: el
+      calibre se derrama por el tronco, el cociente no tiene corte natural, y
+      la gaussiana no frena en un vaso porque un cilindro la tiene cero
+      —comprobado con sacos sintéticos de 4, 6 y 8 mm, que devolvían los tres
+      la misma región de 27,5 mm—. Lo que lo delimita es el cuello. */
+  sac_mesh_url: string;
   neck_source: "auto" | "manual" | "rim";
   /** Angle between the neck plane and the neck→dome axis (degrees). Only
    *  meaningful for neck_source "rim": near 0° the two-click method would have

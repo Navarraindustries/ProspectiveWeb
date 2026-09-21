@@ -32,6 +32,9 @@ const STEP_SCENE: Record<string, string> = {
 
 const VESSEL_COLOR: Vector3 = [0.65, 0.7, 0.76];
 const DOME_COLOR: Vector3 = [0.32, 0.55, 0.75];
+/* El saco cerrado, en verde para no confundirlo con el localizador azul del
+   candidato: aquel señala dónde mirar, este ES el cuerpo del aneurisma. */
+const SAC_COLOR: Vector3 = [0.25, 0.80, 0.45];
 const DEVICE_COLOR: Vector3 = [0.92, 0.82, 0.45];     // warm gold — placed clip
 const COIL_COLOR: Vector3 = [0.85, 0.55, 0.85];       // orchid — packed coils
 const STENT_COLOR: Vector3 = [0.55, 0.80, 0.95];      // steel blue — deployed stent
@@ -263,7 +266,13 @@ export function Viewer({ step }: { step: string }) {
     if (!displayMeshUrl) return [];
     const vesselDim = step === "detect" || step === "morpho" || showDevice || pickMode !== null || showCenterline;
     const out: MeshLayer[] = [{ url: displayMeshUrl, color: VESSEL_COLOR, opacity: vesselDim ? 0.45 : 1 }];
-    if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
+    // El saco cerrado manda sobre el localizador: en cuanto está marcado el
+    // cuello hay una malla que SÍ es el cuerpo del aneurisma, y enseñar las
+    // dos a la vez volvería a mezclar «dónde mirar» con «qué es».
+    const sacUrl = morphometry?.sac_mesh_url;
+    if (sacUrl && step !== "segment" && step !== "upload") {
+      out.push({ url: sacUrl, color: SAC_COLOR, opacity: showDevice ? 0.5 : 1, id: "sac" });
+    } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
       out.push({ url: candidate.dome_mesh_url, color: DOME_COLOR, opacity: showDevice ? 0.5 : 1 });
     }
     // While rehearsing, the placed clip is replaced by its three moving parts:
@@ -280,7 +289,7 @@ export function Viewer({ step }: { step: string }) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
     }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal]);
+  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal]);
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];

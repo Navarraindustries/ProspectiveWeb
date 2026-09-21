@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import logging
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
@@ -681,7 +682,12 @@ def _run_morphometry_sync(
                 "de cuello esté sobre el cuello y el ápice sobre la cúpula del domo."
             )
         # Persist the closed sac so the UI can display it.
+        # El único objeto de este paso que delimita el CUERPO del aneurisma.
+        # Se escribía al disco y no lo pintaba nadie: el visor no tenía una
+        # sola referencia a él, así que el usuario solo veía el localizador de
+        # Detección, que es una bola alrededor de un punto.
         write_vtp(sac_mesh, vtp_path.parent / "aneurysm_sac.vtp")
+        write_state(session_id, "morpho.sac_vtp_name", "aneurysm_sac.vtp")
         poly        = sac_mesh
         plane_arg   = (origin, normal, neck_diam)
         # "rim" already recorded that the orientation came from marked points;
@@ -848,7 +854,16 @@ def _run_morphometry_sync(
         warning = f"{warning} {note}" if warning else note
 
     # ── Map desktop dataclass → Pydantic model ────────────────────────── #
+    # La URL del saco cerrado, si el plano de cuello llegó a aislarlo. Se lee
+    # del estado y no de la variable local porque GET /morphometry reproduce un
+    # plano guardado y tiene que devolver la misma malla.
+    sac_name = read_state(session_id, "morpho.sac_vtp_name", "")
+    sac_url = ""
+    if sac_name and (vtp_path.parent / sac_name).exists():
+        sac_url = f"{mesh_url(session_id, sac_name)}?v={int(time.time() * 1000)}"
+
     return MorphometryResult(
+        sac_mesh_url      = sac_url,
         volume_mm3        = round(mr.volume_mm3,        2),
         surface_area_mm2  = round(mr.surface_area_mm2,  2),
         eq_sphere_diam_mm = round(mr.eq_sphere_diam_mm, 3),

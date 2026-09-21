@@ -195,6 +195,22 @@ class MorphometryResult(BaseModel):
             "'rim' = plane fitted to points marked around the neck rim."
         ),
     )
+    sac_mesh_url: str = Field(
+        "",
+        description=(
+            "El saco CERRADO que se aisló al marcar el plano de cuello, para "
+            "poder pintarlo. Es la única malla de este paso que delimita el "
+            "cuerpo del aneurisma: la del candidato en Detección solo señala "
+            "dónde mirar. Vacío mientras no se haya marcado el cuello. "
+            "Se intentó delimitarlo automáticamente desde los tres criterios "
+            "de detección y no se puede: el calibre se derrama por el tronco "
+            "(31 mm para una lesión de 5), el cociente no tiene corte natural, "
+            "y la curvatura gaussiana no frena en un vaso porque un cilindro "
+            "la tiene CERO — validado con sacos sintéticos de 4, 6 y 8 mm, que "
+            "devolvían los tres la misma región de 27,5 mm. Lo que delimita el "
+            "saco es el cuello, y eso lo marca el clínico."
+        ),
+    )
     neck_tilt_deg: float = Field(
         0.0,
         description=(

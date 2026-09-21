@@ -1,4 +1,9 @@
-/* Paso 5 — Decisión terapéutica. POST /api/treatment-decision (motor de 8 factores). */
+/* Paso 5 — Decisión terapéutica. POST /api/treatment-decision.
+
+   Tres casillas que no se pisan porque contestan preguntas distintas:
+   PHASES «¿tratar?» (sólo no rotos), JSDB «¿cómo irá por cada vía?» (sólo
+   rotos) y el sumatorio heurístico «¿por qué vía?», que aporta la geometría
+   — lo único que ninguno de los otros dos mira. */
 
 import { useState } from "react";
 import { api } from "../../api/client";

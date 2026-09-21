@@ -7,11 +7,12 @@ se haría y qué cabe esperar de la oclusión a largo plazo.
 
 Por qué existe
 --------------
-Cuatro de los ocho factores del motor eran índices de forma —aspect ratio,
-bottleneck factor, undulation index— sacados de literatura de RIESGO DE ROTURA
-(Dhar 2008, Raghavan 2005). Ninguno de esos trabajos estudia la elección entre
-clipaje y coiling, y ninguno de los dos modelos validados que sí la estudian
-—Japan Stroke Data Bank 2020, SHARP— usa un índice de forma.
+Tres de los factores del motor eran índices de forma —aspect ratio, bottleneck
+factor, undulation index— sacados de literatura de RIESGO DE ROTURA (Dhar 2008,
+Raghavan 2005). Ninguno de esos trabajos estudia la elección entre clipaje y
+coiling, y ninguno de los dos modelos validados que sí la estudian —Japan Stroke
+Data Bank, SHARP— usa un índice de forma. El primero ya está implementado en
+`services/jsdb.py`; esto sigue cubriendo lo que él no mira, que es la geometría.
 
 Donde la morfología sí tiene respaldo publicado es en esta otra pregunta:
 

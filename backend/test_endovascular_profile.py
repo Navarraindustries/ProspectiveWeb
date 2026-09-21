@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """La morfología describe la vía endovascular en lugar de votar la modalidad.
 
-Cuatro de los ocho factores del motor eran índices de forma sacados de
+Tres de los factores del motor son índices de forma sacados de
 literatura de RIESGO DE ROTURA (Dhar 2008, Raghavan 2005). Ninguno de esos
 trabajos estudia la elección entre clipaje y coiling, y ninguno de los dos
 modelos validados que sí la estudian usa un índice de forma.

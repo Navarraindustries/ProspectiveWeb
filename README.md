@@ -136,7 +136,8 @@ Key backend services (all ported from the desktop `prospective/processing`):
 | `parent_artery.py` | Parent-vessel diameter → size ratio |
 | `centerline.py` / `cross_section.py` | Medial-axis extraction · diameter profile · stenosis |
 | `perforator_risk.py` | Vertex-valence anomaly → perforator candidates |
-| `treatment.py` | 8-factor CLIP vs ENDOVASCULAR scoring with literature citations |
+| `treatment.py` | Heuristic CLIP vs ENDOVASCULAR scoring, every weight carrying its provenance |
+| `jsdb.py` | Japan Stroke Data Bank: fitted poor-outcome risk for EACH route. Ruptured only; describes, never votes |
 | `clips.py` / `coils.py` / `devices.py` | Device catalogues, recommendations, real VTK collision |
 | `clip_selection.py` | Criteria-based clip choice per case + manufacturing spec |
 | `clip_fit.py` | Poses candidates on the measured neck and checks them against the mesh |
@@ -802,49 +803,121 @@ with their reason — the same pattern as the closing force and the blade openin
 the clip selector. Deleting a measurement because it cannot vote hides it; showing
 it with its provenance leaves it arguable.
 
-Two consequences worth stating. The engine's voting factors are now neck, DNR,
-size, location, rupture, age, WFNS and Fisher — which is the shape the validated
-models have, six clinical and anatomical against two morphological, rather than
-the reverse. And a missing aspect ratio no longer costs confidence in the
-decision, because it no longer decides anything; it costs detail in the profile,
-which the profile says for itself.
+A missing aspect ratio no longer costs confidence in the decision, because it no
+longer decides anything; it costs detail in the profile, which the profile says
+for itself.
 
-### The engine now scores what the validated models score
+### The validated model itself, instead of a copy of it
 
 A literature review of the clip-vs-endovascular decision turned up a gap that was
 about variables, not weights: the two published models that actually choose a
-modality — the Japan Stroke Data Bank score (Neurol Med Chir 2020, 3 547 patients)
-and SHARP — are built on age, WFNS grade, Fisher grade, prior stroke, size and
-location. This engine had six morphological factors and none of the clinical ones.
-Age was collected and thrown away; WFNS and Fisher were not collected at all.
+modality — the Japan Stroke Data Bank score and SHARP — are built on age, WFNS
+grade, Fisher grade, prior stroke, size and location. This engine had six
+morphological factors and none of the clinical ones, so age, WFNS and Fisher were
+added to the balance with hand-picked weights.
 
-Three factors added, each with the published structure it was mapped from:
+That was a **copy of a fitted model, made by hand**. The 72 and 80 year cut-offs
+were literally the Japan model's. So the copy was replaced with the original, in
+`services/jsdb.py`: a logistic regression over **3 547 aneurysmal subarachnoid
+haemorrhages** (2 666 clipped, 881 coiled, 1998–2013), points assigned from the
+odds ratios, validated on an independent series of 269. Neurol Med Chir (Tokyo)
+2021;61(2).
 
-| factor | direction | mapped from |
+**It does not vote, and cannot.** Its variables were already in the engine, so
+summing both would count them twice — the same defect as the neck and the DNR
+below. The split is: the JSDB owns the clinical side of a *ruptured* case, the
+engine owns the geometry (which the model has none of) and the clinical side of
+an *unruptured* one, where the JSDB does not apply at all — its whole cohort is
+haemorrhage, so it returns nothing rather than two flattering zeros.
+
+| | clipping | endovascular |
 |---|---|---|
-| Age ≥ 80 / 72–79 | endovascular, 12 / 6 | the Japan model penalises clipping from 72 and coiling only from 80 — advanced age tolerates surgery worse. Weight held down on purpose: the 2025 meta-analysis of 51 415 patients ≥60 found no outcome difference, only shorter stays |
-| WFNS ≥ 4 / = 3 | endovascular, 15 / 8 | the heaviest variable in the validated model, and it penalises clipping from a lower grade than coiling |
-| Fisher 4 | clipping, 10 | the validated model penalises *coiling* at Fisher 4, and a bulky haematoma can be evacuated in the same operation |
+| Age | ≥ 72 → 1 | ≥ 80 → 1 |
+| Prior stroke | > 1 → 1 | ≥ 1 → 1 |
+| WFNS | II–III 1 · IV 2 · V 3 | III 1 · IV 2 · V 3 |
+| Fisher 4 | — | 1 |
+| Size > 15 mm | 1 | — |
+| Location | vertebrobasilar → 1 | MCA or ACA → 1 |
+| **max** | **7** | **7** |
 
-**And rupture went from 15 to 30.** It rested on the strongest evidence the engine
-touches — AHA/ASA 2023 Class I, LOE A — and was outweighed by a single location
-factor: a ruptured MCA aneurysm came out of the engine leaning toward *clipping*,
-the opposite of the guideline when the case is equally suitable for both. The
-number comes from a rule that can be argued with, and is written down so it can
-be: a Class I LOE A recommendation must not sit below any other single factor,
-and the largest of the others is 25.
+Two scores, not one, and that is the point. The engine returns a *difference*: a
+balance of 0 means "tie" and never "both routes look bad". Two separate scores can
+say it, and that is the signal that actually sends a case to a multidisciplinary
+session. The panel and the PDF flag it when both pass 3 points — a threshold this
+application chose and declares as its own, because the authors publish no bands
+and no AUC, only that the poor-outcome rate correlates with the points (p < 0.001).
+
+`prior_stroke` is new to the whole application. The nearest thing that existed was
+PHASES' `earlier_sah`, which is narrower — a previous haemorrhage from *another*
+aneurysm.
+
+**What the split changed, measured.** Rupture still weighs 30 — it rests on AHA/ASA
+2023 Class I LOE A, and the rule that a Class I recommendation must not sit below
+any other single factor (the largest of the others is 25) still holds:
 
     ACM no roto                     saldo +20  →  CLIPPING QUIRÚRGICO
     ACM ROTO                        saldo −10  →  DISCUSIÓN MULTIDISCIPLINARIA
-    ACM roto + WFNS 5               saldo −25  →  TRATAMIENTO ENDOVASCULAR
-    ACM roto + WFNS 5 + Fisher 4    saldo −15  →  DISCUSIÓN MULTIDISCIPLINARIA
+    ACM roto + WFNS 5               saldo −10  →  DISCUSIÓN MULTIDISCIPLINARIA
+                                               JSDB: clipping 3 · endovascular 4
+    ACM roto + WFNS 5 + Fisher 4    saldo −10  →  DISCUSIÓN MULTIDISCIPLINARIA
+                                               JSDB: clipping 3 · endovascular 5
     Basilar ROTO                    saldo −55  →  TRATAMIENTO ENDOVASCULAR
 
-### «What if the fields are empty?» — nothing is mandatory, and two cannot be
+The grades no longer move the balance — the three ruptured MCA rows are identical
+there — and they move the fitted model instead. Fisher 4 shifts only the
+endovascular arm, which is the asymmetry a single 10-point weight could not carry.
 
-WFNS grades a subarachnoid haemorrhage and Fisher grades the blood on a CT. For an
-incidental aneurysm neither exists, so neither can be required, and the panel only
-asks for them when the case is marked as ruptured.
+**And when the two disagree, the decision says so.** The engine decides on geometry
+and guideline; the JSDB on this patient's clinical profile. Neither sees what the
+other sees, so a disagreement is not a fault in either — but hiding it would be
+one, and a single number hid it by construction. It now prints as a DISCREPANCIA
+note.
+
+### One measurement was being charged twice
+
+The neck scored for its diameter (25) and again inside the DNR (15), which *is*
+dome ÷ neck: a narrow neck made the first small and the second large, so a single
+measurement collected **40 of the engine's points — more than rupture**. That is
+what made geometry dominate every clinical input.
+
+And they were never two criteria. Brinjikji defines a wide neck as "neck ≥ 4 mm
+**or** DNR < 2" — two halves of one published definition. They are now evaluated
+together and score once, worth 25:
+
+| condition | direction | points |
+|---|---|---|
+| neither criterion met (neck < 4 mm and DNR ≥ 2) | endovascular | 25 |
+| neck > 5 mm **or** DNR < 1.5 | clipping | 25 |
+| meets it narrowly (neck 4–5 mm, or DNR 1.5–2) | — | 0 |
+
+The borderline band used to push *toward* endovascular (+5 for a 4–5 mm neck, +8
+for a DNR of 1.5–2), which is an odd direction for something just classified as
+wide. Neutral says what is actually happening: the criterion does not separate the
+routes there.
+
+The DNR is still displayed, tagged «no puntúa», saying where it was counted.
+
+### "Which route?" is not "should we treat?"
+
+The under-3 mm branch was the only place anyone asked whether to treat at all. At
+8 mm the engine jumped straight to picking a route, and a verdict reading
+"TRATAMIENTO ENDOVASCULAR" is read as though treatment were settled when nobody
+settled it.
+
+Every unruptured case now carries a note saying the engine answered *which route*,
+not *whether*, and giving the PHASES figure when one exists. **It deliberately does
+not change the verdict**: ESO 2022 frames the decision as rupture risk against
+procedural risk, and this application does not compute procedural risk. Inventing a
+diameter threshold to recommend surveillance would repeat exactly what the 3 mm
+shortcut already got wrong. What can be done is to stop leaving the question
+unasked.
+
+### «What if the fields are empty?» — nothing is mandatory, and three cannot be
+
+WFNS grades a subarachnoid haemorrhage, Fisher grades the blood on a CT, and the
+JSDB itself only exists for a ruptured aneurysm. For an incidental one none of
+them exists, so none can be required, and the panel only asks when the case is
+marked as ruptured.
 
 Nothing else is required either — a missing input has always just skipped its
 factor. What was wrong was the reporting. Confidence came from |balance|, and the
@@ -853,9 +926,13 @@ than how much was known:
 
 | data available | before | now |
 |---|---|---|
-| everything | Alta | 100 % · Alta |
-| neck + AR + location | **Alta** | 59 % · Moderada |
-| neck only | **Moderada** | 33 % · **Baja** |
+| everything | Alta | 100 % |
+| neck + AR + location | **Alta** | 71 % · Moderada |
+| neck only | **Moderada** | 49 % · **Baja** |
+
+(WFNS and Fisher no longer appear in this figure at all. They belong to the JSDB,
+which declares its own `known_pct`; counting them here would drop two different
+coverage bars for one missing input.)
 
 A verdict from one measurement was being presented as moderately reliable. The
 result now carries `coverage_pct` — the share of the *available weight* the engine
@@ -871,8 +948,9 @@ confidence.
 ### The rupture risk the app had already computed did not reach the decision
 
 PHASES lives in the morphometry step and estimates a 5-year rupture risk. The
-clip-vs-endovascular engine lives two steps later and takes eight inputs, none of
-which is PHASES. The only thing connecting them was a button that clears both.
+clip-vs-endovascular engine lives two steps later and takes its inputs from the
+morphometry, none of which is PHASES. The only thing connecting them was a button
+that clears both.
 
 That was tolerable while they answered different questions — PHASES asks whether
 to treat, the engine asks how — except the engine also answers the first one: an
@@ -1546,7 +1624,7 @@ patient imaging.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/treatment-decision` | 8-factor CLIP vs ENDOVASCULAR scoring |
+| `POST` | `/api/treatment-decision` | Heuristic CLIP vs ENDOVASCULAR scoring + the JSDB per-route risk on ruptured cases |
 | `DELETE` | `/api/treatment-decision/{sid}` | Drop the recommendation, its context and the PHASES score |
 | `POST` | `/api/phases` | PHASES 5-year rupture risk |
 | `GET` `DELETE` | `/api/devices/{sid}` | What the plan has placed · remove one family (`kind=clips\|coils\|stent`) |

@@ -93,7 +93,7 @@ def _fake_dicom_bytes() -> bytes:
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestTreatmentDecision:
-    """POST /api/treatment-decision — 8-factor CLIP vs ENDO engine."""
+    """POST /api/treatment-decision — motor heurístico CLIP vs ENDO + JSDB."""
 
     _URL = "/api/treatment-decision"
 

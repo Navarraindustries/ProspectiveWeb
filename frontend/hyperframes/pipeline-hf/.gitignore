@@ -7,3 +7,4 @@ snapshots/
 # se versiona por duplicado. Para re-renderizar:
 #   cp ../../public/media/intro.mp4 assets/intro.mp4
 assets/
+renders/

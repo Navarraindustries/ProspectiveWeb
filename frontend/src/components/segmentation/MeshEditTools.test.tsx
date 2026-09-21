@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const meshComponentDelete = vi.fn();
+const meshPlaneCut = vi.fn();
 
 vi.mock("../../api/client", () => ({
   api: {
@@ -20,6 +21,11 @@ vi.mock("../../api/client", () => ({
       undo_depth: 0, redo_depth: 0, has_original: false, steps: [],
     }),
     meshComponentDelete: (...a: unknown[]) => meshComponentDelete(...a),
+    meshBounds: vi.fn().mockResolvedValue({
+      min: { x: -30, y: -40, z: -25 }, max: { x: 30, y: 40, z: 25 },
+      vertices: 12776,
+    }),
+    meshPlaneCut: (...a: unknown[]) => meshPlaneCut(...a),
   },
 }));
 
@@ -55,6 +61,7 @@ function mount(erasePick?: Vec3) {
 
 beforeEach(() => {
   meshComponentDelete.mockReset();
+  meshPlaneCut.mockReset();
 });
 
 describe("el panel se monta", () => {
@@ -103,5 +110,53 @@ describe("el borrador de un clic", () => {
     mount();
     await waitFor(() => expect(screen.getByText("Borrar piezas sueltas")).toBeInTheDocument());
     expect(meshComponentDelete).not.toHaveBeenCalled();
+  });
+});
+
+/* El recorte por caja y esfera obliga a acertar un centro a ojo, y para quitar
+   la chapa pegada bajo el árbol eso son varios intentos. Un plano no tiene
+   centro: una dirección y una altura. */
+describe("el corte por plano", () => {
+  it("ofrece los tres ejes y un deslizador con recorrido real", async () => {
+    mount();
+    expect(await screen.findByText("Cortar por un plano")).toBeInTheDocument();
+    for (const eje of ["Eje X", "Eje Y", "Eje Z"]) {
+      expect(screen.getByRole("button", { name: eje })).toBeInTheDocument();
+    }
+    // Los extremos salen de la malla, no de un rango inventado.
+    const slider = await screen.findByRole("slider", { name: "Altura del corte" });
+    expect(slider).toHaveAttribute("min", "-40");
+    expect(slider).toHaveAttribute("max", "40");
+  });
+
+  it("corta por la altura elegida y dice qué se llevó", async () => {
+    meshPlaneCut.mockResolvedValue({
+      mesh_url: "/data/v.vtp?v=3", vertices: 9000, faces: 18000,
+      removed_vertices: 3776, components_left: 1, undo_depth: 1,
+    });
+    mount();
+    const slider = await screen.findByRole("slider", { name: "Altura del corte" });
+    fireEvent.change(slider, { target: { value: "-22" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Cortar$/ }));
+    await waitFor(() => expect(meshPlaneCut).toHaveBeenCalled());
+    expect(meshPlaneCut).toHaveBeenCalledWith("s1", {
+      axis: "y", offset_mm: -22, keep_positive: true,
+    });
+    // El separador de miles lo pone toLocaleString y depende del ICU del
+    // entorno, así que se comprueba el mensaje, no su tipografía.
+    expect(await screen.findByText(/Fuera .*vértices/)).toBeInTheDocument();
+    expect(screen.getByText(/Queda 1 pieza/)).toBeInTheDocument();
+  });
+
+  it("deja elegir qué lado se conserva", async () => {
+    meshPlaneCut.mockResolvedValue({
+      mesh_url: "/data/v.vtp", vertices: 100, faces: 200,
+      removed_vertices: 10, components_left: 1, undo_depth: 1,
+    });
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Conservar abajo" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Cortar$/ }));
+    await waitFor(() => expect(meshPlaneCut).toHaveBeenCalled());
+    expect(meshPlaneCut.mock.calls[0][1].keep_positive).toBe(false);
   });
 });

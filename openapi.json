@@ -4086,6 +4086,112 @@
         }
       }
     },
+    "/api/mesh-bounds/{session_id}": {
+      "get": {
+        "tags": [
+          "mesh-edit"
+        ],
+        "summary": "Bounding box of the working mesh",
+        "description": "Los extremos reales de la malla, para que el deslizador del corte por plano tenga un recorrido con sentido en vez de un rango inventado.",
+        "operationId": "mesh_bounds_api_mesh_bounds__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeshBoundsResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mesh-plane-cut/{session_id}": {
+      "post": {
+        "tags": [
+          "mesh-edit"
+        ],
+        "summary": "Cut the mesh with a plane and keep one side",
+        "description": "Un corte que NO necesita un centro. El recorte por caja o esfera obliga a acertar un punto a ojo, y para quitar la chapa que queda bajo el árbol en una 3DRA eso son varios intentos. Un plano se define con una dirección y una altura: un deslizador.\n\nSe deshace como cualquier otra edición de malla.",
+        "operationId": "mesh_plane_cut_api_mesh_plane_cut__session_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeshPlaneCutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeshPlaneCutResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mesh-components/{session_id}": {
       "get": {
         "tags": [
@@ -5880,6 +5986,14 @@
             "title": "Selected",
             "description": "True when this candidate is the user-selected one",
             "default": false
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Channels",
+            "description": "Qué criterios encontraron este sitio: «curvatura» (la superficie se abomba), «calibre» (es más gruesa que el resto del árbol) y «cociente» (es más gruesa que el vaso de al lado). Que coincidan varios es información para el clínico; el ORDEN no está validado contra casos anotados y no debe leerse como un veredicto."
           }
         },
         "type": "object",
@@ -8975,6 +9089,28 @@
         "title": "ManufactureSpecOut",
         "description": "The clip to have made, when the inventory cannot serve the case."
       },
+      "MeshBoundsResult": {
+        "properties": {
+          "min": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "max": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "vertices": {
+            "type": "integer",
+            "title": "Vertices",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "MeshBoundsResult",
+        "description": "La caja de la malla, para que el deslizador tenga extremos reales."
+      },
       "MeshCropRequest": {
         "properties": {
           "mode": {
@@ -9129,6 +9265,88 @@
         ],
         "title": "MeshHistoryStep",
         "description": "One recoverable mesh state, as the panel lists it."
+      },
+      "MeshPlaneCutRequest": {
+        "properties": {
+          "axis": {
+            "type": "string",
+            "enum": [
+              "x",
+              "y",
+              "z",
+              "custom"
+            ],
+            "title": "Axis",
+            "description": "Eje del corte. «custom» usa `normal`.",
+            "default": "y"
+          },
+          "offset_mm": {
+            "type": "number",
+            "title": "Offset Mm",
+            "description": "Dónde cruza el plano ese eje, en coordenadas de mundo"
+          },
+          "normal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position3D"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Normal del plano cuando axis='custom'"
+          },
+          "keep_positive": {
+            "type": "boolean",
+            "title": "Keep Positive",
+            "description": "True conserva el lado hacia el que apunta la normal. Para quitar lo de abajo en el eje Y: axis='y' y keep_positive=True.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "offset_mm"
+        ],
+        "title": "MeshPlaneCutRequest",
+        "description": "Cortar por un plano, sin tener que elegir un centro.\n\nEl recorte por caja o esfera obliga a acertar un centro a ojo, y para\nquitar la chapa que queda bajo el árbol eso son varios intentos. Un plano\nse define con una dirección y una altura: un deslizador."
+      },
+      "MeshPlaneCutResult": {
+        "properties": {
+          "mesh_url": {
+            "type": "string",
+            "title": "Mesh Url"
+          },
+          "vertices": {
+            "type": "integer",
+            "title": "Vertices"
+          },
+          "faces": {
+            "type": "integer",
+            "title": "Faces"
+          },
+          "removed_vertices": {
+            "type": "integer",
+            "title": "Removed Vertices"
+          },
+          "components_left": {
+            "type": "integer",
+            "title": "Components Left",
+            "default": 0
+          },
+          "undo_depth": {
+            "type": "integer",
+            "title": "Undo Depth",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "mesh_url",
+          "vertices",
+          "faces",
+          "removed_vertices"
+        ],
+        "title": "MeshPlaneCutResult"
       },
       "MeshRestoreRequest": {
         "properties": {

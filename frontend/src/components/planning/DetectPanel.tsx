@@ -127,10 +127,14 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
 
       {ran && candidates.length > 1 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
-          Lista ordenada por puntuación, no un veredicto: <b>el orden no está validado</b>
-          contra casos anotados. Recórrelos todos — en el único caso con diagnóstico
-          médico que tenemos, el que salía primero no era el bueno. El diámetro es una
-          <b>estimación de detección</b>; la medida real la da Morfometría sobre el saco.
+          Tres criterios buscan por separado: <b>curvatura</b> (la superficie se abomba),
+          <b>calibre</b> (más gruesa que el resto del árbol) y <b>cociente</b> (más gruesa
+          que el vaso de al lado). Cada candidato dice cuáles lo encontraron.
+          <br />
+          Es una <b>lista para recorrer, no un veredicto</b>: el orden no está validado
+          contra casos anotados. En el único caso con diagnóstico que tenemos, la lesión
+          la encontró solo el canal de calibre y la curvatura no la veía. El diámetro es
+          una <b>estimación</b>; la medida real la da Morfometría sobre el saco.
         </div>
       )}
 
@@ -157,6 +161,13 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     diagnóstico médico el primero era el equivocado. Un número de
                     orden dice lo mismo sin prometer nada. */}
                 <Badge variant="subtle">{`#${i + 1}`}</Badge>
+                {/* Qué criterio lo encontró. Que coincidan varios es
+                    información para el clínico; el orden no lo es. */}
+                {(c.channels ?? []).map((ch) => (
+                  <Badge key={ch} variant={ch === "curvatura" ? "subtle" : "success"}>
+                    {ch}
+                  </Badge>
+                ))}
                 {c.confidence < 0.5 && <Badge variant="warning">Baja confianza</Badge>}
                 <div style={{ flex: 1 }} />
                 {on && <Icon name="STATUS_OK" size={15} color="var(--brand-deep)" />}

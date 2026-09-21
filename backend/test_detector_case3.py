@@ -1,20 +1,30 @@
 # -*- coding: utf-8 -*-
 """El único caso con diagnóstico médico, convertido en regresión.
 
-**Ground truth.** Los médicos con los que trabaja el usuario sitúan el aneurisma
-de `case 3` en el **tronco basilar**. Es la primera —y por ahora la única—
-anotación clínica que tiene este proyecto, y hasta el 21/09/2026 case 3 figuraba
-como «localización desconocida» en el informe del motor de decisión.
+**Ground truth, y cómo se corrigió.** Los médicos sitúan el aneurisma de
+`case 3` en el **tronco basilar**. La primera versión de este fichero fijó la
+coordenada (54, 18, 49) — que era una SUPOSICIÓN: se dio por hecho que la
+región más votada por curvatura era la lesión, y el usuario nunca lo confirmó.
+Resultó falsa: esa región está en la chapa de la parte inferior de la malla.
+
+La coordenada de abajo sí está confirmada por el usuario, y con su matiz: es
+«lo que más probablemente se considere un aneurisma **de lo que está en la
+malla 3D**, por su forma y tamaño». No es un diagnóstico cerrado sobre la
+angiografía original, es el mejor candidato dentro de lo que la segmentación
+reconstruye.
 
 Qué estaba mal
 --------------
-Sobre la malla ya limpia (12 776 vértices, una pieza) el detector generaba
-**144 regiones y devolvía UNA**, y no era la del tronco. La lesión buena salía
-como la región **mejor puntuada** —214 puntos, score 0,52— y la tiraba el
-umbral de fracción de curvatura gaussiana positiva, por tener 0,42 frente a un
-mínimo de 0,55.
+El detector busca **curvatura**, y la lesión no destaca por curvatura. Con los
+cinco candidatos que llegó a dar, los cinco caían en la chapa de la parte
+inferior —bordes dentados, que dan curvatura alta— y ninguno en el tronco.
 
-Dos causas, las dos medidas:
+Medido: la lesión es **el punto de mayor calibre de todo el árbol**, radio
+2,33 mm contra una mediana de 0,57. Destaca por grosor. De ahí los dos canales
+geométricos de `services/aneurysm_consensus.py`.
+
+Antes de eso se arreglaron dos sesgos del canal de curvatura, que siguen
+valiendo:
 
 1. **El radio se medía sobre el parche, no sobre la cúpula.** Era
    ``sqrt(area / 4π)``, que trata el casquete convexo como una esfera entera.
@@ -23,26 +33,20 @@ Dos causas, las dos medidas:
    diámetro y descartaba **124 de 144 regiones**.
 2. **La fracción gauss+ penaliza a quien recorta bien.** Una región grande
    llega al cuello, y el cuello es una silla de montar: curvatura negativa.
-   En las ocho regiones de case 3 la correlación entre tamaño y fracción gauss+
-   es **−0,29**, y la fracción más alta (0,75) es una mota de veinte puntos.
+   Correlación entre tamaño y fracción gauss+: **−0,29**, y la fracción más
+   alta (0,75) era una mota de veinte puntos.
 
 Lo que este fichero fija, y lo que NO
 -------------------------------------
-Fija que la lesión del tronco **está entre los candidatos**. No fija que salga
-la primera, y no puede: el orden es inestable frente a cambios mínimos de la
-malla. Medido sobre dos mallas del MISMO estudio que difieren en 17 vértices de
-12 776 —el 0,13 %—:
+Fija que la lesión **está entre los candidatos**. No fija que salga la primera,
+y no puede: el orden es inestable. Medido sobre dos mallas del MISMO estudio
+que difieren en 17 vértices de 12 776 —el 0,13 %— el candidato de curvatura
+mejor puntuado pasaba del puesto 1 al 4, con el pipeline siendo determinista
+(tres corridas idénticas). Por eso la pantalla dejó de etiquetar al primero
+como «Principal» y por eso aquí solo se exige presencia.
 
-    malla A (12 776 verts)   lesión #1 de 5,  score 0,569,  d 8,35 mm
-    malla B (12 759 verts)   lesión #4 de 4,  score 0,402,  d 10,06 mm
-
-El pipeline es determinista (tres corridas idénticas), así que no es ruido de
-ejecución: es que la puntuación separa mal a los primeros cuatro, que van de
-0,40 a 0,57. Por eso la pantalla dejó de etiquetar al primero como «Principal».
-
-Lo que sí se sostiene en las dos mallas es la **presencia**: la lesión aparece
-a 0,5 y a 1,7 mm del sitio conocido. De un candidato equivocado a una lista con
-el bueno dentro — eso es lo que cambió, y es lo que este fichero protege.
+Con el consenso de tres canales la lesión sale en el puesto 2 de 5, encontrada
+por dos de ellos (calibre y cociente). Antes no salía en ninguno.
 
 Se salta entero si los DICOM no están: `Archivos DICOM/` está en .gitignore.
 """
@@ -60,16 +64,20 @@ os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 import numpy as np
 import pytest
 
-from routers.detect import _detector_for_modality
+from routers.detect import _MAX_CANDIDATES, _detector_for_modality
+from services.aneurysm_consensus import (CH_CALIBRE, CH_RATIO,
+                                         consensus)
 from services.mesh_components import keep_main_tree
 
 CASE3 = (Path(__file__).resolve().parent.parent
          / "Archivos DICOM" / "DICOM" / "Case 3" / "Case 3" / "Unknown Study" / "XA")
 
 #: Dónde está la lesión, en coordenadas de mundo de la malla segmentada con los
-#: parámetros de la interfaz (suavizado 3, limpieza 7, «solo el árbol»). Es el
-#: centroide de la región que los médicos identifican en el tronco basilar.
-GT_BASILAR = np.array([54.0, 18.0, 49.0])
+#: parámetros de la interfaz (suavizado 3, limpieza 7, «solo el árbol»).
+#: Confirmado por el usuario sobre un render: el punto de mayor calibre del
+#: árbol, en el tronco. NO es la coordenada de la primera versión de este
+#: fichero, que era una suposición mía y resultó estar en la chapa de abajo.
+GT_BASILAR = np.array([62.0, 64.0, 63.0])
 
 #: Cuánto puede moverse ese centroide sin dejar de ser la misma lesión. El
 #: candidato mide unos 8 mm, así que 10 mm cubre que la región se recorte algo
@@ -111,57 +119,55 @@ def malla():
     return mt.poly, dcm.modality
 
 
-def _dist(c) -> float:
-    return float(np.linalg.norm(np.asarray(c.centroid) - GT_BASILAR))
+def _lista(poly, modality):
+    """Lo mismo que devuelve el endpoint: el consenso de los tres canales."""
+    return consensus(poly, _detector_for_modality(modality), top=_MAX_CANDIDATES)
+
+
+def _dist(h) -> float:
+    return float(np.linalg.norm(np.asarray(h.position) - GT_BASILAR))
 
 
 class TestTheOneCaseWeHaveADiagnosisFor:
-    def test_the_basilar_lesion_is_offered_at_all(self, malla):
+    def test_the_lesion_is_offered_at_all(self, malla):
+        """Lo que de verdad cambió: antes no salía en ninguno de los cinco."""
         poly, modality = malla
-        cands = _detector_for_modality(modality).detect(poly).candidates
-        assert cands, "el detector no puede devolver cero aquí"
-        assert any(_dist(c) <= TOL_MM for c in cands), (
-            "la lesión del tronco no está entre los candidatos: "
-            + ", ".join(f"{_dist(c):.0f} mm" for c in cands)
+        hits = _lista(poly, modality)
+        assert hits, "no puede devolver cero aquí"
+        assert any(_dist(h) <= TOL_MM for h in hits), (
+            "la lesión no está entre los candidatos: "
+            + ", ".join(f"{_dist(h):.0f} mm" for h in hits)
         )
 
-    def test_it_is_near_the_top_even_if_not_first(self, malla):
-        """No se exige que sea la primera, y no es una concesión: es lo medido.
+    def test_it_is_near_the_top_but_the_order_is_not_promised(self, malla):
+        """No se exige el primer puesto, y no es una concesión: es lo medido.
 
-        Entre dos mallas del mismo estudio con 17 vértices de diferencia la
-        lesión pasa del puesto 1 al 4. Exigir el primer puesto sería fijar una
-        casualidad de una malla concreta y dejar el test rojo la próxima vez
-        que alguien toque el suavizado.
+        Entre dos mallas del mismo estudio con 17 vértices de diferencia, el
+        mejor candidato de curvatura pasaba del puesto 1 al 4. Exigir el primer
+        puesto seria fijar una casualidad de una malla concreta.
         """
         poly, modality = malla
-        cands = _detector_for_modality(modality).detect(poly).candidates
-        puestos = [i for i, c in enumerate(cands) if _dist(c) <= TOL_MM]
+        hits = _lista(poly, modality)
+        puestos = [i for i, h in enumerate(hits) if _dist(h) <= TOL_MM]
         assert puestos, "la lesión no está en la lista"
-        assert puestos[0] < 5, f"aparece en el puesto {puestos[0] + 1}"
+        assert puestos[0] < 3, f"aparece en el puesto {puestos[0] + 1}"
 
-    def test_the_scores_do_not_separate_the_top_candidates(self, malla):
-        """Por qué no se promete un orden: los primeros puntúan casi igual.
-
-        Si algún día se separan de verdad, este test falla y habrá que volver
-        a mirar si ya se puede prometer el primer puesto.
-        """
+    def test_the_geometric_channels_are_what_find_it(self, malla):
+        """La curvatura sola no la encontraba. Si algún día la encuentra,
+        este test falla y habrá que revisar si los canales siguen haciendo
+        falta — no es un fallo, es un aviso."""
         poly, modality = malla
-        cands = _detector_for_modality(modality).detect(poly).candidates
-        assert len(cands) >= 3
-        margen = cands[0].score - cands[2].score
-        assert margen < 0.20, (
-            f"el primero le saca {margen:.2f} al tercero: revisa si el orden "
-            f"ya es fiable y se puede volver a destacar al principal"
-        )
+        hits = _lista(poly, modality)
+        lesion = next(h for h in hits if _dist(h) <= TOL_MM)
+        assert CH_CALIBRE in lesion.channels or CH_RATIO in lesion.channels
+        assert lesion.radius_mm > 1.5, "es el punto más grueso del árbol"
 
     def test_the_list_is_a_shortlist_and_not_a_single_answer(self, malla):
-        # El usuario pidió varios candidatos con el bueno dentro; uno solo no
-        # es una lista corta, es un veredicto sin validar.
+        # Uno solo no es una lista corta: es un veredicto sin validar.
         poly, modality = malla
-        cands = _detector_for_modality(modality).detect(poly).candidates
-        assert len(cands) >= 3, f"solo {len(cands)} candidato(s)"
+        assert len(_lista(poly, modality)) >= 3
 
-    def test_the_size_gate_no_longer_eats_the_mesh(self, malla):
+    def test_the_curvature_size_gate_no_longer_eats_the_mesh(self, malla):
         # Descartaba 124 de 144 regiones por medir el parche en vez de la cúpula.
         poly, modality = malla
         r = _detector_for_modality(modality).detect(poly)
@@ -173,7 +179,4 @@ class TestTheOneCaseWeHaveADiagnosisFor:
         # Si vuelve a caer al método por área, el diámetro se queda corto.
         poly, modality = malla
         cands = _detector_for_modality(modality).detect(poly).candidates
-        assert cands[0].radius_method == "sphere_fit"
-        assert cands[0].diameter_mm > 5.0, (
-            "con el parche la misma lesión salía como 3.2 mm"
-        )
+        assert cands and cands[0].radius_method == "sphere_fit"

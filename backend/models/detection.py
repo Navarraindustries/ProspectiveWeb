@@ -41,6 +41,16 @@ class AneurysmCandidate(BaseModel):
     selected: bool = Field(
         False, description="True when this candidate is the user-selected one"
     )
+    channels: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Qué criterios encontraron este sitio: «curvatura» (la superficie "
+            "se abomba), «calibre» (es más gruesa que el resto del árbol) y "
+            "«cociente» (es más gruesa que el vaso de al lado). Que coincidan "
+            "varios es información para el clínico; el ORDEN no está validado "
+            "contra casos anotados y no debe leerse como un veredicto."
+        ),
+    )
 
 
 class DetectionDiagnostics(BaseModel):

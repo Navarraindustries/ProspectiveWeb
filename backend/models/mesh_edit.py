@@ -41,6 +41,49 @@ class MeshCropResult(BaseModel):
     )
 
 
+class MeshPlaneCutRequest(BaseModel):
+    """Cortar por un plano, sin tener que elegir un centro.
+
+    El recorte por caja o esfera obliga a acertar un centro a ojo, y para
+    quitar la chapa que queda bajo el árbol eso son varios intentos. Un plano
+    se define con una dirección y una altura: un deslizador.
+    """
+
+    axis: Literal["x", "y", "z", "custom"] = Field(
+        "y", description="Eje del corte. «custom» usa `normal`."
+    )
+    offset_mm: float = Field(
+        ..., description="Dónde cruza el plano ese eje, en coordenadas de mundo"
+    )
+    normal: Position3D | None = Field(
+        None, description="Normal del plano cuando axis='custom'"
+    )
+    keep_positive: bool = Field(
+        True,
+        description=(
+            "True conserva el lado hacia el que apunta la normal. Para quitar "
+            "lo de abajo en el eje Y: axis='y' y keep_positive=True."
+        ),
+    )
+
+
+class MeshPlaneCutResult(BaseModel):
+    mesh_url: str
+    vertices: int
+    faces: int
+    removed_vertices: int
+    components_left: int = 0
+    undo_depth: int = 0
+
+
+class MeshBoundsResult(BaseModel):
+    """La caja de la malla, para que el deslizador tenga extremos reales."""
+
+    min: Position3D
+    max: Position3D
+    vertices: int = 0
+
+
 class ComponentDeleteRequest(BaseModel):
     """Borrar de un clic la pieza conexa señalada.
 

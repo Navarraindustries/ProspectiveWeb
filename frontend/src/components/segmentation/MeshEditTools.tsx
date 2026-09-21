@@ -10,7 +10,7 @@ import { Icon } from "../Icon";
 import { SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { Slider } from "../Slider";
 import { SEG_LOWER_DEFAULT, SEG_UPPER_DEFAULT } from "./SegmentPanel";
-import type { MeshHistoryResult } from "../../api/types";
+import type { MeshBounds, MeshHistoryResult } from "../../api/types";
 import { usePlanning } from "../../store/planning";
 
 export function MeshEditTools() {
@@ -34,8 +34,14 @@ export function MeshEditTools() {
   // qué borró; cuando no, por qué no.
   const [eraseMsg, setEraseMsg] = useState<string | null>(null);
   const [eraseLeft, setEraseLeft] = useState<number | null>(null);
+  // Corte por plano: una dirección y una altura, sin elegir centro.
+  const [planeAxis, setPlaneAxis] = useState<"x" | "y" | "z">("y");
+  const [planeOffset, setPlaneOffset] = useState<number>(0);
+  const [planeKeepPos, setPlaneKeepPos] = useState(true);
+  const [bounds, setBounds] = useState<MeshBounds | null>(null);
+  const [planeMsg, setPlaneMsg] = useState<string | null>(null);
   const [huRange, setHuRange] = useState<{ min: number; max: number }>({ min: -200, max: 3000 });
-  const [busy, setBusy] = useState<"grow" | "crop" | "undo" | "redo" | "original" | null>(null);
+  const [busy, setBusy] = useState<"grow" | "crop" | "plane" | "undo" | "redo" | "original" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   // The edit history as the backend knows it. Asked for on mount so a resumed
@@ -76,6 +82,22 @@ export function MeshEditTools() {
       .catch(() => { /* no history yet */ });
     return () => { alive = false; };
   }, [sessionId]);
+
+  // Los extremos reales de la malla, para que el deslizador no tenga un
+  // recorrido inventado. Se recargan cuando la malla cambia.
+  useEffect(() => {
+    if (!sessionId || !segmentation) return;
+    let vivo = true;
+    api.meshBounds(sessionId)
+      .then((b) => {
+        if (!vivo) return;
+        setBounds(b);
+        const lo = b.min[planeAxis], hi = b.max[planeAxis];
+        setPlaneOffset((v) => (v >= lo && v <= hi ? v : Math.round((lo + hi) / 2)));
+      })
+      .catch(() => { /* sin límites el deslizador se queda deshabilitado */ });
+    return () => { vivo = false; };
+  }, [sessionId, segmentation?.mesh_url]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── El borrador de un clic ──────────────────────────────────────────── #
   //
@@ -230,6 +252,31 @@ export function MeshEditTools() {
     color: active ? "var(--brand-subtle-foreground)" : "var(--foreground)",
   });
 
+  const cortarPlano = async () => {
+    if (!sessionId) return;
+    setPlaneMsg(null);
+    setBusy("plane");
+    try {
+      const res = await api.meshPlaneCut(sessionId, {
+        axis: planeAxis, offset_mm: planeOffset, keep_positive: planeKeepPos,
+      });
+      setSegmentation(segmentation
+        ? { ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces }
+        : segmentation);
+      clearDownstream();
+      setPlaneMsg(
+        `Fuera ${res.removed_vertices.toLocaleString("es")} vértices. ` +
+        (res.components_left === 1
+          ? "Queda 1 pieza."
+          : `Quedan ${res.components_left} piezas.`),
+      );
+    } catch (err) {
+      setPlaneMsg(err instanceof Error ? err.message : "No se pudo cortar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
       <SectionLabel style={{ marginBottom: 10 }}>Herramientas de malla</SectionLabel>
@@ -343,6 +390,89 @@ export function MeshEditTools() {
           <div style={{ fontSize: 11, lineHeight: 1.5, marginTop: 8, color: "var(--muted-foreground)" }}>
             {eraseMsg}
             {eraseLeft !== null && <> Quedan {eraseLeft} {eraseLeft === 1 ? "pieza" : "piezas"}.</>}
+          </div>
+        )}
+      </Card>
+
+      {/* ── Corte por plano ─────────────────────────────────────────────── */}
+      {/* El recorte por caja o esfera obliga a acertar un centro a ojo, y para
+          quitar la chapa pegada bajo el árbol eso son varios intentos. Un plano
+          no tiene centro: una dirección y una altura. */}
+      <Card>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+          Cortar por un plano
+        </div>
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+          Sin elegir centro: escoge una dirección, desliza la altura y se va todo
+          lo que quede a un lado. Para quitar lo de abajo suele bastar el eje Y.
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          {(["x", "y", "z"] as const).map((eje) => (
+            <button
+              key={eje}
+              onClick={() => {
+                setPlaneAxis(eje);
+                if (bounds) setPlaneOffset(Math.round((bounds.min[eje] + bounds.max[eje]) / 2));
+              }}
+              style={toolBtn(planeAxis === eje)}
+            >
+              Eje {eje.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        {bounds ? (
+          <>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--muted-foreground)", flex: 1 }}>
+                Altura del corte
+              </span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)" }}>
+                {planeOffset.toFixed(0)} mm
+              </span>
+            </div>
+            <input
+              type="range"
+              aria-label="Altura del corte"
+              min={Math.floor(bounds.min[planeAxis])}
+              max={Math.ceil(bounds.max[planeAxis])}
+              step={1}
+              value={planeOffset}
+              onChange={(e) => setPlaneOffset(Number(e.target.value))}
+              style={{ width: "100%" }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted-foreground)", marginBottom: 10 }}>
+              <span>{bounds.min[planeAxis].toFixed(0)}</span>
+              <span>{bounds.max[planeAxis].toFixed(0)}</span>
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
+            Cargando los límites de la malla…
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <button onClick={() => setPlaneKeepPos(true)} style={toolBtn(planeKeepPos)}>
+            Conservar arriba
+          </button>
+          <button onClick={() => setPlaneKeepPos(false)} style={toolBtn(!planeKeepPos)}>
+            Conservar abajo
+          </button>
+        </div>
+
+        <Button
+          variant="outline"
+          style={{ width: "100%" }}
+          disabled={!bounds || busy !== null}
+          onClick={() => void cortarPlano()}
+        >
+          {busy === "plane" ? "Cortando…" : "Cortar"}
+        </Button>
+        {planeMsg && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
+            {planeMsg}
           </div>
         )}
       </Card>

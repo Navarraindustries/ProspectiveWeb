@@ -130,3 +130,43 @@ def clip_sphere(
         center[0], center[1], center[2], radius,
     )
     return result
+
+
+def clip_plane(
+    poly: "vtk.vtkPolyData",
+    origin: "tuple[float, float, float]",
+    normal: "tuple[float, float, float]",
+    invert: bool = False,
+) -> "vtk.vtkPolyData":
+    """Corta por un plano y conserva un lado.
+
+    Por qué existe además del recorte por caja y esfera
+    ---------------------------------------------------
+    Los dos que había exigen **elegir un centro**, y para quitar algo pegado a
+    un extremo de la malla —la chapa de hueso que queda bajo el árbol en una
+    3DRA— acertar el centro a ojo cuesta varios intentos: hay que colocarlo
+    donde la esfera tape lo que sobra sin comerse el vaso.
+
+    Un plano no tiene centro. Se elige una dirección y una altura, y todo lo
+    que quede a un lado se va. Para lo de abajo es un solo deslizador.
+
+    `invert` cambia qué lado se conserva. Devuelve la malla recortada; el
+    llamante decide si vaciarla es aceptable.
+    """
+    if poly is None or poly.GetNumberOfPoints() == 0:
+        return poly
+
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(*origin)
+    plane.SetNormal(*normal)
+
+    clip = vtk.vtkClipPolyData()
+    clip.SetInputData(poly)
+    clip.SetClipFunction(plane)
+    clip.SetInsideOut(bool(invert))
+    clip.Update()
+
+    cleaner = vtk.vtkCleanPolyData()
+    cleaner.SetInputConnection(clip.GetOutputPort())
+    cleaner.Update()
+    return cleaner.GetOutput()

@@ -553,6 +553,11 @@ export interface AneurysmCandidate {
   confidence: number;
   dome_mesh_url: string;
   selected: boolean;
+  /** Qué criterios encontraron este sitio: «curvatura» (la superficie se
+      abomba), «calibre» (es más gruesa que el resto del árbol) y «cociente»
+      (más gruesa que el vaso de al lado). Que coincidan varios es información;
+      el ORDEN no está validado contra casos anotados. */
+  channels: string[];
 }
 
 /** Why the detector kept or rejected what it did. An empty result used to be
@@ -1401,5 +1406,30 @@ export interface MeshComponentDeleteResult {
   removed: MeshComponentInfo | null;
   components_left: number;
   warning: string;
+  undo_depth: number;
+}
+
+/* ── Corte por plano: el recorte que no pide un centro ──────────────────── */
+
+export interface MeshBounds {
+  min: { x: number; y: number; z: number };
+  max: { x: number; y: number; z: number };
+  vertices: number;
+}
+
+export interface MeshPlaneCutRequest {
+  axis: "x" | "y" | "z" | "custom";
+  offset_mm: number;
+  normal?: { x: number; y: number; z: number } | null;
+  /** True conserva el lado hacia el que apunta la normal. */
+  keep_positive: boolean;
+}
+
+export interface MeshPlaneCutResult {
+  mesh_url: string;
+  vertices: number;
+  faces: number;
+  removed_vertices: number;
+  components_left: number;
   undo_depth: number;
 }

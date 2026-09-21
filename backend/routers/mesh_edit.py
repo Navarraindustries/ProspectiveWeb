@@ -14,15 +14,17 @@ from pathlib import Path
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
+from models.detection import Position3D
 from models.mesh_edit import (
     ComponentDeleteRequest, ComponentDeleteResult, ComponentInfoOut,
-    ComponentListResult, GrowRequest, GrowResult, MeshCropRequest,
-    MeshCropResult, MeshHistoryResult, MeshHistoryStep, MeshRestoreRequest,
+    ComponentListResult, GrowRequest, GrowResult, MeshBoundsResult,
+    MeshCropRequest, MeshCropResult, MeshHistoryResult, MeshHistoryStep,
+    MeshPlaneCutRequest, MeshPlaneCutResult, MeshRestoreRequest,
     MeshRestoreResult,
 )
 from services import mesh_backup
 from services.grow import grow_from_seeds
-from services.mesh_crop import clip_box, clip_sphere
+from services.mesh_crop import clip_box, clip_plane, clip_sphere
 from services.segmentation import (
     read_vtp, write_vtp,
     level_to_smooth_iters, level_to_cleanup_verts,
@@ -126,6 +128,92 @@ async def mesh_crop(session_id: str, req: MeshCropRequest) -> MeshCropResult:
         vertices=n_after,
         faces=n_faces,
         removed_vertices=max(0, n_before - n_after),
+        undo_depth=mesh_backup.depth(session_id),
+    )
+
+
+# ── Corte por plano: el recorte que no pide un centro ─────────────────────── #
+
+@router.get(
+    "/mesh-bounds/{session_id}",
+    response_model=MeshBoundsResult,
+    summary="Bounding box of the working mesh",
+    description=(
+        "Los extremos reales de la malla, para que el deslizador del corte por "
+        "plano tenga un recorrido con sentido en vez de un rango inventado."
+    ),
+)
+async def mesh_bounds(session_id: str) -> MeshBoundsResult:
+    path = _mesh_or_404(session_id)
+    mesh = await asyncio.to_thread(read_vtp, path)
+    b = mesh.GetBounds()
+    return MeshBoundsResult(
+        min=Position3D(x=b[0], y=b[2], z=b[4]),
+        max=Position3D(x=b[1], y=b[3], z=b[5]),
+        vertices=mesh.GetNumberOfPoints(),
+    )
+
+
+@router.post(
+    "/mesh-plane-cut/{session_id}",
+    response_model=MeshPlaneCutResult,
+    summary="Cut the mesh with a plane and keep one side",
+    description=(
+        "Un corte que NO necesita un centro. El recorte por caja o esfera "
+        "obliga a acertar un punto a ojo, y para quitar la chapa que queda "
+        "bajo el árbol en una 3DRA eso son varios intentos. Un plano se define "
+        "con una dirección y una altura: un deslizador.\n\n"
+        "Se deshace como cualquier otra edición de malla."
+    ),
+)
+async def mesh_plane_cut(
+    session_id: str, req: MeshPlaneCutRequest
+) -> MeshPlaneCutResult:
+    path = _mesh_or_404(session_id)
+
+    if req.axis == "custom":
+        if req.normal is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Con axis='custom' hace falta una normal.")
+        n = np.asarray([req.normal.x, req.normal.y, req.normal.z], dtype=float)
+        if not np.any(n):
+            raise HTTPException(status_code=422, detail="La normal es nula.")
+        n = n / np.linalg.norm(n)
+        origin = tuple(n * req.offset_mm)
+    else:
+        eje = {"x": 0, "y": 1, "z": 2}[req.axis]
+        n = np.zeros(3); n[eje] = 1.0
+        origin = tuple(n * req.offset_mm)
+
+    mesh = await asyncio.to_thread(read_vtp, path)
+    n_before = mesh.GetNumberOfPoints()
+
+    out = await asyncio.to_thread(
+        clip_plane, mesh, origin, tuple(n), not req.keep_positive)
+
+    if out is None or out.GetNumberOfPoints() == 0:
+        raise HTTPException(
+            status_code=422,
+            detail=("Ese corte deja la malla vacía. Mueve el plano o cambia "
+                    "qué lado se conserva."))
+
+    await asyncio.to_thread(mesh_backup.snapshot, session_id, "crop")
+    await asyncio.to_thread(write_vtp, out, path)
+
+    from services.mesh_components import describe_components
+    comps = describe_components(out)
+
+    write_state(session_id, "seg.n_vertices", str(out.GetNumberOfPoints()))
+    write_state(session_id, "seg.n_faces", str(out.GetNumberOfPolys()))
+    _invalidate_derived(session_id)
+
+    return MeshPlaneCutResult(
+        mesh_url=_versioned(session_id, "vessel_tree.vtp"),
+        vertices=out.GetNumberOfPoints(),
+        faces=out.GetNumberOfPolys(),
+        removed_vertices=max(0, n_before - out.GetNumberOfPoints()),
+        components_left=len(comps),
         undo_depth=mesh_backup.depth(session_id),
     )
 

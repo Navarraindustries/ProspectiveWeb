@@ -41,6 +41,11 @@ def _clamp01(v: float) -> float:
     return min(1.0, max(0.0, v))
 
 
+#: Cuántos sitios se ofrecen. Es una LISTA CORTA para recorrer, no un
+#: veredicto: el clínico los mira todos.
+_MAX_CANDIDATES: int = 5
+
+
 def _detector_for_modality(modality: str) -> AneurysmDetector:
     """Build the detector with the modality preset.
 
@@ -251,36 +256,49 @@ def _run_detection_sync(
     logger.info("Detection preset for modality %s", modality)
     det_result = detector.detect(poly)
 
+    # ── Consenso de tres criterios ────────────────────────────────────── #
+    #
+    # La curvatura sola no bastaba: sobre case 3 devolvía cinco candidatos, los
+    # cinco en la chapa de la parte inferior, y la lesión que el clínico
+    # confirma —el punto de MAYOR CALIBRE del árbol, radio 2,33 mm contra una
+    # mediana de 0,57— no salía en ninguno. No destaca por curvatura; destaca
+    # por grosor. Ver services/aneurysm_consensus.py.
+    from services.aneurysm_consensus import (consensus, hit_confidence,
+                                             hit_diameter_mm, hit_patch)
+
+    hits = consensus(poly, detector, top=_MAX_CANDIDATES)
+
     pyd_candidates: list[PydAneurysmCandidate] = []
 
-    for cand in det_result.candidates:
-        cand_name = f"aneurysm_cand_{cand.index:03d}.vtp"
-        cand_path = meshes_dir / cand_name
-        write_vtp(cand.poly_data, cand_path)
+    for rank, hit in enumerate(hits, start=1):
+        cand_name = f"aneurysm_cand_{rank:03d}.vtp"
+        patch = hit_patch(poly, hit)
+        write_vtp(patch, meshes_dir / cand_name)
         url = mesh_url(session_id, cand_name)
+        diameter = hit_diameter_mm(hit)
+        confidence = hit_confidence(hit)
 
         # Persist candidate metadata to session state
-        prefix = f"detect.cand_{cand.index:03d}"
+        prefix = f"detect.cand_{rank:03d}"
         write_state(session_id, f"{prefix}.vtp_name",    cand_name)
         write_state(session_id, f"{prefix}.url",         url)
-        write_state(session_id, f"{prefix}.centroid_x",  str(cand.centroid[0]))
-        write_state(session_id, f"{prefix}.centroid_y",  str(cand.centroid[1]))
-        write_state(session_id, f"{prefix}.centroid_z",  str(cand.centroid[2]))
-        write_state(session_id, f"{prefix}.diameter_mm", str(cand.diameter_mm))
-        write_state(session_id, f"{prefix}.score",       str(cand.score))
+        write_state(session_id, f"{prefix}.centroid_x",  str(hit.position[0]))
+        write_state(session_id, f"{prefix}.centroid_y",  str(hit.position[1]))
+        write_state(session_id, f"{prefix}.centroid_z",  str(hit.position[2]))
+        write_state(session_id, f"{prefix}.diameter_mm", str(diameter))
+        write_state(session_id, f"{prefix}.score",       str(confidence))
+        write_state(session_id, f"{prefix}.channels",    ",".join(hit.channels))
 
         pyd_candidates.append(
             PydAneurysmCandidate(
-                id=f"cand-{cand.index:03d}",
-                center_mm=Position3D(
-                    x=cand.centroid[0],
-                    y=cand.centroid[1],
-                    z=cand.centroid[2],
-                ),
-                max_diameter_mm=cand.diameter_mm,
-                confidence=round(cand.score, 4),
+                id=f"cand-{rank:03d}",
+                center_mm=Position3D(x=hit.position[0], y=hit.position[1],
+                                     z=hit.position[2]),
+                max_diameter_mm=diameter,
+                confidence=round(confidence, 4),
                 dome_mesh_url=url,
-                selected=(cand.index == 1),  # top-scored candidate pre-selected
+                selected=(rank == 1),
+                channels=hit.channels,
             )
         )
 

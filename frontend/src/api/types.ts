@@ -703,6 +703,36 @@ export interface EndovascularProfile {
   sources: string[];
 }
 
+/** Una de las dos puntuaciones del Japan Stroke Data Bank. Más puntos es peor:
+    estima el riesgo de mal resultado al alta (mRS > 2) POR ESA VÍA. */
+export interface JsdbArm {
+  arm: "clip" | "coil";
+  label: string;
+  points: number;
+  max_points: number;
+  items: { label: string; points: number; detail: string }[];
+  missing: string[];
+}
+
+/** Japan Stroke Data Bank — el único modelo ajustado del paso.
+
+    No vota: sus variables (edad, WFNS, Fisher) ya estaban en el motor copiadas
+    a mano, así que sumarlo sería contarlas dos veces. Y es lo único que puede
+    decir «las dos vías van mal»: el saldo del motor es una resta, y un 0 ahí
+    significa empate, nunca eso.
+
+    Null en un aneurisma no roto: su cohorte entera es hemorragia. */
+export interface Jsdb {
+  clip: JsdbArm;
+  coil: JsdbArm;
+  favours: "clip" | "coil" | "tie";
+  verdict: string;
+  both_poor: boolean;
+  known_pct: number;
+  missing: string[];
+  source: string;
+}
+
 export interface TreatmentDecisionRequest {
   session_id: string;
   location: AneurysmLocation;
@@ -713,6 +743,11 @@ export interface TreatmentDecisionRequest {
       aneurisma. Nunca obligatorios. */
   wfns_grade: number | null;
   fisher_grade: number | null;
+  /** Número de ictus previos. La única variable del JSDB que esta aplicación no
+      recogía en ninguna parte, y es asimétrica: al coiling le penaliza desde el
+      primero, al clipaje desde el segundo. No es lo mismo que el `earlier_sah`
+      del PHASES, que es más estrecho (HSA previa por OTRO aneurisma). */
+  prior_stroke: number | null;
 }
 
 export interface TreatmentDecisionResult {
@@ -735,6 +770,9 @@ export interface TreatmentDecisionResult {
   endovascular: EndovascularProfile | null;
   /** Null sin localización: inventar un territorio por defecto sería relleno. */
   perforators: PerforatorTerritory | null;
+  /** Null si no está roto: el modelo se derivó sólo sobre hemorragias, así que
+      sobre un incidental no dice nada — y eso no es un hueco. */
+  jsdb: Jsdb | null;
   balance: number;
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";

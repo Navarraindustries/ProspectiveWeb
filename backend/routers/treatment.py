@@ -26,11 +26,16 @@ def _load_float(session_id: str, key: str, default: float) -> float:
     response_model=TreatmentDecisionResult,
     summary="Compute CLIP vs ENDOVASCULAR recommendation",
     description=(
-        "Runs the 8-factor evidence-based decision engine using aneurysm morphometry "
+        "Runs the heuristic CLIP-vs-ENDO engine on the aneurysm morphometry "
         "(stored in the session after Step 3 — Detección/Morfometría) and optional "
         "clinical inputs (location, rupture status). "
         "Returns a scored recommendation with full factor breakdown.\n\n"
-        "**References:** ISAT 2002, BRAT 2013, AHA/ASA Guidelines 2015."
+        "For a RUPTURED aneurysm it also returns the Japan Stroke Data Bank "
+        "score for each route separately, which is the only fitted model in "
+        "the step; the heuristic engine stops scoring WFNS, Fisher and age "
+        "there so the same variables are not counted twice.\n\n"
+        "**References:** AHA/ASA 2023, ISAT 2015, BRAT 2019, Brinjikji 2009, "
+        "Neurol Med Chir 2021;61(2) (JSDB)."
     ),
 )
 async def compute_treatment_decision(
@@ -76,6 +81,7 @@ async def compute_treatment_decision(
         patient_age=req.patient_age,
         wfns_grade=req.wfns_grade,
         fisher_grade=req.fisher_grade,
+        prior_stroke=req.prior_stroke,
     )
 
     # Persist treatment result to session state for report generation (Session E).
@@ -100,6 +106,11 @@ async def compute_treatment_decision(
                 json.dumps(result.get("endovascular") or {}))
     write_state(req.session_id, "treatment.perforators_json",
                 json.dumps(result.get("perforators") or {}))
+    # El JSDB viaja entero al informe. Es lo único de la pantalla que trae un
+    # modelo ajustado detras, asi que perderlo al imprimir seria perder la
+    # unica cifra validada del paso.
+    write_state(req.session_id, "treatment.jsdb_json",
+                json.dumps(result.get("jsdb") or {}))
 
     # El contexto clínico. La edad ya puntúa; las comorbilidades siguen sin
     # hacerlo —no hay estructura publicada que trasladar— y se imprimen junto a
@@ -110,6 +121,8 @@ async def compute_treatment_decision(
                 "" if req.fisher_grade is None else str(req.fisher_grade))
     write_state(req.session_id, "clinical.patient_age",
                 "" if req.patient_age is None else str(req.patient_age))
+    write_state(req.session_id, "clinical.prior_stroke",
+                "" if req.prior_stroke is None else str(req.prior_stroke))
     write_state(req.session_id, "clinical.has_comorbidities",
                 "1" if req.has_comorbidities else "0")
 
@@ -128,8 +141,9 @@ TREATMENT_STATE_KEYS = (
     "treatment.clip_points", "treatment.endo_points",
     "treatment.factors_json", "treatment.notes_json",
     "treatment.endovascular_json", "treatment.perforators_json",
+    "treatment.jsdb_json",
     "clinical.patient_age", "clinical.has_comorbidities",
-    "clinical.wfns_grade", "clinical.fisher_grade",
+    "clinical.wfns_grade", "clinical.fisher_grade", "clinical.prior_stroke",
 )
 
 #: The PHASES score is a rupture risk built on the same morphometry, so it goes

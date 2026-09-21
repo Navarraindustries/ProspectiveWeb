@@ -41,6 +41,7 @@ const RESULT: TreatmentDecisionResult = {
   recommendation: "TRATAMIENTO ENDOVASCULAR", recommendation_key: "endo",
   confidence: "Moderada", coverage_pct: 100, missing_inputs: [], notes: [],
   endovascular: null,
+  jsdb: null,
   perforators: {
     arteries: "Talamoperforantes posteriores",
     supplies: "tálamo y mesencéfalo",
@@ -107,6 +108,69 @@ describe("la procedencia de cada factor", () => {
     // Sin la marca, un factor que no suma se lee como si estuviera pesando.
     render(<TreatmentPanel onNext={() => {}} />);
     expect(screen.getByText("no puntúa")).toBeInTheDocument();
+  });
+});
+
+describe("el modelo ajustado, junto al sumatorio heurístico", () => {
+  const ARM = (arm: "clip" | "coil", points: number, labels: string[]) => ({
+    arm, label: arm === "clip" ? "Clipaje quirúrgico" : "Tratamiento endovascular",
+    points, max_points: 7,
+    items: labels.map((label) => ({ label, points: 1, detail: "" })),
+    missing: [],
+  });
+
+  it("no aparece en un aneurisma no roto", () => {
+    // Su cohorte entera es hemorragia: sobre un incidental no dice nada, y dos
+    // ceros habrían dicho «las dos vías salen impecables».
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByText(/Riesgo estimado por cada vía/)).not.toBeInTheDocument();
+  });
+
+  it("enseña las dos puntuaciones por separado, no una resta", () => {
+    stored = {
+      ...RESULT,
+      jsdb: {
+        clip: ARM("clip", 1, ["Edad ≥ 72 años (75)"]),
+        coil: ARM("coil", 4, ["WFNS V", "Fisher 4"]),
+        favours: "clip", both_poor: false, known_pct: 100, missing: [],
+        verdict: "Clipaje quirúrgico sale menos penalizado (1 frente a 4).",
+        source: "Japan Stroke Data Bank — Neurol Med Chir 2021;61(2).",
+      },
+    };
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText(/Riesgo estimado por cada vía/)).toBeInTheDocument();
+    expect(screen.getByText("1 / 7")).toBeInTheDocument();
+    expect(screen.getByText("4 / 7")).toBeInTheDocument();
+    expect(screen.getByText(/menos penalizado/)).toBeInTheDocument();
+  });
+
+  it("puede decir que las DOS vías van mal, que es lo que el saldo no puede", () => {
+    stored = {
+      ...RESULT,
+      jsdb: {
+        clip: ARM("clip", 5, ["WFNS V"]), coil: ARM("coil", 5, ["WFNS V"]),
+        favours: "tie", both_poor: true, known_pct: 100, missing: [],
+        verdict: "Las DOS vías puntúan alto (5 y 5): el modelo no está diciendo cuál es mejor.",
+        source: "",
+      },
+    };
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText(/Las DOS vías puntúan alto/)).toBeInTheDocument();
+  });
+
+  it("declara qué parte del modelo no ha podido rellenar", () => {
+    stored = {
+      ...RESULT,
+      jsdb: {
+        clip: ARM("clip", 0, []), coil: ARM("coil", 0, []),
+        favours: "tie", both_poor: false, known_pct: 33,
+        missing: ["grado WFNS", "ictus previo"],
+        verdict: "Las dos puntuaciones empatan en 0.", source: "",
+      },
+    };
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText(/Rellenado el 33 % del modelo/)).toBeInTheDocument();
+    expect(screen.getByText(/no es una\s+variable en cero/)).toBeInTheDocument();
   });
 });
 

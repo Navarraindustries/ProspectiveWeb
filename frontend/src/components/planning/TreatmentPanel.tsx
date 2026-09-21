@@ -60,6 +60,8 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
   const [showSources, setShowSources] = useState(false);
   const [wfns, setWfns] = useState<string>("");
   const [fisher, setFisher] = useState<string>("");
+  // La única variable del JSDB que la aplicación no recogía en ninguna parte.
+  const [priorStroke, setPriorStroke] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +79,7 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
         has_comorbidities: comorbid,
         wfns_grade: ruptured && wfns ? Number(wfns) : null,
         fisher_grade: ruptured && fisher ? Number(fisher) : null,
+        prior_stroke: ruptured && priorStroke !== "" ? Number(priorStroke) : null,
       });
       planning.setTreatment(res);
     } catch (err) {
@@ -139,9 +142,11 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
       <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
         <Icon name="INFO" size={13} color="var(--muted-foreground)" />
         <span>
-          La edad sí puntúa (el modelo del Japan Stroke Data Bank penaliza el clipaje
-          desde los 72 y el coiling desde los 80). La comorbilidad no: se registra y
-          aparece en el informe, porque no hay puntuación publicada que trasladar.
+          La edad puntúa <b>sólo en aneurismas no rotos</b>: en los rotos la cuenta el
+          modelo del Japan Stroke Data Bank, que es de donde salen los cortes de 72 y
+          80 años, y sumarla en los dos sitios sería contarla dos veces. La
+          comorbilidad no puntúa en ninguno: se registra y aparece en el informe,
+          porque no hay puntuación publicada que trasladar.
         </span>
       </div>
 
@@ -170,12 +175,27 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
               onChange={(e) => setFisher(e.target.value)}
             />
           </div>
+          <div style={{ marginTop: 12 }}>
+            <Select
+              label="Ictus previos"
+              options={[
+                { value: "", label: "Sin registrar" },
+                { value: "0", label: "Ninguno" },
+                { value: "1", label: "Uno" },
+                { value: "2", label: "Dos o más" },
+              ]}
+              value={priorStroke}
+              onChange={(e) => setPriorStroke(e.target.value)}
+            />
+          </div>
           <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
             <Icon name="INFO" size={13} color="var(--muted-foreground)" />
             <span>
-              Opcionales: se evalúa igualmente con lo que haya. Pero el WFNS es la
-              variable de mayor peso del único modelo validado que elige entre las
-              dos vías, así que dejarlo sin graduar baja la confianza del resultado.
+              Los tres alimentan el modelo del Japan Stroke Data Bank, abajo — ya no
+              el sumatorio heurístico, donde estaban copiados a mano y peor resueltos.
+              Son opcionales, pero el WFNS es la variable de más peso del modelo y el
+              ictus previo es asimétrico: al coiling le penaliza desde el primero, al
+              clipaje desde el segundo.
             </span>
           </div>
         </>
@@ -240,7 +260,65 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
             </div>
           )}
 
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          {/* El único modelo ajustado del paso, y por eso va ANTES del
+              sumatorio heurístico. Dos puntuaciones separadas, no una resta:
+              es lo único aquí que puede decir «las dos vías van mal». */}
+          {t.jsdb && (
+            <>
+              <SectionLabel style={{ marginTop: 16 }}>
+                Riesgo estimado por cada vía · Japan Stroke Data Bank
+              </SectionLabel>
+              <Card style={t.jsdb.both_poor ? { borderLeft: "3px solid var(--warning)" } : undefined}>
+                <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>
+                  Modelo ajustado sobre 3 547 hemorragias. Puntúa el riesgo de mal
+                  resultado al alta (mRS&nbsp;&gt;&nbsp;2) de <b>cada vía por separado</b>,
+                  no cuál elegir. Más puntos es peor.
+                </div>
+                {[t.jsdb.clip, t.jsdb.coil].map((arm) => (
+                  <div key={arm.arm} style={{ marginTop: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, flex: 1, color: "var(--foreground)" }}>
+                        {arm.label}
+                      </span>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>
+                        {arm.points} / {arm.max_points}
+                      </span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, marginTop: 4, background: "color-mix(in srgb, var(--brand-deep) 15%, transparent)", overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%",
+                        width: `${(arm.points / arm.max_points) * 100}%`,
+                        background: arm.points >= 3 ? "var(--warning)" : "var(--brand-slate)",
+                        transition: "width var(--dur-base) var(--ease-out)",
+                      }} />
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
+                      {arm.items.length > 0
+                        ? arm.items.map((i) => i.label).join(" · ")
+                        : "Nada que penalice esta vía con los datos disponibles."}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 12, lineHeight: 1.5 }}>
+                  {t.jsdb.verdict}
+                </div>
+                {t.jsdb.missing.length > 0 && (
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
+                    Rellenado el {t.jsdb.known_pct} % del modelo; falta{" "}
+                    {t.jsdb.missing.join(", ")}. Una variable desconocida no es una
+                    variable en cero.
+                  </div>
+                )}
+                {showSources && (
+                  <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45, opacity: 0.85 }}>
+                    {t.jsdb.source}
+                  </div>
+                )}
+              </Card>
+            </>
+          )}
+
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 16 }}>
             <SectionLabel style={{ flex: 1 }}>Factores contribuyentes</SectionLabel>
             <button
               onClick={() => setShowSources((v) => !v)}

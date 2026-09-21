@@ -114,7 +114,9 @@ class TestTheDecisionUsesTheProfileInsteadOfVoting:
         d = compute_decision(**self.FULL, location=LOCATION_MCA)
         mudos = [f for f in d["factors"] if not f["votes"]]
         assert {f["points"] for f in mudos} == {0}
-        assert len(mudos) == 3, "aspect ratio, bottleneck y undulación"
+        # Cuatro desde que el DNR se cuenta dentro del criterio de cuello ancho
+        # y no vuelve a puntuar por su cuenta.
+        assert len(mudos) == 4, "aspect ratio, bottleneck, undulación y DNR"
 
     def test_the_points_no_longer_include_them(self):
         d = compute_decision(**self.FULL, location=LOCATION_MCA)

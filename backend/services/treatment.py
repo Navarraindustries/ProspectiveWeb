@@ -62,19 +62,23 @@ LOCATIONS: list[str] = [
 
 #: Lo máximo que puede aportar cada grupo. Sirve para una sola cosa: saber qué
 #: parte del caso se ha podido evaluar, y por tanto cuánto vale el veredicto.
-#: Sin los índices de forma: no votan, así que su ausencia no resta certeza a la
-#: decisión. Sí importan para el perfil endovascular, que lo dice por su cuenta.
+#:
+#: Qué NO está aquí, y por qué:
+#: - Los índices de forma (AR, BF, UI): no votan, así que su ausencia no resta
+#:   certeza a la decisión. Sí importan para el perfil endovascular.
+#: - El DNR: ya no es un grupo propio. Es la otra mitad de la definición de
+#:   cuello ancho y se evalúa junto al cuello, en un solo factor.
+#: - WFNS y Fisher: se los lleva el JSDB, que los tiene ajustados sobre 3 547
+#:   pacientes. Dejarlos aquí sería contar las mismas variables dos veces.
 _MAX_WEIGHT: dict[str, int] = {
-    "neck": 25, "dnr": 15, "size": 20,
-    "location": 25, "ruptured": 30, "age": 12, "wfns": 15, "fisher": 10,
+    "neck": 25, "size": 20, "location": 25, "ruptured": 30, "age": 12,
 }
 
 #: Cómo se llama cada dato cuando hay que pedirlo.
 _INPUT_LABEL: dict[str, str] = {
-    "neck": "diámetro del cuello", "dnr": "relación domo-cuello",
+    "neck": "cuello o relación domo-cuello",
     "size": "diámetro máximo", "location": "localización",
-    "age": "edad del paciente", "wfns": "grado WFNS",
-    "fisher": "grado de Fisher",
+    "age": "edad del paciente",
 }
 
 
@@ -112,8 +116,9 @@ class _Factor:
 #: factor without a source is a visible omission.
 _SOURCE: dict[str, str] = {
     "neck": (
-        "Umbral: cuello ≥ 4 mm, definición estándar de cuello ancho (Brinjikji, "
-        "AJNR 2009). Peso: heurístico."
+        "Umbral: cuello ancho = cuello ≥ 4 mm O DNR < 2 — las dos mitades de UNA "
+        "definición publicada (Brinjikji, AJNR 2009), por eso puntúan juntas y "
+        "una sola vez. Peso: heurístico."
     ),
     "ar": (
         "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
@@ -121,8 +126,9 @@ _SOURCE: dict[str, str] = {
         "(OR 4.15) — va al perfil endovascular."
     ),
     "dnr": (
-        "Umbral: DNR < 2, definición estándar de cuello ancho (Brinjikji, "
-        "AJNR 2009). Peso: heurístico."
+        "Ya no es un factor propio: el DNR es domo ÷ cuello, así que puntuaba la "
+        "misma medida que el factor del cuello y entre los dos se llevaban 40 "
+        "puntos. Ahora se evalúan como un solo criterio de cuello ancho."
     ),
     "size": (
         "Umbrales de tamaño de uso corriente; el corte de gigante es "
@@ -147,17 +153,18 @@ _SOURCE: dict[str, str] = {
         "por encima de cualquier otro factor suelto."
     ),
     "age": (
-        "El modelo del Japan Stroke Data Bank penaliza el clipaje desde los 72 "
-        "y el coiling desde los 80. Peso: heurístico y contenido — no hay "
-        "diferencia de resultado demostrada en ≥60."
+        "Umbrales 72 y 80: los del Japan Stroke Data Bank. Solo puntúa en "
+        "aneurismas NO rotos — en los rotos lo hace el propio JSDB, con su "
+        "modelo ajustado. Peso: heurístico y contenido; no hay diferencia de "
+        "resultado demostrada en ≥60."
     ),
     "wfns": (
-        "Variable de mayor peso del modelo validado del Japan Stroke Data Bank, "
-        "que penaliza antes al clipaje. Peso: heurístico."
+        "Ya no puntúa aquí: se lo lleva el JSDB, que lo tiene ajustado en tres "
+        "niveles (II-III / IV / V) sobre 3 547 pacientes en vez de en dos a mano."
     ),
     "fisher": (
-        "El modelo validado penaliza el COILING en Fisher 4; un hematoma "
-        "voluminoso se evacúa con el clipaje. Peso: heurístico."
+        "Ya no puntúa aquí: se lo lleva el JSDB. Sumarlo en los dos sitios sería "
+        "contar la misma variable dos veces."
     ),
     "small": (
         "Umbral heurístico, no de guía: ESO 2022 plantea comparar el riesgo de "
@@ -286,6 +293,7 @@ def compute_decision(
     patient_age:       int | None = None,
     wfns_grade:        int | None = None,
     fisher_grade:      int | None = None,
+    prior_stroke:      int | None = None,
 ) -> dict[str, Any]:
     """Compute CLIP vs ENDOVASCULAR recommendation.
 
@@ -320,25 +328,52 @@ def compute_decision(
     if 0 < max_diameter_mm < 3.0:
         return _small_aneurysm(max_diameter_mm, phases, ruptured)
 
-    # ── Factor 1: Neck diameter ────────────────────────────────────────── #
-    if neck_mm > 0:
-        if neck_mm < 4.0:
+    # ── Factor 1: Cuello ancho, en la definición de Brinjikji ──────────── #
+    #
+    # Antes eran DOS factores: el cuello (25 puntos) y el DNR (15). Medían la
+    # misma cosa. El DNR es domo ÷ cuello, así que un cuello estrecho hacía
+    # pequeño el numerador del primero y grande el cociente del segundo: una
+    # sola medida se cobraba 40 de los puntos del motor, y eso explicaba por qué
+    # la geometría dominaba cualquier dato clínico.
+    #
+    # Y no eran dos criterios independientes. Brinjikji define cuello ancho como
+    # «cuello ≥ 4 mm **O** DNR < 2»: son las dos mitades de UNA definición. Así
+    # que ahora se evalúan juntas y puntúan una vez, con el peso de un factor.
+    if neck_mm > 0 or dnr > 0:
+        medidas = []
+        if neck_mm > 0:
+            medidas.append(f"cuello {neck_mm:.1f} mm")
+        if dnr > 0:
+            medidas.append(f"DNR {dnr:.2f}")
+        med = ", ".join(medidas)
+
+        ancho_franco = (neck_mm > 5.0) or (0 < dnr < 1.5)
+        ancho = (neck_mm >= 4.0) or (0 < dnr < 2.0)
+
+        if ancho_franco:
             _add(
-                f"Cuello estrecho ({neck_mm:.1f} mm < 4 mm)",
-                "Cuello < 4 mm: retención óptima del coil sin stent de soporte.",
-                "endo", 25, "neck",
+                f"Cuello ancho ({med})",
+                "Supera con holgura la definición de cuello ancho: retención del "
+                "coil difícil; clipaje o diversor de flujo.",
+                "clip", 25, "neck",
             )
-        elif neck_mm <= 5.0:
+        elif ancho:
+            # Cumple la definición, pero por poco. Antes esta franja empujaba a
+            # endovascular (+5 por cuello 4–5 mm, +8 por DNR 1.5–2), que es una
+            # dirección rara para algo que acaba de clasificarse como ancho.
+            # Neutral dice lo que pasa: el criterio no separa aquí.
             _add(
-                f"Cuello intermedio ({neck_mm:.1f} mm, 4–5 mm)",
-                "Cuello borderline: posible stent-assisted coiling o clipping.",
-                "endo", 5, "neck",
+                f"Cuello ancho limítrofe ({med})",
+                "Cumple la definición de cuello ancho por poco. El criterio no "
+                "separa las vías en esta franja; decide el resto del caso.",
+                "neutral", 0, "neck",
             )
         else:
             _add(
-                f"Cuello ancho ({neck_mm:.1f} mm > 5 mm)",
-                "Cuello ≥ 5 mm: retención de coil difícil; clipping o flow diverter.",
-                "clip", 25, "neck",
+                f"Cuello no ancho ({med})",
+                "Fuera de la definición de cuello ancho: retención del coil sin "
+                "stent de soporte.",
+                "endo", 25, "neck",
             )
 
     # ── Factor 2: Aspect Ratio (AR = dome_height / neck) ──────────────── #
@@ -362,26 +397,16 @@ def compute_decision(
                 "clip", 10, "ar", votes=False,
             )
 
-    # ── Factor 3: Dome-to-Neck Ratio (DNR) ────────────────────────────── #
+    # ── Factor 3: el DNR ya está contado en el factor 1 ───────────────── #
+    # Se muestra sin votar para que no parezca que la medida se ha perdido: es
+    # la misma disciplina que los índices de forma.
     if dnr > 0:
-        if dnr > 2.0:
-            _add(
-                f"DNR favorable para coiling (DNR = {dnr:.2f} > 2.0)",
-                "DNR > 2: domo amplio relativo al cuello — buena retención de coils.",
-                "endo", 15, "dnr",
-            )
-        elif dnr > 1.5:
-            _add(
-                f"DNR moderado (DNR = {dnr:.2f}, 1.5–2.0)",
-                "DNR 1.5–2.0: leve preferencia por coiling.",
-                "endo", 8, "dnr",
-            )
-        else:
-            _add(
-                f"DNR bajo (DNR = {dnr:.2f} < 1.5)",
-                "DNR < 1.5: cuello ancho relativo al domo — clipping más efectivo.",
-                "clip", 15, "dnr",
-            )
+        _add(
+            f"Relación domo-cuello (DNR = {dnr:.2f})",
+            "Contabilizada dentro del criterio de cuello ancho, junto al "
+            "diámetro del cuello. No vuelve a puntuar aquí.",
+            "neutral", 0, "dnr", votes=False,
+        )
 
     # ── Factor 4: Maximum diameter ─────────────────────────────────────── #
     if max_diameter_mm > 0:
@@ -509,8 +534,14 @@ def compute_decision(
             "(ISAT 2002). Si no es factible endovascularmente, clipping de urgencia."
         )
 
-    # ── Factor 9: Age ──────────────────────────────────────────────────── #
-    if patient_age is not None and patient_age > 0:
+    # ── Factor 9: Edad — sólo en aneurismas NO rotos ───────────────────── #
+    #
+    # Los cortes 72 y 80 salen del Japan Stroke Data Bank. En un aneurisma roto
+    # el JSDB entero aplica y trae esa misma variable ajustada, así que aquí
+    # deja de votar: sumarla en los dos sitios sería el mismo defecto que el
+    # cuello y el DNR. En un incidental el JSDB no aplica —toda su cohorte es
+    # hemorragia— y esta aproximación a mano es lo único que hay.
+    if not ruptured and patient_age is not None and patient_age > 0:
         if patient_age >= 80:
             _add(f"Edad ≥ 80 años ({patient_age})",
                  "Edad muy avanzada: el modelo japonés penaliza ya ambas vías, y "
@@ -520,25 +551,22 @@ def compute_decision(
                  "Desde los 72 el modelo japonés penaliza el clipaje y todavía no "
                  "el coiling.", "endo", 6, "age")
 
-    # ── Factores 10-11: sólo existen si hay hemorragia ─────────────────── #
-    # WFNS gradúa una hemorragia subaracnoidea y Fisher la sangre del TC. En un
-    # aneurisma incidental no hay nada que graduar, así que no se piden ni se
-    # echan en falta: se ignoran en silencio si llegaran.
-    if ruptured:
-        if wfns_grade:
-            if wfns_grade >= 4:
-                _add(f"WFNS {wfns_grade} (mal grado)",
-                     "Mal grado clínico: es la variable de mayor peso del modelo "
-                     "validado, y penaliza antes al clipaje.", "endo", 15, "wfns")
-            elif wfns_grade == 3:
-                _add("WFNS 3",
-                     "Grado intermedio: el modelo validado ya lo penaliza en ambas "
-                     "vías, algo más en la quirúrgica.", "endo", 8, "wfns")
-        if fisher_grade == 4:
-            _add("Fisher 4 (sangre intraparenquimatosa o intraventricular)",
-                 "El modelo validado penaliza el coiling en Fisher 4; con hematoma "
-                 "voluminoso el clipaje permite evacuar en el mismo acto.",
-                 "clip", 10, "fisher")
+    # ── Factores 10-11: se los lleva el JSDB ───────────────────────────── #
+    #
+    # WFNS y Fisher sólo existen con hemorragia, que es exactamente cuando el
+    # JSDB aplica. Este motor los tenía copiados a mano y peor resueltos —dos
+    # niveles de WFNS en vez de tres, pesos elegidos a ojo—, así que dejan de
+    # puntuar aquí por completo. No se ocultan: el bloque del JSDB los enseña
+    # con su peso ajustado, y el factor lo dice para que no parezca una pérdida.
+    if ruptured and (wfns_grade or fisher_grade):
+        graduado = ", ".join(
+            x for x in (f"WFNS {wfns_grade}" if wfns_grade else "",
+                        f"Fisher {fisher_grade}" if fisher_grade else "") if x
+        )
+        _add(f"Grado clínico ({graduado})",
+             "Lo puntúa el modelo del Japan Stroke Data Bank, abajo, con sus "
+             "coeficientes ajustados. Aquí no vuelve a sumar.",
+             "neutral", 0, "wfns", votes=False)
 
     # ── Compute percentages ────────────────────────────────────────────── #
     total = clip_pts + endo_pts
@@ -561,23 +589,26 @@ def compute_decision(
     # caso con un único dato —el cuello— salía con «CLIPPING QUIRÚRGICO» y
     # confianza Moderada: un veredicto sobre una sola medida. Medía cuántos
     # factores había, no cuánto se sabía.
-    applicable = {"neck", "dnr", "size", "location", "ruptured"}
+    #
+    # Lo que se mide aquí es la cobertura DE ESTE MOTOR, no la del caso. WFNS y
+    # Fisher ya no están: los evalúa el JSDB, que declara su propia cobertura
+    # (`known_pct`). Pedirlos aquí haría que faltar un dato bajase dos barras
+    # distintas por el mismo motivo.
+    applicable = {"neck", "size", "location", "ruptured"}
     known = {"ruptured"}
-    for key, value in (("neck", neck_mm), ("dnr", dnr), ("size", max_diameter_mm)):
-        if value > 0:
-            known.add(key)
+    # El cuello y el DNR son un solo grupo: basta cualquiera de los dos para que
+    # el criterio de cuello ancho se pueda evaluar.
+    if neck_mm > 0 or dnr > 0:
+        known.add("neck")
+    if max_diameter_mm > 0:
+        known.add("size")
     if (location or "").strip() and location != LOCATION_UNKNOWN:
         known.add("location")
-    # La edad siempre aplica; el grado clínico sólo con hemorragia.
-    applicable.add("age")
-    if patient_age is not None and patient_age > 0:
-        known.add("age")
-    if ruptured:
-        applicable |= {"wfns", "fisher"}
-        if wfns_grade:
-            known.add("wfns")
-        if fisher_grade:
-            known.add("fisher")
+    # La edad sólo la puntúa este motor en los no rotos; en los rotos es del JSDB.
+    if not ruptured:
+        applicable.add("age")
+        if patient_age is not None and patient_age > 0:
+            known.add("age")
 
     coverage = _coverage(known, applicable)
     missing = [_INPUT_LABEL[k] for k in sorted(applicable - known) if k in _INPUT_LABEL]
@@ -599,6 +630,40 @@ def compute_decision(
             f"disponible, pero la confianza está limitada por lo que no se ha "
             f"podido mirar, no sólo por el acuerdo entre lo que sí."
         )
+
+    # ── «¿Por qué vía?» no es «¿hay que tratar?» ───────────────────────── #
+    #
+    # El atajo de los 3 mm era el ÚNICO sitio donde alguien preguntaba si había
+    # que tratar. Con 8 mm el motor saltaba directo a elegir vía, y un veredicto
+    # de «TRATAMIENTO ENDOVASCULAR» se lee como que el tratamiento está decidido
+    # cuando nadie lo ha decidido.
+    #
+    # Esto NO cambia el veredicto, y a propósito: ESO 2022 plantea la decisión
+    # como comparar el riesgo de rotura contra el del procedimiento, y el riesgo
+    # del procedimiento no está en esta aplicación. Inventar aquí un umbral de
+    # diámetro para recomendar vigilancia sería exactamente lo que el atajo de
+    # los 3 mm ya hacía mal. Lo que sí se puede hacer es no dejar la pregunta
+    # sin formular.
+    if not ruptured:
+        band = (phases or {}).get("risk_band", "")
+        risk = (phases or {}).get("risk_5yr_pct")
+        score = (phases or {}).get("total_score")
+        if not band:
+            notes.append(
+                "Esta recomendación contesta POR QUÉ VÍA, no SI HAY QUE TRATAR. "
+                "Al no estar roto, la segunda pregunta existe y aquí no está "
+                "contestada: calcula el PHASES en Morfometría para tener al "
+                "menos el riesgo de rotura con el que compararla."
+            )
+        else:
+            notes.append(
+                f"Contesta POR QUÉ VÍA, no SI HAY QUE TRATAR. El riesgo de "
+                f"rotura estimado es PHASES {score} → {risk:.1f} % a 5 años "
+                f"({'alto' if band == 'high' else 'moderado' if band == 'moderate' else 'bajo'}). "
+                f"El riesgo del procedimiento no lo calcula esta aplicación, así "
+                f"que la comparación que pide la guía ESO 2022 queda para la "
+                f"sesión clínica."
+            )
 
     if balance >= 20:
         rec, rec_key = "CLIPPING QUIRÚRGICO", "clip"
@@ -643,6 +708,39 @@ def compute_decision(
         neck_mm=neck_mm, dnr=dnr, aspect_ratio=aspect_ratio,
         max_diameter_mm=max_diameter_mm, undulation_index=undulation_index,
     ))
+
+    # Lo clínico, con un modelo ajustado en vez de a mano. Devuelve None en un
+    # aneurisma no roto, que es lo correcto: su cohorte entera es hemorragia.
+    from services.jsdb import jsdb_scores, result_to_dict as jsdb_to_dict
+
+    jr = jsdb_scores(
+        ruptured=ruptured, age=patient_age, prior_stroke=prior_stroke,
+        wfns_grade=wfns_grade, fisher_grade=fisher_grade,
+        max_diameter_mm=max_diameter_mm, location=location,
+    )
+    out["jsdb"] = jsdb_to_dict(jr) if jr else None
+    if jr and jr.both_poor:
+        out["notes"].append(jr.verdict)
+    elif jr and jr.favours != "tie" and rec_key in ("clip", "endo"):
+        # El motor decide con geometría y guía; el JSDB con el perfil clínico
+        # de este paciente. Que discrepen no es un fallo de ninguno de los dos
+        # —miran cosas distintas— pero callarlo sí lo sería: es justo el caso
+        # que hay que llevar a sesión, y el que un solo número esconde.
+        quiere = "clip" if jr.favours == "clip" else "endo"
+        if quiere != rec_key:
+            otra = "clipaje" if quiere == "clip" else "tratamiento endovascular"
+            out["notes"].append(
+                f"DISCREPANCIA: la geometría y la guía inclinan hacia "
+                f"{'clipaje' if rec_key == 'clip' else 'tratamiento endovascular'}, "
+                f"pero el perfil clínico de este paciente puntúa mejor para "
+                f"{otra} en el modelo del Japan Stroke Data Bank "
+                f"({jr.clip.points} clipaje frente a {jr.coil.points} "
+                f"endovascular). Los dos miran cosas distintas y ninguno ve lo "
+                f"del otro: el modelo no tiene una sola variable morfológica y "
+                f"el motor no está ajustado sobre desenlaces. Caso de sesión "
+                f"multidisciplinar."
+            )
+
     return out
 
 

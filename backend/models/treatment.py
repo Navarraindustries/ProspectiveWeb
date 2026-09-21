@@ -77,6 +77,55 @@ class EndovascularProfileOut(BaseModel):
     sources: list[str] = Field(default_factory=list)
 
 
+class JsdbItemOut(BaseModel):
+    """Una variable del modelo JSDB, con lo que aportó."""
+
+    label: str = ""
+    points: int = 0
+    detail: str = ""
+
+
+class JsdbArmOut(BaseModel):
+    """Una de las dos puntuaciones del JSDB: la del clipaje o la del coiling."""
+
+    arm: Literal["clip", "coil"]
+    label: str = ""
+    points: int = Field(0, ge=0, description="Puntos de riesgo de mal resultado")
+    max_points: int = Field(7, ge=0)
+    items: list[JsdbItemOut] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+
+
+class JsdbOut(BaseModel):
+    """Japan Stroke Data Bank — riesgo estimado por cada vía, por separado.
+
+    No es una segunda recomendación ni un voto. El motor contesta «por qué vía»
+    con una diferencia de puntos heurísticos; esto estima, con un modelo
+    ajustado sobre 3 547 hemorragias, cómo de mal puede ir CADA vía.
+
+    Sólo existe en aneurismas rotos: la cohorte entera es HSA. En un incidental
+    es `null`, que dice algo distinto de dos ceros.
+    """
+
+    clip: JsdbArmOut
+    coil: JsdbArmOut
+    favours: Literal["clip", "coil", "tie"] = Field(
+        ..., description="Cuál sale MENOS penalizado. Es el signo de una resta "
+                         "entre dos riesgos estimados, no una indicación."
+    )
+    verdict: str = ""
+    both_poor: bool = Field(
+        False,
+        description=(
+            "Las dos vías puntúan alto. Es lo único que el motor no puede "
+            "decir: su saldo 0 significa «empate», nunca «las dos van mal»."
+        ),
+    )
+    known_pct: int = Field(100, ge=0, le=100)
+    missing: list[str] = Field(default_factory=list)
+    source: str = ""
+
+
 class PerforatorTerritoryOut(BaseModel):
     """Las perforantes que la anatomía hace esperar en esta localización.
 
@@ -120,16 +169,28 @@ class TreatmentDecisionRequest(BaseModel):
         description=(
             "WFNS grade (1–5). Only exists for a ruptured aneurysm — it grades a "
             "subarachnoid haemorrhage — so it is ignored when `is_ruptured` is "
-            "false, and never required. It is the heaviest variable in the "
-            "validated model."
+            "false, and never required. It no longer scores in the heuristic "
+            "balance: it feeds the JSDB model, which has it fitted in three "
+            "levels instead of two."
         ),
     )
     fisher_grade: int | None = Field(
         None, ge=1, le=4,
         description=(
-            "Fisher grade (1–4) of blood on CT. Ruptured aneurysms only. Grade 4 "
-            "argues for clipping: the validated model penalises coiling there, "
-            "and a bulky haematoma can be evacuated in the same operation."
+            "Fisher grade (1–4) of blood on CT. Ruptured aneurysms only. Feeds "
+            "the JSDB coiling score, where bulky blood penalises the "
+            "endovascular route — a bulky haematoma can be evacuated during "
+            "clipping. No longer scored twice in the heuristic balance."
+        ),
+    )
+    prior_stroke: int | None = Field(
+        None, ge=0, le=10,
+        description=(
+            "Number of previous strokes. The one JSDB variable this application "
+            "did not collect anywhere. It is asymmetric in the model: coiling is "
+            "penalised from the first, clipping only from the second. Not the "
+            "same as PHASES' `earlier_sah`, which is narrower (a previous "
+            "subarachnoid haemorrhage from another aneurysm). Ruptured cases only."
         ),
     )
     has_comorbidities: bool = Field(
@@ -181,6 +242,15 @@ class TreatmentDecisionResult(BaseModel):
             "durability and caveats. Computed even when the recommendation is "
             "clipping: a multidisciplinary discussion compares both options, not "
             "just the winning one."
+        ),
+    )
+    jsdb: JsdbOut | None = Field(
+        None,
+        description=(
+            "Japan Stroke Data Bank: riesgo estimado de mal resultado al alta "
+            "(mRS > 2) por CADA vía, con un modelo ajustado sobre 3 547 "
+            "hemorragias. Null en un aneurisma no roto — su cohorte entera es "
+            "HSA, así que sobre un incidental no dice nada, y eso no es un hueco."
         ),
     )
     perforators: PerforatorTerritoryOut | None = Field(

@@ -52,6 +52,9 @@ from .treatment import (
     AneurysmLocation,
     Confidence,
     DecisionFactor,
+    JsdbArmOut,
+    JsdbItemOut,
+    JsdbOut,
     RecommendationKey,
     TreatmentDecisionRequest,
     TreatmentDecisionResult,
@@ -87,5 +90,6 @@ __all__ = [
     "SessionListItem", "SessionRestoreResult", "SessionSaveRequest", "SessionSaveResult",
     # treatment
     "AneurysmLocation", "Confidence", "DecisionFactor",
+    "JsdbArmOut", "JsdbItemOut", "JsdbOut",
     "RecommendationKey", "TreatmentDecisionRequest", "TreatmentDecisionResult",
 ]

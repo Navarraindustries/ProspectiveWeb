@@ -2073,7 +2073,7 @@
           "treatment"
         ],
         "summary": "Compute CLIP vs ENDOVASCULAR recommendation",
-        "description": "Runs the 8-factor evidence-based decision engine using aneurysm morphometry (stored in the session after Step 3 — Detección/Morfometría) and optional clinical inputs (location, rupture status). Returns a scored recommendation with full factor breakdown.\n\n**References:** ISAT 2002, BRAT 2013, AHA/ASA Guidelines 2015.",
+        "description": "Runs the heuristic CLIP-vs-ENDO engine on the aneurysm morphometry (stored in the session after Step 3 — Detección/Morfometría) and optional clinical inputs (location, rupture status). Returns a scored recommendation with full factor breakdown.\n\nFor a RUPTURED aneurysm it also returns the Japan Stroke Data Bank score for each route separately, which is the only fitted model in the step; the heuristic engine stops scoring WFNS, Fisher and age there so the same variables are not counted twice.\n\n**References:** AHA/ASA 2023, ISAT 2015, BRAT 2019, Brinjikji 2009, Neurol Med Chir 2021;61(2) (JSDB).",
         "operationId": "compute_treatment_decision_api_treatment_decision_post",
         "requestBody": {
           "content": {
@@ -8106,6 +8106,136 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "JsdbArmOut": {
+        "properties": {
+          "arm": {
+            "type": "string",
+            "enum": [
+              "clip",
+              "coil"
+            ],
+            "title": "Arm"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "points": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Points",
+            "description": "Puntos de riesgo de mal resultado",
+            "default": 0
+          },
+          "max_points": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Max Points",
+            "default": 7
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JsdbItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "arm"
+        ],
+        "title": "JsdbArmOut",
+        "description": "Una de las dos puntuaciones del JSDB: la del clipaje o la del coiling."
+      },
+      "JsdbItemOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points",
+            "default": 0
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "JsdbItemOut",
+        "description": "Una variable del modelo JSDB, con lo que aportó."
+      },
+      "JsdbOut": {
+        "properties": {
+          "clip": {
+            "$ref": "#/components/schemas/JsdbArmOut"
+          },
+          "coil": {
+            "$ref": "#/components/schemas/JsdbArmOut"
+          },
+          "favours": {
+            "type": "string",
+            "enum": [
+              "clip",
+              "coil",
+              "tie"
+            ],
+            "title": "Favours",
+            "description": "Cuál sale MENOS penalizado. Es el signo de una resta entre dos riesgos estimados, no una indicación."
+          },
+          "verdict": {
+            "type": "string",
+            "title": "Verdict",
+            "default": ""
+          },
+          "both_poor": {
+            "type": "boolean",
+            "title": "Both Poor",
+            "description": "Las dos vías puntúan alto. Es lo único que el motor no puede decir: su saldo 0 significa «empate», nunca «las dos van mal».",
+            "default": false
+          },
+          "known_pct": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Known Pct",
+            "default": 100
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "clip",
+          "coil",
+          "favours"
+        ],
+        "title": "JsdbOut",
+        "description": "Japan Stroke Data Bank — riesgo estimado por cada vía, por separado.\n\nNo es una segunda recomendación ni un voto. El motor contesta «por qué vía»\ncon una diferencia de puntos heurísticos; esto estima, con un modelo\najustado sobre 3 547 hemorragias, cómo de mal puede ir CADA vía.\n\nSólo existe en aneurismas rotos: la cohorte entera es HSA. En un incidental\nes `null`, que dice algo distinto de dos ceros."
+      },
       "LibraryClipOut": {
         "properties": {
           "id": {
@@ -12136,7 +12266,7 @@
               }
             ],
             "title": "Wfns Grade",
-            "description": "WFNS grade (1–5). Only exists for a ruptured aneurysm — it grades a subarachnoid haemorrhage — so it is ignored when `is_ruptured` is false, and never required. It is the heaviest variable in the validated model."
+            "description": "WFNS grade (1–5). Only exists for a ruptured aneurysm — it grades a subarachnoid haemorrhage — so it is ignored when `is_ruptured` is false, and never required. It no longer scores in the heuristic balance: it feeds the JSDB model, which has it fitted in three levels instead of two."
           },
           "fisher_grade": {
             "anyOf": [
@@ -12150,7 +12280,21 @@
               }
             ],
             "title": "Fisher Grade",
-            "description": "Fisher grade (1–4) of blood on CT. Ruptured aneurysms only. Grade 4 argues for clipping: the validated model penalises coiling there, and a bulky haematoma can be evacuated in the same operation."
+            "description": "Fisher grade (1–4) of blood on CT. Ruptured aneurysms only. Feeds the JSDB coiling score, where bulky blood penalises the endovascular route — a bulky haematoma can be evacuated during clipping. No longer scored twice in the heuristic balance."
+          },
+          "prior_stroke": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Stroke",
+            "description": "Number of previous strokes. The one JSDB variable this application did not collect anywhere. It is asymmetric in the model: coiling is penalised from the first, clipping only from the second. Not the same as PHASES' `earlier_sah`, which is narrower (a previous subarachnoid haemorrhage from another aneurysm). Ruptured cases only."
           },
           "has_comorbidities": {
             "type": "boolean",
@@ -12222,6 +12366,17 @@
               }
             ],
             "description": "How the endovascular option looks here — technique, expected durability and caveats. Computed even when the recommendation is clipping: a multidisciplinary discussion compares both options, not just the winning one."
+          },
+          "jsdb": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JsdbOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Japan Stroke Data Bank: riesgo estimado de mal resultado al alta (mRS > 2) por CADA vía, con un modelo ajustado sobre 3 547 hemorragias. Null en un aneurisma no roto — su cohorte entera es HSA, así que sobre un incidental no dice nada, y eso no es un hueco."
           },
           "perforators": {
             "anyOf": [

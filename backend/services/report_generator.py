@@ -248,6 +248,14 @@ def build_report_data_from_session(
                 treatment["endovascular"] = json.loads(endo_raw) or {}
             except Exception:
                 pass
+        # El JSDB. Es lo único de este paso con un modelo ajustado detrás, así
+        # que dejarlo fuera del PDF sería imprimir sólo la parte heurística.
+        jsdb_raw = _rs("treatment.jsdb_json", "")
+        if jsdb_raw:
+            try:
+                treatment["jsdb"] = json.loads(jsdb_raw) or {}
+            except Exception:
+                pass
 
     # ── 3. Patient info — request params > DB > defaults ─────────────── #
     db_patient_name  = ""
@@ -1056,6 +1064,8 @@ class ReportGenerator:
                 elems.append(Paragraph(
                     "Fuentes: " + " · ".join(endo["sources"]), self._style_td_note))
 
+        elems += self._jsdb_block()
+
         # Clinical context the engine does not weight. It belongs next to the
         # recommendation because it is exactly what the multidisciplinary
         # session weighs on top of the morphometric score.
@@ -1074,6 +1084,67 @@ class ReportGenerator:
             "No sustituye el juicio clínico del equipo neurovascular tratante.",
             self._style_td_disclaimer,
         ))
+        return elems
+
+    def _jsdb_block(self) -> list:
+        """El riesgo estimado por cada vía, por separado.
+
+        Es lo único de este paso con un modelo ajustado detrás, y lo único que
+        puede decir «las dos vías van mal» — el saldo del motor es una resta, y
+        un 0 significa empate, nunca eso. Ausente en un aneurisma no roto: la
+        cohorte del modelo es toda hemorragia subaracnoidea.
+        """
+        j = (self._data.treatment or {}).get("jsdb") or {}
+        if not j or not j.get("clip"):
+            return []
+
+        clip, coil = j["clip"], j["coil"]
+        elems: list = [
+            Spacer(1, 0.25*cm),
+            Paragraph("Riesgo estimado por cada vía — Japan Stroke Data Bank",
+                      self._style_h3),
+            Paragraph(
+                "Modelo ajustado sobre 3 547 hemorragias subaracnoideas "
+                "aneurismáticas. Puntúa el riesgo de <b>mal resultado al alta "
+                "(mRS &gt; 2)</b> de CADA vía por separado, no cuál elegir. "
+                "Más puntos es peor.",
+                self._style_body),
+        ]
+
+        head = ["Vía", "Puntos", "Qué suma"]
+        rows = [[Paragraph(f"<b>{h}</b>", self._style_td_factor) for h in head]]
+        for arm, hexcol in ((clip, self._CLIP_HEX), (coil, self._ENDO_HEX)):
+            detalle = "; ".join(i["label"] for i in arm.get("items", [])) or "nada"
+            rows.append([
+                Paragraph(f"<font color='{hexcol}'><b>{arm['label']}</b></font>",
+                          self._style_td_factor),
+                Paragraph(f"<b>{arm['points']}</b> / {arm['max_points']}",
+                          self._style_td_factor),
+                Paragraph(detalle, self._style_td_factor),
+            ])
+        tbl = Table(rows, colWidths=[4.2*cm, 2.0*cm, 10.0*cm])
+        tbl.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("BACKGROUND", (0, 0), (-1, 0), self._GREY_LIGHT),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (1, 1), (1, -1), "CENTER"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        elems.append(tbl)
+
+        if j.get("verdict"):
+            style = (self._style_td_note if j.get("both_poor")
+                     else self._style_body)
+            elems.append(Paragraph(j["verdict"], style))
+        if j.get("missing"):
+            elems.append(Paragraph(
+                f"Rellenado el {j.get('known_pct', 0)} % del modelo; falta "
+                f"{', '.join(j['missing'])}. Una variable desconocida no es una "
+                f"variable en cero.", self._style_td_note))
+        if j.get("source"):
+            elems.append(Paragraph(f"Fuente: {j['source']}",
+                                   self._style_td_disclaimer))
         return elems
 
     def _clinical_context_text(self) -> str:

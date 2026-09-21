@@ -123,7 +123,9 @@ class TestEveryWeightCarriesItsProvenance:
             assert "Ya no vota" in _SOURCE[key]
             assert "sin validación para elegir modalidad" in _SOURCE[key]
         mudos = [f for f in self._factors() if not f["votes"]]
-        assert len(mudos) == 3
+        # Cuatro: los tres índices de forma más el DNR, que desde que el cuello
+        # y él son un solo criterio se enseña sin volver a puntuar.
+        assert len(mudos) == 4
         assert all(f["points"] == 0 for f in mudos)
 
     def test_the_aspect_ratio_says_the_evidence_points_the_other_way(self):
@@ -134,8 +136,21 @@ class TestEveryWeightCarriesItsProvenance:
         assert "4.15" in _SOURCE["ar"]
 
     def test_the_published_thresholds_are_credited(self):
-        assert "Brinjikji" in _SOURCE["neck"] and "Brinjikji" in _SOURCE["dnr"]
+        assert "Brinjikji" in _SOURCE["neck"]
         assert "Clase I" in _SOURCE["ruptured"]
+
+    def test_the_neck_and_the_dnr_are_one_criterion_and_say_so(self):
+        # Eran dos factores que medían la misma cosa —el DNR es domo ÷ cuello—
+        # y entre los dos se llevaban 40 puntos, más que la rotura. Y no eran
+        # dos criterios: son las dos mitades de la definición de cuello ancho.
+        assert "O DNR < 2" in _SOURCE["neck"]
+        assert "una sola vez" in _SOURCE["neck"]
+        assert "Ya no es un factor propio" in _SOURCE["dnr"]
+
+    def test_the_clinical_grades_say_who_scores_them_now(self):
+        for key in ("wfns", "fisher"):
+            assert "Ya no puntúa aquí" in _SOURCE[key]
+            assert "JSDB" in _SOURCE[key]
 
     def test_the_small_aneurysm_cutoff_does_not_pretend_to_be_a_guideline(self):
         assert "heurístico" in _SOURCE["small"].lower()
@@ -271,22 +286,36 @@ class TestTheScoreSaysHowMuchOfTheCaseItSaw:
         assert "diámetro máximo" not in d["missing_inputs"]
         assert not any(f["name"].startswith("Aneurisma") for f in d["factors"])
 
-    def test_the_clinical_grades_are_only_asked_for_when_they_exist(self):
-        # En un aneurisma no roto no hay hemorragia que graduar, así que no se
-        # cuentan como ausencia.
-        electivo = compute_decision(**self.MORFO, location=LOCATION_MCA,
-                                    patient_age=55, ruptured=False)
+    def test_the_engine_no_longer_asks_for_the_clinical_grades(self):
+        # Se los lleva el JSDB. Pedirlos en los dos sitios haría que faltar un
+        # dato bajase dos barras de cobertura distintas por el mismo motivo.
         roto = compute_decision(**self.MORFO, location=LOCATION_MCA,
                                 patient_age=55, ruptured=True)
-        assert "grado WFNS" not in electivo["missing_inputs"]
-        assert "grado WFNS" in roto["missing_inputs"]
-        assert "grado de Fisher" in roto["missing_inputs"]
+        assert "grado WFNS" not in roto["missing_inputs"]
+        assert "grado de Fisher" not in roto["missing_inputs"]
+        # Pero alguien sí los echa en falta, y dice cuántos le faltan.
+        assert "grado WFNS" in roto["jsdb"]["missing"]
+        assert "grado de Fisher" in roto["jsdb"]["missing"]
+        assert roto["jsdb"]["known_pct"] < 100
 
     def test_the_verdict_is_still_produced_without_them(self):
         # No son obligatorios: se contesta con lo que hay y se dice cuánto era.
         roto = compute_decision(**self.MORFO, location=LOCATION_MCA, ruptured=True)
         assert roto["recommendation_key"] in ("clip", "endo", "mdt")
-        assert 0 < roto["coverage_pct"] < 100
+        assert roto["coverage_pct"] > 0
+
+    def test_the_age_stops_counting_twice_on_a_ruptured_aneurysm(self):
+        # Los cortes 72/80 del motor SON los del JSDB. En un roto aplica el
+        # modelo entero, así que la copia a mano deja de votar; en un
+        # incidental el JSDB no aplica y la copia es lo único que hay.
+        electivo = compute_decision(**self.MORFO, location=LOCATION_MCA,
+                                    ruptured=False, patient_age=82)
+        roto = compute_decision(**self.MORFO, location=LOCATION_MCA,
+                                ruptured=True, patient_age=82)
+        assert any("Edad" in f["name"] for f in electivo["factors"])
+        assert not any("Edad" in f["name"] for f in roto["factors"])
+        assert roto["jsdb"]["clip"]["points"] >= 1, "pero el JSDB sí la cuenta"
+        assert "edad del paciente" not in roto["missing_inputs"]
 
 
 # ── 6. El grado clínico, y lo que pesa la rotura ──────────────────────────── #
@@ -310,21 +339,34 @@ class TestTheClinicalGradesAndTheWeightOfRupture:
         others = {k: v for k, v in _MAX_WEIGHT.items() if k != "ruptured"}
         assert _MAX_WEIGHT["ruptured"] > max(others.values())
 
-    def test_a_poor_grade_pushes_endovascular(self):
+    def test_a_poor_grade_no_longer_moves_the_heuristic_balance(self):
+        # Movía el saldo con un peso elegido a ojo. Ahora lo mueve el modelo
+        # ajustado, que es donde esa variable estaba medida desde el principio.
         base = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, ruptured=True)
         malo = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
                                 ruptured=True, wfns_grade=5)
-        assert malo["balance"] < base["balance"]
-        assert malo["recommendation_key"] == "endo"
+        assert malo["balance"] == base["balance"]
+        assert malo["jsdb"]["clip"]["points"] > base["jsdb"]["clip"]["points"]
+        assert malo["jsdb"]["coil"]["points"] > base["jsdb"]["coil"]["points"]
 
-    def test_fisher_four_pushes_back_toward_clipping(self):
-        # Sangre intraparenquimatosa: el modelo validado penaliza ahí el coiling,
-        # y con hematoma voluminoso el clipaje permite evacuar en el mismo acto.
+    def test_a_poor_grade_is_shown_even_though_it_does_not_vote_here(self):
+        # Borrarlo de la pantalla porque cambió de dueño lo escondería.
+        malo = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
+                                ruptured=True, wfns_grade=5)
+        grado = [f for f in malo["factors"] if "Grado clínico" in f["name"]]
+        assert grado and grado[0]["points"] == 0 and not grado[0]["votes"]
+        assert "WFNS 5" in grado[0]["name"]
+
+    def test_fisher_four_penalises_only_the_endovascular_arm(self):
+        # Sangre voluminosa: el modelo penaliza ahí al coiling, porque el
+        # clipaje permite evacuarla en el mismo acto. Es asimétrico, y el peso
+        # heurístico de 10 puntos que había no capturaba esa asimetría.
         sin_ = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
                                 ruptured=True, wfns_grade=5)
         con = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
                                ruptured=True, wfns_grade=5, fisher_grade=4)
-        assert con["balance"] > sin_["balance"]
+        assert con["jsdb"]["coil"]["points"] > sin_["jsdb"]["coil"]["points"]
+        assert con["jsdb"]["clip"]["points"] == sin_["jsdb"]["clip"]["points"]
 
     def test_the_grades_are_ignored_on_an_unruptured_aneurysm(self):
         # No es que se descarten por prudencia: es que no existen.
@@ -338,10 +380,18 @@ class TestTheClinicalGradesAndTheWeightOfRupture:
         # El metaanálisis de 2025 sobre 51 415 pacientes no halló diferencia de
         # resultado en ≥60 años, así que el peso es contenido a propósito.
         from services.treatment import _MAX_WEIGHT
-        assert _MAX_WEIGHT["age"] < _MAX_WEIGHT["wfns"] < _MAX_WEIGHT["ruptured"]
+        assert _MAX_WEIGHT["age"] < min(v for k, v in _MAX_WEIGHT.items()
+                                        if k != "age")
         joven = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, patient_age=50)
         mayor = compute_decision(**self.NEUTRAL, location=LOCATION_MCA, patient_age=82)
         assert mayor["balance"] < joven["balance"]
+
+    def test_the_grades_left_the_weight_table_with_their_factors(self):
+        # Si una variable deja de votar y se queda en la tabla de pesos, sigue
+        # bajando la cobertura por un dato que ya no usa nadie aquí.
+        from services.treatment import _MAX_WEIGHT
+        assert "wfns" not in _MAX_WEIGHT and "fisher" not in _MAX_WEIGHT
+        assert "dnr" not in _MAX_WEIGHT, "el cuello y el DNR son un solo grupo"
 
 
 # ── 7. Lo que la imagen no puede ver, dicho por anatomía ──────────────────── #

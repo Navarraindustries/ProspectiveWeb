@@ -1132,6 +1132,12 @@ export interface StentPlanResult {
   neck_diameter_covered_mm: number;
   required_length_mm: number;
   deployed: boolean;
+  /** unknown | undersized | nominal | oversized, siempre contra la arteria
+   *  portadora — nunca contra el cuello. */
+  sizing: string;
+  parent_artery_mm: number;
+  /** El dispositivo sigue la curvatura real del vaso en vez de ser un tubo recto. */
+  follows_centerline: boolean;
   notes: string[];
   sources: string[];
   warning: string | null;

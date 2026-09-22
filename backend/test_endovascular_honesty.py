@@ -333,3 +333,121 @@ class TestMarañaDentroDelSaco:
         from services.devices import coil_mass_in_sac
         mesh, placed = coil_mass_in_sac(vtk.vtkPolyData(), 100.0)
         assert mesh.GetNumberOfPoints() == 0 and placed == 0.0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BLOQUE 3 — dimensionar contra la arteria portadora y seguir el vaso
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestCoberturaMetalica:
+    """`morpho.parent_artery_mm` se medía desde la migración y no la usaba nadie."""
+
+    def test_sin_arteria_medida_no_se_pronuncia(self):
+        from services.endovascular import metal_coverage_note
+        sizing, texto = metal_coverage_note(3.75, 0.0)
+        assert sizing == "unknown"
+        assert "no se puede decir" in texto.lower()
+
+    def test_sobredimensionar_baja_la_cobertura(self):
+        """La dirección publicada; el cálculo viejo la tenía invertida."""
+        from services.endovascular import metal_coverage_note
+        sizing, texto = metal_coverage_note(4.5, 3.4)
+        assert sizing == "oversized"
+        assert "BAJA" in texto
+        assert "25" in texto and "48" in texto      # los dos anclajes medidos
+
+    def test_infradimensionar_la_sube(self):
+        from services.endovascular import metal_coverage_note
+        sizing, texto = metal_coverage_note(3.0, 4.2)
+        assert sizing == "undersized"
+        assert "sube" in texto.lower()
+
+    def test_ajuste_nominal(self):
+        from services.endovascular import metal_coverage_note
+        sizing, _ = metal_coverage_note(3.75, 3.70)
+        assert sizing == "nominal"
+
+    def test_no_interpola_un_porcentaje(self):
+        """Dos medidas no son una curva: nada de cifras intermedias inventadas."""
+        from services.endovascular import metal_coverage_note
+        import re
+        _, texto = metal_coverage_note(3.9, 3.4)     # +0.5 mm, entre los anclajes
+        pcts = {float(m) for m in re.findall(r"(\d+(?:\.\d+)?)\s*%", texto)}
+        assert pcts <= {48.0, 25.5}
+
+    def test_el_dimensionado_llega_al_ajuste(self):
+        from services.endovascular import stent_bridging
+        b = stent_bridging(neck_mm=4.2, length_mm=25, diameter_mm=4.5,
+                           min_diameter_mm=2.5, max_diameter_mm=5.0,
+                           parent_artery_mm=3.4)
+        assert b.sizing == "oversized"
+        assert b.parent_artery_mm == 3.4
+        assert any("sobredimensionado" in w.lower() for w in b.warnings)
+
+    def test_nunca_se_dimensiona_contra_el_cuello(self):
+        """El cuello no puede mover el dimensionado: esa era la confusión."""
+        from services.endovascular import stent_bridging
+        a = stent_bridging(neck_mm=2.0, length_mm=25, diameter_mm=3.75,
+                           parent_artery_mm=3.7)
+        b = stent_bridging(neck_mm=9.0, length_mm=40, diameter_mm=3.75,
+                           parent_artery_mm=3.7)
+        assert a.sizing == b.sizing == "nominal"
+
+
+class TestVentanaSobreLaLineaCentral:
+    """El puente entre «pon un dispositivo de esta longitud aquí» y el arco."""
+
+    def _recta(self, n=101, largo=50.0):
+        import numpy as np
+        return np.stack([np.linspace(0, largo, n), np.zeros(n), np.zeros(n)], axis=1)
+
+    def test_se_centra_en_el_punto_pedido(self):
+        from services.stent_deployment import arc_window_around
+        s0, s1 = arc_window_around(self._recta(), (25.0, 0.0, 0.0), 20.0)
+        assert s0 == pytest.approx(15.0) and s1 == pytest.approx(35.0)
+
+    def test_cerca_del_extremo_conserva_la_longitud(self):
+        """Recortar dejaría un dispositivo más corto del que se pidió."""
+        from services.stent_deployment import arc_window_around
+        s0, s1 = arc_window_around(self._recta(), (2.0, 0.0, 0.0), 20.0)
+        assert s1 - s0 == pytest.approx(20.0)
+        s0, s1 = arc_window_around(self._recta(), (49.0, 0.0, 0.0), 20.0)
+        assert s1 - s0 == pytest.approx(20.0)
+
+    def test_mas_largo_que_el_vaso_se_recorta_al_vaso(self):
+        from services.stent_deployment import arc_window_around
+        s0, s1 = arc_window_around(self._recta(), (25.0, 0.0, 0.0), 80.0)
+        assert s0 == pytest.approx(0.0) and s1 == pytest.approx(50.0)
+
+    def test_linea_degenerada_se_rechaza(self):
+        import numpy as np
+        from services.stent_deployment import arc_window_around
+        with pytest.raises(ValueError):
+            arc_window_around(np.zeros((1, 3)), (0.0, 0.0, 0.0), 10.0)
+
+
+class TestPlanDeStentApi:
+
+    def test_sin_linea_central_avisa_de_que_es_recto(self):
+        sid = _session(parent_artery_mm="3.7")
+        r = client.post("/api/plan", json={
+            "session_id": sid,
+            "stent": {"stent_id": "pipeline-flex-3.75-25", "diameter_mm": 3.75,
+                      "length_mm": 25, "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                      "rotation_deg": 0.0},
+        })
+        d = r.json()
+        assert d["follows_centerline"] is False
+        assert any("recto" in n.lower() for n in d["notes"])
+
+    def test_usa_la_arteria_portadora_medida(self):
+        sid = _session(parent_artery_mm="3.4")
+        r = client.post("/api/plan", json={
+            "session_id": sid,
+            "stent": {"stent_id": "pipeline-flex-3.75-25", "diameter_mm": 4.5,
+                      "length_mm": 25, "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                      "rotation_deg": 0.0},
+        })
+        d = r.json()
+        assert d["parent_artery_mm"] == 3.4
+        assert d["sizing"] == "oversized"

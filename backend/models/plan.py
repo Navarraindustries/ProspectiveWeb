@@ -68,6 +68,29 @@ class PlanResult(BaseModel):
     deployed: bool = Field(
         True, description="False if the requested parameters are geometrically incompatible"
     )
+    sizing: str = Field(
+        "unknown",
+        description=(
+            "Device vs parent artery: unknown | undersized | nominal | oversized. "
+            "`unknown` when the parent-artery diameter has not been measured — "
+            "sizing is never judged against the neck."
+        ),
+    )
+    parent_artery_mm: float = Field(
+        0.0,
+        description=(
+            "Parent-artery diameter the sizing was judged against (mm), 0 when "
+            "not measured. Comes from `morpho.parent_artery_mm`."
+        ),
+    )
+    follows_centerline: bool = Field(
+        False,
+        description=(
+            "True when the device was swept along the extracted centreline and "
+            "therefore follows the real curvature. False means a straight tube, "
+            "which in a curved artery is a coarse approximation."
+        ),
+    )
     notes: list[str] = Field(
         default_factory=list,
         description="What this planner is not computing, stated explicitly.",

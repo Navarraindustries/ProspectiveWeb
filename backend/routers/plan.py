@@ -98,38 +98,89 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
     # the endovascular knowledge; see the comment there for what this used to
     # compute and why it was wrong.
     neck_mm = _load_float(req.session_id, "morpho.neck_mm", 0.0)
+    # El diámetro de la arteria portadora es la referencia real de dimensionado.
+    # `morpho.parent_artery_mm` se calcula desde la migración (services/
+    # parent_artery.py, cortando la malla por debajo del cuello) y aquí no lo
+    # leía nadie, así que el planificador comparaba contra el CUELLO.
+    parent_mm = _load_float(req.session_id, "morpho.parent_artery_mm", 0.0)
     fit = stent_bridging(
         neck_mm=neck_mm,
         length_mm=p.length_mm,
         diameter_mm=p.diameter_mm,
         min_diameter_mm=getattr(device, "min_diameter_mm", 0.0),
         max_diameter_mm=getattr(device, "max_diameter_mm", 0.0),
+        parent_artery_mm=parent_mm,
     )
     warnings = list(fit.warnings)
     coverage = fit.coverage_pct
     neck_covered = fit.neck_covered_mm
     deployed = fit.deployed
 
-    # ── Build a real stent tube at the placement (approx vessel axis) ────── #
+    # ── Build the device geometry ────────────────────────────────────────── #
+    # Cuando hay línea central, el dispositivo la SIGUE. Antes esta pestaña
+    # dibujaba siempre un cilindro recto perpendicular al eje del cuello, que
+    # en una arteria curva atraviesa la pared; y el transporte paralelo que lo
+    # resuelve ya estaba escrito en services/stent_deployment.py, usado sólo
+    # por la pestaña «Stent CL». Dos geometrías para el mismo dispositivo.
     stent_url = "/static/sample-meshes/stent_deployed.vtp"
+    follows_centerline = False
+    meshes_dir = session_subdir(req.session_id, "meshes")
+    points_path = meshes_dir / "centerline_points.npz"
     try:
-        axis = (
-            _load_float(req.session_id, "morpho.axis_x", 0.0),
-            _load_float(req.session_id, "morpho.axis_y", 0.0),
-            _load_float(req.session_id, "morpho.axis_z", 1.0),
-        )
-        # Flow diverter runs along the parent artery ≈ perpendicular to neck→dome.
-        stent_dir = devices.perpendicular(axis)
-        local = devices.make_stent(p.diameter_mm, p.length_mm)
-        t = devices.pose_transform(
-            (p.position.x, p.position.y, p.position.z), stent_dir, p.rotation_deg
-        )
-        world = devices.apply_transform(local, t)
-        meshes_dir = session_subdir(req.session_id, "meshes")
+        world = None
+        if points_path.exists():
+            try:
+                import numpy as np
+                from services.stent_deployment import (
+                    arc_window_around, deploy_stent_on_centerline,
+                )
+                data = np.load(points_path)
+                s0, s1 = arc_window_around(
+                    data["points"],
+                    (p.position.x, p.position.y, p.position.z),
+                    p.length_mm,
+                )
+                cl = deploy_stent_on_centerline(
+                    data["points"], data["radii"],
+                    stent_diameter_mm=p.diameter_mm,
+                    start_arc_mm=s0, end_arc_mm=s1,
+                )
+                world = cl.stent_poly_data
+                follows_centerline = True
+            except Exception as exc:   # noqa: BLE001 — se cae al tubo recto
+                logger.warning("Centreline stent failed, falling back: %s", exc)
+                world = None
+
+        if world is None:
+            axis = (
+                _load_float(req.session_id, "morpho.axis_x", 0.0),
+                _load_float(req.session_id, "morpho.axis_y", 0.0),
+                _load_float(req.session_id, "morpho.axis_z", 1.0),
+            )
+            # Flow diverter runs along the parent artery ≈ perpendicular to neck→dome.
+            stent_dir = devices.perpendicular(axis)
+            local = devices.make_stent(p.diameter_mm, p.length_mm)
+            t = devices.pose_transform(
+                (p.position.x, p.position.y, p.position.z), stent_dir, p.rotation_deg
+            )
+            world = devices.apply_transform(local, t)
+
         write_vtp(world, meshes_dir / "stent_deployed.vtp")
         stent_url = f"{mesh_url(req.session_id, 'stent_deployed.vtp')}?v={int(time.time() * 1000)}"
     except Exception as exc:
         logger.warning("Stent mesh generation skipped: %s", exc)
+
+    if follows_centerline:
+        fit.notes.append(
+            "El dispositivo sigue la línea central extraída, así que respeta la "
+            "curvatura real de la arteria."
+        )
+    else:
+        fit.notes.append(
+            "Sin línea central, el dispositivo se dibuja como un tubo recto: en "
+            "una arteria curva es una aproximación grosera. Extrae la línea "
+            "central para que siga el vaso."
+        )
 
     # ── Persist the deployed stent for the report / session restore ──────── #
     from services.device_state import save_stent
@@ -139,7 +190,13 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
         "diameter_mm": p.diameter_mm,
         "length_mm": p.length_mm,
         "coverage_pct": coverage,
+        # `kind` dice QUÉ MAGNITUD lleva `coverage_pct`, no qué forma tiene la
+        # malla: sigue siendo el planificador de cuello aunque ahora la
+        # geometría siga la línea central. El informe lo lee así.
         "kind": "straight",
+        "sizing": fit.sizing,
+        "parent_artery_mm": fit.parent_artery_mm,
+        "follows_centerline": follows_centerline,
     })
 
     return PlanResult(
@@ -148,6 +205,9 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
         neck_diameter_covered_mm=round(neck_covered, 2),
         required_length_mm=fit.required_length_mm,
         deployed=deployed,
+        sizing=fit.sizing,
+        parent_artery_mm=fit.parent_artery_mm,
+        follows_centerline=follows_centerline,
         notes=fit.notes,
         sources=fit.sources,
         warning=" ".join(warnings) if warnings else None,

@@ -92,6 +92,9 @@ class StentEntry:
     diameter_mm: float = 0.0
     length_mm: float = 0.0
     coverage_pct: float = 0.0
+    sizing: str = "unknown"
+    parent_artery_mm: float = 0.0
+    follows_centerline: bool = False
 
 
 @dataclass
@@ -403,6 +406,9 @@ def build_report_data_from_session(
             diameter_mm  = float(raw_stent.get("diameter_mm", 0.0) or 0.0),
             length_mm    = float(raw_stent.get("length_mm", 0.0) or 0.0),
             coverage_pct = float(raw_stent.get("coverage_pct", 0.0) or 0.0),
+            sizing       = str(raw_stent.get("sizing", "unknown")),
+            parent_artery_mm   = float(raw_stent.get("parent_artery_mm", 0.0) or 0.0),
+            follows_centerline = bool(raw_stent.get("follows_centerline", False)),
         )
 
     # ── 7. Clinical context (recorded on the decision step, not scored) ── #
@@ -1439,6 +1445,13 @@ class ReportGenerator:
             cov_value    = f"{st.coverage_pct:.1f} %"
             cov_ref      = "100 % = cruza el cuello con anclaje a ambos lados"
 
+        _SIZING_ES = {
+            "undersized": "Infradimensionado",
+            "nominal":    "Nominal",
+            "oversized":  "Sobredimensionado",
+            "unknown":    "Sin medir la arteria portadora",
+        }
+
         elems = [Paragraph(title, self._style_h2)]
         rows = [
             ["Modelo",        st.name,                        "—"],
@@ -1447,6 +1460,19 @@ class ReportGenerator:
             [length_label,    f"{st.length_mm:.1f} mm",       "—"],
             [cov_label,       cov_value,                      cov_ref],
         ]
+        # El dimensionado se juzga contra la arteria portadora, nunca contra el
+        # cuello. Sobredimensionar baja la cobertura metálica (Sci Rep 2024).
+        if st.parent_artery_mm > 0:
+            rows.append(["Arteria portadora", f"{st.parent_artery_mm:.2f} mm",
+                         "referencia de dimensionado"])
+            rows.append(["Dimensionado",
+                         _SIZING_ES.get(st.sizing, st.sizing),
+                         "sobredimensionar baja la cobertura metálica"])
+        if st.kind == "straight":
+            rows.append(["Geometría",
+                         "Sigue la línea central" if st.follows_centerline
+                         else "Tubo recto (sin línea central)",
+                         "—"])
         tbl = Table(rows, colWidths=[5.5*cm, 4.0*cm, 8.4*cm])
         ts  = TableStyle([
             ("BACKGROUND",    (0, 0), (0, -1), self._GREY_LIGHT),

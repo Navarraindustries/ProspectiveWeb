@@ -213,7 +213,21 @@ def profile_to_dict(p: EndovascularProfile) -> dict[str, Any]:
 # encima es lo único geométricamente deducible de lo que hay medido.
 
 #: Anclaje sano exigido a cada lado del cuello para que el dispositivo agarre.
+#: Es un valor de partida razonable, NO una cifra publicada: confírmalo con el
+#: servicio antes de darle peso clínico.
 LANDING_ZONE_MM: float = 5.0
+
+#: Anclajes MEDIDOS de cobertura metálica frente al desajuste dispositivo-vaso,
+#: como (desajuste_mm, cobertura_%). Negativo = infradimensionado.
+#: Son dos puntos de un estudio concreto con un dispositivo concreto. NO se
+#: interpola entre ellos: una recta trazada entre dos medidas produce cifras
+#: intermedias con aspecto de medición, que es justo lo que se retiró del
+#: planificador. Se dice en qué franja cae y cuánto dieron los extremos.
+MCR_UNDERSIZED = (-0.5, 48.0)
+MCR_OVERSIZED = (1.0, 25.5)
+
+#: Desde dónde el desajuste deja de ser ruido de medida y merece mención.
+SIZING_TOLERANCE_MM: float = 0.25
 
 #: Cuello supuesto cuando aún no se ha corrido la morfometría.
 DEFAULT_NECK_MM: float = 4.0
@@ -233,6 +247,60 @@ SRC_BRAID = (
 )
 
 
+def metal_coverage_note(device_mm: float, vessel_mm: float) -> tuple[str, str]:
+    """Qué le pasa a la cobertura metálica con este desajuste.
+
+    Devuelve `(sizing, texto)`, con `sizing` en
+    {unknown, undersized, nominal, oversized}.
+
+    Con el diámetro del vaso medido —lo da la línea central, o
+    `morpho.parent_artery_mm`, que se calcula desde la migración y no usaba
+    nadie— esto ya se puede decir. Lo que no se hace es dar un porcentaje
+    concreto: hay dos medidas publicadas, no una curva.
+    """
+    if device_mm <= 0 or vessel_mm <= 0:
+        return "unknown", (
+            "Sin el diámetro de la arteria portadora no se puede decir nada de "
+            "la cobertura metálica. La da la línea central, o la morfometría "
+            "cuando aísla el cuello."
+        )
+
+    desajuste = device_mm - vessel_mm
+    off_u, mcr_u_val = MCR_UNDERSIZED
+    off_o, mcr_o_val = MCR_OVERSIZED
+
+    # Sin redondear: `{:.0f}` convertía el 25.5 publicado en «26», que ya es
+    # otra cifra. Un anclaje medido se cita como se midió.
+    def _pct(v: float) -> str:
+        return f"{v:.0f}" if float(v).is_integer() else f"{v:.1f}"
+
+    mcr_u, mcr_o = _pct(mcr_u_val), _pct(mcr_o_val)
+
+    if abs(desajuste) <= SIZING_TOLERANCE_MM:
+        return "nominal", (
+            f"Dispositivo Ø{device_mm:.2f} mm sobre una arteria de "
+            f"{vessel_mm:.2f} mm: prácticamente nominal ({desajuste:+.2f} mm). "
+            f"Es donde la cobertura metálica es más alta."
+        )
+
+    if desajuste < 0:
+        return "undersized", (
+            f"Dispositivo Ø{device_mm:.2f} mm sobre una arteria de "
+            f"{vessel_mm:.2f} mm: infradimensionado {abs(desajuste):.2f} mm. "
+            f"La trenza cierra y la cobertura metálica sube — con "
+            f"{abs(off_u):.1f} mm de infradimensionado se midió {mcr_u} %. "
+            f"El riesgo aquí es otro: mala aposición a la pared."
+        )
+
+    return "oversized", (
+        f"Dispositivo Ø{device_mm:.2f} mm sobre una arteria de {vessel_mm:.2f} "
+        f"mm: sobredimensionado {desajuste:.2f} mm. La trenza se abre y la "
+        f"cobertura metálica BAJA — con {off_o:.1f} mm se midió {mcr_o} %, "
+        f"frente al {mcr_u} % del caso infradimensionado, y la diversión de "
+        f"flujo empeora con ella."
+    )
+
+
 @dataclass
 class StentBridging:
     """Cuánto del cuello cruza el dispositivo, y qué no se está calculando."""
@@ -243,6 +311,8 @@ class StentBridging:
     diameter_ok: bool
     length_ok: bool
     deployed: bool
+    sizing: str = "unknown"      # unknown | undersized | nominal | oversized
+    parent_artery_mm: float = 0.0
     warnings: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
@@ -254,11 +324,17 @@ def stent_bridging(
     diameter_mm: float,
     min_diameter_mm: float = 0.0,
     max_diameter_mm: float = 0.0,
+    parent_artery_mm: float = 0.0,
 ) -> StentBridging:
     """Comprueba el ajuste del stent con lo que de verdad está medido.
 
     Con `min/max_diameter_mm` a cero no hay ficha de dispositivo contra la que
     comparar y el diámetro se da por bueno, en vez de inventar un rango.
+
+    `parent_artery_mm` es la referencia real de dimensionado. Cuando llega, se
+    dice qué le pasa a la cobertura metálica; cuando no, se dice que no se
+    puede decir. Lo que NO se hace en ninguno de los dos casos es dimensionar
+    contra el cuello, que era el error del cálculo original.
     """
     warnings: list[str] = []
     notes: list[str] = []
@@ -291,17 +367,19 @@ def stent_bridging(
             f"{DEFAULT_NECK_MM:.0f} mm. Márcalo para que el ajuste sea real."
         )
 
-    # ── Lo que no se calcula, dicho como tal ──────────────────────────── #
+    # ── El dimensionado, contra la arteria portadora ──────────────────── #
+    sizing, texto = metal_coverage_note(diameter_mm, parent_artery_mm)
+    notes.append(texto)
+    if sizing == "oversized":
+        warnings.append(
+            f"Sobredimensionado {diameter_mm - parent_artery_mm:.2f} mm "
+            f"respecto a la arteria portadora: baja la cobertura metálica."
+        )
+
     notes.append(
-        "La cobertura metálica sobre el ostium no se calcula aquí: depende del "
-        "diámetro de la arteria portadora, que esta pestaña no mide. En «Stent "
-        "CL» sí se conoce, porque la línea central lleva el radio del vaso."
-    )
-    notes.append(
-        "Al dimensionar, la referencia es la arteria portadora, no el cuello. "
-        "Sobredimensionar BAJA la cobertura metálica: medida, cae del 48 % con "
-        "0.5 mm de infradimensionado al 25.5 % con 1.0 mm de sobredimensionado, "
-        "y la diversión de flujo empeora con ella."
+        f"El anclaje exigido, {LANDING_ZONE_MM:.0f} mm a cada lado, es un valor "
+        f"de partida razonable y no una cifra publicada. Confírmalo con el "
+        f"servicio."
     )
 
     return StentBridging(
@@ -311,6 +389,8 @@ def stent_bridging(
         diameter_ok=diameter_ok,
         length_ok=length_ok,
         deployed=diameter_ok and (length_ok or not medido),
+        sizing=sizing,
+        parent_artery_mm=round(parent_artery_mm, 2),
         warnings=warnings,
         notes=notes,
         sources=[SRC_OVERSIZING, SRC_BRAID],

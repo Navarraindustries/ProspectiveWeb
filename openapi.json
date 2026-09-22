@@ -10952,6 +10952,24 @@
             "description": "False if the requested parameters are geometrically incompatible",
             "default": true
           },
+          "sizing": {
+            "type": "string",
+            "title": "Sizing",
+            "description": "Device vs parent artery: unknown | undersized | nominal | oversized. `unknown` when the parent-artery diameter has not been measured — sizing is never judged against the neck.",
+            "default": "unknown"
+          },
+          "parent_artery_mm": {
+            "type": "number",
+            "title": "Parent Artery Mm",
+            "description": "Parent-artery diameter the sizing was judged against (mm), 0 when not measured. Comes from `morpho.parent_artery_mm`.",
+            "default": 0.0
+          },
+          "follows_centerline": {
+            "type": "boolean",
+            "title": "Follows Centerline",
+            "description": "True when the device was swept along the extracted centreline and therefore follows the real curvature. False means a straight tube, which in a curved artery is a coarse approximation.",
+            "default": false
+          },
           "notes": {
             "items": {
               "type": "string"

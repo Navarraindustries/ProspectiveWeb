@@ -214,12 +214,25 @@ async def deploy_cl_stent(session_id: str, req: ClStentRequest) -> ClStentResult
         logger.exception("Centreline stent deployment failed")
         raise HTTPException(status_code=500, detail=f"Error desplegando el stent: {exc}")
 
+    # El diámetro del vaso sale de los radios de la línea central, así que aquí
+    # el dimensionado sí se puede juzgar contra la arteria portadora. El aviso
+    # decía «riesgo de sobreexpansión», que no dice qué pasa; lo que pasa está
+    # medido: la trenza se abre y la cobertura metálica baja.
+    from services.endovascular import metal_coverage_note
+
     cov = result.coverage_ratio
+    _sizing, texto = metal_coverage_note(
+        result.nominal_diameter_mm, result.mean_vessel_diameter_mm,
+    )
     warning = None
     if cov < 0.9:
-        warning = f"Stent infradimensionado (cobertura {cov:.2f}) — considera un diámetro mayor."
+        warning = (
+            f"Infradimensionado (Ø stent / Ø vaso = {cov:.2f}). {texto}"
+        )
     elif cov > 1.15:
-        warning = f"Stent sobredimensionado (cobertura {cov:.2f}) — riesgo de sobreexpansión."
+        warning = (
+            f"Sobredimensionado (Ø stent / Ø vaso = {cov:.2f}). {texto}"
+        )
 
     url = f"{mesh_url(session_id, 'cl_stent.vtp')}?v={int(time.time() * 1000)}"
     return ClStentResult(

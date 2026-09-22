@@ -129,6 +129,42 @@ def deploy_stent_on_centerline(
     )
 
 
+def arc_window_around(
+    points: np.ndarray,
+    position: tuple[float, float, float],
+    length_mm: float,
+) -> tuple[float, float]:
+    """Arc-length window of *length_mm* centred on the point of the centreline
+    closest to *position*.
+
+    This is what lets the neck planner reuse this module. That planner speaks
+    "put a device of this length here", while the centreline speaks arc length;
+    without the translation the two could not share geometry, which is why the
+    neck tab drew a straight cylinder through a curved artery.
+    """
+    pts = np.asarray(points, dtype=np.float64)
+    if len(pts) < 2:
+        raise ValueError("La línea central debe tener al menos 2 puntos.")
+
+    arcs = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
+    total = float(arcs[-1])
+
+    i = int(np.argmin(np.linalg.norm(pts - np.asarray(position, dtype=np.float64), axis=1)))
+    centre = float(arcs[i])
+
+    half = max(float(length_mm), 1.0) / 2.0
+    s0, s1 = centre - half, centre + half
+
+    # Slide the window inside the vessel instead of truncating it, so a device
+    # asked for near an end keeps its length.
+    if s0 < 0.0:
+        s0, s1 = 0.0, min(total, length_mm)
+    elif s1 > total:
+        s0, s1 = max(0.0, total - length_mm), total
+
+    return s0, s1
+
+
 def _transport_frames(pts: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Tangent/normal/binormal via double-reflection parallel transport."""
     M = len(pts)

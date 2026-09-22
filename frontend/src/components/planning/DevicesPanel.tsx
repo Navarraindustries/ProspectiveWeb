@@ -751,6 +751,23 @@ function StentsTab() {
           />
           <Metric label="Del cuello medido" value={plan.neck_diameter_covered_mm.toFixed(1)} unit=" mm" />
           <Metric label="Longitud necesaria" value={plan.required_length_mm.toFixed(0)} unit=" mm" />
+          {plan.parent_artery_mm > 0 && (
+            <Metric
+              label="Arteria portadora"
+              value={plan.parent_artery_mm.toFixed(2)}
+              unit=" mm"
+              badge={
+                plan.sizing === "oversized" ? ["Sobredimensionado", "warning"]
+                : plan.sizing === "undersized" ? ["Infradimensionado", "warning"]
+                : ["Nominal", "success"]
+              }
+            />
+          )}
+          <Metric
+            label="Geometría"
+            value={plan.follows_centerline ? "Sigue el vaso" : "Tubo recto"}
+            badge={plan.follows_centerline ? ["Línea central", "success"] : ["Aproximado", "warning"]}
+          />
           <Metric
             label="Despliegue"
             value={plan.deployed ? "OK" : "Incompatible"}

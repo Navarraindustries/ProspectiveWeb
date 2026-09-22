@@ -21,6 +21,9 @@ vi.mock("../../api/client", () => ({
       undo_depth: 0, redo_depth: 0, has_original: false, steps: [],
     }),
     meshComponentDelete: (...a: unknown[]) => meshComponentDelete(...a),
+    meshComponents: vi.fn().mockResolvedValue({
+      components: [], total: 11, largest_is_tree: true, warning: "",
+    }),
     meshBounds: vi.fn().mockResolvedValue({
       min: { x: -30, y: -40, z: -25 }, max: { x: 30, y: 40, z: 25 },
       vertices: 12776,
@@ -222,5 +225,12 @@ describe("el corte por plano", () => {
     fireEvent.change(slider, { target: { value: "-18" } });
     await waitFor(() =>
       expect(visto).toEqual({ axis: "y", offset: -18, keepPositive: true }));
+  });
+
+  it("dice cuántas piezas hay antes de borrar ninguna", async () => {
+    // El endpoint existía desde ayer y no lo llamaba nadie: sin esto el
+    // borrador no decía si quedaba algo que quitar.
+    mount();
+    expect(await screen.findByText(/La malla tiene 11 piezas/)).toBeInTheDocument();
   });
 });

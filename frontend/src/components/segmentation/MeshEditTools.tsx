@@ -34,6 +34,9 @@ export function MeshEditTools() {
   // qué borró; cuando no, por qué no.
   const [eraseMsg, setEraseMsg] = useState<string | null>(null);
   const [eraseLeft, setEraseLeft] = useState<number | null>(null);
+  // Cuántas piezas hay ANTES de borrar ninguna: sin esto el borrador no dice
+  // si queda algo que quitar, y había que pinchar a ciegas para averiguarlo.
+  const [comps, setComps] = useState<{ total: number; largestIsTree: boolean } | null>(null);
   // Corte por plano: una dirección y una altura, sin elegir centro.
   const [planeAxis, setPlaneAxis] = useState<"x" | "y" | "z">("y");
   const [planeOffset, setPlaneOffset] = useState<number>(0);
@@ -103,6 +106,16 @@ export function MeshEditTools() {
     return () => { vivo = false; };
   }, [sessionId, segmentation?.mesh_url]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Las piezas de la malla, recontadas cuando la malla cambia.
+  useEffect(() => {
+    if (!sessionId || !segmentation) { setComps(null); return; }
+    let vivo = true;
+    api.meshComponents(sessionId)
+      .then((c) => { if (vivo) setComps({ total: c.total, largestIsTree: c.largest_is_tree }); })
+      .catch(() => { if (vivo) setComps(null); });
+    return () => { vivo = false; };
+  }, [sessionId, segmentation?.mesh_url]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   // La previa del corte: el visor recorta el render en vivo con estos tres
   // valores, así que arrastrar el deslizador enseña lo que se va a llevar.
   useEffect(() => {
@@ -142,6 +155,7 @@ export function MeshEditTools() {
           `(${res.removed.extent_mm.toFixed(0)} mm).`,
         );
         setEraseLeft(res.components_left);
+        setComps((c) => (c ? { ...c, total: res.components_left } : c));
       } catch (err) {
         if (!cancelado) setEraseMsg(err instanceof Error ? err.message : "Error al borrar la pieza");
       }
@@ -386,6 +400,16 @@ export function MeshEditTools() {
           Pincha una estructura suelta en el visor y desaparece entera. El ruido de
           una malla angiográfica viene en piezas separadas, así que no hace falta
           pintar sobre él. Se deshace como cualquier otra edición.
+          {comps && (
+            <>
+              {" "}
+              <b>
+                {comps.total === 1
+                  ? "La malla es una sola pieza: no hay nada suelto que borrar."
+                  : `La malla tiene ${comps.total} piezas.`}
+              </b>
+            </>
+          )}
         </div>
         <button
           onClick={() => {

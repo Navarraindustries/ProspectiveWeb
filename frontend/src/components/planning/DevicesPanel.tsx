@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type {
   ClipPlanResult,
+  ClipLibraryItem,
   CustomClipInfo,
   DeviceKind,
   ClipRecommendation,
@@ -135,6 +136,12 @@ function ClipsTab() {
   const clearer = useClearDevice("clips");
   const [recs, setRecs] = useState<ClipRecommendation[]>([]);
   const [customs, setCustoms] = useState<CustomClipInfo[]>([]);
+  // El catálogo completo. El selector solo ofrecía la lista corta del
+  // recomendador y los personalizados, así que si el cirujano quería un modelo
+  // que el ranking no propuso NO HABÍA FORMA de llegar a él desde la interfaz:
+  // el endpoint existía y nadie lo llamaba.
+  const [catalogo, setCatalogo] = useState<ClipLibraryItem[]>([]);
+  const [verTodo, setVerTodo] = useState(false);
   const [sel, setSel] = useState<string>("");
   // Cuál de las dos preguntas se está respondiendo.
   const [step, setStep] = useState<string>(CLIP_STEPS[0]);
@@ -181,18 +188,39 @@ function ClipsTab() {
     }
   };
 
+  // El catálogo se pide una vez, y solo cuando se pide verlo: son todos los
+  // clips que la institución puede conseguir, y no hace falta cargarlos para
+  // el caso normal.
+  useEffect(() => {
+    if (!verTodo || catalogo.length) return;
+    let vivo = true;
+    api.listClips()
+      .then((c) => { if (vivo) setCatalogo(c); })
+      .catch(() => { /* sin catálogo, quedan las recomendaciones */ });
+    return () => { vivo = false; };
+  }, [verTodo, catalogo.length]);
+
   const options = useMemo(() => {
     const base = [
       ...recs.map((r) => ({ value: r.clip_id, label: `${r.clip_name} · ${(r.score * 100).toFixed(0)}` })),
       ...customs.map((c) => ({ value: c.clip_id, label: `★ ${c.name} (personalizado)` })),
     ];
+    // Los del catálogo que el recomendador no propuso, al final y marcados:
+    // están disponibles, pero no son lo que el ranking sugiere para este caso.
+    if (verTodo) {
+      const ya = new Set(base.map((o) => o.value));
+      for (const c of catalogo) {
+        if (!ya.has(c.id)) base.push({ value: c.id, label: `${c.name} · catálogo` });
+      }
+    }
     return picked && !base.some((o) => o.value === picked.id)
       ? [{ value: picked.id, label: `★ ${picked.name}` }, ...base]
       : base;
-  }, [recs, customs, picked]);
+  }, [recs, customs, catalogo, verTodo, picked]);
 
   const nameFor = (clipId: string) =>
     recs.find((r) => r.clip_id === clipId)?.clip_name
+    ?? catalogo.find((c) => c.id === clipId)?.name
     ?? customs.find((c) => c.clip_id === clipId)?.name
     ?? (picked?.id === clipId ? picked.name : undefined)
     ?? clipId;
@@ -275,7 +303,17 @@ function ClipsTab() {
                 : "Marca el plano de cuello en Morfometría (para obtener cuello y AR) o importa un clip."}
             </div>
           )}
-          <Select label={`Catálogo + personalizados (${options.length})`} options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
+          <Select
+            label={verTodo
+              ? `Todo el catálogo (${options.length})`
+              : `Recomendados + personalizados (${options.length})`}
+            options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
+          {/* Sin esto, un modelo que el recomendador no propone es inalcanzable
+              desde la interfaz, aunque la institución lo tenga. */}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+            <input type="checkbox" checked={verTodo} onChange={(e) => setVerTodo(e.target.checked)} />
+            Ver todo el catálogo, no solo lo recomendado para este caso
+          </label>
           <input ref={fileRef} type="file" accept=".stl,.obj" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void importClip(f); }} />
           <button
             onClick={() => fileRef.current?.click()} disabled={uploading}

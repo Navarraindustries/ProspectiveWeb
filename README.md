@@ -129,8 +129,10 @@ Key backend services (all ported from the desktop `prospective/processing`):
 | `thresholds.py` | Auto HU/intensity band per modality (CT · MR · XA · DSA strategies) |
 | `preprocess.py` | HU clipping, isotropic resampling, Gaussian smoothing, bone subtraction |
 | `segmentation.py` | Marching Cubes → component filter → smoothing → decimation |
-| `grow.py` / `mesh_crop.py` | Region-grow from seeds · box/sphere ROI clipping |
+| `grow.py` / `mesh_crop.py` | Region-grow from seeds · box/sphere ROI clipping · plane cut (no centre to pick) |
+| `mesh_components.py` | Connected-piece analysis: keep only the vascular tree, or delete one piece by click. Refuses on CTA, where the largest piece is the whole head |
 | `aneurysm_detector.py` | Curvature + shape-gate candidate detection |
+| `aneurysm_consensus.py` | Three independent channels — curvature, local calibre, calibre vs the neighbouring vessel — merged into one shortlist |
 | `morphometrics.py` | Neck / dome / AR / DNR / BF / UI / EI / NSI with reliability guards |
 | `sac_isolation.py` | Semi-automatic watertight sac isolation from two clicks |
 | `parent_artery.py` | Parent-vessel diameter → size ratio |
@@ -806,6 +808,95 @@ it with its provenance leaves it arguable.
 A missing aspect ratio no longer costs confidence in the decision, because it no
 longer decides anything; it costs detail in the profile, which the profile says
 for itself.
+
+### The detector was looking for the wrong thing
+
+Measured on `case 3`, the only study this project has a clinical annotation for
+— the doctors place its aneurysm on the **basilar trunk**. Against that, the
+detector returned **five candidates and all five were wrong**: they sat on the
+jagged sheet under the tree, where torn edges give high curvature. The real
+lesion was in none of them.
+
+It does not stand out by curvature. It is **the thickest point of the whole
+tree** — 2.33 mm radius against a 0.57 mm median. No amount of tuning the
+curvature gates was going to find it.
+
+Two biases were fixed first, and both still hold:
+
+- **The radius was measured on the patch, not the dome.** `sqrt(area / 4π)`
+  treats the convex cap as a full sphere; a least-squares sphere fitted to the
+  same points gives **1.75×** more (p10 1.53 · p90 2.35). So `min_radius_mm =
+  1.5` was really demanding a ~5 mm aneurysm, and discarded **124 of 144
+  regions**.
+- **The positive-Gaussian fraction penalises whoever crops well.** A large
+  region reaches the neck, and a neck is a saddle: negative curvature. Across
+  case 3's regions the correlation between size and Gauss⁺ is **−0.29**, and
+  the highest fraction (0.75) belongs to a twenty-point speck.
+
+Then two geometric channels were added (`aneurysm_consensus.py`): **local
+calibre**, and **calibre against the 6–14 mm ring around it** — the second is
+what tells a sac from an artery that is simply wide, since a uniform tube
+scores ~1.
+
+**The ordering is by declared rules, not fitted weights**: best rank in any
+channel, then how many channels agree, then the sum of ranks. With one
+annotated point, any formula would be overfitting with a nicer name. Ordering
+by *best rank* rather than by agreement is deliberate — case 3's lesion is
+found by a single channel, and rewarding agreement would have buried it.
+
+**What is not promised is the order.** Between two meshes of the same study
+differing by 17 vertices out of 12 776, the top curvature candidate moved from
+rank 1 to rank 4, with a deterministic pipeline. That is why the panel stopped
+badging the first one as «Principal», and why `test_detector_case3.py` only
+asserts presence.
+
+### The blue patch is not the sac, and the sac already existed
+
+For a geometric hit the highlighted mesh is a **ball around the point**, so it
+includes vessel wall: it says *where to look*, not *what the lesion is*. It is
+labelled `patch_kind: "locator"` rather than left to look like a segmentation.
+
+Delimiting the body automatically was tried and does not work:
+
+| stopping rule | extent |
+|---|---|
+| calibre > 1.25× the neighbouring vessel | 31.3 mm — leaks down the trunk |
+| ratio > 1.3 / 1.6 / 2.0 | 19.2 / 16.6 / 11.0 mm — no natural cut |
+| positive Gaussian, raw | 3.4 mm — drowns in mesh noise |
+| positive Gaussian, smoothed | 11.5 mm, *stable* across 8/15/25 passes |
+
+The last one looked convincing. Validated against synthetic sacs of known size
+glued to a tube, it returned **27.5 mm for a 4, 6 and 8 mm sac alike** — it was
+not finding the dome, it was flooding the tube. A cylinder has **zero** Gaussian
+curvature, so "positive Gaussian" never stops at a vessel; and the stable
+11.5 mm was the distance cap, not convergence.
+
+What does delimit the sac is the neck. That was already implemented: marking it
+re-isolates the sac **from the volume** into `aneurysm_sac.vtp` — which was
+being written to disk and never displayed. It now reaches the viewer through
+`sac_mesh_url` and replaces the locator once it exists.
+
+### Bone is removed by connectivity, because brightness cannot
+
+The mesh arrives with the tree plus a handful of large blocks — measured on
+case 3: eleven pieces, the smallest **228 mm³**, sitting 37–92 mm away. The
+size filter cuts below 5 mm³, so it never reached them. They are bone.
+
+And no threshold separates them. Sampling the volume inside each piece:
+
+    TREE   median 3049   p5–p95 [-318, 6896]
+    BONE   median 1590   p5–p95 [  531, 2192]
+
+**99 % of the bone falls inside the tree's own range.** The best possible global
+threshold (2199) would keep 61 % of the tree and still leave 4.9 % of the bone —
+raising it to kill bone kills the distal vessels, which is where "the mesh comes
+out broken" came from.
+
+What does separate them is that they do not touch. «Solo el árbol principal»
+keeps the largest connected component: case 3 → 60.3 %, case 9 → 63.7 %, and in
+both that component **is** the tree. It refuses on CTA, where contrast touches
+bone and the largest piece is the whole head (795 000–1 220 000 mm³) — there the
+seed-grow tool is the answer, and the refusal says so instead of doing nothing.
 
 ### The validated model itself, instead of a copy of it
 
@@ -1610,6 +1701,10 @@ patient imaging.
 | `POST` | `/api/segment` | Full Marching Cubes segmentation |
 | `POST` | `/api/segment/grow/{sid}` | Region-grow from picked seeds |
 | `POST` | `/api/mesh-crop/{sid}` | Box / sphere ROI crop of the mesh |
+| `GET` | `/api/mesh-bounds/{sid}` | Bounding box, so the plane-cut slider has a real range |
+| `POST` | `/api/mesh-plane-cut/{sid}` | Cut with a plane and keep one side — no centre to pick |
+| `GET` | `/api/mesh-components/{sid}` | The mesh's connected pieces, largest first |
+| `POST` | `/api/mesh-component-delete/{sid}` | Delete the piece under the picked point |
 | `GET` `POST` `DELETE` | `/api/preprocess/{sid}` | Status · resample/smooth/bone subtraction · revert to the DICOM |
 | `GET` `POST` | `/api/mesh-restore/{sid}` | Mesh edit history · undo / redo / restore the segmented mesh |
 | `POST` `DELETE` | `/api/detect/{sid}` | Candidate detection · clear candidates, morphometry and everything derived |

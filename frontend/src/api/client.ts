@@ -5,7 +5,6 @@ import type {
   AneurysmDetectionResult,
   AuditBlock,
   AuditVerifyResult,
-  CaseCreate,
   CenterlineClearResult,
   CenterlineRequest,
   CenterlineResult,
@@ -231,7 +230,6 @@ export const api = {
   /* patients */
   listPatients: () => get<PatientSummary[]>("/api/patients"),
   createPatient: (p: PatientCreate) => post<PatientSummary>("/api/patients", p),
-  createCase: (c: CaseCreate) => post<PatientSummary>("/api/patients/case", c),
   patientStudies: (id: number) => get<StudySummary[]>(`/api/patients/${id}/studies`),
   createStudy: (patientId: number, s: StudyCreate) =>
     post<StudySummary>(`/api/patients/${patientId}/studies`, s),
@@ -454,7 +452,6 @@ export const api = {
   },
   /** Cuántos pedidos hay en cada estado. */
   clipOrdersSummary: () => get<ClipOrderSummary>("/api/clip-orders/summary"),
-  clipOrder: (partNo: string) => get<ClipOrder>(`/api/clip-orders/${partNo}`),
   advanceClipOrder: (partNo: string, status: OrderStatus) =>
     post<ClipOrder>(`/api/clip-orders/${partNo}/status`, { status }),
   receiveClipOrder: (

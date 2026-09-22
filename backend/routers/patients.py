@@ -163,11 +163,18 @@ async def create_patient(
     "/case",
     response_model=PatientSummary,
     status_code=201,
-    summary="Create a full clinical case (patient + study)",
+    summary="Create a full clinical case (patient + study) — SUPERSEDED",
     description=(
         "Desktop 'Nuevo Caso' equivalent: creates a Patient (demographics + "
-        "history) and a linked Study (clinical data, aneurysm characterisation, "
-        "imaging modalities) in one call. DICOM is uploaded later in the pipeline."
+        "history) and a linked Study in one call.
+
+"
+        "**Do not wire this into the UI.** It always creates a NEW patient, "
+        "which is exactly the duplication the two-step flow was built to avoid: "
+        "the app uses `POST /api/patients` and then "
+        "`POST /api/patients/{id}/studies`, so a second case attaches to the "
+        "patient who already exists. Kept for API clients that predate that "
+        "flow; the frontend method was removed."
     ),
 )
 async def create_case(

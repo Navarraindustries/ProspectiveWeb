@@ -526,38 +526,12 @@ def level_to_cleanup_mm3(level: int) -> tuple[float, int, float]:
     return _CLEANUP_MAP_V2[max(0, min(10, level))]
 
 
-# LEGACY top-N table. Kept because grow.py and the mesh-edit path still take a
-# component count; the segmentation slider no longer uses it. Ported from
-# the desktop segmentation panel (_LIMPIEZA_MAP). From level 5 up it switches to
-# TOPOLOGICAL isolation — keep only the N largest connected components — which
-# removes large tissue/noise blobs a size-only filter cannot. Level 10 keeps just
-# the 3 biggest structures (the clean vascular tree in a subtracted volume).
-_CLEANUP_MAP: list[tuple[int, int, float]] = [
-    (0,    0,  0.0),  # 0 — Ninguna
-    (0,   30,  0.0),  # 1
-    (0,  100,  0.0),  # 2
-    (0,  200,  0.0),  # 3
-    (0,  500,  0.5),  # 4
-    (20,   0,  0.5),  # 5 — Media (switches to top-N)
-    (15,   0,  0.5),  # 6
-    (10,   0,  0.5),  # 7
-    (7,    0,  1.0),  # 8
-    (5,    0,  1.0),  # 9
-    (3,    0,  1.0),  # 10 — Máxima: solo los 3 componentes más grandes
-]
-
-
 def level_to_smooth_iters(level: int) -> int:
     return _SMOOTH_ITER[max(0, min(10, level))]
 
 
 def level_to_cleanup_verts(level: int) -> int:
     return _CLEANUP_VERTS[max(0, min(10, level))]
-
-
-def level_to_cleanup(level: int) -> tuple[int, int, float]:
-    """Cleanup level 0–10 → (keep_top_n, min_voxels, morpho_closing_mm)."""
-    return _CLEANUP_MAP[max(0, min(10, level))]
 
 
 # ── Mesh I/O ───────────────────────────────────────────────────────────────── #

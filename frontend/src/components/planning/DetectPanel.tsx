@@ -112,7 +112,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     <div className="fade-rise">
       <PanelHead
         title="Candidatos detectados"
-        desc="Localiza candidatos aneurismáticos por curvatura de la superficie."
+        desc="Tres criterios buscan por separado —curvatura, calibre y calibre relativo al vaso vecino— y se fusionan en una lista corta para recorrer."
         right={ran && <Badge variant="subtle">{candidates.length} encontrados</Badge>}
       />
 

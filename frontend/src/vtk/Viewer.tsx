@@ -266,14 +266,21 @@ export function Viewer({ step }: { step: string }) {
     if (!displayMeshUrl) return [];
     const vesselDim = step === "detect" || step === "morpho" || showDevice || pickMode !== null || showCenterline;
     const out: MeshLayer[] = [{ url: displayMeshUrl, color: VESSEL_COLOR, opacity: vesselDim ? 0.45 : 1 }];
+    // En Morfometría se marcan el cuello y el ápice PINCHANDO la superficie, y
+    // una mancha opaca encima tapa justo el sitio donde hay que pinchar. Así
+    // que ahí el resalte se vuelve translúcido: sigue diciendo dónde está, y
+    // deja ver el relieve por debajo.
+    const marcando = step === "morpho" || pickMode !== null;
+    const resalte = showDevice ? 0.5 : marcando ? 0.35 : 1;
+
     // El saco cerrado manda sobre el localizador: en cuanto está marcado el
     // cuello hay una malla que SÍ es el cuerpo del aneurisma, y enseñar las
     // dos a la vez volvería a mezclar «dónde mirar» con «qué es».
     const sacUrl = morphometry?.sac_mesh_url;
     if (sacUrl && step !== "segment" && step !== "upload") {
-      out.push({ url: sacUrl, color: SAC_COLOR, opacity: showDevice ? 0.5 : 1, id: "sac" });
+      out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac" });
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
-      out.push({ url: candidate.dome_mesh_url, color: DOME_COLOR, opacity: showDevice ? 0.5 : 1 });
+      out.push({ url: candidate.dome_mesh_url, color: DOME_COLOR, opacity: resalte });
     }
     // While rehearsing, the placed clip is replaced by its three moving parts:
     // showing both would put two clips on screen, one of them frozen.

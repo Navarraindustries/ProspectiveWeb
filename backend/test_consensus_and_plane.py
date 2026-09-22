@@ -29,6 +29,8 @@ _tmp = tempfile.mkdtemp(prefix="prospective_cp_")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
+import pathlib
+
 import numpy as np
 import pytest
 import vtk
@@ -326,4 +328,45 @@ class TestTheClosedSacTravels:
         from models.detection import AneurysmCandidate
         d = AneurysmCandidate.model_fields["patch_kind"].description
         assert "DÓNDE mirar" in d and "no qué parte es la lesión" in d
+
+
+# ── 7. Todo tiene que poder deshacerse, también lo que se pinta ─────────── #
+
+class TestEverythingCanBeUndone:
+    """El usuario lo pidió como principio, así que se comprueba como principio.
+
+    El agujero que había: `morpho.sac_vtp_name` y el propio `aneurysm_sac.vtp`
+    no estaban en la limpieza, así que «Limpiar candidatos y morfometría»
+    borraba las medidas y dejaba el saco verde pintado en el visor — una
+    medida borrada que se seguía viendo.
+    """
+
+    def test_clearing_forgets_the_isolated_sac(self):
+        from routers.detect import _MORPHO_STATE_KEYS
+        assert "morpho.sac_vtp_name" in _MORPHO_STATE_KEYS
+        assert "morpho.rim_points" in _MORPHO_STATE_KEYS, (
+            "los puntos del borde reaparecían al reanudar"
+        )
+
+    def test_clearing_deletes_the_sac_file_too(self):
+        import routers.detect as det
+        src = (pathlib.Path(det.__file__).read_text(encoding="utf-8"))
+        assert 'sac = meshes_dir / "aneurysm_sac.vtp"' in src
+        assert "sac.unlink()" in src, "la clave sin el fichero no basta"
+
+    def test_clearing_forgets_the_new_candidate_keys(self):
+        import routers.detect as det
+        src = pathlib.Path(det.__file__).read_text(encoding="utf-8")
+        assert '"channels", "patch_kind"' in src, (
+            "los canales y el tipo de parche se quedaban de la corrida anterior"
+        )
+
+    def test_the_plane_cut_is_snapshotted_before_touching_the_mesh(self):
+        poly = _une(_tubo(radio=1.5, largo=60.0), _bola((0, -40, 0), 6.0))
+        sid = _sesion(poly)
+        antes = poly.GetNumberOfPoints()
+        client.post(f"/api/mesh-plane-cut/{sid}", json={
+            "axis": "y", "offset_mm": -25.0, "keep_positive": True})
+        r = client.post(f"/api/mesh-restore/{sid}", json={"scope": "undo"})
+        assert r.status_code == 200 and r.json()["vertices"] == antes
 

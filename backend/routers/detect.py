@@ -125,6 +125,11 @@ _MORPHO_STATE_KEYS = (
     "morpho.ar", "morpho.dnr", "morpho.bf", "morpho.ui",
     "morpho.compactness", "morpho.rupture_risk",
     "morpho.neck_source", "morpho.neck_tilt_deg", "morpho.parent_artery_mm",
+    # El saco aislado y los puntos del borde. Sin esto, «Limpiar candidatos y
+    # morfometría» dejaba el saco verde pintado en el visor y los puntos del
+    # cuello listos para reaparecer al reanudar: una medida borrada que seguía
+    # viéndose.
+    "morpho.sac_vtp_name", "morpho.rim_points",
 )
 
 
@@ -151,7 +156,7 @@ def _clear_detection_state(session_id: str, meshes_dir: Path, *, morphometry: bo
     for i in range(1, max(previous, removed) + 1):
         prefix = f"detect.cand_{i:03d}"
         for suffix in ("vtp_name", "url", "centroid_x", "centroid_y", "centroid_z",
-                       "diameter_mm", "score"):
+                       "diameter_mm", "score", "channels", "patch_kind"):
             write_state(session_id, f"{prefix}.{suffix}", "")
     write_state(session_id, "detect.n_candidates", "0")
     write_state(session_id, "detect.best_vtp_name", "")
@@ -159,6 +164,15 @@ def _clear_detection_state(session_id: str, meshes_dir: Path, *, morphometry: bo
     if morphometry:
         for key in _MORPHO_STATE_KEYS:
             write_state(session_id, key, "")
+        # Y el fichero del saco, no solo su clave: dejarlo en disco hacía que
+        # una sesión reanudada volviera a pintarlo.
+        sac = meshes_dir / "aneurysm_sac.vtp"
+        if sac.exists():
+            try:
+                sac.unlink()
+                removed += 1
+            except OSError as exc:  # noqa: BLE001
+                logger.warning("Could not delete %s: %s", sac.name, exc)
         # The recommendation and the PHASES score are computed FROM the
         # morphometry, so they describe measurements that no longer exist.
         # Leaving them behind made the PDF recommend a treatment for an

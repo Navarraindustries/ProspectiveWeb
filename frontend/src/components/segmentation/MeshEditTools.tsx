@@ -40,6 +40,10 @@ export function MeshEditTools() {
   const [planeKeepPos, setPlaneKeepPos] = useState(true);
   const [bounds, setBounds] = useState<MeshBounds | null>(null);
   const [planeMsg, setPlaneMsg] = useState<string | null>(null);
+  // La previa NO se arma sola: entrar en Segmentación no puede hacer que
+  // media malla desaparezca sin que nadie lo haya pedido. Se arma al tocar
+  // el control y se desarma con «Cancelar».
+  const [planeArmed, setPlaneArmed] = useState(false);
   const [huRange, setHuRange] = useState<{ min: number; max: number }>({ min: -200, max: 3000 });
   const [busy, setBusy] = useState<"grow" | "crop" | "plane" | "undo" | "redo" | "original" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,9 +106,9 @@ export function MeshEditTools() {
   // La previa del corte: el visor recorta el render en vivo con estos tres
   // valores, así que arrastrar el deslizador enseña lo que se va a llevar.
   useEffect(() => {
-    if (!bounds) { setPlaneCut(null); return; }
+    if (!bounds || !planeArmed) { setPlaneCut(null); return; }
     setPlaneCut({ axis: planeAxis, offset: planeOffset, keepPositive: planeKeepPos });
-  }, [bounds, planeAxis, planeOffset, planeKeepPos, setPlaneCut]);
+  }, [bounds, planeArmed, planeAxis, planeOffset, planeKeepPos, setPlaneCut]);
   useEffect(() => () => setPlaneCut(null), [setPlaneCut]);
 
   // ── El borrador de un clic ──────────────────────────────────────────── #
@@ -272,6 +276,7 @@ export function MeshEditTools() {
         ? { ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces }
         : segmentation);
       clearDownstream();
+      setPlaneArmed(false);
       setPlaneMsg(
         `Fuera ${res.removed_vertices.toLocaleString("es")} vértices. ` +
         (res.components_left === 1
@@ -423,6 +428,7 @@ export function MeshEditTools() {
               key={eje}
               onClick={() => {
                 setPlaneAxis(eje);
+                setPlaneArmed(true);
                 if (bounds) setPlaneOffset(Math.round((bounds.min[eje] + bounds.max[eje]) / 2));
               }}
               style={toolBtn(planeAxis === eje)}
@@ -449,7 +455,7 @@ export function MeshEditTools() {
               max={Math.ceil(bounds.max[planeAxis])}
               step={1}
               value={planeOffset}
-              onChange={(e) => setPlaneOffset(Number(e.target.value))}
+              onChange={(e) => { setPlaneOffset(Number(e.target.value)); setPlaneArmed(true); }}
               style={{ width: "100%" }}
             />
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted-foreground)", marginBottom: 10 }}>
@@ -464,22 +470,33 @@ export function MeshEditTools() {
         )}
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <button onClick={() => setPlaneKeepPos(true)} style={toolBtn(planeKeepPos)}>
+          <button onClick={() => { setPlaneKeepPos(true); setPlaneArmed(true); }} style={toolBtn(planeKeepPos)}>
             Conservar arriba
           </button>
-          <button onClick={() => setPlaneKeepPos(false)} style={toolBtn(!planeKeepPos)}>
+          <button onClick={() => { setPlaneKeepPos(false); setPlaneArmed(true); }} style={toolBtn(!planeKeepPos)}>
             Conservar abajo
           </button>
         </div>
 
-        <Button
-          variant="outline"
-          style={{ width: "100%" }}
-          disabled={!bounds || busy !== null}
-          onClick={() => void cortarPlano()}
-        >
-          {busy === "plane" ? "Cortando…" : "Cortar"}
-        </Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button
+            variant="outline"
+            style={{ flex: 1 }}
+            disabled={!bounds || !planeArmed || busy !== null}
+            onClick={() => void cortarPlano()}
+          >
+            {busy === "plane" ? "Cortando…" : "Cortar"}
+          </Button>
+          {planeArmed && (
+            <Button
+              variant="ghost"
+              disabled={busy !== null}
+              onClick={() => { setPlaneArmed(false); setPlaneMsg(null); }}
+            >
+              Cancelar
+            </Button>
+          )}
+        </div>
         {planeMsg && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
             {planeMsg}

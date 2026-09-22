@@ -163,6 +163,46 @@ describe("el corte por plano", () => {
     expect(meshPlaneCut.mock.calls[0][1].keep_positive).toBe(false);
   });
 
+  it("NO se arma sola: entrar no puede borrar media malla de la vista", async () => {
+    // Bug propio: el efecto publicaba la previa en cuanto llegaban los
+    // límites, así que abrir Segmentación recortaba el render sin que nadie
+    // lo pidiera. Nada debe pasar hasta que el usuario toque el control.
+    let visto: unknown = "sin tocar";
+    function Espia() {
+      const { planeCut } = usePlanning();
+      visto = planeCut;
+      return null;
+    }
+    render(
+      <PlanningProvider>
+        <Seed><MeshEditTools /><Espia /></Seed>
+      </PlanningProvider>,
+    );
+    await screen.findByRole("slider", { name: "Altura del corte" });
+    await waitFor(() => expect(visto).toBeNull());
+  });
+
+  it("se puede cancelar sin tocar la malla", async () => {
+    let visto: unknown = null;
+    function Espia() {
+      const { planeCut } = usePlanning();
+      visto = planeCut;
+      return null;
+    }
+    render(
+      <PlanningProvider>
+        <Seed><MeshEditTools /><Espia /></Seed>
+      </PlanningProvider>,
+    );
+    const slider = await screen.findByRole("slider", { name: "Altura del corte" });
+    fireEvent.change(slider, { target: { value: "-12" } });
+    await waitFor(() => expect(visto).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(visto).toBeNull());
+    expect(meshPlaneCut).not.toHaveBeenCalled();
+  });
+
   it("publica la previa para que el visor recorte en vivo", async () => {
     // El usuario dijo que cortar por ejes es poco intuitivo «porque no hay de
     // dónde guiarse». El problema no era el plano: era que no se veía nada

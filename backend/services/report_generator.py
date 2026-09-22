@@ -80,7 +80,10 @@ class StentEntry:
     """A deployed stent / flow diverter.
 
     `kind` distinguishes the two planners, and matters for reading `coverage_pct`:
-    - "straight"   → percentage of the aneurysm neck covered by the device
+    - "straight"   → percentage of the neck plus its landing zones the device
+                     spans (100 % = bridges it). Never metal coverage over the
+                     ostium: that needs the parent-vessel diameter, which this
+                     planner does not measure.
     - "centerline" → stent/vessel diameter ratio ×100 (≈100 % is a good fit)
     """
     name: str
@@ -1432,9 +1435,9 @@ class ReportGenerator:
         else:
             title        = "Stent / desviador de flujo planificado"
             length_label = "Longitud nominal"
-            cov_label    = "Cobertura del cuello"
+            cov_label    = "Cuello cruzado por el dispositivo"
             cov_value    = f"{st.coverage_pct:.1f} %"
-            cov_ref      = "≥ 30 % recomendado"
+            cov_ref      = "100 % = cruza el cuello con anclaje a ambos lados"
 
         elems = [Paragraph(title, self._style_h2)]
         rows = [

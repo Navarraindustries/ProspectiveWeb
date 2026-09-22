@@ -47,20 +47,38 @@ class PlanResult(BaseModel):
     coverage_pct: float = Field(
         ..., ge=0.0, le=100.0,
         description=(
-            "Percentage of the aneurysm neck area covered by the stent mesh. "
-            "Target: ≥ 30% for flow diverter effect. Typical: 30–70%."
+            "How much of the neck plus its landing zones the device actually "
+            "spans, as a percentage — the quantity this field's name always "
+            "claimed. 100% means the stent bridges the neck with 5 mm of "
+            "anchorage each side. NOTE: this is NOT metal coverage over the "
+            "ostium; that depends on the parent-vessel diameter, which this "
+            "planner does not measure. A previous version returned an unsourced "
+            "metal-coverage figure here (32% plus an oversizing bonus whose sign "
+            "was backwards)."
         ),
     )
     neck_diameter_covered_mm: float = Field(
         ...,
-        description="Length of the neck diameter effectively covered by the stent (mm)",
+        description="Length of the neck diameter effectively spanned by the stent (mm)",
+    )
+    required_length_mm: float = Field(
+        0.0,
+        description="Length the device needs to bridge the neck plus both landing zones (mm)",
     )
     deployed: bool = Field(
         True, description="False if the requested parameters are geometrically incompatible"
     )
+    notes: list[str] = Field(
+        default_factory=list,
+        description="What this planner is not computing, stated explicitly.",
+    )
+    sources: list[str] = Field(
+        default_factory=list,
+        description="Published sources behind the sizing statements.",
+    )
     warning: str | None = Field(
         None,
-        description="Warning shown when coverage is low or stent size mismatches the vessel",
+        description="Warning shown when the device cannot bridge the neck or is out of range",
     )
 
 

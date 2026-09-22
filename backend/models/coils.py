@@ -61,18 +61,34 @@ class CoilPlanResult(BaseModel):
     total_packing_density: float = Field(
         ..., ge=0.0, le=1.0,
         description=(
-            "Overall packing density of the aneurysm sac (volume of coils / sac volume). "
-            "Target: ≥ 0.20 (20%). Typical: 0.20–0.35."
+            "Measured packing density of the aneurysm sac: total coil wire volume "
+            "(from the catalogue) divided by the sac volume (from morphometry). "
+            "Warning below 0.20; planning aims at 0.25."
         ),
     )
-    estimated_occlusion_pct: float = Field(
-        ..., ge=0.0, le=100.0,
+    packing_min: float = Field(
+        0.20, ge=0.0, le=1.0,
+        description="Packing density below which coil compaction is described.",
+    )
+    meets_minimum: bool = Field(
+        False, description="Whether the measured packing reaches `packing_min`.",
+    )
+    durability: str = Field(
+        "",
         description=(
-            "Estimated aneurysm occlusion percentage based on packing density. "
-            "Raymond grade I (complete) requires > 95%."
+            "What the measured packing density supports saying. Deliberately not "
+            "an occlusion forecast: the Raymond-Roy grade is read off the "
+            "post-procedure angiogram, and no published curve maps packing "
+            "density onto it. An earlier version returned "
+            "`estimated_occlusion_pct` from a hand-tuned exponential with no "
+            "source; that field was removed rather than re-derived."
         ),
+    )
+    sources: list[str] = Field(
+        default_factory=list,
+        description="Published sources behind the packing thresholds.",
     )
     warning: str | None = Field(
         None,
-        description="Warning when packing density is below therapeutic threshold (< 20%)"
+        description="Warning when the measured packing density is below `packing_min`.",
     )

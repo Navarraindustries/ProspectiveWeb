@@ -193,3 +193,115 @@ def profile_to_dict(p: EndovascularProfile) -> dict[str, Any]:
         "cautions": list(p.cautions),
         "sources": list(p.sources),
     }
+
+
+# ── Dimensionado del stent ─────────────────────────────────────────────────── #
+# Lo que sigue sustituye al cálculo que había en `routers/plan.py`, que sumaba
+# una «cobertura metálica» de 32 % más una bonificación por sobredimensionar:
+#
+#     coverage = (32.0 + min(18, (diámetro - cuello) * 6.0)) * span_fraction
+#
+# Tenía tres problemas. No hay fuente para el 32 ni para el 6. Comparaba el
+# diámetro con el CUELLO, cuando el dispositivo se dimensiona contra la arteria
+# portadora, que es otra medida y que esta pestaña no conoce. Y el signo iba al
+# revés: una trenza desplegada con holgura respecto al vaso se alarga, los poros
+# se abren y la cobertura metálica BAJA, no sube.
+#
+# Además, el campo que recibía ese número se llama `coverage_pct` y está
+# documentado como «cuánto del cuello cruza el stent», que es una magnitud
+# distinta de la cobertura metálica. Aquí se calcula lo que el nombre dice, que
+# encima es lo único geométricamente deducible de lo que hay medido.
+
+#: Anclaje sano exigido a cada lado del cuello para que el dispositivo agarre.
+LANDING_ZONE_MM: float = 5.0
+
+#: Cuello supuesto cuando aún no se ha corrido la morfometría.
+DEFAULT_NECK_MM: float = 4.0
+
+SRC_BRAID = (
+    "Mecánica de la trenza — al desplegarse con holgura el dispositivo se "
+    "alarga y la cobertura metálica disminuye"
+)
+
+
+@dataclass
+class StentBridging:
+    """Cuánto del cuello cruza el dispositivo, y qué no se está calculando."""
+
+    coverage_pct: float          # fracción del cuello + anclaje que el stent cruza
+    neck_covered_mm: float
+    required_length_mm: float
+    diameter_ok: bool
+    length_ok: bool
+    deployed: bool
+    warnings: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
+
+
+def stent_bridging(
+    neck_mm: float,
+    length_mm: float,
+    diameter_mm: float,
+    min_diameter_mm: float = 0.0,
+    max_diameter_mm: float = 0.0,
+) -> StentBridging:
+    """Comprueba el ajuste del stent con lo que de verdad está medido.
+
+    Con `min/max_diameter_mm` a cero no hay ficha de dispositivo contra la que
+    comparar y el diámetro se da por bueno, en vez de inventar un rango.
+    """
+    warnings: list[str] = []
+    notes: list[str] = []
+
+    medido = neck_mm > 0
+    neck = neck_mm if medido else DEFAULT_NECK_MM
+    required = neck + 2.0 * LANDING_ZONE_MM
+
+    diameter_ok = True
+    if max_diameter_mm > 0:
+        diameter_ok = min_diameter_mm <= diameter_mm <= max_diameter_mm
+        if not diameter_ok:
+            warnings.append(
+                f"Diámetro {diameter_mm:.1f} mm fuera del rango del dispositivo "
+                f"({min_diameter_mm:.1f}–{max_diameter_mm:.1f} mm)."
+            )
+
+    span_fraction = min(1.0, length_mm / required) if required > 0 else 0.0
+    length_ok = length_mm >= required
+    if medido and not length_ok:
+        warnings.append(
+            f"Longitud {length_mm:.0f} mm insuficiente para cruzar el cuello "
+            f"({neck:.1f} mm) más {LANDING_ZONE_MM:.0f} mm de anclaje a cada "
+            f"lado (necesita ≈ {required:.0f} mm)."
+        )
+
+    if not medido:
+        warnings.append(
+            "Sin morfometría: el cuello se ha supuesto de "
+            f"{DEFAULT_NECK_MM:.0f} mm. Márcalo para que el ajuste sea real."
+        )
+
+    # ── Lo que no se calcula, dicho como tal ──────────────────────────── #
+    notes.append(
+        "La cobertura metálica sobre el ostium no se calcula aquí: depende del "
+        "diámetro de la arteria portadora, que esta pestaña no mide. En «Stent "
+        "CL» sí se conoce, porque la línea central lleva el radio del vaso."
+    )
+    notes.append(
+        "Al dimensionar, la referencia es la arteria portadora, no el cuello. "
+        "Un dispositivo desplegado con holgura se alarga y su cobertura "
+        "metálica baja."
+    )
+
+    return StentBridging(
+        coverage_pct=round(span_fraction * 100.0, 1),
+        neck_covered_mm=round((neck_mm if medido else 0.0) * span_fraction, 2),
+        required_length_mm=round(required, 1),
+        diameter_ok=diameter_ok,
+        length_ok=length_ok,
+        deployed=diameter_ok and (length_ok or not medido),
+        warnings=warnings,
+        notes=notes,
+        sources=[SRC_BRAID],
+    )

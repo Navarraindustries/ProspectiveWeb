@@ -7,7 +7,10 @@ import math
 from fastapi import APIRouter, HTTPException
 
 from models import CoilLibraryItem, CoilPlanRequest, CoilPlanResult
-from services.coils    import catalogue_to_api, coils_for_aneurysm, estimate_coil_count, COIL_CATALOGUE
+from services.coils    import (
+    catalogue_to_api, coils_for_aneurysm, estimate_coil_count, COIL_CATALOGUE,
+    packing_assessment, PACKING_AIM, PACKING_MIN, PACKING_MAX,
+)
 from services.sessions import read_state, session_exists, session_subdir, mesh_url
 
 logger = logging.getLogger(__name__)
@@ -41,10 +44,15 @@ async def get_coil_library() -> list[CoilLibraryItem]:
     response_model=CoilPlanResult,
     summary="Compute coil embolization plan",
     description=(
-        "Accepts a list of coil placements and estimates the resulting packing density "
-        "based on coil wire volumes and the aneurysm sac volume (from session morphometry). "
-        "Returns packing density and estimated angiographic occlusion grade.\n\n"
-        "Target: ≥ 20% packing density for durable occlusion (Sluzewski AJNR 2004)."
+        "Accepts a list of coil placements and measures the resulting packing "
+        "density from the catalogue wire volumes and the sac volume recorded by "
+        "morphometry.\n\n"
+        "Returns that measurement and what it supports saying. It deliberately "
+        "does NOT return an occlusion percentage: the Raymond-Roy grade is read "
+        "off the post-procedure angiogram, and no published curve maps packing "
+        "density onto it. "
+        f"Warning below {PACKING_MIN * 100:.0f}%; planning aims at "
+        f"{PACKING_AIM * 100:.0f}% (Sluzewski et al., AJNR 2004)."
     ),
 )
 async def plan_coils(req: CoilPlanRequest) -> CoilPlanResult:
@@ -67,17 +75,16 @@ async def plan_coils(req: CoilPlanRequest) -> CoilPlanResult:
                 total_wire_vol += spec.wire_volume_mm3
 
         packing = total_wire_vol / aneurysm_vol if aneurysm_vol > 0 else 0.0
-        packing = min(packing, 0.55)   # physical upper limit ~55% (platinum packing)
+        packing = min(packing, PACKING_MAX)
     else:
-        # Fallback when morpho is not yet available: estimate 8% per coil
-        n        = max(len(req.placements), 0)
-        packing  = min(0.08 * n, 0.45)
+        # Sin volumen del saco no hay divisor, así que no hay densidad. Antes
+        # aquí se rellenaba con 0.08 por coil: un número inventado en el sitio
+        # de uno medido. Ver `packing_assessment`.
+        packing = 0.0
 
-    # Occlusion estimate: packing density → angiographic occlusion.
-    # The relationship is saturating, not linear — occlusion rises steeply then
-    # plateaus, and packing alone never yields a true 100%. Exponential model
-    # tuned so ~0.30 packing ≈ 95% (Raymond grade I, complete).
-    occlusion_pct = 100.0 * (1.0 - math.exp(-float(packing) / 0.10))
+    assessment = packing_assessment(
+        packing, len(req.placements), volume_known=aneurysm_vol > 0,
+    )
 
     # ── Build a real coil-bundle mesh inside the sac ─────────────────────── #
     coils_url = "/static/sample-meshes/coils_placed.vtp"
@@ -123,10 +130,9 @@ async def plan_coils(req: CoilPlanRequest) -> CoilPlanResult:
     return CoilPlanResult(
         coils_mesh_url=coils_url,
         total_packing_density=round(packing, 3),
-        estimated_occlusion_pct=round(occlusion_pct, 1),
-        warning=(
-            f"Densidad de empaquetamiento {packing*100:.0f}% < 20% — añadir más coils "
-            "para lograr oclusión durable (objetivo ≥ 25%)"
-            if packing < 0.20 and len(req.placements) > 0 else None
-        ),
+        packing_min=PACKING_MIN,
+        meets_minimum=assessment.meets_minimum,
+        durability=assessment.durability,
+        sources=assessment.sources,
+        warning=assessment.warning,
     )

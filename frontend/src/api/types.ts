@@ -1068,8 +1068,15 @@ export interface CoilPlacement {
 
 export interface CoilPlanResult {
   coils_mesh_url: string;
+  /** Medido: volumen de hilo del catálogo / volumen del saco. */
   total_packing_density: number;
-  estimated_occlusion_pct: number;
+  packing_min: number;
+  meets_minimum: boolean;
+  /** Lo que el empaquetamiento medido permite afirmar. No es un pronóstico de
+   *  oclusión: `estimated_occlusion_pct` se retiró porque salía de una
+   *  exponencial ajustada a ojo, sin fuente. */
+  durability: string;
+  sources: string[];
   warning: string | null;
 }
 
@@ -1094,9 +1101,15 @@ export interface StentParams {
 
 export interface StentPlanResult {
   stent_mesh_url: string;
+  /** Cuánto del cuello + anclaje cruza el dispositivo (100 % = lo cruza).
+   *  NO es cobertura metálica sobre el ostium: eso depende del diámetro de la
+   *  arteria portadora, que este planificador no mide. */
   coverage_pct: number;
   neck_diameter_covered_mm: number;
+  required_length_mm: number;
   deployed: boolean;
+  notes: string[];
+  sources: string[];
   warning: string | null;
 }
 

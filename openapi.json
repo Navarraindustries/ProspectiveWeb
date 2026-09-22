@@ -2803,7 +2803,7 @@
           "coils"
         ],
         "summary": "Compute coil embolization plan",
-        "description": "Accepts a list of coil placements and estimates the resulting packing density based on coil wire volumes and the aneurysm sac volume (from session morphometry). Returns packing density and estimated angiographic occlusion grade.\n\nTarget: ≥ 20% packing density for durable occlusion (Sluzewski AJNR 2004).",
+        "description": "Accepts a list of coil placements and measures the resulting packing density from the catalogue wire volumes and the sac volume recorded by morphometry.\n\nReturns that measurement and what it supports saying. It deliberately does NOT return an occlusion percentage: the Raymond-Roy grade is read off the post-procedure angiogram, and no published curve maps packing density onto it. Warning below 20%; planning aims at 25% (Sluzewski et al., AJNR 2004).",
         "operationId": "plan_coils_api_coils_plan_post",
         "requestBody": {
           "content": {
@@ -2881,7 +2881,7 @@
           "planning"
         ],
         "summary": "Compute stent deployment plan",
-        "description": "Places the selected stent at the aneurysm neck and computes neck coverage. Returns the deployed stent mesh URL and coverage metrics.",
+        "description": "Places the selected stent at the aneurysm neck and checks whether it can bridge that neck. Returns the deployed mesh URL, how much of the neck plus its landing zones the device spans, and what this planner does not compute.",
         "operationId": "compute_plan_api_plan_post",
         "requestBody": {
           "content": {
@@ -7732,14 +7732,35 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Total Packing Density",
-            "description": "Overall packing density of the aneurysm sac (volume of coils / sac volume). Target: ≥ 0.20 (20%). Typical: 0.20–0.35."
+            "description": "Measured packing density of the aneurysm sac: total coil wire volume (from the catalogue) divided by the sac volume (from morphometry). Warning below 0.20; planning aims at 0.25."
           },
-          "estimated_occlusion_pct": {
+          "packing_min": {
             "type": "number",
-            "maximum": 100.0,
+            "maximum": 1.0,
             "minimum": 0.0,
-            "title": "Estimated Occlusion Pct",
-            "description": "Estimated aneurysm occlusion percentage based on packing density. Raymond grade I (complete) requires > 95%."
+            "title": "Packing Min",
+            "description": "Packing density below which coil compaction is described.",
+            "default": 0.2
+          },
+          "meets_minimum": {
+            "type": "boolean",
+            "title": "Meets Minimum",
+            "description": "Whether the measured packing reaches `packing_min`.",
+            "default": false
+          },
+          "durability": {
+            "type": "string",
+            "title": "Durability",
+            "description": "What the measured packing density supports saying. Deliberately not an occlusion forecast: the Raymond-Roy grade is read off the post-procedure angiogram, and no published curve maps packing density onto it. An earlier version returned `estimated_occlusion_pct` from a hand-tuned exponential with no source; that field was removed rather than re-derived.",
+            "default": ""
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources",
+            "description": "Published sources behind the packing thresholds."
           },
           "warning": {
             "anyOf": [
@@ -7751,14 +7772,13 @@
               }
             ],
             "title": "Warning",
-            "description": "Warning when packing density is below therapeutic threshold (< 20%)"
+            "description": "Warning when the measured packing density is below `packing_min`."
           }
         },
         "type": "object",
         "required": [
           "coils_mesh_url",
-          "total_packing_density",
-          "estimated_occlusion_pct"
+          "total_packing_density"
         ],
         "title": "CoilPlanResult",
         "description": "Result of a coil embolization plan."
@@ -10772,18 +10792,40 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Coverage Pct",
-            "description": "Percentage of the aneurysm neck area covered by the stent mesh. Target: ≥ 30% for flow diverter effect. Typical: 30–70%."
+            "description": "How much of the neck plus its landing zones the device actually spans, as a percentage — the quantity this field's name always claimed. 100% means the stent bridges the neck with 5 mm of anchorage each side. NOTE: this is NOT metal coverage over the ostium; that depends on the parent-vessel diameter, which this planner does not measure. A previous version returned an unsourced metal-coverage figure here (32% plus an oversizing bonus whose sign was backwards)."
           },
           "neck_diameter_covered_mm": {
             "type": "number",
             "title": "Neck Diameter Covered Mm",
-            "description": "Length of the neck diameter effectively covered by the stent (mm)"
+            "description": "Length of the neck diameter effectively spanned by the stent (mm)"
+          },
+          "required_length_mm": {
+            "type": "number",
+            "title": "Required Length Mm",
+            "description": "Length the device needs to bridge the neck plus both landing zones (mm)",
+            "default": 0.0
           },
           "deployed": {
             "type": "boolean",
             "title": "Deployed",
             "description": "False if the requested parameters are geometrically incompatible",
             "default": true
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "What this planner is not computing, stated explicitly."
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources",
+            "description": "Published sources behind the sizing statements."
           },
           "warning": {
             "anyOf": [
@@ -10795,7 +10837,7 @@
               }
             ],
             "title": "Warning",
-            "description": "Warning shown when coverage is low or stent size mismatches the vessel"
+            "description": "Warning shown when the device cannot bridge the neck or is out of range"
           }
         },
         "type": "object",

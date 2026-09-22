@@ -466,7 +466,13 @@ class TestCoilsAPI:
         })
         assert resp.status_code == 404
 
-    def test_occlusion_pct_range(self):
+    def test_no_occlusion_forecast(self):
+        """El plan describe el empaquetamiento medido; no pronostica oclusión.
+
+        `estimated_occlusion_pct` salía de `1 - exp(-packing/0.10)`, una curva
+        ajustada a ojo y sin fuente, y se pintaba con un decimal. Se retiró: que
+        no vuelva por la puerta de atrás.
+        """
         sid  = _make_session()
         resp = client.post("/api/coils/plan", json={
             "session_id": sid,
@@ -475,8 +481,13 @@ class TestCoilsAPI:
                             "packing_density": 0.25}],
         })
         assert resp.status_code == 200
-        pct = resp.json()["estimated_occlusion_pct"]
-        assert 0.0 <= pct <= 100.0
+        d = resp.json()
+        assert "estimated_occlusion_pct" not in d
+        assert not any("oclusi" in k.lower() for k in d)
+        # Lo que sí devuelve: la medida y lo que permite afirmar.
+        assert 0.0 <= d["total_packing_density"] <= 0.55
+        assert d["durability"]
+        assert d["sources"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════

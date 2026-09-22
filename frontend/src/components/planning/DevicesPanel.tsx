@@ -539,9 +539,11 @@ function CoilsTab() {
             label="Densidad de empaque"
             value={(plan.total_packing_density * 100).toFixed(1)}
             unit=" %"
-            badge={plan.total_packing_density >= 0.2 ? ["Óptimo", "success"] : ["Insuficiente", "warning"]}
+            badge={plan.meets_minimum ? ["Sobre el mínimo", "success"] : ["Insuficiente", "warning"]}
           />
-          <Metric label="Oclusión estimada" value={plan.estimated_occlusion_pct.toFixed(0)} unit=" %" />
+          {plan.durability && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{plan.durability}</div>
+          )}
           {plan.warning && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>
           )}
@@ -649,12 +651,13 @@ function StentsTab() {
       {plan && (
         <Card style={{ marginTop: 14 }}>
           <Metric
-            label="Cobertura de cuello"
+            label="Cuello cruzado"
             value={plan.coverage_pct.toFixed(1)}
             unit=" %"
-            badge={plan.coverage_pct >= 30 ? ["Óptimo", "success"] : ["Baja", "warning"]}
+            badge={plan.coverage_pct >= 99.9 ? ["Lo cruza", "success"] : ["No lo cruza", "warning"]}
           />
-          <Metric label="Cuello cubierto" value={plan.neck_diameter_covered_mm.toFixed(1)} unit=" mm" />
+          <Metric label="Del cuello medido" value={plan.neck_diameter_covered_mm.toFixed(1)} unit=" mm" />
+          <Metric label="Longitud necesaria" value={plan.required_length_mm.toFixed(0)} unit=" mm" />
           <Metric
             label="Despliegue"
             value={plan.deployed ? "OK" : "Incompatible"}
@@ -663,6 +666,9 @@ function StentsTab() {
           {plan.warning && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>
           )}
+          {plan.notes.map((n, i) => (
+            <div key={i} style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{n}</div>
+          ))}
         </Card>
       )}
       <ErrorNote>{error}</ErrorNote>

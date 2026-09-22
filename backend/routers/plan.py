@@ -6,6 +6,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from models import PlanRequest, PlanResult, StentLibraryItem
+from services.endovascular import stent_bridging
 from services.sessions import read_state, session_exists, session_subdir, mesh_url
 
 logger = logging.getLogger(__name__)
@@ -75,8 +76,10 @@ async def get_stent_library() -> list[StentLibraryItem]:
     response_model=PlanResult,
     summary="Compute stent deployment plan",
     description=(
-        "Places the selected stent at the aneurysm neck and computes neck coverage. "
-        "Returns the deployed stent mesh URL and coverage metrics."
+        "Places the selected stent at the aneurysm neck and checks whether it "
+        "can bridge that neck. Returns the deployed mesh URL, how much of the "
+        "neck plus its landing zones the device spans, and what this planner "
+        "does not compute."
     ),
 )
 async def compute_plan(req: PlanRequest) -> PlanResult:
@@ -91,41 +94,21 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
     device = next((s for s in _STENT_LIBRARY if s.id == p.stent_id), None)
 
     # ── Fit check (real, from the device envelope + neck geometry) ───────── #
+    # The sizing itself lives in services/endovascular.py, next to the rest of
+    # the endovascular knowledge; see the comment there for what this used to
+    # compute and why it was wrong.
     neck_mm = _load_float(req.session_id, "morpho.neck_mm", 0.0)
-    LANDING = 5.0  # required proximal + distal landing per side (mm)
-    warnings: list[str] = []
-
-    dia_ok = True
-    if device is not None:
-        dia_ok = device.min_diameter_mm <= p.diameter_mm <= device.max_diameter_mm
-        if not dia_ok:
-            warnings.append(
-                f"Diámetro {p.diameter_mm:.1f} mm fuera del rango del dispositivo "
-                f"({device.min_diameter_mm:.1f}–{device.max_diameter_mm:.1f} mm)."
-            )
-
-    # A flow diverter must bridge the neck plus a landing zone on each side.
-    required_len = (neck_mm if neck_mm > 0 else 4.0) + 2 * LANDING
-    len_ok = p.length_mm >= required_len
-    if neck_mm > 0 and not len_ok:
-        warnings.append(
-            f"Longitud {p.length_mm:.0f} mm insuficiente para cubrir el cuello "
-            f"({neck_mm:.1f} mm) + anclaje (necesita ≈ {required_len:.0f} mm)."
-        )
-
-    deployed = dia_ok and (len_ok or neck_mm <= 0)
-
-    # ── Coverage (geometric estimate, not a constant) ────────────────────── #
-    # Neck bridged along the vessel: fraction of the neck length the stent spans.
-    span_fraction = 1.0 if neck_mm <= 0 else min(1.0, p.length_mm / required_len)
-    neck_covered = (neck_mm if neck_mm > 0 else 0.0) * span_fraction
-    # Flow-diverter metal coverage over the ostium: ~30–35% nominal, higher when
-    # the device is oversized relative to the neck; scaled by how well it spans.
-    base_metal = 32.0
-    oversize_bonus = 0.0
-    if neck_mm > 0:
-        oversize_bonus = max(0.0, min(18.0, (p.diameter_mm - neck_mm) * 6.0))
-    coverage = round((base_metal + oversize_bonus) * span_fraction, 1)
+    fit = stent_bridging(
+        neck_mm=neck_mm,
+        length_mm=p.length_mm,
+        diameter_mm=p.diameter_mm,
+        min_diameter_mm=getattr(device, "min_diameter_mm", 0.0),
+        max_diameter_mm=getattr(device, "max_diameter_mm", 0.0),
+    )
+    warnings = list(fit.warnings)
+    coverage = fit.coverage_pct
+    neck_covered = fit.neck_covered_mm
+    deployed = fit.deployed
 
     # ── Build a real stent tube at the placement (approx vessel axis) ────── #
     stent_url = "/static/sample-meshes/stent_deployed.vtp"
@@ -148,9 +131,6 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
     except Exception as exc:
         logger.warning("Stent mesh generation skipped: %s", exc)
 
-    if neck_mm <= 0:
-        warnings.append("Ejecuta la morfometría para una cobertura precisa del cuello.")
-
     # ── Persist the deployed stent for the report / session restore ──────── #
     from services.device_state import save_stent
     save_stent(req.session_id, {
@@ -166,6 +146,9 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
         stent_mesh_url=stent_url,
         coverage_pct=coverage,
         neck_diameter_covered_mm=round(neck_covered, 2),
+        required_length_mm=fit.required_length_mm,
         deployed=deployed,
+        notes=fit.notes,
+        sources=fit.sources,
         warning=" ".join(warnings) if warnings else None,
     )

@@ -10,7 +10,14 @@ Treatment strategy
 
 Packing density
 ---------------
-Target packing density ≥ 25 % of aneurysm volume (Sluzewski et al., AJNR 2004).
+La densidad de empaquetamiento —volumen de hilo / volumen del saco— es la única
+cifra de esta familia que se MIDE: el volumen de hilo sale del catálogo y el del
+saco, de la morfometría. Los umbrales viven en `PACKING_*`, abajo, con su fuente.
+
+Lo que este módulo NO hace es predecir el grado de oclusión angiográfica. La
+escala de Raymond-Roy tiene tres clases ordinales que se valoran sobre la
+angiografía posterior al procedimiento; convertir un empaquetamiento en un
+«porcentaje de oclusión» exigiría una curva que no existe publicada.
 
 References: manufacturer IFUs and published sizing charts.
 All dimensions in mm / cm.  Wire diameter in micrometres (µm).
@@ -130,6 +137,121 @@ COIL_CATALOGUE: list[CoilSpec] = [
 ]
 
 
+# ── Empaquetamiento: umbrales y su fuente ──────────────────────────────────── #
+# Estas dos cifras estaban repetidas a mano en tres sitios con valores distintos
+# (20 % en la descripción del endpoint, 25 % en este módulo, y un aviso que
+# mezclaba ambas). No es que una estuviera mal: son dos umbrales diferentes y
+# nadie lo había dicho. Aquí se nombran y se separan.
+
+#: Por debajo de esto se avisa: es donde la literatura sitúa la compactación.
+PACKING_MIN: float = 0.20
+
+#: A lo que se apunta al planificar el número de coils. Se apunta por encima del
+#: mínimo porque el empaquetamiento real cae respecto al calculado.
+PACKING_AIM: float = 0.25
+
+#: Tope físico del platino empaquetado; por encima, el cálculo se satura.
+PACKING_MAX: float = 0.55
+
+SRC_PACKING = (
+    "Sluzewski et al., AJNR 2004 — relación entre volumen del aneurisma, "
+    "empaquetamiento y compactación de los coils"
+)
+SRC_RAYMOND = (
+    "Raymond-Roy — clasificación de la oclusión en tres clases, valorada sobre "
+    "la angiografía posterior al procedimiento"
+)
+
+
+@dataclass(frozen=True)
+class PackingAssessment:
+    """Qué se puede decir del empaquetamiento medido, y con qué respaldo."""
+
+    packing: float
+    meets_minimum: bool
+    durability: str
+    warning: str | None
+    sources: list[str]
+
+
+def packing_assessment(
+    packing: float,
+    n_coils: int,
+    volume_known: bool = True,
+) -> PackingAssessment:
+    """Lee la densidad de empaquetamiento sin convertirla en un pronóstico.
+
+    Antes esto devolvía un «porcentaje de oclusión estimado» sacado de una
+    exponencial ajustada a ojo (`1 - exp(-packing/0.10)`), sin fuente, y se
+    pintaba en la interfaz con un decimal, que es justo lo que le da aspecto de
+    medición. Lo que sí se puede afirmar es lo de abajo.
+
+    `volume_known=False` cuando no se ha corrido la morfometría. El divisor de
+    la densidad es el volumen del saco, así que sin él no hay densidad que dar.
+    El respaldo que había —0.08 por coil, hasta 0.45— era un número inventado
+    ocupando el sitio de uno medido, que es el mismo defecto que el porcentaje
+    de oclusión.
+    """
+    if n_coils > 0 and not volume_known:
+        return PackingAssessment(
+            packing=0.0,
+            meets_minimum=False,
+            durability=(
+                f"{n_coils} coil(s) colocado(s), pero la densidad de "
+                f"empaquetamiento no se puede calcular todavía: hace falta el "
+                f"volumen del saco, que sale de Morfometría. El volumen de hilo "
+                f"lo da el catálogo; el divisor, no."
+            ),
+            warning=(
+                "Sin volumen del saco no hay densidad de empaquetamiento. "
+                "Ejecuta la morfometría."
+            ),
+            sources=[],
+        )
+
+    if n_coils <= 0:
+        return PackingAssessment(
+            packing=0.0,
+            meets_minimum=False,
+            durability=(
+                "Sin coils colocados todavía. La densidad de empaquetamiento se "
+                "calcula con el volumen de hilo del catálogo y el volumen del "
+                "saco medido en Morfometría."
+            ),
+            warning=None,
+            sources=[],
+        )
+
+    meets = packing >= PACKING_MIN
+    if meets:
+        durability = (
+            f"Empaquetamiento {packing * 100:.0f} %, por encima del "
+            f"{PACKING_MIN * 100:.0f} % por debajo del cual se describe "
+            f"compactación de los coils. No es un pronóstico de oclusión: el "
+            f"grado se valora sobre la angiografía posterior."
+        )
+        warning = None
+    else:
+        durability = (
+            f"Empaquetamiento {packing * 100:.0f} %, por debajo del "
+            f"{PACKING_MIN * 100:.0f} % asociado a compactación. Es la magnitud "
+            f"que se relaciona con la recanalización, no una medida de oclusión."
+        )
+        warning = (
+            f"Densidad de empaquetamiento {packing * 100:.0f} % por debajo del "
+            f"{PACKING_MIN * 100:.0f} %: al planificar se apunta al "
+            f"{PACKING_AIM * 100:.0f} %."
+        )
+
+    return PackingAssessment(
+        packing=packing,
+        meets_minimum=meets,
+        durability=durability,
+        warning=warning,
+        sources=[SRC_PACKING, SRC_RAYMOND],
+    )
+
+
 # ── Sizing helpers ─────────────────────────────────────────────────────────── #
 
 def coils_for_aneurysm(
@@ -161,7 +283,7 @@ def coils_for_aneurysm(
 def estimate_coil_count(
     aneurysm_volume_mm3: float,
     coil_spec:           CoilSpec,
-    target_packing_pct:  float = 25.0,
+    target_packing_pct:  float = PACKING_AIM * 100.0,
 ) -> int:
     """Estimate how many coils are needed to reach target packing density.
 

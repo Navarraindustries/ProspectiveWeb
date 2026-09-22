@@ -87,6 +87,10 @@ interface PlanningState {
   mprSeedMode: boolean;
   /** Picked centre of the mesh-crop ROI (box/sphere). */
   cropCenter: Vec3 | null;
+  /** Previa del corte por plano: el eje, la altura y qué lado se conserva.
+   *  El visor la usa para recortar el render en vivo, de modo que al arrastrar
+   *  el deslizador se vea desaparecer justo lo que el corte se llevaría. */
+  planeCut: { axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null;
   /** Último punto señalado con el borrador de piezas. El visor solo señala; el
    *  panel de edición es quien llama a la API y lo vuelve a poner en null,
    *  igual que hace con el resto de ediciones de malla. */
@@ -150,6 +154,7 @@ interface PlanningState {
   setMprSeedMode: (v: boolean) => void;
   setCropCenter: (p: Vec3 | null) => void;
   setErasePick: (p: Vec3 | null) => void;
+  setPlaneCut: (p: { axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null) => void;
   setCropRadius: (r: number) => void;
   setCropShape: (s: "sphere" | "box") => void;
   setCropInvert: (v: boolean) => void;
@@ -229,6 +234,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [mprSeedMode, setMprSeedMode] = useState(false);
   const [cropCenter, setCropCenter] = useState<Vec3 | null>(null);
   const [erasePick, setErasePick] = useState<Vec3 | null>(null);
+  const [planeCut, setPlaneCut] = useState<{ axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null>(null);
   const [cropRadius, setCropRadius] = useState(10);
   const [cropShape, setCropShape] = useState<"sphere" | "box">("sphere");
   const [cropInvert, setCropInvert] = useState(false);
@@ -287,6 +293,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setMprSeedMode(false);
     setCropCenter(null);
     setErasePick(null);
+    setPlaneCut(null);
     setTrajEntry(null);
     setTrajTarget(null);
     setMorphoOverlay(false);
@@ -307,13 +314,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, growSeeds, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, mprSeedMode, cropCenter, erasePick, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
+        measurements, measurePending, growSeeds, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, mprSeedMode, cropCenter, erasePick, planeCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setMeasurements, setMeasurePending, setGrowSeeds, setMprSeedMode, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setMeasurements, setMeasurePending, setGrowSeeds, setMprSeedMode, setCropCenter, setErasePick, setPlaneCut, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, markSaved,
         reset, resetDownstream,
       }}

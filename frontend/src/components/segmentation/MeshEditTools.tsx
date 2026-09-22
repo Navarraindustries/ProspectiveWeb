@@ -22,7 +22,7 @@ export function MeshEditTools() {
     cropShape: shape, setCropShape: setShape,
     cropInvert: invert, setCropInvert: setInvert,
     mprSeedMode, setMprSeedMode, setPreviewBand,
-    erasePick, setErasePick,
+    erasePick, setErasePick, setPlaneCut,
     setSegmentation, setCandidates, setSelectedCandidate,
     setMorphometry, setTreatment, setCenterlineMesh,
   } = usePlanning();
@@ -98,6 +98,14 @@ export function MeshEditTools() {
       .catch(() => { /* sin límites el deslizador se queda deshabilitado */ });
     return () => { vivo = false; };
   }, [sessionId, segmentation?.mesh_url]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // La previa del corte: el visor recorta el render en vivo con estos tres
+  // valores, así que arrastrar el deslizador enseña lo que se va a llevar.
+  useEffect(() => {
+    if (!bounds) { setPlaneCut(null); return; }
+    setPlaneCut({ axis: planeAxis, offset: planeOffset, keepPositive: planeKeepPos });
+  }, [bounds, planeAxis, planeOffset, planeKeepPos, setPlaneCut]);
+  useEffect(() => () => setPlaneCut(null), [setPlaneCut]);
 
   // ── El borrador de un clic ──────────────────────────────────────────── #
   //
@@ -403,8 +411,10 @@ export function MeshEditTools() {
           Cortar por un plano
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
-          Sin elegir centro: escoge una dirección, desliza la altura y se va todo
-          lo que quede a un lado. Para quitar lo de abajo suele bastar el eje Y.
+          Sin elegir centro. <b>Arrastra el deslizador y mira el visor</b>: lo que
+          desaparece es exactamente lo que el corte se va a llevar. Prueba un eje;
+          si el plano va en la dirección equivocada se ve al instante. «Cortar»
+          solo confirma lo que ya estás viendo.
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>

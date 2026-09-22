@@ -41,20 +41,23 @@ const SEG: SegmentResult = {
   main_tree_applied: false, main_tree_warning: "", main_tree_removed: 0,
 };
 
+/** Siembra sesión y segmentación en el store, y opcionalmente un clic. */
+function Seed({ erasePick, children }:
+  { erasePick?: Vec3; children: ReactNode }) {
+  const { setSession, setSegmentation, setErasePick } = usePlanning();
+  useEffect(() => {
+    setSession("s1");
+    setSegmentation(SEG);
+    if (erasePick) setErasePick(erasePick);
+  }, [setSession, setSegmentation, setErasePick, erasePick]);
+  return <>{children}</>;
+}
+
 /** Monta el panel dentro del store, opcionalmente con un clic ya señalado. */
 function mount(erasePick?: Vec3) {
-  function Seed({ children }: { children: ReactNode }) {
-    const { setSession, setSegmentation, setErasePick } = usePlanning();
-    useEffect(() => {
-      setSession("s1");
-      setSegmentation(SEG);
-      if (erasePick) setErasePick(erasePick);
-    }, [setSession, setSegmentation, setErasePick]);
-    return <>{children}</>;
-  }
   return render(
     <PlanningProvider>
-      <Seed><MeshEditTools /></Seed>
+      <Seed erasePick={erasePick}><MeshEditTools /></Seed>
     </PlanningProvider>,
   );
 }
@@ -158,5 +161,26 @@ describe("el corte por plano", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Cortar$/ }));
     await waitFor(() => expect(meshPlaneCut).toHaveBeenCalled());
     expect(meshPlaneCut.mock.calls[0][1].keep_positive).toBe(false);
+  });
+
+  it("publica la previa para que el visor recorte en vivo", async () => {
+    // El usuario dijo que cortar por ejes es poco intuitivo «porque no hay de
+    // dónde guiarse». El problema no era el plano: era que no se veía nada
+    // hasta pulsar Cortar. El visor recorta el render con estos tres valores.
+    let visto: unknown = null;
+    function Espia() {
+      const { planeCut } = usePlanning();
+      visto = planeCut;
+      return null;
+    }
+    render(
+      <PlanningProvider>
+        <Seed><MeshEditTools /><Espia /></Seed>
+      </PlanningProvider>,
+    );
+    const slider = await screen.findByRole("slider", { name: "Altura del corte" });
+    fireEvent.change(slider, { target: { value: "-18" } });
+    await waitFor(() =>
+      expect(visto).toEqual({ axis: "y", offset: -18, keepPositive: true }));
   });
 });

@@ -11,6 +11,7 @@ import "@kitware/vtk.js/Rendering/Profiles/Geometry";
 import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
 import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
@@ -89,6 +90,7 @@ export function MeshView({
   markers = [],
   lines = [],
   cropPreview = null,
+  planePreview = null,
   referenceDiameterMm = null,
   pickMode = false,
   onPick,
@@ -104,6 +106,12 @@ export function MeshView({
   lines?: MeshLine[];
   /** Translucent sphere/box preview of the crop ROI (null to hide). */
   cropPreview?: CropPreview | null;
+  /** Previa del corte por plano. En vez de dibujar el plano, RECORTA el render
+   *  en vivo: al arrastrar el deslizador desaparece justo lo que el corte se
+   *  llevaría. El usuario decía que cortar por ejes es poco intuitivo «porque
+   *  no hay de dónde guiarse» — y tenía razón: el problema no era el plano,
+   *  era que no se veía nada hasta pulsar Cortar. */
+  planePreview?: { origin: [number, number, number]; normal: [number, number, number] } | null;
   /** Diameter of the structure being marked (mm). Markers scale to it so they
    *  stay smaller than the vessel or dome they sit on. */
   referenceDiameterMm?: number | null;
@@ -136,6 +144,7 @@ export function MeshView({
   // Actors that carry a layer id, so the rehearsal can move them by name.
   const namedActors = useRef<Map<string, vtkActor>>(new Map());
   const cropActor = useRef<vtkActor | null>(null);
+  const layerMappers = useRef<vtkMapper[]>([]);
   const registerCaptureRef = useRef(registerCapture);
   registerCaptureRef.current = registerCapture;
   const registerCameraRef = useRef(registerCamera);
@@ -208,6 +217,7 @@ export function MeshView({
     (async () => {
       let anyGeometry = false;
       let focusBounds: number[] | null = null;
+      layerMappers.current = [];
       for (const layer of layers) {
         try {
           const reader = vtkXMLPolyDataReader.newInstance();
@@ -222,6 +232,7 @@ export function MeshView({
 
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
+          layerMappers.current.push(mapper);
           if (layer.id) namedActors.current.set(layer.id, actor);
           const prop = actor.getProperty();
           prop.setColor(...layer.color);
@@ -447,6 +458,33 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, markerKey, lineKey, sceneDiagonal, referenceDiameterMm]);
+
+  // ── Previa del corte por plano: se recorta el render, no se dibuja nada ─── #
+  //
+  // Dibujar el plano diría dónde está; recortar dice QUÉ se va. Arrastrando el
+  // deslizador la parte condenada desaparece, y «Cortar» solo confirma lo que
+  // ya se está viendo. Es barato: los mappers de vtk.js llevan planos de
+  // recorte y no hay que volver a leer la malla.
+  const planeKey = planePreview
+    ? `${planePreview.origin.join(",")}|${planePreview.normal.join(",")}`
+    : "";
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    for (const m of layerMappers.current) {
+      try { m.removeAllClippingPlanes(); } catch { /* mapper ya destruido */ }
+    }
+    if (planePreview) {
+      for (const m of layerMappers.current) {
+        const pl = vtkPlane.newInstance();
+        pl.setOrigin(...planePreview.origin);
+        pl.setNormal(...planePreview.normal);
+        try { m.addClippingPlane(pl); } catch { /* idem */ }
+      }
+    }
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, planeKey]);
 
   // ── Crop ROI preview: a translucent sphere/box so the crop is not blind ──── #
   useEffect(() => {

@@ -140,7 +140,7 @@ export function Viewer({ step }: { step: string }) {
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
     growSeeds, setGrowSeeds, cropCenter, setCropCenter, setErasePick,
-    cropRadius, cropShape, cropInvert,
+    cropRadius, cropShape, cropInvert, planeCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts,
@@ -347,6 +347,18 @@ export function Viewer({ step }: { step: string }) {
     [cropCenter, cropRadius, cropShape, cropInvert, step],
   );
 
+  // El plano se convierte en un recorte del render: la normal apunta al lado
+  // que SE CONSERVA, así que invertirla enseña exactamente lo contrario.
+  const planePreview = useMemo(() => {
+    if (!planeCut || step !== "segment") return null;
+    const eje = { x: 0, y: 1, z: 2 }[planeCut.axis];
+    const n: [number, number, number] = [0, 0, 0];
+    n[eje] = planeCut.keepPositive ? 1 : -1;
+    const o: [number, number, number] = [0, 0, 0];
+    o[eje] = planeCut.offset;
+    return { origin: o, normal: n };
+  }, [planeCut, step]);
+
   const onPick = useCallback(
     (xyz: [number, number, number]) => {
       if (pickMode === "cl_source") { setClSource(xyz); setPickMode(null); }
@@ -387,7 +399,7 @@ export function Viewer({ step }: { step: string }) {
         <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />
       ) : meshVisible ? (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
-          <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
+          <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
         </Suspense>
       ) : sessionId && meta ? (
         <MprView

@@ -166,9 +166,7 @@ async def create_patient(
     summary="Create a full clinical case (patient + study) — SUPERSEDED",
     description=(
         "Desktop 'Nuevo Caso' equivalent: creates a Patient (demographics + "
-        "history) and a linked Study in one call.
-
-"
+        "history) and a linked Study in one call. "
         "**Do not wire this into the UI.** It always creates a NEW patient, "
         "which is exactly the duplication the two-step flow was built to avoid: "
         "the app uses `POST /api/patients` and then "

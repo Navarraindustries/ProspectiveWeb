@@ -218,9 +218,18 @@ LANDING_ZONE_MM: float = 5.0
 #: Cuello supuesto cuando aún no se ha corrido la morfometría.
 DEFAULT_NECK_MM: float = 4.0
 
+#: Cobertura metálica medida frente al desajuste dispositivo/arteria. Confirmado
+#: por dos vías independientes, una computacional y otra in vitro, y en la misma
+#: dirección: sobredimensionar ABRE los poros y BAJA la cobertura.
+SRC_OVERSIZING = (
+    "Sci Rep 2024;14 (PMC11081945) — la tasa de cobertura metálica cae del "
+    "48 % con 0.5 mm de infradimensionado al 25.5 % con 1.0 mm de "
+    "sobredimensionado, y la diversión de flujo empeora con ella"
+)
 SRC_BRAID = (
-    "Mecánica de la trenza — al desplegarse con holgura el dispositivo se "
-    "alarga y la cobertura metálica disminuye"
+    "Clin Neuroradiol 2022 (PMC8894302) — sobredimensionar 1 mm reduce la "
+    "resistencia hidrodinámica a un quinto: al abrirse el ángulo de la trenza "
+    "los rombos se vuelven cuadrados y el poro alcanza su área máxima"
 )
 
 
@@ -290,8 +299,9 @@ def stent_bridging(
     )
     notes.append(
         "Al dimensionar, la referencia es la arteria portadora, no el cuello. "
-        "Un dispositivo desplegado con holgura se alarga y su cobertura "
-        "metálica baja."
+        "Sobredimensionar BAJA la cobertura metálica: medida, cae del 48 % con "
+        "0.5 mm de infradimensionado al 25.5 % con 1.0 mm de sobredimensionado, "
+        "y la diversión de flujo empeora con ella."
     )
 
     return StentBridging(
@@ -303,5 +313,5 @@ def stent_bridging(
         deployed=diameter_ok and (length_ok or not medido),
         warnings=warnings,
         notes=notes,
-        sources=[SRC_BRAID],
+        sources=[SRC_OVERSIZING, SRC_BRAID],
     )

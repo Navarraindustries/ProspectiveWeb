@@ -6,10 +6,14 @@ import math
 
 from fastapi import APIRouter, HTTPException
 
-from models import CoilLibraryItem, CoilPlanRequest, CoilPlanResult
+from models import (
+    CoilConstructResult, CoilConstructStep,
+    CoilLibraryItem, CoilPlanRequest, CoilPlanResult,
+)
 from services.coils    import (
     catalogue_to_api, coils_for_aneurysm, estimate_coil_count, COIL_CATALOGUE,
-    packing_assessment, PACKING_AIM, PACKING_MIN, PACKING_MAX,
+    packing_assessment, suggest_construct, _slug,
+    PACKING_AIM, PACKING_MIN, PACKING_MAX,
 )
 from services.sessions import read_state, session_exists, session_subdir, mesh_url
 
@@ -39,6 +43,49 @@ async def get_coil_library() -> list[CoilLibraryItem]:
     return [CoilLibraryItem(**item) for item in catalogue_to_api()]
 
 
+@router.get(
+    "/coils/recommendations/{session_id}",
+    response_model=CoilConstructResult,
+    summary="Suggest a coil construct for the measured sac",
+    description=(
+        "Filters the catalogue by the measured dome diameter and proposes a "
+        "framing → filling → finishing sequence sized to reach the planning "
+        "target. Without morphometry it returns `feasible: false` rather than "
+        "guessing a reference sac.\n\n"
+        "This is the catalogue narrowed by published sizing rules, not a "
+        "prescription: the operator chooses."
+    ),
+)
+async def get_coil_recommendations(session_id: str) -> CoilConstructResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+
+    dome_mm = _load_float(session_id, "morpho.max_diameter_mm", 0.0)
+    volume  = _load_float(session_id, "morpho.volume_mm3", 0.0)
+    c = suggest_construct(dome_mm, volume)
+
+    return CoilConstructResult(
+        steps=[
+            CoilConstructStep(
+                coil_id=_slug(s.spec.name),
+                name=s.spec.name,
+                manufacturer=s.spec.manufacturer,
+                diameter_mm=s.spec.diameter_mm,
+                length_cm=s.spec.length_cm,
+                role=s.role,
+                count=s.count,
+                rationale=s.rationale,
+            )
+            for s in c.steps
+        ],
+        dome_mm=round(c.dome_mm, 2),
+        volume_mm3=round(c.volume_mm3, 2),
+        projected_packing=c.projected_packing,
+        feasible=c.feasible,
+        note=c.note,
+    )
+
+
 @router.post(
     "/coils/plan",
     response_model=CoilPlanResult,
@@ -62,13 +109,12 @@ async def plan_coils(req: CoilPlanRequest) -> CoilPlanResult:
     # Load aneurysm volume from session morphometry (written after morpho computation)
     aneurysm_vol = _load_float(req.session_id, "morpho.volume_mm3", 0.0)
 
+    total_wire_vol = 0.0
     if aneurysm_vol > 0 and req.placements:
         # Compute actual packing density from coil wire volumes
         # Match placed coil IDs back to catalogue entries for wire_volume_mm3
-        from services.coils import _slug
         id_to_spec = {_slug(c.name): c for c in COIL_CATALOGUE}
 
-        total_wire_vol = 0.0
         for placement in req.placements:
             spec = id_to_spec.get(placement.coil_id)
             if spec:
@@ -86,24 +132,46 @@ async def plan_coils(req: CoilPlanRequest) -> CoilPlanResult:
         packing, len(req.placements), volume_known=aneurysm_vol > 0,
     )
 
-    # ── Build a real coil-bundle mesh inside the sac ─────────────────────── #
+    # ── Build the coil mass inside the real sac ──────────────────────────── #
+    # Antes: cinco esferas de tamaño arbitrario centradas en el ORIGEN DEL
+    # CUELLO, así que la maraña quedaba a caballo del cuello en vez de dentro
+    # del saco, y su tamaño no significaba nada. Desde el aislamiento de saco
+    # (Tier 2) existe `aneurysm_sac.vtp`, que es el cuerpo medido: la masa se
+    # dibuja ahí dentro y con el volumen de hilo real, de modo que lo que se ve
+    # lleno se corresponde con la densidad que dice la tarjeta.
     coils_url = "/static/sample-meshes/coils_placed.vtp"
     try:
         import time
         from services import devices
-        from services.segmentation import write_vtp
+        from services.segmentation import read_vtp, write_vtp
 
-        # Sac radius from the aneurysm volume; centre at the neck origin.
-        sac_r = ((3.0 * aneurysm_vol) / (4.0 * math.pi)) ** (1.0 / 3.0) if aneurysm_vol > 0 else 3.0
-        centre = (
-            _load_float(req.session_id, "morpho.neck_origin_x", 0.0),
-            _load_float(req.session_id, "morpho.neck_origin_y", 0.0),
-            _load_float(req.session_id, "morpho.neck_origin_z", 0.0),
-        )
-        local = devices.make_coil_bundle(sac_r * 2.0, n=max(3, len(req.placements)))
-        t = devices.pose_transform(centre, (0.0, 0.0, 1.0), 0.0)
-        world = devices.apply_transform(local, t)
         meshes_dir = session_subdir(req.session_id, "meshes")
+        sac_name = read_state(req.session_id, "morpho.sac_vtp_name", "")
+        sac_path = meshes_dir / sac_name if sac_name else None
+
+        world = None
+        if sac_path is not None and sac_path.exists() and total_wire_vol > 0:
+            sac = read_vtp(sac_path)
+            world, _placed = devices.coil_mass_in_sac(sac, total_wire_vol)
+            if world.GetNumberOfPoints() == 0:
+                world = None
+
+        if world is None:
+            # Sin saco aislado no hay dónde meterlos, así que se cae al proxy de
+            # siempre. Pero ya no en el origen del CUELLO, que dejaba la maraña
+            # a caballo de él: el centro del saco está a media altura del domo
+            # sobre el cuello, siguiendo el eje que mide la morfometría.
+            sac_r = ((3.0 * aneurysm_vol) / (4.0 * math.pi)) ** (1.0 / 3.0) if aneurysm_vol > 0 else 3.0
+            half_dome = _load_float(req.session_id, "morpho.dome_height_mm", 0.0) / 2.0
+            centre = tuple(
+                _load_float(req.session_id, f"morpho.neck_origin_{k}", 0.0)
+                + half_dome * _load_float(req.session_id, f"morpho.axis_{k}", 0.0)
+                for k in ("x", "y", "z")
+            )
+            local = devices.make_coil_bundle(sac_r * 2.0, n=max(3, len(req.placements)))
+            t = devices.pose_transform(centre, (0.0, 0.0, 1.0), 0.0)
+            world = devices.apply_transform(local, t)
+
         write_vtp(world, meshes_dir / "coils_placed.vtp")
         coils_url = f"{mesh_url(req.session_id, 'coils_placed.vtp')}?v={int(time.time() * 1000)}"
     except Exception as exc:

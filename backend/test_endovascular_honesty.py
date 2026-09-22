@@ -233,3 +233,103 @@ class TestPackingSinVolumen:
         d = r.json()
         assert d["total_packing_density"] == 0.0     # no 0.24 inventado
         assert d["warning"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BLOQUE 2 — el catálogo filtrado y la maraña dentro del saco
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestConstructSugerido:
+    """`coils_for_aneurysm` y `estimate_coil_count` estaban importados sin usar."""
+
+    def test_propone_la_secuencia_completa(self):
+        from services.coils import suggest_construct
+        c = suggest_construct(dome_mm=9.1, volume_mm3=210.5)
+        assert c.feasible
+        roles = [s.role for s in c.steps]
+        assert "framing" in roles and "filling" in roles and "finishing" in roles
+        # El enmarcado va solo y primero: es quien da la forma.
+        assert roles[0] == "framing"
+        assert c.steps[0].count == 1
+
+    def test_el_enmarcado_se_dimensiona_al_domo(self):
+        """Un enmarcado de 12 mm para un saco de 3 mm era posible antes."""
+        from services.coils import suggest_construct
+        chico = suggest_construct(dome_mm=4.0, volume_mm3=35.0)
+        grande = suggest_construct(dome_mm=12.0, volume_mm3=900.0)
+        d_chico = [s.spec.diameter_mm for s in chico.steps if s.role == "framing"]
+        d_grande = [s.spec.diameter_mm for s in grande.steps if s.role == "framing"]
+        assert d_chico and d_grande
+        assert d_chico[0] < d_grande[0]
+        # Y ninguno se pasa del domo por más de un 30 %.
+        assert d_chico[0] <= 4.0 * 1.3
+        assert d_grande[0] <= 12.0 * 1.3
+
+    def test_sin_morfometria_no_inventa_un_saco(self):
+        from services.coils import suggest_construct
+        c = suggest_construct(dome_mm=0.0, volume_mm3=0.0)
+        assert not c.feasible
+        assert c.steps == []
+        assert "morfometr" in c.note.lower()
+
+    def test_avisa_cuando_la_proyeccion_no_llega(self):
+        from services.coils import suggest_construct, PACKING_MIN
+        c = suggest_construct(dome_mm=14.0, volume_mm3=900.0)
+        if c.projected_packing < PACKING_MIN:
+            assert "por debajo" in c.note
+
+    def test_la_api_devuelve_el_montaje(self):
+        sid = _session(max_diameter_mm="9.1", volume_mm3="210.5")
+        r = client.get(f"/api/coils/recommendations/{sid}")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["feasible"] and d["steps"]
+        assert {s["role"] for s in d["steps"]} <= {"framing", "filling", "finishing"}
+        assert all(s["rationale"] for s in d["steps"])
+
+    def test_la_api_404_en_sesion_inexistente(self):
+        assert client.get("/api/coils/recommendations/nope").status_code == 404
+
+
+class TestMarañaDentroDelSaco:
+    """Antes: cinco esferas arbitrarias centradas en el ORIGEN DEL CUELLO."""
+
+    def _sac(self, radius=5.0):
+        import vtk
+        s = vtk.vtkSphereSource()
+        s.SetRadius(radius)
+        s.SetThetaResolution(40)
+        s.SetPhiResolution(40)
+        s.Update()
+        return s.GetOutput()
+
+    def test_nada_se_sale_del_saco(self):
+        import numpy as np
+        from vtkmodules.util.numpy_support import vtk_to_numpy
+        from services.devices import coil_mass_in_sac
+        mesh, _ = coil_mass_in_sac(self._sac(5.0), 130.0)
+        pts = vtk_to_numpy(mesh.GetPoints().GetData())
+        assert float(np.linalg.norm(pts, axis=1).max()) <= 5.0
+
+    def test_el_volumen_dibujado_es_el_volumen_de_hilo(self):
+        """Lo que se ve lleno debe corresponder con la densidad de la tarjeta."""
+        from services.devices import coil_mass_in_sac
+        _, placed = coil_mass_in_sac(self._sac(5.0), 130.0)
+        assert placed == pytest.approx(130.0, rel=0.02)
+
+    def test_mas_hilo_mas_masa(self):
+        from services.devices import coil_mass_in_sac
+        _, poco = coil_mass_in_sac(self._sac(5.0), 50.0)
+        _, mucho = coil_mass_in_sac(self._sac(5.0), 130.0)
+        assert mucho > poco
+
+    def test_sin_hilo_no_hay_malla(self):
+        from services.devices import coil_mass_in_sac
+        mesh, placed = coil_mass_in_sac(self._sac(5.0), 0.0)
+        assert mesh.GetNumberOfPoints() == 0 and placed == 0.0
+
+    def test_saco_vacio_no_revienta(self):
+        import vtk
+        from services.devices import coil_mass_in_sac
+        mesh, placed = coil_mass_in_sac(vtk.vtkPolyData(), 100.0)
+        assert mesh.GetNumberOfPoints() == 0 and placed == 0.0

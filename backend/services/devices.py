@@ -128,8 +128,84 @@ def make_stent(diameter_mm: float, length_mm: float) -> vtk.vtkPolyData:
     return apply_transform(cyl.GetOutput(), t)
 
 
+def coil_mass_in_sac(
+    sac: vtk.vtkPolyData,
+    wire_volume_mm3: float,
+    n_blobs: int = 60,
+    seed: int = 42,
+) -> tuple[vtk.vtkPolyData, float]:
+    """Coil mass drawn INSIDE the real sac, with the real wire volume.
+
+    Returns (mesh, volume actually placed).
+
+    What this replaces: `make_coil_bundle` built five spheres of arbitrary size
+    around a point, and the router centred them on the NECK origin — so the mass
+    straddled the neck instead of sitting in the sac, and its size said nothing.
+    Worse, the stored record wrote the position the UI had sent (the centroid),
+    so the picture and the record disagreed about where the coils were.
+
+    What this is and is not: still a proxy. It does not simulate how a coil
+    actually loops, catches on the previous one, or herniates; nobody can plan
+    that from a static mesh. What it does get right is the two things the user
+    can read off the picture — the mass is inside the sac that was measured, and
+    its volume is the wire volume of the coils on the plan. So a sac that looks
+    a quarter full IS packed to about a quarter.
+    """
+    if sac is None or sac.GetNumberOfPoints() == 0 or wire_volume_mm3 <= 0:
+        return vtk.vtkPolyData(), 0.0
+
+    # Signed distance to the sac wall: negative inside.
+    dist = vtk.vtkImplicitPolyDataDistance()
+    dist.SetInput(sac)
+
+    b = sac.GetBounds()
+    lo = np.array([b[0], b[2], b[4]], dtype=float)
+    hi = np.array([b[1], b[3], b[5]], dtype=float)
+
+    n_blobs = max(1, int(n_blobs))
+    # Split the wire volume evenly across the blobs.
+    r_blob = ((3.0 * wire_volume_mm3) / (4.0 * math.pi * n_blobs)) ** (1.0 / 3.0)
+    r_blob = max(r_blob, 1e-3)
+
+    rng = np.random.default_rng(seed)
+    centres: list[np.ndarray] = []
+    # Rejection sampling: keep points that sit a whole blob inside the wall.
+    for _ in range(n_blobs * 200):
+        if len(centres) >= n_blobs:
+            break
+        p = lo + rng.random(3) * (hi - lo)
+        if dist.EvaluateFunction(float(p[0]), float(p[1]), float(p[2])) < -r_blob:
+            centres.append(p)
+
+    if not centres:
+        # Sac too thin to hold a blob of this size — shrink and take the centre.
+        centre = (lo + hi) / 2.0
+        if dist.EvaluateFunction(*(float(c) for c in centre)) < 0:
+            centres = [centre]
+            r_blob = min(r_blob, float(np.min(hi - lo)) / 4.0)
+        else:
+            return vtk.vtkPolyData(), 0.0
+
+    parts = []
+    for c in centres:
+        s = vtk.vtkSphereSource()
+        s.SetRadius(r_blob)
+        s.SetThetaResolution(10)
+        s.SetPhiResolution(10)
+        s.SetCenter(float(c[0]), float(c[1]), float(c[2]))
+        s.Update()
+        parts.append(s.GetOutput())
+
+    placed = len(centres) * (4.0 / 3.0) * math.pi * r_blob ** 3
+    return combine(parts), float(placed)
+
+
 def make_coil_bundle(radius_mm: float, n: int = 5) -> vtk.vtkPolyData:
-    """A cluster of small spheres approximating a coil mass filling the sac."""
+    """A cluster of small spheres approximating a coil mass filling the sac.
+
+    Fallback for sessions with no isolated sac mesh; `coil_mass_in_sac` is the
+    one to use when morphometry has produced `aneurysm_sac.vtp`.
+    """
     r = max(0.8, float(radius_mm))
     rng = np.random.default_rng(42)
     parts = []

@@ -22,6 +22,8 @@ from .clips import (
     ClipRecommendation,
 )
 from .coils import (
+    CoilConstructResult,
+    CoilConstructStep,
     CoilLibraryItem,
     CoilPlacement,
     CoilPlanRequest,
@@ -69,6 +71,7 @@ __all__ = [
     "ClipLibraryItem", "ClipPlacement", "ClipPlanRequest",
     "ClipPlanResult", "ClipRecommendation",
     # coils
+    "CoilConstructResult", "CoilConstructStep",
     "CoilLibraryItem", "CoilPlacement", "CoilPlanRequest", "CoilPlanResult",
     # detection
     "AneurysmCandidate", "AneurysmDetectionResult", "DetectionDiagnostics", "MorphometryResult", "NeckPlaneRequest", "Position3D",

@@ -296,6 +296,138 @@ def estimate_coil_count(
     return max(1, n)
 
 
+# ── El montaje sugerido ────────────────────────────────────────────────────── #
+# `coils_for_aneurysm` y `estimate_coil_count` llevaban desde la migración
+# importados en el router y sin usar: nadie filtraba el catálogo por el domo
+# medido. La consecuencia era que el desplegable ofrecía los 40 modelos y se
+# podía elegir un enmarcado de 12 mm para un saco de 3 mm sin que nada chistara.
+# Y la interfaz mandaba N coils IDÉNTICOS, cuando la secuencia real es
+# enmarcado -> relleno -> acabado, con modelos distintos y tamaños decrecientes.
+
+
+@dataclass(frozen=True)
+class CoilStep:
+    """Un escalón del montaje: qué modelo, cuántos y por qué."""
+
+    spec:     CoilSpec
+    count:    int
+    role:     str       # framing | filling | finishing
+    rationale: str
+
+
+@dataclass(frozen=True)
+class CoilConstruct:
+    """Montaje sugerido para un saco medido."""
+
+    steps:            list[CoilStep]
+    dome_mm:          float
+    volume_mm3:       float
+    projected_packing: float
+    feasible:         bool
+    note:             str
+
+
+def _closest(specs: list[CoilSpec], target_mm: float) -> CoilSpec | None:
+    """El modelo cuyo diámetro más se acerca a *target_mm*."""
+    if not specs:
+        return None
+    return min(specs, key=lambda c: abs(c.diameter_mm - target_mm))
+
+
+def suggest_construct(dome_mm: float, volume_mm3: float) -> CoilConstruct:
+    """Propone enmarcado, relleno y acabado para el saco medido.
+
+    No es una prescripción: es el catálogo filtrado por las reglas de
+    dimensionado que ya estaban escritas en este módulo, más el número de coils
+    que hace falta para acercarse a `PACKING_AIM`. Quien decide es el operador.
+
+    Con el domo o el volumen a cero devuelve un montaje vacío y `feasible` en
+    falso, en vez de inventarse un saco de referencia.
+    """
+    if dome_mm <= 0 or volume_mm3 <= 0:
+        return CoilConstruct(
+            steps=[], dome_mm=dome_mm, volume_mm3=volume_mm3,
+            projected_packing=0.0, feasible=False,
+            note=(
+                "Hace falta la morfometría: el diámetro del domo elige el coil "
+                "de enmarcado y el volumen del saco fija cuántos de relleno."
+            ),
+        )
+
+    steps: list[CoilStep] = []
+    objetivo_mm3 = volume_mm3 * PACKING_AIM
+    acumulado = 0.0
+
+    # ── Enmarcado: uno solo, Ø ≈ domo, que es quien da la forma ───────── #
+    framing = _closest(coils_for_aneurysm(dome_mm, CoilType.FRAMING), dome_mm * 1.1)
+    if framing is not None:
+        steps.append(CoilStep(
+            spec=framing, count=1, role="framing",
+            rationale=(
+                f"Enmarcado Ø{framing.diameter_mm:.0f} mm para un domo de "
+                f"{dome_mm:.1f} mm: es el que se amolda a la pared y define la "
+                f"jaula. Va uno."
+            ),
+        ))
+        acumulado += framing.wire_volume_mm3
+
+    # ── Relleno: los que hagan falta hasta acercarse al objetivo ──────── #
+    filling = _closest(coils_for_aneurysm(dome_mm, CoilType.FILLING), dome_mm * 0.75)
+    if filling is not None and acumulado < objetivo_mm3:
+        n = estimate_coil_count(
+            max(objetivo_mm3 - acumulado, 0.0) / (PACKING_AIM or 1.0),
+            filling,
+        )
+        n = max(1, min(n, 12))          # más de 12 en un solo escalón no es un plan
+        steps.append(CoilStep(
+            spec=filling, count=n, role="filling",
+            rationale=(
+                f"Relleno Ø{filling.diameter_mm:.0f} mm × {n} para llegar al "
+                f"{PACKING_AIM * 100:.0f} % de empaquetamiento desde el "
+                f"enmarcado."
+            ),
+        ))
+        acumulado += filling.wire_volume_mm3 * n
+
+    # ── Acabado: uno blando para los huecos del cuello ────────────────── #
+    finishing = _closest(coils_for_aneurysm(dome_mm, CoilType.FINISHING), dome_mm * 0.4)
+    if finishing is not None:
+        steps.append(CoilStep(
+            spec=finishing, count=1, role="finishing",
+            rationale=(
+                f"Acabado Ø{finishing.diameter_mm:.0f} mm, ultrablando, para los "
+                f"huecos que quedan junto al cuello."
+            ),
+        ))
+        acumulado += finishing.wire_volume_mm3
+
+    packing = min(acumulado / volume_mm3, PACKING_MAX) if volume_mm3 > 0 else 0.0
+
+    if not steps:
+        note = (
+            f"El catálogo no tiene modelos para un domo de {dome_mm:.1f} mm. "
+            f"Revisa la medida o usa el catálogo completo."
+        )
+    elif packing < PACKING_MIN:
+        note = (
+            f"El montaje proyecta {packing * 100:.0f} % de empaquetamiento, por "
+            f"debajo del {PACKING_MIN * 100:.0f} %. Harán falta más coils de "
+            f"relleno de los que cabe proponer desde la geometría."
+        )
+    else:
+        note = (
+            f"Proyección {packing * 100:.0f} % con el catálogo cargado. Es una "
+            f"cuenta de volúmenes de hilo, no una predicción de cómo se van a "
+            f"acomodar dentro del saco."
+        )
+
+    return CoilConstruct(
+        steps=steps, dome_mm=dome_mm, volume_mm3=volume_mm3,
+        projected_packing=round(packing, 3),
+        feasible=bool(steps), note=note,
+    )
+
+
 # ── API type mapping ───────────────────────────────────────────────────────── #
 
 # Map internal CoilType → API coil_type string (CoilLibraryItem.coil_type)

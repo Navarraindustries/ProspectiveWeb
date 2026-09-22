@@ -1066,6 +1066,30 @@ export interface CoilPlacement {
   packing_density: number;
 }
 
+export interface CoilConstructStep {
+  coil_id: string;
+  name: string;
+  manufacturer: string;
+  diameter_mm: number;
+  length_cm: number;
+  /** framing | filling | finishing */
+  role: string;
+  count: number;
+  rationale: string;
+}
+
+/** El catálogo acotado por el domo medido. El desplegable ofrecía los 40
+ *  modelos sin filtrar, así que cabía un enmarcado de 12 mm en un saco de 3. */
+export interface CoilConstructResult {
+  steps: CoilConstructStep[];
+  dome_mm: number;
+  volume_mm3: number;
+  /** Cuenta de volúmenes de hilo, no una predicción de cómo se acomodarán. */
+  projected_packing: number;
+  feasible: boolean;
+  note: string;
+}
+
 export interface CoilPlanResult {
   coils_mesh_url: string;
   /** Medido: volumen de hilo del catálogo / volumen del saco. */

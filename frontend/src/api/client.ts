@@ -25,6 +25,7 @@ import type {
   ClipShapeSuggestion,
   ClStentRequest,
   ClStentResult,
+  CoilConstructResult,
   CoilLibraryItem,
   CoilPlacement,
   CoilPlanResult,
@@ -481,6 +482,10 @@ export const api = {
     URL.revokeObjectURL(url);
   },
   listCoils: () => get<CoilLibraryItem[]>("/api/coils"),
+  /** El catálogo acotado al saco medido, con la secuencia enmarcado →
+   *  relleno → acabado. Sin morfometría devuelve `feasible: false`. */
+  coilRecommendations: (sessionId: string) =>
+    get<CoilConstructResult>(`/api/coils/recommendations/${sessionId}`),
   planCoils: (sessionId: string, placements: CoilPlacement[]) =>
     post<CoilPlanResult>("/api/coils/plan", { session_id: sessionId, placements }),
   listStents: () => get<StentLibraryItem[]>("/api/stents"),

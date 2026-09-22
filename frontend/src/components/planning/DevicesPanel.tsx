@@ -1,6 +1,6 @@
 /* Paso 6 — Planificación de dispositivos.
    Clips: GET /api/clips/recommendations · POST /api/clips/plan
-   Coils: GET /api/coils · POST /api/coils/plan
+   Coils: GET /api/coils · GET /api/coils/recommendations · POST /api/coils/plan
    Stents: GET /api/stents · POST /api/plan */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +12,7 @@ import type {
   DeviceKind,
   ClipRecommendation,
   ClStentResult,
+  CoilConstructResult,
   CoilLibraryItem,
   CoilPlanResult,
   MorphometryResult,
@@ -477,34 +478,91 @@ function ClipsTab() {
 }
 
 /* ── Coils ─────────────────────────────────────────────────────────────── */
+const ROL_ES: Record<string, string> = {
+  framing: "Enmarcado",
+  filling: "Relleno",
+  finishing: "Acabado",
+};
+
 function CoilsTab() {
   const { sessionId, morphometry, setDeviceMesh } = usePlanning();
   const clearer = useClearDevice("coils");
   const [coils, setCoils] = useState<CoilLibraryItem[]>([]);
+  const [construct, setConstruct] = useState<CoilConstructResult | null>(null);
   const [sel, setSel] = useState("");
   const [count, setCount] = useState(3);
+  const [verTodo, setVerTodo] = useState(false);
   const [plan, setPlan] = useState<CoilPlanResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // El montaje sugerido: el catálogo acotado por el domo que se midió.
   useEffect(() => {
-    api
-      .listCoils()
+    if (!sessionId) return;
+    let vivo = true;
+    api.coilRecommendations(sessionId)
       .then((c) => {
-        setCoils(c);
-        if (c.length > 0) setSel(c[0].id);
+        if (!vivo) return;
+        setConstruct(c);
+        if (c.steps.length > 0) setSel((cur) => cur || c.steps[0].coil_id);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando catálogo de coils"));
-  }, []);
+      .catch(() => { /* sin morfometría todavía; queda el catálogo completo */ });
+    return () => { vivo = false; };
+  }, [sessionId]);
 
-  const options = useMemo(
-    () =>
-      coils.map((c) => ({
-        value: c.id,
-        label: `${c.name} — ${c.diameter_mm} mm × ${c.length_cm} cm (${c.coil_type})`,
-      })),
-    [coils]
-  );
+  // El catálogo entero solo cuando se pide verlo, como en los clips.
+  useEffect(() => {
+    if (!verTodo || coils.length) return;
+    let vivo = true;
+    api.listCoils()
+      .then((c) => { if (vivo) { setCoils(c); setSel((cur) => cur || c[0]?.id || ""); } })
+      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando catálogo de coils"));
+    return () => { vivo = false; };
+  }, [verTodo, coils.length]);
+
+  const options = useMemo(() => {
+    const base = (construct?.steps ?? []).map((s) => ({
+      value: s.coil_id,
+      label: `${ROL_ES[s.role] ?? s.role} · ${s.name}`,
+    }));
+    if (verTodo) {
+      const ya = new Set(base.map((o) => o.value));
+      for (const c of coils) {
+        if (!ya.has(c.id)) {
+          base.push({
+            value: c.id,
+            label: `${c.name} — ${c.diameter_mm} mm × ${c.length_cm} cm · catálogo`,
+          });
+        }
+      }
+    }
+    return base;
+  }, [construct, coils, verTodo]);
+
+  /** Coloca el montaje completo: cada escalón con su modelo y su número, que
+   *  es la secuencia real. Antes se mandaban N coils IDÉNTICOS en un punto. */
+  const colocarMontaje = async () => {
+    if (!sessionId || !construct?.steps.length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const position = morphometry?.centroid ?? ORIGIN;
+      const placements = construct.steps.flatMap((s) =>
+        Array.from({ length: s.count }, () => ({
+          coil_id: s.coil_id,
+          position,
+          packing_density: 0,
+        }))
+      );
+      const res = await api.planCoils(sessionId, placements);
+      setPlan(res);
+      setDeviceMesh("coils", res.coils_mesh_url || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error en el plan de coils");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const run = async () => {
     if (!sessionId || !sel) return;
@@ -529,7 +587,42 @@ function CoilsTab() {
 
   return (
     <div style={{ marginTop: 12 }}>
-      <Select label={`Catálogo (${coils.length} modelos)`} options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
+      {construct && (
+        <Card style={{ marginBottom: 14 }}>
+          <SectionLabel>Montaje sugerido para el saco medido</SectionLabel>
+          {construct.feasible ? (
+            <>
+              {construct.steps.map((s) => (
+                <div key={s.coil_id + s.role} style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>
+                    {ROL_ES[s.role] ?? s.role} · {s.name} × {s.count}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.rationale}</div>
+                </div>
+              ))}
+              <div style={{ marginTop: 10 }}>
+                <Metric
+                  label="Empaquetamiento proyectado"
+                  value={(construct.projected_packing * 100).toFixed(0)}
+                  unit=" %"
+                />
+              </div>
+              <Button style={{ marginTop: 10, width: "100%" }} onClick={() => void colocarMontaje()} disabled={busy}>
+                {busy ? "Colocando…" : "Colocar el montaje completo"}
+              </Button>
+            </>
+          ) : null}
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>{construct.note}</div>
+        </Card>
+      )}
+
+      <Select label={`Coil (${options.length} disponibles)`} options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
+      {/* Sin esto, un modelo que el dimensionado no propone es inalcanzable,
+          aunque la institución lo tenga. Mismo criterio que en los clips. */}
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+        <input type="checkbox" checked={verTodo} onChange={(e) => setVerTodo(e.target.checked)} />
+        Ver todo el catálogo, no solo lo dimensionado para este saco
+      </label>
       <div style={{ height: 14 }} />
       <Slider label="Número de coils" min={1} max={8} value={count} onChange={setCount} />
 

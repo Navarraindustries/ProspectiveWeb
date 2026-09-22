@@ -2797,6 +2797,54 @@
         ]
       }
     },
+    "/api/coils/recommendations/{session_id}": {
+      "get": {
+        "tags": [
+          "coils"
+        ],
+        "summary": "Suggest a coil construct for the measured sac",
+        "description": "Filters the catalogue by the measured dome diameter and proposes a framing → filling → finishing sequence sized to reach the planning target. Without morphometry it returns `feasible: false` rather than guessing a reference sac.\n\nThis is the catalogue narrowed by published sizing rules, not a prescription: the operator chooses.",
+        "operationId": "get_coil_recommendations_api_coils_recommendations__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoilConstructResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/coils/plan": {
       "post": {
         "tags": [
@@ -7619,6 +7667,99 @@
         ],
         "title": "ClipSelectionResult",
         "description": "The complete answer for one case.\n\n`outcome` is never \"nothing found\": when the inventory cannot serve, the\nanswer is a manufacturing specification."
+      },
+      "CoilConstructResult": {
+        "properties": {
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/CoilConstructStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "dome_mm": {
+            "type": "number",
+            "title": "Dome Mm",
+            "default": 0.0
+          },
+          "volume_mm3": {
+            "type": "number",
+            "title": "Volume Mm3",
+            "default": 0.0
+          },
+          "projected_packing": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Projected Packing",
+            "description": "Packing the construct would reach, from catalogue wire volumes. An arithmetic projection, not a prediction of how the coils will actually settle inside the sac.",
+            "default": 0.0
+          },
+          "feasible": {
+            "type": "boolean",
+            "title": "Feasible",
+            "default": false
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "CoilConstructResult",
+        "description": "Catalogue filtered by the measured sac, with a suggested sequence.\n\nReal coiling runs framing (shapes the cage) then filling then finishing.\nThe UI used to send N identical coils at one point, and the catalogue was\noffered unfiltered — so a 12 mm framing coil could be picked for a 3 mm sac.\nThe sizing rules behind this already existed in `services/coils.py`; they\nwere imported by the router and never called."
+      },
+      "CoilConstructStep": {
+        "properties": {
+          "coil_id": {
+            "type": "string",
+            "title": "Coil Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "manufacturer": {
+            "type": "string",
+            "title": "Manufacturer"
+          },
+          "diameter_mm": {
+            "type": "number",
+            "title": "Diameter Mm"
+          },
+          "length_cm": {
+            "type": "number",
+            "title": "Length Cm"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "framing | filling | finishing"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Count"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "coil_id",
+          "name",
+          "manufacturer",
+          "diameter_mm",
+          "length_cm",
+          "role",
+          "count",
+          "rationale"
+        ],
+        "title": "CoilConstructStep",
+        "description": "One rung of the suggested construct: which model, how many, and why."
       },
       "CoilLibraryItem": {
         "properties": {

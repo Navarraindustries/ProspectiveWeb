@@ -52,6 +52,44 @@ class CoilPlanRequest(BaseModel):
     )
 
 
+class CoilConstructStep(BaseModel):
+    """One rung of the suggested construct: which model, how many, and why."""
+
+    coil_id: str
+    name: str
+    manufacturer: str
+    diameter_mm: float
+    length_cm: float
+    role: str = Field(..., description="framing | filling | finishing")
+    count: int = Field(..., ge=1)
+    rationale: str
+
+
+class CoilConstructResult(BaseModel):
+    """Catalogue filtered by the measured sac, with a suggested sequence.
+
+    Real coiling runs framing (shapes the cage) then filling then finishing.
+    The UI used to send N identical coils at one point, and the catalogue was
+    offered unfiltered — so a 12 mm framing coil could be picked for a 3 mm sac.
+    The sizing rules behind this already existed in `services/coils.py`; they
+    were imported by the router and never called.
+    """
+
+    steps: list[CoilConstructStep] = Field(default_factory=list)
+    dome_mm: float = 0.0
+    volume_mm3: float = 0.0
+    projected_packing: float = Field(
+        0.0, ge=0.0, le=1.0,
+        description=(
+            "Packing the construct would reach, from catalogue wire volumes. "
+            "An arithmetic projection, not a prediction of how the coils will "
+            "actually settle inside the sac."
+        ),
+    )
+    feasible: bool = False
+    note: str = ""
+
+
 class CoilPlanResult(BaseModel):
     """Result of a coil embolization plan."""
 

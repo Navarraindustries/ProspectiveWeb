@@ -25,7 +25,7 @@ mesh_exporter      — STL export (VTK writer) + poly merge + scale utilities   
 """
 from .sessions import (
     create_session, session_dir, session_subdir, session_exists,
-    delete_session, write_state, read_state, purge_expired_sessions,
+    delete_session, write_state, write_states, read_state, purge_expired_sessions,
     mesh_url, report_url, export_url,
     SESSIONS_ROOT,
 )
@@ -83,7 +83,7 @@ SESSIONS_ROOT.mkdir(parents=True, exist_ok=True)
 __all__ = [
     # sessions
     "create_session", "session_dir", "session_subdir", "session_exists",
-    "delete_session", "write_state", "read_state", "purge_expired_sessions",
+    "delete_session", "write_state", "write_states", "read_state", "purge_expired_sessions",
     "mesh_url", "report_url", "export_url", "SESSIONS_ROOT",
     # thresholds
     "compute_auto_thresholds", "strategy_hint", "threshold_voxel_fraction",

@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -171,19 +172,60 @@ def delete_saved_session(session_id: str) -> None:
 _STATE_ENCODING = "utf-8"
 
 
-def write_state(session_id: str, key: str, value: str) -> None:
-    """Persist a simple key=value string in the session state file."""
-    state_file = SESSIONS_ROOT / session_id / "state.txt"
+# Todo el fichero se reescribe en cada `write_state`, así que dos escrituras
+# que se solapen se pisan: la segunda parte de la copia que leyó ANTES de que
+# la primera guardara, y las claves de la primera desaparecen. No era teórico
+# —se encontró en una sesión real, con la detección escribiendo 48 claves
+# seguidas—: a un candidato le faltaba `centroid_x`, a otro el `score`, y un
+# `patch_kind` había quedado empalmado con la cola de otra línea, del truncar-
+# y-escribir sin atomicidad. Un centroide sin `x` se lee como 0, o sea un
+# candidato desplazado al origen sin que nada avise.
+#
+# El cerrojo serializa el leer-modificar-escribir; `os.replace` hace que el
+# fichero pase de una versión completa a la siguiente sin estados intermedios.
+_STATE_LOCK = threading.RLock()
+
+
+def _write_state_file(state_file: Path, lines: dict[str, str]) -> None:
+    """Reemplaza el fichero de estado de forma atómica."""
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = state_file.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(
+        "\n".join(f"{k}={v}" for k, v in lines.items()) + "\n",
+        encoding=_STATE_ENCODING,
+    )
+    os.replace(tmp, state_file)
+
+
+def _read_state_map(state_file: Path) -> dict[str, str]:
     lines: dict[str, str] = {}
     if state_file.exists():
         for line in _read_state_text(state_file).splitlines():
             if "=" in line:
                 k, v = line.split("=", 1)
                 lines[k.strip()] = v.strip()
-    lines[key] = value
-    state_file.write_text(
-        "\n".join(f"{k}={v}" for k, v in lines.items()), encoding=_STATE_ENCODING
-    )
+    return lines
+
+
+def write_state(session_id: str, key: str, value: str) -> None:
+    """Persist a simple key=value string in the session state file."""
+    write_states(session_id, {key: value})
+
+
+def write_states(session_id: str, values: dict[str, str]) -> None:
+    """Persist several keys in ONE read-modify-write.
+
+    La detección escribe unas cuarenta claves seguidas; hacerlo de una en una
+    reescribía el fichero entero cada vez y multiplicaba las ocasiones de que
+    dos escrituras se cruzaran.
+    """
+    if not values:
+        return
+    state_file = SESSIONS_ROOT / session_id / "state.txt"
+    with _STATE_LOCK:
+        lines = _read_state_map(state_file)
+        lines.update({k: str(v) for k, v in values.items()})
+        _write_state_file(state_file, lines)
 
 
 def _read_state_text(state_file: Path) -> str:

@@ -20,7 +20,7 @@ from models import (
     Position3D,
 )
 from services.sessions import (
-    read_state, session_exists, session_subdir, write_state, mesh_url,
+    read_state, session_exists, session_subdir, write_state, write_states, mesh_url,
 )
 from services.aneurysm_detector import AneurysmDetector, AneurysmCandidate as DetCandidate
 from services.morphometrics import MorphometricAnalyzer
@@ -293,17 +293,24 @@ def _run_detection_sync(
         diameter = hit_diameter_mm(hit)
         confidence = hit_confidence(hit)
 
-        # Persist candidate metadata to session state
+        # Persist candidate metadata to session state.
+        # En UN lote: las nueve claves de un candidato describen el mismo
+        # objeto y no tiene sentido que puedan quedar a medias. Escritas de
+        # una en una, cada una reescribía el fichero entero, y en una sesión
+        # real eso dejó un candidato sin `centroid_x` —que se lee como 0.0,
+        # o sea desplazado al origen— y otro sin `score`.
         prefix = f"detect.cand_{rank:03d}"
-        write_state(session_id, f"{prefix}.vtp_name",    cand_name)
-        write_state(session_id, f"{prefix}.url",         url)
-        write_state(session_id, f"{prefix}.centroid_x",  str(hit.position[0]))
-        write_state(session_id, f"{prefix}.centroid_y",  str(hit.position[1]))
-        write_state(session_id, f"{prefix}.centroid_z",  str(hit.position[2]))
-        write_state(session_id, f"{prefix}.diameter_mm", str(diameter))
-        write_state(session_id, f"{prefix}.score",       str(confidence))
-        write_state(session_id, f"{prefix}.channels",    ",".join(hit.channels))
-        write_state(session_id, f"{prefix}.patch_kind",  patch_kind)
+        write_states(session_id, {
+            f"{prefix}.vtp_name":    cand_name,
+            f"{prefix}.url":         url,
+            f"{prefix}.centroid_x":  str(hit.position[0]),
+            f"{prefix}.centroid_y":  str(hit.position[1]),
+            f"{prefix}.centroid_z":  str(hit.position[2]),
+            f"{prefix}.diameter_mm": str(diameter),
+            f"{prefix}.score":       str(confidence),
+            f"{prefix}.channels":    ",".join(hit.channels),
+            f"{prefix}.patch_kind":  patch_kind,
+        })
 
         pyd_candidates.append(
             PydAneurysmCandidate(

@@ -24,6 +24,13 @@ import { usePlanning } from "../../store/planning";
 export const SEG_LOWER_DEFAULT = 150;
 export const SEG_UPPER_DEFAULT = 500;
 
+/* Vista previa en dos etapas. Los submuestreos y las esperas salen de medir el
+   coste real sobre un volumen 384³ — ver el efecto que las usa. */
+export const PREVIA_BORRADOR_DS = 5;
+export const PREVIA_BORRADOR_MS = 90;
+export const PREVIA_AFINADO_DS = 2;
+export const PREVIA_AFINADO_MS = 550;
+
 export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const { sessionId, series, segmentation, setPreviewBand, setPreviewMeshUrl } = planning;
@@ -85,23 +92,49 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     return () => clearTimeout(t);
   }, [lower, upper, sinTecho, segmentation, setPreviewBand]);
 
-  // Live 3D coarse-mesh preview (debounced) — the "casi en tiempo real" of the
-  // desktop: shows the vascular tree forming as the sliders move.
+  // Vista previa 3D en dos etapas.
+  //
+  // Antes era una sola, a submuestreo 3, con 420 ms de espera: en un volumen
+  // 384³ eso son 107 ms de cálculo y una malla de 21.924 vértices que hay que
+  // escribir y transportar. Se siente lento mientras se arrastra el deslizador.
+  //
+  // Medido sobre ese mismo volumen (en caliente):
+  //     ds=1  3.506 ms  596.701 vért
+  //     ds=2    394 ms   85.187 vért
+  //     ds=3    107 ms   21.924 vért
+  //     ds=5     23 ms    4.461 vért
+  //
+  // De ahí las dos etapas: BORRADOR a ds=5 con 90 ms de espera, que a 23 ms sí
+  // se siente inmediato mientras arrastras, y AFINADO a ds=2 cuando sueltas,
+  // que es el nivel al que se ven las ramas finas. El afinado se cancela solo
+  // si vuelves a mover, así que arrastrar seguido no encola trabajo.
+  //
+  // La previa NO coincide con la malla final (que va a ds=2 o a resolución
+  // completa): sirve para ver dónde cae la banda, no para juzgar el detalle.
+  const previaPedida = useRef(0);
   useEffect(() => {
     if (!sessionId || segmentation) return;
     let cancelled = false;
-    const t = setTimeout(async () => {
+    const mio = ++previaPedida.current;
+
+    const pedir = async (downsample: number) => {
+      if (cancelled || mio !== previaPedida.current) return;
       setPreviewing(true);
       try {
-        const res = await api.segmentPreview(sessionId, { lower, upper: upperEfectivo, cleanup, downsample: 3 });
-        if (!cancelled) setPreviewMeshUrl(res.mesh_url);
+        const res = await api.segmentPreview(sessionId, {
+          lower, upper: upperEfectivo, cleanup, downsample,
+        });
+        if (!cancelled && mio === previaPedida.current) setPreviewMeshUrl(res.mesh_url);
       } catch {
-        if (!cancelled) setPreviewMeshUrl(null);   // empty band → no mesh
+        if (!cancelled && mio === previaPedida.current) setPreviewMeshUrl(null);  // banda vacía
       } finally {
-        if (!cancelled) setPreviewing(false);
+        if (!cancelled && mio === previaPedida.current) setPreviewing(false);
       }
-    }, 420);
-    return () => { cancelled = true; clearTimeout(t); };
+    };
+
+    const borrador = setTimeout(() => void pedir(PREVIA_BORRADOR_DS), PREVIA_BORRADOR_MS);
+    const afinado = setTimeout(() => void pedir(PREVIA_AFINADO_DS), PREVIA_AFINADO_MS);
+    return () => { cancelled = true; clearTimeout(borrador); clearTimeout(afinado); };
   }, [lower, upper, upperEfectivo, cleanup, sessionId, segmentation, setPreviewMeshUrl]);
 
   // Clear the previews when leaving the segmentation step.
@@ -282,9 +315,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         </button>
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-        En estudios con hueso/cráneo, el umbral por sí solo no separa el vaso: sube «Limpieza»
-        para aislar el árbol principal. Si el hueso queda <b style={{ color: "var(--foreground)" }}>pegado
-        al árbol</b>, el borrador de región (abajo) lo quita sin tocar los vasos de al lado.
+        En estudios con hueso/cráneo, el umbral por sí solo no separa el vaso: sube "Limpieza"
+        para aislar el árbol principal, o usa <b style={{ color: "var(--foreground)" }}>Crecer desde
+        semillas</b> (abajo) para crecer solo el vaso conectado y dejar fuera el hueso.
       </div>
 
       <PreprocessSection />

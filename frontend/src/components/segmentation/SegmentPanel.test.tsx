@@ -22,7 +22,10 @@ vi.mock("../../api/client", () => {
   return { api };
 });
 
-import { SegmentPanel } from "./SegmentPanel";
+import {
+  SegmentPanel, PREVIA_BORRADOR_DS, PREVIA_BORRADOR_MS,
+  PREVIA_AFINADO_DS, PREVIA_AFINADO_MS,
+} from "./SegmentPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import type { SegmentResult } from "../../api/types";
 
@@ -204,5 +207,51 @@ describe("la banda del volumen, con una malla ya hecha", () => {
     // no haya límite superior.
     withResult(base);
     expect(await screen.findByText(/Sin límite superior/)).toBeInTheDocument();
+  });
+});
+
+/* La vista previa en dos etapas.
+ *
+ * Una sola etapa a submuestreo 3 son 107 ms de cálculo y 21.924 vértices que
+ * transportar, con 420 ms de espera encima: arrastrar el deslizador no se
+ * siente en vivo. Medido sobre el mismo volumen, ds=5 son 23 ms y ds=2 son
+ * 394 ms con 85.187 vértices — el nivel al que se ven las ramas finas.
+ *
+ * Así que primero un borrador inmediato y, si sueltas, un afinado. Es lógica
+ * de temporizadores: se rompe sin hacer ruido, de ahí estos tests. */
+describe("la previa se pide en dos etapas", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("primero el borrador grueso, y luego el afinado", async () => {
+    const { api } = await import("../../api/client");
+    vi.mocked(api.segmentPreview).mockResolvedValue({
+      mesh_url: "/m.vtp", vertices: 10, voxel_fraction: 0.01,
+    });
+    render(
+      <PlanningProvider>
+        <SessionOnly sid="sesion-previa">
+          <SegmentPanel onNext={() => {}} />
+        </SessionOnly>
+      </PlanningProvider>,
+    );
+
+    await vi.waitFor(() => expect(api.segmentPreview).toHaveBeenCalled());
+    const primero = vi.mocked(api.segmentPreview).mock.calls[0][1];
+    expect(primero.downsample).toBe(PREVIA_BORRADOR_DS);
+
+    await vi.waitFor(
+      () => expect(vi.mocked(api.segmentPreview).mock.calls.length).toBeGreaterThan(1),
+      { timeout: 3000 },
+    );
+    const segundo = vi.mocked(api.segmentPreview).mock.calls[1][1];
+    expect(segundo.downsample).toBe(PREVIA_AFINADO_DS);
+    // El afinado tiene que ser MÁS FINO que el borrador, no al revés.
+    expect(PREVIA_AFINADO_DS).toBeLessThan(PREVIA_BORRADOR_DS);
+  });
+
+  it("el borrador llega antes que el afinado", () => {
+    // Si las esperas se cruzaran, el grueso pisaría al fino y la previa
+    // acabaría enseñando MENOS detalle del que ya había calculado.
+    expect(PREVIA_BORRADOR_MS).toBeLessThan(PREVIA_AFINADO_MS);
   });
 });

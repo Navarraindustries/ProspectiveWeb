@@ -139,7 +139,7 @@ export function Viewer({ step }: { step: string }) {
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick,
-    cropRadius, cropShape, cropInvert, planeCut,
+    cropRadius, cropShape, cropInvert, planeCut, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts,
@@ -403,7 +403,8 @@ export function Viewer({ step }: { step: string }) {
         <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />
       ) : meshVisible ? (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
-          <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
+          <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview}
+          boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
         </Suspense>
       ) : sessionId && meta ? (
         <MprView

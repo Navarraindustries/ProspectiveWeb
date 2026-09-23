@@ -15,11 +15,11 @@ export function MeshEditTools() {
   const {
     sessionId, segmentation,
     pickMode, setPickMode,
-    cropCenter, setCropCenter,
+    cropCenter, setCropCenter, boxCut: caja, setBoxCut,
     cropRadius: radius, setCropRadius: setRadius,
     cropShape: shape, setCropShape: setShape,
     cropInvert: invert, setCropInvert: setInvert,
-    erasePick, setErasePick, setPlaneCut,
+    erasePick, setErasePick,
     setSegmentation, setCandidates, setSelectedCandidate,
     setMorphometry, setTreatment, setCenterlineMesh,
   } = usePlanning();
@@ -41,15 +41,7 @@ export function MeshEditTools() {
   // si queda algo que quitar, y había que pinchar a ciegas para averiguarlo.
   const [comps, setComps] = useState<{ total: number; largestIsTree: boolean } | null>(null);
   // Corte por plano: una dirección y una altura, sin elegir centro.
-  const [planeAxis, setPlaneAxis] = useState<"x" | "y" | "z">("y");
-  const [planeOffset, setPlaneOffset] = useState<number>(0);
-  const [planeKeepPos, setPlaneKeepPos] = useState(true);
   const [bounds, setBounds] = useState<MeshBounds | null>(null);
-  const [planeMsg, setPlaneMsg] = useState<string | null>(null);
-  // La previa NO se arma sola: entrar en Segmentación no puede hacer que
-  // media malla desaparezca sin que nadie lo haya pedido. Se arma al tocar
-  // el control y se desarma con «Cancelar».
-  const [planeArmed, setPlaneArmed] = useState(false);
   const [busy, setBusy] = useState<"crop" | "plane" | "undo" | "redo" | "original" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -61,6 +53,15 @@ export function MeshEditTools() {
 
 
 
+  // El historial se recarga SIEMPRE que cambia la malla, no solo al montar.
+  //
+  // Antes solo se pedía al montar el panel, que es justo cuando todavía no hay
+  // nada que deshacer. Re-segmentar guarda su instantánea, pero eso ocurre
+  // desde SegmentPanel y este componente no se enteraba: con doce pasos
+  // guardados en el backend, la tarjeta seguía diciendo «sin pasos que
+  // deshacer» y los tres botones aparecían apagados. Es decir, el usuario veía
+  // que su trabajo era irreversible cuando no lo era.
+  const meshUrl = segmentation?.mesh_url;
   useEffect(() => {
     if (!sessionId) return;
     let alive = true;
@@ -68,7 +69,7 @@ export function MeshEditTools() {
       .then((h) => { if (alive) setHist(h); })
       .catch(() => { /* no history yet */ });
     return () => { alive = false; };
-  }, [sessionId]);
+  }, [sessionId, meshUrl]);
 
   // Los extremos reales de la malla, para que el deslizador no tenga un
   // recorrido inventado. Se recargan cuando la malla cambia.
@@ -79,8 +80,6 @@ export function MeshEditTools() {
       .then((b) => {
         if (!vivo) return;
         setBounds(b);
-        const lo = b.min[planeAxis], hi = b.max[planeAxis];
-        setPlaneOffset((v) => (v >= lo && v <= hi ? v : Math.round((lo + hi) / 2)));
       })
       .catch(() => { /* sin límites el deslizador se queda deshabilitado */ });
     return () => { vivo = false; };
@@ -96,13 +95,6 @@ export function MeshEditTools() {
     return () => { vivo = false; };
   }, [sessionId, segmentation?.mesh_url]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  // La previa del corte: el visor recorta el render en vivo con estos tres
-  // valores, así que arrastrar el deslizador enseña lo que se va a llevar.
-  useEffect(() => {
-    if (!bounds || !planeArmed) { setPlaneCut(null); return; }
-    setPlaneCut({ axis: planeAxis, offset: planeOffset, keepPositive: planeKeepPos });
-  }, [bounds, planeArmed, planeAxis, planeOffset, planeKeepPos, setPlaneCut]);
-  useEffect(() => () => setPlaneCut(null), [setPlaneCut]);
 
   // ── El borrador de un clic ──────────────────────────────────────────── #
   //
@@ -130,6 +122,10 @@ export function MeshEditTools() {
           setMorphometry(null); setTreatment(null); setCenterlineMesh(null);
           setEraseMsg(`Borrados ${res.removed_vertices.toLocaleString("es")} vértices.`);
           setEraseLeft(null);
+          // El backend guarda la instantánea, pero el panel no se enteraba: la
+          // tarjeta seguía diciendo «sin pasos que deshacer» después de borrar,
+          // así que parecía que el borrado era irreversible.
+          void refreshHistory();
           return;
         }
         const res = await api.meshComponentDelete(sessionId, { x, y, z });
@@ -152,12 +148,20 @@ export function MeshEditTools() {
         );
         setEraseLeft(res.components_left);
         setComps((c) => (c ? { ...c, total: res.components_left } : c));
+        void refreshHistory();
       } catch (err) {
         if (!cancelado) setEraseMsg(err instanceof Error ? err.message : "Error al borrar la pieza");
       }
     })();
     return () => { cancelado = true; };
   }, [erasePick, sessionId, eraseMode, eraseRadius]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Estos dos van AQUÍ, con el resto de hooks, y no junto a la lógica de la
+  // caja más abajo: allí quedarían DESPUÉS del `return null` de arriba, y un
+  // hook que a veces se ejecuta y a veces no rompe el componente entero
+  // («Rendered more hooks than during the previous render»). Ya pasó una vez.
+  const [cajaArmada, setCajaArmada] = useState(false);
+  useEffect(() => () => setBoxCut(null), [setBoxCut]);
 
   if (!segmentation) return null;
 
@@ -189,6 +193,83 @@ export function MeshEditTools() {
       clearDownstream();
       void refreshHistory();
       setCropCenter(null);
+      setNote(`Malla recortada: ${res.vertices.toLocaleString("es")} vértices (${res.removed_vertices.toLocaleString("es")} eliminados).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al recortar la malla");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // ── La caja de recorte ────────────────────────────────────────────────── #
+  //
+  // NO se arma sola. Una caja amarilla permanente alrededor del árbol estorba
+  // justo cuando lo que quieres es MIRAR la malla; solo aparece cuando vas a
+  // recortar, y se va al terminar o al cancelar.
+  const EJE_IDX = { x: 0, y: 1, z: 2 } as const;
+
+  /** Arranca envolviendo la malla entera: así armarla no recorta nada. */
+  const resetCaja = () => {
+    if (!bounds) return;
+    setBoxCut({
+      min: [bounds.min.x, bounds.min.y, bounds.min.z],
+      max: [bounds.max.x, bounds.max.y, bounds.max.z],
+    });
+  };
+
+  const armarCaja = () => { setCajaArmada(true); resetCaja(); };
+  const cancelarCaja = () => { setCajaArmada(false); setBoxCut(null); };
+
+  const moverCaja = (eje: "x" | "y" | "z", lado: "min" | "max", v: number) => {
+    if (!bounds) return;
+    const base = caja ?? {
+      min: [bounds.min.x, bounds.min.y, bounds.min.z] as [number, number, number],
+      max: [bounds.max.x, bounds.max.y, bounds.max.z] as [number, number, number],
+    };
+    const i = EJE_IDX[eje];
+    const min = [...base.min] as [number, number, number];
+    const max = [...base.max] as [number, number, number];
+    // Un lado nunca puede cruzar al otro: una caja invertida no recorta, vacía.
+    if (lado === "min") min[i] = Math.min(v, max[i]);
+    else max[i] = Math.max(v, min[i]);
+    setBoxCut({ min, max });
+  };
+
+  /** ¿La caja deja algo fuera? Si envuelve la malla entera, no hay recorte. */
+  const cajaRecorta = !!(caja && bounds && (
+    caja.min[0] > bounds.min.x || caja.max[0] < bounds.max.x ||
+    caja.min[1] > bounds.min.y || caja.max[1] < bounds.max.y ||
+    caja.min[2] > bounds.min.z || caja.max[2] < bounds.max.z
+  ));
+
+  const recortarCaja = async () => {
+    if (!sessionId || !caja) return;
+    setBusy("crop");
+    setError(null);
+    setNote(null);
+    try {
+      // El endpoint habla de centro y semiejes; la caja son límites. Es la
+      // misma caja escrita de otra forma.
+      const centro = {
+        x: (caja.min[0] + caja.max[0]) / 2,
+        y: (caja.min[1] + caja.max[1]) / 2,
+        z: (caja.min[2] + caja.max[2]) / 2,
+      };
+      const semi = {
+        x: Math.max((caja.max[0] - caja.min[0]) / 2, 0.01),
+        y: Math.max((caja.max[1] - caja.min[1]) / 2, 0.01),
+        z: Math.max((caja.max[2] - caja.min[2]) / 2, 0.01),
+      };
+      const res = await api.meshCrop(sessionId, {
+        mode: "box", center: centro, half_size: semi, radius: 10, invert: false,
+      });
+      setSegmentation(segmentation
+        ? { ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces }
+        : segmentation);
+      clearDownstream();
+      setBoxCut(null);          // la caja vieja ya no describe la malla nueva
+      setCajaArmada(false);
+      void refreshHistory();
       setNote(`Malla recortada: ${res.vertices.toLocaleString("es")} vértices (${res.removed_vertices.toLocaleString("es")} eliminados).`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al recortar la malla");
@@ -237,31 +318,6 @@ export function MeshEditTools() {
     color: active ? "var(--brand-subtle-foreground)" : "var(--foreground)",
   });
 
-  const cortarPlano = async () => {
-    if (!sessionId) return;
-    setPlaneMsg(null);
-    setBusy("plane");
-    try {
-      const res = await api.meshPlaneCut(sessionId, {
-        axis: planeAxis, offset_mm: planeOffset, keep_positive: planeKeepPos,
-      });
-      setSegmentation(segmentation
-        ? { ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces }
-        : segmentation);
-      clearDownstream();
-      setPlaneArmed(false);
-      setPlaneMsg(
-        `Fuera ${res.removed_vertices.toLocaleString("es")} vértices. ` +
-        (res.components_left === 1
-          ? "Queda 1 pieza."
-          : `Quedan ${res.components_left} piezas.`),
-      );
-    } catch (err) {
-      setPlaneMsg(err instanceof Error ? err.message : "No se pudo cortar");
-    } finally {
-      setBusy(null);
-    }
-  };
 
   return (
     <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
@@ -277,12 +333,13 @@ export function MeshEditTools() {
           borrar y no haría nada que esto no haga. */}
       <Card>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
-          Borrar piezas sueltas
+          Borrador
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
-          Pincha una estructura suelta en el visor y desaparece entera. El ruido de
-          una malla angiográfica viene en piezas separadas, así que no hace falta
-          pintar sobre él. Se deshace como cualquier otra edición.
+          Pincha en el visor y desaparece. <b>Pieza suelta</b> quita la estructura
+          entera de un clic, que es como viene el ruido de una malla angiográfica.
+          <b> Región pegada</b> sirve cuando el hueso TOCA el árbol y por eso forma
+          parte de él. Se deshace como cualquier otra edición.
           {comps && (
             <>
               {" "}
@@ -344,100 +401,87 @@ export function MeshEditTools() {
         )}
       </Card>
 
-      {/* ── Corte por plano ─────────────────────────────────────────────── */}
-      {/* El recorte por caja o esfera obliga a acertar un centro a ojo, y para
-          quitar la chapa pegada bajo el árbol eso son varios intentos. Un plano
-          no tiene centro: una dirección y una altura. */}
+      {/* ── Caja de recorte ─────────────────────────────────────────────── */}
+      {/* El corte por plano recortaba la malla SIN DIBUJAR NADA: había que
+          deducir dónde cortaba por lo que desaparecía, y solo en un eje cada
+          vez. El usuario lo dijo tal cual: «no se ve bien alguna caja o algo
+          que muestre que se está cortando en las 3 dimensiones».
+
+          Ahora la caja arranca envolviendo la malla entera —así no recorta
+          nada de salida— y cada eje se cierra por los dos lados. Se ve, y las
+          tres dimensiones están a la vez. */}
       <Card>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
-          Cortar por un plano
+          Caja de recorte
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
-          Sin elegir centro. <b>Arrastra el deslizador y mira el visor</b>: lo que
-          desaparece es exactamente lo que el corte se va a llevar. Prueba un eje;
-          si el plano va en la dirección equivocada se ve al instante. «Cortar»
-          solo confirma lo que ya estás viendo.
+          La caja empieza envolviendo toda la malla. <b>Cierra cada eje por donde
+          quieras</b> y mira el visor: la caja amarilla es lo que se conserva, y
+          lo de fuera desaparece en el momento. «Recortar» solo confirma lo que
+          ya estás viendo.
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          {(["x", "y", "z"] as const).map((eje) => (
-            <button
-              key={eje}
-              onClick={() => {
-                setPlaneAxis(eje);
-                setPlaneArmed(true);
-                if (bounds) setPlaneOffset(Math.round((bounds.min[eje] + bounds.max[eje]) / 2));
-              }}
-              style={toolBtn(planeAxis === eje)}
-            >
-              Eje {eje.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-        {bounds ? (
-          <>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--muted-foreground)", flex: 1 }}>
-                Altura del corte
-              </span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)" }}>
-                {planeOffset.toFixed(0)} mm
-              </span>
-            </div>
-            <input
-              type="range"
-              aria-label="Altura del corte"
-              min={Math.floor(bounds.min[planeAxis])}
-              max={Math.ceil(bounds.max[planeAxis])}
-              step={1}
-              value={planeOffset}
-              onChange={(e) => { setPlaneOffset(Number(e.target.value)); setPlaneArmed(true); }}
-              style={{ width: "100%" }}
-            />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted-foreground)", marginBottom: 10 }}>
-              <span>{bounds.min[planeAxis].toFixed(0)}</span>
-              <span>{bounds.max[planeAxis].toFixed(0)}</span>
-            </div>
-          </>
-        ) : (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
+        {!bounds && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
             Cargando los límites de la malla…
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <button onClick={() => { setPlaneKeepPos(true); setPlaneArmed(true); }} style={toolBtn(planeKeepPos)}>
-            Conservar arriba
-          </button>
-          <button onClick={() => { setPlaneKeepPos(false); setPlaneArmed(true); }} style={toolBtn(!planeKeepPos)}>
-            Conservar abajo
-          </button>
-        </div>
-
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button
-            variant="outline"
-            style={{ flex: 1 }}
-            disabled={!bounds || !planeArmed || busy !== null}
-            onClick={() => void cortarPlano()}
-          >
-            {busy === "plane" ? "Cortando…" : "Cortar"}
+        {bounds && !cajaArmada && (
+          <Button variant="outline" onClick={armarCaja} style={{ width: "100%" }}>
+            Activar la caja
           </Button>
-          {planeArmed && (
-            <Button
-              variant="ghost"
-              disabled={busy !== null}
-              onClick={() => { setPlaneArmed(false); setPlaneMsg(null); }}
-            >
-              Cancelar
-            </Button>
-          )}
-        </div>
-        {planeMsg && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
-            {planeMsg}
-          </div>
+        )}
+
+        {bounds && cajaArmada && (
+          <>
+            {(["x", "y", "z"] as const).map((eje) => {
+              const lo = bounds.min[eje];
+              const hi = bounds.max[eje];
+              const paso = Math.max(0.1, Math.round((hi - lo) / 200 * 10) / 10);
+              return (
+                <div key={eje} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--foreground)", marginBottom: 2 }}>
+                    Eje {eje.toUpperCase()}
+                  </div>
+                  <Slider
+                    label="desde" min={lo} max={hi} step={paso}
+                    value={caja ? caja.min[EJE_IDX[eje]] : lo}
+                    onChange={(v) => moverCaja(eje, "min", v)}
+                    unit=" mm"
+                  />
+                  <Slider
+                    label="hasta" min={lo} max={hi} step={paso}
+                    value={caja ? caja.max[EJE_IDX[eje]] : hi}
+                    onChange={(v) => moverCaja(eje, "max", v)}
+                    unit=" mm"
+                  />
+                </div>
+              );
+            })}
+
+            <div style={{ display: "flex", gap: 6 }}>
+              <Button
+                variant="outline"
+                onClick={() => void recortarCaja()}
+                disabled={busy !== null || !cajaRecorta}
+                style={{ flex: 1 }}
+              >
+                {busy === "crop" ? "Recortando…" : "Recortar"}
+              </Button>
+              <Button variant="outline" onClick={resetCaja} disabled={busy !== null} style={{ flex: 1 }}>
+                Toda la malla
+              </Button>
+              <Button variant="outline" onClick={cancelarCaja} disabled={busy !== null} style={{ flex: 1 }}>
+                Cancelar
+              </Button>
+            </div>
+            {!cajaRecorta && (
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+                La caja envuelve la malla entera: no hay nada que recortar todavía.
+              </div>
+            )}
+          </>
         )}
       </Card>
 
@@ -499,7 +543,7 @@ export function MeshEditTools() {
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
           {hist.undo_depth > 0
             ? "Volver atrás no re-segmenta: se recupera la malla guardada antes del paso. Deshacer también es reversible."
-            : "Sin pasos que deshacer. En cuanto recortes, crezcas o vuelvas a segmentar, podrás volver atrás desde aquí."}
+            : "Sin pasos que deshacer. En cuanto borres, recortes o vuelvas a segmentar, podrás volver atrás desde aquí."}
         </div>
 
         {hist.steps.length > 0 && (

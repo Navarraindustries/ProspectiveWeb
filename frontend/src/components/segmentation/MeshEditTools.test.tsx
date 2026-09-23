@@ -12,7 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const meshComponentDelete = vi.fn();
-const meshPlaneCut = vi.fn();
+const meshCrop = vi.fn();
 
 vi.mock("../../api/client", () => ({
   api: {
@@ -28,7 +28,7 @@ vi.mock("../../api/client", () => ({
       min: { x: -30, y: -40, z: -25 }, max: { x: 30, y: 40, z: 25 },
       vertices: 12776,
     }),
-    meshPlaneCut: (...a: unknown[]) => meshPlaneCut(...a),
+    meshCrop: (...a: unknown[]) => meshCrop(...a),
   },
 }));
 
@@ -67,7 +67,7 @@ function mount(erasePick?: Vec3) {
 
 beforeEach(() => {
   meshComponentDelete.mockReset();
-  meshPlaneCut.mockReset();
+  meshCrop.mockReset();
 });
 
 describe("el panel se monta", () => {
@@ -75,7 +75,7 @@ describe("el panel se monta", () => {
     // Si un useEffect vuelve a quedar anidado dentro de otro, esto falla aquí
     // en vez de en el navegador del usuario.
     mount();
-    expect(screen.getByText("Borrar piezas sueltas")).toBeInTheDocument();
+    expect(screen.getByText("Borrador")).toBeInTheDocument();
     expect(screen.getAllByText(/Recortar malla/).length).toBeGreaterThan(0);
   });
 
@@ -114,123 +114,96 @@ describe("el borrador de un clic", () => {
 
   it("no llama a la API si no se ha señalado nada", async () => {
     mount();
-    await waitFor(() => expect(screen.getByText("Borrar piezas sueltas")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Borrador")).toBeInTheDocument());
     expect(meshComponentDelete).not.toHaveBeenCalled();
   });
 });
 
-/* El recorte por caja y esfera obliga a acertar un centro a ojo, y para quitar
-   la chapa pegada bajo el árbol eso son varios intentos. Un plano no tiene
-   centro: una dirección y una altura. */
-describe("el corte por plano", () => {
-  it("ofrece los tres ejes y un deslizador con recorrido real", async () => {
+/* La caja de recorte.
+ *
+ * Antes esto era un corte por plano que recortaba la malla SIN DIBUJAR NADA:
+ * había que deducir dónde cortaba por lo que desaparecía, y solo en un eje
+ * cada vez. El usuario lo dijo tal cual: «no se ve bien alguna caja o algo que
+ * muestre que se está cortando en las 3 dimensiones».
+ *
+ * La caja NO se arma sola: una caja amarilla permanente alrededor del árbol
+ * estorba justo cuando lo que quieres es mirar la malla. Al activarla arranca
+ * envolviéndola entera —activarla no puede recortar nada— y cada eje se cierra
+ * por los dos lados. */
+describe("la caja de recorte", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** La caja solo existe tras activarla. */
+  const activar = async () => {
     mount();
-    expect(await screen.findByText("Cortar por un plano")).toBeInTheDocument();
-    for (const eje of ["Eje X", "Eje Y", "Eje Z"]) {
-      expect(screen.getByRole("button", { name: eje })).toBeInTheDocument();
-    }
-    // Los extremos salen de la malla, no de un rango inventado.
-    const slider = await screen.findByRole("slider", { name: "Altura del corte" });
-    expect(slider).toHaveAttribute("min", "-40");
-    expect(slider).toHaveAttribute("max", "40");
-  });
+    fireEvent.click(await screen.findByRole("button", { name: "Activar la caja" }));
+    return await screen.findByText("Eje X");
+  };
 
-  it("corta por la altura elegida y dice qué se llevó", async () => {
-    meshPlaneCut.mockResolvedValue({
-      mesh_url: "/data/v.vtp?v=3", vertices: 9000, faces: 18000,
-      removed_vertices: 3776, components_left: 1, undo_depth: 1,
-    });
+  it("no se muestra hasta que se activa", async () => {
     mount();
-    const slider = await screen.findByRole("slider", { name: "Altura del corte" });
-    fireEvent.change(slider, { target: { value: "-22" } });
-    fireEvent.click(screen.getByRole("button", { name: /^Cortar$/ }));
-    await waitFor(() => expect(meshPlaneCut).toHaveBeenCalled());
-    expect(meshPlaneCut).toHaveBeenCalledWith("s1", {
-      axis: "y", offset_mm: -22, keep_positive: true,
-    });
-    // El separador de miles lo pone toLocaleString y depende del ICU del
-    // entorno, así que se comprueba el mensaje, no su tipografía.
-    expect(await screen.findByText(/Fuera .*vértices/)).toBeInTheDocument();
-    expect(screen.getByText(/Queda 1 pieza/)).toBeInTheDocument();
+    expect(await screen.findByText("Caja de recorte")).toBeInTheDocument();
+    expect(screen.queryByText("Eje X")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Activar la caja" })).toBeInTheDocument();
   });
 
-  it("deja elegir qué lado se conserva", async () => {
-    meshPlaneCut.mockResolvedValue({
-      mesh_url: "/data/v.vtp", vertices: 100, faces: 200,
-      removed_vertices: 10, components_left: 1, undo_depth: 1,
-    });
-    mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Conservar abajo" }));
-    fireEvent.click(screen.getByRole("button", { name: /^Cortar$/ }));
-    await waitFor(() => expect(meshPlaneCut).toHaveBeenCalled());
-    expect(meshPlaneCut.mock.calls[0][1].keep_positive).toBe(false);
-  });
-
-  it("NO se arma sola: entrar no puede borrar media malla de la vista", async () => {
-    // Bug propio: el efecto publicaba la previa en cuanto llegaban los
-    // límites, así que abrir Segmentación recortaba el render sin que nadie
-    // lo pidiera. Nada debe pasar hasta que el usuario toque el control.
-    let visto: unknown = "sin tocar";
-    function Espia() {
-      const { planeCut } = usePlanning();
-      visto = planeCut;
-      return null;
-    }
-    render(
-      <PlanningProvider>
-        <Seed><MeshEditTools /><Espia /></Seed>
-      </PlanningProvider>,
-    );
-    await screen.findByRole("slider", { name: "Altura del corte" });
-    await waitFor(() => expect(visto).toBeNull());
-  });
-
-  it("se puede cancelar sin tocar la malla", async () => {
-    let visto: unknown = null;
-    function Espia() {
-      const { planeCut } = usePlanning();
-      visto = planeCut;
-      return null;
-    }
-    render(
-      <PlanningProvider>
-        <Seed><MeshEditTools /><Espia /></Seed>
-      </PlanningProvider>,
-    );
-    const slider = await screen.findByRole("slider", { name: "Altura del corte" });
-    fireEvent.change(slider, { target: { value: "-12" } });
-    await waitFor(() => expect(visto).not.toBeNull());
-
+  it("se puede cancelar y la caja desaparece", async () => {
+    await activar();
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    await waitFor(() => expect(visto).toBeNull());
-    expect(meshPlaneCut).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByText("Eje X")).not.toBeInTheDocument());
   });
 
-  it("publica la previa para que el visor recorte en vivo", async () => {
-    // El usuario dijo que cortar por ejes es poco intuitivo «porque no hay de
-    // dónde guiarse». El problema no era el plano: era que no se veía nada
-    // hasta pulsar Cortar. El visor recorta el render con estos tres valores.
-    let visto: unknown = null;
-    function Espia() {
-      const { planeCut } = usePlanning();
-      visto = planeCut;
-      return null;
+  it("ofrece los tres ejes, cada uno por los dos lados", async () => {
+    await activar();
+    for (const eje of ["X", "Y", "Z"]) {
+      expect(screen.getByText(`Eje ${eje}`)).toBeInTheDocument();
     }
-    render(
-      <PlanningProvider>
-        <Seed><MeshEditTools /><Espia /></Seed>
-      </PlanningProvider>,
-    );
-    const slider = await screen.findByRole("slider", { name: "Altura del corte" });
-    fireEvent.change(slider, { target: { value: "-18" } });
-    await waitFor(() =>
-      expect(visto).toEqual({ axis: "y", offset: -18, keepPositive: true }));
+    // Dos deslizadores por eje: «desde» y «hasta».
+    expect(screen.getAllByLabelText("desde")).toHaveLength(3);
+    expect(screen.getAllByLabelText("hasta")).toHaveLength(3);
   });
 
-  it("dice cuántas piezas hay antes de borrar ninguna", async () => {
-    // El endpoint existía desde ayer y no lo llamaba nadie: sin esto el
-    // borrador no decía si quedaba algo que quitar.
-    mount();
-    expect(await screen.findByText(/La malla tiene 11 piezas/)).toBeInTheDocument();
+  it("al activarla envuelve la malla, así que no recorta nada", async () => {
+    await activar();
+    // El recorrido de cada deslizador es el de la malla, no uno inventado.
+    const desde = screen.getAllByLabelText("desde") as HTMLInputElement[];
+    expect(Number(desde[0].min)).toBe(-30);
+    expect(Number(desde[0].max)).toBe(30);
+    expect(Number(desde[0].value)).toBe(-30);   // pegado al extremo
+    expect(await screen.findByText(/no hay nada que recortar/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recortar" })).toBeDisabled();
+  });
+
+  it("al cerrar un eje, recorta y dice qué se llevó", async () => {
+    meshCrop.mockResolvedValue({
+      mesh_url: "/m.vtp?v=2", vertices: 9000, faces: 18000, removed_vertices: 3776,
+    });
+    await activar();
+
+    const desde = screen.getAllByLabelText("desde") as HTMLInputElement[];
+    fireEvent.change(desde[0], { target: { value: "-5" } });
+
+    const boton = await screen.findByRole("button", { name: "Recortar" });
+    await waitFor(() => expect(boton).not.toBeDisabled());
+    fireEvent.click(boton);
+
+    await waitFor(() => expect(meshCrop).toHaveBeenCalled());
+    const [, req] = meshCrop.mock.calls[0] as [string, Record<string, any>];
+    expect(req.mode).toBe("box");
+    // Centro y semiejes describen la MISMA caja que los límites elegidos.
+    expect(req.center.x).toBeCloseTo((-5 + 30) / 2, 5);
+    expect(req.half_size.x).toBeCloseTo((30 - -5) / 2, 5);
+    expect(await screen.findByText(/Malla recortada.*eliminados/)).toBeInTheDocument();
+  });
+
+  it("un lado no puede cruzar al otro", async () => {
+    await activar();
+    const desde = screen.getAllByLabelText("desde") as HTMLInputElement[];
+    const hasta = screen.getAllByLabelText("hasta") as HTMLInputElement[];
+    // Empujar «desde» más allá de «hasta» dejaría una caja invertida, que no
+    // recorta: vacía la malla entera.
+    fireEvent.change(hasta[0], { target: { value: "0" } });
+    fireEvent.change(desde[0], { target: { value: "25" } });
+    await waitFor(() => expect(Number(desde[0].value)).toBeLessThanOrEqual(Number(hasta[0].value)));
   });
 });

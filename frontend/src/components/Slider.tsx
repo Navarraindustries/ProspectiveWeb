@@ -30,7 +30,10 @@ export function Slider({
           {label}
         </label>
         <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--foreground)" }}>
-          {value}
+          {/* Los límites de la caja salen de la malla y traen todos los
+              decimales del flotante: «19.8441951751789 mm» no dice más que
+              «19.8» y llena la fila. Se redondea al paso del deslizador. */}
+          {Number.isInteger(step) ? value : Math.round(value * 10) / 10}
           <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>{unit}</span>
         </span>
       </div>

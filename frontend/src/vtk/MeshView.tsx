@@ -91,6 +91,7 @@ export function MeshView({
   lines = [],
   cropPreview = null,
   planePreview = null,
+  boxPreview = null,
   referenceDiameterMm = null,
   pickMode = false,
   onPick,
@@ -112,6 +113,10 @@ export function MeshView({
    *  no hay de dónde guiarse» — y tenía razón: el problema no era el plano,
    *  era que no se veía nada hasta pulsar Cortar. */
   planePreview?: { origin: [number, number, number]; normal: [number, number, number] } | null;
+  /** Caja de recorte: los seis límites, en mm de mundo. Recorta EN VIVO por sus
+   *  seis planos y además se dibuja, que es lo que el corte por plano nunca
+   *  hizo — allí solo desaparecía geometría y no se veía por dónde cortaba. */
+  boxPreview?: { min: [number, number, number]; max: [number, number, number] } | null;
   /** Diameter of the structure being marked (mm). Markers scale to it so they
    *  stay smaller than the vessel or dome they sit on. */
   referenceDiameterMm?: number | null;
@@ -143,6 +148,7 @@ export function MeshView({
   const markerActors = useRef<vtkActor[]>([]);
   // Actors that carry a layer id, so the rehearsal can move them by name.
   const namedActors = useRef<Map<string, vtkActor>>(new Map());
+  const boxActor = useRef<vtkActor | null>(null);
   const cropActor = useRef<vtkActor | null>(null);
   const layerMappers = useRef<vtkMapper[]>([]);
   const registerCaptureRef = useRef(registerCapture);
@@ -468,6 +474,9 @@ export function MeshView({
   const planeKey = planePreview
     ? `${planePreview.origin.join(",")}|${planePreview.normal.join(",")}`
     : "";
+  const boxKey = boxPreview
+    ? `${boxPreview.min.join(",")}|${boxPreview.max.join(",")}`
+    : "";
   useEffect(() => {
     const h = handles.current;
     if (!h) return;
@@ -482,9 +491,27 @@ export function MeshView({
         try { m.addClippingPlane(pl); } catch { /* idem */ }
       }
     }
+    if (boxPreview) {
+      // Seis planos, uno por cara. Cada eje se recorta por los dos lados, así
+      // que las tres dimensiones se ven a la vez en vez de una cada vez.
+      const { min, max } = boxPreview;
+      const caras: [[number, number, number], [number, number, number]][] = [
+        [[min[0], 0, 0], [1, 0, 0]], [[max[0], 0, 0], [-1, 0, 0]],
+        [[0, min[1], 0], [0, 1, 0]], [[0, max[1], 0], [0, -1, 0]],
+        [[0, 0, min[2]], [0, 0, 1]], [[0, 0, max[2]], [0, 0, -1]],
+      ];
+      for (const m of layerMappers.current) {
+        for (const [origen, normal] of caras) {
+          const pl = vtkPlane.newInstance();
+          pl.setOrigin(...origen);
+          pl.setNormal(...normal);
+          try { m.addClippingPlane(pl); } catch { /* idem */ }
+        }
+      }
+    }
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, planeKey]);
+  }, [key, planeKey, boxKey]);
 
   // ── Crop ROI preview: a translucent sphere/box so the crop is not blind ──── #
   useEffect(() => {
@@ -515,6 +542,42 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, cropKey]);
+
+  // ── La caja de recorte, dibujada ──────────────────────────────────────── #
+  //
+  // El corte por plano recortaba la malla y no dibujaba NADA: había que deducir
+  // dónde estaba el plano por lo que desaparecía. Aquí la caja se ve, así que
+  // sabes por dónde vas a cortar antes de cortar, y en los tres ejes a la vez.
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    if (boxActor.current) { h.renderer.removeActor(boxActor.current); boxActor.current = null; }
+
+    if (boxPreview) {
+      const { min, max } = boxPreview;
+      const src = vtkCubeSource.newInstance({
+        center: [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2],
+        xLength: Math.max(max[0] - min[0], 0.01),
+        yLength: Math.max(max[1] - min[1], 0.01),
+        zLength: Math.max(max[2] - min[2], 0.01),
+      });
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(src.getOutputPort());
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+      const prop = actor.getProperty();
+      // Solo aristas: una caja rellena taparía justo la malla que hay que ver.
+      prop.setRepresentation(1);
+      prop.setColor(0.95, 0.75, 0.2);
+      prop.setLineWidth(2);
+      prop.setOpacity(0.9);
+      actor.setPickable(false);
+      h.renderer.addActor(actor);
+      boxActor.current = actor;
+    }
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, boxKey]);
 
   return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
 }

@@ -87,6 +87,10 @@ interface PlanningState {
    *  El visor la usa para recortar el render en vivo, de modo que al arrastrar
    *  el deslizador se vea desaparecer justo lo que el corte se llevaría. */
   planeCut: { axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null;
+  /** Caja de recorte en vivo: los seis límites en mm. Se dibuja y recorta la
+   *  malla a la vez, así que se ve por dónde se corta en los tres ejes. */
+  boxCut: { min: [number, number, number]; max: [number, number, number] } | null;
+  setBoxCut: (b: { min: [number, number, number]; max: [number, number, number] } | null) => void;
   /** Último punto señalado con el borrador de piezas. El visor solo señala; el
    *  panel de edición es quien llama a la API y lo vuelve a poner en null,
    *  igual que hace con el resto de ediciones de malla. */
@@ -227,6 +231,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [cropCenter, setCropCenter] = useState<Vec3 | null>(null);
   const [erasePick, setErasePick] = useState<Vec3 | null>(null);
   const [planeCut, setPlaneCut] = useState<{ axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null>(null);
+  const [boxCut, setBoxCut] = useState<{ min: [number, number, number]; max: [number, number, number] } | null>(null);
   const [cropRadius, setCropRadius] = useState(10);
   const [cropShape, setCropShape] = useState<"sphere" | "box">("sphere");
   const [cropInvert, setCropInvert] = useState(false);
@@ -304,7 +309,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, cropCenter, erasePick, planeCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
+        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,

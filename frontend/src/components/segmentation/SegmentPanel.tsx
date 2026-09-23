@@ -315,9 +315,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         </button>
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-        En estudios con hueso/cráneo, el umbral por sí solo no separa el vaso: sube "Limpieza"
-        para aislar el árbol principal, o usa <b style={{ color: "var(--foreground)" }}>Crecer desde
-        semillas</b> (abajo) para crecer solo el vaso conectado y dejar fuera el hueso.
+        En estudios con hueso/cráneo, el umbral por sí solo no separa el vaso: sube «Limpieza»
+        para aislar el árbol principal. Si el hueso queda <b style={{ color: "var(--foreground)" }}>pegado
+        al árbol</b>, el borrador de región (abajo) lo quita sin tocar los vasos de al lado.
       </div>
 
       <PreprocessSection />

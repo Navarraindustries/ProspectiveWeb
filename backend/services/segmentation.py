@@ -579,6 +579,14 @@ def voxel_fraction(
     lower:  float,
     upper:  float,
 ) -> float:
-    """Return the fraction of voxels in [lower, upper] (0–1)."""
+    """Return the fraction of voxels in [lower, upper] (0–1).
+
+    `upper <= lower` means "no ceiling", the same convention the pipeline uses
+    (`threshold_max_hu = upper if upper > lower else 0.0`). Without this the
+    fraction came back as 0 for an uncapped band, which the UI shows as the
+    percentage of the volume captured — reading 0 % while the mesh was fine.
+    """
     flat = volume.ravel().astype("float32")
+    if upper <= lower:
+        return float(np.mean(flat >= lower))
     return float(np.mean((flat >= lower) & (flat <= upper)))

@@ -4,14 +4,23 @@ import { render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../api/client", () => ({
-  api: {
-    // The panel asks for a starting band on mount; keep it out of the way.
+vi.mock("../../api/client", () => {
+  // Los hijos del panel (PreprocessSection, MeshEditTools) piden varias cosas
+  // en cuanto hay sesión. Mockearlas una a una convierte cada test nuevo en una
+  // cacería, así que lo no declarado devuelve una promesa vacía por defecto.
+  const declarados: Record<string, unknown> = {
     suggestedBand: vi.fn().mockResolvedValue({ lower: 150, upper: 500, vmin: -500, vmax: 1500 }),
     segment: vi.fn(),
     segmentPreview: vi.fn().mockRejectedValue(new Error("sin vista previa en test")),
-  },
-}));
+  };
+  const api = new Proxy(declarados, {
+    get(target, prop: string) {
+      if (!(prop in target)) target[prop] = vi.fn().mockResolvedValue({});
+      return target[prop];
+    },
+  });
+  return { api };
+});
 
 import { SegmentPanel } from "./SegmentPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
@@ -31,11 +40,24 @@ const base: SegmentResult = {
   main_tree_applied: false, main_tree_warning: "", main_tree_removed: 0,
 };
 
-/** Renders the panel with a segmentation already in the store. */
-function withResult(result: SegmentResult) {
+/** Solo siembra la sesión: el panel sin malla renderiza un subárbol pequeño,
+ *  que es donde se pueden mirar los sliders sin mockear media API. */
+function SessionOnly({ sid, children }: { sid: string; children: ReactNode }) {
+  const { setSession } = usePlanning();
+  useEffect(() => { setSession(sid); }, [setSession, sid]);
+  return <>{children}</>;
+}
+
+/** Renders the panel with a segmentation already in the store.
+ *  `sid` siembra también la sesión: sin ella el panel no pide nada al backend,
+ *  que es lo correcto, pero deja fuera de prueba todo lo que depende de eso. */
+function withResult(result: SegmentResult, sid: string | null = null) {
   function Seed({ children }: { children: ReactNode }) {
-    const { setSegmentation } = usePlanning();
-    useEffect(() => setSegmentation(result), [setSegmentation]);
+    const { setSegmentation, setSession } = usePlanning();
+    useEffect(() => {
+      if (sid) setSession(sid);
+      setSegmentation(result);
+    }, [setSegmentation, setSession]);
     return <>{children}</>;
   }
   return render(
@@ -114,5 +136,51 @@ describe("what the cleanup discarded", () => {
     await screen.findByText("Submuestreada");
     expect(screen.queryByText(/Árbol principal aislado/)).not.toBeInTheDocument();
     expect(screen.queryByText(/No se aisló el árbol principal/)).not.toBeInTheDocument();
+  });
+});
+
+/* La banda describe el VOLUMEN, no la malla.
+ *
+ * El panel sólo la pedía cuando no había malla todavía, así que volver al paso
+ * con la malla hecha dejaba los sliders en los valores de reserva —inferior
+ * 150, rango −500…3000, que son de TC— sobre una 3DRA cuyo p99 es 1499.
+ * Segmentar así mete el tejido blando y el cráneo, y nada en pantalla delataba
+ * que los números no tenían que ver con ese volumen. */
+describe("la banda del volumen, con una malla ya hecha", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // NO hay test de «se pide la banda aunque ya exista la malla», que es
+  // literalmente el fallo que sufrió el usuario. Se intentó y no discrimina:
+  // `MeshEditTools` —que solo se monta cuando hay malla— llama a
+  // `suggestedBand` por su cuenta, así que la espía da positivo con el bug
+  // reintroducido. Y con malla el panel no llega a pintar sus sliders bajo
+  // test, de modo que tampoco se puede mirar el efecto. Un test que pasa con
+  // el bug puesto es peor que ninguno, así que se deja dicho en vez de
+  // fingirlo. Lo que sí queda cubierto es de dónde salen los límites.
+
+  it("los límites del slider salen del volumen, no de la reserva", async () => {
+    const { api } = await import("../../api/client");
+    // Una 3DRA: la banda vive muy por encima del rango de reserva de TC
+    // (−500…3000), que ni siquiera podía expresar un techo de 4450.
+    vi.mocked(api.suggestedBand).mockResolvedValue({
+      lower: 1503, upper: 4450, vmin: -20, vmax: 4399,
+    });
+    render(
+      <PlanningProvider>
+        <SessionOnly sid="sesion-2">
+          <SegmentPanel onNext={() => {}} />
+        </SessionOnly>
+      </PlanningProvider>,
+    );
+    const sup = (await screen.findByLabelText("Umbral superior")) as HTMLInputElement;
+    await vi.waitFor(() => expect(Number(sup.max)).toBeGreaterThan(4450));
+  });
+
+  it("ofrece quitar el techo, que el slider por sí solo no puede", async () => {
+    // El tope del slider sale del percentil 99.9, así que subirlo «al máximo»
+    // deja el techo donde estaba. Sin esta casilla no hay forma de pedir que
+    // no haya límite superior.
+    withResult(base);
+    expect(await screen.findByText(/Sin límite superior/)).toBeInTheDocument();
   });
 });

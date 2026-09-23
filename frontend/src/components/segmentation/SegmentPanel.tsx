@@ -30,6 +30,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
   const [lower, setLower] = useState(SEG_LOWER_DEFAULT);
   const [upper, setUpper] = useState(SEG_UPPER_DEFAULT);
+  // Sin techo: el backend lo desactiva cuando upper <= lower.
+  const [sinTecho, setSinTecho] = useState(false);
   const [smoothing, setSmoothing] = useState(3);
   const [cleanup, setCleanup] = useState(7);   // level 7 → top-N isolation, mesh limpia
   // Off by default: on a 384³ study this is minutes instead of seconds.
@@ -46,28 +48,42 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const suggested = useRef<{ lower: number; upper: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
 
-  // On entering the step (fresh volume, no mesh yet), fetch the adaptive band.
+  // La banda adaptada describe el VOLUMEN, no la malla, así que se pide
+  // siempre que cambia la sesión.
+  //
+  // Antes esto llevaba `if (!sessionId || segmentation) return;`, y volver al
+  // paso con una malla ya hecha dejaba el panel en los valores de reserva, que
+  // son de TC: inferior 150 y un rango −500…3000. Sobre una 3DRA cuyo p99 es
+  // 1499, segmentar con 150 mete el tejido blando y el cráneo entero. El
+  // usuario no tenía forma de verlo: los sliders enseñaban números plausibles
+  // que no tenían nada que ver con su volumen.
   useEffect(() => {
-    if (!sessionId || segmentation) return;
+    if (!sessionId) return;
     let alive = true;
     api.suggestedBand(sessionId).then((b) => {
       if (!alive) return;
       suggested.current = { lower: b.lower, upper: b.upper };
-      setLower(Math.round(b.lower));
-      setUpper(Math.round(b.upper));
+      // Los límites del slider salen del volumen siempre. El valor elegido
+      // sólo se pisa si el usuario no lo ha tocado —sigue en la reserva—,
+      // para no deshacer un ajuste deliberado al volver al paso.
+      setLower((cur) => (cur === SEG_LOWER_DEFAULT ? Math.round(b.lower) : cur));
+      setUpper((cur) => (cur === SEG_UPPER_DEFAULT ? Math.round(b.upper) : cur));
       const pad = Math.max(1, (b.vmax - b.vmin) * 0.05);
       setRange({ min: Math.floor(b.vmin - pad), max: Math.ceil(b.vmax + pad) });
     }).catch(() => { /* keep fallback defaults */ });
     return () => { alive = false; };
-  }, [sessionId, segmentation]);
+  }, [sessionId]);
+
+  /** Lo que se manda al backend: 0 desactiva el techo. */
+  const upperEfectivo = sinTecho ? 0 : upper;
 
   // Live 2D tint on the MPR slices (fast, debounced). Only while tuning the
   // initial threshold — after segmenting, the grow panel drives the tint.
   useEffect(() => {
     if (segmentation) return;
-    const t = setTimeout(() => setPreviewBand([lower, upper]), 140);
+    const t = setTimeout(() => setPreviewBand([lower, sinTecho ? Number.MAX_SAFE_INTEGER : upper]), 140);
     return () => clearTimeout(t);
-  }, [lower, upper, segmentation, setPreviewBand]);
+  }, [lower, upper, sinTecho, segmentation, setPreviewBand]);
 
   // Live 3D coarse-mesh preview (debounced) — the "casi en tiempo real" of the
   // desktop: shows the vascular tree forming as the sliders move.
@@ -77,7 +93,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     const t = setTimeout(async () => {
       setPreviewing(true);
       try {
-        const res = await api.segmentPreview(sessionId, { lower, upper, cleanup, downsample: 3 });
+        const res = await api.segmentPreview(sessionId, { lower, upper: upperEfectivo, cleanup, downsample: 3 });
         if (!cancelled) setPreviewMeshUrl(res.mesh_url);
       } catch {
         if (!cancelled) setPreviewMeshUrl(null);   // empty band → no mesh
@@ -86,7 +102,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       }
     }, 420);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [lower, upper, cleanup, sessionId, segmentation, setPreviewMeshUrl]);
+  }, [lower, upper, upperEfectivo, cleanup, sessionId, segmentation, setPreviewMeshUrl]);
 
   // Clear the previews when leaving the segmentation step.
   useEffect(() => () => { setPreviewBand(null); setPreviewMeshUrl(null); }, [setPreviewBand, setPreviewMeshUrl]);
@@ -124,7 +140,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         session_id: sessionId,
         series_id: series.series_id,
         lower,
-        upper,
+        upper: upperEfectivo,
         smoothing,
         cleanup,
         full_resolution: fullRes,
@@ -163,7 +179,31 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       <div>
         <Slider label="Umbral inferior" min={range.min} max={range.max} value={lower} onChange={setLower} unit="" />
         <div style={{ height: 14 }} />
-        <Slider label="Umbral superior" min={range.min} max={range.max} value={upper} onChange={setUpper} unit="" />
+        <Slider
+          label="Umbral superior"
+          min={range.min}
+          max={range.max}
+          value={upper}
+          onChange={setUpper}
+          unit=""
+          disabled={sinTecho}
+        />
+        {/* El tope del slider sale de `vmax`, que es el percentil 99.9 del
+            volumen, así que subirlo «al máximo» NO quita el techo: lo deja
+            justo donde estaba. En una 3DRA lo más brillante ES el contraste,
+            y el techo corta el vaso donde más denso está. El backend ya sabe
+            desactivarlo (`upper <= lower` → sin límite); faltaba poder pedirlo. */}
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+          <input type="checkbox" checked={sinTecho} onChange={(e) => setSinTecho(e.target.checked)} />
+          Sin límite superior — conserva todo lo más brillante que el umbral inferior
+        </label>
+        {sinTecho && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
+            En angiografía con contraste suele ser lo correcto: el techo recorta
+            justo los vasos más llenos y puede partir el árbol en trozos que
+            luego la limpieza descarta. Quítalo si ves ramas cortadas.
+          </div>
+        )}
         <div style={{ height: 14 }} />
         <Slider label="Suavizado" min={0} max={10} value={smoothing} onChange={setSmoothing} />
         <div style={{ height: 14 }} />

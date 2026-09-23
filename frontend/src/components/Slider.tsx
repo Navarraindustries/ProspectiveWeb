@@ -10,6 +10,7 @@ export function Slider({
   value,
   onChange,
   unit = "",
+  disabled = false,
 }: {
   label: string;
   min: number;
@@ -18,10 +19,12 @@ export function Slider({
   value: number;
   onChange: (v: number) => void;
   unit?: string;
+  /** Atenuado y sin interacción: el valor sigue visible, pero no rige. */
+  disabled?: boolean;
 }) {
   const id = useId();
   return (
-    <div>
+    <div style={disabled ? { opacity: 0.45 } : undefined}>
       <div style={{ display: "flex", alignItems: "baseline", marginBottom: 6 }}>
         <label htmlFor={id} style={{ flex: 1, fontSize: 13, color: "var(--muted-foreground)" }}>
           {label}
@@ -38,6 +41,7 @@ export function Slider({
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
         style={{ width: "100%", accentColor: "var(--brand-slate)" }}
       />

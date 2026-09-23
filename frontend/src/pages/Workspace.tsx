@@ -60,7 +60,7 @@ export function Workspace({
   const planning = usePlanning();
   const {
     morphometry, sessionId, caseId, caseLabel, imagingStudyId,
-    centerlineMesh, measurements, setPickMode, setMprSeedMode, markSaved,
+    centerlineMesh, measurements, setPickMode, markSaved,
   } = planning;
   const [stepIdx, setStepIdx] = useState(initialStep);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
@@ -97,7 +97,6 @@ export function Workspace({
     // Cancel any active 3D/MPR pick mode so a tool armed on one step (e.g. the
     // crop-centre picker) doesn't linger — and its banner persist — on the next.
     setPickMode(null);
-    setMprSeedMode(false);
     setStepIdx(i);
   };
   const next = () => go(Math.min(stepIdx + 1, STEPS.length - 1));
@@ -111,7 +110,6 @@ export function Workspace({
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
       if (e.key === "Escape") {
         setPickMode(null);
-        setMprSeedMode(false);
         return;
       }
       if (e.altKey || e.ctrlKey || e.metaKey) return;

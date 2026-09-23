@@ -386,26 +386,7 @@ export interface MeshCropResult {
   undo_depth: number;
 }
 
-export interface GrowRequest {
-  seeds: Position3D[];
-  lower?: number;
-  upper?: number;
-  auto_band?: boolean;
-  smoothing?: number;
-  cleanup?: number;
-}
 
-export interface GrowResult {
-  mesh_url: string;
-  vertices: number;
-  faces: number;
-  n_voxels: number;
-  fragments_removed: number;
-  seeds: number;
-  band_lower: number;
-  band_upper: number;
-  undo_depth: number;
-}
 
 /* ── undoing mesh edits ────────────────────────────────────────────────── */
 /** "undo" steps back one crop/grow; "original" returns to the segmented mesh. */

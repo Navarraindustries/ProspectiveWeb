@@ -64,7 +64,6 @@ interface PlanningState {
   /** First endpoint of an in-progress measurement (waiting for the second click). */
   measurePending: Vec3 | null;
   /** Seed points placed on the volume for grow-from-seeds segmentation. */
-  growSeeds: Vec3[];
   /** Points marked around the neck rim. With three or more the neck plane is
    *  fitted to them instead of assuming it is perpendicular to the dome axis. */
   neckRim: Vec3[];
@@ -82,9 +81,6 @@ interface PlanningState {
   /** Outer radius of each risk zone [high, medium, low] in mm, as reported by
    *  the backend, so the viewer legend states the bands really used. */
   perforatorZones: [number, number, number] | null;
-  /** When true, clicking an MPR slice adds a grow-from-seeds seed (place seeds on
-   *  a vessel where it's clearly separable from bone — the clean path for CTA). */
-  mprSeedMode: boolean;
   /** Picked centre of the mesh-crop ROI (box/sphere). */
   cropCenter: Vec3 | null;
   /** Previa del corte por plano: el eje, la altura y qué lado se conserva.
@@ -138,7 +134,6 @@ interface PlanningState {
   setNeckDome: (p: Vec3 | null) => void;
   setMeasurements: (m: Measurement[]) => void;
   setMeasurePending: (p: Vec3 | null) => void;
-  setGrowSeeds: (s: Vec3[]) => void;
   setNeckRim: (s: Vec3[]) => void;
   setPerforators: (p: PerforatorCandidate[], zones?: [number, number, number] | null) => void;
   setClipRehearsal: (a: ClipAnimationResult | null) => void;
@@ -151,7 +146,6 @@ interface PlanningState {
   togglePerforator: (id: string) => void;
   /** Show every perforator, or none. */
   setVisiblePerforators: (ids: string[]) => void;
-  setMprSeedMode: (v: boolean) => void;
   setCropCenter: (p: Vec3 | null) => void;
   setErasePick: (p: Vec3 | null) => void;
   setPlaneCut: (p: { axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null) => void;
@@ -172,7 +166,7 @@ export type Vec3 = [number, number, number];
 export type PickMode =
   | "cl_source" | "cl_target" | "measure" | "neck_origin" | "neck_dome"
   | "neck_rim"
-  | "grow_seed" | "crop_center" | "erase_piece" | "traj_entry" | "traj_target" | null;
+  | "crop_center" | "erase_piece" | "traj_entry" | "traj_target" | null;
 
 export interface Measurement {
   id: number;
@@ -214,7 +208,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [neckDome, setNeckDome] = useState<Vec3 | null>(null);
   const [measurements, _setMeasurements] = useState<Measurement[]>([]);
   const [measurePending, setMeasurePending] = useState<Vec3 | null>(null);
-  const [growSeeds, setGrowSeeds] = useState<Vec3[]>([]);
   const [neckRim, setNeckRim] = useState<Vec3[]>([]);
   const [clipRehearsal, setClipRehearsal] = useState<ClipAnimationResult | null>(null);
   const [clipParts, registerClipParts] = useState<PartsHandle | null>(null);
@@ -231,7 +224,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const togglePerforator = useCallback((id: string) => {
     setVisiblePerforators((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
   }, []);
-  const [mprSeedMode, setMprSeedMode] = useState(false);
   const [cropCenter, setCropCenter] = useState<Vec3 | null>(null);
   const [erasePick, setErasePick] = useState<Vec3 | null>(null);
   const [planeCut, setPlaneCut] = useState<{ axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null>(null);
@@ -289,8 +281,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setVisiblePerforators([]);
     _setMeasurements([]);
     setMeasurePending(null);
-    setGrowSeeds([]);
-    setMprSeedMode(false);
     setCropCenter(null);
     setErasePick(null);
     setPlaneCut(null);
@@ -314,13 +304,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, growSeeds, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, mprSeedMode, cropCenter, erasePick, planeCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
+        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, cropCenter, erasePick, planeCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setMeasurements, setMeasurePending, setGrowSeeds, setMprSeedMode, setCropCenter, setErasePick, setPlaneCut, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setMeasurements, setMeasurePending, setCropCenter, setErasePick, setPlaneCut, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, markSaved,
         reset, resetDownstream,
       }}

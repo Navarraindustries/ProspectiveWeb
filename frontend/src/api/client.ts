@@ -36,8 +36,6 @@ import type {
   DeviceClearResult,
   DeviceKind,
   ExportRequest,
-  GrowRequest,
-  GrowResult,
   LibraryClip,
   LoginResponse,
   LongitudinalResult,
@@ -259,8 +257,6 @@ export const api = {
     get<SuggestedBand>(`/api/segment/suggested-band/${sessionId}`),
   segmentPreview: (sessionId: string, req: PreviewRequest) =>
     post<PreviewResult>(`/api/segment/preview/${sessionId}`, req),
-  segmentGrow: (sessionId: string, req: GrowRequest) =>
-    post<GrowResult>(`/api/segment/grow/${sessionId}`, req),
   /** Step the working mesh back: "undo" one crop/grow, or "original" for the
       mesh the segmentation produced. Cheap file ops — no re-segmentation. */
   meshRestore: (sessionId: string, scope: MeshRestoreScope) =>

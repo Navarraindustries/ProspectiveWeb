@@ -40,6 +40,26 @@ const base: SegmentResult = {
   main_tree_applied: false, main_tree_warning: "", main_tree_removed: 0,
 };
 
+/** Entra al paso con la sesión y la malla YA puestas, que es el caso del
+ *  usuario: volver a Segmentación después de haber segmentado. El panel no se
+ *  monta hasta que el store tiene las dos cosas, así que no existe el render
+ *  intermedio «hay sesión pero aún no hay malla» en el que el efecto correría
+ *  igualmente y el fallo pasaría inadvertido. */
+function withMeshReady(result: SegmentResult, sid: string) {
+  function Gate({ children }: { children: ReactNode }) {
+    const { sessionId, segmentation, setSession, setSegmentation } = usePlanning();
+    useEffect(() => { setSession(sid); setSegmentation(result); }, [setSession, setSegmentation]);
+    return <>{sessionId && segmentation ? children : null}</>;
+  }
+  return render(
+    <PlanningProvider>
+      <Gate>
+        <SegmentPanel onNext={() => {}} />
+      </Gate>
+    </PlanningProvider>,
+  );
+}
+
 /** Solo siembra la sesión: el panel sin malla renderiza un subárbol pequeño,
  *  que es donde se pueden mirar los sliders sin mockear media API. */
 function SessionOnly({ sid, children }: { sid: string; children: ReactNode }) {
@@ -149,14 +169,16 @@ describe("what the cleanup discarded", () => {
 describe("la banda del volumen, con una malla ya hecha", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  // NO hay test de «se pide la banda aunque ya exista la malla», que es
-  // literalmente el fallo que sufrió el usuario. Se intentó y no discrimina:
-  // `MeshEditTools` —que solo se monta cuando hay malla— llama a
-  // `suggestedBand` por su cuenta, así que la espía da positivo con el bug
-  // reintroducido. Y con malla el panel no llega a pintar sus sliders bajo
-  // test, de modo que tampoco se puede mirar el efecto. Un test que pasa con
-  // el bug puesto es peor que ninguno, así que se deja dicho en vez de
-  // fingirlo. Lo que sí queda cubierto es de dónde salen los límites.
+  // Este test no se pudo escribir cuando se arregló el fallo: `MeshEditTools`
+  // —que solo se monta cuando hay malla— llamaba a `suggestedBand` por su
+  // cuenta para la banda del crecimiento desde semillas, así que la espía daba
+  // positivo aunque el bug estuviera puesto. Al retirar las semillas esa
+  // llamada desapareció y el test ya distingue.
+  it("se pide la banda aunque la malla ya exista", async () => {
+    const { api } = await import("../../api/client");
+    withMeshReady(base, "sesion-3");
+    await vi.waitFor(() => expect(api.suggestedBand).toHaveBeenCalled());
+  });
 
   it("los límites del slider salen del volumen, no de la reserva", async () => {
     const { api } = await import("../../api/client");

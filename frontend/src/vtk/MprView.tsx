@@ -34,7 +34,6 @@ export function MprView({
   crosshair = null,
   onPlaneClick,
   onWindowLevel,
-  seedDots = [],
   band = null,
 }: {
   sessionId: string;
@@ -59,7 +58,6 @@ export function MprView({
   /** Reports a window/level change from a left-drag. */
   onWindowLevel?: (wc: number, ww: number) => void;
   /** Grow-from-seeds markers lying on this slice, in fractional coords (0–1). */
-  seedDots?: { u: number; v: number }[];
 }) {
   const count = planeCount(meta, plane);
   const controlled = controlledIndex !== undefined;
@@ -163,9 +161,6 @@ export function MprView({
       )}
 
       {/* Grow-from-seeds markers on this slice */}
-      {seedDots.map((d, i) => (
-        <SeedDotOverlay key={i} imgRef={imgRef} u={d.u} v={d.v} />
-      ))}
 
       {!compact && onWindowLevel && (
         <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.5)", pointerEvents: "none" }}>
@@ -226,28 +221,3 @@ function CrosshairOverlay({ imgRef, u, v }: { imgRef: React.RefObject<HTMLImageE
   );
 }
 
-/* Lime seed dot positioned over the letterboxed image (grow-from-seeds). */
-function SeedDotOverlay({ imgRef, u, v }: { imgRef: React.RefObject<HTMLImageElement | null>; u: number; v: number }) {
-  const [box, setBox] = useState<{ left: number; top: number; w: number; h: number } | null>(null);
-  useEffect(() => {
-    const img = imgRef.current;
-    const parent = img?.parentElement;
-    if (!img || !parent) return;
-    const update = () => {
-      const ir = img.getBoundingClientRect();
-      const pr = parent.getBoundingClientRect();
-      setBox({ left: ir.left - pr.left, top: ir.top - pr.top, w: ir.width, h: ir.height });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(img);
-    ro.observe(parent);
-    return () => ro.disconnect();
-  }, [imgRef, u, v]);
-  if (!box) return null;
-  return (
-    // 7 px, not 10: on a 384-px slice spanning ~140 mm the old dot covered some
-    // 3.6 mm — wider than the vessel it marks. The glow keeps it findable.
-    <div style={{ position: "absolute", left: box.left + u * box.w - 3.5, top: box.top + v * box.h - 3.5, width: 7, height: 7, borderRadius: "50%", background: "rgba(140,224,90,0.95)", border: "1px solid #14181c", boxShadow: "0 0 5px 1px rgba(140,224,90,0.75)", pointerEvents: "none" }} />
-  );
-}

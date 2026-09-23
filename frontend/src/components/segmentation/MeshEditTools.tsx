@@ -34,6 +34,15 @@ export function MeshEditTools() {
   // qué borró; cuando no, por qué no.
   const [eraseMsg, setEraseMsg] = useState<string | null>(null);
   const [eraseLeft, setEraseLeft] = useState<number | null>(null);
+  // Qué borra el clic: una pieza SUELTA o una región PEGADA.
+  //
+  // El hueso viene suelto cuando la malla está submuestreada, y entonces basta
+  // con quitar la pieza. A resolución completa el peñasco y la base del cráneo
+  // TOCAN el árbol, así que son parte del componente mayor y el borrador de
+  // piezas no puede con ellos: la propia tarjeta lo dice, «la malla es una
+  // sola pieza». Para eso está el modo región.
+  const [eraseMode, setEraseMode] = useState<"piece" | "region">("piece");
+  const [eraseRadius, setEraseRadius] = useState(6);
   // Cuántas piezas hay ANTES de borrar ninguna: sin esto el borrador no dice
   // si queda algo que quitar, y había que pinchar a ciegas para averiguarlo.
   const [comps, setComps] = useState<{ total: number; largestIsTree: boolean } | null>(null);
@@ -136,6 +145,22 @@ export function MeshEditTools() {
     let cancelado = false;
     void (async () => {
       try {
+        if (eraseMode === "region") {
+          const res = await api.meshEraseRegion(sessionId, { x, y, z }, eraseRadius);
+          if (cancelado) return;
+          if (!res.removed_vertices) {
+            setEraseMsg(res.warning || "No se borró nada.");
+            return;
+          }
+          setSegmentation(segmentation
+            ? { ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces }
+            : segmentation);
+          setCandidates([]); setSelectedCandidate(0);
+          setMorphometry(null); setTreatment(null); setCenterlineMesh(null);
+          setEraseMsg(`Borrados ${res.removed_vertices.toLocaleString("es")} vértices.`);
+          setEraseLeft(null);
+          return;
+        }
         const res = await api.meshComponentDelete(sessionId, { x, y, z });
         if (cancelado) return;
         if (!res.removed) {
@@ -161,7 +186,7 @@ export function MeshEditTools() {
       }
     })();
     return () => { cancelado = true; };
-  }, [erasePick, sessionId]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [erasePick, sessionId, eraseMode, eraseRadius]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!segmentation) return null;
 
@@ -411,6 +436,34 @@ export function MeshEditTools() {
             </>
           )}
         </div>
+        {/* Dos cosas distintas, y el usuario elige cuál. El de piezas no puede
+            con el hueso pegado; el de región no necesita que esté suelto. */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <button
+            onClick={() => { setEraseMode("piece"); setEraseMsg(null); }}
+            style={{ ...toolBtn(eraseMode === "piece"), flex: 1 }}
+          >
+            Pieza suelta
+          </button>
+          <button
+            onClick={() => { setEraseMode("region"); setEraseMsg(null); }}
+            style={{ ...toolBtn(eraseMode === "region"), flex: 1 }}
+          >
+            Región pegada
+          </button>
+        </div>
+        {eraseMode === "region" && (
+          <div style={{ marginBottom: 8 }}>
+            <Slider label="Radio del borrado" min={2} max={40} value={eraseRadius}
+                    onChange={setEraseRadius} unit=" mm" />
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 4 }}>
+              El radio se mide en línea recta desde el clic, pero el borrado se
+              propaga <b>por la superficie</b>: un vaso que cruza esa bola pero
+              se une al árbol por fuera de ella no se toca. Eso es lo que el
+              recorte esférico no puede hacer.
+            </div>
+          </div>
+        )}
         <button
           onClick={() => {
             const on = pickMode !== "erase_piece";
@@ -420,7 +473,9 @@ export function MeshEditTools() {
           style={{ ...toolBtn(pickMode === "erase_piece"), width: "100%" }}
         >
           {pickMode === "erase_piece"
-            ? "Pincha la pieza a borrar… (pulsa para salir)"
+            ? (eraseMode === "region"
+                ? "Pincha la zona a borrar… (pulsa para salir)"
+                : "Pincha la pieza a borrar… (pulsa para salir)")
             : "Activar borrador"}
         </button>
         {eraseMsg && (

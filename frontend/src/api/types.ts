@@ -1492,3 +1492,16 @@ export interface MeshPlaneCutResult {
   components_left: number;
   undo_depth: number;
 }
+
+/** Borrado de tejido PEGADO al árbol. El borrador de piezas no llega ahí:
+ *  a resolución completa el hueso toca el árbol y forma parte del componente
+ *  mayor. El radio es distancia recta al clic; la propagación va por la
+ *  superficie, así que un vaso que cruza la bola sin unirse dentro se salva. */
+export interface RegionEraseResult {
+  mesh_url: string;
+  vertices: number;
+  faces: number;
+  removed_vertices: number;
+  warning: string;
+  undo_depth: number;
+}

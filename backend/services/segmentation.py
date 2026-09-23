@@ -28,6 +28,9 @@ numpy volume (z, y, x)
 from __future__ import annotations
 
 import logging
+import threading
+import time
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -537,12 +540,49 @@ def level_to_cleanup_verts(level: int) -> int:
 # ── Mesh I/O ───────────────────────────────────────────────────────────────── #
 
 def write_vtp(poly_data: vtk.vtkPolyData, path: str | Path) -> None:
-    """Write *poly_data* to an XML VTP file (vtk.js compatible, binary mode)."""
+    """Write *poly_data* to an XML VTP file (vtk.js compatible, binary mode).
+
+    Se escribe a un temporal y se reemplaza de golpe. Sin eso, dos peticiones
+    que guarden la MISMA malla a la vez entrelazan sus escrituras y dejan un
+    fichero que ya no parsea: 3,9 MB con el cierre XML correcto y basura en
+    medio. Pasó en vivo con el borrador de región —dos clics seguidos, y el
+    borrado tarda ~1,6 s en una malla de 128 000 vértices, así que solaparlos
+    es lo normal, no lo raro—. A partir de ahí la sesión lee 0 vértices y todas
+    las herramientas dicen «no se borró nada» sin explicar por qué.
+
+    `os.replace` es atómico dentro del mismo volumen, de ahí el temporal al
+    lado del destino y no en el directorio temporal del sistema.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+
     writer = vtk.vtkXMLPolyDataWriter()
-    writer.SetFileName(str(path))
+    writer.SetFileName(str(tmp))
     writer.SetInputData(poly_data)
     writer.SetDataModeToBinary()   # smaller than ASCII
-    writer.Write()
+    ok = writer.Write()
+    if not ok or not tmp.exists():
+        tmp.unlink(missing_ok=True)
+        raise IOError(f"No se pudo escribir la malla en {path}")
+
+    # En Windows `os.replace` falla si otro proceso tiene el destino abierto —el
+    # navegador descargando la malla, o el propio lector de un paso anterior—.
+    # El escritor de VTK no fallaba porque sobrescribía en sitio; a cambio dejaba
+    # colas del fichero viejo. Se reintenta un poco antes de rendirse: la ventana
+    # en que un lector tiene el .vtp abierto es de milisegundos.
+    ultimo: Exception | None = None
+    for intento in range(10):
+        try:
+            os.replace(tmp, path)
+            break
+        except PermissionError as exc:          # pragma: no cover - depende del SO
+            ultimo = exc
+            time.sleep(0.05 * (intento + 1))
+    else:
+        tmp.unlink(missing_ok=True)
+        raise IOError(f"No se pudo reemplazar la malla {path}: {ultimo}")
+
     logger.info("Wrote VTP: %s (%d verts, %d tris)",
                 path, poly_data.GetNumberOfPoints(), poly_data.GetNumberOfPolys())
 

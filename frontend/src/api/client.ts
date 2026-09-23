@@ -52,6 +52,8 @@ import type {
   MeshHistoryResult,
   MeshRestoreResult,
   MeshRestoreScope,
+  Position3D,
+  RegionEraseResult,
   MorphometryResult,
   NeckPlaneRequest,
   PatientCreate,
@@ -279,6 +281,10 @@ export const api = {
     get<MeshComponentList>(`/api/mesh-components/${sessionId}`),
   /** Borra de un clic la pieza que contiene el punto. El ruido angiográfico
       viene en piezas enteras, así que no hace falta un borrador de pintar. */
+  /** Borra el tejido pegado alrededor del punto. Para el hueso que TOCA el
+   *  árbol, donde el borrador de piezas no puede hacer nada. */
+  meshEraseRegion: (sessionId: string, point: Position3D, radius_mm: number) =>
+    post<RegionEraseResult>(`/api/mesh-erase-region/${sessionId}`, { point, radius_mm }),
   meshComponentDelete: (
     sessionId: string,
     point: { x: number; y: number; z: number },

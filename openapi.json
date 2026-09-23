@@ -4508,6 +4508,64 @@
         }
       }
     },
+    "/api/mesh-erase-region/{session_id}": {
+      "post": {
+        "tags": [
+          "mesh-edit"
+        ],
+        "summary": "Erase attached tissue around the picked point",
+        "description": "For bone that TOUCHES the tree, which the piece eraser cannot reach: at full resolution the petrous bone and the skull base are part of the largest connected component, so 'main tree only' keeps them.\n\nDeliberately manual. Two automatic separators were measured on case 3 at full resolution and neither works: surface roughness is 0.742 on the bone plate against 0.717 on the rest of the tree, and local calibre is 0.69 mm on both. Locally they are the same thing.\n\nThe radius is straight-line distance from the click, but the erase spreads ACROSS THE SURFACE — so a vessel that crosses that ball while joining the tree outside it is left alone, which the existing spherical crop cannot do. Undoable like any other mesh edit.",
+        "operationId": "mesh_erase_region_api_mesh_erase_region__session_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegionEraseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionEraseResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/print-prep/beds": {
       "get": {
         "tags": [
@@ -11611,6 +11669,76 @@
         ],
         "title": "ReceptionIn",
         "description": "The piece that actually arrived, measured."
+      },
+      "RegionEraseRequest": {
+        "properties": {
+          "point": {
+            "$ref": "#/components/schemas/Position3D",
+            "description": "Punto señalado sobre la zona a borrar"
+          },
+          "radius_mm": {
+            "type": "number",
+            "maximum": 100.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Radius Mm",
+            "description": "Hasta dónde llega el borrado, medido en LÍNEA RECTA desde el clic. La propagación va por la superficie, así que un vaso que cruza esa bola pero se une al árbol por fuera de ella no se toca.",
+            "default": 6.0
+          },
+          "max_distance_mm": {
+            "type": "number",
+            "maximum": 50.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Max Distance Mm",
+            "description": "Si el clic cae más lejos que esto de la malla, no se borra nada.",
+            "default": 5.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "point"
+        ],
+        "title": "RegionEraseRequest",
+        "description": "Borrar de un clic el tejido PEGADO al árbol.\n\n`ComponentDeleteRequest` borra una pieza entera y sirve cuando el hueso\nviene suelto. En 3DRA a resolución completa no lo está: el peñasco y la\nbase del cráneo tocan el árbol, así que forman parte del componente mayor\ny «solo el árbol principal» los conserva.\n\nEs manual a propósito. Se midieron dos vías para distinguirlos solos sobre\ncase 3 a resolución completa, y ninguna separa: la rugosidad de la chapa es\n0,742 y la del resto del árbol 0,717; el calibre local es 0,69 mm en ambos.\nLocalmente son la misma cosa."
+      },
+      "RegionEraseResult": {
+        "properties": {
+          "mesh_url": {
+            "type": "string",
+            "title": "Mesh Url"
+          },
+          "vertices": {
+            "type": "integer",
+            "title": "Vertices"
+          },
+          "faces": {
+            "type": "integer",
+            "title": "Faces"
+          },
+          "removed_vertices": {
+            "type": "integer",
+            "title": "Removed Vertices",
+            "description": "Vértices que ha quitado esta pasada (0 = no se borró nada)",
+            "default": 0
+          },
+          "warning": {
+            "type": "string",
+            "title": "Warning",
+            "default": ""
+          },
+          "undo_depth": {
+            "type": "integer",
+            "title": "Undo Depth",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "mesh_url",
+          "vertices",
+          "faces"
+        ],
+        "title": "RegionEraseResult",
+        "description": "Resultado de borrar una región pegada."
       },
       "RejectIn": {
         "properties": {

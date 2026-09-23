@@ -315,3 +315,161 @@ def component_to_dict(c: ComponentInfo) -> dict:
         "thickness_mm": round(c.thickness_mm, 3),
         "extent_mm": round(c.extent_mm, 2),
     }
+
+
+# ── Borrador por región (sobre la superficie, no por el espacio) ───────────── #
+#
+# `remove_component_at` borra una PIEZA ENTERA, que es lo que sirve cuando el
+# hueso viene suelto. No sirve cuando viene PEGADO: en 3DRA a resolución
+# completa el peñasco y la base del cráneo tocan el árbol, así que forman parte
+# del componente mayor y «solo el árbol principal» los conserva. La interfaz lo
+# dice sola: «la malla es una sola pieza: no hay nada suelto que borrar».
+#
+# Se midieron dos vías automáticas para distinguirlos y NINGUNA funcionó, así
+# que esto es deliberadamente manual:
+#
+#   · Forma local (PCA + rugosidad de normales, case 3 a resolución completa):
+#     la rugosidad de la chapa es 0,742 y la del resto del árbol 0,717. No
+#     separa; a resolución completa TODA la malla es rugosa.
+#   · Calibre local: chapa 0,69 mm de mediana, resto del árbol 0,69 mm.
+#     Idénticos. El aneurisma sí destaca (1,20) pero ese no es el problema.
+#
+# Por qué la distancia va SOBRE LA SUPERFICIE y no por el espacio: la esfera de
+# recorte que ya existe borra todo lo que cae dentro de una bola, así que un
+# vaso que pasa por detrás de la chapa se va con ella. Medido en la superficie,
+# ese vaso está lejísimos —hay que rodear todo el árbol para llegar— y sobrevive.
+
+def _points(poly: vtk.vtkPolyData) -> np.ndarray:
+    """Los vértices como array (N, 3)."""
+    try:
+        from vtkmodules.util.numpy_support import vtk_to_numpy
+    except ImportError:                                   # pragma: no cover
+        from vtk.util.numpy_support import vtk_to_numpy   # type: ignore
+    return vtk_to_numpy(poly.GetPoints().GetData()).astype(float)
+
+
+def _adjacency(poly: vtk.vtkPolyData) -> list[list[int]]:
+    """Vecinos de cada vértice, por aristas de la malla."""
+    adj: list[list[int]] = [[] for _ in range(poly.GetNumberOfPoints())]
+    ids = vtk.vtkIdList()
+    polys = poly.GetPolys()
+    polys.InitTraversal()
+    while polys.GetNextCell(ids):
+        n = ids.GetNumberOfIds()
+        for k in range(n):
+            a = ids.GetId(k)
+            b = ids.GetId((k + 1) % n)
+            adj[a].append(b)
+            adj[b].append(a)
+    return adj
+
+
+def erase_region_at(
+    poly: vtk.vtkPolyData,
+    point: tuple[float, float, float],
+    radius_mm: float = 6.0,
+    max_pick_distance_mm: float = 5.0,
+) -> tuple[vtk.vtkPolyData, int, str]:
+    """Borra la superficie que rodea al punto, midiendo POR LA SUPERFICIE.
+
+    Devuelve `(malla, vértices borrados, aviso)`. Si el clic cae lejos de toda
+    geometría no borra nada y lo dice, igual que el borrador de piezas: borrar
+    «lo más cercano» a un clic perdido es justo lo que no se espera.
+
+    No intenta adivinar dónde acaba la chapa. El radio lo pone quien mira.
+    """
+    from collections import deque
+
+    if poly is None or poly.GetNumberOfPoints() == 0:
+        return poly, 0, "La malla está vacía."
+    if radius_mm <= 0:
+        return poly, 0, "El radio tiene que ser mayor que cero."
+
+    loc = vtk.vtkPointLocator()
+    loc.SetDataSet(poly)
+    loc.BuildLocator()
+    pid = loc.FindClosestPoint(point)
+    if pid < 0:
+        return poly, 0, "No hay geometría donde has pinchado."
+
+    pts = _points(poly)
+    if float(np.linalg.norm(pts[pid] - np.asarray(point, dtype=float))) > max_pick_distance_mm:
+        return poly, 0, (
+            "Has pinchado lejos de la malla. Acércate a la superficie que "
+            "quieres borrar."
+        )
+
+    # Propagación POR LA SUPERFICIE, acotada por distancia EUCLÍDEA al clic.
+    #
+    # La primera versión medía distancia geodésica (longitud del camino sobre la
+    # malla) y resultó inservible: en la malla rugosa de resolución completa,
+    # recorrer 1 mm en el espacio cuesta varios por la superficie. Medido en
+    # case 3: un radio de 30 mm borraba el 0,4 % de la malla, y tardaba 4,5 s.
+    #
+    # Acotar por distancia euclídea hace que el radio signifique lo que se ve.
+    # Y propagar por la superficie —en vez de borrar la bola entera, como hace
+    # el recorte esférico que ya existía— respeta la conectividad: un vaso que
+    # cruza la bola pero se une al árbol por fuera de ella no se toca.
+    centro = pts[pid]
+    r2 = float(radius_mm) ** 2
+    cerca = np.einsum("ij,ij->i", pts - centro, pts - centro) <= r2
+
+    adj = _adjacency(poly)
+    dentro = np.zeros(poly.GetNumberOfPoints(), dtype=bool)
+    dentro[pid] = True
+    cola = deque([pid])
+    while cola:
+        v = cola.popleft()
+        for w in adj[v]:
+            if not dentro[w] and cerca[w]:
+                dentro[w] = True
+                cola.append(w)
+    n_dentro = int(dentro.sum())
+    if n_dentro == 0:
+        return poly, 0, "No se ha seleccionado nada; prueba con un radio mayor."
+    # Por fracción y no por igualdad: los vértices sin celda nunca entran en
+    # el recorrido, así que «lo ha cogido todo» no llega a ser todo —en el tubo
+    # de prueba, 976 de 1008— y el guardia por igualdad no saltaba nunca.
+    if n_dentro >= 0.90 * poly.GetNumberOfPoints():
+        return poly, 0, (
+            "Ese radio se lleva la malla entera. Baja el radio: el borrador "
+            "quita una zona, no todo."
+        )
+
+    # Se conserva la celda que tenga ALGÚN vértice fuera. Quitar solo las que
+    # están enteras dentro deja el borde limpio en vez de un diente de sierra.
+    #
+    # Se construye a mano en vez de con `vtkThreshold`: su API de umbral ha
+    # cambiado entre versiones de VTK y la primera versión de esto se llevó la
+    # malla entera sin avisar. Recorrer celdas es más largo de leer y no tiene
+    # ese riesgo.
+    salida = vtk.vtkPolyData()
+    puntos = vtk.vtkPoints()
+    puntos.SetDataTypeToFloat()
+    celdas = vtk.vtkCellArray()
+    remap = np.full(poly.GetNumberOfPoints(), -1, dtype=np.int64)
+
+    ids = vtk.vtkIdList()
+    polys = poly.GetPolys()
+    polys.InitTraversal()
+    while polys.GetNextCell(ids):
+        n = ids.GetNumberOfIds()
+        vs = [ids.GetId(k) for k in range(n)]
+        if all(dentro[v] for v in vs):
+            continue
+        celdas.InsertNextCell(n)
+        for v in vs:
+            if remap[v] < 0:
+                remap[v] = puntos.InsertNextPoint(*pts[v])
+            celdas.InsertCellPoint(int(remap[v]))
+
+    salida.SetPoints(puntos)
+    salida.SetPolys(celdas)
+
+    limpio = vtk.vtkCleanPolyData()
+    limpio.SetInputData(salida)
+    limpio.Update()
+    out = limpio.GetOutput()
+
+    borrados = poly.GetNumberOfPoints() - out.GetNumberOfPoints()
+    return out, int(borrados), ""

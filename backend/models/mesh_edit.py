@@ -218,3 +218,47 @@ class MeshHistoryResult(BaseModel):
         default_factory=list,
         description="The undo stack, oldest first — «quedan 3» alone said nothing about what they were",
     )
+
+
+class RegionEraseRequest(BaseModel):
+    """Borrar de un clic el tejido PEGADO al árbol.
+
+    `ComponentDeleteRequest` borra una pieza entera y sirve cuando el hueso
+    viene suelto. En 3DRA a resolución completa no lo está: el peñasco y la
+    base del cráneo tocan el árbol, así que forman parte del componente mayor
+    y «solo el árbol principal» los conserva.
+
+    Es manual a propósito. Se midieron dos vías para distinguirlos solos sobre
+    case 3 a resolución completa, y ninguna separa: la rugosidad de la chapa es
+    0,742 y la del resto del árbol 0,717; el calibre local es 0,69 mm en ambos.
+    Localmente son la misma cosa.
+    """
+
+    point: Position3D = Field(
+        ..., description="Punto señalado sobre la zona a borrar"
+    )
+    radius_mm: float = Field(
+        6.0, gt=0, le=100,
+        description=(
+            "Hasta dónde llega el borrado, medido en LÍNEA RECTA desde el "
+            "clic. La propagación va por la superficie, así que un vaso que "
+            "cruza esa bola pero se une al árbol por fuera de ella no se toca."
+        ),
+    )
+    max_distance_mm: float = Field(
+        5.0, gt=0, le=50,
+        description="Si el clic cae más lejos que esto de la malla, no se borra nada.",
+    )
+
+
+class RegionEraseResult(BaseModel):
+    """Resultado de borrar una región pegada."""
+
+    mesh_url: str
+    vertices: int
+    faces: int
+    removed_vertices: int = Field(
+        0, description="Vértices que ha quitado esta pasada (0 = no se borró nada)"
+    )
+    warning: str = ""
+    undo_depth: int = 0

@@ -20,8 +20,11 @@ from models.mesh_edit import (
     ComponentListResult, GrowRequest, GrowResult, MeshBoundsResult,
     MeshCropRequest, MeshCropResult, MeshHistoryResult, MeshHistoryStep,
     MeshPlaneCutRequest, MeshPlaneCutResult, MeshRestoreRequest,
-    MeshRestoreResult,
+    MeshRestoreResult, RegionEraseRequest, RegionEraseResult,
 )
+import threading
+from collections import defaultdict
+
 from services import mesh_backup
 from services.grow import grow_from_seeds
 from services.mesh_crop import clip_box, clip_plane, clip_sphere
@@ -33,6 +36,21 @@ from services.sessions import mesh_url, session_exists, session_subdir, write_st
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["mesh-edit"])
+
+
+# Un cerrojo por sesión para las ediciones de malla.
+#
+# La escritura del .vtp ya es atómica, así que dos peticiones simultáneas no
+# pueden dejar el fichero corrupto —que es lo que pasó en vivo: dos clics del
+# borrador con 1,6 s de trabajo cada uno, y la malla quedó en 3,9 MB ilegibles—.
+# Pero sin cerrojo siguen siendo dos leer-modificar-escribir sobre el mismo
+# fichero: la segunda parte de la malla ANTERIOR a la primera, y al guardar
+# deshace su borrado sin decir nada. Aquí se serializan.
+_EDIT_LOCKS: dict[str, threading.Lock] = defaultdict(threading.Lock)
+
+
+def _edit_lock(session_id: str) -> threading.Lock:
+    return _EDIT_LOCKS[session_id]
 
 
 def _versioned(session_id: str, name: str) -> str:
@@ -577,4 +595,64 @@ async def mesh_restore(session_id: str, req: MeshRestoreRequest) -> MeshRestoreR
         scope=req.scope,
         undo_depth=mesh_backup.depth(session_id),
         redo_depth=mesh_backup.redo_depth(session_id),
+    )
+
+
+@router.post(
+    "/mesh-erase-region/{session_id}",
+    response_model=RegionEraseResult,
+    summary="Erase attached tissue around the picked point",
+    description=(
+        "For bone that TOUCHES the tree, which the piece eraser cannot reach: "
+        "at full resolution the petrous bone and the skull base are part of the "
+        "largest connected component, so 'main tree only' keeps them.\n\n"
+        "Deliberately manual. Two automatic separators were measured on case 3 "
+        "at full resolution and neither works: surface roughness is 0.742 on the "
+        "bone plate against 0.717 on the rest of the tree, and local calibre is "
+        "0.69 mm on both. Locally they are the same thing.\n\n"
+        "The radius is straight-line distance from the click, but the erase "
+        "spreads ACROSS THE SURFACE — so a vessel that crosses that ball while "
+        "joining the tree outside it is left alone, which the existing spherical "
+        "crop cannot do. Undoable like any other mesh edit."
+    ),
+)
+async def mesh_erase_region(
+    session_id: str, req: RegionEraseRequest
+) -> RegionEraseResult:
+    path = _mesh_or_404(session_id)
+    from services.mesh_components import erase_region_at
+
+    def _trabajo():
+        with _edit_lock(session_id):
+            mesh_local = read_vtp(path)
+            res = erase_region_at(
+                mesh_local,
+                (req.point.x, req.point.y, req.point.z),
+                req.radius_mm, req.max_distance_mm,
+            )
+            if res[1] > 0:
+                mesh_backup.snapshot(session_id, "edit")
+                write_vtp(res[0], path)
+            return mesh_local, res
+
+    mesh, (out, removed, warning) = await asyncio.to_thread(_trabajo)
+
+    if removed <= 0:
+        # Un clic fallido no gasta un paso de deshacer ni tira la morfometría.
+        return RegionEraseResult(
+            mesh_url=_versioned(session_id, "vessel_tree.vtp"),
+            vertices=mesh.GetNumberOfPoints(), faces=mesh.GetNumberOfPolys(),
+            removed_vertices=0, warning=warning,
+            undo_depth=mesh_backup.depth(session_id),
+        )
+
+    write_state(session_id, "seg.n_vertices", str(out.GetNumberOfPoints()))
+    write_state(session_id, "seg.n_faces", str(out.GetNumberOfPolys()))
+    _invalidate_derived(session_id)
+
+    return RegionEraseResult(
+        mesh_url=_versioned(session_id, "vessel_tree.vtp"),
+        vertices=out.GetNumberOfPoints(), faces=out.GetNumberOfPolys(),
+        removed_vertices=removed, warning="",
+        undo_depth=mesh_backup.depth(session_id),
     )

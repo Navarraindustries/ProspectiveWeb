@@ -1769,6 +1769,64 @@
         }
       }
     },
+    "/api/segment/compare-ceiling/{session_id}": {
+      "post": {
+        "tags": [
+          "segmentation"
+        ],
+        "summary": "Detect with and without the band's upper limit, and contrast both",
+        "description": "Segments and detects TWICE — with the ceiling and without it — and returns both candidate lists merged, saying which configuration each site comes from.\n\nWhy it exists: the XA band is [p99, p99.9], and that ceiling drops the brightest voxels, which in a contrast 3DRA are the cores of the fullest vessels. The two annotated cases want OPPOSITE settings — in one, the lesion only appears without the ceiling; in the other, removing it pushes the lesion from rank 3 to rank 9, off the list. So the checkbox cannot have a global default.\n\nAnd it cannot be decided automatically: the obvious rule — drop the ceiling when it is cutting the tree — was measured and does not separate them (88% of what it removes are bridges in one case, 89% in the other). What actually decides is WHAT makes each lesion stand out, which is the thing nobody knows beforehand.\n\nCosts two segmentations and two detections. `full_resolution` must match what the segment button will use, or the ranks describe a mesh the user never gets. It does NOT touch the session: no mesh and no state are written, so choosing a configuration afterwards is a separate, explicit step.",
+        "operationId": "compare_ceiling_api_segment_compare_ceiling__session_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CeilingCompareRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CeilingCompareResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/detect/{session_id}": {
       "delete": {
         "tags": [
@@ -6714,6 +6772,91 @@
         "title": "CaseCreate",
         "description": "Full 'Nuevo Caso' payload — creates a Patient + a Study in one call."
       },
+      "CeilingCompareRequest": {
+        "properties": {
+          "lower": {
+            "type": "number",
+            "title": "Lower",
+            "description": "Umbral inferior (el mismo para ambas)"
+          },
+          "upper": {
+            "type": "number",
+            "title": "Upper",
+            "description": "Techo a contrastar contra no tener ninguno"
+          },
+          "smoothing": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Smoothing",
+            "default": 3
+          },
+          "cleanup": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Cleanup",
+            "default": 7
+          },
+          "main_tree_only": {
+            "type": "boolean",
+            "title": "Main Tree Only",
+            "default": true
+          },
+          "full_resolution": {
+            "type": "boolean",
+            "title": "Full Resolution",
+            "description": "Debe valer lo MISMO que en el botón de segmentar. Si no, la comparación describe una malla distinta de la que se obtendrá.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "lower",
+          "upper"
+        ],
+        "title": "CeilingCompareRequest",
+        "description": "Probar la banda CON y SIN techo, y contrastar lo que detecta cada una.\n\nLa casilla «sin límite superior» no puede tener un valor por defecto: los\ndos casos anotados del proyecto piden lo contrario. Y no se puede decidir\nsola —se midió la regla evidente y no separa—, así que se prueban las dos."
+      },
+      "CeilingCompareResult": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ComparedCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "vertices_con_techo": {
+            "type": "integer",
+            "title": "Vertices Con Techo",
+            "default": 0
+          },
+          "vertices_sin_techo": {
+            "type": "integer",
+            "title": "Vertices Sin Techo",
+            "default": 0
+          },
+          "n_con_techo": {
+            "type": "integer",
+            "title": "N Con Techo",
+            "default": 0
+          },
+          "n_sin_techo": {
+            "type": "integer",
+            "title": "N Sin Techo",
+            "default": 0
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "CeilingCompareResult",
+        "description": "Las dos listas fundidas. No cambia la malla de la sesión."
+      },
       "CenterlineClearResult": {
         "properties": {
           "removed": {
@@ -7923,6 +8066,60 @@
         ],
         "title": "CoilPlanResult",
         "description": "Result of a coil embolization plan."
+      },
+      "ComparedCandidate": {
+        "properties": {
+          "position": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "diameter_mm": {
+            "type": "number",
+            "title": "Diameter Mm"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "rank_con_techo": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Con Techo",
+            "description": "Puesto con el techo puesto; null si no aparece así"
+          },
+          "rank_sin_techo": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Sin Techo",
+            "description": "Puesto sin techo; null si no aparece así"
+          },
+          "en_ambas": {
+            "type": "boolean",
+            "title": "En Ambas",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "position",
+          "diameter_mm"
+        ],
+        "title": "ComparedCandidate",
+        "description": "Un sitio propuesto, y en qué configuración aparece."
       },
       "ComponentDeleteRequest": {
         "properties": {

@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .detection import Position3D
+
 
 class AutoThresholdResult(BaseModel):
     """Auto-computed thresholds suggested to the user before segmentation."""
@@ -168,3 +170,49 @@ class SegmentResult(BaseModel):
             "speck; tens of mm³ is a vessel segment that left the mesh."
         ),
     )
+
+
+class CeilingCompareRequest(BaseModel):
+    """Probar la banda CON y SIN techo, y contrastar lo que detecta cada una.
+
+    La casilla «sin límite superior» no puede tener un valor por defecto: los
+    dos casos anotados del proyecto piden lo contrario. Y no se puede decidir
+    sola —se midió la regla evidente y no separa—, así que se prueban las dos.
+    """
+
+    lower: float = Field(..., description="Umbral inferior (el mismo para ambas)")
+    upper: float = Field(..., description="Techo a contrastar contra no tener ninguno")
+    smoothing: int = Field(3, ge=0, le=10)
+    cleanup: int = Field(7, ge=0, le=10)
+    main_tree_only: bool = True
+    full_resolution: bool = Field(
+        False,
+        description=(
+            "Debe valer lo MISMO que en el botón de segmentar. Si no, la "
+            "comparación describe una malla distinta de la que se obtendrá."
+        ),
+    )
+
+
+class ComparedCandidate(BaseModel):
+    """Un sitio propuesto, y en qué configuración aparece."""
+
+    position: Position3D
+    diameter_mm: float
+    channels: list[str] = Field(default_factory=list)
+    rank_con_techo: int | None = Field(
+        None, description="Puesto con el techo puesto; null si no aparece así")
+    rank_sin_techo: int | None = Field(
+        None, description="Puesto sin techo; null si no aparece así")
+    en_ambas: bool = False
+
+
+class CeilingCompareResult(BaseModel):
+    """Las dos listas fundidas. No cambia la malla de la sesión."""
+
+    candidates: list[ComparedCandidate] = Field(default_factory=list)
+    vertices_con_techo: int = 0
+    vertices_sin_techo: int = 0
+    n_con_techo: int = 0
+    n_sin_techo: int = 0
+    note: str = ""

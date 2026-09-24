@@ -5,6 +5,8 @@ import type {
   AneurysmDetectionResult,
   AuditBlock,
   AuditVerifyResult,
+  CeilingCompareRequest,
+  CeilingCompareResult,
   CenterlineClearResult,
   CenterlineRequest,
   CenterlineResult,
@@ -255,6 +257,11 @@ export const api = {
   segment: (req: SegmentRequest) => post<SegmentResult>("/api/segment", req),
   suggestedBand: (sessionId: string) =>
     get<SuggestedBand>(`/api/segment/suggested-band/${sessionId}`),
+  /** Segmenta y detecta CON y SIN techo del umbral y devuelve ambas listas.
+   *  Cuesta dos segmentaciones y dos detecciones; no toca la malla de la
+   *  sesión, así que elegir configuración es un paso aparte. */
+  compareCeiling: (sessionId: string, req: CeilingCompareRequest) =>
+    post<CeilingCompareResult>(`/api/segment/compare-ceiling/${sessionId}`, req),
   segmentPreview: (sessionId: string, req: PreviewRequest) =>
     post<PreviewResult>(`/api/segment/preview/${sessionId}`, req),
   /** Step the working mesh back: "undo" one crop/grow, or "original" for the

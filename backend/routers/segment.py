@@ -13,7 +13,10 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 
 from models import AutoThresholdResult, SegmentRequest, SegmentResult
-from models.segmentation import SuggestedBand, PreviewRequest, PreviewResult
+from models.detection import Position3D
+from models.segmentation import (CeilingCompareRequest, CeilingCompareResult,
+                                 ComparedCandidate, PreviewRequest,
+                                 PreviewResult, SuggestedBand)
 from services              import mesh_backup
 from services.sessions     import read_state, session_exists, session_subdir, write_state, mesh_url
 from services.thresholds   import compute_auto_thresholds, strategy_hint
@@ -475,6 +478,17 @@ def _run_segmentation_sync(
     # browser/vtk.js serves the previous mesh from cache (304 Not Modified).
     url_versioned = f"{url}?v={int(time.time() * 1000)}"
 
+    # ── Lo medido sobre la malla ANTERIOR ya no describe nada ─────────────── #
+    #
+    # El recorte y el borrado ya invalidaban los candidatos, la morfometría y la
+    # recomendación; segmentar de nuevo —que sustituye la malla ENTERA, no un
+    # trozo— no lo hacía. Encontrado en vivo: el usuario resegmentó quitando el
+    # techo del umbral, volvió a Detección y siguió viendo los cinco candidatos
+    # de la malla vieja, con sus .vtp de cinco minutos antes. Conclusión
+    # razonable y equivocada: «no detecta el aneurisma».
+    from routers.detect import _clear_detection_state
+    _clear_detection_state(session_id, meshes_dir, morphometry=True)
+
     # ── Persist metadata to session state ─────────────────────────────────── #
     write_state(session_id, "seg.mesh_url",       url)
     write_state(session_id, "seg.n_vertices",     str(seg_result.n_vertices))
@@ -510,4 +524,99 @@ def _run_segmentation_sync(
         main_tree_applied=   main_applied,
         main_tree_warning=   main_warning,
         main_tree_removed=   main_removed,
+    )
+
+
+# ── POST /segment/compare-ceiling/{session_id} ──────────────────────────────── #
+
+@router.post(
+    "/segment/compare-ceiling/{session_id}",
+    response_model=CeilingCompareResult,
+    summary="Detect with and without the band's upper limit, and contrast both",
+    description=(
+        "Segments and detects TWICE — with the ceiling and without it — and "
+        "returns both candidate lists merged, saying which configuration each "
+        "site comes from.\n\n"
+        "Why it exists: the XA band is [p99, p99.9], and that ceiling drops the "
+        "brightest voxels, which in a contrast 3DRA are the cores of the "
+        "fullest vessels. The two annotated cases want OPPOSITE settings — in "
+        "one, the lesion only appears without the ceiling; in the other, "
+        "removing it pushes the lesion from rank 3 to rank 9, off the list. So "
+        "the checkbox cannot have a global default.\n\n"
+        "And it cannot be decided automatically: the obvious rule — drop the "
+        "ceiling when it is cutting the tree — was measured and does not "
+        "separate them (88% of what it removes are bridges in one case, 89% in "
+        "the other). What actually decides is WHAT makes each lesion stand out, "
+        "which is the thing nobody knows beforehand.\n\n"
+        "Costs two segmentations and two detections. `full_resolution` must "
+        "match what the segment button will use, or the ranks describe a mesh "
+        "the user never gets. It does NOT touch the session: no mesh and no "
+        "state are written, so choosing a configuration afterwards is a "
+        "separate, explicit step."
+    ),
+)
+async def compare_ceiling(
+    session_id: str, req: CeilingCompareRequest
+) -> CeilingCompareResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+
+    from services.ceiling_compare import comparar_techo
+    from services.mpr import _get_volume, ensure_volume_cached
+
+    try:
+        meta = ensure_volume_cached(session_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=409,
+            detail="No hay volumen en la sesión. Sube un DICOM primero.")
+
+    volume = np.asarray(_get_volume(session_id))
+    spacing = tuple(float(s) for s in meta["spacing"])
+    modality = read_state(session_id, "dicom.modality", "XA")
+
+    # La comparación tiene que correr sobre el MISMO volumen que va a usar el
+    # botón de segmentar. Si aquí se midiera a resolución completa y luego se
+    # segmentara diezmado —o al revés—, los puestos que enseña la comparación
+    # serían de una malla que el usuario no llega a ver nunca.
+    if req.full_resolution:
+        n_voxels = int(np.prod(volume.shape))
+        if n_voxels > _FULL_RES_MAX_VOXELS:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"Este volumen tiene {n_voxels / 1e6:.0f} millones de vóxeles y "
+                    f"la comparación segmenta DOS veces; a resolución completa "
+                    f"agotaría la memoria del servidor (el límite son "
+                    f"{_FULL_RES_MAX_VOXELS / 1e6:.0f} millones). Compara sin esa "
+                    f"opción, o recorta el volumen antes."
+                ),
+            )
+        seg_volume = np.ascontiguousarray(volume, dtype=np.float32)
+        seg_spacing = spacing
+    else:
+        seg_volume, seg_spacing, _ = _maybe_downsample(volume, spacing)
+
+    cmp_ = await asyncio.to_thread(
+        comparar_techo, seg_volume, seg_spacing, modality,
+        req.lower, req.upper, req.smoothing, req.cleanup, req.main_tree_only,
+    )
+
+    return CeilingCompareResult(
+        candidates=[
+            ComparedCandidate(
+                position=Position3D(x=c.position[0], y=c.position[1], z=c.position[2]),
+                diameter_mm=round(c.diameter_mm, 2),
+                channels=c.channels,
+                rank_con_techo=c.rank_con_techo,
+                rank_sin_techo=c.rank_sin_techo,
+                en_ambas=c.en_ambas,
+            )
+            for c in cmp_.candidatos
+        ],
+        vertices_con_techo=cmp_.vertices_con_techo,
+        vertices_sin_techo=cmp_.vertices_sin_techo,
+        n_con_techo=cmp_.n_con_techo,
+        n_sin_techo=cmp_.n_sin_techo,
+        note=cmp_.nota,
     )

@@ -19,6 +19,7 @@ import { Slider } from "../Slider";
 import { MeshEditTools } from "./MeshEditTools";
 import { PreprocessSection } from "./PreprocessSection";
 import { usePlanning } from "../../store/planning";
+import type { CeilingCompareResult } from "../../api/types";
 
 /* Fallback si aún no hay volumen para calcular la banda adaptativa. */
 export const SEG_LOWER_DEFAULT = 150;
@@ -39,6 +40,13 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const [upper, setUpper] = useState(SEG_UPPER_DEFAULT);
   // Sin techo: el backend lo desactiva cuando upper <= lower.
   const [sinTecho, setSinTecho] = useState(false);
+  // Comparar el techo: la casilla no puede tener un valor por defecto —los dos
+  // casos anotados piden lo contrario— y tampoco se puede decidir sola: se
+  // midió la regla evidente (quitarlo cuando corta el árbol) y no separa, el
+  // techo se lleva puentes en ambos casi por igual, 88 % y 89 %. Así que la
+  // app lo prueba de las dos formas y enseña las dos listas.
+  const [comparando, setComparando] = useState(false);
+  const [comparacion, setComparacion] = useState<CeilingCompareResult | null>(null);
   const [smoothing, setSmoothing] = useState(3);
   const [cleanup, setCleanup] = useState(7);   // level 7 → top-N isolation, mesh limpia
   // Off by default: on a 384³ study this is minutes instead of seconds.
@@ -164,6 +172,25 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     }
   };
 
+  const compararTecho = async () => {
+    if (!sessionId) return;
+    setComparando(true);
+    setError(null);
+    try {
+      setComparacion(await api.compareCeiling(sessionId, {
+        lower, upper, smoothing, cleanup, main_tree_only: mainTree,
+        // Con la misma resolución que se va a segmentar: comparar a resolución
+        // completa y luego segmentar diezmado enseñaría puestos de una malla
+        // que el usuario no llega a ver.
+        full_resolution: fullRes,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error comparando el umbral");
+    } finally {
+      setComparando(false);
+    }
+  };
+
   const run = async () => {
     if (!sessionId || !series) return;
     setBusy(true);
@@ -180,6 +207,12 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         main_tree_only: mainTree,
       });
       planning.setSegmentation(res);
+      // La malla es OTRA, así que los candidatos, la morfometría y la
+      // recomendación medidos sobre la anterior ya no describen nada. Sin
+      // esto, resegmentar dejaba en pantalla los candidatos de antes y parecía
+      // que la detección no encontraba el aneurisma cuando lo que pasaba es
+      // que nadie la había vuelto a lanzar.
+      planning.resetDownstream();
       setPreviewBand(null);       // final mesh now shows
       setPreviewMeshUrl(null);
     } catch (err) {
@@ -236,6 +269,71 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             justo los vasos más llenos y puede partir el árbol en trozos que
             luego la limpieza descarta. Quítalo si ves ramas cortadas.
           </div>
+        )}
+
+        {/* No hay forma de acertar de antemano, así que se prueban las dos.
+            Se ofrece también con la malla ya hecha: la duda aparece justo
+            entonces, al ver que en la lista de candidatos no está la lesión. */}
+        {!sinTecho && upper > lower && (
+          <Button
+            variant="outline"
+            onClick={() => void compararTecho()}
+            disabled={comparando}
+            style={{ width: "100%", marginTop: 8 }}
+          >
+            {comparando ? "Probando las dos…" : "¿Cuál uso? Probar con y sin techo"}
+          </Button>
+        )}
+
+        {/* Decirlo ANTES: segmenta y detecta dos veces, y sobre el examen real
+            fueron casi dos minutos. Un botón que parece instantáneo y tarda eso
+            se acaba pulsando dos veces. */}
+        {!sinTecho && upper > lower && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 5, lineHeight: 1.45 }}>
+            {comparando
+              ? "Segmentando y detectando de las dos formas; en un examen de 384³ fueron unos dos minutos."
+              : "Tarda el doble que segmentar: lo hace de las dos formas y enseña las dos listas. No cambia la malla."}
+          </div>
+        )}
+
+        {comparacion && (
+          <Card style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+              Con techo vs sin techo
+            </div>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 8 }}>
+              {comparacion.note}
+            </div>
+            {comparacion.candidates.map((c, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 11, padding: "3px 0" }}>
+                <span style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)", minWidth: 52 }}>
+                  Ø {c.diameter_mm.toFixed(1)}
+                </span>
+                <span style={{ color: c.rank_con_techo ? "var(--foreground)" : "var(--muted-foreground)" }}>
+                  con techo {c.rank_con_techo ? `#${c.rank_con_techo}` : "—"}
+                </span>
+                <span style={{ color: c.rank_sin_techo ? "var(--foreground)" : "var(--muted-foreground)" }}>
+                  sin techo {c.rank_sin_techo ? `#${c.rank_sin_techo}` : "—"}
+                </span>
+                {!c.en_ambas && (
+                  <span style={{ color: "var(--warning)", fontWeight: 600 }}>solo en una</span>
+                )}
+              </div>
+            ))}
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
+              Malla: {comparacion.vertices_con_techo.toLocaleString("es")} vért con techo ·{" "}
+              {comparacion.vertices_sin_techo.toLocaleString("es")} sin él. Esto no
+              ha cambiado nada todavía: elige y segmenta.
+            </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <Button variant="outline" onClick={() => { setSinTecho(false); setComparacion(null); }} style={{ flex: 1 }}>
+                Usar con techo
+              </Button>
+              <Button variant="outline" onClick={() => { setSinTecho(true); setComparacion(null); }} style={{ flex: 1 }}>
+                Usar sin techo
+              </Button>
+            </div>
+          </Card>
         )}
         <div style={{ height: 14 }} />
         <Slider label="Suavizado" min={0} max={10} value={smoothing} onChange={setSmoothing} />

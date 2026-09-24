@@ -129,7 +129,7 @@ Key backend services (all ported from the desktop `prospective/processing`):
 | `thresholds.py` | Auto HU/intensity band per modality (CT · MR · XA · DSA strategies) |
 | `preprocess.py` | HU clipping, isotropic resampling, Gaussian smoothing, bone subtraction |
 | `segmentation.py` | Marching Cubes → component filter → smoothing → decimation |
-| `grow.py` / `mesh_crop.py` | Region-grow from seeds · box/sphere ROI clipping · plane cut (no centre to pick) |
+| `mesh_crop.py` | Box/sphere ROI clipping · plane cut (no centre to pick) · region eraser |
 | `mesh_components.py` | Connected-piece analysis: keep only the vascular tree, or delete one piece by click. Refuses on CTA, where the largest piece is the whole head |
 | `aneurysm_detector.py` | Curvature + shape-gate candidate detection |
 | `aneurysm_consensus.py` | Three independent channels — curvature, local calibre, calibre vs the neighbouring vessel — merged into one shortlist |
@@ -347,13 +347,13 @@ since those directories also hold the uploaded DICOM.
 
 ## Undoing Work
 
-A planning session is exploratory: thresholds get retuned, a seed lands on the
-wrong vessel, a case is evaluated with the wrong location. Every step therefore
+A planning session is exploratory: thresholds get retuned, a crop takes a vessel
+with it, a case is evaluated with the wrong location. Every step therefore
 has a way back that does not cost a re-upload or a re-segmentation.
 
 | What | How to undo it | Cost |
 |---|---|---|
-| ROI crop · grow from seeds · re-segmentation | «Deshacer» — `POST /api/mesh-restore/{sid}` `scope=undo` | file copy |
+| ROI crop · region eraser · re-segmentation | «Deshacer» — `POST /api/mesh-restore/{sid}` `scope=undo` | file copy |
 | Every interactive mesh edit at once | «Restaurar malla original» — `scope=original` | file copy |
 | An undo taken one step too far | «Rehacer» — `scope=redo` | file copy |
 | HU clipping · resampling · smoothing · bone subtraction | «Revertir» — `DELETE /api/preprocess/{sid}` | rebuild from the session's DICOM |
@@ -896,7 +896,37 @@ What does separate them is that they do not touch. «Solo el árbol principal»
 keeps the largest connected component: case 3 → 60.3 %, case 9 → 63.7 %, and in
 both that component **is** the tree. It refuses on CTA, where contrast touches
 bone and the largest piece is the whole head (795 000–1 220 000 mm³) — there the
-seed-grow tool is the answer, and the refusal says so instead of doing nothing.
+ROI crop and the region eraser are the answer, and the refusal says so instead of
+doing nothing.
+
+### The band's ceiling decides whether the lesion is on the list at all
+
+The XA band is `[p99, p99.9]`, and the mask is `>= lower AND <= upper`, so the
+ceiling drops the brightest voxels — in a contrast 3DRA, the cores of the
+fullest vessels. That is not a detail: it decides whether the aneurysm is
+detected.
+
+    case 3              with the ceiling: the lesion ranks 3
+                        without it:       rank 9, off the five-candidate list
+    the 3DRA 384³ exam  with the ceiling: it does not appear at all
+                        without it:       rank 1, 2.11 mm from the annotation
+
+Opposite answers, so the checkbox cannot have a default. And it cannot be
+decided automatically either: the obvious rule — drop the ceiling when it is
+cutting the tree — was measured and does not separate the two. What the ceiling
+removes is almost entirely bridges between pieces in **both** cases (88 % in one,
+89 % in the other); the tree gets more connected either way. What actually
+decides is *what makes each lesion stand out*: case 3's is the thickest point of
+its vessel, and without the ceiling every dense vessel fattens and it stops
+standing out. That depends on where the lesion is, which is the one thing nobody
+knows beforehand.
+
+So the app stops asking. «¿Cuál uso? Probar con y sin techo» segments and
+detects both ways and shows the two lists merged, marking which configuration
+each site comes from — the sites that appear in only one are the ones a wrong
+choice would lose. It costs two segmentations and two detections (115 s on the
+real exam), it runs at the same resolution the segment button will use, and it
+writes nothing: choosing is still a separate, explicit step.
 
 ### The validated model itself, instead of a copy of it
 
@@ -1641,7 +1671,7 @@ so a panel added later cannot forget to do it.
 
 ## API Reference
 
-94 operations under `/api`. Full spec in `openapi.json` or at `/docs`.
+118 operations under `/api`. Full spec in `openapi.json` or at `/docs`.
 
 **Everything except `POST /api/auth/login`, `/signup` and `/logout` requires a
 token.** It travels as `Authorization: Bearer …` or as the `prospective_token`
@@ -1699,7 +1729,7 @@ patient imaging.
 | `GET` | `/api/segment/suggested-band/{sid}` | Auto HU band + strategy used |
 | `POST` | `/api/segment/preview/{sid}` | Coarse live preview mesh while tuning sliders |
 | `POST` | `/api/segment` | Full Marching Cubes segmentation |
-| `POST` | `/api/segment/grow/{sid}` | Region-grow from picked seeds |
+| `POST` | `/api/segment/compare-ceiling/{sid}` | Detect with and without the band's ceiling, and contrast both lists |
 | `POST` | `/api/mesh-crop/{sid}` | Box / sphere ROI crop of the mesh |
 | `GET` | `/api/mesh-bounds/{sid}` | Bounding box, so the plane-cut slider has a real range |
 | `POST` | `/api/mesh-plane-cut/{sid}` | Cut with a plane and keep one side — no centre to pick |
@@ -1889,8 +1919,9 @@ clinician.
 - Fully automatic aneurysm isolation is not viable on dense vascular trees; the
   reliable path is the two-click neck plane, which the UI guides you through.
 - Bone and contrast overlap in HU, so no global threshold separates them on some
-  studies. That is why the live threshold preview, seeded region-grow and ROI crop
-  exist.
+  studies. That is why the live threshold preview, the ROI crop and the region
+  eraser exist — and why the app can run the detection with and without the
+  band's ceiling and show you both lists.
 - The detector is unstable on sparse meshes and CT can saturate the candidate list
   with bone false positives; candidates are ranked and labelled with confidence so
   a low-confidence pick is visible.

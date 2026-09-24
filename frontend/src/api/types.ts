@@ -1486,3 +1486,37 @@ export interface RegionEraseResult {
   warning: string;
   undo_depth: number;
 }
+
+/* ── Comparar el techo del umbral ───────────────────────────────────────── */
+/** La casilla «sin límite superior» no puede tener un valor por defecto: los
+ *  dos casos anotados piden lo contrario. Y no se puede decidir sola —la regla
+ *  evidente se midió y no separa—, así que la app prueba las dos. */
+export interface CeilingCompareRequest {
+  lower: number;
+  upper: number;
+  smoothing?: number;
+  cleanup?: number;
+  main_tree_only?: boolean;
+  /** Tiene que ser el mismo que el del botón de segmentar: si no, los puestos
+      que se enseñan son de una malla que luego no se obtiene. */
+  full_resolution?: boolean;
+}
+
+export interface ComparedCandidate {
+  position: Position3D;
+  diameter_mm: number;
+  channels: string[];
+  /** Puesto con el techo puesto; null si no aparece así. */
+  rank_con_techo: number | null;
+  rank_sin_techo: number | null;
+  en_ambas: boolean;
+}
+
+export interface CeilingCompareResult {
+  candidates: ComparedCandidate[];
+  vertices_con_techo: number;
+  vertices_sin_techo: number;
+  n_con_techo: number;
+  n_sin_techo: number;
+  note: string;
+}

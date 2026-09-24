@@ -1,6 +1,6 @@
 /* The segmentation panel has to say what the cleanup threw away. */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -253,5 +253,96 @@ describe("la previa se pide en dos etapas", () => {
     // Si las esperas se cruzaran, el grueso pisaría al fino y la previa
     // acabaría enseñando MENOS detalle del que ya había calculado.
     expect(PREVIA_BORRADOR_MS).toBeLessThan(PREVIA_AFINADO_MS);
+  });
+});
+
+
+/* Con techo o sin él: la app lo prueba sola.
+ *
+ * La casilla «sin límite superior» decide si la lesión aparece en la lista, y
+ * no puede tener un valor por defecto: de los dos casos anotados, uno la
+ * necesita puesta y el otro quitada. Tampoco se puede decidir sola —se midió
+ * la regla evidente, quitar el techo cuando corta el árbol, y no separa—, así
+ * que se segmenta y detecta de las dos formas y se enseñan las dos listas.
+ * Medido sobre el examen real: con techo la lesión no sale; sin techo es la
+ * primera. Las filas se leen del texto del panel y no por nodo: cada fila son
+ * varios nodos de texto («sin techo » + «#1») y buscarlos sueltos hace que el
+ * test falle por cómo está partido el JSX, no por lo que enseña. */
+describe("comparar con y sin techo", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const comparacion = {
+    candidates: [
+      { position: { x: 1, y: 2, z: 3 }, diameter_mm: 6.2, channels: ["curv"],
+        rank_con_techo: 1, rank_sin_techo: 2, en_ambas: true },
+      { position: { x: 9, y: 9, z: 9 }, diameter_mm: 5.1, channels: ["radio"],
+        rank_con_techo: null, rank_sin_techo: 1, en_ambas: false },
+    ],
+    vertices_con_techo: 88178, vertices_sin_techo: 80227,
+    n_con_techo: 1, n_sin_techo: 2,
+    note: "1 sitio(s) solo aparecen SIN techo y 0 solo CON él.",
+  };
+
+  async function comparar(sid = "sesion-techo") {
+    const { api } = await import("../../api/client");
+    vi.mocked(api.suggestedBand).mockResolvedValue({
+      lower: 1503, upper: 4450, vmin: -20, vmax: 4399,
+    });
+    vi.mocked(api.compareCeiling).mockResolvedValue(comparacion);
+    const vista = render(
+      <PlanningProvider>
+        <SessionOnly sid={sid}>
+          <SegmentPanel onNext={() => {}} />
+        </SessionOnly>
+      </PlanningProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Probar con y sin techo/ }));
+    await vi.waitFor(() => expect(api.compareCeiling).toHaveBeenCalled());
+    await screen.findByRole("button", { name: "Usar sin techo" });
+    return { api, texto: () => vista.container.textContent ?? "" };
+  }
+
+  it("enseña el puesto en cada lista y señala al que sale en una sola", async () => {
+    const { texto } = await comparar();
+    // El que solo sale sin techo es el interesante: es el que se perdería
+    // quien eligiera mal, y en el examen real ése era el aneurisma.
+    expect(texto()).toMatch(/con techo —sin techo #1/);
+    expect(texto()).toMatch(/con techo #1sin techo #2/);
+    expect(texto()).toContain("solo en una");
+  });
+
+  it("compara con la misma resolución con la que se va a segmentar", async () => {
+    // Comparar a resolución completa y segmentar diezmado —o al revés— daría
+    // puestos de una malla que el usuario no llega a ver nunca.
+    const { api } = await comparar();
+    const [, req] = vi.mocked(api.compareCeiling).mock.calls[0];
+    expect(req.full_resolution).toBe(false);
+    expect(req.lower).toBe(1503);
+    expect(req.upper).toBe(4450);
+  });
+
+  it("«Usar sin techo» deja la casilla puesta para la siguiente segmentación", async () => {
+    const { texto } = await comparar();
+    fireEvent.click(screen.getByRole("button", { name: "Usar sin techo" }));
+    const casilla = screen.getByRole("checkbox", { name: /Sin límite superior/ }) as HTMLInputElement;
+    expect(casilla.checked).toBe(true);
+    // Y el resultado se retira: ya no describe lo que está configurado.
+    expect(texto()).not.toContain("solo en una");
+  });
+
+  it("se puede comparar con la malla ya hecha", async () => {
+    // La duda aparece justo entonces: al ver que en la lista de candidatos no
+    // está la lesión. Si el botón solo saliera antes de segmentar, el usuario
+    // tendría que adivinar en el único momento en que no tiene información.
+    const { api } = await import("../../api/client");
+    // `MeshEditTools` se monta con la malla y pinta el historial; el mock por
+    // defecto devuelve {} y ahí revienta al leer `steps`.
+    vi.mocked(api.meshHistory).mockResolvedValue({
+      steps: [], undo_depth: 0, redo_depth: 0, has_original: true,
+    });
+    withMeshReady(base, "sesion-techo-2");
+    expect(
+      await screen.findByRole("button", { name: /Probar con y sin techo/ }),
+    ).toBeInTheDocument();
   });
 });

@@ -51,9 +51,12 @@ from typing import Literal
 
 from services.clips import (
     DEEP_DOME_AR_THRESHOLD,
+    NECK_DEFORMATION_FACTOR,
     WIDE_NECK_THRESHOLD_MM,
     ClipShape,
     ClipSpec,
+    JawRequirement,
+    jaw_requirement,
 )
 
 Verdict = Literal["ok", "warn", "fail"]
@@ -67,13 +70,14 @@ BLADE_MIN_OVER_MM: float = 1.0
 # Past this the clip is oversized for the target and its distal end sits in
 # tissue it has no business touching.
 BLADE_MAX_RATIO: float = 3.0
-# Ideal blade/neck ratio, and the spread that still counts as comfortable.
-COVERAGE_IDEAL: float = 1.35
-COVERAGE_SIGMA: float = 0.25
-COVERAGE_COMFORTABLE_LO: float = 1.15
+# Lo que sobra por encima de la mordaza requerida, en mm, antes de que la hoja
+# empiece a estorbar. No es una campana sobre un ratio: la mordaza justa YA
+# contempla la deformacion del cuello, asi que quedarse en ella es correcto y lo
+# unico penalizable es pasarse. Sigma en milimetros, no en proporcion, porque
+# 3 mm de hoja de mas son 3 mm de hoja de mas en un cuello de 2 y en uno de 8.
+EXCESS_SIGMA_MM: float = 2.5
+# Por encima de esto la hoja es larga para el objetivo aunque no llegue al tope.
 COVERAGE_COMFORTABLE_HI: float = 2.20
-# Below this the clip spans the neck but leaves nothing to grip.
-SAFETY_MARGIN_WARN_MM: float = 1.5
 
 # ── Closing-force windows by neck width ───────────────────────────────────── #
 # A wider neck carries more residual wall between the blades, so it needs a
@@ -199,6 +203,10 @@ class ClipCase:
     step with a partial measurement and a half-filled case record.
     """
     neck_mm: float
+    #: Perimetro del contorno del cuello, cuando se ha marcado el plano y se ha
+    #: podido medir. Su mitad es la linea de cierre exacta de este cuello; sin
+    #: el se aplica la regla de x1,5 sobre el diametro. Ver `jaw_requirement`.
+    neck_perimeter_mm: float = 0.0
     dome_height_mm: float = 0.0
     max_diameter_mm: float = 0.0
     ar: float = 0.0
@@ -211,6 +219,11 @@ class ClipCase:
     region: str = ""
     laterality: str = ""
     aneurysm_type: str = ""
+
+    @property
+    def jaw_requirement(self) -> JawRequirement:
+        """La mordaza minima que cierra este cuello, con su procedencia."""
+        return jaw_requirement(self.neck_mm, self.neck_perimeter_mm)
 
     @property
     def is_wide_neck(self) -> bool:
@@ -307,16 +320,30 @@ WARN_SCORE_FLOOR = 0.05
 
 
 def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
+    """¿Cierra esta hoja el cuello DESPUÉS de aplastarlo?
+
+    El criterio no compara la hoja con el diámetro del cuello, sino con la
+    longitud que ese cuello toma al quedar plano entre las hojas —el perímetro
+    medido partido por dos, o la regla de ×1,5 cuando no se ha medido—. Ahí es
+    donde se juega el fallo que importa: el cierre incompleto del lado distal es
+    la causa más frecuente de que el domo siga rellenándose.
+
+    Por eso no hay campana sobre un ratio. Quedarse en la mordaza justa ya es
+    correcto, porque la deformación está contada; lo único penalizable es
+    pasarse, y pasarse de verdad —con la punta sobre tejido sano— lo descarta.
+    """
     neck = case.neck_mm
     bl = clip.blade_length_mm
     cov = bl / neck if neck > 0 else 0.0
-    margin = bl - neck
+    req = case.jaw_requirement
+    margin = bl - req.mm
 
-    if bl < neck + BLADE_MIN_OVER_MM:
+    if req.mm > 0.0 and bl < req.mm:
         return Criterion(
             "coverage", "Cobertura", "fail",
-            f"Hoja de {bl:.0f} mm insuficiente para un cuello de {neck:.1f} mm "
-            f"(hacen falta ≥ {neck + BLADE_MIN_OVER_MM:.1f} mm)",
+            f"Hoja de {bl:.0f} mm insuficiente: el cuello de {neck:.1f} mm mide "
+            f"{req.mm:.1f} mm una vez aplastado entre las hojas, y por debajo de "
+            f"eso el cierre queda incompleto",
             0.0, weight=2.0,
         )
     if cov > BLADE_MAX_RATIO:
@@ -326,31 +353,22 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
             f"el extremo distal queda sobre tejido sano",
             0.0, weight=2.0,
         )
-    # The Gaussian bottoms out at 0.00 well before the ratio becomes
-    # disqualifying, so «poor» and «impossible» scored the same. That was hidden
-    # while the force criterion contributed a flat 0.60 to everything; with the
-    # force no longer voting it surfaced as a 3 mm neck answered by six clips at
-    # zero points, all of them labelled usable. A verdict of `warn` MEANS usable
-    # with a caveat, so it keeps a floor — the ranking still separates them, and
-    # zero goes back to meaning what `fail` means.
-    score = max(WARN_SCORE_FLOOR,
-                math.exp(-0.5 * ((cov - COVERAGE_IDEAL) / COVERAGE_SIGMA) ** 2))
-    if margin < SAFETY_MARGIN_WARN_MM:
+    # Con el mínimo ya garantizado arriba, la puntuación solo ordena por exceso:
+    # entre dos hojas que cierran, la más corta estorba menos. Conserva el suelo
+    # de `warn` para que una hoja utilizable-con-reservas nunca puntúe cero, que
+    # es lo que significa haber fallado un criterio.
+    score = max(WARN_SCORE_FLOOR, math.exp(-0.5 * (margin / EXCESS_SIGMA_MM) ** 2))
+    if cov > COVERAGE_COMFORTABLE_HI:
         return Criterion(
             "coverage", "Cobertura", "warn",
-            f"Margen de seguridad corto: {margin:.1f} mm sobre el cuello (×{cov:.2f})",
-            score, weight=2.0,
-        )
-    if not (COVERAGE_COMFORTABLE_LO <= cov <= COVERAGE_COMFORTABLE_HI):
-        return Criterion(
-            "coverage", "Cobertura", "warn",
-            f"Relación hoja/cuello ×{cov:.2f}, fuera del rango cómodo "
-            f"×{COVERAGE_COMFORTABLE_LO:.2f}–×{COVERAGE_COMFORTABLE_HI:.2f}",
+            f"Cierra el cuello aplastado ({req.mm:.1f} mm) pero sobran "
+            f"{margin:.1f} mm de hoja (×{cov:.2f} el cuello)",
             score, weight=2.0,
         )
     return Criterion(
         "coverage", "Cobertura", "ok",
-        f"Cubre el cuello con {margin:.1f} mm de margen (×{cov:.2f})",
+        f"Cierra el cuello aplastado ({req.mm:.1f} mm) con {margin:.1f} mm "
+        f"de margen (×{cov:.2f} el cuello sin deformar)",
         score, weight=2.0,
     )
 
@@ -602,7 +620,8 @@ def evaluate_clip(clip: ClipSpec, case: ClipCase) -> ClipCandidate:
         clip=clip,
         criteria=crits,
         coverage_ratio=round(cov, 3),
-        safety_margin_mm=round(clip.blade_length_mm - case.neck_mm, 2),
+        # Sobre el cuello APLASTADO, que es contra lo que cierra la hoja.
+        safety_margin_mm=round(clip.blade_length_mm - case.jaw_requirement.mm, 2),
         score=0.0 if failed else round(raw, 1),
     )
 
@@ -704,8 +723,10 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> Ma
     """Turn "nothing in stock fits" into something a workshop can build."""
     w_r, h_r, s_r = _catalogue_proportions()
 
-    # Aim at the ideal blade/neck ratio, but never below the physical floor.
-    target = max(case.neck_mm * COVERAGE_IDEAL, case.neck_mm + BLADE_MIN_OVER_MM)
+    # Apunta a la mordaza que cierra el cuello aplastado, redondeando HACIA
+    # ARRIBA: en una pieza que se va a fabricar, medio milimetro de mas estorba
+    # menos que medio de menos.
+    target = case.jaw_requirement.mm
     blade = math.ceil(target * 2.0) / 2.0          # round up to the next 0.5 mm
 
     shape = _preferred_shape(case)
@@ -820,8 +841,12 @@ class CustomJaw:
 
 
 def ideal_jaw_mm(case: ClipCase) -> float:
-    """The jaw this neck actually wants, before any catalogue is consulted."""
-    return max(case.neck_mm * COVERAGE_IDEAL, case.neck_mm + BLADE_MIN_OVER_MM)
+    """La mordaza que pide este cuello, antes de mirar ningun catalogo.
+
+    Es la longitud de la linea de cierre una vez aplastado el cuello, no su
+    diametro: ver `services.clips.jaw_requirement`.
+    """
+    return case.jaw_requirement.mm
 
 
 def _best_resizable(recommended: list[ClipCandidate]) -> ClipCandidate | None:
@@ -897,7 +922,15 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
     gap = abs(src.jaw_mm - want)
     # Half a step: closer than this and the drawn size is the better answer,
     # because it is already validated CAD.
-    if gap < 1.5:
+    #
+    # Pero solo si esa talla CIERRA el cuello. `want` dejó de ser un objetivo
+    # alrededor del cual se puede caer por los dos lados: es el mínimo que cubre
+    # el cuello una vez aplastado, y una talla más corta no vale por muy cerca
+    # que esté. Un cuello de 5 mm pide 7,5 mm de mordaza y la talla dibujada más
+    # próxima es 7: a 0,5 mm de distancia, y medio milímetro por debajo de lo
+    # que hace falta. Sin esta condición la oferta a medida se retiraba justo
+    # ahí y al cirujano se le ofrecía la pieza que no cierra.
+    if gap < 1.5 and src.jaw_mm >= want:
         return None
     if want < min(STOCK_JAW_MM) or want > max(STOCK_JAW_MM):
         reason = (f"Un cuello de {case.neck_mm:.1f} mm pide {want:.1f} mm de mordaza, "
@@ -1126,7 +1159,7 @@ def select_clips(
     evaluated = [evaluate_clip(c, case) for c in catalogue]
     viable = sorted([c for c in evaluated if c.viable], key=lambda c: -c.score)
     failed = sorted([c for c in evaluated if not c.viable],
-                    key=lambda c: abs(c.clip.blade_length_mm - case.neck_mm * COVERAGE_IDEAL))
+                    key=lambda c: abs(c.clip.blade_length_mm - case.jaw_requirement.mm))
 
     recommended = _with_every_shape_represented(viable, n)
     # The near-misses worth showing: the ones that came closest to the ideal blade.

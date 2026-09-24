@@ -190,9 +190,11 @@ class TestInSelection:
         assert sum(1 for n in names if "NAVARRO" in n) >= 42
 
     def test_a_neck_the_built_in_catalogue_cannot_serve_now_has_an_answer(self):
-        # The built-in blades stop at 20 mm, so a 20 mm neck used to come back
-        # as "manufacture" with nothing to reach for.
-        sel = select_clips(ClipCase(neck_mm=20.0, ar=1.3, dome_height_mm=26.0,
+        # Las hojas de serie llegan a 20 mm y la familia NAVARRO a 22. Un cuello
+        # de 14 mm pide 21 mm de mordaza al quedar aplastado: fuera del catalogo
+        # comercial, dentro de la familia. (Con 20 mm de cuello harian falta 30 y
+        # no lo cierra ninguna pieza sola — eso es «fabricar», no «NAVARRO».)
+        sel = select_clips(ClipCase(neck_mm=14.0, ar=1.3, dome_height_mm=26.0,
                                     neck_source="rim"))
         assert sel.outcome in ("stock", "marginal")
         assert any("NAVARRO" in c.clip.name for c in sel.recommended)
@@ -228,7 +230,13 @@ class TestCustomJaw:
 
     def test_nothing_is_offered_when_a_drawn_size_already_fits(self):
         # Machining a special to save a fraction of a millimetre is not a service.
-        case = ClipCase(neck_mm=5.2, ar=1.3, dome_height_mm=6.8, neck_source="rim")
+        #
+        # 6,2 mm de cuello y no 5,2: lo que decide es la mordaza que CIERRA el
+        # cuello aplastado, y 5,2 pide 7,8 mm, para los que la talla dibujada
+        # más próxima —7— se queda corta. Ahí la oferta a medida sí tiene
+        # sentido. Con 6,2 hacen falta 9,3 y la talla de 10 los cubre: eso es
+        # «ya encaja». Ver `test_una_talla_dibujada_mas_CORTA_no_cancela...`.
+        case = ClipCase(neck_mm=6.2, ar=1.3, dome_height_mm=8.1, neck_source="rim")
         assert suggest_custom_jaw(case, None) is None
 
     def test_the_suggestion_explains_itself(self):

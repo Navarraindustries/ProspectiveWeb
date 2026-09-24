@@ -76,6 +76,58 @@ def _contour_area(loop: vtk.vtkPolyData) -> float:
     return float(mp.GetSurfaceArea())
 
 
+def _contour_perimeter(loop: vtk.vtkPolyData) -> float:
+    """Longitud del contorno (mm), sumando sus aristas una a una.
+
+    Recorre las CELDAS de línea en vez de los puntos en el orden en que vienen.
+    El orden del array de puntos de un corte no es el del recorrido del lazo, y
+    sumar distancias entre puntos consecutivos da una longitud inventada: en un
+    círculo de 4 mm de diámetro la diferencia medida es de más del doble.
+    """
+    if loop is None or loop.GetNumberOfCells() == 0:
+        return 0.0
+    total = 0.0
+    for i in range(loop.GetNumberOfCells()):
+        cell = loop.GetCell(i)
+        pts = cell.GetPoints()
+        if pts is None or pts.GetNumberOfPoints() < 2:
+            continue
+        for j in range(pts.GetNumberOfPoints() - 1):
+            a = np.asarray(pts.GetPoint(j), dtype=float)
+            b = np.asarray(pts.GetPoint(j + 1), dtype=float)
+            total += float(np.linalg.norm(b - a))
+    return total
+
+
+def measure_neck_contour(
+    vessel_poly: vtk.vtkPolyData,
+    origin,
+    normal,
+    dome_seed,
+) -> tuple[float, float]:
+    """(perímetro_mm, área_mm²) del contorno del cuello en ese plano.
+
+    El perímetro es lo que decide la mordaza: al cerrarse las hojas el cuello
+    queda plano y su línea de cierre mide la mitad del perímetro. El diámetro
+    equivalente que devuelve `measure_neck` sale del ÁREA, y para un cuello
+    ovalado se queda corto — que es el lado por el que el clip no cierra.
+    """
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(*[float(x) for x in np.asarray(origin, dtype=float)])
+    plane.SetNormal(*[float(x) for x in np.asarray(normal, dtype=float)])
+
+    cutter = vtk.vtkCutter()
+    cutter.SetInputData(vessel_poly)
+    cutter.SetCutFunction(plane)
+    cutter.Update()
+    cut = cutter.GetOutput()
+    if cut.GetNumberOfPoints() < 3:
+        return 0.0, 0.0
+
+    loop = _largest_or_nearest_loop(cut, np.asarray(dome_seed, dtype=float))
+    return _contour_perimeter(loop), _contour_area(loop)
+
+
 def fit_plane_to_rim(
     rim_points: "np.ndarray | list",
     dome_seed: "np.ndarray | list",

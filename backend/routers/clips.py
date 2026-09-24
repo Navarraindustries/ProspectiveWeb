@@ -636,6 +636,8 @@ def _build_case(session_id: str, case_id: int | None) -> ClipCase:
     neck_source = read_state(session_id, "morpho.neck_source", "auto") or "auto"
     return ClipCase(
         neck_mm          = _load_float(session_id, "morpho.neck_mm", 0.0),
+        # El contorno medido manda sobre la regla de x1,5 cuando existe.
+        neck_perimeter_mm= _load_float(session_id, "morpho.neck_perimeter_mm", 0.0),
         dome_height_mm   = _load_float(session_id, "morpho.dome_height_mm", 0.0),
         max_diameter_mm  = _load_float(session_id, "morpho.max_diameter_mm", 0.0),
         ar               = _load_float(session_id, "morpho.ar", 0.0),
@@ -779,7 +781,11 @@ async def clip_selection(
         outcome     = selection.outcome,
         summary     = selection.summary,
         case        = ClipCaseOut(
-            neck_mm=c.neck_mm, dome_height_mm=c.dome_height_mm,
+            neck_mm=c.neck_mm,
+            required_jaw_mm=c.jaw_requirement.mm,
+            required_jaw_source=c.jaw_requirement.source,
+            required_jaw_detail=c.jaw_requirement.detail,
+            dome_height_mm=c.dome_height_mm,
             max_diameter_mm=c.max_diameter_mm, ar=c.ar, dnr=c.dnr,
             parent_artery_mm=c.parent_artery_mm, neck_source=c.neck_source,
             neck_tilt_deg=c.neck_tilt_deg, region=c.region,

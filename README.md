@@ -398,7 +398,7 @@ aneurysm, and if not, what has to be made?**
 
    | Criterion | What it compares |
    |---|---|
-   | Cobertura | Blade length against the neck, with a safety margin |
+   | Cobertura | Blade length against the **flattened** neck (see below) |
    | Fenestración | Window calibre against the measured parent artery |
    | Alcance | Shape against dome depth (AR) |
    | Forma / localización | Shape against the anatomical region on the case |
@@ -1173,10 +1173,60 @@ cannot separate the two cases, the result carries `neck_region_excluded: false`
 and says the check needs morphometry to mean anything. The contact count is still
 shown — what is withheld is the interpretation, not the data.
 
-**The clips are not oversized.** A 7 mm jaw on a 5 mm neck is the coverage the
-selector aims for; the 18–25 mm behind it is the spring and the grip, which the
-applier holds outside the field. That body can foul the vessel at a bad roll, and
+**The clips are not oversized.** A 7.5 mm jaw is the minimum a 5 mm neck takes
+(see «The jaw is sized against the flattened neck»); the 18–25 mm behind it is the
+spring and the grip, which the applier holds outside the field. That body can foul the vessel at a bad roll, and
 now that the noise is gone, the check says so.
+
+### The jaw is sized against the flattened neck, not against its diameter
+
+A neck is not clipped at the width it has in the image. When the blades close,
+the round section is squashed into a flat slit and what is conserved is the
+**perimeter**, so a circular neck of diameter D closes along
+
+    πD / 2  ≈  1.571 · D
+
+That is the geometry behind the clinical rule. «Aneurysm clips: What every
+resident should know» (Neurology India) puts it as: the neck diameter increases
+by about 50 % when squeezed shut, so the blades should be 1.5 times the neck —
+and the numerical study «Pre-selection blade size choice for the microsurgical
+clipping of cerebral artery aneurysms» (2024) measures a deformation of at least
+1.4×. Both are the same π/2 with more or less flattening. The same review says
+what it is for: **incomplete closure at the distal side of the neck is the most
+common cause of a dome that keeps filling.**
+
+The selector used to aim at ×1.35 as the centre of a Gaussian, which had two
+consequences: a blade that could not close the flattened neck merely scored
+low instead of failing, and a blade *longer* than 1.35× scored worse than one
+that fell short. Now the requirement is a **floor**:
+
+- below it the clip fails outright — it does not close the neck;
+- at it the clip is correct, because the deformation is already counted;
+- above it, ranking prefers the shortest jaw that clears the requirement, and
+  the ×3 cap plus the collision check still catch a blade whose tip lands on
+  healthy tissue.
+
+**The factor assumes a circular neck, and we can do better than assume.** When
+the neck plane is marked, the contour is measured on the mesh and half its
+perimeter is that patient's exact closing line. It matters because the stored
+`neck_mm` is the *equivalent-circle* diameter derived from the contour AREA, and
+for an oval neck that underestimates:
+
+    neck 6.0 × 2.7 mm   →  equivalent circle 4.0 mm  →  rule says 6.0 mm of jaw
+                           perimeter 14.2 mm          →  real closing line 7.1 mm
+
+A measured perimeter is only trusted between ×1.5 and ×3 of the diameter: by the
+isoperimetric inequality the circle is the *shortest* perimeter for a given area,
+so reading less than πD means the plane caught two loops or an open contour, and
+the rule takes over.
+
+**What it broke, and that was worth breaking.** A 20 mm neck no longer has a
+single-clip answer in the family — its closing line is 31 mm and the longest jaw
+drawn is 22 — so it now returns a manufacturing specification instead of a piece
+that would not close it. And the made-to-order offer used to be withheld whenever
+a drawn size sat within half a step of the target; that had to learn the
+asymmetry, because a drawn size *below* the requirement is not close enough, it
+is short. A 5 mm neck wants 7.5 mm and the nearest drawn jaw is 7.
 
 ### The blades never opened as far as the mechanism does
 

@@ -120,7 +120,8 @@ _MORPHO_STATE_KEYS = (
     "morpho.plane_seed_x", "morpho.plane_seed_y", "morpho.plane_seed_z",
     "morpho.neck_origin_x", "morpho.neck_origin_y", "morpho.neck_origin_z",
     "morpho.axis_x", "morpho.axis_y", "morpho.axis_z",
-    "morpho.max_diameter_mm", "morpho.neck_mm", "morpho.dome_height_mm",
+    "morpho.max_diameter_mm", "morpho.neck_mm", "morpho.neck_perimeter_mm",
+    "morpho.dome_height_mm",
     "morpho.volume_mm3", "morpho.surface_area_mm2",
     "morpho.ar", "morpho.dnr", "morpho.bf", "morpho.ui",
     "morpho.compactness", "morpho.rupture_risk",
@@ -749,6 +750,33 @@ def _run_morphometry_sync(
         write_state(session_id, "morpho.plane_seed_x",   str(seed[0]))
         write_state(session_id, "morpho.plane_seed_y",   str(seed[1]))
         write_state(session_id, "morpho.plane_seed_z",   str(seed[2]))
+
+        # ── El PERÍMETRO del cuello, que es lo que dimensiona la mordaza ──── #
+        #
+        # El clip no cierra sobre el diámetro del cuello: cierra sobre lo que
+        # mide el cuello aplastado, o sea la mitad de su perímetro. El diámetro
+        # que se guarda arriba sale del ÁREA del contorno, y en un cuello
+        # ovalado eso se queda corto justo por el lado que deja el cierre
+        # incompleto — un cuello de 6,0 × 2,7 mm equivale a un círculo de 4,0 mm
+        # pero su línea de cierre mide 7,1 mm, no 6,0.
+        #
+        # Solo aquí, con el plano marcado: es el único caso en que el contorno
+        # describe el cuello y no un corte cualquiera del árbol. Sin esto, la
+        # selección aplica la regla de ×1,5, que es lo que había.
+        try:
+            from services.sac_isolation import measure_neck_contour
+            perim, _area = measure_neck_contour(
+                poly,
+                tuple(origin[i] + 0.6 * normal[i] for i in range(3)),
+                normal, seed,
+            )
+            if perim > 0.0:
+                write_state(session_id, "morpho.neck_perimeter_mm", str(round(perim, 3)))
+                logger.info("Neck contour: %.2f mm perimeter → %.2f mm closing line "
+                            "(equivalent-circle neck %.2f mm)",
+                            perim, perim / 2.0, neck_diam)
+        except Exception as exc:  # noqa: BLE001 — nunca hundir la morfometría por esto
+            logger.warning("Neck perimeter not measured: %s", exc)
     else:
         poly = read_vtp(vtp_path)
 

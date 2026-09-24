@@ -282,6 +282,24 @@ export function ClipSelectionPanel({
             {sel.case.region && ` · ${sel.case.region}`}
           </div>
         )}
+        {/* El número que de verdad elige la pieza. El cuello se clipa por lo
+            que mide APLASTADO, no por su diámetro, y esa diferencia —de un
+            milímetro largo en un cuello ovalado— es la que deja el cierre
+            incompleto en el lado distal. Se dice en pantalla, con su origen:
+            no es lo mismo haber medido el contorno que haber supuesto que el
+            cuello es redondo. */}
+        {sel.case.required_jaw_mm > 0 && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+            Mordaza mínima{" "}
+            <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              {sel.case.required_jaw_mm.toFixed(1)} mm
+            </b>
+            {sel.case.required_jaw_source === "perimeter"
+              ? " — medida sobre el contorno del cuello"
+              : " — regla del cuello aplastado (×1,5)"}
+            . {sel.case.required_jaw_detail}
+          </div>
+        )}
       </Card>
 
       {sel.recommended.length > 0 && (

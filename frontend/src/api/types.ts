@@ -903,6 +903,12 @@ export interface ManufactureSpecOut {
 
 export interface ClipCaseOut {
   neck_mm: number;
+  /** Mordaza mínima que cierra este cuello: NO es el diámetro, sino lo que
+   *  mide el cuello una vez aplastado entre las hojas. */
+  required_jaw_mm: number;
+  /** perimeter (contorno medido) · factor (regla ×1,5) · floor · none */
+  required_jaw_source: string;
+  required_jaw_detail: string;
   dome_height_mm: number;
   max_diameter_mm: number;
   ar: number;

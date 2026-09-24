@@ -194,7 +194,8 @@ _W_COVERAGE: float = 0.45
 _W_SHAPE:    float = 0.40
 _W_FORCE:    float = 0.15
 
-_COV_IDEAL:  float = 1.35
+# El ideal del motor heredado sigue a la regla de la deformacion, para que no
+# haya dos criterios distintos en el mismo repositorio. Ver `jaw_requirement`.
 _COV_SIGMA:  float = 0.25
 
 _FORCE_OPT_LO: float = 80.0
@@ -202,6 +203,94 @@ _FORCE_OPT_HI: float = 160.0
 
 _BLADE_MIN_OVER:  float = 1.0    # blade_length >= neck + 1 mm (safety floor)
 _BLADE_MAX_RATIO: float = 3.0    # blade_length <= neck × 3   (avoid oversize)
+
+
+# ── Cuánta mordaza pide un cuello ──────────────────────────────────────────── #
+#
+# Un cuello no se clipa con su diámetro: se clipa con lo que mide DESPUÉS de
+# quedar aplastado entre las hojas. Al cerrarse, la sección redonda se convierte
+# en una ranura plana y lo que se conserva es el PERÍMETRO, así que la línea de
+# cierre de un cuello circular de diámetro D mide
+#
+#     πD / 2  ≈  1,571 · D
+#
+# Es la razón geométrica detrás de la regla clínica: «Aneurysm clips: What every
+# resident should know» (Neurology India) dice que al cerrar las hojas el cuello
+# aumenta ~50 % y que por eso la hoja debe medir 1,5 veces el cuello, y el
+# estudio numérico «Pre-selection blade size choice for the microsurgical
+# clipping of cerebral artery aneurysms» (2024) mide una deformación de al menos
+# 1,4×. Los dos números son el mismo π/2 con más o menos aplastamiento. El mismo
+# texto recuerda para qué sirve: el cierre incompleto del lado distal del cuello
+# es la causa más frecuente de que el domo siga rellenándose.
+#
+# Pedido por dirección el 24-09-2026 a partir de ese artículo; antes el objetivo
+# era ×1,35, que era el centro de una campana sin procedencia clínica anotada.
+NECK_DEFORMATION_FACTOR: float = 1.5
+
+#: El factor SUPONE un cuello circular. Cuando se ha medido el contorno real, su
+#: mitad es la línea de cierre exacta de ESTE paciente y no hace falta suponer
+#: nada. Importa: un cuello elíptico de 6,0 × 2,7 mm equivale en área a un
+#: círculo de 4,0 mm —la regla pediría 6,0 mm de mordaza— pero su perímetro es
+#: 14,2 mm, o sea 7,1 mm de línea de cierre. Un milímetro largo de diferencia,
+#: y por el lado que deja el cuello abierto.
+#:
+#: El perímetro medido solo se acepta dentro de una horquilla. Por la
+#: desigualdad isoperimétrica, entre todas las curvas cerradas de un área dada
+#: la circunferencia es la de MENOR perímetro: medir menos de π·D_eq es
+#: imposible y delata un corte abierto o un plano que cazó dos lazos. Por
+#: arriba, un contorno que pidiera más del triple del cuello tampoco describe
+#: un cuello.
+_PERIMETER_MIN_RATIO: float = 1.5    # ≈ π/2, el límite del círculo
+_PERIMETER_MAX_RATIO: float = 3.0
+
+
+@dataclass(frozen=True)
+class JawRequirement:
+    """Cuánta mordaza hace falta para cerrar este cuello, y de dónde sale."""
+
+    mm: float
+    #: "perimeter" (contorno medido) · "factor" (regla ×1,5) · "floor" (suelo
+    #: de seguridad en cuellos muy pequeños) · "none" (sin cuello medido).
+    source: str
+    detail: str
+
+
+def jaw_requirement(neck_mm: float, neck_perimeter_mm: float = 0.0) -> JawRequirement:
+    """La mordaza mínima que cierra el cuello una vez deformado.
+
+    Con el perímetro del contorno medido se usa su mitad, que es la longitud
+    exacta de la línea de cierre. Sin él se aplica la regla de ×1,5. En los dos
+    casos se respeta el suelo de `neck + 1 mm`: en un cuello de 1,5 mm, ×1,5 son
+    2,25 mm de mordaza y no dejan con qué agarrar.
+    """
+    if neck_mm <= 0.0:
+        return JawRequirement(0.0, "none", "Sin cuello medido.")
+
+    suelo = neck_mm + _BLADE_MIN_OVER
+    plano = 0.0
+    if neck_perimeter_mm > 0.0:
+        candidato = neck_perimeter_mm / 2.0
+        if neck_mm * _PERIMETER_MIN_RATIO <= candidato <= neck_mm * _PERIMETER_MAX_RATIO:
+            plano = candidato
+        # Fuera de la horquilla el contorno no describe este cuello: se ignora
+        # en silencio y manda la regla, que es lo que había antes de medirlo.
+
+    if plano > 0.0:
+        req = max(plano, suelo)
+        detalle = (f"Contorno del cuello medido: {neck_perimeter_mm:.1f} mm de "
+                   f"perímetro, que aplastado son {plano:.1f} mm de línea de cierre.")
+        return JawRequirement(round(req, 2), "floor" if suelo > plano else "perimeter", detalle)
+
+    factor = neck_mm * NECK_DEFORMATION_FACTOR
+    req = max(factor, suelo)
+    detalle = (f"Cuello de {neck_mm:.1f} mm × {NECK_DEFORMATION_FACTOR} = "
+               f"{factor:.1f} mm al quedar aplastado entre las hojas.")
+    return JawRequirement(round(req, 2), "floor" if suelo > factor else "factor", detalle)
+
+
+def required_jaw_mm(neck_mm: float, neck_perimeter_mm: float = 0.0) -> float:
+    """Solo el número, para quien no necesita explicar de dónde sale."""
+    return jaw_requirement(neck_mm, neck_perimeter_mm).mm
 
 
 # Shape fit tables (score 0–1 for each clinical context)
@@ -234,7 +323,7 @@ _SHAPE_FIT_STANDARD: dict[ClipShape, float] = {
 # ── Scoring helpers ────────────────────────────────────────────────────────── #
 
 def _coverage_score(cov: float) -> float:
-    return math.exp(-0.5 * ((cov - _COV_IDEAL) / _COV_SIGMA) ** 2)
+    return math.exp(-0.5 * ((cov - NECK_DEFORMATION_FACTOR) / _COV_SIGMA) ** 2)
 
 def _shape_score(clip: ClipSpec, neck_mm: float, ar: float) -> float:
     if neck_mm >= WIDE_NECK_THRESHOLD_MM:
@@ -295,7 +384,9 @@ def recommend_clips(
     if neck_mm <= 0:
         return []
 
-    lo = neck_mm + _BLADE_MIN_OVER
+    # Por debajo de la mordaza requerida la hoja no cierra el cuello una vez
+    # aplastado: no es una puntuacion baja, es que no vale.
+    lo = required_jaw_mm(neck_mm)
     hi = neck_mm * _BLADE_MAX_RATIO
 
     recs: list[_Recommendation] = []

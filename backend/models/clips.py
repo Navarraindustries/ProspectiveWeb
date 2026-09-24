@@ -253,6 +253,21 @@ class ClipCaseOut(BaseModel):
     """The measurements the selection was made from, echoed back for the panel."""
 
     neck_mm: float = 0.0
+    required_jaw_mm: float = Field(
+        0.0,
+        description=(
+            "Mordaza mínima que cierra este cuello. NO es el diámetro: al "
+            "cerrarse las hojas el cuello queda aplastado y su línea de cierre "
+            "mide más. Con el contorno medido es su perímetro partido por dos; "
+            "sin él, el diámetro × 1,5 (Neurology India; el estudio numérico de "
+            "2024 mide una deformación de al menos 1,4×)."
+        ),
+    )
+    required_jaw_source: str = Field(
+        "none",
+        description="perimeter (contorno medido) | factor (regla ×1,5) | floor | none",
+    )
+    required_jaw_detail: str = Field("", description="De dónde sale el número, en una frase")
     dome_height_mm: float = 0.0
     max_diameter_mm: float = 0.0
     ar: float = 0.0

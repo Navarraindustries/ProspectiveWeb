@@ -7348,6 +7348,24 @@
             "title": "Neck Mm",
             "default": 0.0
           },
+          "required_jaw_mm": {
+            "type": "number",
+            "title": "Required Jaw Mm",
+            "description": "Mordaza mínima que cierra este cuello. NO es el diámetro: al cerrarse las hojas el cuello queda aplastado y su línea de cierre mide más. Con el contorno medido es su perímetro partido por dos; sin él, el diámetro × 1,5 (Neurology India; el estudio numérico de 2024 mide una deformación de al menos 1,4×).",
+            "default": 0.0
+          },
+          "required_jaw_source": {
+            "type": "string",
+            "title": "Required Jaw Source",
+            "description": "perimeter (contorno medido) | factor (regla ×1,5) | floor | none",
+            "default": "none"
+          },
+          "required_jaw_detail": {
+            "type": "string",
+            "title": "Required Jaw Detail",
+            "description": "De dónde sale el número, en una frase",
+            "default": ""
+          },
           "dome_height_mm": {
             "type": "number",
             "title": "Dome Height Mm",

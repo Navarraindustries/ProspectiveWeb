@@ -79,7 +79,12 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
   outcome: "stock",
   summary: "1 clip del inventario cumple todos los criterios para un cuello de 6.0 mm.",
   case: {
-    neck_mm: 6, dome_height_mm: 8, max_diameter_mm: 11, ar: 1.33, dnr: 1.8,
+    neck_mm: 6,
+    // Un cuello de 6 mm mide 9 al quedar aplastado: eso es lo que la hoja
+    // tiene que cerrar, y es lo que el panel enseña.
+    required_jaw_mm: 9, required_jaw_source: "factor",
+    required_jaw_detail: "Cuello de 6.0 mm × 1.5 = 9.0 mm al quedar aplastado entre las hojas.",
+    dome_height_mm: 8, max_diameter_mm: 11, ar: 1.33, dnr: 1.8,
     parent_artery_mm: 3.2, neck_source: "rim", neck_tilt_deg: 4,
     region: "ACM izquierda", laterality: "izquierda", aneurysm_type: "sacular",
   },
@@ -327,5 +332,40 @@ describe("a custom jaw keeps the shape the case argued for", () => {
     expect(angle).toBe(0);
     expect(shape).toBe("fenestrated");
     expect(win).toBe(5);
+  });
+});
+
+/* La mordaza se dimensiona sobre el cuello APLASTADO.
+ *
+ * Al cerrar las hojas el cuello queda plano y su línea de cierre mide más que
+ * el diámetro: se conserva el perímetro, así que un cuello redondo de D pasa a
+ * πD/2 ≈ 1,5·D. Es el número que elige la pieza, y quedarse corto es la causa
+ * más frecuente de que el domo siga rellenándose — así que tiene que estar en
+ * pantalla, y con su origen: no es lo mismo haberlo medido sobre el contorno
+ * que haber supuesto que el cuello es redondo. */
+describe("la mordaza mínima que pide el cuello", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("enseña el mínimo y dice que sale de la regla del cuello aplastado", async () => {
+    clipSelection.mockResolvedValue(result());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText("9.0 mm")).toBeInTheDocument();
+    expect(screen.getByText(/regla del cuello aplastado/)).toBeInTheDocument();
+  });
+
+  it("distingue el contorno medido de la regla", async () => {
+    // Un cuello ovalado pide más que su diámetro equivalente, y eso solo se
+    // sabe midiendo: decirlo cambia cuánto se fía el cirujano del número.
+    clipSelection.mockResolvedValue(result({
+      case: {
+        ...result().case,
+        required_jaw_mm: 7.1, required_jaw_source: "perimeter",
+        required_jaw_detail: "Contorno del cuello medido: 14.2 mm de perímetro.",
+      },
+    }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText("7.1 mm")).toBeInTheDocument();
+    expect(screen.getByText(/medida sobre el contorno del cuello/)).toBeInTheDocument();
+    expect(screen.queryByText(/regla del cuello aplastado/)).not.toBeInTheDocument();
   });
 });

@@ -328,7 +328,7 @@ export function MeshEditTools() {
 
       {/* ── Borrador de piezas ──────────────────────────────────────────── */}
       {/* Medido en case 3: la malla sale con once piezas y diez son hueso,
-          bloques de 228-2948 mm³ a 37-92 mm del árbol. Como vienen enteras y
+          bloques de 228-2948 mm³ a 37-92 mm de la vasculatura. Como vienen enteras y
           separadas, un clic basta: pintar sobre ellas dejaría bordes a medio
           borrar y no haría nada que esto no haga. */}
       <Card>
@@ -338,7 +338,7 @@ export function MeshEditTools() {
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
           Pincha en el visor y desaparece. <b>Pieza suelta</b> quita la estructura
           entera de un clic, que es como viene el ruido de una malla angiográfica.
-          <b> Región pegada</b> sirve cuando el hueso TOCA el árbol y por eso forma
+          <b> Región pegada</b> sirve cuando el hueso TOCA la vasculatura y por eso forma
           parte de él. Se deshace como cualquier otra edición.
           {comps && (
             <>
@@ -374,7 +374,7 @@ export function MeshEditTools() {
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 4 }}>
               El radio se mide en línea recta desde el clic, pero el borrado se
               propaga <b>por la superficie</b>: un vaso que cruza esa bola pero
-              se une al árbol por fuera de ella no se toca. Eso es lo que el
+              se une a la vasculatura por fuera de ella no se toca. Eso es lo que el
               recorte esférico no puede hacer.
             </div>
           </div>

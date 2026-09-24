@@ -128,7 +128,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       {ran && candidates.length > 1 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
           Tres criterios buscan por separado: <b>curvatura</b> (la superficie se abomba),
-          <b>calibre</b> (más gruesa que el resto del árbol) y <b>cociente</b> (más gruesa
+          <b>calibre</b> (más gruesa que el resto de la vasculatura) y <b>cociente</b> (más gruesa
           que el vaso de al lado). Cada candidato dice cuáles lo encontraron.
           <br />
           Es una <b>lista para recorrer, no un veredicto</b>: el orden no está validado

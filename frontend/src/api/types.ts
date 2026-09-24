@@ -535,7 +535,7 @@ export interface AneurysmCandidate {
   dome_mesh_url: string;
   selected: boolean;
   /** Qué criterios encontraron este sitio: «curvatura» (la superficie se
-      abomba), «calibre» (es más gruesa que el resto del árbol) y «cociente»
+      abomba), «calibre» (es más gruesa que el resto de la vasculatura) y «cociente»
       (más gruesa que el vaso de al lado). Que coincidan varios es información;
       el ORDEN no está validado contra casos anotados. */
   channels: string[];

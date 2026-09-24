@@ -138,7 +138,7 @@ describe("what the cleanup discarded", () => {
      que decir por qué: un botón que no hace nada en silencio parece roto. */
   it("dice cuántas estructuras sueltas dejó fuera el árbol principal", async () => {
     withResult({ ...base, main_tree_applied: true, main_tree_removed: 10 });
-    expect(await screen.findByText(/Árbol principal aislado/)).toBeInTheDocument();
+    expect(await screen.findByText(/Vasculatura principal aislada/)).toBeInTheDocument();
     expect(screen.getByText(/fuera 10 estructuras sueltas/)).toBeInTheDocument();
   });
 
@@ -148,17 +148,17 @@ describe("what the cleanup discarded", () => {
       main_tree_applied: false,
       main_tree_warning: "La estructura mayor ocupa 1220 cm³: no es un árbol vascular.",
     });
-    expect(await screen.findByText(/No se aisló el árbol principal/)).toBeInTheDocument();
+    expect(await screen.findByText(/No se aisló la vasculatura principal/)).toBeInTheDocument();
     expect(screen.getByText(/1220 cm³/)).toBeInTheDocument();
   });
 
   it("no informa de nada cuando no se pidió", async () => {
-    // Ojo con el matcher: la casilla se llama «Solo el árbol principal» y está
+    // Ojo con el matcher: la casilla se llama «Solo la vasculatura principal» y está
     // siempre en pantalla. Lo que no debe aparecer es el RESULTADO.
     withResult(base);
     await screen.findByText("Submuestreada");
-    expect(screen.queryByText(/Árbol principal aislado/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/No se aisló el árbol principal/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Vasculatura principal aislada/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No se aisló la vasculatura principal/)).not.toBeInTheDocument();
   });
 });
 

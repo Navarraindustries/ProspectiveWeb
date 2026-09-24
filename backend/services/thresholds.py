@@ -74,7 +74,7 @@ def strategy_hint(strategy: str, lower: float, upper: float, is_dsa: bool) -> st
             f"3DRA no sustraído (WW amplio). Los vasos son el ~1% más brillante; "
             f"banda p99–p99.9 para aislarlos del tejido: "
             f"inferior = {lower:.0f} HU, superior = {upper:.0f} HU. "
-            f"El hueso denso comparte esta cola: usa una semilla para separarlo. "
+            f"El hueso denso comparte esta cola: sepáralo por conectividad. "
             f"Baja el umbral inferior si falta vasculatura."
         ),
         "xa_wc_ww": (

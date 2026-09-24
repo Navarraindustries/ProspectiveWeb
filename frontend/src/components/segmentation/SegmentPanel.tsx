@@ -206,13 +206,19 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         full_resolution: fullRes,
         main_tree_only: mainTree,
       });
-      planning.setSegmentation(res);
       // La malla es OTRA, así que los candidatos, la morfometría y la
       // recomendación medidos sobre la anterior ya no describen nada. Sin
       // esto, resegmentar dejaba en pantalla los candidatos de antes y parecía
       // que la detección no encontraba el aneurisma cuando lo que pasaba es
       // que nadie la había vuelto a lanzar.
+      //
+      // El ORDEN importa: `resetDownstream` limpia TODO lo que cuelga del
+      // DICOM, la propia segmentación incluida. Llamarlo después de guardar la
+      // malla nueva la borraba en el mismo render, y el visor —sin malla que
+      // pintar— volvía a la vista del DICOM. Lo vio el usuario: «al darle
+      // Segmentar no se muestra la malla».
       planning.resetDownstream();
+      planning.setSegmentation(res);
       setPreviewBand(null);       // final mesh now shows
       setPreviewMeshUrl(null);
     } catch (err) {

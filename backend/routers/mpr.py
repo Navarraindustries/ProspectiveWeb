@@ -102,11 +102,8 @@ async def get_volume_chunk(session_id: str, level: str, z0: int, z1: int) -> Res
                 _executor, partial(get_volume_raw_uint8, session_id))
             dtype, stride = "uint8", 1
         else:
-            data, dims, stride = await loop.run_in_executor(
+            data, dims, spacing, stride = await loop.run_in_executor(
                 _executor, partial(volume_chunk_int16, session_id, z0, z1))
-            meta = ensure_volume_cached(session_id)
-            spacing = [float(s) for s in meta["spacing"]]
-            spacing = [spacing[0], spacing[1] * stride, spacing[2] * stride]
             dtype = "int16"
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

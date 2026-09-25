@@ -136,8 +136,9 @@ class TestOrientationFromRealDicom:
 class TestChunks:
     def test_full_chunk_bytes_match_volume(self):
         sid = _session_with_volume(nz=40, ny=60, nx=50)
-        data, dims, stride = volume_chunk_int16(sid, 8, 16)
+        data, dims, spacing, stride = volume_chunk_int16(sid, 8, 16)
         assert dims == [8, 60, 50] and stride == 1
+        assert spacing == [1.0, 0.8, 0.8]
         arr = np.frombuffer(data, dtype="<i2").reshape(dims)
         vol = np.load(session_subdir(sid, "meshes") / "_volume.npy", mmap_mode="r")
         np.testing.assert_array_equal(arr, np.rint(vol[8:16]).astype(np.int16))
@@ -146,7 +147,7 @@ class TestChunks:
         vol = np.full((4, 4, 4), 70000.0, dtype=np.float32)
         vol[0, 0, 0] = -70000.0
         sid = _session_with_volume(4, 4, 4, values=vol)
-        data, dims, _ = volume_chunk_int16(sid, 0, 4)
+        data, dims, _spacing, _stride = volume_chunk_int16(sid, 0, 4)
         arr = np.frombuffer(data, dtype="<i2").reshape(dims)
         assert arr.max() == 32767 and arr.min() == -32768
 
@@ -155,8 +156,9 @@ class TestChunks:
         monkeypatch.setattr(mpr, "_FULL_STRIDE_VOXELS", 1000)
         sid = _session_with_volume(nz=8, ny=40, nx=40)
         # 12 800 vóxeles > 1000 → stride 2 en el plano, nunca en z.
-        data, dims, stride = volume_chunk_int16(sid, 0, 8)
+        data, dims, spacing, stride = volume_chunk_int16(sid, 0, 8)
         assert stride == 2 and dims == [8, 20, 20]
+        assert spacing == [1.0, 1.6, 1.6]   # sy, sx escalados por el stride; z intacto
         assert len(data) == 8 * 20 * 20 * 2
 
     def test_chunk_endpoint_headers_and_gzip(self):

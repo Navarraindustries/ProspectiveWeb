@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -121,37 +122,59 @@ async def get_volume_raw(session_id: str) -> Response:
     response_class=Response,
     responses={200: {"content": {"application/octet-stream": {}}}},
 )
-async def get_volume_chunk(session_id: str, level: str, z0: int, z1: int) -> Response:
+async def get_volume_chunk(
+    session_id: str, level: str, z0: int, z1: int,
+    accept_encoding: str | None = Header(default=None),
+) -> Response:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     if level not in ("full", "coarse"):
         raise HTTPException(status_code=422, detail="level debe ser 'full' o 'coarse'")
+    use_gzip = "gzip" in (accept_encoding or "").lower()
     loop = asyncio.get_event_loop()
     try:
         if level == "coarse":
-            data, dims, spacing, stride = await loop.run_in_executor(
-                _executor, partial(volume_coarse_int16, session_id))
+            read = partial(volume_coarse_int16, session_id)
         else:
-            data, dims, spacing, stride = await loop.run_in_executor(
-                _executor, partial(volume_chunk_int16, session_id, z0, z1))
+            read = partial(volume_chunk_int16, session_id, z0, z1)
+        data, dims, spacing, stride = await loop.run_in_executor(
+            _executor, partial(_chunk_body, read, use_gzip))
         dtype = "int16"
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Volume chunk failed for %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=422, detail=f"No se pudo leer el bloque: {exc}") from exc
-    return Response(
-        content=data,
-        media_type="application/octet-stream",
-        headers={
-            "X-Dims": ",".join(str(d) for d in dims),
-            "X-Spacing": ",".join(f"{s:.5f}" for s in spacing),
-            "X-Dtype": dtype,
-            "X-Level-Stride": str(stride),
-            "Access-Control-Expose-Headers": "X-Dims, X-Spacing, X-Dtype, X-Level-Stride",
-            "Cache-Control": "private, max-age=86400",
-        },
-    )
+    headers = {
+        "X-Dims": ",".join(str(d) for d in dims),
+        "X-Spacing": ",".join(f"{s:.5f}" for s in spacing),
+        "X-Dtype": dtype,
+        "X-Level-Stride": str(stride),
+        "Access-Control-Expose-Headers": "X-Dims, X-Spacing, X-Dtype, X-Level-Stride",
+        "Cache-Control": "private, max-age=86400",
+        "Vary": "Accept-Encoding",
+    }
+    if use_gzip:
+        headers["Content-Encoding"] = "gzip"
+    return Response(content=data, media_type="application/octet-stream", headers=headers)
+
+
+# Nivel de gzip de los bloques. Se comprime en el hilo del executor, nunca en el
+# event loop: el GZipMiddleware global lo hacía a nivel 9 dentro de `send`, y
+# medido en la máquina de desarrollo eran 0,29 s por bloque de 9 MB bloqueando
+# el único loop (solo un 24 % menos de bytes en datos ruidosos). Medido sobre
+# el Case 3 (bloque de 32 cortes 384², 9,4 MB): nivel 3 → 7,46 MB en 0,22 s;
+# nivel 9 → 7,47 MB en 0,31 s; nivel 1 → 7,50 MB en 0,17 s. Lo que importa es
+# que ya no bloquea el loop; más nivel no reduce más.
+_CHUNK_GZIP_LEVEL = 3
+
+
+def _chunk_body(read, use_gzip: bool) -> tuple[bytes, list[int], list[float], int]:
+    """Lee el bloque y, si el cliente acepta gzip, lo comprime en el mismo hilo."""
+    data, dims, spacing, stride = read()
+    if use_gzip:
+        data = gzip.compress(data, compresslevel=_CHUNK_GZIP_LEVEL)
+    return data, dims, spacing, stride
 
 
 @router.get(

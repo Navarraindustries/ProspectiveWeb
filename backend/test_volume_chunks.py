@@ -215,6 +215,30 @@ class TestChunks:
         assert len(r.content) == 32 * 60 * 50 * 2   # TestClient descomprime
         assert r.headers.get("content-encoding") == "gzip"
 
+    def test_chunk_endpoint_without_gzip_is_raw(self):
+        # Sin Accept-Encoding: gzip el cuerpo va tal cual y sin la cabecera.
+        sid = _session_with_volume(nz=40, ny=60, nx=50)
+        r = client.get(f"/api/volume/{sid}/chunk/full/0-32", headers={"Accept-Encoding": "identity"})
+        assert r.status_code == 200
+        assert "content-encoding" not in r.headers
+        assert "Accept-Encoding" in r.headers.get("vary", "")
+        assert len(r.content) == 32 * 60 * 50 * 2
+        vol = np.load(session_subdir(sid, "meshes") / "_volume.npy", mmap_mode="r")
+        arr = np.frombuffer(r.content, dtype="<i2").reshape(32, 60, 50)
+        np.testing.assert_array_equal(arr, np.rint(vol[0:32]).astype(np.int16))
+
+    def test_full_chunk_rejects_ranges_larger_than_a_chunk(self):
+        import pytest
+        from services.mpr import CHUNK_SLICES
+        sid = _session_with_volume(nz=CHUNK_SLICES + 8, ny=8, nx=8)
+        # Justo un bloque vale; uno más ya no.
+        volume_chunk_int16(sid, 0, CHUNK_SLICES)
+        with pytest.raises(ValueError, match="como mucho"):
+            volume_chunk_int16(sid, 0, CHUNK_SLICES + 1)
+        r = client.get(f"/api/volume/{sid}/chunk/full/0-{CHUNK_SLICES + 1}")
+        assert r.status_code == 422
+        assert "como mucho" in r.json()["detail"]
+
     def test_chunk_endpoint_rejects_bad_range(self):
         sid = _session_with_volume(nz=40)
         assert client.get(f"/api/volume/{sid}/chunk/full/30-20").status_code == 422

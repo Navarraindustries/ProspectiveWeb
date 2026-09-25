@@ -303,10 +303,20 @@ def volume_chunk_int16(session_id: str, z0: int, z1: int) -> tuple[bytes, list[i
     nz = int(meta["shape"][0])
     if not (0 <= z0 < z1 <= nz):
         raise ValueError(f"Rango de cortes inválido {z0}-{z1} (el volumen tiene {nz})")
+    # Un bloque nunca pasa de CHUNK_SLICES cortes: sin este tope, /full/0-570 de
+    # un TC de 512² materializaba ~600 MB en float32 más sus copias, y la
+    # máquina de 2 GB se quedaba sin memoria.
+    if z1 - z0 > CHUNK_SLICES:
+        raise ValueError(
+            f"Un bloque admite como mucho {CHUNK_SLICES} cortes; se pidieron {z1 - z0} ({z0}-{z1})")
     stride = int(meta.get("full_stride", 1))
     vol = _get_volume(session_id)
-    slab = np.asarray(vol[z0:z1, ::stride, ::stride], dtype=np.float32)
-    clipped = np.clip(np.rint(slab), -32768, 32767).astype("<i2")
+    # Copia explícita (el memmap es de solo lectura) y conversión en su sitio:
+    # una sola copia float32 del bloque más el int16 final.
+    slab = np.array(vol[z0:z1, ::stride, ::stride], dtype=np.float32)
+    np.rint(slab, out=slab)
+    np.clip(slab, -32768, 32767, out=slab)
+    clipped = slab.astype("<i2")
     sp = meta["spacing"]  # [sz, sy, sx]
     spacing = [float(sp[0]), float(sp[1]) * stride, float(sp[2]) * stride]
     return clipped.tobytes(order="C"), [int(d) for d in clipped.shape], spacing, stride

@@ -18,6 +18,9 @@
 .hud-edge { position: absolute; font-size: 10px; letter-spacing: .08em; color: var(--hud-dim); }
 .hud-edge.top { top: 22px; left: 50%; transform: translateX(-50%); } .hud-edge.bottom { bottom: 8px; left: 50%; transform: translateX(-50%); }
 .hud-edge.left { left: 8px; top: 50%; transform: translateY(-50%); } .hud-edge.right { right: 8px; top: 50%; transform: translateY(-50%); }
+/* Con la escalera de cortes (44 px en el borde derecho, índice centrado y
+   opaco) la etiqueta derecha quedaba debajo del índice: va a su izquierda. */
+.hud-edge.right.beside-ladder { right: 48px; }
 .hud-warn { color: var(--hud-amber); } .hud-err { color: var(--hud-red); }
 .hud-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 10.5px; letter-spacing: .06em; color: var(--hud-dim); animation: hud-hint-fade 3s forwards; }
 @keyframes hud-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }

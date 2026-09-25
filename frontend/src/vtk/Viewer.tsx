@@ -659,12 +659,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [hintKind, showHint]);
   useEffect(() => () => { if (hintTimer.current) clearTimeout(hintTimer.current); }, []);
 
-  // Los preajustes de ventana van junto a la lectura W/L del panel activo; si
-  // el principal no es un corte (3D, volumen, MIP), junto a la del primer
-  // corte de la franja. Qué preajustes hay lo decide Task 14.
-  const wlHost: PaneId | null = !sessionId || !meta ? null
-    : mainIsSlice ? viewerLayout.main
-    : viewerLayout.strip.find((p) => p === "axial" || p === "coronal" || p === "sagital") ?? null;
+  // Los preajustes de ventana van junto a la lectura W/L del corte que ocupa
+  // el panel principal, nunca en una celda de la franja: allí no hay lectura
+  // W/L y el desplegable tapaba la etiqueta inferior. Qué preajustes hay lo
+  // decide Task 14.
+  const wlHost: PaneId | null = !sessionId || !meta || !mainIsSlice ? null : viewerLayout.main;
   // Fuera de TC no hay presets HU con sentido clínico: se derivan de la meta
   // y de la banda activa (vista previa de segmentación, o el umbral guardado
   // si ya no hay vista previa) para que «Vasos» siga el umbral real.
@@ -922,7 +921,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
                onDoubleClick={() => setViewerLayout(swapPane(viewerLayout, id))}
                title="Doble clic: maximizar">
             {renderPane(id, "strip")}
-            {wlHost === id && wlSelect}
           </div>
         ))}
       </div>

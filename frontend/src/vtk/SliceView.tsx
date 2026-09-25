@@ -307,7 +307,7 @@ export function SliceView(p: SliceViewProps) {
         <span className="hud-edge top">{labels.top}</span>
         <span className="hud-edge bottom">{labels.bottom}</span>
         <span className="hud-edge left">{labels.left}</span>
-        <span className="hud-edge right">{labels.right}</span>
+        <span className="hud-edge right beside-ladder">{labels.right}</span>
         {box && p.crosshair && (
           <HudReticle cx={box.left + p.crosshair.u * box.w} cy={box.top + p.crosshair.v * box.h} mmPerPx={box.mmPerPx} />
         )}
@@ -319,9 +319,11 @@ export function SliceView(p: SliceViewProps) {
         )}
         <HudLadder count={count} index={p.index} />
         <HudReadout at="bl" lines={[`${String(p.index + 1).padStart(3, " ")}/${count}`]} />
-        <HudReadout at="br" lines={[`W ${Math.round(p.ww)}  L ${Math.round(p.wc)}`]} />
+        {/* En la celda estrecha de la franja solo cabe el índice: W/L y la
+            barra de 10 mm se pisaban con él. Se leen al maximizar la celda. */}
+        {!p.compact && <HudReadout at="br" lines={[`W ${Math.round(p.ww)}  L ${Math.round(p.wc)}`]} />}
         {p.levelNote && <HudReadout at="tr" lines={[p.levelNote]} tone="warn" />}
-        {box && box.mmPerPx > 0 && (
+        {!p.compact && box && box.mmPerPx > 0 && (
           <div style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
             <span style={{ position: "absolute", right: 0, top: -12, fontSize: fs - 1, color: "var(--hud-dim)" }}>10 mm</span>
           </div>

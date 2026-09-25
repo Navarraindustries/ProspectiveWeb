@@ -27,6 +27,7 @@ import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from "./OrientationInset";
+import { mipReadoutLines } from "./mipReadout";
 
 type Vec3 = [number, number, number];
 
@@ -110,11 +111,14 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
   }, [orientation.direction, orientation.manual]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Maximizado, la fila de controles (ACUMULADO · AJUSTAR) ocupa el pie de la
-  // esquina derecha: el recuadro sube por encima. En la celda no hay controles.
+  // esquina derecha: el recuadro sube por encima. En la celda estrecha la
+  // escalera de cortes (44 px) ocupa todo el borde derecho y el recuadro caía
+  // debajo de sus marcas: va a la esquina superior izquierda, libre porque en
+  // la celda no hay cinta de rumbo.
   useEffect(() => {
     const [x0, y0, x1, y1] = INSET_VIEWPORT;
-    const lift = compact ? 0 : 0.09;
-    insetRef.current?.setViewport([x0, y0 + lift, x1, y1 + lift]);
+    const w = x1 - x0, h = y1 - y0;
+    insetRef.current?.setViewport(compact ? [0.02, 0.96 - h, 0.02 + w, 0.96] : [x0, y0 + 0.09, x1, y1 + 0.09]);
   }, [compact, image, mainPlane]);
 
   // Función de transferencia «Vasos»: gris, opaca desde el umbral inferior.
@@ -166,7 +170,7 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
           </div>
         )}
         <HudLadder count={count} index={index} />
-        <HudReadout at="bl" lines={[mipMode === "acumulado" ? `ACUMULADO ${reverse ? "DESDE" : "HASTA"} ${index + 1}/${count}` : `LÁMINA ±${mipSlabMm} mm`, `UMBRAL ${Math.round(lo)}`]} />
+        <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact })} />
         {!compact && (
           <div style={{ position: "absolute", bottom: 22, right: 14, display: "flex", gap: 14, alignItems: "center", pointerEvents: "auto" }}>
             <HudToggleGroup options={[{ key: "acumulado", label: "ACUMULADO" }, { key: "lamina", label: "LÁMINA" }]} value={mipMode} onChange={(k) => setMipMode(k as "acumulado" | "lamina")} />

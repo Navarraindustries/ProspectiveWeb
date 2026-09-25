@@ -561,20 +561,27 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const isMesh = viewMode === "default" && meshVisible;
     let body: ReactNode;
     let mode: string | null = null;
+    // El cuerpo dibuja su propio HudFrame (esquinas y rótulo): el marco de la
+    // escena no repite ni esquinas, ni rótulo, ni la lectura del modo.
+    let bodyFramed = sceneIsSlice;
     if (viewMode === "volume" && sessionId && meta) {
       body = <Suspense fallback={<ViewerLoading label="Cargando volumen 3D…" />}><VolumeView sessionId={sessionId} /></Suspense>;
       mode = "VOLUMEN";
     } else if (viewMode === "oblique" && sessionId && meta) {
-      // Sin WebGL2 o sin volumen en el cliente, el oblicuo del servidor (PNG).
-      body = legacy || !clientVol.image
-        ? <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />
-        : (
+      // Sin WebGL2 o sin volumen en el cliente, el oblicuo del servidor (PNG),
+      // que no trae marco: ese sí lleva el de la escena.
+      if (legacy || !clientVol.image) {
+        body = <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />;
+        mode = "OBLICUO";
+      } else {
+        body = (
           <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
-              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} />
+              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} active={!compact} />
           </Suspense>
         );
-      mode = "OBLICUO";
+        bodyFramed = true;
+      }
     } else if (isMesh) {
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
@@ -641,9 +648,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return (
       <div style={{ position: "relative", width: "100%", height: "100%", background: "var(--viewer-bg)", overflow: "hidden" }}>
         {body}
-        {/* Con el corte axial dentro, su HudFrame ya dibuja esquinas y rótulo. */}
-        {sceneIsSlice ? (
-          !compact && <div className="hud"><HudReadout at="tl" lines={tl} /></div>
+        {/* Con el corte axial o el oblicuo dentro, su HudFrame ya dibuja esquinas
+            y rótulo; aquí solo queda la lectura del paso (y, para el oblicuo, el
+            nivel del volumen, que SliceView ya pinta por su cuenta). */}
+        {bodyFramed ? (
+          !compact && (
+            <div className="hud">
+              <HudReadout at="tl" lines={tl} />
+              {!sceneIsSlice && levelNote && <HudReadout at="tr" lines={[levelNote]} tone="warn" />}
+            </div>
+          )
         ) : (
           <HudFrame active={!compact} label={compact ? (mode ?? "ESCENA") : undefined}>
             {!compact && <HudReadout at="tl" lines={tl} />}

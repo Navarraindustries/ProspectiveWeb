@@ -98,6 +98,7 @@ import type {
   UserInfo,
   UserUpdate,
   VolumeMeta,
+  ManualOrientationBody,
 } from "./types";
 
 const TOKEN_KEY = "prospective.token";
@@ -344,6 +345,9 @@ export const api = {
 
   /* MPR / DICOM slice preview */
   volumeMeta: (sessionId: string) => get<VolumeMeta>(`/api/volume/${sessionId}/meta`),
+  /** Fija a mano la orientación de un volumen sin etiquetas; devuelve la meta. */
+  setOrientation: (sessionId: string, body: ManualOrientationBody) =>
+    request<VolumeMeta>(`/api/volume/${sessionId}/orientation`, { method: "PUT", body: JSON.stringify(body) }),
   volumeRawUrl: (sessionId: string) => `/api/volume/${sessionId}/raw`,
   /** Un bloque del volumen para el visor en el cliente. `cacheKey` cambia con
    *  el .npy, así que una resegmentación o un preproceso invalidan la caché. */

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  cameraHeading, edgeLabels, manualToDirection, mmToVoxel, screenAxes, sliceCamera, voxelToMm,
+  cameraHeading, edgeLabels, lpsToVolumeUserMatrix, manualToDirection, mmToVoxel, screenAxes, sliceCamera, voxelToMm,
 } from "./geometry";
 import type { VolumeMeta } from "../api/types";
 
 const meta = {
   shape: [100, 200, 300], spacing: [0.5, 0.25, 0.25], wc: 0, ww: 1, modality: "XA",
-  direction: null, orientation_known: false, origin_mm: [0, 0, 0],
+  direction: null, orientation_known: false, orientation_manual: null, origin_mm: [0, 0, 0],
   intensity_range: [0, 1], cache_key: "1", full_stride: 1,
 } as VolumeMeta;
 
@@ -55,18 +55,19 @@ describe("etiquetas de orientación", () => {
     expect(edgeLabels("coronal", known)).toEqual({ left: "DER", right: "IZQ", top: "SUP", bottom: "INF" });
     expect(edgeLabels("sagital", known)).toEqual({ left: "ANT", right: "POST", top: "SUP", bottom: "INF" });
   });
-  it("labels are bracketed when orientation is assumed (manual)", () => {
+  it("labels lose the brackets once the orientation is fixed by hand", () => {
+    // Fijada con «Fijar orientación» deja de ser una suposición.
     const o = { direction: null, manual: { anteriorEdge: "top" as const, firstSliceSuperior: false } };
-    expect(edgeLabels("axial", o)).toEqual({ left: "[DER]", right: "[IZQ]", top: "[ANT]", bottom: "[POST]" });
+    expect(edgeLabels("axial", o)).toEqual({ left: "DER", right: "IZQ", top: "ANT", bottom: "POST" });
   });
   it("assumes the default orientation, bracketed, when nothing is known", () => {
     expect(edgeLabels("axial", { direction: null, manual: null })).toEqual({ left: "[DER]", right: "[IZQ]", top: "[ANT]", bottom: "[POST]" });
   });
   it("manual anterior-at-right rotates the axial labels", () => {
     const o = { direction: null, manual: { anteriorEdge: "right" as const, firstSliceSuperior: true } };
-    expect(edgeLabels("axial", o)).toEqual({ left: "[POST]", right: "[ANT]", top: "[DER]", bottom: "[IZQ]" });
+    expect(edgeLabels("axial", o)).toEqual({ left: "POST", right: "ANT", top: "DER", bottom: "IZQ" });
     // El primer corte superior invierte el eje z.
-    expect(edgeLabels("coronal", o).top).toBe("[INF]");
+    expect(edgeLabels("coronal", o).top).toBe("INF");
   });
   it("manualToDirection is orthonormal", () => {
     const d = manualToDirection({ anteriorEdge: "left", firstSliceSuperior: false });
@@ -98,5 +99,29 @@ describe("rumbo de cámara", () => {
     const h = cameraHeading([0, 1, 0], [0, 0, 1], { direction: null, manual: null });
     expect(h.known).toBe(false);
     expect(h.azimuthDeg).toBeCloseTo(0);
+  });
+  it("a hand-fixed orientation is known and turns the heading", () => {
+    // Anterior a la derecha: mirar a lo largo de −x del volumen es mirar
+    // desde anterior (azimut 0).
+    const h = cameraHeading([-1, 0, 0], [0, 0, 1], { direction: null, manual: { anteriorEdge: "right", firstSliceSuperior: false } });
+    expect(h.known).toBe(true);
+    expect(h.azimuthDeg).toBeCloseTo(0);
+  });
+});
+
+describe("lpsToVolumeUserMatrix", () => {
+  // Aplica una mat4 en columnas (gl-matrix, como vtk.js) a un vector.
+  const apply = (m: number[], v: [number, number, number]) =>
+    [0, 1, 2].map((r) => m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2]);
+
+  it("lleva la cara del maniquí (anterior en LPS) al eje del volumen que es anterior", () => {
+    // Anterior a la derecha en el axial: +x del volumen es anterior.
+    const d = manualToDirection({ anteriorEdge: "right", firstSliceSuperior: false });
+    expect(apply(lpsToVolumeUserMatrix(d), [0, -1, 0])).toEqual([1, 0, 0]);
+  });
+
+  it("lleva la cabeza (superior en LPS) al primer corte cuando el primer corte es superior", () => {
+    const d = manualToDirection({ anteriorEdge: "top", firstSliceSuperior: true });
+    expect(apply(lpsToVolumeUserMatrix(d), [0, 0, 1]).map((x) => x + 0)).toEqual([0, 0, -1]);
   });
 });

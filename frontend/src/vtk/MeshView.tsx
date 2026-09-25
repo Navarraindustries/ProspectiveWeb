@@ -19,6 +19,8 @@ import vtkCubeSource from "@kitware/vtk.js/Filters/Sources/CubeSource";
 import vtkLineSource from "@kitware/vtk.js/Filters/Sources/LineSource";
 import vtkTubeFilter from "@kitware/vtk.js/Filters/General/TubeFilter";
 import type { Vector3 } from "@kitware/vtk.js/types";
+import { createOrientationInset, type OrientationInset } from "./OrientationInset";
+import type { Orientation, Vec3 } from "./geometry";
 
 export interface MeshLayer {
   url: string;
@@ -101,6 +103,8 @@ export function MeshView({
   registerCamera,
   registerParts,
   preserveCamera = false,
+  orientation,
+  onCameraChange,
 }: {
   layers: MeshLayer[];
   markers?: MeshMarker[];
@@ -140,6 +144,12 @@ export function MeshView({
   /** Keep the camera across scene rebuilds — used by the live threshold preview so
    *  the view doesn't jump back to the default framing on every mesh update. */
   preserveCamera?: boolean;
+  /** Orientación del volumen (DICOM, manual o asumida): la usa el recuadro
+   *  del maniquí para saber hacia dónde mira el paciente. */
+  orientation: Orientation;
+  /** Avisa de cada cambio de cámara (dirección de proyección y up), para la
+   *  cinta de rumbo que el visor dibuja sobre la escena. */
+  onCameraChange?: (dir: Vec3, up: Vec3) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handles = useRef<Handles | null>(null);
@@ -161,6 +171,13 @@ export function MeshView({
   const savedCamera = useRef<{ position: number[]; focalPoint: number[]; viewUp: number[]; parallelScale: number } | null>(null);
   const preserveCameraRef = useRef(preserveCamera);
   preserveCameraRef.current = preserveCamera;
+  // La escena no se rehace al cambiar la orientación o el oyente: se leen de
+  // refs en el efecto de escena y un efecto aparte actualiza el recuadro.
+  const orientationRef = useRef(orientation);
+  orientationRef.current = orientation;
+  const onCameraChangeRef = useRef(onCameraChange);
+  onCameraChangeRef.current = onCameraChange;
+  const insetRef = useRef<OrientationInset | null>(null);
 
   // Latest pick config, read inside the vtk interactor callback without
   // forcing the scene to rebuild when the pick mode toggles.
@@ -197,6 +214,15 @@ export function MeshView({
     const renderer = fsrw.getRenderer();
     const renderWindow = fsrw.getRenderWindow();
     handles.current = { fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map() };
+
+    const inset = createOrientationInset(renderWindow, renderer, orientationRef.current);
+    insetRef.current = inset;
+    const reportCamera = () => {
+      const cam = renderer.getActiveCamera();
+      onCameraChangeRef.current?.(cam.getDirectionOfProjection() as Vec3, cam.getViewUp() as Vec3);
+    };
+    const camSub = renderer.getActiveCamera().onModified(reportCamera);
+    reportCamera();
 
     let cancelled = false;
 
@@ -357,6 +383,9 @@ export function MeshView({
     return () => {
       cancelled = true;
       pickSub.unsubscribe();
+      camSub.unsubscribe();
+      inset.dispose();
+      insetRef.current = null;
       registerCaptureRef.current?.(null);
       registerCameraRef.current?.(null);
       registerPartsRef.current?.(null);
@@ -391,6 +420,11 @@ export function MeshView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  // ── Orientación fijada a mano: el recuadro cambia sin rehacer la escena ── #
+  useEffect(() => {
+    insetRef.current?.setOrientation(orientation);
+  }, [orientation.direction, orientation.manual]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Appearance (opacity/color): update actors in place, never rebuild the ──
   //    scene — so dimming a heavy mesh (e.g. entering a pick mode) is instant. ─ #
@@ -434,6 +468,10 @@ export function MeshView({
     }
 
     for (const l of lines) {
+      // Una regla de 0 mm (la altura de cúpula de un cuello inválido) no es
+      // una línea: vtk.js avisa «Zero-length line definition» y el tubo no
+      // tendría dirección. Sin tubo ni cuentas: no hay nada que medir.
+      if (Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1], l.b[2] - l.a[2]) < 1e-6) continue;
       const lineSrc = vtkLineSource.newInstance({ point1: l.a, point2: l.b, resolution: 1 });
       const tube = vtkTubeFilter.newInstance({
         radius: rMarker * RULER_TUBE_RATIO, numberOfSides: 10, capping: true,

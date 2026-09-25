@@ -26,6 +26,7 @@ import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
+import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from "./OrientationInset";
 
 type Vec3 = [number, number, number];
 
@@ -44,6 +45,7 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
   // orientación fijada a mano puede cambiar sin rehacer la escena).
   const orientationRef = useRef(orientation);
   orientationRef.current = orientation;
+  const insetRef = useRef<OrientationInset | null>(null);
 
   const axis = AXIS_OF[mainPlane];
   const index = mainPlane === "axial" ? mprVoxel.z : mainPlane === "coronal" ? mprVoxel.y : mprVoxel.x;
@@ -82,6 +84,10 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     cam.setPosition(c[0] - direction[0] * 1000, c[1] - direction[1] * 1000, c[2] - direction[2] * 1000);
     cam.setViewUp(viewUp[0], viewUp[1], viewUp[2]);
     renderer.resetCamera();
+    // El maniquí del recuadro sigue a esta cámara: al rotar el MIP se ve desde
+    // dónde se está mirando al paciente, no solo el número de la cinta.
+    const inset = createOrientationInset(grw.getRenderWindow(), renderer, orientationRef.current);
+    insetRef.current = inset;
     const readHeading = () => setHeading(cameraHeading(
       cam.getDirectionOfProjection() as Vec3, cam.getViewUp() as Vec3, orientationRef.current,
     ));
@@ -91,7 +97,7 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     ro.observe(el);
     scene.current = { grw, mapper, actor };
     grw.getRenderWindow().render();
-    return () => { sub.unsubscribe(); ro.disconnect(); scene.current = null; grw.delete(); };
+    return () => { sub.unsubscribe(); inset.dispose(); insetRef.current = null; ro.disconnect(); scene.current = null; grw.delete(); };
   }, [image, mainPlane]);
 
   // Si cambia la orientación (fijada a mano), la cinta se recalcula sin
@@ -100,7 +106,16 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     const s = scene.current; if (!s) return;
     const cam = s.grw.getRenderer().getActiveCamera();
     setHeading(cameraHeading(cam.getDirectionOfProjection() as Vec3, cam.getViewUp() as Vec3, orientation));
+    insetRef.current?.setOrientation(orientation);
   }, [orientation.direction, orientation.manual]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Maximizado, la fila de controles (ACUMULADO · AJUSTAR) ocupa el pie de la
+  // esquina derecha: el recuadro sube por encima. En la celda no hay controles.
+  useEffect(() => {
+    const [x0, y0, x1, y1] = INSET_VIEWPORT;
+    const lift = compact ? 0 : 0.09;
+    insetRef.current?.setViewport([x0, y0 + lift, x1, y1 + lift]);
+  }, [compact, image, mainPlane]);
 
   // Función de transferencia «Vasos»: gris, opaca desde el umbral inferior.
   // Depende también de la imagen: al llegar el volumen completo la escena se

@@ -4,7 +4,7 @@ import type { VolumeMeta } from "../../api/types";
 
 const meta = {
   shape: [70, 4, 3], spacing: [1, 1, 1], wc: 0, ww: 1, modality: "XA",
-  direction: null, orientation_known: false, origin_mm: [0, 0, 0],
+  direction: null, orientation_known: false, orientation_manual: null, origin_mm: [0, 0, 0],
   intensity_range: [0, 1], cache_key: "k1", full_stride: 1,
 } as VolumeMeta;
 

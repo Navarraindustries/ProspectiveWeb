@@ -71,14 +71,30 @@ export function manualToDirection(m: ManualOrientation): number[] {
 
 /* Orientación asumida cuando el DICOM no trae cosenos y nadie la ha fijado a
    mano: anterior arriba en el axial y el primer corte inferior, que es la
-   matriz identidad (i→L, j→P, k→S). Se muestra entre corchetes, igual que la
-   manual, hasta que el usuario la corrija; «?» en los bordes no orienta a
-   nadie y dejaba sin cinta de rumbo al MIP. */
+   matriz identidad (i→L, j→P, k→S). Se muestra entre corchetes hasta que el
+   usuario la fije; «?» en los bordes no orienta a nadie y dejaba sin cinta
+   de rumbo al MIP. */
 export const DEFAULT_MANUAL_ORIENTATION: ManualOrientation = { anteriorEdge: "top", firstSliceSuperior: false };
 
+/* `known` = la orientación no es una suposición: viene del DICOM o la ha
+   declarado el usuario con «Fijar orientación». Los corchetes y el maniquí
+   gris señalan solo lo asumido; una orientación declarada entre corchetes
+   diría que sigue siendo una conjetura, y el diálogo existe para que deje
+   de serlo. */
 export function effectiveDirection(o: Orientation): { d: number[]; known: boolean } {
   if (o.direction && o.direction.length === 9) return { d: o.direction, known: true };
-  return { d: manualToDirection(o.manual ?? DEFAULT_MANUAL_ORIENTATION), known: false };
+  if (o.manual) return { d: manualToDirection(o.manual), known: true };
+  return { d: manualToDirection(DEFAULT_MANUAL_ORIENTATION), known: false };
+}
+
+/* Matriz de usuario LPS → volumen. `d` es la dirección en filas (d[3·r + c],
+   columnas = ejes i, j, k expresados en LPS), que lleva índices a LPS; para
+   llevar el maniquí de LPS a índices hace falta la inversa, que en una matriz
+   ortonormal es la transpuesta. vtk.js multiplica la matriz de usuario como
+   gl-matrix, en columnas: la columna c de Dᵀ es la fila c de D, así que el
+   array en columnas de Dᵀ es D tal cual por filas. */
+export function lpsToVolumeUserMatrix(d: number[]): number[] {
+  return [d[0], d[1], d[2], 0, d[3], d[4], d[5], 0, d[6], d[7], d[8], 0, 0, 0, 0, 1];
 }
 
 /* Un eje del volumen (i, j o k, con signo) → vector LPS. */

@@ -316,6 +316,15 @@ export interface VolumeMeta {
   cache_key: string;
   /** 2 cuando el bloque «full» viene submuestreado en el plano. */
   full_stride: number;
+  /** Orientación fijada a mano para un volumen sin etiquetas (vive en el
+   *  estado de sesión, así que vuelve al reanudarla), o null. */
+  orientation_manual: ManualOrientationBody | null;
+}
+
+/** Cuerpo de PUT /api/volume/{sid}/orientation (y lo que devuelve la meta). */
+export interface ManualOrientationBody {
+  anterior_edge: "top" | "right" | "bottom" | "left";
+  first_slice_superior: boolean;
 }
 
 /* ── segmentation ──────────────────────────────────────────────────────── */

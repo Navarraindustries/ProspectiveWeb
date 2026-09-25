@@ -6,7 +6,7 @@
    axial, coronal, sagital, MIP); doble clic en una celda la sube al principal.
    Todas las celdas leen el mismo volumen del navegador. */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { api } from "../api/client";
 import type { VolumeMeta } from "../api/types";
 import { Icon } from "../components/Icon";
@@ -16,11 +16,13 @@ import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
-import type { Orientation, Plane } from "./geometry";
+import { cameraHeading, type Orientation, type Plane, type Vec3 } from "./geometry";
 import { swapPane, type PaneId } from "./layout";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
+import { HudHeadingTape } from "./hud/HudHeadingTape";
+import { OrientationSheet } from "./OrientationSheet";
 import type { Vector3 } from "@kitware/vtk.js/types";
 
 // vtk.js (~1 MB) is only needed once a 3D mesh is shown, so load MeshView — and
@@ -134,6 +136,34 @@ function useVolumeMeta(sessionId: string | null): VolumeMeta | null {
   return meta;
 }
 
+/* Canal de la cámara del 3D hacia la cinta de rumbo. MeshView avisa en cada
+   cambio de cámara (60 veces por segundo al rotar): si el aviso fuera estado
+   de ViewerWorkspace, cada fotograma rehacería el visor entero. Así solo se
+   repinta SceneHeading. Guarda el último valor porque el primer aviso llega
+   al montar la escena, quizá antes de que la cinta se suscriba. */
+interface CameraFeed {
+  last: { dir: Vec3; up: Vec3 } | null;
+  listener: ((cam: { dir: Vec3; up: Vec3 }) => void) | null;
+}
+
+function SceneHeading({ feed, orientation }: { feed: RefObject<CameraFeed>; orientation: Orientation }) {
+  const [cam, setCam] = useState(feed.current.last);
+  useEffect(() => {
+    const f = feed.current;
+    f.listener = setCam;
+    setCam(f.last);
+    return () => { f.listener = null; };
+  }, [feed]);
+  if (!cam) return null;
+  const h = cameraHeading(cam.dir, cam.up, orientation);
+  // Una línea más abajo, como en el MIP: arriba del todo están el paso y el modo.
+  return (
+    <div style={{ position: "absolute", top: 18, left: 0, right: 0, height: 28, pointerEvents: "none" }}>
+      <HudHeadingTape azimuthDeg={h.azimuthDeg} elevationDeg={h.elevationDeg} known={h.known} />
+    </div>
+  );
+}
+
 /* Placeholder shown while the lazy vtk.js chunk is being fetched. */
 function ViewerLoading({ label }: { label: string }) {
   return (
@@ -156,7 +186,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
-    viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual,
+    viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
   } = usePlanning();
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
@@ -244,6 +274,26 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const clientVol = useClientVolume(hasWebGL2() ? sessionId : null, meta, mprVoxel.z);
   const legacy = !hasWebGL2() || !clientVol.image;
   const orientation: Orientation = { direction: meta?.direction ?? null, manual: orientationManual };
+  // La orientación fijada a mano vive en el estado de sesión y vuelve con la
+  // meta al reanudarla: se siembra una vez por sesión y nunca pisa la que el
+  // usuario acaba de fijar en esta.
+  const seededFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!meta || !sessionId || seededFor.current === sessionId) return;
+    seededFor.current = sessionId;
+    const m = meta.orientation_manual;
+    if (m && !orientationManual) {
+      setOrientationManual({ anteriorEdge: m.anterior_edge, firstSliceSuperior: m.first_slice_superior });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, sessionId]);
+  const [orientationOpen, setOrientationOpen] = useState(false);
+  const cameraFeed = useRef<CameraFeed>({ last: null, listener: null });
+  const onCameraChange = useCallback((dir: Vec3, up: Vec3) => {
+    const cam = { dir: [...dir] as Vec3, up: [...up] as Vec3 };
+    cameraFeed.current.last = cam;
+    cameraFeed.current.listener?.(cam);
+  }, []);
   const levelNote = clientVol.level === "coarse"
     ? `RESOLUCIÓN REDUCIDA${clientVol.progress ? ` · ${clientVol.progress.done}/${clientVol.progress.total}` : ""}`
     : clientVol.error ? "SIN VOLUMEN COMPLETO" : null;
@@ -586,7 +636,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
           <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview}
-            boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
+            boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts}
+            orientation={orientation} onCameraChange={onCameraChange} />
         </Suspense>
       );
       mode = segPreview ? "3D · MALLA GRUESA" : "3D";
@@ -669,6 +720,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
             {!compact && bl.length > 0 && <HudReadout at="bl" lines={bl} />}
             {!compact && br.length > 0 && <HudReadout at="br" lines={br} />}
             {showHint && rotatable && <div className="hud-hint">ARRASTRA PARA ROTAR · RUEDA PARA ZOOM</div>}
+            {/* En la celda pequeña no cabe (el rumbo pisa las marcas): se lee al maximizar. */}
+            {!compact && isMesh && <SceneHeading feed={cameraFeed} orientation={orientation} />}
           </HudFrame>
         )}
 
@@ -683,6 +736,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
               <HudToggleGroup
                 options={CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title }))}
                 value="" onChange={(k) => setCamera(k as CameraView)} />
+            )}
+            {/* Solo sin orientación en el DICOM: con ella no hay nada que fijar. */}
+            {meta.orientation_known === false && (
+              <HudToggleGroup
+                options={[{ key: "fix", label: "Fijar orientación", title: "Decir dónde está anterior y cuál es el primer corte" }]}
+                value={orientationManual ? "fix" : ""} onChange={() => setOrientationOpen(true)} />
             )}
           </div>
         )}
@@ -701,6 +760,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+      {sessionId && (
+        <OrientationSheet open={orientationOpen} onClose={() => setOrientationOpen(false)} sessionId={sessionId}
+          current={orientationManual} onApply={setOrientationManual} />
+      )}
       <div style={{ flex: 1, position: "relative", background: "#000", minHeight: 0, overflow: "hidden" }}>
         {renderPane(viewerLayout.main, "main")}
         {wlHost === viewerLayout.main && wlSelect}

@@ -90,6 +90,8 @@ backend/study_files/
 *.stl
 *.obj
 *.vtp
+# Excepción: modelos fijos de la interfaz (el maniquí de orientación), versionados.
+!frontend/public/models/*.vtp
 *.vts
 *.vtk
 

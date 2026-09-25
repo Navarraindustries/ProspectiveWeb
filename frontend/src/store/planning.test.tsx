@@ -198,7 +198,7 @@ describe("unsaved-changes flag", () => {
 
 const meta = {
   shape: [100, 200, 300], spacing: [0.5, 0.25, 0.25], wc: 0, ww: 1, modality: "XA",
-  direction: null, orientation_known: false, origin_mm: [0, 0, 0],
+  direction: null, orientation_known: false, orientation_manual: null, origin_mm: [0, 0, 0],
   intensity_range: [0, 1], cache_key: "1", full_stride: 1,
 } as VolumeMeta;
 

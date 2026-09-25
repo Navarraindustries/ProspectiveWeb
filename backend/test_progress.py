@@ -83,3 +83,13 @@ class TestWebSocket:
             assert False, "debía cerrar"
         except WebSocketDisconnect as exc:
             assert exc.code == 4401
+
+    def test_sesion_inexistente_con_token_valido_cierra_con_4401(self):
+        token = create_access_token(subject="admin")
+        from starlette.websockets import WebSocketDisconnect
+        try:
+            with client.websocket_connect(f"/ws/progress/no-existe?token={token}") as ws:
+                ws.receive_json()
+            assert False, "debía cerrar"
+        except WebSocketDisconnect as exc:
+            assert exc.code == 4401

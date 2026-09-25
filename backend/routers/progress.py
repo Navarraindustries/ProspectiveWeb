@@ -32,10 +32,14 @@ async def ws_progress(websocket: WebSocket, session_id: str, token: str = "") ->
         user = user_for_token(db, token)
     finally:
         db.close()
+    # El código de cierre solo llega al navegador si el handshake se aceptó
+    # antes: un uvicorn real rechaza un WS sin aceptar con un HTTP 403 llano y
+    # el código 4401 se pierde por el camino, así que se acepta primero y se
+    # cierra después con ese código cuando el token o la sesión no valen.
+    await websocket.accept()
     if user is None or not session_exists(session_id):
         await websocket.close(code=4401)
         return
-    await websocket.accept()
     last: dict | None = None
     try:
         while True:

@@ -16,7 +16,7 @@ const CACHE_NAME = "prospective-volume-v1";
 export interface ClientVolume {
   dims: [number, number, number];
   spacing: [number, number, number];
-  data: Int16Array | Uint8Array;
+  data: Int16Array;
   level: "coarse" | "full";
   stride: number;
 }
@@ -60,14 +60,20 @@ export async function fetchChunk(url: string, signal: AbortSignal) {
 }
 
 export async function loadCoarse(sid: string, meta: VolumeMeta, signal: AbortSignal): Promise<ClientVolume> {
-  const c = await fetchChunk(api.chunkUrl(sid, "coarse", 0, 0, meta.cache_key), signal);
+  // El «.i16» en la versión de la URL: hasta ahora el grueso era uint8 bajo la
+  // misma URL, y la Cache API y la caché HTTP (24 h) lo seguirían sirviendo;
+  // con la URL nueva el cuerpo antiguo nunca llega a leerse como int16.
+  const c = await fetchChunk(api.chunkUrl(sid, "coarse", 0, 0, `${meta.cache_key}.i16`), signal);
   if (c.dims.length !== 3) throw new Error("El bloque grueso no trae dimensiones válidas");
+  // Intensidades crudas como el nivel completo: la ventana/nivel y la banda
+  // de umbral valen igual en los dos niveles.
+  if (c.dtype !== "int16") throw new Error(`El bloque grueso llega como ${c.dtype}; se esperaba int16`);
   return {
     dims: [c.dims[0], c.dims[1], c.dims[2]],
     spacing: [c.spacing[0], c.spacing[1], c.spacing[2]],
-    data: new Uint8Array(c.bytes),
+    data: new Int16Array(c.bytes),
     level: "coarse",
-    stride: Math.round(c.spacing[2] / meta.spacing[2]) || 1,
+    stride: c.stride,
   };
 }
 

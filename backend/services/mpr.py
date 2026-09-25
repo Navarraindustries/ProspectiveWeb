@@ -230,6 +230,28 @@ def get_volume_raw_uint8(session_id: str, max_dim: int = 192) -> tuple[bytes, li
     return u8.tobytes(order="C"), dims, spacing
 
 
+def volume_coarse_int16(session_id: str, max_dim: int = 192) -> tuple[bytes, list[int], list[float], int]:
+    """El nivel grueso del visor: el volumen con stride entero en los tres ejes
+    (el eje mayor ≤ max_dim, misma regla que `get_volume_raw_uint8`), en int16
+    little-endian con intensidades CRUDAS, como el nivel completo.
+
+    El uint8 reescalado a [p1, p99] servía al render de volumen, pero en los
+    cortes la ventana/nivel y la banda de umbral van en unidades crudas: sobre
+    0-255 el grueso salía como un cuadrado gris y sin tinte. Se lee del memmap
+    (solo los vóxeles del stride) y se recorta a int16 como `volume_chunk_int16`.
+    Devuelve también el stride para la cabecera `X-Level-Stride`.
+    """
+    meta = ensure_volume_cached(session_id)
+    vol = _get_volume(session_id)
+    z, y, x = vol.shape
+    stride = max(1, int(np.ceil(max(z, y, x) / float(max_dim))))
+    sub = np.asarray(vol[::stride, ::stride, ::stride], dtype=np.float32)
+    clipped = np.clip(np.rint(sub), -32768, 32767).astype("<i2")
+    sp = meta["spacing"]  # [sz, sy, sx]
+    spacing = [float(sp[i]) * stride for i in range(3)]
+    return clipped.tobytes(order="C"), [int(d) for d in clipped.shape], spacing, stride
+
+
 CHUNK_SLICES = 32
 
 

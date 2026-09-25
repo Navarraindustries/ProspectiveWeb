@@ -177,10 +177,17 @@ class TestChunks:
         assert client.get(f"/api/volume/{sid}/chunk/full/0-999").status_code == 422
         assert client.get(f"/api/volume/{sid}/chunk/nivel/0-8").status_code == 422
 
-    def test_coarse_chunk_is_the_raw_volume(self):
-        sid = _session_with_volume()
-        raw = client.get(f"/api/volume/{sid}/raw")
-        coarse = client.get(f"/api/volume/{sid}/chunk/coarse/0-0")
-        assert coarse.headers["x-dtype"] == "uint8"
-        assert coarse.content == raw.content
-        assert coarse.headers["x-dims"] == raw.headers["x-dims"]
+    def test_coarse_chunk_is_the_strided_int16_volume(self):
+        # 400 en y → stride ceil(400/192) = 3 en los tres ejes.
+        sid = _session_with_volume(nz=10, ny=400, nx=20)
+        r = client.get(f"/api/volume/{sid}/chunk/coarse/0-0")
+        assert r.status_code == 200
+        assert r.headers["x-dtype"] == "int16"
+        dims = [int(d) for d in r.headers["x-dims"].split(",")]
+        s = int(r.headers["x-level-stride"])
+        assert s == 3 and all(d <= 192 for d in dims)
+        assert len(r.content) == int(np.prod(dims)) * 2
+        assert [float(v) for v in r.headers["x-spacing"].split(",")] == [3.0, 2.4, 2.4]
+        arr = np.frombuffer(r.content, dtype="<i2").reshape(dims)
+        vol = np.load(session_subdir(sid, "meshes") / "_volume.npy", mmap_mode="r")
+        np.testing.assert_array_equal(arr, np.rint(vol[::s, ::s, ::s]).astype(np.int16))

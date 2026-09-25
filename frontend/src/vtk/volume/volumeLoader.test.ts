@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chunkOrder, fetchChunk, loadFull } from "./volumeLoader";
+import { chunkOrder, fetchChunk, loadCoarse, loadFull } from "./volumeLoader";
 import type { VolumeMeta } from "../../api/types";
 
 const meta = {
@@ -32,6 +32,28 @@ function chunkResponse(z0: number, z1: number, value: number, dims = [z1 - z0, 4
     },
   });
 }
+
+describe("loadCoarse", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads the strided int16 volume with the stride from the headers", async () => {
+    vi.stubGlobal("caches", undefined);
+    const body = new Int16Array(3 * 4 * 3).map((_, i) => i * 100 - 500);
+    const fetchMock = vi.fn(async (_url: string) => new Response(body.buffer, {
+      status: 200,
+      headers: { "X-Dims": "3,4,3", "X-Spacing": "2,2,2", "X-Dtype": "int16", "X-Level-Stride": "2" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const vol = await loadCoarse("sid", meta, new AbortController().signal);
+    expect(vol.level).toBe("coarse");
+    expect(vol.dims).toEqual([3, 4, 3]);
+    expect(vol.spacing).toEqual([2, 2, 2]);                       // spacing nativo (1) × stride 2
+    expect(vol.stride).toBe(2);
+    expect(vol.data).toBeInstanceOf(Int16Array);
+    expect(Array.from(vol.data.slice(0, 3))).toEqual([-500, -400, -300]);   // crudo, con signo
+    expect(String(fetchMock.mock.calls[0][0])).toContain("chunk/coarse/0-0?v=k1.i16");
+  });
+});
 
 describe("loadFull", () => {
   beforeEach(() => {

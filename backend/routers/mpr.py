@@ -11,7 +11,7 @@ from fastapi.responses import Response
 
 from services.mpr import (
     ensure_volume_cached, render_slice_png, render_oblique_png, get_volume_raw_uint8,
-    volume_chunk_int16,
+    volume_chunk_int16, volume_coarse_int16,
 )
 from services.sessions import session_exists
 
@@ -84,8 +84,11 @@ async def get_volume_raw(session_id: str) -> Response:
     description=(
         "`full`: cortes [z0, z1) en int16 little-endian, con stride en el plano "
         "(`X-Level-Stride`) cuando el volumen es muy grande. `coarse`: el volumen "
-        "uint8 de ≤192³ entero (z0-z1 se ignoran). Cuerpo gzip cuando el cliente "
-        "lo acepta. Cabeceras: `X-Dims` (z,y,x), `X-Spacing`, `X-Dtype`."
+        "entero con stride en los tres ejes (el mayor ≤192), también int16 con "
+        "intensidades crudas para que ventana/nivel y umbrales valgan igual en "
+        "ambos niveles (z0-z1 se ignoran; `X-Level-Stride` da el stride). Cuerpo "
+        "gzip cuando el cliente lo acepta. Cabeceras: `X-Dims` (z,y,x), "
+        "`X-Spacing`, `X-Dtype`, `X-Level-Stride`."
     ),
     response_class=Response,
     responses={200: {"content": {"application/octet-stream": {}}}},
@@ -98,13 +101,12 @@ async def get_volume_chunk(session_id: str, level: str, z0: int, z1: int) -> Res
     loop = asyncio.get_event_loop()
     try:
         if level == "coarse":
-            data, dims, spacing = await loop.run_in_executor(
-                _executor, partial(get_volume_raw_uint8, session_id))
-            dtype, stride = "uint8", 1
+            data, dims, spacing, stride = await loop.run_in_executor(
+                _executor, partial(volume_coarse_int16, session_id))
         else:
             data, dims, spacing, stride = await loop.run_in_executor(
                 _executor, partial(volume_chunk_int16, session_id, z0, z1))
-            dtype = "int16"
+        dtype = "int16"
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:

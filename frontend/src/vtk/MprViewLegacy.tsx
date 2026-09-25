@@ -20,7 +20,7 @@ function planeCount(meta: VolumeMeta, plane: string): number {
   return plane === "axial" ? z : plane === "coronal" ? y : x;
 }
 
-export function MprView({
+export function MprViewLegacy({
   sessionId,
   meta,
   plane,

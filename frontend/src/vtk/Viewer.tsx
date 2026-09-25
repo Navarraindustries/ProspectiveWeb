@@ -10,7 +10,10 @@ import type { VolumeMeta } from "../api/types";
 import { Icon } from "../components/Icon";
 import { usePlanning } from "../store/planning";
 import type { CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
-import { MprView } from "./MprView";
+import { MprViewLegacy as MprView } from "./MprViewLegacy";
+import { SliceView } from "./SliceView";
+import { useClientVolume } from "./volume/useClientVolume";
+import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
 import type { Vector3 } from "@kitware/vtk.js/types";
 
@@ -230,6 +233,9 @@ export function Viewer({ step }: { step: string }) {
   const mprCrosshair = meta
     ? { u: fracIdx(meta.shape[2], mprVoxel.x), v: fracIdx(meta.shape[1], mprVoxel.y) }
     : null;
+  // Copia del volumen en el navegador para el SliceView provisional del
+  // panel principal (Task 9 hará el diseño completo).
+  const clientVol = useClientVolume(sessionId, meta, mprVoxel.z);
   const [viewMode, setViewMode] = useState<"default" | "volume" | "oblique">("default");
   // Camera controller published by MeshView while it is mounted.
   const [setCamera, setSetCamera] = useState<((v: CameraView) => void) | null>(null);
@@ -406,6 +412,18 @@ export function Viewer({ step }: { step: string }) {
           <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview}
           boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
         </Suspense>
+      ) : sessionId && meta && clientVol.image && hasWebGL2() ? (
+        <SliceView
+          image={clientVol.image} meta={meta} plane="axial" index={mprVoxel.z}
+          onIndexChange={(z) => setMprVoxel({ ...mprVoxel, z })}
+          wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
+          onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
+          crosshair={mprCrosshair}
+          onPlaneClick={(u, v) => setMprVoxel({ ...mprVoxel, x: clampIdx(meta.shape[2], u), y: clampIdx(meta.shape[1], v) })}
+          orientation={{ direction: meta.direction, manual: null }}
+          levelNote={clientVol.level === "coarse" ? `RESOLUCIÓN REDUCIDA${clientVol.progress ? ` · ${clientVol.progress.done}/${clientVol.progress.total}` : ""}` : null}
+          band={previewActive ? previewBand : null}
+        />
       ) : sessionId && meta ? (
         <MprView
           sessionId={sessionId} meta={meta} plane="axial" showSlider showPlaneLabel={false}

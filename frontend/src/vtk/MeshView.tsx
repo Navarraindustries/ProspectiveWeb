@@ -276,7 +276,9 @@ export function MeshView({
       if (!h) return;
       const cam = h.renderer.getActiveCamera();
       if (view !== "fit") {
-        const [dir, up] = standardViewInVolume(view, orientationRef.current);
+        // La cámara se pone del lado contrario a donde mira.
+        const { direction: dop, viewUp: up } = standardViewInVolume(view, orientationRef.current);
+        const dir: Vec3 = [-dop[0], -dop[1], -dop[2]];
         cam.setFocalPoint(0, 0, 0);
         cam.setPosition(dir[0], dir[1], dir[2]);
         cam.setViewUp(up[0], up[1], up[2]);

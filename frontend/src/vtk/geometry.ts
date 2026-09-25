@@ -129,14 +129,16 @@ const STANDARD_VIEWS_LPS: Record<StandardView, [Vec3, Vec3]> = {
   sagital_izq:  [[-1, 0, 0], [0, 0,  1]],   // desde la derecha
 };
 
-/* [desde, arriba] de una vista estándar en coordenadas del volumen, pasando
-   por la dirección efectiva (DICOM, fijada a mano o la asumida). Antes se
-   suponía +z superior: en un volumen como el Case 3 (k→A) «AX» enseñaba
-   una vista coronal mientras la cinta de rumbo decía otra cosa. */
-export function standardViewInVolume(view: StandardView, o: Orientation): [Vec3, Vec3] {
+/* Una vista estándar en coordenadas del volumen, pasando por la dirección
+   efectiva (DICOM, fijada a mano o la asumida): `direction` es hacia dónde
+   mira la cámara (dirección de proyección) y `viewUp` lo que queda arriba.
+   Antes se suponía +z superior: en un volumen como el Case 3 (k→A) «AX»
+   enseñaba una vista coronal mientras la cinta de rumbo decía otra cosa. */
+export function standardViewInVolume(view: StandardView, o: Orientation): { direction: Vec3; viewUp: Vec3 } {
   const { d } = effectiveDirection(o);
   const [from, up] = STANDARD_VIEWS_LPS[view];
-  return [fromLps(d, from), fromLps(d, up)];
+  const f = fromLps(d, from);
+  return { direction: [-f[0], -f[1], -f[2]], viewUp: fromLps(d, up) };
 }
 
 function lpsLabel(v: Vec3): string {

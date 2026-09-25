@@ -127,37 +127,61 @@ describe("lpsToVolumeUserMatrix", () => {
 });
 
 describe("vistas estándar de la cámara 3D", () => {
-  it("con la dirección identidad son las de siempre (+z superior)", () => {
+  const clean = (v: number[]) => v.map((x) => (Object.is(x, -0) ? 0 : x));
+  // Volumen → LPS con la dirección en filas, como la usa el resto de geometry.
+  const toLpsVec = (d: number[], v: number[]) => [
+    d[0] * v[0] + d[1] * v[1] + d[2] * v[2],
+    d[3] * v[0] + d[4] * v[1] + d[5] * v[2],
+    d[6] * v[0] + d[7] * v[1] + d[8] * v[2],
+  ];
+  // Definición en términos del paciente: [hacia dónde mira, qué queda arriba].
+  const DEF: Record<string, [number[], number[]]> = {
+    axial: [[0, 0, -1], [0, -1, 0]],         // desde superior, anterior arriba
+    axial_inf: [[0, 0, 1], [0, -1, 0]],
+    coronal: [[0, 1, 0], [0, 0, 1]],         // desde anterior, superior arriba
+    coronal_post: [[0, -1, 0], [0, 0, 1]],
+    sagital: [[-1, 0, 0], [0, 0, 1]],        // desde la izquierda del paciente
+    sagital_izq: [[1, 0, 0], [0, 0, 1]],
+  };
+
+  it("con la dirección identidad reproduce los vectores de siempre (+z superior)", () => {
     const o = { direction: [1, 0, 0, 0, 1, 0, 0, 0, 1], manual: null };
-    expect(standardViewInVolume("axial", o)).toEqual([[0, 0, 1], [0, -1, 0]]);
-    expect(standardViewInVolume("coronal", o)).toEqual([[0, -1, 0], [0, 0, 1]]);
-    expect(standardViewInVolume("sagital", o)).toEqual([[1, 0, 0], [0, 0, 1]]);
+    // Los de antes eran [posición, arriba]: posición = −dirección de proyección.
+    const old: Record<string, [number[], number[]]> = {
+      axial: [[0, 0, 1], [0, -1, 0]], axial_inf: [[0, 0, -1], [0, -1, 0]],
+      coronal: [[0, -1, 0], [0, 0, 1]], coronal_post: [[0, 1, 0], [0, 0, 1]],
+      sagital: [[1, 0, 0], [0, 0, 1]], sagital_izq: [[-1, 0, 0], [0, 0, 1]],
+    };
+    for (const [view, [pos, up]] of Object.entries(old)) {
+      const v = standardViewInVolume(view as never, o);
+      expect(clean(v.direction.map((x) => -x))).toEqual(pos);
+      expect(clean(v.viewUp)).toEqual(up);
+    }
   });
 
-  it("pasan por la dirección del DICOM: en el Case 3 (i→L, j→S, k→A) «AX» mira por j", () => {
-    // Filas de la matriz: columnas i=(1,0,0) L, j=(0,0,1) S, k=(0,-1,0) A.
-    const o = { direction: [1, 0, 0, 0, 0, -1, 0, 1, 0], manual: null };
-    const clean = (v: number[]) => v.map((x) => (Object.is(x, -0) ? 0 : x));
-    const [from, up] = standardViewInVolume("axial", o);
-    expect(clean(from)).toEqual([0, 1, 0]);      // superior = +j
-    expect(clean(up)).toEqual([0, 0, 1]);        // anterior = +k
-    const [cFrom, cUp] = standardViewInVolume("coronal", o);
-    expect(clean(cFrom)).toEqual([0, 0, 1]);     // desde anterior = +k
-    expect(clean(cUp)).toEqual([0, 1, 0]);
-    // Y la cinta de rumbo coincide: mirando por −from, la elevación es 90°.
-    const dop = from.map((x) => -x) as [number, number, number];
-    expect(cameraHeading(dop, up, o).elevationDeg).toBeCloseTo(90);
+  it("con la dirección del Case 3 cada vista cumple su definición en LPS", () => {
+    // SimpleITK en filas: i→L, j→S, k→A (lo que devuelve el XA000000.dcm).
+    const d = [1, 0, 0, 0, 0, -1, 0, 1, 0];
+    const o = { direction: d, manual: null };
+    for (const [view, [look, up]] of Object.entries(DEF)) {
+      const v = standardViewInVolume(view as never, o);
+      toLpsVec(d, v.direction).forEach((x, i) => expect(x).toBeCloseTo(look[i]));
+      toLpsVec(d, v.viewUp).forEach((x, i) => expect(x).toBeCloseTo(up[i]));
+    }
+    // Y la cinta de rumbo lo confirma: «AX» se ve desde arriba.
+    const ax = standardViewInVolume("axial", o);
+    expect(cameraHeading(ax.direction, ax.viewUp, o).elevationDeg).toBeCloseTo(90);
+    const cor = standardViewInVolume("coronal", o);
+    const hc = cameraHeading(cor.direction, cor.viewUp, o);
+    expect(hc.azimuthDeg).toBeCloseTo(0);
+    expect(hc.elevationDeg).toBeCloseTo(0);
+    const sag = standardViewInVolume("sagital", o);
+    expect(cameraHeading(sag.direction, sag.viewUp, o).azimuthDeg).toBeCloseTo(90);
   });
 
   it("fromLps es la inversa de la dirección", () => {
     const d = [0, 0, 1, 1, 0, 0, 0, 1, 0];
     const v: [number, number, number] = [0.2, -0.5, 0.7];
-    const idx = fromLps(d, v);
-    const back = [
-      d[0] * idx[0] + d[1] * idx[1] + d[2] * idx[2],
-      d[3] * idx[0] + d[4] * idx[1] + d[5] * idx[2],
-      d[6] * idx[0] + d[7] * idx[1] + d[8] * idx[2],
-    ];
-    back.forEach((x, i) => expect(x).toBeCloseTo(v[i]));
+    toLpsVec(d, fromLps(d, v)).forEach((x, i) => expect(x).toBeCloseTo(v[i]));
   });
 });

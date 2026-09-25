@@ -18,6 +18,9 @@ import { loadCoarse, loadFull } from "./volumeLoader";
 export function useClientVolume(sid: string | null, meta: VolumeMeta | null, currentZ: number) {
   const [image, setImage] = useState<vtkImageData | null>(null);
   const [level, setLevel] = useState<"coarse" | "full" | null>(null);
+  // Stride en el plano del nivel visible: el completo lo lleva >1 en volúmenes
+  // muy grandes y el visor lo rotula como resolución reducida.
+  const [stride, setStride] = useState(1);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // El corte actual solo decide el ORDEN de los bloques al empezar; cambiar
@@ -26,7 +29,7 @@ export function useClientVolume(sid: string | null, meta: VolumeMeta | null, cur
   startZ.current = currentZ;
 
   useEffect(() => {
-    setImage(null); setLevel(null); setProgress(null); setError(null);
+    setImage(null); setLevel(null); setStride(1); setProgress(null); setError(null);
     if (!sid || !meta) return;
     const ctrl = new AbortController();
     (async () => {
@@ -35,12 +38,12 @@ export function useClientVolume(sid: string | null, meta: VolumeMeta | null, cur
         if (ctrl.signal.aborted) return;
         const { toImageData } = await import("./imageData");
         if (ctrl.signal.aborted) return;
-        setImage(toImageData(coarse)); setLevel("coarse");
+        setImage(toImageData(coarse)); setLevel("coarse"); setStride(coarse.stride);
         const full = await loadFull(sid, meta, startZ.current, ctrl.signal, (done, total) => {
           if (!ctrl.signal.aborted) setProgress({ done, total });
         });
         if (ctrl.signal.aborted) return;
-        setImage(toImageData(full)); setLevel("full"); setProgress(null);
+        setImage(toImageData(full)); setLevel("full"); setStride(full.stride); setProgress(null);
       } catch (err) {
         if (ctrl.signal.aborted) return;
         // Sin el completo se sigue con el grueso; el rótulo lo dirá.
@@ -52,5 +55,5 @@ export function useClientVolume(sid: string | null, meta: VolumeMeta | null, cur
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sid, meta?.cache_key]);
 
-  return { image, level, progress, error };
+  return { image, level, stride, progress, error };
 }

@@ -12,6 +12,7 @@ import type { CameraController, CameraView, MeshLayer, MeshMarker, MeshLine } fr
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { useVolumeMeta } from "./useVolumeMeta";
+import { levelNoteFor } from "./levelNote";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
 import { cameraHeading, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
@@ -273,14 +274,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     cameraFeed.current.last = cam;
     cameraFeed.current.listener?.(cam);
   }, []);
-  const levelNote = clientVol.level === "coarse"
-    ? `RESOLUCIÓN REDUCIDA${clientVol.progress ? ` · ${clientVol.progress.done}/${clientVol.progress.total}` : ""}`
-    : clientVol.error ? "SIN VOLUMEN COMPLETO" : null;
+  const levelNote = levelNoteFor(clientVol.level, clientVol.stride, clientVol.progress, clientVol.error);
   // En una celda de la franja (~¼ del ancho) la nota larga se monta sobre el
   // rótulo del plano; allí basta con la forma corta.
-  const levelNoteShort = clientVol.level === "coarse"
-    ? `REDUCIDA${clientVol.progress ? ` ${clientVol.progress.done}/${clientVol.progress.total}` : ""}`
-    : clientVol.error ? "SIN COMPLETO" : null;
+  const levelNoteShort = levelNoteFor(clientVol.level, clientVol.stride, clientVol.progress, clientVol.error, true);
   const [nz, ny, nx] = meta?.shape ?? [1, 1, 1];
   // Al llegar un volumen nuevo: crosshair al centro y la ventana del estudio
   // (lo que hacía MprStrip, que ya no existe).

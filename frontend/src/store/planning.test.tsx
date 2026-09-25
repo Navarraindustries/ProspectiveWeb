@@ -226,3 +226,21 @@ describe("foco compartido del visor", () => {
     expect(result.current.orientationManual).toBeNull();
   });
 });
+
+describe("funciones que registra el visor", () => {
+  it("keeps the registered capture and centring functions themselves, not what they return", () => {
+    // Regresión: pasadas tal cual a un setter de useState, React las llamaba
+    // como actualizador y guardaba su resultado (la captura era una Promise).
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const capture = async () => "data:image/png;base64,AAA";
+    let centred = 0;
+    const center = () => { centred++; };
+    act(() => result.current.setCaptureViewport(capture));
+    act(() => result.current.setCenterOnLesion(center));
+    expect(result.current.captureViewport).toBe(capture);
+    expect(result.current.centerOnLesion).toBe(center);
+    expect(centred).toBe(0);
+    act(() => result.current.setCenterOnLesion(null));
+    expect(result.current.centerOnLesion).toBeNull();
+  });
+});

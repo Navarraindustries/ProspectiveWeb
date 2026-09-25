@@ -11,13 +11,14 @@ import { api } from "../api/client";
 import type { VolumeMeta } from "../api/types";
 import { Icon } from "../components/Icon";
 import { usePlanning, type PickMode } from "../store/planning";
-import type { CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
+import type { CameraController, CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
-import { cameraHeading, type Orientation, type Plane, type Vec3 } from "./geometry";
-import { swapPane, type PaneId } from "./layout";
+import { cameraHeading, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
+import { swapPane, type PaneId, type ViewerLayout } from "./layout";
+import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
@@ -192,6 +193,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     clipRehearsal, registerClipParts,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
+    focusPoint, setFocusMm, setCenterOnLesion,
   } = usePlanning();
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
@@ -319,12 +321,58 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, nx, ny, nz]);
   const [viewMode, setViewMode] = useState<"default" | "volume" | "oblique">("default");
-  // Camera controller published by MeshView while it is mounted.
-  const [setCamera, setSetCamera] = useState<((v: CameraView) => void) | null>(null);
-  const registerCamera = useCallback(
-    (fn: ((v: CameraView) => void) | null) => setSetCamera(() => fn),
-    [],
-  );
+  // Camera controller published by MeshView while its scene is on screen.
+  const [camera, setCamera] = useState<CameraController | null>(null);
+  const registerCamera = useCallback((c: CameraController | null) => setCamera(c), []);
+
+  // Captura del 3D para el informe. MeshView registra aquí la suya (cuando
+  // la escena ya está en pantalla); al store va una envoltura que, si la
+  // escena está en la franja, la sube al principal para capturarla a tamaño
+  // completo y luego deja la distribución como estaba (captureWithLayout.ts).
+  const meshCapture = useRef<CaptureFn | null>(null);
+  // Cada espera devuelve true cuando acepta la captura y deja de esperar.
+  const captureWaiters = useRef<((fn: CaptureFn) => boolean)[]>([]);
+  const registerMeshCapture = useCallback((fn: CaptureFn | null) => {
+    meshCapture.current = fn;
+    if (fn) captureWaiters.current = captureWaiters.current.filter((w) => !w(fn));
+  }, []);
+  // La envoltura es estable: lee la distribución y su setter por refs.
+  const layoutRef = useRef<ViewerLayout>(viewerLayout);
+  layoutRef.current = viewerLayout;
+  const setLayoutRef = useRef(setViewerLayout);
+  setLayoutRef.current = setViewerLayout;
+  const captureScene = useCallback((): Promise<string | null> => {
+    const before = layoutRef.current;
+    // La captura de la celda de la franja, que se desmonta al subir: no vale.
+    const stale = meshCapture.current;
+    return captureWithLayout({
+      sceneIsMain: () => layoutRef.current.main === "scene",
+      current: () => meshCapture.current,
+      promote: () => setLayoutRef.current(swapPane(before, "scene")),
+      restore: () => setLayoutRef.current(before),
+      waitForCapture: () => new Promise<CaptureFn | null>((resolve) => {
+        // Una malla grande tarda en volver a cargarse; si ni así llega, el
+        // informe sale sin imagen en lugar de quedarse colgado.
+        const timer = setTimeout(() => {
+          captureWaiters.current = captureWaiters.current.filter((w) => w !== waiter);
+          resolve(null);
+        }, 15000);
+        const waiter = (fn: CaptureFn) => {
+          if (fn === stale) return false;
+          clearTimeout(timer);
+          resolve(fn);
+          return true;
+        };
+        captureWaiters.current.push(waiter);
+      }),
+      nextFrame: () => new Promise<void>((r) => requestAnimationFrame(() => r())),
+    });
+  }, []);
+  const sceneHasMesh = viewMode === "default" && meshVisible;
+  useEffect(() => {
+    setCaptureViewport(sceneHasMesh ? captureScene : null);
+  }, [sceneHasMesh, captureScene, setCaptureViewport]);
+  useEffect(() => () => setCaptureViewport(null), [setCaptureViewport]);
   // Transient "you clicked outside the mesh" hint — without it a missed pick is
   // silent and the tool feels broken.
   const [pickMiss, setPickMiss] = useState(false);
@@ -453,8 +501,56 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return { origin: o, normal: n };
   }, [planeCut, step]);
 
+  // Con la sincronización activa, un pick 3D o un clic en un corte mueven el
+  // foco común; sin ella, los cortes siguen enlazados por mprVoxel y las
+  // cámaras 3D no se mueven.
+  const focusFromMm = useCallback((mm: Vec3) => { if (meta && syncViews) setFocusMm(mm, meta); }, [meta, syncViews, setFocusMm]);
+
+  // La cámara 3D sigue al foco sin cambiar el zoom. También al registrarse
+  // una escena nueva (cambio de paso, subir la escena al principal). El MIP no
+  // mueve su cámara: su corte ya sale de mprVoxel.
+  useEffect(() => { if (focusPoint && syncViews) camera?.focus(focusPoint); }, [focusPoint, syncViews, camera]);
+
+  // Candidato elegido en Detección → foco. Con la meta en las dependencias:
+  // al reanudar una sesión el candidato llega antes que el volumen.
+  useEffect(() => {
+    const c = candidates[selectedCandidate];
+    if (c && syncViews && meta && step === "detect") setFocusMm([c.center_mm.x, c.center_mm.y, c.center_mm.z], meta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCandidate, candidates, step, meta]);
+
+  // Entrar en Morfometría o Dispositivos con el cuello medido → foco.
+  useEffect(() => {
+    const n = morphometry?.neck_origin;
+    if (n && syncViews && meta && (step === "morpho" || step === "devices")) setFocusMm([n.x, n.y, n.z], meta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, morphometry?.neck_origin, meta]);
+
+  // «Centrar en la lesión»: el cuello medido si lo hay; si no, el candidato.
+  const neck = morphometry?.neck_origin;
+  const lesion: Vec3 | null = neck
+    ? [neck.x, neck.y, neck.z]
+    : candidate ? [candidate.center_mm.x, candidate.center_mm.y, candidate.center_mm.z] : null;
+  const centerOnLesion = () => {
+    if (!lesion || !meta) return;
+    setFocusMm(lesion, meta);
+    camera?.frame(lesion, 30);
+  };
+  // Los paneles lo llaman a través del store. Se registra una envoltura
+  // estable que lee la versión vigente: registrar la función de cada render
+  // en el store volvería a renderizar el visor, y así sin fin.
+  const centerRef = useRef(centerOnLesion);
+  centerRef.current = centerOnLesion;
+  const canCenter = !!lesion && !!meta;
+  useEffect(() => {
+    setCenterOnLesion(canCenter ? () => centerRef.current() : null);
+  }, [canCenter, setCenterOnLesion]);
+  useEffect(() => () => setCenterOnLesion(null), [setCenterOnLesion]);
+
   const onPick = useCallback(
     (xyz: [number, number, number]) => {
+      // Cualquier punto marcado en el 3D es también el nuevo foco común.
+      focusFromMm(xyz);
       if (pickMode === "cl_source") { setClSource(xyz); setPickMode(null); }
       else if (pickMode === "cl_target") { setClTarget(xyz); setPickMode(null); }
       else if (pickMode === "neck_origin") { setNeckOrigin(xyz); setPickMode(null); }
@@ -479,7 +575,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         }
       }
     },
-    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements],
+    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm],
   );
 
   // La pista de rotar/zoom ocupaba la esquina para siempre; ahora aparece 3 s
@@ -509,23 +605,29 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const planeCfg = (plane: Plane) => {
     const vox = mprVoxel;
     const set = (v: Partial<typeof vox>) => setMprVoxel({ ...vox, ...v });
+    // Un clic en un corte, con SINCRO, es el nuevo foco de todo (el 3D
+    // incluido); setFocusMm deja el mismo vóxel en mprVoxel.
+    const click = (v: Partial<typeof vox>) => {
+      if (syncViews && meta) setFocusMm(voxelToMm({ ...vox, ...v }, meta), meta);
+      else set(v);
+    };
     if (plane === "axial") return {
       index: vox.z, crosshair: { u: f(nx, vox.x), v: f(ny, vox.y) },
       referenceLines: { u: f(nx, vox.x), v: f(ny, vox.y) },      // sagital vertical, coronal horizontal
       onIndexChange: (i: number) => set({ z: i }),
-      onPlaneClick: (u: number, v: number) => set({ x: clampIdx(nx, u), y: clampIdx(ny, v) }),
+      onPlaneClick: (u: number, v: number) => click({ x: clampIdx(nx, u), y: clampIdx(ny, v) }),
     };
     if (plane === "coronal") return {
       index: vox.y, crosshair: { u: f(nx, vox.x), v: 1 - f(nz, vox.z) },
       referenceLines: { u: f(nx, vox.x), v: 1 - f(nz, vox.z) },
       onIndexChange: (i: number) => set({ y: i }),
-      onPlaneClick: (u: number, v: number) => set({ x: clampIdx(nx, u), z: clampIdx(nz, 1 - v) }),
+      onPlaneClick: (u: number, v: number) => click({ x: clampIdx(nx, u), z: clampIdx(nz, 1 - v) }),
     };
     return {
       index: vox.x, crosshair: { u: f(ny, vox.y), v: 1 - f(nz, vox.z) },
       referenceLines: { u: f(ny, vox.y), v: 1 - f(nz, vox.z) },
       onIndexChange: (i: number) => set({ x: i }),
-      onPlaneClick: (u: number, v: number) => set({ y: clampIdx(ny, u), z: clampIdx(nz, 1 - v) }),
+      onPlaneClick: (u: number, v: number) => click({ y: clampIdx(ny, u), z: clampIdx(nz, 1 - v) }),
     };
   };
 
@@ -656,7 +758,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
           <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview}
-            boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts}
+            boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
         </Suspense>
       );
@@ -739,10 +841,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
               value={viewMode} onChange={(k) => setViewMode(k as typeof viewMode)} />
             {/* Vistas estándar + reencuadre. Sin esto, perder la orientación
                 rotando no tenía vuelta atrás. */}
-            {isMesh && setCamera && (
+            {isMesh && camera && (
               <HudToggleGroup
-                options={CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title }))}
-                value="" onChange={(k) => setCamera(k as CameraView)} />
+                options={[
+                  ...CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title })),
+                  ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Centrar en la lesión (encuadre de 30 mm)" }] : []),
+                ]}
+                value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : camera.setView(k as CameraView))} />
             )}
             {/* Solo sin orientación en el DICOM: con ella no hay nada que fijar. */}
             {meta.orientation_known === false && (

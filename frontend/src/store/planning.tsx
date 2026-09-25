@@ -110,6 +110,9 @@ interface PlanningState {
   morphoOverlay: boolean;
   /** Capture the live 3D viewport as a PNG data URL (set by MeshView while mounted). */
   captureViewport: (() => Promise<string | null>) | null;
+  /** Encuadra el 3D y los cortes en la lesión (cuello medido o candidato
+   *  elegido). Lo registra el visor; los paneles solo lo llaman. */
+  centerOnLesion: (() => void) | null;
   /** True when results exist that have not been written to a saved session.
    *  Saving is a manual action, so without this a click on the logo threw away
    *  an afternoon's analysis with no warning at all. */
@@ -179,6 +182,7 @@ interface PlanningState {
   setTrajTarget: (p: Vec3 | null) => void;
   setMorphoOverlay: (v: boolean) => void;
   setCaptureViewport: (fn: (() => Promise<string | null>) | null) => void;
+  setCenterOnLesion: (fn: (() => void) | null) => void;
   /** Called after a successful save — the session on disk now matches the store. */
   markSaved: () => void;
   reset: () => void;
@@ -257,7 +261,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [trajEntry, setTrajEntry] = useState<Vec3 | null>(null);
   const [trajTarget, setTrajTarget] = useState<Vec3 | null>(null);
   const [morphoOverlay, setMorphoOverlay] = useState(false);
-  const [captureViewport, setCaptureViewport] = useState<(() => Promise<string | null>) | null>(null);
+  const [captureViewport, _setCaptureViewport] = useState<(() => Promise<string | null>) | null>(null);
+  // Guardar una función en useState exige envolverla: pasada tal cual, React
+  // la toma por actualizador, la llama y guarda lo que devuelve (aquí, una
+  // Promise). Así estuvo la captura del informe: nunca era una función.
+  const setCaptureViewport = useCallback((fn: (() => Promise<string | null>) | null) => _setCaptureViewport(() => fn), []);
+  const [centerOnLesion, _setCenterOnLesion] = useState<(() => void) | null>(null);
+  const setCenterOnLesion = useCallback((fn: (() => void) | null) => _setCenterOnLesion(() => fn), []);
   const [dirty, setDirty] = useState(false);
   const markSaved = () => setDirty(false);
   const [viewerLayout, _setViewerLayout] = useState<ViewerLayout>(() => loadLayout());
@@ -345,7 +355,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
+        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
@@ -353,7 +363,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setPickMode, setClSource, setClTarget, setNeckRim, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setPlaneCut, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
-        setCaptureViewport, markSaved,
+        setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm,
         reset, resetDownstream,
       }}

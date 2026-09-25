@@ -72,6 +72,15 @@ const CAMERA_VIEWS: Record<Exclude<CameraView, "fit">, [[number, number, number]
   sagital_izq:  [[-1, 0, 0], [0, 0,  1]],   // lateral opuesto
 };
 
+/** Lo que MeshView publica para mover su cámara desde fuera. */
+export interface CameraController {
+  setView(v: CameraView): void;
+  /** Lleva el punto focal a `p` conservando distancia y orientación. */
+  focus(p: Vec3): void;
+  /** Encuadra un cubo de lado 2·radiusMm centrado en `p`. */
+  frame(p: Vec3, radiusMm: number): void;
+}
+
 export interface CropPreview {
   center: [number, number, number];
   radius: number;               // sphere radius / box half-side (mm)
@@ -135,11 +144,13 @@ export function MeshView({
    *  and the layer is lit to stand out. */
   focusUrl?: string;
   /** Registers a function that captures the live viewport as a PNG data URL
-   *  (used to embed the 3D scene in the PDF report). Called with null on unmount. */
+   *  (used to embed the 3D scene in the PDF report). Published once the scene
+   *  is on screen; called with null on unmount. */
   registerCapture?: (fn: (() => Promise<string | null>) | null) => void;
-  /** Registers a camera controller so the viewer can offer standard views and a
-   *  «fit to scene». Called with null on unmount. */
-  registerCamera?: (fn: ((view: CameraView) => void) | null) => void;
+  /** Registers a camera controller so the viewer can offer standard views, a
+   *  «fit to scene», and centre the shared focus point. Published once the
+   *  scene is on screen; called with null on unmount. */
+  registerCamera?: (c: CameraController | null) => void;
   /** Publishes a handle for moving named layers, for the clip rehearsal. */
   registerParts?: (h: PartsHandle | null) => void;
   /** Keep the camera across scene rebuilds — used by the live threshold preview so
@@ -250,6 +261,62 @@ export function MeshView({
       }
     });
 
+    // Expose a viewport-capture function (PNG data URL) for the PDF report.
+    const capture = async (): Promise<string | null> => {
+      const h = handles.current;
+      if (!h) return null;
+      try {
+        const glrw = (h.fsrw as unknown as { getApiSpecificRenderWindow?: () => { captureNextImage: (fmt: string) => Promise<string> } }).getApiSpecificRenderWindow?.();
+        if (!glrw) return null;
+        const promise = glrw.captureNextImage("image/png");
+        h.renderWindow.render();
+        return await promise;
+      } catch (err) {
+        console.warn("MeshView capture failed", err);
+        return null;
+      }
+    };
+
+    // Standard viewpoints. resetCamera() preserves the view direction and up
+    // vector, so pointing the camera and refitting is all it takes. Without this
+    // the only way back from a lost orientation was to change step and return.
+    const setView = (view: CameraView) => {
+      const h = handles.current;
+      if (!h) return;
+      const cam = h.renderer.getActiveCamera();
+      if (view !== "fit") {
+        const [dir, up] = CAMERA_VIEWS[view];
+        cam.setFocalPoint(0, 0, 0);
+        cam.setPosition(dir[0], dir[1], dir[2]);
+        cam.setViewUp(up[0], up[1], up[2]);
+      }
+      h.renderer.resetCamera();
+      h.renderer.resetCameraClippingRange();
+      h.renderer.updateLightsGeometryToFollowCamera();
+      h.renderWindow.render();
+    };
+    // Centrar en un punto (vistas sincronizadas): el foco se desplaza y la
+    // cámara con él, así que ni el zoom ni la orientación cambian.
+    const controller: CameraController = {
+      setView,
+      focus: (p: Vec3) => {
+        const h = handles.current; if (!h) return;
+        const cam = h.renderer.getActiveCamera();
+        const f = cam.getFocalPoint(), pos = cam.getPosition();
+        cam.setFocalPoint(p[0], p[1], p[2]);
+        cam.setPosition(pos[0] + (p[0] - f[0]), pos[1] + (p[1] - f[1]), pos[2] + (p[2] - f[2]));
+        h.renderer.resetCameraClippingRange();
+        h.renderWindow.render();
+      },
+      // «Centrar en la lesión»: además encuadra un cubo de 2·r alrededor.
+      frame: (p: Vec3, r: number) => {
+        const h = handles.current; if (!h) return;
+        h.renderer.resetCamera([p[0] - r, p[0] + r, p[1] - r, p[1] + r, p[2] - r, p[2] + r]);
+        h.renderer.updateLightsGeometryToFollowCamera();
+        h.renderWindow.render();
+      },
+    };
+
     (async () => {
       let anyGeometry = false;
       let focusBounds: number[] | null = null;
@@ -334,44 +401,13 @@ export function MeshView({
         renderer.updateLightsGeometryToFollowCamera();
       }
       renderWindow.render();
+      // Captura y cámara se publican cuando la escena ya está en pantalla, no
+      // al montar: capturar antes daba un lienzo negro (el informe espera a
+      // este registro tras subir la escena al principal), y un foco aplicado
+      // antes lo pisaba el encuadre inicial de arriba.
+      registerCaptureRef.current?.(capture);
+      registerCameraRef.current?.(controller);
     })();
-
-    // Expose a viewport-capture function (PNG data URL) for the PDF report.
-    const capture = async (): Promise<string | null> => {
-      const h = handles.current;
-      if (!h) return null;
-      try {
-        const glrw = (h.fsrw as unknown as { getApiSpecificRenderWindow?: () => { captureNextImage: (fmt: string) => Promise<string> } }).getApiSpecificRenderWindow?.();
-        if (!glrw) return null;
-        const promise = glrw.captureNextImage("image/png");
-        h.renderWindow.render();
-        return await promise;
-      } catch (err) {
-        console.warn("MeshView capture failed", err);
-        return null;
-      }
-    };
-    registerCaptureRef.current?.(capture);
-
-    // Standard viewpoints. resetCamera() preserves the view direction and up
-    // vector, so pointing the camera and refitting is all it takes. Without this
-    // the only way back from a lost orientation was to change step and return.
-    const setView = (view: CameraView) => {
-      const h = handles.current;
-      if (!h) return;
-      const cam = h.renderer.getActiveCamera();
-      if (view !== "fit") {
-        const [dir, up] = CAMERA_VIEWS[view];
-        cam.setFocalPoint(0, 0, 0);
-        cam.setPosition(dir[0], dir[1], dir[2]);
-        cam.setViewUp(up[0], up[1], up[2]);
-      }
-      h.renderer.resetCamera();
-      h.renderer.resetCameraClippingRange();
-      h.renderer.updateLightsGeometryToFollowCamera();
-      h.renderWindow.render();
-    };
-    registerCameraRef.current?.(setView);
 
     registerPartsRef.current?.({
       has: (id) => namedActors.current.has(id),

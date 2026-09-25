@@ -305,6 +305,17 @@ export interface VolumeMeta {
   wc: number;
   ww: number;
   modality: string;
+  /** Cosenos de dirección LPS de los ejes i, j, k (9 valores, fila mayor), o
+   *  null cuando el DICOM no los trae y la orientación es asumida. */
+  direction: number[] | null;
+  orientation_known: boolean;
+  origin_mm: [number, number, number];
+  /** Rango robusto [p0.5, p99.9] para inicializar ventana y MIP. */
+  intensity_range: [number, number];
+  /** Cambia cuando cambia el .npy: clave de la caché del navegador. */
+  cache_key: string;
+  /** 2 cuando el bloque «full» viene submuestreado en el plano. */
+  full_stride: number;
 }
 
 /* ── segmentation ──────────────────────────────────────────────────────── */

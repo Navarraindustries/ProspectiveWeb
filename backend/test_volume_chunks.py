@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from services.sessions import create_session, session_subdir
-from services.mpr import ensure_volume_cached, _downsampled_volume
+from services.mpr import ensure_volume_cached, _downsampled_volume, volume_chunk_int16
 
 client = TestClient(app, raise_server_exceptions=True)
 
@@ -131,3 +131,54 @@ class TestOrientationFromRealDicom:
 
         assert meta["orientation_known"] is False
         assert meta["direction"] is None
+
+
+class TestChunks:
+    def test_full_chunk_bytes_match_volume(self):
+        sid = _session_with_volume(nz=40, ny=60, nx=50)
+        data, dims, stride = volume_chunk_int16(sid, 8, 16)
+        assert dims == [8, 60, 50] and stride == 1
+        arr = np.frombuffer(data, dtype="<i2").reshape(dims)
+        vol = np.load(session_subdir(sid, "meshes") / "_volume.npy", mmap_mode="r")
+        np.testing.assert_array_equal(arr, np.rint(vol[8:16]).astype(np.int16))
+
+    def test_full_chunk_clamps_to_int16(self):
+        vol = np.full((4, 4, 4), 70000.0, dtype=np.float32)
+        vol[0, 0, 0] = -70000.0
+        sid = _session_with_volume(4, 4, 4, values=vol)
+        data, dims, _ = volume_chunk_int16(sid, 0, 4)
+        arr = np.frombuffer(data, dtype="<i2").reshape(dims)
+        assert arr.max() == 32767 and arr.min() == -32768
+
+    def test_full_chunk_uses_stride_for_large_volume(self, monkeypatch):
+        from services import mpr
+        monkeypatch.setattr(mpr, "_FULL_STRIDE_VOXELS", 1000)
+        sid = _session_with_volume(nz=8, ny=40, nx=40)
+        # 12 800 vóxeles > 1000 → stride 2 en el plano, nunca en z.
+        data, dims, stride = volume_chunk_int16(sid, 0, 8)
+        assert stride == 2 and dims == [8, 20, 20]
+        assert len(data) == 8 * 20 * 20 * 2
+
+    def test_chunk_endpoint_headers_and_gzip(self):
+        sid = _session_with_volume(nz=40, ny=60, nx=50)
+        r = client.get(f"/api/volume/{sid}/chunk/full/0-32", headers={"Accept-Encoding": "gzip"})
+        assert r.status_code == 200
+        assert r.headers["x-dtype"] == "int16"
+        assert r.headers["x-dims"] == "32,60,50"
+        assert r.headers["x-level-stride"] == "1"
+        assert len(r.content) == 32 * 60 * 50 * 2   # TestClient descomprime
+        assert r.headers.get("content-encoding") == "gzip"
+
+    def test_chunk_endpoint_rejects_bad_range(self):
+        sid = _session_with_volume(nz=40)
+        assert client.get(f"/api/volume/{sid}/chunk/full/30-20").status_code == 422
+        assert client.get(f"/api/volume/{sid}/chunk/full/0-999").status_code == 422
+        assert client.get(f"/api/volume/{sid}/chunk/nivel/0-8").status_code == 422
+
+    def test_coarse_chunk_is_the_raw_volume(self):
+        sid = _session_with_volume()
+        raw = client.get(f"/api/volume/{sid}/raw")
+        coarse = client.get(f"/api/volume/{sid}/chunk/coarse/0-0")
+        assert coarse.headers["x-dtype"] == "uint8"
+        assert coarse.content == raw.content
+        assert coarse.headers["x-dims"] == raw.headers["x-dims"]

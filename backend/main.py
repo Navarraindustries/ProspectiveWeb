@@ -18,6 +18,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from services.auth_service import require_user, user_for_token
@@ -122,6 +123,12 @@ app = FastAPI(
     },
     license_info={"name": "Proprietary"},
 )
+
+# ── Gzip — added before CORS, so CORS (added last) ends up outermost and gzip
+# just inside it. Starlette wraps the last-added middleware outermost, but CORS
+# only sets response headers and never touches the body, so gzip still
+# compresses every response body before CORS passes it through untouched.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # ── CORS — allow React dev server (Vite default port) ─────────────────────── #
 

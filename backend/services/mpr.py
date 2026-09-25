@@ -230,6 +230,29 @@ def get_volume_raw_uint8(session_id: str, max_dim: int = 192) -> tuple[bytes, li
     return u8.tobytes(order="C"), dims, spacing
 
 
+CHUNK_SLICES = 32
+
+
+def volume_chunk_int16(session_id: str, z0: int, z1: int) -> tuple[bytes, list[int], int]:
+    """Cortes [z0, z1) del volumen como int16 little-endian, para el visor.
+
+    Se lee del memmap: en 1 vCPU / 2 GB no cabe el volumen entero en memoria
+    ni falta hace. Valores fuera de int16 (un XA en crudo los tiene) se
+    recortan, porque un desbordamiento con envoltura pintaría hueso negro.
+    Con `full_stride` 2 se submuestrea en el plano, nunca en z, para que el
+    índice de corte signifique lo mismo en todos los niveles.
+    """
+    meta = ensure_volume_cached(session_id)
+    nz = int(meta["shape"][0])
+    if not (0 <= z0 < z1 <= nz):
+        raise ValueError(f"Rango de cortes inválido {z0}-{z1} (el volumen tiene {nz})")
+    stride = int(meta.get("full_stride", 1))
+    vol = _get_volume(session_id)
+    slab = np.asarray(vol[z0:z1, ::stride, ::stride], dtype=np.float32)
+    clipped = np.clip(np.rint(slab), -32768, 32767).astype("<i2")
+    return clipped.tobytes(order="C"), [int(d) for d in clipped.shape], stride
+
+
 def render_oblique_png(
     session_id: str,
     tilt_deg: float,

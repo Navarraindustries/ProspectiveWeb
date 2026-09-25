@@ -11,6 +11,7 @@ from fastapi.responses import Response
 
 from services.mpr import (
     ensure_volume_cached, render_slice_png, render_oblique_png, get_volume_raw_uint8,
+    volume_chunk_int16,
 )
 from services.sessions import session_exists
 
@@ -73,6 +74,55 @@ async def get_volume_raw(session_id: str) -> Response:
             "X-Spacing": ",".join(f"{s:.5f}" for s in spacing),
             "Access-Control-Expose-Headers": "X-Dims, X-Spacing",
             "Cache-Control": "public, max-age=3600",
+        },
+    )
+
+
+@router.get(
+    "/volume/{session_id}/chunk/{level}/{z0}-{z1}",
+    summary="Un bloque del volumen para el visor en el cliente",
+    description=(
+        "`full`: cortes [z0, z1) en int16 little-endian, con stride en el plano "
+        "(`X-Level-Stride`) cuando el volumen es muy grande. `coarse`: el volumen "
+        "uint8 de ≤192³ entero (z0-z1 se ignoran). Cuerpo gzip cuando el cliente "
+        "lo acepta. Cabeceras: `X-Dims` (z,y,x), `X-Spacing`, `X-Dtype`."
+    ),
+    response_class=Response,
+    responses={200: {"content": {"application/octet-stream": {}}}},
+)
+async def get_volume_chunk(session_id: str, level: str, z0: int, z1: int) -> Response:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    if level not in ("full", "coarse"):
+        raise HTTPException(status_code=422, detail="level debe ser 'full' o 'coarse'")
+    loop = asyncio.get_event_loop()
+    try:
+        if level == "coarse":
+            data, dims, spacing = await loop.run_in_executor(
+                _executor, partial(get_volume_raw_uint8, session_id))
+            dtype, stride = "uint8", 1
+        else:
+            data, dims, stride = await loop.run_in_executor(
+                _executor, partial(volume_chunk_int16, session_id, z0, z1))
+            meta = ensure_volume_cached(session_id)
+            spacing = [float(s) for s in meta["spacing"]]
+            spacing = [spacing[0], spacing[1] * stride, spacing[2] * stride]
+            dtype = "int16"
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Volume chunk failed for %s: %s", session_id, exc, exc_info=True)
+        raise HTTPException(status_code=422, detail=f"No se pudo leer el bloque: {exc}") from exc
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={
+            "X-Dims": ",".join(str(d) for d in dims),
+            "X-Spacing": ",".join(f"{s:.5f}" for s in spacing),
+            "X-Dtype": dtype,
+            "X-Level-Stride": str(stride),
+            "Access-Control-Expose-Headers": "X-Dims, X-Spacing, X-Dtype, X-Level-Stride",
+            "Cache-Control": "private, max-age=86400",
         },
     )
 

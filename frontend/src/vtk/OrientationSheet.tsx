@@ -29,7 +29,8 @@ export function OrientationSheet({ open, onClose, sessionId, current, onApply }:
   sessionId: string;
   /** Lo que el visor asume ahora mismo: el diálogo arranca ahí. */
   current: ManualOrientation | null;
-  onApply: (m: ManualOrientation) => void;
+  /** null devuelve el visor a la orientación asumida (restablecer tras un fallo). */
+  onApply: (m: ManualOrientation | null) => void;
 }) {
   const start = current ?? DEFAULT_MANUAL_ORIENTATION;
   const [anteriorEdge, setAnteriorEdge] = useState(start.anteriorEdge);
@@ -52,12 +53,16 @@ export function OrientationSheet({ open, onClose, sessionId, current, onApply }:
     setError(null);
     const m: ManualOrientation = { anteriorEdge, firstSliceSuperior };
     // Primero el visor: las etiquetas cambian aunque la red tarde.
+    const previous = current;
     onApply(m);
     try {
       await api.setOrientation(sessionId, { anterior_edge: anteriorEdge, first_slice_superior: firstSliceSuperior });
       onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar la orientación");
+    } catch {
+      // Si no se guardó, no puede quedarse en pantalla: sin corchetes parecería
+      // conocida y al reanudar la sesión volvería la anterior.
+      onApply(previous);
+      setError("No se guardó la orientación; se ha restablecido la anterior");
     } finally {
       setBusy(false);
     }

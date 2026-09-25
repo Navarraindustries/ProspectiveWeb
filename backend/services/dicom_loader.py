@@ -224,8 +224,13 @@ def _image_to_result(
         series_uid, array.shape, sz, sy, sx, meta["modality"], is_proj,
     )
 
-    direction = tuple(float(v) for v in image.GetDirection()) if image.GetDimension() == 3 else (1, 0, 0, 0, 1, 0, 0, 0, 1)
-    known = _orientation_known(ref_file)
+    is_3d = image.GetDimension() == 3
+    direction = tuple(float(v) for v in image.GetDirection()) if is_3d else (1, 0, 0, 0, 1, 0, 0, 0, 1)
+    # orientation_known exige AMBAS cosas: que el DICOM traiga los tags Y que
+    # SimpleITK haya leído una dirección 3D real de la imagen. Sin la segunda
+    # condición, un DICOM 2D con ImageOrientationPatient publicaría la matriz
+    # identidad (el fallback de arriba) como si fuera la orientación real.
+    known = is_3d and _orientation_known(ref_file)
 
     return DicomLoadResult(
         volume=array,

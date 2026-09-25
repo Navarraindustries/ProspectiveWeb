@@ -431,7 +431,10 @@ export function MeshView({
       inset.dispose();
       insetRef.current = null;
       registerCaptureRef.current?.(null);
-      registerCameraRef.current?.(null);
+      // La cámara NO se anula al rehacer la escena (otro candidato, un
+      // dispositivo, la vista previa del umbral): el grupo AJUSTAR·AX·…·LESIÓN
+      // desaparecía y los conmutadores de debajo saltaban. Sus métodos ya
+      // miran handles.current; se anula solo al desmontar (efecto de abajo).
       registerPartsRef.current?.(null);
       namedActors.current.clear();
       markerActors.current = [];
@@ -464,6 +467,9 @@ export function MeshView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  // Desmontaje real de MeshView: ahora sí deja de haber cámara que mover.
+  useEffect(() => () => registerCameraRef.current?.(null), []);
 
   // ── Orientación fijada a mano: el recuadro cambia sin rehacer la escena ── #
   useEffect(() => {

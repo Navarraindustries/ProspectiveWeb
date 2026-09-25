@@ -511,6 +511,17 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // mueve su cámara: su corte ya sale de mprVoxel.
   useEffect(() => { if (focusPoint && syncViews) camera?.focus(focusPoint); }, [focusPoint, syncViews, camera]);
 
+  // Al volver a activar SINCRO, el 3D y los cortes pueden estar en puntos
+  // distintos (los cortes siguieron moviéndose solos). Se parte del crosshair:
+  // es lo último que el usuario señaló.
+  const prevSync = useRef(syncViews);
+  useEffect(() => {
+    const rising = syncViews && !prevSync.current;
+    prevSync.current = syncViews;
+    if (rising && meta) setFocusMm(voxelToMm(mprVoxel, meta), meta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncViews]);
+
   // Candidato elegido en Detección → foco. Con la meta en las dependencias:
   // al reanudar una sesión el candidato llega antes que el volumen.
   useEffect(() => {

@@ -21,6 +21,7 @@ import type {
   StentPlanResult,
 } from "../../api/types";
 import { Button } from "../Button";
+import { CenterOnLesionButton } from "../CenterOnLesionButton";
 import { ClipRehearsal } from "./ClipRehearsal";
 import { ClipSelectionPanel } from "./ClipSelection";
 import { Icon } from "../Icon";
@@ -1074,18 +1075,10 @@ function PlacedDevicesBar() {
 /* ── Panel ─────────────────────────────────────────────────────────────── */
 export function DevicesPanel({ onNext }: { onNext: () => void }) {
   const [tab, setTab] = useState<string>("Clips");
-  const { centerOnLesion } = usePlanning();
   return (
     <div className="fade-rise">
       <PanelHead title="Planificación de dispositivos" desc="Elige clip, coils o stent del catálogo y verifica su colocación." />
-      {/* En su propia fila: junto al título lo estrujaba en una columna. */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -8, marginBottom: 12 }}>
-        <Button variant="ghost" size="sm" disabled={!centerOnLesion} onClick={() => centerOnLesion?.()}
-          title="Lleva el 3D y los tres cortes a la lesión, con un encuadre de 30 mm"
-          leadingIcon={<Icon name="TARGET" size={14} />}>
-          Centrar en la lesión
-        </Button>
-      </div>
+      <CenterOnLesionButton />
       <TrajectoryTool />
       <PlacedDevicesBar />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />

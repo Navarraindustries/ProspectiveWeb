@@ -2,18 +2,25 @@
    - Con malla segmentada: render 3D real (.vtp) con vtk.js.
    - Sin malla pero con volumen cargado: vista previa DICOM (MPR axial navegable).
    - Sin nada: placeholder honesto.
-   La franja inferior muestra los tres planos MPR reales del volumen. */
+   Distribución 1+4: un panel principal y una franja de cuatro celdas (escena,
+   axial, coronal, sagital, MIP); doble clic en una celda la sube al principal.
+   Todas las celdas leen el mismo volumen del navegador. */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import type { VolumeMeta } from "../api/types";
 import { Icon } from "../components/Icon";
-import { usePlanning } from "../store/planning";
+import { usePlanning, type PickMode } from "../store/planning";
 import type { CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
+import type { Orientation, Plane } from "./geometry";
+import { swapPane, type PaneId } from "./layout";
+import { HudFrame } from "./hud/HudFrame";
+import { HudReadout } from "./hud/HudReadout";
+import { HudToggleGroup } from "./hud/HudToggleGroup";
 import type { Vector3 } from "@kitware/vtk.js/types";
 
 // vtk.js (~1 MB) is only needed once a 3D mesh is shown, so load MeshView — and
@@ -109,7 +116,7 @@ const WL_PRESETS: { name: string; wc: number; ww: number }[] = [
   { name: "Hígado", wc: 70, ww: 170 },
 ];
 
-/* Load the volume meta once per session; shared by main view + MPR strip. */
+/* Load the volume meta once per session; shared by every pane. */
 function useVolumeMeta(sessionId: string | null): VolumeMeta | null {
   const [meta, setMeta] = useState<VolumeMeta | null>(null);
   useEffect(() => {
@@ -135,7 +142,7 @@ function ViewerLoading({ label }: { label: string }) {
   );
 }
 
-export function Viewer({ step }: { step: string }) {
+export function ViewerWorkspace({ step }: { step: string }) {
   const {
     sessionId, segmentation, candidates, selectedCandidate, series, deviceMeshes,
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
@@ -147,6 +154,7 @@ export function Viewer({ step }: { step: string }) {
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
+    viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual,
   } = usePlanning();
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
@@ -228,14 +236,30 @@ export function Viewer({ step }: { step: string }) {
       ? candidate.dome_mesh_url
       : undefined;
   const meta = useVolumeMeta(sessionId);
-  // Crosshair for the main axial preview (axial has no Z flip, unlike the
-  // coronal/sagital views in the strip).
-  const mprCrosshair = meta
-    ? { u: fracIdx(meta.shape[2], mprVoxel.x), v: fracIdx(meta.shape[1], mprVoxel.y) }
-    : null;
-  // Copia del volumen en el navegador para el SliceView provisional del
-  // panel principal (Task 9 hará el diseño completo).
-  const clientVol = useClientVolume(sessionId, meta, mprVoxel.z);
+  // Un solo volumen en el navegador para las cinco celdas: la franja y el
+  // principal leen el mismo vtkImageData, así que no se descarga dos veces ni
+  // pueden enseñar niveles distintos. Sin WebGL2 ni se pide.
+  const clientVol = useClientVolume(hasWebGL2() ? sessionId : null, meta, mprVoxel.z);
+  const legacy = !hasWebGL2() || !clientVol.image;
+  const orientation: Orientation = { direction: meta?.direction ?? null, manual: orientationManual };
+  const levelNote = clientVol.level === "coarse"
+    ? `RESOLUCIÓN REDUCIDA${clientVol.progress ? ` · ${clientVol.progress.done}/${clientVol.progress.total}` : ""}`
+    : clientVol.error ? "SIN VOLUMEN COMPLETO" : null;
+  // En una celda de la franja (~¼ del ancho) la nota larga se monta sobre el
+  // rótulo del plano; allí basta con la forma corta.
+  const levelNoteShort = clientVol.level === "coarse"
+    ? `REDUCIDA${clientVol.progress ? ` ${clientVol.progress.done}/${clientVol.progress.total}` : ""}`
+    : clientVol.error ? "SIN COMPLETO" : null;
+  const [nz, ny, nx] = meta?.shape ?? [1, 1, 1];
+  // Al llegar un volumen nuevo: crosshair al centro y la ventana del estudio
+  // (lo que hacía MprStrip, que ya no existe).
+  useEffect(() => {
+    if (meta) {
+      setMprVoxel({ x: Math.floor(nx / 2), y: Math.floor(ny / 2), z: Math.floor(nz / 2) });
+      setMprWl({ wc: meta.wc, ww: meta.ww });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, nx, ny, nz]);
   const [viewMode, setViewMode] = useState<"default" | "volume" | "oblique">("default");
   // Camera controller published by MeshView while it is mounted.
   const [setCamera, setSetCamera] = useState<((v: CameraView) => void) | null>(null);
@@ -399,343 +423,271 @@ export function Viewer({ step }: { step: string }) {
     [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements],
   );
 
-  return (
-    <div style={{ flex: 1, position: "relative", background: "var(--viewer-bg)", overflow: "hidden", minHeight: 0 }}>
-      {viewMode === "volume" && sessionId && meta ? (
-        <Suspense fallback={<ViewerLoading label="Cargando volumen 3D…" />}>
-          <VolumeView sessionId={sessionId} />
-        </Suspense>
-      ) : viewMode === "oblique" && sessionId && meta ? (
-        <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />
-      ) : meshVisible ? (
+  // La pista de rotar/zoom ocupaba la esquina para siempre; ahora aparece 3 s
+  // cuando se monta una escena girable y se desvanece (la animación de
+  // .hud-hint dura lo mismo). Volver a enseñarla con «?» es de Task 14.
+  const rotatable = (viewMode === "default" && meshVisible) || viewMode === "volume";
+  const [showHint, setShowHint] = useState(false);
+  useEffect(() => {
+    if (!rotatable) { setShowHint(false); return; }
+    setShowHint(true);
+    const t = setTimeout(() => setShowHint(false), 3000);
+    return () => clearTimeout(t);
+  }, [rotatable]);
+
+  // Configuración por plano. El eje vertical de coronal/sagital es 1 − f(z)
+  // porque se ven con superior arriba (como los PNG); axial no se voltea. Las
+  // líneas de referencia van en las mismas coordenadas que el crosshair: en
+  // cada plano marcan dónde lo cortan los otros dos.
+  const f = (n: number, i: number) => (n > 1 ? i / (n - 1) : 0.5);
+  const planeCfg = (plane: Plane) => {
+    const vox = mprVoxel;
+    const set = (v: Partial<typeof vox>) => setMprVoxel({ ...vox, ...v });
+    if (plane === "axial") return {
+      index: vox.z, crosshair: { u: f(nx, vox.x), v: f(ny, vox.y) },
+      referenceLines: { u: f(nx, vox.x), v: f(ny, vox.y) },      // sagital vertical, coronal horizontal
+      onIndexChange: (i: number) => set({ z: i }),
+      onPlaneClick: (u: number, v: number) => set({ x: clampIdx(nx, u), y: clampIdx(ny, v) }),
+    };
+    if (plane === "coronal") return {
+      index: vox.y, crosshair: { u: f(nx, vox.x), v: 1 - f(nz, vox.z) },
+      referenceLines: { u: f(nx, vox.x), v: 1 - f(nz, vox.z) },
+      onIndexChange: (i: number) => set({ y: i }),
+      onPlaneClick: (u: number, v: number) => set({ x: clampIdx(nx, u), z: clampIdx(nz, 1 - v) }),
+    };
+    return {
+      index: vox.x, crosshair: { u: f(ny, vox.y), v: 1 - f(nz, vox.z) },
+      referenceLines: { u: f(ny, vox.y), v: 1 - f(nz, vox.z) },
+      onIndexChange: (i: number) => set({ x: i }),
+      onPlaneClick: (u: number, v: number) => set({ y: clampIdx(ny, u), z: clampIdx(nz, 1 - v) }),
+    };
+  };
+
+  // Sin malla, la escena ES el corte axial: el principal enseña cortes aunque
+  // su celda se llame «scene».
+  const sceneIsSlice = viewMode === "default" && !meshVisible && !!sessionId && !!meta;
+  const mainIsSlice = viewerLayout.main === "axial" || viewerLayout.main === "coronal"
+    || viewerLayout.main === "sagital" || (viewerLayout.main === "scene" && sceneIsSlice);
+  // Los preajustes de ventana van junto a la lectura W/L del panel activo; si
+  // el principal no es un corte (3D, volumen, MIP), junto a la del primer
+  // corte de la franja. Qué preajustes hay lo decide Task 14.
+  const wlHost: PaneId | null = !sessionId || !meta ? null
+    : mainIsSlice ? viewerLayout.main
+    : viewerLayout.strip.find((p) => p === "axial" || p === "coronal" || p === "sagital") ?? null;
+  const wlSelect = (
+    <select
+      className="hud-toggle"
+      title="Preajuste de ventana/nivel"
+      value=""
+      onChange={(e) => {
+        const p = WL_PRESETS.find((x) => x.name === e.target.value);
+        if (p) setMprWl({ wc: p.wc, ww: p.ww });
+      }}
+      // Abrir el desplegable no debe maximizar la celda.
+      onDoubleClick={(e) => e.stopPropagation()}
+      style={{ position: "absolute", bottom: 3, right: 24, zIndex: 6, width: 96, background: "#000", border: "none", color: "var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: ".08em", textTransform: "uppercase", cursor: "pointer" }}
+    >
+      <option value="" disabled>Preajuste</option>
+      {WL_PRESETS.map((p) => (
+        <option key={p.name} value={p.name}>{p.name} · {p.wc}/{p.ww}</option>
+      ))}
+    </select>
+  );
+
+  const renderPane = (id: PaneId, slot: "main" | "strip"): ReactNode => {
+    const compact = slot === "strip";
+    if (id === "scene") return renderScene(compact);
+    if (id === "mip") {
+      // MipView llega en Task 10; hasta entonces la celda dice qué falta.
+      return (
+        <HudFrame label="MIP" active={slot === "main"}>
+          <HudReadout at="bl" lines={[clientVol.image ? "MIP · PENDIENTE" : "SIN VOLUMEN"]} />
+        </HudFrame>
+      );
+    }
+    if (!meta || !sessionId) {
+      return <HudFrame label={id.toUpperCase()}><HudReadout at="bl" lines={[series ? "CARGANDO…" : "SIN VOLUMEN"]} /></HudFrame>;
+    }
+    const c = planeCfg(id);
+    // El tinte de banda solo tiene sentido mientras se ajusta el umbral.
+    const band = step === "segment" ? previewBand : null;
+    if (legacy) {
+      return (
+        <div style={{ position: "relative", width: "100%", height: "100%" }}>
+          <MprView sessionId={sessionId} meta={meta} plane={id} compact={compact} showSlider={!compact} wc={mprWl?.wc} ww={mprWl?.ww} band={band}
+            index={c.index} onIndexChange={c.onIndexChange} crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} />
+          {!hasWebGL2() && <HudFrame><HudReadout at="tr" lines={["SIN WEBGL2 · VISOR REDUCIDO"]} tone="warn" /></HudFrame>}
+        </div>
+      );
+    }
+    return (
+      <Suspense fallback={<ViewerLoading label="Cargando visor de cortes…" />}>
+        <SliceView image={clientVol.image!} meta={meta} plane={id} index={c.index} onIndexChange={c.onIndexChange}
+          wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
+          crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
+          band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
+          active={slot === "main"} compact={compact} />
+      </Suspense>
+    );
+  };
+
+  // La escena: 3D / volumen / oblicuo, o el corte axial mientras no hay malla.
+  // Todo el cromo es HUD: lecturas en mono y grupos de conmutadores sin fondo,
+  // en esquinas que no pisan las lecturas propias de SliceView (bl/br/tr).
+  const renderScene = (compact: boolean): ReactNode => {
+    const isMesh = viewMode === "default" && meshVisible;
+    let body: ReactNode;
+    let mode: string | null = null;
+    if (viewMode === "volume" && sessionId && meta) {
+      body = <Suspense fallback={<ViewerLoading label="Cargando volumen 3D…" />}><VolumeView sessionId={sessionId} /></Suspense>;
+      mode = "VOLUMEN";
+    } else if (viewMode === "oblique" && sessionId && meta) {
+      body = <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />;
+      mode = "OBLICUO";
+    } else if (isMesh) {
+      body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
           <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview}
-          boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
+            boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
         </Suspense>
-      ) : sessionId && meta && clientVol.image && hasWebGL2() ? (
-        <Suspense fallback={<ViewerLoading label="Cargando visor de cortes…" />}>
-        <SliceView
-          image={clientVol.image} meta={meta} plane="axial" index={mprVoxel.z}
-          onIndexChange={(z) => setMprVoxel({ ...mprVoxel, z })}
-          wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
-          onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
-          crosshair={mprCrosshair}
-          onPlaneClick={(u, v) => setMprVoxel({ ...mprVoxel, x: clampIdx(meta.shape[2], u), y: clampIdx(meta.shape[1], v) })}
-          orientation={{ direction: meta.direction, manual: null }}
-          levelNote={clientVol.level === "coarse" ? `RESOLUCIÓN REDUCIDA${clientVol.progress ? ` · ${clientVol.progress.done}/${clientVol.progress.total}` : ""}` : null}
-          band={previewActive ? previewBand : null}
-        />
-        </Suspense>
-      ) : sessionId && meta ? (
-        <MprView
-          sessionId={sessionId} meta={meta} plane="axial" showSlider showPlaneLabel={false}
-          band={previewActive ? previewBand : null}
-          // Same shared state as the strip below: the window preset, the
-          // window/level drag and the crosshair all reach this view too.
-          wc={mprWl?.wc} ww={mprWl?.ww}
-          onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
-          index={mprVoxel.z}
-          onIndexChange={(z) => setMprVoxel({ ...mprVoxel, z })}
-          crosshair={mprCrosshair}
-          onPlaneClick={(u, v) => {
-            const x = clampIdx(meta.shape[2], u), y = clampIdx(meta.shape[1], v);
-            setMprVoxel({ ...mprVoxel, x, y });
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage:
-              "radial-gradient(60% 60% at 52% 46%, rgba(78,102,120,0.30), transparent 70%), linear-gradient(rgba(139,155,170,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(139,155,170,0.05) 1px, transparent 1px)",
-            backgroundSize: "100% 100%, 34px 34px, 34px 34px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 12,
-            color: "rgba(168,184,198,0.5)",
-          }}
-        >
+      );
+      mode = segPreview ? "3D · MALLA GRUESA" : "3D";
+    } else if (sceneIsSlice) {
+      body = renderPane("axial", compact ? "strip" : "main");
+    } else {
+      body = (
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "rgba(168,184,198,0.5)" }}>
           <Icon name="BRAIN" size={54} color="rgba(139,155,170,0.5)" />
           <div style={{ fontSize: 13 }}>
             {series ? "Cargando vista previa del volumen…" : "Carga una serie DICOM para comenzar"}
           </div>
         </div>
-      )}
-
-      {/* Scene label */}
-      <div style={{ position: "absolute", top: 14, left: 16, fontSize: 11, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.75)", pointerEvents: "none" }}>
-        {/* The 2D fallback is always the axial plane, so name it here — its own
-            label would print on top of this one. */}
-        {STEP_SCENE[step]} · {viewMode === "volume" ? "volumen" : viewMode === "oblique" ? "oblicuo" : meshVisible ? "vtk.js" : "MPR axial"}
-        {step === "detect" && candidate && <span style={{ marginLeft: 10, color: "#A8B8C6" }}>· {candidate.id}</span>}
-      </div>
-
-      {/* Live threshold-preview legend (2D tint fallback). */}
-      {previewActive && previewBand && (
-        <div style={{ position: "absolute", top: 38, left: 16, display: "flex", alignItems: "center", gap: 8, background: "rgba(20,24,28,0.72)", border: "1px solid rgba(54,214,168,0.5)", borderRadius: 999, padding: "5px 12px", pointerEvents: "none", boxShadow: "0 2px 10px rgba(0,0,0,0.35)" }}>
-          <span style={{ width: 9, height: 9, borderRadius: 2, background: "rgb(54,214,168)" }} />
-          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "#DCE6EE" }}>
-            Vista previa · captura [{Math.round(previewBand[0])}, {Math.round(previewBand[1])}]
-          </span>
-        </div>
-      )}
-
-      {/* Coarse 3D mesh preview chip (interactive threshold tuning). */}
-      {viewMode === "default" && segPreview && (
-        <div style={{ position: "absolute", top: 38, left: 16, display: "flex", alignItems: "center", gap: 8, background: "rgba(20,24,28,0.72)", border: "1px solid rgba(54,214,168,0.5)", borderRadius: 999, padding: "5px 12px", pointerEvents: "none", boxShadow: "0 2px 10px rgba(0,0,0,0.35)" }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: "rgb(54,214,168)" }} />
-          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "#DCE6EE" }}>
-            Vista previa 3D (malla gruesa) · pulsa «Segmentar» para la malla final
-          </span>
-        </div>
-      )}
-
-      {/* Candidate focus chip — the highlighted candidate's id + diameter. */}
-      {viewMode === "default" && meshVisible && focusUrl && candidate && (
-        <div style={{ position: "absolute", top: 38, left: 16, display: "flex", alignItems: "center", gap: 8, background: "rgba(20,24,28,0.72)", border: "1px solid rgba(82,140,180,0.5)", borderRadius: 999, padding: "5px 12px", pointerEvents: "none", boxShadow: "0 2px 10px rgba(0,0,0,0.35)" }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#529CC0", boxShadow: "0 0 8px 1px rgba(82,156,192,0.9)" }} />
-          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "#DCE6EE" }}>
-            {candidate.id} · Ø {candidate.max_diameter_mm.toFixed(1)} mm
-          </span>
-        </div>
-      )}
-
-      {/* View-mode switcher (only when a volume is available) */}
-      {sessionId && meta && !pickMode && (
-        <div style={{ position: "absolute", top: 12, right: 14, display: "flex", gap: 2, background: "rgba(20,24,28,0.72)", borderRadius: 999, padding: 3 }}>
-          {([["default", meshVisible ? "3D" : "MPR"], ["volume", "Volumen"], ["oblique", "Oblicuo"]] as const).map(([m, lbl]) => (
-            <button
-              key={m}
-              onClick={() => setViewMode(m)}
-              style={{
-                padding: "4px 12px", fontSize: 11, fontWeight: 600, borderRadius: 999, border: "none", cursor: "pointer",
-                background: viewMode === m ? "var(--brand-mist, #8B9BAA)" : "transparent",
-                color: viewMode === m ? "#0e1114" : "rgba(200,210,220,0.8)",
-              }}
-            >
-              {lbl}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Vistas estándar + reencuadre. Sin esto, perder la orientación rotando no
-          tenía vuelta atrás: la cámara solo se reajustaba al reconstruir la escena. */}
-      {viewMode === "default" && meshVisible && setCamera && !pickMode && (
-        <div style={{ position: "absolute", top: 46, right: 14, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-          <div style={{ display: "flex", gap: 2, background: "rgba(20,24,28,0.72)", borderRadius: 999, padding: 3 }}>
-            {CAMERA_BUTTONS.map(([view, label, title]) => (
-              <button
-                key={view}
-                onClick={() => setCamera(view)}
-                title={title}
-                style={{
-                  padding: "4px 9px", fontSize: 11, fontWeight: 600, borderRadius: 999,
-                  border: "none", cursor: "pointer", background: "transparent",
-                  color: "rgba(200,210,220,0.85)", fontFamily: "var(--font-sans)",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pick-mode banner — turns into a "you missed the mesh" hint on a miss. */}
-      {pickMode && meshUrl && (
-        <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", background: pickMiss ? "rgba(220,60,60,0.95)" : pickMode === "cl_source" ? "rgba(63,186,80,0.92)" : pickMode === "cl_target" ? "rgba(248,81,73,0.92)" : pickMode === "neck_origin" ? "rgba(217,89,217,0.92)" : pickMode === "neck_dome" ? "rgba(92,217,219,0.94)" : pickMode === "neck_rim" ? "rgba(230,115,242,0.94)" : pickMode === "crop_center" ? "rgba(240,150,50,0.94)" : pickMode === "traj_entry" ? "rgba(102,204,255,0.94)" : pickMode === "traj_target" ? "rgba(248,81,73,0.92)" : "rgba(234,179,8,0.94)", color: pickMiss ? "#fff" : pickMode === "measure" || pickMode === "neck_dome" || pickMode === "traj_entry" ? "#1a1a1a" : "#fff", fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 999, pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}>
-          {pickMiss && "⚠ Clic fuera de la malla — haz clic sobre la superficie 3D"}
-          {!pickMiss && pickMode === "cl_source" && "Clic sobre el vaso para marcar el origen"}
-          {!pickMiss && pickMode === "cl_target" && "Clic sobre el vaso para marcar el destino"}
-          {!pickMiss && pickMode === "neck_origin" && "Clic sobre el cuello del aneurisma"}
-          {!pickMiss && pickMode === "neck_dome" && "Clic sobre el ápice del domo"}
-          {!pickMiss && pickMode === "neck_rim" && `Clic alrededor del borde del cuello (${neckRim.length}${neckRim.length < 3 ? " · faltan " + (3 - neckRim.length) : ""})`}
-          {!pickMiss && pickMode === "crop_center" && "Clic sobre la malla para el centro del recorte"}
-          {!pickMiss && pickMode === "traj_entry" && "Clic para el punto de entrada del abordaje"}
-          {!pickMiss && pickMode === "traj_target" && "Clic sobre el aneurisma (punto diana)"}
-          {!pickMiss && pickMode === "measure" && (measurePending ? "Clic en el segundo punto" : "Clic en el primer punto")}
-        </div>
-      )}
-
-      {/* Morphometric overlay legend — values annotated in the 3D scene. */}
-      {viewMode === "default" && meshVisible && overlay && morphometry && (
-        <div style={{ position: "absolute", bottom: 40, left: 16, display: "flex", flexDirection: "column", gap: 3, background: "rgba(20,24,28,0.72)", border: "1px solid rgba(120,140,160,0.4)", borderRadius: 8, padding: "8px 11px", pointerEvents: "none", fontSize: 11, fontFamily: "var(--font-mono)", color: "#DCE6EE" }}>
-          {/* El cuello y lo que cuelga de él se anulan cuando no se pudo medir.
-              Esta leyenda los imprimía igualmente, así que anotaba «Ø cuello
-              0.0 mm» sobre la escena — o, peor, mostraba un cuello válido que la
-              tabla daba por no medido. Ahora ambas leen la misma bandera. */}
-          {morphometry.neck_valid !== false && (
-            <>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "rgb(51,191,255)" }} />Ø cuello {morphometry.neck_mm.toFixed(1)} mm</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "rgb(255,140,26)" }} />H domo {morphometry.dome_height_mm.toFixed(1)} mm</span>
-            </>
-          )}
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "rgb(217,51,51)" }} />Ø máx {morphometry.max_diameter_mm.toFixed(1)} mm</span>
-          {morphometry.neck_valid !== false && (
-            <span style={{ color: "rgba(200,210,220,0.75)" }}>AR {morphometry.ar.toFixed(2)} · DNR {morphometry.dnr.toFixed(2)}</span>
-          )}
-        </div>
-      )}
-
-      {/* Placed-device legend — names what each colour in the scene is, so a
-          plan holding a clip AND a stent reads as two devices, not one blob. */}
-      {viewMode === "default" && meshVisible && showDevice && (
-        <div style={{ position: "absolute", top: 38, right: 16, display: "flex", flexDirection: "column", gap: 3, background: "rgba(20,24,28,0.72)", border: "1px solid rgba(120,140,160,0.4)", borderRadius: 8, padding: "8px 11px", pointerEvents: "none", fontSize: 11, fontFamily: "var(--font-mono)", color: "#DCE6EE" }}>
-          {devices.map((d) => (
-            <span key={d.kind} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 9, height: 9, borderRadius: 2, background: `rgb(${d.color.map((c) => Math.round(c * 255)).join(",")})` }} />
-              {DEVICE_LABEL[d.kind]}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Perforator legend — only over the mesh scene (the oblique view has its
-          own control bar down there, and the volume view has no perforators).
-          The bands come from the result, not from constants here: this legend
-          read «3–6mm / >6mm» for a computation that uses 3/5/8 mm. */}
-      {viewMode === "default" && meshUrl && visiblePerforators.length > 0
-        && (step === "morpho" || step === "treatment" || step === "devices") && (
-        <div style={{ position: "absolute", bottom: 14, right: 16, display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "4px 12px", maxWidth: "60%", fontSize: 10, color: "rgba(235,235,235,0.7)", pointerEvents: "none" }}>
-          {perforatorBands.map((b) => (
-            <span key={b.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: b.color }} />
-              {b.label}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Rotate/zoom hint — only for the rotatable 3D scenes (mesh & volume). */}
-      {((viewMode === "default" && meshUrl) || viewMode === "volume") && (
-        <div style={{ position: "absolute", bottom: 14, left: 16, fontSize: 10, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.55)", pointerEvents: "none" }}>
-          arrastra para rotar · rueda para zoom
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Fractional position (0–1) of voxel index *i* along an axis of *n* slices. */
-const fracIdx = (n: number, i: number) => (n > 1 ? i / (n - 1) : 0.5);
-/** Inverse of fracIdx: a 0–1 click position back to a clamped voxel index. */
-const clampIdx = (n: number, u: number) => Math.max(0, Math.min(n - 1, Math.round(u * (n - 1))));
-
-/* MprStrip — franja inferior con los tres planos reales, crosshairs
-   sincronizados y window/level por arrastre compartido. */
-export function MprStrip() {
-  const {
-    sessionId, series, previewBand,
-    mprVoxel: vox, setMprVoxel, mprWl: wl, setMprWl,
-  } = usePlanning();
-  const meta = useVolumeMeta(sessionId);
-
-  // Crosshair voxel {x,y,z} and window/level live in the store, so the main
-  // preview and the oblique view read the same values — picking a preset or
-  // clicking a vessel here used to leave the big image behind.
-  const [nz, ny, nx] = meta?.shape ?? [1, 1, 1];
-  const setVox = (u: React.SetStateAction<{ x: number; y: number; z: number }>) =>
-    setMprVoxel(typeof u === "function" ? u(vox) : u);
-  const setWl = setMprWl;
-
-  useEffect(() => {
-    if (meta) {
-      setMprVoxel({ x: Math.floor(nx / 2), y: Math.floor(ny / 2), z: Math.floor(nz / 2) });
-      setMprWl({ wc: meta.wc, ww: meta.ww });
+      );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, nx, ny, nz]);
 
+    // Arriba a la izquierda: el paso, el candidato y el estado de la vista previa.
+    const tl: string[] = [STEP_SCENE[step]?.toUpperCase() ?? ""];
+    if (candidate && (step === "detect" || (isMesh && focusUrl))) {
+      tl.push(`${candidate.id} · Ø ${candidate.max_diameter_mm.toFixed(1)} mm`);
+    }
+    if (previewActive && previewBand) tl.push(`VISTA PREVIA · CAPTURA [${Math.round(previewBand[0])}, ${Math.round(previewBand[1])}]`);
+    if (viewMode === "default" && segPreview) tl.push("PULSA «SEGMENTAR» PARA LA MALLA FINAL");
 
-  // Per-plane wiring: controlled index, crosshair {u,v}, click→voxel.
-  // NOTE: the backend flips the Z axis for coronal/sagital slices (so superior is
-  // up), so their VERTICAL axis (v) is 1 − f(z). Axial has no flip.
-  const cfg = (plane: "axial" | "coronal" | "sagital") => {
-    const f = (n: number, i: number) => (n > 1 ? i / (n - 1) : 0.5);
-    const clamp = (n: number, u: number) => Math.max(0, Math.min(n - 1, Math.round(u * (n - 1))));
-    const clampFlip = (n: number, u: number) => clamp(n, 1 - u);   // Z-flipped axis
-    if (plane === "axial")
-      return {
-        index: vox.z,
-        crosshair: { u: f(nx, vox.x), v: f(ny, vox.y) },
-        onIndexChange: (i: number) => setVox((p) => ({ ...p, z: i })),
-        onPlaneClick: (u: number, v: number) => {
-          const x = clamp(nx, u), y = clamp(ny, v);
-          setVox((p) => ({ ...p, x, y }));
-        },
-      };
-    if (plane === "coronal")
-      return {
-        index: vox.y,
-        crosshair: { u: f(nx, vox.x), v: 1 - f(nz, vox.z) },
-        onIndexChange: (i: number) => setVox((p) => ({ ...p, y: i })),
-        onPlaneClick: (u: number, v: number) => {
-          const x = clamp(nx, u), z = clampFlip(nz, v);
-          setVox((p) => ({ ...p, x, z }));
-        },
-      };
-    return {
-      index: vox.x,
-      crosshair: { u: f(ny, vox.y), v: 1 - f(nz, vox.z) },
-      onIndexChange: (i: number) => setVox((p) => ({ ...p, x: i })),
-      onPlaneClick: (u: number, v: number) => {
-        const y = clamp(ny, u), z = clampFlip(nz, v);
-        setVox((p) => ({ ...p, y, z }));
-      },
-    };
+    // Leyendas de la escena 3D como líneas de texto: el color lo lleva el
+    // trazo en la escena, la lectura dice qué mide.
+    const bl: string[] = [];
+    if (isMesh && overlay && morphometry) {
+      // El cuello y lo que cuelga de él se anulan cuando no se pudo medir: la
+      // leyenda lee la misma bandera que la tabla, para no anotar «Ø cuello
+      // 0.0 mm» sobre la escena ni un cuello que la tabla da por no medido.
+      if (morphometry.neck_valid !== false) {
+        bl.push(`Ø CUELLO ${morphometry.neck_mm.toFixed(1)} mm`, `H DOMO ${morphometry.dome_height_mm.toFixed(1)} mm`);
+      }
+      bl.push(`Ø MÁX ${morphometry.max_diameter_mm.toFixed(1)} mm`);
+      if (morphometry.neck_valid !== false) bl.push(`AR ${morphometry.ar.toFixed(2)} · DNR ${morphometry.dnr.toFixed(2)}`);
+    }
+    // Dispositivos y bandas de perforantes comparten esquina: en el paso de
+    // dispositivos pueden verse las dos cosas a la vez. Las bandas salen de
+    // los radios del resultado, no de constantes de aquí.
+    const br: string[] = [];
+    if (isMesh && showDevice) for (const d of devices) br.push(DEVICE_LABEL[d.kind].toUpperCase());
+    if (isMesh && meshUrl && visiblePerforators.length > 0 && (step === "morpho" || step === "treatment" || step === "devices")) {
+      const risk = ["ALTO", "MEDIO", "BAJO"];
+      perforatorBands.forEach((b, i) => br.push(`${risk[i]} · ${b.label}`));
+    }
+
+    // Los conmutadores van bajo la lectura de la izquierda: la derecha es de
+    // la escalera de cortes, las lecturas de nivel y SINCRO.
+    const togglesTop = 22 + tl.length * 16 + 8;
+
+    return (
+      <div style={{ position: "relative", width: "100%", height: "100%", background: "var(--viewer-bg)", overflow: "hidden" }}>
+        {body}
+        {/* Con el corte axial dentro, su HudFrame ya dibuja esquinas y rótulo. */}
+        {sceneIsSlice ? (
+          !compact && <div className="hud"><HudReadout at="tl" lines={tl} /></div>
+        ) : (
+          <HudFrame active={!compact} label={compact ? (mode ?? "ESCENA") : undefined}>
+            {!compact && <HudReadout at="tl" lines={tl} />}
+            {!compact && mode && <HudReadout at="tr" lines={[mode]} />}
+            {/* El nivel del volumen, una línea más abajo y en ámbar. */}
+            {!compact && levelNote && (
+              <div style={{ position: "absolute", inset: 0, top: 16 }}><HudReadout at="tr" lines={[levelNote]} tone="warn" /></div>
+            )}
+            {!compact && bl.length > 0 && <HudReadout at="bl" lines={bl} />}
+            {!compact && br.length > 0 && <HudReadout at="br" lines={br} />}
+            {showHint && rotatable && <div className="hud-hint">ARRASTRA PARA ROTAR · RUEDA PARA ZOOM</div>}
+          </HudFrame>
+        )}
+
+        {!compact && sessionId && meta && !pickMode && (
+          <div style={{ position: "absolute", top: togglesTop, left: 14, zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
+            <HudToggleGroup
+              options={[{ key: "default", label: meshVisible ? "3D" : "MPR" }, { key: "volume", label: "Volumen" }, { key: "oblique", label: "Oblicuo" }]}
+              value={viewMode} onChange={(k) => setViewMode(k as typeof viewMode)} />
+            {/* Vistas estándar + reencuadre. Sin esto, perder la orientación
+                rotando no tenía vuelta atrás. */}
+            {isMesh && setCamera && (
+              <HudToggleGroup
+                options={CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title }))}
+                value="" onChange={(k) => setCamera(k as CameraView)} />
+            )}
+          </div>
+        )}
+
+        {/* Aviso de marcado: pasa a «clic fuera» un momento si se falla la malla. */}
+        {pickMode && meshUrl && (
+          <div className={`hud-readout${pickMiss ? " hud-err" : ""}`}
+               style={{ top: 40, left: "50%", transform: "translateX(-50%)", textAlign: "center", fontFamily: "var(--font-mono)", color: pickMiss ? undefined : "var(--hud)", pointerEvents: "none", zIndex: 5 }}>
+            {(pickMiss ? "Clic fuera de la malla — haz clic sobre la superficie 3D" : pickText(pickMode, measurePending !== null, neckRim.length)).toUpperCase()}
+            {"\nESC · CANCELAR"}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
-    <div className="mpr-strip" style={{ height: "clamp(160px, 26vh, 240px)", flexShrink: 0, display: "flex", gap: 1, background: "var(--border)", borderTop: "1px solid var(--border)", position: "relative" }}>
-      {/* Window/Level preset selector — sets the shared W/L for the three planes. */}
-      {sessionId && meta && (
-        <select
-          title="Preajuste de ventana/nivel"
-          value=""
-          onChange={(e) => {
-            const p = WL_PRESETS.find((x) => x.name === e.target.value);
-            if (p) setWl({ wc: p.wc, ww: p.ww });
-          }}
-          style={{ position: "absolute", top: 6, left: 8, zIndex: 6, fontSize: 10, fontFamily: "var(--font-mono)", padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(120,140,160,0.4)", background: "rgba(20,24,28,0.82)", color: "#DCE6EE", cursor: "pointer" }}
-        >
-          <option value="" disabled>Ventana…{wl ? ` (${Math.round(wl.wc)}/${Math.round(wl.ww)})` : ""}</option>
-          {WL_PRESETS.map((p) => (
-            <option key={p.name} value={p.name}>{p.name} · {p.wc}/{p.ww}</option>
-          ))}
-        </select>
-      )}
-      {(["axial", "coronal", "sagital"] as const).map((plane) => {
-        const c = cfg(plane);
-        return (
-        <div key={plane} style={{ flex: 1, position: "relative", minWidth: 0 }}>
-          {sessionId && meta ? (
-            <MprView
-              sessionId={sessionId} meta={meta} plane={plane} compact
-              wc={wl?.wc} ww={wl?.ww}
-              band={previewBand}
-              index={c.index}
-              onIndexChange={c.onIndexChange}
-              crosshair={c.crosshair}
-              onPlaneClick={c.onPlaneClick}
-              onWindowLevel={(wc, ww) => setWl({ wc, ww })}
-            />
-          ) : (
-            <div style={{ width: "100%", height: "100%", background: "var(--viewer-bg)", position: "relative" }}>
-              <span style={{ position: "absolute", top: 8, left: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.7)" }}>
-                {plane === "axial" ? "Axial" : plane === "coronal" ? "Coronal" : "Sagital"}
-              </span>
-              <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 9, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.4)" }}>
-                {series ? "cargando…" : "sin volumen"}
-              </span>
-            </div>
-          )}
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+      <div style={{ flex: 1, position: "relative", background: "#000", minHeight: 0, overflow: "hidden" }}>
+        {renderPane(viewerLayout.main, "main")}
+        {wlHost === viewerLayout.main && wlSelect}
+        {/* Arriba del todo (top 2) para no pisar las lecturas `tr` de la celda,
+            que empiezan a 22 px; a 24 px del borde, fuera de la marca de esquina. */}
+        <div style={{ position: "absolute", top: 2, right: 24, zIndex: 6, lineHeight: 1.2, fontFamily: "var(--font-mono)" }}>
+          <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
+            value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
         </div>
-        );
-      })}
+      </div>
+      <div className="mpr-strip" style={{ height: "clamp(160px, 26vh, 240px)", flexShrink: 0, display: "flex", gap: 1, background: "var(--hud-dim)" }}>
+        {viewerLayout.strip.map((id) => (
+          <div key={id} style={{ flex: 1, position: "relative", minWidth: 0, background: "#000", overflow: "hidden" }}
+               onDoubleClick={() => setViewerLayout(swapPane(viewerLayout, id))}
+               title="Doble clic: maximizar">
+            {renderPane(id, "strip")}
+            {wlHost === id && wlSelect}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
+/** Texto del aviso de marcado para cada modo. */
+function pickText(mode: NonNullable<PickMode>, measurePending: boolean, rimCount: number): string {
+  switch (mode) {
+    case "cl_source": return "Clic sobre el vaso para marcar el origen";
+    case "cl_target": return "Clic sobre el vaso para marcar el destino";
+    case "neck_origin": return "Clic sobre el cuello del aneurisma";
+    case "neck_dome": return "Clic sobre el ápice del domo";
+    case "neck_rim": return `Clic alrededor del borde del cuello (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;
+    case "crop_center": return "Clic sobre la malla para el centro del recorte";
+    case "erase_piece": return "Clic sobre la pieza que quieres borrar";
+    case "traj_entry": return "Clic para el punto de entrada del abordaje";
+    case "traj_target": return "Clic sobre el aneurisma (punto diana)";
+    case "measure": return measurePending ? "Clic en el segundo punto" : "Clic en el primer punto";
+  }
+}
+
+/** A 0–1 click position back to a clamped voxel index. */
+const clampIdx = (n: number, u: number) => Math.max(0, Math.min(n - 1, Math.round(u * (n - 1))));

@@ -20,7 +20,7 @@ import { TreatmentPanel } from "../components/planning/TreatmentPanel";
 import { DevicesPanel } from "../components/planning/DevicesPanel";
 import { ManufacturePanel } from "../components/planning/ManufacturePanel";
 import { ReportPanel } from "../components/planning/ReportPanel";
-import { Viewer, MprStrip } from "../vtk/Viewer";
+import { ViewerWorkspace } from "../vtk/Viewer";
 import { usePlanning } from "../store/planning";
 
 
@@ -339,8 +339,7 @@ export function Workspace({
 
         {/* Visor central */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <Viewer step={step} />
-          <MprStrip />
+          <ViewerWorkspace step={step} />
         </div>
 
         {/* Panel del paso — ancho fluido con mínimo legible */}

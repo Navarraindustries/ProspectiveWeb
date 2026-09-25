@@ -58,6 +58,20 @@ class TestLonchas:
         por_lonchas = objectness_max(vol, SP, dimension=1, slab=20, overlap=8)
         np.testing.assert_allclose(por_lonchas, entero, rtol=1e-3, atol=1e-3)
 
+    def test_las_lonchas_no_dejan_costuras_con_tubo_transversal(self):
+        # El tubo axial del test anterior es invariante en z (el eje de troceo) y
+        # no ejercita el solape; este es perpendicular y cruza dos fronteras de
+        # loncha (z=32 y z=64), así que un solape insuficiente o un recorte de
+        # bordes mal hecho sí lo hace fallar.
+        vol = synthetic_tube(shape=(96, 40, 40), axis=1, radius_mm=8.0)
+        gamma = auto_gamma(vol)
+        entero = objectness_max(vol, SP, dimension=1, slab=1000, overlap=0, gamma=gamma)
+        por_lonchas = objectness_max(vol, SP, dimension=1, slab=32, overlap=12, gamma=gamma)
+        np.testing.assert_allclose(por_lonchas, entero, rtol=1e-3, atol=1e-3)
+
+        sin_solape = objectness_max(vol, SP, dimension=1, slab=32, overlap=0, gamma=gamma)
+        assert not np.allclose(sin_solape, entero, rtol=1e-3, atol=1e-3)
+
     def test_informa_del_progreso_por_loncha(self):
         vol = synthetic_tube(shape=(60, 32, 32))
         seen: list[tuple[int, int]] = []

@@ -2,7 +2,7 @@
    · Recortar malla por ROI caja/esfera (POST /api/mesh-crop)
    Ambas operan sobre vessel_tree.vtp; picking 3D reutiliza la infra del visor. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
@@ -27,6 +27,8 @@ export function MeshEditTools() {
   // Resultado del último clic del borrador. Se enseña siempre: cuando borra,
   // qué borró; cuando no, por qué no.
   const [eraseMsg, setEraseMsg] = useState<string | null>(null);
+  /** Turno del borrado en vuelo: ver el efecto de abajo. */
+  const eraseSeq = useRef(0);
   const [eraseLeft, setEraseLeft] = useState<number | null>(null);
   // Qué borra el clic: una pieza SUELTA o una región PEGADA.
   //
@@ -105,12 +107,26 @@ export function MeshEditTools() {
     if (!erasePick || !sessionId) return;
     const [x, y, z] = erasePick;
     setErasePick(null);
-    let cancelado = false;
+    // OJO con el orden: el efecto depende de `erasePick` y la línea de arriba
+    // lo pone a null, así que React vuelve a ejecutarlo y dispara la limpieza
+    // del pase anterior ANTES de que llegue la respuesta. Con un booleano
+    // `cancelado` eso abortaba un borrado que el backend YA había hecho: la
+    // malla cambiaba en disco y la pantalla no se enteraba —ni mensaje, ni
+    // historial, ni malla nueva—. Visto en el navegador: el panel seguía
+    // diciendo 11.870 vértices y «sin pasos que deshacer» mientras el fichero
+    // iba por 11.736 y el manifiesto tenía dos instantáneas. Lo peor no es que
+    // no se vea: es que quien lo usa cree que no funciona, sigue pinchando, y
+    // cada clic borra más malla sin dejar rastro en pantalla.
+    //
+    // Un número de turno descarta solo lo que de verdad ha quedado obsoleto
+    // porque llegó OTRO clic después.
+    const turno = ++eraseSeq.current;
+    const obsoleto = () => eraseSeq.current !== turno;
     void (async () => {
       try {
         if (eraseMode === "region") {
           const res = await api.meshEraseRegion(sessionId, { x, y, z }, eraseRadius);
-          if (cancelado) return;
+          if (obsoleto()) return;
           if (!res.removed_vertices) {
             setEraseMsg(res.warning || "No se borró nada.");
             return;
@@ -129,7 +145,7 @@ export function MeshEditTools() {
           return;
         }
         const res = await api.meshComponentDelete(sessionId, { x, y, z });
-        if (cancelado) return;
+        if (obsoleto()) return;
         if (!res.removed) {
           setEraseMsg(res.warning || "No se borró nada.");
           setEraseLeft(res.components_left);
@@ -150,10 +166,9 @@ export function MeshEditTools() {
         setComps((c) => (c ? { ...c, total: res.components_left } : c));
         void refreshHistory();
       } catch (err) {
-        if (!cancelado) setEraseMsg(err instanceof Error ? err.message : "Error al borrar la pieza");
+        if (!obsoleto()) setEraseMsg(err instanceof Error ? err.message : "Error al borrar la pieza");
       }
     })();
-    return () => { cancelado = true; };
   }, [erasePick, sessionId, eraseMode, eraseRadius]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Estos dos van AQUÍ, con el resto de hooks, y no junto a la lógica de la

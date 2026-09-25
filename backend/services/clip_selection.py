@@ -765,7 +765,15 @@ class ManufactureSpec:
     @property
     def label(self) -> str:
         fen = f", ventana {self.fenestration_mm:.1f} mm" if self.fenestration_mm > 0 else ""
-        return (f"{self.shape.value} de {self.blade_length_mm:.1f} mm"
+        # El nombre de la FORMA lleva su ángulo canónico dentro («Angulado 90°»),
+        # y una pieza a fabricar puede tener otro: con un corredor marcado la
+        # acodadura sale de la geometría. Rotularla con el ángulo de catálogo
+        # contradecía a la línea de al lado, que decía «pide ~25°».
+        nombre = self.shape.value
+        canonico = _SHAPE_ANGLE_OUT.get(self.shape, 0.0)
+        if canonico > 0 and abs(self.angle_deg - canonico) > 0.5:
+            nombre = f"Angulado {self.angle_deg:.0f}°"
+        return (f"{nombre} de {self.blade_length_mm:.1f} mm"
                 f"{fen} · {self.closing_force_g:.0f} g")
 
 
@@ -812,6 +820,15 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> Ma
     blade = math.ceil(target * 2.0) / 2.0          # round up to the next 0.5 mm
 
     shape = _preferred_shape(case)
+    # La acodadura de una pieza que se va a FABRICAR no tiene por qué ser la
+    # canónica de su forma: si hay un corredor marcado, la geometría ya dice
+    # cuántos grados hacen falta. Visto en el navegador: el panel decía «este
+    # corredor pide ~25°» y la ficha de al lado especificaba 90°, que es el
+    # ángulo con el que se dibuja un angulado de catálogo.
+    angulo = _SHAPE_ANGLE_OUT.get(shape, 0.0)
+    if case.approach_angle_deg is not None and shape in (
+            ClipShape.ANGLED, ClipShape.ANGLED_45, ClipShape.BAYONET):
+        angulo = round(bend_for_approach(case.approach_angle_deg), 1)
     _acc_lo, opt_lo, opt_hi, _acc_hi = force_window(case.neck_mm)
     force = round((opt_lo + opt_hi) / 2.0)
 
@@ -876,7 +893,7 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> Ma
         blade_height_mm=round(max(height, h_min), 2),
         spring_length_mm=round(max(spring, s_min), 1),
         shape=shape,
-        angle_deg=_SHAPE_ANGLE_OUT.get(shape, 0.0),
+        angle_deg=angulo,
         closing_force_g=float(force),
         fenestration_mm=fen,
         neck_mm=round(case.neck_mm, 2),

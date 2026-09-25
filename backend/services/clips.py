@@ -240,8 +240,13 @@ NECK_DEFORMATION_FACTOR: float = 1.5
 #: imposible y delata un corte abierto o un plano que cazó dos lazos. Por
 #: arriba, un contorno que pidiera más del triple del cuello tampoco describe
 #: un cuello.
+#: El techo baja de ×3 a ×2,5 después de verlo fallar en un caso real: un
+#: cuello redondo con el contorno dentado daba ×2,6 y pasaba el filtro. Para
+#: referencia, la mitad del perímetro de una elipse partido por su diámetro
+#: equivalente vale 1,57 en un círculo, 1,71 en 2:1, 1,93 en 3:1 y 2,35 en 5:1;
+#: un cuello más afilado que 5:1 es raro y merece mirarse a mano.
 _PERIMETER_MIN_RATIO: float = 1.5    # ≈ π/2, el límite del círculo
-_PERIMETER_MAX_RATIO: float = 3.0
+_PERIMETER_MAX_RATIO: float = 2.5
 
 
 @dataclass(frozen=True)

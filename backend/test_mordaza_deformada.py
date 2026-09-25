@@ -179,3 +179,114 @@ class TestLoQueSeMandaFabricar:
         assert cj is not None, "la talla de 7 mm no cierra un cuello de 7,5"
         assert cj.jaw_mm >= required_jaw_mm(5.0)
         assert cj.nearest_drawn_mm < cj.jaw_mm
+
+
+class TestElPerimetroNoSeDejaInflarPorLaRugosidad:
+    """Encontrado en el navegador, sobre el caso del usuario.
+
+    Un contorno de cuello de 4,93 × 3,91 mm —prácticamente redondo— medía
+    20,3 mm de perímetro cuando una elipse de esa forma mide 13,9. El 46 % de
+    exceso era dentado de marching cubes: 166 puntos serpenteando. Con él, la
+    mordaza pedida para un cuello de 3,9 mm pasaba de ~7 mm a 10,1, y el panel
+    mandaba a FABRICAR un cuello que una talla dibujada de 7 mm habría cerrado.
+
+    La medida correcta es el perímetro de la ENVOLVENTE CONVEXA del contorno:
+    ignora el dentado y conserva la elongación de verdad.
+    """
+
+    def _contorno(self, radio: float, dentado: float, n: int = 160):
+        """Un anillo en el plano z = 0, con o sin dientes de sierra."""
+        import vtk
+
+        pts = vtk.vtkPoints()
+        lineas = vtk.vtkCellArray()
+        for i in range(n):
+            a = 2.0 * math.pi * i / n
+            r = radio + (dentado if i % 2 else -dentado)
+            pts.InsertNextPoint(r * math.cos(a), r * math.sin(a), 0.0)
+        for i in range(n):
+            lineas.InsertNextCell(2)
+            lineas.InsertCellPoint(i)
+            lineas.InsertCellPoint((i + 1) % n)
+        poly = vtk.vtkPolyData()
+        poly.SetPoints(pts)
+        poly.SetLines(lineas)
+        return poly
+
+    def test_el_dentado_no_alarga_el_perimetro(self):
+        """La envolvente sigue la punta de los dientes, no su serpenteo.
+
+        No devuelve el círculo medio —para eso habría que suavizar— sino el
+        que pasa por los salientes. Es una sobreestimación pequeña y por el
+        lado seguro: una mordaza algo larga cierra el cuello, una corta no.
+        Lo que elimina es el serpenteo, que es lo que multiplicaba la medida.
+        """
+        from services.sac_isolation import _contour_perimeter, _hull_perimeter
+
+        radio, dentado = 5.0, 0.6
+        rugoso = self._contorno(radio, dentado)
+        crudo = _contour_perimeter(rugoso)
+        assert crudo > 2 * math.pi * radio * 1.3, "la premisa: el dentado infla el crudo"
+
+        env = _hull_perimeter(rugoso, (0, 0, 1))
+        # El círculo que pasa por los salientes, no el de en medio.
+        assert env == pytest.approx(2 * math.pi * (radio + dentado), rel=0.03), env
+        # Y muy por debajo del serpenteo: es la diferencia que importa.
+        assert env < crudo * 0.25
+
+    def test_un_cuello_de_verdad_alargado_se_sigue_viendo(self):
+        # La envolvente no aplana la elongación: para eso se mide el contorno.
+        import vtk
+        from services.sac_isolation import _hull_perimeter
+
+        pts = vtk.vtkPoints()
+        lin = vtk.vtkCellArray()
+        n = 120
+        for i in range(n):
+            a = 2.0 * math.pi * i / n
+            pts.InsertNextPoint(3.0 * math.cos(a), 1.35 * math.sin(a), 0.0)
+        for i in range(n):
+            lin.InsertNextCell(2); lin.InsertCellPoint(i); lin.InsertCellPoint((i + 1) % n)
+        elipse = vtk.vtkPolyData(); elipse.SetPoints(pts); elipse.SetLines(lin)
+        # Perímetro de Ramanujan para 3,0 × 1,35 ≈ 14,2 mm.
+        assert _hull_perimeter(elipse, (0, 0, 1)) == pytest.approx(14.2, rel=0.03)
+
+    def test_la_horquilla_rechaza_un_perimetro_todavia_inflado(self):
+        # Por encima de ×2,5 del diámetro equivalente ya no es un cuello: es una
+        # medida mala. Manda la regla del ×1,5 en vez de fabricar una pieza
+        # enorme para un cuello pequeño.
+        r = jaw_requirement(3.9, 20.27)      # el perímetro crudo del caso real
+        assert r.source == "factor"
+        assert r.mm == pytest.approx(5.85, abs=0.01)
+
+    def test_la_envolvente_de_ese_caso_si_se_acepta(self):
+        r = jaw_requirement(3.9, 14.16)      # el mismo contorno, por su envolvente
+        assert r.source == "perimeter"
+        assert r.mm == pytest.approx(7.08, abs=0.01)
+
+
+class TestLaPiezaAFabricarLlevaLaAcodaduraDelCorredor:
+    """El panel decía «este corredor pide ~25°» y la ficha de al lado
+    especificaba 90°, que es el ángulo con el que se dibuja un angulado de
+    catálogo. Una pieza que se va a fabricar puede tener el que haga falta."""
+
+    def _caso(self, angulo):
+        return ClipCase(neck_mm=3.9, ar=1.3, dome_height_mm=5.1,
+                        max_diameter_mm=8.7, neck_source="rim",
+                        approach_angle_deg=angulo)
+
+    def test_sin_corredor_manda_el_angulo_canonico_de_la_forma(self):
+        spec = derive_manufacture_spec(self._caso(None), [])
+        assert spec.angle_deg in (0.0, 45.0, 90.0)
+
+    def test_con_corredor_manda_la_geometria(self):
+        spec = derive_manufacture_spec(self._caso(65.0), [])
+        assert spec.angle_deg == pytest.approx(25.0)
+        assert "25" in spec.label, spec.label
+        assert "90" not in spec.label
+
+    def test_el_rotulo_no_contradice_al_angulo(self):
+        for ang in (40.0, 55.0, 70.0):
+            spec = derive_manufacture_spec(self._caso(ang), [])
+            if spec.angle_deg > 0:
+                assert f"{spec.angle_deg:.0f}" in spec.label, spec.label

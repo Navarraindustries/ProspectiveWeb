@@ -133,6 +133,11 @@ interface PlanningState {
   setMipMode: (m: "acumulado" | "lamina") => void;
   mipSlabMm: number;
   setMipSlabMm: (mm: number) => void;
+  /** Sube cada vez que el volumen de la sesión cambia en el servidor sin que
+   *  cambie la sesión (otra serie, preproceso o su reversión): el visor vuelve
+   *  a pedir la meta y, con su cache_key nuevo, el volumen del navegador. */
+  volumeVersion: number;
+  bumpVolumeVersion: () => void;
 
   setPatient: (p: PatientSummary | null) => void;
   setCase: (id: number | null, label?: string) => void;
@@ -277,6 +282,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [orientationManual, setOrientationManual] = useState<ManualOrientation | null>(null);
   const [mipMode, setMipMode] = useState<"acumulado" | "lamina">("acumulado");
   const [mipSlabMm, setMipSlabMm] = useState(10);
+  const [volumeVersion, setVolumeVersion] = useState(0);
+  const bumpVolumeVersion = useCallback(() => setVolumeVersion((v) => v + 1), []);
   const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
     setFocusPoint(mm);
     setMprVoxel(mmToVoxel(mm, meta));
@@ -356,7 +363,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, centerOnLesion, dirty,
-        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm,
+        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
@@ -364,7 +371,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setPlaneCut, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
-        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm,
+        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, bumpVolumeVersion,
         reset, resetDownstream,
       }}
     >

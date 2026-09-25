@@ -146,6 +146,9 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
     setError(null);
     try {
       const s = await api.setActiveSeries(sid, seriesId);
+      // Misma sesión, otro volumen: sin esto el visor seguía pintando la serie
+      // anterior (la meta solo se pedía al cambiar de sesión).
+      planning.bumpVolumeVersion();
       planning.resetDownstream();
       planning.setSegmentation(null);
       planning.setSeries(s);

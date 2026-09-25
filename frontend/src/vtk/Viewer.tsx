@@ -7,12 +7,11 @@
    Todas las celdas leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { api } from "../api/client";
-import type { VolumeMeta } from "../api/types";
 import { usePlanning, type PickMode } from "../store/planning";
 import type { CameraController, CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
+import { useVolumeMeta } from "./useVolumeMeta";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
 import { cameraHeading, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
@@ -115,26 +114,6 @@ function perpBasis(axis: V3): [V3, V3] {
   return [u, v];
 }
 
-/* Load the volume meta once per session; shared by every pane.
-
-   The meta is stored with the session it was fetched for and only handed out
-   while that is still the current session. Clearing it inside the effect left
-   one commit, the one where sessionId changes, in which every consumer saw
-   the previous study's meta; the orientation seeding took it for the new one. */
-function useVolumeMeta(sessionId: string | null): { meta: VolumeMeta | null; forSession: string | null } {
-  const [state, setState] = useState<{ meta: VolumeMeta | null; forSession: string | null }>({ meta: null, forSession: null });
-  useEffect(() => {
-    if (!sessionId) return;
-    let cancelled = false;
-    api
-      .volumeMeta(sessionId)
-      .then((m) => { if (!cancelled) setState({ meta: m, forSession: sessionId }); })
-      .catch(() => { if (!cancelled) setState({ meta: null, forSession: sessionId }); });
-    return () => { cancelled = true; };
-  }, [sessionId]);
-  return sessionId && state.forSession === sessionId ? state : { meta: null, forSession: null };
-}
-
 /* Canal de la cámara del 3D hacia la cinta de rumbo. MeshView avisa en cada
    cambio de cámara (60 veces por segundo al rotar): si el aviso fuera estado
    de ViewerWorkspace, cada fotograma rehacería el visor entero. Así solo se
@@ -185,7 +164,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     clipRehearsal, registerClipParts,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
-    focusPoint, setFocusMm, setCenterOnLesion,
+    focusPoint, setFocusMm, setCenterOnLesion, volumeVersion,
   } = usePlanning();
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
@@ -266,7 +245,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     (step === "detect" || step === "morpho") && candidate?.dome_mesh_url
       ? candidate.dome_mesh_url
       : undefined;
-  const { meta, forSession: metaFor } = useVolumeMeta(sessionId);
+  const { meta, forSession: metaFor } = useVolumeMeta(sessionId, volumeVersion);
   // Un solo volumen en el navegador para las cinco celdas: la franja y el
   // principal leen el mismo vtkImageData, así que no se descarga dos veces ni
   // pueden enseñar niveles distintos. Sin WebGL2 ni se pide.

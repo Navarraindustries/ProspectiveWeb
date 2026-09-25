@@ -244,3 +244,16 @@ describe("funciones que registra el visor", () => {
     expect(result.current.centerOnLesion).toBeNull();
   });
 });
+
+describe("volume version", () => {
+  it("bumpVolumeVersion increments", () => {
+    // El visor vuelve a pedir la meta cuando sube: otra serie o un preproceso
+    // cambian el volumen sin cambiar de sesión.
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const before = result.current.volumeVersion;
+    act(() => result.current.bumpVolumeVersion());
+    expect(result.current.volumeVersion).toBe(before + 1);
+    act(() => result.current.bumpVolumeVersion());
+    expect(result.current.volumeVersion).toBe(before + 2);
+  });
+});

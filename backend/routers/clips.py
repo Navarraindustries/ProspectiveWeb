@@ -1122,6 +1122,13 @@ async def clip_animation(
     sac_path = meshes_dir / (sac_name or "aneurysm_sac.vtp")
     if sac_path.exists():
         try:
+            # `devices` se importa aquí dentro, como en el resto del fichero.
+            # Faltaba, y como el fallo se traga abajo («un dibujo no hunde el
+            # ensayo»), el saco constreñido NUNCA se calculaba en producción:
+            # el ensayo salía sin deformación y el log solo decía
+            # «Sac constriction frames skipped: name 'devices' is not defined».
+            # Visto en el navegador con el caso real, no en las pruebas.
+            from services import devices
             from services.clip_outcome import constrict_sac
             from services.segmentation import read_vtp as _read_vtp
 

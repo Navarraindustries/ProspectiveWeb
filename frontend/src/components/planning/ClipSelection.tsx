@@ -22,6 +22,7 @@ import { Badge } from "../Badge";
 import { Button } from "../Button";
 import { Card, Collapsible, ErrorNote, SectionLabel } from "../PanelHead";
 import { Slider } from "../Slider";
+import { shapeWithBend } from "./clipShape";
 
 const VERDICT_MARK: Record<ClipVerdict, string> = { ok: "✓", warn: "!", fail: "✕" };
 const VERDICT_COLOR: Record<ClipVerdict, string> = {
@@ -93,9 +94,7 @@ function CandidateCard({
       </div>
 
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
-        {cand.shape}
-        {cand.bend_angle_deg > 0 && cand.bend_angle_deg !== 45 && cand.bend_angle_deg !== 90
-          ? ` ${cand.bend_angle_deg.toFixed(0)}°` : ""}
+        {shapeWithBend(cand.shape, cand.bend_angle_deg)}
         {" · mordaza "}{cand.blade_length_mm.toFixed(1)} mm ·{" "}
         {/* Una banda es una banda: quedarse con el punto medio inventaría una
             precisión que la pieza todavía no tiene. */}

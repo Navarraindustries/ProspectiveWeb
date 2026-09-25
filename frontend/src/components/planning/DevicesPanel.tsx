@@ -208,7 +208,12 @@ function ClipsTab() {
 
   const options = useMemo(() => {
     const base = [
-      ...recs.map((r) => ({ value: r.clip_id, label: `${r.clip_name} · ${(r.score * 100).toFixed(0)}` })),
+      // Aquí iba `· 74`: el score del recomendador multiplicado por cien, sin
+      // unidad y sin nada que lo respalde, justo lo que se retiró del motor de
+      // decisión. El orden de la lista ya dice cuál propone primero, y la
+      // tarjeta de al lado lo dice con medidas («cierra el cuello aplastado de
+      // 7,2 mm»). El número solo aparentaba precisión.
+      ...recs.map((r) => ({ value: r.clip_id, label: r.clip_name })),
       ...customs.map((c) => ({ value: c.clip_id, label: `★ ${c.name} (personalizado)` })),
     ];
     // Los del catálogo que el recomendador no propuso, al final y marcados:
@@ -365,9 +370,16 @@ function ClipsTab() {
               sin repetirlo esta pantalla no dice sobre qué pieza se trabaja. */}
           {sel && (
             <Card style={{ marginBottom: 12, background: "var(--muted)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Clip elegido</span>
-                <b style={{ fontSize: 12, flex: 1, minWidth: 0 }}>{nameFor(sel)}</b>
+              {/* El nombre en su propia línea. Compartiendo el flex con dos
+                  botones que no encogen se quedaba sin ancho y se partía por
+                  palabras: «NAVARRO™ / T3 / Angulado 30° / 10.0 / mm», cinco
+                  renglones para una pieza. El mismo fallo que el titular de la
+                  recomendación en el panel de decisión. */}
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Clip elegido</div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2, lineHeight: 1.35 }}>
+                {nameFor(sel)}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
                 <Button size="sm" variant="ghost" onClick={() => setStep(CLIP_STEPS[0])}>
                   Cambiar
                 </Button>

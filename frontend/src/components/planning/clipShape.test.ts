@@ -5,7 +5,7 @@
    decía «Fenestrado ventana 5 mm». El cirujano y el taller hablaban de piezas
    distintas creyendo hablar de la misma. */
 import { describe, expect, it } from "vitest";
-import { SERIES_FOR_SHAPE, seriesAndShape, shapeLabel } from "./clipShape";
+import { SERIES_FOR_SHAPE, seriesAndShape, shapeLabel, shapeWithBend } from "./clipShape";
 
 describe("cómo se nombra una pieza", () => {
   it("nombra cada serie por lo que es", () => {
@@ -32,5 +32,27 @@ describe("cómo se nombra una pieza", () => {
   it("junta serie y forma como se lee un pedido", () => {
     expect(seriesAndShape("fenestrated", 0, 7)).toBe("T4 Fenestrado ventana 7 mm");
     expect(seriesAndShape("angled", 15)).toBe("T3 Angulado 15°");
+  });
+
+  describe("la forma del catálogo con la acodadura de la pieza", () => {
+    it("no rotula dos ángulos a la vez", () => {
+      // Visto en el caso real: la T3 de 60° salía «Angulado 90° 60°», porque el
+      // nombre de la forma lleva su ángulo canónico y encima se le añadía el de
+      // la pieza. Manda el de la pieza, que es el que se va a implantar.
+      expect(shapeWithBend("Angulado 90°", 60)).toBe("Angulado 60°");
+      expect(shapeWithBend("Angulado 45°", 25)).toBe("Angulado 25°");
+    });
+
+    it("deja el nombre en paz cuando la pieza es la canónica", () => {
+      expect(shapeWithBend("Angulado 90°", 90)).toBe("Angulado 90°");
+      expect(shapeWithBend("Angulado 45°", 45)).toBe("Angulado 45°");
+    });
+
+    it("una forma sin ángulo en el nombre sí lo lleva detrás", () => {
+      // Un curvo acodado no tiene número que sustituir: se añade.
+      expect(shapeWithBend("Curvo", 30)).toBe("Curvo 30°");
+      expect(shapeWithBend("Recto", 0)).toBe("Recto");
+      expect(shapeWithBend("Fenestrado", 0)).toBe("Fenestrado");
+    });
   });
 });

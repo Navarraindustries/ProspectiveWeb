@@ -7,21 +7,13 @@
    veces; un solo cambio es lo que no da tirones. */
 
 import { useEffect, useRef, useState } from "react";
-import vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
-import vtkDataArray from "@kitware/vtk.js/Common/Core/DataArray";
+import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../../api/types";
-import { loadCoarse, loadFull, type ClientVolume } from "./volumeLoader";
+import { loadCoarse, loadFull } from "./volumeLoader";
 
-function toImageData(v: ClientVolume): vtkImageData {
-  const img = vtkImageData.newInstance();
-  img.setDimensions([v.dims[2], v.dims[1], v.dims[0]]);   // vtk: (x, y, z)
-  img.setSpacing([v.spacing[2], v.spacing[1], v.spacing[0]]);
-  img.setOrigin([0, 0, 0]);
-  img.getPointData().setScalars(
-    vtkDataArray.newInstance({ name: "scalars", numberOfComponents: 1, values: v.data }),
-  );
-  return img;
-}
+// vtk.js se carga aquí bajo demanda (import dinámico de imageData.ts), no en
+// el nivel superior: este hook vive en Viewer, que no debe arrastrar vtk.js
+// al paquete de entrada.
 
 export function useClientVolume(sid: string | null, meta: VolumeMeta | null, currentZ: number) {
   const [image, setImage] = useState<vtkImageData | null>(null);
@@ -40,6 +32,8 @@ export function useClientVolume(sid: string | null, meta: VolumeMeta | null, cur
     (async () => {
       try {
         const coarse = await loadCoarse(sid, meta, ctrl.signal);
+        if (ctrl.signal.aborted) return;
+        const { toImageData } = await import("./imageData");
         if (ctrl.signal.aborted) return;
         setImage(toImageData(coarse)); setLevel("coarse");
         const full = await loadFull(sid, meta, startZ.current, ctrl.signal, (done, total) => {

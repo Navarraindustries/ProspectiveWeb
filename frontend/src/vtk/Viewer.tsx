@@ -11,7 +11,6 @@ import { Icon } from "../components/Icon";
 import { usePlanning } from "../store/planning";
 import type { CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
-import { SliceView } from "./SliceView";
 import { useClientVolume } from "./volume/useClientVolume";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
@@ -22,6 +21,7 @@ import type { Vector3 } from "@kitware/vtk.js/types";
 // never pull it into their bundle.
 const MeshView = lazy(() => import("./MeshView").then((m) => ({ default: m.MeshView })));
 const VolumeView = lazy(() => import("./VolumeView").then((m) => ({ default: m.VolumeView })));
+const SliceView = lazy(() => import("./SliceView").then((m) => ({ default: m.SliceView })));
 
 const STEP_SCENE: Record<string, string> = {
   upload: "Vista previa DICOM",
@@ -413,6 +413,7 @@ export function Viewer({ step }: { step: string }) {
           boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts} />
         </Suspense>
       ) : sessionId && meta && clientVol.image && hasWebGL2() ? (
+        <Suspense fallback={<ViewerLoading label="Cargando visor de cortes…" />}>
         <SliceView
           image={clientVol.image} meta={meta} plane="axial" index={mprVoxel.z}
           onIndexChange={(z) => setMprVoxel({ ...mprVoxel, z })}
@@ -424,6 +425,7 @@ export function Viewer({ step }: { step: string }) {
           levelNote={clientVol.level === "coarse" ? `RESOLUCIÓN REDUCIDA${clientVol.progress ? ` · ${clientVol.progress.done}/${clientVol.progress.total}` : ""}` : null}
           band={previewActive ? previewBand : null}
         />
+        </Suspense>
       ) : sessionId && meta ? (
         <MprView
           sessionId={sessionId} meta={meta} plane="axial" showSlider showPlaneLabel={false}

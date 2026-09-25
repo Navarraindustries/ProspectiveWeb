@@ -54,11 +54,18 @@ interface Scene {
   actor: vtkImageSlice;
   bandMapper: vtkImageMapper;
   bandActor: vtkImageSlice;
+  /** Recalcula `box` desde la cámara: la única fuente del rectángulo. */
+  measure: () => void;
 }
+
+interface SavedCamera { plane: Plane; focal: number[]; position: number[]; scale: number }
 
 export function SliceView(p: SliceViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scene = useRef<Scene | null>(null);
+  // Cámara de la escena anterior: al llegar el volumen completo la escena se
+  // rehace, y sin esto el zoom/desplazamiento del usuario volvería al inicio.
+  const savedCam = useRef<SavedCamera | null>(null);
   // Rectángulo de la imagen en px del contenedor, para retícula y clics.
   const [box, setBox] = useState<{ left: number; top: number; w: number; h: number; mmPerPx: number } | null>(null);
   const count = planeCount(p.meta, p.plane);
@@ -100,32 +107,71 @@ export function SliceView(p: SliceViewProps) {
     const cam = renderer.getActiveCamera();
     cam.setParallelProjection(true);
     const { direction, viewUp } = sliceCamera(p.plane);
+    const { right, down } = screenAxes(p.plane);
     const b = p.image.getBounds();
     const c = [(b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2];
     cam.setFocalPoint(c[0], c[1], c[2]);
     cam.setPosition(c[0] - direction[0] * 1000, c[1] - direction[1] * 1000, c[2] - direction[2] * 1000);
     cam.setViewUp(viewUp[0], viewUp[1], viewUp[2]);
-    renderer.resetCamera(mapper.getBounds());
-    scene.current = { grw, mapper, actor, bandMapper, bandActor };
 
-    const ro = new ResizeObserver(() => { grw.resize(); measure(); rw.render(); });
-    ro.observe(container);
-    const measure = () => {
-      // Proyecta las esquinas del corte a px: con cámara paralela basta la
-      // escala (parallelScale = media altura visible en mm).
-      const [w, h] = rw.getViews()[0].getSize();
-      const scale = cam.getParallelScale();
-      const mmPerPx = (2 * scale) / h;
-      const bounds = mapper.getBoundsForSlice();
-      const { right, down } = screenAxes(p.plane);
-      const ext = (v: number[]) => Math.abs(v[0]) * (bounds[1] - bounds[0]) + Math.abs(v[1]) * (bounds[3] - bounds[2]) + Math.abs(v[2]) * (bounds[5] - bounds[4]);
-      const wPx = ext(right) / mmPerPx, hPx = ext(down) / mmPerPx;
-      setBox({ left: (w - wPx) / 2, top: (h - hPx) / 2, w: wPx, h: hPx, mmPerPx });
+    // Extensión del corte (mm) a lo largo de un eje de pantalla, y su centro.
+    const ext = (v: number[]) => {
+      const bs = mapper.getBoundsForSlice();
+      return Math.abs(v[0]) * (bs[1] - bs[0]) + Math.abs(v[1]) * (bs[3] - bs[2]) + Math.abs(v[2]) * (bs[5] - bs[4]);
     };
+    const dot = (a: number[], v: number[]) => a[0] * v[0] + a[1] * v[1] + a[2] * v[2];
+    // Tamaño en px CSS (no el del canvas, que va multiplicado por devicePixelRatio):
+    // el HUD y los clics viven en px CSS.
+    const size = () => [container.clientWidth, container.clientHeight];
+
+    // Encajar: resetCamera encaja la esfera envolvente y deja el corte en ~45 %
+    // del panel; aquí la media altura visible es la del corte (o su anchura
+    // dividida por el aspecto si el panel es más estrecho que el corte).
+    let fitted = false;
+    const fit = () => {
+      const [w, h] = size(); if (w <= 0 || h <= 0) return;
+      cam.setParallelScale(Math.max(ext(down) / 2, ext(right) / 2 / (w / h)) * 1.02);
+      fitted = true;
+    };
+
+    const measure = () => {
+      // Con cámara paralela, parallelScale es la media altura visible en mm; el
+      // centro del corte menos el foco, proyectado en los ejes de pantalla, es
+      // el desplazamiento de la imagen respecto al centro del panel.
+      const [w, h] = size(); if (w <= 0 || h <= 0) return;
+      const mmPerPx = (2 * cam.getParallelScale()) / h;
+      const bs = mapper.getBoundsForSlice();
+      const f = cam.getFocalPoint();
+      const d = [(bs[0] + bs[1]) / 2 - f[0], (bs[2] + bs[3]) / 2 - f[1], (bs[4] + bs[5]) / 2 - f[2]];
+      const wPx = ext(right) / mmPerPx, hPx = ext(down) / mmPerPx;
+      const cx = w / 2 + dot(d, right) / mmPerPx, cy = h / 2 + dot(d, down) / mmPerPx;
+      setBox({ left: cx - wPx / 2, top: cy - hPx / 2, w: wPx, h: hPx, mmPerPx });
+    };
+
+    grw.resize();
+    const prev = savedCam.current;
+    if (prev && prev.plane === p.plane) {
+      cam.setFocalPoint(prev.focal[0], prev.focal[1], prev.focal[2]);
+      cam.setPosition(prev.position[0], prev.position[1], prev.position[2]);
+      cam.setParallelScale(prev.scale);
+      fitted = true;
+    } else {
+      fit();
+    }
+    renderer.resetCameraClippingRange();
+    scene.current = { grw, mapper, actor, bandMapper, bandActor, measure };
+
+    const ro = new ResizeObserver(() => {
+      grw.resize();
+      if (!fitted) fit();     // el panel pudo montarse con tamaño 0
+      measure(); rw.render();
+    });
+    ro.observe(container);
     measure();
     rw.render();
     return () => {
       ro.disconnect();
+      savedCam.current = { plane: p.plane, focal: cam.getFocalPoint(), position: cam.getPosition(), scale: cam.getParallelScale() };
       scene.current = null;
       grw.delete();
     };
@@ -155,10 +201,18 @@ export function SliceView(p: SliceViewProps) {
     const s = scene.current; if (!s) return;
     if (!p.band) { s.bandActor.setVisibility(false); s.grw.getRenderWindow().render(); return; }
     const [lo, hi] = p.band;
+    // El techo se recorta al máximo real del volumen, no a una cifra grande:
+    // vtk.js muestrea las funciones en una textura de ancho fijo sobre SU rango,
+    // y con «sin techo» (MAX_SAFE_INTEGER, o 1e9) cada texel abarca miles de
+    // niveles y todos los vóxeles caen en el primero, de opacidad 0: el tinte
+    // desaparecía entero.
+    const dataMax = p.image.getPointData().getScalars().getRange()[1];
+    const top = Math.min(hi, dataMax);
+    if (lo > top) { s.bandActor.setVisibility(false); s.grw.getRenderWindow().render(); return; }
     const ctf = vtkColorTransferFunction.newInstance();
-    ctf.addRGBPoint(lo, 0.21, 0.84, 0.66); ctf.addRGBPoint(hi, 0.21, 0.84, 0.66);
+    ctf.addRGBPoint(lo, 0.21, 0.84, 0.66); ctf.addRGBPoint(top, 0.21, 0.84, 0.66);
     const otf = vtkPiecewiseFunction.newInstance();
-    otf.addPoint(lo - 1, 0); otf.addPoint(lo, 0.55); otf.addPoint(Math.min(hi, 1e9), 0.55); otf.addPoint(Math.min(hi, 1e9) + 1, 0);
+    otf.addPoint(lo - 1, 0); otf.addPoint(lo, 0.55); otf.addPoint(top, 0.55); otf.addPoint(top + 1, 0);
     const prop = s.bandActor.getProperty();
     prop.setRGBTransferFunction(0, ctf);
     prop.setScalarOpacity(0, otf);
@@ -182,7 +236,7 @@ export function SliceView(p: SliceViewProps) {
     const cam = s.grw.getRenderer().getActiveCamera();
     cam.setParallelScale(Math.max(1, cam.getParallelScale() * factor));
     s.grw.getRenderWindow().render();
-    setBox((b) => (b ? { ...b, mmPerPx: b.mmPerPx * factor, w: b.w / factor, h: b.h / factor } : b));
+    s.measure();
   };
   const panBy = (dxPx: number, dyPx: number) => {
     const s = scene.current; if (!s || !box) return;
@@ -194,7 +248,7 @@ export function SliceView(p: SliceViewProps) {
     cam.setFocalPoint(f[0] + d[0], f[1] + d[1], f[2] + d[2]);
     cam.setPosition(pos[0] + d[0], pos[1] + d[1], pos[2] + d[2]);
     s.grw.getRenderWindow().render();
-    setBox((b) => (b ? { ...b, left: b.left + dxPx, top: b.top + dyPx } : b));
+    s.measure();
   };
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
@@ -268,7 +322,7 @@ export function SliceView(p: SliceViewProps) {
         <HudReadout at="br" lines={[`W ${Math.round(p.ww)}  L ${Math.round(p.wc)}`]} />
         {p.levelNote && <HudReadout at="tr" lines={[p.levelNote]} tone="warn" />}
         {box && box.mmPerPx > 0 && (
-          <div style={{ position: "absolute", right: 60, bottom: 24, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
+          <div style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
             <span style={{ position: "absolute", right: 0, top: -12, fontSize: fs - 1, color: "var(--hud-dim)" }}>10 mm</span>
           </div>
         )}

@@ -1309,6 +1309,60 @@ Still to come on this feature: having the software **propose** a corridor
 (sweeping directions and keeping the clear ones), and letting it **feed the clip
 recommendation**.
 
+### Proposing a corridor: only vessels block, and never through the face
+
+Second stage of the approach work. The software now sweeps 300 directions
+around the aneurysm and returns the clear ones, best first.
+
+**Only vascular tissue blocks.** That was the instruction, and it happens to be
+the only thing the image separates reliably: bone shares its intensity range
+with contrast. Nothing else vetoes a corridor.
+
+**Two sectors are refused outright**, because an approach through them is not a
+worse approach, it is one that does not exist:
+
+    from below      more than 15° under the axial plane — the neck, the base
+    the face        clearly anterior AND under 20° of elevation — orbit, nose
+
+A frontal craniotomy is also anterior, which is why the face filter needs *both*
+conditions: it comes in above the orbital rim and survives.
+
+**Which way is the face?** That needs the patient's orientation, and it was in
+the DICOM all along — just not where the loader looked. `ImageOrientationPatient`
+sits at the root of a classic series, but in a multiframe 3DRA (what this project
+has) it lives inside `PerFrameFunctionalGroupsSequence[i].PlaneOrientationSequence`.
+Asking for the root attribute returned `None`, so nothing downstream knew where
+anterior was. On case 3 the axes come out as: rows toward patient **left**,
+columns toward **superior**, slices advancing **anteriorly** — so the mesh's +z is
+the patient's front, which no one would have guessed. **Without those axes
+nothing is proposed**: a corridor through the orbit could not be ruled out, and
+proposing blind is worse than not proposing. A placeholder orientation (exact
+identity plus a position at the origin, what a default exporter writes) is used
+but flagged as unverified.
+
+**What is proposed is a direction, not a craniotomy.** Naming an approach needs
+the skull and the scalp, and a 3DRA reconstructs a cylinder around the vessels
+that does not reach the scalp at all. So each proposal reads «posterior left,
+28° above the axial plane», and says whether its entry point is real skin or
+just the edge of what the study images.
+
+**Two measurements that had to be fixed against real data**, both found by
+running it on case 3 rather than on synthetic tubes:
+
+- *The head threshold.* A 3DRA is not in Hounsfield units — case 3 ranges from
+  −15 000 to 33 000 — so «air» cannot be a constant. Calibrating «inside» from
+  the central block put the cut at −553, which is **above** the parenchyma
+  (−400): the ray left the head 13 mm from the aneurysm and called it skin. An
+  entry on the skin 13 mm from an intracranial lesion does not exist, and the
+  software was reporting it confidently. The global median fails the other way
+  (it collapses when the head is under half the field, normal in CT), and Otsu,
+  tried, separates *contrast* from everything else — on case 3 it cuts at −33
+  and leaves 82 % of the head outside. The p75 is tissue in both regimes.
+- *Speed.* 100 s for 300 directions. The locator was rebuilt per direction, but
+  that was only 10 % of it: the real cost was recomputing the head threshold —
+  a percentile over 56 million voxels — once per direction. Hoisted, plus a
+  cheap single-ray first pass before the 17-ray beam, it is **0.9 s**.
+
 ### Two clips, when no single blade closes the neck
 
 Asked by the clinical direction: *can multi-clip treatments be supported, or is

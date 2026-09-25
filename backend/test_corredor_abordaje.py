@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from pathlib import Path
 
 _tmp = tempfile.mkdtemp(prefix="prospective_corridor_")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
@@ -264,3 +265,274 @@ class TestBorrarLaTrayectoria:
         assert read_state(sid, "trajectory.verdict") == ""
         assert read_state(sid, "trajectory.verdict_reason") == ""
         assert read_state(sid, "trajectory.findings") == ""
+
+
+# ── Etapa 2: que el software proponga el corredor ─────────────────────────── #
+
+class TestProponerCorredores:
+    """Sugerir por dónde entrar, con dos condiciones que no son negociables.
+
+    La primera la puso dirección: solo bloquea el tejido VASCULAR. La segunda
+    también, y es la que separa una propuesta útil de una absurda — «no se puede
+    hacer un procedimiento donde tiene la cara el paciente». Para respetarla hay
+    que saber qué dirección es anterior, y eso sale de la orientación del DICOM.
+    """
+
+    from services.head_axes import HeadAxes as _Ejes
+
+    #: Como los de case 3, leídos de su DICOM: anterior +z, superior +y.
+    EJES = _Ejes(anterior=(0, 0, 1), superior=(0, 1, 0), left=(1, 0, 0),
+                 source="dicom")
+
+    def _propone(self, malla=None, **kw):
+        from services.approach import propose_corridors
+        return propose_corridors((0.0, 0.0, 0.0), malla or DIANA, self.EJES, **kw)
+
+    def test_propone_direcciones_despejadas(self):
+        props = self._propone(n_directions=200, top=3)
+        assert props, "con un corredor libre tiene que proponer algo"
+        assert all(p.assessment.verdict != "no_viable" for p in props)
+
+    def test_nunca_entra_por_la_cara(self):
+        # Anterior y por debajo de la horizontal es la órbita, la nariz o el
+        # macizo facial. Una craneotomía frontal también es anterior, pero
+        # entra por encima del reborde orbitario.
+        from services.approach import FACE_ANTERIOR_DOT, FACE_MAX_ELEVATION_DEG
+        ant = np.asarray(self.EJES.anterior)
+        sup = np.asarray(self.EJES.superior)
+        techo = np.sin(np.radians(FACE_MAX_ELEVATION_DEG))
+        for p in self._propone(n_directions=600, top=60):
+            d = np.asarray(p.direction)
+            assert not (float(d @ ant) > FACE_ANTERIOR_DOT and float(d @ sup) < techo), \
+                f"propuesta por la cara: {p.description}"
+
+    def test_nunca_entra_desde_abajo(self):
+        from services.approach import MAX_INFERIOR_DEG
+        sup = np.asarray(self.EJES.superior)
+        suelo = -np.sin(np.radians(MAX_INFERIOR_DEG))
+        for p in self._propone(n_directions=600, top=60):
+            assert float(np.asarray(p.direction) @ sup) >= suelo - 1e-6, p.description
+
+    def test_sin_orientacion_no_propone_nada(self):
+        # Sin saber dónde está la cara no se puede descartar un corredor por la
+        # órbita, y proponer a ciegas es peor que no proponer.
+        from services.approach import propose_corridors
+        from services.head_axes import UNKNOWN
+        assert propose_corridors((0, 0, 0), DIANA, UNKNOWN) == []
+        assert propose_corridors((0, 0, 0), DIANA, None) == []
+
+    def test_esquiva_lo_que_esta_bloqueado(self):
+        # Una pared vascular tapando el lado izquierdo: ninguna propuesta puede
+        # salir por ahí.
+        pared = _tubo((30, -40, -40), (30, 40, 40), 12.0)
+        props = self._propone(malla=_unir(DIANA, pared), n_directions=300, top=5)
+        assert props
+        assert all(p.direction[0] < 0.6 for p in props), \
+            [(p.description, p.direction) for p in props]
+
+    def test_las_propuestas_no_son_la_misma_tres_veces(self):
+        props = self._propone(n_directions=400, top=3)
+        for i, a in enumerate(props):
+            for b in props[i + 1:]:
+                assert float(np.asarray(a.direction) @ np.asarray(b.direction)) < 0.95
+
+    def test_cada_propuesta_se_explica_en_anatomia(self):
+        # «anterior izquierda, 30° por encima del plano axial» se puede discutir;
+        # un vector no.
+        for p in self._propone(n_directions=200, top=3):
+            assert p.description
+            assert "plano axial" in p.description or "desde" in p.description
+
+    def test_dice_cuando_la_entrada_no_es_piel(self):
+        # Sin volumen no se puede encontrar el cuero cabelludo, y en una 3DRA el
+        # campo reconstruido ni siquiera llega a él: lo que se propone es la
+        # dirección, y el punto es el borde de lo que la imagen contiene.
+        for p in self._propone(n_directions=120, top=2):
+            assert p.entry_on_skin is False
+
+
+class TestProponerPorLaApi:
+
+    def _sesion(self):
+        sid = create_session()
+        write_vtp(DIANA, session_subdir(sid, "meshes") / "vessel_tree.vtp")
+        write_state(sid, "morpho.neck_origin_x", "0.0")
+        write_state(sid, "morpho.neck_origin_y", "0.0")
+        write_state(sid, "morpho.neck_origin_z", "0.1")
+        return sid
+
+    def test_sin_malla_se_niega_y_explica(self):
+        r = client.post(f"/api/trajectory/{create_session()}/suggest", json={})
+        assert r.status_code == 409
+        assert "malla" in r.json()["detail"]
+
+    def test_sin_diana_se_niega_y_explica(self):
+        sid = create_session()
+        write_vtp(DIANA, session_subdir(sid, "meshes") / "vessel_tree.vtp")
+        r = client.post(f"/api/trajectory/{sid}/suggest", json={})
+        assert r.status_code == 409
+        assert "aneurisma" in r.json()["detail"]
+
+    def test_sin_orientacion_devuelve_la_lista_vacia_y_dice_por_que(self):
+        # La sesión de prueba no tiene DICOM, así que no hay ejes. La respuesta
+        # no es un error: es «no puedo proponer, y este es el motivo».
+        body = client.post(f"/api/trajectory/{self._sesion()}/suggest", json={}).json()
+        assert body["proposals"] == []
+        assert body["axes_source"] == "desconocida"
+        assert "cara" in body["axes_note"]
+
+    def test_publica_las_reglas_que_ha_aplicado(self):
+        body = client.post(f"/api/trajectory/{self._sesion()}/suggest", json={}).json()
+        reglas = " ".join(body["rules"]).lower()
+        assert "cara" in reglas and "vascular" in reglas
+        assert "craneotomía" in reglas, "que no promete elegir el abordaje"
+
+    def test_sesion_inexistente(self):
+        assert client.post("/api/trajectory/no-existe/suggest", json={}).status_code == 404
+
+
+class TestDondeTieneLaCaraElPaciente:
+    """La orientación estaba en el DICOM y el cargador no la veía.
+
+    `ImageOrientationPatient` vive en la raíz en una serie clásica, pero en una
+    3DRA multiframe —que es lo que tiene este proyecto— está dentro de
+    `PerFrameFunctionalGroupsSequence`. Preguntar por el atributo de la raíz
+    devolvía None, así que el software no sabía dónde estaba la cara.
+    """
+
+    def _serie_multiframe(self, iop, ipp=(0.0, 0.0, 0.0)):
+        """Un DICOM multiframe mínimo con la geometría donde de verdad va."""
+        import pydicom
+        from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
+
+        carpeta = Path(tempfile.mkdtemp(prefix="prospective_iop_"))
+        meta = FileMetaDataset()
+        meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.13.1.1"
+        meta.MediaStorageSOPInstanceUID = pydicom.uid.generate_uid()
+        meta.TransferSyntaxUID = pydicom.uid.ExplicitVRLittleEndian
+        ds = FileDataset(str(carpeta / "IM_0001"), {}, file_meta=meta,
+                         preamble=b"\0" * 128)
+
+        po = Dataset(); po.ImageOrientationPatient = list(iop)
+        pp = Dataset(); pp.ImagePositionPatient = list(ipp)
+        marco = Dataset()
+        marco.PlaneOrientationSequence = [po]
+        marco.PlanePositionSequence = [pp]
+        ds.PerFrameFunctionalGroupsSequence = [marco]
+        ds.save_as(str(carpeta / "IM_0001"), enforce_file_format=True)
+        return carpeta
+
+    def test_lee_la_orientacion_escondida_en_el_multiframe(self):
+        from services.head_axes import axes_from_dicom
+
+        # La de case 3: filas hacia la izquierda del paciente, columnas hacia
+        # arriba. El corte avanza entonces hacia delante.
+        ejes = axes_from_dicom(self._serie_multiframe([1, 0, 0, 0, 0, 1]))
+        assert ejes.usable and ejes.source.startswith("dicom")
+        assert ejes.anterior == pytest.approx((0.0, 0.0, 1.0), abs=1e-6)
+        assert ejes.superior == pytest.approx((0.0, 1.0, 0.0), abs=1e-6)
+        assert ejes.left == pytest.approx((1.0, 0.0, 0.0), abs=1e-6)
+
+    def test_una_orientacion_de_relleno_se_marca_como_tal(self):
+        # Identidad exacta y posición en el origen es lo que escribe un
+        # exportador que no midió nada. Se usa igual —es lo único que hay— pero
+        # deja de presentarse como un dato del estudio.
+        from services.head_axes import axes_from_dicom
+
+        ejes = axes_from_dicom(self._serie_multiframe([1, 0, 0, 0, 1, 0]))
+        assert ejes.source == "dicom_sin_verificar"
+        assert "comprueba" in ejes.note.lower()
+
+    def test_sin_orientacion_lo_dice_en_vez_de_suponer(self):
+        from services.head_axes import axes_from_dicom
+
+        vacia = Path(tempfile.mkdtemp(prefix="prospective_sin_iop_"))
+        ejes = axes_from_dicom(vacia)
+        assert not ejes.usable
+        assert "cara" in ejes.note
+
+    def test_la_direccion_se_dice_en_anatomia(self):
+        from services.head_axes import HeadAxes, describe_direction
+
+        ejes = HeadAxes(anterior=(0, 0, 1), superior=(0, 1, 0), left=(1, 0, 0),
+                        source="dicom")
+        assert "anterior" in describe_direction((0, 0, 1), ejes)
+        assert "posterior" in describe_direction((0, 0, -1), ejes)
+        assert "izquierda" in describe_direction((1, 0, 0), ejes)
+        assert "derecha" in describe_direction((-1, 0, 0), ejes)
+        assert describe_direction((0, 1, 0), ejes) == "desde arriba"
+        assert "por encima" in describe_direction((0.7, 0.7, 0), ejes)
+
+
+class TestDondeAcabaLaCabeza:
+    """El umbral de «dentro de la cabeza» se calibra con el propio volumen.
+
+    Una 3DRA no está en unidades Hounsfield —en case 3 los valores van de
+    −15 000 a 33 000— así que un umbral de aire escrito a mano no sirve. La
+    primera versión tomaba como referencia de «dentro» el bloque CENTRAL del
+    volumen, que cae encima del contraste: el corte se iba a −553, dejaba fuera
+    el parénquima (que ahí vive en −400), y el rayo «salía de la cabeza» a 13 mm
+    del aneurisma y lo llamaba piel. Una entrada de piel a 13 mm de una lesión
+    intracraneal no existe, y el software la daba por buena.
+    """
+
+    def _volumen(self) -> np.ndarray:
+        # Fuera −1100, parénquima −400, y un núcleo brillante de contraste.
+        v = np.full((60, 60, 60), -1100.0, dtype=np.float32)
+        v[8:52, 8:52, 8:52] = -400.0
+        v[26:34, 26:34, 26:34] = 1000.0
+        return v
+
+    def test_el_nucleo_brillante_no_arrastra_el_umbral(self):
+        from services.approach import _head_threshold
+
+        u = _head_threshold(self._volumen())
+        assert u < -400.0, "el parénquima tiene que quedar DENTRO de la cabeza"
+        assert u > -1100.0, "y lo de fuera, fuera"
+
+    def test_la_entrada_es_la_piel_cuando_la_imagen_la_contiene(self):
+        from services.approach import _entry_along
+
+        v = self._volumen()
+        sp = (1.0, 1.0, 1.0)
+        # Desde el centro hacia +x: el borde del tejido está en el índice 52.
+        entrada, prof, piel = _entry_along(np.array([30.0, 30.0, 30.0]),
+                                           np.array([1.0, 0.0, 0.0]), v, sp, 120.0)
+        assert piel is True
+        assert prof == pytest.approx(21.0, abs=2.0), prof
+
+    def test_si_el_campo_no_llega_a_la_piel_se_dice(self):
+        from services.approach import _entry_along
+
+        # Un volumen que es todo cabeza: es lo que reconstruye una 3DRA, un
+        # cilindro alrededor de los vasos. No hay piel que encontrar.
+        v = np.full((40, 40, 40), 500.0, dtype=np.float32)
+        entrada, prof, piel = _entry_along(np.array([20.0, 20.0, 20.0]),
+                                           np.array([1.0, 0.0, 0.0]), v, (1.0, 1.0, 1.0), 120.0)
+        assert piel is False
+        assert prof == pytest.approx(19.0, abs=1.5), "se para en el borde del volumen"
+
+    def test_el_umbral_se_calcula_una_sola_vez(self, monkeypatch):
+        """Medido: rehacerlo por dirección eran 90 de los 100 s que tardaba.
+
+        Es un percentil sobre 56 millones de vóxeles y no cambia entre
+        direcciones. Se cuenta la llamada en vez del reloj, que en una máquina
+        cargada mide cualquier cosa.
+        """
+        import services.approach as ap
+        from services.head_axes import HeadAxes
+
+        llamadas = {"n": 0}
+        real = ap._head_threshold
+
+        def contando(v):
+            llamadas["n"] += 1
+            return real(v)
+
+        monkeypatch.setattr(ap, "_head_threshold", contando)
+        ejes = HeadAxes(anterior=(0, 0, 1), superior=(0, 1, 0), left=(1, 0, 0),
+                        source="dicom")
+        ap.propose_corridors((30.0, 30.0, 30.0), DIANA, ejes,
+                             volume=self._volumen(), spacing=(1.0, 1.0, 1.0),
+                             n_directions=120, top=2)
+        assert llamadas["n"] == 1, f"se recalculó {llamadas['n']} veces"

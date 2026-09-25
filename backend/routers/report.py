@@ -18,8 +18,10 @@ from sqlalchemy.orm import Session
 
 from models import ReportRequest, ReportResult, ExportRequest
 from models.detection import Position3D
-from models.trajectory import (CorridorAssessmentOut, TrajectoryRequest,
-                               TrajectoryResult, VesselCrossingOut)
+from models.trajectory import (CorridorAssessmentOut, ProposedCorridorOut,
+                               SuggestCorridorsRequest, SuggestCorridorsResult,
+                               TrajectoryRequest, TrajectoryResult,
+                               VesselCrossingOut)
 from services.database import get_db
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state,
@@ -439,6 +441,11 @@ def _assess_corridor_for(session_id: str, entry, target) -> CorridorAssessmentOu
         volume=volume, spacing=spacing, dense_threshold=denso,
         is_subtracted=read_state(session_id, "seg.strategy", "") == "dsa",
     )
+    return _corridor_out(a)
+
+
+def _corridor_out(a) -> CorridorAssessmentOut:
+    """La valoración del corredor, tal como sale por la API."""
     return CorridorAssessmentOut(
         radius_mm=a.radius_mm,
         vessels_crossed=[
@@ -471,3 +478,125 @@ async def clear_trajectory(session_id: str) -> None:
     for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z",
               "verdict", "verdict_reason", "findings"):
         write_state(session_id, f"trajectory.{k}", "")
+
+
+# ── Proponer corredores de abordaje ─────────────────────────────────────────── #
+
+@router.post(
+    "/trajectory/{session_id}/suggest",
+    response_model=SuggestCorridorsResult,
+    summary="Propose approach corridors that are clear and operable",
+    description=(
+        "Sweeps directions around the aneurysm and returns the ones that reach "
+        "it without crossing a vessel AND could actually be operated.\n\n"
+        "Only **vascular** tissue blocks: it is what the image separates "
+        "reliably — bone shares its intensity range with contrast — and it is "
+        "what was asked for.\n\n"
+        "Two sectors are refused outright, because an approach through them "
+        "does not exist: anything coming from below the axial plane (the neck "
+        "or the skull base) and the face. Telling them apart needs the "
+        "patient's orientation, which comes from the DICOM; without it nothing "
+        "is proposed, because a corridor through the orbit cannot be ruled out.\n\n"
+        "What is proposed is a DIRECTION, not a craniotomy: naming an approach "
+        "would need the skull and the scalp segmented, and a 3DRA's "
+        "reconstructed field does not even reach the scalp."
+    ),
+)
+async def suggest_corridors(
+    session_id: str, req: SuggestCorridorsRequest
+) -> SuggestCorridorsResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+
+    from services.approach import (FACE_MAX_ELEVATION_DEG, MAX_INFERIOR_DEG,
+                                   propose_corridors)
+    from services.head_axes import axes_from_dicom
+
+    meshes = session_subdir(session_id, "meshes")
+    vtp = meshes / "vessel_tree.vtp"
+    if not vtp.exists():
+        raise HTTPException(
+            status_code=409,
+            detail=("No hay malla segmentada. Sin ella no hay contra qué cruzar "
+                    "un corredor, y proponer uno sería proponerlo a ciegas."))
+
+    def _f(key: str, default: float = 0.0) -> float:
+        raw = read_state(session_id, key, "")
+        try:
+            return float(raw) if raw != "" else default
+        except ValueError:
+            return default
+
+    # La diana: lo que pida el cliente, el cuello marcado, o el candidato.
+    if req.target is not None:
+        objetivo = (req.target.x, req.target.y, req.target.z)
+    else:
+        objetivo = (_f("morpho.neck_origin_x"), _f("morpho.neck_origin_y"),
+                    _f("morpho.neck_origin_z"))
+        if objetivo == (0.0, 0.0, 0.0):
+            objetivo = (_f("detect.cand_001.centroid_x"),
+                        _f("detect.cand_001.centroid_y"),
+                        _f("detect.cand_001.centroid_z"))
+        if objetivo == (0.0, 0.0, 0.0):
+            raise HTTPException(
+                status_code=409,
+                detail=("No hay aneurisma al que apuntar: marca el cuello en "
+                        "Morfometría, detecta un candidato, o pasa la diana."))
+
+    ejes = axes_from_dicom(session_subdir(session_id, "dicom"))
+
+    ramas = []
+    try:
+        from services.branch_origins import thaw_scan
+        scan = thaw_scan(session_id)
+        if scan is not None:
+            ramas = list(scan.origins)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Branch scan unavailable while proposing: %s", exc)
+
+    volume = spacing = None
+    try:
+        from services.mpr import _get_volume, ensure_volume_cached
+        meta = ensure_volume_cached(session_id)
+        volume = _get_volume(session_id)
+        spacing = tuple(float(x) for x in meta["spacing"])
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Volume unavailable while proposing: %s", exc)
+
+    eje_cuello = (_f("morpho.axis_x"), _f("morpho.axis_y"), _f("morpho.axis_z", 1.0))
+    clearance = max(6.0, _f("morpho.max_diameter_mm") / 2.0 + 2.0)
+
+    propuestas = await asyncio.to_thread(
+        propose_corridors, objetivo, read_vtp(vtp), ejes,
+        radius_mm=req.radius_mm, target_clearance_mm=clearance,
+        neck_axis=eje_cuello, branches=ramas, volume=volume, spacing=spacing,
+        top=req.top,
+    )
+
+    return SuggestCorridorsResult(
+        target=Position3D(x=objetivo[0], y=objetivo[1], z=objetivo[2]),
+        axes_source=ejes.source, axes_note=ejes.note,
+        rules=[
+            f"Descartado todo lo que entra a más de {MAX_INFERIOR_DEG:.0f}° por "
+            f"debajo del plano axial: eso es el cuello o la base.",
+            f"Descartado el sector de la cara: dirección francamente anterior y "
+            f"por debajo de {FACE_MAX_ELEVATION_DEG:.0f}° de elevación. Una "
+            f"craneotomía frontal también es anterior, pero llega por encima del "
+            f"reborde orbitario.",
+            "Solo bloquea el tejido vascular. El hueso no se separa del contraste "
+            "por intensidad, así que no se usa para descartar corredores.",
+            "Se propone una dirección, no una craneotomía: confirma que esa "
+            "entrada cae en una zona operable de este paciente.",
+        ],
+        proposals=[
+            ProposedCorridorOut(
+                entry=Position3D(x=p.entry[0], y=p.entry[1], z=p.entry[2]),
+                direction=list(p.direction),
+                depth_mm=p.depth_mm,
+                description=p.description,
+                entry_on_skin=p.entry_on_skin,
+                corridor=_corridor_out(p.assessment),
+            )
+            for p in propuestas
+        ],
+    )

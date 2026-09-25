@@ -473,6 +473,37 @@ export interface CorridorAssessmentOut {
   assumptions: string[];
 }
 
+/** Una dirección de abordaje que el software propone. */
+export interface ProposedCorridorOut {
+  entry: Position3D;
+  direction: number[];
+  depth_mm: number;
+  /** La dirección dicha en anatomía, no en coordenadas. */
+  description: string;
+  /** False = la entrada es el borde del volumen reconstruido, no la piel. En
+      una 3DRA el campo no llega al cuero cabelludo, así que lo que se propone
+      es la DIRECCIÓN, no el punto de la craneotomía. */
+  entry_on_skin: boolean;
+  corridor: CorridorAssessmentOut;
+}
+
+export interface SuggestCorridorsRequest {
+  target?: Position3D;
+  radius_mm?: number;
+  top?: number;
+}
+
+export interface SuggestCorridorsResult {
+  proposals: ProposedCorridorOut[];
+  target: Position3D;
+  /** dicom · dicom_sin_verificar · desconocida. Sin ejes no se propone nada:
+      no se podría garantizar que el corredor no entre por la cara. */
+  axes_source: string;
+  axes_note: string;
+  /** Los sectores descartados por no ser operables, dichos. */
+  rules: string[];
+}
+
 export interface TrajectoryResult {
   entry: number[];
   target: number[];

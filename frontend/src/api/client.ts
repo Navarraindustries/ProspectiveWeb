@@ -89,6 +89,8 @@ import type {
   StudyCreate,
   StudySummary,
   SuggestedBand,
+  SuggestCorridorsRequest,
+  SuggestCorridorsResult,
   TrajectoryRequest,
   TrajectoryResult,
   TreatmentDecisionRequest,
@@ -324,6 +326,10 @@ export const api = {
     post<ClStentResult>(`/api/cl-stent/${sessionId}`, req),
   setTrajectory: (sessionId: string, req: TrajectoryRequest) =>
     post<TrajectoryResult>(`/api/trajectory/${sessionId}`, req),
+  /** Por dónde entrar: barre direcciones y devuelve las despejadas que además
+   *  se pueden operar. Sin la orientación del paciente no propone nada. */
+  suggestCorridors: (sessionId: string, req: SuggestCorridorsRequest = {}) =>
+    post<SuggestCorridorsResult>(`/api/trajectory/${sessionId}/suggest`, req),
   clearTrajectory: (sessionId: string) =>
     request<void>(`/api/trajectory/${sessionId}`, { method: "DELETE" }),
   preprocess: (sessionId: string, req: PreprocessRequest) =>

@@ -3265,6 +3265,64 @@
         }
       }
     },
+    "/api/trajectory/{session_id}/suggest": {
+      "post": {
+        "tags": [
+          "report"
+        ],
+        "summary": "Propose approach corridors that are clear and operable",
+        "description": "Sweeps directions around the aneurysm and returns the ones that reach it without crossing a vessel AND could actually be operated.\n\nOnly **vascular** tissue blocks: it is what the image separates reliably — bone shares its intensity range with contrast — and it is what was asked for.\n\nTwo sectors are refused outright, because an approach through them does not exist: anything coming from below the axial plane (the neck or the skull base) and the face. Telling them apart needs the patient's orientation, which comes from the DICOM; without it nothing is proposed, because a corridor through the orbit cannot be ruled out.\n\nWhat is proposed is a DIRECTION, not a craniotomy: naming an approach would need the skull and the scalp segmented, and a 3DRA's reconstructed field does not even reach the scalp.",
+        "operationId": "suggest_corridors_api_trajectory__session_id__suggest_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestCorridorsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestCorridorsResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/save": {
       "post": {
         "tags": [
@@ -11812,6 +11870,48 @@
         ],
         "title": "PrintPrepResult"
       },
+      "ProposedCorridorOut": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "direction": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Direction"
+          },
+          "depth_mm": {
+            "type": "number",
+            "title": "Depth Mm"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "La dirección dicha en anatomía: «anterior izquierda, 30° por encima del plano axial»",
+            "default": ""
+          },
+          "entry_on_skin": {
+            "type": "boolean",
+            "title": "Entry On Skin",
+            "description": "False cuando la entrada es el borde del volumen reconstruido y no la piel. En una 3DRA el campo no llega al cuero cabelludo, así que lo que se propone es la DIRECCIÓN, no el punto de la craneotomía.",
+            "default": false
+          },
+          "corridor": {
+            "$ref": "#/components/schemas/CorridorAssessmentOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry",
+          "direction",
+          "depth_mm",
+          "corridor"
+        ],
+        "title": "ProposedCorridorOut",
+        "description": "Una dirección de abordaje propuesta, con lo que se midió dentro."
+      },
       "ReceptionIn": {
         "properties": {
           "measured_jaw_mm": {
@@ -13123,6 +13223,78 @@
         ],
         "title": "StudySummary",
         "description": "One study / clinical case linked to a patient (desktop 'Nuevo Caso')."
+      },
+      "SuggestCorridorsRequest": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position3D"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "El aneurisma. Si no se da, se toma el cuello marcado en Morfometría y, en su defecto, el candidato detectado."
+          },
+          "radius_mm": {
+            "type": "number",
+            "maximum": 20.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Radius Mm",
+            "description": "Radio del corredor de trabajo",
+            "default": 5.0
+          },
+          "top": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Top",
+            "default": 3
+          }
+        },
+        "type": "object",
+        "title": "SuggestCorridorsRequest",
+        "description": "Pedir al software por dónde entrar."
+      },
+      "SuggestCorridorsResult": {
+        "properties": {
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedCorridorOut"
+            },
+            "type": "array",
+            "title": "Proposals"
+          },
+          "target": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "axes_source": {
+            "type": "string",
+            "title": "Axes Source",
+            "description": "dicom · dicom_sin_verificar · desconocida. Sin ejes no se propone nada: no se podría garantizar que el corredor no entre por la cara.",
+            "default": ""
+          },
+          "axes_note": {
+            "type": "string",
+            "title": "Axes Note",
+            "default": ""
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rules",
+            "description": "Los sectores descartados por no ser operables, dichos."
+          }
+        },
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "title": "SuggestCorridorsResult",
+        "description": "Lo que el software propone, y con qué sabe dónde está la cara."
       },
       "SuggestedBand": {
         "properties": {

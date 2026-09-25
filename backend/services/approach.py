@@ -190,8 +190,14 @@ def assess_corridor(
     spacing: tuple[float, float, float] | None = None,
     dense_threshold: float = 0.0,
     is_subtracted: bool = False,
+    obb_tree: "vtk.vtkOBBTree | None" = None,
 ) -> CorridorAssessment:
-    """Mide el corredor y concluye si el abordaje es viable."""
+    """Mide el corredor y concluye si el abordaje es viable.
+
+    `obb_tree` permite reutilizar el localizador entre llamadas. Construirlo
+    cuesta lo mismo que una malla entera, y proponer corredores llama a esto
+    cientos de veces: medido sobre case 3, rehacerlo cada vez eran 100 s.
+    """
     p_in = np.asarray(entry, dtype=float)
     p_end = np.asarray(target, dtype=float)
     largo = float(np.linalg.norm(p_end - p_in))
@@ -220,9 +226,11 @@ def assess_corridor(
 
     # ── Vasos atravesados ─────────────────────────────────────────────────── #
     if vessel_poly is not None and vessel_poly.GetNumberOfPoints() > 0:
-        tree = vtk.vtkOBBTree()
-        tree.SetDataSet(vessel_poly)
-        tree.BuildLocator()
+        tree = obb_tree
+        if tree is None:
+            tree = vtk.vtkOBBTree()
+            tree.SetDataSet(vessel_poly)
+            tree.BuildLocator()
         tramos: list[tuple[float, float]] = []
         for o in _ray_origins(p_in, eje, radius_mm):
             for t0, t1 in _segments_along_ray(tree, o, o + eje * largo):
@@ -344,3 +352,233 @@ def assess_corridor(
         "perforantes."
     )
     return res
+
+
+# ── Proponer un corredor ──────────────────────────────────────────────────── #
+#
+# Que el software sugiera por dónde entrar, no solo que valore lo que dibuja el
+# médico. Dos reglas mandan aquí, y las dos vienen de que un abordaje tiene que
+# poder hacerse:
+#
+#   1. Solo bloquea el tejido VASCULAR. Es lo único que la imagen separa con
+#      garantías —el hueso comparte intensidad con el contraste— y es lo que se
+#      pidió que contara.
+#   2. No se propone entrar por donde el paciente tiene la cara, ni desde abajo.
+#      Eso no es un abordaje peor: es uno que no existe. Para descartarlo hace
+#      falta saber qué dirección es anterior, que sale de la orientación del
+#      DICOM (`services.head_axes`); sin ella no se propone nada.
+#
+# Lo que se propone es una DIRECCIÓN, no una craneotomía. Nombrar un abordaje
+# —pterional, subtemporal— exige el cráneo y la piel segmentados, y en una 3DRA
+# el campo reconstruido ni siquiera llega al cuero cabelludo.
+
+#: Por debajo de esto se entraría desde el cuello o la base: no existe.
+MAX_INFERIOR_DEG: float = 15.0
+
+#: El sector de la cara. Una dirección francamente anterior que además viene por
+#: debajo de la horizontal entra por la órbita, la nariz o el macizo facial. Una
+#: craneotomía frontal también es anterior, pero llega POR ENCIMA del reborde
+#: orbitario, y por eso el filtro pide las dos condiciones a la vez.
+FACE_ANTERIOR_DOT: float = 0.5      # dentro de 60 grados del frente
+FACE_MAX_ELEVATION_DEG: float = 20.0
+
+#: Hasta dónde se busca la entrada si no se encuentra la piel.
+DEFAULT_MAX_DEPTH_MM: float = 120.0
+
+
+@dataclass
+class ProposedCorridor:
+    """Un corredor que el software propone, con lo que se midió dentro."""
+
+    entry: tuple[float, float, float]
+    direction: tuple[float, float, float]
+    depth_mm: float
+    description: str
+    assessment: CorridorAssessment
+    #: False cuando la entrada es el borde del volumen reconstruido, no la piel.
+    entry_on_skin: bool = False
+
+
+def _fibonacci_directions(n: int) -> list[np.ndarray]:
+    """`n` direcciones repartidas por la esfera, sin acumularse en los polos."""
+    salida = []
+    phi = math.pi * (3.0 - math.sqrt(5.0))
+    for i in range(n):
+        z = 1.0 - 2.0 * i / max(n - 1, 1)
+        r = math.sqrt(max(0.0, 1.0 - z * z))
+        a = phi * i
+        salida.append(np.array([math.cos(a) * r, math.sin(a) * r, z]))
+    return salida
+
+
+def _head_threshold(volume: np.ndarray) -> float:
+    """Dónde acaba la cabeza en ESTE volumen, sin suponer unidades Hounsfield.
+
+    Una 3DRA no está calibrada —en case 3 los valores van de −15 000 a 33 000—
+    así que un umbral de aire escrito a mano no vale. Se calibra con el propio
+    volumen: las ocho esquinas son lo de fuera, el centro lo de dentro, y el
+    corte va a medio camino.
+    """
+    z, y, x = volume.shape
+    k = max(4, min(z, y, x) // 20)
+    esquinas = [
+        volume[:k, :k, :k], volume[:k, :k, -k:], volume[:k, -k:, :k], volume[:k, -k:, -k:],
+        volume[-k:, :k, :k], volume[-k:, :k, -k:], volume[-k:, -k:, :k], volume[-k:, -k:, -k:],
+    ]
+    fuera = float(np.median([float(np.median(c)) for c in esquinas]))
+    # «Dentro» es el percentil 75, y las dos alternativas evidentes fallan:
+    #
+    #   · el bloque CENTRAL cae encima del contraste (en case 3 da −19), el
+    #     corte se iba a −553 y dejaba fuera el parénquima, que en esa 3DRA sin
+    #     calibrar vive en −400: el rayo «salía de la cabeza» a 13 mm del
+    #     aneurisma y lo llamaba piel. Una entrada de piel a 13 mm de una lesión
+    #     intracraneal no existe, y el software la daba por buena;
+    #   · la MEDIANA GLOBAL se hunde cuando la cabeza ocupa menos de medio
+    #     campo, que es lo normal en una TC;
+    #   · Otsu, probado, separa el CONTRASTE de todo lo demás y no la cabeza del
+    #     aire: en case 3 corta en −33 y deja fuera el 82 % de la cabeza.
+    #
+    # El p75 es tejido en los dos regímenes: −150 en case 3, −400 en un volumen
+    # con mucho aire alrededor.
+    dentro = float(np.percentile(volume, 75))
+    return fuera + 0.15 * (dentro - fuera)
+
+
+def _entry_along(target: np.ndarray, d: np.ndarray, volume, spacing,
+                 max_depth_mm: float,
+                 umbral: float | None = None) -> tuple[np.ndarray, float, bool]:
+    """Sale del aneurisma en dirección `d` hasta encontrar la piel o el borde.
+
+    Devuelve (entrada, profundidad, ¿es piel?). Cuando el campo reconstruido no
+    llega al cuero cabelludo —lo normal en una 3DRA, que reconstruye un cilindro
+    alrededor de los vasos— se devuelve el borde y se dice que NO es piel:
+    proponer un punto de piel que la imagen no contiene sería inventarlo.
+    """
+    if volume is None or spacing is None:
+        return target + d * max_depth_mm, max_depth_mm, False
+
+    sp = np.asarray(spacing, dtype=float)
+    forma = np.asarray(volume.shape)
+    # El umbral se calcula UNA vez por volumen y se pasa: es un percentil sobre
+    # 56 millones de vóxeles, y rehacerlo por dirección era el 90 % del tiempo
+    # de proponer (90 s de los 100 que tardaba case 3).
+    if umbral is None:
+        umbral = _head_threshold(volume)
+    fuera_seguidos = 0
+    ultimo_dentro = 0.0
+    t = 0.0
+    while t < max_depth_mm:
+        t += 1.0
+        p = target + d * t
+        idx = np.round(p[::-1] / sp).astype(int)
+        if np.any(idx < 0) or np.any(idx >= forma):
+            return target + d * ultimo_dentro, ultimo_dentro, False
+        if float(volume[tuple(idx)]) >= umbral:
+            ultimo_dentro = t
+            fuera_seguidos = 0
+        else:
+            fuera_seguidos += 1
+            if fuera_seguidos >= 3:      # tres milímetros de aire: se salió
+                return target + d * ultimo_dentro, ultimo_dentro, True
+    return target + d * max_depth_mm, max_depth_mm, False
+
+
+def propose_corridors(
+    target: tuple[float, float, float],
+    vessel_poly: vtk.vtkPolyData | None,
+    axes,
+    *,
+    radius_mm: float = DEFAULT_CORRIDOR_RADIUS_MM,
+    target_clearance_mm: float = TARGET_CLEARANCE_MM,
+    neck_axis: tuple[float, float, float] | None = None,
+    branches: list = (),
+    volume: np.ndarray | None = None,
+    spacing: tuple[float, float, float] | None = None,
+    max_depth_mm: float = DEFAULT_MAX_DEPTH_MM,
+    n_directions: int = 300,
+    top: int = 3,
+) -> list[ProposedCorridor]:
+    """Los corredores despejados que además se pueden operar, mejor primero."""
+    from services.head_axes import describe_direction
+
+    if axes is None or not getattr(axes, "usable", False):
+        return []
+
+    p_obj = np.asarray(target, dtype=float)
+    ant = np.asarray(axes.anterior, dtype=float)
+    sup = np.asarray(axes.superior, dtype=float)
+    seno_inferior = -math.sin(math.radians(MAX_INFERIOR_DEG))
+    seno_cara = math.sin(math.radians(FACE_MAX_ELEVATION_DEG))
+
+    # El localizador, UNA vez. Es lo que convierte esto en un botón: con un
+    # árbol nuevo por dirección, case 3 tardaba 100 s.
+    tree = None
+    if vessel_poly is not None and vessel_poly.GetNumberOfPoints() > 0:
+        tree = vtk.vtkOBBTree()
+        tree.SetDataSet(vessel_poly)
+        tree.BuildLocator()
+
+    # ── Primera pasada: un solo rayo por dirección ────────────────────────── #
+    #
+    # El haz de diecisiete rayos es lo que da la medida buena, pero para
+    # DESCARTAR basta el rayo central. Se paga el haz completo solo por las
+    # direcciones que sobreviven, que es el mismo patrón de las dos etapas de la
+    # vista previa de segmentación.
+    umbral_cabeza = _head_threshold(volume) if volume is not None else None
+
+    preseleccion: list[tuple[float, np.ndarray, np.ndarray, float, bool]] = []
+    for d in _fibonacci_directions(n_directions):
+        elevacion = float(np.dot(d, sup))
+        if elevacion < seno_inferior:
+            continue                                   # desde el cuello o la base
+        if float(np.dot(d, ant)) > FACE_ANTERIOR_DOT and elevacion < seno_cara:
+            continue                                   # por la cara
+
+        entrada, profundidad, piel = _entry_along(p_obj, d, volume, spacing,
+                                                  max_depth_mm, umbral_cabeza)
+        if profundidad < target_clearance_mm + 5.0:
+            continue                                   # no hay corredor que medir
+
+        estorbo = 0.0
+        if tree is not None:
+            for t0, t1 in _segments_along_ray(tree, entrada, entrada + (p_obj - entrada)):
+                if profundidad - t0 > target_clearance_mm:
+                    estorbo += t1 - t0
+        preseleccion.append((estorbo, entrada, d, profundidad, piel))
+
+    preseleccion.sort(key=lambda r: (r[0], r[3]))
+
+    candidatos: list[ProposedCorridor] = []
+    for _estorbo, entrada, d, profundidad, piel in preseleccion[:max(12, top * 5)]:
+        a = assess_corridor(
+            tuple(entrada), target, vessel_poly,
+            radius_mm=radius_mm, target_clearance_mm=target_clearance_mm,
+            neck_axis=neck_axis, branches=branches,
+            # Solo bloquea el tejido vascular: el resto no se mide aquí.
+            volume=None, spacing=None, is_subtracted=False, obb_tree=tree,
+        )
+        if a.verdict == "no_viable":
+            continue
+
+        candidatos.append(ProposedCorridor(
+            entry=(float(entrada[0]), float(entrada[1]), float(entrada[2])),
+            direction=(float(d[0]), float(d[1]), float(d[2])),
+            depth_mm=round(float(profundidad), 1),
+            description=describe_direction(d, axes),
+            assessment=a, entry_on_skin=piel,
+        ))
+
+    # Primero los que no rozan nada, y entre ellos el más corto: cada milímetro
+    # de profundidad es campo que hay que mantener abierto.
+    candidatos.sort(key=lambda c: (len(c.assessment.vessels_crossed), c.depth_mm))
+
+    # Direcciones casi iguales son el mismo abordaje contado tres veces.
+    elegidos: list[ProposedCorridor] = []
+    for c in candidatos:
+        v = np.asarray(c.direction)
+        if any(float(np.dot(v, np.asarray(e.direction))) > 0.94 for e in elegidos):
+            continue
+        elegidos.append(c)
+        if len(elegidos) >= top:
+            break
+    return elegidos

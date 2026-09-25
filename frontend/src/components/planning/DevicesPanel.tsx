@@ -18,8 +18,10 @@ import type {
   CoilPlanResult,
   MorphometryResult,
   Position3D,
+  ProposedCorridorOut,
   StentLibraryItem,
   StentPlanResult,
+  SuggestCorridorsResult,
   TrajectoryResult,
 } from "../../api/types";
 import { Button } from "../Button";
@@ -969,6 +971,8 @@ function TrajectoryTool() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<TrajectoryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sugerencias, setSugerencias] = useState<SuggestCorridorsResult | null>(null);
+  const [sugiriendo, setSugiriendo] = useState(false);
 
   const hasMesh = !!segmentation?.mesh_url;
   const depth = trajEntry && trajTarget
@@ -991,10 +995,35 @@ function TrajectoryTool() {
     }
   };
 
+  /* Que lo proponga el software. Solo bloquea el tejido vascular, y hay dos
+     sectores que ni se miran: por debajo del plano axial —el cuello, la base— y
+     la cara. Un abordaje por la órbita no es peor, es uno que no existe. */
+  const sugerir = async () => {
+    if (!sessionId) return;
+    setSugiriendo(true);
+    setError(null);
+    try {
+      setSugerencias(await api.suggestCorridors(sessionId, {}));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al sugerir corredores");
+    } finally {
+      setSugiriendo(false);
+    }
+  };
+
+  /** Llevar una propuesta a los dos puntos, para verla y poder retocarla. */
+  const usar = (p: ProposedCorridorOut, diana: Position3D) => {
+    setTrajEntry([p.entry.x, p.entry.y, p.entry.z]);
+    setTrajTarget([diana.x, diana.y, diana.z]);
+    setSugerencias(null);
+    setSaved(null);
+  };
+
   const clear = async () => {
     setTrajEntry(null);
     setTrajTarget(null);
     setSaved(null);
+    setSugerencias(null);
     setPickMode(null);
     if (sessionId) { try { await api.clearTrajectory(sessionId); } catch { /* ignore */ } }
   };
@@ -1029,6 +1058,83 @@ function TrajectoryTool() {
         {pickBtn("traj_entry", "Entrada", !!trajEntry)}
         {pickBtn("traj_target", "Diana", !!trajTarget)}
       </div>
+
+      <Button
+        size="sm" variant="outline" style={{ width: "100%", marginBottom: 10 }}
+        disabled={!hasMesh || sugiriendo} onClick={() => void sugerir()}
+        leadingIcon={<Icon name="TRAJECTORY" size={14} />}
+      >
+        {sugiriendo ? "Buscando por dónde entrar…" : "Sugerir corredor"}
+      </Button>
+
+      {sugerencias && (
+        <div style={{ marginBottom: 10 }}>
+          {sugerencias.proposals.length === 0 ? (
+            <div style={{
+              fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
+              padding: "8px 10px", borderRadius: "var(--radius-md)",
+              background: "var(--muted)", borderLeft: "3px solid var(--warning)",
+            }}>
+              {/* Sin ejes no se puede descartar un corredor por la órbita, y
+                  proponer a ciegas es peor que no proponer. */}
+              {sugerencias.axes_source === "desconocida"
+                ? sugerencias.axes_note
+                : "Ninguna dirección llega al aneurisma sin cruzar un vaso dentro de los sectores operables."}
+            </div>
+          ) : (
+            <>
+              {sugerencias.proposals.map((p, i) => (
+                <div key={i} style={{
+                  padding: "8px 10px", marginBottom: 6,
+                  borderRadius: "var(--radius-md)", background: "var(--muted)",
+                  borderLeft: `3px solid ${p.corridor.verdict === "viable" ? "var(--success)" : "var(--warning)"}`,
+                }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>
+                      {p.description}
+                    </span>
+                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
+                      {p.depth_mm.toFixed(0)} mm
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
+                    {p.corridor.verdict_reason}
+                  </div>
+                  {!p.entry_on_skin && (
+                    <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.4, opacity: 0.85 }}>
+                      La entrada es el borde de lo que el estudio reconstruye, no la
+                      piel: esto es la dirección, no el punto de la craneotomía.
+                    </div>
+                  )}
+                  <Button size="sm" variant="outline" style={{ marginTop: 6 }}
+                          onClick={() => usar(p, sugerencias.target)}>
+                    Usar esta
+                  </Button>
+                </div>
+              ))}
+              {/* Con qué criterio se han descartado sectores enteros. Sin esto,
+                  una lista de tres direcciones parece un oráculo. */}
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+                  Qué se ha descartado y por qué
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                  {sugerencias.rules.map((r, i) => (
+                    <div key={i} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+                      — {r}
+                    </div>
+                  ))}
+                  {sugerencias.axes_note && (
+                    <div style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.45 }}>
+                      — {sugerencias.axes_note}
+                    </div>
+                  )}
+                </div>
+              </details>
+            </>
+          )}
+        </div>
+      )}
       {depth !== null && (
         <div style={{ fontSize: 12, color: "var(--foreground)", marginBottom: 10 }}>
           Profundidad de abordaje: <b style={{ fontFamily: "var(--font-mono)" }}>{depth.toFixed(1)} mm</b>

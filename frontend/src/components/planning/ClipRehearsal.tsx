@@ -72,7 +72,7 @@ export function sacFrameFor(close: number, frames: number): number | null {
 
 export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: string }) {
   const { sessionId, morphometry, clipRehearsal, setClipRehearsal, clipParts,
-          trajEntry, trajTarget, setSacFrame } = usePlanning();
+          trajEntry, trajTarget, setSacFrame, deviceMeshes } = usePlanning();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -158,6 +158,30 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
   useEffect(() => {
     if (clipRehearsal && clipParts?.has("clip-body")) poseAt(0, clipRehearsal);
   }, [clipRehearsal, clipParts, poseAt]);
+
+  // Al colocar y verificar, el ensayo se sienta en la posición final.
+  //
+  // Mientras hay ensayo, el visor enseña sus tres piezas EN LUGAR del clip
+  // colocado (dos clips a la vez, uno congelado, sería peor). Pero si las
+  // piezas se quedaron donde las dejó el ensayo —paradas en el corredor, o sin
+  // haberlo reproducido— «Colocar y verificar» no cambiaba nada en pantalla y
+  // parecía que el clip no se colocaba. La pose final del ensayo es la misma
+  // que la del plan, así que sentarlo aquí enseña exactamente lo colocado.
+  const clipsUrl = deviceMeshes.clips;
+  const clipsUrlVisto = useRef<string | null>(null);
+  // Al abrir el ensayo se toma nota de lo que YA estaba colocado: abrirlo sobre
+  // un clip colocado antes no debe saltarse el recorrido.
+  useEffect(() => {
+    clipsUrlVisto.current = clipsUrl ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipRehearsal]);
+  useEffect(() => {
+    if (!clipRehearsal || playing || clipsUrl === clipsUrlVisto.current) return;
+    clipsUrlVisto.current = clipsUrl ?? null;
+    if (!clipsUrl || !clipParts?.has("clip-body")) return;
+    poseAt(1, clipRehearsal);
+    setProgress(1);
+  }, [clipsUrl, clipRehearsal, clipParts, playing, poseAt]);
 
   // Leaving must not strand the scene mid-manoeuvre with a floating clip.
   useEffect(() => () => {

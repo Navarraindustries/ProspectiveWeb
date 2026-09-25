@@ -170,6 +170,13 @@ class SegmentResult(BaseModel):
             "speck; tens of mm³ is a vessel segment that left the mesh."
         ),
     )
+    threshold_lower: float = Field(
+        0.0,
+        description=(
+            "Lower threshold the mesh was built with. The client MIP starts its "
+            "vessel transfer function here instead of at a fixed HU value."
+        ),
+    )
 
 
 class CeilingCompareRequest(BaseModel):

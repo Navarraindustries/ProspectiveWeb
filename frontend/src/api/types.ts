@@ -378,6 +378,9 @@ export interface SegmentResult {
    *  que explica. */
   main_tree_warning: string;
   main_tree_removed: number;
+  /** Umbral inferior con el que se hizo la malla; el MIP «Vasos» arranca ahí.
+   *  Opcional: sesiones guardadas antes de este campo no lo traen. */
+  threshold_lower?: number;
 }
 
 /* ── interactive mesh editing: ROI crop + grow-from-seeds ───────────────── */

@@ -524,6 +524,7 @@ def _run_segmentation_sync(
         main_tree_applied=   main_applied,
         main_tree_warning=   main_warning,
         main_tree_removed=   main_removed,
+        threshold_lower=     lower,
     )
 
 

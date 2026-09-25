@@ -29,6 +29,7 @@ import type { Vector3 } from "@kitware/vtk.js/types";
 const MeshView = lazy(() => import("./MeshView").then((m) => ({ default: m.MeshView })));
 const VolumeView = lazy(() => import("./VolumeView").then((m) => ({ default: m.VolumeView })));
 const SliceView = lazy(() => import("./SliceView").then((m) => ({ default: m.SliceView })));
+const MipView = lazy(() => import("./MipView").then((m) => ({ default: m.MipView })));
 
 const STEP_SCENE: Record<string, string> = {
   upload: "Vista previa DICOM",
@@ -508,11 +509,22 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const compact = slot === "strip";
     if (id === "scene") return renderScene(compact);
     if (id === "mip") {
-      // MipView llega en Task 10; hasta entonces la celda dice qué falta.
+      // El MIP necesita el volumen en el navegador (WebGL2 + vtkImageData);
+      // sin él la celda dice por qué está vacía en lugar de quedarse negra.
+      if (!meta || !clientVol.image) {
+        return (
+          <HudFrame label="MIP" active={slot === "main"}>
+            <HudReadout at="bl" lines={[meta && hasWebGL2() && !clientVol.error ? "CARGANDO…" : "SIN VOLUMEN"]} />
+          </HudFrame>
+        );
+      }
+      // Recorta según el corte que se está recorriendo: el del panel principal
+      // si es coronal o sagital; si no (axial, 3D, MIP), el axial.
+      const mipPlane: Plane = viewerLayout.main === "coronal" || viewerLayout.main === "sagital" ? viewerLayout.main : "axial";
       return (
-        <HudFrame label="MIP" active={slot === "main"}>
-          <HudReadout at="bl" lines={[clientVol.image ? "MIP · PENDIENTE" : "SIN VOLUMEN"]} />
-        </HudFrame>
+        <Suspense fallback={<ViewerLoading label="Cargando MIP…" />}>
+          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} mainPlane={mipPlane} />
+        </Suspense>
       );
     }
     if (!meta || !sessionId) {

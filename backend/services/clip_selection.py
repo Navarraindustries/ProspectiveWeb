@@ -46,14 +46,17 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from services.clips import (
     DEEP_DOME_AR_THRESHOLD,
+    NECK_DEFORMATION_FACTOR,
     WIDE_NECK_THRESHOLD_MM,
     ClipShape,
     ClipSpec,
+    JawRequirement,
+    jaw_requirement,
 )
 
 Verdict = Literal["ok", "warn", "fail"]
@@ -67,13 +70,14 @@ BLADE_MIN_OVER_MM: float = 1.0
 # Past this the clip is oversized for the target and its distal end sits in
 # tissue it has no business touching.
 BLADE_MAX_RATIO: float = 3.0
-# Ideal blade/neck ratio, and the spread that still counts as comfortable.
-COVERAGE_IDEAL: float = 1.35
-COVERAGE_SIGMA: float = 0.25
-COVERAGE_COMFORTABLE_LO: float = 1.15
+# Lo que sobra por encima de la mordaza requerida, en mm, antes de que la hoja
+# empiece a estorbar. No es una campana sobre un ratio: la mordaza justa YA
+# contempla la deformacion del cuello, asi que quedarse en ella es correcto y lo
+# unico penalizable es pasarse. Sigma en milimetros, no en proporcion, porque
+# 3 mm de hoja de mas son 3 mm de hoja de mas en un cuello de 2 y en uno de 8.
+EXCESS_SIGMA_MM: float = 2.5
+# Por encima de esto la hoja es larga para el objetivo aunque no llegue al tope.
 COVERAGE_COMFORTABLE_HI: float = 2.20
-# Below this the clip spans the neck but leaves nothing to grip.
-SAFETY_MARGIN_WARN_MM: float = 1.5
 
 # ── Closing-force windows by neck width ───────────────────────────────────── #
 # A wider neck carries more residual wall between the blades, so it needs a
@@ -199,18 +203,33 @@ class ClipCase:
     step with a partial measurement and a half-filled case record.
     """
     neck_mm: float
+    #: Perimetro del contorno del cuello, cuando se ha marcado el plano y se ha
+    #: podido medir. Su mitad es la linea de cierre exacta de este cuello; sin
+    #: el se aplica la regla de x1,5 sobre el diametro. Ver `jaw_requirement`.
+    neck_perimeter_mm: float = 0.0
     dome_height_mm: float = 0.0
     max_diameter_mm: float = 0.0
     ar: float = 0.0
     dnr: float = 0.0
     bf: float = 0.0
     parent_artery_mm: float = 0.0
+    #: El ángulo del corredor de abordaje contra el eje cuello→domo, 0–90°, que
+    #: es lo que `POST /api/trajectory` ya devuelve. 0 = el corredor llega por el
+    #: eje del domo; 90 = llega tumbado en el plano del cuello. None cuando no
+    #: hay trayectoria establecida, y entonces el criterio del abordaje no
+    #: existe en vez de suponer una.
+    approach_angle_deg: float | None = None
     neck_source: str = "auto"          # auto | manual | rim
     neck_tilt_deg: float = 0.0
     neck_reliable: bool = True
     region: str = ""
     laterality: str = ""
     aneurysm_type: str = ""
+
+    @property
+    def jaw_requirement(self) -> JawRequirement:
+        """La mordaza minima que cierra este cuello, con su procedencia."""
+        return jaw_requirement(self.neck_mm, self.neck_perimeter_mm)
 
     @property
     def is_wide_neck(self) -> bool:
@@ -307,16 +326,30 @@ WARN_SCORE_FLOOR = 0.05
 
 
 def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
+    """¿Cierra esta hoja el cuello DESPUÉS de aplastarlo?
+
+    El criterio no compara la hoja con el diámetro del cuello, sino con la
+    longitud que ese cuello toma al quedar plano entre las hojas —el perímetro
+    medido partido por dos, o la regla de ×1,5 cuando no se ha medido—. Ahí es
+    donde se juega el fallo que importa: el cierre incompleto del lado distal es
+    la causa más frecuente de que el domo siga rellenándose.
+
+    Por eso no hay campana sobre un ratio. Quedarse en la mordaza justa ya es
+    correcto, porque la deformación está contada; lo único penalizable es
+    pasarse, y pasarse de verdad —con la punta sobre tejido sano— lo descarta.
+    """
     neck = case.neck_mm
     bl = clip.blade_length_mm
     cov = bl / neck if neck > 0 else 0.0
-    margin = bl - neck
+    req = case.jaw_requirement
+    margin = bl - req.mm
 
-    if bl < neck + BLADE_MIN_OVER_MM:
+    if req.mm > 0.0 and bl < req.mm:
         return Criterion(
             "coverage", "Cobertura", "fail",
-            f"Hoja de {bl:.0f} mm insuficiente para un cuello de {neck:.1f} mm "
-            f"(hacen falta ≥ {neck + BLADE_MIN_OVER_MM:.1f} mm)",
+            f"Hoja de {bl:.0f} mm insuficiente: el cuello de {neck:.1f} mm mide "
+            f"{req.mm:.1f} mm una vez aplastado entre las hojas, y por debajo de "
+            f"eso el cierre queda incompleto",
             0.0, weight=2.0,
         )
     if cov > BLADE_MAX_RATIO:
@@ -326,31 +359,22 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
             f"el extremo distal queda sobre tejido sano",
             0.0, weight=2.0,
         )
-    # The Gaussian bottoms out at 0.00 well before the ratio becomes
-    # disqualifying, so «poor» and «impossible» scored the same. That was hidden
-    # while the force criterion contributed a flat 0.60 to everything; with the
-    # force no longer voting it surfaced as a 3 mm neck answered by six clips at
-    # zero points, all of them labelled usable. A verdict of `warn` MEANS usable
-    # with a caveat, so it keeps a floor — the ranking still separates them, and
-    # zero goes back to meaning what `fail` means.
-    score = max(WARN_SCORE_FLOOR,
-                math.exp(-0.5 * ((cov - COVERAGE_IDEAL) / COVERAGE_SIGMA) ** 2))
-    if margin < SAFETY_MARGIN_WARN_MM:
+    # Con el mínimo ya garantizado arriba, la puntuación solo ordena por exceso:
+    # entre dos hojas que cierran, la más corta estorba menos. Conserva el suelo
+    # de `warn` para que una hoja utilizable-con-reservas nunca puntúe cero, que
+    # es lo que significa haber fallado un criterio.
+    score = max(WARN_SCORE_FLOOR, math.exp(-0.5 * (margin / EXCESS_SIGMA_MM) ** 2))
+    if cov > COVERAGE_COMFORTABLE_HI:
         return Criterion(
             "coverage", "Cobertura", "warn",
-            f"Margen de seguridad corto: {margin:.1f} mm sobre el cuello (×{cov:.2f})",
-            score, weight=2.0,
-        )
-    if not (COVERAGE_COMFORTABLE_LO <= cov <= COVERAGE_COMFORTABLE_HI):
-        return Criterion(
-            "coverage", "Cobertura", "warn",
-            f"Relación hoja/cuello ×{cov:.2f}, fuera del rango cómodo "
-            f"×{COVERAGE_COMFORTABLE_LO:.2f}–×{COVERAGE_COMFORTABLE_HI:.2f}",
+            f"Cierra el cuello aplastado ({req.mm:.1f} mm) pero sobran "
+            f"{margin:.1f} mm de hoja (×{cov:.2f} el cuello)",
             score, weight=2.0,
         )
     return Criterion(
         "coverage", "Cobertura", "ok",
-        f"Cubre el cuello con {margin:.1f} mm de margen (×{cov:.2f})",
+        f"Cierra el cuello aplastado ({req.mm:.1f} mm) con {margin:.1f} mm "
+        f"de margen (×{cov:.2f} el cuello sin deformar)",
         score, weight=2.0,
     )
 
@@ -438,6 +462,75 @@ def _shape_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
                          f"{clip.shape.value} es viable pero no la primera opción. {note}", s)
     return Criterion("shape", "Forma / localización", "warn",
                      f"{clip.shape.value} poco habitual en esta localización. {note}", s)
+
+
+#: Cuánto puede desviarse la acodadura de la pieza respecto a la que pide el
+#: corredor sin que estorbe. La familia dibuja acodados cada 15°, así que un
+#: paso entero es la holgura natural; más allá, la pieza pide entrar por otro
+#: sitio del que el cirujano ha marcado.
+BEND_TOLERANCE_DEG: float = 15.0
+
+
+def bend_for_approach(approach_angle_deg: float) -> float:
+    """La acodadura que hace falta para entrar por ese corredor.
+
+    No es una tabla: es geometría. Las hojas tienen que quedar CRUZADAS sobre el
+    cuello, o sea tumbadas en el plano del cuello, y el mango sale por el
+    corredor. El ángulo entre esas dos direcciones es, por definición, la
+    acodadura que la pieza necesita:
+
+        acodadura = 90° − ángulo(corredor, eje cuello→domo)
+
+    Un corredor que llega tumbado en el plano del cuello (90°) se sirve con un
+    clip RECTO, porque en un recto el mango y las hojas son la misma línea. Uno
+    que baja por el eje del domo (0°) pediría 90° de acodadura para que las
+    hojas puedan ponerse de través.
+
+    Que esa acodadura sea practicable es otra cosa, y es del cirujano: aquí solo
+    se dice cuál es y cuánto se aparta la pieza que se está mirando.
+    """
+    return max(0.0, min(90.0, 90.0 - float(approach_angle_deg)))
+
+
+def _approach_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
+    """¿Entra esta pieza por el corredor que se ha establecido?
+
+    Existe solo cuando hay trayectoria: sin ella no hay corredor del que hablar,
+    y suponer uno —el más cómodo para cada clip— convertiría el criterio en un
+    adorno que aprueba a todos.
+
+    Este SÍ vota, a diferencia de la apertura y de la fuerza. La diferencia es
+    de dónde sale el número: la holgura que pide un cirujano sobre el cuello es
+    un juicio que nadie ha firmado, mientras que el ángulo entre el corredor y
+    el plano del cuello está determinado por las dos direcciones. Un recto no
+    entra por un corredor que llega a 60° del plano del cuello, y eso no es una
+    opinión.
+    """
+    if case.approach_angle_deg is None:
+        return None
+
+    pide = bend_for_approach(case.approach_angle_deg)
+    tiene = float(getattr(clip, "bend_angle_deg", 0.0) or 0.0)
+    desvio = abs(tiene - pide)
+
+    if desvio <= BEND_TOLERANCE_DEG:
+        return Criterion(
+            "approach", "Abordaje", "ok",
+            f"El corredor marcado pide ~{pide:.0f}° de acodadura para que las "
+            f"hojas queden cruzadas sobre el cuello; esta pieza tiene "
+            f"{tiene:.0f}°",
+            1.0, weight=1.5,
+        )
+    # Se degrada en vez de descartar: el cirujano puede corregir unos grados
+    # abriendo el campo, y un corredor es una intención, no un raíl.
+    score = max(WARN_SCORE_FLOOR, math.exp(-0.5 * ((desvio - BEND_TOLERANCE_DEG) / 25.0) ** 2))
+    return Criterion(
+        "approach", "Abordaje", "warn",
+        f"El corredor marcado pide ~{pide:.0f}° de acodadura y esta pieza tiene "
+        f"{tiene:.0f}°: {desvio:.0f}° de desvío. Con esa diferencia el mango no "
+        f"sale por donde entra la mano",
+        score, weight=1.5,
+    )
 
 
 def _force_weight(clip: ClipSpec) -> float:
@@ -581,6 +674,7 @@ def evaluate_clip(clip: ClipSpec, case: ClipCase) -> ClipCandidate:
                   _reach_criterion(clip, case),
                   _shape_criterion(clip, case),
                   _opening_criterion(clip, case),
+                  _approach_criterion(clip, case),
                   _force_criterion(clip, case)):
         if maybe is not None:
             crits.append(maybe)
@@ -602,7 +696,8 @@ def evaluate_clip(clip: ClipSpec, case: ClipCase) -> ClipCandidate:
         clip=clip,
         criteria=crits,
         coverage_ratio=round(cov, 3),
-        safety_margin_mm=round(clip.blade_length_mm - case.neck_mm, 2),
+        # Sobre el cuello APLASTADO, que es contra lo que cierra la hoja.
+        safety_margin_mm=round(clip.blade_length_mm - case.jaw_requirement.mm, 2),
         score=0.0 if failed else round(raw, 1),
     )
 
@@ -670,7 +765,15 @@ class ManufactureSpec:
     @property
     def label(self) -> str:
         fen = f", ventana {self.fenestration_mm:.1f} mm" if self.fenestration_mm > 0 else ""
-        return (f"{self.shape.value} de {self.blade_length_mm:.1f} mm"
+        # El nombre de la FORMA lleva su ángulo canónico dentro («Angulado 90°»),
+        # y una pieza a fabricar puede tener otro: con un corredor marcado la
+        # acodadura sale de la geometría. Rotularla con el ángulo de catálogo
+        # contradecía a la línea de al lado, que decía «pide ~25°».
+        nombre = self.shape.value
+        canonico = _SHAPE_ANGLE_OUT.get(self.shape, 0.0)
+        if canonico > 0 and abs(self.angle_deg - canonico) > 0.5:
+            nombre = f"Angulado {self.angle_deg:.0f}°"
+        return (f"{nombre} de {self.blade_length_mm:.1f} mm"
                 f"{fen} · {self.closing_force_g:.0f} g")
 
 
@@ -697,6 +800,12 @@ def _preferred_shape(case: ClipCase) -> ClipShape:
         return ClipShape.ANGLED
     if case.is_wide_neck:
         return ClipShape.CURVED
+    # Un corredor que no llega tumbado en el plano del cuello pide una pieza
+    # acodada aunque la geometría del saco no lo pidiera: con un recto, el mango
+    # saldría por donde no entra la mano.
+    if (case.approach_angle_deg is not None
+            and bend_for_approach(case.approach_angle_deg) > BEND_TOLERANCE_DEG):
+        return ClipShape.ANGLED
     return ClipShape.STRAIGHT
 
 
@@ -704,11 +813,22 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> Ma
     """Turn "nothing in stock fits" into something a workshop can build."""
     w_r, h_r, s_r = _catalogue_proportions()
 
-    # Aim at the ideal blade/neck ratio, but never below the physical floor.
-    target = max(case.neck_mm * COVERAGE_IDEAL, case.neck_mm + BLADE_MIN_OVER_MM)
+    # Apunta a la mordaza que cierra el cuello aplastado, redondeando HACIA
+    # ARRIBA: en una pieza que se va a fabricar, medio milimetro de mas estorba
+    # menos que medio de menos.
+    target = case.jaw_requirement.mm
     blade = math.ceil(target * 2.0) / 2.0          # round up to the next 0.5 mm
 
     shape = _preferred_shape(case)
+    # La acodadura de una pieza que se va a FABRICAR no tiene por qué ser la
+    # canónica de su forma: si hay un corredor marcado, la geometría ya dice
+    # cuántos grados hacen falta. Visto en el navegador: el panel decía «este
+    # corredor pide ~25°» y la ficha de al lado especificaba 90°, que es el
+    # ángulo con el que se dibuja un angulado de catálogo.
+    angulo = _SHAPE_ANGLE_OUT.get(shape, 0.0)
+    if case.approach_angle_deg is not None and shape in (
+            ClipShape.ANGLED, ClipShape.ANGLED_45, ClipShape.BAYONET):
+        angulo = round(bend_for_approach(case.approach_angle_deg), 1)
     _acc_lo, opt_lo, opt_hi, _acc_hi = force_window(case.neck_mm)
     force = round((opt_lo + opt_hi) / 2.0)
 
@@ -773,7 +893,7 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> Ma
         blade_height_mm=round(max(height, h_min), 2),
         spring_length_mm=round(max(spring, s_min), 1),
         shape=shape,
-        angle_deg=_SHAPE_ANGLE_OUT.get(shape, 0.0),
+        angle_deg=angulo,
         closing_force_g=float(force),
         fenestration_mm=fen,
         neck_mm=round(case.neck_mm, 2),
@@ -820,8 +940,12 @@ class CustomJaw:
 
 
 def ideal_jaw_mm(case: ClipCase) -> float:
-    """The jaw this neck actually wants, before any catalogue is consulted."""
-    return max(case.neck_mm * COVERAGE_IDEAL, case.neck_mm + BLADE_MIN_OVER_MM)
+    """La mordaza que pide este cuello, antes de mirar ningun catalogo.
+
+    Es la longitud de la linea de cierre una vez aplastado el cuello, no su
+    diametro: ver `services.clips.jaw_requirement`.
+    """
+    return case.jaw_requirement.mm
 
 
 def _best_resizable(recommended: list[ClipCandidate]) -> ClipCandidate | None:
@@ -897,7 +1021,15 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
     gap = abs(src.jaw_mm - want)
     # Half a step: closer than this and the drawn size is the better answer,
     # because it is already validated CAD.
-    if gap < 1.5:
+    #
+    # Pero solo si esa talla CIERRA el cuello. `want` dejó de ser un objetivo
+    # alrededor del cual se puede caer por los dos lados: es el mínimo que cubre
+    # el cuello una vez aplastado, y una talla más corta no vale por muy cerca
+    # que esté. Un cuello de 5 mm pide 7,5 mm de mordaza y la talla dibujada más
+    # próxima es 7: a 0,5 mm de distancia, y medio milímetro por debajo de lo
+    # que hace falta. Sin esta condición la oferta a medida se retiraba justo
+    # ahí y al cirujano se le ofrecía la pieza que no cierra.
+    if gap < 1.5 and src.jaw_mm >= want:
         return None
     if want < min(STOCK_JAW_MM) or want > max(STOCK_JAW_MM):
         reason = (f"Un cuello de {case.neck_mm:.1f} mm pide {want:.1f} mm de mordaza, "
@@ -910,6 +1042,126 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
                      nearest_drawn_mm=float(src.jaw_mm), reason=reason,
                      shape=src.shape, window_mm=float(src.window_mm),
                      resizable=src.can_resize)
+
+
+# ── Montaje de varios clips ───────────────────────────────────────────────── #
+#
+# Un cuello que ninguna hoja cierra no es necesariamente un cuello que haya que
+# mandar a fabricar: la cirugía lo resuelve con VARIOS clips. Es técnica
+# descrita, no una salida de emergencia:
+#
+#   · tándem / apilado — un clip paralelo al vaso padre y otros por debajo
+#     (understacking) o por encima (overstacking) reforzando el cierre;
+#   · «picket fence» — varios clips en fila, SOLAPADOS y escalonados a lo largo
+#     del cuello, reconstruyéndolo por tramos. En la serie publicada se usaron
+#     siete clips fenestrados en un ACM gigante y cuatro en una ACoA.
+#
+# Lo que este módulo puede aportar es la parte geométrica: cuántas mordazas de
+# las que existen hacen falta para cubrir la línea de cierre, y con qué solape.
+# Cuál de las técnicas corresponde —tándem, picket fence, fenestrado sobre la
+# rama— es del cirujano, y se dice en el propio resultado.
+#
+# Fuentes: «Picket-Fence Technique in Surgical Treatment of Cerebral Aneurysms»
+# (PMC12654722) y la literatura de clipaje en tándem; el aviso del peso
+# acumulado sobre el vaso padre viene de «Suture retraction technique to prevent
+# parent vessel obstruction following aneurysm tandem clipping» (J Neurosurg
+# 2015;123:472).
+
+#: Cuánto tiene que montar una hoja sobre la anterior. Las hojas van SOLAPADAS,
+#: no adosadas: dejar que se toquen justo en la punta deja un hueco donde el
+#: cuello no queda cerrado, que es la misma forma de fallar que persigue la
+#: regla del cuello aplastado.
+#:
+#: SUPUESTO, no medido. Ninguna de las fuentes da un número: describen el solape
+#: cualitativamente. 2 mm es el valor con el que trabaja el montaje, se enseña
+#: en pantalla para que sea discutible, y está en la lista de preguntas para los
+#: neurocirujanos.
+MULTICLIP_OVERLAP_MM: float = 2.0
+
+#: Más allá de esto el montaje deja de ser una propuesta razonable. La serie del
+#: picket fence llega a siete clips, pero cada hoja añade peso sobre el vaso
+#: padre —hay descrita obstrucción del vaso tras clipaje en tándem— y proponer
+#: una fila larga desde una geometría es pasarse de donde llega este software.
+MULTICLIP_MAX_CLIPS: int = 4
+
+
+@dataclass
+class MultiClipConstruct:
+    """Varias mordazas que juntas cierran un cuello que ninguna cierra sola."""
+
+    jaws_mm: list[float]
+    required_mm: float
+    covered_mm: float
+    overlap_mm: float
+    shape: str
+    #: Lo que el montaje NO decide, dicho en el propio objeto.
+    cautions: list[str] = field(default_factory=list)
+
+    @property
+    def n_clips(self) -> int:
+        return len(self.jaws_mm)
+
+    @property
+    def label(self) -> str:
+        tallas = " + ".join(f"{j:.0f}" for j in self.jaws_mm)
+        return (f"{self.n_clips} clips en fila ({tallas} mm de mordaza), "
+                f"solapando {self.overlap_mm:.0f} mm")
+
+
+def suggest_multiclip(
+    case: ClipCase,
+    catalogue: list[ClipSpec],
+    overlap_mm: float = MULTICLIP_OVERLAP_MM,
+) -> MultiClipConstruct | None:
+    """El montaje más corto que cubre la línea de cierre, o None.
+
+    Cubrir con `n` hojas iguales de longitud `j` solapando `s` da
+
+        cobertura = n·j − (n−1)·s
+
+    Se buscan primero los montajes de dos clips, luego de tres, y dentro de cada
+    número la talla más pequeña que llegue: cada milímetro de hoja de más es
+    hoja dentro del campo, y cada clip de más es peso sobre el vaso padre.
+    """
+    req = case.jaw_requirement.mm
+    if req <= 0:
+        return None
+
+    tallas = sorted({c.blade_length_mm for c in catalogue if c.blade_length_mm > 0})
+    if not tallas:
+        return None
+
+    # Si una sola hoja ya llega, esto no es un caso de varios clips.
+    if max(tallas) >= req:
+        return None
+
+    for n in range(2, MULTICLIP_MAX_CLIPS + 1):
+        for j in tallas:
+            if j <= overlap_mm:          # una hoja que no supera el solape no suma
+                continue
+            if n * j - (n - 1) * overlap_mm >= req:
+                shape = _preferred_shape(case)
+                return MultiClipConstruct(
+                    jaws_mm=[j] * n,
+                    required_mm=req,
+                    covered_mm=round(n * j - (n - 1) * overlap_mm, 2),
+                    overlap_mm=overlap_mm,
+                    shape=shape.value,
+                    cautions=[
+                        "La geometría dice cuántas mordazas cubren el cuello; la "
+                        "técnica —tándem apilado, picket fence, fenestrado sobre la "
+                        "rama— la elige el cirujano según qué haya que preservar.",
+                        f"El solape de {overlap_mm:.0f} mm entre hojas es un supuesto "
+                        f"de este software, no una medida publicada: las series "
+                        f"describen las hojas solapadas sin dar la distancia.",
+                        "El peso acumulado de varios clips puede acodar el vaso "
+                        "padre y obstruirlo; está descrito tras clipaje en tándem.",
+                        "Cada clip se coloca y se comprueba por separado en el paso "
+                        "de Dispositivos: la cobertura y las colisiones se miden "
+                        "sobre el conjunto ya colocado, no sobre esta propuesta.",
+                    ],
+                )
+    return None
 
 
 # ── Selection ─────────────────────────────────────────────────────────────── #
@@ -928,6 +1180,11 @@ class ClipSelection:
     manufacture: ManufactureSpec | None
     caveats: list[str]
     custom_jaw: CustomJaw | None = None
+    #: Varias mordazas que juntas cierran lo que ninguna cierra sola. Se ofrece
+    #: junto a la especificación de fabricación, no en su lugar: son las dos
+    #: salidas de un cuello que el inventario no cubre, y la elección entre
+    #: mandar fabricar una pieza o poner dos que ya existen es del cirujano.
+    multiclip: MultiClipConstruct | None = None
 
 
 def _caveats(case: ClipCase) -> list[str]:
@@ -1126,7 +1383,7 @@ def select_clips(
     evaluated = [evaluate_clip(c, case) for c in catalogue]
     viable = sorted([c for c in evaluated if c.viable], key=lambda c: -c.score)
     failed = sorted([c for c in evaluated if not c.viable],
-                    key=lambda c: abs(c.clip.blade_length_mm - case.neck_mm * COVERAGE_IDEAL))
+                    key=lambda c: abs(c.clip.blade_length_mm - case.jaw_requirement.mm))
 
     recommended = _with_every_shape_represented(viable, n)
     # The near-misses worth showing: the ones that came closest to the ideal blade.
@@ -1134,15 +1391,23 @@ def select_clips(
 
     if not viable:
         spec = derive_manufacture_spec(case, failed)
+        multiclip = suggest_multiclip(case, catalogue)
+        resumen = (
+            f"Ningún clip del inventario sirve para un cuello de {case.neck_mm:.1f} mm. "
+            f"Se necesita fabricar: {spec.label}."
+        )
+        if multiclip is not None:
+            resumen += (
+                f" Con lo que hay en el inventario haría falta un montaje de "
+                f"{multiclip.n_clips} clips."
+            )
         return ClipSelection(
             outcome="manufacture",
-            summary=(
-                f"Ningún clip del inventario sirve para un cuello de {case.neck_mm:.1f} mm. "
-                f"Se necesita fabricar: {spec.label}."
-            ),
+            summary=resumen,
             case=case, recommended=[], rejected=rejected, manufacture=spec,
             caveats=_caveats(case),
             custom_jaw=suggest_custom_jaw(case, None),
+            multiclip=multiclip,
         )
 
     clean = [c for c in recommended if c.verdict == "ok"]

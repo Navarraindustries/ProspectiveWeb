@@ -37,6 +37,19 @@ export function shapeLabel(
   return "Recto";
 }
 
+/* El nombre de la FORMA lleva su ángulo canónico dentro («Angulado 90°») y la
+   pieza concreta puede tener otro: la T3 de 60° se rotulaba «Angulado 90° 60°»,
+   dos ángulos en la misma línea y ninguno de los dos claramente el suyo. Este
+   es el espejo en pantalla de `ManufactureSpec.label` del backend. */
+export function shapeWithBend(shape: string, bendDeg: number): string {
+  if (bendDeg <= 0) return shape;
+  const canonico = shape.match(/(\d+(?:[.,]\d+)?)\s*°/);
+  if (!canonico) return `${shape} ${Math.round(bendDeg)}°`;
+  return Math.abs(Number(canonico[1].replace(",", ".")) - bendDeg) < 0.5
+    ? shape
+    : shape.replace(/\d+(?:[.,]\d+)?\s*°/, `${Math.round(bendDeg)}°`);
+}
+
 /** Serie y forma juntas, que es como se lee un pedido de un vistazo. */
 export const seriesAndShape = (
   shape: NavarroShape,

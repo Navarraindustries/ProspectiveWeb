@@ -88,14 +88,14 @@ async def compute_treatment_decision(
     write_state(req.session_id, "treatment.recommendation",     result["recommendation"])
     write_state(req.session_id, "treatment.recommendation_key", result["recommendation_key"])
     write_state(req.session_id, "treatment.confidence",         result["confidence"])
-    write_state(req.session_id, "treatment.clip_pct",           str(result["clip_pct"]))
-    write_state(req.session_id, "treatment.endo_pct",           str(result["endo_pct"]))
-    write_state(req.session_id, "treatment.clip_points",        str(result["clip_points"]))
-    write_state(req.session_id, "treatment.endo_points",        str(result["endo_points"]))
-    # Serialise factors list as JSON for report builder. `source` travels with
-    # them: a weight without its provenance reads as if it had been derived.
+    # El sumatorio ya no se guarda: no se enseña en pantalla ni se imprime, y
+    # dejarlo en el estado era dejar la puerta abierta a que volviera por el
+    # informe. El motor lo sigue calculando por dentro, que es de donde sale la
+    # recomendación; lo que se retira es la cifra, no el razonamiento.
+    #
+    # Los factores sí viajan —son la justificación— pero sin su peso.
     factors_for_json = [
-        {"name": f["name"], "direction": f["direction"], "points": f["points"],
+        {"name": f["name"], "direction": f["direction"],
          "source": f.get("source", "")}
         for f in result.get("factors", [])
     ]
@@ -137,7 +137,10 @@ async def compute_treatment_decision(
 #: measurements had already been discarded.
 TREATMENT_STATE_KEYS = (
     "treatment.recommendation", "treatment.recommendation_key",
-    "treatment.confidence", "treatment.clip_pct", "treatment.endo_pct",
+    "treatment.confidence",
+    # Ya no se escriben, pero una sesión guardada antes de retirarlas las tiene
+    # dentro: se siguen borrando para que no reaparezcan en su informe.
+    "treatment.clip_pct", "treatment.endo_pct",
     "treatment.clip_points", "treatment.endo_points",
     "treatment.factors_json", "treatment.notes_json",
     "treatment.endovascular_json", "treatment.perforators_json",

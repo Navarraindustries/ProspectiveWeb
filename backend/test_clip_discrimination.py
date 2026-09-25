@@ -90,8 +90,10 @@ class TestTheListShowsTheRealChoice:
 
     def test_the_neck_still_drives_the_size(self):
         # The one thing that always worked has to keep working.
+        # Cuellos que alguna pieza cierra de verdad: 18 mm pide 27 mm de
+        # mordaza y no existe, asi que ese caso ya no tiene lista que ordenar.
         jaws = [select_clips(_case(neck=n)).recommended[0].clip.blade_length_mm
-                for n in (6.0, 12.0, 18.0)]
+                for n in (4.0, 8.0, 12.0)]
         assert jaws == sorted(jaws) and jaws[0] < jaws[-1], jaws
 
 
@@ -197,10 +199,33 @@ class TestTheCustomJawWorksForEverySeriesThatStretches:
         assert all(not v.can_resize for v in curved)
         assert all(v.can_resize for v in rest)
 
+    def _fenestrated_winner(self, neck: float = 5.0):
+        """Un caso fenestrado con su ganador puesto a mano.
+
+        Antes esto salía de `select_clips`, y por tanto de qué tallas existen
+        dibujadas en cada forma: con la mordaza dimensionada sobre el cuello
+        APLASTADO cambian las tallas que entran en juego y gana un curvo, que no
+        es lo que estas dos pruebas miran. Lo que miran es que la forma del
+        ganador llegue intacta a la oferta a medida, así que el ganador se pone
+        aquí y deja de depender del catálogo. Cuello de 5 mm: pide 7,5 mm de
+        mordaza y la talla dibujada más próxima (7) se queda corta, que es
+        cuando la oferta a medida tiene sentido.
+        """
+        from services.clip_library import catalogue_with_library
+        from services.clip_selection import evaluate_clip
+        from services.clips import ClipShape
+
+        case = _case(neck=neck, region="ACM bifurcacion")
+        fen = [s for s in catalogue_with_library()
+               if s.shape == ClipShape.FENESTRATED
+               and s.blade_length_mm >= case.jaw_requirement.mm]
+        assert fen, "la premisa: la familia dibuja fenestrados que cierran este cuello"
+        return case, evaluate_clip(fen[0], case)
+
     def test_a_fenestrated_case_is_offered_a_fenestrated_custom_jaw(self):
         # The one that used to come back straight.
-        case = _case(neck=4.0, region="ACM bifurcacion")
-        cj = select_clips(case).custom_jaw
+        case, best = self._fenestrated_winner()
+        cj = suggest_custom_jaw(case, best)
         assert cj is not None, "una mordaza exacta sigue siendo una opción real"
         assert cj.shape == "fenestrated"
         assert cj.window_mm > 0, "un fenestrado a medida sin ventana no es un fenestrado"
@@ -209,7 +234,8 @@ class TestTheCustomJawWorksForEverySeriesThatStretches:
         # El rótulo se deducía solo del ángulo, así que una mordaza fenestrada a
         # medida salía como «NAVARRO™ T4 Recto»: el propio objeto decía
         # `shape=fenestrated` dos campos más arriba y el rótulo lo contradecía.
-        cj = select_clips(_case(neck=4.0, region="ACM bifurcacion")).custom_jaw
+        case, best = self._fenestrated_winner()
+        cj = suggest_custom_jaw(case, best)
         assert cj is not None and cj.shape == "fenestrated"
         assert "Fenestrado" in cj.label, cj.label
         assert "Recto" not in cj.label
@@ -240,7 +266,9 @@ class TestTheCustomJawWorksForEverySeriesThatStretches:
 
         # Sin arteria madre declarada: con ella, el caso pide fenestrado antes de
         # llegar a la tabla de la región, y la premisa de esta prueba se cae.
-        case = ClipCase(neck_mm=4.0, ar=1.3, dome_height_mm=5.2, max_diameter_mm=7.2,
+        # 5 mm de cuello: pide 7,5 mm de mordaza y la talla dibujada más próxima
+        # (7 mm) se queda corta, que es cuando hay algo a medida que ofrecer.
+        case = ClipCase(neck_mm=5.0, ar=1.3, dome_height_mm=6.5, max_diameter_mm=9.0,
                         region="carotida paraclinoidea", parent_artery_mm=0.0,
                         neck_source="rim")
         assert _preferred_shape(case) == ClipShape.BAYONET, "la premisa: el caso pide bayoneta"
@@ -267,7 +295,7 @@ class TestTheCustomJawWorksForEverySeriesThatStretches:
         # Curved clips win ties often now, and their jaw cannot be stretched —
         # which silently removed the custom-size offer from almost every case.
         # «Can I have this exact length» is answered by the series that stretch.
-        case = _case(neck=4.0)
+        case = _case(neck=5.0)
         sel = select_clips(case)
         assert sel.recommended
         assert sel.custom_jaw is not None
@@ -293,9 +321,11 @@ class TestTheOpeningIsJudgedAgainstTheNeck:
         return next(k for k in top.criteria if k.key == "opening"), top
 
     def test_a_neck_wider_than_the_opening_is_flagged(self):
-        crit, _top = self._opening(15.0)
+        # 12 mm y no 15: con 15 hacen falta 22,5 mm de mordaza y no queda ni un
+        # candidato del que leer el criterio. 12 sigue pasandose de la apertura.
+        crit, _top = self._opening(12.0)
         assert crit.verdict == "warn", crit.detail
-        assert "10.0 mm" in crit.detail and "15.0 mm" in crit.detail
+        assert "10.0 mm" in crit.detail and "12.0 mm" in crit.detail
 
     def test_a_neck_the_clip_clears_is_not_flagged(self):
         crit, _top = self._opening(6.0)
@@ -305,7 +335,7 @@ class TestTheOpeningIsJudgedAgainstTheNeck:
         # Cuánta holgura sobre el cuello basta es un juicio clínico que nadie ha
         # firmado aquí; ponderar un umbral sin validar reordenaría la lista sobre
         # una opinión. Se dice, y no se puntúa.
-        crit, top = self._opening(15.0)
+        crit, top = self._opening(12.0)
         assert crit.weight == 0.0
         assert top.score > 0.0, "un aviso no es un suspenso"
 
@@ -327,7 +357,9 @@ class TestTheOpeningIsJudgedAgainstTheNeck:
     def test_it_says_whether_the_figure_is_specified_or_inferred(self):
         # Por encima del techo la apertura es un dato del diseñador; por debajo
         # sigue siendo una inferencia de clips comerciales, y no es lo mismo.
-        wide, _ = self._opening(15.0)
-        narrow, _ = self._opening(5.0)
+        wide, _ = self._opening(12.0)
+        # 3 mm: con 5 la mordaza que cierra el cuello aplastado ya es de las que
+        # topan con el límite del aplicador, y entonces la cifra no es estimada.
+        narrow, _ = self._opening(3.0)
         assert "aplicador limita" in wide.detail
         assert "estimada" in narrow.detail

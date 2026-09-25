@@ -15,7 +15,7 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
-import { ClipRehearsal } from "./ClipRehearsal";
+import { ClipRehearsal, sacFrameFor } from "./ClipRehearsal";
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import type { ClipAnimationResult, MorphometryResult } from "../../api/types";
 
@@ -27,6 +27,9 @@ const anim: ClipAnimationResult = {
   hinge_axis: [0, 0, 1],
   swing_deg: 21,
   mechanics_assumed: true,
+  sac_frames: ["/data/anim_sac_1.vtp", "/data/anim_sac_2.vtp",
+               "/data/anim_sac_3.vtp", "/data/anim_sac_4.vtp"],
+  sac_frames_note: "Ilustración geométrica.",
   approach_entry: { x: 0, y: 0, z: -24 },
   approach_target: { x: 0, y: 0, z: 0 },
   approach_is_default: true,
@@ -150,5 +153,108 @@ describe("driving it", () => {
     withSession();
     fireEvent.click(await screen.findByRole("button", { name: /Preparar ensayo/ }));
     await waitFor(() => expect(screen.getByText(/malla ilegible/)).toBeInTheDocument());
+  });
+});
+
+/* El saco estrechándose durante el cierre.
+ *
+ * Pedido como ILUSTRACIÓN: solo geometría, sin propiedades físicas ni mecánicas
+ * del clip ni de su material. La deformación no se puede mover con una matriz
+ * —es otra geometría por cada momento del cierre, calculada en el backend— así
+ * que el ensayo dice qué fotograma toca y el visor lo enseña. */
+describe("qué fotograma del saco constreñido toca", () => {
+  it("mientras el clip baja, ninguno", () => {
+    // Enseñar el saco ya deformado durante el recorrido diría que el clip
+    // aprieta antes de llegar.
+    expect(sacFrameFor(0, 4)).toBeNull();
+    expect(sacFrameFor(-0.2, 4)).toBeNull();
+  });
+
+  it("recorre los fotogramas conforme se cierra", () => {
+    expect(sacFrameFor(0.1, 4)).toBe(0);
+    expect(sacFrameFor(0.5, 4)).toBe(1);
+    expect(sacFrameFor(0.8, 4)).toBe(3);
+    expect(sacFrameFor(1, 4)).toBe(3);
+  });
+
+  it("no se pasa del último aunque el reloj se pase", () => {
+    expect(sacFrameFor(2.5, 4)).toBe(3);
+  });
+
+  it("sin fotogramas —no hay saco aislado— no se enseña nada", () => {
+    expect(sacFrameFor(1, 0)).toBeNull();
+  });
+});
+
+/* Colocar y verificar con un ensayo abierto.
+ *
+ * Mientras hay ensayo el visor enseña sus tres piezas EN LUGAR del clip
+ * colocado, así que si las piezas se quedan donde las dejó el recorrido,
+ * «Colocar y verificar» no cambia nada en pantalla y parece que el clip no se
+ * coloca. Reportado así por el usuario probando el caso real. */
+describe("al colocar el clip con el ensayo abierto", () => {
+  function conPiezas(seen: { matrices: Record<string, number[] | null> }) {
+    function Seed({ children }: { children: ReactNode }) {
+      const { sessionId, setSession, setMorphometry, registerClipParts, setDeviceMesh } = usePlanning();
+      useEffect(() => {
+        if (sessionId) return;
+        setSession("s1");
+        setMorphometry(morpho);
+        registerClipParts({
+          has: () => true,
+          setMatrix: (id, m) => { seen.matrices[id] = m; },
+          render: () => {},
+        });
+      }, [sessionId, setSession, setMorphometry, registerClipParts]);
+      return (
+        <>
+          <button type="button" onClick={() => setDeviceMesh("clips", "/data/clips.vtp?v=9")}>
+            colocar-de-mentira
+          </button>
+          {children}
+        </>
+      );
+    }
+    return render(
+      <PlanningProvider>
+        <Seed><ClipRehearsal clipId="navarro:t1:0:10.0" clipName="NAVARRO T1 10 mm" /></Seed>
+      </PlanningProvider>,
+    );
+  }
+
+  it("sienta las piezas en la pose del plan", async () => {
+    const seen = { matrices: {} as Record<string, number[] | null> };
+    conPiezas(seen);
+    fireEvent.click(await screen.findByText("Preparar ensayo"));
+    await screen.findByText(/Momento de la maniobra/);
+
+    // Recién preparado, el clip está en la entrada del corredor (z = −24).
+    const entrada = seen.matrices["clip-body"];
+    expect(entrada).toBeTruthy();
+    expect(entrada![14]).toBeCloseTo(-24, 3);
+
+    fireEvent.click(screen.getByText("colocar-de-mentira"));
+
+    // Colocado: las piezas se sientan donde el plan pone el clip (1, 2, 3).
+    await waitFor(() => {
+      const m = seen.matrices["clip-body"]!;
+      expect([m[12], m[13], m[14]]).toEqual([1, 2, 3]);
+    });
+    // Y la maniobra queda contada como terminada: cerrando, no entrando.
+    expect(screen.getByText(/Cerrando sobre el cuello/)).toBeInTheDocument();
+  });
+
+  it("abrir el ensayo sobre un clip ya colocado no se salta el recorrido", () => {
+    // Si sentara siempre que hay clip colocado, preparar el ensayo despues de
+    // haberlo colocado empezaria por el final y no habria nada que ver.
+    const seen = { matrices: {} as Record<string, number[] | null> };
+    conPiezas(seen);
+    fireEvent.click(screen.getByText("colocar-de-mentira"));
+    return (async () => {
+      fireEvent.click(await screen.findByText("Preparar ensayo"));
+      await screen.findByText(/Momento de la maniobra/);
+      expect(seen.matrices["clip-body"]![14]).toBeCloseTo(-24, 3);
+      expect(screen.getByText(/Entrando por el corredor/)).toBeInTheDocument();
+    })();
   });
 });

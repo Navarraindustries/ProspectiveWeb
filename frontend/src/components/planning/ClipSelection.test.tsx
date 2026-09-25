@@ -79,7 +79,13 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
   outcome: "stock",
   summary: "1 clip del inventario cumple todos los criterios para un cuello de 6.0 mm.",
   case: {
-    neck_mm: 6, dome_height_mm: 8, max_diameter_mm: 11, ar: 1.33, dnr: 1.8,
+    neck_mm: 6,
+    // Un cuello de 6 mm mide 9 al quedar aplastado: eso es lo que la hoja
+    // tiene que cerrar, y es lo que el panel enseña.
+    required_jaw_mm: 9, required_jaw_source: "factor",
+    required_jaw_detail: "Cuello de 6.0 mm × 1.5 = 9.0 mm al quedar aplastado entre las hojas.",
+    approach_angle_deg: null, approach_bend_deg: null,
+    dome_height_mm: 8, max_diameter_mm: 11, ar: 1.33, dnr: 1.8,
     parent_artery_mm: 3.2, neck_source: "rim", neck_tilt_deg: 4,
     region: "ACM izquierda", laterality: "izquierda", aneurysm_type: "sacular",
   },
@@ -87,6 +93,7 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
   rejected: [],
   manufacture: null,
   custom_jaw: null,
+  multiclip: null,
   caveats: ["Las preferencias clínicas son heurísticas de la literatura."],
   ...over,
 });
@@ -327,5 +334,138 @@ describe("a custom jaw keeps the shape the case argued for", () => {
     expect(angle).toBe(0);
     expect(shape).toBe("fenestrated");
     expect(win).toBe(5);
+  });
+});
+
+/* La mordaza se dimensiona sobre el cuello APLASTADO.
+ *
+ * Al cerrar las hojas el cuello queda plano y su línea de cierre mide más que
+ * el diámetro: se conserva el perímetro, así que un cuello redondo de D pasa a
+ * πD/2 ≈ 1,5·D. Es el número que elige la pieza, y quedarse corto es la causa
+ * más frecuente de que el domo siga rellenándose — así que tiene que estar en
+ * pantalla, y con su origen: no es lo mismo haberlo medido sobre el contorno
+ * que haber supuesto que el cuello es redondo. */
+describe("la mordaza mínima que pide el cuello", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("enseña el mínimo y dice que sale de la regla del cuello aplastado", async () => {
+    clipSelection.mockResolvedValue(result());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText("9.0 mm")).toBeInTheDocument();
+    expect(screen.getByText(/regla del cuello aplastado/)).toBeInTheDocument();
+  });
+
+  it("distingue el contorno medido de la regla", async () => {
+    // Un cuello ovalado pide más que su diámetro equivalente, y eso solo se
+    // sabe midiendo: decirlo cambia cuánto se fía el cirujano del número.
+    clipSelection.mockResolvedValue(result({
+      case: {
+        ...result().case,
+        required_jaw_mm: 7.1, required_jaw_source: "perimeter",
+        required_jaw_detail: "Contorno del cuello medido: 14.2 mm de perímetro.",
+      },
+    }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText("7.1 mm")).toBeInTheDocument();
+    expect(screen.getByText(/medida sobre el contorno del cuello/)).toBeInTheDocument();
+    expect(screen.queryByText(/regla del cuello aplastado/)).not.toBeInTheDocument();
+  });
+});
+
+/* Un cuello que ninguna hoja cierra sola tiene DOS salidas.
+ *
+ * Preguntado por dirección: colocar varios clips ya funcionaba —el plan recibe
+ * una lista y mide cobertura y colisiones sobre el conjunto— pero la
+ * recomendación nunca proponía más de uno, así que la única salida que se
+ * ofrecía era mandar fabricar una hoja más larga. La otra es la que se usa en
+ * quirófano: varios clips en fila, solapados. */
+describe("el montaje de varios clips", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const MONTAJE = {
+    n_clips: 2, jaws_mm: [16, 16], required_mm: 30, covered_mm: 30,
+    overlap_mm: 2, shape: "Curvo",
+    label: "2 clips en fila (16 + 16 mm de mordaza), solapando 2 mm",
+    cautions: [
+      "La geometría dice cuántas mordazas cubren el cuello; la técnica la elige el cirujano.",
+      "El solape de 2 mm es un supuesto de este software, no una medida publicada.",
+      "El peso acumulado de varios clips puede acodar el vaso padre y obstruirlo.",
+    ],
+  };
+
+  const PIEZA = {
+    blade_length_mm: 30, blade_width_mm: 1.2, blade_height_mm: 1.4,
+    spring_length_mm: 27, shape: "Curvo", angle_deg: 0, closing_force_g: 180,
+    fenestration_mm: 0, neck_mm: 20, label: "Curvo de 30.0 mm",
+    reasons: [], confidence_notes: [], stl_url: null, part_no: "X-1",
+    source: "navarro" as const, piece_label: "Curvo de 30.0 mm",
+    commercial_name: "", fallback_reason: "",
+    dossier_internal_url: null, dossier_workshop_url: null,
+  };
+
+  it("se ofrece junto a la pieza a fabricar, no en su lugar", async () => {
+    clipSelection.mockResolvedValue(result({
+      outcome: "manufacture", recommended: [], manufacture: PIEZA,
+      multiclip: MONTAJE,
+    }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/O un montaje de varios clips/)).toBeInTheDocument();
+    expect(screen.getByText(/2 clips en fila/)).toBeInTheDocument();
+    // Y la salida de fabricar sigue estando: elegir entre las dos es del médico.
+    expect(screen.getByText(/pieza a medida especificada/)).toBeInTheDocument();
+  });
+
+  it("dice lo que cubre contra lo que hay que cerrar, y que las hojas van solapadas", async () => {
+    clipSelection.mockResolvedValue(result({ outcome: "manufacture", multiclip: MONTAJE }));
+    const { container } = render(<ClipSelectionPanel sessionId="s1" />);
+    await screen.findByText(/O un montaje de varios clips/);
+    expect(container.textContent).toMatch(/cubre 30\.0 mm de los 30\.0 mm/);
+    expect(screen.getByText(/solapadas/)).toBeInTheDocument();
+  });
+
+  it("no se calla lo que el montaje no decide", async () => {
+    // Un supuesto que no se declara se lee como una medida.
+    clipSelection.mockResolvedValue(result({ outcome: "manufacture", multiclip: MONTAJE }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/la técnica la elige el cirujano/)).toBeInTheDocument();
+    expect(screen.getByText(/es un supuesto de este software/)).toBeInTheDocument();
+    expect(screen.getByText(/acodar el vaso padre/)).toBeInTheDocument();
+  });
+
+  it("no aparece cuando un solo clip sirve", async () => {
+    clipSelection.mockResolvedValue(result());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    await screen.findByText(/Clips recomendados/);
+    expect(screen.queryByText(/O un montaje de varios clips/)).not.toBeInTheDocument();
+  });
+});
+
+/* El abordaje elige la pieza (etapa 3 del punto 3).
+ *
+ * Las hojas tienen que quedar cruzadas sobre el cuello y el mango salir por el
+ * corredor: el ángulo entre esas dos direcciones ES la acodadura que la pieza
+ * necesita. No es una tabla ángulo→forma, y por eso se puede enseñar el número
+ * y de dónde sale. */
+describe("lo que el corredor le pide a la pieza", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("dice el ángulo del corredor y la acodadura que pide", async () => {
+    clipSelection.mockResolvedValue(result({
+      case: { ...result().case, approach_angle_deg: 55, approach_bend_deg: 35 },
+    }));
+    const { container } = render(<ClipSelectionPanel sessionId="s1" />);
+    await screen.findByText(/acodadura/);
+    const texto = container.textContent ?? "";
+    expect(texto).toMatch(/55°/);
+    expect(texto).toMatch(/~35°/);
+    expect(texto).toMatch(/cruzadas sobre el cuello/);
+  });
+
+  it("sin trayectoria marcada no dice nada del abordaje", async () => {
+    // Suponer un corredor sería inventarse la premisa de la recomendación.
+    clipSelection.mockResolvedValue(result());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    await screen.findByText(/Clips recomendados/);
+    expect(screen.queryByText(/acodadura/)).not.toBeInTheDocument();
   });
 });

@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const meshComponentDelete = vi.fn();
+const meshEraseRegion = vi.fn();
 const meshCrop = vi.fn();
 
 vi.mock("../../api/client", () => ({
@@ -21,6 +22,7 @@ vi.mock("../../api/client", () => ({
       undo_depth: 0, redo_depth: 0, has_original: false, steps: [],
     }),
     meshComponentDelete: (...a: unknown[]) => meshComponentDelete(...a),
+    meshEraseRegion: (...a: unknown[]) => meshEraseRegion(...a),
     meshComponents: vi.fn().mockResolvedValue({
       components: [], total: 11, largest_is_tree: true, warning: "",
     }),
@@ -67,8 +69,21 @@ function mount(erasePick?: Vec3) {
 
 beforeEach(() => {
   meshComponentDelete.mockReset();
+  meshEraseRegion.mockReset();
   meshCrop.mockReset();
 });
+
+/** Una promesa que resuelve CUANDO se le dice, como una llamada de verdad.
+
+    Los mocks que resuelven al instante escondieron este fallo: la respuesta
+    llegaba en el mismo microtask y React todavía no había ejecutado la
+    limpieza del efecto. En el navegador, con milisegundos de red por medio,
+    la limpieza siempre gana. */
+function diferida<T>() {
+  let resolver!: (v: T) => void;
+  const promesa = new Promise<T>((r) => { resolver = r; });
+  return { promesa, resolver };
+}
 
 describe("el panel se monta", () => {
   it("renderiza sin romper las reglas de los hooks", () => {
@@ -205,5 +220,64 @@ describe("la caja de recorte", () => {
     fireEvent.change(hasta[0], { target: { value: "0" } });
     fireEvent.change(desde[0], { target: { value: "25" } });
     await waitFor(() => expect(Number(desde[0].value)).toBeLessThanOrEqual(Number(hasta[0].value)));
+  });
+});
+
+/* El resultado del borrado tiene que llegar a la pantalla aunque la respuesta
+ * tarde lo que tarda una llamada real.
+ *
+ * Encontrado en el navegador, sobre case 3. El efecto del borrador depende de
+ * `erasePick` y su primera línea lo pone a null: React vuelve a ejecutarlo y
+ * dispara la limpieza del pase anterior ANTES de que llegue la respuesta. Con
+ * un booleano `cancelado`, eso abortaba un borrado que el backend YA había
+ * hecho — el fichero de la malla pasó de 11.870 a 11.736 vértices y el
+ * manifiesto de deshacer registró dos instantáneas, mientras el panel seguía
+ * diciendo 11.870 y «sin pasos que deshacer».
+ *
+ * Lo grave no es que no se vea: es que quien lo usa cree que no funciona,
+ * vuelve a pinchar, y cada clic borra más malla sin dejar rastro en pantalla.
+ *
+ * Los tests de arriba NO lo cazaban porque sus mocks resuelven en el mismo
+ * microtask, antes de que React limpie. */
+describe("una respuesta que tarda", () => {
+  it("el borrador de piezas enseña el resultado igual", async () => {
+    const { promesa, resolver } = diferida<unknown>();
+    meshComponentDelete.mockReturnValue(promesa);
+    mount([10, 20, 30]);
+    await waitFor(() => expect(meshComponentDelete).toHaveBeenCalled());
+
+    resolver({
+      mesh_url: "/data/v.vtp?v=2", vertices: 12759, faces: 25000,
+      removed: { n_points: 2230, volume_mm3: 280.7, extent_mm: 70.5,
+                 thickness_mm: 0.25, sphericity: 0.093 },
+      components_left: 10, warning: "", undo_depth: 1,
+    });
+    expect(await screen.findByText(/Borrada una pieza de 281 mm³/)).toBeInTheDocument();
+  });
+
+  it("el borrador de región enseña cuántos vértices se fueron", async () => {
+    const { promesa, resolver } = diferida<unknown>();
+    meshEraseRegion.mockReturnValue(promesa);
+    render(
+      <PlanningProvider>
+        <Seed erasePick={[10, 20, 30]}><MeshEditTools /></Seed>
+      </PlanningProvider>,
+    );
+    // Cambiar a «Región pegada» antes de que el clic se procese no es posible
+    // desde fuera, así que se comprueba la otra mitad: que la llamada sale y su
+    // respuesta tardía llega a la pantalla.
+    fireEvent.click(screen.getByRole("button", { name: "Región pegada" }));
+    await waitFor(() => expect(
+      meshEraseRegion.mock.calls.length + meshComponentDelete.mock.calls.length,
+    ).toBeGreaterThan(0));
+
+    resolver({
+      mesh_url: "/data/v.vtp?v=3", vertices: 11736, faces: 23000,
+      removed_vertices: 134, warning: "", undo_depth: 1,
+    });
+    // Con el fallo puesto, aquí no aparece nada en absoluto.
+    await waitFor(() => expect(
+      screen.queryByText(/Borrados/) ?? screen.queryByText(/Borrada/),
+    ).toBeTruthy());
   });
 });

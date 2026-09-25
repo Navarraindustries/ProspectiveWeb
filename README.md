@@ -398,7 +398,7 @@ aneurysm, and if not, what has to be made?**
 
    | Criterion | What it compares |
    |---|---|
-   | Cobertura | Blade length against the neck, with a safety margin |
+   | Cobertura | Blade length against the **flattened** neck (see below) |
    | Fenestración | Window calibre against the measured parent artery |
    | Alcance | Shape against dome depth (AR) |
    | Forma / localización | Shape against the anatomical region on the case |
@@ -1125,12 +1125,37 @@ prior stroke, size and location. Six of these eight factors are morphological
 instead. Age and comorbidities are collected here and deliberately not scored;
 WFNS and Fisher are not collected at all.
 
-### The bar was reading as a probability
+### The bar was reading as a probability, so the bar is gone
 
 «CLIP 72 % · ENDO 28 %» is the ratio of two heuristic sums normalised to 100. It
 is not a probability, not a proportion of patients, and not a confidence
-interval. The bar stays proportional — that is what a bar is for — but the figure
-is now the points that were actually added, with a line saying what they are.
+interval. The first attempt kept the bar proportional and put the raw points on
+it instead of the percentage, with a line saying what they were.
+
+That was not enough, and the clinical direction said so: **no score at all
+leaves the engine now.** What goes out is the recommendation, its confidence,
+how much of the case could be evaluated, and the factors with the side each one
+pushes to and where its threshold comes from. What stays inside is the weighted
+sum — the recommendation is still derived from it, and the invariants around it
+are still tested — but it reaches no screen, no PDF and no session state.
+
+    removed from the API   clip_points · endo_points · clip_pct · endo_pct · balance
+    removed per factor     points  (the side it pushes to stays)
+    removed from the PDF   the proportional bar and the «Pts» column
+    removed from state     treatment.clip_pct and friends — still in the CLEAR
+                           list, because sessions saved earlier have them
+
+**The JSDB lost its counters too, and for a different reason.** It is a fitted
+model, not a heuristic, so the instinct is to keep its numbers. But its authors
+publish neither bands nor an AUC — they validate that the poor-outcome rate
+correlates with the score, and nothing more. On screen «4 vs 2» reads as twice
+the risk, which is exactly what the model does not say. What it does support is
+the comparison, so the verdict («clipping is the less penalised route», «BOTH
+routes look bad») and the variables penalising each route stay, without figures.
+
+**PHASES is untouched**: it is a published instrument whose output is a rupture
+probability, it lives in the morphometry section, and it is not what the
+treatment engine adds up.
 
 One thing had to be fixed to make any of this visible: the engine computed
 `notes` and threw them away. `_to_dict` never emitted them, the model had no
@@ -1173,10 +1198,321 @@ cannot separate the two cases, the result carries `neck_region_excluded: false`
 and says the check needs morphometry to mean anything. The contact count is still
 shown — what is withheld is the interpretation, not the data.
 
-**The clips are not oversized.** A 7 mm jaw on a 5 mm neck is the coverage the
-selector aims for; the 18–25 mm behind it is the spring and the grip, which the
-applier holds outside the field. That body can foul the vessel at a bad roll, and
+**The clips are not oversized.** A 7.5 mm jaw is the minimum a 5 mm neck takes
+(see «The jaw is sized against the flattened neck»); the 18–25 mm behind it is the
+spring and the grip, which the applier holds outside the field. That body can foul the vessel at a bad roll, and
 now that the noise is gone, the check says so.
+
+### The jaw is sized against the flattened neck, not against its diameter
+
+A neck is not clipped at the width it has in the image. When the blades close,
+the round section is squashed into a flat slit and what is conserved is the
+**perimeter**, so a circular neck of diameter D closes along
+
+    πD / 2  ≈  1.571 · D
+
+That is the geometry behind the clinical rule. «Aneurysm clips: What every
+resident should know» (Neurology India) puts it as: the neck diameter increases
+by about 50 % when squeezed shut, so the blades should be 1.5 times the neck —
+and the numerical study «Pre-selection blade size choice for the microsurgical
+clipping of cerebral artery aneurysms» (2024) measures a deformation of at least
+1.4×. Both are the same π/2 with more or less flattening. The same review says
+what it is for: **incomplete closure at the distal side of the neck is the most
+common cause of a dome that keeps filling.**
+
+The selector used to aim at ×1.35 as the centre of a Gaussian, which had two
+consequences: a blade that could not close the flattened neck merely scored
+low instead of failing, and a blade *longer* than 1.35× scored worse than one
+that fell short. Now the requirement is a **floor**:
+
+- below it the clip fails outright — it does not close the neck;
+- at it the clip is correct, because the deformation is already counted;
+- above it, ranking prefers the shortest jaw that clears the requirement, and
+  the ×3 cap plus the collision check still catch a blade whose tip lands on
+  healthy tissue.
+
+**The factor assumes a circular neck, and we can do better than assume.** When
+the neck plane is marked, the contour is measured on the mesh and half its
+perimeter is that patient's exact closing line. It matters because the stored
+`neck_mm` is the *equivalent-circle* diameter derived from the contour AREA, and
+for an oval neck that underestimates:
+
+    neck 6.0 × 2.7 mm   →  equivalent circle 4.0 mm  →  rule says 6.0 mm of jaw
+                           perimeter 14.2 mm          →  real closing line 7.1 mm
+
+A measured perimeter is only trusted between ×1.5 and ×3 of the diameter: by the
+isoperimetric inequality the circle is the *shortest* perimeter for a given area,
+so reading less than πD means the plane caught two loops or an open contour, and
+the rule takes over.
+
+**What it broke, and that was worth breaking.** A 20 mm neck no longer has a
+single-clip answer in the family — its closing line is 31 mm and the longest jaw
+drawn is 22 — so it now returns a manufacturing specification instead of a piece
+that would not close it. And the made-to-order offer used to be withheld whenever
+a drawn size sat within half a step of the target; that had to learn the
+asymmetry, because a drawn size *below* the requirement is not close enough, it
+is short. A 5 mm neck wants 7.5 mm and the nearest drawn jaw is 7.
+
+### The approach corridor stopped being two points and a line
+
+Asked by the clinical direction: the software should assess the approach
+trajectory, the viability of the procedure should depend on it, and it should
+say what tissue is crossed and what could be compromised — or that nothing is.
+
+What existed was a straight line. Entry and target were picked, depth and
+incidence angle came back, a cylinder was drawn and that reached the report.
+Nothing looked at what is *inside* the corridor, so it could not say whether the
+approach is workable and it fed nothing downstream.
+
+**What is measured now.** The corridor is a cylinder of radius `radius_mm`
+(5 mm by default, and that is this software's assumption, published with the
+result). Seventeen parallel rays are cast through its cross-section and
+intersected with the patient's mesh:
+
+| | |
+|---|---|
+| Vessels crossed | position, distance from entry, and calibre |
+| Calibre source | the frozen branch scan when an origin is within 3 mm, else the longest chord a ray makes inside that piece, which approximates the diameter |
+| Near misses | distance to the closest branch origin the corridor does *not* cross, with its calibre |
+| Target exclusion | a ball around the aneurysm that grows with the sac — without it the dome itself counted as an obstacle and no approach was ever viable |
+
+**The verdict is three states from explicit rules**, not a weighted sum — the
+same reason the treatment engine stopped showing figures. A vessel of ⌀ ≥ 1.5 mm
+in the way is `no_viable` («that does not move aside»); something thinner, or
+passing within 2 mm of a branch origin, is `revisar` — it may be a vein or a
+mobilisable branch, and that is the surgeon's call; anything else is `viable`.
+
+**Two things it refuses to claim.**
+
+*It does not measure bone.* Bone is not separable from contrast by intensity —
+99 % of it falls inside the tree's own range, measured on case 3 — so the only
+defensible statement is that there is **dense material where the vascular mesh
+does not reach**. It is labelled that way, and it stays out of the verdict:
+nothing here can tell the craniotomy from a deep bony obstacle. On a
+**subtracted** study not even that: the image contains no bone and no
+parenchyma, so the corridor can only speak about vessels, and it says so instead
+of reporting «0 mm of bone», which would read as a clear path.
+
+*Without a mesh there is no verdict.* The corridor comes back `null`, not
+«viable». A verdict issued without having looked at anything is worse than no
+verdict.
+
+And the caveat that travels with every corridor: a 0.1–0.5 mm perforator never
+reaches the mesh, so a clear corridor here is **not** a corridor without
+perforators.
+
+The verdict is persisted, printed in the PDF beside the depth and the angle, and
+cleared with the trajectory — leaving it behind would describe a path nobody has
+marked any more.
+
+Still to come on this feature: having the software **propose** a corridor
+(sweeping directions and keeping the clear ones), and letting it **feed the clip
+recommendation**.
+
+### Proposing a corridor: only vessels block, and never through the face
+
+Second stage of the approach work. The software now sweeps 300 directions
+around the aneurysm and returns the clear ones, best first.
+
+**Only vascular tissue blocks.** That was the instruction, and it happens to be
+the only thing the image separates reliably: bone shares its intensity range
+with contrast. Nothing else vetoes a corridor.
+
+**Two sectors are refused outright**, because an approach through them is not a
+worse approach, it is one that does not exist:
+
+    from below      more than 15° under the axial plane — the neck, the base
+    the face        clearly anterior AND under 20° of elevation — orbit, nose
+
+A frontal craniotomy is also anterior, which is why the face filter needs *both*
+conditions: it comes in above the orbital rim and survives.
+
+**Which way is the face?** That needs the patient's orientation, and it was in
+the DICOM all along — just not where the loader looked. `ImageOrientationPatient`
+sits at the root of a classic series, but in a multiframe 3DRA (what this project
+has) it lives inside `PerFrameFunctionalGroupsSequence[i].PlaneOrientationSequence`.
+Asking for the root attribute returned `None`, so nothing downstream knew where
+anterior was. On case 3 the axes come out as: rows toward patient **left**,
+columns toward **superior**, slices advancing **anteriorly** — so the mesh's +z is
+the patient's front, which no one would have guessed. **Without those axes
+nothing is proposed**: a corridor through the orbit could not be ruled out, and
+proposing blind is worse than not proposing. A placeholder orientation (exact
+identity plus a position at the origin, what a default exporter writes) is used
+but flagged as unverified.
+
+**What is proposed is a direction, not a craniotomy.** Naming an approach needs
+the skull and the scalp, and a 3DRA reconstructs a cylinder around the vessels
+that does not reach the scalp at all. So each proposal reads «posterior left,
+28° above the axial plane», and says whether its entry point is real skin or
+just the edge of what the study images.
+
+**Two measurements that had to be fixed against real data**, both found by
+running it on case 3 rather than on synthetic tubes:
+
+- *The head threshold.* A 3DRA is not in Hounsfield units — case 3 ranges from
+  −15 000 to 33 000 — so «air» cannot be a constant. Calibrating «inside» from
+  the central block put the cut at −553, which is **above** the parenchyma
+  (−400): the ray left the head 13 mm from the aneurysm and called it skin. An
+  entry on the skin 13 mm from an intracranial lesion does not exist, and the
+  software was reporting it confidently. The global median fails the other way
+  (it collapses when the head is under half the field, normal in CT), and Otsu,
+  tried, separates *contrast* from everything else — on case 3 it cuts at −33
+  and leaves 82 % of the head outside. The p75 is tissue in both regimes.
+- *Speed.* 100 s for 300 directions. The locator was rebuilt per direction, but
+  that was only 10 % of it: the real cost was recomputing the head threshold —
+  a percentile over 56 million voxels — once per direction. Hoisted, plus a
+  cheap single-ray first pass before the 17-ray beam, it is **0.9 s**.
+
+### The corridor picks the piece, and the rehearsal shows the corridor
+
+Third stage. The direction asked that the approach drive the clip
+recommendation, and that the placement video include the established
+trajectory.
+
+**The bend a corridor demands is geometry, not a table.** The blades have to sit
+*across* the neck — lying in the neck plane — and the shaft comes out along the
+corridor. The angle between those two directions **is** the bend the piece
+needs:
+
+    bend = 90° − angle(corridor, neck→dome axis)
+
+A corridor lying in the neck plane (90°) is served by a **straight** clip,
+because in a straight clip the shaft and the blades are the same line. One
+coming down the dome axis (0°) would need 90° of bend for the blades to lie
+across. The trajectory endpoint already returned that angle; it now reaches the
+selector.
+
+**This criterion votes**, unlike the blade opening and the closing force, which
+are shown and do not. The difference is where the number comes from: how much
+clearance a surgeon wants over the neck is a judgement nobody has signed, while
+the angle between the corridor and the neck plane is fixed by the two
+directions. A straight clip does not go down a corridor arriving at 60° to the
+neck plane, and that is not an opinion. It degrades rather than disqualifies —
+a few degrees can be recovered by opening the field, and a corridor is an
+intention, not a rail. Without a marked trajectory the criterion **does not
+exist**, rather than assuming the most convenient corridor for each clip.
+
+Priority is unchanged where it should be: a wide neck still argues for a curved
+piece, because blade curvature and shaft bend are different axes. The corridor
+still reaches the ranking through the criterion.
+
+**The rehearsal.** The animation already used the marked trajectory — but a
+**resumed** session came back without it. The points were on disk and in the
+PDF, the store was empty, so the viewer drew no corridor and the rehearsal
+silently fell back to its default approach: the video showed a manoeuvre nobody
+had planned. There is now a `GET /api/trajectory/{sid}`, and resuming restores
+it. And the corridor is no longer drawn as a ruler line but as the **volume it
+is** — a translucent 5 mm tube — because what the video has to show is the clip
+and its applier coming down a space they have to fit through.
+
+### «Can you simulate how the aneurysm deforms?» — half of it, honestly
+
+The clinical direction asked for a simulation of the sac deforming as the jaw
+constricts it. That can be programmed and it cannot be defended, so what got
+built is the half that can.
+
+**Why the deformation itself is out of reach.** A wall deformation needs the
+wall's **thickness**, its **mechanical properties** and the **intraluminal
+pressure**. None is measurable here: an aneurysm wall is 0.05–0.5 mm and this
+project's voxel is 0.32 mm. And there is nothing to validate the result
+against. It is the same dead end as the Alvarado-style score that was already
+turned down — a convincing video comes out and nobody can say it is true.
+
+**What is answerable is the clinical question behind it: how much aneurysm is
+left.** When the blades close, what lies on the dome side leaves the
+circulation and what lies on the artery side stays in. That is geometry over two
+objects that already exist — the isolated sac and the placed clip — so
+`GET /api/clips/occlusion/{sid}` splits the sac at the clip's closing level and
+measures both sides:
+
+| | |
+|---|---|
+| excluded | what the clip takes out of circulation |
+| remnant | what stays connected to the parent artery — the number that matters |
+| remnant width | across the neck plane |
+| outcome | complete occlusion · neck remnant · residual aneurysm |
+
+Both halves are capped before measuring, because an open surface has no volume
+worth reporting; the test asserts that they add back up to the sac. With several
+clips the most **proximal** closing line rules — anything above it is already
+excluded by it — and for a picket-fence construct that is an approximation, said
+out loud.
+
+**The one deformation this project does assert** lives elsewhere and comes from
+conserving the perimeter: the round neck is flattened, and its closing line
+measures half the perimeter (see «The jaw is sized against the flattened neck»).
+That is not a model, it is a length.
+
+The result carries what it is not: geometry rather than mechanics, why the wall
+cannot be deformed with this data, and that the 15 % cut between «neck remnant»
+and «residual» is a presentation convention of this software rather than a
+validated clinical threshold.
+
+**And the illustration, asked for explicitly as one.** «Show the sac being
+constricted, from geometry only, leaving the clip's physical and material
+properties out for now.» So the rehearsal plays it: four frames of the sac
+narrowing between the blades, from 25 % to 100 % of the closure, swapped in as
+the closing phase advances.
+
+It is a displacement field, and it says so. Points inside the grip are drawn
+toward the blades' mid-plane; the influence fades with distance from the closing
+line — a **compact** falloff, not a bell, because with a Gaussian the dome 6 mm
+away still narrowed by 12 % and the drawing implied the clip squeezes what it
+does not touch. Nothing outside the jaw length moves either, so a sac wider than
+the blade is not crushed whole. **No wall yields, no volume is conserved** — real
+tissue displaces somewhere and here it goes nowhere — **and no property of the
+clip or its material takes part.** It is a drawing that moves.
+
+What *is* true of the drawing is **where** it flattens and **in which
+direction**: both are read off the placed clip's own geometry (the axis the
+blades close along and the axis of their length, taken to the clip's pose),
+not set as parameters. And the frames are computed in the backend rather than
+in the viewer, because a deformation is a different geometry per moment — not
+something a matrix can do on the GPU.
+
+### Two clips, when no single blade closes the neck
+
+Asked by the clinical direction: *can multi-clip treatments be supported, or is
+this single-clip only?* Half of it already worked and half of it did not, and
+the half that did not was the half that matters for a large neck.
+
+**Placement was never single-clip.** `POST /api/clips/plan` takes a *list* of
+placements, builds each clip at its pose, combines them, and measures neck
+coverage and collisions **on the combination**; the panel lists the clips placed,
+the report prints them all, and a catalogue clip and a custom one can sit in the
+same plan. What was single-clip was the **recommendation**: for a neck no blade
+closes, the only answer it had was «have a longer one made».
+
+That left out what is actually done in theatre, and it is described technique:
+
+- **tandem / stacked** — one clip parallel to the parent vessel, others stacked
+  under or over it reinforcing the closure;
+- **picket fence** — several clips in a row, **overlapping** and staggered along
+  the neck, rebuilding it in sections. The published series does a giant MCA
+  with seven fenestrated clips and an AComA with four.
+
+So the selector now also computes a construct: the fewest jaws **that exist**
+whose combined closing line covers the requirement. With `n` equal jaws of
+length `j` overlapping by `s`,
+
+    coverage = n·j − (n−1)·s
+
+The overlap is the point. Blades are laid overlapping, not end to end: letting
+them meet at the tips leaves the join unclosed, which is the same way of failing
+that the flattened-neck rule exists to prevent. **The 2 mm is this software's
+assumption** — the sources describe the overlap without giving a distance — so it
+is named, shown on screen and listed as a question for the surgeons.
+
+It is offered **beside** the manufacturing specification, never instead of it:
+for a 20 mm neck (30 mm of closing line, longest drawn jaw 22 mm) the two real
+answers are «have a 30 mm jaw made» and «put two 16 mm clips overlapping 2 mm»,
+and choosing between them is the surgeon's call. Three things the construct says
+about itself: which technique to use is not its decision, the overlap is an
+assumption, and the accumulated weight of several clips can kink the parent
+vessel — reported after tandem clipping (J Neurosurg 2015;123:472).
+
+Capped at four clips. The picket-fence series reaches seven, but proposing a
+long row from geometry alone is further than this software can see.
 
 ### The blades never opened as far as the mechanism does
 

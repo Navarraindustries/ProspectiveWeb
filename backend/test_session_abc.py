@@ -113,8 +113,7 @@ class TestTreatmentDecision:
         assert resp.status_code == 200
         d = resp.json()
         for key in ("recommendation", "recommendation_key", "confidence",
-                    "clip_pct", "endo_pct", "balance", "factors",
-                    "clip_factors", "endo_factors"):
+                    "factors", "clip_factors", "endo_factors"):
             assert key in d, f"Missing key: {key}"
 
     def test_recommendation_key_valid(self):
@@ -125,14 +124,20 @@ class TestTreatmentDecision:
         d = self._post().json()
         assert d["confidence"] in ("Alta", "Moderada", "Baja")
 
-    def test_pct_sum_100(self):
-        d = self._post().json()
-        assert d["clip_pct"] + d["endo_pct"] == 100
+    def test_no_score_leaves_the_engine(self):
+        """Lo que el motor suma por dentro no sale de aquí.
 
-    def test_balance_is_integer(self):
-        # balance is computed from raw scores (not percentages) → just assert it's numeric
+        Pedído por dirección: la recomendación y sus factores sí, el sumatorio
+        no. Un «CLIP 72 %» se lee como una probabilidad o como la proporción de
+        pacientes a los que les fue mejor, y es el cociente de dos sumas con
+        pesos elegidos a mano, sin una cohorte detrás que los ajuste.
+        """
         d = self._post().json()
-        assert isinstance(d["balance"], int)
+        for key in ("clip_pct", "endo_pct", "clip_points", "endo_points", "balance"):
+            assert key not in d, f"sigue saliendo un puntaje: {key}"
+        assert not any("points" in f for f in d["factors"])
+        if d.get("jsdb"):
+            assert "points" not in d["jsdb"]["clip"]
 
     def test_factors_list(self):
         d = self._post().json()
@@ -151,9 +156,11 @@ class TestTreatmentDecision:
             "location": LOCATIONS[0],
         })
         d = resp.json()
-        assert d["clip_pct"] >= d["endo_pct"], (
-            f"Expected clip ≥ endo for wide neck; got clip={d['clip_pct']} endo={d['endo_pct']}"
-        )
+        # Sin porcentajes que comparar, lo que se comprueba es de qué lado cae:
+        # el cuello ancho tiene que aparecer entre los factores a favor del
+        # clipaje, y la recomendación no puede ser endovascular.
+        assert any("Cuello ancho" in f for f in d["clip_factors"]), d["clip_factors"]
+        assert d["recommendation_key"] != "endo"
 
     def test_ruptured_favours_endo(self):
         """Acute rupture (SAH) is a strong endovascular indicator."""
@@ -165,7 +172,7 @@ class TestTreatmentDecision:
             "is_ruptured": True,
         })
         d = resp.json()
-        assert d["endo_pct"] > 0
+        assert any("roto" in f.lower() for f in d["endo_factors"]), d["endo_factors"]
 
     def test_session_not_found(self):
         from services.treatment import LOCATIONS
@@ -217,9 +224,9 @@ class TestTreatmentDecision:
         # La edad avanzada añade un factor, y empuja a endovascular.
         assert len(mayor["factors"]) == len(base["factors"]) + 1
         edad = next(f for f in mayor["factors"] if "edad" in f["name"].lower())
-        assert edad["direction"] == "endo" and edad["points"] > 0
+        assert edad["direction"] == "endo" and edad["votes"]
         assert "Japan Stroke Data Bank" in edad["source"]
-        assert mayor["endo_pct"] > base["endo_pct"]
+        assert any("edad" in f.lower() for f in mayor["endo_factors"])
 
         # La comorbilidad no mueve nada.
         sid3 = _make_session()
@@ -227,7 +234,8 @@ class TestTreatmentDecision:
             "session_id": sid3, "location": LOCATIONS[1], "is_ruptured": False,
             "patient_age": 85, "has_comorbidities": True,
         }).json()
-        assert comorb["clip_pct"] == mayor["clip_pct"]
+        assert comorb["clip_factors"] == mayor["clip_factors"]
+        assert comorb["endo_factors"] == mayor["endo_factors"]
         assert len(comorb["factors"]) == len(mayor["factors"])
         assert "comorbil" not in " ".join(f["name"].lower() for f in comorb["factors"])
 

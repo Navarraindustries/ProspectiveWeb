@@ -169,8 +169,8 @@ def looks_like_tree(info: ComponentInfo) -> tuple[bool, str]:
             f"La estructura mayor ocupa {info.volume_mm3 / 1000:.0f} cm³: no es un "
             f"árbol vascular, es un bloque de tejido con el vaso dentro. Pasa en "
             f"angio-TC, donde el contraste toca el hueso y todo queda conectado. "
-            f"Quedarse con ella no quitaría nada — usa «Crecer desde semillas» "
-            f"para salir solo por el vaso."
+            f"Quedarse con ella no quitaría nada — recorta con la caja o la "
+            f"esfera y borra lo pegado con el borrador de región."
         )
     if info.thickness_mm > MAX_TREE_THICKNESS_MM:
         return False, (

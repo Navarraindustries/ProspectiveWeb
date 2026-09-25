@@ -173,9 +173,14 @@ class TestLibraryFeedsTheSelector:
         # A neck past the family's longest jaw (22 mm) has nothing to reach for;
         # a long enough clip in the library has to turn that "manufacture" into
         # a real option.
-        assert select_clips(ClipCase(neck_mm=25.0, neck_source="rim")).outcome == "manufacture"
+        #
+        # 16 mm de cuello: pide 24 mm de mordaza al quedar aplastado —la familia
+        # llega a 22— y el clip de la biblioteca, de 27, sí lo cierra. Antes
+        # bastaba con 25 mm de cuello y 27 de hoja, pero ese cuello pide ahora
+        # 37,5 mm y no lo cierra ninguna pieza sola.
+        assert select_clips(ClipCase(neck_mm=16.0, neck_source="rim")).outcome == "manufacture"
         _add(name="Clip XXL institucional", length=27.0, force=160.0)
-        after = select_clips(ClipCase(neck_mm=25.0, neck_source="rim"))
+        after = select_clips(ClipCase(neck_mm=16.0, neck_source="rim"))
         assert after.outcome in ("stock", "marginal")
         assert any("institucional" in c.clip.name for c in after.recommended)
 

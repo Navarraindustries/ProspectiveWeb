@@ -201,7 +201,11 @@ class TestItRefusesWhereTheRuleDoesNotHold:
         assert info.volume_mm3 > MAX_TREE_VOLUME_MM3
         ok, motivo = looks_like_tree(info)
         assert not ok
-        assert "cm³" in motivo and "semillas" in motivo
+        # El motivo tiene que ofrecer una salida que EXISTA. Decía «usa Crecer
+        # desde semillas» mucho después de haberse retirado esa herramienta.
+        assert "cm³" in motivo
+        assert "semillas" not in motivo
+        assert "borrador de región" in motivo
 
     def test_a_thick_lump_is_not_a_tree_either(self):
         # Por debajo del techo de volumen, pero macizo.

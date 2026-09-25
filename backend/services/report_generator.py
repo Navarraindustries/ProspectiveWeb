@@ -220,10 +220,6 @@ def build_report_data_from_session(
             "recommendation":     _rs("treatment.recommendation"),
             "recommendation_key": _rs("treatment.recommendation_key"),
             "confidence":         _rs("treatment.confidence"),
-            "clip_pct":           int(_rf("treatment.clip_pct")),
-            "endo_pct":           int(_rf("treatment.endo_pct")),
-            "clip_points":        int(_rf("treatment.clip_points")),
-            "endo_points":        int(_rf("treatment.endo_points")),
             "factors":            [],   # serialised separately if needed
             "notes":              [],
         }
@@ -533,7 +529,15 @@ def read_trajectory_state(session_id: str) -> dict:
     else:
         angle = 0.0
 
-    return {"entry": entry, "target": target, "depth_mm": round(depth, 1), "angle_deg": round(angle, 1)}
+    return {
+        "entry": entry, "target": target,
+        "depth_mm": round(depth, 1), "angle_deg": round(angle, 1),
+        # Lo que el corredor atraviesa. Si la viabilidad del abordaje depende de
+        # esto, el documento que se lleva a sesión tiene que llevarlo.
+        "verdict": read_state(session_id, "trajectory.verdict", ""),
+        "verdict_reason": read_state(session_id, "trajectory.verdict_reason", ""),
+        "findings": [f for f in read_state(session_id, "trajectory.findings", "").split(" | ") if f],
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -938,8 +942,6 @@ class ReportGenerator:
         rec_key  = t.get("recommendation_key", "mdt")
         rec_text = t.get("recommendation", "—")
         conf     = t.get("confidence", "—")
-        clip_pct = t.get("clip_pct", 50)
-        endo_pct = t.get("endo_pct", 50)
 
         rec_color_hex = {
             "clip":        self._CLIP_HEX,
@@ -955,56 +957,18 @@ class ReportGenerator:
         elems.append(Paragraph(f'Confianza: <b>{conf}</b>', self._style_center))
         elems.append(Spacer(1, 0.25*cm))
 
-        # Balance bar
-        total_w = 17.0 * cm
-        min_w   = 0.8  * cm
-        if clip_pct == 0:
-            clip_w = min_w; endo_w = total_w - min_w
-        elif endo_pct == 0:
-            endo_w = min_w; clip_w = total_w - min_w
-        else:
-            endo_w = max(min_w, total_w * endo_pct / 100)
-            clip_w = total_w - endo_w
-
-        # Puntos, no porcentajes. «CLIP 72 % · ENDO 28 %» se lee como una
-        # probabilidad —o como la proporción de pacientes a los que les fue
-        # mejor— y no es ninguna de las dos: es el cociente de dos sumas de
-        # pesos heurísticos, normalizado a 100. La barra sigue siendo
-        # proporcional, que para eso sirve; la cifra ahora es la que de verdad
-        # se ha sumado.
-        clip_pts = int(t.get("clip_points", 0))
-        endo_pts = int(t.get("endo_points", 0))
-        bar_data = [[
-            Paragraph(f"ENDO  {endo_pts} pts", self._style_td_bar_endo),
-            Paragraph(f"{clip_pts} pts  CLIP", self._style_td_bar_clip),
-        ]]
-        bar_tbl = Table(bar_data, colWidths=[endo_w, clip_w])
-        bar_tbl.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (0, 0), colors.HexColor(self._ENDO_HEX)),
-            ("BACKGROUND",    (1, 0), (1, 0), colors.HexColor(self._CLIP_HEX)),
-            ("TOPPADDING",    (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
-            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-        ]))
-        elems.append(bar_tbl)
-        elems.append(Paragraph(
-            "Puntos de un sumatorio con pesos elegidos a mano. No es una "
-            "probabilidad ni una proporción de pacientes: mide cuántos de los "
-            "factores evaluados apuntan a cada lado, y con qué peso. La columna "
-            "«Procedencia» dice de dónde sale cada uno.",
-            self._style_td_note))
-        elems.append(Spacer(1, 0.25*cm))
-
+        # Aquí iba una barra proporcional con los puntos de cada lado. Se
+        # retira entera: una barra ES una puntuación dibujada, y la cifra que
+        # llevaba encima era un sumatorio con pesos elegidos a mano, sin
+        # cohorte detrás. Lo que el motor sostiene —la recomendación, su
+        # confianza y los factores que la empujan— se queda.
         # Factors table
         factors = t.get("factors", [])
         if factors:
             elems.append(Paragraph("Factores determinantes:", self._style_h3))
-            rows = [["Factor y procedencia", "Estrategia", "Pts"]]
+            rows = [["Factor y procedencia", "Estrategia"]]
             for f in factors:
                 direction = f.get("direction", "neutral")
-                pts       = f.get("points", 0)
                 dir_label = {"clip": "Clipping", "endo": "Endovascular"}.get(
                     direction, "Neutro"
                 )
@@ -1017,10 +981,9 @@ class ReportGenerator:
                 rows.append([
                     Paragraph(cell, self._style_td_factor),
                     dir_label,
-                    f"+{pts}" if pts > 0 else "—",
                 ])
 
-            col_w = [10.5*cm, 4.0*cm, 2.4*cm]
+            col_w = [12.9*cm, 4.0*cm]
             tbl   = Table(rows, colWidths=col_w)
             ts    = TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), self._BLUE_DARK),
@@ -1033,7 +996,7 @@ class ReportGenerator:
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LEFTPADDING",   (0, 0), (-1, -1), 5),
-                ("ALIGN",      (2, 0), (2, -1), "CENTER"),
+                ("ALIGN",      (1, 0), (1, -1), "CENTER"),
             ])
             for i in range(1, len(rows)):
                 bg = colors.white if i % 2 else self._GREY_LIGHT
@@ -1041,11 +1004,11 @@ class ReportGenerator:
             for i, factor in enumerate(factors, start=1):
                 direction = factor.get("direction", "neutral")
                 if direction == "clip":
-                    ts.add("TEXTCOLOR", (1, i), (2, i), colors.HexColor(self._CLIP_HEX))
-                    ts.add("FONTNAME",  (1, i), (2, i), "Helvetica-Bold")
+                    ts.add("TEXTCOLOR", (1, i), (1, i), colors.HexColor(self._CLIP_HEX))
+                    ts.add("FONTNAME",  (1, i), (1, i), "Helvetica-Bold")
                 elif direction == "endo":
-                    ts.add("TEXTCOLOR", (1, i), (2, i), colors.HexColor(self._ENDO_HEX))
-                    ts.add("FONTNAME",  (1, i), (2, i), "Helvetica-Bold")
+                    ts.add("TEXTCOLOR", (1, i), (1, i), colors.HexColor(self._ENDO_HEX))
+                    ts.add("FONTNAME",  (1, i), (1, i), "Helvetica-Bold")
             tbl.setStyle(ts)
             elems.append(tbl)
 
@@ -1116,27 +1079,25 @@ class ReportGenerator:
                 "Modelo ajustado sobre 3 547 hemorragias subaracnoideas "
                 "aneurismáticas. Puntúa el riesgo de <b>mal resultado al alta "
                 "(mRS &gt; 2)</b> de CADA vía por separado, no cuál elegir. "
-                "Más puntos es peor.",
+                "Sus autores no publican bandas ni un AUC, así que lo que "
+                "sostiene es la comparación, no una cifra.",
                 self._style_body),
         ]
 
-        head = ["Vía", "Puntos", "Qué suma"]
+        head = ["Vía", "Qué la penaliza en este paciente"]
         rows = [[Paragraph(f"<b>{h}</b>", self._style_td_factor) for h in head]]
         for arm, hexcol in ((clip, self._CLIP_HEX), (coil, self._ENDO_HEX)):
             detalle = "; ".join(i["label"] for i in arm.get("items", [])) or "nada"
             rows.append([
                 Paragraph(f"<font color='{hexcol}'><b>{arm['label']}</b></font>",
                           self._style_td_factor),
-                Paragraph(f"<b>{arm['points']}</b> / {arm['max_points']}",
-                          self._style_td_factor),
                 Paragraph(detalle, self._style_td_factor),
             ])
-        tbl = Table(rows, colWidths=[4.2*cm, 2.0*cm, 10.0*cm])
+        tbl = Table(rows, colWidths=[4.2*cm, 12.0*cm])
         tbl.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.4, self._GREY_MED),
             ("BACKGROUND", (0, 0), (-1, 0), self._GREY_LIGHT),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ALIGN", (1, 1), (1, -1), "CENTER"),
             ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ]))
@@ -1514,6 +1475,30 @@ class ReportGenerator:
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
         elems.append(tbl)
+
+        # ── Qué atraviesa el corredor ──────────────────────────────────── #
+        #
+        # La trayectoria era dos puntos y una línea: se imprimía la profundidad
+        # y el ángulo sin decir si el camino está despejado. El veredicto y lo
+        # que se encontró viajan ahora con ella.
+        etiqueta = {
+            "viable":    "Corredor libre",
+            "revisar":   "Revisar el corredor",
+            "no_viable": "Corredor bloqueado",
+        }.get(tr.get("verdict", ""), "")
+        if etiqueta:
+            color = {"viable": "#15803D", "revisar": "#B45309",
+                     "no_viable": "#B91C1C"}[tr["verdict"]]
+            elems.append(Spacer(1, 0.15 * cm))
+            elems.append(Paragraph(
+                f'<font color="{color}"><b>{etiqueta}.</b></font> '
+                f'{tr.get("verdict_reason", "")}', self._style_body))
+            for hallazgo in tr.get("findings", []):
+                elems.append(Paragraph(f"— {hallazgo}", self._style_td_note))
+            elems.append(Paragraph(
+                "Medido sobre la malla del paciente. Una perforante de 0,1–0,5 mm "
+                "no llega a la malla, así que un corredor limpio aquí no es un "
+                "corredor sin perforantes.", self._style_td_disclaimer))
         return elems
 
     def _section_risk(self) -> list:

@@ -56,7 +56,11 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
   outcome: "manufacture",
   summary: "",
   case: {
-    neck_mm: 20, dome_height_mm: 12, max_diameter_mm: 22, ar: 1.5, dnr: 2.1,
+    neck_mm: 20,
+    required_jaw_mm: 30, required_jaw_source: "factor",
+    required_jaw_detail: "Cuello de 20.0 mm × 1.5 = 30.0 mm al quedar aplastado entre las hojas.",
+    approach_angle_deg: null, approach_bend_deg: null,
+    dome_height_mm: 12, max_diameter_mm: 22, ar: 1.5, dnr: 2.1,
     parent_artery_mm: 3.2, neck_source: "rim", neck_tilt_deg: 0,
     region: "", laterality: "", aneurysm_type: "",
   },
@@ -64,6 +68,7 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
   rejected: [],
   manufacture: null,
   custom_jaw: null,
+  multiclip: null,
   caveats: [],
   ...over,
 });

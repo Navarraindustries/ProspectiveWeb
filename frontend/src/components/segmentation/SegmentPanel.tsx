@@ -206,13 +206,19 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         full_resolution: fullRes,
         main_tree_only: mainTree,
       });
-      planning.setSegmentation(res);
       // La malla es OTRA, así que los candidatos, la morfometría y la
       // recomendación medidos sobre la anterior ya no describen nada. Sin
       // esto, resegmentar dejaba en pantalla los candidatos de antes y parecía
       // que la detección no encontraba el aneurisma cuando lo que pasaba es
       // que nadie la había vuelto a lanzar.
+      //
+      // El ORDEN importa: `resetDownstream` limpia TODO lo que cuelga del
+      // DICOM, la propia segmentación incluida. Llamarlo después de guardar la
+      // malla nueva la borraba en el mismo render, y el visor —sin malla que
+      // pintar— volvía a la vista del DICOM. Lo vio el usuario: «al darle
+      // Segmentar no se muestra la malla».
       planning.resetDownstream();
+      planning.setSegmentation(res);
       setPreviewBand(null);       // final mesh now shows
       setPreviewMeshUrl(null);
     } catch (err) {
@@ -226,7 +232,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     <div className="fade-rise">
       <PanelHead
         title="Segmentación vascular"
-        desc="Aísla el árbol vascular por umbral de intensidad y reconstruye su superficie 3D."
+        desc="Aísla la vasculatura completa por umbral de intensidad y reconstruye su superficie 3D."
         right={segmentation && <Badge variant="success">Malla lista</Badge>}
       />
 
@@ -266,7 +272,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         {sinTecho && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
             En angiografía con contraste suele ser lo correcto: el techo recorta
-            justo los vasos más llenos y puede partir el árbol en trozos que
+            justo los vasos más llenos y puede partir la vasculatura en trozos que
             luego la limpieza descarta. Quítalo si ves ramas cortadas.
           </div>
         )}
@@ -368,11 +374,11 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           />
           <span style={{ minWidth: 0 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-              Solo el árbol principal
+              Solo la vasculatura principal
             </span>
             <span style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45, marginTop: 2 }}>
               Conserva la estructura conectada mayor y descarta el resto. En
-              angiografía esa estructura es el árbol y lo que sobra es hueso, que
+              angiografía esa estructura es la vasculatura y lo que sobra es hueso, que
               el umbral no puede quitar porque comparte brillo con el contraste.
               En angio-TC no se aplica —allí todo está conectado— y lo avisa.
             </span>
@@ -414,8 +420,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
         En estudios con hueso/cráneo, el umbral por sí solo no separa el vaso: sube «Limpieza»
-        para aislar el árbol principal. Si el hueso queda <b style={{ color: "var(--foreground)" }}>pegado
-        al árbol</b>, el borrador de región (abajo) lo quita sin tocar los vasos de al lado.
+        para aislar la vasculatura principal. Si el hueso queda <b style={{ color: "var(--foreground)" }}>pegado
+        a la vasculatura</b>, el borrador de región (abajo) lo quita sin tocar los vasos de al lado.
       </div>
 
       <PreprocessSection />
@@ -480,7 +486,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               usuario pensando que la aplicación está rota. */}
           {segmentation.main_tree_applied && segmentation.main_tree_removed > 0 && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
-              Árbol principal aislado: fuera {segmentation.main_tree_removed}{" "}
+              Vasculatura principal aislada: fuera {segmentation.main_tree_removed}{" "}
               {segmentation.main_tree_removed === 1 ? "estructura suelta" : "estructuras sueltas"}.
             </div>
           )}
@@ -490,7 +496,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               borderRadius: "var(--radius-md)", background: "var(--muted)",
               borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
             }}>
-              <b>No se aisló el árbol principal.</b> {segmentation.main_tree_warning}
+              <b>No se aisló la vasculatura principal.</b> {segmentation.main_tree_warning}
             </div>
           )}
         </Card>

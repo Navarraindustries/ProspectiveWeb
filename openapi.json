@@ -2824,6 +2824,54 @@
         }
       }
     },
+    "/api/clips/occlusion/{session_id}": {
+      "get": {
+        "tags": [
+          "clips"
+        ],
+        "summary": "How much aneurysm is left once the placed clip closes",
+        "description": "Splits the isolated sac at the level where the clip closes and measures both sides: what leaves the circulation and what stays connected to the parent artery — the remnant.\n\nThis is the answerable half of «simulate the deformation». A wall deformation needs the wall's thickness, its mechanical properties and the intraluminal pressure; none is measurable here (the wall is 0.05–0.5 mm and the voxel 0.32) and there is nothing to validate it against. What IS answerable, and is the clinical question, is how much aneurysm is left: complete occlusion, neck remnant, or residual aneurysm.\n\nGeometry, not mechanics. It does not model how the wall yields.",
+        "operationId": "clip_occlusion_api_clips_occlusion__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcclusionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/coils": {
       "get": {
         "tags": [
@@ -3175,7 +3223,7 @@
           "report"
         ],
         "summary": "Save the surgical approach trajectory",
-        "description": "Persists the entry → target approach corridor in session state so it is included in the PDF report and the DICOM SR. Returns the stored points plus the approach depth and incidence angle.",
+        "description": "Persists the entry → target approach corridor in session state so it is included in the PDF report and the DICOM SR. Returns the stored points, the approach depth and incidence angle, and — when a segmented mesh exists — what the corridor actually crosses: vessels in the way with their calibre, how close it passes to a branch origin, how much of the run goes through dense non-vascular material, and a three-state verdict on whether the approach is workable. The verdict comes from explicit rules over what was measured, not from a weighted sum. And it only sees what is in the mesh: a 0.1–0.5 mm perforator never reaches it, so a clear corridor here is not a corridor without perforators.",
         "operationId": "set_trajectory_api_trajectory__session_id__post",
         "security": [
           {
@@ -3251,6 +3299,118 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "report"
+        ],
+        "summary": "The approach trajectory stored in this session, if any",
+        "description": "Returns the entry/target the surgeon established, with the corridor assessment recomputed against the current mesh — or null when none was marked.\n\nIt exists because a resumed session used to come back WITHOUT it: the points were on disk and in the PDF, but the store was empty, so the viewer drew no corridor and the placement rehearsal silently fell back to its default approach. The established trajectory has to reach the rehearsal, or the video shows a manoeuvre nobody planned.",
+        "operationId": "get_trajectory_api_trajectory__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TrajectoryResult"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Trajectory Api Trajectory  Session Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trajectory/{session_id}/suggest": {
+      "post": {
+        "tags": [
+          "report"
+        ],
+        "summary": "Propose approach corridors that are clear and operable",
+        "description": "Sweeps directions around the aneurysm and returns the ones that reach it without crossing a vessel AND could actually be operated.\n\nOnly **vascular** tissue blocks: it is what the image separates reliably — bone shares its intensity range with contrast — and it is what was asked for.\n\nTwo sectors are refused outright, because an approach through them does not exist: anything coming from below the axial plane (the neck or the skull base) and the face. Telling them apart needs the patient's orientation, which comes from the DICOM; without it nothing is proposed, because a corridor through the orbit cannot be ruled out.\n\nWhat is proposed is a DIRECTION, not a craniotomy: naming an approach would need the skull and the scalp segmented, and a 3DRA's reconstructed field does not even reach the scalp.",
+        "operationId": "suggest_corridors_api_trajectory__session_id__suggest_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestCorridorsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestCorridorsResult"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -7195,6 +7355,19 @@
             "type": "string",
             "title": "Clip Name",
             "default": ""
+          },
+          "sac_frames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sac Frames",
+            "description": "El saco estrechándose entre las hojas, en fotogramas del 25 % al 100 % del cierre. ILUSTRACIÓN GEOMÉTRICA: los puntos que caen dentro de la presa se llevan hacia el plano medio de las hojas y la influencia se apaga con la distancia a la línea de cierre. No hay pared que ceda, no se conserva el volumen y no interviene ninguna propiedad del clip ni de su material. Lo único cierto del dibujo es DÓNDE aplasta y en qué dirección, que salen de la geometría del clip colocado."
+          },
+          "sac_frames_note": {
+            "type": "string",
+            "title": "Sac Frames Note",
+            "default": ""
           }
         },
         "type": "object",
@@ -7347,6 +7520,48 @@
             "type": "number",
             "title": "Neck Mm",
             "default": 0.0
+          },
+          "required_jaw_mm": {
+            "type": "number",
+            "title": "Required Jaw Mm",
+            "description": "Mordaza mínima que cierra este cuello. NO es el diámetro: al cerrarse las hojas el cuello queda aplastado y su línea de cierre mide más. Con el contorno medido es su perímetro partido por dos; sin él, el diámetro × 1,5 (Neurology India; el estudio numérico de 2024 mide una deformación de al menos 1,4×).",
+            "default": 0.0
+          },
+          "required_jaw_source": {
+            "type": "string",
+            "title": "Required Jaw Source",
+            "description": "perimeter (contorno medido) | factor (regla ×1,5) | floor | none",
+            "default": "none"
+          },
+          "required_jaw_detail": {
+            "type": "string",
+            "title": "Required Jaw Detail",
+            "description": "De dónde sale el número, en una frase",
+            "default": ""
+          },
+          "approach_angle_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approach Angle Deg",
+            "description": "Ángulo del corredor de abordaje establecido contra el eje cuello→domo. Null si no hay trayectoria marcada."
+          },
+          "approach_bend_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approach Bend Deg",
+            "description": "La acodadura que ese corredor pide: 90° − el ángulo anterior. Las hojas tienen que quedar cruzadas sobre el cuello y el mango salir por el corredor; el ángulo entre esas dos direcciones ES la acodadura. No es una tabla, es geometría."
           },
           "dome_height_mm": {
             "type": "number",
@@ -7792,6 +8007,17 @@
               }
             ],
             "description": "Offered when the drawn jaw sizes only bracket what the case needs and the family is manufactured per case, so an exact jaw is a real option."
+          },
+          "multiclip": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MultiClipConstructOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Varias mordazas que juntas cierran un cuello que ninguna cierra sola. Se ofrece JUNTO a la especificación de fabricación, no en su lugar: son las dos salidas del mismo callejón, y elegir entre mandar fabricar una pieza o poner dos que ya existen es del cirujano."
           },
           "caveats": {
             "items": {
@@ -8259,6 +8485,86 @@
         "title": "ComponentListResult",
         "description": "Las piezas de la malla, para poder enseñar cuántas hay y de qué tamaño."
       },
+      "CorridorAssessmentOut": {
+        "properties": {
+          "radius_mm": {
+            "type": "number",
+            "title": "Radius Mm",
+            "description": "Radio del corredor de trabajo supuesto"
+          },
+          "vessels_crossed": {
+            "items": {
+              "$ref": "#/components/schemas/VesselCrossingOut"
+            },
+            "type": "array",
+            "title": "Vessels Crossed"
+          },
+          "nearest_branch_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Branch Mm",
+            "description": "Distancia al origen de rama más próximo que NO se cruza"
+          },
+          "nearest_branch_calibre_mm": {
+            "type": "number",
+            "title": "Nearest Branch Calibre Mm",
+            "default": 0.0
+          },
+          "dense_tissue_mm": {
+            "type": "number",
+            "title": "Dense Tissue Mm",
+            "description": "Milímetros del recorrido por material denso que no es vasculatura —casi siempre hueso—. No se llama hueso porque el hueso no se separa del contraste por intensidad.",
+            "default": 0.0
+          },
+          "dense_tissue_measurable": {
+            "type": "boolean",
+            "title": "Dense Tissue Measurable",
+            "description": "False en un estudio sustraído: no hay tejido en la imagen",
+            "default": true
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "viable",
+              "revisar",
+              "no_viable"
+            ],
+            "title": "Verdict"
+          },
+          "verdict_reason": {
+            "type": "string",
+            "title": "Verdict Reason",
+            "default": ""
+          },
+          "findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "radius_mm",
+          "verdict"
+        ],
+        "title": "CorridorAssessmentOut",
+        "description": "Qué hay dentro del corredor de abordaje, y qué se concluye.\n\nEl veredicto tiene tres estados y sale de reglas explícitas sobre lo\nmedido, no de una suma de pesos: la misma razón por la que el motor de\ntratamiento dejó de enseñar puntuaciones."
+      },
       "CrossSectionRequest": {
         "properties": {
           "session_id": {
@@ -8490,16 +8796,10 @@
             "title": "Direction",
             "description": "Which direction this factor pushes the recommendation"
           },
-          "points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Points",
-            "description": "Weight / magnitude of this factor"
-          },
           "votes": {
             "type": "boolean",
             "title": "Votes",
-            "description": "False for a factor that is shown but does not add points. The shape indices are the case: they come from rupture-risk literature, are not validated for choosing a modality, and what they DO support is in `endovascular`. Deleting a measurement because it cannot vote hides it; showing it with its reason leaves it arguable.",
+            "description": "False para un factor que se ENSEÑA pero no influye en la recomendación. Los índices de forma son el caso: vienen de la literatura de riesgo de rotura, no están validados para elegir modalidad, y lo que sí sostienen está en `endovascular`. Borrar una medida porque no cuenta la esconde; enseñarla con su razón la deja discutible.",
             "default": true
           },
           "source": {
@@ -8513,8 +8813,7 @@
         "required": [
           "name",
           "detail",
-          "direction",
-          "points"
+          "direction"
         ],
         "title": "DecisionFactor",
         "description": "One contributing factor in the CLIP vs ENDO scoring."
@@ -8734,19 +9033,6 @@
             "title": "Label",
             "default": ""
           },
-          "points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Points",
-            "description": "Puntos de riesgo de mal resultado",
-            "default": 0
-          },
-          "max_points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Max Points",
-            "default": 7
-          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/JsdbItemOut"
@@ -8775,11 +9061,6 @@
             "type": "string",
             "title": "Label",
             "default": ""
-          },
-          "points": {
-            "type": "integer",
-            "title": "Points",
-            "default": 0
           },
           "detail": {
             "type": "string",
@@ -9912,6 +10193,66 @@
         "title": "MorphometryResult",
         "description": "Full quantitative morphometry of the selected aneurysm.\n\nMatches MorphometricResult from prospective/processing/morphometrics.py.\nAll linear values in mm; ratios are dimensionless."
       },
+      "MultiClipConstructOut": {
+        "properties": {
+          "n_clips": {
+            "type": "integer",
+            "minimum": 2.0,
+            "title": "N Clips"
+          },
+          "jaws_mm": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Jaws Mm",
+            "description": "La mordaza de cada clip del montaje"
+          },
+          "required_mm": {
+            "type": "number",
+            "title": "Required Mm",
+            "description": "La línea de cierre que hay que cubrir (cuello aplastado)"
+          },
+          "covered_mm": {
+            "type": "number",
+            "title": "Covered Mm",
+            "description": "Lo que cubre el montaje: n·mordaza − (n−1)·solape"
+          },
+          "overlap_mm": {
+            "type": "number",
+            "title": "Overlap Mm",
+            "description": "Cuánto monta cada hoja sobre la anterior. SUPUESTO de este software: las series describen el solape sin dar la distancia."
+          },
+          "shape": {
+            "type": "string",
+            "title": "Shape",
+            "description": "La forma que pide el caso, para todas las piezas",
+            "default": ""
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "cautions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cautions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n_clips",
+          "jaws_mm",
+          "required_mm",
+          "covered_mm",
+          "overlap_mm"
+        ],
+        "title": "MultiClipConstructOut",
+        "description": "Un montaje de varios clips para un cuello que ninguna hoja cierra sola.\n\nEs técnica descrita —tándem apilado, «picket fence» con las hojas solapadas\ny escalonadas a lo largo del cuello—, no un apaño: en la serie publicada se\nreconstruyen cuellos gigantes con cuatro y siete clips fenestrados. Lo que\naporta aquí es la parte geométrica; cuál de las técnicas corresponde lo\ndecide el cirujano, y eso viaja en `cautions`."
+      },
       "NeckPlaneRequest": {
         "properties": {
           "origin": {
@@ -9955,6 +10296,83 @@
         ],
         "title": "NeckPlaneRequest",
         "description": "User-defined neck plane for semi-automatic closed-sac morphometry.\n\nThe user places a point on the neck and a normal pointing toward the dome.\nThe backend clips the vessel tree at this plane, keeps the dome-side\nconnected component, caps the opening into a closed watertight sac, and\nmeasures the neck directly from the plane∩tree contour."
+      },
+      "OcclusionOut": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "completa",
+              "resto_de_cuello",
+              "residual",
+              "sin_saco"
+            ],
+            "title": "Outcome"
+          },
+          "sac_volume_mm3": {
+            "type": "number",
+            "title": "Sac Volume Mm3",
+            "default": 0.0
+          },
+          "excluded_mm3": {
+            "type": "number",
+            "title": "Excluded Mm3",
+            "description": "Lo que el clip deja fuera de la circulación",
+            "default": 0.0
+          },
+          "remnant_mm3": {
+            "type": "number",
+            "title": "Remnant Mm3",
+            "description": "El muñón que sigue comunicado con la arteria",
+            "default": 0.0
+          },
+          "remnant_fraction_pct": {
+            "type": "number",
+            "title": "Remnant Fraction Pct",
+            "default": 0.0
+          },
+          "remnant_width_mm": {
+            "type": "number",
+            "title": "Remnant Width Mm",
+            "description": "Anchura del muñón en el plano del cuello",
+            "default": 0.0
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "cautions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cautions"
+          },
+          "remnant_mesh_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remnant Mesh Url",
+            "description": "El muñón, para pintarlo. Null si no queda nada medible."
+          },
+          "clip_name": {
+            "type": "string",
+            "title": "Clip Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome"
+        ],
+        "title": "OcclusionOut",
+        "description": "Cómo queda el aneurisma con el clip puesto.\n\nEs la mitad contestable de «simular la deformación». Deformar la pared pide\nsu grosor, sus propiedades y la presión intraluminal, y ninguna se mide en\nla imagen —la pared tiene 0,05–0,5 mm y el vóxel 0,32— ni hay con qué\nvalidar el resultado. Lo que sí es contestable, y es la pregunta clínica, es\ncuánto aneurisma queda."
       },
       "OrderIn": {
         "properties": {
@@ -11668,6 +12086,48 @@
         ],
         "title": "PrintPrepResult"
       },
+      "ProposedCorridorOut": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "direction": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Direction"
+          },
+          "depth_mm": {
+            "type": "number",
+            "title": "Depth Mm"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "La dirección dicha en anatomía: «anterior izquierda, 30° por encima del plano axial»",
+            "default": ""
+          },
+          "entry_on_skin": {
+            "type": "boolean",
+            "title": "Entry On Skin",
+            "description": "False cuando la entrada es el borde del volumen reconstruido y no la piel. En una 3DRA el campo no llega al cuero cabelludo, así que lo que se propone es la DIRECCIÓN, no el punto de la craneotomía.",
+            "default": false
+          },
+          "corridor": {
+            "$ref": "#/components/schemas/CorridorAssessmentOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry",
+          "direction",
+          "depth_mm",
+          "corridor"
+        ],
+        "title": "ProposedCorridorOut",
+        "description": "Una dirección de abordaje propuesta, con lo que se midió dentro."
+      },
       "ReceptionIn": {
         "properties": {
           "measured_jaw_mm": {
@@ -12980,6 +13440,78 @@
         "title": "StudySummary",
         "description": "One study / clinical case linked to a patient (desktop 'Nuevo Caso')."
       },
+      "SuggestCorridorsRequest": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position3D"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "El aneurisma. Si no se da, se toma el cuello marcado en Morfometría y, en su defecto, el candidato detectado."
+          },
+          "radius_mm": {
+            "type": "number",
+            "maximum": 20.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Radius Mm",
+            "description": "Radio del corredor de trabajo",
+            "default": 5.0
+          },
+          "top": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Top",
+            "default": 3
+          }
+        },
+        "type": "object",
+        "title": "SuggestCorridorsRequest",
+        "description": "Pedir al software por dónde entrar."
+      },
+      "SuggestCorridorsResult": {
+        "properties": {
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedCorridorOut"
+            },
+            "type": "array",
+            "title": "Proposals"
+          },
+          "target": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "axes_source": {
+            "type": "string",
+            "title": "Axes Source",
+            "description": "dicom · dicom_sin_verificar · desconocida. Sin ejes no se propone nada: no se podría garantizar que el corredor no entre por la cara.",
+            "default": ""
+          },
+          "axes_note": {
+            "type": "string",
+            "title": "Axes Note",
+            "default": ""
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rules",
+            "description": "Los sectores descartados por no ser operables, dichos."
+          }
+        },
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "title": "SuggestCorridorsResult",
+        "description": "Lo que el software propone, y con qué sabe dónde está la cara."
+      },
       "SuggestedBand": {
         "properties": {
           "lower": {
@@ -13057,6 +13589,17 @@
             "type": "number",
             "title": "Angle Deg",
             "description": "Incidence angle vs the aneurysm principal axis"
+          },
+          "corridor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CorridorAssessmentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lo que el corredor atraviesa, medido contra la malla del paciente y el volumen. Null cuando todavía no hay malla segmentada: sin ella no hay contra qué cruzar la trayectoria."
           }
         },
         "type": "object",
@@ -13169,34 +13712,6 @@
       },
       "TreatmentDecisionResult": {
         "properties": {
-          "clip_points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Clip Points",
-            "description": "Raw points that argued for clipping — the actual sum",
-            "default": 0
-          },
-          "endo_points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Endo Points",
-            "description": "Raw points that argued for endovascular treatment",
-            "default": 0
-          },
-          "clip_pct": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Clip Pct",
-            "description": "Clip points as a share of the total, 0–100. NOT a probability and not a proportion of patients: the ratio of two heuristic sums. Use it to draw a proportional bar, and show `clip_points` as the figure."
-          },
-          "endo_pct": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Endo Pct",
-            "description": "Endo share of the total, 0–100"
-          },
           "coverage_pct": {
             "type": "integer",
             "maximum": 100.0,
@@ -13254,11 +13769,6 @@
             "title": "Notes",
             "description": "Reasoning that is not a scored factor: why a small aneurysm is or is not a surveillance case, what the PHASES score says about it, and what the engine could not settle."
           },
-          "balance": {
-            "type": "integer",
-            "title": "Balance",
-            "description": "clip_score − endo_score (positive → clip preferred)"
-          },
           "recommendation": {
             "type": "string",
             "title": "Recommendation",
@@ -13312,9 +13822,6 @@
         },
         "type": "object",
         "required": [
-          "clip_pct",
-          "endo_pct",
-          "balance",
           "recommendation",
           "recommendation_key",
           "confidence",
@@ -13576,6 +14083,35 @@
         },
         "type": "object",
         "title": "VerifyIn"
+      },
+      "VesselCrossingOut": {
+        "properties": {
+          "distance_from_entry_mm": {
+            "type": "number",
+            "title": "Distance From Entry Mm"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "calibre_mm": {
+            "type": "number",
+            "title": "Calibre Mm"
+          },
+          "calibre_source": {
+            "type": "string",
+            "title": "Calibre Source",
+            "description": "'barrido' = calibre medido en el barrido de ramas; 'malla' = estimado por la cuerda del rayo sobre la malla",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "distance_from_entry_mm",
+          "position",
+          "calibre_mm"
+        ],
+        "title": "VesselCrossingOut",
+        "description": "Un vaso que el corredor atraviesa antes de llegar al aneurisma."
       },
       "WorkshopIn": {
         "properties": {

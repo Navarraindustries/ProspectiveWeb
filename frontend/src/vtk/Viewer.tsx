@@ -85,6 +85,8 @@ const CROP_CENTER_COLOR: Vector3 = [0.98, 0.60, 0.20]; // orange — crop ROI ce
 const TRAJ_ENTRY_COLOR: Vector3 = [0.40, 0.80, 1.00];  // sky blue — approach entry
 const TRAJ_TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29]; // red — approach target
 const TRAJ_LINE_COLOR: Vector3 = [0.55, 0.85, 1.00];   // light blue — approach corridor
+/** El radio del corredor de trabajo que mide el backend (`DEFAULT_CORRIDOR_RADIUS_MM`). */
+const CORRIDOR_RADIUS_MM = 5;
 const MO_NECK_COLOR: Vector3 = [0.20, 0.75, 1.00];     // sky blue — neck ring/marker
 const MO_DOME_COLOR: Vector3 = [1.00, 0.55, 0.10];     // orange — dome-height line/apex
 const MO_MAXD_COLOR: Vector3 = [0.85, 0.20, 0.20];     // red — max-diameter span
@@ -160,7 +162,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick,
     cropRadius, cropShape, cropInvert, planeCut, boxCut,
-    trajEntry, trajTarget, setTrajEntry, setTrajTarget,
+    trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
@@ -379,7 +381,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // El saco cerrado manda sobre el localizador: en cuanto está marcado el
     // cuello hay una malla que SÍ es el cuerpo del aneurisma, y enseñar las
     // dos a la vez volvería a mezclar «dónde mirar» con «qué es».
-    const sacUrl = morphometry?.sac_mesh_url;
+    // Durante el cierre del ensayo, el saco es el fotograma constreñido: el
+    // sin deformar al lado diría que el clip no toca nada.
+    const sacFrames = clipRehearsal?.sac_frames ?? [];
+    const sacUrl = (sacFrame !== null && sacFrames[sacFrame])
+      ? sacFrames[sacFrame]
+      : morphometry?.sac_mesh_url;
     if (sacUrl && step !== "segment" && step !== "upload") {
       out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac" });
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
@@ -399,7 +406,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
     }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal]);
+  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame]);
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
@@ -443,7 +450,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const out: MeshLine[] = measurements
       .filter((m) => m.visible)
       .map((m) => ({ a: m.a, b: m.b, color: MEASURE_COLOR }));
-    if (trajEntry && trajTarget) out.push({ a: trajEntry, b: trajTarget, color: TRAJ_LINE_COLOR });
+    // El abordaje no es una regla: es el CORREDOR por el que tiene que caber el
+    // clip con su aplicador. Dibujarlo con su radio real y translúcido es lo
+    // que hace que el ensayo de colocación enseñe la maniobra y no una flecha.
+    if (trajEntry && trajTarget) {
+      out.push({ a: trajEntry, b: trajTarget, color: TRAJ_LINE_COLOR,
+                 radiusMm: CORRIDOR_RADIUS_MM, opacity: 0.22 });
+    }
     if (overlay) out.push(...overlay.lines);
     return out;
   }, [measurements, trajEntry, trajTarget, overlay]);

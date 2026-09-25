@@ -138,7 +138,7 @@ describe("what the cleanup discarded", () => {
      que decir por qué: un botón que no hace nada en silencio parece roto. */
   it("dice cuántas estructuras sueltas dejó fuera el árbol principal", async () => {
     withResult({ ...base, main_tree_applied: true, main_tree_removed: 10 });
-    expect(await screen.findByText(/Árbol principal aislado/)).toBeInTheDocument();
+    expect(await screen.findByText(/Vasculatura principal aislada/)).toBeInTheDocument();
     expect(screen.getByText(/fuera 10 estructuras sueltas/)).toBeInTheDocument();
   });
 
@@ -148,17 +148,17 @@ describe("what the cleanup discarded", () => {
       main_tree_applied: false,
       main_tree_warning: "La estructura mayor ocupa 1220 cm³: no es un árbol vascular.",
     });
-    expect(await screen.findByText(/No se aisló el árbol principal/)).toBeInTheDocument();
+    expect(await screen.findByText(/No se aisló la vasculatura principal/)).toBeInTheDocument();
     expect(screen.getByText(/1220 cm³/)).toBeInTheDocument();
   });
 
   it("no informa de nada cuando no se pidió", async () => {
-    // Ojo con el matcher: la casilla se llama «Solo el árbol principal» y está
+    // Ojo con el matcher: la casilla se llama «Solo la vasculatura principal» y está
     // siempre en pantalla. Lo que no debe aparecer es el RESULTADO.
     withResult(base);
     await screen.findByText("Submuestreada");
-    expect(screen.queryByText(/Árbol principal aislado/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/No se aisló el árbol principal/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Vasculatura principal aislada/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No se aisló la vasculatura principal/)).not.toBeInTheDocument();
   });
 });
 
@@ -344,5 +344,71 @@ describe("comparar con y sin techo", () => {
     expect(
       await screen.findByRole("button", { name: /Probar con y sin techo/ }),
     ).toBeInTheDocument();
+  });
+});
+
+/* Segmentar tiene que DEJAR la malla puesta.
+ *
+ * Al invalidar lo medido sobre la malla anterior se llamó a `resetDownstream`,
+ * que limpia todo lo que cuelga del DICOM —la propia segmentación incluida—
+ * DESPUÉS de guardar la malla nueva: se ponía y se borraba en el mismo render,
+ * y el visor, sin nada que pintar, volvía a la vista del DICOM. El usuario lo
+ * dijo tal cual: «al darle Segmentar no se muestra la malla». El orden es lo
+ * único que separa las dos cosas, así que se prueban juntas. */
+describe("segmentar deja la malla y se lleva lo de la malla vieja", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const serie = {
+    session_id: "sesion-run", series_id: "1.2.3", description: "3D RA",
+    modality: "XA", slices: 384, spacing: { x: 0.4, y: 0.4, z: 0.4 },
+    window_center: -343, window_width: 7578,
+    is_projection: false, projection_warning: null, size_mb: 120,
+  };
+
+  const candidatoViejo = {
+    id: "cand_001", vtp_name: "aneurysm_cand_001.vtp", url: "/c1.vtp",
+    centroid: { x: 1, y: 2, z: 3 }, diameter_mm: 6.4, score: 0.9,
+    channels: ["curv"], patch_kind: "dome",
+  };
+
+  /** Entra con sesión, serie y un candidato de la corrida anterior, y expone
+   *  el store para poder mirarlo después de pulsar «Segmentar». */
+  function conSerieYCandidatos() {
+    const visto: { segmentation: unknown; candidates: unknown[] } = {
+      segmentation: null, candidates: [],
+    };
+    function Sonda({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        p.setSession("sesion-run");
+        p.setSeries(serie as never);
+        p.setCandidates([candidatoViejo] as never);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      visto.segmentation = p.segmentation;
+      visto.candidates = p.candidates;
+      return <>{p.sessionId && p.series ? children : null}</>;
+    }
+    render(
+      <PlanningProvider>
+        <Sonda>
+          <SegmentPanel onNext={() => {}} />
+        </Sonda>
+      </PlanningProvider>,
+    );
+    return visto;
+  }
+
+  it("la malla recién segmentada sigue en el store, y los candidatos viejos no", async () => {
+    const { api } = await import("../../api/client");
+    vi.mocked(api.segment).mockResolvedValue(base);
+
+    const visto = conSerieYCandidatos();
+    fireEvent.click(await screen.findByRole("button", { name: /Segmentar/ }));
+
+    await vi.waitFor(() => expect(api.segment).toHaveBeenCalled());
+    // Lo que el visor necesita para pintar: si esto es null, se ve el DICOM.
+    await vi.waitFor(() => expect(visto.segmentation).not.toBeNull());
+    expect(visto.candidates).toEqual([]);
   });
 });

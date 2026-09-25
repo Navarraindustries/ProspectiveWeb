@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type {
   ClipPlanResult,
+  CorridorAssessmentOut,
   ClipLibraryItem,
   CustomClipInfo,
   DeviceKind,
@@ -16,9 +17,13 @@ import type {
   CoilLibraryItem,
   CoilPlanResult,
   MorphometryResult,
+  OcclusionOut,
   Position3D,
+  ProposedCorridorOut,
   StentLibraryItem,
   StentPlanResult,
+  SuggestCorridorsResult,
+  TrajectoryResult,
 } from "../../api/types";
 import { Button } from "../Button";
 import { CenterOnLesionButton } from "../CenterOnLesionButton";
@@ -204,7 +209,12 @@ function ClipsTab() {
 
   const options = useMemo(() => {
     const base = [
-      ...recs.map((r) => ({ value: r.clip_id, label: `${r.clip_name} · ${(r.score * 100).toFixed(0)}` })),
+      // Aquí iba `· 74`: el score del recomendador multiplicado por cien, sin
+      // unidad y sin nada que lo respalde, justo lo que se retiró del motor de
+      // decisión. El orden de la lista ya dice cuál propone primero, y la
+      // tarjeta de al lado lo dice con medidas («cierra el cuello aplastado de
+      // 7,2 mm»). El número solo aparentaba precisión.
+      ...recs.map((r) => ({ value: r.clip_id, label: r.clip_name })),
       ...customs.map((c) => ({ value: c.clip_id, label: `★ ${c.name} (personalizado)` })),
     ];
     // Los del catálogo que el recomendador no propuso, al final y marcados:
@@ -361,9 +371,16 @@ function ClipsTab() {
               sin repetirlo esta pantalla no dice sobre qué pieza se trabaja. */}
           {sel && (
             <Card style={{ marginBottom: 12, background: "var(--muted)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Clip elegido</span>
-                <b style={{ fontSize: 12, flex: 1, minWidth: 0 }}>{nameFor(sel)}</b>
+              {/* El nombre en su propia línea. Compartiendo el flex con dos
+                  botones que no encogen se quedaba sin ancho y se partía por
+                  palabras: «NAVARRO™ / T3 / Angulado 30° / 10.0 / mm», cinco
+                  renglones para una pieza. El mismo fallo que el titular de la
+                  recomendación en el panel de decisión. */}
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Clip elegido</div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2, lineHeight: 1.35 }}>
+                {nameFor(sel)}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
                 <Button size="sm" variant="ghost" onClick={() => setStep(CLIP_STEPS[0])}>
                   Cambiar
                 </Button>
@@ -409,6 +426,8 @@ function ClipsTab() {
               </div>
             </>
           )}
+
+          {plan && <OcclusionReport />}
 
           {plan && (
             <Card style={{ marginTop: 14 }}>
@@ -898,6 +917,149 @@ function ClStentTab() {
   );
 }
 
+/* ── Cómo queda el aneurisma con el clip puesto ────────────────────────── */
+
+const OCCLUSION_UI: Record<OcclusionOut["outcome"],
+                           { label: string; color: string }> = {
+  completa:        { label: "Oclusión completa",  color: "var(--success)" },
+  resto_de_cuello: { label: "Resto de cuello",    color: "var(--warning)" },
+  residual:        { label: "Aneurisma residual", color: "var(--destructive)" },
+  sin_saco:        { label: "Sin saco aislado",   color: "var(--muted-foreground)" },
+};
+
+/** Preguntado por dirección: «¿se puede simular cómo se deforma el aneurisma al
+ *  quedar constreñido en la mordaza?». La deformación de la pared no se puede
+ *  sostener —hace falta su grosor, sus propiedades y la presión, y no hay con
+ *  qué validarla— pero la pregunta clínica detrás sí tiene respuesta: cuánto
+ *  aneurisma queda. Eso es geometría sobre el saco aislado y el clip colocado. */
+function OcclusionReport() {
+  const { sessionId } = usePlanning();
+  const [data, setData] = useState<OcclusionOut | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const medir = async () => {
+    if (!sessionId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setData(await api.clipOcclusion(sessionId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo medir el resultado");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ui = data ? OCCLUSION_UI[data.outcome] : null;
+  return (
+    <Card style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <SectionLabel style={{ flex: 1 }}>Cómo queda el aneurisma</SectionLabel>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => void medir()}>
+          {busy ? "Midiendo…" : data ? "Volver a medir" : "Medir"}
+        </Button>
+      </div>
+
+      {!data && !error && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+          Parte el saco por la línea de cierre del clip y mide los dos lados: lo
+          que sale de la circulación y el muñón que sigue comunicado.
+        </div>
+      )}
+
+      {data && ui && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 700, color: ui.color, marginTop: 6 }}>
+            {ui.label}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 4, lineHeight: 1.5 }}>
+            {data.summary}
+          </div>
+          {data.outcome !== "sin_saco" && (
+            <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
+              saco {data.sac_volume_mm3.toFixed(0)} mm³ · fuera{" "}
+              {data.excluded_mm3.toFixed(0)} mm³ · muñón {data.remnant_mm3.toFixed(0)} mm³
+              {data.remnant_width_mm > 0 && ` · ancho ${data.remnant_width_mm.toFixed(1)} mm`}
+            </div>
+          )}
+          {/* Lo que esta medida NO es. Sin esto, «oclusión completa» se lee
+              como una simulación mecánica que nadie ha hecho. */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+            {data.cautions.map((c, i) => (
+              <div key={i} style={{ fontSize: 10.5, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+                — {c}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      <ErrorNote>{error}</ErrorNote>
+    </Card>
+  );
+}
+
+/* ── Lo que el corredor de abordaje atraviesa ──────────────────────────── */
+
+const VERDICT_UI: Record<CorridorAssessmentOut["verdict"],
+                         { label: string; color: string }> = {
+  viable:    { label: "Corredor libre",      color: "var(--success)" },
+  revisar:   { label: "Revisar el corredor", color: "var(--warning)" },
+  no_viable: { label: "Corredor bloqueado",  color: "var(--destructive)" },
+};
+
+function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
+  const v = VERDICT_UI[c.verdict];
+  return (
+    <div style={{
+      marginBottom: 10, padding: "10px 12px", borderRadius: "var(--radius-md)",
+      background: "var(--muted)", borderLeft: `3px solid ${v.color}`,
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: v.color }}>{v.label}</div>
+      <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 4, lineHeight: 1.5 }}>
+        {c.verdict_reason}
+      </div>
+
+      {c.vessels_crossed.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {c.vessels_crossed.map((x, i) => (
+            <div key={i} style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
+              ⌀ {x.calibre_mm.toFixed(1)} mm a {x.distance_from_entry_mm.toFixed(0)} mm de la entrada
+              <span style={{ fontFamily: "var(--font-sans)", color: "var(--muted-foreground)" }}>
+                {x.calibre_source === "barrido" ? " · calibre medido" : " · calibre estimado"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {c.nearest_branch_mm !== null && c.vessels_crossed.length === 0 && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+          Rama más próxima a {c.nearest_branch_mm.toFixed(1)} mm
+          {c.nearest_branch_calibre_mm > 0 && ` (⌀ ${c.nearest_branch_calibre_mm.toFixed(1)} mm)`}.
+        </div>
+      )}
+
+      {/* Lo que se mide y lo que NO se puede medir, en el mismo sitio: un
+          corredor «limpio» dice menos de lo que parece. */}
+      {(c.findings.length > 0 || c.assumptions.length > 0) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+          {c.findings.map((f, i) => (
+            <div key={`f${i}`} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+              — {f}
+            </div>
+          ))}
+          {c.assumptions.map((a, i) => (
+            <div key={`a${i}`} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45, opacity: 0.85 }}>
+              — {a}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Trayectoria de abordaje quirúrgico ────────────────────────────────── */
 function TrajectoryTool() {
   const {
@@ -905,8 +1067,10 @@ function TrajectoryTool() {
     trajEntry, trajTarget, setTrajEntry, setTrajTarget,
   } = usePlanning();
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<{ depth: number; angle: number } | null>(null);
+  const [saved, setSaved] = useState<TrajectoryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sugerencias, setSugerencias] = useState<SuggestCorridorsResult | null>(null);
+  const [sugiriendo, setSugiriendo] = useState(false);
 
   const hasMesh = !!segmentation?.mesh_url;
   const depth = trajEntry && trajTarget
@@ -918,11 +1082,10 @@ function TrajectoryTool() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.setTrajectory(sessionId, {
+      setSaved(await api.setTrajectory(sessionId, {
         entry: { x: trajEntry[0], y: trajEntry[1], z: trajEntry[2] },
         target: { x: trajTarget[0], y: trajTarget[1], z: trajTarget[2] },
-      });
-      setSaved({ depth: res.depth_mm, angle: res.angle_deg });
+      }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar la trayectoria");
     } finally {
@@ -930,10 +1093,35 @@ function TrajectoryTool() {
     }
   };
 
+  /* Que lo proponga el software. Solo bloquea el tejido vascular, y hay dos
+     sectores que ni se miran: por debajo del plano axial —el cuello, la base— y
+     la cara. Un abordaje por la órbita no es peor, es uno que no existe. */
+  const sugerir = async () => {
+    if (!sessionId) return;
+    setSugiriendo(true);
+    setError(null);
+    try {
+      setSugerencias(await api.suggestCorridors(sessionId, {}));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al sugerir corredores");
+    } finally {
+      setSugiriendo(false);
+    }
+  };
+
+  /** Llevar una propuesta a los dos puntos, para verla y poder retocarla. */
+  const usar = (p: ProposedCorridorOut, diana: Position3D) => {
+    setTrajEntry([p.entry.x, p.entry.y, p.entry.z]);
+    setTrajTarget([diana.x, diana.y, diana.z]);
+    setSugerencias(null);
+    setSaved(null);
+  };
+
   const clear = async () => {
     setTrajEntry(null);
     setTrajTarget(null);
     setSaved(null);
+    setSugerencias(null);
     setPickMode(null);
     if (sessionId) { try { await api.clearTrajectory(sessionId); } catch { /* ignore */ } }
   };
@@ -968,12 +1156,94 @@ function TrajectoryTool() {
         {pickBtn("traj_entry", "Entrada", !!trajEntry)}
         {pickBtn("traj_target", "Diana", !!trajTarget)}
       </div>
+
+      <Button
+        size="sm" variant="outline" style={{ width: "100%", marginBottom: 10 }}
+        disabled={!hasMesh || sugiriendo} onClick={() => void sugerir()}
+        leadingIcon={<Icon name="TRAJECTORY" size={14} />}
+      >
+        {sugiriendo ? "Buscando por dónde entrar…" : "Sugerir corredor"}
+      </Button>
+
+      {sugerencias && (
+        <div style={{ marginBottom: 10 }}>
+          {sugerencias.proposals.length === 0 ? (
+            <div style={{
+              fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
+              padding: "8px 10px", borderRadius: "var(--radius-md)",
+              background: "var(--muted)", borderLeft: "3px solid var(--warning)",
+            }}>
+              {/* Sin ejes no se puede descartar un corredor por la órbita, y
+                  proponer a ciegas es peor que no proponer. */}
+              {sugerencias.axes_source === "desconocida"
+                ? sugerencias.axes_note
+                : "Ninguna dirección llega al aneurisma sin cruzar un vaso dentro de los sectores operables."}
+            </div>
+          ) : (
+            <>
+              {sugerencias.proposals.map((p, i) => (
+                <div key={i} style={{
+                  padding: "8px 10px", marginBottom: 6,
+                  borderRadius: "var(--radius-md)", background: "var(--muted)",
+                  borderLeft: `3px solid ${p.corridor.verdict === "viable" ? "var(--success)" : "var(--warning)"}`,
+                }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>
+                      {p.description}
+                    </span>
+                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
+                      {p.depth_mm.toFixed(0)} mm
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
+                    {p.corridor.verdict_reason}
+                  </div>
+                  {!p.entry_on_skin && (
+                    <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.4, opacity: 0.85 }}>
+                      La entrada es el borde de lo que el estudio reconstruye, no la
+                      piel: esto es la dirección, no el punto de la craneotomía.
+                    </div>
+                  )}
+                  <Button size="sm" variant="outline" style={{ marginTop: 6 }}
+                          onClick={() => usar(p, sugerencias.target)}>
+                    Usar esta
+                  </Button>
+                </div>
+              ))}
+              {/* Con qué criterio se han descartado sectores enteros. Sin esto,
+                  una lista de tres direcciones parece un oráculo. */}
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+                  Qué se ha descartado y por qué
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                  {sugerencias.rules.map((r, i) => (
+                    <div key={i} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+                      — {r}
+                    </div>
+                  ))}
+                  {sugerencias.axes_note && (
+                    <div style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.45 }}>
+                      — {sugerencias.axes_note}
+                    </div>
+                  )}
+                </div>
+              </details>
+            </>
+          )}
+        </div>
+      )}
       {depth !== null && (
         <div style={{ fontSize: 12, color: "var(--foreground)", marginBottom: 10 }}>
           Profundidad de abordaje: <b style={{ fontFamily: "var(--font-mono)" }}>{depth.toFixed(1)} mm</b>
-          {saved && <> · Ángulo: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle.toFixed(1)}°</b></>}
+          {saved && <> · Ángulo: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle_deg.toFixed(1)}°</b></>}
         </div>
       )}
+
+      {/* Lo que el corredor atraviesa. Antes esto eran dos puntos y una línea:
+          se guardaba la trayectoria sin mirar qué hay en medio, así que no
+          podía decir si el abordaje es viable. */}
+      {saved?.corridor && <CorridorReport c={saved.corridor} />}
       <ErrorNote>{error}</ErrorNote>
       <div style={{ display: "flex", gap: 8 }}>
         <Button size="sm" style={{ flex: 1 }} disabled={busy || !trajEntry || !trajTarget} onClick={() => void save()} leadingIcon={<Icon name="SAVE" size={14} />}>

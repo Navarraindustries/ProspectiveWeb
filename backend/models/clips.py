@@ -253,6 +253,37 @@ class ClipCaseOut(BaseModel):
     """The measurements the selection was made from, echoed back for the panel."""
 
     neck_mm: float = 0.0
+    required_jaw_mm: float = Field(
+        0.0,
+        description=(
+            "Mordaza mínima que cierra este cuello. NO es el diámetro: al "
+            "cerrarse las hojas el cuello queda aplastado y su línea de cierre "
+            "mide más. Con el contorno medido es su perímetro partido por dos; "
+            "sin él, el diámetro × 1,5 (Neurology India; el estudio numérico de "
+            "2024 mide una deformación de al menos 1,4×)."
+        ),
+    )
+    required_jaw_source: str = Field(
+        "none",
+        description="perimeter (contorno medido) | factor (regla ×1,5) | floor | none",
+    )
+    required_jaw_detail: str = Field("", description="De dónde sale el número, en una frase")
+    approach_angle_deg: float | None = Field(
+        None,
+        description=(
+            "Ángulo del corredor de abordaje establecido contra el eje "
+            "cuello→domo. Null si no hay trayectoria marcada."
+        ),
+    )
+    approach_bend_deg: float | None = Field(
+        None,
+        description=(
+            "La acodadura que ese corredor pide: 90° − el ángulo anterior. Las "
+            "hojas tienen que quedar cruzadas sobre el cuello y el mango salir "
+            "por el corredor; el ángulo entre esas dos direcciones ES la "
+            "acodadura. No es una tabla, es geometría."
+        ),
+    )
     dome_height_mm: float = 0.0
     max_diameter_mm: float = 0.0
     ar: float = 0.0
@@ -289,6 +320,34 @@ class CustomJawOut(BaseModel):
     stl_url: str | None = Field(None, description="STL to send out, once generated")
 
 
+class MultiClipConstructOut(BaseModel):
+    """Un montaje de varios clips para un cuello que ninguna hoja cierra sola.
+
+    Es técnica descrita —tándem apilado, «picket fence» con las hojas solapadas
+    y escalonadas a lo largo del cuello—, no un apaño: en la serie publicada se
+    reconstruyen cuellos gigantes con cuatro y siete clips fenestrados. Lo que
+    aporta aquí es la parte geométrica; cuál de las técnicas corresponde lo
+    decide el cirujano, y eso viaja en `cautions`.
+    """
+
+    n_clips: int = Field(..., ge=2)
+    jaws_mm: list[float] = Field(..., description="La mordaza de cada clip del montaje")
+    required_mm: float = Field(
+        ..., description="La línea de cierre que hay que cubrir (cuello aplastado)")
+    covered_mm: float = Field(
+        ..., description="Lo que cubre el montaje: n·mordaza − (n−1)·solape")
+    overlap_mm: float = Field(
+        ...,
+        description=(
+            "Cuánto monta cada hoja sobre la anterior. SUPUESTO de este "
+            "software: las series describen el solape sin dar la distancia."
+        ),
+    )
+    shape: str = Field("", description="La forma que pide el caso, para todas las piezas")
+    label: str = ""
+    cautions: list[str] = Field(default_factory=list)
+
+
 class ClipSelectionResult(BaseModel):
     """The complete answer for one case.
 
@@ -318,6 +377,16 @@ class ClipSelectionResult(BaseModel):
         description=(
             "Offered when the drawn jaw sizes only bracket what the case needs and "
             "the family is manufactured per case, so an exact jaw is a real option."
+        ),
+    )
+    multiclip: MultiClipConstructOut | None = Field(
+        None,
+        description=(
+            "Varias mordazas que juntas cierran un cuello que ninguna cierra "
+            "sola. Se ofrece JUNTO a la especificación de fabricación, no en su "
+            "lugar: son las dos salidas del mismo callejón, y elegir entre "
+            "mandar fabricar una pieza o poner dos que ya existen es del "
+            "cirujano."
         ),
     )
     caveats: list[str] = Field(
@@ -367,4 +436,42 @@ class ClipAnimationResult(BaseModel):
     position: Position3D = Field(..., description="Final pose: where the clip ends up")
     normal: list[float]
     rotation_deg: float
+    clip_name: str = ""
+    sac_frames: list[str] = Field(
+        default_factory=list,
+        description=(
+            "El saco estrechándose entre las hojas, en fotogramas del 25 % al "
+            "100 % del cierre. ILUSTRACIÓN GEOMÉTRICA: los puntos que caen "
+            "dentro de la presa se llevan hacia el plano medio de las hojas y "
+            "la influencia se apaga con la distancia a la línea de cierre. No "
+            "hay pared que ceda, no se conserva el volumen y no interviene "
+            "ninguna propiedad del clip ni de su material. Lo único cierto del "
+            "dibujo es DÓNDE aplasta y en qué dirección, que salen de la "
+            "geometría del clip colocado."
+        ),
+    )
+    sac_frames_note: str = ""
+
+
+class OcclusionOut(BaseModel):
+    """Cómo queda el aneurisma con el clip puesto.
+
+    Es la mitad contestable de «simular la deformación». Deformar la pared pide
+    su grosor, sus propiedades y la presión intraluminal, y ninguna se mide en
+    la imagen —la pared tiene 0,05–0,5 mm y el vóxel 0,32— ni hay con qué
+    validar el resultado. Lo que sí es contestable, y es la pregunta clínica, es
+    cuánto aneurisma queda.
+    """
+
+    outcome: Literal["completa", "resto_de_cuello", "residual", "sin_saco"]
+    sac_volume_mm3: float = 0.0
+    excluded_mm3: float = Field(0.0, description="Lo que el clip deja fuera de la circulación")
+    remnant_mm3: float = Field(0.0, description="El muñón que sigue comunicado con la arteria")
+    remnant_fraction_pct: float = 0.0
+    remnant_width_mm: float = Field(
+        0.0, description="Anchura del muñón en el plano del cuello")
+    summary: str = ""
+    cautions: list[str] = Field(default_factory=list)
+    remnant_mesh_url: str | None = Field(
+        None, description="El muñón, para pintarlo. Null si no queda nada medible.")
     clip_name: str = ""

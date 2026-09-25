@@ -224,7 +224,10 @@ class TestGeometricVerification:
         assert kept.GetNumberOfPoints() < sac.GetOutput().GetNumberOfPoints()
 
     def test_a_long_blade_fouling_a_neighbour_is_marked_down(self):
-        case = _case(neck_mm=5.0, ar=1.2)
+        # Cuello de 4 mm: la hoja de 7 mm cierra los 6,0 mm que mide una vez
+        # aplastado. Con 5 mm harian falta 7,5 y las DOS hojas comparadas
+        # fallarian la cobertura, que no es lo que esta prueba mira.
+        case = _case(neck_mm=4.0, ar=1.2)
         vessel = _neighbour_tube(6.0)
         short = evaluate_clip(_clip("Yasargil Recto 7mm"), case)
         long_ = evaluate_clip(_clip("Sugita Recto XXL"), case)
@@ -361,7 +364,8 @@ class TestGeometryCanRemoveACandidate:
     def _selection_with_a_failed_candidate(self):
         from services.clip_selection import ClipCandidate, ClipSelection, Criterion
 
-        case = _case(neck_mm=5.0)
+        # Ver arriba: 4 mm es el cuello que la hoja de 7 mm cierra de verdad.
+        case = _case(neck_mm=4.0)
         good = evaluate_clip(_clip("Yasargil Recto 7mm"), case)
         bad = evaluate_clip(_clip("Yasargil Curvo 7mm"), case)
         # What the geometry check does to a clip that collides everywhere.

@@ -82,11 +82,9 @@ def _make_session_with_treatment(sid: str) -> None:
     write_state(sid, "treatment.recommendation",     "TRATAMIENTO ENDOVASCULAR")
     write_state(sid, "treatment.recommendation_key", "endo")
     write_state(sid, "treatment.confidence",         "Alta")
-    write_state(sid, "treatment.clip_pct",           "28")
-    write_state(sid, "treatment.endo_pct",           "72")
     factors = [
-        {"name": "Diámetro > 7 mm", "direction": "endo", "points": 2},
-        {"name": "Cuello < 4 mm",   "direction": "endo", "points": 1},
+        {"name": "Diámetro > 7 mm", "direction": "endo"},
+        {"name": "Cuello < 4 mm",   "direction": "endo"},
     ]
     write_state(sid, "treatment.factors_json", json.dumps(factors))
 
@@ -260,9 +258,12 @@ class TestTreatmentStatePersistence:
 
         assert read_state(sid, "treatment.recommendation_key") in ("clip", "endo", "mdt", "surveillance")
         assert read_state(sid, "treatment.confidence")         in ("Alta", "Moderada", "Baja")
-        assert read_state(sid, "treatment.clip_pct")           != ""
-        assert read_state(sid, "treatment.endo_pct")           != ""
         assert read_state(sid, "treatment.factors_json")       != ""
+        # Y lo que ya NO se guarda: el sumatorio del motor. Se retiró de la
+        # pantalla y del informe, y dejarlo en el estado era dejar la puerta
+        # abierta a que volviera por ahí.
+        assert read_state(sid, "treatment.clip_pct")           == ""
+        assert read_state(sid, "treatment.clip_points")        == ""
 
     def test_treatment_factors_json_parseable(self):
         """Serialised factors can be parsed back as a list of dicts."""
@@ -283,7 +284,7 @@ class TestTreatmentStatePersistence:
             f = factors[0]
             assert "name"      in f
             assert "direction" in f
-            assert "points"    in f
+            assert "points" not in f, "un factor con su peso dentro es un puntaje"
 
 
 # ── C. STL export ─────────────────────────────────────────────────────────── #
@@ -451,7 +452,7 @@ class TestBuildReportData:
         _make_session_with_treatment(sid)
         data = build_report_data_from_session(sid)
         assert data.treatment["recommendation_key"] == "endo"
-        assert data.treatment["clip_pct"] == 28
+        assert "clip_pct" not in data.treatment
         assert len(data.treatment["factors"]) == 2
 
     def test_treatment_empty_when_not_run(self):

@@ -210,11 +210,15 @@ class TestThePhasesScoreTravelsFromTheMorphometryStep:
         assert self._decide(self._session(HIGH))["recommendation_key"] == "mdt"
         assert self._decide(self._session(LOW))["recommendation_key"] == "surveillance"
 
-    def test_the_notes_and_the_points_are_persisted_for_the_report(self):
+    def test_the_reasoning_is_persisted_and_the_sum_is_not(self):
+        # Las notas son el razonamiento y viajan al informe. El sumatorio ya no
+        # se guarda: no se enseña ni se imprime, y dejarlo en el estado era
+        # dejar la puerta abierta a que volviera por el PDF.
         sid = self._session(HIGH)
         self._decide(sid)
         assert json.loads(read_state(sid, "treatment.notes_json", "[]"))
-        assert read_state(sid, "treatment.clip_points", "") != ""
+        assert read_state(sid, "treatment.clip_points", "") == ""
+        assert read_state(sid, "treatment.clip_pct", "") == ""
 
     def test_the_sources_are_persisted_with_the_factors(self):
         sid = self._session(LOW)
@@ -222,6 +226,9 @@ class TestThePhasesScoreTravelsFromTheMorphometryStep:
         self._decide(sid)
         factors = json.loads(read_state(sid, "treatment.factors_json", "[]"))
         assert factors and all(f.get("source") for f in factors)
+        assert not any("points" in f for f in factors), (
+            "un factor con su peso dentro es un puntaje por la puerta de atrás"
+        )
 
     def test_clearing_the_decision_also_clears_them(self):
         sid = self._session(HIGH)
@@ -314,7 +321,12 @@ class TestTheScoreSaysHowMuchOfTheCaseItSaw:
                                 ruptured=True, patient_age=82)
         assert any("Edad" in f["name"] for f in electivo["factors"])
         assert not any("Edad" in f["name"] for f in roto["factors"])
-        assert roto["jsdb"]["clip"]["points"] >= 1, "pero el JSDB sí la cuenta"
+        # Los puntos del JSDB ya no salen serializados — no se enseñan— así que
+        # se comprueban donde viven ahora, que es el objeto del modelo.
+        from services.jsdb import jsdb_scores
+        jr = jsdb_scores(ruptured=True, age=82, location=LOCATION_MCA,
+                         max_diameter_mm=self.MORFO["max_diameter_mm"])
+        assert jr.clip.points >= 1, "pero el JSDB sí la cuenta"
         assert "edad del paciente" not in roto["missing_inputs"]
 
 
@@ -346,27 +358,32 @@ class TestTheClinicalGradesAndTheWeightOfRupture:
         malo = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
                                 ruptured=True, wfns_grade=5)
         assert malo["balance"] == base["balance"]
-        assert malo["jsdb"]["clip"]["points"] > base["jsdb"]["clip"]["points"]
-        assert malo["jsdb"]["coil"]["points"] > base["jsdb"]["coil"]["points"]
+        # El modelo sigue contándolo por dentro, que es lo que se comprueba:
+        # sus puntos ya no se serializan porque no se enseñan.
+        from services.jsdb import jsdb_scores
+        jr_base = jsdb_scores(ruptured=True, location=LOCATION_MCA)
+        jr_malo = jsdb_scores(ruptured=True, location=LOCATION_MCA, wfns_grade=5)
+        assert jr_malo.clip.points > jr_base.clip.points
+        assert jr_malo.coil.points > jr_base.coil.points
 
     def test_a_poor_grade_is_shown_even_though_it_does_not_vote_here(self):
         # Borrarlo de la pantalla porque cambió de dueño lo escondería.
         malo = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
                                 ruptured=True, wfns_grade=5)
         grado = [f for f in malo["factors"] if "Grado clínico" in f["name"]]
-        assert grado and grado[0]["points"] == 0 and not grado[0]["votes"]
+        assert grado and not grado[0]["votes"]
         assert "WFNS 5" in grado[0]["name"]
 
     def test_fisher_four_penalises_only_the_endovascular_arm(self):
         # Sangre voluminosa: el modelo penaliza ahí al coiling, porque el
         # clipaje permite evacuarla en el mismo acto. Es asimétrico, y el peso
         # heurístico de 10 puntos que había no capturaba esa asimetría.
-        sin_ = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
-                                ruptured=True, wfns_grade=5)
-        con = compute_decision(**self.NEUTRAL, location=LOCATION_MCA,
-                               ruptured=True, wfns_grade=5, fisher_grade=4)
-        assert con["jsdb"]["coil"]["points"] > sin_["jsdb"]["coil"]["points"]
-        assert con["jsdb"]["clip"]["points"] == sin_["jsdb"]["clip"]["points"]
+        from services.jsdb import jsdb_scores
+        sin_ = jsdb_scores(ruptured=True, location=LOCATION_MCA, wfns_grade=5)
+        con = jsdb_scores(ruptured=True, location=LOCATION_MCA, wfns_grade=5,
+                          fisher_grade=4)
+        assert con.coil.points > sin_.coil.points
+        assert con.clip.points == sin_.clip.points
 
     def test_the_grades_are_ignored_on_an_unruptured_aneurysm(self):
         # No es que se descarten por prudencia: es que no existen.

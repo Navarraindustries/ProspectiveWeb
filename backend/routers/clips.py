@@ -21,10 +21,13 @@ from models.clips import (
     ClipSelectionResult,
     CustomJawOut,
     ManufactureSpecOut,
+    MultiClipConstructOut,
+    OcclusionOut,
 )
 from services.clips   import catalogue_to_api
 from services.clip_manufacture import resolve_perfect_clip
 from services.clip_selection import (
+    bend_for_approach,
     ClipCandidate,
     ClipCase,
     ClipSelection,
@@ -634,14 +637,30 @@ def _build_case(session_id: str, case_id: int | None) -> ClipCase:
     """Assemble everything that changes which clip fits, from what was measured."""
     region, laterality, aneurysm_type = _case_record(session_id, case_id)
     neck_source = read_state(session_id, "morpho.neck_source", "auto") or "auto"
+
+    # El corredor de abordaje, si se ha establecido uno. Su ángulo contra el eje
+    # cuello→domo decide qué acodadura necesita la pieza para que las hojas
+    # queden cruzadas sobre el cuello con el mango saliendo por donde entra la
+    # mano. Sin trayectoria marcada no hay criterio, en vez de suponer una.
+    angulo_abordaje = None
+    try:
+        from services.report_generator import read_trajectory_state
+        tr = read_trajectory_state(session_id)
+        if tr:
+            angulo_abordaje = float(tr.get("angle_deg", 0.0))
+    except Exception as exc:  # noqa: BLE001 — la selección no se hunde por esto
+        logger.warning("Approach angle unavailable for %s: %s", session_id, exc)
     return ClipCase(
         neck_mm          = _load_float(session_id, "morpho.neck_mm", 0.0),
+        # El contorno medido manda sobre la regla de x1,5 cuando existe.
+        neck_perimeter_mm= _load_float(session_id, "morpho.neck_perimeter_mm", 0.0),
         dome_height_mm   = _load_float(session_id, "morpho.dome_height_mm", 0.0),
         max_diameter_mm  = _load_float(session_id, "morpho.max_diameter_mm", 0.0),
         ar               = _load_float(session_id, "morpho.ar", 0.0),
         dnr              = _load_float(session_id, "morpho.dnr", 0.0),
         bf               = _load_float(session_id, "morpho.bf", 0.0),
         parent_artery_mm = _load_float(session_id, "morpho.parent_artery_mm", 0.0),
+        approach_angle_deg = angulo_abordaje,
         neck_source      = neck_source,
         neck_tilt_deg    = _load_float(session_id, "morpho.neck_tilt_deg", 0.0),
         # An automatic neck on a detector cap is exactly the case where the
@@ -779,11 +798,28 @@ async def clip_selection(
         outcome     = selection.outcome,
         summary     = selection.summary,
         case        = ClipCaseOut(
-            neck_mm=c.neck_mm, dome_height_mm=c.dome_height_mm,
+            neck_mm=c.neck_mm,
+            required_jaw_mm=c.jaw_requirement.mm,
+            required_jaw_source=c.jaw_requirement.source,
+            required_jaw_detail=c.jaw_requirement.detail,
+            approach_angle_deg=c.approach_angle_deg,
+            approach_bend_deg=(None if c.approach_angle_deg is None
+                               else round(bend_for_approach(c.approach_angle_deg), 1)),
+            dome_height_mm=c.dome_height_mm,
             max_diameter_mm=c.max_diameter_mm, ar=c.ar, dnr=c.dnr,
             parent_artery_mm=c.parent_artery_mm, neck_source=c.neck_source,
             neck_tilt_deg=c.neck_tilt_deg, region=c.region,
             laterality=c.laterality, aneurysm_type=c.aneurysm_type,
+        ),
+        multiclip   = None if selection.multiclip is None else MultiClipConstructOut(
+            n_clips=selection.multiclip.n_clips,
+            jaws_mm=list(selection.multiclip.jaws_mm),
+            required_mm=round(selection.multiclip.required_mm, 2),
+            covered_mm=round(selection.multiclip.covered_mm, 2),
+            overlap_mm=selection.multiclip.overlap_mm,
+            shape=selection.multiclip.shape,
+            label=selection.multiclip.label,
+            cautions=list(selection.multiclip.cautions),
         ),
         recommended = [_candidate_out(x) for x in selection.recommended],
         rejected    = [_candidate_out(x) for x in selection.rejected],
@@ -1073,8 +1109,62 @@ async def clip_animation(
             float(blade_mm) + 14.0,
         )
 
-    logger.info("Clip animation — session=%s clip=%s swing=%.1f marked_path=%s",
-                session_id, pl.clip_id, swing, marked)
+    # ── El saco estrechándose, como ilustración ───────────────────────── #
+    #
+    # Pedido así: solo la geometría, sin propiedades físicas ni mecánicas del
+    # clip ni de su material. Los fotogramas se calculan aquí porque es donde
+    # están las dos direcciones que hacen falta y que NO son un parámetro: la
+    # dirección en la que se juntan las hojas y la de su longitud, ambas leídas
+    # del propio clip y llevadas a su pose.
+    sac_frames: list[str] = []
+    sac_note = ""
+    sac_name = read_state(session_id, "morpho.sac_vtp_name", "")
+    sac_path = meshes_dir / (sac_name or "aneurysm_sac.vtp")
+    if sac_path.exists():
+        try:
+            # `devices` se importa aquí dentro, como en el resto del fichero.
+            # Faltaba, y como el fallo se traga abajo («un dibujo no hunde el
+            # ensayo»), el saco constreñido NUNCA se calculaba en producción:
+            # el ensayo salía sin deformación y el log solo decía
+            # «Sac constriction frames skipped: name 'devices' is not defined».
+            # Visto en el navegador con el caso real, no en las pruebas.
+            from services import devices
+            from services.clip_outcome import constrict_sac
+            from services.segmentation import read_vtp as _read_vtp
+
+            t_pose = devices.pose_transform(
+                (pl.position.x, pl.position.y, pl.position.z), normal, pl.rotation_deg)
+            m = t_pose.GetMatrix()
+
+            def _dir(eje: int) -> tuple[float, float, float]:
+                """Un eje local del clip, llevado al mundo (solo rotación)."""
+                loc = [0.0, 0.0, 0.0]
+                loc[eje] = 1.0
+                return tuple(
+                    sum(m.GetElement(r, c) * loc[c] for c in range(3)) for r in range(3)
+                )
+
+            saco = _read_vtp(sac_path)
+            for k, t in enumerate((0.25, 0.5, 0.75, 1.0), start=1):
+                deformado = constrict_sac(
+                    saco, (pl.position.x, pl.position.y, pl.position.z),
+                    _dir(geom["open_axis"]), _dir(geom["long_axis"]),
+                    float(blade_mm), t,
+                )
+                fn = f"anim_sac_{k}.vtp"
+                write_vtp(deformado, meshes_dir / fn)
+                sac_frames.append(f"{mesh_url(session_id, fn)}?v={stamp}")
+            sac_note = (
+                "Ilustración geométrica: el saco se lleva hacia el plano medio "
+                "de las hojas dentro de la presa. No hay pared que ceda, no se "
+                "conserva el volumen y no interviene ninguna propiedad del clip "
+                "ni de su material."
+            )
+        except Exception as exc:  # noqa: BLE001 — un dibujo no hunde el ensayo
+            logger.warning("Sac constriction frames skipped: %s", exc)
+
+    logger.info("Clip animation — session=%s clip=%s swing=%.1f marked_path=%s frames=%d",
+                session_id, pl.clip_id, swing, marked, len(sac_frames))
     return ClipAnimationResult(
         body_url=names["body"], blade_a_url=names["blade_a"], blade_b_url=names["blade_b"],
         hinge=Position3D(x=hinge[0], y=hinge[1], z=hinge[2]),
@@ -1090,4 +1180,103 @@ async def clip_animation(
         normal=list(normal),
         rotation_deg=pl.rotation_deg,
         clip_name=spec.name if spec is not None else pl.clip_id,
+        sac_frames=sac_frames,
+        sac_frames_note=sac_note,
+    )
+
+
+# ── Cómo queda el aneurisma con el clip puesto ──────────────────────────────── #
+
+@router.get(
+    "/clips/occlusion/{session_id}",
+    response_model=OcclusionOut,
+    summary="How much aneurysm is left once the placed clip closes",
+    description=(
+        "Splits the isolated sac at the level where the clip closes and measures "
+        "both sides: what leaves the circulation and what stays connected to the "
+        "parent artery — the remnant.\n\n"
+        "This is the answerable half of «simulate the deformation». A wall "
+        "deformation needs the wall's thickness, its mechanical properties and "
+        "the intraluminal pressure; none is measurable here (the wall is "
+        "0.05–0.5 mm and the voxel 0.32) and there is nothing to validate it "
+        "against. What IS answerable, and is the clinical question, is how much "
+        "aneurysm is left: complete occlusion, neck remnant, or residual "
+        "aneurysm.\n\n"
+        "Geometry, not mechanics. It does not model how the wall yields."
+    ),
+)
+async def clip_occlusion(session_id: str) -> OcclusionOut:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+
+    from services.clip_outcome import occlusion_after_clip
+    from services.segmentation import read_vtp, write_vtp
+
+    meshes_dir = session_subdir(session_id, "meshes")
+    sac_name = read_state(session_id, "morpho.sac_vtp_name", "")
+    sac_path = meshes_dir / (sac_name or "aneurysm_sac.vtp")
+    sac = read_vtp(sac_path) if sac_path.exists() else None
+
+    eje = (
+        _load_float(session_id, "morpho.axis_x", 0.0),
+        _load_float(session_id, "morpho.axis_y", 0.0),
+        _load_float(session_id, "morpho.axis_z", 1.0),
+    )
+    cuello = (
+        _load_float(session_id, "morpho.neck_origin_x", 0.0),
+        _load_float(session_id, "morpho.neck_origin_y", 0.0),
+        _load_float(session_id, "morpho.neck_origin_z", 0.0),
+    )
+
+    from services.device_state import read_clips
+    colocados = read_clips(session_id)
+    if not colocados:
+        raise HTTPException(
+            status_code=409,
+            detail=("No hay ningún clip colocado. Coloca uno en Dispositivos "
+                    "para medir cómo queda el aneurisma."))
+
+    # Con varios clips manda el MÁS PROXIMAL: es su línea de cierre la que
+    # separa el saco de la arteria, y lo que quede por encima ya está excluido
+    # por él. Con un montaje en fila es una aproximación del conjunto, y se dice.
+    import numpy as _np
+    n = _np.asarray(eje, dtype=float)
+    n = n / (float(_np.linalg.norm(n)) or 1.0)
+    origen_cuello = _np.asarray(cuello, dtype=float)
+
+    def _altura(c) -> float:
+        p = _np.asarray(c.get("position", [0.0, 0.0, 0.0]), dtype=float)
+        return float(_np.dot(p - origen_cuello, n))
+
+    proximal = min(colocados, key=_altura)
+    corte = _np.asarray(proximal.get("position", [0.0, 0.0, 0.0]), dtype=float)
+
+    res = occlusion_after_clip(sac, tuple(corte), tuple(n),
+                               neck_origin=cuello, neck_axis=tuple(n))
+
+    # El muñón, para pintarlo: es lo único de esta medida que se ve.
+    remnant_url = None
+    if res.remnant_poly is not None and res.remnant_poly.GetNumberOfPoints() > 0:
+        nombre = "aneurysm_remnant.vtp"
+        write_vtp(res.remnant_poly, meshes_dir / nombre)
+        remnant_url = f"{mesh_url(session_id, nombre)}?v={int(time.time() * 1000)}"
+
+    avisos = list(res.cautions)
+    if len(colocados) > 1:
+        avisos.insert(0, (
+            f"Hay {len(colocados)} clips colocados y la medida usa la línea de "
+            f"cierre del más proximal. Para un montaje en fila es una "
+            f"aproximación del conjunto."))
+
+    return OcclusionOut(
+        outcome=res.outcome,
+        sac_volume_mm3=res.sac_volume_mm3,
+        excluded_mm3=res.excluded_mm3,
+        remnant_mm3=res.remnant_mm3,
+        remnant_fraction_pct=round(res.remnant_fraction * 100, 1),
+        remnant_width_mm=res.remnant_width_mm,
+        summary=res.summary,
+        cautions=avisos,
+        remnant_mesh_url=remnant_url,
+        clip_name=str(proximal.get("name", "")),
     )

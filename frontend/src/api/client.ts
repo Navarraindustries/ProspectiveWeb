@@ -55,6 +55,7 @@ import type {
   Position3D,
   RegionEraseResult,
   MorphometryResult,
+  OcclusionOut,
   NeckPlaneRequest,
   PatientCreate,
   PatientDetail,
@@ -89,6 +90,8 @@ import type {
   StudyCreate,
   StudySummary,
   SuggestedBand,
+  SuggestCorridorsRequest,
+  SuggestCorridorsResult,
   TrajectoryRequest,
   TrajectoryResult,
   TreatmentDecisionRequest,
@@ -333,8 +336,21 @@ export const api = {
     post<CrossSectionResult>(`/api/cross-section/${sessionId}`, req),
   deployClStent: (sessionId: string, req: ClStentRequest) =>
     post<ClStentResult>(`/api/cl-stent/${sessionId}`, req),
+  /** Cuánto aneurisma queda con el clip colocado: oclusión completa, resto de
+   *  cuello o residual. Geometría, no mecánica. */
+  clipOcclusion: (sessionId: string) =>
+    get<OcclusionOut>(`/api/clips/occlusion/${sessionId}`),
   setTrajectory: (sessionId: string, req: TrajectoryRequest) =>
     post<TrajectoryResult>(`/api/trajectory/${sessionId}`, req),
+  /** Por dónde entrar: barre direcciones y devuelve las despejadas que además
+   *  se pueden operar. Sin la orientación del paciente no propone nada. */
+  suggestCorridors: (sessionId: string, req: SuggestCorridorsRequest = {}) =>
+    post<SuggestCorridorsResult>(`/api/trajectory/${sessionId}/suggest`, req),
+  /** La trayectoria guardada, o null. La necesita una sesión reanudada: sin
+   *  esto el ensayo volvía a su corredor por defecto aunque hubiera uno
+   *  establecido y el informe lo imprimiera. */
+  getTrajectory: (sessionId: string) =>
+    get<TrajectoryResult | null>(`/api/trajectory/${sessionId}`),
   clearTrajectory: (sessionId: string) =>
     request<void>(`/api/trajectory/${sessionId}`, { method: "DELETE" }),
   preprocess: (sessionId: string, req: PreprocessRequest) =>

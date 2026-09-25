@@ -467,11 +467,74 @@ export interface TrajectoryRequest {
   target: Position3D;
 }
 
+/** Un vaso que el corredor atraviesa antes de llegar al aneurisma. */
+export interface VesselCrossingOut {
+  distance_from_entry_mm: number;
+  position: Position3D;
+  calibre_mm: number;
+  /** "barrido" = calibre medido; "malla" = estimado por la cuerda del rayo. */
+  calibre_source: string;
+}
+
+/** Qué hay dentro del corredor de abordaje, y qué se concluye de ello.
+
+    Tres estados, por reglas explícitas sobre lo medido. No hay puntuación: la
+    misma razón por la que el motor de tratamiento dejó de enseñarlas. */
+export interface CorridorAssessmentOut {
+  radius_mm: number;
+  vessels_crossed: VesselCrossingOut[];
+  nearest_branch_mm: number | null;
+  nearest_branch_calibre_mm: number;
+  /** Milímetros por material denso que NO es vasculatura, casi siempre hueso.
+      No se llama hueso porque no se separa del contraste por intensidad. */
+  dense_tissue_mm: number;
+  /** False en un estudio sustraído: ahí no hay tejido en la imagen. */
+  dense_tissue_measurable: boolean;
+  verdict: "viable" | "revisar" | "no_viable";
+  verdict_reason: string;
+  findings: string[];
+  assumptions: string[];
+}
+
+/** Una dirección de abordaje que el software propone. */
+export interface ProposedCorridorOut {
+  entry: Position3D;
+  direction: number[];
+  depth_mm: number;
+  /** La dirección dicha en anatomía, no en coordenadas. */
+  description: string;
+  /** False = la entrada es el borde del volumen reconstruido, no la piel. En
+      una 3DRA el campo no llega al cuero cabelludo, así que lo que se propone
+      es la DIRECCIÓN, no el punto de la craneotomía. */
+  entry_on_skin: boolean;
+  corridor: CorridorAssessmentOut;
+}
+
+export interface SuggestCorridorsRequest {
+  target?: Position3D;
+  radius_mm?: number;
+  top?: number;
+}
+
+export interface SuggestCorridorsResult {
+  proposals: ProposedCorridorOut[];
+  target: Position3D;
+  /** dicom · dicom_sin_verificar · desconocida. Sin ejes no se propone nada:
+      no se podría garantizar que el corredor no entre por la cara. */
+  axes_source: string;
+  axes_note: string;
+  /** Los sectores descartados por no ser operables, dichos. */
+  rules: string[];
+}
+
 export interface TrajectoryResult {
   entry: number[];
   target: number[];
   depth_mm: number;
   angle_deg: number;
+  /** Null mientras no haya malla: sin ella no hay contra qué cruzar nada, y un
+      «viable» sin haber mirado sería peor que no dar veredicto. */
+  corridor: CorridorAssessmentOut | null;
 }
 
 /* ── DICOM volume preprocessing ────────────────────────────────────────── */
@@ -558,7 +621,7 @@ export interface AneurysmCandidate {
   dome_mesh_url: string;
   selected: boolean;
   /** Qué criterios encontraron este sitio: «curvatura» (la superficie se
-      abomba), «calibre» (es más gruesa que el resto del árbol) y «cociente»
+      abomba), «calibre» (es más gruesa que el resto de la vasculatura) y «cociente»
       (más gruesa que el vaso de al lado). Que coincidan varios es información;
       el ORDEN no está validado contra casos anotados. */
   channels: string[];
@@ -708,11 +771,11 @@ export interface DecisionFactor {
   name: string;
   detail: string;
   direction: "clip" | "endo" | "neutral";
-  points: number;
-  /** De dónde sale el umbral y de dónde el peso. Rara vez del mismo sitio. */
+  /** De dónde sale el umbral. El peso ya no viaja: el motor lo suma por dentro
+      y no lo publica. */
   source: string;
-  /** False para lo que se enseña y no suma: los índices de forma, que vienen de
-      literatura de riesgo de rotura y describen la vía endovascular en vez de
+  /** False para lo que se enseña y no influye: los índices de forma, que vienen
+      de literatura de riesgo de rotura y describen la vía endovascular en vez de
       elegir modalidad. Borrarlos los escondería; enseñarlos los deja discutibles. */
   votes: boolean;
 }
@@ -741,14 +804,17 @@ export interface EndovascularProfile {
   sources: string[];
 }
 
-/** Una de las dos puntuaciones del Japan Stroke Data Bank. Más puntos es peor:
-    estima el riesgo de mal resultado al alta (mRS > 2) POR ESA VÍA. */
+/** Una de las dos vías valoradas por el Japan Stroke Data Bank: qué la penaliza
+    en ESTE paciente, de cara al riesgo de mal resultado al alta (mRS > 2).
+
+    Sin puntos. El modelo puntúa por dentro —así está construido— pero sus
+    autores no publican bandas ni un AUC, así que un «4 frente a 2» en pantalla
+    se lee como el doble de riesgo, que es justo lo que el modelo no dice. Lo
+    que sostiene es la comparación, y esa viaja en `verdict`. */
 export interface JsdbArm {
   arm: "clip" | "coil";
   label: string;
-  points: number;
-  max_points: number;
-  items: { label: string; points: number; detail: string }[];
+  items: { label: string; detail: string }[];
   missing: string[];
 }
 
@@ -789,13 +855,11 @@ export interface TreatmentDecisionRequest {
 }
 
 export interface TreatmentDecisionResult {
-  /** Los puntos que de verdad se han sumado. */
-  clip_points: number;
-  endo_points: number;
-  /** Su cociente normalizado a 100. Sirve para dibujar la barra, no para leerlo
-      como una probabilidad: son pesos heurísticos, no frecuencias. */
-  clip_pct: number;
-  endo_pct: number;
+  /* Sin puntuaciones. El motor suma pesos por dentro —de ahí sale la
+     recomendación— pero el sumatorio no sale del backend: un «CLIP 72 %» se lee
+     como una probabilidad o como la proporción de pacientes a los que les fue
+     mejor, y es el cociente de dos sumas con pesos elegidos a mano. Lo que el
+     motor sostiene es la recomendación y los factores que la empujan. */
   /** Razonamiento que no es un factor puntuado: por qué un aneurisma pequeño es
       —o no— un caso de vigilancia, y qué dice el PHASES al respecto. */
   notes: string[];
@@ -811,7 +875,6 @@ export interface TreatmentDecisionResult {
   /** Null si no está roto: el modelo se derivó sólo sobre hemorragias, así que
       sobre un incidental no dice nada — y eso no es un hueco. */
   jsdb: Jsdb | null;
-  balance: number;
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";
   confidence: "Alta" | "Moderada" | "Baja";
@@ -924,8 +987,41 @@ export interface ManufactureSpecOut {
   dossier_workshop_url: string | null;
 }
 
+/** Cómo queda el aneurisma con el clip puesto.
+
+    Es la mitad contestable de «simular la deformación»: deformar la pared pide
+    su grosor, sus propiedades y la presión intraluminal, y ninguna se mide en
+    la imagen. Lo que sí se puede medir es cuánto aneurisma queda. */
+export interface OcclusionOut {
+  outcome: "completa" | "resto_de_cuello" | "residual" | "sin_saco";
+  sac_volume_mm3: number;
+  /** Lo que el clip deja fuera de la circulación. */
+  excluded_mm3: number;
+  /** El muñón que sigue comunicado con la arteria: lo que de verdad importa. */
+  remnant_mm3: number;
+  remnant_fraction_pct: number;
+  remnant_width_mm: number;
+  summary: string;
+  cautions: string[];
+  remnant_mesh_url: string | null;
+  clip_name: string;
+}
+
 export interface ClipCaseOut {
   neck_mm: number;
+  /** Mordaza mínima que cierra este cuello: NO es el diámetro, sino lo que
+   *  mide el cuello una vez aplastado entre las hojas. */
+  required_jaw_mm: number;
+  /** perimeter (contorno medido) · factor (regla ×1,5) · floor · none */
+  required_jaw_source: string;
+  required_jaw_detail: string;
+  /** Ángulo del corredor establecido contra el eje cuello→domo. Null sin
+      trayectoria marcada. */
+  approach_angle_deg: number | null;
+  /** La acodadura que ese corredor pide: 90° menos el ángulo anterior. Las
+      hojas quedan cruzadas sobre el cuello y el mango sale por el corredor; el
+      ángulo entre esas dos direcciones ES la acodadura. Geometría, no tabla. */
+  approach_bend_deg: number | null;
   dome_height_mm: number;
   max_diameter_mm: number;
   ar: number;
@@ -973,9 +1069,36 @@ export interface ClipAnimationResult {
   normal: number[];
   rotation_deg: number;
   clip_name: string;
+  /** El saco estrechándose entre las hojas, del 25 % al 100 % del cierre.
+   *  ILUSTRACIÓN GEOMÉTRICA: no hay pared que ceda, no se conserva el volumen y
+   *  no interviene ninguna propiedad del clip ni de su material. Lo único
+   *  cierto del dibujo es dónde aplasta y en qué dirección. */
+  sac_frames: string[];
+  sac_frames_note: string;
 }
 
 export type ClipOutcome = "stock" | "marginal" | "manufacture" | "unmeasured";
+
+/** Varias mordazas que juntas cierran un cuello que ninguna cierra sola.
+
+    Es técnica descrita —tándem apilado, «picket fence» con las hojas solapadas
+    y escalonadas a lo largo del cuello—, no un apaño. Lo que aporta el software
+    es la geometría: cuántas mordazas cubren la línea de cierre y con qué
+    solape. Qué técnica corresponde lo decide el cirujano, y eso va en
+    `cautions`. */
+export interface MultiClipConstructOut {
+  n_clips: number;
+  jaws_mm: number[];
+  /** La línea de cierre a cubrir: el cuello APLASTADO, no su diámetro. */
+  required_mm: number;
+  /** n·mordaza − (n−1)·solape. Sumar las hojas a pelo dejaría un hueco. */
+  covered_mm: number;
+  /** SUPUESTO del software: las series describen el solape sin dar distancia. */
+  overlap_mm: number;
+  shape: string;
+  label: string;
+  cautions: string[];
+}
 
 export interface ClipSelectionResult {
   outcome: ClipOutcome;
@@ -985,6 +1108,9 @@ export interface ClipSelectionResult {
   rejected: ClipCandidateOut[];
   manufacture: ManufactureSpecOut | null;
   custom_jaw: CustomJawOut | null;
+  /** Acompaña a `manufacture`, no la sustituye: son las dos salidas de un
+      cuello que el inventario no cubre. */
+  multiclip: MultiClipConstructOut | null;
   caveats: string[];
 }
 

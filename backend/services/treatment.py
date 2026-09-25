@@ -732,10 +732,9 @@ def compute_decision(
             out["notes"].append(
                 f"DISCREPANCIA: la geometría y la guía inclinan hacia "
                 f"{'clipaje' if rec_key == 'clip' else 'tratamiento endovascular'}, "
-                f"pero el perfil clínico de este paciente puntúa mejor para "
-                f"{otra} en el modelo del Japan Stroke Data Bank "
-                f"({jr.clip.points} clipaje frente a {jr.coil.points} "
-                f"endovascular). Los dos miran cosas distintas y ninguno ve lo "
+                f"pero el perfil clínico de este paciente sale menos "
+                f"penalizado con {otra} en el modelo del Japan Stroke Data "
+                f"Bank. Los dos miran cosas distintas y ninguno ve lo "
                 f"del otro: el modelo no tiene una sola variable morfológica y "
                 f"el motor no está ajustado sobre desenlaces. Caso de sesión "
                 f"multidisciplinar."
@@ -760,10 +759,14 @@ def _to_dict(d: _Decision) -> dict[str, Any]:
         for f in d.factors
     ]
     return {
-        # Los puntos, además del cociente. La barra «CLIP 72 % · ENDO 28 %» se
-        # lee como una probabilidad y no lo es: es la proporción de unos puntos
-        # heurísticos normalizada a 100. Publicar el crudo permite enseñar lo que
-        # de verdad se ha sumado.
+        # ── Estas cuatro claves NO salen del backend ──────────────────────── #
+        #
+        # El modelo de respuesta (`TreatmentDecisionResult`) ya no las declara,
+        # así que Pydantic las descarta, y el router no las guarda en el estado.
+        # Siguen aquí porque el motor las usa para decidir y porque las pruebas
+        # comprueban invariantes sobre ellas —que el JSDB no mueve el saldo, que
+        # un WFNS malo ya no lo mueve, que la edad sí—. Si alguna vez vuelven a
+        # una pantalla, que sea una decisión, no un descuido.
         "clip_points":        d.clip_raw,
         "endo_points":        d.endo_raw,
         "clip_pct":           d.clip_pct,

@@ -5,6 +5,7 @@
    surface (for centreline endpoints) and small sphere markers. */
 
 import { useEffect, useRef, useState } from "react";
+import { geometryKey, sceneKey } from "./sceneKeys";
 import { markerRadiusMm, RULER_BEAD_RATIO, RULER_TUBE_RATIO } from "./markerSize";
 
 import "@kitware/vtk.js/Rendering/Profiles/Geometry";
@@ -54,6 +55,12 @@ export interface MeshLine {
   a: [number, number, number];
   b: [number, number, number];
   color: Vector3;
+  /** Radio en mm. Una regla es una línea, pero el corredor de abordaje es un
+   *  VOLUMEN: el clip y el aplicador tienen que caber por él, y dibujarlo como
+   *  un hilo no enseña eso. Por defecto, el grosor de regla de siempre. */
+  radiusMm?: number;
+  /** Translúcido para el corredor, que si no tapa la malla que hay detrás. */
+  opacity?: number;
 }
 
 /** Standard viewpoints, named for the MPR planes the rest of the app uses.
@@ -164,6 +171,12 @@ export function MeshView({
   const markerActors = useRef<vtkActor[]>([]);
   // Actors that carry a layer id, so the rehearsal can move them by name.
   const namedActors = useRef<Map<string, vtkActor>>(new Map());
+  // Qué fichero tiene cargado ahora mismo cada capa CON NOMBRE. Una capa con
+  // nombre puede cambiar de geometría sin reconstruir la escena.
+  const loadedUrlById = useRef<Map<string, string>>(new Map());
+  // Sube al terminar de cargar la escena: el cambio de geometría en sitio se
+  // reintenta entonces, porque hasta ese momento no hay actores que tocar.
+  const [sceneEpoch, setSceneEpoch] = useState(0);
   const boxActor = useRef<vtkActor | null>(null);
   const cropActor = useRef<vtkActor | null>(null);
   const layerMappers = useRef<vtkMapper[]>([]);
@@ -199,10 +212,17 @@ export function MeshView({
   // opacity/color tweak (those update the existing actors incrementally). This
   // keeps a heavy mesh from reloading (and flashing black) when the pick mode
   // just dims it.
-  const key = layers.map((l) => l.url).join(";") + `#${focusUrl ?? ""}`;
-  const appearanceKey = layers.map((l) => `${l.url}|${l.color.join(",")}|${l.opacity ?? 1}`).join(";");
+  //
+  // Una capa CON NOMBRE tampoco reconstruye la escena al cambiar de fichero:
+  // su geometría se sustituye en sitio, más abajo. La regla y el porqué están
+  // en `sceneKeys.ts`, con su prueba.
+  const key = sceneKey(layers, focusUrl);
+  const geoKey = geometryKey(layers);
+  const appearanceKey = layers.map((l) => `${l.id ?? l.url}|${l.color.join(",")}|${l.opacity ?? 1}`).join(";");
   const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}`).join(";");
-  const lineKey = lines.map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}`).join(";");
+  const lineKey = lines
+    .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}`)
+    .join(";");
   const cropKey = cropPreview
     ? `${cropPreview.center.join(",")}|${cropPreview.radius}|${cropPreview.shape}|${cropPreview.invert}`
     : "";
@@ -318,6 +338,7 @@ export function MeshView({
       let anyGeometry = false;
       let focusBounds: number[] | null = null;
       layerMappers.current = [];
+      loadedUrlById.current.clear();
       for (const layer of layers) {
         try {
           const reader = vtkXMLPolyDataReader.newInstance();
@@ -333,7 +354,10 @@ export function MeshView({
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
           layerMappers.current.push(mapper);
-          if (layer.id) namedActors.current.set(layer.id, actor);
+          if (layer.id) {
+            namedActors.current.set(layer.id, actor);
+            loadedUrlById.current.set(layer.id, layer.url);
+          }
           const prop = actor.getProperty();
           prop.setColor(...layer.color);
           prop.setOpacity(layer.opacity ?? 1);
@@ -404,6 +428,9 @@ export function MeshView({
       // antes lo pisaba el encuadre inicial de arriba.
       registerCaptureRef.current?.(capture);
       registerCameraRef.current?.(controller);
+      // La escena ya tiene actores: si mientras cargaba cambió el fichero de
+      // alguna capa con nombre, el efecto de abajo puede aplicarlo ahora.
+      setSceneEpoch((n) => n + 1);
     })();
 
     registerPartsRef.current?.({
@@ -454,6 +481,16 @@ export function MeshView({
         // container → `getBoundingClientRect` of undefined, spamming the console
         // and leaking listeners over a long session.
         try { interactor.unbindEvents(); } catch { /* older vtk.js */ }
+        // Y borrar el interactor ANTES que la ventana. `fsrw.delete()` borra la
+        // vista pero no el interactor, y el bucle de animación de vtk.js se
+        // reprograma solo mientras quede algún solicitante: si la escena se
+        // destruye en mitad de un gesto —la rueda del zoom deja la animación
+        // «extendida» unos cientos de ms— el bucle seguía vivo llamando a una
+        // vista ya borrada, y la consola se llenaba de
+        // «Cannot read properties of undefined (reading
+        // 'getChildRenderWindowsByReference')» un fotograma tras otro, para
+        // siempre. `interactor.delete()` cancela todos los solicitantes.
+        try { interactor.delete(); } catch { /* older vtk.js */ }
         h.fsrw.delete();
       }
       handles.current = null;
@@ -481,7 +518,9 @@ export function MeshView({
     if (!h) return;
     let changed = false;
     for (const l of layers) {
-      const actor = h.actorByUrl.get(l.url);
+      // Por nombre primero: una capa con nombre cambia de URL sin reconstruir
+      // la escena, así que `actorByUrl` la tendría con la URL vieja.
+      const actor = (l.id ? namedActors.current.get(l.id) : undefined) ?? h.actorByUrl.get(l.url);
       if (!actor) continue;
       const prop = actor.getProperty();
       if (!(focusUrl && l.url === focusUrl)) {   // the focused layer keeps its highlight
@@ -493,6 +532,39 @@ export function MeshView({
     if (changed) h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appearanceKey]);
+
+  // ── Geometría de una capa CON NOMBRE: se sustituye en el actor que ya está ─
+  //    en escena. Es lo que permite que el saco se deforme durante el ensayo
+  //    sin tirar la ventana de render (y con ella el clip que la está
+  //    recorriendo). Solo se recarga ESA malla, no el árbol vascular. ──────── #
+  useEffect(() => {
+    if (!handles.current) return;
+    let cancelled = false;
+    (async () => {
+      let cambiado = false;
+      for (const l of layers) {
+        if (!l.id || loadedUrlById.current.get(l.id) === l.url) continue;
+        const actor = namedActors.current.get(l.id);
+        if (!actor) continue;                    // aún cargando: vuelve con la época
+        try {
+          const reader = vtkXMLPolyDataReader.newInstance();
+          await reader.setUrl(l.url, { binary: true });
+          if (cancelled) return;
+          const poly = reader.getOutputData();
+          if (!poly || poly.getNumberOfPoints() === 0) continue;
+          (actor.getMapper() as vtkMapper).setInputData(poly);
+          loadedUrlById.current.set(l.id, l.url);
+          cambiado = true;
+        } catch (err) {
+          // Un fotograma que no llega no puede dejar la escena a medias.
+          console.warn("MeshView: no se pudo cambiar la geometría de", l.id, err);
+        }
+      }
+      if (cambiado && !cancelled) handles.current?.renderWindow.render();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geoKey, sceneEpoch]);
 
   // ── Overlays (markers + ruler lines): incremental so a pick never rebuilds ─ #
   useEffect(() => {
@@ -522,7 +594,8 @@ export function MeshView({
       if (Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1], l.b[2] - l.a[2]) < 1e-6) continue;
       const lineSrc = vtkLineSource.newInstance({ point1: l.a, point2: l.b, resolution: 1 });
       const tube = vtkTubeFilter.newInstance({
-        radius: rMarker * RULER_TUBE_RATIO, numberOfSides: 10, capping: true,
+        radius: l.radiusMm ?? rMarker * RULER_TUBE_RATIO,
+        numberOfSides: l.radiusMm ? 24 : 10, capping: true,
       });
       tube.setInputConnection(lineSrc.getOutputPort());
       const mapper = vtkMapper.newInstance();
@@ -530,6 +603,7 @@ export function MeshView({
       const actor = vtkActor.newInstance();
       actor.setMapper(mapper);
       actor.getProperty().setColor(...l.color);
+      if (l.opacity !== undefined) actor.getProperty().setOpacity(l.opacity);
       h.renderer.addActor(actor);
       markerActors.current.push(actor);
       // Endpoint beads for the ruler.

@@ -278,26 +278,31 @@ def jsdb_scores(
     else:
         favours = "tie"
 
+    # El veredicto se dice sin cifras. El modelo puntúa por dentro —es como
+    # está construido— pero sus autores no publican bandas ni un AUC: validan
+    # que la tasa de mal resultado correlaciona con la puntuación, y nada más.
+    # Un «4 frente a 2» en pantalla se lee como el doble de riesgo, que es
+    # justo lo que el modelo no dice. La comparación sí la sostiene, y es la
+    # que queda.
     if both_poor:
         verdict = (
-            f"Las DOS vías puntúan alto ({clip.points} y {coil.points}): el "
-            f"modelo no está diciendo cuál es mejor, está diciendo que espera "
-            f"mal resultado por cualquiera de las dos. Es la señal para sesión "
-            f"multidisciplinar, no para elegir."
+            "Las DOS vías salen penalizadas en este perfil: el modelo no está "
+            "diciendo cuál es mejor, está diciendo que espera mal resultado "
+            "por cualquiera de las dos. Es la señal para sesión "
+            "multidisciplinar, no para elegir."
         )
     elif favours == "tie":
         verdict = (
-            f"Las dos puntuaciones empatan en {clip.points}. Sobre lo clínico "
-            f"este modelo no separa las vías; la diferencia, si la hay, está en "
-            f"la geometría, que este modelo no mira."
+            "Las dos vías salen igual de penalizadas. Sobre lo clínico este "
+            "modelo no las separa; la diferencia, si la hay, está en la "
+            "geometría, que este modelo no mira."
         )
     else:
         menor = clip if favours == "clip" else coil
-        mayor = coil if favours == "clip" else clip
         verdict = (
-            f"{menor.label} sale menos penalizado ({menor.points} frente a "
-            f"{mayor.points}). Es una diferencia de riesgo estimado al alta, no "
-            f"una indicación: la geometría la decide aparte."
+            f"{menor.label} sale menos penalizado. Es una diferencia de riesgo "
+            f"estimado al alta, no una indicación: la geometría la decide "
+            f"aparte."
         )
 
     return JsdbResult(clip=clip, coil=coil, favours=favours, verdict=verdict,
@@ -308,10 +313,10 @@ def _arm_to_dict(a: JsdbArm) -> dict[str, Any]:
     return {
         "arm": a.arm,
         "label": a.label,
-        "points": a.points,
-        "max_points": a.max_points,
-        "items": [{"label": i.label, "points": i.points, "detail": i.detail}
-                  for i in a.items],
+        # Sin puntos: ni a la pantalla, ni al estado de sesión, ni al informe.
+        # Los objetos internos (`JsdbArm`) los conservan, que es con lo que se
+        # calculan `favours`, `both_poor` y el veredicto.
+        "items": [{"label": i.label, "detail": i.detail} for i in a.items],
         "missing": list(a.missing),
     }
 

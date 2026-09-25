@@ -322,3 +322,69 @@ class TestEndpoint:
 
     def test_an_unknown_session_is_a_404(self):
         assert client.post("/api/clips/animation/no-existe", json=_body()).status_code == 404
+
+
+class TestElSacoConstrenido:
+    """Los fotogramas del saco estrechándose, que son el punto 7 en pantalla.
+
+    Ninguna prueba los miraba porque la sesión de prueba no tenía saco: el
+    endpoint entraba en el `if` solo cuando existe `aneurysm_sac.vtp`, y sin
+    fichero se saltaba el bloque entero. Con el caso real sí existía, y allí
+    saltó un `name 'devices' is not defined` que el `except` se tragaba con un
+    warning: el ensayo salía sin deformación y nadie se enteraba. De ahí que
+    esto compruebe los ficheros, no solo que la respuesta traiga 200.
+    """
+
+    @staticmethod
+    def _con_saco() -> str:
+        sid = _session()
+        saco = vtk.vtkSphereSource()
+        saco.SetRadius(4.0)
+        saco.SetCenter(0.0, 0.0, 3.0)
+        saco.SetThetaResolution(24)
+        saco.SetPhiResolution(24)
+        saco.Update()
+        write_vtp(saco.GetOutput(), session_subdir(sid, "meshes") / "aneurysm_sac.vtp")
+        return sid
+
+    def test_devuelve_cuatro_fotogramas_y_los_escribe(self):
+        sid = self._con_saco()
+        b = client.post(f"/api/clips/animation/{sid}", json=_body()).json()
+        assert len(b["sac_frames"]) == 4, b.get("sac_frames_note", "")
+        meshes = session_subdir(sid, "meshes")
+        for k in range(1, 5):
+            assert (meshes / f"anim_sac_{k}.vtp").exists()
+
+    def test_el_saco_se_estrecha_segun_cierra(self):
+        # Sin comprobar la anchura, un fallo que devolviera cuatro copias del
+        # saco sin deformar pasaría: el dibujo mentiría y la prueba no.
+        from services.segmentation import read_vtp
+
+        sid = self._con_saco()
+        b = client.post(f"/api/clips/animation/{sid}", json=_body()).json()
+        assert b["sac_frames"], "sin fotogramas que medir"
+        meshes = session_subdir(sid, "meshes")
+
+        def _lados(nombre: str) -> tuple[float, float, float]:
+            bb = read_vtp(meshes / nombre).GetBounds()
+            return (bb[1] - bb[0], bb[3] - bb[2], bb[5] - bb[4])
+
+        # No se mide un eje concreto: cuál se estrecha depende de la pose del
+        # clip, y fijar «la x» solo comprobaría la pose de esta prueba. Lo que
+        # tiene que pasar en cualquier pose es que la caja se encoja y que
+        # ningún lado crezca.
+        cajas = [_lados("aneurysm_sac.vtp")] + [_lados(f"anim_sac_{k}.vtp") for k in range(1, 5)]
+        vols = [a * b_ * c for a, b_, c in cajas]
+        assert vols == sorted(vols, reverse=True), vols
+        assert vols[-1] < vols[0]
+        for antes, ahora in zip(cajas, cajas[1:]):
+            for l0, l1 in zip(antes, ahora):
+                assert l1 <= l0 + 1e-6, (antes, ahora)
+
+    def test_sin_saco_el_ensayo_sigue_saliendo(self):
+        # El dibujo es un extra: si no hay saco medido, el ensayo del clip no
+        # puede caerse por ello.
+        sid = _session()
+        b = client.post(f"/api/clips/animation/{sid}", json=_body()).json()
+        assert b["sac_frames"] == []
+        assert b["swing_deg"] > 0

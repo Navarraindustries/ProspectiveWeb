@@ -17,25 +17,6 @@ import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
 
-/* La barra es proporcional —para eso sirve— pero la cifra son PUNTOS. Un
-   «CLIP 72 %» se lee como una probabilidad, o como la proporción de pacientes a
-   los que les fue mejor, y no es ninguna de las dos: es el cociente de dos sumas
-   de pesos elegidos a mano. */
-function ScoreBar({ label, pct, points, fill }:
-  { label: string; pct: number; points: number; fill: string }) {
-  return (
-    <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center" }}>
-      <span style={{ fontSize: 11, fontWeight: 700, width: 40, color: "var(--brand-subtle-foreground)" }}>{label}</span>
-      <div style={{ flex: 1, height: 10, borderRadius: 5, background: "color-mix(in srgb, var(--brand-deep) 20%, transparent)", overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: fill, transition: "width var(--dur-base) var(--ease-out)" }} />
-      </div>
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, width: 52, textAlign: "right", color: "var(--brand-subtle-foreground)" }}>
-        {points} pts
-      </span>
-    </div>
-  );
-}
-
 /** Whole years from an ISO date of birth to today ("" when unknown/invalid). */
 function ageFromDob(dob?: string | null): string {
   if (!dob) return "";
@@ -240,14 +221,19 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
               </Badge>
               <Badge variant="subtle">Confianza {t.confidence.toLowerCase()}</Badge>
             </div>
-            <div style={{ marginTop: 12 }}>
-              <ScoreBar label="CLIP" pct={t.clip_pct} points={t.clip_points} fill="var(--brand-deep)" />
-              <ScoreBar label="ENDO" pct={t.endo_pct} points={t.endo_points} fill="var(--brand-slate)" />
-              <div style={{ fontSize: 11, color: "var(--brand-subtle-foreground)", marginTop: 8, lineHeight: 1.5, opacity: 0.85 }}>
-                Puntos de un sumatorio con pesos elegidos a mano. No es una
-                probabilidad: mide cuántos factores apuntan a cada lado y con qué
-                peso. Cada factor dice debajo de dónde sale el suyo.
-              </div>
+            {/* Aquí iban dos barras con los puntos de cada vía. Se retiran
+                enteras: una barra ES una puntuación dibujada, y lo que llevaba
+                encima era un sumatorio con pesos elegidos a mano, sin una sola
+                cohorte detrás que los ajuste. El motor los sigue sumando por
+                dentro —de ahí sale esta recomendación— pero un número en
+                pantalla se lee como una probabilidad, y no lo es. Lo que queda
+                es lo que se puede sostener: la recomendación, cuánto del caso
+                se ha podido ver, y los factores que la empujan. */}
+            <div style={{ fontSize: 11, color: "var(--brand-subtle-foreground)", marginTop: 10, lineHeight: 1.5, opacity: 0.85 }}>
+              Los factores de abajo son el porqué, cada uno con su procedencia.
+              No hay puntuación: lo que el motor suma por dentro son pesos
+              elegidos a mano, y enseñarlos como cifra aparentaría una precisión
+              que no tienen.
             </div>
           </div>
 
@@ -275,27 +261,15 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
               </SectionLabel>
               <Card style={t.jsdb.both_poor ? { borderLeft: "3px solid var(--warning)" } : undefined}>
                 <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>
-                  Modelo ajustado sobre 3 547 hemorragias. Puntúa el riesgo de mal
+                  Modelo ajustado sobre 3 547 hemorragias. Estima el riesgo de mal
                   resultado al alta (mRS&nbsp;&gt;&nbsp;2) de <b>cada vía por separado</b>,
-                  no cuál elegir. Más puntos es peor.
+                  no cuál elegir. Sus autores no publican bandas ni un AUC, así que
+                  lo que sostiene es la comparación, no una cifra.
                 </div>
                 {[t.jsdb.clip, t.jsdb.coil].map((arm) => (
                   <div key={arm.arm} style={{ marginTop: 8 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, flex: 1, color: "var(--foreground)" }}>
-                        {arm.label}
-                      </span>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>
-                        {arm.points} / {arm.max_points}
-                      </span>
-                    </div>
-                    <div style={{ height: 8, borderRadius: 4, marginTop: 4, background: "color-mix(in srgb, var(--brand-deep) 15%, transparent)", overflow: "hidden" }}>
-                      <div style={{
-                        height: "100%",
-                        width: `${(arm.points / arm.max_points) * 100}%`,
-                        background: arm.points >= 3 ? "var(--warning)" : "var(--brand-slate)",
-                        transition: "width var(--dur-base) var(--ease-out)",
-                      }} />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)" }}>
+                      {arm.label}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
                       {arm.items.length > 0
@@ -357,16 +331,16 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                   }}
                 >
                   {f.direction === "clip" ? "CLIP" : f.direction === "endo" ? "ENDO" : "—"}
-                  {f.votes ? (f.points > 0 ? ` +${f.points}` : "") : " ·"}
+                  {f.votes ? "" : " ·"}
                 </span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
                     {f.name}
-                    {/* Lo que se mide, se enseña y no suma. Sin esta marca el
-                        factor se lee como si estuviera pesando. */}
+                    {/* Lo que se mide, se enseña y NO influye. Sin esta marca
+                        el factor se lee como si estuviera empujando. */}
                     {!f.votes && (
                       <span style={{ fontSize: 10, fontWeight: 700, marginLeft: 6, padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", background: "var(--muted)", color: "var(--muted-foreground)", verticalAlign: "middle" }}>
-                        no puntúa
+                        no influye
                       </span>
                     )}
                   </div>

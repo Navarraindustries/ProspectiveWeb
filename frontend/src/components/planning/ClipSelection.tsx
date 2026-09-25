@@ -22,6 +22,7 @@ import { Badge } from "../Badge";
 import { Button } from "../Button";
 import { Card, Collapsible, ErrorNote, SectionLabel } from "../PanelHead";
 import { Slider } from "../Slider";
+import { shapeWithBend } from "./clipShape";
 
 const VERDICT_MARK: Record<ClipVerdict, string> = { ok: "✓", warn: "!", fail: "✕" };
 const VERDICT_COLOR: Record<ClipVerdict, string> = {
@@ -93,9 +94,7 @@ function CandidateCard({
       </div>
 
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
-        {cand.shape}
-        {cand.bend_angle_deg > 0 && cand.bend_angle_deg !== 45 && cand.bend_angle_deg !== 90
-          ? ` ${cand.bend_angle_deg.toFixed(0)}°` : ""}
+        {shapeWithBend(cand.shape, cand.bend_angle_deg)}
         {" · mordaza "}{cand.blade_length_mm.toFixed(1)} mm ·{" "}
         {/* Una banda es una banda: quedarse con el punto medio inventaría una
             precisión que la pieza todavía no tiene. */}
@@ -282,6 +281,44 @@ export function ClipSelectionPanel({
             {sel.case.region && ` · ${sel.case.region}`}
           </div>
         )}
+        {/* El número que de verdad elige la pieza. El cuello se clipa por lo
+            que mide APLASTADO, no por su diámetro, y esa diferencia —de un
+            milímetro largo en un cuello ovalado— es la que deja el cierre
+            incompleto en el lado distal. Se dice en pantalla, con su origen:
+            no es lo mismo haber medido el contorno que haber supuesto que el
+            cuello es redondo. */}
+        {/* Lo que el abordaje le exige a la pieza. Pedido por dirección: que la
+            recomendación del clip dependa de la trayectoria. No es una tabla
+            ángulo→forma: las hojas tienen que quedar cruzadas sobre el cuello y
+            el mango salir por el corredor, y el ángulo entre esas dos
+            direcciones ES la acodadura que hace falta. */}
+        {sel.case.approach_bend_deg !== null && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+            El corredor marcado llega a{" "}
+            <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              {(sel.case.approach_angle_deg ?? 0).toFixed(0)}°
+            </b>{" "}
+            del eje cuello-domo, así que pide una acodadura de{" "}
+            <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              ~{sel.case.approach_bend_deg.toFixed(0)}°
+            </b>{" "}
+            para que las hojas queden cruzadas sobre el cuello con el mango
+            saliendo por donde entra la mano.
+          </div>
+        )}
+
+        {sel.case.required_jaw_mm > 0 && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+            Mordaza mínima{" "}
+            <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              {sel.case.required_jaw_mm.toFixed(1)} mm
+            </b>
+            {sel.case.required_jaw_source === "perimeter"
+              ? " — medida sobre el contorno del cuello"
+              : " — regla del cuello aplastado (×1,5)"}
+            . {sel.case.required_jaw_detail}
+          </div>
+        )}
       </Card>
 
       {sel.recommended.length > 0 && (
@@ -323,6 +360,37 @@ export function ClipSelectionPanel({
           (<b>{sel.manufacture.label}</b>). Mandarla a fabricar, con su STL, los
           dossiers y el pedido, se hace en el paso <b>Fabricación</b>.
         </div>
+      )}
+
+      {/* Varios clips para lo que ninguno cierra solo.
+          Preguntado por dirección: colocar varios ya funcionaba, pero la
+          recomendación nunca proponía más de uno, así que un cuello grande solo
+          tenía una salida — mandar fabricar una hoja más larga. La otra salida
+          es la que se usa en quirófano. */}
+      {sel.multiclip && (
+        <Card style={{ borderLeft: "3px solid var(--warning)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>
+            O un montaje de varios clips
+          </div>
+          <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 6, lineHeight: 1.5 }}>
+            <b>{sel.multiclip.label}</b>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
+            cubre {sel.multiclip.covered_mm.toFixed(1)} mm de los{" "}
+            {sel.multiclip.required_mm.toFixed(1)} mm que mide el cuello aplastado
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
+            Las hojas van <b>solapadas</b>, no adosadas: dejarlas tocándose por la
+            punta deja sin cerrar justo el tramo donde se juntan.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+            {sel.multiclip.cautions.map((c, i) => (
+              <div key={i} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+                — {c}
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       {/* Los que se quedaron cerca. Sin esto la lista de arriba es una caja

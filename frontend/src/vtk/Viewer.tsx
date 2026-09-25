@@ -836,7 +836,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
             {/* El maniquí gris no puede ser la única señal de que la orientación
                 es supuesta: una línea ámbar justo encima del recuadro, que sube
                 con él cuando hay leyenda abajo a la derecha. */}
-            {isMesh && !effectiveDirection(orientation).known && (
+            {/* Solo con la meta ya llegada: sin ella la orientación no es
+                «asumida», aún no se sabe. */}
+            {isMesh && meta && !effectiveDirection(orientation).known && (
               <div style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: insetRaised ? "calc(48% - 18px)" : "calc(24% - 18px)" }}>
                 <HudReadout at="br" lines={["ORIENTACIÓN ASUMIDA"]} tone="warn" />
               </div>

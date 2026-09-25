@@ -77,7 +77,8 @@ def _say(on_progress: Callable[[str, float], None] | None, phase: str, pct: floa
         on_progress(phase, pct)
 
 
-def _fallback(m0: np.ndarray, stats: dict) -> MaskResult:
+def _fallback(m0: np.ndarray, stats: dict,
+              on_progress: Callable[[str, float], None] | None = None) -> MaskResult:
     """Sin troncos que sembrar devolvemos el umbral relleno y lo decimos.
 
     Mejor una máscara con hueso que una vacía: quien llama ve `fallback` y
@@ -89,6 +90,8 @@ def _fallback(m0: np.ndarray, stats: dict) -> MaskResult:
                  vetoed_vox=0, final_vox=n, kept_fraction=1.0 if n else 0.0)
     stats.setdefault("core_vox", 0)
     stats.setdefault("thresholds", {"gate": 0.0, "seed": 0.0, "grow": 0.0})
+    # También aquí se cierra el progreso: si no, la barra se queda en 2 o 50 %.
+    _say(on_progress, "hecho", 100)
     return MaskResult(m0, stats, fallback=True)
 
 
@@ -105,7 +108,7 @@ def _pick(labels: np.ndarray, n: int, ids: np.ndarray) -> np.ndarray:
 
 
 def _near_tube(tube: np.ndarray, m0: np.ndarray, spacing: tuple[float, float, float],
-               reach_mm: float, wall_mm: float, slab: int = 64) -> tuple[np.ndarray, np.ndarray]:
+               reach_mm: float, wall_mm: float, slab: int = 32) -> tuple[np.ndarray, np.ndarray]:
     """(cerca, banda): M0 fuera del tubo a ≤ reach_mm, y la parte a > wall_mm.
 
     Por lonchas en z: distance_transform_edt entero sobre 384³ reserva la
@@ -149,6 +152,12 @@ def build_vascular_mask(
     faltan se calculan aquí por lonchas. `on_progress(fase, porcentaje)`.
     """
     volume = np.asarray(volume)
+    # Un Frangi de caché con otra forma fallaría muy adentro con un error de
+    # índices opaco, o indexaría mal en silencio si difunde; mejor aquí.
+    for name, arr in (("tubularidad", vesselness), ("laminaridad", plateness)):
+        if arr is not None and np.shape(arr) != volume.shape:
+            raise ValueError(f"La {name} precalculada tiene forma {np.shape(arr)} "
+                             f"y el volumen {volume.shape}")
     vox_mm3 = float(np.prod(spacing))
     stats: dict = {}
 
@@ -160,23 +169,34 @@ def build_vascular_mask(
     # test del núcleo sale hueco así). Por eso el techo sólo quita las zonas
     # por encima de él que asoman al exterior de M0 —la superficie brillante
     # del hueso— y respeta las que quedan envueltas por pared dentro de rango.
+    #
+    # Por qué por corte y no por componente 3D: el centro brillante de un vaso
+    # es un solo componente a lo largo de todo el vaso; si un hueso por encima
+    # del techo lo toca en un punto y asoma fuera, el componente entero cuenta
+    # como expuesto y el vaso sale hueco de punta a punta (el test del hueso
+    # que toca el núcleo). Decidido en cada corte z, sólo se pierde el centro
+    # en los cortes donde el hueso lo toca; ahí el hueco queda sellado por los
+    # cortes vecinos y el relleno final de la fase 6 lo cierra.
+    #
+    # Sin segundo relleno tras quitar: lo quitado en un corte toca el exterior
+    # de M0 en ese mismo corte (y ~M0 ya es todo exterior tras el primer
+    # relleno), así que no puede dejar un hueco cerrado que rellenar.
     _say(on_progress, "núcleo", 2)
     m0 = ndimage.binary_fill_holes(volume >= params.lower)
     if params.upper > params.lower:
-        hot = m0 & (volume > params.upper)
-        lab_h, n_h = ndimage.label(hot)
-        del hot
-        # border_value=0: el borde del volumen no cuenta como exterior, así el
-        # centro de un vaso cortado por el borde no se toma por superficie.
-        rim = ndimage.binary_dilation(~m0) & m0
-        exposed = np.unique(lab_h[rim])
-        del rim
-        m0 &= ~_pick(lab_h, n_h, exposed)
-        del lab_h
-        m0 = ndimage.binary_fill_holes(m0)
+        cross = ndimage.generate_binary_structure(2, 1)
+        for z in range(m0.shape[0]):
+            hot = m0[z] & (volume[z] > params.upper)
+            if not hot.any():
+                continue
+            lab_h, n_h = ndimage.label(hot, structure=cross)
+            # border_value=0: el borde del volumen no cuenta como exterior, así
+            # el centro de un vaso cortado por el borde no se toma por superficie.
+            rim = ndimage.binary_dilation(~m0[z], structure=cross) & m0[z]
+            m0[z] &= ~_pick(lab_h, n_h, np.unique(lab_h[rim]))
     stats["m0_vox"] = int(m0.sum())
     if stats["m0_vox"] == 0:
-        return _fallback(m0, stats)
+        return _fallback(m0, stats, on_progress)
 
     # 2 · tubularidad y puerta.
     # Los percentiles se toman de V dentro de M0, no del volumen entero: así se
@@ -191,10 +211,9 @@ def build_vascular_mask(
     t_grow = float(np.percentile(vin, params.grow_pctl))
     del vin
     stats["thresholds"] = {"gate": t_gate, "seed": t_seed, "grow": t_grow}
-    # Por qué la puerta va antes que las semillas: la puerta (p60) separa lo
-    # tubular de M0 y es la cifra que se publica como núcleo; las semillas son
-    # un subconjunto más estricto de ella (p90 ⊂ p60), de modo que sólo los
-    # troncos siembran y no un trozo de hueso con algo de curvatura.
+    # La puerta (p60) sólo mide: cuánto de M0 es claramente tubular, la cifra
+    # que se publica como núcleo. No filtra nada; semillas (p90) y crecimiento
+    # (p40) umbralizan V por su cuenta dentro de M0.
     stats["core_vox"] = int(np.count_nonzero(m0 & (vesselness >= t_gate)))
 
     # 3 · semillas: los troncos.
@@ -208,7 +227,7 @@ def build_vascular_mask(
     big = ids[counts * vox_mm3 >= params.seed_min_mm3]
     if len(big) == 0:
         del lab_s
-        return _fallback(m0, stats)
+        return _fallback(m0, stats, on_progress)
     stats["seeds"] = int(len(big))
     seed_mask = _pick(lab_s, n_s, big)
     del lab_s, ids, counts

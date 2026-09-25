@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from scipy import ndimage
 
 from services.vascular_mask import MaskParams, build_vascular_mask
@@ -43,6 +44,19 @@ class TestNucleo:
         assert con.stats["m0_vox"] < sin.stats["m0_vox"]
         assert not con.mask[32, 30, 38]
         assert con.mask[32, 24, 24]
+
+
+    def test_el_hueso_expuesto_que_toca_el_nucleo_no_vacia_el_tubo(self):
+        # Hueso por encima del techo que toca el centro brillante del vaso y sale
+        # por la pared: si la exposición se decidiera por componente 3D, todo el
+        # centro (un solo componente a lo largo del vaso) se iría con la barra.
+        vol = synthetic_tube(shape=(64, 48, 48), radius_mm=2.0, value=1000.0)
+        vol = np.maximum(vol, synthetic_tube(shape=(64, 48, 48), radius_mm=0.8, value=3000.0))
+        vol[28:36, 23:26, 24:40] = 3000.0
+        r = build_vascular_mask(vol, SP, MaskParams(lower=500.0, upper=2000.0, seed_min_mm3=SEMILLA))
+        assert not r.fallback
+        assert r.mask[10, 24, 24] and r.mask[50, 24, 24]      # centro lejos de la barra, macizo
+        assert not r.mask[32, 24, 36:40].any()                # la barra, fuera del vaso, se va
 
 
 class TestHueso:
@@ -92,6 +106,12 @@ class TestSemillas:
         assert r.stats["seeds"] == 0
         np.testing.assert_array_equal(r.mask, ndimage.binary_fill_holes(vol >= 500.0))
 
+    def test_la_caida_al_umbral_tambien_termina_el_progreso(self):
+        vol = synthetic_tube(shape=(32, 32, 32), radius_mm=0.6, value=1000.0)
+        seen: list[tuple[str, float]] = []
+        r = build_vascular_mask(vol, SP, MaskParams(lower=500.0), on_progress=lambda f, p: seen.append((f, p)))
+        assert r.fallback and seen[-1][1] == 100
+
     def test_una_rama_suelta_sin_semilla_se_descarta(self):
         vol = synthetic_tube(shape=(64, 64, 64), radius_mm=2.0)
         # 0,7 mm y 12 mm de largo: Frangi puntúa más un tubo fino que uno grueso
@@ -119,3 +139,11 @@ class TestContrato:
         assert set(r.stats["thresholds"]) == {"gate", "seed", "grow"}
         assert r.mask.dtype == bool and r.mask.shape == vol.shape
         assert seen[-1][1] == 100 and [p for _, p in seen] == sorted(p for _, p in seen)
+
+    def test_un_frangi_precalculado_de_otra_forma_se_rechaza(self):
+        vol = synthetic_tube(shape=(32, 32, 32), radius_mm=2.0)
+        otra = np.zeros((32, 32, 31), np.float32)
+        with pytest.raises(ValueError, match="tubularidad"):
+            build_vascular_mask(vol, SP, MaskParams(lower=500.0), vesselness=otra)
+        with pytest.raises(ValueError, match="laminaridad"):
+            build_vascular_mask(vol, SP, MaskParams(lower=500.0), vesselness=np.zeros_like(vol), plateness=otra)

@@ -82,7 +82,7 @@ approval, and a tamper-evident audit chain.
 | Report generation | reportlab 4.x (PDF), pydicom (DICOM SR) |
 | Study archive | pluggable local filesystem or AWS S3 (boto3, optional) |
 | Frontend | React 19 + TypeScript 5.8 + Vite 7 |
-| 3D / 2D viewers | @kitware/vtk.js 36 (meshes, volume rendering) + server-rendered MPR PNGs |
+| 3D / 2D viewers | @kitware/vtk.js 36 (meshes, MPR, oblique reslice and MIP rendered client-side from a chunked int16 copy of the volume) |
 | Routing | react-router-dom 7 |
 | Python | 3.11+ (developed on 3.13) · Node 20+ |
 
@@ -1848,6 +1848,15 @@ Test isolation notes:
   directory. The archive root is resolved per call precisely so this works; a
   frozen module constant once let the suite overwrite a real patient's DICOM.
   `test_study_gallery.py` asserts the isolation holds for the live app too.
+
+### Estudio de prueba
+
+`frontend/Estudios/Case 3/Unknown Study/XA/XA000000.dcm` (no versionado): 3DRA
+XA 384³ a 0,32 mm, con etiquetas de orientación por fotograma
+(`PlaneOrientationSequence`, IOP `[1,0,0,0,0,1]`): el plano «axial» de índices es
+anatómicamente coronal. Al cargarlo, el visor lee esa orientación y rotula los
+paneles en consecuencia; «Fijar orientación» solo aparece en estudios sin
+etiquetas, donde la orientación se marca como asumida hasta que se fija.
 
 ---
 

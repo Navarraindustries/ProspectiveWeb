@@ -117,3 +117,6 @@ NAVARRO*/
 
 # Caché incremental de tsc: artefacto de compilación, se regenera al construir.
 *.tsbuildinfo
+
+# Estudios DICOM de prueba (109 MB): quedan en local
+frontend/Estudios/

@@ -59,15 +59,66 @@ def _display_window(vol: np.ndarray, tag_wc: float, tag_ww: float) -> tuple[floa
     return (p_lo + p_hi) / 2.0, p_hi - p_lo
 
 
+_FULL_STRIDE_VOXELS = 150_000_000   # por encima, el bloque full va con stride 2
+
+
+def _full_stride(shape: list[int]) -> int:
+    return 2 if int(np.prod(shape)) > _FULL_STRIDE_VOXELS else 1
+
+
+def _intensity_range(vol: np.ndarray) -> list[float]:
+    """Robust display range for the client's intensity mapping (p0.5-p99.9).
+
+    Subsampled so the percentile pass stays cheap even on large volumes —
+    the server has 1 vCPU / 2 GB, and this runs on every cold cache fill.
+    """
+    flat = vol.reshape(-1)
+    if flat.size > 4_000_000:
+        flat = flat[:: int(flat.size // 4_000_000) + 1]
+    return [float(np.percentile(flat, 0.5)), float(np.percentile(flat, 99.9))]
+
+
+def _complete_meta(meta: dict, npy_path: Path) -> tuple[dict, bool]:
+    """Sesiones cacheadas antes de la orientación: completar sin recargar.
+
+    Devuelve (meta, changed) para que la persistencia a disco sea condicional:
+    ensure_volume_cached se llama en cada petición de corte, y reescribir el
+    JSON cuando no hay nada nuevo sería trabajo desperdiciado.
+    """
+    changed = False
+    if "direction" not in meta:
+        meta["direction"] = None
+        meta["orientation_known"] = False
+        changed = True
+    if "origin_mm" not in meta:
+        meta["origin_mm"] = [0.0, 0.0, 0.0]
+        changed = True
+    if "intensity_range" not in meta:
+        meta["intensity_range"] = _intensity_range(np.load(npy_path, mmap_mode="r"))
+        changed = True
+    if "full_stride" not in meta:
+        meta["full_stride"] = _full_stride(meta["shape"])
+        changed = True
+    return meta, changed
+
+
 def ensure_volume_cached(session_id: str) -> dict:
     """Load the primary DICOM series volume (if not already cached) and return meta.
 
-    Meta = {shape:[z,y,x], spacing:[sz,sy,sx], wc, ww, modality}.
+    Meta = {shape:[z,y,x], spacing:[sz,sy,sx], wc, ww, modality, direction,
+    orientation_known, origin_mm, intensity_range, cache_key, full_stride}.
     The volume is saved as float32 .npy for fast per-slice memmap access.
     """
     npy_path, meta_path = _cache_paths(session_id)
     if npy_path.exists() and meta_path.exists():
-        return json.loads(meta_path.read_text())
+        meta, changed = _complete_meta(json.loads(meta_path.read_text()), npy_path)
+        if changed:
+            meta_path.write_text(json.dumps(meta))
+        # cache_key nunca se persiste: se deriva del mtime del .npy en cada
+        # llamada, así que una resegmentación (que reescribe el .npy) lo
+        # invalida automáticamente sin tocar el JSON.
+        meta["cache_key"] = str(int(npy_path.stat().st_mtime))
+        return meta
 
     series_id = read_state(session_id, "dicom.series_id") or ""
     dicom_dir = session_dir(session_id) / "dicom"
@@ -84,8 +135,14 @@ def ensure_volume_cached(session_id: str) -> dict:
         "wc": wc,
         "ww": ww,
         "modality": dcm.modality,
+        "direction": [float(v) for v in dcm.direction] if dcm.orientation_known else None,
+        "orientation_known": bool(dcm.orientation_known),
+        "origin_mm": [float(v) for v in dcm.origin],
+        "intensity_range": _intensity_range(vol),
+        "full_stride": _full_stride([int(x) for x in vol.shape]),
     }
     meta_path.write_text(json.dumps(meta))
+    meta["cache_key"] = str(int(npy_path.stat().st_mtime))
     logger.info("MPR: cached volume %s shape=%s", session_id, meta["shape"])
     return meta
 

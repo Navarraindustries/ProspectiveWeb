@@ -37,6 +37,13 @@ class DicomLoadResult:
     n_slices:           int
     is_projection:      bool
     projection_warning: str | None
+    # Cosenos de dirección de los ejes i, j, k en LPS (9 valores, fila mayor),
+    # tal como los da SimpleITK. La identidad cuando el DICOM no los trae.
+    direction:          tuple[float, ...] = (1, 0, 0, 0, 1, 0, 0, 0, 1)
+    # Si el DICOM traía ImageOrientationPatient (clásico) o
+    # PlaneOrientationSequence (Enhanced). Sin ellos la dirección es asumida y
+    # el visor lo tiene que decir: un 3DRA XA típico no los trae.
+    orientation_known:  bool = False
 
     @property
     def size_mb(self) -> float:
@@ -217,6 +224,9 @@ def _image_to_result(
         series_uid, array.shape, sz, sy, sx, meta["modality"], is_proj,
     )
 
+    direction = tuple(float(v) for v in image.GetDirection()) if image.GetDimension() == 3 else (1, 0, 0, 0, 1, 0, 0, 0, 1)
+    known = _orientation_known(ref_file)
+
     return DicomLoadResult(
         volume=array,
         spacing=(sz, sy, sx),   # (z, y, x) matches volume axes
@@ -232,6 +242,8 @@ def _image_to_result(
         n_slices=n_slices,
         is_projection=is_proj,
         projection_warning=proj_warn,
+        direction=direction,
+        orientation_known=known,
     )
 
 
@@ -284,6 +296,24 @@ def _z_spacing_from_positions(file_names: "list[str]") -> "float | None":
     proj = sorted(float(np.dot(p, normal)) for p in positions)
     span = proj[-1] - proj[0]
     return span / (len(proj) - 1) if span > 1e-3 else None
+
+
+def _orientation_known(ref_file: Path) -> bool:
+    """Whether the file carries any patient-orientation tag."""
+    try:
+        import pydicom
+        ds = pydicom.dcmread(str(ref_file), stop_before_pixels=True)
+    except Exception:  # noqa: BLE001 — la orientación es informativa
+        return False
+    if ds.get("ImageOrientationPatient") is not None:
+        return True
+    for seq_name in ("SharedFunctionalGroupsSequence", "PerFrameFunctionalGroupsSequence"):
+        seq = ds.get(seq_name)
+        if seq:
+            for item in seq[:1]:
+                if item.get("PlaneOrientationSequence") is not None:
+                    return True
+    return False
 
 
 def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:

@@ -312,6 +312,10 @@ export function MeshView({
       frame: (p: Vec3, r: number) => {
         const h = handles.current; if (!h) return;
         h.renderer.resetCamera([p[0] - r, p[0] + r, p[1] - r, p[1] + r, p[2] - r, p[2] + r]);
+        // resetCamera(bounds) ajusta también los planos de recorte al cubo:
+        // al alejarse o girar, el resto del árbol quedaba cortado. Se
+        // recalculan con lo que de verdad hay en escena.
+        h.renderer.resetCameraClippingRange();
         h.renderer.updateLightsGeometryToFollowCamera();
         h.renderWindow.render();
       },

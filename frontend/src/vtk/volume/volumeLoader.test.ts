@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { chunkCacheKey, chunkOrder, fetchChunk, loadCoarse, loadFull } from "./volumeLoader";
 import type { VolumeMeta } from "../../api/types";
+import { setUnauthorizedHandler } from "../../api/client";
 
 const meta = {
   shape: [70, 4, 3], spacing: [1, 1, 1], wc: 0, ww: 1, modality: "XA",
@@ -44,7 +45,8 @@ describe("loadCoarse", () => {
       headers: { "X-Dims": "3,4,3", "X-Spacing": "2,2,2", "X-Dtype": "int16", "X-Level-Stride": "2" },
     }));
     vi.stubGlobal("fetch", fetchMock);
-    const vol = await loadCoarse("sid", meta, new AbortController().signal);
+    // 6×8×6 con stride 2 → 3×4×3: el grueso tiene que cuadrar con la meta.
+    const vol = await loadCoarse("sid", { ...meta, shape: [6, 8, 6] }, new AbortController().signal);
     expect(vol.level).toBe("coarse");
     expect(vol.dims).toEqual([3, 4, 3]);
     expect(vol.spacing).toEqual([2, 2, 2]);                       // spacing nativo (1) × stride 2
@@ -52,6 +54,22 @@ describe("loadCoarse", () => {
     expect(vol.data).toBeInstanceOf(Int16Array);
     expect(Array.from(vol.data.slice(0, 3))).toEqual([-500, -400, -300]);   // crudo, con signo
     expect(String(fetchMock.mock.calls[0][0])).toContain("chunk/coarse/0-0?v=k1.i16");
+  });
+});
+
+describe("fetchChunk 401", () => {
+  afterEach(() => { vi.unstubAllGlobals(); setUnauthorizedHandler(null); });
+
+  it("drops the token and notifies the app like request() does", async () => {
+    vi.stubGlobal("caches", undefined);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 401 })));
+    localStorage.setItem("prospective.token", "caducado");
+    const onUnauthorized = vi.fn();
+    setUnauthorizedHandler(onUnauthorized);
+    await expect(fetchChunk("/api/volume/s/chunk/full/0-32", chunkCacheKey("k", "full", 0, 32), new AbortController().signal))
+      .rejects.toThrow(/401/);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("prospective.token")).toBeNull();
   });
 });
 

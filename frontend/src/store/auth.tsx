@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import type { ReactNode } from "react";
 import { api, getToken, setToken, setUnauthorizedHandler } from "../api/client";
 import type { UserInfo } from "../api/types";
+import { clearVolumeCache } from "../vtk/volume/volumeCache";
 
 interface AuthState {
   user: UserInfo | null;
@@ -68,6 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // leave the browser able to fetch imaging from /data and /api/slice.
     void api.logout().catch(() => { /* best effort: the token may already be dead */ });
     setToken(null);
+    // Los volúmenes del paciente no se quedan en el navegador tras salir.
+    void clearVolumeCache();
     setUser(null);
     setExpiredNotice(null);
   }, []);

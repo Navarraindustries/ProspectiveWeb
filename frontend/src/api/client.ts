@@ -100,6 +100,7 @@ import type {
   VolumeMeta,
   ManualOrientationBody,
 } from "./types";
+import { clearVolumeCache } from "../vtk/volume/volumeCache";
 
 const TOKEN_KEY = "prospective.token";
 
@@ -117,6 +118,15 @@ export function setToken(token: string | null) {
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
+}
+
+/** El servidor ya no acepta el token: se descarta, se borran los volúmenes
+ *  del paciente guardados en el navegador y se avisa a la app para volver al
+ *  login. La usan request(), getBlob() y la descarga de bloques. */
+export function handleUnauthorized() {
+  setToken(null);
+  void clearVolumeCache();
+  onUnauthorized?.();
 }
 
 /** Endpoints where a 401 is the expected answer, not a dead session. */
@@ -151,8 +161,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (res.status === 401 && !isAuthAttempt(path)) {
     // The token is gone or expired: drop it and let the app show the login
     // screen once, rather than surfacing an error in whichever panel asked.
-    setToken(null);
-    onUnauthorized?.();
+    handleUnauthorized();
   }
   if (!res.ok) {
     let detail = `Error ${res.status}`;
@@ -176,10 +185,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
  *  <img src> or download link can't carry the JWT header for). */
 async function getBlob(path: string): Promise<Blob> {
   const res = await fetch(path, { headers: authHeaders() });
-  if (res.status === 401) {
-    setToken(null);
-    onUnauthorized?.();
-  }
+  if (res.status === 401) handleUnauthorized();
   if (!res.ok) throw new ApiError(res.status, `Error ${res.status}`);
   return res.blob();
 }

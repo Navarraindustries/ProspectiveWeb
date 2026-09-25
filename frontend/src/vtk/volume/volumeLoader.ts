@@ -7,13 +7,16 @@
    con el AbortSignal de la sesión: un bloque de la sesión anterior nunca
    entra en el buffer de la nueva. */
 
-import { api, authHeaders } from "../../api/client";
+import { api, authHeaders, handleUnauthorized } from "../../api/client";
 import type { VolumeMeta } from "../../api/types";
+import { CACHE_NAME, chunkCacheKey, touchVolume } from "./volumeCache";
+
+export { chunkCacheKey, clearVolumeCache } from "./volumeCache";
 
 export const CHUNK_SLICES = 32;
-// v2: las claves pasaron de la URL con el id de sesión a una por volumen; las
-// entradas v1 no se volverían a leer nunca, así que se borran al abrir.
-const CACHE_NAME = "prospective-volume-v2";
+// v2 (CACHE_NAME, en volumeCache.ts): las claves pasaron de la URL con el id
+// de sesión a una por volumen; las entradas v1 no se volverían a leer nunca,
+// así que se borran al abrir.
 const OLD_CACHES = ["prospective-volume-v1"];
 
 export interface ClientVolume {
@@ -47,19 +50,14 @@ async function cacheStorage(): Promise<Cache | null> {
   }
 }
 
-/** Clave de la Cache API para un bloque: depende del volumen (cache_key),
-    nunca de la sesión. Reanudar copia el volumen bajo un id de sesión nuevo,
-    así que con la URL real como clave cada reanudación era un fallo de caché.
-    Cualquier URL absoluta vale como clave; esta no se pide nunca a la red. */
-export function chunkCacheKey(cacheKey: string, level: "coarse" | "full", z0: number, z1: number): string {
-  return `https://prospective.cache/volume/${encodeURIComponent(cacheKey)}/${level}/${z0}-${z1}`;
-}
-
 export async function fetchChunk(url: string, cacheKeyUrl: string, signal: AbortSignal) {
   const cache = await cacheStorage();
   let res = cache ? await cache.match(cacheKeyUrl) : undefined;
   if (!res) {
     res = await fetch(url, { headers: authHeaders(), signal });
+    // Token caducado a media descarga: lo mismo que request(), volver al login
+    // en vez de dejar un «SIN VOLUMEN COMPLETO» sin explicación.
+    if (res.status === 401) handleUnauthorized();
     if (!res.ok) throw new Error(`Bloque ${url}: HTTP ${res.status}`);
     if (cache) {
       try { await cache.put(cacheKeyUrl, res.clone()); } catch { /* cuota llena: seguir sin caché */ }
@@ -81,6 +79,9 @@ export async function loadCoarse(sid: string, meta: VolumeMeta, signal: AbortSig
   // misma URL, y la Cache API y la caché HTTP (24 h) lo seguirían sirviendo;
   // con la URL nueva el cuerpo antiguo nunca llega a leerse como int16.
   const key = `${meta.cache_key}.i16`;
+  // Empieza la descarga de este volumen: si con él hay más de tres en la
+  // caché, se van los más antiguos.
+  await touchVolume(meta.cache_key);
   const c = await fetchChunk(api.chunkUrl(sid, "coarse", 0, 0, key), chunkCacheKey(key, "coarse", 0, 0), signal);
   if (c.dims.length !== 3) throw new Error("El bloque grueso no trae dimensiones válidas");
   // Intensidades crudas como el nivel completo: la ventana/nivel y la banda

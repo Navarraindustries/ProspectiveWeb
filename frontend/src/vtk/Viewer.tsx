@@ -30,6 +30,7 @@ const MeshView = lazy(() => import("./MeshView").then((m) => ({ default: m.MeshV
 const VolumeView = lazy(() => import("./VolumeView").then((m) => ({ default: m.VolumeView })));
 const SliceView = lazy(() => import("./SliceView").then((m) => ({ default: m.SliceView })));
 const MipView = lazy(() => import("./MipView").then((m) => ({ default: m.MipView })));
+const ObliqueView = lazy(() => import("./ObliqueView").then((m) => ({ default: m.ObliqueView })));
 
 const STEP_SCENE: Record<string, string> = {
   upload: "Vista previa DICOM",
@@ -564,7 +565,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
       body = <Suspense fallback={<ViewerLoading label="Cargando volumen 3D…" />}><VolumeView sessionId={sessionId} /></Suspense>;
       mode = "VOLUMEN";
     } else if (viewMode === "oblique" && sessionId && meta) {
-      body = <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />;
+      // Sin WebGL2 o sin volumen en el cliente, el oblicuo del servidor (PNG).
+      body = legacy || !clientVol.image
+        ? <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />
+        : (
+          <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
+            <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
+              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} />
+          </Suspense>
+        );
       mode = "OBLICUO";
     } else if (isMesh) {
       body = (

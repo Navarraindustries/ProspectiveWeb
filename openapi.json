@@ -7811,6 +7811,17 @@
             ],
             "description": "Offered when the drawn jaw sizes only bracket what the case needs and the family is manufactured per case, so an exact jaw is a real option."
           },
+          "multiclip": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MultiClipConstructOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Varias mordazas que juntas cierran un cuello que ninguna cierra sola. Se ofrece JUNTO a la especificación de fabricación, no en su lugar: son las dos salidas del mismo callejón, y elegir entre mandar fabricar una pieza o poner dos que ya existen es del cirujano."
+          },
           "caveats": {
             "items": {
               "type": "string"
@@ -9904,6 +9915,66 @@
         ],
         "title": "MorphometryResult",
         "description": "Full quantitative morphometry of the selected aneurysm.\n\nMatches MorphometricResult from prospective/processing/morphometrics.py.\nAll linear values in mm; ratios are dimensionless."
+      },
+      "MultiClipConstructOut": {
+        "properties": {
+          "n_clips": {
+            "type": "integer",
+            "minimum": 2.0,
+            "title": "N Clips"
+          },
+          "jaws_mm": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Jaws Mm",
+            "description": "La mordaza de cada clip del montaje"
+          },
+          "required_mm": {
+            "type": "number",
+            "title": "Required Mm",
+            "description": "La línea de cierre que hay que cubrir (cuello aplastado)"
+          },
+          "covered_mm": {
+            "type": "number",
+            "title": "Covered Mm",
+            "description": "Lo que cubre el montaje: n·mordaza − (n−1)·solape"
+          },
+          "overlap_mm": {
+            "type": "number",
+            "title": "Overlap Mm",
+            "description": "Cuánto monta cada hoja sobre la anterior. SUPUESTO de este software: las series describen el solape sin dar la distancia."
+          },
+          "shape": {
+            "type": "string",
+            "title": "Shape",
+            "description": "La forma que pide el caso, para todas las piezas",
+            "default": ""
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "cautions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cautions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n_clips",
+          "jaws_mm",
+          "required_mm",
+          "covered_mm",
+          "overlap_mm"
+        ],
+        "title": "MultiClipConstructOut",
+        "description": "Un montaje de varios clips para un cuello que ninguna hoja cierra sola.\n\nEs técnica descrita —tándem apilado, «picket fence» con las hojas solapadas\ny escalonadas a lo largo del cuello—, no un apaño: en la serie publicada se\nreconstruyen cuellos gigantes con cuatro y siete clips fenestrados. Lo que\naporta aquí es la parte geométrica; cuál de las técnicas corresponde lo\ndecide el cirujano, y eso viaja en `cautions`."
       },
       "NeckPlaneRequest": {
         "properties": {

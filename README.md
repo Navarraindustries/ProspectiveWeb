@@ -1253,6 +1253,50 @@ a drawn size sat within half a step of the target; that had to learn the
 asymmetry, because a drawn size *below* the requirement is not close enough, it
 is short. A 5 mm neck wants 7.5 mm and the nearest drawn jaw is 7.
 
+### Two clips, when no single blade closes the neck
+
+Asked by the clinical direction: *can multi-clip treatments be supported, or is
+this single-clip only?* Half of it already worked and half of it did not, and
+the half that did not was the half that matters for a large neck.
+
+**Placement was never single-clip.** `POST /api/clips/plan` takes a *list* of
+placements, builds each clip at its pose, combines them, and measures neck
+coverage and collisions **on the combination**; the panel lists the clips placed,
+the report prints them all, and a catalogue clip and a custom one can sit in the
+same plan. What was single-clip was the **recommendation**: for a neck no blade
+closes, the only answer it had was «have a longer one made».
+
+That left out what is actually done in theatre, and it is described technique:
+
+- **tandem / stacked** — one clip parallel to the parent vessel, others stacked
+  under or over it reinforcing the closure;
+- **picket fence** — several clips in a row, **overlapping** and staggered along
+  the neck, rebuilding it in sections. The published series does a giant MCA
+  with seven fenestrated clips and an AComA with four.
+
+So the selector now also computes a construct: the fewest jaws **that exist**
+whose combined closing line covers the requirement. With `n` equal jaws of
+length `j` overlapping by `s`,
+
+    coverage = n·j − (n−1)·s
+
+The overlap is the point. Blades are laid overlapping, not end to end: letting
+them meet at the tips leaves the join unclosed, which is the same way of failing
+that the flattened-neck rule exists to prevent. **The 2 mm is this software's
+assumption** — the sources describe the overlap without giving a distance — so it
+is named, shown on screen and listed as a question for the surgeons.
+
+It is offered **beside** the manufacturing specification, never instead of it:
+for a 20 mm neck (30 mm of closing line, longest drawn jaw 22 mm) the two real
+answers are «have a 30 mm jaw made» and «put two 16 mm clips overlapping 2 mm»,
+and choosing between them is the surgeon's call. Three things the construct says
+about itself: which technique to use is not its decision, the overlap is an
+assumption, and the accumulated weight of several clips can kink the parent
+vessel — reported after tandem clipping (J Neurosurg 2015;123:472).
+
+Capped at four clips. The picket-fence series reaches seven, but proposing a
+long row from geometry alone is further than this software can see.
+
 ### The blades never opened as far as the mechanism does
 
 Noticed from the application, watching the rehearsal: the jaw did not look wide

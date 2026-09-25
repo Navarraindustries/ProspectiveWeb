@@ -92,6 +92,7 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
   rejected: [],
   manufacture: null,
   custom_jaw: null,
+  multiclip: null,
   caveats: ["Las preferencias clínicas son heurísticas de la literatura."],
   ...over,
 });
@@ -367,5 +368,73 @@ describe("la mordaza mínima que pide el cuello", () => {
     expect(await screen.findByText("7.1 mm")).toBeInTheDocument();
     expect(screen.getByText(/medida sobre el contorno del cuello/)).toBeInTheDocument();
     expect(screen.queryByText(/regla del cuello aplastado/)).not.toBeInTheDocument();
+  });
+});
+
+/* Un cuello que ninguna hoja cierra sola tiene DOS salidas.
+ *
+ * Preguntado por dirección: colocar varios clips ya funcionaba —el plan recibe
+ * una lista y mide cobertura y colisiones sobre el conjunto— pero la
+ * recomendación nunca proponía más de uno, así que la única salida que se
+ * ofrecía era mandar fabricar una hoja más larga. La otra es la que se usa en
+ * quirófano: varios clips en fila, solapados. */
+describe("el montaje de varios clips", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const MONTAJE = {
+    n_clips: 2, jaws_mm: [16, 16], required_mm: 30, covered_mm: 30,
+    overlap_mm: 2, shape: "Curvo",
+    label: "2 clips en fila (16 + 16 mm de mordaza), solapando 2 mm",
+    cautions: [
+      "La geometría dice cuántas mordazas cubren el cuello; la técnica la elige el cirujano.",
+      "El solape de 2 mm es un supuesto de este software, no una medida publicada.",
+      "El peso acumulado de varios clips puede acodar el vaso padre y obstruirlo.",
+    ],
+  };
+
+  const PIEZA = {
+    blade_length_mm: 30, blade_width_mm: 1.2, blade_height_mm: 1.4,
+    spring_length_mm: 27, shape: "Curvo", angle_deg: 0, closing_force_g: 180,
+    fenestration_mm: 0, neck_mm: 20, label: "Curvo de 30.0 mm",
+    reasons: [], confidence_notes: [], stl_url: null, part_no: "X-1",
+    source: "navarro" as const, piece_label: "Curvo de 30.0 mm",
+    commercial_name: "", fallback_reason: "",
+    dossier_internal_url: null, dossier_workshop_url: null,
+  };
+
+  it("se ofrece junto a la pieza a fabricar, no en su lugar", async () => {
+    clipSelection.mockResolvedValue(result({
+      outcome: "manufacture", recommended: [], manufacture: PIEZA,
+      multiclip: MONTAJE,
+    }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/O un montaje de varios clips/)).toBeInTheDocument();
+    expect(screen.getByText(/2 clips en fila/)).toBeInTheDocument();
+    // Y la salida de fabricar sigue estando: elegir entre las dos es del médico.
+    expect(screen.getByText(/pieza a medida especificada/)).toBeInTheDocument();
+  });
+
+  it("dice lo que cubre contra lo que hay que cerrar, y que las hojas van solapadas", async () => {
+    clipSelection.mockResolvedValue(result({ outcome: "manufacture", multiclip: MONTAJE }));
+    const { container } = render(<ClipSelectionPanel sessionId="s1" />);
+    await screen.findByText(/O un montaje de varios clips/);
+    expect(container.textContent).toMatch(/cubre 30\.0 mm de los 30\.0 mm/);
+    expect(screen.getByText(/solapadas/)).toBeInTheDocument();
+  });
+
+  it("no se calla lo que el montaje no decide", async () => {
+    // Un supuesto que no se declara se lee como una medida.
+    clipSelection.mockResolvedValue(result({ outcome: "manufacture", multiclip: MONTAJE }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/la técnica la elige el cirujano/)).toBeInTheDocument();
+    expect(screen.getByText(/es un supuesto de este software/)).toBeInTheDocument();
+    expect(screen.getByText(/acodar el vaso padre/)).toBeInTheDocument();
+  });
+
+  it("no aparece cuando un solo clip sirve", async () => {
+    clipSelection.mockResolvedValue(result());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    await screen.findByText(/Clips recomendados/);
+    expect(screen.queryByText(/O un montaje de varios clips/)).not.toBeInTheDocument();
   });
 });

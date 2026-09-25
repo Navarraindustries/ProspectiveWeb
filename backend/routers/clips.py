@@ -21,6 +21,7 @@ from models.clips import (
     ClipSelectionResult,
     CustomJawOut,
     ManufactureSpecOut,
+    MultiClipConstructOut,
 )
 from services.clips   import catalogue_to_api
 from services.clip_manufacture import resolve_perfect_clip
@@ -790,6 +791,16 @@ async def clip_selection(
             parent_artery_mm=c.parent_artery_mm, neck_source=c.neck_source,
             neck_tilt_deg=c.neck_tilt_deg, region=c.region,
             laterality=c.laterality, aneurysm_type=c.aneurysm_type,
+        ),
+        multiclip   = None if selection.multiclip is None else MultiClipConstructOut(
+            n_clips=selection.multiclip.n_clips,
+            jaws_mm=list(selection.multiclip.jaws_mm),
+            required_mm=round(selection.multiclip.required_mm, 2),
+            covered_mm=round(selection.multiclip.covered_mm, 2),
+            overlap_mm=selection.multiclip.overlap_mm,
+            shape=selection.multiclip.shape,
+            label=selection.multiclip.label,
+            cautions=list(selection.multiclip.cautions),
         ),
         recommended = [_candidate_out(x) for x in selection.recommended],
         rejected    = [_candidate_out(x) for x in selection.rejected],

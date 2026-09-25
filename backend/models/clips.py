@@ -304,6 +304,34 @@ class CustomJawOut(BaseModel):
     stl_url: str | None = Field(None, description="STL to send out, once generated")
 
 
+class MultiClipConstructOut(BaseModel):
+    """Un montaje de varios clips para un cuello que ninguna hoja cierra sola.
+
+    Es técnica descrita —tándem apilado, «picket fence» con las hojas solapadas
+    y escalonadas a lo largo del cuello—, no un apaño: en la serie publicada se
+    reconstruyen cuellos gigantes con cuatro y siete clips fenestrados. Lo que
+    aporta aquí es la parte geométrica; cuál de las técnicas corresponde lo
+    decide el cirujano, y eso viaja en `cautions`.
+    """
+
+    n_clips: int = Field(..., ge=2)
+    jaws_mm: list[float] = Field(..., description="La mordaza de cada clip del montaje")
+    required_mm: float = Field(
+        ..., description="La línea de cierre que hay que cubrir (cuello aplastado)")
+    covered_mm: float = Field(
+        ..., description="Lo que cubre el montaje: n·mordaza − (n−1)·solape")
+    overlap_mm: float = Field(
+        ...,
+        description=(
+            "Cuánto monta cada hoja sobre la anterior. SUPUESTO de este "
+            "software: las series describen el solape sin dar la distancia."
+        ),
+    )
+    shape: str = Field("", description="La forma que pide el caso, para todas las piezas")
+    label: str = ""
+    cautions: list[str] = Field(default_factory=list)
+
+
 class ClipSelectionResult(BaseModel):
     """The complete answer for one case.
 
@@ -333,6 +361,16 @@ class ClipSelectionResult(BaseModel):
         description=(
             "Offered when the drawn jaw sizes only bracket what the case needs and "
             "the family is manufactured per case, so an exact jaw is a real option."
+        ),
+    )
+    multiclip: MultiClipConstructOut | None = Field(
+        None,
+        description=(
+            "Varias mordazas que juntas cierran un cuello que ninguna cierra "
+            "sola. Se ofrece JUNTO a la especificación de fabricación, no en su "
+            "lugar: son las dos salidas del mismo callejón, y elegir entre "
+            "mandar fabricar una pieza o poner dos que ya existen es del "
+            "cirujano."
         ),
     )
     caveats: list[str] = Field(

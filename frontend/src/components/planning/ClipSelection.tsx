@@ -343,6 +343,37 @@ export function ClipSelectionPanel({
         </div>
       )}
 
+      {/* Varios clips para lo que ninguno cierra solo.
+          Preguntado por dirección: colocar varios ya funcionaba, pero la
+          recomendación nunca proponía más de uno, así que un cuello grande solo
+          tenía una salida — mandar fabricar una hoja más larga. La otra salida
+          es la que se usa en quirófano. */}
+      {sel.multiclip && (
+        <Card style={{ borderLeft: "3px solid var(--warning)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>
+            O un montaje de varios clips
+          </div>
+          <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 6, lineHeight: 1.5 }}>
+            <b>{sel.multiclip.label}</b>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
+            cubre {sel.multiclip.covered_mm.toFixed(1)} mm de los{" "}
+            {sel.multiclip.required_mm.toFixed(1)} mm que mide el cuello aplastado
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
+            Las hojas van <b>solapadas</b>, no adosadas: dejarlas tocándose por la
+            punta deja sin cerrar justo el tramo donde se juntan.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+            {sel.multiclip.cautions.map((c, i) => (
+              <div key={i} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+                — {c}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Los que se quedaron cerca. Sin esto la lista de arriba es una caja
           negra: no se puede saber si el catálogo se consideró entero. */}
       {sel.rejected.length > 0 && (

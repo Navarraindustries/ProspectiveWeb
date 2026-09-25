@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from services.clips import (
@@ -945,6 +945,126 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
                      resizable=src.can_resize)
 
 
+# ── Montaje de varios clips ───────────────────────────────────────────────── #
+#
+# Un cuello que ninguna hoja cierra no es necesariamente un cuello que haya que
+# mandar a fabricar: la cirugía lo resuelve con VARIOS clips. Es técnica
+# descrita, no una salida de emergencia:
+#
+#   · tándem / apilado — un clip paralelo al vaso padre y otros por debajo
+#     (understacking) o por encima (overstacking) reforzando el cierre;
+#   · «picket fence» — varios clips en fila, SOLAPADOS y escalonados a lo largo
+#     del cuello, reconstruyéndolo por tramos. En la serie publicada se usaron
+#     siete clips fenestrados en un ACM gigante y cuatro en una ACoA.
+#
+# Lo que este módulo puede aportar es la parte geométrica: cuántas mordazas de
+# las que existen hacen falta para cubrir la línea de cierre, y con qué solape.
+# Cuál de las técnicas corresponde —tándem, picket fence, fenestrado sobre la
+# rama— es del cirujano, y se dice en el propio resultado.
+#
+# Fuentes: «Picket-Fence Technique in Surgical Treatment of Cerebral Aneurysms»
+# (PMC12654722) y la literatura de clipaje en tándem; el aviso del peso
+# acumulado sobre el vaso padre viene de «Suture retraction technique to prevent
+# parent vessel obstruction following aneurysm tandem clipping» (J Neurosurg
+# 2015;123:472).
+
+#: Cuánto tiene que montar una hoja sobre la anterior. Las hojas van SOLAPADAS,
+#: no adosadas: dejar que se toquen justo en la punta deja un hueco donde el
+#: cuello no queda cerrado, que es la misma forma de fallar que persigue la
+#: regla del cuello aplastado.
+#:
+#: SUPUESTO, no medido. Ninguna de las fuentes da un número: describen el solape
+#: cualitativamente. 2 mm es el valor con el que trabaja el montaje, se enseña
+#: en pantalla para que sea discutible, y está en la lista de preguntas para los
+#: neurocirujanos.
+MULTICLIP_OVERLAP_MM: float = 2.0
+
+#: Más allá de esto el montaje deja de ser una propuesta razonable. La serie del
+#: picket fence llega a siete clips, pero cada hoja añade peso sobre el vaso
+#: padre —hay descrita obstrucción del vaso tras clipaje en tándem— y proponer
+#: una fila larga desde una geometría es pasarse de donde llega este software.
+MULTICLIP_MAX_CLIPS: int = 4
+
+
+@dataclass
+class MultiClipConstruct:
+    """Varias mordazas que juntas cierran un cuello que ninguna cierra sola."""
+
+    jaws_mm: list[float]
+    required_mm: float
+    covered_mm: float
+    overlap_mm: float
+    shape: str
+    #: Lo que el montaje NO decide, dicho en el propio objeto.
+    cautions: list[str] = field(default_factory=list)
+
+    @property
+    def n_clips(self) -> int:
+        return len(self.jaws_mm)
+
+    @property
+    def label(self) -> str:
+        tallas = " + ".join(f"{j:.0f}" for j in self.jaws_mm)
+        return (f"{self.n_clips} clips en fila ({tallas} mm de mordaza), "
+                f"solapando {self.overlap_mm:.0f} mm")
+
+
+def suggest_multiclip(
+    case: ClipCase,
+    catalogue: list[ClipSpec],
+    overlap_mm: float = MULTICLIP_OVERLAP_MM,
+) -> MultiClipConstruct | None:
+    """El montaje más corto que cubre la línea de cierre, o None.
+
+    Cubrir con `n` hojas iguales de longitud `j` solapando `s` da
+
+        cobertura = n·j − (n−1)·s
+
+    Se buscan primero los montajes de dos clips, luego de tres, y dentro de cada
+    número la talla más pequeña que llegue: cada milímetro de hoja de más es
+    hoja dentro del campo, y cada clip de más es peso sobre el vaso padre.
+    """
+    req = case.jaw_requirement.mm
+    if req <= 0:
+        return None
+
+    tallas = sorted({c.blade_length_mm for c in catalogue if c.blade_length_mm > 0})
+    if not tallas:
+        return None
+
+    # Si una sola hoja ya llega, esto no es un caso de varios clips.
+    if max(tallas) >= req:
+        return None
+
+    for n in range(2, MULTICLIP_MAX_CLIPS + 1):
+        for j in tallas:
+            if j <= overlap_mm:          # una hoja que no supera el solape no suma
+                continue
+            if n * j - (n - 1) * overlap_mm >= req:
+                shape = _preferred_shape(case)
+                return MultiClipConstruct(
+                    jaws_mm=[j] * n,
+                    required_mm=req,
+                    covered_mm=round(n * j - (n - 1) * overlap_mm, 2),
+                    overlap_mm=overlap_mm,
+                    shape=shape.value,
+                    cautions=[
+                        "La geometría dice cuántas mordazas cubren el cuello; la "
+                        "técnica —tándem apilado, picket fence, fenestrado sobre la "
+                        "rama— la elige el cirujano según qué haya que preservar.",
+                        f"El solape de {overlap_mm:.0f} mm entre hojas es un supuesto "
+                        f"de este software, no una medida publicada: las series "
+                        f"describen las hojas solapadas sin dar la distancia.",
+                        "El peso acumulado de varios clips puede acodar el vaso "
+                        "padre y obstruirlo; está descrito tras clipaje en tándem.",
+                        "Cada clip se coloca y se comprueba por separado en el paso "
+                        "de Dispositivos: la cobertura y las colisiones se miden "
+                        "sobre el conjunto ya colocado, no sobre esta propuesta.",
+                    ],
+                )
+    return None
+
+
 # ── Selection ─────────────────────────────────────────────────────────────── #
 
 Outcome = Literal["stock", "marginal", "manufacture", "unmeasured"]
@@ -961,6 +1081,11 @@ class ClipSelection:
     manufacture: ManufactureSpec | None
     caveats: list[str]
     custom_jaw: CustomJaw | None = None
+    #: Varias mordazas que juntas cierran lo que ninguna cierra sola. Se ofrece
+    #: junto a la especificación de fabricación, no en su lugar: son las dos
+    #: salidas de un cuello que el inventario no cubre, y la elección entre
+    #: mandar fabricar una pieza o poner dos que ya existen es del cirujano.
+    multiclip: MultiClipConstruct | None = None
 
 
 def _caveats(case: ClipCase) -> list[str]:
@@ -1167,15 +1292,23 @@ def select_clips(
 
     if not viable:
         spec = derive_manufacture_spec(case, failed)
+        multiclip = suggest_multiclip(case, catalogue)
+        resumen = (
+            f"Ningún clip del inventario sirve para un cuello de {case.neck_mm:.1f} mm. "
+            f"Se necesita fabricar: {spec.label}."
+        )
+        if multiclip is not None:
+            resumen += (
+                f" Con lo que hay en el inventario haría falta un montaje de "
+                f"{multiclip.n_clips} clips."
+            )
         return ClipSelection(
             outcome="manufacture",
-            summary=(
-                f"Ningún clip del inventario sirve para un cuello de {case.neck_mm:.1f} mm. "
-                f"Se necesita fabricar: {spec.label}."
-            ),
+            summary=resumen,
             case=case, recommended=[], rejected=rejected, manufacture=spec,
             caveats=_caveats(case),
             custom_jaw=suggest_custom_jaw(case, None),
+            multiclip=multiclip,
         )
 
     clean = [c for c in recommended if c.verdict == "ok"]

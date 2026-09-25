@@ -960,6 +960,27 @@ export interface ClipAnimationResult {
 
 export type ClipOutcome = "stock" | "marginal" | "manufacture" | "unmeasured";
 
+/** Varias mordazas que juntas cierran un cuello que ninguna cierra sola.
+
+    Es técnica descrita —tándem apilado, «picket fence» con las hojas solapadas
+    y escalonadas a lo largo del cuello—, no un apaño. Lo que aporta el software
+    es la geometría: cuántas mordazas cubren la línea de cierre y con qué
+    solape. Qué técnica corresponde lo decide el cirujano, y eso va en
+    `cautions`. */
+export interface MultiClipConstructOut {
+  n_clips: number;
+  jaws_mm: number[];
+  /** La línea de cierre a cubrir: el cuello APLASTADO, no su diámetro. */
+  required_mm: number;
+  /** n·mordaza − (n−1)·solape. Sumar las hojas a pelo dejaría un hueco. */
+  covered_mm: number;
+  /** SUPUESTO del software: las series describen el solape sin dar distancia. */
+  overlap_mm: number;
+  shape: string;
+  label: string;
+  cautions: string[];
+}
+
 export interface ClipSelectionResult {
   outcome: ClipOutcome;
   summary: string;
@@ -968,6 +989,9 @@ export interface ClipSelectionResult {
   rejected: ClipCandidateOut[];
   manufacture: ManufactureSpecOut | null;
   custom_jaw: CustomJawOut | null;
+  /** Acompaña a `manufacture`, no la sustituye: son las dos salidas de un
+      cuello que el inventario no cubre. */
+  multiclip: MultiClipConstructOut | null;
   caveats: string[];
 }
 

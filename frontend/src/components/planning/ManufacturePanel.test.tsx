@@ -67,6 +67,7 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
   rejected: [],
   manufacture: null,
   custom_jaw: null,
+  multiclip: null,
   caveats: [],
   ...over,
 });

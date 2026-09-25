@@ -1046,6 +1046,12 @@ export interface ClipAnimationResult {
   normal: number[];
   rotation_deg: number;
   clip_name: string;
+  /** El saco estrechándose entre las hojas, del 25 % al 100 % del cierre.
+   *  ILUSTRACIÓN GEOMÉTRICA: no hay pared que ceda, no se conserva el volumen y
+   *  no interviene ninguna propiedad del clip ni de su material. Lo único
+   *  cierto del dibujo es dónde aplasta y en qué dirección. */
+  sac_frames: string[];
+  sac_frames_note: string;
 }
 
 export type ClipOutcome = "stock" | "marginal" | "manufacture" | "unmeasured";

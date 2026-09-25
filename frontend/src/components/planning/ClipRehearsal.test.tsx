@@ -15,7 +15,7 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
-import { ClipRehearsal } from "./ClipRehearsal";
+import { ClipRehearsal, sacFrameFor } from "./ClipRehearsal";
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import type { ClipAnimationResult, MorphometryResult } from "../../api/types";
 
@@ -27,6 +27,9 @@ const anim: ClipAnimationResult = {
   hinge_axis: [0, 0, 1],
   swing_deg: 21,
   mechanics_assumed: true,
+  sac_frames: ["/data/anim_sac_1.vtp", "/data/anim_sac_2.vtp",
+               "/data/anim_sac_3.vtp", "/data/anim_sac_4.vtp"],
+  sac_frames_note: "Ilustración geométrica.",
   approach_entry: { x: 0, y: 0, z: -24 },
   approach_target: { x: 0, y: 0, z: 0 },
   approach_is_default: true,
@@ -150,5 +153,35 @@ describe("driving it", () => {
     withSession();
     fireEvent.click(await screen.findByRole("button", { name: /Preparar ensayo/ }));
     await waitFor(() => expect(screen.getByText(/malla ilegible/)).toBeInTheDocument());
+  });
+});
+
+/* El saco estrechándose durante el cierre.
+ *
+ * Pedido como ILUSTRACIÓN: solo geometría, sin propiedades físicas ni mecánicas
+ * del clip ni de su material. La deformación no se puede mover con una matriz
+ * —es otra geometría por cada momento del cierre, calculada en el backend— así
+ * que el ensayo dice qué fotograma toca y el visor lo enseña. */
+describe("qué fotograma del saco constreñido toca", () => {
+  it("mientras el clip baja, ninguno", () => {
+    // Enseñar el saco ya deformado durante el recorrido diría que el clip
+    // aprieta antes de llegar.
+    expect(sacFrameFor(0, 4)).toBeNull();
+    expect(sacFrameFor(-0.2, 4)).toBeNull();
+  });
+
+  it("recorre los fotogramas conforme se cierra", () => {
+    expect(sacFrameFor(0.1, 4)).toBe(0);
+    expect(sacFrameFor(0.5, 4)).toBe(1);
+    expect(sacFrameFor(0.8, 4)).toBe(3);
+    expect(sacFrameFor(1, 4)).toBe(3);
+  });
+
+  it("no se pasa del último aunque el reloj se pase", () => {
+    expect(sacFrameFor(2.5, 4)).toBe(3);
+  });
+
+  it("sin fotogramas —no hay saco aislado— no se enseña nada", () => {
+    expect(sacFrameFor(1, 0)).toBeNull();
   });
 });

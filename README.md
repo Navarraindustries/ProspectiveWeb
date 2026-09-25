@@ -1448,6 +1448,28 @@ cannot be deformed with this data, and that the 15 % cut between «neck remnant�
 and «residual» is a presentation convention of this software rather than a
 validated clinical threshold.
 
+**And the illustration, asked for explicitly as one.** «Show the sac being
+constricted, from geometry only, leaving the clip's physical and material
+properties out for now.» So the rehearsal plays it: four frames of the sac
+narrowing between the blades, from 25 % to 100 % of the closure, swapped in as
+the closing phase advances.
+
+It is a displacement field, and it says so. Points inside the grip are drawn
+toward the blades' mid-plane; the influence fades with distance from the closing
+line — a **compact** falloff, not a bell, because with a Gaussian the dome 6 mm
+away still narrowed by 12 % and the drawing implied the clip squeezes what it
+does not touch. Nothing outside the jaw length moves either, so a sac wider than
+the blade is not crushed whole. **No wall yields, no volume is conserved** — real
+tissue displaces somewhere and here it goes nowhere — **and no property of the
+clip or its material takes part.** It is a drawing that moves.
+
+What *is* true of the drawing is **where** it flattens and **in which
+direction**: both are read off the placed clip's own geometry (the axis the
+blades close along and the axis of their length, taken to the clip's pose),
+not set as parameters. And the frames are computed in the backend rather than
+in the viewer, because a deformation is a different geometry per moment — not
+something a matrix can do on the GPU.
+
 ### Two clips, when no single blade closes the neck
 
 Asked by the clinical direction: *can multi-clip treatments be supported, or is

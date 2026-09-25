@@ -78,6 +78,12 @@ interface PlanningState {
   /** Clip rehearsal in progress: the three meshes the viewer must draw instead
    *  of the placed clip while the manoeuvre plays. Null when not rehearsing. */
   clipRehearsal: ClipAnimationResult | null;
+  /** Índice del fotograma del saco constreñido que toca enseñar, o null para el
+   *  saco sin deformar. Lo escribe el ensayo en cada cuadro y lo lee el visor:
+   *  la deformación es geometría calculada en el backend, no una matriz que la
+   *  GPU pueda aplicar sola. */
+  sacFrame: number | null;
+  setSacFrame: (i: number | null) => void;
   /** Outer radius of each risk zone [high, medium, low] in mm, as reported by
    *  the backend, so the viewer legend states the bands really used. */
   perforatorZones: [number, number, number] | null;
@@ -214,6 +220,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [measurePending, setMeasurePending] = useState<Vec3 | null>(null);
   const [neckRim, setNeckRim] = useState<Vec3[]>([]);
   const [clipRehearsal, setClipRehearsal] = useState<ClipAnimationResult | null>(null);
+  const [sacFrame, setSacFrame] = useState<number | null>(null);
   const [clipParts, registerClipParts] = useState<PartsHandle | null>(null);
   const [perforators, _setPerforators] = useState<PerforatorCandidate[]>([]);
   const [perforatorZones, setPerforatorZones] = useState<[number, number, number] | null>(null);
@@ -309,7 +316,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
+        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,

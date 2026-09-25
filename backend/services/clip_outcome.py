@@ -228,3 +228,83 @@ def occlusion_after_clip(
         f"presentación de este software, no un umbral clínico validado.",
     ]
     return res
+
+
+# ── La ilustración: el saco estrechándose ─────────────────────────────────── #
+#
+# Pedido explícitamente como ILUSTRACIÓN: enseñar, solo desde la geometría, cómo
+# queda constreñido el aneurisma entre las hojas, sin meter todavía las
+# propiedades físicas ni mecánicas del clip ni de su material.
+#
+# Así que esto es lo que es: un campo de desplazamiento. Los puntos del saco que
+# caen dentro de la presa se llevan hacia el plano medio de las hojas, y la
+# influencia se apaga con la distancia a la línea de cierre. No hay pared que
+# ceda, no hay volumen que se conserve —el tejido real se desplaza a algún
+# sitio y aquí no va a ninguno— y no hay fuerza. Es un dibujo que se mueve.
+#
+# Lo que sí es cierto de este dibujo es la LÍNEA DE CIERRE: dónde aplasta y en
+# qué dirección salen de la geometría del clip colocado, no de un parámetro.
+
+#: Hasta dónde llega la presa a lo largo del eje del cuello, a cada lado de la
+#: línea de cierre. Las hojas tienen un canto, y el tejido cede alrededor.
+#: ILUSTRATIVO: ni está medido ni lo pretende.
+GRIP_FALLOFF_MM: float = 3.0
+
+
+def constrict_sac(
+    sac_poly: vtk.vtkPolyData,
+    closing_origin,
+    jaw_axis,
+    blade_axis,
+    blade_length_mm: float,
+    t: float,
+    grip_mm: float = GRIP_FALLOFF_MM,
+) -> vtk.vtkPolyData:
+    """El saco aplastado entre las hojas al `t` del cierre (0 abierto, 1 cerrado).
+
+    `jaw_axis` es la dirección en la que las hojas se juntan —contra la que se
+    aplasta— y `blade_axis` la de su longitud: fuera de la mordaza no se toca
+    nada, que es lo que hace que la ilustración se parezca a un clip y no a una
+    mano cerrando el saco entero.
+    """
+    salida = vtk.vtkPolyData()
+    salida.DeepCopy(sac_poly)
+    if t <= 0.0 or salida.GetNumberOfPoints() == 0:
+        return salida
+
+    c = np.asarray(closing_origin, dtype=float)
+    u = np.asarray(jaw_axis, dtype=float)
+    v = np.asarray(blade_axis, dtype=float)
+    u = u / (float(np.linalg.norm(u)) or 1.0)
+    v = v / (float(np.linalg.norm(v)) or 1.0)
+    # El tercer eje: a lo largo de él se apaga la presa.
+    w = np.cross(u, v)
+    w = w / (float(np.linalg.norm(w)) or 1.0)
+
+    pts = salida.GetPoints()
+    n = pts.GetNumberOfPoints()
+    P = np.asarray([pts.GetPoint(i) for i in range(n)], dtype=float)
+    q = P - c
+    a = q @ u                      # cuánto se aparta del plano medio
+    b = q @ v                      # a lo largo de la hoja
+    h = q @ w                      # separación de la línea de cierre
+
+    media_hoja = max(1.0, blade_length_mm / 2.0)
+    # Dentro de la hoja, 1; fuera, se apaga en 2 mm. Sin esto, un saco más ancho
+    # que la mordaza se aplastaría entero y el dibujo diría que el clip agarra
+    # lo que no agarra.
+    dentro = np.clip((media_hoja + 2.0 - np.abs(b)) / 2.0, 0.0, 1.0)
+    # Caída con soporte COMPACTO, no una gaussiana: con una campana, el domo a
+    # 6 mm de la línea de cierre todavía se estrechaba un 12 % y el dibujo
+    # sugería que el clip aprieta lo que no toca. Aquí se apaga del todo a 2·grip.
+    alcance = 2.0 * max(grip_mm, 0.5)
+    cerca = np.where(np.abs(h) >= alcance, 0.0,
+                     0.5 * (1.0 + np.cos(np.pi * np.clip(h / alcance, -1.0, 1.0))))
+    peso = dentro * cerca * float(np.clip(t, 0.0, 1.0))
+
+    P2 = P - np.outer(a * peso, u)
+    for i in range(n):
+        pts.SetPoint(i, float(P2[i, 0]), float(P2[i, 1]), float(P2[i, 2]))
+    pts.Modified()
+    salida.Modified()
+    return salida

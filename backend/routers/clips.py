@@ -1109,8 +1109,55 @@ async def clip_animation(
             float(blade_mm) + 14.0,
         )
 
-    logger.info("Clip animation — session=%s clip=%s swing=%.1f marked_path=%s",
-                session_id, pl.clip_id, swing, marked)
+    # ── El saco estrechándose, como ilustración ───────────────────────── #
+    #
+    # Pedido así: solo la geometría, sin propiedades físicas ni mecánicas del
+    # clip ni de su material. Los fotogramas se calculan aquí porque es donde
+    # están las dos direcciones que hacen falta y que NO son un parámetro: la
+    # dirección en la que se juntan las hojas y la de su longitud, ambas leídas
+    # del propio clip y llevadas a su pose.
+    sac_frames: list[str] = []
+    sac_note = ""
+    sac_name = read_state(session_id, "morpho.sac_vtp_name", "")
+    sac_path = meshes_dir / (sac_name or "aneurysm_sac.vtp")
+    if sac_path.exists():
+        try:
+            from services.clip_outcome import constrict_sac
+            from services.segmentation import read_vtp as _read_vtp
+
+            t_pose = devices.pose_transform(
+                (pl.position.x, pl.position.y, pl.position.z), normal, pl.rotation_deg)
+            m = t_pose.GetMatrix()
+
+            def _dir(eje: int) -> tuple[float, float, float]:
+                """Un eje local del clip, llevado al mundo (solo rotación)."""
+                loc = [0.0, 0.0, 0.0]
+                loc[eje] = 1.0
+                return tuple(
+                    sum(m.GetElement(r, c) * loc[c] for c in range(3)) for r in range(3)
+                )
+
+            saco = _read_vtp(sac_path)
+            for k, t in enumerate((0.25, 0.5, 0.75, 1.0), start=1):
+                deformado = constrict_sac(
+                    saco, (pl.position.x, pl.position.y, pl.position.z),
+                    _dir(geom["open_axis"]), _dir(geom["long_axis"]),
+                    float(blade_mm), t,
+                )
+                fn = f"anim_sac_{k}.vtp"
+                write_vtp(deformado, meshes_dir / fn)
+                sac_frames.append(f"{mesh_url(session_id, fn)}?v={stamp}")
+            sac_note = (
+                "Ilustración geométrica: el saco se lleva hacia el plano medio "
+                "de las hojas dentro de la presa. No hay pared que ceda, no se "
+                "conserva el volumen y no interviene ninguna propiedad del clip "
+                "ni de su material."
+            )
+        except Exception as exc:  # noqa: BLE001 — un dibujo no hunde el ensayo
+            logger.warning("Sac constriction frames skipped: %s", exc)
+
+    logger.info("Clip animation — session=%s clip=%s swing=%.1f marked_path=%s frames=%d",
+                session_id, pl.clip_id, swing, marked, len(sac_frames))
     return ClipAnimationResult(
         body_url=names["body"], blade_a_url=names["blade_a"], blade_b_url=names["blade_b"],
         hinge=Position3D(x=hinge[0], y=hinge[1], z=hinge[2]),
@@ -1126,6 +1173,8 @@ async def clip_animation(
         normal=list(normal),
         rotation_deg=pl.rotation_deg,
         clip_name=spec.name if spec is not None else pl.clip_id,
+        sac_frames=sac_frames,
+        sac_frames_note=sac_note,
     )
 
 

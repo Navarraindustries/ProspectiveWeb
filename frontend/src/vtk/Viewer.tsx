@@ -142,7 +142,7 @@ export function Viewer({ step }: { step: string }) {
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick,
     cropRadius, cropShape, cropInvert, planeCut, boxCut,
-    trajEntry, trajTarget, setTrajEntry, setTrajTarget,
+    trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
@@ -277,7 +277,12 @@ export function Viewer({ step }: { step: string }) {
     // El saco cerrado manda sobre el localizador: en cuanto está marcado el
     // cuello hay una malla que SÍ es el cuerpo del aneurisma, y enseñar las
     // dos a la vez volvería a mezclar «dónde mirar» con «qué es».
-    const sacUrl = morphometry?.sac_mesh_url;
+    // Durante el cierre del ensayo, el saco es el fotograma constreñido: el
+    // sin deformar al lado diría que el clip no toca nada.
+    const sacFrames = clipRehearsal?.sac_frames ?? [];
+    const sacUrl = (sacFrame !== null && sacFrames[sacFrame])
+      ? sacFrames[sacFrame]
+      : morphometry?.sac_mesh_url;
     if (sacUrl && step !== "segment" && step !== "upload") {
       out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac" });
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
@@ -297,7 +302,7 @@ export function Viewer({ step }: { step: string }) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
     }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal]);
+  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame]);
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];

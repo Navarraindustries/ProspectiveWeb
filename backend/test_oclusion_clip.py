@@ -176,3 +176,74 @@ class TestPorLaApi:
 
     def test_sesion_inexistente(self):
         assert client.get("/api/clips/occlusion/no-existe").status_code == 404
+
+
+class TestElSacoEstrechandose:
+    """La ilustración que se pidió: solo geometría, sin física ni material.
+
+    Un campo de desplazamiento. Los puntos del saco que caen dentro de la presa
+    se llevan hacia el plano medio de las hojas y la influencia se apaga con la
+    distancia a la línea de cierre. No hay pared que ceda, no se conserva el
+    volumen —el tejido real se desplaza a algún sitio y aquí no va a ninguno— y
+    no interviene ninguna propiedad del clip. Es un dibujo que se mueve.
+
+    Lo único cierto del dibujo es DÓNDE aplasta y en qué dirección: las dos
+    salen de la geometría del clip colocado, no de un parámetro.
+    """
+
+    def _anchura(self, poly, z0: float, tol: float = 1.0, eje: int = 0) -> float:
+        import numpy as np
+        P = np.asarray([poly.GetPoint(i) for i in range(poly.GetNumberOfPoints())])
+        banda = P[np.abs(P[:, 2] - z0) < tol]
+        return float(np.ptp(banda[:, eje])) if len(banda) else 0.0
+
+    def test_la_presa_se_cierra_y_el_domo_no_se_entera(self):
+        from services.clip_outcome import constrict_sac
+
+        saco = _saco()
+        abierto = constrict_sac(saco, (0, 0, -3.0), (1, 0, 0), (0, 1, 0), 9.0, 0.0)
+        cerrado = constrict_sac(saco, (0, 0, -3.0), (1, 0, 0), (0, 1, 0), 9.0, 1.0)
+        assert self._anchura(cerrado, -3.0) < 1.0, "en la presa tiene que quedar plano"
+        # Y el domo, intacto: si se estrecha, el dibujo dice que el clip aprieta
+        # lo que no toca. Con una campana se contagiaba un 12 %.
+        assert self._anchura(cerrado, 4.0) == pytest.approx(
+            self._anchura(abierto, 4.0), rel=0.02)
+
+    def test_se_cierra_progresivamente(self):
+        from services.clip_outcome import constrict_sac
+
+        anchos = [self._anchura(
+            constrict_sac(_saco(), (0, 0, -3.0), (1, 0, 0), (0, 1, 0), 9.0, t), -3.0)
+            for t in (0.0, 0.25, 0.5, 0.75, 1.0)]
+        assert anchos == sorted(anchos, reverse=True), anchos
+
+    def test_aplasta_contra_la_direccion_de_las_hojas(self):
+        # La dirección no es un parámetro del dibujo: es por donde se juntan las
+        # hojas. Girando esa dirección, se aplasta el otro eje.
+        from services.clip_outcome import constrict_sac
+
+        en_x = constrict_sac(_saco(), (0, 0, -3.0), (1, 0, 0), (0, 1, 0), 9.0, 1.0)
+        en_y = constrict_sac(_saco(), (0, 0, -3.0), (0, 1, 0), (1, 0, 0), 9.0, 1.0)
+        assert self._anchura(en_x, -3.0, eje=0) < 1.0
+        assert self._anchura(en_x, -3.0, eje=1) > 5.0
+        assert self._anchura(en_y, -3.0, eje=1) < 1.0
+
+    def test_fuera_de_la_mordaza_no_se_toca(self):
+        # Un saco más ancho que la hoja no se aplasta entero: si lo hiciera, el
+        # dibujo diría que el clip agarra lo que no agarra.
+        import numpy as np
+        from services.clip_outcome import constrict_sac
+
+        d = constrict_sac(_saco(), (0, 0, -3.0), (1, 0, 0), (0, 1, 0), 4.0, 1.0)
+        P = np.asarray([d.GetPoint(i) for i in range(d.GetNumberOfPoints())])
+        lejos = P[(np.abs(P[:, 2] + 3.0) < 1.0) & (np.abs(P[:, 1]) > 4.0)]
+        if len(lejos):
+            assert np.abs(lejos[:, 0]).max() > 0.5, "más allá de la hoja no aprieta"
+
+    def test_con_t_cero_devuelve_el_saco_tal_cual(self):
+        from services.clip_outcome import constrict_sac
+
+        saco = _saco()
+        igual = constrict_sac(saco, (0, 0, -3.0), (1, 0, 0), (0, 1, 0), 9.0, 0.0)
+        assert igual.GetNumberOfPoints() == saco.GetNumberOfPoints()
+        assert igual.GetPoint(10) == pytest.approx(saco.GetPoint(10))

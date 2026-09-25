@@ -437,6 +437,20 @@ class ClipAnimationResult(BaseModel):
     normal: list[float]
     rotation_deg: float
     clip_name: str = ""
+    sac_frames: list[str] = Field(
+        default_factory=list,
+        description=(
+            "El saco estrechándose entre las hojas, en fotogramas del 25 % al "
+            "100 % del cierre. ILUSTRACIÓN GEOMÉTRICA: los puntos que caen "
+            "dentro de la presa se llevan hacia el plano medio de las hojas y "
+            "la influencia se apaga con la distancia a la línea de cierre. No "
+            "hay pared que ceda, no se conserva el volumen y no interviene "
+            "ninguna propiedad del clip ni de su material. Lo único cierto del "
+            "dibujo es DÓNDE aplasta y en qué dirección, que salen de la "
+            "geometría del clip colocado."
+        ),
+    )
+    sac_frames_note: str = ""
 
 
 class OcclusionOut(BaseModel):

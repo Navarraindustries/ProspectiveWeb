@@ -60,9 +60,19 @@ function bladeMatrix(hinge: vec3, axis: vec3, deg: number): mat4 {
   return m;
 }
 
+/** Qué fotograma del saco constreñido toca en este momento del cierre.
+
+    `null` mientras el clip baja: durante el recorrido las hojas todavía no
+    agarran nada, y enseñar el saco ya deformado diría que el clip aprieta antes
+    de llegar. */
+export function sacFrameFor(close: number, frames: number): number | null {
+  if (frames <= 0 || close <= 0) return null;
+  return Math.min(frames - 1, Math.floor(Math.min(1, close) * frames - 1e-6));
+}
+
 export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: string }) {
   const { sessionId, morphometry, clipRehearsal, setClipRehearsal, clipParts,
-          trajEntry, trajTarget } = usePlanning();
+          trajEntry, trajTarget, setSacFrame } = usePlanning();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -87,13 +97,18 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
     const hinge = v(anim.hinge);
     const axis = vec3.normalize(vec3.create(), vec3.fromValues(...(anim.hinge_axis as [number, number, number])));
 
+    // El saco constreñido no se puede mover con una matriz: es OTRA geometría
+    // por cada momento del cierre, calculada en el backend. El ensayo dice cuál
+    // toca y el visor la enseña.
+    setSacFrame(sacFrameFor(close, anim.sac_frames.length));
+
     clipParts.setMatrix("clip-body", Array.from(world));
     for (const [id, sign] of [["clip-blade-a", +1], ["clip-blade-b", -1]] as const) {
       const m = mat4.multiply(mat4.create(), world, bladeMatrix(hinge, axis, sign * open));
       clipParts.setMatrix(id, Array.from(m));
     }
     clipParts.render();
-  }, [clipParts]);
+  }, [clipParts, setSacFrame]);
 
   const stop = useCallback(() => {
     if (raf.current !== null) cancelAnimationFrame(raf.current);

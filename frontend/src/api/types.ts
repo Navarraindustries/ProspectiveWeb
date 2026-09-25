@@ -444,11 +444,43 @@ export interface TrajectoryRequest {
   target: Position3D;
 }
 
+/** Un vaso que el corredor atraviesa antes de llegar al aneurisma. */
+export interface VesselCrossingOut {
+  distance_from_entry_mm: number;
+  position: Position3D;
+  calibre_mm: number;
+  /** "barrido" = calibre medido; "malla" = estimado por la cuerda del rayo. */
+  calibre_source: string;
+}
+
+/** Qué hay dentro del corredor de abordaje, y qué se concluye de ello.
+
+    Tres estados, por reglas explícitas sobre lo medido. No hay puntuación: la
+    misma razón por la que el motor de tratamiento dejó de enseñarlas. */
+export interface CorridorAssessmentOut {
+  radius_mm: number;
+  vessels_crossed: VesselCrossingOut[];
+  nearest_branch_mm: number | null;
+  nearest_branch_calibre_mm: number;
+  /** Milímetros por material denso que NO es vasculatura, casi siempre hueso.
+      No se llama hueso porque no se separa del contraste por intensidad. */
+  dense_tissue_mm: number;
+  /** False en un estudio sustraído: ahí no hay tejido en la imagen. */
+  dense_tissue_measurable: boolean;
+  verdict: "viable" | "revisar" | "no_viable";
+  verdict_reason: string;
+  findings: string[];
+  assumptions: string[];
+}
+
 export interface TrajectoryResult {
   entry: number[];
   target: number[];
   depth_mm: number;
   angle_deg: number;
+  /** Null mientras no haya malla: sin ella no hay contra qué cruzar nada, y un
+      «viable» sin haber mirado sería peor que no dar veredicto. */
+  corridor: CorridorAssessmentOut | null;
 }
 
 /* ── DICOM volume preprocessing ────────────────────────────────────────── */

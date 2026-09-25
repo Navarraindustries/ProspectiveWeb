@@ -1253,6 +1253,62 @@ a drawn size sat within half a step of the target; that had to learn the
 asymmetry, because a drawn size *below* the requirement is not close enough, it
 is short. A 5 mm neck wants 7.5 mm and the nearest drawn jaw is 7.
 
+### The approach corridor stopped being two points and a line
+
+Asked by the clinical direction: the software should assess the approach
+trajectory, the viability of the procedure should depend on it, and it should
+say what tissue is crossed and what could be compromised — or that nothing is.
+
+What existed was a straight line. Entry and target were picked, depth and
+incidence angle came back, a cylinder was drawn and that reached the report.
+Nothing looked at what is *inside* the corridor, so it could not say whether the
+approach is workable and it fed nothing downstream.
+
+**What is measured now.** The corridor is a cylinder of radius `radius_mm`
+(5 mm by default, and that is this software's assumption, published with the
+result). Seventeen parallel rays are cast through its cross-section and
+intersected with the patient's mesh:
+
+| | |
+|---|---|
+| Vessels crossed | position, distance from entry, and calibre |
+| Calibre source | the frozen branch scan when an origin is within 3 mm, else the longest chord a ray makes inside that piece, which approximates the diameter |
+| Near misses | distance to the closest branch origin the corridor does *not* cross, with its calibre |
+| Target exclusion | a ball around the aneurysm that grows with the sac — without it the dome itself counted as an obstacle and no approach was ever viable |
+
+**The verdict is three states from explicit rules**, not a weighted sum — the
+same reason the treatment engine stopped showing figures. A vessel of ⌀ ≥ 1.5 mm
+in the way is `no_viable` («that does not move aside»); something thinner, or
+passing within 2 mm of a branch origin, is `revisar` — it may be a vein or a
+mobilisable branch, and that is the surgeon's call; anything else is `viable`.
+
+**Two things it refuses to claim.**
+
+*It does not measure bone.* Bone is not separable from contrast by intensity —
+99 % of it falls inside the tree's own range, measured on case 3 — so the only
+defensible statement is that there is **dense material where the vascular mesh
+does not reach**. It is labelled that way, and it stays out of the verdict:
+nothing here can tell the craniotomy from a deep bony obstacle. On a
+**subtracted** study not even that: the image contains no bone and no
+parenchyma, so the corridor can only speak about vessels, and it says so instead
+of reporting «0 mm of bone», which would read as a clear path.
+
+*Without a mesh there is no verdict.* The corridor comes back `null`, not
+«viable». A verdict issued without having looked at anything is worse than no
+verdict.
+
+And the caveat that travels with every corridor: a 0.1–0.5 mm perforator never
+reaches the mesh, so a clear corridor here is **not** a corridor without
+perforators.
+
+The verdict is persisted, printed in the PDF beside the depth and the angle, and
+cleared with the trajectory — leaving it behind would describe a path nobody has
+marked any more.
+
+Still to come on this feature: having the software **propose** a corridor
+(sweeping directions and keeping the clear ones), and letting it **feed the clip
+recommendation**.
+
 ### Two clips, when no single blade closes the neck
 
 Asked by the clinical direction: *can multi-clip treatments be supported, or is

@@ -17,7 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from models import ReportRequest, ReportResult, ExportRequest
-from models.trajectory import TrajectoryRequest, TrajectoryResult
+from models.detection import Position3D
+from models.trajectory import (CorridorAssessmentOut, TrajectoryRequest,
+                               TrajectoryResult, VesselCrossingOut)
 from services.database import get_db
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state,
@@ -340,8 +342,16 @@ async def export_stl_endpoint(
     summary="Save the surgical approach trajectory",
     description=(
         "Persists the entry → target approach corridor in session state so it is "
-        "included in the PDF report and the DICOM SR. Returns the stored points "
-        "plus the approach depth and incidence angle."
+        "included in the PDF report and the DICOM SR. Returns the stored points, "
+        "the approach depth and incidence angle, and — when a segmented mesh "
+        "exists — what the corridor actually crosses: vessels in the way with "
+        "their calibre, how close it passes to a branch origin, how much of the "
+        "run goes through dense non-vascular material, and a three-state verdict "
+        "on whether the approach is workable. "
+        "The verdict comes from explicit rules over what was measured, not from "
+        "a weighted sum. And it only sees what is in the mesh: a 0.1–0.5 mm "
+        "perforator never reaches it, so a clear corridor here is not a corridor "
+        "without perforators."
     ),
 )
 async def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryResult:
@@ -354,9 +364,97 @@ async def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryR
     write_state(session_id, "trajectory.target_y", str(req.target.y))
     write_state(session_id, "trajectory.target_z", str(req.target.z))
     tr = read_trajectory_state(session_id)
+    corridor = _assess_corridor_for(session_id, tr["entry"], tr["target"])
+    if corridor is not None:
+        # El veredicto viaja al informe: si la viabilidad del abordaje depende
+        # de esto, el documento que se lleva a sesión tiene que llevarlo.
+        write_state(session_id, "trajectory.verdict", corridor.verdict)
+        write_state(session_id, "trajectory.verdict_reason", corridor.verdict_reason)
+        write_state(session_id, "trajectory.findings",
+                    " | ".join(corridor.findings))
     return TrajectoryResult(
         entry=tr["entry"], target=tr["target"],
         depth_mm=tr["depth_mm"], angle_deg=tr["angle_deg"],
+        corridor=corridor,
+    )
+
+
+def _assess_corridor_for(session_id: str, entry, target) -> CorridorAssessmentOut | None:
+    """Mide el corredor contra la malla y el volumen de esta sesión.
+
+    Devuelve None cuando no hay malla: sin ella no hay contra qué cruzar la
+    trayectoria, y un veredicto «viable» sin haber mirado nada sería peor que
+    no dar ninguno.
+    """
+    from services.approach import assess_corridor
+
+    meshes = session_subdir(session_id, "meshes")
+    vtp = meshes / "vessel_tree.vtp"
+    if not vtp.exists():
+        return None
+
+    try:
+        poly = read_vtp(vtp)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Corridor assessment skipped, mesh unreadable: %s", exc)
+        return None
+
+    def _f(key: str, default: float = 0.0) -> float:
+        raw = read_state(session_id, key, "")
+        try:
+            return float(raw) if raw != "" else default
+        except ValueError:
+            return default
+
+    eje = (_f("morpho.axis_x"), _f("morpho.axis_y"), _f("morpho.axis_z", 1.0))
+    if eje == (0.0, 0.0, 0.0):
+        eje = (0.0, 0.0, 1.0)
+
+    ramas = []
+    try:
+        from services.branch_origins import thaw_scan
+        scan = thaw_scan(session_id)
+        if scan is not None:
+            ramas = list(scan.origins)
+    except Exception as exc:  # noqa: BLE001 — el barrido es un extra, no un requisito
+        logger.warning("Branch scan unavailable for the corridor: %s", exc)
+
+    # La bola alrededor de la diana crece con el saco: en un aneurisma grande,
+    # 6 mm fijos dejarían el propio domo contado como obstáculo.
+    clearance = max(6.0, _f("morpho.max_diameter_mm") / 2.0 + 2.0)
+
+    volume = spacing = None
+    denso = _f("seg.threshold_lower")
+    try:
+        from services.mpr import _get_volume, ensure_volume_cached
+        meta = ensure_volume_cached(session_id)
+        volume = _get_volume(session_id)
+        spacing = tuple(float(x) for x in meta["spacing"])
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Volume not available for the corridor: %s", exc)
+
+    a = assess_corridor(
+        tuple(entry), tuple(target), poly,
+        neck_axis=eje, branches=ramas, target_clearance_mm=clearance,
+        volume=volume, spacing=spacing, dense_threshold=denso,
+        is_subtracted=read_state(session_id, "seg.strategy", "") == "dsa",
+    )
+    return CorridorAssessmentOut(
+        radius_mm=a.radius_mm,
+        vessels_crossed=[
+            VesselCrossingOut(
+                distance_from_entry_mm=v.distance_from_entry_mm,
+                position=Position3D(x=v.position[0], y=v.position[1], z=v.position[2]),
+                calibre_mm=v.calibre_mm, calibre_source=v.calibre_source,
+            )
+            for v in a.vessels_crossed
+        ],
+        nearest_branch_mm=a.nearest_branch_mm,
+        nearest_branch_calibre_mm=a.nearest_branch_calibre_mm,
+        dense_tissue_mm=a.dense_tissue_mm,
+        dense_tissue_measurable=a.dense_tissue_measurable,
+        verdict=a.verdict, verdict_reason=a.verdict_reason,
+        findings=a.findings, assumptions=a.assumptions,
     )
 
 
@@ -368,5 +466,8 @@ async def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryR
 async def clear_trajectory(session_id: str) -> None:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-    for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z"):
+    # El veredicto se borra con los puntos. Dejarlo dejaría en el informe un
+    # «corredor bloqueado» de una trayectoria que ya no existe.
+    for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z",
+              "verdict", "verdict_reason", "findings"):
         write_state(session_id, f"trajectory.{k}", "")

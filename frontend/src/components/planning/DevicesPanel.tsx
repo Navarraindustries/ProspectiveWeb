@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type {
   ClipPlanResult,
+  CorridorAssessmentOut,
   ClipLibraryItem,
   CustomClipInfo,
   DeviceKind,
@@ -19,6 +20,7 @@ import type {
   Position3D,
   StentLibraryItem,
   StentPlanResult,
+  TrajectoryResult,
 } from "../../api/types";
 import { Button } from "../Button";
 import { ClipRehearsal } from "./ClipRehearsal";
@@ -897,6 +899,67 @@ function ClStentTab() {
   );
 }
 
+/* ── Lo que el corredor de abordaje atraviesa ──────────────────────────── */
+
+const VERDICT_UI: Record<CorridorAssessmentOut["verdict"],
+                         { label: string; color: string }> = {
+  viable:    { label: "Corredor libre",      color: "var(--success)" },
+  revisar:   { label: "Revisar el corredor", color: "var(--warning)" },
+  no_viable: { label: "Corredor bloqueado",  color: "var(--destructive)" },
+};
+
+function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
+  const v = VERDICT_UI[c.verdict];
+  return (
+    <div style={{
+      marginBottom: 10, padding: "10px 12px", borderRadius: "var(--radius-md)",
+      background: "var(--muted)", borderLeft: `3px solid ${v.color}`,
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: v.color }}>{v.label}</div>
+      <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 4, lineHeight: 1.5 }}>
+        {c.verdict_reason}
+      </div>
+
+      {c.vessels_crossed.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {c.vessels_crossed.map((x, i) => (
+            <div key={i} style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
+              ⌀ {x.calibre_mm.toFixed(1)} mm a {x.distance_from_entry_mm.toFixed(0)} mm de la entrada
+              <span style={{ fontFamily: "var(--font-sans)", color: "var(--muted-foreground)" }}>
+                {x.calibre_source === "barrido" ? " · calibre medido" : " · calibre estimado"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {c.nearest_branch_mm !== null && c.vessels_crossed.length === 0 && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+          Rama más próxima a {c.nearest_branch_mm.toFixed(1)} mm
+          {c.nearest_branch_calibre_mm > 0 && ` (⌀ ${c.nearest_branch_calibre_mm.toFixed(1)} mm)`}.
+        </div>
+      )}
+
+      {/* Lo que se mide y lo que NO se puede medir, en el mismo sitio: un
+          corredor «limpio» dice menos de lo que parece. */}
+      {(c.findings.length > 0 || c.assumptions.length > 0) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+          {c.findings.map((f, i) => (
+            <div key={`f${i}`} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+              — {f}
+            </div>
+          ))}
+          {c.assumptions.map((a, i) => (
+            <div key={`a${i}`} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45, opacity: 0.85 }}>
+              — {a}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Trayectoria de abordaje quirúrgico ────────────────────────────────── */
 function TrajectoryTool() {
   const {
@@ -904,7 +967,7 @@ function TrajectoryTool() {
     trajEntry, trajTarget, setTrajEntry, setTrajTarget,
   } = usePlanning();
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<{ depth: number; angle: number } | null>(null);
+  const [saved, setSaved] = useState<TrajectoryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const hasMesh = !!segmentation?.mesh_url;
@@ -917,11 +980,10 @@ function TrajectoryTool() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.setTrajectory(sessionId, {
+      setSaved(await api.setTrajectory(sessionId, {
         entry: { x: trajEntry[0], y: trajEntry[1], z: trajEntry[2] },
         target: { x: trajTarget[0], y: trajTarget[1], z: trajTarget[2] },
-      });
-      setSaved({ depth: res.depth_mm, angle: res.angle_deg });
+      }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar la trayectoria");
     } finally {
@@ -970,9 +1032,14 @@ function TrajectoryTool() {
       {depth !== null && (
         <div style={{ fontSize: 12, color: "var(--foreground)", marginBottom: 10 }}>
           Profundidad de abordaje: <b style={{ fontFamily: "var(--font-mono)" }}>{depth.toFixed(1)} mm</b>
-          {saved && <> · Ángulo: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle.toFixed(1)}°</b></>}
+          {saved && <> · Ángulo: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle_deg.toFixed(1)}°</b></>}
         </div>
       )}
+
+      {/* Lo que el corredor atraviesa. Antes esto eran dos puntos y una línea:
+          se guardaba la trayectoria sin mirar qué hay en medio, así que no
+          podía decir si el abordaje es viable. */}
+      {saved?.corridor && <CorridorReport c={saved.corridor} />}
       <ErrorNote>{error}</ErrorNote>
       <div style={{ display: "flex", gap: 8 }}>
         <Button size="sm" style={{ flex: 1 }} disabled={busy || !trajEntry || !trajTarget} onClick={() => void save()} leadingIcon={<Icon name="SAVE" size={14} />}>

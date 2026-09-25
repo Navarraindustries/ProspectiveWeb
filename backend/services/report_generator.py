@@ -529,7 +529,15 @@ def read_trajectory_state(session_id: str) -> dict:
     else:
         angle = 0.0
 
-    return {"entry": entry, "target": target, "depth_mm": round(depth, 1), "angle_deg": round(angle, 1)}
+    return {
+        "entry": entry, "target": target,
+        "depth_mm": round(depth, 1), "angle_deg": round(angle, 1),
+        # Lo que el corredor atraviesa. Si la viabilidad del abordaje depende de
+        # esto, el documento que se lleva a sesión tiene que llevarlo.
+        "verdict": read_state(session_id, "trajectory.verdict", ""),
+        "verdict_reason": read_state(session_id, "trajectory.verdict_reason", ""),
+        "findings": [f for f in read_state(session_id, "trajectory.findings", "").split(" | ") if f],
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -1467,6 +1475,30 @@ class ReportGenerator:
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
         elems.append(tbl)
+
+        # ── Qué atraviesa el corredor ──────────────────────────────────── #
+        #
+        # La trayectoria era dos puntos y una línea: se imprimía la profundidad
+        # y el ángulo sin decir si el camino está despejado. El veredicto y lo
+        # que se encontró viajan ahora con ella.
+        etiqueta = {
+            "viable":    "Corredor libre",
+            "revisar":   "Revisar el corredor",
+            "no_viable": "Corredor bloqueado",
+        }.get(tr.get("verdict", ""), "")
+        if etiqueta:
+            color = {"viable": "#15803D", "revisar": "#B45309",
+                     "no_viable": "#B91C1C"}[tr["verdict"]]
+            elems.append(Spacer(1, 0.15 * cm))
+            elems.append(Paragraph(
+                f'<font color="{color}"><b>{etiqueta}.</b></font> '
+                f'{tr.get("verdict_reason", "")}', self._style_body))
+            for hallazgo in tr.get("findings", []):
+                elems.append(Paragraph(f"— {hallazgo}", self._style_td_note))
+            elems.append(Paragraph(
+                "Medido sobre la malla del paciente. Una perforante de 0,1–0,5 mm "
+                "no llega a la malla, así que un corredor limpio aquí no es un "
+                "corredor sin perforantes.", self._style_td_disclaimer))
         return elems
 
     def _section_risk(self) -> list:

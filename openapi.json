@@ -3175,7 +3175,7 @@
           "report"
         ],
         "summary": "Save the surgical approach trajectory",
-        "description": "Persists the entry → target approach corridor in session state so it is included in the PDF report and the DICOM SR. Returns the stored points plus the approach depth and incidence angle.",
+        "description": "Persists the entry → target approach corridor in session state so it is included in the PDF report and the DICOM SR. Returns the stored points, the approach depth and incidence angle, and — when a segmented mesh exists — what the corridor actually crosses: vessels in the way with their calibre, how close it passes to a branch origin, how much of the run goes through dense non-vascular material, and a three-state verdict on whether the approach is workable. The verdict comes from explicit rules over what was measured, not from a weighted sum. And it only sees what is in the mesh: a 0.1–0.5 mm perforator never reaches it, so a clear corridor here is not a corridor without perforators.",
         "operationId": "set_trajectory_api_trajectory__session_id__post",
         "security": [
           {
@@ -8288,6 +8288,86 @@
         "title": "ComponentListResult",
         "description": "Las piezas de la malla, para poder enseñar cuántas hay y de qué tamaño."
       },
+      "CorridorAssessmentOut": {
+        "properties": {
+          "radius_mm": {
+            "type": "number",
+            "title": "Radius Mm",
+            "description": "Radio del corredor de trabajo supuesto"
+          },
+          "vessels_crossed": {
+            "items": {
+              "$ref": "#/components/schemas/VesselCrossingOut"
+            },
+            "type": "array",
+            "title": "Vessels Crossed"
+          },
+          "nearest_branch_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Branch Mm",
+            "description": "Distancia al origen de rama más próximo que NO se cruza"
+          },
+          "nearest_branch_calibre_mm": {
+            "type": "number",
+            "title": "Nearest Branch Calibre Mm",
+            "default": 0.0
+          },
+          "dense_tissue_mm": {
+            "type": "number",
+            "title": "Dense Tissue Mm",
+            "description": "Milímetros del recorrido por material denso que no es vasculatura —casi siempre hueso—. No se llama hueso porque el hueso no se separa del contraste por intensidad.",
+            "default": 0.0
+          },
+          "dense_tissue_measurable": {
+            "type": "boolean",
+            "title": "Dense Tissue Measurable",
+            "description": "False en un estudio sustraído: no hay tejido en la imagen",
+            "default": true
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "viable",
+              "revisar",
+              "no_viable"
+            ],
+            "title": "Verdict"
+          },
+          "verdict_reason": {
+            "type": "string",
+            "title": "Verdict Reason",
+            "default": ""
+          },
+          "findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "radius_mm",
+          "verdict"
+        ],
+        "title": "CorridorAssessmentOut",
+        "description": "Qué hay dentro del corredor de abordaje, y qué se concluye.\n\nEl veredicto tiene tres estados y sale de reglas explícitas sobre lo\nmedido, no de una suma de pesos: la misma razón por la que el motor de\ntratamiento dejó de enseñar puntuaciones."
+      },
       "CrossSectionRequest": {
         "properties": {
           "session_id": {
@@ -13121,6 +13201,17 @@
             "type": "number",
             "title": "Angle Deg",
             "description": "Incidence angle vs the aneurysm principal axis"
+          },
+          "corridor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CorridorAssessmentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lo que el corredor atraviesa, medido contra la malla del paciente y el volumen. Null cuando todavía no hay malla segmentada: sin ella no hay contra qué cruzar la trayectoria."
           }
         },
         "type": "object",
@@ -13604,6 +13695,35 @@
         },
         "type": "object",
         "title": "VerifyIn"
+      },
+      "VesselCrossingOut": {
+        "properties": {
+          "distance_from_entry_mm": {
+            "type": "number",
+            "title": "Distance From Entry Mm"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "calibre_mm": {
+            "type": "number",
+            "title": "Calibre Mm"
+          },
+          "calibre_source": {
+            "type": "string",
+            "title": "Calibre Source",
+            "description": "'barrido' = calibre medido en el barrido de ramas; 'malla' = estimado por la cuerda del rayo sobre la malla",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "distance_from_entry_mm",
+          "position",
+          "calibre_mm"
+        ],
+        "title": "VesselCrossingOut",
+        "description": "Un vaso que el corredor atraviesa antes de llegar al aneurisma."
       },
       "WorkshopIn": {
         "properties": {

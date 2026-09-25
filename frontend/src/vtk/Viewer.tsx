@@ -19,7 +19,7 @@ import { ObliqueMprView } from "./ObliqueMprView";
 import type { Orientation, Plane } from "./geometry";
 import { swapPane, type PaneId } from "./layout";
 import { HudFrame } from "./hud/HudFrame";
-import { HudReadout } from "./hud/HudReadout";
+import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import type { Vector3 } from "@kitware/vtk.js/types";
 
@@ -358,9 +358,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const perforatorBands = useMemo(() => {
     const [hi, mid, lo] = perforatorZones ?? [3, 5, 8];
     return [
-      { color: "#ef4444", label: `rama <${hi} mm` },
-      { color: "#eab308", label: `${hi}–${mid} mm` },
-      { color: "#22c55e", label: `${mid}–${lo} mm` },
+      // Mismas palabras que la lista de perforantes: «alto <3 mm · medio 3–5 mm…».
+      { color: "#ef4444", label: `ALTO <${hi} mm` },
+      { color: "#eab308", label: `MEDIO ${hi}–${mid} mm` },
+      { color: "#22c55e", label: `BAJO ${mid}–${lo} mm` },
     ];
   }, [perforatorZones]);
 
@@ -573,27 +574,34 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (previewActive && previewBand) tl.push(`VISTA PREVIA · CAPTURA [${Math.round(previewBand[0])}, ${Math.round(previewBand[1])}]`);
     if (viewMode === "default" && segPreview) tl.push("PULSA «SEGMENTAR» PARA LA MALLA FINAL");
 
-    // Leyendas de la escena 3D como líneas de texto: el color lo lleva el
-    // trazo en la escena, la lectura dice qué mide.
-    const bl: string[] = [];
+    // Leyendas de la escena 3D: cada línea lleva la muestra del color con que
+    // la escena dibuja lo que nombra; sin ella, «Ø CUELLO» no dice cuál de los
+    // trazos es el cuello. Los colores son los de MO_*_COLOR.
+    const bl: HudLine[] = [];
     if (isMesh && overlay && morphometry) {
       // El cuello y lo que cuelga de él se anulan cuando no se pudo medir: la
       // leyenda lee la misma bandera que la tabla, para no anotar «Ø cuello
       // 0.0 mm» sobre la escena ni un cuello que la tabla da por no medido.
       if (morphometry.neck_valid !== false) {
-        bl.push(`Ø CUELLO ${morphometry.neck_mm.toFixed(1)} mm`, `H DOMO ${morphometry.dome_height_mm.toFixed(1)} mm`);
+        bl.push(
+          { text: `Ø CUELLO ${morphometry.neck_mm.toFixed(1)} mm`, color: "rgb(51,191,255)" },
+          { text: `H DOMO ${morphometry.dome_height_mm.toFixed(1)} mm`, color: "rgb(255,140,26)" },
+        );
       }
-      bl.push(`Ø MÁX ${morphometry.max_diameter_mm.toFixed(1)} mm`);
+      bl.push({ text: `Ø MÁX ${morphometry.max_diameter_mm.toFixed(1)} mm`, color: "rgb(217,51,51)" });
       if (morphometry.neck_valid !== false) bl.push(`AR ${morphometry.ar.toFixed(2)} · DNR ${morphometry.dnr.toFixed(2)}`);
     }
     // Dispositivos y bandas de perforantes comparten esquina: en el paso de
     // dispositivos pueden verse las dos cosas a la vez. Las bandas salen de
     // los radios del resultado, no de constantes de aquí.
-    const br: string[] = [];
-    if (isMesh && showDevice) for (const d of devices) br.push(DEVICE_LABEL[d.kind].toUpperCase());
+    const br: HudLine[] = [];
+    if (isMesh && showDevice) {
+      for (const d of devices) {
+        br.push({ text: DEVICE_LABEL[d.kind].toUpperCase(), color: `rgb(${d.color.map((c) => Math.round(c * 255)).join(",")})` });
+      }
+    }
     if (isMesh && meshUrl && visiblePerforators.length > 0 && (step === "morpho" || step === "treatment" || step === "devices")) {
-      const risk = ["ALTO", "MEDIO", "BAJO"];
-      perforatorBands.forEach((b, i) => br.push(`${risk[i]} · ${b.label}`));
+      for (const b of perforatorBands) br.push({ text: b.label, color: b.color });
     }
 
     // Los conmutadores van bajo la lectura de la izquierda: la derecha es de

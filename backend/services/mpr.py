@@ -139,8 +139,15 @@ def _cache_key(meta: dict, npy_path: Path) -> str:
     volume_id viaja dentro de la meta, la clave es la misma y el visor no
     vuelve a descargar el volumen. Las cachés anteriores a volume_id caen al
     mtime del .npy (no se rellena aquí: un id inventado en cada copia
-    restaurada rompería justo la estabilidad que se busca)."""
-    return str(meta.get("volume_id") or int(npy_path.stat().st_mtime))
+    restaurada rompería justo la estabilidad que se busca), junto con el
+    tamaño del fichero y la forma: dos volúmenes antiguos con el mismo
+    segundo de mtime no deben compartir clave, o el navegador serviría uno
+    en lugar del otro."""
+    if meta.get("volume_id"):
+        return str(meta["volume_id"])
+    st = npy_path.stat()
+    z, y, x = (int(v) for v in meta["shape"])
+    return f"{int(st.st_mtime)}-{st.st_size}-{z}x{y}x{x}"
 
 
 def _manual_orientation(session_id: str) -> dict | None:

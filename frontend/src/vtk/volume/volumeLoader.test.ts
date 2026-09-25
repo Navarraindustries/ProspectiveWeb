@@ -57,6 +57,22 @@ describe("loadCoarse", () => {
   });
 });
 
+describe("loadCoarse dims check", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("rejects a coarse block that does not belong to this volume", async () => {
+    // Una clave antigua que sirviera otro volumen de otras dimensiones.
+    vi.stubGlobal("caches", undefined);
+    const body = new Int16Array(3 * 4 * 3);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body.buffer, {
+      status: 200,
+      headers: { "X-Dims": "3,4,3", "X-Spacing": "2,2,2", "X-Dtype": "int16", "X-Level-Stride": "2" },
+    })));
+    await expect(loadCoarse("sid", { ...meta, shape: [70, 4, 3] }, new AbortController().signal))
+      .rejects.toThrow(/no corresponde al volumen/);
+  });
+});
+
 describe("fetchChunk 401", () => {
   afterEach(() => { vi.unstubAllGlobals(); setUnauthorizedHandler(null); });
 

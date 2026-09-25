@@ -149,7 +149,10 @@ class TestCacheKeyIdentifiesTheVolume:
     def test_old_cache_without_volume_id_falls_back_to_mtime(self):
         sid = _session_with_volume()
         key = ensure_volume_cached(sid)["cache_key"]
-        assert key.isdigit()
+        # mtime-tamaño-forma: el mtime solo chocaba entre volúmenes distintos.
+        npy = session_subdir(sid, "meshes") / "_volume.npy"
+        st = npy.stat()
+        assert key == f"{int(st.st_mtime)}-{st.st_size}-40x60x50"
         meta_path = session_subdir(sid, "meshes") / "_volume_meta.json"
         assert "volume_id" not in json.loads(meta_path.read_text())
 

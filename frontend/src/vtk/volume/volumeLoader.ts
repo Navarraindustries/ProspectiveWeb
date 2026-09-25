@@ -87,6 +87,15 @@ export async function loadCoarse(sid: string, meta: VolumeMeta, signal: AbortSig
   // Intensidades crudas como el nivel completo: la ventana/nivel y la banda
   // de umbral valen igual en los dos niveles.
   if (c.dtype !== "int16") throw new Error(`El bloque grueso llega como ${c.dtype}; se esperaba int16`);
+  // El grueso tiene que ser ESTE volumen submuestreado: si una clave antigua
+  // sirviera otro, se vería otro paciente.
+  const s = Math.max(1, c.stride || 1);
+  for (let i = 0; i < 3; i++) {
+    if (c.dims[i] > meta.shape[i] || c.dims[i] !== Math.ceil(meta.shape[i] / s)) {
+      throw new Error(
+        `El bloque grueso trae ${c.dims.join("×")} con stride ${s}; no corresponde al volumen ${meta.shape.join("×")}`);
+    }
+  }
   return {
     dims: [c.dims[0], c.dims[1], c.dims[2]],
     spacing: [c.spacing[0], c.spacing[1], c.spacing[2]],

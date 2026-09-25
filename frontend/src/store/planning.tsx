@@ -4,6 +4,8 @@
 import { createContext, useCallback, useContext, useState } from "react";
 import type { ReactNode } from "react";
 import type { PartsHandle } from "../vtk/MeshView";
+import { loadLayout, saveLayout, type ViewerLayout } from "../vtk/layout";
+import { mmToVoxel, type ManualOrientation } from "../vtk/geometry";
 import type {
   AneurysmCandidate,
   DeviceKind,
@@ -14,6 +16,7 @@ import type {
   SegmentResult,
   SeriesInfo,
   TreatmentDecisionResult,
+  VolumeMeta,
 } from "../api/types";
 
 interface PlanningState {
@@ -111,6 +114,22 @@ interface PlanningState {
    *  Saving is a manual action, so without this a click on the logo threw away
    *  an afternoon's analysis with no warning at all. */
   dirty: boolean;
+  /** Distribución del visor: panel principal + franja de cuatro. */
+  viewerLayout: ViewerLayout;
+  setViewerLayout: (l: ViewerLayout) => void;
+  /** Punto (mm de mundo) en el que se centran todas las vistas cuando
+   *  `syncViews` está activo. El crosshair (`mprVoxel`) se deriva de él. */
+  focusPoint: Vec3 | null;
+  setFocusMm: (mm: Vec3, meta: VolumeMeta) => void;
+  syncViews: boolean;
+  setSyncViews: (v: boolean) => void;
+  /** Orientación fijada a mano para volúmenes sin etiquetas (3DRA). */
+  orientationManual: ManualOrientation | null;
+  setOrientationManual: (m: ManualOrientation | null) => void;
+  mipMode: "acumulado" | "lamina";
+  setMipMode: (m: "acumulado" | "lamina") => void;
+  mipSlabMm: number;
+  setMipSlabMm: (mm: number) => void;
 
   setPatient: (p: PatientSummary | null) => void;
   setCase: (id: number | null, label?: string) => void;
@@ -241,6 +260,17 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [captureViewport, setCaptureViewport] = useState<(() => Promise<string | null>) | null>(null);
   const [dirty, setDirty] = useState(false);
   const markSaved = () => setDirty(false);
+  const [viewerLayout, _setViewerLayout] = useState<ViewerLayout>(() => loadLayout());
+  const setViewerLayout = (l: ViewerLayout) => { _setViewerLayout(l); saveLayout(l); };
+  const [focusPoint, setFocusPoint] = useState<Vec3 | null>(null);
+  const [syncViews, setSyncViews] = useState(true);
+  const [orientationManual, setOrientationManual] = useState<ManualOrientation | null>(null);
+  const [mipMode, setMipMode] = useState<"acumulado" | "lamina">("acumulado");
+  const [mipSlabMm, setMipSlabMm] = useState(10);
+  const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
+    setFocusPoint(mm);
+    setMprVoxel(mmToVoxel(mm, meta));
+  }, []);
 
   // Every setter that produces a result worth keeping marks the session dirty.
   // Wrapping them here rather than at each call site means a panel added later
@@ -292,6 +322,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setTrajEntry(null);
     setTrajTarget(null);
     setMorphoOverlay(false);
+    setFocusPoint(null);
+    setOrientationManual(null);
   };
 
   const reset = () => {
@@ -310,6 +342,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, dirty,
+        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
@@ -317,6 +350,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setPlaneCut, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, markSaved,
+        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm,
         reset, resetDownstream,
       }}
     >

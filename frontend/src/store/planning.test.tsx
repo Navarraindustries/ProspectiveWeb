@@ -5,7 +5,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
 import { PlanningProvider, usePlanning } from "./planning";
-import type { MorphometryResult, SegmentResult } from "../api/types";
+import type { MorphometryResult, SegmentResult, VolumeMeta } from "../api/types";
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <PlanningProvider>{children}</PlanningProvider>
@@ -193,5 +193,27 @@ describe("unsaved-changes flag", () => {
     act(() => result.current.setSegmentation(fakeMesh));
     act(() => result.current.reset());
     expect(result.current.dirty).toBe(false);
+  });
+});
+
+const meta = {
+  shape: [100, 200, 300], spacing: [0.5, 0.25, 0.25], wc: 0, ww: 1, modality: "XA",
+  direction: null, orientation_known: false, origin_mm: [0, 0, 0],
+  intensity_range: [0, 1], cache_key: "1", full_stride: 1,
+} as VolumeMeta;
+
+describe("foco compartido del visor", () => {
+  it("setFocusMm sets both the focus point and the crosshair voxel", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setFocusMm([7.5, 10, 3.5], meta));
+    expect(result.current.focusPoint).toEqual([7.5, 10, 3.5]);
+    expect(result.current.mprVoxel).toEqual({ x: 30, y: 40, z: 7 });
+  });
+  it("syncViews defaults to on and resetDownstream keeps it", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.syncViews).toBe(true);
+    act(() => result.current.resetDownstream());
+    expect(result.current.syncViews).toBe(true);
+    expect(result.current.focusPoint).toBeNull();
   });
 });

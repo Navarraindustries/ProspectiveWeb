@@ -63,6 +63,13 @@
   --viewer-bg:          #000000;
   --viewer-foreground:  #EBEBEB;
 
+  /* HUD del visor: un solo acento fosforescente sobre negro. */
+  --hud:        #8CFF9E;
+  --hud-dim:    rgba(140, 255, 158, 0.55);
+  --hud-amber:  #FFC857;
+  --hud-red:    #FF5A5A;
+  --hud-line:   1px;
+
   color-scheme: light;
 }
 

@@ -102,11 +102,25 @@ def _complete_meta(meta: dict, npy_path: Path) -> tuple[dict, bool]:
     return meta, changed
 
 
+def _manual_orientation(session_id: str) -> dict | None:
+    """Orientación fijada a mano (3DRA/XA sin etiquetas), o None.
+
+    Se lee del estado de sesión en cada llamada y nunca se escribe en
+    _volume_meta.json: el estado es lo que se guarda y restaura con la sesión,
+    la caché del volumen no."""
+    raw = read_state(session_id, "dicom.orientation_manual", "")
+    try:
+        return json.loads(raw) if raw else None
+    except json.JSONDecodeError:
+        return None
+
+
 def ensure_volume_cached(session_id: str) -> dict:
     """Load the primary DICOM series volume (if not already cached) and return meta.
 
     Meta = {shape:[z,y,x], spacing:[sz,sy,sx], wc, ww, modality, direction,
-    orientation_known, origin_mm, intensity_range, cache_key, full_stride}.
+    orientation_known, origin_mm, intensity_range, cache_key, full_stride,
+    orientation_manual}. cache_key and orientation_manual are per-call, never persisted.
     The volume is saved as float32 .npy for fast per-slice memmap access.
     """
     npy_path, meta_path = _cache_paths(session_id)
@@ -118,6 +132,7 @@ def ensure_volume_cached(session_id: str) -> dict:
         # llamada, así que una resegmentación (que reescribe el .npy) lo
         # invalida automáticamente sin tocar el JSON.
         meta["cache_key"] = str(int(npy_path.stat().st_mtime))
+        meta["orientation_manual"] = _manual_orientation(session_id)
         return meta
 
     series_id = read_state(session_id, "dicom.series_id") or ""
@@ -143,6 +158,7 @@ def ensure_volume_cached(session_id: str) -> dict:
     }
     meta_path.write_text(json.dumps(meta))
     meta["cache_key"] = str(int(npy_path.stat().st_mtime))
+    meta["orientation_manual"] = _manual_orientation(session_id)
     logger.info("MPR: cached volume %s shape=%s", session_id, meta["shape"])
     return meta
 

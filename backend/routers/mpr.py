@@ -5,15 +5,17 @@ import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
 from services.mpr import (
     ensure_volume_cached, render_slice_png, render_oblique_png, get_volume_raw_uint8,
     volume_chunk_int16, volume_coarse_int16,
 )
-from services.sessions import session_exists
+from services.sessions import session_exists, write_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["mpr"])
@@ -41,6 +43,32 @@ async def volume_meta(session_id: str) -> dict:
         logger.error("Volume meta failed for %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
     return meta
+
+
+class ManualOrientation(BaseModel):
+    anterior_edge: Literal["top", "right", "bottom", "left"] = Field(..., description="Borde del axial que es anterior")
+    first_slice_superior: bool = Field(..., description="Si el primer corte es el más superior")
+
+
+@router.put(
+    "/volume/{session_id}/orientation",
+    summary="Fijar a mano la orientación de un volumen sin etiquetas",
+    description=(
+        "Para 3DRA/XA sin ImageOrientationPatient. Guarda cómo está orientado el "
+        "axial tal como se ve (qué borde es anterior, si el primer corte es "
+        "superior). No modifica los datos; solo las etiquetas y el maniquí."
+    ),
+)
+async def put_orientation(session_id: str, body: ManualOrientation) -> dict:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    write_state(session_id, "dicom.orientation_manual", body.model_dump_json())
+    loop = asyncio.get_event_loop()
+    try:
+        return await loop.run_in_executor(_executor, partial(ensure_volume_cached, session_id))
+    except Exception as exc:
+        logger.error("Volume meta failed for %s: %s", session_id, exc, exc_info=True)
+        raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
 
 
 @router.get(

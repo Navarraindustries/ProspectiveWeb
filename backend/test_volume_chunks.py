@@ -220,3 +220,33 @@ class TestSegmentThreshold:
         })
         assert r.status_code == 200, r.text
         assert r.json()["threshold_lower"] == 300.0
+
+
+class TestManualOrientation:
+    def test_put_orientation_persists_and_meta_returns_it(self):
+        sid = _session_with_volume()
+        r = client.put(f"/api/volume/{sid}/orientation",
+                       json={"anterior_edge": "right", "first_slice_superior": True})
+        assert r.status_code == 200
+        assert r.json()["orientation_manual"] == {"anterior_edge": "right", "first_slice_superior": True}
+        assert client.get(f"/api/volume/{sid}/meta").json()["orientation_manual"]["anterior_edge"] == "right"
+
+    def test_put_orientation_rejects_bad_edge(self):
+        sid = _session_with_volume()
+        r = client.put(f"/api/volume/{sid}/orientation",
+                       json={"anterior_edge": "diagonal", "first_slice_superior": False})
+        assert r.status_code == 422
+
+    def test_manual_orientation_is_never_written_to_the_cached_meta(self):
+        # Vive en el estado de sesión (lo que se guarda y restaura), no en la
+        # caché del volumen: si se persistiera en _volume_meta.json, borrarla
+        # del estado no la borraría de la meta.
+        sid = _session_with_volume()
+        client.put(f"/api/volume/{sid}/orientation",
+                   json={"anterior_edge": "top", "first_slice_superior": False})
+        cached = json.loads((session_subdir(sid, "meshes") / "_volume_meta.json").read_text())
+        assert "orientation_manual" not in cached
+
+    def test_meta_without_manual_orientation_reports_null(self):
+        sid = _session_with_volume()
+        assert client.get(f"/api/volume/{sid}/meta").json()["orientation_manual"] is None

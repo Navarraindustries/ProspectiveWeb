@@ -9,7 +9,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { api } from "../api/client";
 import type { VolumeMeta } from "../api/types";
-import { Icon } from "../components/Icon";
 import { usePlanning, type PickMode } from "../store/planning";
 import type { CameraController, CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
@@ -25,6 +24,7 @@ import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { OrientationSheet } from "./OrientationSheet";
 import { manualFromMeta, shouldSeed } from "./orientationSeed";
+import { windowPresets } from "./windowPresets";
 import type { Vector3 } from "@kitware/vtk.js/types";
 
 // vtk.js (~1 MB) is only needed once a 3D mesh is shown, so load MeshView — and
@@ -35,6 +35,13 @@ const VolumeView = lazy(() => import("./VolumeView").then((m) => ({ default: m.V
 const SliceView = lazy(() => import("./SliceView").then((m) => ({ default: m.SliceView })));
 const MipView = lazy(() => import("./MipView").then((m) => ({ default: m.MipView })));
 const ObliqueView = lazy(() => import("./ObliqueView").then((m) => ({ default: m.ObliqueView })));
+
+/* Pistas efímeras del panel principal (Task 14): qué gesto usar según lo que
+   haya montado ahí. */
+const HINT_TEXT: Record<"rotate" | "slice", string> = {
+  rotate: "ARRASTRAR ROTA · RUEDA ZOOM · DOBLE CLIC EN UNA CELDA LA MAXIMIZA",
+  slice: "RUEDA CORTE · CTRL+RUEDA ZOOM · ARRASTRAR VENTANA · SHIFT DESPLAZA",
+};
 
 const STEP_SCENE: Record<string, string> = {
   upload: "Vista previa DICOM",
@@ -108,20 +115,6 @@ function perpBasis(axis: V3): [V3, V3] {
   return [u, v];
 }
 
-/* Standard CT window/level presets (port of utils/window_presets.py):
-   name → [window_center, window_width] in HU. */
-const WL_PRESETS: { name: string; wc: number; ww: number }[] = [
-  { name: "Cerebro", wc: 40, ww: 80 },
-  { name: "Hemorragia", wc: 55, ww: 100 },
-  { name: "Subdural", wc: 75, ww: 215 },
-  { name: "CTA", wc: 170, ww: 600 },
-  { name: "Hueso", wc: 400, ww: 1000 },
-  { name: "Pulmón", wc: -600, ww: 1500 },
-  { name: "Mediastino", wc: 50, ww: 350 },
-  { name: "Abdomen", wc: 40, ww: 350 },
-  { name: "Hígado", wc: 70, ww: 170 },
-];
-
 /* Load the volume meta once per session; shared by every pane.
 
    The meta is stored with the session it was fetched for and only handed out
@@ -173,9 +166,8 @@ function SceneHeading({ feed, orientation }: { feed: RefObject<CameraFeed>; orie
 /* Placeholder shown while the lazy vtk.js chunk is being fetched. */
 function ViewerLoading({ label }: { label: string }) {
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, background: "var(--viewer-bg)", color: "rgba(168,184,198,0.5)" }}>
-      <Icon name="BRAIN" size={54} color="rgba(139,155,170,0.5)" />
-      <div style={{ fontSize: 13 }}>{label}</div>
+    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--viewer-bg)" }}>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-dim)" }}>{label}</div>
     </div>
   );
 }
@@ -589,18 +581,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
     [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm],
   );
 
-  // La pista de rotar/zoom ocupaba la esquina para siempre; ahora aparece 3 s
-  // cuando se monta una escena girable y se desvanece (la animación de
-  // .hud-hint dura lo mismo). Volver a enseñarla con «?» es de Task 14.
-  const rotatable = (viewMode === "default" && meshVisible) || viewMode === "volume";
-  const [showHint, setShowHint] = useState(false);
-  useEffect(() => {
-    if (!rotatable) { setShowHint(false); return; }
-    setShowHint(true);
-    const t = setTimeout(() => setShowHint(false), 3000);
-    return () => clearTimeout(t);
-  }, [rotatable]);
-
   // Un marcado se hace sobre la malla: si la escena está en la franja, sube al
   // principal, porque en una celda de ~235 px ni se apunta ni se lee el aviso.
   useEffect(() => {
@@ -647,19 +627,57 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const sceneIsSlice = viewMode === "default" && !meshVisible && !!sessionId && !!meta;
   const mainIsSlice = viewerLayout.main === "axial" || viewerLayout.main === "coronal"
     || viewerLayout.main === "sagital" || (viewerLayout.main === "scene" && sceneIsSlice);
+
+  // La pista del panel principal ocupaba la esquina para siempre; ahora aparece
+  // 3 s cuando cambia lo que hay en él y se desvanece (la animación de
+  // .hud-hint dura lo mismo). El texto depende de si el principal es girable
+  // (3D o MIP) o un corte; en cualquier otro caso (volumen sin malla, oblicuo,
+  // sin sesión) no hay nada que enseñar. «?» la vuelve a mostrar.
+  const mainRotatable = viewerLayout.main === "mip"
+    || (viewerLayout.main === "scene" && ((viewMode === "default" && meshVisible) || viewMode === "volume"));
+  const hintKind: "rotate" | "slice" | null = mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
+  const [hint, setHint] = useState<string | null>(null);
+  // La animación de desvanecido corre una vez, al montar el div: reaparecer con
+  // «?» necesita un nodo nuevo (de ahí `key`) o se vería ya apagada.
+  const [hintSeq, setHintSeq] = useState(0);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showHint = useCallback((kind: "rotate" | "slice") => {
+    setHint(HINT_TEXT[kind]);
+    setHintSeq((n) => n + 1);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setHint(null), 3000);
+  }, []);
+  useEffect(() => {
+    if (hintKind) showHint(hintKind);
+    else setHint(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hintKind]);
+  useEffect(() => {
+    const onHint = () => { if (hintKind) showHint(hintKind); };
+    window.addEventListener("viewer:hint", onHint);
+    return () => window.removeEventListener("viewer:hint", onHint);
+  }, [hintKind, showHint]);
+  useEffect(() => () => { if (hintTimer.current) clearTimeout(hintTimer.current); }, []);
+
   // Los preajustes de ventana van junto a la lectura W/L del panel activo; si
   // el principal no es un corte (3D, volumen, MIP), junto a la del primer
   // corte de la franja. Qué preajustes hay lo decide Task 14.
   const wlHost: PaneId | null = !sessionId || !meta ? null
     : mainIsSlice ? viewerLayout.main
     : viewerLayout.strip.find((p) => p === "axial" || p === "coronal" || p === "sagital") ?? null;
+  // Fuera de TC no hay presets HU con sentido clínico: se derivan de la meta
+  // y de la banda activa (vista previa de segmentación, o el umbral guardado
+  // si ya no hay vista previa) para que «Vasos» siga el umbral real.
+  const wlPresets = meta
+    ? windowPresets(meta, previewBand ?? (segmentation?.threshold_lower != null ? [segmentation.threshold_lower, NaN] : null))
+    : [];
   const wlSelect = (
     <select
       className="hud-toggle"
       title="Preajuste de ventana/nivel"
       value=""
       onChange={(e) => {
-        const p = WL_PRESETS.find((x) => x.name === e.target.value);
+        const p = wlPresets.find((x) => x.name === e.target.value);
         if (p) setMprWl({ wc: p.wc, ww: p.ww });
       }}
       // Abrir el desplegable no debe maximizar la celda.
@@ -669,7 +687,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       {/* El select es transparente para no tapar la imagen; las opciones
           llevan fondo propio porque el desplegable hereda el del select. */}
       <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
-      {WL_PRESETS.map((p) => (
+      {wlPresets.map((p) => (
         <option key={p.name} value={p.name} style={{ background: "#000", color: "var(--hud)" }}>{p.name} · {p.wc}/{p.ww}</option>
       ))}
     </select>
@@ -778,9 +796,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       body = renderPane("axial", compact ? "strip" : "main");
     } else {
       body = (
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "rgba(168,184,198,0.5)" }}>
-          <Icon name="BRAIN" size={54} color="rgba(139,155,170,0.5)" />
-          <div style={{ fontSize: 13 }}>
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-dim)" }}>
             {series ? "Cargando vista previa del volumen…" : "Carga una serie DICOM para comenzar"}
           </div>
         </div>
@@ -839,7 +856,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
             )}
             {!compact && bl.length > 0 && <HudReadout at="bl" lines={bl} />}
             {!compact && br.length > 0 && <HudReadout at="br" lines={br} />}
-            {showHint && rotatable && <div className="hud-hint">ARRASTRA PARA ROTAR · RUEDA PARA ZOOM</div>}
             {/* En la celda pequeña no cabe (el rumbo pisa las marcas): se lee al maximizar. */}
             {!compact && isMesh && <SceneHeading feed={cameraFeed} orientation={orientation} />}
           </HudFrame>
@@ -872,7 +888,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         {/* Aviso de marcado: pasa a «clic fuera» un momento si se falla la malla. */}
         {pickMode && meshUrl && (
           <div className={`hud-readout${pickMiss ? " hud-err" : ""}`}
-               style={{ top: 40, left: "50%", transform: "translateX(-50%)", textAlign: "center", fontFamily: "var(--font-mono)", color: pickMiss ? undefined : "var(--hud)", pointerEvents: "none", zIndex: 5 }}>
+               style={{ top: 40, left: "50%", transform: "translateX(-50%)", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: pickMiss ? undefined : "var(--hud)", pointerEvents: "none", zIndex: 5 }}>
             {(pickMiss ? "Clic fuera de la malla — haz clic sobre la superficie 3D" : pickText(pickMode, measurePending !== null, neckRim.length)).toUpperCase()}
             {"\nESC · CANCELAR"}
           </div>
@@ -890,6 +906,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       <div style={{ flex: 1, position: "relative", background: "#000", minHeight: 0, overflow: "hidden" }}>
         {renderPane(viewerLayout.main, "main")}
         {wlHost === viewerLayout.main && wlSelect}
+        {/* Pista del panel principal: fuera de renderPane/renderScene porque
+            aplica igual a la escena 3D, el MIP o un corte. */}
+        {hint && <div key={hintSeq} className="hud-hint">{hint}</div>}
         {/* Arriba del todo (top 2) para no pisar las lecturas `tr` de la celda,
             que empiezan a 22 px; a 24 px del borde, fuera de la marca de esquina. */}
         <div style={{ position: "absolute", top: 2, right: 24, zIndex: 6, lineHeight: 1.2, fontFamily: "var(--font-mono)" }}>

@@ -112,6 +112,10 @@ export function Workspace({
         setPickMode(null);
         return;
       }
+      if (e.key === "?") {
+        window.dispatchEvent(new CustomEvent("viewer:hint"));
+        return;
+      }
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= STEPS.length) {

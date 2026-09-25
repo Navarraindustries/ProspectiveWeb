@@ -17,7 +17,7 @@ export function HudHeadingTape({ azimuthDeg, elevationDeg, known }: { azimuthDeg
       })}
       <span style={{ position: "absolute", left: "50%", top: 0, width: 1, height: 22, background: "var(--hud)" }} />
       <span style={{ position: "absolute", right: 0, top: 3, fontSize: 10, color: "var(--hud-dim)" }}>
-        AZ {Math.round(norm(azimuthDeg))}° · EL {Math.round(elevationDeg)}°
+        {wrap(`AZ ${Math.round(norm(azimuthDeg))}° · EL ${Math.round(elevationDeg)}°`)}
       </span>
     </div>
   );

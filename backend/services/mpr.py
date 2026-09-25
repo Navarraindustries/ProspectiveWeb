@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from services.dicom_loader import load_series
+from services.dicom_loader import direction_from_headers, load_series
 from services.sessions import read_state, session_dir, session_subdir
 
 logger = logging.getLogger(__name__)
@@ -79,17 +79,41 @@ def _intensity_range(vol: np.ndarray) -> list[float]:
     return [float(np.percentile(flat, 0.5)), float(np.percentile(flat, 99.9))]
 
 
-def _complete_meta(meta: dict, npy_path: Path) -> tuple[dict, bool]:
+def _session_has_dicom(session_id: str) -> bool:
+    d = session_dir(session_id) / "dicom"
+    try:
+        return d.is_dir() and any(p.is_file() for p in d.rglob("*"))
+    except OSError:
+        return False
+
+
+def _complete_meta(meta: dict, npy_path: Path, session_id: str | None = None) -> tuple[dict, bool]:
     """Sesiones cacheadas antes de la orientación: completar sin recargar.
 
     Devuelve (meta, changed) para que la persistencia a disco sea condicional:
     ensure_volume_cached se llama en cada petición de corte, y reescribir el
     JSON cuando no hay nada nuevo sería trabajo desperdiciado.
+
+    La orientación de una caché antigua se rederiva de las cabeceras DICOM de
+    la sesión (sin píxeles) y se guarda con `orientation_checked`, para no
+    releerlas en cada corte. Las cachés antiguas ya guardaron `direction: null`
+    con la versión anterior de esta función, así que la marca, y no la ausencia
+    de la clave, es lo que dice si ya se miró. Sin DICOM en la sesión queda en
+    null/False y se vuelve a intentar la próxima vez (una restauración puede
+    traer el DICOM después de la caché).
     """
     changed = False
     if "direction" not in meta:
         meta["direction"] = None
         meta["orientation_known"] = False
+        changed = True
+    if (meta.get("direction") is None and not meta.get("orientation_checked")
+            and session_id is not None and _session_has_dicom(session_id)):
+        series_id = read_state(session_id, "dicom.series_id") or ""
+        direction, known = direction_from_headers(session_dir(session_id) / "dicom", series_id)
+        meta["direction"] = direction if known else None
+        meta["orientation_known"] = bool(known)
+        meta["orientation_checked"] = True
         changed = True
     if "origin_mm" not in meta:
         meta["origin_mm"] = [0.0, 0.0, 0.0]
@@ -144,7 +168,7 @@ def ensure_volume_cached(session_id: str) -> dict:
     """
     npy_path, meta_path = _cache_paths(session_id)
     if npy_path.exists() and meta_path.exists():
-        meta, changed = _complete_meta(json.loads(meta_path.read_text()), npy_path)
+        meta, changed = _complete_meta(json.loads(meta_path.read_text()), npy_path, session_id)
         if changed:
             meta_path.write_text(json.dumps(meta))
         meta["cache_key"] = _cache_key(meta, npy_path)
@@ -168,6 +192,7 @@ def ensure_volume_cached(session_id: str) -> dict:
         "modality": dcm.modality,
         "direction": [float(v) for v in dcm.direction] if dcm.orientation_known else None,
         "orientation_known": bool(dcm.orientation_known),
+        "orientation_checked": True,
         "origin_mm": [float(v) for v in dcm.origin],
         "intensity_range": _intensity_range(vol),
         "full_stride": _full_stride([int(x) for x in vol.shape]),

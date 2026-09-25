@@ -103,6 +103,39 @@ def scan_series(dicom_dir: Path) -> list[dict]:
     return results
 
 
+def _series_file_names(series_uid: str, dicom_dir: Path) -> list[str]:
+    """Ficheros de la serie en el orden en que SimpleITK apila los cortes.
+
+    Compartido por load_series y direction_from_headers: la dirección derivada
+    solo de cabeceras tiene que corresponder al mismo orden de cortes con que
+    se construyó el volumen cacheado.
+    """
+    import SimpleITK as sitk
+
+    reader = sitk.ImageSeriesReader()
+    file_names: list[str] = []
+    if not dicom_dir.is_dir():
+        return file_names
+
+    # Primary: resolve by exact UID
+    if series_uid and series_uid != "unknown":
+        file_names = list(reader.GetGDCMSeriesFileNames(str(dicom_dir), series_uid))
+
+    # Fallback 1: first series found in directory
+    if not file_names:
+        all_ids = reader.GetGDCMSeriesIDs(str(dicom_dir))
+        if all_ids:
+            file_names = list(reader.GetGDCMSeriesFileNames(str(dicom_dir), all_ids[0]))
+            logger.info("Falling back to first series found: %s", all_ids[0])
+
+    # Fallback 2: all .dcm files in directory
+    if not file_names:
+        file_names = sorted(str(p) for p in dicom_dir.glob("*.dcm"))
+        logger.info("Falling back to all .dcm files (%d)", len(file_names))
+
+    return file_names
+
+
 def load_series(series_uid: str, dicom_dir: Path) -> DicomLoadResult:
     """Load a DICOM series by Series Instance UID from *dicom_dir*.
 
@@ -121,24 +154,7 @@ def load_series(series_uid: str, dicom_dir: Path) -> DicomLoadResult:
     import SimpleITK as sitk
 
     reader = sitk.ImageSeriesReader()
-    file_names: list[str] = []
-
-    # Primary: resolve by exact UID
-    if series_uid and series_uid != "unknown":
-        file_names = list(reader.GetGDCMSeriesFileNames(str(dicom_dir), series_uid))
-
-    # Fallback 1: first series found in directory
-    if not file_names:
-        all_ids = reader.GetGDCMSeriesIDs(str(dicom_dir))
-        if all_ids:
-            file_names = list(reader.GetGDCMSeriesFileNames(str(dicom_dir), all_ids[0]))
-            logger.info("Falling back to first series found: %s", all_ids[0])
-
-    # Fallback 2: all .dcm files in directory
-    if not file_names:
-        file_names = sorted(str(p) for p in dicom_dir.glob("*.dcm"))
-        logger.info("Falling back to all .dcm files (%d)", len(file_names))
-
+    file_names = _series_file_names(series_uid, dicom_dir)
     if not file_names:
         raise FileNotFoundError(
             f"No DICOM files found for series '{series_uid}' in {dicom_dir}"
@@ -301,6 +317,69 @@ def _z_spacing_from_positions(file_names: "list[str]") -> "float | None":
     proj = sorted(float(np.dot(p, normal)) for p in positions)
     span = proj[-1] - proj[0]
     return span / (len(proj) - 1) if span > 1e-3 else None
+
+
+def direction_from_headers(dicom_dir: Path, series_id: str) -> "tuple[list[float] | None, bool]":
+    """Dirección de la serie (9 floats, como sitk.Image.GetDirection) y si es
+    conocida, leyendo solo cabeceras: sin cargar píxeles.
+
+    Para cachés de volumen anteriores a la orientación, cuyo _volume_meta.json
+    no la guardaba. Reproduce lo que haría load_series:
+    - un único fichero 3-D (multi-frame): la dirección de ReadImageInformation;
+    - una serie clásica: ImageOrientationPatient del primer fichero (cosenos de
+      fila y columna) y, como tercer eje, su producto vectorial con el signo
+      que va del primer al último fichero en el orden en que se apilan.
+    Sin ficheros, sin etiquetas o con una imagen 2-D devuelve (None, False).
+    """
+    import pydicom
+    import SimpleITK as sitk
+
+    try:
+        files = _series_file_names(series_id, dicom_dir)
+    except Exception:  # noqa: BLE001 — la orientación es informativa
+        return None, False
+    if not files:
+        return None, False
+    ref = Path(files[0])
+    if not _orientation_known(ref):
+        return None, False
+
+    if len(files) == 1:
+        try:
+            r = sitk.ImageFileReader()
+            r.SetFileName(str(ref))
+            r.ReadImageInformation()
+        except Exception:  # noqa: BLE001
+            return None, False
+        if r.GetDimension() != 3:
+            return None, False
+        return [float(v) for v in r.GetDirection()], True
+
+    try:
+        first = pydicom.dcmread(str(ref), stop_before_pixels=True,
+                                specific_tags=["ImageOrientationPatient", "ImagePositionPatient"])
+        last = pydicom.dcmread(files[-1], stop_before_pixels=True,
+                               specific_tags=["ImagePositionPatient"])
+        iop = [float(x) for x in first.ImageOrientationPatient]
+        p0 = np.asarray([float(x) for x in first.ImagePositionPatient], dtype=float)
+        p1 = np.asarray([float(x) for x in last.ImagePositionPatient], dtype=float)
+    except Exception:  # noqa: BLE001 — sin IOP/IPP legibles no se inventa nada
+        return None, False
+    if len(iop) < 6:
+        return None, False
+    row = np.asarray(iop[:3], dtype=float)
+    col = np.asarray(iop[3:6], dtype=float)
+    normal = np.cross(row, col)
+    norm = float(np.linalg.norm(normal))
+    if norm < 1e-6:
+        return None, False
+    normal /= norm
+    if float(np.dot(p1 - p0, normal)) < 0:
+        normal = -normal
+    # Fila i de la matriz = componente i de cada eje (x=fila, y=columna, z=corte),
+    # el mismo orden plano que sitk.Image.GetDirection().
+    d = np.column_stack([row, col, normal])
+    return [float(v) for v in d.reshape(-1)], True
 
 
 def _orientation_known(ref_file: Path) -> bool:

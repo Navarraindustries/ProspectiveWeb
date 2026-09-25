@@ -30,6 +30,7 @@ def _session_with_volume(nz=40, ny=60, nx=50, values=None) -> str:
 def _write_classic_ct_series(
     sid: str, nz=3, ny=8, nx=8, with_orientation=True,
     size: int | None = None, bright_cube: int | None = None,
+    iop: list[float] | None = None,
 ) -> None:
     """Write a tiny classic single-frame CT series into the session's dicom/ dir.
 
@@ -70,9 +71,14 @@ def _write_classic_ct_series(
         ds.PixelSpacing = [0.5, 0.5]
         ds.SliceThickness = 1.0
         ds.SpacingBetweenSlices = 1.0
-        ds.ImagePositionPatient = [0.0, 0.0, float(i)]
+        if iop is None:
+            ds.ImagePositionPatient = [0.0, 0.0, float(i)]
+        else:
+            # Los cortes avanzan por la normal de la IOP dada.
+            n = np.cross(iop[:3], iop[3:6])
+            ds.ImagePositionPatient = [float(v) for v in n * i]
         if with_orientation:
-            ds.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
+            ds.ImageOrientationPatient = iop if iop is not None else [1, 0, 0, 0, 1, 0]
         ds.InstanceNumber = i + 1
         ds.SamplesPerPixel = 1
         ds.PhotometricInterpretation = "MONOCHROME2"
@@ -303,3 +309,65 @@ class TestManualOrientation:
     def test_meta_without_manual_orientation_reports_null(self):
         sid = _session_with_volume()
         assert client.get(f"/api/volume/{sid}/meta").json()["orientation_manual"] is None
+
+
+class TestLegacyCacheOrientation:
+    """Cachés anteriores a la orientación: la meta la rederiva de las cabeceras
+    DICOM de la sesión (sin píxeles) y la guarda, en vez de dejarla en null."""
+
+    @staticmethod
+    def _make_legacy(sid: str, persisted_null: bool) -> None:
+        # Lo que dejaba una caché de antes: el .npy y una meta sin orientación,
+        # o con el null que la versión anterior de _complete_meta ya guardó.
+        meshes = session_subdir(sid, "meshes")
+        np.save(meshes / "_volume.npy", np.zeros((3, 8, 8), dtype=np.float32))
+        meta = {"shape": [3, 8, 8], "spacing": [1.0, 0.5, 0.5], "wc": 40.0, "ww": 400.0, "modality": "CT"}
+        if persisted_null:
+            meta.update({"direction": None, "orientation_known": False})
+        (meshes / "_volume_meta.json").write_text(json.dumps(meta))
+        _downsampled_volume.cache_clear()
+
+    def test_legacy_meta_recovers_direction_from_classic_series(self):
+        identity = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+        for persisted_null in (False, True):
+            sid = create_session()
+            _write_classic_ct_series(sid, with_orientation=True)
+            self._make_legacy(sid, persisted_null)
+            meta = ensure_volume_cached(sid)
+            assert meta["orientation_known"] is True
+            assert len(meta["direction"]) == 9
+            for got, want in zip(meta["direction"], identity):
+                assert abs(got - want) < 1e-6
+            # Se guarda: la próxima llamada no vuelve a leer las cabeceras.
+            on_disk = json.loads((session_subdir(sid, "meshes") / "_volume_meta.json").read_text())
+            assert on_disk["orientation_known"] is True and on_disk["orientation_checked"] is True
+            assert on_disk["direction"] == meta["direction"]
+
+    def test_legacy_direction_matches_what_load_series_reads(self):
+        # IOP coronal (fila → +x, columna → −z): la dirección de solo cabeceras
+        # debe ser la misma matriz que SimpleITK arma al cargar los píxeles.
+        from services.dicom_loader import direction_from_headers, load_series
+        sid = create_session()
+        _write_classic_ct_series(sid, iop=[1, 0, 0, 0, 0, -1])
+        dicom_dir = session_subdir(sid, "dicom")
+        direction, known = direction_from_headers(dicom_dir, "")
+        assert known is True
+        real = load_series("", dicom_dir)
+        assert real.orientation_known is True
+        np.testing.assert_allclose(direction, real.direction, atol=1e-6)
+
+    def test_legacy_meta_without_iop_stays_unknown(self):
+        sid = create_session()
+        _write_classic_ct_series(sid, with_orientation=False)
+        self._make_legacy(sid, persisted_null=True)
+        meta = ensure_volume_cached(sid)
+        assert meta["direction"] is None
+        assert meta["orientation_known"] is False
+
+    def test_legacy_meta_without_dicom_stays_unknown(self):
+        sid = _session_with_volume()
+        meta = ensure_volume_cached(sid)
+        assert meta["direction"] is None
+        assert meta["orientation_known"] is False
+        on_disk = json.loads((session_subdir(sid, "meshes") / "_volume_meta.json").read_text())
+        assert "orientation_checked" not in on_disk

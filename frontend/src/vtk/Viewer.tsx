@@ -436,6 +436,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return () => clearTimeout(t);
   }, [rotatable]);
 
+  // Un marcado se hace sobre la malla: si la escena está en la franja, sube al
+  // principal, porque en una celda de ~235 px ni se apunta ni se lee el aviso.
+  useEffect(() => {
+    if (pickMode !== null && viewerLayout.main !== "scene") setViewerLayout(swapPane(viewerLayout, "scene"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickMode]);
+
   // Configuración por plano. El eje vertical de coronal/sagital es 1 − f(z)
   // porque se ven con superior arriba (como los PNG); axial no se voltea. Las
   // líneas de referencia van en las mismas coordenadas que el crosshair: en
@@ -486,11 +493,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
       }}
       // Abrir el desplegable no debe maximizar la celda.
       onDoubleClick={(e) => e.stopPropagation()}
-      style={{ position: "absolute", bottom: 3, right: 24, zIndex: 6, width: 96, background: "#000", border: "none", color: "var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: ".08em", textTransform: "uppercase", cursor: "pointer" }}
+      style={{ position: "absolute", bottom: 3, right: 24, zIndex: 6, width: 96, background: "transparent", border: "none", color: "var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: ".08em", textTransform: "uppercase", cursor: "pointer" }}
     >
-      <option value="" disabled>Preajuste</option>
+      {/* El select es transparente para no tapar la imagen; las opciones
+          llevan fondo propio porque el desplegable hereda el del select. */}
+      <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
       {WL_PRESETS.map((p) => (
-        <option key={p.name} value={p.name}>{p.name} · {p.wc}/{p.ww}</option>
+        <option key={p.name} value={p.name} style={{ background: "#000", color: "var(--hud)" }}>{p.name} · {p.wc}/{p.ww}</option>
       ))}
     </select>
   );

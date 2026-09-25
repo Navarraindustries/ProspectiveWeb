@@ -55,6 +55,7 @@ import type {
   Position3D,
   RegionEraseResult,
   MorphometryResult,
+  OcclusionOut,
   NeckPlaneRequest,
   PatientCreate,
   PatientDetail,
@@ -324,6 +325,10 @@ export const api = {
     post<CrossSectionResult>(`/api/cross-section/${sessionId}`, req),
   deployClStent: (sessionId: string, req: ClStentRequest) =>
     post<ClStentResult>(`/api/cl-stent/${sessionId}`, req),
+  /** Cuánto aneurisma queda con el clip colocado: oclusión completa, resto de
+   *  cuello o residual. Geometría, no mecánica. */
+  clipOcclusion: (sessionId: string) =>
+    get<OcclusionOut>(`/api/clips/occlusion/${sessionId}`),
   setTrajectory: (sessionId: string, req: TrajectoryRequest) =>
     post<TrajectoryResult>(`/api/trajectory/${sessionId}`, req),
   /** Por dónde entrar: barre direcciones y devuelve las despejadas que además

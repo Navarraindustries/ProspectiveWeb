@@ -17,6 +17,7 @@ import type {
   CoilLibraryItem,
   CoilPlanResult,
   MorphometryResult,
+  OcclusionOut,
   Position3D,
   ProposedCorridorOut,
   StentLibraryItem,
@@ -412,6 +413,8 @@ function ClipsTab() {
               </div>
             </>
           )}
+
+          {plan && <OcclusionReport />}
 
           {plan && (
             <Card style={{ marginTop: 14 }}>
@@ -898,6 +901,88 @@ function ClStentTab() {
       />
       <ErrorNote>{clearer.error}</ErrorNote>
     </div>
+  );
+}
+
+/* ── Cómo queda el aneurisma con el clip puesto ────────────────────────── */
+
+const OCCLUSION_UI: Record<OcclusionOut["outcome"],
+                           { label: string; color: string }> = {
+  completa:        { label: "Oclusión completa",  color: "var(--success)" },
+  resto_de_cuello: { label: "Resto de cuello",    color: "var(--warning)" },
+  residual:        { label: "Aneurisma residual", color: "var(--destructive)" },
+  sin_saco:        { label: "Sin saco aislado",   color: "var(--muted-foreground)" },
+};
+
+/** Preguntado por dirección: «¿se puede simular cómo se deforma el aneurisma al
+ *  quedar constreñido en la mordaza?». La deformación de la pared no se puede
+ *  sostener —hace falta su grosor, sus propiedades y la presión, y no hay con
+ *  qué validarla— pero la pregunta clínica detrás sí tiene respuesta: cuánto
+ *  aneurisma queda. Eso es geometría sobre el saco aislado y el clip colocado. */
+function OcclusionReport() {
+  const { sessionId } = usePlanning();
+  const [data, setData] = useState<OcclusionOut | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const medir = async () => {
+    if (!sessionId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setData(await api.clipOcclusion(sessionId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo medir el resultado");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ui = data ? OCCLUSION_UI[data.outcome] : null;
+  return (
+    <Card style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <SectionLabel style={{ flex: 1 }}>Cómo queda el aneurisma</SectionLabel>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => void medir()}>
+          {busy ? "Midiendo…" : data ? "Volver a medir" : "Medir"}
+        </Button>
+      </div>
+
+      {!data && !error && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+          Parte el saco por la línea de cierre del clip y mide los dos lados: lo
+          que sale de la circulación y el muñón que sigue comunicado.
+        </div>
+      )}
+
+      {data && ui && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 700, color: ui.color, marginTop: 6 }}>
+            {ui.label}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 4, lineHeight: 1.5 }}>
+            {data.summary}
+          </div>
+          {data.outcome !== "sin_saco" && (
+            <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
+              saco {data.sac_volume_mm3.toFixed(0)} mm³ · fuera{" "}
+              {data.excluded_mm3.toFixed(0)} mm³ · muñón {data.remnant_mm3.toFixed(0)} mm³
+              {data.remnant_width_mm > 0 && ` · ancho ${data.remnant_width_mm.toFixed(1)} mm`}
+            </div>
+          )}
+          {/* Lo que esta medida NO es. Sin esto, «oclusión completa» se lee
+              como una simulación mecánica que nadie ha hecho. */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+            {data.cautions.map((c, i) => (
+              <div key={i} style={{ fontSize: 10.5, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+                — {c}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      <ErrorNote>{error}</ErrorNote>
+    </Card>
   );
 }
 

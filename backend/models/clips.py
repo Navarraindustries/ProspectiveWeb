@@ -437,3 +437,27 @@ class ClipAnimationResult(BaseModel):
     normal: list[float]
     rotation_deg: float
     clip_name: str = ""
+
+
+class OcclusionOut(BaseModel):
+    """Cómo queda el aneurisma con el clip puesto.
+
+    Es la mitad contestable de «simular la deformación». Deformar la pared pide
+    su grosor, sus propiedades y la presión intraluminal, y ninguna se mide en
+    la imagen —la pared tiene 0,05–0,5 mm y el vóxel 0,32— ni hay con qué
+    validar el resultado. Lo que sí es contestable, y es la pregunta clínica, es
+    cuánto aneurisma queda.
+    """
+
+    outcome: Literal["completa", "resto_de_cuello", "residual", "sin_saco"]
+    sac_volume_mm3: float = 0.0
+    excluded_mm3: float = Field(0.0, description="Lo que el clip deja fuera de la circulación")
+    remnant_mm3: float = Field(0.0, description="El muñón que sigue comunicado con la arteria")
+    remnant_fraction_pct: float = 0.0
+    remnant_width_mm: float = Field(
+        0.0, description="Anchura del muñón en el plano del cuello")
+    summary: str = ""
+    cautions: list[str] = Field(default_factory=list)
+    remnant_mesh_url: str | None = Field(
+        None, description="El muñón, para pintarlo. Null si no queda nada medible.")
+    clip_name: str = ""

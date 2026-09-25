@@ -1405,6 +1405,49 @@ it. And the corridor is no longer drawn as a ruler line but as the **volume it
 is** — a translucent 5 mm tube — because what the video has to show is the clip
 and its applier coming down a space they have to fit through.
 
+### «Can you simulate how the aneurysm deforms?» — half of it, honestly
+
+The clinical direction asked for a simulation of the sac deforming as the jaw
+constricts it. That can be programmed and it cannot be defended, so what got
+built is the half that can.
+
+**Why the deformation itself is out of reach.** A wall deformation needs the
+wall's **thickness**, its **mechanical properties** and the **intraluminal
+pressure**. None is measurable here: an aneurysm wall is 0.05–0.5 mm and this
+project's voxel is 0.32 mm. And there is nothing to validate the result
+against. It is the same dead end as the Alvarado-style score that was already
+turned down — a convincing video comes out and nobody can say it is true.
+
+**What is answerable is the clinical question behind it: how much aneurysm is
+left.** When the blades close, what lies on the dome side leaves the
+circulation and what lies on the artery side stays in. That is geometry over two
+objects that already exist — the isolated sac and the placed clip — so
+`GET /api/clips/occlusion/{sid}` splits the sac at the clip's closing level and
+measures both sides:
+
+| | |
+|---|---|
+| excluded | what the clip takes out of circulation |
+| remnant | what stays connected to the parent artery — the number that matters |
+| remnant width | across the neck plane |
+| outcome | complete occlusion · neck remnant · residual aneurysm |
+
+Both halves are capped before measuring, because an open surface has no volume
+worth reporting; the test asserts that they add back up to the sac. With several
+clips the most **proximal** closing line rules — anything above it is already
+excluded by it — and for a picket-fence construct that is an approximation, said
+out loud.
+
+**The one deformation this project does assert** lives elsewhere and comes from
+conserving the perimeter: the round neck is flattened, and its closing line
+measures half the perimeter (see «The jaw is sized against the flattened neck»).
+That is not a model, it is a length.
+
+The result carries what it is not: geometry rather than mechanics, why the wall
+cannot be deformed with this data, and that the 15 % cut between «neck remnant»
+and «residual» is a presentation convention of this software rather than a
+validated clinical threshold.
+
 ### Two clips, when no single blade closes the neck
 
 Asked by the clinical direction: *can multi-clip treatments be supported, or is

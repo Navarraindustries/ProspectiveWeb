@@ -22,6 +22,7 @@ from models.clips import (
     CustomJawOut,
     ManufactureSpecOut,
     MultiClipConstructOut,
+    OcclusionOut,
 )
 from services.clips   import catalogue_to_api
 from services.clip_manufacture import resolve_perfect_clip
@@ -1125,4 +1126,101 @@ async def clip_animation(
         normal=list(normal),
         rotation_deg=pl.rotation_deg,
         clip_name=spec.name if spec is not None else pl.clip_id,
+    )
+
+
+# ── Cómo queda el aneurisma con el clip puesto ──────────────────────────────── #
+
+@router.get(
+    "/clips/occlusion/{session_id}",
+    response_model=OcclusionOut,
+    summary="How much aneurysm is left once the placed clip closes",
+    description=(
+        "Splits the isolated sac at the level where the clip closes and measures "
+        "both sides: what leaves the circulation and what stays connected to the "
+        "parent artery — the remnant.\n\n"
+        "This is the answerable half of «simulate the deformation». A wall "
+        "deformation needs the wall's thickness, its mechanical properties and "
+        "the intraluminal pressure; none is measurable here (the wall is "
+        "0.05–0.5 mm and the voxel 0.32) and there is nothing to validate it "
+        "against. What IS answerable, and is the clinical question, is how much "
+        "aneurysm is left: complete occlusion, neck remnant, or residual "
+        "aneurysm.\n\n"
+        "Geometry, not mechanics. It does not model how the wall yields."
+    ),
+)
+async def clip_occlusion(session_id: str) -> OcclusionOut:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+
+    from services.clip_outcome import occlusion_after_clip
+    from services.segmentation import read_vtp, write_vtp
+
+    meshes_dir = session_subdir(session_id, "meshes")
+    sac_name = read_state(session_id, "morpho.sac_vtp_name", "")
+    sac_path = meshes_dir / (sac_name or "aneurysm_sac.vtp")
+    sac = read_vtp(sac_path) if sac_path.exists() else None
+
+    eje = (
+        _load_float(session_id, "morpho.axis_x", 0.0),
+        _load_float(session_id, "morpho.axis_y", 0.0),
+        _load_float(session_id, "morpho.axis_z", 1.0),
+    )
+    cuello = (
+        _load_float(session_id, "morpho.neck_origin_x", 0.0),
+        _load_float(session_id, "morpho.neck_origin_y", 0.0),
+        _load_float(session_id, "morpho.neck_origin_z", 0.0),
+    )
+
+    from services.device_state import read_clips
+    colocados = read_clips(session_id)
+    if not colocados:
+        raise HTTPException(
+            status_code=409,
+            detail=("No hay ningún clip colocado. Coloca uno en Dispositivos "
+                    "para medir cómo queda el aneurisma."))
+
+    # Con varios clips manda el MÁS PROXIMAL: es su línea de cierre la que
+    # separa el saco de la arteria, y lo que quede por encima ya está excluido
+    # por él. Con un montaje en fila es una aproximación del conjunto, y se dice.
+    import numpy as _np
+    n = _np.asarray(eje, dtype=float)
+    n = n / (float(_np.linalg.norm(n)) or 1.0)
+    origen_cuello = _np.asarray(cuello, dtype=float)
+
+    def _altura(c) -> float:
+        p = _np.asarray(c.get("position", [0.0, 0.0, 0.0]), dtype=float)
+        return float(_np.dot(p - origen_cuello, n))
+
+    proximal = min(colocados, key=_altura)
+    corte = _np.asarray(proximal.get("position", [0.0, 0.0, 0.0]), dtype=float)
+
+    res = occlusion_after_clip(sac, tuple(corte), tuple(n),
+                               neck_origin=cuello, neck_axis=tuple(n))
+
+    # El muñón, para pintarlo: es lo único de esta medida que se ve.
+    remnant_url = None
+    if res.remnant_poly is not None and res.remnant_poly.GetNumberOfPoints() > 0:
+        nombre = "aneurysm_remnant.vtp"
+        write_vtp(res.remnant_poly, meshes_dir / nombre)
+        remnant_url = f"{mesh_url(session_id, nombre)}?v={int(time.time() * 1000)}"
+
+    avisos = list(res.cautions)
+    if len(colocados) > 1:
+        avisos.insert(0, (
+            f"Hay {len(colocados)} clips colocados y la medida usa la línea de "
+            f"cierre del más proximal. Para un montaje en fila es una "
+            f"aproximación del conjunto."))
+
+    return OcclusionOut(
+        outcome=res.outcome,
+        sac_volume_mm3=res.sac_volume_mm3,
+        excluded_mm3=res.excluded_mm3,
+        remnant_mm3=res.remnant_mm3,
+        remnant_fraction_pct=round(res.remnant_fraction * 100, 1),
+        remnant_width_mm=res.remnant_width_mm,
+        summary=res.summary,
+        cautions=avisos,
+        remnant_mesh_url=remnant_url,
+        clip_name=str(proximal.get("name", "")),
     )

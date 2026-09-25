@@ -2824,6 +2824,54 @@
         }
       }
     },
+    "/api/clips/occlusion/{session_id}": {
+      "get": {
+        "tags": [
+          "clips"
+        ],
+        "summary": "How much aneurysm is left once the placed clip closes",
+        "description": "Splits the isolated sac at the level where the clip closes and measures both sides: what leaves the circulation and what stays connected to the parent artery — the remnant.\n\nThis is the answerable half of «simulate the deformation». A wall deformation needs the wall's thickness, its mechanical properties and the intraluminal pressure; none is measurable here (the wall is 0.05–0.5 mm and the voxel 0.32) and there is nothing to validate it against. What IS answerable, and is the clinical question, is how much aneurysm is left: complete occlusion, neck remnant, or residual aneurysm.\n\nGeometry, not mechanics. It does not model how the wall yields.",
+        "operationId": "clip_occlusion_api_clips_occlusion__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcclusionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/coils": {
       "get": {
         "tags": [
@@ -10235,6 +10283,83 @@
         ],
         "title": "NeckPlaneRequest",
         "description": "User-defined neck plane for semi-automatic closed-sac morphometry.\n\nThe user places a point on the neck and a normal pointing toward the dome.\nThe backend clips the vessel tree at this plane, keeps the dome-side\nconnected component, caps the opening into a closed watertight sac, and\nmeasures the neck directly from the plane∩tree contour."
+      },
+      "OcclusionOut": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "completa",
+              "resto_de_cuello",
+              "residual",
+              "sin_saco"
+            ],
+            "title": "Outcome"
+          },
+          "sac_volume_mm3": {
+            "type": "number",
+            "title": "Sac Volume Mm3",
+            "default": 0.0
+          },
+          "excluded_mm3": {
+            "type": "number",
+            "title": "Excluded Mm3",
+            "description": "Lo que el clip deja fuera de la circulación",
+            "default": 0.0
+          },
+          "remnant_mm3": {
+            "type": "number",
+            "title": "Remnant Mm3",
+            "description": "El muñón que sigue comunicado con la arteria",
+            "default": 0.0
+          },
+          "remnant_fraction_pct": {
+            "type": "number",
+            "title": "Remnant Fraction Pct",
+            "default": 0.0
+          },
+          "remnant_width_mm": {
+            "type": "number",
+            "title": "Remnant Width Mm",
+            "description": "Anchura del muñón en el plano del cuello",
+            "default": 0.0
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "cautions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cautions"
+          },
+          "remnant_mesh_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remnant Mesh Url",
+            "description": "El muñón, para pintarlo. Null si no queda nada medible."
+          },
+          "clip_name": {
+            "type": "string",
+            "title": "Clip Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome"
+        ],
+        "title": "OcclusionOut",
+        "description": "Cómo queda el aneurisma con el clip puesto.\n\nEs la mitad contestable de «simular la deformación». Deformar la pared pide\nsu grosor, sus propiedades y la presión intraluminal, y ninguna se mide en\nla imagen —la pared tiene 0,05–0,5 mm y el vóxel 0,32— ni hay con qué\nvalidar el resultado. Lo que sí es contestable, y es la pregunta clínica, es\ncuánto aneurisma queda."
       },
       "OrderIn": {
         "properties": {

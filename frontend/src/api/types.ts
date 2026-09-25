@@ -964,6 +964,26 @@ export interface ManufactureSpecOut {
   dossier_workshop_url: string | null;
 }
 
+/** Cómo queda el aneurisma con el clip puesto.
+
+    Es la mitad contestable de «simular la deformación»: deformar la pared pide
+    su grosor, sus propiedades y la presión intraluminal, y ninguna se mide en
+    la imagen. Lo que sí se puede medir es cuánto aneurisma queda. */
+export interface OcclusionOut {
+  outcome: "completa" | "resto_de_cuello" | "residual" | "sin_saco";
+  sac_volume_mm3: number;
+  /** Lo que el clip deja fuera de la circulación. */
+  excluded_mm3: number;
+  /** El muñón que sigue comunicado con la arteria: lo que de verdad importa. */
+  remnant_mm3: number;
+  remnant_fraction_pct: number;
+  remnant_width_mm: number;
+  summary: string;
+  cautions: string[];
+  remnant_mesh_url: string | null;
+  clip_name: string;
+}
+
 export interface ClipCaseOut {
   neck_mm: number;
   /** Mordaza mínima que cierra este cuello: NO es el diámetro, sino lo que

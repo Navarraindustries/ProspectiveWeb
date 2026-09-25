@@ -131,10 +131,17 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
+/** Cabeceras con el JWT para fetch() fuera del cliente (bloques del volumen). */
+export function authHeaders(): Headers {
+  const headers = new Headers();
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  return headers;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  for (const [k, v] of authHeaders()) headers.set(k, v);
   if (init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
@@ -167,10 +174,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 /** Authenticated fetch returning the raw Blob (for images / documents that an
  *  <img src> or download link can't carry the JWT header for). */
 async function getBlob(path: string): Promise<Blob> {
-  const headers = new Headers();
-  const token = getToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(path, { headers });
+  const res = await fetch(path, { headers: authHeaders() });
   if (res.status === 401) {
     setToken(null);
     onUnauthorized?.();
@@ -341,6 +345,10 @@ export const api = {
   /* MPR / DICOM slice preview */
   volumeMeta: (sessionId: string) => get<VolumeMeta>(`/api/volume/${sessionId}/meta`),
   volumeRawUrl: (sessionId: string) => `/api/volume/${sessionId}/raw`,
+  /** Un bloque del volumen para el visor en el cliente. `cacheKey` cambia con
+   *  el .npy, así que una resegmentación o un preproceso invalidan la caché. */
+  chunkUrl: (sessionId: string, level: "full" | "coarse", z0: number, z1: number, cacheKey: string) =>
+    `/api/volume/${sessionId}/chunk/${level}/${z0}-${z1}?v=${encodeURIComponent(cacheKey)}`,
   sliceObliqueUrl: (sessionId: string, tilt: number, pos: number, axis: string, wc?: number, ww?: number) => {
     const q = new URLSearchParams({ tilt: String(tilt), pos: String(pos), axis });
     if (wc !== undefined) q.set("wc", String(Math.round(wc)));

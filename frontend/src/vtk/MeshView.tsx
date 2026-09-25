@@ -105,6 +105,7 @@ export function MeshView({
   preserveCamera = false,
   orientation,
   onCameraChange,
+  insetRaised = false,
 }: {
   layers: MeshLayer[];
   markers?: MeshMarker[];
@@ -150,6 +151,9 @@ export function MeshView({
   /** Avisa de cada cambio de cámara (dirección de proyección y up), para la
    *  cinta de rumbo que el visor dibuja sobre la escena. */
   onCameraChange?: (dir: Vec3, up: Vec3) => void;
+  /** Sube el recuadro del maniquí por encima de la leyenda de abajo a la
+   *  derecha (dispositivos, bandas de perforantes) para no taparla. */
+  insetRaised?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handles = useRef<Handles | null>(null);
@@ -425,6 +429,11 @@ export function MeshView({
   useEffect(() => {
     insetRef.current?.setOrientation(orientation);
   }, [orientation.direction, orientation.manual]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Con `key` también: una escena rehecha estrena recuadro en su sitio de siempre.
+  useEffect(() => {
+    insetRef.current?.setRaised(insetRaised);
+  }, [key, insetRaised]);
 
   // ── Appearance (opacity/color): update actors in place, never rebuild the ──
   //    scene — so dimming a heavy mesh (e.g. entering a pick mode) is instant. ─ #

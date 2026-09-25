@@ -23,6 +23,7 @@ import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { OrientationSheet } from "./OrientationSheet";
+import { manualFromMeta, shouldSeed } from "./orientationSeed";
 import type { Vector3 } from "@kitware/vtk.js/types";
 
 // vtk.js (~1 MB) is only needed once a 3D mesh is shown, so load MeshView — and
@@ -120,20 +121,24 @@ const WL_PRESETS: { name: string; wc: number; ww: number }[] = [
   { name: "Hígado", wc: 70, ww: 170 },
 ];
 
-/* Load the volume meta once per session; shared by every pane. */
-function useVolumeMeta(sessionId: string | null): VolumeMeta | null {
-  const [meta, setMeta] = useState<VolumeMeta | null>(null);
+/* Load the volume meta once per session; shared by every pane.
+
+   The meta is stored with the session it was fetched for and only handed out
+   while that is still the current session. Clearing it inside the effect left
+   one commit, the one where sessionId changes, in which every consumer saw
+   the previous study's meta; the orientation seeding took it for the new one. */
+function useVolumeMeta(sessionId: string | null): { meta: VolumeMeta | null; forSession: string | null } {
+  const [state, setState] = useState<{ meta: VolumeMeta | null; forSession: string | null }>({ meta: null, forSession: null });
   useEffect(() => {
-    setMeta(null);
     if (!sessionId) return;
     let cancelled = false;
     api
       .volumeMeta(sessionId)
-      .then((m) => { if (!cancelled) setMeta(m); })
-      .catch(() => { if (!cancelled) setMeta(null); });
+      .then((m) => { if (!cancelled) setState({ meta: m, forSession: sessionId }); })
+      .catch(() => { if (!cancelled) setState({ meta: null, forSession: sessionId }); });
     return () => { cancelled = true; };
   }, [sessionId]);
-  return meta;
+  return sessionId && state.forSession === sessionId ? state : { meta: null, forSession: null };
 }
 
 /* Canal de la cámara del 3D hacia la cinta de rumbo. MeshView avisa en cada
@@ -267,26 +272,27 @@ export function ViewerWorkspace({ step }: { step: string }) {
     (step === "detect" || step === "morpho") && candidate?.dome_mesh_url
       ? candidate.dome_mesh_url
       : undefined;
-  const meta = useVolumeMeta(sessionId);
+  const { meta, forSession: metaFor } = useVolumeMeta(sessionId);
   // Un solo volumen en el navegador para las cinco celdas: la franja y el
   // principal leen el mismo vtkImageData, así que no se descarga dos veces ni
   // pueden enseñar niveles distintos. Sin WebGL2 ni se pide.
   const clientVol = useClientVolume(hasWebGL2() ? sessionId : null, meta, mprVoxel.z);
   const legacy = !hasWebGL2() || !clientVol.image;
-  const orientation: Orientation = { direction: meta?.direction ?? null, manual: orientationManual };
   // La orientación fijada a mano vive en el estado de sesión y vuelve con la
-  // meta al reanudarla: se siembra una vez por sesión y nunca pisa la que el
-  // usuario acaba de fijar en esta.
-  const seededFor = useRef<string | null>(null);
+  // meta al reanudarla: se siembra una vez por sesión, con la meta de ESA
+  // sesión, y nunca pisa la que el usuario acaba de fijar en ella. Al sembrar
+  // se pone también el null de una sesión que no tiene ninguna: el store puede
+  // traer todavía la del estudio anterior.
+  const [seededFor, setSeededFor] = useState<string | null>(null);
   useEffect(() => {
-    if (!meta || !sessionId || seededFor.current === sessionId) return;
-    seededFor.current = sessionId;
-    const m = meta.orientation_manual;
-    if (m && !orientationManual) {
-      setOrientationManual({ anteriorEdge: m.anterior_edge, firstSliceSuperior: m.first_slice_superior });
-    }
+    if (!shouldSeed(seededFor, sessionId, metaFor)) return;
+    setSeededFor(sessionId);
+    setOrientationManual(manualFromMeta(meta?.orientation_manual));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, sessionId]);
+  }, [meta, metaFor, sessionId]);
+  // Hasta sembrar, lo del store puede ser de otra sesión: no se usa.
+  const manualForSession = seededFor === sessionId ? orientationManual : null;
+  const orientation: Orientation = { direction: meta?.direction ?? null, manual: manualForSession };
   const [orientationOpen, setOrientationOpen] = useState(false);
   const cameraFeed = useRef<CameraFeed>({ last: null, listener: null });
   const onCameraChange = useCallback((dir: Vec3, up: Vec3) => {
@@ -609,6 +615,20 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // en esquinas que no pisan las lecturas propias de SliceView (bl/br/tr).
   const renderScene = (compact: boolean): ReactNode => {
     const isMesh = viewMode === "default" && meshVisible;
+    // Dispositivos y bandas de perforantes comparten esquina: en el paso de
+    // dispositivos pueden verse las dos cosas a la vez. Las bandas salen de
+    // los radios del resultado, no de constantes de aquí.
+    const br: HudLine[] = [];
+    if (isMesh && showDevice) {
+      for (const d of devices) {
+        br.push({ text: DEVICE_LABEL[d.kind].toUpperCase(), color: `rgb(${d.color.map((c) => Math.round(c * 255)).join(",")})` });
+      }
+    }
+    if (isMesh && meshUrl && visiblePerforators.length > 0 && (step === "morpho" || step === "treatment" || step === "devices")) {
+      for (const b of perforatorBands) br.push({ text: b.label, color: b.color });
+    }
+    // Con leyenda abajo a la derecha, el recuadro del maniquí sube encima de ella.
+    const insetRaised = !compact && br.length > 0;
     let body: ReactNode;
     let mode: string | null = null;
     // El cuerpo dibuja su propio HudFrame (esquinas y rótulo): el marco de la
@@ -637,7 +657,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
           <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={setCaptureViewport} registerCamera={registerCamera} registerParts={registerClipParts}
-            orientation={orientation} onCameraChange={onCameraChange} />
+            orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
         </Suspense>
       );
       mode = segPreview ? "3D · MALLA GRUESA" : "3D";
@@ -679,19 +699,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
       bl.push({ text: `Ø MÁX ${morphometry.max_diameter_mm.toFixed(1)} mm`, color: "rgb(217,51,51)" });
       if (morphometry.neck_valid !== false) bl.push(`AR ${morphometry.ar.toFixed(2)} · DNR ${morphometry.dnr.toFixed(2)}`);
     }
-    // Dispositivos y bandas de perforantes comparten esquina: en el paso de
-    // dispositivos pueden verse las dos cosas a la vez. Las bandas salen de
-    // los radios del resultado, no de constantes de aquí.
-    const br: HudLine[] = [];
-    if (isMesh && showDevice) {
-      for (const d of devices) {
-        br.push({ text: DEVICE_LABEL[d.kind].toUpperCase(), color: `rgb(${d.color.map((c) => Math.round(c * 255)).join(",")})` });
-      }
-    }
-    if (isMesh && meshUrl && visiblePerforators.length > 0 && (step === "morpho" || step === "treatment" || step === "devices")) {
-      for (const b of perforatorBands) br.push({ text: b.label, color: b.color });
-    }
-
     // Los conmutadores van bajo la lectura de la izquierda: la derecha es de
     // la escalera de cortes, las lecturas de nivel y SINCRO.
     const togglesTop = 22 + tl.length * 16 + 8;
@@ -741,7 +748,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             {meta.orientation_known === false && (
               <HudToggleGroup
                 options={[{ key: "fix", label: "Fijar orientación", title: "Decir dónde está anterior y cuál es el primer corte" }]}
-                value={orientationManual ? "fix" : ""} onChange={() => setOrientationOpen(true)} />
+                value={manualForSession ? "fix" : ""} onChange={() => setOrientationOpen(true)} />
             )}
           </div>
         )}
@@ -762,7 +769,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
       {sessionId && (
         <OrientationSheet open={orientationOpen} onClose={() => setOrientationOpen(false)} sessionId={sessionId}
-          current={orientationManual} onApply={setOrientationManual} />
+          current={manualForSession} onApply={setOrientationManual} />
       )}
       <div style={{ flex: 1, position: "relative", background: "#000", minHeight: 0, overflow: "hidden" }}>
         {renderPane(viewerLayout.main, "main")}

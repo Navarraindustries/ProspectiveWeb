@@ -216,4 +216,13 @@ describe("foco compartido del visor", () => {
     expect(result.current.syncViews).toBe(true);
     expect(result.current.focusPoint).toBeNull();
   });
+  it("resegmenting keeps the hand-fixed orientation; a full reset clears it", () => {
+    // Es del volumen, no de la malla: resetDownstream no la toca.
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setOrientationManual({ anteriorEdge: "right", firstSliceSuperior: true }));
+    act(() => result.current.resetDownstream());
+    expect(result.current.orientationManual).toEqual({ anteriorEdge: "right", firstSliceSuperior: true });
+    act(() => result.current.reset());
+    expect(result.current.orientationManual).toBeNull();
+  });
 });

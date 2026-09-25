@@ -323,7 +323,10 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setTrajTarget(null);
     setMorphoOverlay(false);
     setFocusPoint(null);
-    setOrientationManual(null);
+    // La orientación fijada a mano NO es «aguas abajo»: es del volumen, no de
+    // la malla. Resegmentar o preprocesar la dejaba en null a media sesión y
+    // el visor, que siembra una vez por sesión, no la recuperaba. Se limpia en
+    // reset() y el visor la resiembra al cambiar de sesión.
   };
 
   const reset = () => {
@@ -332,6 +335,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setImagingStudyId(null);
     setSession(null);
     setSeries(null);
+    setOrientationManual(null);
     resetDownstream();
   };
 

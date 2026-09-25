@@ -8508,16 +8508,10 @@
             "title": "Direction",
             "description": "Which direction this factor pushes the recommendation"
           },
-          "points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Points",
-            "description": "Weight / magnitude of this factor"
-          },
           "votes": {
             "type": "boolean",
             "title": "Votes",
-            "description": "False for a factor that is shown but does not add points. The shape indices are the case: they come from rupture-risk literature, are not validated for choosing a modality, and what they DO support is in `endovascular`. Deleting a measurement because it cannot vote hides it; showing it with its reason leaves it arguable.",
+            "description": "False para un factor que se ENSEÑA pero no influye en la recomendación. Los índices de forma son el caso: vienen de la literatura de riesgo de rotura, no están validados para elegir modalidad, y lo que sí sostienen está en `endovascular`. Borrar una medida porque no cuenta la esconde; enseñarla con su razón la deja discutible.",
             "default": true
           },
           "source": {
@@ -8531,8 +8525,7 @@
         "required": [
           "name",
           "detail",
-          "direction",
-          "points"
+          "direction"
         ],
         "title": "DecisionFactor",
         "description": "One contributing factor in the CLIP vs ENDO scoring."
@@ -8752,19 +8745,6 @@
             "title": "Label",
             "default": ""
           },
-          "points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Points",
-            "description": "Puntos de riesgo de mal resultado",
-            "default": 0
-          },
-          "max_points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Max Points",
-            "default": 7
-          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/JsdbItemOut"
@@ -8793,11 +8773,6 @@
             "type": "string",
             "title": "Label",
             "default": ""
-          },
-          "points": {
-            "type": "integer",
-            "title": "Points",
-            "default": 0
           },
           "detail": {
             "type": "string",
@@ -13187,34 +13162,6 @@
       },
       "TreatmentDecisionResult": {
         "properties": {
-          "clip_points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Clip Points",
-            "description": "Raw points that argued for clipping — the actual sum",
-            "default": 0
-          },
-          "endo_points": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Endo Points",
-            "description": "Raw points that argued for endovascular treatment",
-            "default": 0
-          },
-          "clip_pct": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Clip Pct",
-            "description": "Clip points as a share of the total, 0–100. NOT a probability and not a proportion of patients: the ratio of two heuristic sums. Use it to draw a proportional bar, and show `clip_points` as the figure."
-          },
-          "endo_pct": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Endo Pct",
-            "description": "Endo share of the total, 0–100"
-          },
           "coverage_pct": {
             "type": "integer",
             "maximum": 100.0,
@@ -13272,11 +13219,6 @@
             "title": "Notes",
             "description": "Reasoning that is not a scored factor: why a small aneurysm is or is not a surveillance case, what the PHASES score says about it, and what the engine could not settle."
           },
-          "balance": {
-            "type": "integer",
-            "title": "Balance",
-            "description": "clip_score − endo_score (positive → clip preferred)"
-          },
           "recommendation": {
             "type": "string",
             "title": "Recommendation",
@@ -13330,9 +13272,6 @@
         },
         "type": "object",
         "required": [
-          "clip_pct",
-          "endo_pct",
-          "balance",
           "recommendation",
           "recommendation_key",
           "confidence",

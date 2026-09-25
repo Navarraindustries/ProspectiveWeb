@@ -34,15 +34,15 @@ class DecisionFactor(BaseModel):
     direction: Literal["clip", "endo", "neutral"] = Field(
         ..., description="Which direction this factor pushes the recommendation"
     )
-    points: int = Field(..., ge=0, description="Weight / magnitude of this factor")
     votes: bool = Field(
         True,
         description=(
-            "False for a factor that is shown but does not add points. The shape "
-            "indices are the case: they come from rupture-risk literature, are "
-            "not validated for choosing a modality, and what they DO support is "
-            "in `endovascular`. Deleting a measurement because it cannot vote "
-            "hides it; showing it with its reason leaves it arguable."
+            "False para un factor que se ENSEÑA pero no influye en la "
+            "recomendación. Los índices de forma son el caso: vienen de la "
+            "literatura de riesgo de rotura, no están validados para elegir "
+            "modalidad, y lo que sí sostienen está en `endovascular`. Borrar "
+            "una medida porque no cuenta la esconde; enseñarla con su razón la "
+            "deja discutible."
         ),
     )
     source: str = Field(
@@ -81,7 +81,6 @@ class JsdbItemOut(BaseModel):
     """Una variable del modelo JSDB, con lo que aportó."""
 
     label: str = ""
-    points: int = 0
     detail: str = ""
 
 
@@ -90,8 +89,11 @@ class JsdbArmOut(BaseModel):
 
     arm: Literal["clip", "coil"]
     label: str = ""
-    points: int = Field(0, ge=0, description="Puntos de riesgo de mal resultado")
-    max_points: int = Field(7, ge=0)
+    #: Las variables que penalizan esta vía en ESTE paciente. Sin sus puntos:
+    #: los autores no publican bandas ni un AUC —validan que la tasa de mal
+    #: resultado correlaciona con la puntuación—, así que el número no se puede
+    #: leer como un riesgo, y enseñarlo era el último puntaje en pantalla.
+    #: Lo que el modelo sí sostiene es la COMPARACIÓN, y esa se queda.
     items: list[JsdbItemOut] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)
 
@@ -205,22 +207,15 @@ class TreatmentDecisionRequest(BaseModel):
 class TreatmentDecisionResult(BaseModel):
     """Full output of the CLIP vs ENDO decision engine."""
 
-    # ── Scores ────────────────────────────────────────────────────────────── #
-    clip_points: int = Field(
-        0, ge=0, description="Raw points that argued for clipping — the actual sum"
-    )
-    endo_points: int = Field(
-        0, ge=0, description="Raw points that argued for endovascular treatment"
-    )
-    clip_pct: int = Field(
-        ..., ge=0, le=100,
-        description=(
-            "Clip points as a share of the total, 0–100. NOT a probability and "
-            "not a proportion of patients: the ratio of two heuristic sums. Use "
-            "it to draw a proportional bar, and show `clip_points` as the figure."
-        ),
-    )
-    endo_pct: int = Field(..., ge=0, le=100, description="Endo share of the total, 0–100")
+    # ── Sin puntuaciones ──────────────────────────────────────────────────── #
+    #
+    # El motor sigue sumando pesos por dentro —de ahí sale la recomendación—
+    # pero el sumatorio no sale de aquí. Publicarlo invitaba a leer «CLIP 72 %»
+    # como una probabilidad o como la proporción de pacientes a los que les fue
+    # mejor, y no es ninguna de las dos cosas: es el cociente de dos sumas con
+    # pesos elegidos a mano, sin una sola cohorte detrás que los ajuste. Lo que
+    # el motor puede sostener es la recomendación y los factores que la
+    # empujan, y eso es lo que sale. Pedido por dirección el 24-09-2026.
     coverage_pct: int = Field(
         100, ge=0, le=100,
         description=(
@@ -270,10 +265,6 @@ class TreatmentDecisionResult(BaseModel):
             "and what the engine could not settle."
         ),
     )
-    balance: int = Field(
-        ..., description="clip_score − endo_score (positive → clip preferred)"
-    )
-
     # ── Recommendation ────────────────────────────────────────────────────── #
     recommendation: str = Field(..., description="Human-readable recommendation string")
     recommendation_key: RecommendationKey = Field(

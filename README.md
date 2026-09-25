@@ -1125,12 +1125,37 @@ prior stroke, size and location. Six of these eight factors are morphological
 instead. Age and comorbidities are collected here and deliberately not scored;
 WFNS and Fisher are not collected at all.
 
-### The bar was reading as a probability
+### The bar was reading as a probability, so the bar is gone
 
 «CLIP 72 % · ENDO 28 %» is the ratio of two heuristic sums normalised to 100. It
 is not a probability, not a proportion of patients, and not a confidence
-interval. The bar stays proportional — that is what a bar is for — but the figure
-is now the points that were actually added, with a line saying what they are.
+interval. The first attempt kept the bar proportional and put the raw points on
+it instead of the percentage, with a line saying what they were.
+
+That was not enough, and the clinical direction said so: **no score at all
+leaves the engine now.** What goes out is the recommendation, its confidence,
+how much of the case could be evaluated, and the factors with the side each one
+pushes to and where its threshold comes from. What stays inside is the weighted
+sum — the recommendation is still derived from it, and the invariants around it
+are still tested — but it reaches no screen, no PDF and no session state.
+
+    removed from the API   clip_points · endo_points · clip_pct · endo_pct · balance
+    removed per factor     points  (the side it pushes to stays)
+    removed from the PDF   the proportional bar and the «Pts» column
+    removed from state     treatment.clip_pct and friends — still in the CLEAR
+                           list, because sessions saved earlier have them
+
+**The JSDB lost its counters too, and for a different reason.** It is a fitted
+model, not a heuristic, so the instinct is to keep its numbers. But its authors
+publish neither bands nor an AUC — they validate that the poor-outcome rate
+correlates with the score, and nothing more. On screen «4 vs 2» reads as twice
+the risk, which is exactly what the model does not say. What it does support is
+the comparison, so the verdict («clipping is the less penalised route», «BOTH
+routes look bad») and the variables penalising each route stay, without figures.
+
+**PHASES is untouched**: it is a published instrument whose output is a rupture
+probability, it lives in the morphometry section, and it is not what the
+treatment engine adds up.
 
 One thing had to be fixed to make any of this visible: the engine computed
 `notes` and threw them away. `_to_dict` never emitted them, the model had no

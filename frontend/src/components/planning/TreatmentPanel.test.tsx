@@ -37,7 +37,6 @@ import { TreatmentPanel } from "./TreatmentPanel";
 import type { TreatmentDecisionResult } from "../../api/types";
 
 const RESULT: TreatmentDecisionResult = {
-  clip_points: 0, endo_points: 45, clip_pct: 0, endo_pct: 100, balance: -45,
   recommendation: "TRATAMIENTO ENDOVASCULAR", recommendation_key: "endo",
   confidence: "Moderada", coverage_pct: 100, missing_inputs: [], notes: [],
   endovascular: null,
@@ -53,18 +52,25 @@ const RESULT: TreatmentDecisionResult = {
     {
       name: "Cuello intermedio (4.1 mm, 4–5 mm)",
       detail: "Cuello borderline: posible stent-assisted coiling o clipping.",
-      direction: "endo", points: 5, votes: true,
+      direction: "endo", votes: true,
       source: "Umbral: cuello ≥ 4 mm, definición estándar de cuello ancho (Brinjikji, AJNR 2009). Peso: heurístico.",
     },
     {
       name: "Aspect Ratio bajo (AR = 1.16 < 1.3)",
       detail: "AR < 1.3: saco corto y ancho — acceso quirúrgico favorable.",
-      direction: "clip", points: 0, votes: false,
+      direction: "clip", votes: false,
       source: "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir modalidad.",
     },
   ],
   clip_factors: [], endo_factors: [],
 };
+
+/** Una vía del JSDB tal como llega ahora: sus variables, sin puntos. */
+const ARM = (arm: "clip" | "coil", labels: string[]) => ({
+  arm, label: arm === "clip" ? "Clipaje quirúrgico" : "Tratamiento endovascular",
+  items: labels.map((label) => ({ label, detail: "" })),
+  missing: [],
+});
 
 beforeEach(() => {
   stored = RESULT;
@@ -104,20 +110,41 @@ describe("la procedencia de cada factor", () => {
     expect(screen.queryByText(/Brinjikji/)).not.toBeInTheDocument();
   });
 
-  it("marca el factor que no puntúa aunque la procedencia esté plegada", () => {
-    // Sin la marca, un factor que no suma se lee como si estuviera pesando.
+  it("marca el factor que no influye aunque la procedencia esté plegada", () => {
+    // Sin la marca, un factor que no empuja se lee como si lo hiciera.
     render(<TreatmentPanel onNext={() => {}} />);
-    expect(screen.getByText("no puntúa")).toBeInTheDocument();
+    expect(screen.getByText("no influye")).toBeInTheDocument();
+  });
+
+  /* Lo que dirección pidió retirar: ni el sumatorio del motor ni los puntos
+     del JSDB. Un «CLIP 72 %» se lee como una probabilidad, y es el cociente de
+     dos sumas con pesos elegidos a mano; un «4 / 7» se lee como el doble de
+     riesgo que un «2 / 7», y el modelo no dice eso — sus autores no publican
+     bandas. La recomendación y los factores se quedan; las cifras, no. */
+  it("no queda ningún puntaje en pantalla", () => {
+    stored = {
+      ...RESULT,
+      jsdb: {
+        clip: ARM("clip", ["Edad ≥ 72 años (75)"]),
+        coil: ARM("coil", ["WFNS V", "Fisher 4"]),
+        favours: "clip", both_poor: false, known_pct: 100, missing: [],
+        verdict: "Clipaje quirúrgico sale menos penalizado.",
+        source: "",
+      },
+    };
+    const { container } = render(<TreatmentPanel onNext={() => {}} />);
+    const texto = container.textContent ?? "";
+    expect(texto).not.toMatch(/ pts/);
+    expect(texto).not.toMatch(/\d+\s*\/\s*7/);
+    expect(texto).not.toMatch(/\+\d/);
+    // Y lo que SÍ tiene que seguir ahí.
+    expect(screen.getByText(/Recomendación: TRATAMIENTO ENDOVASCULAR/)).toBeInTheDocument();
+    expect(screen.getByText(/Cuello intermedio/)).toBeInTheDocument();
+    expect(screen.getByText(/menos penalizado/)).toBeInTheDocument();
   });
 });
 
-describe("el modelo ajustado, junto al sumatorio heurístico", () => {
-  const ARM = (arm: "clip" | "coil", points: number, labels: string[]) => ({
-    arm, label: arm === "clip" ? "Clipaje quirúrgico" : "Tratamiento endovascular",
-    points, max_points: 7,
-    items: labels.map((label) => ({ label, points: 1, detail: "" })),
-    missing: [],
-  });
+describe("el modelo ajustado, junto a la recomendación", () => {
 
   it("no aparece en un aneurisma no roto", () => {
     // Su cohorte entera es hemorragia: sobre un incidental no dice nada, y dos
@@ -126,21 +153,22 @@ describe("el modelo ajustado, junto al sumatorio heurístico", () => {
     expect(screen.queryByText(/Riesgo estimado por cada vía/)).not.toBeInTheDocument();
   });
 
-  it("enseña las dos puntuaciones por separado, no una resta", () => {
+  it("describe las dos vías por separado, no una resta", () => {
     stored = {
       ...RESULT,
       jsdb: {
-        clip: ARM("clip", 1, ["Edad ≥ 72 años (75)"]),
-        coil: ARM("coil", 4, ["WFNS V", "Fisher 4"]),
+        clip: ARM("clip", ["Edad ≥ 72 años (75)"]),
+        coil: ARM("coil", ["WFNS V", "Fisher 4"]),
         favours: "clip", both_poor: false, known_pct: 100, missing: [],
-        verdict: "Clipaje quirúrgico sale menos penalizado (1 frente a 4).",
+        verdict: "Clipaje quirúrgico sale menos penalizado.",
         source: "Japan Stroke Data Bank — Neurol Med Chir 2021;61(2).",
       },
     };
     render(<TreatmentPanel onNext={() => {}} />);
     expect(screen.getByText(/Riesgo estimado por cada vía/)).toBeInTheDocument();
-    expect(screen.getByText("1 / 7")).toBeInTheDocument();
-    expect(screen.getByText("4 / 7")).toBeInTheDocument();
+    // Lo que penaliza a cada vía, que es lo que el modelo sostiene sin cifras.
+    expect(screen.getByText(/Edad ≥ 72 años/)).toBeInTheDocument();
+    expect(screen.getByText(/WFNS V · Fisher 4/)).toBeInTheDocument();
     expect(screen.getByText(/menos penalizado/)).toBeInTheDocument();
   });
 
@@ -148,24 +176,24 @@ describe("el modelo ajustado, junto al sumatorio heurístico", () => {
     stored = {
       ...RESULT,
       jsdb: {
-        clip: ARM("clip", 5, ["WFNS V"]), coil: ARM("coil", 5, ["WFNS V"]),
+        clip: ARM("clip", ["WFNS V"]), coil: ARM("coil", ["WFNS V"]),
         favours: "tie", both_poor: true, known_pct: 100, missing: [],
-        verdict: "Las DOS vías puntúan alto (5 y 5): el modelo no está diciendo cuál es mejor.",
+        verdict: "Las DOS vías salen penalizadas: el modelo no está diciendo cuál es mejor.",
         source: "",
       },
     };
     render(<TreatmentPanel onNext={() => {}} />);
-    expect(screen.getByText(/Las DOS vías puntúan alto/)).toBeInTheDocument();
+    expect(screen.getByText(/Las DOS vías salen penalizadas/)).toBeInTheDocument();
   });
 
   it("declara qué parte del modelo no ha podido rellenar", () => {
     stored = {
       ...RESULT,
       jsdb: {
-        clip: ARM("clip", 0, []), coil: ARM("coil", 0, []),
+        clip: ARM("clip", []), coil: ARM("coil", []),
         favours: "tie", both_poor: false, known_pct: 33,
         missing: ["grado WFNS", "ictus previo"],
-        verdict: "Las dos puntuaciones empatan en 0.", source: "",
+        verdict: "Las dos vías salen igual de penalizadas.", source: "",
       },
     };
     render(<TreatmentPanel onNext={() => {}} />);

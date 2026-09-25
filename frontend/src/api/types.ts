@@ -685,11 +685,11 @@ export interface DecisionFactor {
   name: string;
   detail: string;
   direction: "clip" | "endo" | "neutral";
-  points: number;
-  /** De dónde sale el umbral y de dónde el peso. Rara vez del mismo sitio. */
+  /** De dónde sale el umbral. El peso ya no viaja: el motor lo suma por dentro
+      y no lo publica. */
   source: string;
-  /** False para lo que se enseña y no suma: los índices de forma, que vienen de
-      literatura de riesgo de rotura y describen la vía endovascular en vez de
+  /** False para lo que se enseña y no influye: los índices de forma, que vienen
+      de literatura de riesgo de rotura y describen la vía endovascular en vez de
       elegir modalidad. Borrarlos los escondería; enseñarlos los deja discutibles. */
   votes: boolean;
 }
@@ -718,14 +718,17 @@ export interface EndovascularProfile {
   sources: string[];
 }
 
-/** Una de las dos puntuaciones del Japan Stroke Data Bank. Más puntos es peor:
-    estima el riesgo de mal resultado al alta (mRS > 2) POR ESA VÍA. */
+/** Una de las dos vías valoradas por el Japan Stroke Data Bank: qué la penaliza
+    en ESTE paciente, de cara al riesgo de mal resultado al alta (mRS > 2).
+
+    Sin puntos. El modelo puntúa por dentro —así está construido— pero sus
+    autores no publican bandas ni un AUC, así que un «4 frente a 2» en pantalla
+    se lee como el doble de riesgo, que es justo lo que el modelo no dice. Lo
+    que sostiene es la comparación, y esa viaja en `verdict`. */
 export interface JsdbArm {
   arm: "clip" | "coil";
   label: string;
-  points: number;
-  max_points: number;
-  items: { label: string; points: number; detail: string }[];
+  items: { label: string; detail: string }[];
   missing: string[];
 }
 
@@ -766,13 +769,11 @@ export interface TreatmentDecisionRequest {
 }
 
 export interface TreatmentDecisionResult {
-  /** Los puntos que de verdad se han sumado. */
-  clip_points: number;
-  endo_points: number;
-  /** Su cociente normalizado a 100. Sirve para dibujar la barra, no para leerlo
-      como una probabilidad: son pesos heurísticos, no frecuencias. */
-  clip_pct: number;
-  endo_pct: number;
+  /* Sin puntuaciones. El motor suma pesos por dentro —de ahí sale la
+     recomendación— pero el sumatorio no sale del backend: un «CLIP 72 %» se lee
+     como una probabilidad o como la proporción de pacientes a los que les fue
+     mejor, y es el cociente de dos sumas con pesos elegidos a mano. Lo que el
+     motor sostiene es la recomendación y los factores que la empujan. */
   /** Razonamiento que no es un factor puntuado: por qué un aneurisma pequeño es
       —o no— un caso de vigilancia, y qué dice el PHASES al respecto. */
   notes: string[];
@@ -788,7 +789,6 @@ export interface TreatmentDecisionResult {
   /** Null si no está roto: el modelo se derivó sólo sobre hemorragias, así que
       sobre un incidental no dice nada — y eso no es un hueco. */
   jsdb: Jsdb | null;
-  balance: number;
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";
   confidence: "Alta" | "Moderada" | "Baja";

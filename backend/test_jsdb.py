@@ -53,8 +53,13 @@ class TestItOnlyClaimsWhatItsCohortSupports:
         d = compute_decision(**MORFO, location=LOCATION_MCA, ruptured=True,
                              patient_age=60, wfns_grade=2, fisher_grade=2,
                              prior_stroke=0)
-        assert d["jsdb"]["clip"]["max_points"] == MAX_CLIP
-        assert d["jsdb"]["coil"]["max_points"] == MAX_COIL
+        # Los topes del modelo se comprueban donde viven: los puntos dejaron de
+        # serializarse cuando se retiraron los puntajes de la pantalla.
+        assert jsdb_scores(ruptured=True).clip.max_points == MAX_CLIP
+        assert jsdb_scores(ruptured=True).coil.max_points == MAX_COIL
+        # Y lo que SÍ sale del motor: las dos vías descritas, sin cifras.
+        assert d["jsdb"]["clip"]["label"] and d["jsdb"]["coil"]["label"]
+        assert "points" not in d["jsdb"]["clip"]
 
 
 # ── 2. Las asimetrías del modelo, que un solo saldo no puede representar ──── #
@@ -118,8 +123,11 @@ class TestItCanSayBothRoutesLookBad:
                              patient_age=84, wfns_grade=5, fisher_grade=4,
                              prior_stroke=3)
         assert d["jsdb"]["both_poor"] is True
-        assert d["jsdb"]["clip"]["points"] >= POOR_THRESHOLD
-        assert d["jsdb"]["coil"]["points"] >= POOR_THRESHOLD
+        jr = jsdb_scores(ruptured=True, location=LOCATION_BASILAR, age=84,
+                         wfns_grade=5, fisher_grade=4, prior_stroke=3,
+                         max_diameter_mm=MORFO["max_diameter_mm"])
+        assert jr.clip.points >= POOR_THRESHOLD
+        assert jr.coil.points >= POOR_THRESHOLD
         assert any("DOS vías" in n for n in d["notes"])
 
     def test_a_good_case_is_not_flagged(self):

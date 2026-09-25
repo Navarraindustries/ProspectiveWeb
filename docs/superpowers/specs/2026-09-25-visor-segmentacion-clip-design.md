@@ -401,6 +401,59 @@ la pose final.
   prueba automáticamente desplazamientos de ±1 y ±2 mm a lo largo del eje
   antes de rendirse, y dice cuál usó. Es un arreglo pequeño y entra en B.
 
+## 6 bis. Estética: HUD de caza
+
+Pedido por el usuario al aprobar el diseño: que el visor se lea como el
+head-up display de un avión de combate. Alcance: el visor y todo lo que se
+superpone a la imagen (paneles de corte, MIP, 3D, leyendas, avisos de marcado,
+controles de cámara y de distribución). El resto de la aplicación (pacientes,
+formularios, paneles laterales) conserva su sistema de diseño; solo hereda el
+color de acento del visor para que los dos mundos no choquen.
+
+Reglas, para que «HUD» signifique lo mismo en cada pantalla:
+
+- **Un solo color de acento fosforescente**, `--hud: #8CFF9E` (verde HUD), con
+  variante atenuada al 55 % para lo secundario; ámbar `#FFC857` para avisos
+  y el rojo actual para fallos. Fondo negro puro. Contraste mínimo 4,5:1
+  sobre negro. El color nunca es el único canal: cada aviso lleva texto.
+- **Tipografía monoespaciada** (JetBrains Mono, ya en `assets/fonts`) para
+  todo lo que es lectura de instrumento: índice de corte, W/L, medidas,
+  coordenadas, porcentaje de carga. Rótulos en mayúsculas pequeñas con
+  espaciado 0,08 em.
+- **Trazo fino, sin rellenos.** Se retiran las píldoras redondeadas con fondo
+  semitransparente. Los grupos de botones se dibujan como texto entre
+  corchetes (`[ 3D ]  VOLUMEN  OBLICUO`), el activo en acento pleno y con
+  subrayado de 1 px; el resto atenuado.
+- **Marcas de esquina** en cada panel (cuatro ángulos de 12 px, 1 px de
+  trazo) que se iluminan en el panel activo.
+- **Retícula HUD** en lugar del crosshair actual: dos ejes de 1 px con hueco
+  central de 14 px y marcas cada 10 mm (usa la escala real del corte), con el
+  vóxel actual escrito junto al centro.
+- **Escalera de cortes** en el borde derecho de cada panel de corte: cinta
+  vertical con marcas y el índice actual en una ventana, como la escalera de
+  altitud; se desplaza al hacer scroll. En el MIP la misma cinta marca hasta
+  dónde se ha acumulado.
+- **Cinta de rumbo** en el borde superior del panel 3D y del MIP: azimut y
+  elevación de la cámara en grados respecto a la orientación del paciente,
+  con las letras A · D · P · I en su sitio; gira con la cámara y complementa
+  al maniquí.
+- **Lecturas fijas por esquina**: arriba-izquierda escena y paso; arriba-
+  derecha modo y distribución; abajo-izquierda índice/orientación y escala;
+  abajo-derecha W/L. Sin pistas de uso permanentes («arrastra para rotar»):
+  se muestran 3 s al entrar y al pulsar `?`.
+- **Sin efectos que ensucien la imagen**: nada de scanlines, ruido, brillo
+  ni parpadeo sobre el área de la imagen. El acento solo vive en las capas
+  de superposición.
+- **Mapa de calor del clip**: la barra de leyenda se dibuja como escala de
+  instrumento (marcas y valores en mono, sin degradado en la propia barra;
+  el degradado va en la malla).
+
+Se implementa como una capa de componentes de superposición
+(`frontend/src/vtk/hud/`: `HudFrame`, `HudReticle`, `HudLadder`,
+`HudHeadingTape`, `HudReadout`, `HudToggleGroup`) con tokens en
+`styles/tokens/colors.css`, y sustituye a los estilos en línea que hoy tienen
+`Viewer.tsx` y `MprView.tsx`. Entra en el subproyecto A y lo usan B y C.
+
 ## 7. Fuera de alcance
 
 Simulación mecánica de pared y clip (fase siguiente); soporte de más de un

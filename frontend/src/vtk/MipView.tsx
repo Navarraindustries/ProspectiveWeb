@@ -31,24 +31,13 @@ type Vec3 = [number, number, number];
 
 const AXIS_OF: Record<Plane, 0 | 1 | 2> = { sagital: 0, coronal: 1, axial: 2 };   // eje vtk (x,y,z)
 
-// Sin etiquetas DICOM ni orientación fijada a mano, cameraHeading no tiene de
-// qué partir. Un MIP que se rota sin cinta deja al usuario sin referencia, así
-// que se asume la dirección identidad (i→izq., j→post., k→sup.) y la cinta la
-// marca como asumida: entre corchetes, igual que la orientación manual.
-const ASSUMED_DIRECTION = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-
-function headingOf(dop: Vec3, up: Vec3, o: Orientation) {
-  return cameraHeading(dop, up, o)
-    ?? (() => { const h = cameraHeading(dop, up, { direction: ASSUMED_DIRECTION, manual: null }); return h && { ...h, known: false }; })();
-}
-
 export function MipView({ image, meta, orientation, compact = false, mainPlane = "axial" }: {
   image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean; mainPlane?: Plane;
 }) {
   const { mprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation } = usePlanning();
   const ref = useRef<HTMLDivElement>(null);
   const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkVolumeMapper; actor: vtkVolume } | null>(null);
-  const [heading, setHeading] = useState<ReturnType<typeof headingOf>>(null);
+  const [heading, setHeading] = useState<ReturnType<typeof cameraHeading> | null>(null);
   const [reverse, setReverse] = useState(false);
   // La cámara avisa desde vtk, fuera del ciclo de React: leer la orientación
   // de un ref evita que el oyente se quede con la de cuando se montó (la
@@ -93,7 +82,7 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     cam.setPosition(c[0] - direction[0] * 1000, c[1] - direction[1] * 1000, c[2] - direction[2] * 1000);
     cam.setViewUp(viewUp[0], viewUp[1], viewUp[2]);
     renderer.resetCamera();
-    const readHeading = () => setHeading(headingOf(
+    const readHeading = () => setHeading(cameraHeading(
       cam.getDirectionOfProjection() as Vec3, cam.getViewUp() as Vec3, orientationRef.current,
     ));
     const sub = cam.onModified(readHeading);
@@ -110,7 +99,7 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
   useEffect(() => {
     const s = scene.current; if (!s) return;
     const cam = s.grw.getRenderer().getActiveCamera();
-    setHeading(headingOf(cam.getDirectionOfProjection() as Vec3, cam.getViewUp() as Vec3, orientation));
+    setHeading(cameraHeading(cam.getDirectionOfProjection() as Vec3, cam.getViewUp() as Vec3, orientation));
   }, [orientation.direction, orientation.manual]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Función de transferencia «Vasos»: gris, opaca desde el umbral inferior.

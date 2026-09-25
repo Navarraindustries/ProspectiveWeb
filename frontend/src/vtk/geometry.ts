@@ -69,10 +69,16 @@ export function manualToDirection(m: ManualOrientation): number[] {
   return [i[0], j[0], k[0], i[1], j[1], k[1], i[2], j[2], k[2]];
 }
 
-export function effectiveDirection(o: Orientation): { d: number[]; known: boolean } | null {
+/* Orientación asumida cuando el DICOM no trae cosenos y nadie la ha fijado a
+   mano: anterior arriba en el axial y el primer corte inferior, que es la
+   matriz identidad (i→L, j→P, k→S). Se muestra entre corchetes, igual que la
+   manual, hasta que el usuario la corrija; «?» en los bordes no orienta a
+   nadie y dejaba sin cinta de rumbo al MIP. */
+export const DEFAULT_MANUAL_ORIENTATION: ManualOrientation = { anteriorEdge: "top", firstSliceSuperior: false };
+
+export function effectiveDirection(o: Orientation): { d: number[]; known: boolean } {
   if (o.direction && o.direction.length === 9) return { d: o.direction, known: true };
-  if (o.manual) return { d: manualToDirection(o.manual), known: false };
-  return null;
+  return { d: manualToDirection(o.manual ?? DEFAULT_MANUAL_ORIENTATION), known: false };
 }
 
 /* Un eje del volumen (i, j o k, con signo) → vector LPS. */
@@ -94,7 +100,6 @@ function lpsLabel(v: Vec3): string {
 
 export function edgeLabels(plane: Plane, o: Orientation): { top: string; bottom: string; left: string; right: string } {
   const eff = effectiveDirection(o);
-  if (!eff) return { top: "?", bottom: "?", left: "?", right: "?" };
   const wrap = (s: string) => (eff.known ? s : `[${s}]`);
   const { right, down } = screenAxes(plane);
   const neg = (v: Vec3): Vec3 => [-v[0], -v[1], -v[2]];
@@ -110,7 +115,6 @@ export function edgeLabels(plane: Plane, o: Orientation): { top: string; bottom:
    90 = desde la izquierda del paciente; elevación 90 = desde arriba. */
 export function cameraHeading(directionOfProjection: Vec3, viewUp: Vec3, o: Orientation) {
   const eff = effectiveDirection(o);
-  if (!eff) return null;
   const d = toLps(eff.d, directionOfProjection);            // hacia dónde mira, en LPS
   const from: Vec3 = [-d[0], -d[1], -d[2]];                  // desde dónde mira
   const elevationDeg = (Math.asin(Math.max(-1, Math.min(1, from[2]))) * 180) / Math.PI;

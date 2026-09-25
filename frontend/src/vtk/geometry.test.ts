@@ -59,8 +59,8 @@ describe("etiquetas de orientación", () => {
     const o = { direction: null, manual: { anteriorEdge: "top" as const, firstSliceSuperior: false } };
     expect(edgeLabels("axial", o)).toEqual({ left: "[DER]", right: "[IZQ]", top: "[ANT]", bottom: "[POST]" });
   });
-  it("shows ? with no orientation at all", () => {
-    expect(edgeLabels("axial", { direction: null, manual: null })).toEqual({ left: "?", right: "?", top: "?", bottom: "?" });
+  it("assumes the default orientation, bracketed, when nothing is known", () => {
+    expect(edgeLabels("axial", { direction: null, manual: null })).toEqual({ left: "[DER]", right: "[IZQ]", top: "[ANT]", bottom: "[POST]" });
   });
   it("manual anterior-at-right rotates the axial labels", () => {
     const o = { direction: null, manual: { anteriorEdge: "right" as const, firstSliceSuperior: true } };
@@ -83,18 +83,20 @@ describe("etiquetas de orientación", () => {
 describe("rumbo de cámara", () => {
   const known = { direction: [1, 0, 0, 0, 1, 0, 0, 0, 1], manual: null };
   it("looking from anterior gives azimuth 0, elevation 0", () => {
-    const h = cameraHeading([0, 1, 0], [0, 0, 1], known)!;
+    const h = cameraHeading([0, 1, 0], [0, 0, 1], known);
     expect(h.azimuthDeg).toBeCloseTo(0);
     expect(h.elevationDeg).toBeCloseTo(0);
     expect(h.known).toBe(true);
   });
   it("looking from the patient's left gives azimuth 90", () => {
-    expect(cameraHeading([-1, 0, 0], [0, 0, 1], known)!.azimuthDeg).toBeCloseTo(90);
+    expect(cameraHeading([-1, 0, 0], [0, 0, 1], known).azimuthDeg).toBeCloseTo(90);
   });
   it("looking from above gives elevation 90", () => {
-    expect(cameraHeading([0, 0, -1], [0, -1, 0], known)!.elevationDeg).toBeCloseTo(90);
+    expect(cameraHeading([0, 0, -1], [0, -1, 0], known).elevationDeg).toBeCloseTo(90);
   });
-  it("returns null without any orientation", () => {
-    expect(cameraHeading([0, 1, 0], [0, 0, 1], { direction: null, manual: null })).toBeNull();
+  it("assumes the default orientation (known: false) without any orientation", () => {
+    const h = cameraHeading([0, 1, 0], [0, 0, 1], { direction: null, manual: null });
+    expect(h.known).toBe(false);
+    expect(h.azimuthDeg).toBeCloseTo(0);
   });
 });

@@ -27,13 +27,22 @@ def _session_with_volume(nz=40, ny=60, nx=50, values=None) -> str:
     return sid
 
 
-def _write_classic_ct_series(sid: str, nz=3, ny=8, nx=8, with_orientation=True) -> None:
+def _write_classic_ct_series(
+    sid: str, nz=3, ny=8, nx=8, with_orientation=True,
+    size: int | None = None, bright_cube: int | None = None,
+) -> None:
     """Write a tiny classic single-frame CT series into the session's dicom/ dir.
 
     Exercises the real cold-fill path (load_series -> _image_to_result ->
     ensure_volume_cached) instead of pre-seeding _volume.npy, so direction
     extraction and _orientation_known actually run against SimpleITK/pydicom.
+
+    ``size`` sets rows = columns. With ``bright_cube`` the background is 0 and a
+    centred cube of half the extent on each axis takes that value: marching
+    cubes then has one clean surface, where random noise gives none or many.
     """
+    if size is not None:
+        ny = nx = size
     import pydicom
     from pydicom.dataset import Dataset, FileMetaDataset
     from pydicom.uid import ExplicitVRLittleEndian, generate_uid
@@ -75,7 +84,13 @@ def _write_classic_ct_series(sid: str, nz=3, ny=8, nx=8, with_orientation=True) 
         ds.RescaleSlope = 1
         ds.WindowCenter = 40
         ds.WindowWidth = 400
-        ds.PixelData = rng.integers(0, 800, size=(ny, nx), dtype=np.int16).tobytes()
+        if bright_cube is None:
+            pixels = rng.integers(0, 800, size=(ny, nx), dtype=np.int16)
+        else:
+            pixels = np.zeros((ny, nx), dtype=np.int16)
+            if nz // 4 <= i < nz // 4 + nz // 2:
+                pixels[ny // 4: ny // 4 + ny // 2, nx // 4: nx // 4 + nx // 2] = bright_cube
+        ds.PixelData = pixels.tobytes()
         ds.is_little_endian = True
         ds.is_implicit_VR = False
         pydicom.dcmwrite(dicom_dir / f"slice_{i:03d}.dcm", ds, write_like_original=False)
@@ -191,3 +206,17 @@ class TestChunks:
         arr = np.frombuffer(r.content, dtype="<i2").reshape(dims)
         vol = np.load(session_subdir(sid, "meshes") / "_volume.npy", mmap_mode="r")
         np.testing.assert_array_equal(arr, np.rint(vol[::s, ::s, ::s]).astype(np.int16))
+
+
+class TestSegmentThreshold:
+    def test_segment_result_reports_threshold_lower(self):
+        # El MIP «Vasos» del cliente arranca en el umbral con el que se hizo la
+        # malla: el endpoint tiene que devolverlo, no solo usarlo.
+        sid = create_session()
+        _write_classic_ct_series(sid, nz=12, size=16, bright_cube=800)
+        r = client.post("/api/segment", json={
+            "session_id": sid, "series_id": "", "lower": 300, "upper": 0,
+            "smoothing": 0, "cleanup": 0, "full_resolution": True, "main_tree_only": False,
+        })
+        assert r.status_code == 200, r.text
+        assert r.json()["threshold_lower"] == 300.0

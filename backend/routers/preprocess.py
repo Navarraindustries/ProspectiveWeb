@@ -82,6 +82,9 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     new_meta = dict(meta)
     new_meta["shape"] = [int(x) for x in new_vol.shape]
     new_meta["spacing"] = [float(s) for s in new_spacing]
+    # Volumen nuevo, identidad nueva: el visor no debe servir bloques del anterior.
+    from services.mpr import new_volume_id
+    new_meta["volume_id"] = new_volume_id()
     meta_path.write_text(json.dumps(new_meta))
 
     ops = []

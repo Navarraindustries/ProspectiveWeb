@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chunkOrder, fetchChunk, loadCoarse, loadFull } from "./volumeLoader";
+import { chunkCacheKey, chunkOrder, fetchChunk, loadCoarse, loadFull } from "./volumeLoader";
 import type { VolumeMeta } from "../../api/types";
 
 const meta = {
@@ -103,11 +103,43 @@ describe("fetchChunk cache", () => {
     vi.stubGlobal("caches", { open: vi.fn(async () => cache) });
     const fetchMock = vi.fn(async () => chunkResponse(0, 32, 7));
     vi.stubGlobal("fetch", fetchMock);
-    const a = await fetchChunk("/api/volume/s/chunk/full/0-32?v=k1", new AbortController().signal);
-    const b = await fetchChunk("/api/volume/s/chunk/full/0-32?v=k1", new AbortController().signal);
+    const key = chunkCacheKey("k1", "full", 0, 32);
+    const a = await fetchChunk("/api/volume/s/chunk/full/0-32?v=k1", key, new AbortController().signal);
+    const b = await fetchChunk("/api/volume/s/chunk/full/0-32?v=k1", key, new AbortController().signal);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(new Int16Array(a.bytes)[0]).toBe(7);
     expect(new Int16Array(b.bytes)[0]).toBe(7);
     vi.unstubAllGlobals();
+  });
+
+  it("two session ids with the same cache_key hit the same entry", async () => {
+    // Reanudar crea un id de sesión nuevo con el mismo volumen: la entrada de
+    // caché tiene que ser la misma o se vuelven a bajar 100 MB.
+    const stored = new Map<string, Response>();
+    const cache = {
+      match: vi.fn(async (url: string) => stored.get(url)?.clone()),
+      put: vi.fn(async (url: string, res: Response) => { stored.set(url, res); }),
+    };
+    vi.stubGlobal("caches", { open: vi.fn(async () => cache) });
+    const fetchMock = vi.fn(async (url: string) => {
+      const m = /chunk\/full\/(\d+)-(\d+)/.exec(url)!;
+      return chunkResponse(Number(m[1]), Number(m[2]), 5);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await loadFull("sid-a", meta, 0, new AbortController().signal, () => {});
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const vol = await loadFull("sid-b", meta, 0, new AbortController().signal, () => {});
+    expect(fetchMock).toHaveBeenCalledTimes(3);            // ninguna petición nueva
+    expect(vol.data[0]).toBe(5);
+    expect([...stored.keys()].every((k) => !k.includes("sid-"))).toBe(true);
+    // Otro volumen (otra clave) no reutiliza las entradas.
+    await loadFull("sid-b", { ...meta, cache_key: "k2" } as VolumeMeta, 0, new AbortController().signal, () => {});
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the coarse int16 key apart from the full chunks", () => {
+    expect(chunkCacheKey("k1.i16", "coarse", 0, 0)).toBe("https://prospective.cache/volume/k1.i16/coarse/0-0");
+    expect(chunkCacheKey("k1", "full", 32, 64)).toBe("https://prospective.cache/volume/k1/full/32-64");
   });
 });

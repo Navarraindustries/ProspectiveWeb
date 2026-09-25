@@ -70,6 +70,20 @@ class TestEndpoint:
         vol = np.load(mprmod._cache_paths(sid)[0])
         assert vol.max() <= 3001 and vol.min() >= -1001
 
+    def test_rewriting_the_volume_changes_its_cache_key(self):
+        import re
+        sid = _session_with_volume()
+        npy, meta_path = mprmod._cache_paths(sid)
+        meta = json.loads(meta_path.read_text())
+        meta["volume_id"] = "a" * 32
+        meta_path.write_text(json.dumps(meta))
+        assert mprmod.ensure_volume_cached(sid)["cache_key"] == "a" * 32
+
+        r = client.post(f"/api/preprocess/{sid}", json={"clip_hu": True})
+        assert r.status_code == 200, r.text
+        key = mprmod.ensure_volume_cached(sid)["cache_key"]
+        assert re.fullmatch(r"[0-9a-f]{32}", key) and key != "a" * 32
+
     def test_noop_selection_422(self):
         sid = _session_with_volume()
         r = client.post(f"/api/preprocess/{sid}", json={"clip_hu": False, "resample_isotropic": False, "smooth": False})

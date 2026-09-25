@@ -119,6 +119,35 @@ class TestMeta:
             assert key in body
 
 
+class TestCacheKeyIdentifiesTheVolume:
+    """La clave de caché del navegador identifica el VOLUMEN, no la sesión:
+    reanudar copia los ficheros bajo un id de sesión nuevo y el visor no debe
+    volver a descargar 100 MB por eso."""
+
+    def test_fresh_volume_key_is_a_uuid_that_survives_calls_and_copies(self):
+        import re
+        import shutil
+        sid = create_session()
+        _write_classic_ct_series(sid)
+        key = ensure_volume_cached(sid)["cache_key"]
+        assert re.fullmatch(r"[0-9a-f]{32}", key)
+        assert ensure_volume_cached(sid)["cache_key"] == key
+
+        # Lo que hace la restauración: copiar _volume.npy + meta a otra sesión.
+        other = create_session()
+        src, dst = session_subdir(sid, "meshes"), session_subdir(other, "meshes")
+        for name in ("_volume.npy", "_volume_meta.json"):
+            shutil.copy(src / name, dst / name)   # copy, no copy2: mtime nuevo
+        assert ensure_volume_cached(other)["cache_key"] == key
+
+    def test_old_cache_without_volume_id_falls_back_to_mtime(self):
+        sid = _session_with_volume()
+        key = ensure_volume_cached(sid)["cache_key"]
+        assert key.isdigit()
+        meta_path = session_subdir(sid, "meshes") / "_volume_meta.json"
+        assert "volume_id" not in json.loads(meta_path.read_text())
+
+
 class TestOrientationFromRealDicom:
     """Cold-fill path (load_series -> _image_to_result -> ensure_volume_cached)
     against a real (synthetic) classic CT series, so direction extraction and

@@ -27,7 +27,7 @@ from routers import (
     auth, patients, treatment, clips, coils, longitudinal,
     report, session_state, mpr, phases, centerline, audit,
     mesh_edit, print_prep, preprocess, studies, devices, clip_library,
-    clip_orders,
+    clip_orders, progress,
 )
 
 logger = logging.getLogger(__name__)
@@ -229,6 +229,11 @@ app.include_router(preprocess.router,    dependencies=_private)
 app.include_router(devices.router,        dependencies=_private)
 app.include_router(clip_library.router,  dependencies=_private)
 app.include_router(clip_orders.router,   dependencies=_private)
+app.include_router(progress.router,      dependencies=_private)
+# El WebSocket no lleva la dependencia de arriba: un navegador no puede mandar
+# la cabecera Authorization en el handshake de un WS, así que el token viaja
+# en la query y `ws_progress` lo valida él mismo con `user_for_token`.
+app.include_router(progress.ws_router)
 # ── Health check ──────────────────────────────────────────────────────────── #
 
 @app.get("/health", tags=["system"], summary="Health check")

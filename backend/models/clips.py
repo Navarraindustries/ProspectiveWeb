@@ -268,6 +268,22 @@ class ClipCaseOut(BaseModel):
         description="perimeter (contorno medido) | factor (regla ×1,5) | floor | none",
     )
     required_jaw_detail: str = Field("", description="De dónde sale el número, en una frase")
+    approach_angle_deg: float | None = Field(
+        None,
+        description=(
+            "Ángulo del corredor de abordaje establecido contra el eje "
+            "cuello→domo. Null si no hay trayectoria marcada."
+        ),
+    )
+    approach_bend_deg: float | None = Field(
+        None,
+        description=(
+            "La acodadura que ese corredor pide: 90° − el ángulo anterior. Las "
+            "hojas tienen que quedar cruzadas sobre el cuello y el mango salir "
+            "por el corredor; el ángulo entre esas dos direcciones ES la "
+            "acodadura. No es una tabla, es geometría."
+        ),
+    )
     dome_height_mm: float = 0.0
     max_diameter_mm: float = 0.0
     ar: float = 0.0

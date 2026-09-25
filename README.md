@@ -1363,6 +1363,48 @@ running it on case 3 rather than on synthetic tubes:
   a percentile over 56 million voxels — once per direction. Hoisted, plus a
   cheap single-ray first pass before the 17-ray beam, it is **0.9 s**.
 
+### The corridor picks the piece, and the rehearsal shows the corridor
+
+Third stage. The direction asked that the approach drive the clip
+recommendation, and that the placement video include the established
+trajectory.
+
+**The bend a corridor demands is geometry, not a table.** The blades have to sit
+*across* the neck — lying in the neck plane — and the shaft comes out along the
+corridor. The angle between those two directions **is** the bend the piece
+needs:
+
+    bend = 90° − angle(corridor, neck→dome axis)
+
+A corridor lying in the neck plane (90°) is served by a **straight** clip,
+because in a straight clip the shaft and the blades are the same line. One
+coming down the dome axis (0°) would need 90° of bend for the blades to lie
+across. The trajectory endpoint already returned that angle; it now reaches the
+selector.
+
+**This criterion votes**, unlike the blade opening and the closing force, which
+are shown and do not. The difference is where the number comes from: how much
+clearance a surgeon wants over the neck is a judgement nobody has signed, while
+the angle between the corridor and the neck plane is fixed by the two
+directions. A straight clip does not go down a corridor arriving at 60° to the
+neck plane, and that is not an opinion. It degrades rather than disqualifies —
+a few degrees can be recovered by opening the field, and a corridor is an
+intention, not a rail. Without a marked trajectory the criterion **does not
+exist**, rather than assuming the most convenient corridor for each clip.
+
+Priority is unchanged where it should be: a wide neck still argues for a curved
+piece, because blade curvature and shaft bend are different axes. The corridor
+still reaches the ranking through the criterion.
+
+**The rehearsal.** The animation already used the marked trajectory — but a
+**resumed** session came back without it. The points were on disk and in the
+PDF, the store was empty, so the viewer drew no corridor and the rehearsal
+silently fell back to its default approach: the video showed a manoeuvre nobody
+had planned. There is now a `GET /api/trajectory/{sid}`, and resuming restores
+it. And the corridor is no longer drawn as a ruler line but as the **volume it
+is** — a translucent 5 mm tube — because what the video has to show is the clip
+and its applier coming down a space they have to fit through.
+
 ### Two clips, when no single blade closes the neck
 
 Asked by the clinical direction: *can multi-clip treatments be supported, or is

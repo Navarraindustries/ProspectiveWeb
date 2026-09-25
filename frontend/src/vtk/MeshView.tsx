@@ -52,6 +52,12 @@ export interface MeshLine {
   a: [number, number, number];
   b: [number, number, number];
   color: Vector3;
+  /** Radio en mm. Una regla es una línea, pero el corredor de abordaje es un
+   *  VOLUMEN: el clip y el aplicador tienen que caber por él, y dibujarlo como
+   *  un hilo no enseña eso. Por defecto, el grosor de regla de siempre. */
+  radiusMm?: number;
+  /** Translúcido para el corredor, que si no tapa la malla que hay detrás. */
+  opacity?: number;
 }
 
 /** Standard viewpoints, named for the MPR planes the rest of the app uses.
@@ -179,7 +185,9 @@ export function MeshView({
   const key = layers.map((l) => l.url).join(";") + `#${focusUrl ?? ""}`;
   const appearanceKey = layers.map((l) => `${l.url}|${l.color.join(",")}|${l.opacity ?? 1}`).join(";");
   const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}`).join(";");
-  const lineKey = lines.map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}`).join(";");
+  const lineKey = lines
+    .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}`)
+    .join(";");
   const cropKey = cropPreview
     ? `${cropPreview.center.join(",")}|${cropPreview.radius}|${cropPreview.shape}|${cropPreview.invert}`
     : "";
@@ -436,7 +444,8 @@ export function MeshView({
     for (const l of lines) {
       const lineSrc = vtkLineSource.newInstance({ point1: l.a, point2: l.b, resolution: 1 });
       const tube = vtkTubeFilter.newInstance({
-        radius: rMarker * RULER_TUBE_RATIO, numberOfSides: 10, capping: true,
+        radius: l.radiusMm ?? rMarker * RULER_TUBE_RATIO,
+        numberOfSides: l.radiusMm ? 24 : 10, capping: true,
       });
       tube.setInputConnection(lineSrc.getOutputPort());
       const mapper = vtkMapper.newInstance();
@@ -444,6 +453,7 @@ export function MeshView({
       const actor = vtkActor.newInstance();
       actor.setMapper(mapper);
       actor.getProperty().setColor(...l.color);
+      if (l.opacity !== undefined) actor.getProperty().setOpacity(l.opacity);
       h.renderer.addActor(actor);
       markerActors.current.push(actor);
       // Endpoint beads for the ruler.

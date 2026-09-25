@@ -288,6 +288,26 @@ export function ClipSelectionPanel({
             incompleto en el lado distal. Se dice en pantalla, con su origen:
             no es lo mismo haber medido el contorno que haber supuesto que el
             cuello es redondo. */}
+        {/* Lo que el abordaje le exige a la pieza. Pedido por dirección: que la
+            recomendación del clip dependa de la trayectoria. No es una tabla
+            ángulo→forma: las hojas tienen que quedar cruzadas sobre el cuello y
+            el mango salir por el corredor, y el ángulo entre esas dos
+            direcciones ES la acodadura que hace falta. */}
+        {sel.case.approach_bend_deg !== null && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+            El corredor marcado llega a{" "}
+            <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              {(sel.case.approach_angle_deg ?? 0).toFixed(0)}°
+            </b>{" "}
+            del eje cuello-domo, así que pide una acodadura de{" "}
+            <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              ~{sel.case.approach_bend_deg.toFixed(0)}°
+            </b>{" "}
+            para que las hojas queden cruzadas sobre el cuello con el mango
+            saliendo por donde entra la mano.
+          </div>
+        )}
+
         {sel.case.required_jaw_mm > 0 && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
             Mordaza mínima{" "}

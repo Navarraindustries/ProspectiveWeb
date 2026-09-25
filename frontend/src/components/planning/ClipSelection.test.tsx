@@ -84,6 +84,7 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
     // tiene que cerrar, y es lo que el panel enseña.
     required_jaw_mm: 9, required_jaw_source: "factor",
     required_jaw_detail: "Cuello de 6.0 mm × 1.5 = 9.0 mm al quedar aplastado entre las hojas.",
+    approach_angle_deg: null, approach_bend_deg: null,
     dome_height_mm: 8, max_diameter_mm: 11, ar: 1.33, dnr: 1.8,
     parent_artery_mm: 3.2, neck_source: "rim", neck_tilt_deg: 4,
     region: "ACM izquierda", laterality: "izquierda", aneurysm_type: "sacular",
@@ -436,5 +437,35 @@ describe("el montaje de varios clips", () => {
     render(<ClipSelectionPanel sessionId="s1" />);
     await screen.findByText(/Clips recomendados/);
     expect(screen.queryByText(/O un montaje de varios clips/)).not.toBeInTheDocument();
+  });
+});
+
+/* El abordaje elige la pieza (etapa 3 del punto 3).
+ *
+ * Las hojas tienen que quedar cruzadas sobre el cuello y el mango salir por el
+ * corredor: el ángulo entre esas dos direcciones ES la acodadura que la pieza
+ * necesita. No es una tabla ángulo→forma, y por eso se puede enseñar el número
+ * y de dónde sale. */
+describe("lo que el corredor le pide a la pieza", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("dice el ángulo del corredor y la acodadura que pide", async () => {
+    clipSelection.mockResolvedValue(result({
+      case: { ...result().case, approach_angle_deg: 55, approach_bend_deg: 35 },
+    }));
+    const { container } = render(<ClipSelectionPanel sessionId="s1" />);
+    await screen.findByText(/acodadura/);
+    const texto = container.textContent ?? "";
+    expect(texto).toMatch(/55°/);
+    expect(texto).toMatch(/~35°/);
+    expect(texto).toMatch(/cruzadas sobre el cuello/);
+  });
+
+  it("sin trayectoria marcada no dice nada del abordaje", async () => {
+    // Suponer un corredor sería inventarse la premisa de la recomendación.
+    clipSelection.mockResolvedValue(result());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    await screen.findByText(/Clips recomendados/);
+    expect(screen.queryByText(/acodadura/)).not.toBeInTheDocument();
   });
 });

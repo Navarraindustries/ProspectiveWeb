@@ -972,6 +972,13 @@ export interface ClipCaseOut {
   /** perimeter (contorno medido) · factor (regla ×1,5) · floor · none */
   required_jaw_source: string;
   required_jaw_detail: string;
+  /** Ángulo del corredor establecido contra el eje cuello→domo. Null sin
+      trayectoria marcada. */
+  approach_angle_deg: number | null;
+  /** La acodadura que ese corredor pide: 90° menos el ángulo anterior. Las
+      hojas quedan cruzadas sobre el cuello y el mango sale por el corredor; el
+      ángulo entre esas dos direcciones ES la acodadura. Geometría, no tabla. */
+  approach_bend_deg: number | null;
   dome_height_mm: number;
   max_diameter_mm: number;
   ar: number;

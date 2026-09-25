@@ -213,6 +213,12 @@ class ClipCase:
     dnr: float = 0.0
     bf: float = 0.0
     parent_artery_mm: float = 0.0
+    #: El ángulo del corredor de abordaje contra el eje cuello→domo, 0–90°, que
+    #: es lo que `POST /api/trajectory` ya devuelve. 0 = el corredor llega por el
+    #: eje del domo; 90 = llega tumbado en el plano del cuello. None cuando no
+    #: hay trayectoria establecida, y entonces el criterio del abordaje no
+    #: existe en vez de suponer una.
+    approach_angle_deg: float | None = None
     neck_source: str = "auto"          # auto | manual | rim
     neck_tilt_deg: float = 0.0
     neck_reliable: bool = True
@@ -458,6 +464,75 @@ def _shape_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
                      f"{clip.shape.value} poco habitual en esta localización. {note}", s)
 
 
+#: Cuánto puede desviarse la acodadura de la pieza respecto a la que pide el
+#: corredor sin que estorbe. La familia dibuja acodados cada 15°, así que un
+#: paso entero es la holgura natural; más allá, la pieza pide entrar por otro
+#: sitio del que el cirujano ha marcado.
+BEND_TOLERANCE_DEG: float = 15.0
+
+
+def bend_for_approach(approach_angle_deg: float) -> float:
+    """La acodadura que hace falta para entrar por ese corredor.
+
+    No es una tabla: es geometría. Las hojas tienen que quedar CRUZADAS sobre el
+    cuello, o sea tumbadas en el plano del cuello, y el mango sale por el
+    corredor. El ángulo entre esas dos direcciones es, por definición, la
+    acodadura que la pieza necesita:
+
+        acodadura = 90° − ángulo(corredor, eje cuello→domo)
+
+    Un corredor que llega tumbado en el plano del cuello (90°) se sirve con un
+    clip RECTO, porque en un recto el mango y las hojas son la misma línea. Uno
+    que baja por el eje del domo (0°) pediría 90° de acodadura para que las
+    hojas puedan ponerse de través.
+
+    Que esa acodadura sea practicable es otra cosa, y es del cirujano: aquí solo
+    se dice cuál es y cuánto se aparta la pieza que se está mirando.
+    """
+    return max(0.0, min(90.0, 90.0 - float(approach_angle_deg)))
+
+
+def _approach_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
+    """¿Entra esta pieza por el corredor que se ha establecido?
+
+    Existe solo cuando hay trayectoria: sin ella no hay corredor del que hablar,
+    y suponer uno —el más cómodo para cada clip— convertiría el criterio en un
+    adorno que aprueba a todos.
+
+    Este SÍ vota, a diferencia de la apertura y de la fuerza. La diferencia es
+    de dónde sale el número: la holgura que pide un cirujano sobre el cuello es
+    un juicio que nadie ha firmado, mientras que el ángulo entre el corredor y
+    el plano del cuello está determinado por las dos direcciones. Un recto no
+    entra por un corredor que llega a 60° del plano del cuello, y eso no es una
+    opinión.
+    """
+    if case.approach_angle_deg is None:
+        return None
+
+    pide = bend_for_approach(case.approach_angle_deg)
+    tiene = float(getattr(clip, "bend_angle_deg", 0.0) or 0.0)
+    desvio = abs(tiene - pide)
+
+    if desvio <= BEND_TOLERANCE_DEG:
+        return Criterion(
+            "approach", "Abordaje", "ok",
+            f"El corredor marcado pide ~{pide:.0f}° de acodadura para que las "
+            f"hojas queden cruzadas sobre el cuello; esta pieza tiene "
+            f"{tiene:.0f}°",
+            1.0, weight=1.5,
+        )
+    # Se degrada en vez de descartar: el cirujano puede corregir unos grados
+    # abriendo el campo, y un corredor es una intención, no un raíl.
+    score = max(WARN_SCORE_FLOOR, math.exp(-0.5 * ((desvio - BEND_TOLERANCE_DEG) / 25.0) ** 2))
+    return Criterion(
+        "approach", "Abordaje", "warn",
+        f"El corredor marcado pide ~{pide:.0f}° de acodadura y esta pieza tiene "
+        f"{tiene:.0f}°: {desvio:.0f}° de desvío. Con esa diferencia el mango no "
+        f"sale por donde entra la mano",
+        score, weight=1.5,
+    )
+
+
 def _force_weight(clip: ClipSpec) -> float:
     """How much the force criterion votes. Zero while the band is a design target.
 
@@ -599,6 +674,7 @@ def evaluate_clip(clip: ClipSpec, case: ClipCase) -> ClipCandidate:
                   _reach_criterion(clip, case),
                   _shape_criterion(clip, case),
                   _opening_criterion(clip, case),
+                  _approach_criterion(clip, case),
                   _force_criterion(clip, case)):
         if maybe is not None:
             crits.append(maybe)
@@ -716,6 +792,12 @@ def _preferred_shape(case: ClipCase) -> ClipShape:
         return ClipShape.ANGLED
     if case.is_wide_neck:
         return ClipShape.CURVED
+    # Un corredor que no llega tumbado en el plano del cuello pide una pieza
+    # acodada aunque la geometría del saco no lo pidiera: con un recto, el mango
+    # saldría por donde no entra la mano.
+    if (case.approach_angle_deg is not None
+            and bend_for_approach(case.approach_angle_deg) > BEND_TOLERANCE_DEG):
+        return ClipShape.ANGLED
     return ClipShape.STRAIGHT
 
 

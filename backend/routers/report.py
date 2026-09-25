@@ -600,3 +600,31 @@ async def suggest_corridors(
             for p in propuestas
         ],
     )
+
+
+@router.get(
+    "/trajectory/{session_id}",
+    response_model=TrajectoryResult | None,
+    summary="The approach trajectory stored in this session, if any",
+    description=(
+        "Returns the entry/target the surgeon established, with the corridor "
+        "assessment recomputed against the current mesh — or null when none was "
+        "marked.\n\n"
+        "It exists because a resumed session used to come back WITHOUT it: the "
+        "points were on disk and in the PDF, but the store was empty, so the "
+        "viewer drew no corridor and the placement rehearsal silently fell back "
+        "to its default approach. The established trajectory has to reach the "
+        "rehearsal, or the video shows a manoeuvre nobody planned."
+    ),
+)
+async def get_trajectory(session_id: str) -> "TrajectoryResult | None":
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    tr = read_trajectory_state(session_id)
+    if not tr:
+        return None
+    return TrajectoryResult(
+        entry=tr["entry"], target=tr["target"],
+        depth_mm=tr["depth_mm"], angle_deg=tr["angle_deg"],
+        corridor=_assess_corridor_for(session_id, tr["entry"], tr["target"]),
+    )

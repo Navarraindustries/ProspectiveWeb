@@ -3263,6 +3263,60 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "report"
+        ],
+        "summary": "The approach trajectory stored in this session, if any",
+        "description": "Returns the entry/target the surgeon established, with the corridor assessment recomputed against the current mesh — or null when none was marked.\n\nIt exists because a resumed session used to come back WITHOUT it: the points were on disk and in the PDF, but the store was empty, so the viewer drew no corridor and the placement rehearsal silently fell back to its default approach. The established trajectory has to reach the rehearsal, or the video shows a manoeuvre nobody planned.",
+        "operationId": "get_trajectory_api_trajectory__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TrajectoryResult"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Trajectory Api Trajectory  Session Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/trajectory/{session_id}/suggest": {
@@ -7423,6 +7477,30 @@
             "title": "Required Jaw Detail",
             "description": "De dónde sale el número, en una frase",
             "default": ""
+          },
+          "approach_angle_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approach Angle Deg",
+            "description": "Ángulo del corredor de abordaje establecido contra el eje cuello→domo. Null si no hay trayectoria marcada."
+          },
+          "approach_bend_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approach Bend Deg",
+            "description": "La acodadura que ese corredor pide: 90° − el ángulo anterior. Las hojas tienen que quedar cruzadas sobre el cuello y el mango salir por el corredor; el ángulo entre esas dos direcciones ES la acodadura. No es una tabla, es geometría."
           },
           "dome_height_mm": {
             "type": "number",

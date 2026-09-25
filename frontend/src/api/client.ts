@@ -330,6 +330,11 @@ export const api = {
    *  se pueden operar. Sin la orientación del paciente no propone nada. */
   suggestCorridors: (sessionId: string, req: SuggestCorridorsRequest = {}) =>
     post<SuggestCorridorsResult>(`/api/trajectory/${sessionId}/suggest`, req),
+  /** La trayectoria guardada, o null. La necesita una sesión reanudada: sin
+   *  esto el ensayo volvía a su corredor por defecto aunque hubiera uno
+   *  establecido y el informe lo imprimiera. */
+  getTrajectory: (sessionId: string) =>
+    get<TrajectoryResult | null>(`/api/trajectory/${sessionId}`),
   clearTrajectory: (sessionId: string) =>
     request<void>(`/api/trajectory/${sessionId}`, { method: "DELETE" }),
   preprocess: (sessionId: string, req: PreprocessRequest) =>

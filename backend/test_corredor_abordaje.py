@@ -536,3 +536,145 @@ class TestDondeAcabaLaCabeza:
                              volume=self._volumen(), spacing=(1.0, 1.0, 1.0),
                              n_directions=120, top=2)
         assert llamadas["n"] == 1, f"se recalculó {llamadas['n']} veces"
+
+
+# ── Etapa 3: el corredor decide qué pieza entra por él ────────────────────── #
+
+class TestElCorredorEligeLaPieza:
+    """La acodadura que pide un abordaje NO es una tabla: es geometría.
+
+    Las hojas tienen que quedar CRUZADAS sobre el cuello —tumbadas en su
+    plano— y el mango sale por el corredor. El ángulo entre esas dos
+    direcciones es, por definición, la acodadura que la pieza necesita:
+
+        acodadura = 90° − ángulo(corredor, eje cuello→domo)
+
+    Un corredor tumbado en el plano del cuello se sirve con un RECTO, porque
+    en un recto el mango y las hojas son la misma línea.
+    """
+
+    def _clip(self, bend: float):
+        from services.clips import ClipShape, ClipSpec
+        return ClipSpec(
+            name=f"Prueba {bend:.0f}°",
+            shape=ClipShape.STRAIGHT if bend == 0 else ClipShape.ANGLED,
+            blade_length_mm=9.0, blade_width_mm=1.0, blade_height_mm=1.2,
+            spring_length_mm=8.0, closing_force_g=150.0, manufacturer="prueba",
+            bend_angle_deg=bend,
+        )
+
+    def _caso(self, angulo=None):
+        from services.clip_selection import ClipCase
+        return ClipCase(neck_mm=5.0, ar=1.3, dome_height_mm=6.5,
+                        max_diameter_mm=9.0, neck_source="rim",
+                        approach_angle_deg=angulo)
+
+    def test_la_acodadura_sale_de_la_geometria(self):
+        from services.clip_selection import bend_for_approach
+        assert bend_for_approach(90.0) == 0.0, "tumbado en el plano del cuello: recto"
+        assert bend_for_approach(0.0) == 90.0, "por el eje del domo: 90°"
+        assert bend_for_approach(55.0) == 35.0
+
+    def test_sin_trayectoria_el_criterio_no_existe(self):
+        # Suponer un corredor —el más cómodo para cada clip— convertiría el
+        # criterio en un adorno que aprueba a todos.
+        from services.clip_selection import evaluate_clip
+        c = evaluate_clip(self._clip(0.0), self._caso(None))
+        assert not [k for k in c.criteria if k.key == "approach"]
+
+    def test_un_recto_cumple_con_un_corredor_tumbado(self):
+        from services.clip_selection import evaluate_clip
+        k = next(x for x in evaluate_clip(self._clip(0.0), self._caso(90.0)).criteria
+                 if x.key == "approach")
+        assert k.verdict == "ok" and "0°" in k.detail
+
+    def test_un_recto_no_entra_por_un_corredor_inclinado(self):
+        from services.clip_selection import evaluate_clip
+        k = next(x for x in evaluate_clip(self._clip(0.0), self._caso(55.0)).criteria
+                 if x.key == "approach")
+        assert k.verdict == "warn"
+        assert "35°" in k.detail and "desvío" in k.detail
+
+    def test_la_pieza_con_la_acodadura_que_pide_el_corredor_gana(self):
+        # Es lo que dirección pidió: que el abordaje influya en la recomendación.
+        from services.clip_selection import evaluate_clip
+        caso = self._caso(55.0)                     # pide ~35°
+        recto = evaluate_clip(self._clip(0.0), caso)
+        acodado = evaluate_clip(self._clip(30.0), caso)
+        assert acodado.score > recto.score
+
+    def test_el_criterio_vota_al_contrario_que_la_apertura(self):
+        # La apertura y la fuerza se enseñan y no puntúan porque su umbral es
+        # un juicio clínico sin firmar. Este sí vota: el ángulo entre el
+        # corredor y el plano del cuello está determinado por las dos
+        # direcciones, no es una opinión.
+        from services.clip_selection import evaluate_clip
+        crits = {k.key: k for k in evaluate_clip(self._clip(0.0), self._caso(55.0)).criteria}
+        assert crits["approach"].weight > 0
+        if "opening" in crits:
+            assert crits["opening"].weight == 0.0
+
+    def test_un_corredor_inclinado_hace_preferir_una_forma_acodada(self):
+        """Con lo demás igual, el corredor mueve la forma preferida.
+
+        Cuello estrecho a propósito: un cuello ancho pide curvo por la
+        geometría del saco y esa preferencia manda sobre el corredor, que es lo
+        correcto —son ejes distintos, la curvatura de la hoja y la acodadura
+        del mango—. Ahí el corredor sigue influyendo por el criterio, que
+        penaliza a las piezas cuya acodadura no es la que pide.
+        """
+        from services.clip_selection import ClipCase, _preferred_shape
+        from services.clips import ClipShape
+
+        def estrecho(angulo):
+            return ClipCase(neck_mm=3.0, ar=1.2, dome_height_mm=3.6,
+                            max_diameter_mm=5.4, neck_source="rim",
+                            approach_angle_deg=angulo)
+
+        assert _preferred_shape(estrecho(88.0)) == ClipShape.STRAIGHT
+        assert _preferred_shape(estrecho(40.0)) == ClipShape.ANGLED
+
+
+class TestLaTrayectoriaLlegaAlEnsayo:
+    """El vídeo de la colocación tiene que enseñar el abordaje establecido.
+
+    El ensayo ya usaba la trayectoria marcada, pero una sesión REANUDADA volvía
+    sin ella: los puntos estaban en disco y en el PDF, y el store vacío. El
+    visor no dibujaba corredor y el ensayo caía a su aproximación por defecto,
+    así que el vídeo enseñaba una maniobra que nadie había planeado.
+    """
+
+    def _con_trayectoria(self):
+        sid = create_session()
+        write_vtp(DIANA, session_subdir(sid, "meshes") / "vessel_tree.vtp")
+        client.post(f"/api/trajectory/{sid}", json={
+            "entry":  {"x": ENTRADA[0],  "y": ENTRADA[1],  "z": ENTRADA[2]},
+            "target": {"x": OBJETIVO[0], "y": OBJETIVO[1], "z": OBJETIVO[2]},
+        })
+        return sid
+
+    def test_se_puede_recuperar_la_trayectoria_guardada(self):
+        body = client.get(f"/api/trajectory/{self._con_trayectoria()}").json()
+        assert body is not None
+        assert body["entry"] == list(ENTRADA) and body["target"] == list(OBJETIVO)
+        assert body["depth_mm"] == 50.0
+        assert body["corridor"] is not None, "se vuelve a medir contra la malla de ahora"
+
+    def test_una_sesion_sin_trayectoria_devuelve_null_y_no_un_error(self):
+        r = client.get(f"/api/trajectory/{create_session()}")
+        assert r.status_code == 200 and r.json() is None
+
+    def test_sesion_inexistente(self):
+        assert client.get("/api/trajectory/no-existe").status_code == 404
+
+    def test_el_angulo_del_corredor_llega_a_la_seleccion_de_clips(self):
+        # El puente entre la etapa 3 y lo que ve el usuario: el mismo ángulo que
+        # devuelve la trayectoria es el que decide la acodadura.
+        from services.report_generator import read_trajectory_state
+
+        sid = self._con_trayectoria()
+        tr = read_trajectory_state(sid)
+        assert tr["angle_deg"] >= 0.0
+        body = client.get(f"/api/clips/selection/{sid}").json()
+        assert body["case"]["approach_angle_deg"] == pytest.approx(tr["angle_deg"])
+        assert body["case"]["approach_bend_deg"] == pytest.approx(90.0 - tr["angle_deg"])

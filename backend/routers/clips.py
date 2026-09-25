@@ -26,6 +26,7 @@ from models.clips import (
 from services.clips   import catalogue_to_api
 from services.clip_manufacture import resolve_perfect_clip
 from services.clip_selection import (
+    bend_for_approach,
     ClipCandidate,
     ClipCase,
     ClipSelection,
@@ -635,6 +636,19 @@ def _build_case(session_id: str, case_id: int | None) -> ClipCase:
     """Assemble everything that changes which clip fits, from what was measured."""
     region, laterality, aneurysm_type = _case_record(session_id, case_id)
     neck_source = read_state(session_id, "morpho.neck_source", "auto") or "auto"
+
+    # El corredor de abordaje, si se ha establecido uno. Su ángulo contra el eje
+    # cuello→domo decide qué acodadura necesita la pieza para que las hojas
+    # queden cruzadas sobre el cuello con el mango saliendo por donde entra la
+    # mano. Sin trayectoria marcada no hay criterio, en vez de suponer una.
+    angulo_abordaje = None
+    try:
+        from services.report_generator import read_trajectory_state
+        tr = read_trajectory_state(session_id)
+        if tr:
+            angulo_abordaje = float(tr.get("angle_deg", 0.0))
+    except Exception as exc:  # noqa: BLE001 — la selección no se hunde por esto
+        logger.warning("Approach angle unavailable for %s: %s", session_id, exc)
     return ClipCase(
         neck_mm          = _load_float(session_id, "morpho.neck_mm", 0.0),
         # El contorno medido manda sobre la regla de x1,5 cuando existe.
@@ -645,6 +659,7 @@ def _build_case(session_id: str, case_id: int | None) -> ClipCase:
         dnr              = _load_float(session_id, "morpho.dnr", 0.0),
         bf               = _load_float(session_id, "morpho.bf", 0.0),
         parent_artery_mm = _load_float(session_id, "morpho.parent_artery_mm", 0.0),
+        approach_angle_deg = angulo_abordaje,
         neck_source      = neck_source,
         neck_tilt_deg    = _load_float(session_id, "morpho.neck_tilt_deg", 0.0),
         # An automatic neck on a detector cap is exactly the case where the
@@ -786,6 +801,9 @@ async def clip_selection(
             required_jaw_mm=c.jaw_requirement.mm,
             required_jaw_source=c.jaw_requirement.source,
             required_jaw_detail=c.jaw_requirement.detail,
+            approach_angle_deg=c.approach_angle_deg,
+            approach_bend_deg=(None if c.approach_angle_deg is None
+                               else round(bend_for_approach(c.approach_angle_deg), 1)),
             dome_height_mm=c.dome_height_mm,
             max_diameter_mm=c.max_diameter_mm, ar=c.ar, dnr=c.dnr,
             parent_artery_mm=c.parent_artery_mm, neck_source=c.neck_source,

@@ -177,6 +177,17 @@ function Router() {
           }
         } catch { /* leave morphometry empty */ }
       }
+      // El abordaje establecido. Sin esto volvía la sesión sin él: los puntos
+      // estaban en disco y en el PDF, pero el store vacío, así que el visor no
+      // dibujaba corredor y el ensayo de colocación caía a su aproximación por
+      // defecto — el vídeo enseñaba una maniobra que nadie había planeado.
+      try {
+        const tr = await api.getTrajectory(r.session_id);
+        if (tr) {
+          planning.setTrajEntry([tr.entry[0], tr.entry[1], tr.entry[2]]);
+          planning.setTrajTarget([tr.target[0], tr.target[1], tr.target[2]]);
+        }
+      } catch { /* sin trayectoria guardada, se sigue igual */ }
       setResumeStep(clampStep(r.current_step));
       // The store now mirrors what is on disk, so the session is NOT dirty: it
       // was, because rehydrating goes through the same setters a real edit does,

@@ -20,7 +20,7 @@ import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
 import { usePlanning } from "../store/planning";
-import { cameraHeading, sliceCamera, type Orientation, type Plane } from "./geometry";
+import { cameraHeading, effectiveDirection, sliceCamera, type Orientation, type Plane } from "./geometry";
 import { HudFrame } from "./hud/HudFrame";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { HudLadder } from "./hud/HudLadder";
@@ -170,6 +170,14 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
           </div>
         )}
         <HudLadder count={count} index={index} />
+        {/* En la celda no hay cinta de rumbo con corchetes: sin esta línea el
+            gris del maniquí sería la única señal de orientación supuesta. Va
+            justo debajo del recuadro, que en la celda está arriba a la izquierda. */}
+        {compact && !effectiveDirection(orientation).known && (
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: "calc(28% - 18px)" }}>
+            <HudReadout at="tl" lines={["ORIENTACIÓN ASUMIDA"]} tone="warn" />
+          </div>
+        )}
         <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact })} />
         {!compact && (
           <div style={{ position: "absolute", bottom: 22, right: 14, display: "flex", gap: 14, alignItems: "center", pointerEvents: "auto" }}>

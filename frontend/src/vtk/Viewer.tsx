@@ -15,7 +15,7 @@ import { useVolumeMeta } from "./useVolumeMeta";
 import { levelNoteFor } from "./levelNote";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
-import { cameraHeading, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
+import { cameraHeading, effectiveDirection, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
 import { swapPane, type PaneId, type ViewerLayout } from "./layout";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { HudFrame } from "./hud/HudFrame";
@@ -833,6 +833,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
             {!compact && br.length > 0 && <HudReadout at="br" lines={br} />}
             {/* En la celda pequeña no cabe (el rumbo pisa las marcas): se lee al maximizar. */}
             {!compact && isMesh && <SceneHeading feed={cameraFeed} orientation={orientation} />}
+            {/* El maniquí gris no puede ser la única señal de que la orientación
+                es supuesta: una línea ámbar justo encima del recuadro, que sube
+                con él cuando hay leyenda abajo a la derecha. */}
+            {isMesh && !effectiveDirection(orientation).known && (
+              <div style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: insetRaised ? "calc(48% - 18px)" : "calc(24% - 18px)" }}>
+                <HudReadout at="br" lines={["ORIENTACIÓN ASUMIDA"]} tone="warn" />
+              </div>
+            )}
           </HudFrame>
         )}
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cameraHeading, edgeLabels, lpsToVolumeUserMatrix, manualToDirection, mmToVoxel, screenAxes, sliceCamera, voxelToMm,
+  cameraHeading, edgeLabels, fromLps, standardViewInVolume, lpsToVolumeUserMatrix, manualToDirection, mmToVoxel, screenAxes, sliceCamera, voxelToMm,
 } from "./geometry";
 import type { VolumeMeta } from "../api/types";
 
@@ -123,5 +123,41 @@ describe("lpsToVolumeUserMatrix", () => {
   it("lleva la cabeza (superior en LPS) al primer corte cuando el primer corte es superior", () => {
     const d = manualToDirection({ anteriorEdge: "top", firstSliceSuperior: true });
     expect(apply(lpsToVolumeUserMatrix(d), [0, 0, 1]).map((x) => x + 0)).toEqual([0, 0, -1]);
+  });
+});
+
+describe("vistas estándar de la cámara 3D", () => {
+  it("con la dirección identidad son las de siempre (+z superior)", () => {
+    const o = { direction: [1, 0, 0, 0, 1, 0, 0, 0, 1], manual: null };
+    expect(standardViewInVolume("axial", o)).toEqual([[0, 0, 1], [0, -1, 0]]);
+    expect(standardViewInVolume("coronal", o)).toEqual([[0, -1, 0], [0, 0, 1]]);
+    expect(standardViewInVolume("sagital", o)).toEqual([[1, 0, 0], [0, 0, 1]]);
+  });
+
+  it("pasan por la dirección del DICOM: en el Case 3 (i→L, j→S, k→A) «AX» mira por j", () => {
+    // Filas de la matriz: columnas i=(1,0,0) L, j=(0,0,1) S, k=(0,-1,0) A.
+    const o = { direction: [1, 0, 0, 0, 0, -1, 0, 1, 0], manual: null };
+    const clean = (v: number[]) => v.map((x) => (Object.is(x, -0) ? 0 : x));
+    const [from, up] = standardViewInVolume("axial", o);
+    expect(clean(from)).toEqual([0, 1, 0]);      // superior = +j
+    expect(clean(up)).toEqual([0, 0, 1]);        // anterior = +k
+    const [cFrom, cUp] = standardViewInVolume("coronal", o);
+    expect(clean(cFrom)).toEqual([0, 0, 1]);     // desde anterior = +k
+    expect(clean(cUp)).toEqual([0, 1, 0]);
+    // Y la cinta de rumbo coincide: mirando por −from, la elevación es 90°.
+    const dop = from.map((x) => -x) as [number, number, number];
+    expect(cameraHeading(dop, up, o).elevationDeg).toBeCloseTo(90);
+  });
+
+  it("fromLps es la inversa de la dirección", () => {
+    const d = [0, 0, 1, 1, 0, 0, 0, 1, 0];
+    const v: [number, number, number] = [0.2, -0.5, 0.7];
+    const idx = fromLps(d, v);
+    const back = [
+      d[0] * idx[0] + d[1] * idx[1] + d[2] * idx[2],
+      d[3] * idx[0] + d[4] * idx[1] + d[5] * idx[2],
+      d[6] * idx[0] + d[7] * idx[1] + d[8] * idx[2],
+    ];
+    back.forEach((x, i) => expect(x).toBeCloseTo(v[i]));
   });
 });

@@ -106,6 +106,39 @@ function toLps(d: number[], v: Vec3): Vec3 {
   ];
 }
 
+/* Un vector LPS → ejes del volumen (i, j, k). La dirección es ortonormal,
+   así que la inversa es la transpuesta. Es lo que necesita la cámara 3D, que
+   vive en coordenadas de volumen, para mirar «desde superior» de verdad. */
+export function fromLps(d: number[], v: Vec3): Vec3 {
+  return [
+    d[0] * v[0] + d[3] * v[1] + d[6] * v[2],
+    d[1] * v[0] + d[4] * v[1] + d[7] * v[2],
+    d[2] * v[0] + d[5] * v[1] + d[8] * v[2],
+  ];
+}
+
+/* Vistas estándar de la cámara 3D, en términos del paciente (LPS): desde
+   dónde mira la cámara y qué queda arriba. */
+export type StandardView = "axial" | "axial_inf" | "coronal" | "coronal_post" | "sagital" | "sagital_izq";
+const STANDARD_VIEWS_LPS: Record<StandardView, [Vec3, Vec3]> = {
+  axial:        [[0, 0,  1], [0, -1, 0]],   // desde superior, anterior arriba
+  axial_inf:    [[0, 0, -1], [0, -1, 0]],   // desde inferior
+  coronal:      [[0, -1, 0], [0, 0,  1]],   // desde anterior, superior arriba
+  coronal_post: [[0,  1, 0], [0, 0,  1]],   // desde posterior
+  sagital:      [[1,  0, 0], [0, 0,  1]],   // desde la izquierda del paciente
+  sagital_izq:  [[-1, 0, 0], [0, 0,  1]],   // desde la derecha
+};
+
+/* [desde, arriba] de una vista estándar en coordenadas del volumen, pasando
+   por la dirección efectiva (DICOM, fijada a mano o la asumida). Antes se
+   suponía +z superior: en un volumen como el Case 3 (k→A) «AX» enseñaba
+   una vista coronal mientras la cinta de rumbo decía otra cosa. */
+export function standardViewInVolume(view: StandardView, o: Orientation): [Vec3, Vec3] {
+  const { d } = effectiveDirection(o);
+  const [from, up] = STANDARD_VIEWS_LPS[view];
+  return [fromLps(d, from), fromLps(d, up)];
+}
+
 function lpsLabel(v: Vec3): string {
   const ax = [Math.abs(v[0]), Math.abs(v[1]), Math.abs(v[2])];
   const k = ax.indexOf(Math.max(...ax));

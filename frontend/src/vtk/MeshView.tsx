@@ -20,7 +20,7 @@ import vtkLineSource from "@kitware/vtk.js/Filters/Sources/LineSource";
 import vtkTubeFilter from "@kitware/vtk.js/Filters/General/TubeFilter";
 import type { Vector3 } from "@kitware/vtk.js/types";
 import { createOrientationInset, type OrientationInset } from "./OrientationInset";
-import type { Orientation, Vec3 } from "./geometry";
+import { standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
 
 export interface MeshLayer {
   url: string;
@@ -57,20 +57,11 @@ export interface MeshLine {
 }
 
 /** Standard viewpoints, named for the MPR planes the rest of the app uses.
- *  Mesh coordinates are voxel·spacing with axes (x = columnas, y = filas,
- *  z = cortes), so +z is the superior–inferior axis — the same convention the
- *  MPR strip flips for coronal and sagittal. */
+ *  They are defined in patient (LPS) terms and mapped into mesh coordinates
+ *  (voxel·spacing, x = columnas, y = filas, z = cortes) through the effective
+ *  orientation: +z is superior only when the volume says so. */
 export type CameraView =
   | "fit" | "axial" | "axial_inf" | "coronal" | "coronal_post" | "sagital" | "sagital_izq";
-
-const CAMERA_VIEWS: Record<Exclude<CameraView, "fit">, [[number, number, number], [number, number, number]]> = {
-  axial:        [[0, 0,  1], [0, -1, 0]],   // desde superior
-  axial_inf:    [[0, 0, -1], [0, -1, 0]],   // desde inferior
-  coronal:      [[0, -1, 0], [0, 0,  1]],   // desde anterior
-  coronal_post: [[0,  1, 0], [0, 0,  1]],   // desde posterior
-  sagital:      [[1,  0, 0], [0, 0,  1]],   // lateral
-  sagital_izq:  [[-1, 0, 0], [0, 0,  1]],   // lateral opuesto
-};
 
 /** Lo que MeshView publica para mover su cámara desde fuera. */
 export interface CameraController {
@@ -285,7 +276,7 @@ export function MeshView({
       if (!h) return;
       const cam = h.renderer.getActiveCamera();
       if (view !== "fit") {
-        const [dir, up] = CAMERA_VIEWS[view];
+        const [dir, up] = standardViewInVolume(view, orientationRef.current);
         cam.setFocalPoint(0, 0, 0);
         cam.setPosition(dir[0], dir[1], dir[2]);
         cam.setViewUp(up[0], up[1], up[2]);

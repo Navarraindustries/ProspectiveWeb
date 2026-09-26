@@ -1,0 +1,54 @@
+"""Superficie estanca a partir de una máscara, y decimación acotada."""
+from __future__ import annotations
+
+import numpy as np
+import vtk
+
+from services.segmentation import decimate_to, mask_to_surface, surface_quality
+from test_vesselness import SP, synthetic_tube
+
+
+class TestEstanca:
+    def test_un_tubo_da_una_superficie_sin_bordes_ni_islas(self):
+        mask = synthetic_tube(shape=(64, 48, 48), radius_mm=2.0) > 0
+        poly = mask_to_surface(mask, SP)
+        q = surface_quality(poly)
+        assert q["boundary_edges"] == 0
+        assert q["components"] == 1
+        assert q["aspect_ratio_median"] < 1.45
+        assert q["n_vertices"] > 100
+
+    def test_el_volumen_encerrado_se_parece_al_de_la_mascara(self):
+        mask = synthetic_tube(shape=(64, 48, 48), radius_mm=2.0) > 0
+        poly = mask_to_surface(mask, SP)
+        mp = vtk.vtkMassProperties(); mp.SetInputData(poly); mp.Update()
+        esperado = float(mask.sum()) * float(np.prod(SP))
+        assert abs(mp.GetVolume() - esperado) / esperado < 0.12
+
+    def test_un_agujero_pequeno_en_la_pared_se_cierra(self):
+        mask = synthetic_tube(shape=(64, 48, 48), radius_mm=2.0) > 0
+        mask[30:33, 24, 26:29] = False          # un pinchazo de ~1 mm en la pared
+        poly = mask_to_surface(mask, SP)
+        assert surface_quality(poly)["boundary_edges"] == 0
+
+    def test_las_islas_diminutas_desaparecen(self):
+        mask = synthetic_tube(shape=(64, 48, 48), radius_mm=2.0) > 0
+        mask[5, 5, 5] = True                    # una mota de 0,125 mm³
+        poly = mask_to_surface(mask, SP)
+        assert surface_quality(poly)["components"] == 1
+
+    def test_informa_del_progreso(self):
+        mask = synthetic_tube(shape=(32, 32, 32), radius_mm=2.0) > 0
+        fases: list[str] = []
+        mask_to_surface(mask, SP, on_progress=lambda f, p: fases.append(f))
+        assert fases[0] == "superficie" and "decimación" in fases
+
+
+class TestDecimacion:
+    def test_reduce_hasta_el_tope_y_no_toca_lo_que_ya_cabe(self):
+        mask = synthetic_tube(shape=(96, 64, 64), radius_mm=3.0) > 0
+        poly = mask_to_surface(mask, SP, decimation=0.0)
+        n = poly.GetNumberOfPoints()
+        small = decimate_to(poly, max_vertices=n // 3)
+        assert small.GetNumberOfPoints() <= n // 3 * 1.05
+        assert decimate_to(poly, max_vertices=n + 1) is poly

@@ -614,6 +614,182 @@ def read_vtp(path: str | Path) -> vtk.vtkPolyData:
     return poly
 
 
+# ── Superficie estanca a partir de una máscara ─────────────────────────────── #
+#
+# La malla antigua salía de marching cubes sobre un binario: escalones, 67
+# aristas de borde y triángulos alargados. Aquí la máscara se suaviza a float
+# antes (superficie sub-vóxel), se cierra lo que quede abierto y se decima con
+# normales. Criterio del diseño: 0 aristas de borde, aspecto mediano < 1,45.
+
+def mask_to_surface(
+    mask: np.ndarray,
+    spacing: tuple[float, float, float],
+    *,
+    smooth_iters: int = 40,
+    pass_band: float = 0.05,
+    decimation: float = 0.6,
+    fill_holes_mm: float = 4.0,
+    min_island_mm3: float = 2.0,
+    gauss_sigma_vox: float = 0.7,
+    on_progress=None,
+) -> vtk.vtkPolyData:
+    from scipy import ndimage
+
+    def say(phase: str, pct: float) -> None:
+        if on_progress:
+            on_progress(phase, pct)
+
+    say("superficie", 0)
+    field = ndimage.gaussian_filter(mask.astype(np.float32), gauss_sigma_vox)
+    img = SegmentationPipeline._to_vtk_image(field, spacing)
+    mc = vtk.vtkMarchingCubes()
+    mc.SetInputData(img); mc.SetValue(0, 0.5)
+    mc.ComputeNormalsOff(); mc.ComputeGradientsOff(); mc.Update()
+    if mc.GetOutput().GetNumberOfPolys() == 0:
+        raise ValueError("La máscara no contiene ninguna superficie.")
+
+    # Se suaviza ANTES de rellenar: con BoundarySmoothingOff() el sinc filter
+    # deja fijos los puntos del borde de un agujero, así que el agujero llega a
+    # vtkFillHolesFilter con la misma forma (perímetro real) que tenía en la
+    # malla cruda. Si se rellenara primero, el parche recién creado entraría
+    # al suavizado como superficie normal y el sinc filter lo movería junto al
+    # resto — perdiendo el control sobre qué tan grande era el hueco que se
+    # cerró y arriesgando triángulos degenerados en la costura del parche.
+    say("suavizado", 25)
+    prev = mc.GetOutputPort()
+    if smooth_iters > 0:
+        sm = vtk.vtkWindowedSincPolyDataFilter()
+        sm.SetInputConnection(prev); sm.SetNumberOfIterations(smooth_iters); sm.SetPassBand(pass_band)
+        sm.BoundarySmoothingOff(); sm.FeatureEdgeSmoothingOff(); sm.NonManifoldSmoothingOn(); sm.NormalizeCoordinatesOn()
+        sm.Update(); prev = sm.GetOutputPort()
+
+    if fill_holes_mm > 0:
+        fh = vtk.vtkFillHolesFilter()
+        fh.SetInputConnection(prev); fh.SetHoleSize(fill_holes_mm); fh.Update(); prev = fh.GetOutputPort()
+
+    # vtkFillHolesFilter tapa cada hueco con un abanico de triángulos a partir
+    # del punto medio del borde — sale ya triangulado — pero el filtro
+    # siguiente (decimación) exige explícitamente una malla de triángulos, y
+    # surface_quality() mide el aspecto por triángulo. Un vtkTriangleFilter
+    # aquí es barato cuando ya son triángulos y evita que un polígono suelto
+    # (una tapa con forma rara, o una entrada ya no triangulada) se cuele.
+    tf = vtk.vtkTriangleFilter()
+    tf.SetInputConnection(prev); tf.Update(); prev = tf.GetOutputPort()
+
+    say("decimación", 55)
+    if decimation > 0:
+        dec = vtk.vtkQuadricDecimation()
+        dec.SetInputConnection(prev); dec.SetTargetReduction(decimation); dec.Update(); prev = dec.GetOutputPort()
+
+    say("normales", 75)
+    nrm = vtk.vtkPolyDataNormals()
+    nrm.SetInputConnection(prev); nrm.ComputePointNormalsOn(); nrm.ComputeCellNormalsOff()
+    nrm.SplittingOff(); nrm.SetFeatureAngle(60.0); nrm.ConsistencyOn(); nrm.AutoOrientNormalsOn(); nrm.Update()
+    poly = nrm.GetOutput()
+
+    say("islas", 90)
+    if min_island_mm3 > 0:
+        poly = _drop_small_islands(poly, min_island_mm3)
+    say("superficie lista", 100)
+    return poly
+
+
+def _drop_small_islands(poly: vtk.vtkPolyData, min_mm3: float) -> vtk.vtkPolyData:
+    """Quita las piezas conexas con menos de `min_mm3` de volumen encerrado.
+
+    Un umbral en número de vértices premia a la isla peor triangulada (más
+    puntos por mm³ de superficie irregular) y castiga a una isla lisa; el
+    volumen encerrado es lo único que corresponde a "¿esto podría ser un
+    vaso?" sin importar cómo se malló. Con ~150 islas (caso 3) correr un
+    vtkPolyDataConnectivityFilter POR isla —cada uno reetiquetando la malla
+    entera— cuesta ~15 s. Aquí el filtro de conectividad corre una sola vez
+    en modo AllRegions para etiquetar todo, el volumen de cada región sale de
+    una sola pasada de NumPy (suma del volumen con signo del tetraedro
+    origen-triángulo, agrupado por RegionId — teorema de la divergencia), y
+    solo se vuelve a llamar al filtro UNA vez más para extraer de golpe todas
+    las regiones que se conservan.
+    """
+    tri = vtk.vtkTriangleFilter()
+    tri.SetInputData(poly)
+    tri.Update()
+    triangulated = tri.GetOutputPort()
+
+    cf = vtk.vtkPolyDataConnectivityFilter()
+    cf.SetInputConnection(triangulated)
+    cf.SetExtractionModeToAllRegions(); cf.ColorRegionsOn(); cf.Update()
+    colored = cf.GetOutput()
+    n = cf.GetNumberOfExtractedRegions()
+    if n <= 1:
+        return poly
+
+    region_id_arr = colored.GetPointData().GetArray("RegionId")
+    if region_id_arr is None:
+        return poly
+    region_id = ns.vtk_to_numpy(region_id_arr)
+    points = ns.vtk_to_numpy(colored.GetPoints().GetData())
+    cells = ns.vtk_to_numpy(colored.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
+
+    p0 = points[cells[:, 0]]
+    p1 = points[cells[:, 1]]
+    p2 = points[cells[:, 2]]
+    # Volumen con signo del tetraedro (origen, p0, p1, p2); la suma sobre una
+    # malla cerrada da el volumen encerrado (teorema de la divergencia). Los
+    # tres vértices de un triángulo están siempre en la misma región conexa,
+    # así que el RegionId del primer vértice identifica la celda entera.
+    tri_vol = np.einsum("ij,ij->i", p0, np.cross(p1, p2)) / 6.0
+    cell_region = region_id[cells[:, 0]]
+    vol_by_region = np.bincount(cell_region, weights=tri_vol, minlength=n)
+
+    keep_ids = np.flatnonzero(np.abs(vol_by_region) >= min_mm3)
+    if keep_ids.size == 0 or keep_ids.size == n:
+        return poly
+
+    keep = vtk.vtkPolyDataConnectivityFilter()
+    keep.SetInputConnection(triangulated)
+    keep.SetExtractionModeToSpecifiedRegions()
+    for r in keep_ids:
+        keep.AddSpecifiedRegion(int(r))
+    keep.Update()
+    cl = vtk.vtkCleanPolyData()
+    cl.SetInputConnection(keep.GetOutputPort())
+    cl.Update()
+    return cl.GetOutput()
+
+
+def decimate_to(poly: vtk.vtkPolyData, max_vertices: int) -> vtk.vtkPolyData:
+    """La malla con como mucho `max_vertices` puntos, o la misma si ya cabe.
+
+    La detección desactiva sus canales de calibre por encima de 40 000 vértices
+    (medido: 52 s en 79 000). Decimar EN MEMORIA para detectar deja la malla
+    completa en disco para medir.
+    """
+    n = poly.GetNumberOfPoints()
+    if n <= max_vertices:
+        return poly
+    dec = vtk.vtkQuadricDecimation()
+    dec.SetInputData(poly); dec.SetTargetReduction(1.0 - max_vertices / float(n)); dec.Update()
+    nrm = vtk.vtkPolyDataNormals()
+    nrm.SetInputConnection(dec.GetOutputPort()); nrm.SplittingOff(); nrm.ConsistencyOn(); nrm.AutoOrientNormalsOn(); nrm.Update()
+    return nrm.GetOutput()
+
+
+def surface_quality(poly: vtk.vtkPolyData) -> dict:
+    fe = vtk.vtkFeatureEdges()
+    fe.SetInputData(poly); fe.BoundaryEdgesOn(); fe.FeatureEdgesOff(); fe.NonManifoldEdgesOff(); fe.ManifoldEdgesOff(); fe.Update()
+    cf = vtk.vtkPolyDataConnectivityFilter()
+    cf.SetInputData(poly); cf.SetExtractionModeToAllRegions(); cf.Update()
+    q = vtk.vtkMeshQuality()
+    q.SetInputData(poly); q.SetTriangleQualityMeasureToAspectRatio(); q.Update()
+    ar = ns.vtk_to_numpy(q.GetOutput().GetCellData().GetArray("Quality"))
+    return {
+        "boundary_edges": int(fe.GetOutput().GetNumberOfLines()),
+        "components": int(cf.GetNumberOfExtractedRegions()),
+        "aspect_ratio_median": float(np.median(ar)) if ar.size else 0.0,
+        "n_vertices": int(poly.GetNumberOfPoints()),
+        "n_triangles": int(poly.GetNumberOfPolys()),
+    }
+
+
 def voxel_fraction(
     volume: np.ndarray,
     lower:  float,

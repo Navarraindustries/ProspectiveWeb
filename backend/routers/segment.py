@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -34,6 +35,14 @@ router = APIRouter(prefix="/api", tags=["segmentation"])
 
 # Thread-pool for CPU-bound DICOM + VTK work (keeps the event loop free)
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="seg-worker")
+
+# Una sola segmentación tubular a la vez, en todo el proceso. La guarda de
+# memoria (_tubular_guard) mide UN trabajo: dos de Case 3 a la vez (dos
+# pestañas, un doble clic) necesitan 2,6–3,8 GB (1,3 GB cada uno a media
+# resolución, sobre todo por load_series; 1,9 GB a resolución nativa), y la
+# máquina de producción tiene 2 GB. El segundo recibe un 409 en vez de esperar
+# en cola: así sabe que el suyo no ha empezado. El umbral clásico no la ocupa.
+_TUBULAR_SLOT = threading.Semaphore(1)
 
 # Cap the largest volume axis fed to Marching Cubes. Larger volumes are
 # integer-downsampled so segmentation stays responsive (a 384³ 3DRA drops from
@@ -251,33 +260,67 @@ async def segment(req: SegmentRequest) -> SegmentResult:
 
     # full_resolution es el campo antiguo, con el significado inverso; si llega,
     # manda, para que el frontend que aún lo envía siga obteniendo lo que pide.
-    half = req.half_resolution if req.full_resolution is None else (not req.full_resolution)
+    if req.full_resolution is not None:
+        half = not req.full_resolution
+    elif req.method == "threshold" and "half_resolution" not in req.model_fields_set:
+        # El umbral clásico sin ninguna de las dos banderas se comporta como
+        # siempre: regla de 256 (_maybe_downsample). Un script o cliente que
+        # nunca mandó la bandera no pasa de repente a resolución nativa, ni a
+        # un 422 por tamaño en un volumen que antes segmentaba.
+        half = True
+    else:
+        half = req.half_resolution
+
+    work = partial(
+        _run_segmentation_sync,
+        session_id=   req.session_id,
+        series_id=    req.series_id,
+        dicom_dir=    dicom_dir,
+        meshes_dir=   meshes_dir,
+        lower=        req.lower,
+        upper=        req.upper,
+        smooth_iters= smooth_iters,
+        min_mm3=      min_mm3,
+        top_n=        top_n,
+        closing_mm=   closing_mm,
+        main_tree_only= req.main_tree_only,
+        method=       req.method,
+        reclaim_mm=   req.reclaim_mm,
+        half_resolution= half,
+    )
+
+    tubular = req.method == "tubular"
+    # La plaza se pide ANTES de abrir el progreso: si la misma sesión reintenta
+    # mientras su trabajo corre, el rechazo no debe pisar el progreso del que
+    # sigue en marcha (ni abrir uno en otra sesión que nunca empezó).
+    if tubular and not _TUBULAR_SLOT.acquire(blocking=False):
+        raise HTTPException(
+            status_code=409,
+            detail="Ya hay una segmentación tubular en curso; espera a que termine",
+        )
+
+    def job() -> SegmentResult:
+        # La plaza se suelta en el hilo que hace el trabajo, cuando acaba de
+        # verdad: si el cliente se va, la corrutina se cancela pero el hilo
+        # sigue ocupando memoria, y otro trabajo no debe empezar hasta entonces.
+        try:
+            return work()
+        finally:
+            if tubular:
+                _TUBULAR_SLOT.release()
 
     # Run heavy CPU work off the event loop. El progreso se abre aquí y se cierra
     # en TODAS las salidas: el WebSocket sólo se cierra cuando ve running=False.
     progress.start(req.session_id)
     loop = asyncio.get_event_loop()
     try:
-        result = await loop.run_in_executor(
-            _executor,
-            partial(
-                _run_segmentation_sync,
-                session_id=   req.session_id,
-                series_id=    req.series_id,
-                dicom_dir=    dicom_dir,
-                meshes_dir=   meshes_dir,
-                lower=        req.lower,
-                upper=        req.upper,
-                smooth_iters= smooth_iters,
-                min_mm3=      min_mm3,
-                top_n=        top_n,
-                closing_mm=   closing_mm,
-                main_tree_only= req.main_tree_only,
-                method=       req.method,
-                reclaim_mm=   req.reclaim_mm,
-                half_resolution= half,
-            ),
-        )
+        try:
+            fut = loop.run_in_executor(_executor, job)
+        except BaseException:
+            if tubular:            # nunca llegó al hilo: nadie más la soltaría
+                _TUBULAR_SLOT.release()
+            raise
+        result = await fut
     except ValueError as exc:
         progress.finish(req.session_id, ok=False, message=str(exc))
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -286,7 +329,10 @@ async def segment(req: SegmentRequest) -> SegmentResult:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except BaseException as exc:
         # BaseException también: una cancelación (el cliente se va) no debe
-        # dejar la barra en «running» para siempre.
+        # dejar la barra en «running» para siempre. El hilo NO se detiene con
+        # la cancelación: seguirá, escribirá la malla y limpiará la detección,
+        # así que el progreso dirá «falló» aunque el disco acabe con la malla
+        # nueva. Se acepta: el cliente que se fue no lo va a leer.
         progress.finish(req.session_id, ok=False, message=str(exc) or type(exc).__name__)
         if not isinstance(exc, Exception):
             raise
@@ -504,6 +550,16 @@ def _run_segmentation_sync(
     )
     is_dsa = strategy == "dsa"
 
+    # Sin techo en el método tubular, pida lo que pida la petición. El techo es
+    # una herramienta del umbral clásico para dejar fuera el hueso; aquí el
+    # hueso lo quitan la puerta de tubularidad y el veto de lámina, y con el
+    # techo automático el tubo de Case 3 perdía un tercio de sus vóxeles y se
+    # partía en piezas (el centro de los vasos más llenos lo supera). Se fija
+    # aquí, antes de la fracción de vóxeles, para que voxel_fraction y
+    # seg.threshold_upper describan la misma banda que hizo la malla.
+    if method == "tubular":
+        upper = 0.0
+
     # Compute what fraction of voxels falls in the user-requested threshold band
     vf = seg_voxel_fraction(dcm.volume, lower, upper)
 
@@ -564,13 +620,7 @@ def _run_segmentation_sync(
     if method == "tubular":
         from services.vascular_mask import MaskParams, build_vascular_mask
         from services.segmentation import mask_to_surface, surface_quality
-        # Sin techo, pida lo que pida la petición. El techo es una herramienta
-        # del umbral clásico para dejar fuera el hueso; aquí el hueso lo quitan
-        # la puerta de tubularidad y el veto de lámina, y con el techo
-        # automático el tubo de Case 3 perdía un tercio de sus vóxeles y se
-        # partía en piezas (el centro de los vasos más llenos lo supera).
-        upper = 0.0
-        params = MaskParams(lower=lower, upper=0.0, reclaim_mm=reclaim_mm)
+        params = MaskParams(lower=lower, upper=0.0, reclaim_mm=reclaim_mm)   # sin techo: ver arriba
         # «hecho» y «superficie lista» son finales internos de cada etapa, no
         # fases de la interfaz: la fase siguiente ya los sustituye.
         mr = build_vascular_mask(
@@ -581,8 +631,12 @@ def _run_segmentation_sync(
             fallback_note = (fallback_note + " " if fallback_note else "") + (
                 "No se encontró ninguna semilla vascular ≥ 50 mm³ con este umbral: se usó la máscara de umbral "
                 "rellena, sin filtrar por tubularidad. Baja el umbral inferior si falta contraste.")
+        # Al menos 40 iteraciones con banda 0,05 (lo que fija el diseño): con
+        # las 20 del nivel 3 del umbral clásico, Case 3 salía con 9 piezas y 39
+        # aristas de borde en vez de 6 y 65 (Task 4), porque el suavizado corto
+        # deja piezas pequeñas por encima del umbral de islas.
         poly = mask_to_surface(
-            mr.mask, seg_spacing, smooth_iters=smooth_iters,
+            mr.mask, seg_spacing, smooth_iters=max(40, smooth_iters), pass_band=0.05,
             on_progress=lambda f, p: None if f == "superficie lista" else clock.say(f, 85 + 0.12 * p))
         mr.mask = None      # la máscara ya no hace falta; que no ocupe durante el guardado
         vox_mm3 = float(np.prod(seg_spacing))
@@ -616,6 +670,12 @@ def _run_segmentation_sync(
             seg_result.poly_data = mt.poly
             seg_result.n_vertices = mt.poly.GetNumberOfPoints()
             seg_result.n_triangles = mt.poly.GetNumberOfPolys()
+            if extra["method"] == "tubular":
+                # Las cifras de calidad tienen que describir la malla que se
+                # guarda, no la de antes del filtro (Case 3: 9 piezas → 1).
+                from services.segmentation import surface_quality
+                q = surface_quality(mt.poly)
+                extra.update(boundary_edges=q["boundary_edges"], components=q["components"])
             logger.info("Árbol principal: %d → %d verts, %d piezas fuera",
                         mt.n_before, mt.n_after, main_removed)
         else:
@@ -728,7 +788,11 @@ def _run_segmentation_sync(
         "which is the thing nobody knows beforehand.\n\n"
         "Costs two segmentations and two detections. `full_resolution` must "
         "match what the segment button will use, or the ranks describe a mesh "
-        "the user never gets. It does NOT touch the session: no mesh and no "
+        "the user never gets. Both runs use the THRESHOLD method: the segment "
+        "button now defaults to the tubular method, which has no ceiling and "
+        "its own resolution factor, so against that default the ranks describe "
+        "the threshold meshes, not the one the button produces. It does NOT "
+        "touch the session: no mesh and no "
         "state are written, so choosing a configuration afterwards is a "
         "separate, explicit step."
     ),
@@ -756,7 +820,10 @@ async def compare_ceiling(
     # La comparación tiene que correr sobre el MISMO volumen que va a usar el
     # botón de segmentar. Si aquí se midiera a resolución completa y luego se
     # segmentara diezmado —o al revés—, los puestos que enseña la comparación
-    # serían de una malla que el usuario no llega a ver nunca.
+    # serían de una malla que el usuario no llega a ver nunca. Ojo: esto sólo
+    # se cumple si el botón usa el método clásico («threshold»). Con el método
+    # tubular (por defecto) no hay techo que comparar y la resolución sigue
+    # otra regla, así que esta comparación describe las mallas del umbral.
     if req.full_resolution:
         n_voxels = int(np.prod(volume.shape))
         if n_voxels > _FULL_RES_MAX_VOXELS:

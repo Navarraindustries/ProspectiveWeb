@@ -147,7 +147,8 @@ class TestFullResolution:
         resolución es ahora la opción, `half_resolution`), y la guarda de
         memoria la fuerza cuando no cabe. `full_resolution` queda sin valor
         para distinguir «no lo envió» de «lo envió a False» mientras el
-        frontend migra."""
+        frontend migra. El umbral clásico sin ninguna de las dos banderas
+        sigue yendo por la regla de 256 (ver test_segment_tubular)."""
         from models.segmentation import SegmentRequest
 
         req = SegmentRequest(session_id="s", series_id="x", lower=100, upper=900)

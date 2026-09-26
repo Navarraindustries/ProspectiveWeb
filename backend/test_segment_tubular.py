@@ -147,7 +147,9 @@ class TestGuardasYContrato:
         sid = create_session(); _tube_series(sid)
         assert _segment(sid).status_code == 200
         bases = [p.split(" ")[0] for p in seen]
-        assert set(bases) <= set(FASES), set(bases) - set(FASES)
+        # Con el tubo por defecto se recorren todas: una fase que desaparezca
+        # en silencio también es una ruptura del contrato.
+        assert set(bases) == set(FASES), set(FASES) ^ set(bases)
         idx = [FASES.index(b) for b in bases]
         assert idx == sorted(idx), bases
         assert bases[0] == "carga" and bases[-1] == "guardado"
@@ -169,3 +171,98 @@ class TestGuardasYContrato:
         assert j["method"] == "threshold" and j["seeds"] == 0 and j["fallback_note"] == ""
         assert "marching cubes" in j["phase_seconds"]
         assert progress.get(sid)["ok"] is True
+
+
+def _two_tubes_series(sid: str, nz=80, size=48):
+    """Dos tubos paralelos separados: el mayor es el árbol, el otro una pieza suelta.
+
+    El segundo es más corto pero siembra por sí mismo (≥ 58 cortes, ver
+    _tube_series), así que la máscara tubular conserva los dos y la malla sale
+    con dos piezas antes del filtro de árbol principal.
+    """
+    z, y, x = np.mgrid[0:nz, 0:size, 0:size].astype(np.float32)
+    a = (y - 16) ** 2 + (x - 16) ** 2 <= 3.0 ** 2
+    b = ((y - 34) ** 2 + (x - 34) ** 2 <= 3.0 ** 2) & (z >= 10) & (z < 72)
+    vol = np.where(a | b, 800.0, 0.0)
+    vol[:4] = 0.0
+    vol[-4:] = 0.0
+    _write_classic_ct_series(sid, nz=nz, size=size, values=vol.astype(np.int16),
+                             pixel_spacing=1.0)
+
+
+class TestRondaDeArreglos:
+    def test_el_umbral_sin_banderas_conserva_la_regla_de_256(self, monkeypatch):
+        # Antes de este cambio, una petición sin full_resolution iba por
+        # _maybe_downsample. Sigue así para el método clásico: nada de 422 por
+        # tamaño aunque el volumen pase del tope de resolución nativa.
+        from routers import segment as seg
+        calls: list[tuple] = []
+        real = seg._maybe_downsample
+        def spy(volume, spacing, *a, **k):
+            calls.append(volume.shape)
+            return real(volume, spacing, *a, **k)
+        monkeypatch.setattr(seg, "_maybe_downsample", spy)
+        monkeypatch.setattr(seg, "_FULL_RES_MAX_VOXELS", 1000)
+        sid = create_session(); _tube_series(sid)
+        r = _segment(sid, method="threshold")
+        assert r.status_code == 200, r.text
+        assert len(calls) == 1
+
+    def test_el_umbral_a_resolucion_nativa_solo_si_se_pide(self, monkeypatch):
+        from routers import segment as seg
+        monkeypatch.setattr(seg, "_FULL_RES_MAX_VOXELS", 1000)
+        sid = create_session(); _tube_series(sid)
+        assert _segment(sid, method="threshold", half_resolution=False).status_code == 422
+        assert _segment(sid, method="threshold", full_resolution=True).status_code == 422
+
+    def test_las_metricas_describen_la_malla_guardada_tras_el_arbol_principal(self):
+        sid = create_session(); _two_tubes_series(sid)
+        sin = _segment(sid).json()
+        assert sin["components"] == 2, sin
+        j = _segment(sid, main_tree_only=True).json()
+        assert j["main_tree_applied"] is True, j["main_tree_warning"]
+        assert j["components"] == 1 and j["boundary_edges"] == 0
+        q = surface_quality(read_vtp(session_subdir(sid, "meshes") / "vessel_tree.vtp"))
+        assert q["components"] == 1 and q["n_vertices"] == j["vertices"]
+
+    def test_el_metodo_tubular_suaviza_al_menos_40_iteraciones(self, monkeypatch):
+        import services.segmentation as segsvc
+        seen: dict = {}
+        real = segsvc.mask_to_surface
+        def spy(mask, spacing, **k):
+            seen.update(k)
+            return real(mask, spacing, **k)
+        monkeypatch.setattr(segsvc, "mask_to_surface", spy)
+        sid = create_session(); _tube_series(sid)
+        assert _segment(sid, smoothing=3).status_code == 200
+        assert seen["smooth_iters"] >= 40 and seen["pass_band"] == 0.05
+
+    def test_solo_corre_un_trabajo_tubular_a_la_vez(self, monkeypatch):
+        import services.vascular_mask as vm
+        real = vm.build_vascular_mask
+        inside, release = threading.Event(), threading.Event()
+        def slow(*a, **k):
+            inside.set()
+            release.wait(30)
+            return real(*a, **k)
+        monkeypatch.setattr(vm, "build_vascular_mask", slow)
+        a = create_session(); _tube_series(a)
+        b = create_session(); _tube_series(b)
+        out: dict = {}
+        t = threading.Thread(target=lambda: out.setdefault("a", _segment(a)))
+        t.start()
+        try:
+            assert inside.wait(30)
+            rb = _segment(b)
+            assert rb.status_code == 409 and "en curso" in rb.json()["detail"]
+            assert progress.get(b) is None          # el rechazado no abre progreso
+            ra = _segment(a)                        # la misma sesión reintenta
+            assert ra.status_code == 409
+            pa = progress.get(a)
+            assert pa["running"] is True and pa["ok"] is None   # no pisa al que corre
+            # El método clásico no ocupa la plaza tubular.
+            assert _segment(b, method="threshold").status_code == 200
+        finally:
+            release.set(); t.join()
+        assert out["a"].status_code == 200
+        assert _segment(b).status_code == 200       # la plaza se libera al acabar

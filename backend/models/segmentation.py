@@ -88,8 +88,12 @@ class SegmentRequest(BaseModel):
     half_resolution: bool = Field(
         False,
         description=(
-            "Segmentar con el eje mayor a 256 en vez de a resolución nativa (más "
-            "rápido, vasos finos rotos). Reducir un volumen a la mitad también "
+            "Segmentar a media resolución en vez de a resolución nativa (más "
+            "rápido, vasos finos rotos). Método tubular: factor ≥ 2 y eje mayor "
+            "≤ 256, así que reduce incluso un volumen de 200³. Umbral clásico: la "
+            "regla de 256 (sólo reduce si el eje mayor pasa de 256); sin esta "
+            "bandera ni full_resolution, el umbral clásico la aplica como "
+            "siempre. Reducir un volumen a la mitad también "
             "reduce la conectividad del árbol: medido en el caso 9, la mayor "
             "componente conexa cae del 69 % al 42 %. El método tubular la fuerza "
             "cuando el volumen no cabe en la memoria del servidor."
@@ -232,7 +236,9 @@ class CeilingCompareRequest(BaseModel):
         False,
         description=(
             "Debe valer lo MISMO que en el botón de segmentar. Si no, la "
-            "comparación describe una malla distinta de la que se obtendrá."
+            "comparación describe una malla distinta de la que se obtendrá. "
+            "Sólo es comparable con el método clásico («threshold»): el "
+            "tubular no usa techo."
         ),
     )
 

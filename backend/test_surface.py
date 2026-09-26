@@ -4,8 +4,25 @@ from __future__ import annotations
 import numpy as np
 import vtk
 
-from services.segmentation import decimate_to, mask_to_surface, surface_quality
+from vtkmodules.util import numpy_support as ns
+
+from services.segmentation import _drop_small_islands, decimate_to, mask_to_surface, surface_quality
 from test_vesselness import SP, synthetic_tube
+
+
+def _tri_soup(points_xyz, tri_indices) -> vtk.vtkPolyData:
+    """Un `vtkPolyData` mínimo hecho a mano: unos puntos y unos triángulos,
+    sin pasar por marching cubes. Sirve para imitar la basura no cerrada
+    (un triángulo suelto, un abanico sin vecinos) que deja vtkQuadricDecimation."""
+    poly = vtk.vtkPolyData()
+    pts = vtk.vtkPoints()
+    pts.SetData(ns.numpy_to_vtk(np.asarray(points_xyz, dtype=np.float64)))
+    poly.SetPoints(pts)
+    cells = vtk.vtkCellArray()
+    for tri in tri_indices:
+        cells.InsertNextCell(3, tri)
+    poly.SetPolys(cells)
+    return poly
 
 
 class TestEstanca:
@@ -42,6 +59,54 @@ class TestEstanca:
         fases: list[str] = []
         mask_to_surface(mask, SP, on_progress=lambda f, p: fases.append(f))
         assert fases[0] == "superficie" and "decimación" in fases
+
+    def test_el_espaciado_anisotropico_no_mezcla_los_ejes(self):
+        """Un radio físico de 2 mm da el mismo diámetro en x/y sin importar la
+        resolución de cada eje. Si `_to_vtk_image` intercambiara el eje x con
+        el z, el diámetro medido saldría del tamaño del eje largo del tubo
+        (~38 mm), no de los ~4 mm que pide el radio."""
+        sp = (0.6, 0.3, 0.3)
+        mask = synthetic_tube(shape=(64, 48, 48), spacing=sp, radius_mm=2.0) > 0
+        poly = mask_to_surface(mask, sp)
+        xmin, xmax, ymin, ymax, zmin, zmax = poly.GetBounds()
+        esperado_z = (mask.shape[0] - 1) * sp[0]
+        esperado_diam = 2 * 2.0
+        assert abs((zmax - zmin) - esperado_z) < 1.0
+        assert abs((xmax - xmin) - esperado_diam) < 0.5
+        assert abs((ymax - ymin) - esperado_diam) < 0.5
+
+
+class TestIslasFalsas:
+    def test_los_restos_sueltos_de_la_decimacion_no_cuentan_como_isla(self):
+        """vtkQuadricDecimation no garantiza una salida 2-variedad: puede dejar
+        un triángulo suelto, o un abanico de pocos triángulos sin vecinos.
+        Ninguno de los dos encierra volumen real, así que ambos deben
+        desaparecer aunque su "volumen" con signo (ruido de la fórmula, ver
+        _drop_small_islands) caiga por encima de min_island_mm3 por azar."""
+        mask = synthetic_tube(shape=(64, 48, 48), radius_mm=2.0) > 0
+        poly = mask_to_surface(mask, SP)
+        assert surface_quality(poly)["components"] == 1
+
+        triangulo_suelto = _tri_soup(
+            [[1000.0, 1000.0, 1000.0], [1001.0, 1000.0, 1000.0], [1000.0, 1001.0, 1000.0]],
+            [[0, 1, 2]],
+        )
+        lejos = np.array([2000.0, 2000.0, 2000.0])
+        abanico_de_tres = _tri_soup(
+            [lejos, lejos + [1, 0, 0], lejos + [0, 1, 0], lejos + [1, 1, 0], lejos + [0.5, 0.5, 1.0]],
+            [[0, 1, 2], [0, 2, 3], [0, 3, 4]],
+        )
+
+        append = vtk.vtkAppendPolyData()
+        append.AddInputData(poly)
+        append.AddInputData(triangulo_suelto)
+        append.AddInputData(abanico_de_tres)
+        append.Update()
+        con_restos = append.GetOutput()
+        assert surface_quality(con_restos)["components"] == 3  # el tubo + los 2 restos
+
+        limpia = _drop_small_islands(con_restos, min_mm3=2.0)
+        assert surface_quality(limpia)["components"] == 1
 
 
 class TestDecimacion:

@@ -218,40 +218,16 @@ class SegmentationPipeline:
                 "Prueba la serie principal del estudio o reduce la limpieza de fragmentos."
             )
 
-        # 6. Smoothing
-        if self.smooth_iterations > 0:
-            smoother = vtk.vtkWindowedSincPolyDataFilter()
-            smoother.SetInputConnection(mc.GetOutputPort())
-            smoother.SetNumberOfIterations(self.smooth_iterations)
-            smoother.SetPassBand(self.smooth_pass_band)
-            smoother.BoundarySmoothingOff()
-            smoother.FeatureEdgeSmoothingOff()
-            smoother.NonManifoldSmoothingOn()
-            smoother.NormalizeCoordinatesOn()
-            smoother.Update()
-            prev_port = smoother.GetOutputPort()
-        else:
-            prev_port = mc.GetOutputPort()
+        # 6. Smoothing, 7. Decimation, 8. Normals for smooth shading — mismos
+        # tres pasos que usa mask_to_surface() más abajo, factorizados a
+        # _smooth_surface/_decimate_surface/_with_normals para no mantener dos
+        # copias del mismo vtkWindowedSincPolyDataFilter con los mismos cinco
+        # flags. Los parámetros de este pipeline clásico (self.smooth_*,
+        # self.target_reduction) no cambian.
+        poly = _smooth_surface(mc.GetOutput(), self.smooth_iterations, self.smooth_pass_band)
+        poly = _decimate_surface(poly, self.target_reduction)
+        poly = _with_normals(poly)
 
-        # 7. Decimation
-        if self.target_reduction > 0:
-            decimate = vtk.vtkQuadricDecimation()
-            decimate.SetInputConnection(prev_port)
-            decimate.SetTargetReduction(self.target_reduction)
-            decimate.Update()
-            prev_port = decimate.GetOutputPort()
-
-        # 8. Normals for smooth shading
-        normals = vtk.vtkPolyDataNormals()
-        normals.SetInputConnection(prev_port)
-        normals.ComputePointNormalsOn()
-        normals.ComputeCellNormalsOff()
-        normals.SplittingOff()
-        normals.ConsistencyOn()
-        normals.AutoOrientNormalsOn()
-        normals.Update()
-
-        poly = normals.GetOutput()
         n_verts = poly.GetNumberOfPoints()
         n_tris  = poly.GetNumberOfPolys()
         actual_reduction = 1.0 - n_tris / max(n_raw, 1)
@@ -620,6 +596,58 @@ def read_vtp(path: str | Path) -> vtk.vtkPolyData:
 # aristas de borde y triángulos alargados. Aquí la máscara se suaviza a float
 # antes (superficie sub-vóxel), se cierra lo que quede abierto y se decima con
 # normales. Criterio del diseño: 0 aristas de borde, aspecto mediano < 1,45.
+#
+# _smooth_surface/_decimate_surface/_with_normals viven aquí porque
+# SegmentationPipeline.run() (el pipeline clásico, más arriba) y mask_to_surface
+# (esta superficie estanca) necesitan exactamente los mismos tres filtros con
+# los mismos flags — antes eran dos copias del suavizado y tres de las
+# normales (una en run(), una en mask_to_surface, otra en decimate_to).
+
+def _smooth_surface(poly: vtk.vtkPolyData, iters: int, pass_band: float) -> vtk.vtkPolyData:
+    """Suaviza con windowed sinc; la misma malla si `iters <= 0`.
+
+    `BoundarySmoothingOff` deja fijos los puntos de cualquier borde abierto,
+    que es lo que permite a mask_to_surface suavizar antes de rellenar
+    agujeros (ver esa función) sin deformar el perímetro que luego lee
+    vtkFillHolesFilter.
+    """
+    if iters <= 0:
+        return poly
+    sm = vtk.vtkWindowedSincPolyDataFilter()
+    sm.SetInputData(poly)
+    sm.SetNumberOfIterations(iters)
+    sm.SetPassBand(pass_band)
+    sm.BoundarySmoothingOff()
+    sm.FeatureEdgeSmoothingOff()
+    sm.NonManifoldSmoothingOn()
+    sm.NormalizeCoordinatesOn()
+    sm.Update()
+    return sm.GetOutput()
+
+
+def _decimate_surface(poly: vtk.vtkPolyData, reduction: float) -> vtk.vtkPolyData:
+    """Decima con la métrica cuadrática; la misma malla si `reduction <= 0`."""
+    if reduction <= 0:
+        return poly
+    dec = vtk.vtkQuadricDecimation()
+    dec.SetInputData(poly)
+    dec.SetTargetReduction(reduction)
+    dec.Update()
+    return dec.GetOutput()
+
+
+def _with_normals(poly: vtk.vtkPolyData) -> vtk.vtkPolyData:
+    """Normales de punto suaves, consistentes y orientadas hacia afuera."""
+    nrm = vtk.vtkPolyDataNormals()
+    nrm.SetInputData(poly)
+    nrm.ComputePointNormalsOn()
+    nrm.ComputeCellNormalsOff()
+    nrm.SplittingOff()
+    nrm.ConsistencyOn()
+    nrm.AutoOrientNormalsOn()
+    nrm.Update()
+    return nrm.GetOutput()
+
 
 def mask_to_surface(
     mask: np.ndarray,
@@ -656,16 +684,11 @@ def mask_to_surface(
     # resto — perdiendo el control sobre qué tan grande era el hueco que se
     # cerró y arriesgando triángulos degenerados en la costura del parche.
     say("suavizado", 25)
-    prev = mc.GetOutputPort()
-    if smooth_iters > 0:
-        sm = vtk.vtkWindowedSincPolyDataFilter()
-        sm.SetInputConnection(prev); sm.SetNumberOfIterations(smooth_iters); sm.SetPassBand(pass_band)
-        sm.BoundarySmoothingOff(); sm.FeatureEdgeSmoothingOff(); sm.NonManifoldSmoothingOn(); sm.NormalizeCoordinatesOn()
-        sm.Update(); prev = sm.GetOutputPort()
+    poly = _smooth_surface(mc.GetOutput(), smooth_iters, pass_band)
 
     if fill_holes_mm > 0:
         fh = vtk.vtkFillHolesFilter()
-        fh.SetInputConnection(prev); fh.SetHoleSize(fill_holes_mm); fh.Update(); prev = fh.GetOutputPort()
+        fh.SetInputData(poly); fh.SetHoleSize(fill_holes_mm); fh.Update(); poly = fh.GetOutput()
 
     # vtkFillHolesFilter tapa cada hueco con un abanico de triángulos a partir
     # del punto medio del borde — sale ya triangulado — pero el filtro
@@ -674,18 +697,13 @@ def mask_to_surface(
     # aquí es barato cuando ya son triángulos y evita que un polígono suelto
     # (una tapa con forma rara, o una entrada ya no triangulada) se cuele.
     tf = vtk.vtkTriangleFilter()
-    tf.SetInputConnection(prev); tf.Update(); prev = tf.GetOutputPort()
+    tf.SetInputData(poly); tf.Update(); poly = tf.GetOutput()
 
     say("decimación", 55)
-    if decimation > 0:
-        dec = vtk.vtkQuadricDecimation()
-        dec.SetInputConnection(prev); dec.SetTargetReduction(decimation); dec.Update(); prev = dec.GetOutputPort()
+    poly = _decimate_surface(poly, decimation)
 
     say("normales", 75)
-    nrm = vtk.vtkPolyDataNormals()
-    nrm.SetInputConnection(prev); nrm.ComputePointNormalsOn(); nrm.ComputeCellNormalsOff()
-    nrm.SplittingOff(); nrm.SetFeatureAngle(60.0); nrm.ConsistencyOn(); nrm.AutoOrientNormalsOn(); nrm.Update()
-    poly = nrm.GetOutput()
+    poly = _with_normals(poly)
 
     say("islas", 90)
     if min_island_mm3 > 0:
@@ -694,8 +712,20 @@ def mask_to_surface(
     return poly
 
 
+# Una isla real de min_island_mm3=2 mm³ a la resolución con la que trabaja
+# esta función tiene decenas de triángulos. vtkQuadricDecimation (paso previo,
+# TargetReduction=0.6 por defecto) no garantiza una salida 2-variedad: puede
+# dejar sueltos uno o unos pocos triángulos sin vecinos —confirmado en el caso
+# 3, un triángulo suelto de la decimación colaba como "componente" de 2,68 mm³—.
+# Un fragmento así no encierra nada, así que cualquier "volumen" que salga de
+# él es ruido de la fórmula, no una medida física; exigir un mínimo de
+# triángulos lo descarta sin importar cuánto volumen aparente tenga.
+_MIN_ISLAND_TRIANGLES = 16
+
+
 def _drop_small_islands(poly: vtk.vtkPolyData, min_mm3: float) -> vtk.vtkPolyData:
-    """Quita las piezas conexas con menos de `min_mm3` de volumen encerrado.
+    """Quita las piezas conexas con menos de `min_mm3` de volumen encerrado
+    o con menos de `_MIN_ISLAND_TRIANGLES` triángulos.
 
     Un umbral en número de vértices premia a la isla peor triangulada (más
     puntos por mm³ de superficie irregular) y castiga a una isla lisa; el
@@ -705,9 +735,18 @@ def _drop_small_islands(poly: vtk.vtkPolyData, min_mm3: float) -> vtk.vtkPolyDat
     entera— cuesta ~15 s. Aquí el filtro de conectividad corre una sola vez
     en modo AllRegions para etiquetar todo, el volumen de cada región sale de
     una sola pasada de NumPy (suma del volumen con signo del tetraedro
-    origen-triángulo, agrupado por RegionId — teorema de la divergencia), y
+    apoyado en el CENTROIDE de la propia región, agrupado por RegionId), y
     solo se vuelve a llamar al filtro UNA vez más para extraer de golpe todas
     las regiones que se conservan.
+
+    El apoyo del tetraedro es el centroide de la región y no el origen: para
+    una región cerrada (2-variedad) el volumen por teorema de la divergencia
+    no depende de qué punto se use como apoyo, así que da el mismo resultado
+    que con el origen. Para un fragmento SIN cerrar —un triángulo suelto, un
+    abanico de dos o tres triángulos— el centroide cae sobre (o casi sobre) su
+    propio plano, y el "volumen" sale exactamente 0 o casi, en vez de un
+    número arbitrario que depende de dónde esté ese fragmento respecto al
+    origen (0,0,0) de la malla.
     """
     tri = vtk.vtkTriangleFilter()
     tri.SetInputData(poly)
@@ -727,20 +766,32 @@ def _drop_small_islands(poly: vtk.vtkPolyData, min_mm3: float) -> vtk.vtkPolyDat
         return poly
     region_id = ns.vtk_to_numpy(region_id_arr)
     points = ns.vtk_to_numpy(colored.GetPoints().GetData())
-    cells = ns.vtk_to_numpy(colored.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
+    # GetData() está obsoleto desde VTK 9.6 para vtkCellArray; la conectividad
+    # ya no trae el conteo de puntos por celda intercalado (solo tenemos
+    # triángulos tras el vtkTriangleFilter de arriba, así que un reshape(-1,3)
+    # directo basta).
+    cells = ns.vtk_to_numpy(colored.GetPolys().GetConnectivityArray()).reshape(-1, 3)
 
-    p0 = points[cells[:, 0]]
-    p1 = points[cells[:, 1]]
-    p2 = points[cells[:, 2]]
-    # Volumen con signo del tetraedro (origen, p0, p1, p2); la suma sobre una
-    # malla cerrada da el volumen encerrado (teorema de la divergencia). Los
-    # tres vértices de un triángulo están siempre en la misma región conexa,
-    # así que el RegionId del primer vértice identifica la celda entera.
-    tri_vol = np.einsum("ij,ij->i", p0, np.cross(p1, p2)) / 6.0
     cell_region = region_id[cells[:, 0]]
+    tri_count_by_region = np.bincount(cell_region, minlength=n)
+
+    # Centroide por región: promedio de los puntos que le pertenecen.
+    counts = np.maximum(np.bincount(region_id, minlength=n), 1)
+    centroid = np.stack([
+        np.bincount(region_id, weights=points[:, axis], minlength=n) / counts
+        for axis in range(3)
+    ], axis=1)
+
+    c = centroid[cell_region]
+    p0 = points[cells[:, 0]] - c
+    p1 = points[cells[:, 1]] - c
+    p2 = points[cells[:, 2]] - c
+    tri_vol = np.einsum("ij,ij->i", p0, np.cross(p1, p2)) / 6.0
     vol_by_region = np.bincount(cell_region, weights=tri_vol, minlength=n)
 
-    keep_ids = np.flatnonzero(np.abs(vol_by_region) >= min_mm3)
+    keep_ids = np.flatnonzero(
+        (np.abs(vol_by_region) >= min_mm3) & (tri_count_by_region >= _MIN_ISLAND_TRIANGLES)
+    )
     if keep_ids.size == 0 or keep_ids.size == n:
         return poly
 
@@ -766,11 +817,7 @@ def decimate_to(poly: vtk.vtkPolyData, max_vertices: int) -> vtk.vtkPolyData:
     n = poly.GetNumberOfPoints()
     if n <= max_vertices:
         return poly
-    dec = vtk.vtkQuadricDecimation()
-    dec.SetInputData(poly); dec.SetTargetReduction(1.0 - max_vertices / float(n)); dec.Update()
-    nrm = vtk.vtkPolyDataNormals()
-    nrm.SetInputConnection(dec.GetOutputPort()); nrm.SplittingOff(); nrm.ConsistencyOn(); nrm.AutoOrientNormalsOn(); nrm.Update()
-    return nrm.GetOutput()
+    return _with_normals(_decimate_surface(poly, 1.0 - max_vertices / float(n)))
 
 
 def surface_quality(poly: vtk.vtkPolyData) -> dict:

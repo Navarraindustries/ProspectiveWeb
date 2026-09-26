@@ -333,16 +333,43 @@ class TestElUmbralDelReintento:
         assert body["neck_mm"] >= 1.0
 
     def test_si_ninguno_llega_a_un_milimetro_se_devuelve_el_mejor_marcado(self):
-        # Un vaso de 0,8 mm: ningún desplazamiento da un cuello de 1 mm. En vez
-        # de un 422 que no dice nada, sale el mejor intento con el cuello
+        # Un vaso cónico que se ensancha hacia +z sin llegar a 1 mm: ningún
+        # desplazamiento da un cuello válido, y el más ancho es el de +2 mm.
+        # En vez de un 422 que no dice nada, sale ESE intento con el cuello
         # marcado como no válido.
-        sid = _sesion_con(_tubo_vertical(0.4, -10.0, 10.0))
+        sid = _sesion_con(_cono())
         r = _plano(sid, (0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
         assert r.status_code == 200, r.text
         body = r.json()
-        assert 0.0 < body["neck_mm"] < 1.0
+        assert body["neck_shift_mm"] == 2.0, "tiene que ganar el cuello más ancho"
+        # Ø en z = +2: 2·(0,30 + 0,03·2) = 0,72 mm; en z = 0 serían 0,60.
+        assert 0.65 < body["neck_mm"] < 1.0
         assert body["neck_valid"] is False
         assert body["warning"]
+
+
+def _cono() -> vtk.vtkPolyData:
+    """Un vaso vertical cuyo radio crece con z: r = 0,30 + 0,03·z (z ∈ [−6, 6])."""
+    line = vtk.vtkLineSource()
+    line.SetPoint1(0.0, 0.0, -6.0)
+    line.SetPoint2(0.0, 0.0, 6.0)
+    line.SetResolution(120)
+    line.Update()
+    lp = line.GetOutput()
+    radios = vtk.vtkDoubleArray()
+    radios.SetName("r")
+    for i in range(lp.GetNumberOfPoints()):
+        radios.InsertNextValue(0.30 + 0.03 * lp.GetPoint(i)[2])
+    lp.GetPointData().SetScalars(radios)
+    tube = vtk.vtkTubeFilter()
+    tube.SetInputData(lp)
+    tube.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
+    tube.SetNumberOfSides(24)
+    tube.CappingOn()
+    tube.Update()
+    out = tube.GetOutput()
+    out.GetPointData().RemoveArray("r")
+    return out
 
 
 class TestElDesplazamientoSobreviveAlReanudar:
@@ -358,3 +385,73 @@ class TestElDesplazamientoSobreviveAlReanudar:
         assert r.json()["neck_shift_mm"] == 1.0
         from services.sessions import read_state
         assert float(read_state(sid, "morpho.neck_shift_mm", "0")) == 1.0
+
+
+class TestReproducirNoMueveElPlano:
+    def test_dos_reanudaciones_dejan_el_plano_donde_estaba(self):
+        # El mejor intento por debajo de 1 mm, reproducido: si se volviera a
+        # buscar a su alrededor, cada GET lo movería otros 2 mm.
+        sid = _sesion_con(_cono())
+        primero = _plano(sid, (0.0, 0.0, 0.0), (0.0, 0.0, 1.0)).json()
+        assert primero["neck_shift_mm"] == 2.0
+
+        a = client.get(f"/api/morphometry/{sid}").json()
+        b = client.get(f"/api/morphometry/{sid}").json()
+        for body in (a, b):
+            assert body["neck_shift_mm"] == 2.0
+            assert abs(body["neck_shift_mm"]) <= 2.0
+            assert body["plane_origin"] == primero["plane_origin"]
+            assert body["neck_mm"] == primero["neck_mm"]
+
+
+class TestLoQueNoEsCulpaDelPlano:
+    def test_sin_el_arbol_se_dice_que_falta_el_arbol(self):
+        # Antes de reintentar, el mensaje era este; con los reintentos quedaba
+        # tapado por «ni desplazándolo ±2 mm», que manda a remarcar un plano
+        # que no tiene la culpa.
+        from pathlib import Path
+        from models import NeckPlaneRequest, Position3D
+        from routers.detect import _run_morphometry_sync
+
+        sid = _sesion_con(_sac_above_a_gap())
+        meshes = Path(session_subdir(sid, "meshes"))
+        (meshes / "vessel_tree.vtp").unlink()
+        plano = NeckPlaneRequest(origin=Position3D(x=0.0, y=0.0, z=4.0), normal=[0.0, 0.0, 1.0])
+        with pytest.raises(ValueError, match="vessel_tree.vtp no disponible"):
+            _run_morphometry_sync(session_id=sid, vtp_path=meshes / "candidate_001.vtp",
+                                  neck_plane=plano)
+
+    def test_el_volumen_se_carga_una_vez_por_peticion(self, monkeypatch):
+        import services.mpr as mpr
+
+        llamadas = []
+
+        def _sin_dicom(session_id):
+            llamadas.append(session_id)
+            raise FileNotFoundError("sin DICOM")
+
+        monkeypatch.setattr(mpr, "ensure_volume_cached", _sin_dicom)
+        sid = _sesion_con(_cono())
+        write_state(sid, "seg.threshold_lower", "100")
+        write_state(sid, "seg.threshold_upper", "900")
+        r = _plano(sid, (0.0, 0.0, 0.0), (0.0, 0.0, 1.0))   # prueba los cinco
+        assert r.status_code == 200, r.text
+        assert len(llamadas) == 1
+
+    def test_si_el_plano_guardado_ya_no_vale_no_queda_su_desplazamiento(self, sesion_con_saco):
+        from services.sessions import read_state
+
+        sid, origin, normal = sesion_con_saco
+        malo = [origin[i] - 1.0 * normal[i] for i in range(3)]
+        assert _plano(sid, malo, normal).json()["neck_shift_mm"] == 1.0
+        # El árbol cambia (se re-segmentó, digamos) y el plano ya no corta nada.
+        lejos = vtk.vtkSphereSource()
+        lejos.SetCenter(100.0, 100.0, 100.0)
+        lejos.SetRadius(3.0)
+        lejos.Update()
+        write_vtp(lejos.GetOutput(), session_subdir(sid, "meshes") / "vessel_tree.vtp")
+
+        body = client.get(f"/api/morphometry/{sid}").json()
+        assert body["plane_origin"] is None, "tiene que ser el análisis automático"
+        assert body["neck_shift_mm"] == 0.0
+        assert float(read_state(sid, "morpho.neck_shift_mm", "")) == 0.0

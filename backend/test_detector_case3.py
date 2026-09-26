@@ -126,8 +126,10 @@ def malla():
 
 
 def _lista(poly, modality):
-    """Lo mismo que devuelve el endpoint: el consenso de los tres canales."""
-    return consensus(poly, _detector_for_modality(modality), top=_MAX_CANDIDATES)
+    """Lo mismo que devuelve el endpoint: el consenso de los tres canales,
+    por el mismo camino que `_run_detection_sync`."""
+    from routers.detect import _detect_hits
+    return _detect_hits(poly, modality)[0]
 
 
 def _dist(h) -> float:
@@ -254,3 +256,16 @@ class TestDetectarSobreLaMallaCompleta:
             assert igual, f"región {h.position} no sale sobre la malla completa"
             assert (h.candidate.poly_data.GetNumberOfPoints()
                     == igual[0].poly_data.GetNumberOfPoints())
+
+
+class TestPorDebajoDelTopeNadaCambia:
+    def test_el_camino_del_endpoint_da_lo_mismo_que_el_consenso_directo(self, malla):
+        # Case 3 con el pipeline de umbral tiene unos 12 800 vértices: no se
+        # decima, la copia es la propia malla y los candidatos tienen que ser
+        # exactamente los de llamar al consenso como antes de esta tarea.
+        from routers.detect import _detect_hits
+        poly, modality = malla
+        assert poly.GetNumberOfPoints() <= 40_000
+        por_router, _det = _detect_hits(poly, modality)
+        directo = consensus(poly, _detector_for_modality(modality), top=_MAX_CANDIDATES)
+        assert [(h.position, h.channels) for h in por_router] ==                [(h.position, h.channels) for h in directo]

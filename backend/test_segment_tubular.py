@@ -72,9 +72,13 @@ class TestTubular:
         sid = create_session(); _tube_series(sid, core=3000.0)
         j = _segment(sid, upper=2000.0).json()
         assert j["components"] == 1 and j["boundary_edges"] == 0
-        # Con el método antiguo el mismo techo dejaba una cáscara doble.
+        # Con el método antiguo el mismo techo vacía el núcleo y deja una
+        # cáscara doble: la pared exterior y, dentro, la del hueco, en piezas
+        # sueltas (medido: 3 piezas con techo, 1 sin él).
         j2 = _segment(sid, upper=2000.0, method="threshold").json()
         assert j2["method"] == "threshold"
+        q2 = surface_quality(read_vtp(session_subdir(sid, "meshes") / "vessel_tree.vtp"))
+        assert q2["components"] > 1, q2
 
     def test_sin_semillas_lo_dice_y_no_falla(self):
         # 40 cortes: las líneas de V ≥ p90 no llegan a 50 mm³ (ver _tube_series).
@@ -114,6 +118,11 @@ class TestTubular:
         j = _segment(sid).json()
         assert j["downsample_factor"] == 2
         assert "media resolución" in j["fallback_note"].lower()
+        # Y queda en la sesión para que «Reanudar» no la presente como nativa.
+        from services.sessions import read_state
+        assert read_state(sid, "seg.downsample_factor") == "2"
+        assert read_state(sid, "seg.method") == "tubular"
+        assert read_state(sid, "seg.fallback_note") == j["fallback_note"]
 
     def test_full_resolution_sigue_aceptandose_con_el_significado_inverso(self):
         sid = create_session(); _tube_series(sid)
@@ -209,6 +218,11 @@ class TestGuardasYContrato:
         sid = create_session(); _tube_series(sid)
         r = _segment(sid, lower=5000.0)
         assert r.status_code == 422, r.text
+        # El mismo mensaje accionable que el umbral clásico, no «la máscara no
+        # contiene ninguna superficie».
+        assert "Ningún vóxel supera el umbral inferior de 5000" in r.json()["detail"]
+        assert "máxima del volumen = 800" in r.json()["detail"]
+        assert "Baja el umbral inferior" in r.json()["detail"]
         p = progress.get(sid)
         assert p["running"] is False and p["ok"] is False and p["message"]
 

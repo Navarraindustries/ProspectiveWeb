@@ -264,6 +264,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   };
 
   const tubular = segmentation?.method === "tubular";
+  // Una malla restaurada trae el método y la resolución, pero no las cifras de
+  // calidad de aquella ejecución: sin ellas no se afirma «Estanca» ni «0 piezas».
+  const hasQuality = segmentation?.boundary_edges != null;
   const boundaryEdges = segmentation?.boundary_edges ?? 0;
   const phases = phaseSummary(segmentation?.phase_seconds);
 
@@ -517,7 +520,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               ? ["Submuestreada", "warning"]
               : ["Nativa", "success"]}
           />
-          {tubular && (
+          {tubular && hasQuality && (
             <Metric
               label="Estanqueidad"
               value={`${boundaryEdges} aristas`}
@@ -543,7 +546,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
                   : ["Limpio", "success"]
             }
           />
-          {tubular && (
+          {tubular && hasQuality && (
             <div style={hudLine}>
               {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}
               {pieces(segmentation.seeds ?? 0, "semilla", "semillas")} · recuperados{" "}

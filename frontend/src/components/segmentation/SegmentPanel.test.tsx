@@ -58,6 +58,8 @@ import {
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import { ApiError } from "../../api/client";
 import { CONNECTION_LOST } from "../../api/progress";
+import { restoredSegmentation } from "../../api/restoredSegmentation";
+import type { SessionRestoreResult } from "../../api/types";
 import type { SegmentResult } from "../../api/types";
 
 const base: SegmentResult = {
@@ -122,6 +124,30 @@ function withResult(result: SegmentResult, sid: string | null = null) {
     </PlanningProvider>,
   );
 }
+
+describe("una sesión reanudada", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("dice la resolución con que se segmentó y no inventa cifras de calidad", async () => {
+    const restored = restoredSegmentation({
+      session_id: "s2", current_step: 2, label: "", has_segmentation: true,
+      has_detection: false, has_morphometry: false, has_plan: false, restored_at: "",
+      mesh_url: "/m/vessel_tree.vtp", n_vertices: 10594, n_faces: 21000, modality: "XA",
+      patient_id: 1, study_id: null, study_label: "", imaging_study_id: null, series: null,
+      centerline_mesh_url: "", centerline_arc_mm: 0,
+      downsample_factor: 2, method: "tubular",
+      fallback_note: "Este volumen no cabe en memoria a resolución completa: se segmentó a media resolución.",
+    } as SessionRestoreResult);
+    withResult(restored);
+    expect(await screen.findByText("1/2")).toBeInTheDocument();
+    expect(screen.getByText("Submuestreada")).toBeInTheDocument();
+    expect(screen.queryByText("Nativa")).toBeNull();
+    expect(screen.getByText(/no cabe en memoria/)).toBeInTheDocument();
+    // La instantánea no guarda aristas ni piezas: no se afirma «Estanca».
+    expect(screen.queryByText("Estanca")).toBeNull();
+    expect(screen.queryByText(/0 piezas/)).toBeNull();
+  });
+});
 
 describe("what the cleanup discarded", () => {
   beforeEach(() => vi.clearAllMocks());

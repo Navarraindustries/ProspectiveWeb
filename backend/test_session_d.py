@@ -336,6 +336,32 @@ class TestSessionState:
         assert "centerline.vtp" in data["centerline_mesh_url"]
         assert data["centerline_arc_mm"] == pytest.approx(10.0, abs=0.05)
 
+    def test_restore_keeps_how_the_mesh_was_segmented(self):
+        """Reanudar devuelve la resolución, el método y la nota de la malla.
+
+        Regresión: el frontend fijaba el factor a 1 y una malla a media
+        resolución —lo que da un equipo de 2 GB con Case 3— volvía como «Nativa».
+        """
+        from services.sessions import write_state
+
+        sid = _make_session()
+        write_state(sid, "seg.method", "tubular")
+        write_state(sid, "seg.downsample_factor", "2")
+        write_state(sid, "seg.fallback_note", "Se segmentó a media resolución por memoria.")
+        client.post("/api/sessions/save",
+                    json={"session_id": sid, "label": "Half res", "current_step": 2})
+        data = client.post(f"/api/sessions/{sid}/restore").json()
+        assert data["downsample_factor"] == 2
+        assert data["method"] == "tubular"
+        assert "media resolución" in data["fallback_note"]
+
+    def test_restore_of_an_older_snapshot_leaves_the_fields_unknown(self):
+        sid = _make_session()
+        client.post("/api/sessions/save",
+                    json={"session_id": sid, "label": "Old", "current_step": 2})
+        data = client.post(f"/api/sessions/{sid}/restore").json()
+        assert data["downsample_factor"] == 0 and data["method"] == "" and data["fallback_note"] == ""
+
     def test_restore_without_centerline_reports_none(self):
         sid = _make_session()
         client.post("/api/sessions/save",

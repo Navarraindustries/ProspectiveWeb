@@ -742,6 +742,14 @@ def _run_segmentation_sync(
         mr = build_vascular_mask(
             seg_volume, seg_spacing, params,
             on_progress=lambda f, p: None if f == "hecho" else clock.say(f, 5 + 0.8 * p))
+        if mr.stats.get("m0_vox", 1) == 0:
+            # Lo mismo que dice el umbral clásico: «la máscara no contiene
+            # ninguna superficie» no le decía al usuario qué tocar.
+            raise ValueError(
+                f"Ningún vóxel supera el umbral inferior de {lower:.0f} HU "
+                f"(intensidad máxima del volumen = {float(seg_volume.max()):.0f}). "
+                "Baja el umbral inferior."
+            )
         del seg_volume
         if mr.fallback:
             fallback_note = (fallback_note + " " if fallback_note else "") + (
@@ -846,6 +854,10 @@ def _run_segmentation_sync(
     # rehace el saco con esta banda, y tiene que ser la misma que hizo la malla.
     write_state(session_id, "seg.threshold_upper",str(upper))
     write_state(session_id, "seg.method",         method)
+    # Para «Reanudar»: sin esto la malla a media resolución volvía etiquetada
+    # «Nativa», y en un equipo de 2 GB Case 3 siempre va a media resolución.
+    write_state(session_id, "seg.downsample_factor", str(ds_factor))
+    write_state(session_id, "seg.fallback_note",  fallback_note)
     write_state(session_id, "seg.strategy",       strategy)
     # Volume geometry — needed by Session C (morphometry + aneurysm detection)
     # Geometría del volumen SEGMENTADO: el preprocesado (remuestreado) cuando lo

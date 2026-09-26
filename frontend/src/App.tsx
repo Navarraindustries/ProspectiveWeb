@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api/client";
+import { restoredSegmentation } from "./api/restoredSegmentation";
 import type { PatientSummary, StudyCard, StudySummary } from "./api/types";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
@@ -141,13 +142,7 @@ function Router() {
       // shows the study instead of an empty drop zone.
       planning.setSeries(r.series);
       if (r.has_segmentation && r.mesh_url) {
-        planning.setSegmentation({
-          mesh_url: r.mesh_url, vertices: r.n_vertices, faces: r.n_faces,
-          voxel_fraction: null, strategy: "restaurada", is_dsa: false,
-          // The mesh came back from a snapshot; no cleanup ran now, so there is
-          // nothing discarded to report.
-          kept_fraction: 1, fragments_removed: 0, largest_removed_mm3: 0, downsample_factor: 1, main_tree_applied: false, main_tree_warning: "", main_tree_removed: 0,
-        });
+        planning.setSegmentation(restoredSegmentation(r));
       }
       // The centreline geometry comes back with the snapshot; without this the
       // store stays empty and the centreline-guided stent asks to extract one
@@ -158,16 +153,24 @@ function Router() {
       }
       // Replay downstream so the saved step shows its results (deterministic on
       // the restored mesh). Failures are non-fatal — the user can re-run a step.
+      let restoredIds: string[] = [];
       if (r.current_step >= 2) {
         try {
           const det = await api.detect(r.session_id);
           planning.setCandidates(det.candidates);
           planning.setSelectedCandidate(0);
+          restoredIds = det.candidates.map((c) => c.id);
         } catch { /* leave candidates empty */ }
       }
       if (r.current_step >= 3) {
         try {
+          // Sin id: el backend repite el candidato que se eligió al medir
+          // (detect.selected_candidate). La selección se lleva a ese mismo
+          // candidato ANTES de poner la medida, porque cambiar de selección
+          // vacía la morfometría del store.
           const m = await api.morphometry(r.session_id);
+          const idx = m.candidate_id ? restoredIds.indexOf(m.candidate_id) : -1;
+          if (idx > 0) planning.setSelectedCandidate(idx);
           planning.setMorphometry(m);
           // Put the hand-marked neck back in the scene. The measurement is
           // rebuilt from the stored plane either way, but the marks are what

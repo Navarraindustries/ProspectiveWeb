@@ -69,6 +69,15 @@ class SessionRestoreResult(BaseModel):
             "empty drop zone even though the viewer is already rendering the MPR."
         ),
     )
+    # Cómo se hizo la malla restaurada. Las sesiones guardadas antes de que
+    # existieran no las tienen: 0 / "" y el frontend cae a lo de antes.
+    downsample_factor: int = Field(
+        0, description="Submuestreo con el que se segmentó la malla (1 = nativa; 0 = desconocido)"
+    )
+    method: str = Field("", description="Método de segmentación ('tubular' o 'threshold'; '' = desconocido)")
+    fallback_note: str = Field(
+        "", description="Por qué el servidor bajó a media resolución, si lo hizo"
+    )
     centerline_mesh_url: str = Field(
         "",
         description=(

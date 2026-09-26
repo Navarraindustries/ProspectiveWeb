@@ -18,6 +18,7 @@ from services.database import Base, engine
 from services.sessions import create_session, session_subdir
 from services.preprocess import preprocess_volume, subtract_bone
 from services import mpr as mprmod
+from services.mpr import _cache_paths
 
 Base.metadata.create_all(bind=engine)
 client = TestClient(app, raise_server_exceptions=True)
@@ -178,11 +179,76 @@ def session_with_ct_volume() -> str:
 
 def test_preprocesar_recalcula_el_rango_y_no_persiste_claves_por_llamada(session_with_ct_volume):
     sid = session_with_ct_volume
-    from services.mpr import _cache_paths
-    import json
     r = client.post(f"/api/preprocess/{sid}", json={"clip_hu": True, "resample_isotropic": False, "smooth": False})
     assert r.status_code == 200, r.text
     meta = json.loads(_cache_paths(sid)[1].read_text())
     assert "cache_key" not in meta and "orientation_manual" not in meta
     assert meta["intensity_range"][1] <= 3000.0          # recortado a HU_MAX
     assert meta["full_stride"] == 1
+
+
+def test_remuestrear_isotropo_reescribe_forma_espaciado_y_recalcula_la_meta(session_with_ct_volume):
+    """Con `resample_isotropic` la meta en disco describe el volumen remuestreado:
+    forma y espaciado nuevos, y `intensity_range`/`full_stride` recalculados en
+    vez de heredar los valores viejos."""
+    sid = session_with_ct_volume
+    npy, meta_path = _cache_paths(sid)
+    stale = json.loads(meta_path.read_text())
+    stale["spacing"] = [2.0, 1.0, 1.0]
+    stale["intensity_range"] = [-123456.0, 123456.0]   # valores viejos imposibles
+    stale["full_stride"] = 2
+    meta_path.write_text(json.dumps(stale))
+    mprmod._downsampled_volume.cache_clear()
+
+    r = client.post(f"/api/preprocess/{sid}", json={
+        "clip_hu": False, "resample_isotropic": True, "target_spacing_mm": 1.0, "smooth": False,
+    })
+    assert r.status_code == 200, r.text
+
+    meta = json.loads(meta_path.read_text())
+    vol = np.load(npy)
+    assert meta["shape"] == [64, 48, 48] == list(vol.shape)
+    assert meta["spacing"] == [1.0, 1.0, 1.0]
+    assert meta["intensity_range"] == mprmod._intensity_range(vol)
+    assert meta["intensity_range"] != [-123456.0, 123456.0]
+    assert meta["full_stride"] == 1
+
+
+# ── Regression: segmentar usa el volumen preprocesado ──────────────────────── #
+
+class TestSegmentarUsaElVolumenPreprocesado:
+    """«Aplicar preprocesamiento» dice «Vuelve a segmentar para usar el volumen
+    preprocesado», pero la segmentación releía el DICOM original: en Case 3 un
+    suavizado σ 0,5 daba exactamente la misma malla (103 978 vértices) que sin
+    él. La segmentación toma el volumen de la caché cuando la sesión está
+    preprocesada, y el del DICOM cuando no."""
+
+    @staticmethod
+    def _dcm(vol, spacing=(2.0, 0.5, 0.5)):
+        from services.dicom_loader import DicomLoadResult
+        return DicomLoadResult(
+            volume=vol, spacing=spacing, origin=(0.0, 0.0, 0.0), modality="CT",
+            series_uid="s", series_description="", patient_name="", patient_id="",
+            study_date="", window_center=150.0, window_width=700.0, n_slices=vol.shape[0],
+            is_projection=False, projection_warning=None,
+        )
+
+    def test_sin_preprocesar_se_usa_el_dicom(self):
+        from routers.segment import _segmentation_volume
+        sid = _session_with_volume()
+        raw = np.zeros((40, 64, 64), dtype=np.float32)
+        vol, sp = _segmentation_volume(sid, self._dcm(raw))
+        assert vol is raw and sp == (2.0, 0.5, 0.5)
+
+    def test_preprocesado_se_usa_la_cache(self):
+        from routers.segment import _segmentation_volume
+        sid = _session_with_volume()
+        r = client.post(f"/api/preprocess/{sid}", json={
+            "clip_hu": False, "resample_isotropic": True, "target_spacing_mm": 1.0, "smooth": False,
+        })
+        assert r.status_code == 200, r.text
+        raw = np.zeros((40, 64, 64), dtype=np.float32)
+        vol, sp = _segmentation_volume(sid, self._dcm(raw))
+        assert vol.shape == (80, 32, 32)
+        assert sp == (1.0, 1.0, 1.0)
+        np.testing.assert_array_equal(vol, np.load(_cache_paths(sid)[0]))

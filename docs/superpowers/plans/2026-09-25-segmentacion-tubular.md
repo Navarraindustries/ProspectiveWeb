@@ -1875,7 +1875,7 @@ git commit -m "Validación de la segmentación tubular sobre Case 3, con las cif
 
 ### Task 12: Cierre: comprobación completa y lista manual
 
-- [ ] **Step 1: Comprobación completa**
+- [x] **Step 1: Comprobación completa**
 
 ```bash
 cd frontend && npx tsc -b && npx vitest run && npm run build
@@ -1884,7 +1884,7 @@ cd ../backend && .venv\Scripts\python -m pytest -q -rf --no-header -p no:cachepr
 
 Expected: frontend en verde y chunk de entrada sin vtk.js; backend sin fallos NUEVOS respecto a la lista base (26 preexistentes: catálogo de clips vacío, fotos de usuario, lista blanca de auth, corredor/oclusión del trabajo remoto). Lista cualquier id nuevo.
 
-- [ ] **Step 2: Lista manual con Case 3 (anótala en el mensaje del commit de cierre)**
+- [x] **Step 2: Lista manual con Case 3 (anótala en el mensaje del commit de cierre)**
 
 1. Segmentar (tubular, resolución completa): progreso por fases visible; al acabar, «Estanca», 1 pieza; la malla son tubos macizos sin láminas; el tiempo total en el equipo.
 2. Detección: la lesión (x 62 · y 64 · z 63 mm) aparece en la lista corta con puesto ≤ 3 y los canales `calibre`/`cociente` presentes.
@@ -1895,4 +1895,4 @@ Expected: frontend en verde y chunk de entrada sin vtk.js; backend sin fallos NU
 7. Render: sin caras parpadeantes al rotar el árbol translúcido; contorno del saco visible.
 8. Sin WebSocket (bloquea `/ws` en DevTools → Network → Block request URL): el progreso sigue avanzando por GET.
 
-- [ ] **Step 3: Commit de cierre** (solo si algún archivo cambió en la comprobación; si no, el mensaje de la lista va en el commit de Task 11)
+- [x] **Step 3: Commit de cierre** (solo si algún archivo cambió en la comprobación; si no, el mensaje de la lista va en el commit de Task 11)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import math
 import os
@@ -553,6 +554,30 @@ class _PhaseClock:
         return out
 
 
+def _segmentation_volume(session_id: str, dcm) -> tuple[np.ndarray, tuple[float, float, float]]:
+    """El volumen que se segmenta: el preprocesado si la sesión lo está.
+
+    «Aplicar preprocesamiento» reescribe la caché del volumen (`_volume.npy` y
+    su meta) y dice «Vuelve a segmentar para usar el volumen preprocesado»,
+    pero la segmentación releía el DICOM y el preprocesado no llegaba nunca a
+    la malla. Con `preprocess.ops` en el estado se usa la caché, con su forma
+    y su espaciado (el remuestreo los cambia); sin él, el DICOM tal cual.
+    """
+    ops = read_state(session_id, "preprocess.ops", "") or ""
+    if not ops:
+        return dcm.volume, tuple(dcm.spacing)
+    import json
+    from services.mpr import _cache_paths
+
+    npy_path, meta_path = _cache_paths(session_id)
+    if not (npy_path.exists() and meta_path.exists()):
+        return dcm.volume, tuple(dcm.spacing)
+    meta = json.loads(meta_path.read_text())
+    vol = np.load(npy_path)
+    logger.info("Segmenting the preprocessed volume of %s (%s)", session_id, ops)
+    return vol, tuple(float(s) for s in meta["spacing"])
+
+
 def _run_segmentation_sync(
     session_id:    str,
     series_id:     str,
@@ -583,6 +608,10 @@ def _run_segmentation_sync(
         "Loading DICOM series '%s' for session '%s' ...", series_id, session_id
     )
     dcm = load_series(series_id, dicom_dir)
+    seg_vol, seg_sp = _segmentation_volume(session_id, dcm)
+    if seg_vol is not dcm.volume:
+        dcm = dataclasses.replace(dcm, volume=seg_vol, spacing=seg_sp)
+        del seg_vol
 
     # ── Guard: reject non-volumetric series with an actionable message ─────── #
     # Localizers, scouts and 2D projections have one (or two) slices; marching

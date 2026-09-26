@@ -361,8 +361,9 @@ export interface SegmentRequest {
   /** Radio (mm, 0–5) de pared y saco que se recupera alrededor del tubo. */
   reclaim_mm: number;
   /** Segmentar a media resolución: más rápido, pero rompe los vasos finos. El
-   *  servidor puede forzarla si no le cabe en memoria (lo dice `fallback_note`). */
-  half_resolution: boolean;
+   *  servidor puede forzarla si no le cabe en memoria (lo dice `fallback_note`).
+   *  Ausente con el umbral clásico = su regla de 256 de siempre. */
+  half_resolution?: boolean;
   /** Quedarse solo con el componente conexo mayor. Medido en los estudios
    *  angiográficos de este proyecto ESE componente es el árbol (case 3: 60,3 %;
    *  case 9: 63,7 %) y lo demás es hueso: bloques de 228–2948 mm³ a 37–92 mm,

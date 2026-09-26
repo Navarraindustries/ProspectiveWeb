@@ -14,6 +14,7 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
+import { ProgressBar } from "../ProgressBar";
 import { Slider } from "../Slider";
 import { MeshEditTools } from "./MeshEditTools";
 import { PreprocessSection } from "./PreprocessSection";
@@ -194,11 +195,11 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     try {
       setComparacion(await api.compareCeiling(sessionId, {
         lower, upper, smoothing, cleanup, main_tree_only: mainTree,
-        // Con la misma resolución que se va a segmentar: comparar a resolución
-        // completa y luego segmentar diezmado enseñaría puestos de una malla
-        // que el usuario no llega a ver. Este endpoint sigue siendo solo del
-        // umbral clásico y solo conoce la bandera antigua, la inversa.
-        full_resolution: !halfRes,
+        // Siempre el valor de siempre: la comparación es una prueba rápida del
+        // umbral clásico (el único método que usa el techo), y su aviso de
+        // «unos dos minutos» se midió así. A resolución nativa serían dos
+        // segmentaciones nativas más dos detecciones.
+        full_resolution: false,
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error comparando el umbral");
@@ -221,7 +222,13 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         cleanup,
         method,
         reclaim_mm: reclaimMm,
-        half_resolution: halfRes,
+        // El umbral clásico con la casilla desmarcada NO manda la bandera: el
+        // backend solo aplica su regla de 256 (la de siempre, que diezma los
+        // volúmenes grandes) cuando la clave falta. Mandar `false` lo pasaba a
+        // resolución nativa —más lento, y un 422 por encima de 120 M vóxeles—
+        // sin que nadie lo pidiera. El tubular la manda siempre: su defecto es
+        // la resolución nativa.
+        ...(method === "tubular" || halfRes ? { half_resolution: halfRes } : {}),
         main_tree_only: mainTree,
       });
       // La malla es OTRA, así que los candidatos, la morfometría y la
@@ -246,6 +253,13 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     }
   };
 
+  const chooseMethod = (m: SegmentMethod) => {
+    setMethod(m);
+    // La comparación describe dos mallas del umbral clásico; con otro método
+    // ya no dice nada de lo que se va a obtener.
+    setComparacion(null);
+  };
+
   const tubular = segmentation?.method === "tubular";
   const boundaryEdges = segmentation?.boundary_edges ?? 0;
   const phases = phaseSummary(segmentation?.phase_seconds);
@@ -254,11 +268,16 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     <div className="fade-rise">
       <PanelHead
         title="Segmentación vascular"
-        desc="Aísla la vasculatura completa por umbral de intensidad y reconstruye su superficie 3D."
+        desc="Aísla la vasculatura por su forma tubular (o por umbral) y reconstruye su superficie 3D."
         right={segmentation && <Badge variant="success">Malla lista</Badge>}
       />
 
-      <SectionLabel style={{ marginBottom: 10 }}>
+      {/* El método va primero: decide qué controles de abajo cuentan (el
+          techo y su comparación solo existen para el umbral clásico). */}
+      <SectionLabel style={{ marginBottom: 0 }}>Método</SectionLabel>
+      <TubularControls method={method} reclaimMm={reclaimMm} onMethod={chooseMethod} onReclaim={setReclaimMm} />
+
+      <SectionLabel style={{ marginTop: 18, marginBottom: 10 }}>
         Umbral de intensidad
         {previewing && !segmentation && (
           <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)" }}>
@@ -302,7 +321,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         {/* No hay forma de acertar de antemano, así que se prueban las dos.
             Se ofrece también con la malla ya hecha: la duda aparece justo
             entonces, al ver que en la lista de candidatos no está la lesión. */}
-        {!sinTecho && upper > lower && (
+        {method === "threshold" && !sinTecho && upper > lower && (
           <Button
             variant="outline"
             onClick={() => void compararTecho()}
@@ -316,7 +335,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         {/* Decirlo ANTES: segmenta y detecta dos veces, y sobre el examen real
             fueron casi dos minutos. Un botón que parece instantáneo y tarda eso
             se acaba pulsando dos veces. */}
-        {!sinTecho && upper > lower && (
+        {method === "threshold" && !sinTecho && upper > lower && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 5, lineHeight: 1.45 }}>
             {comparando
               ? "Segmentando y detectando de las dos formas; en un examen de 384³ fueron unos dos minutos."
@@ -324,7 +343,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           </div>
         )}
 
-        {comparacion && (
+        {method === "threshold" && comparacion && (
           <Card style={{ marginTop: 10 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
               Con techo vs sin techo
@@ -363,8 +382,6 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             </div>
           </Card>
         )}
-        <SectionLabel style={{ marginTop: 18, marginBottom: 0 }}>Método</SectionLabel>
-        <TubularControls method={method} reclaimMm={reclaimMm} onMethod={setMethod} onReclaim={setReclaimMm} />
         <div style={{ height: 14 }} />
         <Slider label="Suavizado" min={0} max={10} value={smoothing} onChange={setSmoothing} />
         {/* La máscara tubular ya es un componente: el filtro de fragmentos no
@@ -461,7 +478,11 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
       {busy && (
         <>
-          <SegmentProgress state={progressLost ? null : progress} />
+          {/* Sin conexión no se sabe la fase ni el porcentaje: volver a
+              «preparando 0 %» parecería que el trabajo retrocede. */}
+          {progressLost
+            ? <div style={{ marginTop: 18 }}><ProgressBar /></div>
+            : <SegmentProgress state={progress} />}
           {progressLost && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
               {progress.message}. La segmentación sigue en el servidor; el resultado llegará igualmente.
@@ -503,14 +524,20 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {/* What the cleanup threw away. Without this the loss is invisible:
               a whole branch can vanish and the mesh still looks plausible.
               En tubular es la malla final sobre la máscara del umbral. */}
+          {/* En tubular la cifra es malla final / máscara del umbral y el filtro
+              de fragmentos no corre (`largest_removed_mm3` = 0): el badge
+              «Limpio» no diría nada. «del umbral» va en la etiqueta para que
+              la unidad no se parta bajo el valor. */}
           <Metric
-            label="Volumen conservado"
+            label={tubular ? "Volumen conservado (del umbral)" : "Volumen conservado"}
             value={(segmentation.kept_fraction * 100).toFixed(1)}
-            unit={tubular ? " % del umbral" : " %"}
+            unit=" %"
             badge={
-              segmentation.largest_removed_mm3 >= 20
-                ? ["Revisar", "warning"]
-                : ["Limpio", "success"]
+              tubular
+                ? undefined
+                : segmentation.largest_removed_mm3 >= 20
+                  ? ["Revisar", "warning"]
+                  : ["Limpio", "success"]
             }
           />
           {tubular && (
@@ -528,7 +555,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             <div style={{
               fontSize: 11, lineHeight: 1.5, marginTop: 8, padding: "8px 10px",
               borderRadius: "var(--radius-md)", background: "var(--muted)",
-              border: "1px solid var(--warning)", color: "var(--foreground)",
+              borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
             }}>
               {segmentation.fallback_note}
             </div>
@@ -612,10 +639,20 @@ function mm3(v: number | undefined): string {
   return Math.round(v ?? 0).toLocaleString("es");
 }
 
-/** «tubularidad 12 s · superficie 3 s»: dónde se fue el tiempo. */
+/** «total 40 s · tubularidad 13 s · laminaridad 14 s»: dónde se fue el
+ *  tiempo. Las fases de menos de un segundo no se listan una a una (en Case 3
+ *  eran ocho de quince y llenaban seis líneas); el total va delante. */
 function phaseSummary(phases: Record<string, number> | undefined): string {
   if (!phases) return "";
-  return Object.entries(phases)
-    .map(([name, sec]) => `${name} ${sec < 1 ? "<1" : Math.round(sec)} s`)
-    .join(" · ");
+  const secs = (v: number) => `${Math.round(v)}\u00a0s`;
+  const { total, ...rest } = phases;
+  const entries = Object.entries(rest);
+  const slow = entries.filter(([, v]) => v >= 1).map(([name, v]) => `${name} ${secs(v)}`);
+  const fast = entries.length - slow.length;
+  const parts = [
+    ...(total !== undefined ? [`total ${secs(total)}`] : []),
+    ...slow,
+    ...(fast > 0 ? [`${fast} ${fast === 1 ? "fase" : "fases"} <1\u00a0s`] : []),
+  ];
+  return parts.join(" · ");
 }

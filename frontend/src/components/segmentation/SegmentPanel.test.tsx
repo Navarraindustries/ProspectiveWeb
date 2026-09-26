@@ -4,7 +4,10 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../api/client", () => {
+vi.mock("../../api/client", async () => {
+  // `ApiError` es la de verdad: el test del 409 tiene que lanzar lo mismo que
+  // lanza el cliente.
+  const { ApiError } = await vi.importActual<typeof import("../../api/client")>("../../api/client");
   // Los hijos del panel (PreprocessSection, MeshEditTools) piden varias cosas
   // en cuanto hay sesión. Mockearlas una a una convierte cada test nuevo en una
   // cacería, así que lo no declarado devuelve una promesa vacía por defecto.
@@ -19,7 +22,7 @@ vi.mock("../../api/client", () => {
       return target[prop];
     },
   });
-  return { api };
+  return { api, ApiError };
 });
 
 // El progreso real abre un WebSocket y sondea: en jsdom no hay servidor. Aquí
@@ -28,6 +31,8 @@ const progreso = vi.hoisted(() => {
   const oyentes = new Set<() => void>();
   let state: unknown = null;
   return {
+    /** Cada `active` con el que el panel llamó al hook, en orden de render. */
+    activos: [] as boolean[],
     get: () => state,
     set: (s: unknown) => { state = s; oyentes.forEach((f) => f()); },
     subscribe: (f: () => void) => { oyentes.add(f); return () => { oyentes.delete(f); }; },
@@ -37,6 +42,7 @@ vi.mock("../../api/progress", async () => {
   const { useSyncExternalStore } = await import("react");
   return {
     useProgress: (_sid: string | null, active: boolean) => {
+      progreso.activos.push(active);
       const s = useSyncExternalStore(progreso.subscribe, progreso.get);
       return active ? s : null;
     },
@@ -48,6 +54,7 @@ import {
   PREVIA_AFINADO_DS, PREVIA_AFINADO_MS,
 } from "./SegmentPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
+import { ApiError } from "../../api/client";
 import type { SegmentResult } from "../../api/types";
 
 const base: SegmentResult = {
@@ -317,6 +324,7 @@ describe("comparar con y sin techo", () => {
         </SessionOnly>
       </PlanningProvider>,
     );
+    fireEvent.click(await screen.findByRole("radio", { name: /Umbral clásico/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Probar con y sin techo/ }));
     await vi.waitFor(() => expect(api.compareCeiling).toHaveBeenCalled());
     await screen.findByRole("button", { name: "Usar sin techo" });
@@ -332,15 +340,13 @@ describe("comparar con y sin techo", () => {
     expect(texto()).toContain("solo en una");
   });
 
-  it("compara con la misma resolución con la que se va a segmentar", async () => {
-    // Comparar a resolución completa y segmentar diezmado —o al revés— daría
-    // puestos de una malla que el usuario no llega a ver nunca.
+  it("compara con la resolución de siempre del umbral clásico", async () => {
+    // Es una prueba rápida del umbral: a resolución nativa serían dos
+    // segmentaciones nativas y dos detecciones, y el aviso de «unos dos
+    // minutos» se midió sin ella.
     const { api } = await comparar();
     const [, req] = vi.mocked(api.compareCeiling).mock.calls[0];
-    // El endpoint de comparar solo conoce `full_resolution`. Segmentar va ahora
-    // a resolución nativa por defecto (media resolución desmarcada), así que
-    // comparar también.
-    expect(req.full_resolution).toBe(true);
+    expect(req.full_resolution).toBe(false);
     expect(req.lower).toBe(1503);
     expect(req.upper).toBe(4450);
   });
@@ -365,9 +371,37 @@ describe("comparar con y sin techo", () => {
       steps: [], undo_depth: 0, redo_depth: 0, has_original: true,
     });
     withMeshReady(base, "sesion-techo-2");
+    fireEvent.click(await screen.findByRole("radio", { name: /Umbral clásico/ }));
     expect(
       await screen.findByRole("button", { name: /Probar con y sin techo/ }),
     ).toBeInTheDocument();
+  });
+
+  it("con el método tubular no se ofrece, y cambiar de método retira la comparación", async () => {
+    // El tubular no usa el techo: la comparación ordenaría candidatos de dos
+    // mallas del umbral que el usuario nunca va a obtener.
+    const { texto } = await comparar();
+    expect(texto()).toContain("solo en una");
+    fireEvent.click(screen.getByRole("radio", { name: /Tubular/ }));
+    expect(screen.queryByRole("button", { name: /Probar con y sin techo/ })).toBeNull();
+    expect(screen.queryByText(/Tarda el doble que segmentar/)).toBeNull();
+    expect(texto()).not.toContain("solo en una");
+    // Y al volver al umbral no reaparece la de antes: ya no está guardada.
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
+    expect(screen.getByRole("button", { name: /Probar con y sin techo/ })).toBeInTheDocument();
+    expect(texto()).not.toContain("solo en una");
+  });
+
+  it("el método tubular por defecto no enseña el botón de comparar", async () => {
+    render(
+      <PlanningProvider>
+        <SessionOnly sid="sesion-techo-3">
+          <SegmentPanel onNext={() => {}} />
+        </SessionOnly>
+      </PlanningProvider>,
+    );
+    expect(await screen.findByRole("radio", { name: /Tubular/ })).toBeChecked();
+    expect(screen.queryByRole("button", { name: /Probar con y sin techo/ })).toBeNull();
   });
 });
 
@@ -440,7 +474,7 @@ describe("segmentar deja la malla y se lleva lo de la malla vieja", () => {
 /* Método tubular: el panel lo manda por defecto, enseña el progreso por fases
  * y dice si la malla es estanca. */
 describe("método tubular", () => {
-  beforeEach(() => { vi.clearAllMocks(); progreso.set(null); });
+  beforeEach(() => { vi.clearAllMocks(); progreso.set(null); progreso.activos.length = 0; });
 
   const serie = {
     session_id: "sesion-tub", series_id: "1.2.3", description: "3D RA",
@@ -494,6 +528,35 @@ describe("método tubular", () => {
     expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
     expect(screen.getByText(/1 pieza/)).toBeInTheDocument();
     expect(screen.getByText(/8 semillas/)).toBeInTheDocument();
+    // 1800,5 y 120,2 redondeados; el texto va en varios nodos, así que se lee el bloque.
+    const linea = screen.getByText(/8 semillas/).textContent ?? "";
+    expect(linea).toMatch(/recuperados\s*1801\s*mm³/);
+    expect(linea).toMatch(/hueso vetado\s*120\s*mm³/);
+  });
+
+  it("con el umbral clásico y la casilla desmarcada NO manda half_resolution", async () => {
+    // El backend solo aplica su regla de 256 cuando la clave falta.
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue({ ...baseResult, method: "threshold" });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("radio", { name: /Umbral clásico/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Segmentar$/ }));
+    await waitFor(() => expect(mockApi.segment).toHaveBeenCalled());
+    const req = mockApi.segment.mock.calls[0][0];
+    expect(req.method).toBe("threshold");
+    expect(req).not.toHaveProperty("half_resolution");
+    expect(req).not.toHaveProperty("full_resolution");
+  });
+
+  it("con el umbral clásico y la casilla marcada manda half_resolution: true", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue({ ...baseResult, method: "threshold" });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("radio", { name: /Umbral clásico/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /media resolución/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Segmentar$/ }));
+    await waitFor(() => expect(mockApi.segment).toHaveBeenCalled());
+    expect(mockApi.segment.mock.calls[0][0]).toMatchObject({ method: "threshold", half_resolution: true });
   });
 
   it("ya no manda full_resolution al segmentar, y la media resolución se pide con la casilla", async () => {
@@ -538,8 +601,14 @@ describe("método tubular", () => {
     expect(await screen.findByText("Con bordes")).toBeInTheDocument();
     expect(screen.getByText(/14 aristas/)).toBeInTheDocument();
     expect(screen.getByText(/3 piezas/)).toBeInTheDocument();
-    expect(screen.getByText(/tubularidad 12 s · superficie 3 s/)).toBeInTheDocument();
-    expect(screen.getByText(/del umbral/)).toBeInTheDocument();
+    // Espacio duro antes de «s»: que la unidad no se quede sola en la línea.
+    // getByText normaliza los espacios, así que el espacio duro se mira en el texto crudo.
+    const fases = screen.getByText(/tubularidad 12 s · superficie 3 s · 1 fase <1 s/);
+    expect(fases.textContent).toContain(`12${String.fromCharCode(160)}s`);
+    expect(screen.getByText("Volumen conservado (del umbral)")).toBeInTheDocument();
+    // El badge «Limpio/Revisar» mira el filtro de fragmentos, que el tubular no corre.
+    expect(screen.queryByText("Limpio")).toBeNull();
+    expect(screen.queryByText("Revisar")).toBeNull();
   });
 
   it("mientras segmenta enseña la fase y, si se pierde el progreso, lo dice sin darlo por fallido", async () => {
@@ -548,22 +617,33 @@ describe("método tubular", () => {
     mockApi.segment.mockReturnValue(new Promise<SegmentResult>((r) => { terminar = r; }));
     progreso.set({ phase: "tubularidad 2/6", pct: 40, running: true, ok: null, message: "" });
     renderPanel();
-    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    const boton = await screen.findByRole("button", { name: /^Segmentar$/ });
+    // Antes de pulsar, el hook está parado.
+    expect(progreso.activos.length).toBeGreaterThan(0);
+    expect(progreso.activos.every((a) => a === false)).toBe(true);
+    fireEvent.click(boton);
     expect(await screen.findByText("tubularidad 2/6")).toBeInTheDocument();
     expect(screen.getByText("40 %")).toBeInTheDocument();
+    expect(progreso.activos.at(-1)).toBe(true);
 
     act(() => progreso.set({ phase: "", pct: 0, running: false, ok: false, message: "Sin conexión con el progreso del servidor" }));
     expect(await screen.findByText(/Sin conexión con el progreso del servidor/)).toBeInTheDocument();
     expect(screen.queryByText(/Error en la segmentación/)).toBeNull();
+    // Sin fase ni porcentaje: no vuelve a «preparando 0 %» como si retrocediera.
+    expect(screen.queryByText("preparando")).toBeNull();
+    expect(screen.queryByText("0 %")).toBeNull();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
 
     await act(async () => { terminar(baseResult); });
     expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
     expect(screen.queryByText(/Sin conexión con el progreso/)).toBeNull();
+    // Con el resultado, el hook se para: el vigilante no sigue abierto.
+    expect(progreso.activos.at(-1)).toBe(false);
   });
 
   it("enseña el detalle del 409 cuando ya hay otra segmentación tubular", async () => {
     const { mockApi } = await mocks();
-    mockApi.segment.mockRejectedValue(new Error("Ya hay una segmentación tubular en curso; espera a que termine"));
+    mockApi.segment.mockRejectedValue(new ApiError(409, "Ya hay una segmentación tubular en curso; espera a que termine"));
     renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
     expect(await screen.findByText(/Ya hay una segmentación tubular en curso/)).toBeInTheDocument();

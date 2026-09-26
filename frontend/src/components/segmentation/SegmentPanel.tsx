@@ -20,7 +20,7 @@ import { MeshEditTools } from "./MeshEditTools";
 import { PreprocessSection } from "./PreprocessSection";
 import { SegmentProgress } from "./SegmentProgress";
 import { TubularControls, type SegmentMethod } from "./TubularControls";
-import { useProgress } from "../../api/progress";
+import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import type { CeilingCompareResult } from "../../api/types";
 
@@ -75,9 +75,12 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   // Solo vigila mientras corre la petición: al llegar el resultado `busy` pasa
   // a false y el hook cierra el WebSocket o el sondeo.
   const progress = useProgress(sessionId, busy);
-  // El vigilante se rinde con este estado si pierde el servidor. No es un
+  // El vigilante se rinde con este centinela si pierde el servidor. No es un
   // fallo de la segmentación: el trabajo sigue y el resultado llega por el POST.
-  const progressLost = progress !== null && !progress.running && progress.ok === false;
+  // Se compara por identidad: un `ok: false` que mande el backend es un fallo
+  // real del trabajo, no una conexión perdida, y no debe decir «sigue en el
+  // servidor».
+  const progressLost = progress === CONNECTION_LOST;
 
   // La banda adaptada describe el VOLUMEN, no la malla, así que se pide
   // siempre que cambia la sesión.

@@ -119,4 +119,47 @@ describe("watchProgress", () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(onState).not.toHaveBeenCalled();
   });
+
+  it("ignora el final del trabajo anterior que llega por el WebSocket y sigue vigilando", async () => {
+    const failedBefore: ProgressState = { phase: "tubularidad", pct: 30, running: false, ok: false, message: "viejo" };
+    const states = [running("carga", 5), done];
+    const fetchState = vi.fn(async () => states.shift() ?? done);
+    const seen: ProgressState[] = [];
+    watchProgress("sid", (s) => seen.push(s), { pollMs: 100, wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState });
+    const ws = FakeWs.instances[0];
+    ws.emit(done);          // final del trabajo anterior: ni se emite ni para
+    ws.emit(failedBefore);  // tampoco un fallo viejo
+    expect(seen).toEqual([]);
+    ws.onclose?.();         // el servidor cierra tras un estado terminal
+    await vi.advanceTimersByTimeAsync(350);
+    expect(seen.map((s) => s.phase)).toEqual(["carga", "guardado"]);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetchState).toHaveBeenCalledTimes(2);   // ahora sí se detiene
+  });
+
+  it("el WebSocket releva el trabajo nuevo aunque antes llegue el final viejo", () => {
+    const seen: ProgressState[] = [];
+    const stop = watchProgress("sid", (s) => seen.push(s), { wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState: async () => done });
+    const ws = FakeWs.instances[0];
+    ws.emit(done);
+    ws.emit(running("tubularidad 1/6", 10));
+    expect(ws.closed).toBe(false);
+    ws.emit(done);
+    expect(seen.map((s) => s.phase)).toEqual(["tubularidad 1/6", "guardado"]);
+    expect(ws.closed).toBe(true);
+    stop();
+  });
+
+  it("el GET que devuelve el final viejo sigue sondeando hasta ver el trabajo nuevo", async () => {
+    const states = [done, done, running("núcleo", 3)];
+    const fetchState = vi.fn(async () => states.shift() ?? running("núcleo", 4));
+    const seen: ProgressState[] = [];
+    const stop = watchProgress("sid", (s) => seen.push(s), { pollMs: 100, wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState });
+    FakeWs.instances[0].onerror?.();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(fetchState.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(seen[0].phase).toBe("núcleo");
+    expect(seen.some((s) => !s.running)).toBe(false);
+    stop();
+  });
 });

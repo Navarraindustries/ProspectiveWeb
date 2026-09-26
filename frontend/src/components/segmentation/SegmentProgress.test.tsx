@@ -26,18 +26,20 @@ describe("SegmentProgress", () => {
   });
 
   it("bajo el 5 % tras 10 s, avisa que el servidor tarda; al pasar del 5 % deja de avisar", () => {
-    const { rerender } = render(<SegmentProgress state={running("núcleo", 2)} />);
-    expect(screen.queryByText(/Tarda varios minutos/)).not.toBeInTheDocument();
+    const { rerender } = render(<SegmentProgress state={running("carga", 2)} />);
+    expect(screen.queryByText(/El servidor tarda/)).not.toBeInTheDocument();
     act(() => { vi.advanceTimersByTime(10_000); });
-    expect(screen.getByText(/Tarda varios minutos/)).toBeInTheDocument();
+    expect(screen.getByText(/El servidor tarda/)).toBeInTheDocument();
+    // En «carga» (o con el umbral clásico) no hay tubularidad que culpar.
+    expect(screen.queryByText(/tubularidad/)).not.toBeInTheDocument();
     rerender(<SegmentProgress state={running("núcleo", 10)} />);
-    expect(screen.queryByText(/Tarda varios minutos/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/El servidor tarda/)).not.toBeInTheDocument();
   });
 
   it("no avisa antes de los 10 s", () => {
     render(<SegmentProgress state={running("núcleo", 1)} />);
     act(() => { vi.advanceTimersByTime(9_000); });
-    expect(screen.queryByText(/Tarda varios minutos/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/El servidor tarda/)).not.toBeInTheDocument();
   });
 
   it("desmontar antes de los 10 s no deja temporizadores pendientes", () => {

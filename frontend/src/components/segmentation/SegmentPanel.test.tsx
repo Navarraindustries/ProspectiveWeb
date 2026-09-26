@@ -38,9 +38,11 @@ const progreso = vi.hoisted(() => {
     subscribe: (f: () => void) => { oyentes.add(f); return () => { oyentes.delete(f); }; },
   };
 });
-vi.mock("../../api/progress", async () => {
+vi.mock("../../api/progress", async (importOriginal) => {
   const { useSyncExternalStore } = await import("react");
+  const real = await importOriginal<typeof import("../../api/progress")>();
   return {
+    CONNECTION_LOST: real.CONNECTION_LOST,
     useProgress: (_sid: string | null, active: boolean) => {
       progreso.activos.push(active);
       const s = useSyncExternalStore(progreso.subscribe, progreso.get);
@@ -55,6 +57,7 @@ import {
 } from "./SegmentPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import { ApiError } from "../../api/client";
+import { CONNECTION_LOST } from "../../api/progress";
 import type { SegmentResult } from "../../api/types";
 
 const base: SegmentResult = {
@@ -626,7 +629,11 @@ describe("método tubular", () => {
     expect(screen.getByText("40 %")).toBeInTheDocument();
     expect(progreso.activos.at(-1)).toBe(true);
 
-    act(() => progreso.set({ phase: "", pct: 0, running: false, ok: false, message: "Sin conexión con el progreso del servidor" }));
+    // Un fallo que manda el backend (`ok: false` normal) no es «sin conexión».
+    act(() => progreso.set({ phase: "tubularidad", pct: 40, running: false, ok: false, message: "falló la máscara" }));
+    expect(screen.queryByText(/La segmentación sigue en el servidor/)).toBeNull();
+
+    act(() => progreso.set(CONNECTION_LOST));
     expect(await screen.findByText(/Sin conexión con el progreso del servidor/)).toBeInTheDocument();
     expect(screen.queryByText(/Error en la segmentación/)).toBeNull();
     // Sin fase ni porcentaje: no vuelve a «preparando 0 %» como si retrocediera.

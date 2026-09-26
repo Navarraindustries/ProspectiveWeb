@@ -14,7 +14,10 @@ const finished = (s: ProgressState) => !s.running && s.ok !== null;
 // que ya no existe hacían que el cliente golpeara el backend cada pollMs para
 // siempre sin que nadie se enterara.
 const MAX_POLL_FAILURES = 5;
-const CONNECTION_LOST: ProgressState = {
+/* Centinela con el que el vigilante se rinde. Se exporta para que el panel
+   distinga «perdí el servidor» (este objeto, por identidad) de «el trabajo
+   falló» (`ok: false` que manda el propio backend). */
+export const CONNECTION_LOST: ProgressState = {
   phase: "",
   pct: 0,
   running: false,
@@ -39,6 +42,17 @@ export function watchProgress(
   let timer: ReturnType<typeof setTimeout> | null = null;
   let ws: WebSocket | null = null;
   let consecutiveFailures = 0;
+  // El backend no borra el estado entre trabajos: al pulsar «Re-segmentar»
+  // puede contestar con el final del trabajo ANTERIOR si el GET o el
+  // WebSocket llegan antes que el POST nuevo. Un estado terminal solo cuenta
+  // después de haber visto este trabajo corriendo; antes se ignora y se sigue
+  // mirando (el POST, al volver, llama a stop()).
+  let seenRunning = false;
+  // true = el estado se emite; false = es el final de un trabajo viejo.
+  const accept = (s: ProgressState): boolean => {
+    if (s.running) seenRunning = true;
+    return !finished(s) || seenRunning;
+  };
 
   const giveUp = () => { stopped = true; onState(CONNECTION_LOST); };
 
@@ -48,8 +62,10 @@ export function watchProgress(
       const s = await fetchState(sessionId);
       if (stopped) return;
       consecutiveFailures = 0;
-      onState(s);
-      if (finished(s)) { stopped = true; return; }
+      if (accept(s)) {
+        onState(s);
+        if (finished(s)) { stopped = true; return; }
+      }
     } catch (err) {
       // Igual que en el camino de éxito: si stop() llegó mientras el GET
       // estaba en vuelo (p. ej. useProgress cambiando de sesión), este
@@ -73,6 +89,9 @@ export function watchProgress(
     ws.onmessage = (e) => {
       if (stopped) return;
       const s = JSON.parse(String(e.data)) as ProgressState;
+      // Si es el final viejo, el servidor cierra el socket justo después y
+      // onclose pasa al GET, que sigue sondeando hasta ver el trabajo nuevo.
+      if (!accept(s)) return;
       onState(s);
       if (finished(s)) { stopped = true; ws?.close(); }
     };

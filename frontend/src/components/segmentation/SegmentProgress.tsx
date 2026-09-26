@@ -18,9 +18,11 @@ export function SegmentProgress({ state }: { state: ProgressState | null }) {
         <span>{pct} %</span>
       </div>
       <ProgressBar value={state ? state.pct : undefined} />
+      {/* Genérico a propósito: bajo el 5 % se está en «carga» o «núcleo», o en
+          el umbral clásico, que no calcula tubularidad; culparla ahí era falso. */}
       {slow && pct < 5 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
-          Tarda varios minutos en el servidor: la tubularidad se calcula por lonchas.
+          El servidor tarda: en un equipo pequeño la segmentación lleva minutos.
         </div>
       )}
     </div>

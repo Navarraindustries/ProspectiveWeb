@@ -712,6 +712,8 @@ export interface MorphometryResult {
   /** Angle between the neck plane and the neck→dome axis (degrees). Only
    *  meaningful for neck_source "rim": near 0° the two-click method would have
    *  landed in the same place. */
+  /** Candidato medido (`cand-00N`); solo lo trae GET /morphometry. */
+  candidate_id?: string | null;
   neck_tilt_deg: number;
   /** False when the sac mesh was open or its volume implausible: volume,
    *  equivalent sphere, compactness, UI, EI and NSI were nulled. Independent
@@ -1360,6 +1362,10 @@ export interface SessionRestoreResult {
   study_label: string;
   imaging_study_id: number | null;  // acquisition being analysed
   series: SeriesInfo | null;        // so step 1 shows the restored series
+  /** Submuestreo de la malla restaurada; 0 en sesiones guardadas antes de guardarlo. */
+  downsample_factor?: number;
+  method?: string;                  // "tubular" | "threshold" | "" (desconocido)
+  fallback_note?: string;           // por qué se bajó a media resolución
   centerline_mesh_url: string;      // "" when the session had no centreline
   centerline_arc_mm: number;
 }

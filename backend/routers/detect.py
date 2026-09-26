@@ -9,7 +9,9 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+import re
+
+from fastapi import APIRouter, HTTPException, Query
 
 from models import (
     AneurysmCandidate as PydAneurysmCandidate,
@@ -191,6 +193,11 @@ def _clear_detection_state(session_id: str, meshes_dir: Path, *, morphometry: bo
     write_state(session_id, "detect.best_vtp_name", "")
 
     if morphometry:
+        # La malla cambió (o se borra el análisis): el candidato elegido para
+        # medir era de la detección anterior. Volver a detectar sobre la MISMA
+        # malla (morphometry=False, lo que hace «Reanudar») lo conserva, porque
+        # la detección es determinista y los ids vuelven a ser los mismos.
+        write_state(session_id, "detect.selected_candidate", "")
         for key in _MORPHO_STATE_KEYS:
             write_state(session_id, key, "")
         # Y el fichero del saco, no solo su clave: dejarlo en disco hacía que
@@ -443,6 +450,10 @@ def _run_detection_sync(
     )
 
 
+#: Id de candidato que acepta GET /morphometry (el mismo que devuelve la detección).
+_CANDIDATE_ID = re.compile(r"^cand-(\d{3})$")
+
+
 # ── GET /morphometry/{session_id} ─────────────────────────────────────────── #
 
 @router.get(
@@ -463,7 +474,17 @@ def _run_detection_sync(
         "**Prerequisite:** `POST /detect/{session_id}` must be called first."
     ),
 )
-async def get_morphometry(session_id: str) -> MorphometryResult:
+async def get_morphometry(
+    session_id: str,
+    candidate_id: str | None = Query(
+        None, pattern=_CANDIDATE_ID.pattern,
+        description=(
+            "Candidato a medir (`cand-00N`, el que se eligió en Detección). Se "
+            "guarda en la sesión para que una repetición sin él mida el mismo "
+            "sitio. Sin él y sin elección guardada, el mejor candidato."
+        ),
+    ),
+) -> MorphometryResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
@@ -476,6 +497,28 @@ async def get_morphometry(session_id: str) -> MorphometryResult:
                 "Run POST /detect/{session_id} first."
             ),
         )
+
+    # Antes siempre se medía cand-001, eligiera lo que eligiera el clínico: en
+    # Case 3 la lesión es cand-002 y la morfometría describía otro sitio a
+    # 40–60 mm. El id se valida contra el patrón y contra el número de
+    # candidatos, así que el nombre del fichero nunca sale de la entrada tal cual.
+    n_candidates = _int_state(session_id, "detect.n_candidates")
+    if candidate_id is not None:
+        rank = _candidate_rank(candidate_id)
+        if rank is None or rank > n_candidates:
+            raise HTTPException(
+                status_code=422,
+                detail=f"El candidato '{candidate_id}' no existe: la detección dio {n_candidates}.",
+            )
+        write_state(session_id, "detect.selected_candidate", candidate_id)
+    else:
+        # Una repetición (p. ej. «Reanudar») mide lo que se eligió la última vez.
+        rank = _candidate_rank(read_state(session_id, "detect.selected_candidate", ""))
+        if rank is not None and rank > n_candidates:
+            rank = None
+    if rank is not None:
+        best_vtp_name = f"aneurysm_cand_{rank:03d}.vtp"
+    measured_id = f"cand-{rank if rank is not None else 1:03d}"
 
     meshes_dir = session_subdir(session_id, "meshes")
     vtp_path   = meshes_dir / best_vtp_name
@@ -519,7 +562,22 @@ async def get_morphometry(session_id: str) -> MorphometryResult:
         logger.error("Morphometry failed for session %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
 
+    result.candidate_id = measured_id
     return result
+
+
+def _candidate_rank(candidate_id: str) -> int | None:
+    """`cand-002` → 2; cualquier otra cosa (vacío, cand-000) → None."""
+    m = _CANDIDATE_ID.match(candidate_id or "")
+    rank = int(m.group(1)) if m else 0
+    return rank if rank >= 1 else None
+
+
+def _int_state(session_id: str, key: str) -> int:
+    try:
+        return int(read_state(session_id, key, "0") or 0)
+    except ValueError:
+        return 0
 
 
 def _read_saved_neck_plane(session_id: str) -> NeckPlaneRequest | None:

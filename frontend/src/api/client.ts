@@ -316,8 +316,10 @@ export const api = {
     }),
   detect: (sessionId: string) =>
     post<AneurysmDetectionResult>(`/api/detect/${sessionId}`),
-  morphometry: (sessionId: string) =>
-    get<MorphometryResult>(`/api/morphometry/${sessionId}`),
+  /** Sin `candidateId`, el backend mide el que se eligió la última vez (o el mejor). */
+  morphometry: (sessionId: string, candidateId?: string) =>
+    get<MorphometryResult>(
+      `/api/morphometry/${sessionId}${candidateId ? `?candidate_id=${encodeURIComponent(candidateId)}` : ""}`),
   morphometryNeckPlane: (sessionId: string, req: NeckPlaneRequest) =>
     post<MorphometryResult>(`/api/morphometry/${sessionId}/neck-plane`, req),
   perforators: (sessionId: string) =>

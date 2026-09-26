@@ -298,3 +298,45 @@ def test_neck_origin_is_exposed_and_sits_on_the_neck_plane():
     # point *on the neck* projects onto the plane, not up inside the dome.
     assert no["y"] == pytest.approx(3.0, abs=1.5), \
         f"el punto de colocación no cae en el plano del cuello: {no}"
+
+
+def test_morphometry_measures_the_selected_candidate_and_replays_it():
+    """La morfometría automática mide el candidato elegido, no siempre cand-001.
+
+    Regresión: en Case 3 la lesión es cand-002 y el panel describía otro sitio.
+    """
+    from fastapi.testclient import TestClient
+    from main import app
+    from services.sessions import create_session, read_state, session_subdir, write_state
+    from services.segmentation import write_vtp
+
+    sid = create_session()
+    meshes = session_subdir(sid, "meshes")
+    write_vtp(_sphere(3.0), meshes / "aneurysm_cand_001.vtp")                 # Ø 6 mm
+    write_vtp(_sphere(5.0, center=(40.0, 0.0, 0.0)), meshes / "aneurysm_cand_002.vtp")  # Ø 10 mm
+    write_state(sid, "detect.n_candidates", "2")
+    write_state(sid, "detect.best_vtp_name", "aneurysm_cand_001.vtp")
+    client = TestClient(app, raise_server_exceptions=True)
+
+    # Sin parámetro, como antes: el mejor candidato.
+    first = client.get(f"/api/morphometry/{sid}").json()
+    assert first["candidate_id"] == "cand-001"
+    assert first["max_diameter_mm"] == pytest.approx(6.0, abs=0.5)
+
+    chosen = client.get(f"/api/morphometry/{sid}", params={"candidate_id": "cand-002"})
+    assert chosen.status_code == 200, chosen.text
+    chosen = chosen.json()
+    assert chosen["candidate_id"] == "cand-002"
+    assert chosen["max_diameter_mm"] == pytest.approx(10.0, abs=0.5)
+    assert read_state(sid, "detect.selected_candidate") == "cand-002"
+
+    # Una repetición sin parámetro («Reanudar») mide el mismo sitio.
+    replay = client.get(f"/api/morphometry/{sid}").json()
+    assert replay["candidate_id"] == "cand-002"
+    assert replay["max_diameter_mm"] == pytest.approx(chosen["max_diameter_mm"], abs=1e-6)
+
+    # Ids fuera de rango o mal formados: 422, y el nombre de fichero nunca sale de la entrada.
+    for bad in ("cand-003", "cand-000", "../vessel_tree", "cand-2"):
+        r = client.get(f"/api/morphometry/{sid}", params={"candidate_id": bad})
+        assert r.status_code == 422, (bad, r.text)
+    assert read_state(sid, "detect.selected_candidate") == "cand-002"

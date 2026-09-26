@@ -1,7 +1,7 @@
 /* PlanningContext — state shared across the 7-step workspace:
    session id, DICOM series, thresholds, segmentation, detection, morphometry… */
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { PartsHandle } from "../vtk/MeshView";
 import { loadLayout, saveLayout, type ViewerLayout } from "../vtk/layout";
@@ -229,7 +229,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [previewMeshUrl, setPreviewMeshUrl] = useState<string | null>(null);
   const [segmentation, _setSegmentation] = useState<SegmentResult | null>(null);
   const [candidates, _setCandidates] = useState<AneurysmCandidate[]>([]);
-  const [selectedCandidate, setSelectedCandidate] = useState(0);
+  const [selectedCandidate, _setSelectedCandidate] = useState(0);
+  const selectedRef = useRef(0);
   const [morphometry, _setMorphometry] = useState<MorphometryResult | null>(null);
   const [treatment, _setTreatment] = useState<TreatmentDecisionResult | null>(null);
   const [deviceMeshes, _setDeviceMeshes] = useState<Record<DeviceKind, string | null>>(
@@ -304,6 +305,19 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const setCandidates = touch(_setCandidates);
   const setMorphometry = touch(_setMorphometry);
   const setTreatment = touch(_setTreatment);
+  // La morfometría automática mide el candidato elegido: si la elección
+  // cambia, la medida (y la recomendación calculada con ella) es de otro
+  // sitio, así que se descartan y el panel vuelve a pedirlas. Con una ref y no
+  // con el estado, para que dos llamadas seguidas en el mismo tick (p. ej. la
+  // de «Reanudar») comparen con el valor de verdad vigente.
+  const setSelectedCandidate = (i: number) => {
+    if (i !== selectedRef.current) {
+      _setMorphometry(null);
+      _setTreatment(null);
+    }
+    selectedRef.current = i;
+    _setSelectedCandidate(i);
+  };
   const setCenterlineMesh = touch(_setCenterlineMesh);
   const setMeasurements = touch(_setMeasurements);
   const setDeviceMesh = (kind: DeviceKind, url: string | null) => {
@@ -322,7 +336,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setPreviewMeshUrl(null);
     _setSegmentation(null);
     _setCandidates([]);
-    setSelectedCandidate(0);
+    selectedRef.current = 0;
+    _setSelectedCandidate(0);
     _setMorphometry(null);
     _setTreatment(null);
     _setDeviceMeshes({ clips: null, coils: null, stent: null });

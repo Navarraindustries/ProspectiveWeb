@@ -20,7 +20,7 @@ const TABS = ["Métricas", "Índices", "PHASES", "Seguimiento"] as const;
 export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const {
-    sessionId, morphometry,
+    sessionId, morphometry, candidates, selectedCandidate,
     pickMode, setPickMode, neckOrigin, neckDome, setNeckOrigin, setNeckDome,
     neckRim, setNeckRim,
   } = planning;
@@ -73,16 +73,25 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
     }
   }
 
+  // Se mide el candidato elegido en Detección, no siempre el primero: en
+  // Case 3 la lesión es cand-002. Cambiar la elección vacía `morphometry` en el
+  // store, y este efecto vuelve a pedirla para el nuevo.
+  const candidateId = candidates[selectedCandidate]?.id;
   useEffect(() => {
     if (morphometry || !sessionId) return;
+    let alive = true;
     setBusy(true);
+    setError(null);
     api
-      .morphometry(sessionId)
-      .then((m) => planning.setMorphometry(m))
-      .catch((e) => setError(e instanceof Error ? e.message : "Error en morfometría"))
-      .finally(() => setBusy(false));
+      .morphometry(sessionId, candidateId)
+      .then((m) => { if (alive) planning.setMorphometry(m); })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Error en morfometría"); })
+      .finally(() => { if (alive) setBusy(false); });
+    // Una respuesta que llega tras cambiar de candidato (o tras medir a mano)
+    // es de otro sitio: se descarta, y la barra no se queda colgada.
+    return () => { alive = false; setBusy(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [sessionId, candidateId, morphometry === null]);
 
   useEffect(() => {
     if (tab === "Seguimiento" && sessionId && !longi) {

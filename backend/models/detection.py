@@ -211,6 +211,14 @@ class MorphometryResult(BaseModel):
             "saco es el cuello, y eso lo marca el clínico."
         ),
     )
+    candidate_id: str | None = Field(
+        None,
+        description=(
+            "Candidato de la detección que se midió (`cand-00N`). Solo lo "
+            "rellena GET /morphometry; así «Reanudar» vuelve a seleccionar el "
+            "mismo sitio. None en la ruta del plano de cuello."
+        ),
+    )
     neck_tilt_deg: float = Field(
         0.0,
         description=(

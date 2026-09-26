@@ -277,6 +277,15 @@ class MorphometryResult(BaseModel):
             "user had no way to see where their plane had landed."
         ),
     )
+    neck_shift_mm: float = Field(
+        0.0,
+        description=(
+            "How far (mm, along the normal) the marked neck plane was moved to "
+            "isolate a valid sac: 0, ±1 or ±2. `plane_origin` is already the "
+            "moved one; a non-zero value tells the user their click landed off "
+            "the neck. Always 0 on the automatic path."
+        ),
+    )
     neck_origin: Position3D | None = Field(
         None,
         description=(

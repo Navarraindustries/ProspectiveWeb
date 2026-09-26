@@ -69,8 +69,14 @@ from services.aneurysm_consensus import (CH_CALIBRE, CH_RATIO,
                                          consensus)
 from services.mesh_components import keep_main_tree
 
-CASE3 = (Path(__file__).resolve().parent.parent
-         / "Archivos DICOM" / "DICOM" / "Case 3" / "Case 3" / "Unknown Study" / "XA")
+_CASE3_REPO = (Path(__file__).resolve().parent.parent
+               / "Archivos DICOM" / "DICOM" / "Case 3" / "Case 3" / "Unknown Study" / "XA")
+#: La misma serie XA tal y como la guarda la sesión de Case 3 del entorno de
+#: desarrollo. Sin este respaldo, en una copia sin `Archivos DICOM/` estos tests
+#: se saltaban en silencio aunque el estudio estuviera en disco.
+_CASE3_SESSION = (Path(__file__).resolve().parent / "data" / "sessions"
+                  / "c80edc28-f42d-40f6-b2e2-a882c84fbe02" / "dicom")
+CASE3 = _CASE3_REPO if _CASE3_REPO.exists() else _CASE3_SESSION
 
 #: Dónde está la lesión, en coordenadas de mundo de la malla segmentada con los
 #: parámetros de la interfaz (suavizado 3, limpieza 7, «solo el árbol»).
@@ -86,7 +92,7 @@ TOL_MM = 10.0
 
 pytestmark = pytest.mark.skipif(
     not CASE3.exists(),
-    reason="Archivos DICOM/ no está en el repositorio (gitignored)",
+    reason="Case 3 no está en disco (Archivos DICOM/ y data/ están en .gitignore)",
 )
 
 
@@ -180,3 +186,52 @@ class TestTheOneCaseWeHaveADiagnosisFor:
         poly, modality = malla
         cands = _detector_for_modality(modality).detect(poly).candidates
         assert cands and cands[0].radius_method == "sphere_fit"
+
+
+
+@pytest.fixture(scope="module")
+def grande(malla):
+    """Case 3 subida por encima del tope de 40 000 vértices subdividiéndola.
+
+    Subdivisión ADAPTATIVA y no lineal: la malla de Case 3 no es variedad, y
+    `vtkLinearSubdivisionFilter` la rechaza devolviendo una malla vacía. Con
+    aristas de 0,6 mm sale del orden de 100 000 vértices, lo que da la
+    segmentación tubular sobre este mismo estudio.
+    """
+    import vtk
+    poly, modality = malla
+    sub = vtk.vtkAdaptiveSubdivisionFilter()
+    sub.SetInputData(poly)
+    sub.SetMaximumEdgeLength(0.6)
+    sub.Update()
+    grande = sub.GetOutput()
+    assert grande.GetNumberOfPoints() > 40_000, grande.GetNumberOfPoints()
+    return grande, modality
+
+
+class TestDetectarSobreLaMallaCompleta:
+    """Una malla grande no puede apagar los canales que encuentran la lesión.
+
+    `consensus` omite calibre y cociente por encima de 40 000 vértices, y la
+    segmentación tubular da mallas de 80 000 a 124 000. Sin decimar para
+    buscar, en Case 3 solo quedaba la curvatura y la lesión desaparecía.
+    """
+
+    def test_una_malla_de_mas_de_40k_vertices_no_pierde_los_canales_de_calibre(self, grande):
+        from routers.detect import _detect_hits
+        poly, modality = grande
+        assert poly.GetNumberOfPoints() > 40_000
+        hits, _det = _detect_hits(poly, modality)
+        assert any((CH_CALIBRE in h.channels) or (CH_RATIO in h.channels) for h in hits)
+        # Y la que encuentran sigue siendo la lesión confirmada.
+        assert any(_dist(h) <= TOL_MM for h in hits), (
+            ", ".join(f"{_dist(h):.0f} mm" for h in hits))
+
+    def test_la_malla_que_se_pasa_no_se_toca(self, grande):
+        # La decimación es sobre una copia: la malla de la que luego se recortan
+        # los parches tiene que salir con los mismos vértices con que entró.
+        from routers.detect import _detect_hits
+        poly, modality = grande
+        n = poly.GetNumberOfPoints()
+        _detect_hits(poly, modality)
+        assert poly.GetNumberOfPoints() == n

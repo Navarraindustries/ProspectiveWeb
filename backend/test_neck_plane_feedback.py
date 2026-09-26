@@ -24,6 +24,7 @@ _tmp = tempfile.mkdtemp(prefix="prospective_neckfb_")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
+import pytest
 import vtk
 from fastapi.testclient import TestClient
 
@@ -192,3 +193,98 @@ class TestTheMarkedPointsSurvive:
     def test_the_automatic_path_reports_no_marks(self):
         sid = _session_with_sac()
         assert client.get(f"/api/morphometry/{sid}").json()["rim_points"] == []
+
+
+# ── El plano se reintenta antes de rendirse ──────────────────────────────── #
+
+def _sac_above_a_gap() -> vtk.vtkPolyData:
+    """Una arteria recta y, 1,5 mm por encima, la cúpula de un saco.
+
+    El hueco es lo que hace de este un caso reproducible: un plano puesto en él
+    no corta ninguna pared cerca del domo, así que no hay contorno de cuello y
+    el aislamiento fracasa, igual que cuando el clic cae un milímetro fuera
+    del cuello en una malla real.
+    """
+    line = vtk.vtkLineSource()
+    line.SetPoint1(-25.0, 0.0, 0.0)
+    line.SetPoint2(25.0, 0.0, 0.0)
+    line.SetResolution(80)
+    line.Update()
+    tube = vtk.vtkTubeFilter()
+    tube.SetInputData(line.GetOutput())
+    tube.SetRadius(2.0)               # la pared de arriba queda en z = 2
+    tube.SetNumberOfSides(24)
+    tube.CappingOn()
+    tube.Update()
+
+    dome = vtk.vtkSphereSource()
+    dome.SetRadius(2.6)
+    dome.SetCenter(0.0, 0.0, 6.1)     # su fondo queda en z = 3,5
+    dome.SetThetaResolution(30)
+    dome.SetPhiResolution(30)
+    dome.Update()
+
+    app_ = vtk.vtkAppendPolyData()
+    app_.AddInputData(tube.GetOutput())
+    app_.AddInputData(dome.GetOutput())
+    app_.Update()
+    clean = vtk.vtkCleanPolyData()
+    clean.SetInputData(app_.GetOutput())
+    clean.Update()
+    return clean.GetOutput()
+
+
+@pytest.fixture
+def sesion_con_saco():
+    """Sesión con un tubo y un saco, y un plano (z = 4, normal +z) que SÍ aísla.
+
+    Un milímetro por debajo (z = 3) el plano cae en el hueco entre la arteria
+    y el saco y no aísla nada.
+    """
+    sid = create_session()
+    meshes = session_subdir(sid, "meshes")
+    poly = _sac_above_a_gap()
+    write_vtp(poly, meshes / "vessel_tree.vtp")
+    write_vtp(poly, meshes / "candidate_001.vtp")
+    write_state(sid, "detect.best_vtp_name", "candidate_001.vtp")
+    write_state(sid, "detect.n_candidates", "1")
+    return sid, (0.0, 0.0, 4.0), (0.0, 0.0, 1.0)
+
+
+def _plano(sid, origin, normal):
+    return client.post(f"/api/morphometry/{sid}/neck-plane",
+                       json={"origin": {"x": origin[0], "y": origin[1], "z": origin[2]},
+                             "normal": list(normal)})
+
+
+class TestReintentoDelPlano:
+    def test_un_origen_un_milimetro_fuera_del_cuello_se_corrige_solo(self, sesion_con_saco):
+        # `sesion_con_saco` es el fixture del archivo que deja un tubo con un saco y
+        # un plano que SÍ aísla; aquí se desplaza el origen 1 mm hacia el vaso.
+        sid, origin, normal = sesion_con_saco
+        malo = [origin[i] - 1.0 * normal[i] for i in range(3)]
+        r = _plano(sid, malo, normal)
+        assert r.status_code == 200, r.text
+        from services.sessions import read_state
+        assert abs(float(read_state(sid, "morpho.neck_shift_mm", "0"))) == 1.0
+        # Y viaja en la respuesta, con el plano que de verdad se usó.
+        body = r.json()
+        assert body["neck_shift_mm"] == 1.0
+        assert abs(body["plane_origin"]["z"] - origin[2]) < 1e-6
+
+    def test_un_plano_que_ya_aisla_no_se_mueve(self, sesion_con_saco):
+        sid, origin, normal = sesion_con_saco
+        r = _plano(sid, origin, normal)
+        assert r.status_code == 200, r.text
+        from services.sessions import read_state
+        assert float(read_state(sid, "morpho.neck_shift_mm", "")) == 0.0
+        assert r.json()["neck_shift_mm"] == 0.0
+
+    def test_un_plano_a_mas_de_dos_milimetros_sigue_fallando(self, sesion_con_saco):
+        # Los desplazamientos tienen tope: un plano por encima de la cúpula
+        # (que acaba en z = 8,7) no se "arregla" corriendo por el árbol hasta
+        # dar con algo; con ±2 mm desde z = 15 sigue sin cortar nada.
+        sid, _origin, normal = sesion_con_saco
+        r = _plano(sid, (0.0, 0.0, 15.0), normal)
+        assert r.status_code == 422, r.text
+        assert "±2 mm" in r.json()["detail"]

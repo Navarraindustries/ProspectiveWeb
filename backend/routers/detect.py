@@ -46,6 +46,13 @@ def _clamp01(v: float) -> float:
 #: veredicto: el clínico los mira todos.
 _MAX_CANDIDATES: int = 5
 
+#: Tope de vértices de la malla sobre la que se BUSCA. Es el mismo que usa
+#: `consensus` para apagar sus canales de calibre y cociente
+#: (`MAX_VERTS_GEOMETRIC`): la segmentación tubular da 78 000–124 000 vértices
+#: en Case 3, y por encima del tope los cinco candidatos salían solo de la
+#: curvatura, que es justo el canal que no ve la lesión por su grosor.
+_DETECT_MAX_VERTS = 40_000
+
 
 def _detector_for_modality(modality: str) -> AneurysmDetector:
     """Build the detector with the modality preset.
@@ -131,6 +138,9 @@ _MORPHO_STATE_KEYS = (
     # cuello listos para reaparecer al reanudar: una medida borrada que seguía
     # viéndose.
     "morpho.sac_vtp_name", "morpho.rim_points",
+    # Cuánto se movió el plano marcado para aislar el saco: describe esa
+    # medida, así que se va con ella.
+    "morpho.neck_shift_mm",
 )
 
 
@@ -252,6 +262,31 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
     return result
 
 
+def _detect_hits(poly: "vtk.vtkPolyData", modality: str):
+    """Los candidatos, calculados sobre una copia decimada si la malla es grande.
+
+    La malla completa (124 000 vértices en Case 3 a resolución nativa) hace que
+    `consensus` apague sus canales de calibre por encima de 40 000; decimarla
+    solo para buscar devuelve esos canales, y los parches se recortan luego de
+    la malla completa.
+
+    Devuelve ``(hits, det_result)``: el resultado del detector de curvatura sale
+    de la MISMA copia, para que los diagnósticos que acompañan a la respuesta
+    cuenten las regiones que de verdad se analizaron.
+    """
+    from services.aneurysm_consensus import consensus
+    from services.segmentation import decimate_to
+
+    detector = _detector_for_modality(modality)
+    n_full = poly.GetNumberOfPoints()
+    small = decimate_to(poly, _DETECT_MAX_VERTS)
+    logger.info("Detection mesh: %d vertices (full) -> %d (searched)",
+                n_full, small.GetNumberOfPoints())
+    det_result = detector.detect(small)
+    hits = consensus(small, detector, top=_MAX_CANDIDATES)
+    return hits, det_result
+
+
 def _run_detection_sync(
     session_id: str,
     vtp_path:   Path,
@@ -270,7 +305,6 @@ def _run_detection_sync(
     modality   = read_state(session_id, "dicom.modality") or "CT"
     detector   = _detector_for_modality(modality)
     logger.info("Detection preset for modality %s", modality)
-    det_result = detector.detect(poly)
 
     # ── Consenso de tres criterios ────────────────────────────────────── #
     #
@@ -279,10 +313,18 @@ def _run_detection_sync(
     # confirma —el punto de MAYOR CALIBRE del árbol, radio 2,33 mm contra una
     # mediana de 0,57— no salía en ninguno. No destaca por curvatura; destaca
     # por grosor. Ver services/aneurysm_consensus.py.
-    from services.aneurysm_consensus import (consensus, hit_confidence,
-                                             hit_diameter_mm, hit_patch)
+    from services.aneurysm_consensus import (hit_confidence, hit_diameter_mm,
+                                             hit_patch)
 
-    hits = consensus(poly, detector, top=_MAX_CANDIDATES)
+    # Se busca sobre una copia de como mucho 40 000 vértices (ver
+    # `_detect_hits`), pero `hit_patch` recibe `poly`, la malla COMPLETA: el
+    # localizador de un canal geométrico es una bola recortada de ella, a la
+    # resolución que la segmentación tubular ganó. Las posiciones son
+    # coordenadas de mundo, así que valen igual sobre las dos mallas. La REGIÓN
+    # de un candidato de curvatura, en cambio, es la del propio detector —ya
+    # antes salía de su copia suavizada, no de la malla guardada— y ahora viene
+    # de la copia decimada.
+    hits, det_result = _detect_hits(poly, modality)
 
     pyd_candidates: list[PydAneurysmCandidate] = []
 
@@ -593,6 +635,57 @@ def _same_measure(a: str, b: str) -> bool:
         return False
 
 
+def _isolate_sac(
+    session_id: str,
+    vtp_path:   Path,
+    origin:     tuple[float, float, float],
+    normal:     tuple[float, float, float],
+    seed:       tuple[float, float, float],
+    bound_r:    float,
+    crop_half:  float,
+) -> tuple["vtk.vtkPolyData", float]:
+    """Aísla el saco con UN plano: ``(sac_mesh, neck_diam)`` o `ValueError`.
+
+    Primero en el volumen (cerrado siempre) y, si no sale, recortando la
+    superficie del árbol. No valida el resultado: eso lo hace quien prueba los
+    desplazamientos del plano, que necesita distinguir «este plano no vale» de
+    «ninguno vale».
+    """
+    sac_mesh: "vtk.vtkPolyData | None" = None
+    neck_diam = 0.0
+    # Primary: build a WATERTIGHT sac in the volume domain from the cached
+    # full-res volume (robust — marching cubes on a bounded mask is always
+    # closed, unlike surface clip + fill-holes on the downsampled tree).
+    try:
+        from services.mpr import ensure_volume_cached, _get_volume
+        meta   = ensure_volume_cached(session_id)
+        volume = _get_volume(session_id)
+        lower  = float(read_state(session_id, "seg.threshold_lower", "") or 0.0)
+        upper  = float(read_state(session_id, "seg.threshold_upper", "") or 0.0)
+        if lower or upper:
+            sac_mesh, neck_diam = isolate_sac_volumetric(
+                volume, meta["spacing"], origin, normal, seed,
+                lower, upper, bound_r, half_extent_mm=crop_half,
+            )
+            logger.info("Volumetric sac isolation: %d pts, neck %.2f mm",
+                        sac_mesh.GetNumberOfPoints(), neck_diam)
+    except Exception as exc:
+        logger.warning("Volumetric isolation failed, will try surface clip: %s", exc)
+        sac_mesh = None
+
+    # Fallback: surface clip + cap on the (coarse) vessel tree.
+    if sac_mesh is None or sac_mesh.GetNumberOfPoints() < 50:
+        vessel_path = vtp_path.parent / "vessel_tree.vtp"
+        if not vessel_path.exists():
+            raise ValueError(
+                "vessel_tree.vtp no disponible — se requiere para aislar el saco."
+            )
+        sac = isolate_closed_sac(read_vtp(vessel_path), origin, normal,
+                                 dome_seed=seed, max_radius=bound_r)
+        sac_mesh, neck_diam = sac.poly_data, sac.neck_diameter_mm
+    return sac_mesh, neck_diam
+
+
 def _run_morphometry_sync(
     session_id: str,
     vtp_path:   Path,
@@ -613,6 +706,7 @@ def _run_morphometry_sync(
     neck_tilt_deg = 0.0
     used_plane: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
     sac_hit_crop = False
+    neck_shift_mm = 0.0
 
     if neck_plane is not None:
         # ── Semi-automatic closed-sac isolation ───────────────────────────── #
@@ -663,46 +757,39 @@ def _run_morphometry_sync(
         bound_r    = apex_dist * 1.25 + 1.5
         crop_half  = max(12.0, apex_dist * 1.35 + 6.0)
 
-        sac_mesh: "vtk.vtkPolyData | None" = None
-        neck_diam = 0.0
-        # Primary: build a WATERTIGHT sac in the volume domain from the cached
-        # full-res volume (robust — marching cubes on a bounded mask is always
-        # closed, unlike surface clip + fill-holes on the downsampled tree).
-        try:
-            from services.mpr import ensure_volume_cached, _get_volume
-            meta   = ensure_volume_cached(session_id)
-            volume = _get_volume(session_id)
-            lower  = float(read_state(session_id, "seg.threshold_lower", "") or 0.0)
-            upper  = float(read_state(session_id, "seg.threshold_upper", "") or 0.0)
-            if lower or upper:
-                sac_mesh, neck_diam = isolate_sac_volumetric(
-                    volume, meta["spacing"], origin, normal, seed,
-                    lower, upper, bound_r, half_extent_mm=crop_half,
-                )
-                logger.info("Volumetric sac isolation: %d pts, neck %.2f mm",
-                            sac_mesh.GetNumberOfPoints(), neck_diam)
-        except Exception as exc:
-            logger.warning("Volumetric isolation failed, will try surface clip: %s", exc)
-            sac_mesh = None
-
-        # Fallback: surface clip + cap on the (coarse) vessel tree.
-        if sac_mesh is None or sac_mesh.GetNumberOfPoints() < 50:
-            vessel_path = vtp_path.parent / "vessel_tree.vtp"
-            if not vessel_path.exists():
-                raise ValueError(
-                    "vessel_tree.vtp no disponible — se requiere para aislar el saco."
-                )
-            sac = isolate_closed_sac(read_vtp(vessel_path), origin, normal,
-                                     dome_seed=seed, max_radius=bound_r)
-            sac_mesh, neck_diam = sac.poly_data, sac.neck_diameter_mm
-
-        # Validate: a valid sac needs a real neck and body.  A tiny result means
-        # the apex was placed off the dome — ask the user to re-mark it.
-        if sac_mesh.GetNumberOfPoints() < 50 or neck_diam < 1.0:
+        # ── El plano se reintenta antes de rendirse ──────────────────────── #
+        #
+        # El punto de cuello es un clic sobre la malla, y un milímetro de más o
+        # de menos basta para que el plano caiga fuera del cuello: en el hueco
+        # entre el saco y el vaso no corta ninguna pared y no hay contorno, o
+        # corta un borde rasante y el cuello sale de décimas. Antes eso era un
+        # 422 y el usuario volvía a marcar a ciegas. Ahora se prueba primero el
+        # plano tal cual, luego ±1 mm y por último ±2 mm a lo largo de la
+        # normal: en ese orden para que gane el más cercano a lo que se marcó,
+        # y +1 antes que −1 porque hacia el domo el plano deja fuera vaso padre
+        # en lugar de meterlo. Más de 2 mm ya no es corregir el clic, es
+        # buscar otro cuello, y eso lo decide el usuario.
+        shifts = (0.0, 1.0, -1.0, 2.0, -2.0)
+        last_error: Exception | None = None
+        for shift in shifts:
+            o = tuple(origin[i] + shift * normal[i] for i in range(3))
+            try:
+                sac_mesh, neck_diam = _isolate_sac(session_id, vtp_path, o, normal, seed, bound_r, crop_half)
+            except ValueError as exc:
+                last_error = exc
+                continue
+            if sac_mesh is not None and sac_mesh.GetNumberOfPoints() >= 50 and neck_diam > 0.3:
+                origin = o
+                neck_shift_mm = shift
+                write_state(session_id, "morpho.neck_shift_mm", str(shift))
+                if shift:
+                    logger.info("Neck plane shifted %.0f mm along the normal to isolate the sac", shift)
+                break
+        else:
             raise ValueError(
-                "No se aísla un saco válido con este plano. Verifica que el punto "
-                "de cuello esté sobre el cuello y el ápice sobre la cúpula del domo."
-            )
+                "No se aísla un saco válido con este plano ni desplazándolo ±2 mm. "
+                "Verifica que el punto de cuello esté sobre el cuello y el ápice sobre la cúpula del domo."
+            ) from last_error
         # Persist the closed sac so the UI can display it.
         # El único objeto de este paso que delimita el CUERPO del aneurisma.
         # Se escribía al disco y no lo pintaba nadie: el visor no tenía una
@@ -944,6 +1031,7 @@ def _run_morphometry_sync(
             x=neck_origin[0], y=neck_origin[1], z=neck_origin[2]
         ),
         rim_points        = _read_rim_points(session_id),
+        neck_shift_mm     = neck_shift_mm,
         plane_origin      = None if used_plane is None else Position3D(
             x=used_plane[0][0], y=used_plane[0][1], z=used_plane[0][2]
         ),

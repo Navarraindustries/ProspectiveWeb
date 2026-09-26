@@ -288,3 +288,73 @@ class TestReintentoDelPlano:
         r = _plano(sid, (0.0, 0.0, 15.0), normal)
         assert r.status_code == 422, r.text
         assert "±2 mm" in r.json()["detail"]
+
+
+def _tubo_vertical(radio: float, z0: float, z1: float) -> vtk.vtkPolyData:
+    line = vtk.vtkLineSource()
+    line.SetPoint1(0.0, 0.0, z0)
+    line.SetPoint2(0.0, 0.0, z1)
+    line.SetResolution(80)
+    line.Update()
+    tube = vtk.vtkTubeFilter()
+    tube.SetInputData(line.GetOutput())
+    tube.SetRadius(radio)
+    tube.SetNumberOfSides(24)
+    tube.CappingOn()
+    tube.Update()
+    return tube.GetOutput()
+
+
+def _sesion_con(poly: vtk.vtkPolyData) -> str:
+    sid = create_session()
+    meshes = session_subdir(sid, "meshes")
+    write_vtp(poly, meshes / "vessel_tree.vtp")
+    write_vtp(poly, meshes / "candidate_001.vtp")
+    write_state(sid, "detect.best_vtp_name", "candidate_001.vtp")
+    write_state(sid, "detect.n_candidates", "1")
+    return sid
+
+
+class TestElUmbralDelReintento:
+    def test_un_cuello_de_decimas_no_basta_y_se_sigue_probando(self):
+        # Un pedúnculo de 0,8 mm entra en el saco por debajo. El plano en él
+        # "aísla" algo, pero con un cuello de décimas: es el borde rasante, no
+        # el cuello. Con el umbral de antes (1 mm) se sigue probando, y 1 mm
+        # más arriba el plano corta la cúpula.
+        app_ = vtk.vtkAppendPolyData()
+        app_.AddInputData(_sac_above_a_gap())
+        app_.AddInputData(_tubo_vertical(0.4, 2.0, 3.8))
+        app_.Update()
+        sid = _sesion_con(app_.GetOutput())
+        r = _plano(sid, (0.0, 0.0, 3.0), (0.0, 0.0, 1.0))
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["neck_shift_mm"] == 1.0
+        assert body["neck_mm"] >= 1.0
+
+    def test_si_ninguno_llega_a_un_milimetro_se_devuelve_el_mejor_marcado(self):
+        # Un vaso de 0,8 mm: ningún desplazamiento da un cuello de 1 mm. En vez
+        # de un 422 que no dice nada, sale el mejor intento con el cuello
+        # marcado como no válido.
+        sid = _sesion_con(_tubo_vertical(0.4, -10.0, 10.0))
+        r = _plano(sid, (0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert 0.0 < body["neck_mm"] < 1.0
+        assert body["neck_valid"] is False
+        assert body["warning"]
+
+
+class TestElDesplazamientoSobreviveAlReanudar:
+    def test_reproducir_el_plano_guardado_devuelve_el_desplazamiento_original(self, sesion_con_saco):
+        # El origen guardado ya es el desplazado; al reproducirlo no se mueve,
+        # pero lo que hay que contar es cuánto se movió respecto al clic.
+        sid, origin, normal = sesion_con_saco
+        malo = [origin[i] - 1.0 * normal[i] for i in range(3)]
+        assert _plano(sid, malo, normal).json()["neck_shift_mm"] == 1.0
+
+        r = client.get(f"/api/morphometry/{sid}")
+        assert r.status_code == 200, r.text
+        assert r.json()["neck_shift_mm"] == 1.0
+        from services.sessions import read_state
+        assert float(read_state(sid, "morpho.neck_shift_mm", "0")) == 1.0

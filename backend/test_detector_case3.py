@@ -235,3 +235,22 @@ class TestDetectarSobreLaMallaCompleta:
         n = poly.GetNumberOfPoints()
         _detect_hits(poly, modality)
         assert poly.GetNumberOfPoints() == n
+
+    def test_la_curvatura_se_busca_en_la_malla_completa(self, grande):
+        # Decimada a 40 000, la curvatura perdía la región de la lesión en la
+        # malla tubular. Cada región de curvatura tiene que ser la misma, punto
+        # por punto, que da el detector sobre la malla sin decimar: así el
+        # parche que se pinta conserva la resolución completa. (No se compara
+        # contra los vértices de la malla: el preset XA suaviza su copia.)
+        from routers.detect import _detect_hits
+        poly, modality = grande
+        hits, _det = _detect_hits(poly, modality)
+        directos = _detector_for_modality(modality).detect(poly).candidates
+        de_curvatura = [h for h in hits if h.candidate is not None]
+        assert de_curvatura, "la curvatura tiene que aportar algún candidato"
+        for h in de_curvatura:
+            igual = [c for c in directos
+                     if np.allclose(c.centroid, h.candidate.centroid, atol=1e-9)]
+            assert igual, f"región {h.position} no sale sobre la malla completa"
+            assert (h.candidate.poly_data.GetNumberOfPoints()
+                    == igual[0].poly_data.GetNumberOfPoints())

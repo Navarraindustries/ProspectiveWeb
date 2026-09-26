@@ -52,7 +52,8 @@ import numpy as np
 import vtk
 from scipy import ndimage, spatial
 
-from services.aneurysm_detector import AneurysmCandidate, AneurysmDetector
+from services.aneurysm_detector import (AneurysmCandidate, AneurysmDetector,
+                                       DetectionResult)
 from services.branch_origins import _fit_voxel_size, _rasterise
 from services.mesh_components import describe_components, looks_like_tree
 
@@ -205,12 +206,28 @@ def _peaks(pts: np.ndarray, value: np.ndarray, radius: np.ndarray,
 
 
 def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
-              top: int = 5) -> list[ConsensusHit]:
-    """Los `top` sitios mejor puntuados por el consenso de los tres canales."""
+              top: int = 5, *,
+              geometric_poly: vtk.vtkPolyData | None = None,
+              curvature_result: "DetectionResult | None" = None) -> list[ConsensusHit]:
+    """Los `top` sitios mejor puntuados por el consenso de los tres canales.
+
+    La curvatura se busca sobre `poly`. Calibre y cociente, sobre
+    `geometric_poly` si se da (y si no, sobre la misma `poly`): los canales
+    geométricos se apagan por encima de 40 000 vértices, mientras que la
+    curvatura necesita la resolución completa —sobre la malla tubular de
+    Case 3 decimada a 40 000 perdía la región de la lesión—. Sus sitios son
+    coordenadas de mundo, así que se fusionan igual vengan de una malla o de
+    la otra.
+
+    `curvature_result`, si se da, es `detector.detect(poly)` ya calculado:
+    quien necesita también los diagnósticos no tiene por qué pagar la
+    curvatura dos veces.
+    """
     hits: list[ConsensusHit] = []
+    geo = poly if geometric_poly is None else geometric_poly
 
     # ── Canal 1: curvatura ────────────────────────────────────────────── #
-    det = detector.detect(poly)
+    det = curvature_result if curvature_result is not None else detector.detect(poly)
     for rank, c in enumerate(det.candidates, start=1):
         hits.append(ConsensusHit(position=tuple(float(v) for v in c.centroid),
                                  ranks={CH_CURVATURE: rank}, candidate=c))
@@ -220,9 +237,9 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
     # Solo si la malla es un árbol vascular. En angio-TC el contraste toca el
     # hueso y la malla es la cabeza entera: allí «lo más grueso» son 12,6 mm de
     # radio de cráneo, no un saco. Y encima tarda 52 s.
-    if _geometric_channels_apply(poly):
+    if _geometric_channels_apply(geo):
         try:
-            pts, rad = local_calibre(poly)
+            pts, rad = local_calibre(geo)
         except Exception as exc:  # noqa: BLE001 — sin calibre queda la curvatura
             logger.warning("Canal de calibre no disponible: %s", exc)
             pts = rad = None

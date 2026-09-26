@@ -46,8 +46,8 @@ def _clamp01(v: float) -> float:
 #: veredicto: el clínico los mira todos.
 _MAX_CANDIDATES: int = 5
 
-#: Tope de vértices de la malla sobre la que se BUSCA. Es el mismo que usa
-#: `consensus` para apagar sus canales de calibre y cociente
+#: Tope de vértices de la copia sobre la que se buscan calibre y cociente. Es
+#: el mismo que usa `consensus` para apagar esos dos canales
 #: (`MAX_VERTS_GEOMETRIC`): la segmentación tubular da 78 000–124 000 vértices
 #: en Case 3, y por encima del tope los cinco candidatos salían solo de la
 #: curvatura, que es justo el canal que no ve la lesión por su grosor.
@@ -263,27 +263,29 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
 
 
 def _detect_hits(poly: "vtk.vtkPolyData", modality: str):
-    """Los candidatos, calculados sobre una copia decimada si la malla es grande.
+    """Los candidatos: curvatura sobre la malla completa, calibre sobre una copia.
 
     La malla completa (124 000 vértices en Case 3 a resolución nativa) hace que
     `consensus` apague sus canales de calibre por encima de 40 000; decimarla
-    solo para buscar devuelve esos canales, y los parches se recortan luego de
-    la malla completa.
+    solo para esos canales los devuelve. La curvatura, en cambio, sigue sobre
+    la malla COMPLETA: medido sobre la malla tubular de Case 3 con «solo el
+    árbol» (78 000 vértices), a 40 000 perdía la región de la lesión, que a
+    resolución completa sale en el puesto 4. Y así la región que se pinta de
+    un candidato de curvatura conserva la resolución de la segmentación.
 
-    Devuelve ``(hits, det_result)``: el resultado del detector de curvatura sale
-    de la MISMA copia, para que los diagnósticos que acompañan a la respuesta
-    cuenten las regiones que de verdad se analizaron.
+    Devuelve ``(hits, det_result)``: el resultado de la curvatura, el mismo
+    que alimenta el consenso, es el que dan los diagnósticos de la respuesta.
     """
     from services.aneurysm_consensus import consensus
     from services.segmentation import decimate_to
 
     detector = _detector_for_modality(modality)
-    n_full = poly.GetNumberOfPoints()
     small = decimate_to(poly, _DETECT_MAX_VERTS)
-    logger.info("Detection mesh: %d vertices (full) -> %d (searched)",
-                n_full, small.GetNumberOfPoints())
-    det_result = detector.detect(small)
-    hits = consensus(small, detector, top=_MAX_CANDIDATES)
+    logger.info("Detection mesh: %d vertices for curvature, %d for calibre/ratio",
+                poly.GetNumberOfPoints(), small.GetNumberOfPoints())
+    det_result = detector.detect(poly)
+    hits = consensus(poly, detector, top=_MAX_CANDIDATES,
+                     geometric_poly=small, curvature_result=det_result)
     return hits, det_result
 
 
@@ -316,14 +318,13 @@ def _run_detection_sync(
     from services.aneurysm_consensus import (hit_confidence, hit_diameter_mm,
                                              hit_patch)
 
-    # Se busca sobre una copia de como mucho 40 000 vértices (ver
-    # `_detect_hits`), pero `hit_patch` recibe `poly`, la malla COMPLETA: el
-    # localizador de un canal geométrico es una bola recortada de ella, a la
-    # resolución que la segmentación tubular ganó. Las posiciones son
-    # coordenadas de mundo, así que valen igual sobre las dos mallas. La REGIÓN
-    # de un candidato de curvatura, en cambio, es la del propio detector —ya
-    # antes salía de su copia suavizada, no de la malla guardada— y ahora viene
-    # de la copia decimada.
+    # La curvatura se busca sobre `poly`, la malla completa, y calibre y
+    # cociente sobre una copia de como mucho 40 000 vértices (ver
+    # `_detect_hits`). `hit_patch` recibe la malla COMPLETA: el localizador de
+    # un canal geométrico es una bola recortada de ella —su posición es de
+    # mundo y vale igual en las dos mallas— y la región de curvatura sale de la
+    # búsqueda sobre la malla completa, así que el .vtp de cada candidato
+    # conserva la resolución de la segmentación.
     hits, det_result = _detect_hits(poly, modality)
 
     pyd_candidates: list[PydAneurysmCandidate] = []
@@ -461,6 +462,7 @@ async def get_morphometry(session_id: str) -> MorphometryResult:
                 session_id=session_id,
                 vtp_path=vtp_path,
                 neck_plane=saved_plane,
+                replay=True,
             ),
         )
     except ValueError as exc:
@@ -690,8 +692,12 @@ def _run_morphometry_sync(
     session_id: str,
     vtp_path:   Path,
     neck_plane: NeckPlaneRequest | None = None,
+    replay:     bool = False,
 ) -> MorphometryResult:
     """Load candidate VTP → run MorphometricAnalyzer → persist state → return result.
+
+    *replay* marks a plane read back from session state by GET /morphometry
+    rather than one the user just placed (see ``morpho.neck_shift_mm``).
 
     When *neck_plane* is given (semi-automatic Tier 2), the vessel tree is
     clipped at the user's neck plane into a closed watertight sac, the neck is
@@ -707,6 +713,7 @@ def _run_morphometry_sync(
     used_plane: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
     sac_hit_crop = False
     neck_shift_mm = 0.0
+    base_shift = 0.0
 
     if neck_plane is not None:
         # ── Semi-automatic closed-sac isolation ───────────────────────────── #
@@ -736,6 +743,18 @@ def _run_morphometry_sync(
             nrm    = np.asarray(neck_plane.normal, dtype=float)
             nrm    = nrm / (np.linalg.norm(nrm) or 1.0)
             normal = tuple(float(v) for v in nrm)
+            # El origen guardado ya es el DESPLAZADO, así que al reproducirlo el
+            # bucle de abajo lo acepta sin moverlo; el desplazamiento que hubo
+            # respecto al clic original es el guardado y hay que sumarlo, o una
+            # sesión reanudada diría que el plano no se movió. (Con puntos del
+            # borde no hace falta: el plano se vuelve a ajustar desde los
+            # puntos, que son los originales, y el bucle repite el mismo
+            # desplazamiento.)
+            if replay:
+                try:
+                    base_shift = float(read_state(session_id, "morpho.neck_shift_mm", "0") or 0)
+                except ValueError:
+                    base_shift = 0.0
             # Replaying a saved plane: the stored origin/normal ARE the fitted
             # ones, so a rim fit must not be relabelled as the coarser method
             # just because the rim points are not resent.
@@ -769,27 +788,42 @@ def _run_morphometry_sync(
         # y +1 antes que −1 porque hacia el domo el plano deja fuera vaso padre
         # en lugar de meterlo. Más de 2 mm ya no es corregir el clic, es
         # buscar otro cuello, y eso lo decide el usuario.
+        #
+        # Se sigue probando mientras el cuello mida menos de 1 mm, que es el
+        # mismo umbral con el que antes se rechazaba el plano. Si ningún
+        # desplazamiento llega, se devuelve el mejor intento —el de cuello más
+        # ancho— y el análisis lo marca con `neck_valid=false` y su aviso, en
+        # vez de un 422 que no dice qué se consiguió. Solo es 422 si ningún
+        # plano aísla nada con cuello.
         shifts = (0.0, 1.0, -1.0, 2.0, -2.0)
         last_error: Exception | None = None
+        best: tuple[float, "vtk.vtkPolyData", float, tuple[float, float, float]] | None = None
         for shift in shifts:
             o = tuple(origin[i] + shift * normal[i] for i in range(3))
             try:
-                sac_mesh, neck_diam = _isolate_sac(session_id, vtp_path, o, normal, seed, bound_r, crop_half)
+                attempt, attempt_neck = _isolate_sac(session_id, vtp_path, o, normal, seed, bound_r, crop_half)
             except ValueError as exc:
                 last_error = exc
                 continue
-            if sac_mesh is not None and sac_mesh.GetNumberOfPoints() >= 50 and neck_diam > 0.3:
-                origin = o
-                neck_shift_mm = shift
-                write_state(session_id, "morpho.neck_shift_mm", str(shift))
-                if shift:
-                    logger.info("Neck plane shifted %.0f mm along the normal to isolate the sac", shift)
-                break
-        else:
+            if attempt is None or attempt.GetNumberOfPoints() < 50 or attempt_neck <= 0.0:
+                continue
+            if best is None or attempt_neck > best[2]:
+                best = (shift, attempt, attempt_neck, o)
+            if attempt_neck >= 1.0:
+                break           # el primero que vale, en el orden de arriba
+        if best is None:
             raise ValueError(
                 "No se aísla un saco válido con este plano ni desplazándolo ±2 mm. "
                 "Verifica que el punto de cuello esté sobre el cuello y el ápice sobre la cúpula del domo."
             ) from last_error
+        shift, sac_mesh, neck_diam, origin = best
+        neck_shift_mm = base_shift + shift
+        write_state(session_id, "morpho.neck_shift_mm", str(neck_shift_mm))
+        if shift:
+            logger.info("Neck plane shifted %.0f mm along the normal to isolate the sac", shift)
+        if neck_diam < 1.0:
+            logger.warning("No shift within ±2 mm gives a neck of 1 mm — best %.2f mm at %+.0f mm",
+                           neck_diam, shift)
         # Persist the closed sac so the UI can display it.
         # El único objeto de este paso que delimita el CUERPO del aneurisma.
         # Se escribía al disco y no lo pintaba nadie: el visor no tenía una

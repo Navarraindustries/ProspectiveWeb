@@ -176,7 +176,7 @@ El método tubular (`services/vascular_mask.py` + `mask_to_surface` en `services
 
 La variable de entorno `PROSPECTIVE_MEM_BUDGET_MB` fija el presupuesto de memoria por encima del cual el método tubular se fuerza a media resolución y lo dice. Si no está definida, el presupuesto es el 70 % de la RAM disponible que detecta el sistema (`/proc/meminfo` en Linux, `GlobalMemoryStatusEx` en Windows), y 1400 MB si no puede leerla.
 
-La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. En Case 3 la lesión confirmada sale 3.ª con «solo el árbol» y 2.ª con la malla completa, y la detección tarda unos 10 s.
+La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. Las regiones de curvatura que tocan una cara de la caja de la malla (las tapas de los vasos cortados por el borde del volumen) van al final de la lista. En Case 3 la lesión confirmada sale 2.ª, con «solo el árbol» y con la malla completa, y la detección tarda unos 10 s.
 
 ---
 

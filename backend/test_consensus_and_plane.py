@@ -42,7 +42,8 @@ from services.aneurysm_consensus import (CH_CALIBRE, CH_CURVATURE, CH_RATIO,
                                          ConsensusHit, calibre_ratio,
                                          consensus, hit_confidence,
                                          hit_diameter_mm, hit_patch,
-                                         local_calibre, order_hits)
+                                         local_calibre, order_hits,
+                                         region_on_border)
 from services.aneurysm_detector import AneurysmDetector
 from services.database import Base, engine
 from services.mesh_crop import clip_plane
@@ -167,6 +168,34 @@ class TestTheConsensusOrdering:
                              key=lambda h: h.ranks[canal])[:2]
             assert all(h in cortos for h in mejores), canal
         assert acuerdo_a not in cortos and acuerdo_b not in cortos
+
+    def test_a_igualdad_total_decide_el_orden_de_los_canales(self):
+        # El 4.º desempate, explícito: curvatura, calibre, cociente. Decide que
+        # en la malla de umbral de Case 3 la lesión (calibre 1.º) vaya detrás
+        # del 1.º de curvatura; da igual en qué orden lleguen.
+        cal = self._hit((0, 0, 0), {CH_CALIBRE: 1})
+        coc = self._hit((50, 0, 0), {CH_RATIO: 1})
+        cur = self._hit((0, 50, 0), {CH_CURVATURE: 1})
+        assert order_hits([coc, cal, cur]) == [cur, cal, coc]
+
+    def test_una_region_en_el_borde_va_detras_de_una_interior_peor_puntuada(self):
+        # Task 11 bis: en la malla tubular de Case 3 el 1.º de curvatura era la
+        # tapa de un vaso que sale por el borde del volumen (z ≈ 2 mm).
+        tapa = ConsensusHit(position=(51, 59, 2), ranks={CH_CURVATURE: 1},
+                            on_border=True)
+        interior = self._hit((58, 65, 65), {CH_CALIBRE: 6})
+        assert order_hits([tapa, interior]) == [interior, tapa]
+
+    def test_la_region_que_toca_una_cara_de_la_caja_de_la_malla_es_de_borde(self):
+        malla = (0.0, 100.0, 0.0, 100.0, 0.0, 80.0)
+        # 0,36 mm de la cara z = 0: lo que se midió en la tapa de Case 3, más
+        # que un vóxel (0,32 mm) porque el preset XA suaviza su copia.
+        tapa = _bola((50.0, 50.0, 2.36), 2.0)
+        dentro = _bola((50.0, 50.0, 40.0), 2.0)
+        assert region_on_border(tapa, malla)
+        assert not region_on_border(dentro, malla)
+        # Cualquier eje y cualquiera de las dos caras.
+        assert region_on_border(_bola((98.5, 50.0, 40.0), 1.0), malla)
 
     def test_it_finds_the_sac_in_a_synthetic_vessel(self, vaso_con_saco):
         det = AneurysmDetector(gauss_percentile=60.0,

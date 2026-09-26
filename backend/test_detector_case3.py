@@ -45,8 +45,9 @@ mejor puntuado pasaba del puesto 1 al 4, con el pipeline siendo determinista
 (tres corridas idénticas). Por eso la pantalla dejó de etiquetar al primero
 como «Principal» y por eso aquí solo se exige presencia.
 
-Con el consenso de tres canales la lesión sale en el puesto 2 de 5, encontrada
-por dos de ellos (calibre y cociente). Antes no salía en ninguno.
+Con el consenso de tres canales la lesión sale en el puesto 3 de 5, encontrada
+solo por calibre (1.º): empata en todo con el 1.º de curvatura y va detrás por
+el orden de los canales (ver `order_hits`). Antes no salía en ninguno.
 
 Se salta entero si los DICOM no están: `Archivos DICOM/` está en .gitignore.
 """
@@ -293,11 +294,13 @@ def tubular_arbol():
     return mt.poly, meta.get("modality", "XA")
 
 
+@pytest.mark.slow
 class TestLaMallaTubularDeCase3:
     """Task 11 bis: sobre la malla tubular la lesión volvió a la lista corta.
 
     Antes de esta tarea salía 12.ª con «solo el árbol»: la curvatura corría
-    sobre los 104 000 vértices y allí la lesión era 6.ª de su canal.
+    sobre los 104 000 vértices y allí la lesión era 6.ª de su canal. Con la
+    copia de 80 000 sale 3.ª, y 2.ª con la tapa del borde al final de la lista.
     """
 
     def test_la_lesion_queda_entre_los_tres_primeros(self, tubular_arbol):

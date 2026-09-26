@@ -80,3 +80,9 @@ def anonymous_client(app):
     c.headers.pop("Authorization", None)
     c.cookies.clear()
     return c
+
+
+def pytest_configure(config):
+    # Tests lentos (p. ej. Case 3 tubular a resolución nativa, ~40 s de Frangi):
+    # se ejecutan por defecto; para un ciclo rápido, `pytest -m "not slow"`.
+    config.addinivalue_line("markers", "slow: test lento; se omite con -m \"not slow\"")

@@ -28,9 +28,16 @@ Con **un solo punto anotado** no se pueden ajustar pesos: cualquier fórmula que
 inventase estaría afinada a un caso. Así que el orden es por reglas declaradas
 y sin aritmética inventada:
 
+0. los sitios de **borde** (una región de curvatura que toca una cara de la
+   caja de la malla) van detrás de todos los demás — ver `region_on_border`;
 1. **mejor puesto** que el candidato consigue en cualquier canal, ascendente;
 2. a igualdad, **cuántos canales** lo encuentran, descendente;
-3. a igualdad, la **suma de puestos**, ascendente.
+3. a igualdad, la **suma de puestos**, ascendente;
+4. a igualdad total, el **orden de los canales**: curvatura, calibre, cociente
+   (el canal más prioritario que lo encuentra). Es el orden en que `consensus`
+   los añade, así que no cambia nada: lo hace explícito. Y decide casos reales:
+   en la malla de umbral de Case 3 la lesión (calibre 1.º) empata en todo con
+   el 1.º de curvatura y va 3.ª por esta regla.
 
 Ordenar por «mejor puesto» y no por acuerdo es deliberado. Esto es una lista
 corta para que un clínico la recorra, así que importa más no perder la lesión
@@ -99,6 +106,17 @@ AGREE_MM: float = 8.0
 #: Cuántos picos pide cada canal geométrico antes de fusionar.
 PEAKS_PER_CHANNEL: int = 6
 
+#: Distancia a una cara de la caja de la malla por debajo de la cual una región
+#: de curvatura es de borde. Por qué 1 mm y no un vóxel: la tapa que deja el
+#: relleno de un vóxel donde un vaso sale del volumen quedó, en Case 3, a
+#: 0,36 mm de la cara z (vóxel de 0,32 mm), porque el preset XA suaviza su
+#: copia antes de buscar; las regiones interiores de Case 3 quedaron a ≥ 6 mm
+#: de toda cara, así que 1 mm separa las dos cosas con margen.
+BORDER_TOL_MM: float = 1.0
+
+#: El 4.º desempate de `order_hits`: el canal más prioritario que encuentra el sitio.
+_CHANNEL_ORDER = {"curvatura": 0, "calibre": 1, "cociente": 2}
+
 #: Por encima de esto los canales geométricos no se ejecutan. En una malla de
 #: 79 000 vértices tardaban 52 s, y ese tamaño solo lo alcanza una angio-TC —
 #: donde además no significan nada, porque la malla es la cabeza entera.
@@ -120,6 +138,9 @@ class ConsensusHit:
     ratio: float = 0.0
     #: El candidato del detector de curvatura, si algún canal fue ese.
     candidate: AneurysmCandidate | None = None
+    #: La región de curvatura toca una cara de la caja de la malla: la tapa de
+    #: un vaso cortado por el borde del volumen, no anatomía.
+    on_border: bool = False
 
     @property
     def channels(self) -> list[str]:
@@ -244,9 +265,11 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
 
     # ── Canal 1: curvatura ────────────────────────────────────────────── #
     det = curvature_result if curvature_result is not None else detector.detect(poly)
+    bounds = poly.GetBounds()
     for rank, c in enumerate(det.candidates, start=1):
         hits.append(ConsensusHit(position=tuple(float(v) for v in c.centroid),
-                                 ranks={CH_CURVATURE: rank}, candidate=c))
+                                 ranks={CH_CURVATURE: rank}, candidate=c,
+                                 on_border=region_on_border(c.poly_data, bounds)))
 
     # ── Canales 2 y 3: calibre y cociente ─────────────────────────────── #
     #
@@ -274,12 +297,38 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
 
 
 def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
-    """El orden de la lista corta: mejor puesto; a igualdad, más canales; luego menor suma.
+    """El orden de la lista corta: borde al final; mejor puesto; más canales;
+    menor suma; y el orden de los canales.
 
     Es una cuota por canal y no un premio al acuerdo: ver «Cómo se ordena» en
     el docstring del módulo, con las cifras de Case 3 que lo decidieron.
+
+    Los sitios de borde van al final, pero se quedan en la lista: las tapas
+    que el relleno de un vóxel pone donde un vaso sale del volumen son
+    artefactos del borde del volumen, no anatomía, y su anillo tiene mucha
+    curvatura. En Case 3 (malla tubular, «solo el árbol») la tapa de z ≈ 2 mm
+    era el 1.º de curvatura y dejaba la lesión 3.ª.
     """
-    return sorted(hits, key=lambda h: (h.best_rank, -len(h.ranks), h.rank_sum))
+    return sorted(hits, key=lambda h: (
+        h.on_border, h.best_rank, -len(h.ranks), h.rank_sum,
+        min((_CHANNEL_ORDER.get(c, len(_CHANNEL_ORDER)) for c in h.ranks),
+            default=len(_CHANNEL_ORDER))))
+
+
+def region_on_border(region: vtk.vtkPolyData, mesh_bounds,
+                     tol_mm: float = BORDER_TOL_MM) -> bool:
+    """¿Toca la caja de la región una cara de la caja de la malla?
+
+    En cualquier eje y en cualquiera de las dos caras, a menos de `tol_mm`.
+    Con el relleno de un vóxel de `mask_to_surface`, la caja de la malla es la
+    del volumen, así que tocarla es estar en la tapa de un vaso cortado.
+    """
+    if region is None or region.GetNumberOfPoints() == 0:
+        return False
+    rb = region.GetBounds()
+    return any(rb[2 * k] - mesh_bounds[2 * k] <= tol_mm
+               or mesh_bounds[2 * k + 1] - rb[2 * k + 1] <= tol_mm
+               for k in range(3))
 
 
 def _geometric_channels_apply(poly: vtk.vtkPolyData) -> bool:

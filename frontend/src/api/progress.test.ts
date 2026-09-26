@@ -94,4 +94,29 @@ describe("watchProgress", () => {
     expect(seen.map((s) => s.phase)).toEqual(["recuperado"]);
     expect(seen.some((s) => s.ok === false)).toBe(false);
   });
+
+  it("un sondeo en vuelo no emite nada después de llamar a stop() (fallo duro)", async () => {
+    let rejectFetch!: (err: unknown) => void;
+    const fetchState = vi.fn(() => new Promise<ProgressState>((_res, rej) => { rejectFetch = rej; }));
+    const onState = vi.fn();
+    const stop = watchProgress("sid", onState, { pollMs: 100, wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState });
+    FakeWs.instances[0].onerror?.();
+    expect(fetchState).toHaveBeenCalledTimes(1);   // el GET quedó pendiente
+    stop();
+    rejectFetch(new ApiError(401, "no autorizado"));   // llegaría tarde: la sesión ya no existe para el vigilante
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onState).not.toHaveBeenCalled();
+  });
+
+  it("un sondeo en vuelo no emite nada después de llamar a stop() (éxito)", async () => {
+    let resolveFetch!: (s: ProgressState) => void;
+    const fetchState = vi.fn(() => new Promise<ProgressState>((res) => { resolveFetch = res; }));
+    const onState = vi.fn();
+    const stop = watchProgress("sid", onState, { pollMs: 100, wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState });
+    FakeWs.instances[0].onerror?.();
+    stop();
+    resolveFetch(running("tarde", 50));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onState).not.toHaveBeenCalled();
+  });
 });

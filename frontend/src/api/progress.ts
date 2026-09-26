@@ -51,6 +51,11 @@ export function watchProgress(
       onState(s);
       if (finished(s)) { stopped = true; return; }
     } catch (err) {
+      // Igual que en el camino de éxito: si stop() llegó mientras el GET
+      // estaba en vuelo (p. ej. useProgress cambiando de sesión), este
+      // sondeo ya es de otra vida y no debe emitir nada, ni el estado
+      // terminal, sobre el vigilante actual.
+      if (stopped) return;
       // Un 401/404 no se arregla reintentando: el token venció o la sesión ya
       // no existe (el propio request() ya deslogueó en el caso del 401).
       const hardFailure = err instanceof ApiError && (err.status === 401 || err.status === 404);

@@ -14,6 +14,7 @@ import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+import vtkLight from "@kitware/vtk.js/Rendering/Core/Light";
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
 import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 import vtkCubeSource from "@kitware/vtk.js/Filters/Sources/CubeSource";
@@ -31,6 +32,10 @@ export interface MeshLayer {
   /** Names this layer's actor so it can be moved after loading — how the clip
    *  rehearsal animates the body and the two blades without refetching. */
   id?: string;
+  /** Dibuja además un contorno en alambre de la misma malla, al 15 % y en el
+   *  color de la capa. Lo pide el saco: translúcido sobre el árbol, su borde
+   *  se perdía y no se sabía dónde acababa el aneurisma. */
+  silhouette?: boolean;
 }
 
 /** Imperative handle for moving named layers, published while the scene lives.
@@ -241,6 +246,22 @@ export function MeshView({
     const renderWindow = fsrw.getRenderWindow();
     handles.current = { fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map() };
 
+    // Dos luces que siguen la cámara: una principal y un relleno opuesto al 35 %.
+    // Con la única luz de cabeza de vtk.js el lado en sombra del vaso era negro y
+    // las bifurcaciones no se leían. Van en este efecto, que estrena renderer en
+    // cada reconstrucción: así nunca se acumulan luces de una escena anterior.
+    renderer.removeAllLights();
+    // El tipo va por su método: los .d.ts declaran `lightType` como un enum que
+    // en tiempo de ejecución no existe (vtk.js usa la cadena).
+    const keyLight = vtkLight.newInstance({ intensity: 1.0, position: [1, 1, 1] as never });
+    const fillLight = vtkLight.newInstance({ intensity: 0.35, position: [-1, -0.5, -1] as never });
+    keyLight.setLightTypeToCameraLight(); fillLight.setLightTypeToCameraLight();
+    renderer.addLight(keyLight); renderer.addLight(fillLight);
+    // Translucidez sin artefactos de orden al bajar la opacidad del árbol.
+    renderer.setUseDepthPeeling(true);
+    renderer.setMaximumNumberOfPeels(4);
+    renderer.setOcclusionRatio(0.0);
+
     const inset = createOrientationInset(renderWindow, renderer, orientationRef.current);
     insetRef.current = inset;
     const reportCamera = () => {
@@ -362,6 +383,9 @@ export function MeshView({
           prop.setColor(...layer.color);
           prop.setOpacity(layer.opacity ?? 1);
           prop.setInterpolationToPhong();
+          // Material sobrio: poca luz propia para que el relieve lo den las dos
+          // luces, y un brillo contenido que no quema la cúpula.
+          prop.setAmbient(0.15); prop.setDiffuse(0.85); prop.setSpecular(0.25); prop.setSpecularPower(24);
 
           // Highlight the focused layer (selected candidate): lift it off the
           // dimmed tree with a self-lit glow and a crisp specular sheen.
@@ -377,6 +401,25 @@ export function MeshView({
           renderer.addActor(actor);
           handles.current?.actors.push(actor);
           handles.current?.actorByUrl.set(layer.url, actor);
+
+          if (layer.silhouette) {
+            // Segundo actor sobre el MISMO mapper: hereda los planos de recorte
+            // de la previa y el cambio de geometría en sitio (el saco
+            // deformándose en el ensayo) sin código aparte. Sin luz, para que
+            // el contorno sea una línea de color y no otra superficie
+            // sombreada; y no se deja pinchar, o taparía la malla al marcar el
+            // cuello. Va en `actors`, así que se retira con la escena.
+            const outline = vtkActor.newInstance();
+            outline.setMapper(mapper);
+            const op = outline.getProperty();
+            op.setRepresentationToWireframe();
+            op.setColor(...layer.color);
+            op.setOpacity(0.15);
+            op.setLighting(false);
+            outline.setPickable(false);
+            renderer.addActor(outline);
+            handles.current?.actors.push(outline);
+          }
           anyGeometry = true;
         } catch (err) {
           // A single failed layer must not blank the whole scene.

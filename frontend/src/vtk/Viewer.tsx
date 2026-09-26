@@ -388,7 +388,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       ? sacFrames[sacFrame]
       : morphometry?.sac_mesh_url;
     if (sacUrl && step !== "segment" && step !== "upload") {
-      out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac" });
+      // Con contorno: translúcido sobre el árbol, su borde se perdía.
+      out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true });
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
       out.push({ url: candidate.dome_mesh_url, color: DOME_COLOR, opacity: resalte });
     }

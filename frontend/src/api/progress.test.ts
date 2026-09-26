@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "./client";
 import { watchProgress, type ProgressState } from "./progress";
 
 class FakeWs {
@@ -53,5 +54,44 @@ describe("watchProgress", () => {
     const n = fetchState.mock.calls.length;
     await vi.advanceTimersByTimeAsync(500);
     expect(fetchState.mock.calls.length).toBe(n);
+  });
+
+  it("tras 5 fallos seguidos del GET, emite un estado terminal y deja de sondear", async () => {
+    const fetchState = vi.fn(async () => { throw new Error("network"); });
+    const seen: ProgressState[] = [];
+    watchProgress("sid", (s) => seen.push(s), { pollMs: 100, wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState });
+    FakeWs.instances[0].onerror?.();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetchState).toHaveBeenCalledTimes(5);
+    expect(seen).toEqual([{ phase: "", pct: 0, running: false, ok: false, message: "Sin conexión con el progreso del servidor" }]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetchState).toHaveBeenCalledTimes(5);   // no sigue sondeando tras el estado terminal
+  });
+
+  it("un 401 del GET para el sondeo de inmediato, sin agotar los 5 reintentos", async () => {
+    const fetchState = vi.fn(async () => { throw new ApiError(401, "no autorizado"); });
+    const seen: ProgressState[] = [];
+    watchProgress("sid", (s) => seen.push(s), { pollMs: 100, wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState });
+    FakeWs.instances[0].onerror?.();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+    expect(seen).toEqual([{ phase: "", pct: 0, running: false, ok: false, message: "Sin conexión con el progreso del servidor" }]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+  });
+
+  it("dos fallos seguidos de un éxito no cuentan como fallo definitivo", async () => {
+    let calls = 0;
+    const fetchState = vi.fn(async () => {
+      calls += 1;
+      if (calls <= 2) throw new Error("network");
+      return running("recuperado", 50);
+    });
+    const seen: ProgressState[] = [];
+    watchProgress("sid", (s) => seen.push(s), { pollMs: 100, wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState });
+    FakeWs.instances[0].onerror?.();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(seen.map((s) => s.phase)).toEqual(["recuperado"]);
+    expect(seen.some((s) => s.ok === false)).toBe(false);
   });
 });

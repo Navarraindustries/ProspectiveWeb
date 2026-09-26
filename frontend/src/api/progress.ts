@@ -3,11 +3,24 @@
    panel no distingue una vía de otra. */
 
 import { useEffect, useState } from "react";
-import { api, getToken } from "./client";
+import { ApiError, api, getToken } from "./client";
 import type { ProgressState } from "./types";
 export type { ProgressState };
 
 const finished = (s: ProgressState) => !s.running && s.ok !== null;
+
+// Cinco intentos de GET seguidos sin respuesta (o un 401/404, que no se va a
+// arreglar reintentando) y se rinde: sin esto un token vencido o una sesión
+// que ya no existe hacían que el cliente golpeara el backend cada pollMs para
+// siempre sin que nadie se enterara.
+const MAX_POLL_FAILURES = 5;
+const CONNECTION_LOST: ProgressState = {
+  phase: "",
+  pct: 0,
+  running: false,
+  ok: false,
+  message: "Sin conexión con el progreso del servidor",
+};
 
 function wsUrl(sessionId: string): string {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -25,15 +38,25 @@ export function watchProgress(
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let ws: WebSocket | null = null;
+  let consecutiveFailures = 0;
+
+  const giveUp = () => { stopped = true; onState(CONNECTION_LOST); };
 
   const poll = async () => {
     if (stopped) return;
     try {
       const s = await fetchState(sessionId);
       if (stopped) return;
+      consecutiveFailures = 0;
       onState(s);
       if (finished(s)) { stopped = true; return; }
-    } catch { /* el siguiente intento lo dirá */ }
+    } catch (err) {
+      // Un 401/404 no se arregla reintentando: el token venció o la sesión ya
+      // no existe (el propio request() ya deslogueó en el caso del 401).
+      const hardFailure = err instanceof ApiError && (err.status === 401 || err.status === 404);
+      consecutiveFailures += 1;
+      if (hardFailure || consecutiveFailures >= MAX_POLL_FAILURES) { giveUp(); return; }
+    }
     if (!stopped) timer = setTimeout(poll, pollMs);
   };
   // Se llama desde onerror/onclose: si ya hay un polling en marcha (timer no
@@ -63,7 +86,11 @@ export function watchProgress(
 export function useProgress(sessionId: string | null, active: boolean): ProgressState | null {
   const [state, setState] = useState<ProgressState | null>(null);
   useEffect(() => {
-    if (!sessionId || !active) { setState(null); return; }
+    // Se limpia siempre, no solo cuando falta sesión: sin esto, cambiar de
+    // sesión con el panel ya activo dejaba ver la fase/porcentaje de la
+    // sesión anterior hasta que llegara el primer mensaje de la nueva.
+    setState(null);
+    if (!sessionId || !active) return;
     return watchProgress(sessionId, setState);
   }, [sessionId, active]);
   return state;

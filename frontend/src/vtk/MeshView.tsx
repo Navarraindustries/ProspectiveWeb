@@ -32,9 +32,9 @@ export interface MeshLayer {
   /** Names this layer's actor so it can be moved after loading — how the clip
    *  rehearsal animates the body and the two blades without refetching. */
   id?: string;
-  /** Dibuja además un contorno en alambre de la misma malla, al 15 % y en el
-   *  color de la capa. Lo pide el saco: translúcido sobre el árbol, su borde
-   *  se perdía y no se sabía dónde acababa el aneurisma. */
+  /** Dibuja además un contorno de la malla en el color de la capa (un casco
+   *  invertido, ver el efecto de escena). Lo pide el saco: translúcido sobre
+   *  el árbol, su borde se perdía y no se sabía dónde acababa el aneurisma. */
   silhouette?: boolean;
 }
 
@@ -97,6 +97,16 @@ interface Handles {
   renderWindow: ReturnType<vtkFullScreenRenderWindow["getRenderWindow"]>;
   actors: vtkActor[];
   actorByUrl: Map<string, vtkActor>;   // for incremental opacity/color updates
+}
+
+/** Opacidad del contorno (casco invertido) de una capa: 0,6 con la capa opaca
+ *  y proporcional a ella si se atenúa. Con la capa opaca, las caras traseras
+ *  del casco que caen dentro del perfil quedan tapadas por la superficie y
+ *  solo se ve el anillo. Con la capa translúcida (el saco al 35 % mientras se
+ *  marca el cuello) esas caras se ven A TRAVÉS de ella: un casco al 0,6
+ *  volvía a llenar el saco de verde plano, lo mismo que se quería evitar. */
+function outlineOpacity(layerOpacity: number): number {
+  return 0.6 * layerOpacity;
 }
 
 export function MeshView({
@@ -176,6 +186,9 @@ export function MeshView({
   const markerActors = useRef<vtkActor[]>([]);
   // Actors that carry a layer id, so the rehearsal can move them by name.
   const namedActors = useRef<Map<string, vtkActor>>(new Map());
+  // El contorno de cada capa que lo pide, por id (o URL), para que siga los
+  // cambios de color y opacidad de su capa sin reconstruir la escena.
+  const outlineActors = useRef<Map<string, vtkActor>>(new Map());
   // Qué fichero tiene cargado ahora mismo cada capa CON NOMBRE. Una capa con
   // nombre puede cambiar de geometría sin reconstruir la escena.
   const loadedUrlById = useRef<Map<string, string>>(new Map());
@@ -253,8 +266,8 @@ export function MeshView({
     renderer.removeAllLights();
     // El tipo va por su método: los .d.ts declaran `lightType` como un enum que
     // en tiempo de ejecución no existe (vtk.js usa la cadena).
-    const keyLight = vtkLight.newInstance({ intensity: 1.0, position: [1, 1, 1] as never });
-    const fillLight = vtkLight.newInstance({ intensity: 0.35, position: [-1, -0.5, -1] as never });
+    const keyLight = vtkLight.newInstance({ intensity: 1.0, position: [1, 1, 1] as Vector3 });
+    const fillLight = vtkLight.newInstance({ intensity: 0.35, position: [-1, -0.5, -1] as Vector3 });
     keyLight.setLightTypeToCameraLight(); fillLight.setLightTypeToCameraLight();
     renderer.addLight(keyLight); renderer.addLight(fillLight);
     // Translucidez sin artefactos de orden al bajar la opacidad del árbol.
@@ -403,22 +416,33 @@ export function MeshView({
           handles.current?.actorByUrl.set(layer.url, actor);
 
           if (layer.silhouette) {
-            // Segundo actor sobre el MISMO mapper: hereda los planos de recorte
-            // de la previa y el cambio de geometría en sitio (el saco
-            // deformándose en el ensayo) sin código aparte. Sin luz, para que
-            // el contorno sea una línea de color y no otra superficie
-            // sombreada; y no se deja pinchar, o taparía la malla al marcar el
-            // cuello. Va en `actors`, así que se retira con la escena.
+            // Contorno como CASCO INVERTIDO, no como alambre. Un alambre dibuja
+            // todas las aristas de todos los triángulos: en un saco de miles de
+            // puntos las líneas se apilan varias por píxel y el saco entero se
+            // volvía una red verde casi opaca, sin relieve y tapando el vaso de
+            // detrás. El casco es la misma malla un 4 % mayor alrededor de su
+            // centro y con las caras delanteras descartadas: solo se ven sus
+            // caras traseras, y de esas solo asoma el anillo que sobresale del
+            // perfil del saco; el resto queda detrás de la superficie.
+            // Mismo mapper: hereda los planos de recorte de la previa y el
+            // cambio de geometría en sitio (el saco deformándose en el ensayo).
+            // Sin luz, para que sea un borde de color y no otra superficie
+            // sombreada; y no se deja pinchar, o taparía el sitio del cuello.
+            // Va en `actors`, así que se retira con la escena.
+            const b = poly.getBounds();
             const outline = vtkActor.newInstance();
             outline.setMapper(mapper);
+            outline.setOrigin((b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2);
+            outline.setScale(1.04, 1.04, 1.04);
             const op = outline.getProperty();
-            op.setRepresentationToWireframe();
+            op.setFrontfaceCulling(true);
             op.setColor(...layer.color);
-            op.setOpacity(0.15);
+            op.setOpacity(outlineOpacity(layer.opacity ?? 1));
             op.setLighting(false);
             outline.setPickable(false);
             renderer.addActor(outline);
             handles.current?.actors.push(outline);
+            outlineActors.current.set(layer.id ?? layer.url, outline);
           }
           anyGeometry = true;
         } catch (err) {
@@ -500,6 +524,7 @@ export function MeshView({
       // miran handles.current; se anula solo al desmontar (efecto de abajo).
       registerPartsRef.current?.(null);
       namedActors.current.clear();
+      outlineActors.current.clear();
       markerActors.current = [];
       const h = handles.current;
       if (h) {
@@ -569,6 +594,11 @@ export function MeshView({
       if (!(focusUrl && l.url === focusUrl)) {   // the focused layer keeps its highlight
         prop.setColor(...l.color);
         prop.setOpacity(l.opacity ?? 1);
+      }
+      const outline = outlineActors.current.get(l.id ?? l.url);
+      if (outline) {
+        outline.getProperty().setColor(...l.color);
+        outline.getProperty().setOpacity(outlineOpacity(l.opacity ?? 1));
       }
       changed = true;
     }

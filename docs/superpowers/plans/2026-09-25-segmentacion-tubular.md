@@ -19,7 +19,7 @@
 - Un solo fichero de malla (`vessel_tree.vtp`, completa); la detección decima EN MEMORIA a ≤ 40 000 vértices; morfometría, saco y dispositivos usan la completa.
 - Resolución completa por defecto; la casilla pasa a ser «Segmentar a media resolución (más rápido)».
 - Progreso: `GET /api/progress/{sid}` siempre; `WS /ws/progress/{sid}?token=` cuando el proxy lo permite; fases con porcentaje.
-- Render: ambient 0,15 · diffuse 0,85 · specular 0,25 · specular power 24; dos luces (key 100 %, fill 35 % opuesta) que siguen la cámara; `setUseDepthPeeling(true)` con 4 pasadas; contorno del saco con un actor wireframe al 15 %.
+- Render: ambient 0,15 · diffuse 0,85 · specular 0,25 · specular power 24; dos luces (key 100 %, fill 35 % opuesta) que siguen la cámara; `setUseDepthPeeling(true)` con 4 pasadas; contorno del saco con un casco invertido (la misma malla un 4 % mayor, caras delanteras descartadas).
 - Copia de interfaz y mensajes de commit en español. `tsc -b`, `vitest run` y `pytest` (sin fallos NUEVOS respecto a la lista base del repositorio: 26 preexistentes) en verde en cada commit.
 - La lesión confirmada de Case 3 (cand-002, x 62 · y 64 · z 63 mm) debe seguir en la lista corta de detección en el puesto ≤ 3.
 
@@ -1721,7 +1721,7 @@ git commit -m "El panel elige el método tubular, enseña el progreso por fases 
 - Modify: `frontend/src/vtk/Viewer.tsx` (la capa del saco pide contorno)
 
 **Interfaces:**
-- Produces: `MeshLayer` gana `silhouette?: boolean` (dibuja un segundo actor wireframe de la misma malla al 15 % de opacidad en el color de la capa). `MeshView` aplica material y luces del diseño a todas las capas, activa depth peeling y conserva el resalte del candidato enfocado.
+- Produces: `MeshLayer` gana `silhouette?: boolean` (dibuja un segundo actor, casco invertido de la misma malla, en el color de la capa). `MeshView` aplica material y luces del diseño a todas las capas, activa depth peeling y conserva el resalte del candidato enfocado.
 
 - [ ] **Step 1: Material y luces**
 
@@ -1747,7 +1747,7 @@ renderer.setOcclusionRatio(0.0);
 prop.setAmbient(0.15); prop.setDiffuse(0.85); prop.setSpecular(0.25); prop.setSpecularPower(24);
 ```
 
-y el bloque de resalte del candidato enfocado se mantiene (sobrescribe ambient/diffuse/specular). Si `layer.silhouette`, crea un segundo `vtkActor` con el mismo mapper, `prop.setRepresentationToWireframe()`, `setOpacity(0.15)`, `setLighting(false)`, mismo color, `setPickable(false)`, y añádelo a `handles.current.actors` para que se limpie con la escena.
+y el bloque de resalte del candidato enfocado se mantiene (sobrescribe ambient/diffuse/specular). Si `layer.silhouette`, crea un segundo `vtkActor` con el mismo mapper como casco invertido: `actor.setOrigin(centro de los bounds de la malla)`, `actor.setScale(1.04, 1.04, 1.04)`, `prop.setFrontfaceCulling(true)`, `setLighting(false)`, mismo color, opacidad `0.6 × opacidad de la capa`, `setPickable(false)`; guárdalo por id de capa para que el efecto de apariencia le cambie color y opacidad, y añádelo a `handles.current.actors` para que se limpie con la escena. Solo se ven sus caras traseras, y de ellas solo el anillo que sobresale del perfil: un borde fino. (La primera versión usaba un actor wireframe al 15 %, pero dibuja todas las aristas de todos los triángulos y en un saco de miles de puntos se apilaban en una red verde casi opaca. La opacidad sigue a la capa porque, con el saco translúcido, las caras traseras del casco se ven a través de él.)
 
 En `Viewer.tsx`, la capa del saco (`id: "sac"`) pasa `silhouette: true`.
 

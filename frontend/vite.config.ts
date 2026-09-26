@@ -32,6 +32,9 @@ export default defineConfig({
       "/api": backend,
       "/data": backend,
       "/static": backend,
+      // watchProgress abre esta ruta directamente en location.host; sin
+      // ws: true el proxy la trataría como HTTP normal y el handshake fallaría.
+      "/ws": { target: backend, ws: true },
     },
   },
 });

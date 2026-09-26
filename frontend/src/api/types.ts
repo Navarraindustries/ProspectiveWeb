@@ -1669,3 +1669,12 @@ export interface CeilingCompareResult {
   n_sin_techo: number;
   note: string;
 }
+
+/* ── progreso ───────────────────────────────────────────────────────────── */
+export interface ProgressState {
+  phase: string;
+  pct: number;
+  running: boolean;
+  ok: boolean | null;
+  message: string;
+}

@@ -73,6 +73,7 @@ import type {
   PrintBed,
   PrintPrepRequest,
   PrintPrepResult,
+  ProgressState,
   ReportRequest,
   ReportResult,
   SegmentRequest,
@@ -271,6 +272,9 @@ export const api = {
   segment: (req: SegmentRequest) => post<SegmentResult>("/api/segment", req),
   suggestedBand: (sessionId: string) =>
     get<SuggestedBand>(`/api/segment/suggested-band/${sessionId}`),
+  /** Progreso de un trabajo largo (segmentación, morfometría…); respaldo por
+   *  GET cuando watchProgress no consigue abrir el WebSocket. */
+  progress: (sessionId: string) => get<ProgressState>(`/api/progress/${sessionId}`),
   /** Segmenta y detecta CON y SIN techo del umbral y devuelve ambas listas.
    *  Cuesta dos segmentaciones y dos detecciones; no toca la malla de la
    *  sesión, así que elegir configuración es un paso aparte. */

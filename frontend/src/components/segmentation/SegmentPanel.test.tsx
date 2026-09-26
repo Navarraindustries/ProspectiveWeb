@@ -1,6 +1,6 @@
 /* The segmentation panel has to say what the cleanup threw away. */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,6 +20,27 @@ vi.mock("../../api/client", () => {
     },
   });
   return { api };
+});
+
+// El progreso real abre un WebSocket y sondea: en jsdom no hay servidor. Aquí
+// es un almacén que cada test fija y que avisa al panel cuando cambia.
+const progreso = vi.hoisted(() => {
+  const oyentes = new Set<() => void>();
+  let state: unknown = null;
+  return {
+    get: () => state,
+    set: (s: unknown) => { state = s; oyentes.forEach((f) => f()); },
+    subscribe: (f: () => void) => { oyentes.add(f); return () => { oyentes.delete(f); }; },
+  };
+});
+vi.mock("../../api/progress", async () => {
+  const { useSyncExternalStore } = await import("react");
+  return {
+    useProgress: (_sid: string | null, active: boolean) => {
+      const s = useSyncExternalStore(progreso.subscribe, progreso.get);
+      return active ? s : null;
+    },
+  };
 });
 
 import {
@@ -316,7 +337,10 @@ describe("comparar con y sin techo", () => {
     // puestos de una malla que el usuario no llega a ver nunca.
     const { api } = await comparar();
     const [, req] = vi.mocked(api.compareCeiling).mock.calls[0];
-    expect(req.full_resolution).toBe(false);
+    // El endpoint de comparar solo conoce `full_resolution`. Segmentar va ahora
+    // a resolución nativa por defecto (media resolución desmarcada), así que
+    // comparar también.
+    expect(req.full_resolution).toBe(true);
     expect(req.lower).toBe(1503);
     expect(req.upper).toBe(4450);
   });
@@ -410,5 +434,138 @@ describe("segmentar deja la malla y se lleva lo de la malla vieja", () => {
     // Lo que el visor necesita para pintar: si esto es null, se ve el DICOM.
     await vi.waitFor(() => expect(visto.segmentation).not.toBeNull());
     expect(visto.candidates).toEqual([]);
+  });
+});
+
+/* Método tubular: el panel lo manda por defecto, enseña el progreso por fases
+ * y dice si la malla es estanca. */
+describe("método tubular", () => {
+  beforeEach(() => { vi.clearAllMocks(); progreso.set(null); });
+
+  const serie = {
+    session_id: "sesion-tub", series_id: "1.2.3", description: "3D RA",
+    modality: "XA", slices: 384, spacing: { x: 0.4, y: 0.4, z: 0.4 },
+    window_center: -343, window_width: 7578,
+    is_projection: false, projection_warning: null, size_mb: 120,
+  };
+
+  const baseResult: SegmentResult = {
+    mesh_url: "/data/sessions/s/meshes/vessel_tree.vtp?v=1", voxel_fraction: 0.01, strategy: "xa_band_pass", is_dsa: false,
+    vertices: 70000, faces: 140000, downsample_factor: 1, kept_fraction: 0.36, fragments_removed: 0, largest_removed_mm3: 0,
+    main_tree_applied: false, main_tree_warning: "", main_tree_removed: 0, threshold_lower: 1470,
+    method: "tubular", reclaimed_mm3: 1800.5, vetoed_mm3: 120.2, boundary_edges: 0, components: 1, seeds: 8,
+    fallback_note: "", phase_seconds: { "tubularidad": 12.1, "superficie": 3.4, "guardado": 0.4 },
+  };
+
+  async function mocks() {
+    const { api } = await import("../../api/client");
+    vi.mocked(api.meshHistory).mockResolvedValue({
+      steps: [], undo_depth: 0, redo_depth: 0, has_original: true,
+    });
+    return { mockApi: vi.mocked(api) };
+  }
+
+  function renderPanel() {
+    function Sonda({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        p.setSession("sesion-tub");
+        p.setSeries(serie as never);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      return <>{p.sessionId && p.series ? children : null}</>;
+    }
+    return render(
+      <PlanningProvider>
+        <Sonda>
+          <SegmentPanel onNext={() => {}} />
+        </Sonda>
+      </PlanningProvider>,
+    );
+  }
+
+  it("envía el método tubular por defecto y muestra las cifras de la malla", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue(baseResult);
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    await waitFor(() => expect(mockApi.segment).toHaveBeenCalled());
+    expect(mockApi.segment.mock.calls[0][0]).toMatchObject({ method: "tubular", reclaim_mm: 3, half_resolution: false });
+    expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
+    expect(screen.getByText(/1 pieza/)).toBeInTheDocument();
+    expect(screen.getByText(/8 semillas/)).toBeInTheDocument();
+  });
+
+  it("ya no manda full_resolution al segmentar, y la media resolución se pide con la casilla", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue(baseResult);
+    renderPanel();
+    fireEvent.click(await screen.findByRole("checkbox", { name: /media resolución/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Segmentar$/ }));
+    await waitFor(() => expect(mockApi.segment).toHaveBeenCalled());
+    const req = mockApi.segment.mock.calls[0][0];
+    expect(req).not.toHaveProperty("full_resolution");
+    expect(req.half_resolution).toBe(true);
+  });
+
+  it("«Limpieza» solo aparece con el umbral clásico, que se manda como método", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue({ ...baseResult, method: "threshold" });
+    renderPanel();
+    await screen.findByRole("button", { name: /^Segmentar$/ });
+    expect(screen.queryByLabelText("Limpieza")).toBeNull();
+    expect(screen.getByLabelText("Suavizado")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
+    expect(screen.getByLabelText("Limpieza")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Segmentar$/ }));
+    await waitFor(() => expect(mockApi.segment).toHaveBeenCalled());
+    expect(mockApi.segment.mock.calls[0][0]).toMatchObject({ method: "threshold" });
+  });
+
+  it("enseña la nota cuando el método cae al umbral", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue({ ...baseResult, method: "tubular", fallback_note: "No se encontró ninguna semilla vascular ≥ 50 mm³ con este umbral: se usó la máscara de umbral rellena." });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText(/ninguna semilla/)).toBeInTheDocument();
+  });
+
+  it("resume los segundos por fase y marca «Con bordes» si la malla no cierra", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue({ ...baseResult, boundary_edges: 14, components: 3 });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText("Con bordes")).toBeInTheDocument();
+    expect(screen.getByText(/14 aristas/)).toBeInTheDocument();
+    expect(screen.getByText(/3 piezas/)).toBeInTheDocument();
+    expect(screen.getByText(/tubularidad 12 s · superficie 3 s/)).toBeInTheDocument();
+    expect(screen.getByText(/del umbral/)).toBeInTheDocument();
+  });
+
+  it("mientras segmenta enseña la fase y, si se pierde el progreso, lo dice sin darlo por fallido", async () => {
+    const { mockApi } = await mocks();
+    let terminar: (r: SegmentResult) => void = () => {};
+    mockApi.segment.mockReturnValue(new Promise<SegmentResult>((r) => { terminar = r; }));
+    progreso.set({ phase: "tubularidad 2/6", pct: 40, running: true, ok: null, message: "" });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText("tubularidad 2/6")).toBeInTheDocument();
+    expect(screen.getByText("40 %")).toBeInTheDocument();
+
+    act(() => progreso.set({ phase: "", pct: 0, running: false, ok: false, message: "Sin conexión con el progreso del servidor" }));
+    expect(await screen.findByText(/Sin conexión con el progreso del servidor/)).toBeInTheDocument();
+    expect(screen.queryByText(/Error en la segmentación/)).toBeNull();
+
+    await act(async () => { terminar(baseResult); });
+    expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sin conexión con el progreso/)).toBeNull();
+  });
+
+  it("enseña el detalle del 409 cuando ya hay otra segmentación tubular", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockRejectedValue(new Error("Ya hay una segmentación tubular en curso; espera a que termine"));
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText(/Ya hay una segmentación tubular en curso/)).toBeInTheDocument();
   });
 });

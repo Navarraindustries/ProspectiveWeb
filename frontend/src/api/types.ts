@@ -355,9 +355,14 @@ export interface SegmentRequest {
   upper: number;
   smoothing: number;
   cleanup: number;
-  /** Segment at native resolution. Downsampling halves the tree's connectivity,
-   *  which is what leaves gaps in thin vessels. Costs minutes, not seconds. */
-  full_resolution?: boolean;
+  /** «tubular»: vasos por su forma (Frangi), hueso vetado, sacos recuperados;
+   *  ignora `upper`. «threshold»: el umbral clásico. */
+  method: "tubular" | "threshold";
+  /** Radio (mm, 0–5) de pared y saco que se recupera alrededor del tubo. */
+  reclaim_mm: number;
+  /** Segmentar a media resolución: más rápido, pero rompe los vasos finos. El
+   *  servidor puede forzarla si no le cabe en memoria (lo dice `fallback_note`). */
+  half_resolution: boolean;
   /** Quedarse solo con el componente conexo mayor. Medido en los estudios
    *  angiográficos de este proyecto ESE componente es el árbol (case 3: 60,3 %;
    *  case 9: 63,7 %) y lo demás es hueso: bloques de 228–2948 mm³ a 37–92 mm,
@@ -390,6 +395,22 @@ export interface SegmentResult {
   /** Umbral inferior con el que se hizo la malla; el MIP «Vasos» arranca ahí.
    *  Opcional: sesiones guardadas antes de este campo no lo traen. */
   threshold_lower?: number;
+  /** Método con el que se hizo la malla. Opcional: sesiones guardadas antes no lo traen. */
+  method?: "tubular" | "threshold";
+  /** Pared y sacos recuperados junto al tubo, mm³ (tubular). */
+  reclaimed_mm3?: number;
+  /** Lo que se vetó como lámina (hueso) al recuperar, mm³ (tubular). */
+  vetoed_mm3?: number;
+  /** Aristas de borde de la malla; 0 = estanca. */
+  boundary_edges?: number;
+  /** Piezas conexas de la malla. */
+  components?: number;
+  /** Troncos que sembraron el crecimiento. */
+  seeds?: number;
+  /** No vacío = el servidor cambió algo (sin semillas → umbral; media resolución forzada). */
+  fallback_note?: string;
+  /** Segundos por fase, en el orden en que corrieron. */
+  phase_seconds?: Record<string, number>;
 }
 
 /* ── interactive mesh editing: ROI crop + grow-from-seeds ───────────────── */

@@ -14,10 +14,12 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
-import { ProgressBar } from "../ProgressBar";
 import { Slider } from "../Slider";
 import { MeshEditTools } from "./MeshEditTools";
 import { PreprocessSection } from "./PreprocessSection";
+import { SegmentProgress } from "./SegmentProgress";
+import { TubularControls, type SegmentMethod } from "./TubularControls";
+import { useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import type { CeilingCompareResult } from "../../api/types";
 
@@ -49,8 +51,15 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const [comparacion, setComparacion] = useState<CeilingCompareResult | null>(null);
   const [smoothing, setSmoothing] = useState(3);
   const [cleanup, setCleanup] = useState(7);   // level 7 → top-N isolation, mesh limpia
-  // Off by default: on a 384³ study this is minutes instead of seconds.
-  const [fullRes, setFullRes] = useState(false);
+  // Tubular por defecto: el umbral clásico deja láminas de hueso y cáscaras
+  // huecas que la detección luego toma por sacos.
+  const [method, setMethod] = useState<SegmentMethod>("tubular");
+  const [reclaimMm, setReclaimMm] = useState(3);
+  // Desmarcada por defecto: media resolución rompe los vasos finos. Antes el
+  // panel mandaba `full_resolution: false` y el backend, que lo traduce a
+  // `half_resolution = true`, segmentaba el tubular a media resolución sin que
+  // nadie lo pidiera.
+  const [halfRes, setHalfRes] = useState(false);
   // Marcada por defecto: en angiografía el componente mayor ES el árbol y el
   // resto es hueso, medido en los dos estudios XA del proyecto. En angio-TC el
   // backend se niega y lo explica, así que dejarla puesta no rompe nada.
@@ -62,6 +71,12 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const [range, setRange] = useState<{ min: number; max: number }>({ min: -500, max: 3000 });
   const suggested = useRef<{ lower: number; upper: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  // Solo vigila mientras corre la petición: al llegar el resultado `busy` pasa
+  // a false y el hook cierra el WebSocket o el sondeo.
+  const progress = useProgress(sessionId, busy);
+  // El vigilante se rinde con este estado si pierde el servidor. No es un
+  // fallo de la segmentación: el trabajo sigue y el resultado llega por el POST.
+  const progressLost = progress !== null && !progress.running && progress.ok === false;
 
   // La banda adaptada describe el VOLUMEN, no la malla, así que se pide
   // siempre que cambia la sesión.
@@ -181,8 +196,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         lower, upper, smoothing, cleanup, main_tree_only: mainTree,
         // Con la misma resolución que se va a segmentar: comparar a resolución
         // completa y luego segmentar diezmado enseñaría puestos de una malla
-        // que el usuario no llega a ver.
-        full_resolution: fullRes,
+        // que el usuario no llega a ver. Este endpoint sigue siendo solo del
+        // umbral clásico y solo conoce la bandera antigua, la inversa.
+        full_resolution: !halfRes,
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error comparando el umbral");
@@ -203,7 +219,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         upper: upperEfectivo,
         smoothing,
         cleanup,
-        full_resolution: fullRes,
+        method,
+        reclaim_mm: reclaimMm,
+        half_resolution: halfRes,
         main_tree_only: mainTree,
       });
       // La malla es OTRA, así que los candidatos, la morfometría y la
@@ -228,6 +246,10 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     }
   };
 
+  const tubular = segmentation?.method === "tubular";
+  const boundaryEdges = segmentation?.boundary_edges ?? 0;
+  const phases = phaseSummary(segmentation?.phase_seconds);
+
   return (
     <div className="fade-rise">
       <PanelHead
@@ -245,8 +267,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         )}
       </SectionLabel>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 12 }}>
-        Banda de arranque adaptada a este volumen. Mueve los sliders y observa la
-        malla 3D formándose (vista previa) y el tinte verde en los cortes MPR.
+        Mueve los umbrales y observa la vista previa; el método tubular decide
+        luego qué es vaso por su forma, no solo por su brillo.
       </div>
       <div>
         <Slider label="Umbral inferior" min={range.min} max={range.max} value={lower} onChange={setLower} unit="" />
@@ -341,17 +363,27 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             </div>
           </Card>
         )}
+        <SectionLabel style={{ marginTop: 18, marginBottom: 0 }}>Método</SectionLabel>
+        <TubularControls method={method} reclaimMm={reclaimMm} onMethod={setMethod} onReclaim={setReclaimMm} />
         <div style={{ height: 14 }} />
         <Slider label="Suavizado" min={0} max={10} value={smoothing} onChange={setSmoothing} />
-        <div style={{ height: 14 }} />
-        <Slider label="Limpieza" min={0} max={10} value={cleanup} onChange={setCleanup} />
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, marginBottom: 8, lineHeight: 1.45 }}>
-          {cleanup === 0
-            ? "Sin filtrar: se conserva todo, incluido el ruido."
-            : cleanup <= 4
-              ? "Filtra por tamaño: descarta motas y conserva cualquier fragmento que pueda ser un vaso."
-              : "Aísla las estructuras mayores: malla más limpia, pero puede dejar fuera una rama suelta."}
-        </div>
+        {/* La máscara tubular ya es un componente: el filtro de fragmentos no
+            tiene nada que quitar, así que solo se ofrece con el umbral. */}
+        {method === "threshold" ? (
+          <>
+            <div style={{ height: 14 }} />
+            <Slider label="Limpieza" min={0} max={10} value={cleanup} onChange={setCleanup} />
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, marginBottom: 8, lineHeight: 1.45 }}>
+              {cleanup === 0
+                ? "Sin filtrar: se conserva todo, incluido el ruido."
+                : cleanup <= 4
+                  ? "Filtra por tamaño: descarta motas y conserva cualquier fragmento que pueda ser un vaso."
+                  : "Aísla las estructuras mayores: malla más limpia, pero puede dejar fuera una rama suelta."}
+            </div>
+          </>
+        ) : (
+          <div style={{ height: 14 }} />
+        )}
 
         {/* Los huecos en los vasos finos vienen sobre todo de segmentar el
             volumen a la mitad de su resolución. */}
@@ -394,18 +426,16 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         >
           <input
             type="checkbox"
-            checked={fullRes}
-            onChange={(e) => setFullRes(e.target.checked)}
+            checked={halfRes}
+            onChange={(e) => setHalfRes(e.target.checked)}
             style={{ marginTop: 2 }}
           />
           <span style={{ minWidth: 0 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-              Resolución completa
+              Segmentar a media resolución (más rápido)
             </span>
             <span style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45, marginTop: 2 }}>
-              Los volúmenes grandes se segmentan a la mitad de su resolución, y eso
-              parte los vasos finos: la malla sale con huecos. Marcando esto se usa
-              el volumen íntegro — tarda minutos en vez de segundos.
+              Rompe los vasos finos; úsalo solo si el servidor tarda demasiado.
             </span>
           </span>
         </label>
@@ -418,21 +448,26 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           Restablecer banda sugerida
         </button>
       </div>
-      <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-        En estudios con hueso/cráneo, el umbral por sí solo no separa el vaso: sube «Limpieza»
-        para aislar la vasculatura principal. Si el hueso queda <b style={{ color: "var(--foreground)" }}>pegado
-        a la vasculatura</b>, el borrador de región (abajo) lo quita sin tocar los vasos de al lado.
-      </div>
+      {/* Habla de «Limpieza», que solo existe con el umbral clásico. */}
+      {method === "threshold" && (
+        <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+          En estudios con hueso/cráneo, el umbral por sí solo no separa el vaso: sube «Limpieza»
+          para aislar la vasculatura principal. Si el hueso queda <b style={{ color: "var(--foreground)" }}>pegado
+          a la vasculatura</b>, el borrador de región (abajo) lo quita sin tocar los vasos de al lado.
+        </div>
+      )}
 
       <PreprocessSection />
 
       {busy && (
-        <div style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 6 }}>
-            Ejecutando Marching Cubes…
-          </div>
-          <ProgressBar />
-        </div>
+        <>
+          <SegmentProgress state={progressLost ? null : progress} />
+          {progressLost && (
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
+              {progress.message}. La segmentación sigue en el servidor; el resultado llegará igualmente.
+            </div>
+          )}
+        </>
       )}
       <ErrorNote>{error}</ErrorNote>
 
@@ -458,18 +493,46 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               ? ["Submuestreada", "warning"]
               : ["Nativa", "success"]}
           />
+          {tubular && (
+            <Metric
+              label="Estanqueidad"
+              value={`${boundaryEdges} aristas`}
+              badge={boundaryEdges === 0 ? ["Estanca", "success"] : ["Con bordes", "warning"]}
+            />
+          )}
           {/* What the cleanup threw away. Without this the loss is invisible:
-              a whole branch can vanish and the mesh still looks plausible. */}
+              a whole branch can vanish and the mesh still looks plausible.
+              En tubular es la malla final sobre la máscara del umbral. */}
           <Metric
             label="Volumen conservado"
             value={(segmentation.kept_fraction * 100).toFixed(1)}
-            unit=" %"
+            unit={tubular ? " % del umbral" : " %"}
             badge={
               segmentation.largest_removed_mm3 >= 20
                 ? ["Revisar", "warning"]
                 : ["Limpio", "success"]
             }
           />
+          {tubular && (
+            <div style={hudLine}>
+              {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}
+              {pieces(segmentation.seeds ?? 0, "semilla", "semillas")} · recuperados{" "}
+              {mm3(segmentation.reclaimed_mm3)} mm³ · hueso vetado {mm3(segmentation.vetoed_mm3)} mm³
+            </div>
+          )}
+          {tubular && phases && <div style={hudLine}>{phases}</div>}
+          {/* El servidor cambió algo de lo pedido (sin semillas → umbral;
+              media resolución forzada por memoria). No es un error: la malla
+              existe, pero no es la que se pidió, y eso hay que verlo. */}
+          {segmentation.fallback_note && (
+            <div style={{
+              fontSize: 11, lineHeight: 1.5, marginTop: 8, padding: "8px 10px",
+              borderRadius: "var(--radius-md)", background: "var(--muted)",
+              border: "1px solid var(--warning)", color: "var(--foreground)",
+            }}>
+              {segmentation.fallback_note}
+            </div>
+          )}
           {segmentation.fragments_removed > 0 && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
               Se descartaron {segmentation.fragments_removed.toLocaleString("es")} fragmentos
@@ -533,4 +596,26 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       )}
     </div>
   );
+}
+
+/* Cifras del resultado tubular, en la línea mono del HUD. */
+const hudLine = {
+  fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)",
+  marginTop: 6, lineHeight: 1.5, letterSpacing: ".02em",
+} as const;
+
+function pieces(n: number, one: string, many: string): string {
+  return `${n.toLocaleString("es")} ${n === 1 ? one : many}`;
+}
+
+function mm3(v: number | undefined): string {
+  return Math.round(v ?? 0).toLocaleString("es");
+}
+
+/** «tubularidad 12 s · superficie 3 s»: dónde se fue el tiempo. */
+function phaseSummary(phases: Record<string, number> | undefined): string {
+  if (!phases) return "";
+  return Object.entries(phases)
+    .map(([name, sec]) => `${name} ${sec < 1 ? "<1" : Math.round(sec)} s`)
+    .join(" · ");
 }

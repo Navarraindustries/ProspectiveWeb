@@ -160,6 +160,21 @@ Key backend services (all ported from the desktop `prospective/processing`):
 | `device_state.py` | Which devices a session has placed; clearing one family |
 | `sessions.py` | Session dirs, TTL purge, durable snapshot / rehydrate |
 
+### Segmentación tubular
+
+El método tubular (`services/vascular_mask.py` + `mask_to_surface` en `services/segmentation.py`) rellena el núcleo de la banda de umbral y mide su tubularidad con Frangi por lonchas. Siembra en los troncos (percentil 90, ≥ 50 mm³) y crece por histéresis solo lo conectado a ellos. Después recupera hasta 3 mm de pared y sacos, vetando lo que es lámina (hueso). La superficie sale de marching cubes sobre la máscara suavizada, con un vóxel vacío alrededor que tapa los vasos que salen por el borde del volumen. Cada segmentación informa de las aristas de borde, las piezas, las semillas y los mm³ recuperados y vetados. `backend/scripts/validate_case3.py` mide todo eso sobre Case 3 (384³, 0,32 mm, umbral 1470), y en este equipo (16 núcleos) da estas cifras. Las 25 aristas de borde no vienen de las salidas del volumen: las introduce `vtkQuadricDecimation`, porque la malla antes de decimar tiene 0.
+
+| Case 3 | Cifra |
+|---|---|
+| Aristas de borde | 25 (0 antes de decimar) |
+| Piezas | 6 (1 con «solo el árbol»); ninguna con aspecto de hueso |
+| Semillas | 8 |
+| Relación de aspecto mediana | 1,58 |
+| Lesión conservada (M0 a ≤ 3 mm) | 96,6 % |
+| Tiempo máscara + superficie | 9,5 s (34,4 s con los dos pases de Frangi) |
+
+La variable de entorno `PROSPECTIVE_MEM_BUDGET_MB` (1400 MB por defecto) fija el presupuesto de memoria por encima del cual el método tubular se fuerza a media resolución y lo dice.
+
 ---
 
 ## Prerequisites

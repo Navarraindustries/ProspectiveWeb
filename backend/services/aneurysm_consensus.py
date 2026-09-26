@@ -308,6 +308,14 @@ def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
     artefactos del borde del volumen, no anatomía, y su anillo tiene mucha
     curvatura. En Case 3 (malla tubular, «solo el árbol») la tapa de z ≈ 2 mm
     era el 1.º de curvatura y dejaba la lesión 3.ª.
+
+    Salvedad: «borde» se mide contra la caja de la MALLA, que solo coincide
+    con el borde del volumen en las caras por donde sale algún vaso (dos de
+    seis en Case 3: y mínima y z mínima). En las demás la caja es anatomía, y
+    una cúpula real en el extremo del árbol en esa cara iría al final de la
+    lista (nunca fuera de ella). El arreglo exacto es pasar la extensión del
+    volumen a `routers.detect._detect_hits`; es un cambio de interfaz y queda
+    pendiente.
     """
     return sorted(hits, key=lambda h: (
         h.on_border, h.best_rank, -len(h.ranks), h.rank_sum,
@@ -320,8 +328,13 @@ def region_on_border(region: vtk.vtkPolyData, mesh_bounds,
     """¿Toca la caja de la región una cara de la caja de la malla?
 
     En cualquier eje y en cualquiera de las dos caras, a menos de `tol_mm`.
-    Con el relleno de un vóxel de `mask_to_surface`, la caja de la malla es la
-    del volumen, así que tocarla es estar en la tapa de un vaso cortado.
+    Con el relleno de un vóxel de `mask_to_surface`, una cara de la caja de la
+    malla es borde del volumen SOLO si por ella sale algún vaso (en Case 3,
+    dos de seis); allí tocarla es estar en la tapa de un vaso cortado. En las
+    otras caras la caja es anatomía y una cúpula real en el extremo del árbol
+    también la toca: se degradaría al final de la lista, nunca se quitaría.
+    Lo exacto sería comparar con la extensión del volumen, pasándola a
+    `routers.detect._detect_hits` (cambio de interfaz, pendiente).
     """
     if region is None or region.GetNumberOfPoints() == 0:
         return False

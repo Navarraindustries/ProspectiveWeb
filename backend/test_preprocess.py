@@ -221,34 +221,23 @@ class TestSegmentarUsaElVolumenPreprocesado:
     preprocesado», pero la segmentación releía el DICOM original: en Case 3 un
     suavizado σ 0,5 daba exactamente la misma malla (103 978 vértices) que sin
     él. La segmentación toma el volumen de la caché cuando la sesión está
-    preprocesada, y el del DICOM cuando no."""
+    preprocesada, y el DICOM cuando no. El recorrido completo por /api/segment
+    está en test_segment_tubular.py::TestSegmentarTrasPreprocesar."""
 
-    @staticmethod
-    def _dcm(vol, spacing=(2.0, 0.5, 0.5)):
-        from services.dicom_loader import DicomLoadResult
-        return DicomLoadResult(
-            volume=vol, spacing=spacing, origin=(0.0, 0.0, 0.0), modality="CT",
-            series_uid="s", series_description="", patient_name="", patient_id="",
-            study_date="", window_center=150.0, window_width=700.0, n_slices=vol.shape[0],
-            is_projection=False, projection_warning=None,
-        )
-
-    def test_sin_preprocesar_se_usa_el_dicom(self):
-        from routers.segment import _segmentation_volume
+    def test_sin_preprocesar_no_hay_fuente_preprocesada(self):
+        from routers.segment import _preprocessed_source
         sid = _session_with_volume()
-        raw = np.zeros((40, 64, 64), dtype=np.float32)
-        vol, sp = _segmentation_volume(sid, self._dcm(raw))
-        assert vol is raw and sp == (2.0, 0.5, 0.5)
+        assert _preprocessed_source(sid, "") is None
 
-    def test_preprocesado_se_usa_la_cache(self):
-        from routers.segment import _segmentation_volume
+    def test_preprocesado_se_usa_la_cache_con_su_geometria(self):
+        from routers.segment import _preprocessed_source
         sid = _session_with_volume()
         r = client.post(f"/api/preprocess/{sid}", json={
             "clip_hu": False, "resample_isotropic": True, "target_spacing_mm": 1.0, "smooth": False,
         })
         assert r.status_code == 200, r.text
-        raw = np.zeros((40, 64, 64), dtype=np.float32)
-        vol, sp = _segmentation_volume(sid, self._dcm(raw))
-        assert vol.shape == (80, 32, 32)
-        assert sp == (1.0, 1.0, 1.0)
-        np.testing.assert_array_equal(vol, np.load(_cache_paths(sid)[0]))
+        src = _preprocessed_source(sid, "")
+        assert src.volume.shape == (80, 32, 32)
+        assert src.spacing == (1.0, 1.0, 1.0)
+        assert src.modality == "CT"
+        np.testing.assert_array_equal(src.volume, np.load(_cache_paths(sid)[0]))

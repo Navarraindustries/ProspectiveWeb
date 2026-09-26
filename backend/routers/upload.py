@@ -254,6 +254,9 @@ async def set_active_series(session_id: str, series_id: str) -> SeriesInfo:
                 p.unlink()
         except OSError as exc:
             logger.warning("Could not drop cached volume %s: %s", p, exc)
+    # El preprocesado era de la caché que se acaba de borrar: la nueva serie
+    # entra sin preprocesar, y la segmentación no debe tratarla como tal.
+    write_state(session_id, "preprocess.ops", "")
 
     logger.info(
         "Active series switched — session=%s  series=%s (%s)  %d slices",

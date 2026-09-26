@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-import dataclasses
+import json
 import logging
 import math
 import os
@@ -24,7 +24,7 @@ from models.segmentation import (CeilingCompareRequest, CeilingCompareResult,
 from services              import mesh_backup, progress
 from services.sessions     import read_state, session_exists, session_subdir, write_state, mesh_url
 from services.thresholds   import compute_auto_thresholds, strategy_hint
-from services.dicom_loader import load_series
+from services.dicom_loader import DicomLoadResult, load_series
 from services.segmentation import (
     SegmentationPipeline, SegmentationResult, write_vtp,
     voxel_fraction as seg_voxel_fraction,
@@ -554,28 +554,61 @@ class _PhaseClock:
         return out
 
 
-def _segmentation_volume(session_id: str, dcm) -> tuple[np.ndarray, tuple[float, float, float]]:
-    """El volumen que se segmenta: el preprocesado si la sesión lo está.
+def _preprocessed_source(session_id: str, series_id: str) -> "DicomLoadResult | None":
+    """El volumen preprocesado de la sesión, si es el que toca segmentar.
 
     «Aplicar preprocesamiento» reescribe la caché del volumen (`_volume.npy` y
     su meta) y dice «Vuelve a segmentar para usar el volumen preprocesado»,
     pero la segmentación releía el DICOM y el preprocesado no llegaba nunca a
-    la malla. Con `preprocess.ops` en el estado se usa la caché, con su forma
-    y su espaciado (el remuestreo los cambia); sin él, el DICOM tal cual.
+    la malla. Devuelve la caché con la forma y el espaciado de su meta (el
+    remuestreo los cambia) y sin leer el DICOM: en el servidor de 2 GB la
+    carga del DICOM es el pico de memoria, y aquí se tiraría entera.
+
+    None —y se segmenta el DICOM tal cual— si la sesión no está preprocesada,
+    si falta la caché, o si se pide otra serie que la que construyó la caché
+    (la del estado `dicom.series_id`): segmentarla con el volumen de la
+    anterior sería medir otro estudio.
     """
     ops = read_state(session_id, "preprocess.ops", "") or ""
     if not ops:
-        return dcm.volume, tuple(dcm.spacing)
-    import json
+        return None
+    if (read_state(session_id, "dicom.series_id", "") or "") != (series_id or ""):
+        return None
     from services.mpr import _cache_paths
 
     npy_path, meta_path = _cache_paths(session_id)
     if not (npy_path.exists() and meta_path.exists()):
-        return dcm.volume, tuple(dcm.spacing)
+        return None
     meta = json.loads(meta_path.read_text())
     vol = np.load(npy_path)
-    logger.info("Segmenting the preprocessed volume of %s (%s)", session_id, ops)
-    return vol, tuple(float(s) for s in meta["spacing"])
+
+    def _state_float(key: str, default: float) -> float:
+        try:
+            return float(read_state(session_id, key, "") or default)
+        except ValueError:
+            return default
+
+    logger.info("Segmenting the preprocessed volume of %s (%s), DICOM not read", session_id, ops)
+    # Lo que la segmentación usa además del volumen: la modalidad (meta) y la
+    # ventana del DICOM, que upload deja en el estado al activar la serie.
+    return DicomLoadResult(
+        volume=vol,
+        spacing=tuple(float(v) for v in meta["spacing"]),
+        origin=tuple(float(v) for v in meta.get("origin_mm") or (0.0, 0.0, 0.0)),
+        modality=str(meta.get("modality") or read_state(session_id, "dicom.modality", "") or ""),
+        series_uid=series_id,
+        series_description=read_state(session_id, "dicom.description", "") or "",
+        patient_name="",
+        patient_id="",
+        study_date="",
+        window_center=_state_float("dicom.window_center", float(meta.get("wc", 0.0))),
+        window_width=_state_float("dicom.window_width", float(meta.get("ww", 0.0))),
+        n_slices=int(vol.shape[0]),
+        is_projection=False,
+        projection_warning=None,
+        direction=tuple(meta.get("direction") or (1, 0, 0, 0, 1, 0, 0, 0, 1)),
+        orientation_known=bool(meta.get("orientation_known", False)),
+    )
 
 
 def _run_segmentation_sync(
@@ -607,11 +640,7 @@ def _run_segmentation_sync(
     logger.info(
         "Loading DICOM series '%s' for session '%s' ...", series_id, session_id
     )
-    dcm = load_series(series_id, dicom_dir)
-    seg_vol, seg_sp = _segmentation_volume(session_id, dcm)
-    if seg_vol is not dcm.volume:
-        dcm = dataclasses.replace(dcm, volume=seg_vol, spacing=seg_sp)
-        del seg_vol
+    dcm = _preprocessed_source(session_id, series_id) or load_series(series_id, dicom_dir)
 
     # ── Guard: reject non-volumetric series with an actionable message ─────── #
     # Localizers, scouts and 2D projections have one (or two) slices; marching
@@ -819,6 +848,8 @@ def _run_segmentation_sync(
     write_state(session_id, "seg.method",         method)
     write_state(session_id, "seg.strategy",       strategy)
     # Volume geometry — needed by Session C (morphometry + aneurysm detection)
+    # Geometría del volumen SEGMENTADO: el preprocesado (remuestreado) cuando lo
+    # está, no la del DICOM original, aunque las claves digan «dicom.».
     write_state(session_id, "dicom.volume_z",     str(dcm.volume.shape[0]))
     write_state(session_id, "dicom.volume_y",     str(dcm.volume.shape[1]))
     write_state(session_id, "dicom.volume_x",     str(dcm.volume.shape[2]))

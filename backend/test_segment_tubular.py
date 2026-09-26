@@ -313,3 +313,69 @@ class TestRondaDeArreglos:
             release.set(); t.join()
         assert out["a"].status_code == 200
         assert _segment(b).status_code == 200       # la plaza se libera al acabar
+
+
+class TestSegmentarTrasPreprocesar:
+    """De extremo a extremo: «Aplicar preprocesamiento» tiene que llegar a la
+    malla. En Case 3 la segmentación releía el DICOM y un suavizado σ 0,5 daba
+    la misma malla de 103 978 vértices que sin él. Con un remuestreo que cambia
+    la forma se ve sin ambigüedad qué volumen se segmentó."""
+
+    def test_segmenta_el_volumen_remuestreado_y_al_restaurar_el_original(self):
+        from services.sessions import read_state
+        sid = create_session(); _tube_series(sid)                 # 80×48×48 a 1 mm
+        r = client.post(f"/api/preprocess/{sid}", json={
+            "clip_hu": False, "resample_isotropic": True, "target_spacing_mm": 2.0, "smooth": False})
+        assert r.status_code == 200, r.text
+        assert r.json()["shape_after"] == [40, 24, 24]
+
+        assert _segment(sid).status_code == 200
+        forma = [read_state(sid, f"dicom.volume_{a}") for a in "zyx"]
+        assert forma == ["40", "24", "24"]
+        assert float(read_state(sid, "dicom.spacing_z")) == 2.0
+
+        assert client.delete(f"/api/preprocess/{sid}").status_code == 200
+        assert _segment(sid).status_code == 200
+        forma = [read_state(sid, f"dicom.volume_{a}") for a in "zyx"]
+        assert forma == ["80", "48", "48"]
+        assert float(read_state(sid, "dicom.spacing_z")) == 1.0
+
+    def test_con_la_cache_preprocesada_no_se_lee_el_dicom(self, monkeypatch):
+        from routers import segment as seg
+        sid = create_session(); _tube_series(sid)
+        assert client.post(f"/api/preprocess/{sid}", json={
+            "clip_hu": False, "resample_isotropic": True, "target_spacing_mm": 2.0,
+            "smooth": False}).status_code == 200
+
+        def no_leas(*a, **k):
+            raise AssertionError("se leyó el DICOM entero con la caché preprocesada")
+        monkeypatch.setattr(seg, "load_series", no_leas)
+        r = _segment(sid)
+        assert r.status_code == 200, r.text
+
+    def test_otra_serie_ignora_la_cache_preprocesada(self):
+        from services.sessions import read_state, write_state
+        sid = create_session(); _tube_series(sid)
+        assert client.post(f"/api/preprocess/{sid}", json={
+            "clip_hu": False, "resample_isotropic": True, "target_spacing_mm": 2.0,
+            "smooth": False}).status_code == 200
+        # La caché se construyó con la serie del estado («» aquí); pedir otra
+        # serie no puede segmentar el volumen de la anterior.
+        write_state(sid, "dicom.series_id", "otra-serie")
+        assert _segment(sid, series_id="").status_code == 200
+        assert read_state(sid, "dicom.volume_z") == "80"
+
+    def test_cambiar_de_serie_borra_la_marca_de_preprocesado(self):
+        from services.dicom_loader import scan_series
+        from services.sessions import read_state
+        sid = create_session(); _tube_series(sid)
+        assert client.post(f"/api/preprocess/{sid}", json={
+            "clip_hu": False, "resample_isotropic": True, "target_spacing_mm": 2.0,
+            "smooth": False}).status_code == 200
+        assert read_state(sid, "preprocess.ops")
+        uid = scan_series(session_subdir(sid, "dicom"))[0]["series_uid"]
+        r = client.post(f"/api/upload/{sid}/series/{uid}")
+        assert r.status_code == 200, r.text
+        assert read_state(sid, "preprocess.ops", "") == ""
+        assert _segment(sid, series_id=uid).status_code == 200
+        assert read_state(sid, "dicom.volume_z") == "80"

@@ -626,6 +626,16 @@ export function MeshView({
           const poly = reader.getOutputData();
           if (!poly || poly.getNumberOfPoints() === 0) continue;
           (actor.getMapper() as vtkMapper).setInputData(poly);
+          // El casco comparte el mapper, así que ya tiene la geometría nueva,
+          // pero su centro de escala se fijó con los límites de la primera
+          // carga: si el saco se desplaza o cambia de tamaño en el ensayo, el
+          // 4 % extra crecería alrededor de un punto viejo y el anillo se
+          // descentraría. Se recalcula con la geometría que acaba de llegar.
+          const outline = outlineActors.current.get(l.id);
+          if (outline) {
+            const b = poly.getBounds();
+            outline.setOrigin((b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2);
+          }
           loadedUrlById.current.set(l.id, l.url);
           cambiado = true;
         } catch (err) {

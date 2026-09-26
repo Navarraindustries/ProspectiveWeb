@@ -249,6 +249,27 @@ def read_state(session_id: str, key: str, default: str = "") -> str:
     return default
 
 
+def measured_candidate_vtp_name(session_id: str) -> str:
+    """Malla del candidato cuyas medidas lleva la sesión.
+
+    GET /morphometry guarda en `detect.selected_candidate` el candidato que
+    midió (`cand-00N`). Todo lo que dibuja «el aneurisma» junto a esas medidas
+    —el informe PDF, la exportación— tiene que usar esa misma malla: antes
+    usaban siempre `detect.best_vtp_name` (cand-001) y el PDF podía enseñar la
+    cúpula de un sitio a 40–60 mm de las cifras que imprimía. Sin elección
+    guardada, o si ya no es válida, el mejor candidato como siempre.
+    """
+    import re
+    m = re.fullmatch(r"cand-(\d{3})", read_state(session_id, "detect.selected_candidate", ""))
+    try:
+        n = int(read_state(session_id, "detect.n_candidates", "0") or 0)
+    except ValueError:
+        n = 0
+    if m and 1 <= int(m.group(1)) <= n:
+        return f"aneurysm_cand_{int(m.group(1)):03d}.vtp"
+    return read_state(session_id, "detect.best_vtp_name", "")
+
+
 # ── Static file URL helpers ────────────────────────────────────────────────── #
 
 def mesh_url(session_id: str, filename: str) -> str:

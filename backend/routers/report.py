@@ -289,8 +289,9 @@ async def export_stl_endpoint(
                 parts.append(pd)
 
         if req.include_aneurysm_dome:
-            # Use the best candidate VTP stored in session state
-            best_name = read_state(req.session_id, "detect.best_vtp_name", "")
+            # El candidato medido (el elegido en Detección), no siempre cand-001.
+            from services.sessions import measured_candidate_vtp_name
+            best_name = measured_candidate_vtp_name(req.session_id)
             if best_name:
                 cand_vtp = meshes_dir / best_name
                 if cand_vtp.exists():

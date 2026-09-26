@@ -320,3 +320,34 @@ class TestTheReportCarriesThePlan:
     def test_a_report_without_views_omits_the_section(self, tmp_path):
         out = ReportGenerator(ReportData()).generate(tmp_path / "vacio.pdf")
         assert "Plan quirúrgico en 3D" not in _pdf_text(out)
+
+
+def test_the_report_draws_the_dome_of_the_measured_candidate(monkeypatch):
+    """Sin saco aislado, el PDF dibuja el candidato cuyas cifras imprime.
+
+    Regresión: leía siempre `detect.best_vtp_name` (cand-001), así que con la
+    lesión elegida en cand-002 el informe enseñaba la cúpula de otro sitio.
+    """
+    import services.scene_render as scene_render
+    from services.sessions import write_state
+
+    sid = create_session()
+    meshes = Path(session_subdir(sid, "meshes"))
+    write_vtp(_vessel(), meshes / "vessel_tree.vtp")
+    write_vtp(_sphere(radius=2.0), meshes / "aneurysm_cand_001.vtp")
+    write_vtp(_sphere(radius=3.0, center=(40.0, 0.0, 0.0)), meshes / "aneurysm_cand_002.vtp")
+    write_state(sid, "detect.n_candidates", "2")
+    write_state(sid, "detect.best_vtp_name", "aneurysm_cand_001.vtp")
+
+    seen = {}
+    def fake_render(*, vessel=None, dome=None, devices=()):
+        seen["dome_x"] = (dome.GetBounds()[0] + dome.GetBounds()[1]) / 2 if dome is not None else None
+        return {}
+    monkeypatch.setattr(scene_render, "render_plan_views", fake_render)
+
+    _render_plan_views(sid)
+    assert seen["dome_x"] == pytest.approx(0.0, abs=0.5)      # sin elección: el mejor, como antes
+
+    write_state(sid, "detect.selected_candidate", "cand-002")
+    _render_plan_views(sid)
+    assert seen["dome_x"] == pytest.approx(40.0, abs=0.5)     # el candidato medido

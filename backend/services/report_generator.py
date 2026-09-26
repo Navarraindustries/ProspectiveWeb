@@ -458,7 +458,7 @@ def _render_plan_views(session_id: str) -> dict[str, bytes]:
         from services.scene_render import (COIL_RGB, DEVICE_RGB, STENT_RGB,
                                            render_plan_views)
         from services.segmentation import read_vtp
-        from services.sessions import read_state, session_subdir
+        from services.sessions import measured_candidate_vtp_name, session_subdir
 
         meshes = session_subdir(session_id, "meshes")
 
@@ -467,9 +467,10 @@ def _render_plan_views(session_id: str) -> dict[str, bytes]:
             return read_vtp(path) if path.exists() else None
 
         vessel = _read("vessel_tree.vtp")
-        # The isolated sac when one was measured, else the detector's candidate.
+        # The isolated sac when one was measured, else the detector's candidate
+        # whose numbers the report prints (the one selected for morphometry).
         dome = _read("aneurysm_sac.vtp") or _read(
-            read_state(session_id, "detect.best_vtp_name", "") or "candidate_001.vtp")
+            measured_candidate_vtp_name(session_id) or "candidate_001.vtp")
 
         devices = []
         for fname, rgb in (("clips_placed.vtp", DEVICE_RGB),

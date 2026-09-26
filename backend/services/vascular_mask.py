@@ -50,6 +50,12 @@ PLATE_RATIO = 300.0
 #   el test de la lámina en contacto (15,6 % > 15 %): el borde de una lámina es
 #   una arista, puntúa como tubo y crece, y la banda se traería 1 mm a su lado.
 WALL_MM = 0.75
+# Cortes por loncha de Frangi. Se fija aquí (y no se deja al valor por defecto
+# de objectness_max) porque la fase se anuncia como «tubularidad 0/n» ANTES de
+# calcular la primera loncha: objectness_max sólo avisa al terminar cada una, y
+# sin ese aviso inicial la interfaz seguiría diciendo «núcleo» durante toda la
+# primera loncha (en un volumen de una sola loncha, durante toda la fase).
+FRANGI_SLAB = 64
 
 
 @dataclass
@@ -202,8 +208,10 @@ def build_vascular_mask(
     # Los percentiles se toman de V dentro de M0, no del volumen entero: así se
     # adaptan al estudio (γ, contraste, resolución) sin constantes absolutas.
     if vesselness is None:
+        n_slabs = len(range(0, volume.shape[0], FRANGI_SLAB))
+        _say(on_progress, f"tubularidad 0/{n_slabs}", 5)
         vesselness = objectness_max(
-            volume, spacing, dimension=1,
+            volume, spacing, dimension=1, slab=FRANGI_SLAB,
             on_progress=lambda i, n: _say(on_progress, f"tubularidad {i}/{n}", 5 + 40 * i / n))
     vin = vesselness[m0]
     t_gate = float(np.percentile(vin, params.gate_pctl))
@@ -264,8 +272,10 @@ def build_vascular_mask(
                                 min(WALL_MM, params.reclaim_mm))
         if params.plate_veto and band.any():
             if plateness is None:
+                n_slabs = len(range(0, volume.shape[0], FRANGI_SLAB))
+                _say(on_progress, f"laminaridad 0/{n_slabs}", 66)
                 plateness = objectness_max(
-                    volume, spacing, dimension=2,
+                    volume, spacing, dimension=2, slab=FRANGI_SLAB,
                     on_progress=lambda i, n: _say(on_progress, f"laminaridad {i}/{n}", 66 + 20 * i / n))
             # Es lámina lo que puntúa órdenes de magnitud más como lámina que
             # como tubo (ver PLATE_RATIO): la pared curva de un saco conserva

@@ -73,15 +73,34 @@ class SegmentRequest(BaseModel):
             "head (795000-1220000 mm3) - there the seed-grow tool is the answer."
         ),
     )
-    full_resolution: bool = Field(
+    method: Literal["tubular", "threshold"] = Field(
+        "tubular",
+        description=(
+            "«tubular»: máscara por tubularidad (Frangi) con núcleo relleno, "
+            "hueso vetado y sacos recuperados; «threshold»: el umbral clásico. "
+            "El método tubular ignora `upper`: el techo es una herramienta del "
+            "umbral clásico, y aquí el hueso lo quitan la puerta de tubularidad "
+            "y el veto de lámina (con el techo automático, el tubo de Case 3 "
+            "perdía un tercio de sus vóxeles y se partía)."
+        ),
+    )
+    reclaim_mm: float = Field(3.0, ge=0.0, le=5.0, description="Radio de recuperación de pared y sacos (mm), método tubular")
+    half_resolution: bool = Field(
         False,
         description=(
-            "Segment at the volume's native resolution instead of downsampling "
-            "the longest axis to 256. Halving a volume also halves the tree's "
-            "connectivity — measured on case 9 the largest connected component "
-            "falls from 69% to 42% — so thin vessels break into fragments that "
-            "the cleanup then removes, leaving visible gaps. Costs minutes "
-            "instead of seconds on a 384³ or larger study."
+            "Segmentar con el eje mayor a 256 en vez de a resolución nativa (más "
+            "rápido, vasos finos rotos). Reducir un volumen a la mitad también "
+            "reduce la conectividad del árbol: medido en el caso 9, la mayor "
+            "componente conexa cae del 69 % al 42 %. El método tubular la fuerza "
+            "cuando el volumen no cabe en la memoria del servidor."
+        ),
+    )
+    full_resolution: bool | None = Field(
+        None,
+        description=(
+            "Obsoleto: inverso de half_resolution. Si llega, manda sobre "
+            "half_resolution (half_resolution = not full_resolution) mientras "
+            "el frontend migra."
         ),
     )
 
@@ -176,6 +195,23 @@ class SegmentResult(BaseModel):
             "Lower threshold the mesh was built with. The client MIP starts its "
             "vessel transfer function here instead of at a fixed HU value."
         ),
+    )
+    method: str = Field("threshold", description="Método con el que se hizo la malla: «tubular» o «threshold»")
+    reclaimed_mm3: float = Field(0.0, description="Pared y sacos recuperados junto al tubo (mm³), método tubular")
+    vetoed_mm3: float = Field(0.0, description="Vóxeles vetados como lámina (hueso) al recuperar (mm³), método tubular")
+    boundary_edges: int = Field(0, description="Aristas de borde de la malla; 0 = estanca (método tubular)")
+    components: int = Field(0, description="Piezas conexas de la malla (método tubular)")
+    seeds: int = Field(0, description="Troncos que sembraron el crecimiento (método tubular)")
+    fallback_note: str = Field(
+        "",
+        description=(
+            "Qué se hizo distinto de lo pedido y por qué: media resolución "
+            "forzada por tamaño o memoria, o caída al umbral relleno sin semillas."
+        ),
+    )
+    phase_seconds: dict[str, float] = Field(
+        default_factory=dict,
+        description="Segundos por fase publicada (sin «i/n»), más «total».",
     )
 
 

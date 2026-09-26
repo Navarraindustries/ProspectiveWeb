@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -17,12 +19,12 @@ from models.detection import Position3D
 from models.segmentation import (CeilingCompareRequest, CeilingCompareResult,
                                  ComparedCandidate, PreviewRequest,
                                  PreviewResult, SuggestedBand)
-from services              import mesh_backup
+from services              import mesh_backup, progress
 from services.sessions     import read_state, session_exists, session_subdir, write_state, mesh_url
 from services.thresholds   import compute_auto_thresholds, strategy_hint
 from services.dicom_loader import load_series
 from services.segmentation import (
-    SegmentationPipeline, write_vtp,
+    SegmentationPipeline, SegmentationResult, write_vtp,
     voxel_fraction as seg_voxel_fraction,
     level_to_smooth_iters, level_to_cleanup_mm3,
 )
@@ -43,6 +45,42 @@ _SEG_MAX_AXIS = 256
 # volume at once, so a 1030×512×512 CT (270 M voxels, ~1.1 GB per copy) would take
 # the process down. The angiographic studies this option exists for are 50–60 M.
 _FULL_RES_MAX_VOXELS = 120_000_000
+
+# Tope de vóxeles del método tubular a resolución nativa (1 vCPU / 2 GB). Por
+# encima se fuerza media resolución en vez de rechazar la petición.
+_TUBULAR_MAX_VOXELS = 90_000_000
+
+# Bytes por vóxel que reserva el método tubular en su pico, con margen. Por qué
+# una guarda de memoria además del tope de vóxeles: medido en Case 3 (56,6 M
+# vóxeles) el pico fue 1,86 GB, ≈ 33 B/vóxel — el volumen float32, las dos
+# medidas de Frangi, etiquetas int32 y las máscaras a la vez —, y eso no cabe
+# en la máquina de producción de 2 GB aunque el volumen esté muy por debajo de
+# 90 M. El presupuesto sale de PROSPECTIVE_MEM_BUDGET_MB (1400 por defecto, lo
+# que deja al proceso de 2 GB margen para el resto) para que la máquina de
+# desarrollo, con más memoria, pueda segmentar a resolución nativa.
+_TUBULAR_BYTES_PER_VOXEL = 40
+
+
+def _mem_budget_bytes() -> int:
+    """Presupuesto de memoria para una segmentación, leído en cada llamada."""
+    return int(os.environ.get("PROSPECTIVE_MEM_BUDGET_MB", "1400")) * 1024 ** 2
+
+
+def _tubular_guard(n_voxels: int) -> str:
+    """Por qué el método tubular no puede ir a resolución nativa, o "" si puede."""
+    if n_voxels > _TUBULAR_MAX_VOXELS:
+        return (f"Volumen de {n_voxels / 1e6:.0f} millones de vóxeles (el tope son "
+                f"{_TUBULAR_MAX_VOXELS / 1e6:.0f} millones): se segmenta a media "
+                f"resolución para no agotar la memoria del servidor.")
+    need = n_voxels * _TUBULAR_BYTES_PER_VOXEL
+    budget = _mem_budget_bytes()
+    if need > budget:
+        return (f"Volumen de {n_voxels / 1e6:.1f} millones de vóxeles: a resolución nativa "
+                f"necesitaría unos {need / 1024 ** 3:.1f} GB y el presupuesto de memoria "
+                f"del servidor es de {budget / 1024 ** 3:.1f} GB, así que se segmenta a "
+                f"media resolución.")
+    return ""
+
 
 # Voxels sampled when deriving auto-thresholds. Percentiles are stable well
 # below this, and it keeps a 1 GB CT from being read whole just to get p90/p99.
@@ -85,6 +123,25 @@ def _maybe_downsample(
     factor = max(1, math.ceil(max(volume.shape) / max_axis))
     if factor <= 1:
         return volume, spacing, 1
+    return _downsample_by(volume, spacing, factor)
+
+
+def _half_factor(shape: tuple[int, ...]) -> int:
+    """Factor de «media resolución»: al menos 2, y el eje mayor a ≤ 256.
+
+    Por qué no basta la regla de 256 de _maybe_downsample: en un volumen que ya
+    cabe en 256 no haría nada, y quien pide (o recibe forzada) media resolución
+    tiene que obtenerla de verdad.
+    """
+    return max(2, math.ceil(max(shape) / _SEG_MAX_AXIS))
+
+
+def _downsample_by(
+    volume: np.ndarray,
+    spacing: tuple[float, float, float],
+    factor: int,
+) -> tuple[np.ndarray, tuple[float, float, float], int]:
+    """Integer-downsample *volume* by *factor* on every axis."""
     ds = np.ascontiguousarray(volume[::factor, ::factor, ::factor])
     sp = (spacing[0] * factor, spacing[1] * factor, spacing[2] * factor)
     logger.info(
@@ -192,7 +249,13 @@ async def segment(req: SegmentRequest) -> SegmentResult:
     smooth_iters = level_to_smooth_iters(req.smoothing)
     min_mm3, top_n, closing_mm = level_to_cleanup_mm3(req.cleanup)
 
-    # Run heavy CPU work off the event loop
+    # full_resolution es el campo antiguo, con el significado inverso; si llega,
+    # manda, para que el frontend que aún lo envía siga obteniendo lo que pide.
+    half = req.half_resolution if req.full_resolution is None else (not req.full_resolution)
+
+    # Run heavy CPU work off the event loop. El progreso se abre aquí y se cierra
+    # en TODAS las salidas: el WebSocket sólo se cierra cuando ve running=False.
+    progress.start(req.session_id)
     loop = asyncio.get_event_loop()
     try:
         result = await loop.run_in_executor(
@@ -209,18 +272,28 @@ async def segment(req: SegmentRequest) -> SegmentResult:
                 min_mm3=      min_mm3,
                 top_n=        top_n,
                 closing_mm=   closing_mm,
-                full_resolution= req.full_resolution,
                 main_tree_only= req.main_tree_only,
+                method=       req.method,
+                reclaim_mm=   req.reclaim_mm,
+                half_resolution= half,
             ),
         )
     except ValueError as exc:
+        progress.finish(req.session_id, ok=False, message=str(exc))
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except FileNotFoundError as exc:
+        progress.finish(req.session_id, ok=False, message=str(exc))
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception as exc:
+    except BaseException as exc:
+        # BaseException también: una cancelación (el cliente se va) no debe
+        # dejar la barra en «running» para siempre.
+        progress.finish(req.session_id, ok=False, message=str(exc) or type(exc).__name__)
+        if not isinstance(exc, Exception):
+            raise
         logger.error("Segmentation failed for session %s: %s", req.session_id, exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Segmentation error: {exc}") from exc
 
+    progress.finish(req.session_id, ok=True)
     return result
 
 
@@ -339,6 +412,43 @@ def _run_preview_sync(session_id: str, meshes_dir: Path, req: PreviewRequest) ->
 
 # ── Synchronous worker (runs in thread-pool) ───────────────────────────────── #
 
+_STEP_SUFFIX = re.compile(r" \d+/\d+$")
+
+
+class _PhaseClock:
+    """Publica cada fase en el progreso y cronometra cuánto dura.
+
+    Una fase dura desde que se anuncia hasta que se anuncia la siguiente; los
+    pasos «tubularidad 2/6» se acumulan bajo «tubularidad». Así phase_seconds
+    cuenta exactamente lo que la interfaz enseñó, sin cronómetros aparte que
+    puedan desalinearse de las fases.
+    """
+
+    def __init__(self, session_id: str) -> None:
+        self.session_id = session_id
+        self.seconds: dict[str, float] = {}
+        self._t0 = self._t = time.perf_counter()
+        self._cur: str | None = None
+
+    def _close_current(self) -> None:
+        now = time.perf_counter()
+        if self._cur is not None:
+            self.seconds[self._cur] = self.seconds.get(self._cur, 0.0) + (now - self._t)
+        self._t = now
+
+    def say(self, phase: str, pct: float) -> None:
+        self._close_current()
+        self._cur = _STEP_SUFFIX.sub("", phase)
+        progress.update(self.session_id, phase, pct)
+
+    def result(self) -> dict[str, float]:
+        self._close_current()
+        self._cur = None
+        out = {k: round(v, 2) for k, v in self.seconds.items()}
+        out["total"] = round(time.perf_counter() - self._t0, 2)
+        return out
+
+
 def _run_segmentation_sync(
     session_id:    str,
     series_id:     str,
@@ -350,13 +460,20 @@ def _run_segmentation_sync(
     min_mm3:       float,
     top_n:         int,
     closing_mm:    float,
-    full_resolution: bool = False,
     main_tree_only: bool = False,
+    method:        str = "threshold",
+    reclaim_mm:    float = 3.0,
+    half_resolution: bool = False,
 ) -> SegmentResult:
     """Load DICOM → run VTK pipeline → write .vtp → update session state.
 
     Runs in a thread-pool worker to avoid blocking the asyncio event loop.
+    `method` vale "threshold" por defecto aquí para quien llama directamente
+    (tests, scripts); el endpoint siempre lo pasa explícito ("tubular" por
+    defecto en la API).
     """
+    clock = _PhaseClock(session_id)
+    clock.say("carga", 0)
     # ── Load DICOM volume ──────────────────────────────────────────────────── #
     logger.info(
         "Loading DICOM series '%s' for session '%s' ...", series_id, session_id
@@ -408,29 +525,82 @@ def _run_segmentation_sync(
         min_component_verts= 0,
     )
 
-    # ── Downsample very large volumes so segmentation stays responsive ────── #
-    # full_resolution keeps every voxel: thin vessels stay above threshold and
-    # the tree comes out in far fewer pieces, at the cost of minutes.
-    if full_resolution:
-        n_voxels = int(np.prod(dcm.volume.shape))
+    # ── Resolución ─────────────────────────────────────────────────────────── #
+    fallback_note = ""
+    n_voxels = int(np.prod(dcm.volume.shape))
+    if method == "tubular":
+        # El método tubular no rechaza un volumen grande: lo baja a media
+        # resolución y lo dice, porque una malla algo más tosca sirve y un
+        # proceso muerto por falta de memoria no (ver _tubular_guard).
+        if not half_resolution:
+            fallback_note = _tubular_guard(n_voxels)
+            half_resolution = bool(fallback_note)
+        if half_resolution:
+            seg_volume, seg_spacing, ds_factor = _downsample_by(
+                dcm.volume, dcm.spacing, _half_factor(dcm.volume.shape))
+        else:
+            seg_volume = np.ascontiguousarray(dcm.volume, dtype=np.float32)
+            seg_spacing, ds_factor = tuple(dcm.spacing), 1
+    elif not half_resolution:
+        # Umbral clásico a resolución nativa: el antiguo full_resolution=True.
         if n_voxels > _FULL_RES_MAX_VOXELS:
             raise ValueError(
                 f"Este volumen tiene {n_voxels / 1e6:.0f} millones de vóxeles; a "
                 f"resolución completa la segmentación agotaría la memoria del "
                 f"servidor (el límite son {_FULL_RES_MAX_VOXELS / 1e6:.0f} millones). "
-                f"Segmenta sin esa opción, o recorta el volumen antes."
+                f"Segmenta a media resolución, o recorta el volumen antes."
             )
         seg_volume = np.ascontiguousarray(dcm.volume, dtype=np.float32)
         seg_spacing, ds_factor = tuple(dcm.spacing), 1
     else:
+        # Umbral clásico a media resolución: la regla de 256 de siempre.
         seg_volume, seg_spacing, ds_factor = _maybe_downsample(dcm.volume, dcm.spacing)
 
-    # ── Run marching cubes ────────────────────────────────────────────────── #
     logger.info(
-        "Running marching cubes: lower=%.0f upper=%.0f smooth=%d min_mm3=%.1f top_n=%d shape=%s (ds=%d)",
-        lower, upper, smooth_iters, min_mm3, top_n, seg_volume.shape, ds_factor,
+        "Segmenting (%s): lower=%.0f upper=%.0f smooth=%d min_mm3=%.1f top_n=%d shape=%s (ds=%d)",
+        method, lower, upper, smooth_iters, min_mm3, top_n, seg_volume.shape, ds_factor,
     )
-    seg_result = pipeline.run(seg_volume, seg_spacing)
+
+    if method == "tubular":
+        from services.vascular_mask import MaskParams, build_vascular_mask
+        from services.segmentation import mask_to_surface, surface_quality
+        # Sin techo, pida lo que pida la petición. El techo es una herramienta
+        # del umbral clásico para dejar fuera el hueso; aquí el hueso lo quitan
+        # la puerta de tubularidad y el veto de lámina, y con el techo
+        # automático el tubo de Case 3 perdía un tercio de sus vóxeles y se
+        # partía en piezas (el centro de los vasos más llenos lo supera).
+        upper = 0.0
+        params = MaskParams(lower=lower, upper=0.0, reclaim_mm=reclaim_mm)
+        # «hecho» y «superficie lista» son finales internos de cada etapa, no
+        # fases de la interfaz: la fase siguiente ya los sustituye.
+        mr = build_vascular_mask(
+            seg_volume, seg_spacing, params,
+            on_progress=lambda f, p: None if f == "hecho" else clock.say(f, 5 + 0.8 * p))
+        del seg_volume
+        if mr.fallback:
+            fallback_note = (fallback_note + " " if fallback_note else "") + (
+                "No se encontró ninguna semilla vascular ≥ 50 mm³ con este umbral: se usó la máscara de umbral "
+                "rellena, sin filtrar por tubularidad. Baja el umbral inferior si falta contraste.")
+        poly = mask_to_surface(
+            mr.mask, seg_spacing, smooth_iters=smooth_iters,
+            on_progress=lambda f, p: None if f == "superficie lista" else clock.say(f, 85 + 0.12 * p))
+        mr.mask = None      # la máscara ya no hace falta; que no ocupe durante el guardado
+        vox_mm3 = float(np.prod(seg_spacing))
+        q = surface_quality(poly)
+        seg_result = SegmentationResult(
+            poly_data=poly, n_vertices=q["n_vertices"], n_triangles=q["n_triangles"],
+            threshold_hu=lower, reduction_pct=60.0, n_fragments_removed=0,
+            kept_fraction=float(mr.stats.get("kept_fraction", 1.0)), largest_removed_mm3=0.0)
+        extra = dict(method="tubular",
+                     reclaimed_mm3=round(mr.stats.get("reclaimed_vox", 0) * vox_mm3, 1),
+                     vetoed_mm3=round(mr.stats.get("vetoed_vox", 0) * vox_mm3, 1),
+                     boundary_edges=q["boundary_edges"], components=q["components"],
+                     seeds=int(mr.stats.get("seeds", 0)))
+        logger.info("Máscara tubular: %s", {k: v for k, v in mr.stats.items() if k != "thresholds"})
+    else:
+        clock.say("marching cubes", 20)
+        seg_result = pipeline.run(seg_volume, seg_spacing)
+        extra = dict(method="threshold")
 
     # ── Quedarse solo con el árbol, si se ha pedido ───────────────────────── #
     #
@@ -452,6 +622,7 @@ def _run_segmentation_sync(
             logger.info("Árbol principal no aplicado: %s", mt.warning)
 
     # ── Write VTP mesh ────────────────────────────────────────────────────── #
+    clock.say("guardado", 98)
     vtp_name = "vessel_tree.vtp"
     vtp_path = meshes_dir / vtp_name
     # Re-segmenting used to wipe the history, so twenty minutes of cropping and
@@ -495,7 +666,10 @@ def _run_segmentation_sync(
     write_state(session_id, "seg.n_faces",        str(seg_result.n_triangles))
     write_state(session_id, "seg.voxel_fraction", f"{vf:.6f}")
     write_state(session_id, "seg.threshold_lower",str(lower))
+    # El techo EFECTIVO (0 = sin techo en el método tubular): la detección
+    # rehace el saco con esta banda, y tiene que ser la misma que hizo la malla.
     write_state(session_id, "seg.threshold_upper",str(upper))
+    write_state(session_id, "seg.method",         method)
     write_state(session_id, "seg.strategy",       strategy)
     # Volume geometry — needed by Session C (morphometry + aneurysm detection)
     write_state(session_id, "dicom.volume_z",     str(dcm.volume.shape[0]))
@@ -525,6 +699,9 @@ def _run_segmentation_sync(
         main_tree_warning=   main_warning,
         main_tree_removed=   main_removed,
         threshold_lower=     lower,
+        fallback_note=       fallback_note,
+        phase_seconds=       clock.result(),
+        **extra,
     )
 
 

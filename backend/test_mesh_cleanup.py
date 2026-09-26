@@ -142,9 +142,14 @@ class TestFullResolution:
         assert ct > _FULL_RES_MAX_VOXELS, "el TC grande debe quedar por encima del tope"
         assert angio < _FULL_RES_MAX_VOXELS, "los angiográficos deben caber"
 
-    def test_request_defaults_to_the_fast_path(self):
-        """Full resolution costs minutes; it must be opt-in."""
+    def test_request_defaults_to_native_resolution_and_leaves_the_legacy_flag_unset(self):
+        """El método tubular segmenta a resolución nativa por defecto (media
+        resolución es ahora la opción, `half_resolution`), y la guarda de
+        memoria la fuerza cuando no cabe. `full_resolution` queda sin valor
+        para distinguir «no lo envió» de «lo envió a False» mientras el
+        frontend migra."""
         from models.segmentation import SegmentRequest
 
         req = SegmentRequest(session_id="s", series_id="x", lower=100, upper=900)
-        assert req.full_resolution is False
+        assert req.half_resolution is False
+        assert req.full_resolution is None

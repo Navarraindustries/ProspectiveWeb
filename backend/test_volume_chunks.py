@@ -31,6 +31,8 @@ def _write_classic_ct_series(
     sid: str, nz=3, ny=8, nx=8, with_orientation=True,
     size: int | None = None, bright_cube: int | None = None,
     iop: list[float] | None = None,
+    values: np.ndarray | None = None,
+    pixel_spacing: float = 0.5,
 ) -> None:
     """Write a tiny classic single-frame CT series into the session's dicom/ dir.
 
@@ -41,6 +43,9 @@ def _write_classic_ct_series(
     ``size`` sets rows = columns. With ``bright_cube`` the background is 0 and a
     centred cube of half the extent on each axis takes that value: marching
     cubes then has one clean surface, where random noise gives none or many.
+    ``values`` (int16, shape ``(nz, ny, nx)``) replaces both: each slice is
+    written as given. ``pixel_spacing`` is the in-plane spacing in mm (slices
+    are always 1 mm apart).
     """
     if size is not None:
         ny = nx = size
@@ -68,7 +73,7 @@ def _write_classic_ct_series(
         ds.PatientName = "TEST^VOL"
         ds.PatientID = "HC-VOL"
         ds.Rows, ds.Columns = ny, nx
-        ds.PixelSpacing = [0.5, 0.5]
+        ds.PixelSpacing = [pixel_spacing, pixel_spacing]
         ds.SliceThickness = 1.0
         ds.SpacingBetweenSlices = 1.0
         if iop is None:
@@ -90,7 +95,9 @@ def _write_classic_ct_series(
         ds.RescaleSlope = 1
         ds.WindowCenter = 40
         ds.WindowWidth = 400
-        if bright_cube is None:
+        if values is not None:
+            pixels = np.ascontiguousarray(values[i], dtype=np.int16)
+        elif bright_cube is None:
             pixels = rng.integers(0, 800, size=(ny, nx), dtype=np.int16)
         else:
             pixels = np.zeros((ny, nx), dtype=np.int16)

@@ -176,7 +176,26 @@ El método tubular (`services/vascular_mask.py` + `mask_to_surface` en `services
 
 La variable de entorno `PROSPECTIVE_MEM_BUDGET_MB` fija el presupuesto de memoria por encima del cual el método tubular se fuerza a media resolución y lo dice. Si no está definida, el presupuesto es el 70 % de la RAM disponible que detecta el sistema (`/proc/meminfo` en Linux, `GlobalMemoryStatusEx` en Windows), y 1400 MB si no puede leerla.
 
-La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. Las regiones de curvatura que tocan una cara de la caja de la malla (las tapas de los vasos cortados por el borde del volumen) van al final de la lista. En Case 3 la lesión confirmada sale 2.ª, con «solo el árbol» y con la malla completa, y la detección tarda unos 10 s.
+La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. Las regiones de curvatura que tocan una cara de la caja de la malla (las tapas de los vasos cortados por el borde del volumen) van al final de la lista. En Case 3 la lesión confirmada sale 2.ª, con «solo el árbol» y con la malla completa, y la detección tarda unos 10 s. Eso es **a resolución nativa**. A media resolución (10 594 vértices, «solo el árbol») la misma lesión sale 5.ª, el último puesto de la lista, y solo por el cociente: el objetivo «lesión ≤ 3» no se cumple ahí.
+
+#### Despliegue
+
+- **Memoria y resolución.** Case 3 (56,6 M vóxeles) necesita unos 2,1 GiB para el método tubular a resolución nativa. En una instancia de 2 GB el presupuesto automático (70 % de la RAM disponible) no llega, así que los estudios de ese tamaño se segmentan siempre a media resolución: la tarjeta lo dice («1/2 · Submuestreada») y la lesión de Case 3 cae al 5.º puesto. Recomendado: una instancia de 4 GB, que pasa justo, o fijar `PROSPECTIVE_MEM_BUDGET_MB` a lo que la máquina aguante de verdad.
+- **Tiempo.** A media resolución, máscara más superficie de Case 3 tardan unos 27 s en un solo núcleo del equipo de desarrollo, casi todo en los dos pases de Frangi. En una vCPU compartida hay que contar con 40–80 s.
+- **Proxy inverso.** `POST /api/segment` es síncrono: la respuesta llega cuando termina la segmentación. El proxy tiene que dejar al menos 180 s de tiempo de lectura (nginx: `proxy_read_timeout 180s;`); con el típico límite de 30 s el navegador recibe un 504 mientras el servidor termina y sustituye la malla igualmente. El progreso va por `/ws/progress/…`, así que el proxy también tiene que reenviar `/ws/` con las cabeceras de actualización:
+
+  ```nginx
+  location /ws/ {
+      proxy_pass http://127.0.0.1:8000;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_read_timeout 180s;
+  }
+  ```
+
+  Sin eso el panel cae al sondeo por GET cada medio segundo, que funciona igual pero con más peticiones.
+- **Un solo proceso.** Arranca uvicorn con un único worker (sin `--workers N`). El progreso de cada trabajo y el semáforo que deja correr una sola segmentación tubular a la vez viven en la memoria del proceso: con varios workers, el progreso se consultaría en un proceso que no es el que segmenta, y dos segmentaciones tubulares podrían correr a la vez y agotar la memoria.
 
 ---
 

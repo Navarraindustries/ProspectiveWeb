@@ -20,8 +20,8 @@
 - Resolución completa por defecto; la casilla pasa a ser «Segmentar a media resolución (más rápido)».
 - Progreso: `GET /api/progress/{sid}` siempre; `WS /ws/progress/{sid}?token=` cuando el proxy lo permite; fases con porcentaje.
 - Render: ambient 0,15 · diffuse 0,85 · specular 0,25 · specular power 24; dos luces (key 100 %, fill 35 % opuesta) que siguen la cámara; `setUseDepthPeeling(true)` con 4 pasadas; contorno del saco con un casco invertido (la misma malla un 4 % mayor, caras delanteras descartadas).
-- Copia de interfaz y mensajes de commit en español. `tsc -b`, `vitest run` y `pytest` (sin fallos NUEVOS respecto a la lista base del repositorio: 26 preexistentes) en verde en cada commit.
-- La lesión confirmada de Case 3 (cand-002, x 62 · y 64 · z 63 mm) debe seguir en la lista corta de detección en el puesto ≤ 3. **Tras la Task 11 no se cumplía** (malla tubular nativa: puesto 13, 12 con «solo el árbol») y fue el objetivo de la Task 11 bis. Resultado de la Task 11 bis, con la curvatura sobre una copia de 80 000 vértices, el orden por mejor puesto y las regiones de curvatura que tocan una cara de la caja de la malla (las tapas del borde del volumen, tolerancia 1 mm) al final: **2.º con «solo el árbol», 2.º con la malla completa**, y 3.º en la malla de umbral de 12 800 vértices (el mismo que antes de la tarea); detección 9,6–9,9 s (antes 18,6–19,3 s).
+- Copia de interfaz y mensajes de commit en español. `tsc -b`, `vitest run` y `pytest` (sin fallos NUEVOS respecto a la lista base del repositorio: 38 preexistentes) en verde en cada commit.
+- La lesión confirmada de Case 3 (cand-002, x 62 · y 64 · z 63 mm) debe seguir en la lista corta de detección en el puesto ≤ 3. **Tras la Task 11 no se cumplía** (malla tubular nativa: puesto 13, 12 con «solo el árbol») y fue el objetivo de la Task 11 bis. Resultado de la Task 11 bis, con la curvatura sobre una copia de 80 000 vértices, el orden por mejor puesto y las regiones de curvatura que tocan una cara de la caja de la malla (las tapas del borde del volumen, tolerancia 1 mm) al final: **2.º con «solo el árbol», 2.º con la malla completa**, y 3.º en la malla de umbral de 12 800 vértices (el mismo que antes de la tarea); detección 9,6–9,9 s (antes 18,6–19,3 s). Todo eso es **a resolución nativa**. La revisión final midió la malla tubular a media resolución, que es la que produce una instancia de 2 GB con Case 3 (10 594 vértices, «solo el árbol»): ahí la lesión sale **5.ª**, solo por el cociente, y el objetivo no se cumple. Queda documentado en el README (recomendación: instancia de 4 GB o `PROSPECTIVE_MEM_BUDGET_MB`); mejorar la media resolución es una tarea aparte.
 
 ## Review Focus
 
@@ -1882,7 +1882,7 @@ cd frontend && npx tsc -b && npx vitest run && npm run build
 cd ../backend && .venv\Scripts\python -m pytest -q -rf --no-header -p no:cacheprovider
 ```
 
-Expected: frontend en verde y chunk de entrada sin vtk.js; backend sin fallos NUEVOS respecto a la lista base (26 preexistentes: catálogo de clips vacío, fotos de usuario, lista blanca de auth, corredor/oclusión del trabajo remoto). Lista cualquier id nuevo.
+Expected: frontend en verde y chunk de entrada sin vtk.js; backend sin fallos NUEVOS respecto a la lista base (38 preexistentes: catálogo de clips vacío, fotos de usuario, lista blanca de auth, corredor/oclusión del trabajo remoto). Lista cualquier id nuevo.
 
 - [x] **Step 2: Lista manual con Case 3 (anótala en el mensaje del commit de cierre)**
 

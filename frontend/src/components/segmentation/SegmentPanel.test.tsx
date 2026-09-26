@@ -146,6 +146,8 @@ describe("una sesión reanudada", () => {
     // La instantánea no guarda aristas ni piezas: no se afirma «Estanca».
     expect(screen.queryByText("Estanca")).toBeNull();
     expect(screen.queryByText(/0 piezas/)).toBeNull();
+    // Ni un «100 % conservado del umbral» que nadie midió en esta carga.
+    expect(screen.queryByText("Volumen conservado (del umbral)")).toBeNull();
   });
 });
 

@@ -534,6 +534,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               de fragmentos no corre (`largest_removed_mm3` = 0): el badge
               «Limpio» no diría nada. «del umbral» va en la etiqueta para que
               la unidad no se parta bajo el valor. */}
+          {(!tubular || hasQuality) && (
           <Metric
             label={tubular ? "Volumen conservado (del umbral)" : "Volumen conservado"}
             value={(segmentation.kept_fraction * 100).toFixed(1)}
@@ -546,6 +547,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
                   : ["Limpio", "success"]
             }
           />
+          )}
           {tubular && hasQuality && (
             <div style={hudLine}>
               {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}

@@ -76,6 +76,33 @@ class TestEstanca:
         assert abs((ymax - ymin) - esperado_diam) < 0.5
 
 
+class TestSalidasDelVolumen:
+    """Un vaso que sale por una cara del volumen dejaba la malla abierta ahí
+    (Case 3: 65 aristas de borde). Con la máscara rodeada de un vóxel vacío
+    la salida queda tapada, sin depender del relleno de huecos."""
+
+    def test_un_tubo_que_toca_las_dos_caras_z_sale_cerrado(self):
+        mask = synthetic_tube(shape=(64, 48, 48), radius_mm=3.0) > 0
+        assert mask[0].any() and mask[-1].any()
+        poly = mask_to_surface(mask, SP, fill_holes_mm=0.0)
+        q = surface_quality(poly)
+        assert q["boundary_edges"] == 0
+        assert q["components"] == 1
+
+    def test_el_relleno_no_desplaza_la_malla(self):
+        """Las coordenadas siguen en el marco del volumen: la caja de la malla
+        coincide, a menos de un vóxel, con la extensión física de la máscara."""
+        sp = (0.6, 0.3, 0.4)
+        mask = synthetic_tube(shape=(40, 48, 48), spacing=sp, radius_mm=2.0) > 0
+        poly = mask_to_surface(mask, sp)
+        xmin, xmax, ymin, ymax, zmin, zmax = poly.GetBounds()
+        iz, iy, ix = np.nonzero(mask)
+        for lo, hi, idx, s in ((xmin, xmax, ix, sp[2]), (ymin, ymax, iy, sp[1]),
+                               (zmin, zmax, iz, sp[0])):
+            assert abs(lo - idx.min() * s) < s
+            assert abs(hi - idx.max() * s) < s
+
+
 class TestIslasFalsas:
     def test_los_restos_sueltos_de_la_decimacion_no_cuentan_como_isla(self):
         """vtkQuadricDecimation no garantiza una salida 2-variedad: puede dejar

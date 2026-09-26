@@ -6,6 +6,7 @@ import time
 import threading
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
@@ -118,6 +119,52 @@ class TestTubular:
         sid = create_session(); _tube_series(sid)
         j = _segment(sid, full_resolution=False).json()
         assert j["downsample_factor"] == 2
+
+
+#: Case 3 a resolución nativa (384³): a 40 B/vóxel pide ≈ 2,1 GB.
+_CASE3_VOXELES = 384 ** 3
+_GB = 1024 ** 3
+
+
+class TestPresupuestoDeMemoriaAutodetectado:
+    """Task 11 bis: sin la variable de entorno, el 70 % de la RAM disponible."""
+
+    def test_la_variable_de_entorno_manda(self, monkeypatch):
+        from routers import segment as seg
+        monkeypatch.setenv("PROSPECTIVE_MEM_BUDGET_MB", "1234")
+        monkeypatch.setattr(seg, "_available_memory_bytes", lambda: 8 * _GB)
+        assert seg._memory_budget_bytes() == 1234 * 1024 ** 2
+
+    def test_con_8_gb_disponibles_case3_va_a_resolucion_nativa(self, monkeypatch):
+        from routers import segment as seg
+        monkeypatch.delenv("PROSPECTIVE_MEM_BUDGET_MB", raising=False)
+        monkeypatch.setattr(seg, "_available_memory_bytes", lambda: 8 * _GB)
+        assert seg._memory_budget_bytes() == int(0.7 * 8 * _GB)
+        assert seg._tubular_guard(_CASE3_VOXELES) == ""
+
+    def test_con_1_5_gb_disponibles_case3_se_fuerza_a_media_resolucion(self, monkeypatch):
+        # Lo que da un Lightsail de 2 GB: el 70 % son ≈ 1,05 GB y no caben 2,1.
+        from routers import segment as seg
+        monkeypatch.delenv("PROSPECTIVE_MEM_BUDGET_MB", raising=False)
+        monkeypatch.setattr(seg, "_available_memory_bytes", lambda: int(1.5 * _GB))
+        nota = seg._tubular_guard(_CASE3_VOXELES)
+        assert "media resolución" in nota and "memoria" in nota
+
+    def test_si_la_deteccion_falla_quedan_1400_mb(self, monkeypatch):
+        from routers import segment as seg
+        monkeypatch.delenv("PROSPECTIVE_MEM_BUDGET_MB", raising=False)
+        monkeypatch.setattr(seg, "_available_memory_bytes", lambda: None)
+        assert seg._memory_budget_bytes() == 1400 * 1024 ** 2
+
+    def test_en_este_equipo_la_deteccion_da_una_cifra(self):
+        # Linux lee /proc/meminfo y Windows GlobalMemoryStatusEx; en los dos
+        # tiene que salir un número positivo, no el respaldo.
+        import sys
+        from routers import segment as seg
+        if not (sys.platform.startswith("linux") or sys.platform == "win32"):
+            pytest.skip("solo Linux y Windows")
+        n = seg._available_memory_bytes()
+        assert n is not None and n > 0
 
 
 class TestGuardasYContrato:

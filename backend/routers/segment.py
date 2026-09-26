@@ -64,15 +64,73 @@ _TUBULAR_MAX_VOXELS = 90_000_000
 # vóxeles) el pico fue 1,86 GB, ≈ 33 B/vóxel — el volumen float32, las dos
 # medidas de Frangi, etiquetas int32 y las máscaras a la vez —, y eso no cabe
 # en la máquina de producción de 2 GB aunque el volumen esté muy por debajo de
-# 90 M. El presupuesto sale de PROSPECTIVE_MEM_BUDGET_MB (1400 por defecto, lo
-# que deja al proceso de 2 GB margen para el resto) para que la máquina de
-# desarrollo, con más memoria, pueda segmentar a resolución nativa.
+# 90 M. El presupuesto lo da `_memory_budget_bytes()`.
 _TUBULAR_BYTES_PER_VOXEL = 40
 
+#: Fracción de la RAM disponible que puede tomar una segmentación, y el
+#: presupuesto de respaldo si no se puede leer cuánta hay.
+_MEM_BUDGET_FRACTION = 0.70
+_MEM_BUDGET_FALLBACK_MB = 1400
 
-def _mem_budget_bytes() -> int:
-    """Presupuesto de memoria para una segmentación, leído en cada llamada."""
-    return int(os.environ.get("PROSPECTIVE_MEM_BUDGET_MB", "1400")) * 1024 ** 2
+
+def _available_memory_bytes() -> int | None:
+    """RAM disponible ahora mismo según el sistema, o None si no se sabe.
+
+    Linux: `MemAvailable` de /proc/meminfo (lo que se puede reservar sin
+    paginar, cachés incluidas). Windows: `ullAvailPhys` de
+    GlobalMemoryStatusEx vía ctypes. Nada más: sin dependencias nuevas.
+    """
+    try:
+        with open("/proc/meminfo", encoding="ascii") as fh:
+            for line in fh:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            class _MemoryStatusEx(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong),
+                            ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+            st = _MemoryStatusEx()
+            st.dwLength = ctypes.sizeof(_MemoryStatusEx)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)):
+                return int(st.ullAvailPhys)
+        except Exception:  # noqa: BLE001 — sin cifra queda el respaldo
+            pass
+    return None
+
+
+def _memory_budget_bytes() -> int:
+    """Presupuesto de memoria para una segmentación, leído en cada llamada.
+
+    Orden: PROSPECTIVE_MEM_BUDGET_MB si está definida; si no, el 70 % de la RAM
+    disponible detectada; si no se puede detectar, 1400 MB.
+
+    Por qué detectarla: con 1400 MB fijos, el equipo de desarrollo (con memoria
+    de sobra) forzaba media resolución en Case 3 —pide ≈ 2,1 GB a 40 B/vóxel—
+    y escondía el resultado nativo, que es el que se validó. En un Lightsail
+    de 2 GB la detección da ≈ 1,2–1,4 GB disponibles y el 70 % sigue forzando
+    media resolución, que allí es lo correcto. El 30 % restante es el margen
+    para el resto del proceso y lo que la guarda de 40 B/vóxel no ve.
+    """
+    env = os.environ.get("PROSPECTIVE_MEM_BUDGET_MB")
+    if env:
+        return int(env) * 1024 ** 2
+    avail = _available_memory_bytes()
+    if avail:
+        return int(_MEM_BUDGET_FRACTION * avail)
+    return _MEM_BUDGET_FALLBACK_MB * 1024 ** 2
 
 
 def _tubular_guard(n_voxels: int) -> str:
@@ -82,7 +140,7 @@ def _tubular_guard(n_voxels: int) -> str:
                 f"{_TUBULAR_MAX_VOXELS / 1e6:.0f} millones): se segmenta a media "
                 f"resolución para no agotar la memoria del servidor.")
     need = n_voxels * _TUBULAR_BYTES_PER_VOXEL
-    budget = _mem_budget_bytes()
+    budget = _memory_budget_bytes()
     if need > budget:
         return (f"Volumen de {n_voxels / 1e6:.1f} millones de vóxeles: a resolución nativa "
                 f"necesitaría unos {need / 1024 ** 3:.1f} GB y el presupuesto de memoria "

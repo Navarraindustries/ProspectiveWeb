@@ -2,14 +2,17 @@
 
 Uso:
     python scripts/validate_case3.py <dir_meshes_con__volume.npy> <lower> [upper]
-        [--out validate_case3.json] [--frangi-cache DIR]
+        [--out backend/data/validate_case3.json] [--frangi-cache DIR]
         [--gate-pctl P] [--reclaim-mm R] [--fill-holes-mm F] [--min-island-mm3 M]
         [--plate-ratio K] [--wall-mm W] [--no-detect] [--compare-quadric]
 
 Ejecuta el mismo camino que la API con el método tubular: build_vascular_mask
-+ mask_to_surface + _detect_hits (curvatura sobre la malla completa, calibre y
-cociente sobre una copia decimada). Escribe el JSON en --out (por defecto al
-lado de este script, nunca en la sesión) y lo imprime.
++ mask_to_surface + _detect_hits (curvatura sobre la malla o una copia de
+80 000 vértices si es mayor, calibre y cociente sobre una copia de ≤ 40 000).
+Escribe el JSON en --out (por defecto `backend/data/validate_case3.json`, que
+está en .gitignore; nunca en la sesión) y lo imprime. `seconds.detect` es lo
+que tarda la detección sobre la malla completa (la del árbol va en
+`detection_main_tree.seconds`).
 
 Los dos pases de Frangi (tubularidad y laminaridad) se calculan aparte para
 cronometrarlos por separado: `seconds.mask` es la máscara SIN Frangi y
@@ -139,7 +142,10 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("meshes_dir", type=Path)
     ap.add_argument("lower", type=float)
     ap.add_argument("upper", type=float, nargs="?", default=0.0)
-    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().with_name("validate_case3.json"))
+    # Por defecto en backend/data/, que git ignora: el JSON es un resultado
+    # de este equipo, no una fuente, y al lado del script acababa en el repo.
+    ap.add_argument("--out", type=Path,
+                    default=Path(__file__).resolve().parents[1] / "data" / "validate_case3.json")
     ap.add_argument("--frangi-cache", type=Path, default=None)
     ap.add_argument("--gate-pctl", type=float, default=None)
     ap.add_argument("--reclaim-mm", type=float, default=None)
@@ -214,12 +220,14 @@ def main(argv: list[str] | None = None) -> dict:
         out["detection_modality"] = modality
         out["detection"] = _detect(poly, modality)
         out["lesion_rank"] = out["detection"]["lesion_rank"]
+        out["seconds"]["detect"] = out["detection"]["seconds"]
         if mt.applied:
             out["detection_main_tree"] = _detect(mt.poly, modality)
 
     if a.compare_quadric:
         out["quadric_0.6"] = _quadric_reference(mr.mask, sp, surf_kw, meta.get("modality", "XA"), not a.no_detect)
 
+    a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(out, indent=1))
     print(json.dumps(out, indent=1))
     return out

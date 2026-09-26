@@ -42,7 +42,7 @@ from services.aneurysm_consensus import (CH_CALIBRE, CH_CURVATURE, CH_RATIO,
                                          ConsensusHit, calibre_ratio,
                                          consensus, hit_confidence,
                                          hit_diameter_mm, hit_patch,
-                                         local_calibre)
+                                         local_calibre, order_hits)
 from services.aneurysm_detector import AneurysmDetector
 from services.database import Base, engine
 from services.mesh_crop import clip_plane
@@ -135,16 +135,38 @@ class TestTheConsensusOrdering:
         # encuentra un solo canal.
         solo = self._hit((0, 0, 0), {CH_CALIBRE: 1})
         acuerdo = self._hit((50, 0, 0), {CH_CURVATURE: 3, CH_RATIO: 3})
-        orden = sorted([acuerdo, solo],
-                       key=lambda h: (h.best_rank, -len(h.ranks), h.rank_sum))
-        assert orden[0] is solo
+        assert order_hits([acuerdo, solo])[0] is solo
 
     def test_agreement_breaks_a_tie(self):
         uno = self._hit((0, 0, 0), {CH_CALIBRE: 2})
         dos = self._hit((50, 0, 0), {CH_CALIBRE: 2, CH_CURVATURE: 4})
-        orden = sorted([uno, dos],
-                       key=lambda h: (h.best_rank, -len(h.ranks), h.rank_sum))
-        assert orden[0] is dos
+        assert order_hits([uno, dos])[0] is dos
+
+    def test_la_lista_corta_reserva_los_dos_primeros_de_cada_canal(self):
+        # Task 11 bis, la situación medida en la malla tubular de Case 3 (solo
+        # el árbol): la lesión es la 2.ª de curvatura y nadie más la apoya;
+        # delante de ella, en la lista fusionada, tiene sitios con acuerdo de
+        # dos canales pero peores puestos (curvatura 3 + calibre 4, calibre 3
+        # + cociente 5). Premiar el acuerdo la mandaba al 5.º puesto (y en la
+        # malla de umbral al 6.º); el mejor puesto la deja 3.ª. La regla que
+        # se fija: los dos primeros de cada canal van por delante de todo lo
+        # demás, lo apoye quien lo apoye.
+        placa = self._hit((52, 12, 46), {CH_CALIBRE: 1, CH_RATIO: 1})
+        tapa = self._hit((51, 59, 2), {CH_CURVATURE: 1})
+        lesion = self._hit((58, 65, 65), {CH_CURVATURE: 2})
+        tronco = self._hit((35, 11, 47), {CH_CALIBRE: 2})
+        rama = self._hit((43, 67, 55), {CH_RATIO: 2})
+        acuerdo_a = self._hit((42, 11, 60), {CH_CURVATURE: 3, CH_CALIBRE: 4})
+        acuerdo_b = self._hit((57, 24, 49), {CH_CALIBRE: 3, CH_RATIO: 5})
+        orden = order_hits([acuerdo_a, acuerdo_b, rama, tronco, lesion, tapa, placa])
+        cortos = orden[:5]
+        assert lesion in cortos
+        assert orden.index(lesion) < min(orden.index(acuerdo_a), orden.index(acuerdo_b))
+        for canal in (CH_CURVATURE, CH_CALIBRE, CH_RATIO):
+            mejores = sorted((h for h in orden if canal in h.ranks),
+                             key=lambda h: h.ranks[canal])[:2]
+            assert all(h in cortos for h in mejores), canal
+        assert acuerdo_a not in cortos and acuerdo_b not in cortos
 
     def test_it_finds_the_sac_in_a_synthetic_vessel(self, vaso_con_saco):
         det = AneurysmDetector(gauss_percentile=60.0,

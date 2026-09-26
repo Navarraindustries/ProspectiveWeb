@@ -61,6 +61,16 @@ _DETECT_MAX_VERTS = MAX_VERTS_GEOMETRIC
 #: en la malla tubular de Case 3 pedir 40 000 dio 39 978, a 22 del corte.
 _DETECT_TARGET_VERTS = int(_DETECT_MAX_VERTS * 0.95)
 
+#: Tope de vértices de la malla sobre la que corre la CURVATURA. Por qué 80 000
+#: y no la malla completa ni los 40 000 de calibre (Task 11 bis, medido sobre
+#: la malla tubular nativa de Case 3 con «solo el árbol», 103 978 vértices tras
+#: DecimatePro 45 %): a resolución completa la lesión salía 6.ª en el canal de
+#: curvatura —12.ª en la lista fusionada— y la curvatura tardaba 16 s; sobre
+#: una copia cuadrática de 80 000 sale 2.ª de su canal y 3.ª en la lista, y
+#: tarda 7 s; a 40 000 perdía la región de la lesión (Task 6). Por debajo
+#: del tope no se toca: `decimate_to` devuelve la misma malla.
+_CURVATURE_MAX_VERTS = 80_000
+
 
 def _detector_for_modality(modality: str) -> AneurysmDetector:
     """Build the detector with the modality preset.
@@ -272,15 +282,20 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
 
 def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
                  detector: AneurysmDetector | None = None):
-    """Los candidatos: curvatura sobre la malla completa, calibre sobre una copia.
+    """Los candidatos: curvatura sobre ≤ 80 000 vértices, calibre sobre ≤ 40 000.
 
-    La malla completa (124 000 vértices en Case 3 a resolución nativa) hace que
+    La malla completa (107 000 vértices en Case 3 a resolución nativa) hace que
     `consensus` apague sus canales de calibre por encima de 40 000; decimarla
-    solo para esos canales los devuelve. La curvatura, en cambio, sigue sobre
-    la malla COMPLETA: medido sobre la malla tubular de Case 3 con «solo el
-    árbol» (78 000 vértices), a 40 000 perdía la región de la lesión, que a
-    resolución completa sale en el puesto 4. Y así la región que se pinta de
-    un candidato de curvatura conserva la resolución de la segmentación.
+    solo para esos canales los devuelve. La curvatura corre sobre la malla tal
+    cual hasta 80 000 vértices y, por encima, sobre una copia cuadrática de
+    80 000 (`_CURVATURE_MAX_VERTS`): a 40 000 perdía la región de la lesión y
+    a 104 000 la dejaba 6.ª de su canal y tardaba el doble.
+
+    La región que se pinta de un candidato de curvatura es la de esa copia, y
+    se deja así: no se transfiere a la malla completa por proximidad. El
+    preset XA ya suaviza su propia copia antes de buscar, así que las regiones
+    nunca fueron vértices de la malla de disco, y una copia de 80 000 pierde
+    poca densidad frente a los 104 000–107 000 de Case 3.
 
     Devuelve ``(hits, det_result)``: el resultado de la curvatura, el mismo
     que alimenta el consenso, es el que dan los diagnósticos de la respuesta.
@@ -304,10 +319,11 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
             logger.warning("Decimated copy overshot the cap (%d > %d) — decimating again",
                            small.GetNumberOfPoints(), _DETECT_MAX_VERTS)
             small = decimate_to(small, int(_DETECT_TARGET_VERTS * 0.9))
+    curv = decimate_to(poly, _CURVATURE_MAX_VERTS)
     logger.info("Detection mesh: %d vertices for curvature, %d for calibre/ratio",
-                poly.GetNumberOfPoints(), small.GetNumberOfPoints())
-    det_result = detector.detect(poly)
-    hits = consensus(poly, detector, top=_MAX_CANDIDATES,
+                curv.GetNumberOfPoints(), small.GetNumberOfPoints())
+    det_result = detector.detect(curv)
+    hits = consensus(curv, detector, top=_MAX_CANDIDATES,
                      geometric_poly=small, curvature_result=det_result)
     return hits, det_result
 
@@ -341,13 +357,12 @@ def _run_detection_sync(
     from services.aneurysm_consensus import (hit_confidence, hit_diameter_mm,
                                              hit_patch)
 
-    # La curvatura se busca sobre `poly`, la malla completa, y calibre y
-    # cociente sobre una copia de como mucho 40 000 vértices (ver
-    # `_detect_hits`). `hit_patch` recibe la malla COMPLETA: el localizador de
-    # un canal geométrico es una bola recortada de ella —su posición es de
-    # mundo y vale igual en las dos mallas— y la región de curvatura sale de la
-    # búsqueda sobre la malla completa, así que el .vtp de cada candidato
-    # conserva la resolución de la segmentación.
+    # La curvatura se busca sobre la malla (o una copia de 80 000 vértices si
+    # es mayor), y calibre y cociente sobre una copia de como mucho 40 000
+    # (ver `_detect_hits`). `hit_patch` recibe la malla COMPLETA: el
+    # localizador de un canal geométrico es una bola recortada de ella —su
+    # posición es de mundo y vale igual en todas las copias—; la región de
+    # curvatura es la que el detector encontró en su copia.
     hits, det_result = _detect_hits(poly, modality, detector)
 
     pyd_candidates: list[PydAneurysmCandidate] = []

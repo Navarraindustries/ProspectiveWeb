@@ -238,24 +238,75 @@ class TestDetectarSobreLaMallaCompleta:
         _detect_hits(poly, modality)
         assert poly.GetNumberOfPoints() == n
 
-    def test_la_curvatura_se_busca_en_la_malla_completa(self, grande):
-        # Decimada a 40 000, la curvatura perdía la región de la lesión en la
-        # malla tubular. Cada región de curvatura tiene que ser la misma, punto
-        # por punto, que da el detector sobre la malla sin decimar: así el
-        # parche que se pinta conserva la resolución completa. (No se compara
-        # contra los vértices de la malla: el preset XA suaviza su copia.)
-        from routers.detect import _detect_hits
+    def test_por_encima_de_80k_la_curvatura_se_busca_en_una_copia_de_80k(self, grande):
+        # Task 11 bis: sobre la malla tubular de Case 3 (104 000 vértices con
+        # «solo el árbol») la curvatura a resolución completa dejaba la lesión
+        # 6.ª en su canal y tardaba 16 s; sobre una copia cuadrática de 80 000
+        # la deja 2.ª y tarda 7. Cada región de curvatura tiene que ser la
+        # misma, punto por punto, que da el detector sobre esa copia. (No se
+        # compara contra los vértices de la malla: el preset XA suaviza la suya.)
+        from routers.detect import _CURVATURE_MAX_VERTS, _detect_hits
+        from services.segmentation import decimate_to
         poly, modality = grande
+        assert poly.GetNumberOfPoints() > _CURVATURE_MAX_VERTS == 80_000
         hits, _det = _detect_hits(poly, modality)
-        directos = _detector_for_modality(modality).detect(poly).candidates
+        copia = decimate_to(poly, _CURVATURE_MAX_VERTS)
+        directos = _detector_for_modality(modality).detect(copia).candidates
         de_curvatura = [h for h in hits if h.candidate is not None]
         assert de_curvatura, "la curvatura tiene que aportar algún candidato"
         for h in de_curvatura:
             igual = [c for c in directos
                      if np.allclose(c.centroid, h.candidate.centroid, atol=1e-9)]
-            assert igual, f"región {h.position} no sale sobre la malla completa"
+            assert igual, f"región {h.position} no sale sobre la copia de 80 000"
             assert (h.candidate.poly_data.GetNumberOfPoints()
                     == igual[0].poly_data.GetNumberOfPoints())
+
+
+#: La sesión de Case 3 del entorno de desarrollo guarda el volumen ya cargado:
+#: de ahí sale la malla tubular a resolución nativa, como la da la API.
+_CASE3_MESHES = (Path(__file__).resolve().parent / "data" / "sessions"
+                 / "c80edc28-f42d-40f6-b2e2-a882c84fbe02" / "meshes")
+#: Umbral inferior de Case 3 con el que se validó la segmentación (Task 11).
+_CASE3_LOWER = 1470.0
+
+
+@pytest.fixture(scope="module")
+def tubular_arbol():
+    """Case 3 con el método tubular a resolución nativa y «solo el árbol».
+
+    El mismo camino que `scripts/validate_case3.py`: `build_vascular_mask` +
+    `mask_to_surface` con sus valores por defecto. Unos 40 s (Frangi).
+    """
+    import json
+    if not (_CASE3_MESHES / "_volume.npy").exists():
+        pytest.skip("la sesión de Case 3 no está en disco (data/ está en .gitignore)")
+    from services.segmentation import mask_to_surface
+    from services.vascular_mask import MaskParams, build_vascular_mask
+    meta = json.loads((_CASE3_MESHES / "_volume_meta.json").read_text())
+    sp = tuple(float(s) for s in meta["spacing"])
+    vol = np.ascontiguousarray(np.load(_CASE3_MESHES / "_volume.npy", mmap_mode="r"),
+                               dtype=np.float32)
+    mr = build_vascular_mask(vol, sp, MaskParams(lower=_CASE3_LOWER))
+    del vol
+    mt = keep_main_tree(mask_to_surface(mr.mask, sp))
+    assert mt.applied
+    return mt.poly, meta.get("modality", "XA")
+
+
+class TestLaMallaTubularDeCase3:
+    """Task 11 bis: sobre la malla tubular la lesión volvió a la lista corta.
+
+    Antes de esta tarea salía 12.ª con «solo el árbol»: la curvatura corría
+    sobre los 104 000 vértices y allí la lesión era 6.ª de su canal.
+    """
+
+    def test_la_lesion_queda_entre_los_tres_primeros(self, tubular_arbol):
+        poly, modality = tubular_arbol
+        assert poly.GetNumberOfPoints() > 80_000, "es la malla nativa, no la de umbral"
+        hits = _lista(poly, modality)
+        puestos = [i + 1 for i, h in enumerate(hits) if _dist(h) <= TOL_MM]
+        assert puestos and puestos[0] <= 3, (
+            f"puesto {puestos[:1]}: " + ", ".join(f"{_dist(h):.0f} mm" for h in hits))
 
 
 class TestPorDebajoDelTopeNadaCambia:

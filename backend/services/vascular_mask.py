@@ -13,11 +13,12 @@ Fases (cada una publica progreso):
   1 núcleo    M0 = vol ≥ lower, relleno 3D; el techo (si lo hay) se aplica
               DESPUÉS del relleno, así que un vaso cuyo centro lo supera sigue
               macizo. Antes el techo vaciaba los vasos más llenos.
-  2 tubular   V = Frangi(1) máximo entre escalas; Mv = M0 ∧ V ≥ p60(V | M0).
+  2 tubular   V = Frangi(1) máximo entre escalas; se MIDE core_vox =
+              |M0 ∧ V ≥ p60(V | M0)| (la puerta no filtra: es la cifra de núcleo).
   3 semillas  componentes de M0 ∧ V ≥ p90 con ≥ 50 mm³: los troncos gruesos.
   4 crecer    lo conectado a una semilla dentro de M0 ∧ V ≥ p40 (histéresis).
-  5 recuperar M0 a ≤ 3 mm del tubo y conectado a él (pared que la puerta
-              adelgazó, y los sacos, que no son tubos); más allá de la banda
+  5 recuperar M0 a ≤ 3 mm del tubo y conectado a él (pared que el
+              crecimiento adelgazó, y los sacos, que no son tubos); más allá de la banda
               de pared (WALL_MM) se veta lo que es lámina.
   6 cerrar    cierre de 1 vóxel y relleno final.
 """
@@ -62,6 +63,8 @@ FRANGI_SLAB = 64
 class MaskParams:
     lower: float
     upper: float = 0.0            # 0 = sin techo
+    #: Percentil de la puerta tubular. Solo MIDE (`stats.core_vox`,
+    #: `thresholds.gate`): no filtra la máscara, así que moverlo no la cambia.
     gate_pctl: float = 60.0
     seed_pctl: float = 90.0
     grow_pctl: float = 40.0

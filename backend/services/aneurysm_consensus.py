@@ -37,6 +37,21 @@ corta para que un clínico la recorra, así que importa más no perder la lesió
 que acertar la primera: en case 3 la lesión confirmada la encuentra **un solo
 canal**, y un consenso que premiara el acuerdo la habría enterrado.
 
+Ordenar por mejor puesto es, además, una **cuota por canal**: todo sitio que
+es 1.º o 2.º de algún canal va por delante de cualquiera que no lo sea, así que
+los dos primeros de cada canal entran siempre en la lista (con 5 plazas y tres
+canales, todos menos a lo sumo un 2.º). Task 11 bis midió las alternativas
+sobre Case 3 —malla tubular nativa con «solo el árbol», la completa, y la de
+umbral de 12 800 vértices— con la curvatura ya sobre la copia de 80 000:
+
+- mejor puesto (esta regla): lesión 3.ª, 2.ª y 3.ª;
+- acuerdo primero (≥ 2 canales delante): 5.ª, 2.ª y 6.ª — en la tubular la
+  lesión la apoya un solo canal (curvatura 2.º) y en la de umbral otro
+  (calibre 1.º), y por delante se cuelan acuerdos de puestos 3 a 6;
+- veto de sitios planos de calibre/cociente (relación λ3/λ2 de la vecindad,
+  radios de 4 a 8 mm): ningún umbral separa la placa que va 1.ª de la lesión,
+  que en la malla de umbral da valores dentro del mismo rango.
+
 Qué NO se promete
 -----------------
 Que el primero sea el bueno. Hay un punto anotado, no un conjunto de
@@ -214,8 +229,9 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
     La curvatura se busca sobre `poly`. Calibre y cociente, sobre
     `geometric_poly` si se da (y si no, sobre la misma `poly`): los canales
     geométricos se apagan por encima de 40 000 vértices, mientras que la
-    curvatura necesita la resolución completa —sobre la malla tubular de
-    Case 3 decimada a 40 000 perdía la región de la lesión—. Sus sitios son
+    curvatura necesita más resolución —sobre la malla tubular de Case 3
+    decimada a 40 000 perdía la región de la lesión; `routers.detect` le pasa
+    una copia de hasta 80 000—. Sus sitios son
     coordenadas de mundo, así que se fusionan igual vengan de una malla o de
     la otra.
 
@@ -254,9 +270,16 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
                     _merge(hits, tuple(float(v) for v in pts[i]), channel, rank,
                            float(rad[i]), float(ratio[i]))
 
-    # Puestos bajos primero; a igualdad, más canales; luego menor suma.
-    hits.sort(key=lambda h: (h.best_rank, -len(h.ranks), h.rank_sum))
-    return hits[:top]
+    return order_hits(hits)[:top]
+
+
+def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
+    """El orden de la lista corta: mejor puesto; a igualdad, más canales; luego menor suma.
+
+    Es una cuota por canal y no un premio al acuerdo: ver «Cómo se ordena» en
+    el docstring del módulo, con las cifras de Case 3 que lo decidieron.
+    """
+    return sorted(hits, key=lambda h: (h.best_rank, -len(h.ranks), h.rank_sum))
 
 
 def _geometric_channels_apply(poly: vtk.vtkPolyData) -> bool:

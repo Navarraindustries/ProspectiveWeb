@@ -14,19 +14,19 @@
 
 - Servidor de 1 vCPU / 2 GB: la tubularidad se calcula por **lonchas de 64 cortes con 12 de solape**, nunca sobre el volumen entero; ninguna fase mantiene más de ~4 copias de una loncha. Guarda: si el volumen supera **90 M vóxeles** se segmenta a media resolución y se dice por qué.
 - Escalas de Frangi **σ = {0,4; 0,7; 1,2; 2,0} mm**, α = 0,5, β = 0,5, γ = 0,1 × (p99,9 − p50 de la intensidad), objeto brillante, `ScaleObjectnessMeasure` activo, tubularidad = máximo entre escalas. Lámina (veto de hueso) con el mismo filtro y `ObjectDimension = 2`. Medido en Case 3 (384³, 16 núcleos): 2,4–2,9 s por escala sobre el volumen entero.
-- Máscara: relleno 3D del núcleo ANTES del techo; puerta tubular en el **percentil 60** de la tubularidad dentro de la máscara de umbral; semillas en el **percentil 90** con **≥ 50 mm³**; crecimiento en el **percentil 40**; recuperación geodésica a **3 mm** con veto de lámina; cierre de 1 vóxel y relleno final.
+- Máscara: relleno 3D del núcleo ANTES del techo; puerta tubular en el **percentil 60** de la tubularidad dentro de la máscara de umbral, que **solo mide** (`stats.core_vox` y `thresholds.gate`, la cifra de núcleo que se publica) y no filtra nada: lo que recorta la máscara son las semillas y el crecimiento, que umbralizan la tubularidad por su cuenta; `gate_pctl` se conserva como parámetro de esa cifra, y por eso moverlo no cambia la máscara (Task 11); semillas en el **percentil 90** con **≥ 50 mm³**; crecimiento en el **percentil 40**; recuperación geodésica a **3 mm** con veto de lámina; cierre de 1 vóxel y relleno final.
 - Superficie: la máscara se rodea de un vóxel vacío (tapa las salidas por el borde del volumen, origen corrido un espaciado), gaussiana σ = 0,7 vóxel sobre la máscara en float, marching cubes en 0,5, `vtkWindowedSincPolyDataFilter` 40 iteraciones / pass band 0,05 / `BoundarySmoothingOff` / `NormalizeCoordinatesOn`, `vtkFillHolesFilter` hasta 4 mm, `vtkDecimatePro` 45 % con `PreserveTopologyOn` / `SplittingOff` / `BoundaryVertexDeletionOff` (solo en `mask_to_surface`; el pipeline clásico y `decimate_to` siguen con `vtkQuadricDecimation`), normales sin splitting (60°), islas < 2 mm³ fuera. Criterio: **0 aristas de borde** y relación de aspecto mediana **< 1,45**. Validado en Task 11 (`backend/scripts/validate_case3.py`): la decimación cuadrática al 60 % abría la malla (Case 3: 25 aristas de borde, 20 no-variedad, aspecto 1,58, cuando antes de decimar había 0 y 1,20); ninguno de los mandos permitidos (`fill_holes_mm` 6, `min_island_mm3` 5, `reclaim_mm` 2,5 / 3,5, `gate_pctl` 55 / 65) lo arreglaba, y por decisión del controlador se cambió a `vtkDecimatePro` 45 %. Valores finales: `decimation` 0,45, `fill_holes_mm` 4, `min_island_mm3` 2, `reclaim_mm` 3, `gate_pctl` 60, `PLATE_RATIO` 300, `WALL_MM` 0,75. Case 3: 0 aristas de borde (2 no-variedad, aceptadas; `surface_quality` las cuenta en `non_manifold_edges`), aspecto 1,43, 107 176 vértices, 0 piezas de hueso, máscara + superficie 9,0 s (34,1 s con Frangi).
-- Un solo fichero de malla (`vessel_tree.vtp`, completa); la detección decima EN MEMORIA a ≤ 40 000 vértices; morfometría, saco y dispositivos usan la completa.
+- Un solo fichero de malla (`vessel_tree.vtp`, completa); la detección decima EN MEMORIA: calibre y cociente sobre ≤ 40 000 vértices y la curvatura sobre ≤ 80 000 (Task 11 bis); morfometría, saco y dispositivos usan la completa.
 - Resolución completa por defecto; la casilla pasa a ser «Segmentar a media resolución (más rápido)».
 - Progreso: `GET /api/progress/{sid}` siempre; `WS /ws/progress/{sid}?token=` cuando el proxy lo permite; fases con porcentaje.
 - Render: ambient 0,15 · diffuse 0,85 · specular 0,25 · specular power 24; dos luces (key 100 %, fill 35 % opuesta) que siguen la cámara; `setUseDepthPeeling(true)` con 4 pasadas; contorno del saco con un casco invertido (la misma malla un 4 % mayor, caras delanteras descartadas).
 - Copia de interfaz y mensajes de commit en español. `tsc -b`, `vitest run` y `pytest` (sin fallos NUEVOS respecto a la lista base del repositorio: 26 preexistentes) en verde en cada commit.
-- La lesión confirmada de Case 3 (cand-002, x 62 · y 64 · z 63 mm) debe seguir en la lista corta de detección en el puesto ≤ 3.
+- La lesión confirmada de Case 3 (cand-002, x 62 · y 64 · z 63 mm) debe seguir en la lista corta de detección en el puesto ≤ 3. **Tras la Task 11 no se cumplía** (malla tubular nativa: puesto 13, 12 con «solo el árbol») y fue el objetivo de la Task 11 bis. Resultado de la Task 11 bis, con la curvatura sobre una copia de 80 000 vértices y el orden por mejor puesto sin cambios: **3.º con «solo el árbol», 2.º con la malla completa**, y 3.º en la malla de umbral de 12 800 vértices (el mismo que antes de la tarea); detección 9,7–9,9 s (antes 18,6–19,3 s).
 
 ## Review Focus
 
 1. Un volumen donde la banda no captura ninguna semilla ≥ 50 mm³ (contraste pobre): la app debe decirlo y caer a la máscara de umbral, no devolver una malla vacía sin explicación. → test en Task 3 (`test_sin_semillas_cae_al_umbral_y_lo_dice`).
-2. Un aneurisma sacular (bulto no tubular) pegado a un vaso: la puerta tubular lo recorta y la recuperación de 3 mm lo devuelve entero. → test en Task 3 (`test_un_saco_pegado_al_tubo_se_conserva`).
+2. Un aneurisma sacular (bulto no tubular) pegado a un vaso: el crecimiento por tubularidad lo recorta y la recuperación de 3 mm lo devuelve entero. → test en Task 3 (`test_un_saco_pegado_al_tubo_se_conserva`).
 3. Una lámina de hueso en contacto con el vaso: la recuperación no la vuelve a meter (veto de lámina). → test en Task 3 (`test_una_lamina_en_contacto_no_vuelve_con_la_recuperacion`).
 4. Progreso cuando el WebSocket no llega (proxy, Amplify): el panel debe seguir mostrando fase y porcentaje por GET. → test en Task 8 (`vuelve al GET cuando el WebSocket falla`).
 5. Una segmentación que tarda minutos en 1 vCPU no puede bloquear las demás peticiones: cada fase corre en el executor y publica progreso. → test en Task 6 (`test_el_progreso_avanza_por_fases_durante_la_segmentacion`).
@@ -487,7 +487,7 @@ git commit -m "Tubularidad de Frangi por lonchas: la memoria queda acotada y el 
 class MaskParams:
     lower: float
     upper: float = 0.0            # 0 = sin techo
-    gate_pctl: float = 60.0
+    gate_pctl: float = 60.0       # solo mide core_vox (la puerta no filtra)
     seed_pctl: float = 90.0
     grow_pctl: float = 40.0
     seed_min_mm3: float = 50.0
@@ -504,7 +504,7 @@ class MaskResult:
 def build_vascular_mask(volume, spacing, params, *, vesselness=None, plateness=None, on_progress=None) -> MaskResult
 ```
 
-`stats` lleva: `m0_vox`, `core_vox` (tras puerta), `seeds`, `grow_components`, `kept_components`, `reclaimed_vox`, `vetoed_vox`, `final_vox`, `kept_fraction` (final/m0), `thresholds` (`gate`, `seed`, `grow`).
+`stats` lleva: `m0_vox`, `core_vox` (vóxeles de M0 sobre la puerta: solo una cifra, no filtra), `seeds`, `grow_components`, `kept_components`, `reclaimed_vox`, `vetoed_vox`, `final_vox`, `kept_fraction` (final/m0), `thresholds` (`gate`, `seed`, `grow`).
 
 - [ ] **Step 1: Tests que fallan**
 
@@ -607,10 +607,11 @@ Fases (cada una publica progreso):
   1 núcleo    M0 = vol ≥ lower, relleno 3D; el techo (si lo hay) se aplica
               DESPUÉS del relleno, así que un vaso cuyo centro lo supera sigue
               macizo. Antes el techo vaciaba los vasos más llenos.
-  2 tubular   V = Frangi(1) máximo entre escalas; Mv = M0 ∧ V ≥ p60(V | M0).
+  2 tubular   V = Frangi(1) máximo entre escalas; se MIDE core_vox =
+              |M0 ∧ V ≥ p60(V | M0)| (la puerta no filtra: es la cifra de núcleo).
   3 semillas  componentes de M0 ∧ V ≥ p90 con ≥ 50 mm³: los troncos gruesos.
   4 crecer    lo conectado a una semilla dentro de M0 ∧ V ≥ p40 (histéresis).
-  5 recuperar M0 a ≤ 3 mm geodésicos del tubo (pared que la puerta adelgazó,
+  5 recuperar M0 a ≤ 3 mm geodésicos del tubo (pared que el crecimiento adelgazó,
               y los sacos, que no son tubos), vetando lo que es lámina.
   6 cerrar    cierre de 1 vóxel y relleno final.
 """
@@ -629,7 +630,7 @@ from services.vesselness import objectness_max
 class MaskParams:
     lower: float
     upper: float = 0.0
-    gate_pctl: float = 60.0
+    gate_pctl: float = 60.0       # solo mide core_vox (la puerta no filtra)
     seed_pctl: float = 90.0
     grow_pctl: float = 40.0
     seed_min_mm3: float = 50.0
@@ -1834,6 +1835,41 @@ En `README.md`, tras la tabla de servicios, añade una sección «Segmentación 
 git add backend/scripts/validate_case3.py README.md docs/superpowers/plans/2026-09-25-segmentacion-tubular.md
 git commit -m "Validación de la segmentación tubular sobre Case 3, con las cifras en el README"
 ```
+
+---
+
+### Task 11 bis: Ranking del detector sobre mallas tubulares y presupuesto de memoria autodetectado
+
+(Añadida por el controlador durante la ejecución; ver ledger. Sustituye la parte de «detección» de los objetivos §4.5 que la Task 11 midió pero no ajustó.)
+
+**Files:**
+- Modify: `backend/services/aneurysm_consensus.py` (orden de la lista corta) y/o `backend/routers/detect.py` (`_detect_hits`) — solo lo necesario para el ranking.
+- Modify: `backend/routers/segment.py` (presupuesto de memoria por defecto).
+- Modify: `backend/test_detector_case3.py`, `backend/test_consensus_and_plane.py`, `backend/test_segment_tubular.py` (tests nuevos).
+- Modify: `docs/superpowers/plans/2026-09-25-segmentacion-tubular.md` (añadir esta tarea tras la Task 11, con este texto), `README.md` (una línea sobre el presupuesto autodetectado).
+
+**Interfaces:**
+- Consumes: `scripts/validate_case3.py` (Task 11) y su JSON con `lesion_rank`, puestos por canal y top-5; `_detect_hits(poly, modality, ...)` (Task 6: curvatura sobre la malla completa, calibre/cociente sobre la copia decimada); `consensus(...)` con sus dos kwargs opcionales.
+- Produces: sobre la malla tubular nativa de Case 3 con «solo el árbol», la lesión confirmada (62.1, 63.7, 62.9) mm queda en `lesion_rank ≤ 3`; sobre la malla de umbral antigua (12,8 k vértices) el resultado no empeora (5 hits, lesión ≤ 2.º, canales `calibre`/`cociente` presentes). `PROSPECTIVE_MEM_BUDGET_MB` sigue mandando si está definida; si no, el presupuesto es el 70 % de la RAM disponible detectada (Linux `/proc/meminfo` MemAvailable; Windows `GlobalMemoryStatusEx` vía `ctypes`; si nada funciona, 1400 MB).
+
+**Punto de partida (Task 11, malla tubular nativa con relleno de borde y DecimatePro 0,45, ≈107 k vértices):** con DecimatePro 0,45 la lesión cae al puesto 13 en la lista fusionada (12 con «solo el árbol»; por canal curvatura 6.ª y cociente 6.ª) (con quadric 0,6 era 9.ª / 8.ª con «solo el árbol»; por canal, curvatura 4.ª y cociente 5.ª, el calibre no la encuentra), y la detección tarda 19 s porque la curvatura corre sobre los 107 k vértices completos. `consensus` ordena por el mejor puesto en cualquier canal, y los hits de calibre/cociente de los puestos 1–3 son placas o troncos, no sacos. Cifras completas y top-10 en el `validate_case3.json` que la Task 11 dejó en el scratchpad (`C:\Users\segur\AppData\Local\Temp\claude\C--Users-segur-Documents-WORKS-Uninavarra-ProspectiveWeb\aaa564b8-bcfc-4386-9c86-ac33e528fc0a\scratchpad\`) y en `task-11-report.md`.
+
+- [ ] **Step 1: Test que falla** — en `test_detector_case3.py`, usando el fixture de Case 3 y la malla tubular nativa que produce `build_vascular_mask` + `mask_to_surface` (o la guardada por `validate_case3.py` en el scratchpad si existe), asserta `lesion_rank ≤ 3` con `main_tree_only`. En `test_consensus_and_plane.py`, un test sintético que reproduzca la situación (hit de curvatura en puesto 4 de su canal frente a tres hits geométricos sin apoyo de curvatura) y asserta el nuevo orden. El test de la malla antigua ya existe: debe seguir verde.
+
+- [ ] **Step 2: Diagnóstico antes de tocar nada** — con `validate_case3.py`, anotar para cada hit del top-10: posición, canales, puesto por canal, y si coincide con la lesión (< 8 mm). Escribirlo en el informe.
+
+- [ ] **Step 3: Cambio de ranking** — elegir UNA de estas estrategias, justificando con las cifras del paso 2, y aplicarla con un comentario WHY en español:
+  a) acuerdo entre canales: un hit apoyado por ≥ 2 canales (dentro de un radio de fusión) sube por delante de los apoyados por uno solo; entre iguales, mejor puesto;
+  b) cuota por canal: la lista corta reserva los k mejores de cada canal (k = 2) antes de rellenar por puesto global;
+  c) veto geométrico de los hits de calibre/cociente cuya vecindad en la malla es plana (relación de aspecto del parche o curvatura media baja).
+  Además (obligatorio, independiente de la estrategia): en `_detect_hits`, cuando la malla supera 80 000 vértices la curvatura corre sobre una copia `decimate_to(poly, 80_000)` (quadric) y los parches de región se recortan de la malla completa por proximidad o se dejan como están si la transferencia es imprecisa — anotar cuál; objetivo: detección ≈ 7–8 s como en la Task 6.
+  Prohibido: reentrenar o cambiar los parámetros del detector de curvatura, o tocar la segmentación.
+
+- [ ] **Step 4: Verificar** — `validate_case3.py` sobre Case 3 (nativa, árbol principal y completa): `lesion_rank ≤ 3` en la de árbol principal; informar las tres. La malla antigua de 12,8 k no empeora. `pytest test_detector_case3.py test_consensus_and_plane.py test_detect_diagnostics.py test_morphometry_sac.py test_neck_plane_feedback.py` verde.
+
+- [ ] **Step 5: Presupuesto de memoria autodetectado** — en `routers/segment.py`, función `_memory_budget_bytes()` con la regla de arriba (env → detección → 1400 MB), comentario WHY (en el equipo del usuario, 1400 MB fijos forzaban media resolución en Case 3 y escondían el resultado nativo; en Lightsail de 2 GB la detección da ≈1,2–1,4 GB disponibles y el 70 % sigue forzando media resolución, que es lo correcto allí). Tests en `test_segment_tubular.py`: env manda; sin env y con detección monkeypatched a 8 GB → no se fuerza; a 1,5 GB → se fuerza; detección que falla → 1400 MB.
+
+- [ ] **Step 6: Plan, README y commit** — añadir esta tarea al plan tras la Task 11; una línea en el README. Commit: «La lista corta prioriza los candidatos con apoyo de varios canales, y el presupuesto de memoria se detecta en el equipo».
 
 ---
 

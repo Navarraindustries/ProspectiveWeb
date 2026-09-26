@@ -4,7 +4,7 @@ Uso:
     python scripts/validate_case3.py <dir_meshes_con__volume.npy> <lower> [upper]
         [--out validate_case3.json] [--frangi-cache DIR]
         [--gate-pctl P] [--reclaim-mm R] [--fill-holes-mm F] [--min-island-mm3 M]
-        [--plate-ratio K] [--wall-mm W] [--no-detect]
+        [--plate-ratio K] [--wall-mm W] [--no-detect] [--compare-quadric]
 
 Ejecuta el mismo camino que la API con el método tubular: build_vascular_mask
 + mask_to_surface + _detect_hits (curvatura sobre la malla completa, calibre y
@@ -18,7 +18,9 @@ directorio (para comparar ajustes sin repetir 25 s de Frangi); en ese caso
 `seconds.frangi` es el tiempo de la primera vez, leído del propio caché.
 
 Los mandos --plate-ratio y --wall-mm sustituyen las constantes del módulo
-vascular_mask solo en este proceso.
+vascular_mask solo en este proceso. --compare-quadric repite superficie y
+detección con la decimación cuadrática al 60 % (la de antes de Task 11) y lo
+guarda en `quadric_0.6`, como referencia de la detección para Task 11 bis.
 """
 from __future__ import annotations
 
@@ -111,6 +113,27 @@ def _detect(poly, modality: str) -> dict:
     }
 
 
+def _quadric_reference(mask: np.ndarray, sp: tuple, surf_kw: dict, modality: str, detect: bool) -> dict:
+    """La misma máscara con la decimación cuadrática al 60 % de antes."""
+    import services.segmentation as sg
+    orig = sg._decimate_preserving
+    sg._decimate_preserving = sg._decimate_surface
+    try:
+        poly = mask_to_surface(mask, sp, **{"decimation": 0.6, **surf_kw})
+    finally:
+        sg._decimate_preserving = orig
+    q = surface_quality(poly)
+    ref = {"boundary_edges": q["boundary_edges"], "non_manifold_edges": q["non_manifold_edges"],
+           "aspect_ratio_median": round(q["aspect_ratio_median"], 4), "components": q["components"],
+           "vertices": q["n_vertices"]}
+    if detect:
+        ref["detection"] = _detect(poly, modality)
+        mt = keep_main_tree(poly)
+        if mt.applied:
+            ref["detection_main_tree"] = _detect(mt.poly, modality)
+    return ref
+
+
 def main(argv: list[str] | None = None) -> dict:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("meshes_dir", type=Path)
@@ -125,6 +148,7 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("--plate-ratio", type=float, default=None)
     ap.add_argument("--wall-mm", type=float, default=None)
     ap.add_argument("--no-detect", action="store_true")
+    ap.add_argument("--compare-quadric", action="store_true")
     a = ap.parse_args(argv)
 
     d = a.meshes_dir
@@ -169,7 +193,8 @@ def main(argv: list[str] | None = None) -> dict:
                    "reclaim_mm": mp.reclaim_mm, "plate_ratio": vm.PLATE_RATIO, "wall_mm": vm.WALL_MM,
                    **surf_kw},
         "shape": list(vol.shape), "spacing": list(sp),
-        "boundary_edges": q["boundary_edges"], "aspect_ratio_median": round(q["aspect_ratio_median"], 4),
+        "boundary_edges": q["boundary_edges"], "non_manifold_edges": q["non_manifold_edges"],
+        "aspect_ratio_median": round(q["aspect_ratio_median"], 4),
         "components": q["components"], "bone_like_pieces": len(bone),
         "thickest_piece_mm": round(max((c.thickness_mm for c in comps), default=0.0), 2),
         "vertices": q["n_vertices"], "triangles": q["n_triangles"],
@@ -191,6 +216,9 @@ def main(argv: list[str] | None = None) -> dict:
         out["lesion_rank"] = out["detection"]["lesion_rank"]
         if mt.applied:
             out["detection_main_tree"] = _detect(mt.poly, modality)
+
+    if a.compare_quadric:
+        out["quadric_0.6"] = _quadric_reference(mr.mask, sp, surf_kw, meta.get("modality", "XA"), not a.no_detect)
 
     a.out.write_text(json.dumps(out, indent=1))
     print(json.dumps(out, indent=1))

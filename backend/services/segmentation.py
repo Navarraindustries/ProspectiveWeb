@@ -597,11 +597,13 @@ def read_vtp(path: str | Path) -> vtk.vtkPolyData:
 # antes (superficie sub-vóxel), se cierra lo que quede abierto y se decima con
 # normales. Criterio del diseño: 0 aristas de borde, aspecto mediano < 1,45.
 #
-# _smooth_surface/_decimate_surface/_with_normals viven aquí porque
-# SegmentationPipeline.run() (el pipeline clásico, más arriba) y mask_to_surface
-# (esta superficie estanca) necesitan exactamente los mismos tres filtros con
-# los mismos flags — antes eran dos copias del suavizado y tres de las
-# normales (una en run(), una en mask_to_surface, otra en decimate_to).
+# _smooth_surface/_with_normals viven aquí porque SegmentationPipeline.run()
+# (el pipeline clásico, más arriba) y mask_to_surface (esta superficie
+# estanca) necesitan exactamente los mismos filtros con los mismos flags —
+# antes eran dos copias del suavizado y tres de las normales (una en run(),
+# una en mask_to_surface, otra en decimate_to). La decimación NO se comparte:
+# el pipeline clásico y decimate_to usan _decimate_surface (cuadrática) y
+# mask_to_surface usa _decimate_preserving, que no abre la malla.
 
 def _smooth_surface(poly: vtk.vtkPolyData, iters: int, pass_band: float) -> vtk.vtkPolyData:
     """Suaviza con windowed sinc; la misma malla si `iters <= 0`.
@@ -636,6 +638,33 @@ def _decimate_surface(poly: vtk.vtkPolyData, reduction: float) -> vtk.vtkPolyDat
     return dec.GetOutput()
 
 
+def _decimate_preserving(poly: vtk.vtkPolyData, reduction: float) -> vtk.vtkPolyData:
+    """Decima sin cambiar la topología; la misma malla si `reduction <= 0`.
+
+    Por qué no la cuadrática en mask_to_surface: sobre una malla de tubos
+    abre aristas de borde y no-variedad y alarga los triángulos. Medido en
+    Case 3 con la máscara tubular: la malla llega CERRADA a la decimación
+    (0 aristas de borde, aspecto 1,20) y vtkQuadricDecimation al 60 % la deja
+    con 38 de borde, 24 no-variedad y aspecto 1,58. vtkDecimatePro con
+    PreserveTopology, sin partir la malla y sin quitar vértices de borde, al
+    45 % la deja con 0 de borde, 2 no-variedad y aspecto 1,43, a cambio de
+    ~35 % más vértices (107 000 frente a 80 000, que el visor pinta a ritmo
+    normal según lo medido en Task 10). PreserveTopology no siempre alcanza
+    la reducción pedida —por eso decimate_to, que necesita un tope de
+    vértices para la detección, sigue con la cuadrática—.
+    """
+    if reduction <= 0:
+        return poly
+    dec = vtk.vtkDecimatePro()
+    dec.SetInputData(poly)
+    dec.SetTargetReduction(reduction)
+    dec.PreserveTopologyOn()
+    dec.SplittingOff()
+    dec.BoundaryVertexDeletionOff()
+    dec.Update()
+    return dec.GetOutput()
+
+
 def _with_normals(poly: vtk.vtkPolyData) -> vtk.vtkPolyData:
     """Normales de punto suaves, consistentes y orientadas hacia afuera."""
     nrm = vtk.vtkPolyDataNormals()
@@ -655,7 +684,7 @@ def mask_to_surface(
     *,
     smooth_iters: int = 40,
     pass_band: float = 0.05,
-    decimation: float = 0.6,
+    decimation: float = 0.45,
     fill_holes_mm: float = 4.0,
     min_island_mm3: float = 2.0,
     gauss_sigma_vox: float = 0.7,
@@ -710,7 +739,7 @@ def mask_to_surface(
     tf.SetInputData(poly); tf.Update(); poly = tf.GetOutput()
 
     say("decimación", 55)
-    poly = _decimate_surface(poly, decimation)
+    poly = _decimate_preserving(poly, decimation)
 
     say("normales", 75)
     poly = _with_normals(poly)
@@ -723,8 +752,9 @@ def mask_to_surface(
 
 
 # Una isla real de min_island_mm3=2 mm³ a la resolución con la que trabaja
-# esta función tiene decenas de triángulos. vtkQuadricDecimation (paso previo,
-# TargetReduction=0.6 por defecto) no garantiza una salida 2-variedad: puede
+# esta función tiene decenas de triángulos. La decimación (paso previo) no
+# garantiza una salida 2-variedad —con vtkQuadricDecimation, la de antes, y
+# con la que decimate_to sigue usando—: puede
 # dejar sueltos uno o unos pocos triángulos sin vecinos —confirmado en el caso
 # 3, un triángulo suelto de la decimación colaba como "componente" de 2,68 mm³—.
 # Un fragmento así no encierra nada, así que cualquier "volumen" que salga de
@@ -835,11 +865,17 @@ def surface_quality(poly: vtk.vtkPolyData) -> dict:
     fe.SetInputData(poly); fe.BoundaryEdgesOn(); fe.FeatureEdgesOff(); fe.NonManifoldEdgesOff(); fe.ManifoldEdgesOff(); fe.Update()
     cf = vtk.vtkPolyDataConnectivityFilter()
     cf.SetInputData(poly); cf.SetExtractionModeToAllRegions(); cf.Update()
+    # Las no-variedad (una arista compartida por 3+ triángulos) no son borde,
+    # así que «0 aristas de borde» no basta para decir que la malla es una
+    # 2-variedad: se cuentan aparte. Case 3 acepta 2 (ver _decimate_preserving).
+    nm = vtk.vtkFeatureEdges()
+    nm.SetInputData(poly); nm.BoundaryEdgesOff(); nm.FeatureEdgesOff(); nm.NonManifoldEdgesOn(); nm.ManifoldEdgesOff(); nm.Update()
     q = vtk.vtkMeshQuality()
     q.SetInputData(poly); q.SetTriangleQualityMeasureToAspectRatio(); q.Update()
     ar = ns.vtk_to_numpy(q.GetOutput().GetCellData().GetArray("Quality"))
     return {
         "boundary_edges": int(fe.GetOutput().GetNumberOfLines()),
+        "non_manifold_edges": int(nm.GetOutput().GetNumberOfLines()),
         "components": int(cf.GetNumberOfExtractedRegions()),
         "aspect_ratio_median": float(np.median(ar)) if ar.size else 0.0,
         "n_vertices": int(poly.GetNumberOfPoints()),

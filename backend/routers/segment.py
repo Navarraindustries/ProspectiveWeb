@@ -643,7 +643,7 @@ def _run_segmentation_sync(
         q = surface_quality(poly)
         seg_result = SegmentationResult(
             poly_data=poly, n_vertices=q["n_vertices"], n_triangles=q["n_triangles"],
-            threshold_hu=lower, reduction_pct=60.0, n_fragments_removed=0,
+            threshold_hu=lower, reduction_pct=45.0, n_fragments_removed=0,   # decimación nominal de mask_to_surface
             kept_fraction=float(mr.stats.get("kept_fraction", 1.0)), largest_removed_mm3=0.0)
         extra = dict(method="tubular",
                      reclaimed_mm3=round(mr.stats.get("reclaimed_vox", 0) * vox_mm3, 1),

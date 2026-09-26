@@ -103,6 +103,32 @@ class TestSalidasDelVolumen:
             assert abs(hi - idx.max() * s) < s
 
 
+class TestDecimacionEstanca:
+    """La decimación de mask_to_surface no puede abrir la malla: la cuadrática
+    lo hacía en Case 3 (0 → 38 aristas de borde y 24 no-variedad)."""
+
+    def test_informa_de_las_aristas_no_variedad(self):
+        mask = synthetic_tube(shape=(64, 48, 48), radius_mm=2.0) > 0
+        q = surface_quality(mask_to_surface(mask, SP))
+        assert q["non_manifold_edges"] == 0
+
+    def test_un_arbol_decimado_al_45_sigue_cerrado(self):
+        """Dos tubos que se cruzan en T y salen por varias caras: una
+        bifurcación es donde la decimación cuadrática colapsaba aristas."""
+        a = synthetic_tube(shape=(64, 64, 64), radius_mm=3.0, axis=0) > 0
+        b = synthetic_tube(shape=(64, 64, 64), radius_mm=2.0, axis=2) > 0
+        poly = mask_to_surface(a | b, SP, decimation=0.45, fill_holes_mm=0.0)
+        q = surface_quality(poly)
+        assert q["boundary_edges"] == 0
+        assert q["non_manifold_edges"] == 0
+        assert q["components"] == 1
+        assert q["aspect_ratio_median"] < 1.45
+
+    def test_por_defecto_decima_al_45(self):
+        import inspect
+        assert inspect.signature(mask_to_surface).parameters["decimation"].default == 0.45
+
+
 class TestIslasFalsas:
     def test_los_restos_sueltos_de_la_decimacion_no_cuentan_como_isla(self):
         """vtkQuadricDecimation no garantiza una salida 2-variedad: puede dejar

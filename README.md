@@ -162,16 +162,17 @@ Key backend services (all ported from the desktop `prospective/processing`):
 
 ### Segmentación tubular
 
-El método tubular (`services/vascular_mask.py` + `mask_to_surface` en `services/segmentation.py`) rellena el núcleo de la banda de umbral y mide su tubularidad con Frangi por lonchas. Siembra en los troncos (percentil 90, ≥ 50 mm³) y crece por histéresis solo lo conectado a ellos. Después recupera hasta 3 mm de pared y sacos, vetando lo que es lámina (hueso). La superficie sale de marching cubes sobre la máscara suavizada, con un vóxel vacío alrededor que tapa los vasos que salen por el borde del volumen. Cada segmentación informa de las aristas de borde, las piezas, las semillas y los mm³ recuperados y vetados. `backend/scripts/validate_case3.py` mide todo eso sobre Case 3 (384³, 0,32 mm, umbral 1470), y en este equipo (16 núcleos) da estas cifras. Las 25 aristas de borde no vienen de las salidas del volumen: las introduce `vtkQuadricDecimation`, porque la malla antes de decimar tiene 0.
+El método tubular (`services/vascular_mask.py` + `mask_to_surface` en `services/segmentation.py`) rellena el núcleo de la banda de umbral y mide su tubularidad con Frangi por lonchas. Siembra en los troncos (percentil 90, ≥ 50 mm³) y crece por histéresis solo lo conectado a ellos. Después recupera hasta 3 mm de pared y sacos, vetando lo que es lámina (hueso). La superficie sale de marching cubes sobre la máscara suavizada, con un vóxel vacío alrededor que tapa los vasos que salen por el borde del volumen. Cada segmentación informa de las aristas de borde, las piezas, las semillas y los mm³ recuperados y vetados. `backend/scripts/validate_case3.py` mide todo eso sobre Case 3 (384³, 0,32 mm, umbral 1470), y en este equipo (16 núcleos) da estas cifras. La decimación (45 %) usa `vtkDecimatePro` con la topología preservada: la cuadrática abría 25 aristas de borde en una malla que llegaba cerrada.
 
 | Case 3 | Cifra |
 |---|---|
-| Aristas de borde | 25 (0 antes de decimar) |
+| Aristas de borde | 0 (2 no-variedad, aceptadas) |
 | Piezas | 6 (1 con «solo el árbol»); ninguna con aspecto de hueso |
 | Semillas | 8 |
-| Relación de aspecto mediana | 1,58 |
+| Relación de aspecto mediana | 1,43 |
 | Lesión conservada (M0 a ≤ 3 mm) | 96,6 % |
-| Tiempo máscara + superficie | 9,5 s (34,4 s con los dos pases de Frangi) |
+| Vértices | 107 176 |
+| Tiempo máscara + superficie | 9,0 s (34,1 s con los dos pases de Frangi) |
 
 La variable de entorno `PROSPECTIVE_MEM_BUDGET_MB` (1400 MB por defecto) fija el presupuesto de memoria por encima del cual el método tubular se fuerza a media resolución y lo dice.
 

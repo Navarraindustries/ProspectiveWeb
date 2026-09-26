@@ -10,6 +10,7 @@ os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
@@ -152,3 +153,36 @@ class TestHuClipIsHounsfieldOnly:
         mprmod._downsampled_volume.cache_clear()
         out = np.load(npy)
         assert out.max() <= 3000.0 and out.min() >= -1000.0
+
+
+# ── Regression: preprocessing must not persist per-call meta keys ───────────── #
+
+@pytest.fixture
+def session_with_ct_volume() -> str:
+    """A synthetic CT volume with intensities reaching 5000, well past the
+    HU_MAX=3000 clip, and sized so the bright region is not lost by the
+    percentile-based `intensity_range` (robust p0.5-p99.9)."""
+    sid = create_session()
+    nz, ny, nx = 32, 48, 48
+    vol = (np.random.rand(nz, ny, nx) * 100 + 50).astype(np.float32)
+    vol[0:4, 0:8, 0:8] = 5000.0  # >0.1% of voxels, so it survives the p99.9 cut
+    npy, meta = mprmod._cache_paths(sid)
+    np.save(npy, vol)
+    meta.write_text(json.dumps({
+        "shape": [nz, ny, nx], "spacing": [1.0, 1.0, 1.0],
+        "wc": 150, "ww": 700, "modality": "CT",
+    }))
+    mprmod._downsampled_volume.cache_clear()
+    return sid
+
+
+def test_preprocesar_recalcula_el_rango_y_no_persiste_claves_por_llamada(session_with_ct_volume):
+    sid = session_with_ct_volume
+    from services.mpr import _cache_paths
+    import json
+    r = client.post(f"/api/preprocess/{sid}", json={"clip_hu": True, "resample_isotropic": False, "smooth": False})
+    assert r.status_code == 200, r.text
+    meta = json.loads(_cache_paths(sid)[1].read_text())
+    assert "cache_key" not in meta and "orientation_manual" not in meta
+    assert meta["intensity_range"][1] <= 3000.0          # recortado a HU_MAX
+    assert meta["full_stride"] == 1

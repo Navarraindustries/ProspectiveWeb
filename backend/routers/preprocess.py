@@ -79,11 +79,16 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     np.save(tmp_path, np.ascontiguousarray(new_vol, dtype=np.float32))
     os.replace(tmp_path, npy_path)
 
-    new_meta = dict(meta)
+    # cache_key y orientation_manual son por llamada: ensure_volume_cached las
+    # añade al dict devuelto pero nunca las persiste; copiarlas aquí las dejaría
+    # grabadas en el JSON como si fueran parte de la caché del volumen.
+    from services.mpr import _full_stride, _intensity_range, new_volume_id
+    new_meta = {k: v for k, v in meta.items() if k not in ("cache_key", "orientation_manual")}
     new_meta["shape"] = [int(x) for x in new_vol.shape]
     new_meta["spacing"] = [float(s) for s in new_spacing]
+    new_meta["intensity_range"] = _intensity_range(new_vol)
+    new_meta["full_stride"] = _full_stride(new_meta["shape"])
     # Volumen nuevo, identidad nueva: el visor no debe servir bloques del anterior.
-    from services.mpr import new_volume_id
     new_meta["volume_id"] = new_volume_id()
     meta_path.write_text(json.dumps(new_meta))
 

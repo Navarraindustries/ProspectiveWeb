@@ -39,3 +39,16 @@ HTMLMediaElement.prototype.pause = vi.fn();
 // hace un navegador que no puede dar el contexto, y ambos componentes ya saben
 // retirarse en ese caso.
 HTMLCanvasElement.prototype.getContext = vi.fn(() => null);
+
+// Ni URL de objeto: jsdom no implementa `createObjectURL`/`revokeObjectURL`.
+// Las imágenes que necesitan el JWT —miniaturas de estudio, capturas del
+// visor— se piden como blob y se enseñan así, y sin esto la galería revienta
+// al montar con «createObjectURL does not exist». Se cuentan las revocaciones
+// porque soltar las URL es parte del contrato: son memoria del navegador.
+if (!URL.createObjectURL) {
+  let n = 0;
+  URL.createObjectURL = vi.fn(() => `blob:objeto-${++n}`) as unknown as typeof URL.createObjectURL;
+}
+if (!URL.revokeObjectURL) {
+  URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL;
+}

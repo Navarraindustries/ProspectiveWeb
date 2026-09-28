@@ -65,12 +65,25 @@ def thumb_key(study_id: int) -> str:
     return f"{study_prefix(study_id)}/thumb.png"
 
 
+def capture_key(study_id: int, capture_uid: str) -> str:
+    """Una captura del visor, junto al DICOM del que salió.
+
+    Va al archivo durable y NO a `data/sessions/…`: las sesiones se purgan a
+    las SESSION_TTL_HOURS, y una imagen que el cirujano guarda hoy tiene que
+    seguir ahí el lunes. El nombre lo pone el servidor (uuid4), nunca el
+    cliente: un nombre de fichero venido de fuera puede escaparse del prefijo.
+    """
+    safe = Path(capture_uid).name
+    return f"{study_prefix(study_id)}/captures/{safe}.png"
+
+
 class StorageBackend(Protocol):
     def put_file(self, key: str, src: Path) -> None: ...
     def put_bytes(self, key: str, data: bytes) -> None: ...
     def get_bytes(self, key: str) -> bytes: ...
     def exists(self, key: str) -> bool: ...
     def list_prefix(self, prefix: str) -> list[str]: ...
+    def delete_key(self, key: str) -> None: ...
     def delete_prefix(self, prefix: str) -> None: ...
     def download_prefix(self, prefix: str, dest_dir: Path) -> int: ...
     def size_bytes(self, prefix: str) -> int: ...
@@ -119,6 +132,14 @@ class LocalBackend:
             str(p.relative_to(self.root)).replace("\\", "/")
             for p in base.rglob("*") if p.is_file()
         )
+
+    def delete_key(self, key: str) -> None:
+        # Un objeto suelto, no un árbol: `delete_prefix` aquí solo mira
+        # directorios, así que con la clave de un fichero no borraba nada y
+        # dejaba la imagen en disco después de que el usuario la borrara.
+        p = self._path(key)
+        if p.is_file():
+            p.unlink()
 
     def delete_prefix(self, prefix: str) -> None:
         base = self._path(prefix)
@@ -191,6 +212,9 @@ class S3Backend:
     def list_prefix(self, prefix: str) -> list[str]:
         cut = len(self.prefix) + 1 if self.prefix else 0
         return sorted(o["Key"][cut:] for o in self._objects(prefix))
+
+    def delete_key(self, key: str) -> None:
+        self._s3.delete_object(Bucket=self.bucket, Key=self._key(key))
 
     def delete_prefix(self, prefix: str) -> None:
         objs = self._objects(prefix)

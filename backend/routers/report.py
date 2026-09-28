@@ -90,6 +90,7 @@ async def generate_report(
             institution       = req.institution,
             clinical_notes    = req.clinical_notes,
             screenshot_png_b64= req.screenshot_png_b64 if req.include_3d_screenshot else None,
+            capture_ids       = req.capture_ids,
             db                = db,
         )
         out_dir = session_subdir(req.session_id, "reports")

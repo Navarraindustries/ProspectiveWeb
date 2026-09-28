@@ -26,6 +26,7 @@ import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
+import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from "./OrientationInset";
 import { mipReadoutLines } from "./mipReadout";
 
@@ -33,10 +34,17 @@ type Vec3 = [number, number, number];
 
 const AXIS_OF: Record<Plane, 0 | 1 | 2> = { sagital: 0, coronal: 1, axial: 2 };   // eje vtk (x,y,z)
 
-export function MipView({ image, meta, orientation, compact = false, mainPlane = "axial" }: {
+export function MipView({ image, meta, orientation, compact = false, mainPlane = "axial", registerCapture }: {
   image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean; mainPlane?: Plane;
+  /** Publica la captura de este panel en PNG mientras su escena viva.
+   *  El lienzo de vtk.js se lee negro si no se pide la imagen del
+   *  siguiente render, así que la captura tiene que salir de aquí. */
+  registerCapture?: (fn: CaptureFn | null) => void;
 }) {
   const { mprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation } = usePlanning();
+  // Por ref: cambiar de destinatario no puede rehacer la escena.
+  const registerCaptureRef = useRef(registerCapture);
+  registerCaptureRef.current = registerCapture;
   const ref = useRef<HTMLDivElement>(null);
   const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkVolumeMapper; actor: vtkVolume } | null>(null);
   const [heading, setHeading] = useState<ReturnType<typeof cameraHeading> | null>(null);
@@ -98,7 +106,8 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     ro.observe(el);
     scene.current = { grw, mapper, actor };
     grw.getRenderWindow().render();
-    return () => { sub.unsubscribe(); inset.dispose(); insetRef.current = null; ro.disconnect(); scene.current = null; grw.delete(); };
+    registerCaptureRef.current?.(captureRenderWindow(grw, () => grw.getRenderWindow().render()));
+    return () => { registerCaptureRef.current?.(null); sub.unsubscribe(); inset.dispose(); insetRef.current = null; ro.disconnect(); scene.current = null; grw.delete(); };
   }, [image, mainPlane]);
 
   // Si cambia la orientación (fijada a mano), la cinta se recalcula sin

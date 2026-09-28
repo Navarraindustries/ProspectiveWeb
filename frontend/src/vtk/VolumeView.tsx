@@ -21,6 +21,7 @@ import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 
 import { api } from "../api/client";
+import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 
 interface Preset {
   color: [number, number, number, number][]; // [x, r, g, b] in 0–255
@@ -62,8 +63,17 @@ const PRESETS: Record<string, Preset> = {
 };
 const PRESET_NAMES = Object.keys(PRESETS);
 
-export function VolumeView({ sessionId }: { sessionId: string }) {
+export function VolumeView({ sessionId, registerCapture }: {
+  sessionId: string;
+  /** Publica la captura de esta escena mientras viva: en modo volumen es
+   *  ella la que ocupa el panel, y sin esto la captura del visor y el
+   *  informe salían con el hueco de la escena vacío. */
+  registerCapture?: (fn: CaptureFn | null) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Por ref: cambiar de destinatario no puede rehacer la escena.
+  const registerCaptureRef = useRef(registerCapture);
+  registerCaptureRef.current = registerCapture;
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [preset, setPreset] = useState<string>("CTA");
@@ -118,6 +128,8 @@ export function VolumeView({ sessionId }: { sessionId: string }) {
         renderer.resetCamera();
         renderer.getActiveCamera().elevation(-20);
         renderWindow.render();
+        // Con el volumen ya en pantalla: capturar antes daría un lienzo vacío.
+        registerCaptureRef.current?.(captureRenderWindow(fsrw, () => renderWindow.render()));
         setLoading(false);
       } catch (err) {
         if (!cancelled) {
@@ -129,6 +141,7 @@ export function VolumeView({ sessionId }: { sessionId: string }) {
 
     return () => {
       cancelled = true;
+      registerCaptureRef.current?.(null);
       actorRef.current = null;
       rwRef.current = null;
       // Release the interactor's DOM listeners before delete() so it doesn't

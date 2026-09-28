@@ -1,6 +1,7 @@
 /* Pacientes — stat tiles + searchable patient table (GET /api/patients),
    create / edit / delete a patient, and view its past planning sessions. */
 
+import { CaptureGallery } from "../components/CaptureGallery";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { FormEvent } from "react";
@@ -283,6 +284,14 @@ function PatientSheet({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Las capturas del visor, que el profesional guarda con un botón.
+              Cuelgan del estudio de imagen; aquí se ven todas las del paciente
+              porque es donde se viene a buscarlas: «la foto que hice del
+              cuello», sin acordarse de en qué adquisición fue. */}
+          {editing && patientId != null && (
+            <CaptureGallery patientId={patientId} />
           )}
 
           <ErrorNote>{error}</ErrorNote>

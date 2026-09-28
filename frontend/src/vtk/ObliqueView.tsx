@@ -16,6 +16,7 @@ import { voxelToMm } from "./geometry";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
+import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 
 type Vec3 = [number, number, number];
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -42,10 +43,17 @@ function sliceExtent(b: number[], o: Vec3, n: Vec3, right: Vec3, up: Vec3): [num
   return [span(right), span(up)];
 }
 
-export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false }: {
+export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false, registerCapture }: {
   image: vtkImageData; meta: VolumeMeta; wc: number; ww: number; onWindowLevel: (wc: number, ww: number) => void; active?: boolean;
+  /** Publica la captura de este panel en PNG mientras su escena viva.
+   *  El lienzo de vtk.js se lee negro si no se pide la imagen del
+   *  siguiente render, así que la captura tiene que salir de aquí. */
+  registerCapture?: (fn: CaptureFn | null) => void;
 }) {
   const { mprVoxel } = usePlanning();
+  // Por ref: cambiar de destinatario no puede rehacer la escena.
+  const registerCaptureRef = useRef(registerCapture);
+  registerCaptureRef.current = registerCapture;
   const ref = useRef<HTMLDivElement>(null);
   const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkImageResliceMapper; actor: vtkImageSlice; plane: vtkPlane; fit: () => boolean } | null>(null);
   const [tilt, setTilt] = useState(20);
@@ -100,7 +108,8 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
     ro.observe(el);
     needFit.current = true;
     scene.current = { grw, mapper, actor, plane, fit };
-    return () => { ro.disconnect(); scene.current = null; grw.delete(); };
+    registerCaptureRef.current?.(captureRenderWindow(grw, () => grw.getRenderWindow().render()));
+    return () => { registerCaptureRef.current?.(null); ro.disconnect(); scene.current = null; grw.delete(); };
   }, [image]);
 
   // Declarado antes que el efecto del plano: corre antes en el mismo commit,

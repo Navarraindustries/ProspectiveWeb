@@ -26,6 +26,7 @@ try:
     from reportlab.platypus import (
         HRFlowable,
         Image,
+        KeepTogether,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
@@ -127,6 +128,23 @@ class OrderEntry:
 
 
 @dataclass
+@dataclass
+class ReportCapture:
+    """Una captura del visor que el profesional eligió para el informe.
+
+    Las hizo él, con el botón del visor, en el momento que le pareció que
+    valía la pena. El informe no elige ninguna por su cuenta ni las mete
+    todas: `capture_ids` viene de la petición, en el orden en que se enseñan.
+    """
+    png: bytes
+    label: str = ""
+    step: str = ""
+    taken_at: str = ""
+    #: Una línea con de dónde salió: rumbo, y si la orientación es asumida.
+    caption: str = ""
+
+
+@dataclass
 class ReportData:
     patient: PatientInfo = field(default_factory=PatientInfo)
     morphometrics: dict[str, Any] = field(default_factory=dict)
@@ -135,6 +153,10 @@ class ReportData:
     stent: StentEntry | None = None
     trajectory: dict[str, Any] = field(default_factory=dict)
     screenshot_png: bytes | None = None
+    #: Las capturas guardadas que el profesional eligió, en su orden. Son
+    #: otra cosa que `screenshot_png`: esa es la vista que hubiera en
+    #: pantalla al generar el informe; estas las eligió él, una por una.
+    captures: list[ReportCapture] = field(default_factory=list)
     #: Server-rendered views of the plan, keyed by view name. Unlike the
     #: screenshot these are fixed viewpoints, so two reports of the same case are
     #: comparable and a report generated with no viewer open still has pictures.
@@ -178,6 +200,9 @@ def build_report_data_from_session(
     institution: str = "",
     clinical_notes: str = "",
     screenshot_png_b64: str | None = None,
+    # Las capturas guardadas que el profesional eligió, en su orden. Necesitan
+    # `db` para resolverse: la imagen vive en el archivo durable, no aquí.
+    capture_ids: list[int] | None = None,
     # Optional DB session: pass a SQLAlchemy Session to enrich with patient data
     db=None,
 ) -> ReportData:
@@ -292,6 +317,8 @@ def build_report_data_from_session(
             screenshot_bytes = base64.b64decode(screenshot_png_b64)
         except Exception:
             logger.warning("Could not decode screenshot_png_b64 — skipping image")
+
+    capturas = _load_captures(capture_ids, db)
 
     # ── 5. Surgical approach trajectory (persisted in session state) ──── #
     trajectory = read_trajectory_state(session_id)
@@ -440,6 +467,7 @@ def build_report_data_from_session(
         phases       = phases,
         trajectory   = trajectory,
         screenshot_png = screenshot_bytes,
+        captures     = capturas,
         plan_views   = _render_plan_views(session_id),
         risk_label   = risk_label,
         treatment    = treatment,
@@ -487,6 +515,67 @@ def _render_plan_views(session_id: str) -> dict[str, bytes]:
     except Exception as exc:  # noqa: BLE001 — pictures are not worth failing a report
         logger.warning("Plan views failed to render for %s: %s", session_id, exc)
         return {}
+
+
+def _load_captures(capture_ids, db) -> list[ReportCapture]:
+    """Las capturas elegidas, EN EL ORDEN EN QUE LAS PIDIERON.
+
+    El orden es del profesional: son su relato del caso, no un volcado por
+    fecha. Se respeta aunque la base las devuelva en otro.
+
+    Una captura que ya no esté —fila borrada, fichero movido— se salta con un
+    aviso en el log: el informe sale sin esa imagen, que es mejor que no salir.
+    """
+    if not capture_ids or db is None:
+        return []
+    from services.db_models import CaseCapture
+    from services.storage import get_storage
+
+    filas = {c.id: c for c in db.query(CaseCapture).filter(CaseCapture.id.in_(capture_ids)).all()}
+    almacen = get_storage()
+    out: list[ReportCapture] = []
+    for cid in capture_ids:
+        fila = filas.get(cid)
+        if fila is None:
+            logger.warning("Captura %s pedida para el informe y no existe", cid)
+            continue
+        try:
+            png = almacen.get_bytes(fila.storage_key)
+        except Exception:  # noqa: BLE001 — la fila puede sobrevivir al fichero
+            logger.warning("Captura %s sin fichero en %s", cid, fila.storage_key)
+            continue
+        out.append(ReportCapture(
+            png=png,
+            label=fila.label or f"Captura {cid}",
+            step=fila.step or "",
+            taken_at=fila.created_at.strftime("%d/%m/%Y %H:%M") if fila.created_at else "",
+            caption=_caption_captura(fila),
+        ))
+    return out
+
+
+def _caption_captura(fila) -> str:
+    """De dónde salió la imagen, en una línea.
+
+    Sale del estado que se guardó CON la captura, no de la sesión de ahora: el
+    informe puede generarse semanas después y con otra vista en pantalla.
+    """
+    try:
+        estado = json.loads(fila.state_json or "{}")
+    except (ValueError, TypeError):
+        estado = {}
+    partes: list[str] = []
+    rumbo = estado.get("heading")
+    if rumbo:
+        partes.append(str(rumbo))
+    if estado.get("orientation_known") is False:
+        # El visor ya lo dice entre corchetes dentro de la imagen; repetirlo
+        # aquí es a propósito, porque el pie se lee y la imagen se mira.
+        partes.append("orientación asumida, no medida")
+    nota = estado.get("level_note")
+    if nota:
+        partes.append(str(nota))
+    return " · ".join(partes)
 
 
 def read_trajectory_state(session_id: str) -> dict:
@@ -599,6 +688,7 @@ class ReportGenerator:
         story += self._section_patient()
         story += self._section_plan_views()
         story += self._section_screenshot()
+        story += self._section_captures()
         story += self._section_morphometrics()
         story += self._section_treatment_decision()
         story += self._section_clips()
@@ -864,6 +954,42 @@ class ReportGenerator:
             "Captura de pantalla del visor 3D en el momento de la generación del informe.",
             self._style_small,
         ))
+        return elems
+
+    def _section_captures(self) -> list:
+        """Las capturas que el profesional eligió, en su orden y con su rótulo.
+
+        Cada una va junta con su título y su pie (`KeepTogether`): una imagen
+        que cae en la página siguiente separada de lo que la nombra deja al
+        lector sin saber qué está viendo.
+        """
+        if not self._data.captures:
+            return []
+        elems: list = [
+            Spacer(1, 0.2*cm),
+            Paragraph("Capturas del caso", self._style_h2),
+            Paragraph(
+                "Imágenes guardadas por el profesional durante la planificación, "
+                "en el orden en que las eligió.",
+                self._style_small,
+            ),
+        ]
+        for c in self._data.captures:
+            bloque: list = [Spacer(1, 0.3*cm)]
+            titulo = c.label
+            if c.taken_at:
+                titulo = f"{titulo} — {c.taken_at}"
+            bloque.append(Paragraph(titulo, self._style_body))
+            try:
+                img = Image(io.BytesIO(c.png), width=14*cm, height=9*cm, kind="proportional")
+            except Exception:  # noqa: BLE001 — un PNG ilegible no tumba el informe
+                logger.warning("Captura «%s» ilegible; se omite del PDF", c.label)
+                continue
+            img.hAlign = "CENTER"
+            bloque.append(img)
+            if c.caption:
+                bloque.append(Paragraph(c.caption, self._style_small))
+            elems.append(KeepTogether(bloque))
         return elems
 
     def _section_morphometrics(self) -> list:

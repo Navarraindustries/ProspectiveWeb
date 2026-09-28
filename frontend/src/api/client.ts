@@ -5,6 +5,8 @@ import type {
   AneurysmDetectionResult,
   AuditBlock,
   AuditVerifyResult,
+  CaptureCreate,
+  CaptureOut,
   CeilingCompareRequest,
   CeilingCompareResult,
   CenterlineClearResult,
@@ -583,6 +585,28 @@ export const api = {
    *  scanned and activated — same payload shape as `upload`. */
   openStudy: (studyId: number) =>
     post<UploadResult>(`/api/studies/${studyId}/open`),
+
+  /* capturas del visor, adjuntas al estudio de imagen */
+
+  /** Guarda la imagen del visor en el archivo del estudio. */
+  saveCapture: (body: CaptureCreate) => post<CaptureOut>("/api/captures", body),
+  /** Las capturas de una adquisición, de un caso o de un paciente. */
+  listCaptures: (by: { imagingStudyId?: number; caseId?: number; patientId?: number }) => {
+    const p = new URLSearchParams();
+    if (by.imagingStudyId != null) p.set("imaging_study_id", String(by.imagingStudyId));
+    if (by.caseId != null) p.set("case_id", String(by.caseId));
+    if (by.patientId != null) p.set("patient_id", String(by.patientId));
+    return get<CaptureOut[]>(`/api/captures?${p.toString()}`);
+  },
+  /** El PNG; necesita el JWT, así que va por blob y URL de objeto. */
+  captureObjectUrl: async (captureId: number) =>
+    URL.createObjectURL(await getBlob(`/api/captures/${captureId}/image`)),
+  renameCapture: (captureId: number, label: string) =>
+    request<CaptureOut>(`/api/captures/${captureId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label }),
+    }),
+  deleteCapture: (captureId: number) =>
+    request<void>(`/api/captures/${captureId}`, { method: "DELETE" }),
 
   /* audit (SkullChain) */
   auditBlocks: () => get<AuditBlock[]>("/api/audit/blocks"),

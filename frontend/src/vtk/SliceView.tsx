@@ -15,6 +15,7 @@ import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunc
 import { SlicingMode } from "@kitware/vtk.js/Rendering/Core/ImageMapper/Constants";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
+import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane } from "./geometry";
 import { HudFrame } from "./hud/HudFrame";
 import { HudLadder } from "./hud/HudLadder";
@@ -46,6 +47,10 @@ export interface SliceViewProps {
   levelNote?: string | null;
   active?: boolean;
   compact?: boolean;
+  /** Publica la captura de este panel en PNG mientras su escena viva.
+   *  Sin esto el panel no puede salir en una captura del visor: el lienzo
+   *  de vtk.js se lee negro si no se pide la imagen del siguiente render. */
+  registerCapture?: (fn: CaptureFn | null) => void;
 }
 
 interface Scene {
@@ -66,6 +71,9 @@ export function SliceView(p: SliceViewProps) {
   // Cámara de la escena anterior: al llegar el volumen completo la escena se
   // rehace, y sin esto el zoom/desplazamiento del usuario volvería al inicio.
   const savedCam = useRef<SavedCamera | null>(null);
+  // Por ref: cambiar de destinatario no puede rehacer la escena.
+  const registerCaptureRef = useRef(p.registerCapture);
+  registerCaptureRef.current = p.registerCapture;
   // Rectángulo de la imagen en px del contenedor, para retícula y clics.
   const [box, setBox] = useState<{ left: number; top: number; w: number; h: number; mmPerPx: number } | null>(null);
   const count = planeCount(p.meta, p.plane);
@@ -169,7 +177,9 @@ export function SliceView(p: SliceViewProps) {
     ro.observe(container);
     measure();
     rw.render();
+    registerCaptureRef.current?.(captureRenderWindow(grw, () => rw.render()));
     return () => {
+      registerCaptureRef.current?.(null);
       ro.disconnect();
       savedCam.current = { plane: p.plane, focal: cam.getFocalPoint(), position: cam.getPosition(), scale: cam.getParallelScale() };
       scene.current = null;

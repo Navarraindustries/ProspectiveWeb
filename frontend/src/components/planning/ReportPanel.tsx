@@ -6,6 +6,7 @@ import type { ReportResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
+import { CapturePicker } from "./CapturePicker";
 import { Input } from "../Input";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -47,6 +48,8 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
     captureViewport, markSaved,
   } = planning;
   const [includeShot, setIncludeShot] = useState(true);
+  // Cuáles de las capturas guardadas entran, en el orden en que se marcan.
+  const [captureIds, setCaptureIds] = useState<number[]>([]);
   const [surgeon, setSurgeon] = useState(user?.full_name ?? "");
   const [notes, setNotes] = useState("");
   const [report, setReport] = useState<ReportResult | null>(null);
@@ -93,6 +96,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
           surgeon_name: surgeon,
           institution: patient?.institution ?? user?.institution ?? "",
           clinical_notes: notes,
+          capture_ids: captureIds,
           include_3d_screenshot: !!shotB64,
           screenshot_png_b64: shotB64 ?? undefined,
         })
@@ -207,6 +211,10 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
           <input type="checkbox" checked={includeShot} onChange={(e) => setIncludeShot(e.target.checked)} />
           Incluir captura 3D de la escena en el PDF
         </label>
+        {/* Y, aparte de esa foto del momento, las que el profesional fue
+            guardando durante la planificación. */}
+        <CapturePicker caseId={caseId} imagingStudyId={imagingStudyId}
+          value={captureIds} onChange={setCaptureIds} />
         <Button leadingIcon={<Icon name="DOC" />} onClick={() => void genPdf()} disabled={busy !== null}>
           {busy === "pdf" ? "Generando…" : stale("pdf") ? "Regenerar informe PDF" : "Generar informe PDF"}
         </Button>

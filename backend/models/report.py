@@ -36,6 +36,16 @@ class ReportRequest(BaseModel):
         ),
     )
 
+    # Las capturas guardadas que el profesional quiere DENTRO del informe.
+    capture_ids: list[int] = Field(
+        default_factory=list,
+        description=(
+            "Ids de las capturas guardadas que se incluyen, EN EL ORDEN en que "
+            "se quieren ver. Vacío = ninguna. Las elige el profesional: el "
+            "informe no mete todas las del caso ni escoge por su cuenta."
+        ),
+    )
+
     # Optional: override morphometry values shown in the report
     force_morphometry_note: str | None = Field(
         None,

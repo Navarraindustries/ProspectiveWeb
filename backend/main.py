@@ -27,7 +27,7 @@ from routers import (
     auth, patients, treatment, clips, coils, longitudinal,
     report, session_state, mpr, phases, centerline, audit,
     mesh_edit, print_prep, preprocess, studies, devices, clip_library,
-    clip_orders,
+    clip_orders, captures,
 )
 
 logger = logging.getLogger(__name__)
@@ -208,6 +208,7 @@ _private = [Depends(require_user)]
 app.include_router(auth.router)
 app.include_router(patients.router,      dependencies=_private)
 app.include_router(studies.router,       dependencies=_private)
+app.include_router(captures.router,      dependencies=_private)
 app.include_router(upload.router,        dependencies=_private)
 app.include_router(segment.router,       dependencies=_private)
 app.include_router(detect.router,        dependencies=_private)

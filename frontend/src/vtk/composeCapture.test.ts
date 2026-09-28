@@ -1,0 +1,209 @@
+/* Componer la captura del visor: qué acaba dentro de la imagen y qué no.
+
+   Lo que se defiende aquí:
+   - Que están los cinco paneles, cada uno en su sitio, y no solo el 3D.
+   - Que el HUD viaja dentro de los píxeles: sin el rumbo y el índice de corte
+     la imagen no se puede situar seis semanas después.
+   - Que un panel que no se deja capturar no tumba la captura entera.
+   - Que NO se cuela ningún dato del paciente en la imagen. */
+import { describe, expect, it, vi } from "vitest";
+
+import { composeCapture, type ComposeDeps, type Ctx2D, type PaneShot } from "./composeCapture";
+
+/** Un contexto 2D que apunta lo que le mandan dibujar. */
+function recorder() {
+  const textos: { text: string; x: number; y: number; align: string; color: string }[] = [];
+  const imagenes: { src: unknown; x: number; y: number; w: number; h: number }[] = [];
+  const rects: { x: number; y: number; w: number; h: number; color: string }[] = [];
+  const ctx: Ctx2D = {
+    fillStyle: "", strokeStyle: "", font: "", textAlign: "left", textBaseline: "top",
+    fillRect(x, y, w, h) { rects.push({ x, y, w, h, color: ctx.fillStyle }); },
+    fillText(text, x, y) { textos.push({ text, x, y, align: ctx.textAlign, color: ctx.fillStyle }); },
+    drawImage(src, x, y, w, h) { imagenes.push({ src, x, y, w, h }); },
+  };
+  return { ctx, textos, imagenes, rects };
+}
+
+function deps(rec = recorder()): { deps: ComposeDeps; rec: ReturnType<typeof recorder> } {
+  return {
+    rec,
+    deps: {
+      loadImage: async (url) => ({ url }),
+      makeCanvas: () => ({ ctx: rec.ctx, toDataURL: () => "data:image/png;base64,COMPUESTA" }),
+    },
+  };
+}
+
+const COLORS = { hud: "#cfe", dim: "#567", gap: "#123" };
+
+const panel = (id: string, x: number, y: number, w: number, h: number, extra: Partial<PaneShot> = {}): PaneShot => ({
+  id, rect: { x, y, w, h }, capture: async () => `data:image/png;base64,${id}`, ...extra,
+});
+
+/** El visor de siempre: principal arriba, franja de cuatro debajo. */
+function visor(extra: Partial<PaneShot> = {}): PaneShot[] {
+  return [
+    panel("scene", 0, 0, 800, 400, extra),
+    panel("axial", 0, 401, 199, 199),
+    panel("coronal", 200, 401, 199, 199),
+    panel("sagital", 400, 401, 199, 199),
+    panel("mip", 600, 401, 200, 199),
+  ];
+}
+
+const base = (panes: PaneShot[], d: ComposeDeps, extra = {}) => ({
+  width: 800, height: 600, panes, colors: COLORS, fontFamily: "mono", deps: d, ...extra,
+});
+
+describe("la captura lleva los cinco paneles", () => {
+  it("dibuja cada panel donde está en pantalla", async () => {
+    const { deps: d, rec } = deps();
+    const url = await composeCapture(base(visor(), d));
+    expect(url).toBe("data:image/png;base64,COMPUESTA");
+    expect(rec.imagenes).toHaveLength(5);
+    // El principal ocupa la parte de arriba; la franja va debajo, en fila.
+    expect(rec.imagenes[0]).toMatchObject({ x: 0, y: 0, w: 800, h: 400 });
+    expect(rec.imagenes.slice(1).map((i) => i.x)).toEqual([0, 200, 400, 600]);
+    expect(rec.imagenes.slice(1).every((i) => i.y === 401)).toBe(true);
+  });
+
+  it("cada panel recibe SU propia imagen, no la del vecino", async () => {
+    const { deps: d, rec } = deps();
+    await composeCapture(base(visor(), d));
+    expect(rec.imagenes.map((i) => (i.src as { url: string }).url)).toEqual([
+      "data:image/png;base64,scene", "data:image/png;base64,axial",
+      "data:image/png;base64,coronal", "data:image/png;base64,sagital",
+      "data:image/png;base64,mip",
+    ]);
+  });
+
+  it("pide todas las capturas antes de dibujar", async () => {
+    // Encadenarlas dejaba medio visor repintándose mientras el resto ya estaba
+    // capturado, y la imagen salía con paneles de momentos distintos.
+    const orden: string[] = [];
+    const panes = visor().map((p) => ({
+      ...p,
+      capture: async () => { orden.push(`captura:${p.id}`); return `data:image/png;base64,${p.id}`; },
+    }));
+    const { deps: d, rec } = deps();
+    const original = rec.ctx.drawImage;
+    rec.ctx.drawImage = ((...a: Parameters<typeof original>) => { orden.push("dibuja"); return original(...a); }) as typeof original;
+    await composeCapture(base(panes, d));
+    expect(orden.filter((o) => o.startsWith("captura:"))).toHaveLength(5);
+    expect(orden.indexOf("dibuja")).toBeGreaterThan(orden.lastIndexOf("captura:mip"));
+  });
+
+  it("el hueco entre paneles se ve porque el fondo lo pinta", async () => {
+    const { deps: d, rec } = deps();
+    await composeCapture(base(visor(), d));
+    expect(rec.rects[0]).toMatchObject({ x: 0, y: 0, w: 800, h: 600, color: COLORS.gap });
+  });
+});
+
+describe("el HUD viaja dentro de la imagen", () => {
+  it("lleva el rumbo y el aviso de resolución", async () => {
+    const { deps: d, rec } = deps();
+    await composeCapture(base(visor(), d, {
+      heading: "AZ 12° · EL -20°", note: "RESOLUCIÓN REDUCIDA · 1:2",
+    }));
+    const dichos = rec.textos.map((t) => t.text);
+    expect(dichos).toContain("AZ 12° · EL -20°");
+    expect(dichos).toContain("RESOLUCIÓN REDUCIDA · 1:2");
+  });
+
+  it("una orientación asumida se lee como asumida", async () => {
+    // El visor rodea con corchetes lo que no viene del DICOM. Si la captura lo
+    // perdiera, una orientación inventada parecería medida.
+    const { deps: d, rec } = deps();
+    await composeCapture(base(visor(), d, { heading: "[AZ 0° · EL -20°]" }));
+    expect(rec.textos.map((t) => t.text)).toContain("[AZ 0° · EL -20°]");
+  });
+
+  it("lleva el rótulo y las lecturas de cada panel", async () => {
+    const { deps: d, rec } = deps();
+    const panes = visor();
+    panes[1] = panel("axial", 0, 401, 199, 199, {
+      label: "axial", readouts: [{ at: "bl", lines: ["193 / 384", "W 7578 · L -343"] }],
+    });
+    await composeCapture(base(panes, d));
+    const dichos = rec.textos.map((t) => t.text);
+    expect(dichos).toContain("AXIAL");
+    expect(dichos).toContain("193 / 384");
+    expect(dichos).toContain("W 7578 · L -343");
+  });
+
+  it("las lecturas de abajo se apilan hacia arriba y las de la derecha se alinean a la derecha", async () => {
+    const { deps: d, rec } = deps();
+    const panes = [panel("axial", 0, 0, 200, 200, {
+      readouts: [{ at: "br", lines: ["uno", "dos"] }],
+    })];
+    await composeCapture({ ...base(panes, d), width: 200, height: 200 });
+    const uno = rec.textos.find((t) => t.text === "uno")!;
+    const dos = rec.textos.find((t) => t.text === "dos")!;
+    expect(uno.y).toBeLessThan(dos.y);                 // «dos» queda más abajo
+    expect(dos.y).toBeLessThan(200);                   // dentro del panel
+    expect(uno.align).toBe("right");
+  });
+});
+
+describe("cuando algo falla", () => {
+  it("un panel sin escena montada deja su hueco rotulado, no un agujero negro", async () => {
+    const { deps: d, rec } = deps();
+    const panes = visor();
+    panes[4] = { ...panes[4], capture: null };
+    await composeCapture(base(panes, d));
+    expect(rec.imagenes).toHaveLength(4);
+    expect(rec.textos.map((t) => t.text)).toContain("SIN IMAGEN");
+  });
+
+  it("un panel que revienta al capturar no tumba la captura", async () => {
+    const { deps: d, rec } = deps();
+    const panes = visor();
+    panes[2] = { ...panes[2], capture: async () => { throw new Error("contexto perdido"); } };
+    const url = await composeCapture(base(panes, d));
+    expect(url).toBe("data:image/png;base64,COMPUESTA");
+    expect(rec.imagenes).toHaveLength(4);
+  });
+
+  it("si no se pudo capturar NI UN panel, no se guarda una imagen vacía", async () => {
+    const { deps: d } = deps();
+    const panes = visor().map((p) => ({ ...p, capture: null }));
+    expect(await composeCapture(base(panes, d))).toBeNull();
+  });
+
+  it("sin paneles o sin tamaño no intenta nada", async () => {
+    const { deps: d } = deps();
+    expect(await composeCapture(base([], d))).toBeNull();
+    expect(await composeCapture({ ...base(visor(), d), width: 0 })).toBeNull();
+  });
+});
+
+describe("lo que NO puede acabar en los píxeles", () => {
+  it("no hay forma de meterle datos del paciente", async () => {
+    // La imagen se reenvía sin pensarlo y no se puede recuperar. Quién es el
+    // paciente lo sabe la fila de la base de datos, no el PNG. Esta prueba
+    // existe para que añadir un pie con el nombre tenga que romperla a
+    // propósito.
+    const { deps: d, rec } = deps();
+    await composeCapture(base(visor(), d, { heading: "AZ 0° · EL -20°", note: "1:2" }));
+    const todo = rec.textos.map((t) => t.text).join(" | ");
+    for (const dato of ["Hernandez", "Tannia", "32453646568", "1999", "paciente", "HC-"]) {
+      expect(todo).not.toContain(dato);
+    }
+    // Y la entrada no tiene por dónde colarlos: solo rumbo, aviso y lecturas.
+    const claves = Object.keys(base(visor(), d, {})).sort();
+    expect(claves).toEqual(["colors", "deps", "fontFamily", "height", "panes", "width"]);
+  });
+});
+
+describe("los ayudantes del navegador", () => {
+  it("se pueden sustituir enteros al probar", () => {
+    // Si `composeCapture` tocara `document` o `Image` por su cuenta, esta
+    // suite no podría correr en jsdom sin lienzo.
+    const espia = vi.fn();
+    expect(() => composeCapture({
+      width: 1, height: 1, panes: [], colors: COLORS, fontFamily: "mono",
+      deps: { loadImage: espia, makeCanvas: espia as never },
+    })).not.toThrow();
+  });
+});

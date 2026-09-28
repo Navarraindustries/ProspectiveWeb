@@ -17,7 +17,11 @@ import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
 import { cameraHeading, effectiveDirection, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
 import { swapPane, type PaneId, type ViewerLayout } from "./layout";
+import { api } from "../api/client";
+import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
+import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
+import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
@@ -168,6 +172,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion,
+    imagingStudyId,
   } = usePlanning();
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
@@ -300,6 +305,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // escena está en la franja, la sube al principal para capturarla a tamaño
   // completo y luego deja la distribución como estaba (captureWithLayout.ts).
   const meshCapture = useRef<CaptureFn | null>(null);
+  // Captura del VISOR ENTERO, la que guarda el profesional en el caso: cada
+  // panel publica la suya aquí y el compositor las junta donde están. La del
+  // informe (meshCapture) es otra cosa: una sola escena a tamaño completo.
+  const paneCaptures = useRef<Map<PaneId, CaptureFn | null>>(new Map());
+  const regPane = (id: PaneId) => (fn: CaptureFn | null) => { paneCaptures.current.set(id, fn); };
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const mainAreaRef = useRef<HTMLDivElement>(null);
+  const stripCells = useRef<(HTMLDivElement | null)[]>([]);
+  const [shotState, setShotState] = useState<"idle" | "busy" | "ok" | "err">("idle");
+  const [shotError, setShotError] = useState<string>("");
   // Cada espera devuelve true cuando acepta la captura y deja de esperar.
   const captureWaiters = useRef<((fn: CaptureFn) => boolean)[]>([]);
   const registerMeshCapture = useCallback((fn: CaptureFn | null) => {
@@ -343,6 +358,83 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setCaptureViewport(sceneHasMesh ? captureScene : null);
   }, [sceneHasMesh, captureScene, setCaptureViewport]);
   useEffect(() => () => setCaptureViewport(null), [setCaptureViewport]);
+
+  // ── Guardar lo que se está viendo, con un botón ───────────────────────── #
+  //
+  // Cada panel es una ventana de vtk.js distinta, así que la imagen se compone
+  // de las cinco capturas colocadas donde están en pantalla, más el HUD leído
+  // del propio DOM: así la imagen dice exactamente lo que decía el visor y no
+  // hay una segunda fuente que se separe de la primera.
+  //
+  // La imagen se adjunta al ESTUDIO DE IMAGEN, que es de donde salió la malla.
+  // Sin estudio archivado no hay dónde colgarla y el botón lo dice: no se
+  // guarda en la carpeta de la sesión, que se purga a las 24 h.
+  const capturarVisor = useCallback(async () => {
+    const root = viewerRef.current;
+    const mainEl = mainAreaRef.current;
+    if (!root || !mainEl || !imagingStudyId) return;
+    setShotState("busy");
+    setShotError("");
+    try {
+      const base = root.getBoundingClientRect();
+      const rel = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.x - base.x), y: Math.round(r.y - base.y), w: Math.round(r.width), h: Math.round(r.height) };
+      };
+      const capturaDe = (id: PaneId) => (id === "scene" ? meshCapture.current : paneCaptures.current.get(id) ?? null);
+      const panes: PaneShot[] = [];
+      const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
+      anotar(layoutRef.current.main, mainEl);
+      layoutRef.current.strip.forEach((id, i) => {
+        const el = stripCells.current[i];
+        if (el) anotar(id, el);
+      });
+
+      const cs = getComputedStyle(root);
+      const color = (nombre: string, porDefecto: string) => cs.getPropertyValue(nombre).trim() || porDefecto;
+      const width = Math.round(base.width);
+      const height = Math.round(base.height);
+      const png = await composeCapture({
+        width, height, panes,
+        heading: readHeading(root),
+        note: levelNote ?? undefined,
+        colors: { hud: color("--hud", "#cfe3f0"), dim: color("--hud-dim", "#5b6b77"), gap: color("--hud-dim", "#5b6b77") },
+        fontFamily: color("--font-mono", "monospace"),
+        deps: browserDeps,
+      });
+      if (!png) throw new Error("No hay ningún panel que capturar.");
+
+      const ahora = new Date();
+      await api.saveCapture({
+        imaging_study_id: imagingStudyId,
+        session_id: sessionId ?? "",
+        step,
+        label: `${STEPS.find((x) => x.key === step)?.label ?? "Captura"} · ${ahora.toLocaleString("es", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+        png_b64: png,
+        width, height,
+        // El estado que la produjo. Sin esto, dentro de seis semanas la imagen
+        // no contesta qué candidato era ni desde dónde se estaba mirando.
+        state: {
+          layout: layoutRef.current,
+          heading: readHeading(root) ?? null,
+          level_note: levelNote ?? null,
+          view_mode: viewMode,
+          candidate_index: selectedCandidate,
+          candidate_id: candidates[selectedCandidate]?.id ?? null,
+          neck_mm: morphometry?.neck_mm ?? null,
+          max_diameter_mm: morphometry?.max_diameter_mm ?? null,
+          window: mprWl ?? null,
+          orientation_known: effectiveDirection(orientation).known,
+        },
+      });
+      setShotState("ok");
+      setTimeout(() => setShotState((v) => (v === "ok" ? "idle" : v)), 2500);
+    } catch (e) {
+      setShotState("err");
+      setShotError(e instanceof Error ? e.message : "No se pudo guardar la captura.");
+      setTimeout(() => setShotState((v) => (v === "err" ? "idle" : v)), 4000);
+    }
+  }, [imagingStudyId, sessionId, step, levelNote, viewMode, selectedCandidate, morphometry, mprWl, orientation]);
   // Transient "you clicked outside the mesh" hint — without it a missed pick is
   // silent and the tool feels broken.
   const [pickMiss, setPickMiss] = useState(false);
@@ -699,7 +791,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       const mipPlane: Plane = viewerLayout.main === "coronal" || viewerLayout.main === "sagital" ? viewerLayout.main : "axial";
       return (
         <Suspense fallback={<ViewerLoading label="Cargando MIP…" />}>
-          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} mainPlane={mipPlane} />
+          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} mainPlane={mipPlane} registerCapture={regPane("mip")} />
         </Suspense>
       );
     }
@@ -724,7 +816,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
           crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
           band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
-          active={slot === "main"} compact={compact} />
+          active={slot === "main"} compact={compact} registerCapture={regPane(id)} />
       </Suspense>
     );
   };
@@ -754,7 +846,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // escena no repite ni esquinas, ni rótulo, ni la lectura del modo.
     let bodyFramed = sceneIsSlice;
     if (viewMode === "volume" && sessionId && meta) {
-      body = <Suspense fallback={<ViewerLoading label="Cargando volumen 3D…" />}><VolumeView sessionId={sessionId} /></Suspense>;
+      body = <Suspense fallback={<ViewerLoading label="Cargando volumen 3D…" />}><VolumeView sessionId={sessionId} registerCapture={registerMeshCapture} /></Suspense>;
       mode = "VOLUMEN";
     } else if (viewMode === "oblique" && sessionId && meta) {
       // Sin WebGL2 o sin volumen en el cliente, el oblicuo del servidor (PNG),
@@ -766,7 +858,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
         body = (
           <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
-              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} active={!compact} />
+              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} active={!compact}
+              registerCapture={registerMeshCapture} />
           </Suspense>
         );
         bodyFramed = true;
@@ -895,13 +988,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
     );
   };
 
+  const puedeCapturar = !!imagingStudyId && shotState !== "busy";
+  const porQueNo = imagingStudyId
+    ? ""
+    : "Archiva el estudio en el caso para poder adjuntarle capturas";
+
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+    <div ref={viewerRef} style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
       {sessionId && (
         <OrientationSheet open={orientationOpen} onClose={() => setOrientationOpen(false)} sessionId={sessionId}
           current={manualForSession} onApply={setOrientationManual} />
       )}
-      <div style={{ flex: 1, position: "relative", background: "#000", minHeight: 0, overflow: "hidden" }}>
+      <div ref={mainAreaRef} style={{ flex: 1, position: "relative", background: "#000", minHeight: 0, overflow: "hidden" }}>
         {renderPane(viewerLayout.main, "main")}
         {wlHost === viewerLayout.main && wlSelect}
         {/* Pista del panel principal: fuera de renderPane/renderScene porque
@@ -913,10 +1011,25 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
             value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
         </div>
+        {/* Un botón, una imagen. Sin diálogo ni título que rellenar: pedirlo
+            antes de guardar mata el «pulsar y seguir», y el rótulo se puede
+            cambiar después en la galería del caso. */}
+        <div className="hud-toggle" style={{ position: "absolute", top: 2, left: 24, zIndex: 6, fontFamily: "var(--font-mono)" }}>
+          <button type="button" onClick={() => void capturarVisor()} disabled={!puedeCapturar}
+            aria-label="Guardar una captura del visor en el caso"
+            title={porQueNo || "Guarda esta vista como imagen en el caso"}
+            style={{ opacity: puedeCapturar ? 1 : 0.45, cursor: puedeCapturar ? "pointer" : "not-allowed" }}>
+            {shotState === "busy" ? "GUARDANDO…" : shotState === "ok" ? "GUARDADA ✓" : shotState === "err" ? "NO SE GUARDÓ" : "⊙ CAPTURA"}
+          </button>
+        </div>
+        {shotState === "err" && shotError && (
+          <div className="hud-readout bl hud-err" style={{ zIndex: 6 }}>{shotError.toUpperCase()}</div>
+        )}
       </div>
       <div className="mpr-strip" style={{ height: "clamp(160px, 26vh, 240px)", flexShrink: 0, display: "flex", gap: 1, background: "var(--hud-dim)" }}>
-        {viewerLayout.strip.map((id) => (
-          <div key={id} style={{ flex: 1, position: "relative", minWidth: 0, background: "#000", overflow: "hidden" }}
+        {viewerLayout.strip.map((id, i) => (
+          <div key={id} ref={(el) => { stripCells.current[i] = el; }}
+               style={{ flex: 1, position: "relative", minWidth: 0, background: "#000", overflow: "hidden" }}
                onDoubleClick={() => setViewerLayout(swapPane(viewerLayout, id))}
                title="Doble clic: maximizar">
             {renderPane(id, "strip")}

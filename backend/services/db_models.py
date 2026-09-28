@@ -248,3 +248,52 @@ class PlanningSession(Base):
 
     def __repr__(self) -> str:
         return f"<PlanningSession id={self.id} session_id={self.session_id!r}>"
+
+
+# ── CaseCapture ────────────────────────────────────────────────────────────── #
+
+class CaseCapture(Base):
+    """Una imagen del visor guardada por el profesional, adjunta al estudio.
+
+    Cuelga del ESTUDIO DE IMAGEN y no del caso: una captura nace de la malla
+    de una adquisición concreta, así que un caso con TAC y angiografía de
+    control sabe de cuál salió cada imagen. El caso y el paciente se guardan
+    al lado para poder listar por cualquiera de los tres sin recorrer la
+    cadena entera.
+
+    El PNG no está aquí: vive en el archivo durable (`services.storage`), que
+    es donde ya está el DICOM, y se sirve solo por endpoint autenticado. Nunca
+    bajo `data/`, que es StaticFiles.
+
+    `state_json` es lo que hace útil la captura dentro de seis semanas: el
+    paso, la cámara, el candidato, el umbral y las medidas que había en
+    pantalla. Sin eso queda una imagen bonita que nadie puede situar.
+    """
+    __tablename__ = "case_captures"
+
+    id       = Column(Integer, primary_key=True, index=True)
+    imaging_study_id = Column(Integer, ForeignKey("imaging_studies.id"), nullable=False, index=True)
+    case_id  = Column(Integer, ForeignKey("studies.id"),  nullable=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=True, index=True)
+    # La sesión viva en la que se tomó. Informativa: se purga a las 24 h, así
+    # que no se puede depender de ella para nada, ni es clave foránea.
+    session_id = Column(String(64), nullable=False, default="")
+
+    step        = Column(String(32),  nullable=False, default="")
+    label       = Column(String(256), nullable=False, default="")
+    storage_key = Column(String(300), nullable=False)
+    width       = Column(Integer, nullable=False, default=0)
+    height      = Column(Integer, nullable=False, default=0)
+    size_bytes  = Column(Integer, nullable=False, default=0)
+    state_json  = Column(Text,    nullable=False, default="{}")
+
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+
+    imaging_study = relationship("ImagingStudy")
+    case          = relationship("Study")
+    patient       = relationship("Patient")
+    author        = relationship("User")
+
+    def __repr__(self) -> str:
+        return f"<CaseCapture id={self.id} imaging_study={self.imaging_study_id} {self.label!r}>"

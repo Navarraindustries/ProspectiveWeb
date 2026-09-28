@@ -1669,3 +1669,40 @@ export interface CeilingCompareResult {
   n_sin_techo: number;
   note: string;
 }
+
+/* ── Capturas del visor adjuntas al caso ─────────────────────────────────── */
+
+/** Una captura guardada. Los bytes NO viajan aquí: `image_url` es el endpoint
+ *  autenticado que los sirve, y nunca una ruta bajo /data. */
+export interface CaptureOut {
+  id: number;
+  imaging_study_id: number;
+  case_id: number | null;
+  patient_id: number | null;
+  session_id: string;
+  step: string;
+  label: string;
+  width: number;
+  height: number;
+  size_bytes: number;
+  created_at: string;
+  created_by: string;
+  image_url: string;
+  /** El estado que la produjo: cámara, candidato, umbral, medidas en pantalla.
+   *  Es lo que permite situar la imagen dentro de seis semanas. */
+  state: Record<string, unknown>;
+}
+
+/** Lo que el visor manda al pulsar el botón de captura. */
+export interface CaptureCreate {
+  imaging_study_id: number;
+  session_id?: string;
+  step?: string;
+  label?: string;
+  /** PNG en base64; se acepta también el data URL entero. */
+  png_b64: string;
+  width?: number;
+  height?: number;
+  state?: Record<string, unknown>;
+}
+

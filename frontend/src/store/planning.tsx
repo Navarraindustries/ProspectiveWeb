@@ -116,6 +116,11 @@ interface PlanningState {
   morphoOverlay: boolean;
   /** Capture the live 3D viewport as a PNG data URL (set by MeshView while mounted). */
   captureViewport: (() => Promise<string | null>) | null;
+  /** Guarda la vista actual del visor como captura del caso. La publica el
+   *  visor —es el único que sabe componer sus cinco paneles— y la llama el
+   *  botón del topbar, que es donde el profesional la busca. Lanza si falla. */
+  captureCase: (() => Promise<void>) | null;
+  setCaptureCase: (fn: (() => Promise<void>) | null) => void;
   /** Encuadra el 3D y los cortes en la lesión (cuello medido o candidato
    *  elegido). Lo registra el visor; los paneles solo lo llaman. */
   centerOnLesion: (() => void) | null;
@@ -275,6 +280,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [trajTarget, setTrajTarget] = useState<Vec3 | null>(null);
   const [morphoOverlay, setMorphoOverlay] = useState(false);
   const [captureViewport, _setCaptureViewport] = useState<(() => Promise<string | null>) | null>(null);
+  const [captureCase, _setCaptureCase] = useState<(() => Promise<void>) | null>(null);
+  // Guardar una función en useState la INVOCA si se pasa directa; va envuelta.
+  const setCaptureCase = useCallback((fn: (() => Promise<void>) | null) => _setCaptureCase(() => fn), []);
   // Guardar una función en useState exige envolverla: pasada tal cual, React
   // la toma por actualizador, la llama y guarda lo que devuelve (aquí, una
   // Promise). Así estuvo la captura del informe: nunca era una función.
@@ -384,7 +392,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, centerOnLesion, dirty,
+        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,

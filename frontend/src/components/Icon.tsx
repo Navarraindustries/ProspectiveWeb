@@ -48,6 +48,8 @@ export const GLYPHS = {
   GROWTH: "↑",
   COIL: "⊕",
   BRAIN: "✺",
+  // Visor: la captura de lo que se ve, adjunta al caso.
+  CAMERA: "⧉",
   MARK_PERF: "✦",
   ANNOTATION: "⊞",
   ANGLE_MEAS: "∠",

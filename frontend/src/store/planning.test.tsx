@@ -243,6 +243,20 @@ describe("funciones que registra el visor", () => {
     act(() => result.current.setCenterOnLesion(null));
     expect(result.current.centerOnLesion).toBeNull();
   });
+
+  it("guarda la captura del caso sin ejecutarla al registrarla", () => {
+    // El mismo pie que arriba, y aquí duele más: si React la llamara al
+    // registrarla, cada vez que el visor se monta se archivaría una captura
+    // en el caso sin que nadie la haya pedido.
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    let veces = 0;
+    const capturar = async () => { veces++; };
+    act(() => result.current.setCaptureCase(capturar));
+    expect(result.current.captureCase).toBe(capturar);
+    expect(veces).toBe(0);
+    act(() => result.current.setCaptureCase(null));
+    expect(result.current.captureCase).toBeNull();
+  });
 });
 
 describe("volume version", () => {

@@ -172,7 +172,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion,
-    imagingStudyId,
+    imagingStudyId, setCaptureCase,
   } = usePlanning();
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
@@ -313,8 +313,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const mainAreaRef = useRef<HTMLDivElement>(null);
   const stripCells = useRef<(HTMLDivElement | null)[]>([]);
-  const [shotState, setShotState] = useState<"idle" | "busy" | "ok" | "err">("idle");
-  const [shotError, setShotError] = useState<string>("");
   // Cada espera devuelve true cuando acepta la captura y deja de esperar.
   const captureWaiters = useRef<((fn: CaptureFn) => boolean)[]>([]);
   const registerMeshCapture = useCallback((fn: CaptureFn | null) => {
@@ -359,7 +357,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [sceneHasMesh, captureScene, setCaptureViewport]);
   useEffect(() => () => setCaptureViewport(null), [setCaptureViewport]);
 
-  // ── Guardar lo que se está viendo, con un botón ───────────────────────── #
+  // ── Guardar lo que se está viendo ─────────────────────────────────────── #
+  //
+  // El BOTÓN no está aquí: está en el topbar, al lado de «Guardar progreso».
+  // Estuvo en el HUD y nadie lo encontraba —con el color y el cuerpo de los
+  // rótulos de instrumento parecía el título del panel, no algo que pulsar—,
+  // y además el HUD solo se ve cuando ya estás mirando el visor. Aquí queda
+  // lo que solo el visor sabe hacer: componer sus cinco paneles.
   //
   // Cada panel es una ventana de vtk.js distinta, así que la imagen se compone
   // de las cinco capturas colocadas donde están en pantalla, más el HUD leído
@@ -372,10 +376,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const capturarVisor = useCallback(async () => {
     const root = viewerRef.current;
     const mainEl = mainAreaRef.current;
-    if (!root || !mainEl || !imagingStudyId) return;
-    setShotState("busy");
-    setShotError("");
-    try {
+    if (!root || !mainEl || !imagingStudyId) {
+      throw new Error("No hay ningún estudio archivado al que adjuntar la captura.");
+    }
+    {
       const base = root.getBoundingClientRect();
       const rel = (el: Element) => {
         const r = el.getBoundingClientRect();
@@ -427,14 +431,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
           orientation_known: effectiveDirection(orientation).known,
         },
       });
-      setShotState("ok");
-      setTimeout(() => setShotState((v) => (v === "ok" ? "idle" : v)), 2500);
-    } catch (e) {
-      setShotState("err");
-      setShotError(e instanceof Error ? e.message : "No se pudo guardar la captura.");
-      setTimeout(() => setShotState((v) => (v === "err" ? "idle" : v)), 4000);
     }
   }, [imagingStudyId, sessionId, step, levelNote, viewMode, selectedCandidate, morphometry, mprWl, orientation]);
+  useEffect(() => {
+    setCaptureCase(capturarVisor);
+    return () => setCaptureCase(null);
+  }, [capturarVisor, setCaptureCase]);
+
   // Transient "you clicked outside the mesh" hint — without it a missed pick is
   // silent and the tool feels broken.
   const [pickMiss, setPickMiss] = useState(false);
@@ -989,11 +992,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
     );
   };
 
-  const puedeCapturar = !!imagingStudyId && shotState !== "busy";
-  const porQueNo = imagingStudyId
-    ? ""
-    : "Archiva el estudio en el caso para poder adjuntarle capturas";
-
   return (
     <div ref={viewerRef} style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
       {sessionId && (
@@ -1012,20 +1010,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
             value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
         </div>
-        {/* Un botón, una imagen. Sin diálogo ni título que rellenar: pedirlo
-            antes de guardar mata el «pulsar y seguir», y el rótulo se puede
-            cambiar después en la galería del caso. */}
-        <div className="hud-toggle" style={{ position: "absolute", top: 2, left: 24, zIndex: 6, fontFamily: "var(--font-mono)" }}>
-          <button type="button" onClick={() => void capturarVisor()} disabled={!puedeCapturar}
-            aria-label="Guardar una captura del visor en el caso"
-            title={porQueNo || "Guarda esta vista como imagen en el caso"}
-            style={{ opacity: puedeCapturar ? 1 : 0.45, cursor: puedeCapturar ? "pointer" : "not-allowed" }}>
-            {shotState === "busy" ? "GUARDANDO…" : shotState === "ok" ? "GUARDADA ✓" : shotState === "err" ? "NO SE GUARDÓ" : "⊙ CAPTURA"}
-          </button>
-        </div>
-        {shotState === "err" && shotError && (
-          <div className="hud-readout bl hud-err" style={{ zIndex: 6 }}>{shotError.toUpperCase()}</div>
-        )}
       </div>
       <div className="mpr-strip" style={{ height: "clamp(160px, 26vh, 240px)", flexShrink: 0, display: "flex", gap: 1, background: "var(--hud-dim)" }}>
         {viewerLayout.strip.map((id, i) => (

@@ -60,10 +60,29 @@ export function Workspace({
   const planning = usePlanning();
   const {
     morphometry, sessionId, caseId, caseLabel, imagingStudyId,
-    centerlineMesh, measurements, setPickMode, markSaved,
+    centerlineMesh, measurements, setPickMode, markSaved, captureCase,
   } = planning;
   const [stepIdx, setStepIdx] = useState(initialStep);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
+  // La captura vive aquí arriba, al lado de «Guardar progreso», porque es
+  // donde uno busca «guardar algo de este caso» — y porque está en todos los
+  // pasos, que era la pregunta: «¿en qué momento puedo hacer una captura?».
+  const [shot, setShot] = useState<"idle" | "busy" | "ok" | "err">("idle");
+  const [shotError, setShotError] = useState<string | null>(null);
+  const tomarCaptura = async () => {
+    if (!captureCase) return;
+    setShot("busy");
+    setShotError(null);
+    try {
+      await captureCase();
+      setShot("ok");
+      setTimeout(() => setShot((v) => (v === "ok" ? "idle" : v)), 2500);
+    } catch (e) {
+      setShot("err");
+      setShotError(e instanceof Error ? e.message : "No se pudo guardar la captura.");
+      setTimeout(() => setShot((v) => (v === "err" ? "idle" : v)), 4000);
+    }
+  };
   // A failed save used to reset the button to "Guardar progreso" with no notice,
   // so the user believed their work was stored when it was not.
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -178,6 +197,25 @@ export function Workspace({
           ...(caseLabel ? [{ label: caseLabel, onClick: patient ? onOpenPatient : undefined }] : []),
         ]}
       >
+        {/* Por qué no se puede, dicho en el propio botón y no solo en el
+            tooltip: sin estudio archivado la captura no tiene dónde colgarse. */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void tomarCaptura()}
+          disabled={!captureCase || !imagingStudyId || shot === "busy"}
+          title={
+            !imagingStudyId
+              ? "Archiva el estudio en el caso para poder adjuntarle capturas"
+              : !captureCase
+                ? "Abre un paso con el visor para capturar lo que se ve"
+                : "Guarda una imagen de lo que se ve ahora, adjunta al caso"
+          }
+          leadingIcon={<Icon name={shot === "ok" ? "STATUS_OK" : "CAMERA"} />}
+          style={{ marginRight: 8 }}
+        >
+          {shot === "busy" ? "Capturando…" : shot === "ok" ? "Captura guardada ✓" : shot === "err" ? "No se guardó" : "Captura"}
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -207,6 +245,27 @@ export function Workspace({
         >
           <Icon name="STATUS_WARN" size={14} color="var(--destructive)" />
           <span style={{ flex: 1, minWidth: 0 }}>No se pudo guardar el progreso: {saveError}</span>
+          <span style={{ opacity: 0.7 }}>✕</span>
+        </div>
+      )}
+
+      {/* Por qué no se guardó la captura, con el mismo aviso: un botón que
+          vuelve solo a «Captura» a los cuatro segundos deja al profesional
+          creyendo que la imagen está guardada. */}
+      {shotError && (
+        <div
+          role="alert"
+          onClick={() => setShotError(null)}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+            padding: "8px 18px", fontSize: 12, fontWeight: 600,
+            background: "color-mix(in srgb, var(--destructive) 12%, transparent)",
+            color: "var(--destructive)",
+            borderBottom: "1px solid color-mix(in srgb, var(--destructive) 35%, transparent)",
+          }}
+        >
+          <Icon name="STATUS_WARN" size={14} color="var(--destructive)" />
+          <span style={{ flex: 1, minWidth: 0 }}>No se pudo guardar la captura: {shotError}</span>
           <span style={{ opacity: 0.7 }}>✕</span>
         </div>
       )}

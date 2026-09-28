@@ -110,10 +110,20 @@ backend/clip_library/
 # interna, y los talleres con sus datos de contacto. Privado, fuera de data/.
 backend/clip_orders/
 
-# Diseños propios de clips NAVARRO™ (fuente CAD del usuario). Los .stl/.obj ya
-# caen por extensión, pero los .mtl no: se ignora la carpeta entera para que un
-# «git add» accidental no publique geometría propietaria.
-NAVARRO*/
+# Diseños de clips NAVARRO™. Se versionan por decisión del propietario
+# (2026-09-28): sin ellos, las pruebas de selección, multiclip y ensayo de
+# colocación fallan en cualquier copia que no sea la del autor, y eso ya pasó
+# —un compañero reportó 12 fallos que solo eran la biblioteca ausente.
+#
+# ESTE REPOSITORIO ES PÚBLICO. Quedan publicados y no se pueden retirar del
+# historial. Se subieron sabiéndolo; si algún día deja de convenir, no basta
+# con borrarlos: hay que reescribir el historial y rotar el repositorio.
+#
+# Las reglas *.stl / *.obj de más arriba los taparían, así que se exceptúan.
+!NAVARRO*/
+!NAVARRO*/**/*.stl
+!NAVARRO*/**/*.obj
+!NAVARRO*/**/*.mtl
 
 # Caché incremental de tsc: artefacto de compilación, se regenera al construir.
 *.tsbuildinfo

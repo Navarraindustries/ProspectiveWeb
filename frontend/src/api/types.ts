@@ -1286,6 +1286,9 @@ export interface ReportRequest {
   clinical_notes?: string;
   include_3d_screenshot?: boolean;
   screenshot_png_b64?: string | null;
+  /** Capturas guardadas que entran en el PDF, EN EL ORDEN en que se quieren
+   *  ver. Vacío = ninguna: las elige el profesional, una a una. */
+  capture_ids?: number[];
 }
 
 export interface ReportResult {

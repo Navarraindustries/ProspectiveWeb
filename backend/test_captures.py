@@ -296,3 +296,85 @@ class TestRenombrarYBorrar:
 
     def test_borrar_algo_que_no_existe(self):
         assert client.delete("/api/captures/999999").status_code == 404
+
+
+# ── Las capturas elegidas, dentro del informe ──────────────────────────────── #
+
+class TestEnElInforme:
+    """El profesional elige cuáles entran, y en qué orden.
+
+    El informe no mete todas las del caso ni escoge por su cuenta: eso lo pidió
+    así el usuario. Lo que se comprueba aquí es que la selección se respeta,
+    que el orden es el suyo y que una captura que ya no está no tumba el PDF.
+    """
+
+    @staticmethod
+    def _elegidas(ids):
+        from services.report_generator import build_report_data_from_session
+        from services.sessions import create_session
+        db = SessionLocal()
+        try:
+            return build_report_data_from_session(create_session(), capture_ids=ids, db=db).captures
+        finally:
+            db.close()
+
+    def test_solo_entran_las_elegidas(self):
+        _, _, img = _estudio("InformeElegidas")
+        a = _guardar(img, label="la que quiero")
+        _guardar(img, label="la que no")
+        caps = self._elegidas([a["id"]])
+        assert [c.label for c in caps] == ["la que quiero"]
+
+    def test_respeta_el_orden_pedido(self):
+        # Son el relato del caso que hace el profesional, no un volcado por
+        # fecha: si pide 2-1, el informe enseña 2-1.
+        _, _, img = _estudio("InformeOrden")
+        primera = _guardar(img, label="primera")
+        segunda = _guardar(img, label="segunda")
+        caps = self._elegidas([segunda["id"], primera["id"]])
+        assert [c.label for c in caps] == ["segunda", "primera"]
+
+    def test_lleva_los_bytes_y_el_pie_con_su_procedencia(self):
+        _, _, img = _estudio("InformePie")
+        png = _png(30, 20)
+        cap = _guardar(img, png_b64=_b64(png),
+                       state={"heading": "AZ 12° · EL -20°", "orientation_known": False})
+        c = self._elegidas([cap["id"]])[0]
+        assert c.png == png
+        assert "AZ 12° · EL -20°" in c.caption
+        # Si la orientación es asumida, el pie lo dice: la imagen se mira, el
+        # pie se lee, y una orientación inventada no puede parecer medida.
+        assert "asumida" in c.caption
+        assert c.step == "morpho" and c.taken_at
+
+    def test_sin_elegir_ninguna_no_hay_seccion(self):
+        assert self._elegidas([]) == []
+        assert self._elegidas(None) == []
+
+    def test_una_captura_borrada_no_tumba_el_informe(self):
+        _, _, img = _estudio("InformeHuerfana")
+        viva = _guardar(img, label="viva")
+        muerta = _guardar(img, label="muerta")
+        client.delete(f"/api/captures/{muerta['id']}")
+        caps = self._elegidas([muerta["id"], viva["id"]])
+        assert [c.label for c in caps] == ["viva"]
+
+    def test_el_pdf_las_incluye(self):
+        # De punta a punta: que la sección exista en el documento generado.
+        import tempfile as _tf
+        from pathlib import Path as _P
+        from services.report_generator import ReportGenerator, ReportData, ReportCapture
+
+        data = ReportData(captures=[ReportCapture(png=_png(40, 30), label="Cuello marcado",
+                                                  taken_at="27/09/2026 23:19", caption="AZ 0° · EL -20°")])
+        salida = _P(_tf.mkdtemp()) / "informe.pdf"
+        ReportGenerator(data).generate(salida)
+        assert salida.is_file() and salida.stat().st_size > 1000
+        crudo = salida.read_bytes()
+        # El texto del PDF va comprimido, así que se comprueba lo que se puede
+        # sin descomprimirlo: que hay una imagen incrustada y que el documento
+        # creció respecto al mismo informe sin capturas.
+        assert b"/Image" in crudo or b"/XObject" in crudo
+        vacio = _P(_tf.mkdtemp()) / "vacio.pdf"
+        ReportGenerator(ReportData()).generate(vacio)
+        assert salida.stat().st_size > vacio.stat().st_size

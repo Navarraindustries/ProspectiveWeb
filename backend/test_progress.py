@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from main import app
 from services import progress
 from services.sessions import create_session
-from services.auth_service import create_access_token
+from services.auth_service import COOKIE_NAME, create_access_token
 
 client = TestClient(app, raise_server_exceptions=True)
 
@@ -62,9 +62,9 @@ class TestGet:
 class TestWebSocket:
     def test_emite_cambios_y_cierra_al_terminar(self):
         sid = create_session()
-        token = create_access_token(subject="admin")
+        client.cookies.set(COOKIE_NAME, create_access_token(subject="admin"))
         progress.start(sid)
-        with client.websocket_connect(f"/ws/progress/{sid}?token={token}") as ws:
+        with client.websocket_connect(f"/ws/progress/{sid}") as ws:
             first = ws.receive_json()
             assert first["running"] is True
             progress.update(sid, "máscara", 50.0)
@@ -76,19 +76,38 @@ class TestWebSocket:
 
     def test_token_invalido_cierra_con_4401(self):
         sid = create_session()
+        client.cookies.set(COOKIE_NAME, "malo")
         from starlette.websockets import WebSocketDisconnect
         try:
-            with client.websocket_connect(f"/ws/progress/{sid}?token=malo") as ws:
+            with client.websocket_connect(f"/ws/progress/{sid}") as ws:
                 ws.receive_json()
             assert False, "debía cerrar"
         except WebSocketDisconnect as exc:
             assert exc.code == 4401
 
-    def test_sesion_inexistente_con_token_valido_cierra_con_4401(self):
+    def test_el_token_en_la_query_ya_no_autentica(self):
+        """Un JWT en la URL acaba en el log de acceso de uvicorn.
+
+        Aceptarlo «por compatibilidad» mantendría viva la fuga en cuanto un
+        cliente volviera a usarlo, así que la query no vale: sin cookie, se
+        cierra con 4401 aunque el token sea bueno.
+        """
+        sid = create_session()
+        client.cookies.clear()
         token = create_access_token(subject="admin")
         from starlette.websockets import WebSocketDisconnect
         try:
-            with client.websocket_connect(f"/ws/progress/no-existe?token={token}") as ws:
+            with client.websocket_connect(f"/ws/progress/{sid}?token={token}") as ws:
+                ws.receive_json()
+            assert False, "debía cerrar: la query no autentica"
+        except WebSocketDisconnect as exc:
+            assert exc.code == 4401
+
+    def test_sesion_inexistente_con_token_valido_cierra_con_4401(self):
+        client.cookies.set(COOKIE_NAME, create_access_token(subject="admin"))
+        from starlette.websockets import WebSocketDisconnect
+        try:
+            with client.websocket_connect("/ws/progress/no-existe") as ws:
                 ws.receive_json()
             assert False, "debía cerrar"
         except WebSocketDisconnect as exc:

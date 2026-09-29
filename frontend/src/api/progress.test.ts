@@ -24,7 +24,12 @@ describe("watchProgress", () => {
     const seen: ProgressState[] = [];
     const stop = watchProgress("sid", (s) => seen.push(s), { wsFactory: (u) => new FakeWs(u) as unknown as WebSocket, fetchState: async () => done });
     const ws = FakeWs.instances[0];
-    expect(ws.url).toMatch(/\/ws\/progress\/sid\?token=/);
+    // El token NO viaja en la URL: uvicorn registra la línea de petición
+    // entera, así que un JWT en la query se escribe en el log de acceso y
+    // sirve para suplantar al usuario hasta que caduque. Va en la cookie de
+    // sesión, que el navegador manda sola por ser same-origin.
+    expect(ws.url).toMatch(/\/ws\/progress\/sid$/);
+    expect(ws.url).not.toContain("token");
     ws.emit(running("tubularidad 2/6", 20));
     ws.emit(done);
     expect(seen.map((s) => s.phase)).toEqual(["tubularidad 2/6", "guardado"]);

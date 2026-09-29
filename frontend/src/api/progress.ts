@@ -3,7 +3,7 @@
    panel no distingue una vía de otra. */
 
 import { useEffect, useState } from "react";
-import { ApiError, api, getToken } from "./client";
+import { ApiError, api } from "./client";
 import type { ProgressState } from "./types";
 export type { ProgressState };
 
@@ -25,9 +25,13 @@ export const CONNECTION_LOST: ProgressState = {
   message: "Sin conexión con el progreso del servidor",
 };
 
+/* Sin el token en la URL: el servidor lo lee de la cookie de sesión, que el
+   navegador manda sola en el handshake por ser same-origin. Llevarlo en la
+   query lo escribía entero en el log de acceso de uvicorn, y un JWT en un log
+   es una suplantación esperando a que alguien lea el fichero. */
 function wsUrl(sessionId: string): string {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${location.host}/ws/progress/${sessionId}?token=${encodeURIComponent(getToken() ?? "")}`;
+  return `${proto}//${location.host}/ws/progress/${sessionId}`;
 }
 
 export function watchProgress(

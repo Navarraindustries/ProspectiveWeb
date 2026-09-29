@@ -1002,7 +1002,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         {pickMode && meshUrl && (
           <div className={`hud-readout${pickMiss ? " hud-err" : ""}`}
                style={{ top: 40, left: "50%", transform: "translateX(-50%)", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: pickMiss ? undefined : "var(--hud)", pointerEvents: "none", zIndex: 5 }}>
-            {(pickMiss ? "Clic fuera de la malla — haz clic sobre la superficie 3D" : pickText(pickMode, measurePending !== null, neckRim.length)).toUpperCase()}
+            {(pickMiss ? "Clic fuera de la malla — haz clic sobre la superficie 3D" : pickText(pickMode, measurePending !== null, pickMode === "scissors" ? scissorsPoints.length : neckRim.length)).toUpperCase()}
             {"\nESC · CANCELAR"}
           </div>
         )}

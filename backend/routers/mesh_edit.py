@@ -472,6 +472,7 @@ async def mesh_scissors(session_id: str, req: ScissorsRequest) -> ScissorsResult
     if not aplicado:
         return ScissorsResult(
             applied=False,
+            separated=res.separated,
             removed_vertices=res.removed_vertices,
             kept_vertices=res.kept.GetNumberOfPoints(),
             preview_url=_versioned(session_id, "scissors_preview.vtp"),
@@ -483,6 +484,7 @@ async def mesh_scissors(session_id: str, req: ScissorsRequest) -> ScissorsResult
     _invalidate_derived(session_id)
     return ScissorsResult(
         applied=True,
+        separated=res.separated,
         removed_vertices=res.removed_vertices,
         kept_vertices=res.kept.GetNumberOfPoints(),
         mesh_url=_versioned(session_id, "vessel_tree.vtp"),

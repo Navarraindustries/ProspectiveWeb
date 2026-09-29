@@ -193,6 +193,10 @@ class ScissorsResult:
     origin: tuple[float, float, float]
     normal: tuple[float, float, float]
     radius_mm: float
+    #: False cuando el vaso queda cortado pero la malla sigue en una pieza (un
+    #: lazo). Entonces `doomed` es el tajo, no una pieza que se desprenda, y
+    #: no hay «otro lado» que elegir.
+    separated: bool = True
 
 
 def _plane_from_points(pts: "np.ndarray") -> tuple["np.ndarray", "np.ndarray"]:
@@ -215,14 +219,73 @@ def _plane_from_points(pts: "np.ndarray") -> tuple["np.ndarray", "np.ndarray"]:
     return centro, vh[2] / np.linalg.norm(vh[2])
 
 
+def _section_ball(
+    pts: "np.ndarray", centro: "np.ndarray", normal: "np.ndarray", margin_mm: float,
+) -> tuple["np.ndarray", float]:
+    """Centro y radio de la bola del corte: la SECCIÓN ENTERA del vaso.
+
+    El profesional solo puede pinchar la mitad del vaso que tiene delante: la
+    otra está detrás, tapada por la propia arteria. Centrar la bola en la
+    media de los puntos, con el radio que ellos abarcan, la dejaba pegada a la
+    cara cercana y sin llegar a la de atrás, así que el vaso no se seccionaba
+    entero. Simulando pinchazos solo en la mitad visible de secciones reales
+    de una malla de paciente, fallaba uno de cada tres anillos.
+
+    Media circunferencia basta para ajustar la circunferencia entera. Se
+    proyectan los puntos al plano y se ajusta un círculo por mínimos cuadrados
+    (Kåsa): su centro es el eje del vaso y su radio, el del vaso. La bola va
+    ahí, con holgura para las irregularidades de la pared.
+
+    Si los puntos no dibujan un arco —casi en línea dentro del plano, o un
+    círculo absurdo—, se vuelve a lo de antes: media de los puntos y lo que
+    abarcan. Mejor un corte corto que uno que se lleve medio árbol.
+    """
+    abarca = float(np.linalg.norm(pts - centro, axis=1).max())
+    respaldo = (centro, abarca + margin_mm)
+
+    # Base ortonormal del plano.
+    u = np.cross(normal, [1.0, 0.0, 0.0])
+    if np.linalg.norm(u) < 1e-6:
+        u = np.cross(normal, [0.0, 1.0, 0.0])
+    u /= np.linalg.norm(u)
+    v = np.cross(normal, u)
+    q = np.stack([(pts - centro) @ u, (pts - centro) @ v], axis=1)
+
+    # Kåsa: x² + y² + D x + E y + F = 0, lineal en D, E, F.
+    a = np.column_stack([q[:, 0], q[:, 1], np.ones(len(q))])
+    b = -(q[:, 0] ** 2 + q[:, 1] ** 2)
+    try:
+        (d, e, f), *_ = np.linalg.lstsq(a, b, rcond=None)
+    except np.linalg.LinAlgError:
+        return respaldo
+    c2 = np.array([-d / 2, -e / 2])
+    r2 = float(c2 @ c2 - f)
+    if r2 <= 0:
+        return respaldo
+    r = float(np.sqrt(r2))
+    # Un círculo mucho mayor que lo marcado es que los puntos casi van en
+    # línea: el ajuste se dispara. Y un centro muy lejos de los puntos, igual.
+    if r > 3.0 * abarca or np.linalg.norm(c2) > 2.5 * abarca:
+        return respaldo
+
+    centro_vaso = centro + c2[0] * u + c2[1] * v
+    return centro_vaso, 1.4 * r + margin_mm
+
+
+# Medio grosor de la rebanada que se quita: 1 mm en total. Medido sobre una
+# malla de paciente con 60 anillos: a 0,5 separa igual que a 1,5 (40 piezas
+# desprendidas contra 39); a 0,25 empieza a dejar puentes (27).
+_MEDIO_TAJO_MM = 0.5
+
+
 def scissors_cut(
     poly: "vtk.vtkPolyData",
     points: "list[tuple[float, float, float]]",
     margin_mm: float = 1.5,
-) -> tuple["vtk.vtkPolyData", "np.ndarray", "np.ndarray", float]:
+) -> tuple["vtk.vtkPolyData", "np.ndarray", "np.ndarray", float, "vtk.vtkPolyData"]:
     """Secciona la malla por el plano del anillo, SOLO alrededor del anillo.
 
-    Devuelve `(malla seccionada, centro, normal, radio)`.
+    Devuelve `(malla seccionada, centro, normal, radio, tajo)`.
 
     Por qué una bola y no el plano a secas: un plano es infinito, y aplicarlo
     entero amputa todo lo que cruce —el corte por plano que hubo antes hacía
@@ -241,8 +304,10 @@ def scissors_cut(
     dos extremos, la versión por vértices no cortaba nada.
 
     La región que se quita es la intersección de tres cosas: la bola del
-    anillo y los dos semiespacios que forman la rebanada. `margin_mm` es su
-    medio grosor.
+    anillo y los dos semiespacios que forman la rebanada. `margin_mm` holga la
+    bola; la rebanada es mucho más fina (`_MEDIO_TAJO_MM`), porque todo su
+    grosor se pierde y, con 3 mm, el corte caía visiblemente por debajo del
+    anillo marcado.
     """
     if poly is None or poly.GetNumberOfPoints() == 0:
         raise ScissorsError("No hay malla que cortar.")
@@ -251,9 +316,15 @@ def scissors_cut(
 
     pts = np.asarray(points, dtype=float)
     centro, normal = _plane_from_points(pts)
-
-    # El radio del anillo, con margen: lo que el profesional rodeó.
-    radio = float(np.linalg.norm(pts - centro, axis=1).max()) + margin_mm
+    centro, radio = _section_ball(pts, centro, normal, margin_mm)
+    # La sección REAL de la malla manda sobre el círculo ajustado: si la pared
+    # es irregular o el vaso más gordo de lo que sugieren los puntos, la bola
+    # tiene que abarcar el contorno entero o el vaso queda medio cortado. Con
+    # solo el círculo, 6 de cada 60 anillos simulados sobre una malla real
+    # dejaban un puente de pared sin cortar.
+    extension = _section_extent(poly, centro, normal, radio)
+    if extension is not None:
+        radio = max(radio, extension + margin_mm)
 
     bola = vtk.vtkSphere()
     bola.SetCenter(*centro)
@@ -263,9 +334,9 @@ def scissors_cut(
     # máximo: cada cara tiene que ser negativa en el interior de la rebanada,
     # así que sus normales apuntan HACIA FUERA, cada una en un sentido.
     cara_a, cara_b = vtk.vtkPlane(), vtk.vtkPlane()
-    cara_a.SetOrigin(*(centro + normal * margin_mm))
+    cara_a.SetOrigin(*(centro + normal * _MEDIO_TAJO_MM))
     cara_a.SetNormal(*normal)
-    cara_b.SetOrigin(*(centro - normal * margin_mm))
+    cara_b.SetOrigin(*(centro - normal * _MEDIO_TAJO_MM))
     cara_b.SetNormal(*(-normal))
 
     region = vtk.vtkImplicitBoolean()
@@ -285,14 +356,57 @@ def scissors_cut(
     clip.GenerateClippedOutputOn()
     clip.Update()
 
-    if clip.GetClippedOutput().GetNumberOfCells() == 0:
+    tajo = clip.GetClippedOutput()
+    if tajo.GetNumberOfCells() == 0:
         raise ScissorsError(
             "El anillo no toca la malla: está marcado lejos de la superficie.")
 
     limpia = vtk.vtkCleanPolyData()
     limpia.SetInputConnection(clip.GetOutputPort())
     limpia.Update()
-    return limpia.GetOutput(), centro, normal, radio
+    # El tajo también se devuelve: cuando el vaso está en un lazo, el corte no
+    # desprende ninguna pieza y lo único que hay que enseñar es por dónde pasa.
+    # Limpio: la salida recortada de vtkClipPolyData conserva TODOS los puntos
+    # de la entrada aunque solo lleve las celdas del tajo, así que sin esto
+    # sus límites son los de la malla entera y el fichero de la vista previa
+    # pesa lo que la malla.
+    solo_tajo = vtk.vtkCleanPolyData()
+    solo_tajo.SetInputData(tajo)
+    solo_tajo.Update()
+    return limpia.GetOutput(), centro, normal, radio, solo_tajo.GetOutput()
+
+
+def _section_extent(
+    poly: "vtk.vtkPolyData", centro: "np.ndarray", normal: "np.ndarray", radio: float,
+) -> float | None:
+    """Hasta dónde llega, desde el centro, la sección del vaso rodeado.
+
+    Se corta la malla con el plano y se toma el contorno más cercano al centro
+    —el vaso que se rodeó, no uno vecino que el plano también atraviese—.
+    Devuelve None si no hay contorno cerca, o si el contorno es desmesurado:
+    eso es el plano deslizándose a lo largo de un vaso o de una masa fundida,
+    y ahí agrandar la bola se llevaría lo que no se ha señalado.
+    """
+    plano = vtk.vtkPlane()
+    plano.SetOrigin(*centro)
+    plano.SetNormal(*normal)
+    corte = vtk.vtkCutter()
+    corte.SetCutFunction(plano)
+    corte.SetInputData(poly)
+    conexo = vtk.vtkPolyDataConnectivityFilter()
+    conexo.SetInputConnection(corte.GetOutputPort())
+    conexo.SetExtractionModeToClosestPointRegion()
+    conexo.SetClosestPoint(*centro)
+    conexo.Update()
+    contorno = conexo.GetOutput()
+    if contorno.GetNumberOfPoints() < 3:
+        return None
+    d = np.linalg.norm(_points_array(contorno) - centro, axis=1)
+    if d.min() > radio:            # el contorno más cercano ni siquiera está cerca
+        return None
+    if d.max() > 2.5 * radio:      # se desliza a lo largo de algo: no agrandar
+        return None
+    return float(d.max())
 
 
 def scissors_preview(
@@ -309,12 +423,24 @@ def scissors_preview(
     """
     from services.mesh_components import describe_components, _extract
 
-    seccionada, centro, normal, radio = scissors_cut(poly, points, margin_mm)
+    seccionada, centro, normal, radio, tajo = scissors_cut(poly, points, margin_mm)
     comps = describe_components(seccionada)
     if len(comps) < 2:
-        raise ScissorsError(
-            "El corte no separa la malla en dos. El anillo tiene que rodear "
-            "el vaso entero, no cruzarlo por un lado.")
+        # El vaso queda cortado pero sus dos extremos siguen unidos por otro
+        # camino: anastomosis, polígono de Willis, o dos vasos que se tocan y
+        # el marching cubes fundió. Es lo habitual en vasculatura real —en una
+        # malla de paciente pasó en 14 de cada 60 anillos bien puestos—, así
+        # que no es un error: se corta igual y se enseña el tajo. Un segundo
+        # corte en el otro extremo aísla el tramo.
+        return ScissorsResult(
+            kept=seccionada,
+            doomed=tajo,
+            removed_vertices=max(0, poly.GetNumberOfPoints() - seccionada.GetNumberOfPoints()),
+            origin=tuple(float(x) for x in centro),
+            normal=tuple(float(x) for x in normal),
+            radius_mm=radio,
+            separated=False,
+        )
 
     # Las piezas, de mayor a menor por número de vértices. La 0 es el árbol.
     orden = sorted(comps, key=lambda c: c.n_points, reverse=True)
@@ -323,6 +449,9 @@ def scissors_preview(
     lado_b = _append(resto) if len(resto) > 1 else resto[0]
 
     kept, doomed = (lado_a, lado_b) if keep_side == 0 else (lado_b, lado_a)
+    # El tajo también se va: si no se pinta, el rojo empieza por debajo del
+    # anillo y parece que corta donde no se marcó.
+    doomed = _append([doomed, tajo])
     return ScissorsResult(
         kept=kept,
         doomed=doomed,

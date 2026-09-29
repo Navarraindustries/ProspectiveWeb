@@ -185,7 +185,7 @@ export function MeshEditTools() {
   // `return null` y React exige que el orden de los hooks no cambie.
   const [tijeraOcupada, setTijeraOcupada] = useState(false);
   const [tijeraAviso, setTijeraAviso] = useState<string | null>(null);
-  const [tijeraSaldo, setTijeraSaldo] = useState<{ quita: number; deja: number } | null>(null);
+  const [tijeraSaldo, setTijeraSaldo] = useState<{ quita: number; deja: number; separa: boolean } | null>(null);
 
   if (!segmentation) return null;
 
@@ -358,7 +358,7 @@ export function MeshEditTools() {
         keep_side: lado,
       });
       setScissorsPreview(r.preview_url);
-      setTijeraSaldo({ quita: r.removed_vertices, deja: r.kept_vertices });
+      setTijeraSaldo({ quita: r.removed_vertices, deja: r.kept_vertices, separa: r.separated });
     } catch (e) {
       setScissorsPreview(null);
       setTijeraSaldo(null);
@@ -620,6 +620,93 @@ export function MeshEditTools() {
         </Button>
       </Card>
 
+      {/* ── La tijera ─────────────────────────────────────────────────── */}
+      <Card style={{ marginTop: 12 }}>
+        <SectionLabel style={{ marginBottom: 6 }}>Tijera</SectionLabel>
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 8 }}>
+          Marca puntos <b>rodeando</b> la arteria, como los del borde del cuello, y
+          la malla se secciona por ahí. Nada se corta hasta que veas en rojo lo
+          que se va.
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <button
+            onClick={() => setPickMode(pickMode === "scissors" ? null : "scissors")}
+            style={toolBtn(pickMode === "scissors")}
+          >
+            {pickMode === "scissors" ? `Marcando… (${scissorsPoints.length})` : "⌖ Marcar anillo"}
+          </button>
+          <button
+            onClick={limpiarTijera}
+            disabled={scissorsPoints.length === 0 && !scissorsPreview}
+            style={{ ...toolBtn(false), flex: 0, padding: "6px 12px",
+                     opacity: scissorsPoints.length === 0 && !scissorsPreview ? 0.5 : 1 }}
+          >
+            Limpiar
+          </button>
+        </div>
+
+        {scissorsPoints.length > 0 && scissorsPoints.length < 3 && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 }}>
+            Faltan {3 - scissorsPoints.length} puntos: con menos de tres no hay
+            plano que ajustar.
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={() => void verCorte()}
+            disabled={scissorsPoints.length < 3 || tijeraOcupada}
+            style={{ ...toolBtn(false),
+                     opacity: scissorsPoints.length < 3 || tijeraOcupada ? 0.5 : 1 }}
+          >
+            {tijeraOcupada ? "Calculando…" : "Ver qué se va"}
+          </button>
+          <button
+            onClick={() => void otroLado()}
+            disabled={!scissorsPreview || tijeraOcupada || tijeraSaldo?.separa === false}
+            title={tijeraSaldo?.separa === false ? "En un lazo no hay otro lado: el corte no desprende ninguna pieza" : "Cambia qué lado se conserva"}
+            style={{ ...toolBtn(false), opacity: !scissorsPreview || tijeraOcupada || tijeraSaldo?.separa === false ? 0.5 : 1 }}
+          >
+            ⇄ El otro lado
+          </button>
+        </div>
+
+        {tijeraSaldo && (
+          <>
+            <div style={{ marginTop: 8, fontSize: 11, fontFamily: "var(--font-mono)",
+                          color: "var(--muted-foreground)" }}>
+              {tijeraSaldo.separa
+                ? <>en rojo se van {tijeraSaldo.quita.toLocaleString("es")} vértices · quedan {tijeraSaldo.deja.toLocaleString("es")}</>
+                : <>en rojo, el tajo</>}
+            </div>
+            {!tijeraSaldo.separa && (
+              <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.5, color: "var(--foreground)" }}>
+                El vaso queda <b>cortado</b>, pero sus dos extremos siguen unidos
+                por otro camino —un lazo, una anastomosis o dos vasos que se
+                tocan—, así que no se desprende nada. Para quitar ese tramo,
+                córtalo aquí y luego en su otro extremo.
+              </div>
+            )}
+            <button
+              onClick={() => void cortar()}
+              disabled={tijeraOcupada}
+              style={{ ...toolBtn(false), width: "100%", marginTop: 8,
+                       borderColor: "var(--destructive)", color: "var(--destructive)",
+                       opacity: tijeraOcupada ? 0.5 : 1 }}
+            >
+              {tijeraOcupada ? "Cortando…" : tijeraSaldo.separa ? "✂ Cortar" : "✂ Cortar aquí"}
+            </button>
+          </>
+        )}
+
+        {tijeraAviso && (
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--destructive)", lineHeight: 1.5 }}>
+            {tijeraAviso}
+          </div>
+        )}
+      </Card>
+
       {/* ── Historial de la malla ────────────────────────────────────────── */}
       {/* Recortar, crecer y re-segmentar reescriben vessel_tree.vtp en el sitio.
           Antes, volver atrás de un recorte exigía re-segmentar, y re-segmentar
@@ -682,84 +769,6 @@ export function MeshEditTools() {
             {busy === "original" ? "Restaurando…" : "⊘ Al inicio"}
           </button>
         </div>
-      </Card>
-
-      {/* ── La tijera ─────────────────────────────────────────────────── */}
-      <Card style={{ marginTop: 12 }}>
-        <SectionLabel style={{ marginBottom: 6 }}>Tijera</SectionLabel>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 8 }}>
-          Marca puntos <b>rodeando</b> la arteria, como los del borde del cuello, y
-          la malla se secciona por ahí. Nada se corta hasta que veas en rojo lo
-          que se va.
-        </div>
-
-        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-          <button
-            onClick={() => setPickMode(pickMode === "scissors" ? null : "scissors")}
-            style={toolBtn(pickMode === "scissors")}
-          >
-            {pickMode === "scissors" ? `Marcando… (${scissorsPoints.length})` : "⌖ Marcar anillo"}
-          </button>
-          <button
-            onClick={limpiarTijera}
-            disabled={scissorsPoints.length === 0 && !scissorsPreview}
-            style={{ ...toolBtn(false), flex: 0, padding: "6px 12px",
-                     opacity: scissorsPoints.length === 0 && !scissorsPreview ? 0.5 : 1 }}
-          >
-            Limpiar
-          </button>
-        </div>
-
-        {scissorsPoints.length > 0 && scissorsPoints.length < 3 && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 }}>
-            Faltan {3 - scissorsPoints.length} puntos: con menos de tres no hay
-            plano que ajustar.
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 6 }}>
-          <button
-            onClick={() => void verCorte()}
-            disabled={scissorsPoints.length < 3 || tijeraOcupada}
-            style={{ ...toolBtn(false),
-                     opacity: scissorsPoints.length < 3 || tijeraOcupada ? 0.5 : 1 }}
-          >
-            {tijeraOcupada ? "Calculando…" : "Ver qué se va"}
-          </button>
-          <button
-            onClick={() => void otroLado()}
-            disabled={!scissorsPreview || tijeraOcupada}
-            title="Cambia qué lado se conserva"
-            style={{ ...toolBtn(false), opacity: !scissorsPreview || tijeraOcupada ? 0.5 : 1 }}
-          >
-            ⇄ El otro lado
-          </button>
-        </div>
-
-        {tijeraSaldo && (
-          <>
-            <div style={{ marginTop: 8, fontSize: 11, fontFamily: "var(--font-mono)",
-                          color: "var(--muted-foreground)" }}>
-              en rojo se van {tijeraSaldo.quita.toLocaleString("es")} vértices ·
-              quedan {tijeraSaldo.deja.toLocaleString("es")}
-            </div>
-            <button
-              onClick={() => void cortar()}
-              disabled={tijeraOcupada}
-              style={{ ...toolBtn(false), width: "100%", marginTop: 8,
-                       borderColor: "var(--destructive)", color: "var(--destructive)",
-                       opacity: tijeraOcupada ? 0.5 : 1 }}
-            >
-              {tijeraOcupada ? "Cortando…" : "✂ Cortar"}
-            </button>
-          </>
-        )}
-
-        {tijeraAviso && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--destructive)", lineHeight: 1.5 }}>
-            {tijeraAviso}
-          </div>
-        )}
       </Card>
 
       {note && (

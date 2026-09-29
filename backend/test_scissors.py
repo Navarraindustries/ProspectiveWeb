@@ -205,20 +205,90 @@ class TestAnillosQueNoValen:
         with pytest.raises(ScissorsError, match="no toca|lejos"):
             scissors_preview(arbol, _anillo(60.0), keep_side=0)
 
-    def test_un_anillo_que_no_rodea_nada_lo_dice(self):
-        # Anillo pequeño apoyado sobre una esfera: la rebanada le abre un
-        # agujero, pero la superficie sigue siendo UNA pieza. Hay que decirlo
-        # en vez de devolver una malla casi igual y que el profesional crea
-        # que ha cortado algo.
-        bola = vtk.vtkSphereSource()
-        bola.SetRadius(20.0); bola.SetThetaResolution(80); bola.SetPhiResolution(80)
-        bola.Update()
-        tri = vtk.vtkTriangleFilter(); tri.SetInputData(bola.GetOutput()); tri.Update()
-        # Puntos sobre el casquete, alrededor del polo norte.
-        cerca = [(3.0 * math.cos(2 * math.pi * k / 8), 3.0 * math.sin(2 * math.pi * k / 8),
-                  math.sqrt(max(0.0, 400.0 - 9.0))) for k in range(8)]
-        with pytest.raises(ScissorsError, match="no separa"):
-            scissors_preview(tri.GetOutput(), cerca, keep_side=0)
+
+
+
+# ── Vasos en lazo: lo habitual en vasculatura real ─────────────────────── #
+
+def _toro(anillo_mm: float = 20.0, vaso_mm: float = 2.0) -> vtk.vtkPolyData:
+    """Un vaso que se cierra sobre sí mismo, como un tramo de anastomosis.
+
+    Cortarlo una vez NO desprende nada: los dos extremos siguen unidos por el
+    otro lado. En una malla de paciente pasó en 14 de cada 60 anillos bien
+    puestos, así que la tijera tiene que saber qué hacer ahí.
+    """
+    t = vtk.vtkParametricTorus()
+    t.SetRingRadius(anillo_mm)
+    t.SetCrossSectionRadius(vaso_mm)
+    src = vtk.vtkParametricFunctionSource()
+    src.SetParametricFunction(t)
+    src.SetUResolution(240); src.SetVResolution(24)
+    tri = vtk.vtkTriangleFilter(); tri.SetInputConnection(src.GetOutputPort())
+    limpia = vtk.vtkCleanPolyData(); limpia.SetInputConnection(tri.GetOutputPort())
+    limpia.Update()
+    return limpia.GetOutput()
+
+
+def _medio_anillo_en_toro(theta: float, anillo_mm=20.0, r=2.1, n=6):
+    """SOLO la mitad de la sección que mira hacia fuera: lo que se ve.
+
+    El profesional no puede pinchar la cara de atrás del vaso —la tapa el
+    propio vaso—, así que las pruebas marcan media circunferencia, no una
+    entera. Con la entera todo parecía funcionar y en el navegador fallaba.
+    """
+    cx, cy = anillo_mm * math.cos(theta), anillo_mm * math.sin(theta)
+    radial = (math.cos(theta), math.sin(theta))
+    pts = []
+    for k in range(n):
+        phi = -math.pi / 2 + math.pi * k / (n - 1)
+        pts.append((cx + r * math.cos(phi) * radial[0],
+                    cy + r * math.cos(phi) * radial[1],
+                    r * math.sin(phi)))
+    return pts
+
+
+class TestVasosEnLazo:
+    def test_un_corte_en_un_lazo_no_desprende_nada_y_lo_dice(self):
+        r = scissors_preview(_toro(), _medio_anillo_en_toro(0.0), keep_side=0)
+        assert r.separated is False
+        # Lo que se enseña en rojo es el tajo: una rebanada fina, no medio toro.
+        assert r.doomed is not None and r.doomed.GetNumberOfPoints() > 0
+        b = r.doomed.GetBounds()
+        assert (b[3] - b[2]) < 6.0, "el tajo debería ser una rebanada, no un trozo largo"
+
+    def test_media_circunferencia_basta_para_seccionar_el_vaso(self):
+        # Tras el corte, el plano ya no cruza el vaso cerca del centro: está
+        # seccionado entero aunque solo se marcara la cara visible.
+        r = scissors_preview(_toro(), _medio_anillo_en_toro(0.0), keep_side=0)
+        corte = vtk.vtkCutter()
+        pl = vtk.vtkPlane(); pl.SetOrigin(*r.origin); pl.SetNormal(*r.normal)
+        corte.SetCutFunction(pl); corte.SetInputData(r.kept); corte.Update()
+        from services.mesh_crop import _points_array
+        if corte.GetOutput().GetNumberOfPoints():
+            d = np.linalg.norm(_points_array(corte.GetOutput()) - np.asarray(r.origin), axis=1)
+            assert d.min() > 4.0, "queda pared sin cortar en la sección del vaso"
+
+    def test_dos_cortes_aislan_el_tramo(self):
+        # El primer corte abre el lazo; el segundo, en el otro extremo, deja
+        # un tramo suelto que ahora sí se puede quitar.
+        toro = _toro()
+        primero = scissors_preview(toro, _medio_anillo_en_toro(0.0), keep_side=0)
+        segundo = scissors_preview(primero.kept, _medio_anillo_en_toro(math.pi / 3), keep_side=0)
+        assert segundo.separated is True
+        assert segundo.doomed.GetNumberOfPoints() < segundo.kept.GetNumberOfPoints()
+
+    def test_por_el_endpoint_el_corte_en_lazo_se_aplica(self):
+        sid = create_session()
+        ruta = session_subdir(sid, "meshes") / "vessel_tree.vtp"
+        write_vtp(_toro(), ruta)
+        previa = client.post(f"/api/mesh-scissors/{sid}",
+                             json=_cuerpo(_medio_anillo_en_toro(0.0))).json()
+        assert previa["separated"] is False and previa["preview_url"]
+        d = client.post(f"/api/mesh-scissors/{sid}",
+                        json=_cuerpo(_medio_anillo_en_toro(0.0), apply=True)).json()
+        assert d["applied"] is True and d["separated"] is False
+        # La malla cambió: ahora tiene un tajo.
+        assert read_vtp(ruta).GetNumberOfPoints() == d["kept_vertices"]
 
     def test_una_malla_vacia(self):
         with pytest.raises(ScissorsError):

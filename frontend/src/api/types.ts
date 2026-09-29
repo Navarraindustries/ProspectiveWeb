@@ -1742,6 +1742,10 @@ export interface ScissorsRequest {
 
 export interface ScissorsResult {
   applied: boolean;
+  /** Falso si el vaso queda cortado pero la malla sigue en una pieza porque
+   *  sus extremos se unen por otro camino (un lazo). Entonces la vista previa
+   *  es el tajo y no hay «otro lado» que elegir. */
+  separated: boolean;
   removed_vertices: number;
   kept_vertices: number;
   /** La pieza que se iría, para pintarla en rojo. Solo en vista previa. */

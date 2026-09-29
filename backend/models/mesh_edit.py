@@ -239,6 +239,16 @@ class ScissorsResult(BaseModel):
     """Lo que se iría (vista previa) o lo que se fue (corte aplicado)."""
 
     applied: bool
+    separated: bool = Field(
+        True,
+        description=(
+            "Falso si el vaso queda cortado pero la malla sigue en una pieza: "
+            "sus dos extremos se unen por otro camino (anastomosis, polígono "
+            "de Willis, vasos fundidos). Entonces la vista previa es el TAJO, "
+            "no una pieza, y para aislar el tramo hay que cortar también el "
+            "otro extremo."
+        ),
+    )
     removed_vertices: int = Field(..., description="Vértices que pierde la malla")
     kept_vertices: int = Field(..., description="Vértices que quedan")
     preview_url: str | None = Field(

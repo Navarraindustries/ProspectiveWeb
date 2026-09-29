@@ -19,7 +19,7 @@ from models.mesh_edit import (
     ComponentDeleteRequest, ComponentDeleteResult, ComponentInfoOut,
     ComponentListResult, MeshBoundsResult,
     MeshCropRequest, MeshCropResult, MeshHistoryResult, MeshHistoryStep,
-    MeshRestoreRequest,
+    MeshRestoreRequest, ScissorsRequest, ScissorsResult,
     MeshRestoreResult, RegionEraseRequest, RegionEraseResult,
 )
 import threading
@@ -419,5 +419,72 @@ async def mesh_erase_region(
         mesh_url=_versioned(session_id, "vessel_tree.vtp"),
         vertices=out.GetNumberOfPoints(), faces=out.GetNumberOfPolys(),
         removed_vertices=removed, warning="",
+        undo_depth=mesh_backup.depth(session_id),
+    )
+
+
+@router.post(
+    "/mesh-scissors/{session_id}",
+    response_model=ScissorsResult,
+    summary="Seccionar un vaso por un anillo de puntos marcados",
+    description=(
+        "La tijera. El profesional marca puntos alrededor de la arteria —como "
+        "los del cuello del aneurisma— y la malla se secciona ahí.\n\n"
+        "El plano sale de ajustar esos puntos por mínimos cuadrados, y el "
+        "corte se limita a una bola centrada en el anillo: un plano es "
+        "infinito y aplicarlo entero amputaría todo lo que cruce. Fuera de esa "
+        "bola la malla no se toca, así que un vaso paralelo a un centímetro no "
+        "se entera.\n\n"
+        "NO corta por defecto. Con `apply` en falso devuelve la pieza que se "
+        "iría, para pintarla en el visor; el corte llega cuando quien mira "
+        "dice que sí. Las dos respuestas salen del mismo cálculo, así que la "
+        "vista previa no puede discrepar del corte — que es justo lo que "
+        "hundió al corte por plano anterior, que recortaba sin dibujar nada.\n\n"
+        "Se deshace como cualquier otra edición de malla."
+    ),
+)
+async def mesh_scissors(session_id: str, req: ScissorsRequest) -> ScissorsResult:
+    path = _mesh_or_404(session_id)
+    from services.mesh_crop import ScissorsError, scissors_preview
+
+    puntos = [(p.x, p.y, p.z) for p in req.points]
+
+    def _trabajo():
+        with _edit_lock(session_id):
+            malla = read_vtp(path)
+            res = scissors_preview(malla, puntos, req.keep_side, req.margin_mm)
+            if not req.apply:
+                # La pieza condenada, a un fichero propio para que el visor la
+                # pinte. Nombre fijo: solo hay una vista previa viva a la vez.
+                write_vtp(res.doomed, path.parent / "scissors_preview.vtp")
+                return res, False
+            mesh_backup.snapshot(session_id, "crop")
+            write_vtp(res.kept, path)
+            return res, True
+
+    try:
+        res, aplicado = await asyncio.to_thread(_trabajo)
+    except ScissorsError as exc:
+        # Un anillo que no vale es cosa de quien lo marcó, no un fallo del
+        # servidor: se le dice qué pasó para que lo vuelva a intentar.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if not aplicado:
+        return ScissorsResult(
+            applied=False,
+            removed_vertices=res.removed_vertices,
+            kept_vertices=res.kept.GetNumberOfPoints(),
+            preview_url=_versioned(session_id, "scissors_preview.vtp"),
+            undo_depth=mesh_backup.depth(session_id),
+        )
+
+    write_state(session_id, "seg.n_vertices", str(res.kept.GetNumberOfPoints()))
+    write_state(session_id, "seg.n_faces", str(res.kept.GetNumberOfPolys()))
+    _invalidate_derived(session_id)
+    return ScissorsResult(
+        applied=True,
+        removed_vertices=res.removed_vertices,
+        kept_vertices=res.kept.GetNumberOfPoints(),
+        mesh_url=_versioned(session_id, "vessel_tree.vtp"),
         undo_depth=mesh_backup.depth(session_id),
     )

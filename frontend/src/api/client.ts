@@ -6,6 +6,8 @@ import type {
   AuditBlock,
   AuditVerifyResult,
   CaptureCreate,
+  ScissorsRequest,
+  ScissorsResult,
   CaptureOut,
   CeilingCompareRequest,
   CeilingCompareResult,
@@ -581,6 +583,11 @@ export const api = {
    *  scanned and activated — same payload shape as `upload`. */
   openStudy: (studyId: number) =>
     post<UploadResult>(`/api/studies/${studyId}/open`),
+
+  /** La tijera: secciona un vaso por el anillo marcado. Sin `apply` solo
+   *  calcula qué se iría, para enseñarlo antes de tocar la malla. */
+  meshScissors: (sessionId: string, req: ScissorsRequest) =>
+    post<ScissorsResult>(`/api/mesh-scissors/${sessionId}`, req),
 
   /* capturas del visor, adjuntas al estudio de imagen */
 

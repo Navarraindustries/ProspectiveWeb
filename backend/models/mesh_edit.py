@@ -191,3 +191,60 @@ class RegionEraseResult(BaseModel):
     )
     warning: str = ""
     undo_depth: int = 0
+
+
+class ScissorsRequest(BaseModel):
+    """La tijera: seccionar un vaso por un anillo de puntos marcados encima.
+
+    El borrador de región quita lo que rodea a UN clic; esto secciona por
+    donde el profesional dibuja el anillo, que es como se corta un vaso: una
+    sección transversal, no una mordida.
+
+    No aplica nada por defecto. Con `apply` en falso devuelve la pieza que se
+    iría para pintarla en el visor, y quien mira decide. Las dos respuestas
+    salen del mismo cálculo, así que lo que se ve es lo que se corta.
+    """
+
+    points: list[Position3D] = Field(
+        ..., min_length=3,
+        description=(
+            "Puntos marcados sobre la superficie, alrededor del vaso. Con "
+            "menos de tres no hay plano que ajustar. No hace falta que sean "
+            "coplanares: se ajusta por mínimos cuadrados, igual que el plano "
+            "de cuello con los puntos del borde."
+        ),
+    )
+    keep_side: int = Field(
+        0, ge=0, le=1,
+        description=(
+            "Qué lado se conserva: 0 la pieza mayor —casi siempre el árbol— y "
+            "1 la otra. Se ofrece porque quien mira es quien sabe cuál sobra."
+        ),
+    )
+    apply: bool = Field(
+        False,
+        description="Falso solo calcula la vista previa; cierto corta de verdad.",
+    )
+    margin_mm: float = Field(
+        1.5, gt=0.2, le=10,
+        description=(
+            "Medio grosor de la rebanada que se quita. Tiene que superar el "
+            "tamaño de los triángulos para separar de verdad; en una malla "
+            "decimada conviene subirlo antes que repetir el corte."
+        ),
+    )
+
+
+class ScissorsResult(BaseModel):
+    """Lo que se iría (vista previa) o lo que se fue (corte aplicado)."""
+
+    applied: bool
+    removed_vertices: int = Field(..., description="Vértices que pierde la malla")
+    kept_vertices: int = Field(..., description="Vértices que quedan")
+    preview_url: str | None = Field(
+        None, description="Malla de la pieza condenada, para pintarla en rojo. Solo en vista previa."
+    )
+    mesh_url: str | None = Field(
+        None, description="Malla ya cortada. Solo cuando se aplica."
+    )
+    undo_depth: int = Field(0, description="Cuántas ediciones se pueden deshacer")

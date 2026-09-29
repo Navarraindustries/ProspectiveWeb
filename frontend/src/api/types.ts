@@ -1729,3 +1729,25 @@ export interface CaptureCreate {
   state?: Record<string, unknown>;
 }
 
+/* ── La tijera: seccionar un vaso por un anillo de puntos ────────────────── */
+
+export interface ScissorsRequest {
+  points: { x: number; y: number; z: number }[];
+  /** 0 conserva la pieza mayor (el árbol); 1 la otra. */
+  keep_side?: number;
+  /** Falso solo calcula la vista previa; cierto corta de verdad. */
+  apply?: boolean;
+  margin_mm?: number;
+}
+
+export interface ScissorsResult {
+  applied: boolean;
+  removed_vertices: number;
+  kept_vertices: number;
+  /** La pieza que se iría, para pintarla en rojo. Solo en vista previa. */
+  preview_url: string | null;
+  /** La malla ya cortada. Solo al aplicar. */
+  mesh_url: string | null;
+  undo_depth: number;
+}
+

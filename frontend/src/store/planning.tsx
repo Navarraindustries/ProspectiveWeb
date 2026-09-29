@@ -70,6 +70,12 @@ interface PlanningState {
   /** Points marked around the neck rim. With three or more the neck plane is
    *  fitted to them instead of assuming it is perpendicular to the dome axis. */
   neckRim: Vec3[];
+  /** Puntos del anillo de la tijera, en el orden en que se marcaron. */
+  scissorsPoints: Vec3[];
+  /** Malla de la pieza que se iría, mientras se está decidiendo el corte. */
+  scissorsPreview: string | null;
+  /** Qué lado se conserva: 0 la pieza mayor, 1 la otra. */
+  scissorsKeepSide: number;
   /** Perforator candidates from GET /perforators, kept in the store so the 3D
    *  viewer can mark where each one is — the panel used to list distances with
    *  no way to see which vessel any row referred to. */
@@ -176,6 +182,9 @@ interface PlanningState {
   setMeasurements: (m: Measurement[]) => void;
   setMeasurePending: (p: Vec3 | null) => void;
   setNeckRim: (s: Vec3[]) => void;
+  setScissorsPoints: (p: Vec3[]) => void;
+  setScissorsPreview: (url: string | null) => void;
+  setScissorsKeepSide: (s: number) => void;
   setPerforators: (p: PerforatorCandidate[], zones?: [number, number, number] | null) => void;
   setClipRehearsal: (a: ClipAnimationResult | null) => void;
   /** Handle the viewer publishes for moving the rehearsal's parts, and the
@@ -207,6 +216,7 @@ export type Vec3 = [number, number, number];
 export type PickMode =
   | "cl_source" | "cl_target" | "measure" | "neck_origin" | "neck_dome"
   | "neck_rim"
+  | "scissors"
   | "crop_center" | "erase_piece" | "traj_entry" | "traj_target" | null;
 
 export interface Measurement {
@@ -251,6 +261,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [measurements, _setMeasurements] = useState<Measurement[]>([]);
   const [measurePending, setMeasurePending] = useState<Vec3 | null>(null);
   const [neckRim, setNeckRim] = useState<Vec3[]>([]);
+  const [scissorsPoints, setScissorsPoints] = useState<Vec3[]>([]);
+  const [scissorsPreview, setScissorsPreview] = useState<string | null>(null);
+  const [scissorsKeepSide, setScissorsKeepSide] = useState(0);
   const [clipRehearsal, setClipRehearsal] = useState<ClipAnimationResult | null>(null);
   const [sacFrame, setSacFrame] = useState<number | null>(null);
   const [clipParts, registerClipParts] = useState<PartsHandle | null>(null);
@@ -388,12 +401,12 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, centerOnLesion, dirty,
+        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
-        setPickMode, setClSource, setClTarget, setNeckRim, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
+        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,

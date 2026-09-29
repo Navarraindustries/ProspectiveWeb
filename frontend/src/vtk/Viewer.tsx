@@ -85,6 +85,8 @@ const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — first measur
 const NECK_ORIGIN_COLOR: Vector3 = [0.85, 0.35, 0.85]; // magenta — neck-plane point
 const NECK_DOME_COLOR: Vector3 = [0.36, 0.85, 0.86];   // cyan — dome apex
 const NECK_RIM_COLOR: Vector3 = [0.90, 0.45, 0.95];    // violet — marked neck rim
+const SCISSORS_COLOR: Vector3 = [1.00, 0.75, 0.10];    // amber — el anillo de la tijera
+const DOOMED_COLOR: Vector3 = [1.00, 0.25, 0.25];      // rojo — lo que se llevaría el corte
 const CROP_CENTER_COLOR: Vector3 = [0.98, 0.60, 0.20]; // orange — crop ROI centre
 const TRAJ_ENTRY_COLOR: Vector3 = [0.40, 0.80, 1.00];  // sky blue — approach entry
 const TRAJ_TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29]; // red — approach target
@@ -163,6 +165,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     sessionId, segmentation, candidates, selectedCandidate, series, deviceMeshes,
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
+    scissorsPoints, setScissorsPoints, scissorsPreview,
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick,
     cropRadius, cropShape, cropInvert, boxCut,
@@ -521,8 +524,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (showCenterline && centerlineMesh) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
     }
+    // Lo que se llevaría la tijera, en rojo y encima: el profesional decide
+    // mirando esto, no leyendo un número de vértices.
+    if (scissorsPreview && step === "segment") {
+      out.push({ url: scissorsPreview, color: DOOMED_COLOR, opacity: 1, id: "tijera" });
+    }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame]);
+  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview]);
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
@@ -532,6 +540,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (neckOrigin) out.push({ pos: neckOrigin, color: NECK_ORIGIN_COLOR });
     if (neckDome) out.push({ pos: neckDome, color: NECK_DOME_COLOR });
     for (const r of neckRim) out.push({ pos: r, color: NECK_RIM_COLOR });
+    for (const r of scissorsPoints) out.push({ pos: r, color: SCISSORS_COLOR });
     if (cropCenter) out.push({ pos: cropCenter, color: CROP_CENTER_COLOR });
     if (trajEntry) out.push({ pos: trajEntry, color: TRAJ_ENTRY_COLOR });
     if (trajTarget) out.push({ pos: trajTarget, color: TRAJ_TARGET_COLOR });
@@ -548,7 +557,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, cropCenter, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
 
   // Legend bands built from the radii actually used, so they cannot drift from
   // the computation the way the hard-coded ones had.
@@ -659,6 +668,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       else if (pickMode === "traj_target") { setTrajTarget(xyz); setPickMode(null); }
       // Also stays armed: the rim needs at least three points to define a plane.
       else if (pickMode === "neck_rim") { setNeckRim([...neckRim, xyz]); }
+      else if (pickMode === "scissors") { setScissorsPoints([...scissorsPoints, xyz]); }
       else if (pickMode === "measure") {
         if (!measurePending) {
           setMeasurePending(xyz);           // first click — wait for the second
@@ -1041,6 +1051,7 @@ function pickText(mode: NonNullable<PickMode>, measurePending: boolean, rimCount
     case "neck_origin": return "Clic sobre el cuello del aneurisma";
     case "neck_dome": return "Clic sobre el ápice del domo";
     case "neck_rim": return `Clic alrededor del borde del cuello (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;
+    case "scissors": return `Clic alrededor de la arteria, rodeándola (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;
     case "crop_center": return "Clic sobre la malla para el centro del recorte";
     case "erase_piece": return "Clic sobre la pieza que quieres borrar";
     case "traj_entry": return "Clic para el punto de entrada del abordaje";

@@ -165,7 +165,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick,
-    cropRadius, cropShape, cropInvert, planeCut, boxCut,
+    cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts,
@@ -273,7 +273,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [meta, metaFor, sessionId]);
   // Hasta sembrar, lo del store puede ser de otra sesión: no se usa.
   const manualForSession = seededFor === sessionId ? orientationManual : null;
-  const orientation: Orientation = { direction: meta?.direction ?? null, manual: manualForSession };
+  // Memoizado, y no un literal por render: esto viaja como prop a los cinco
+  // visores y como dependencia de `capturarVisor`. Siendo nuevo cada vez,
+  // `capturarVisor` también lo era, el efecto que lo publica en el store corría
+  // en CADA render, y `setCaptureCase` volvía a renderizar el árbol entero:
+  // ~1000 vueltas por segundo con el visor montado. React Router despacha sus
+  // navegaciones con `startTransition`, así que con el hilo ocupado la URL
+  // cambiaba y la vista no —«me salgo del pipeline y no se ve la otra
+  // pantalla hasta refrescar»—. El bucle no se notaba de otra forma.
+  const orientation: Orientation = useMemo(
+    () => ({ direction: meta?.direction ?? null, manual: manualForSession }),
+    [meta?.direction, manualForSession],
+  );
   const [orientationOpen, setOrientationOpen] = useState(false);
   const cameraFeed = useRef<CameraFeed>({ last: null, listener: null });
   const onCameraChange = useCallback((dir: Vec3, up: Vec3) => {
@@ -433,10 +444,19 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
   }, [imagingStudyId, sessionId, step, levelNote, viewMode, selectedCandidate, morphometry, mprWl, orientation]);
+  // Se publica UNA VEZ una envoltura estable que lee la versión vigente de una
+  // ref. Dependiendo de `capturarVisor`, cualquier dependencia suya que naciera
+  // nueva en cada render —bastó un objeto literal— volvía a llamar a
+  // `setCaptureCase`, que actualiza el store y re-renderiza el árbol: un bucle
+  // de ~1000 vueltas/s que dejaba sin turno a las navegaciones de React Router.
+  // Así el efecto no puede repetirse aunque alguien añada mañana otra
+  // dependencia sin memoizar.
+  const capturarRef = useRef(capturarVisor);
+  capturarRef.current = capturarVisor;
   useEffect(() => {
-    setCaptureCase(capturarVisor);
+    setCaptureCase(() => capturarRef.current());
     return () => setCaptureCase(null);
-  }, [capturarVisor, setCaptureCase]);
+  }, [setCaptureCase]);
 
   // Transient "you clicked outside the mesh" hint — without it a missed pick is
   // silent and the tool feels broken.
@@ -565,18 +585,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
       : null,
     [cropCenter, cropRadius, cropShape, cropInvert, step],
   );
-
-  // El plano se convierte en un recorte del render: la normal apunta al lado
-  // que SE CONSERVA, así que invertirla enseña exactamente lo contrario.
-  const planePreview = useMemo(() => {
-    if (!planeCut || step !== "segment") return null;
-    const eje = { x: 0, y: 1, z: 2 }[planeCut.axis];
-    const n: [number, number, number] = [0, 0, 0];
-    n[eje] = planeCut.keepPositive ? 1 : -1;
-    const o: [number, number, number] = [0, 0, 0];
-    o[eje] = planeCut.offset;
-    return { origin: o, normal: n };
-  }, [planeCut, step]);
 
   // Con la sincronización activa, un pick 3D o un clic en un corte mueven el
   // foco común; sin ella, los cortes siguen enlazados por mprVoxel y las
@@ -871,7 +879,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     } else if (isMesh) {
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
-          <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview} planePreview={planePreview}
+          <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
         </Suspense>

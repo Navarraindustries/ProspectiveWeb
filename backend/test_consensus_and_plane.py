@@ -213,6 +213,57 @@ class TestTheConsensusOrdering:
         b = hit_confidence(self._hit((0, 0, 0), {CH_CALIBRE: 4}))
         assert 0.0 <= b < a <= 1.0
 
+    def test_calibre_y_cociente_son_un_solo_voto(self):
+        # El cociente es el calibre entre el de su anillo: el más grueso suele
+        # ser también el de mayor cociente. Contarlos como dos votos ponía en
+        # la malla tubular de Case 3 un tronco de la base (1.º de los dos)
+        # delante de la lesión (1.ª de curvatura).
+        tronco = self._hit((50, 18, 46), {CH_CALIBRE: 1, CH_RATIO: 1})
+        lesion = self._hit((58, 65, 65), {CH_CURVATURE: 1})
+        assert order_hits([tronco, lesion]) == [lesion, tronco]
+
+    def test_forma_y_grosor_si_son_dos_votos(self):
+        solo = self._hit((0, 0, 0), {CH_CALIBRE: 1, CH_RATIO: 1})
+        ambos = self._hit((50, 0, 0), {CH_CURVATURE: 1, CH_CALIBRE: 3})
+        assert order_hits([solo, ambos])[0] is ambos
+
+    def test_la_confianza_tiene_una_sola_escala(self):
+        # Antes un sitio de curvatura enseñaba la puntuación cruda del detector
+        # y uno de calibre su puesto: la lesión de Case 3, 1.ª de su canal,
+        # salía con 0,45 junto a falsos positivos con 1,0.
+        from services.aneurysm_detector import AneurysmCandidate
+        cand = AneurysmCandidate(index=1, centroid=(0, 0, 0), radius_mm=2, diameter_mm=4,
+                                 mean_curvature=0, gauss_curvature=0, positive_gauss_frac=0.5,
+                                 compactness=0.5, sphericity=0.5, n_points=100, score=0.45,
+                                 poly_data=vtk.vtkPolyData())
+        curv = ConsensusHit(position=(0, 0, 0), ranks={CH_CURVATURE: 1}, candidate=cand)
+        cal = self._hit((50, 0, 0), {CH_CALIBRE: 1})
+        assert hit_confidence(curv) == pytest.approx(hit_confidence(cal))
+
+    def test_una_tapa_de_borde_no_le_quita_el_primer_puesto_a_una_cupula(self):
+        # En la malla tubular de Case 3 la tapa de z ≈ 2 mm era la 1.ª de
+        # curvatura y la lesión la 2.ª; como el puesto de canal decide el orden
+        # final, la tapa (que va al final de todos modos) le robaba el 1.º.
+        from services.aneurysm_detector import AneurysmCandidate, DetectionResult
+        malla = _bola((50.0, 50.0, 40.0), 45.0)
+        caja = malla.GetBounds()
+
+        def cand(centro, score):
+            return AneurysmCandidate(index=0, centroid=centro, radius_mm=2, diameter_mm=4,
+                                     mean_curvature=0, gauss_curvature=0,
+                                     positive_gauss_frac=0.5, compactness=0.5,
+                                     sphericity=0.5, n_points=100, score=score,
+                                     poly_data=_bola(centro, 2.0))
+
+        tapa = cand((50.0, 50.0, caja[4] + 1.5), 0.46)
+        cupula = cand((50.0, 50.0, 40.0), 0.44)
+        hits = consensus(malla, AneurysmDetector(), top=5,
+                         geometric_poly=vtk.vtkPolyData(),
+                         curvature_result=DetectionResult(candidates=[tapa, cupula]))
+        assert [h.candidate for h in hits] == [cupula, tapa]
+        assert hits[0].ranks == {CH_CURVATURE: 1}
+        assert hits[1].on_border and hits[1].ranks == {CH_CURVATURE: 2}
+
     def test_the_diameter_of_a_geometric_hit_is_twice_its_radius(self):
         h = ConsensusHit(position=(0, 0, 0), ranks={CH_CALIBRE: 1}, radius_mm=2.5)
         assert hit_diameter_mm(h) == pytest.approx(5.0)
@@ -234,6 +285,38 @@ class TestWhatTheBlueRegionMeans:
         if curv:
             _patch, kind = hit_patch(vaso_con_saco, curv[0])
             assert kind == PATCH_REGION
+
+    def test_la_region_se_pinta_sobre_la_superficie_que_se_ve(self):
+        # El preset XA suaviza su copia antes de buscar, y el suavizado encoge:
+        # la región quedaba bajo la malla del visor (en la lesión de Case 3, el
+        # 86 % de sus puntos a 0,12 mm por dentro) y apenas se veía.
+        from services.aneurysm_consensus import region_on_mesh
+        from services.aneurysm_detector import AneurysmCandidate
+        malla = _bola((0.0, 0.0, 0.0), 3.0, res=40)
+        encogida = _bola((0.0, 0.0, 0.0), 2.85, res=40)
+        casquete = vtk.vtkClipPolyData()
+        plano = vtk.vtkPlane(); plano.SetOrigin(0, 0, 1.5); plano.SetNormal(0, 0, 1)
+        casquete.SetInputData(encogida); casquete.SetClipFunction(plano); casquete.Update()
+        region = casquete.GetOutput()
+        assert region.GetNumberOfPoints() > 0
+
+        pintada = region_on_mesh(malla, region)
+        dist = vtk.vtkImplicitPolyDataDistance(); dist.SetInput(malla)
+        d = [abs(dist.EvaluateFunction(pintada.GetPoint(i)))
+             for i in range(pintada.GetNumberOfPoints())]
+        assert pintada.GetNumberOfCells() > 0
+        assert max(d) < 1e-3, "los triángulos son de la malla, no de la copia"
+        # Y es el casquete, no la bola entera.
+        zs = [pintada.GetPoint(i)[2] for i in range(pintada.GetNumberOfPoints())]
+        assert min(zs) > 0.8
+
+        cand = AneurysmCandidate(index=1, centroid=(0, 0, 2.5), radius_mm=2, diameter_mm=4,
+                                 mean_curvature=0, gauss_curvature=0, positive_gauss_frac=0.5,
+                                 compactness=0.5, sphericity=0.5, n_points=100, score=0.5,
+                                 poly_data=region)
+        patch, kind = hit_patch(malla, ConsensusHit(position=(0, 0, 2.5),
+                                                    ranks={CH_CURVATURE: 1}, candidate=cand))
+        assert kind == PATCH_REGION and patch.GetNumberOfPoints() == pintada.GetNumberOfPoints()
 
     def test_a_geometric_hit_paints_a_locator_and_says_so(self, vaso_con_saco):
         h = ConsensusHit(position=tuple(SACO), ranks={CH_CALIBRE: 1},

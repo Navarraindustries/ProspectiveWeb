@@ -298,11 +298,10 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     80 000 (`_CURVATURE_MAX_VERTS`): a 40 000 perdía la región de la lesión y
     a 104 000 la dejaba 6.ª de su canal y tardaba el doble.
 
-    La región que se pinta de un candidato de curvatura es la de esa copia, y
-    se deja así: no se transfiere a la malla completa por proximidad. El
-    preset XA ya suaviza su propia copia antes de buscar, así que las regiones
-    nunca fueron vértices de la malla de disco, y una copia de 80 000 pierde
-    poca densidad frente a los 104 000–107 000 de Case 3.
+    La región de un candidato de curvatura sale de esa copia, que el preset
+    XA además suaviza y encoge: pintada tal cual quedaba por DENTRO de la
+    malla del visor. `hit_patch` la pasa a triángulos de la malla completa
+    (`region_on_mesh`).
 
     Devuelve ``(hits, det_result)``: el resultado de la curvatura, el mismo
     que alimenta el consenso, es el que dan los diagnósticos de la respuesta.

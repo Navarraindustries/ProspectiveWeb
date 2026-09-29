@@ -266,10 +266,18 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
     # ── Canal 1: curvatura ────────────────────────────────────────────── #
     det = curvature_result if curvature_result is not None else detector.detect(poly)
     bounds = poly.GetBounds()
-    for rank, c in enumerate(det.candidates, start=1):
+    # Las tapas de borde se numeran DETRÁS de las demás. Van al final de la
+    # lista de todos modos, pero si conservaban su puesto le quitaban el 1.º
+    # a una cúpula real: en la malla tubular de Case 3 la tapa de z ≈ 2 mm era
+    # la 1.ª de curvatura y la lesión, 2.ª de su canal, perdía contra el 1.º
+    # de calibre y salía en segundo lugar.
+    borde = [region_on_border(c.poly_data, bounds) for c in det.candidates]
+    orden = sorted(range(len(det.candidates)), key=lambda k: borde[k])
+    for rank, k in enumerate(orden, start=1):
+        c = det.candidates[k]
         hits.append(ConsensusHit(position=tuple(float(v) for v in c.centroid),
                                  ranks={CH_CURVATURE: rank}, candidate=c,
-                                 on_border=region_on_border(c.poly_data, bounds)))
+                                 on_border=borde[k]))
 
     # ── Canales 2 y 3: calibre y cociente ─────────────────────────────── #
     #
@@ -316,11 +324,32 @@ def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
     lista (nunca fuera de ella). El arreglo exacto es pasar la extensión del
     volumen a `routers.detect._detect_hits`; es un cambio de interfaz y queda
     pendiente.
+
+    El acuerdo se cuenta por FAMILIAS de criterio, no por canales: calibre y
+    cociente son la misma medida (el cociente es el calibre dividido por el
+    de su anillo), así que un sitio que es el más grueso suele ser también el
+    de mayor cociente. Contados como dos votos, el grosor valía el doble que
+    la forma en cada desempate. En la malla tubular de Case 3 eso ponía por
+    delante de la lesión (1.ª de curvatura) un tronco grueso de la base (1.º
+    de calibre y 1.º de cociente).
     """
     return sorted(hits, key=lambda h: (
-        h.on_border, h.best_rank, -len(h.ranks), h.rank_sum,
+        h.on_border, h.best_rank, -len(_family_ranks(h)), sum(_family_ranks(h).values()),
         min((_CHANNEL_ORDER.get(c, len(_CHANNEL_ORDER)) for c in h.ranks),
             default=len(_CHANNEL_ORDER))))
+
+
+#: Qué mide cada canal. Dos canales de la misma familia no son dos opiniones.
+_FAMILY = {CH_CURVATURE: "forma", CH_CALIBRE: "grosor", CH_RATIO: "grosor"}
+
+
+def _family_ranks(hit: ConsensusHit) -> dict[str, int]:
+    """Familia → mejor puesto que el sitio consigue en alguno de sus canales."""
+    out: dict[str, int] = {}
+    for ch, rank in hit.ranks.items():
+        fam = _FAMILY.get(ch, ch)
+        out[fam] = min(rank, out.get(fam, rank))
+    return out
 
 
 def region_on_border(region: vtk.vtkPolyData, mesh_bounds,
@@ -410,7 +439,7 @@ def hit_patch(poly: vtk.vtkPolyData,
     aislar el saco desde el VOLUMEN.
     """
     if hit.candidate is not None:
-        return hit.candidate.poly_data, PATCH_REGION
+        return region_on_mesh(poly, hit.candidate.poly_data), PATCH_REGION
 
     r = max(3.0, hit.radius_mm * 1.8)
     sphere = vtk.vtkSphere()
@@ -427,6 +456,84 @@ def hit_patch(poly: vtk.vtkPolyData,
     return cl.GetOutput(), PATCH_LOCATOR
 
 
+#: Hasta dónde se busca, en la malla que se ve, el vértice que corresponde a
+#: uno de la región. La copia suavizada queda a 0,12 mm por dentro (mediana,
+#: p10 0,18 en la lesión de Case 3) y sus vértices distan ~0,4 mm entre sí.
+REGION_TRANSFER_MM: float = 0.6
+
+
+def region_on_mesh(poly: vtk.vtkPolyData,
+                   region: vtk.vtkPolyData,
+                   tol_mm: float = REGION_TRANSFER_MM) -> vtk.vtkPolyData:
+    """La región de curvatura, pero hecha de triángulos de la malla que se ve.
+
+    El detector busca sobre una copia decimada que el preset XA además suaviza
+    25 pasadas, y el suavizado encoge la superficie. Pintar la región tal cual
+    la dejaba por DENTRO de la malla del visor: medido en la lesión de Case 3
+    (malla tubular), el 86 % de sus puntos quedaba a 0,12 mm bajo la
+    superficie, así que se veían retazos azules y el candidato parecía menor
+    que los localizadores, que sí se recortan de la malla real.
+
+    Se quedan los triángulos de `poly` cuyos tres vértices están a menos de
+    `tol_mm` de algún punto de la región. Si no queda ninguno —una región que
+    no viene de esta malla—, se devuelve la región original.
+
+    Lo que pinta sigue siendo el casquete MÁS curvado, no el saco entero. Se
+    probó a crecerlo por la malla mientras fuera más convexa que un vaso del
+    radio de la cúpula (0,6/r): la lesión de Case 3 apenas ganaba (202 → 269
+    vértices, con un hueco en medio) y tres de los cuatro falsos positivos se
+    hinchaban a 9–14 mm tragándose ramas finas vecinas. Delimitar el saco es
+    el cuello que se marca en Morfometría.
+    """
+    if region is None or region.GetNumberOfPoints() == 0 or poly.GetNumberOfPoints() == 0:
+        return region
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+
+    rpts = vtk_to_numpy(region.GetPoints().GetData()).astype(float)
+    mpts = vtk_to_numpy(poly.GetPoints().GetData()).astype(float)
+    # Solo se consulta la caja de la región, holgada: la malla entera son
+    # cien mil vértices y la región un par de cientos.
+    lo, hi = rpts.min(0) - tol_mm, rpts.max(0) + tol_mm
+    cerca = np.all((mpts >= lo) & (mpts <= hi), axis=1)
+    marca = np.zeros(len(mpts), dtype=np.uint8)
+    if cerca.any():
+        d, _ = spatial.cKDTree(rpts).query(mpts[cerca], distance_upper_bound=tol_mm)
+        marca[np.where(cerca)[0][np.isfinite(d)]] = 1
+    fuera = _cells_with_all_points(poly, marca)
+    return region if fuera is None else fuera
+
+
+def _cells_with_all_points(poly: vtk.vtkPolyData, marca: np.ndarray) -> vtk.vtkPolyData | None:
+    """Los triángulos de `poly` cuyos tres vértices están marcados, o None."""
+    from vtkmodules.util.numpy_support import numpy_to_vtk
+
+    if not marca.any():
+        return None
+    arr = numpy_to_vtk(marca.astype(np.uint8), deep=True)
+    arr.SetName("_region")
+    copia = vtk.vtkPolyData()
+    copia.ShallowCopy(poly)
+    copia.GetPointData().AddArray(arr)
+    copia.GetPointData().SetActiveScalars("_region")
+    thr = vtk.vtkThreshold()
+    thr.SetInputData(copia)
+    thr.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "_region")
+    thr.SetLowerThreshold(0.5)
+    thr.SetUpperThreshold(1.5)
+    thr.SetThresholdFunction(vtk.vtkThreshold.THRESHOLD_BETWEEN)
+    thr.AllScalarsOn()
+    geo = vtk.vtkGeometryFilter()
+    geo.SetInputConnection(thr.GetOutputPort())
+    cl = vtk.vtkCleanPolyData()
+    cl.SetInputConnection(geo.GetOutputPort())
+    cl.Update()
+    out = cl.GetOutput()
+    if out.GetNumberOfCells() == 0:
+        return None
+    out.GetPointData().RemoveArray("_region")
+    return out
+
+
 def hit_diameter_mm(hit: ConsensusHit) -> float:
     """Diámetro estimado del sitio, venga del canal que venga."""
     if hit.candidate is not None:
@@ -440,9 +547,17 @@ def hit_confidence(hit: ConsensusHit) -> float:
     No es una probabilidad y no está calibrada contra nada: es el puesto
     convertido en [0, 1] y subido un poco cuando más de un canal coincide.
     Sirve para ordenar visualmente, y la pantalla dice que no es más que eso.
+
+    La MISMA fórmula para todos. Antes un sitio que solo veía la curvatura
+    enseñaba la puntuación cruda del detector (0,3–0,6 en XA), y uno de
+    calibre su puesto convertido (el 1.º daba 1,0): dos escalas en la misma
+    barra. En Case 3 la lesión, 1.ª de su canal, salía con 0,45 al lado de
+    falsos positivos con 0,69 y 1,0. El acuerdo suma por familia, como en
+    `order_hits`.
     """
-    if hit.candidate is not None and len(hit.ranks) == 1:
-        return float(hit.candidate.score)
     base = 1.0 / (1.0 + 0.45 * (hit.best_rank - 1))
-    acuerdo = 0.10 * (len(hit.ranks) - 1)
+    acuerdo = 0.10 * (len(_family_ranks(hit)) - 1)
+    if hit.on_border:
+        # Una tapa de borde va al final de la lista: que la barra no diga otra cosa.
+        base *= 0.5
     return float(min(1.0, base + acuerdo))

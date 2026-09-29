@@ -95,7 +95,6 @@ interface PlanningState {
   /** Previa del corte por plano: el eje, la altura y qué lado se conserva.
    *  El visor la usa para recortar el render en vivo, de modo que al arrastrar
    *  el deslizador se vea desaparecer justo lo que el corte se llevaría. */
-  planeCut: { axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null;
   /** Caja de recorte en vivo: los seis límites en mm. Se dibuja y recorta la
    *  malla a la vez, así que se ve por dónde se corta en los tres ejes. */
   boxCut: { min: [number, number, number]; max: [number, number, number] } | null;
@@ -190,7 +189,6 @@ interface PlanningState {
   setVisiblePerforators: (ids: string[]) => void;
   setCropCenter: (p: Vec3 | null) => void;
   setErasePick: (p: Vec3 | null) => void;
-  setPlaneCut: (p: { axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null) => void;
   setCropRadius: (r: number) => void;
   setCropShape: (s: "sphere" | "box") => void;
   setCropInvert: (v: boolean) => void;
@@ -271,7 +269,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   }, []);
   const [cropCenter, setCropCenter] = useState<Vec3 | null>(null);
   const [erasePick, setErasePick] = useState<Vec3 | null>(null);
-  const [planeCut, setPlaneCut] = useState<{ axis: "x" | "y" | "z"; offset: number; keepPositive: boolean } | null>(null);
   const [boxCut, setBoxCut] = useState<{ min: [number, number, number]; max: [number, number, number] } | null>(null);
   const [cropRadius, setCropRadius] = useState(10);
   const [cropShape, setCropShape] = useState<"sphere" | "box">("sphere");
@@ -365,7 +362,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setMeasurePending(null);
     setCropCenter(null);
     setErasePick(null);
-    setPlaneCut(null);
     setTrajEntry(null);
     setTrajTarget(null);
     setMorphoOverlay(false);
@@ -392,14 +388,14 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, planeCut, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, centerOnLesion, dirty,
+        measurements, measurePending, neckRim, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setMeasurements, setMeasurePending, setCropCenter, setErasePick, setPlaneCut, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, bumpVolumeVersion,
         reset, resetDownstream,

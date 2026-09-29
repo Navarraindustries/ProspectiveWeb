@@ -49,8 +49,6 @@ import type {
   MeshComponentDeleteResult,
   MeshComponentList,
   MeshCropResult,
-  MeshPlaneCutRequest,
-  MeshPlaneCutResult,
   MeshHistoryResult,
   MeshRestoreResult,
   MeshRestoreScope,
@@ -297,8 +295,6 @@ export const api = {
     get<MeshBounds>(`/api/mesh-bounds/${sessionId}`),
   /** Corta por un plano y conserva un lado. No hace falta elegir un centro:
       una dirección y una altura. */
-  meshPlaneCut: (sessionId: string, req: MeshPlaneCutRequest) =>
-    post<MeshPlaneCutResult>(`/api/mesh-plane-cut/${sessionId}`, req),
   /** Las piezas conexas de la malla, la mayor primero. */
   meshComponents: (sessionId: string) =>
     get<MeshComponentList>(`/api/mesh-components/${sessionId}`),

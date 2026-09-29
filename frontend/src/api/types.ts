@@ -1629,29 +1629,12 @@ export interface MeshComponentDeleteResult {
   undo_depth: number;
 }
 
-/* ── Corte por plano: el recorte que no pide un centro ──────────────────── */
+/* ── Límites de la malla: el rango de los deslizadores del recorte ─────── */
 
 export interface MeshBounds {
   min: { x: number; y: number; z: number };
   max: { x: number; y: number; z: number };
   vertices: number;
-}
-
-export interface MeshPlaneCutRequest {
-  axis: "x" | "y" | "z" | "custom";
-  offset_mm: number;
-  normal?: { x: number; y: number; z: number } | null;
-  /** True conserva el lado hacia el que apunta la normal. */
-  keep_positive: boolean;
-}
-
-export interface MeshPlaneCutResult {
-  mesh_url: string;
-  vertices: number;
-  faces: number;
-  removed_vertices: number;
-  components_left: number;
-  undo_depth: number;
 }
 
 /** Borrado de tejido PEGADO al árbol. El borrador de piezas no llega ahí:

@@ -309,45 +309,9 @@ class TestThroughTheApi:
         assert d["min"]["y"] < -25 and d["max"]["y"] > 25
         assert d["vertices"] > 0
 
-    def test_a_plane_cut_removes_the_bottom_and_can_be_undone(self):
-        poly = _une(_tubo(radio=1.5, largo=60.0), _bola((0, -40, 0), 6.0))
-        sid = _sesion(poly)
-        antes = poly.GetNumberOfPoints()
-
-        r = client.post(f"/api/mesh-plane-cut/{sid}", json={
-            "axis": "y", "offset_mm": -25.0, "keep_positive": True})
-        assert r.status_code == 200, r.text
-        d = r.json()
-        assert d["removed_vertices"] > 0
-        assert d["vertices"] < antes
-        assert d["undo_depth"] >= 1
-
-        en_disco = read_vtp(session_subdir(sid, "meshes") / "vessel_tree.vtp")
-        pts = np.asarray([en_disco.GetPoint(i)
-                          for i in range(en_disco.GetNumberOfPoints())])
-        assert pts[:, 1].min() > -26.0, "la bola de abajo sigue ahí"
-
-        u = client.post(f"/api/mesh-restore/{sid}", json={"scope": "undo"})
-        assert u.status_code == 200 and u.json()["vertices"] == antes
-
-    def test_a_cut_that_empties_the_mesh_is_refused(self):
-        sid = _sesion(_tubo(radio=1.5, largo=60.0))
-        r = client.post(f"/api/mesh-plane-cut/{sid}", json={
-            "axis": "y", "offset_mm": 500.0, "keep_positive": True})
-        assert r.status_code == 422
-        assert "vacía" in r.json()["detail"]
-
-    def test_a_custom_normal_needs_one(self):
-        sid = _sesion(_tubo(radio=1.5, largo=60.0))
-        r = client.post(f"/api/mesh-plane-cut/{sid}", json={
-            "axis": "custom", "offset_mm": 0.0, "keep_positive": True})
-        assert r.status_code == 422
-
     def test_without_a_mesh_it_says_so(self):
         sid = create_session()
         assert client.get(f"/api/mesh-bounds/{sid}").status_code == 409
-        assert client.post(f"/api/mesh-plane-cut/{sid}", json={
-            "axis": "y", "offset_mm": 0.0}).status_code == 409
 
 
 # ── 6. El cuerpo del aneurisma sí existe, y ahora sale del backend ──────── #
@@ -412,12 +376,4 @@ class TestEverythingCanBeUndone:
             "los canales y el tipo de parche se quedaban de la corrida anterior"
         )
 
-    def test_the_plane_cut_is_snapshotted_before_touching_the_mesh(self):
-        poly = _une(_tubo(radio=1.5, largo=60.0), _bola((0, -40, 0), 6.0))
-        sid = _sesion(poly)
-        antes = poly.GetNumberOfPoints()
-        client.post(f"/api/mesh-plane-cut/{sid}", json={
-            "axis": "y", "offset_mm": -25.0, "keep_positive": True})
-        r = client.post(f"/api/mesh-restore/{sid}", json={"scope": "undo"})
-        assert r.status_code == 200 and r.json()["vertices"] == antes
 

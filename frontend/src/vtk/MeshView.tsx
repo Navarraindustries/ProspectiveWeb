@@ -114,7 +114,6 @@ export function MeshView({
   markers = [],
   lines = [],
   cropPreview = null,
-  planePreview = null,
   boxPreview = null,
   referenceDiameterMm = null,
   pickMode = false,
@@ -134,12 +133,6 @@ export function MeshView({
   lines?: MeshLine[];
   /** Translucent sphere/box preview of the crop ROI (null to hide). */
   cropPreview?: CropPreview | null;
-  /** Previa del corte por plano. En vez de dibujar el plano, RECORTA el render
-   *  en vivo: al arrastrar el deslizador desaparece justo lo que el corte se
-   *  llevaría. El usuario decía que cortar por ejes es poco intuitivo «porque
-   *  no hay de dónde guiarse» — y tenía razón: el problema no era el plano,
-   *  era que no se veía nada hasta pulsar Cortar. */
-  planePreview?: { origin: [number, number, number]; normal: [number, number, number] } | null;
   /** Caja de recorte: los seis límites, en mm de mundo. Recorta EN VIVO por sus
    *  seis planos y además se dibuja, que es lo que el corte por plano nunca
    *  hizo — allí solo desaparecía geometría y no se veía por dónde cortaba. */
@@ -710,13 +703,10 @@ export function MeshView({
 
   // ── Previa del corte por plano: se recorta el render, no se dibuja nada ─── #
   //
-  // Dibujar el plano diría dónde está; recortar dice QUÉ se va. Arrastrando el
-  // deslizador la parte condenada desaparece, y «Cortar» solo confirma lo que
-  // ya se está viendo. Es barato: los mappers de vtk.js llevan planos de
-  // recorte y no hay que volver a leer la malla.
-  const planeKey = planePreview
-    ? `${planePreview.origin.join(",")}|${planePreview.normal.join(",")}`
-    : "";
+  // Recortar dice QUÉ se va: arrastrando la caja la parte condenada
+  // desaparece, y «Recortar» solo confirma lo que ya se está viendo. Es
+  // barato: los mappers de vtk.js llevan planos de recorte y no hay que
+  // volver a leer la malla.
   const boxKey = boxPreview
     ? `${boxPreview.min.join(",")}|${boxPreview.max.join(",")}`
     : "";
@@ -725,14 +715,6 @@ export function MeshView({
     if (!h) return;
     for (const m of layerMappers.current) {
       try { m.removeAllClippingPlanes(); } catch { /* mapper ya destruido */ }
-    }
-    if (planePreview) {
-      for (const m of layerMappers.current) {
-        const pl = vtkPlane.newInstance();
-        pl.setOrigin(...planePreview.origin);
-        pl.setNormal(...planePreview.normal);
-        try { m.addClippingPlane(pl); } catch { /* idem */ }
-      }
     }
     if (boxPreview) {
       // Seis planos, uno por cara. Cada eje se recorta por los dos lados, así
@@ -754,7 +736,7 @@ export function MeshView({
     }
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, planeKey, boxKey]);
+  }, [key, boxKey]);
 
   // ── Crop ROI preview: a translucent sphere/box so the crop is not blind ──── #
   useEffect(() => {

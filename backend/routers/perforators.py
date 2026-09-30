@@ -11,7 +11,8 @@ from fastapi import APIRouter, HTTPException
 
 from models import PerforatorCandidate, PerforatorsResult, Position3D
 from models.perforators import RISK_COLORS, RISK_LABELS
-from services.sessions import read_state, session_exists, session_subdir
+from services.sessions import (measured_candidate_centroid, read_state,
+                               session_exists, session_subdir)
 from services.perforator_risk import compute_perforator_risk
 from services.segmentation import read_vtp, write_vtp
 
@@ -104,17 +105,14 @@ def _resolve_neck_origin(session_id: str) -> tuple[float, float, float]:
         except ValueError:
             pass
 
-    # Priority 2: centroid of best candidate (saved by detect endpoint)
-    cx, cy, cz = _f("detect.cand_001.centroid_x"), _f("detect.cand_001.centroid_y"), _f("detect.cand_001.centroid_z")
-    if cx and cy and cz:
-        try:
-            logger.warning(
-                "Morphometry not run — using candidate centroid as neck origin for session %s",
-                session_id,
-            )
-            return (float(cx), float(cy), float(cz))
-        except ValueError:
-            pass
+    # Priority 2: centroid of the chosen candidate (the best one if none chosen)
+    cand = measured_candidate_centroid(session_id)
+    if cand is not None:
+        logger.warning(
+            "Morphometry not run — using candidate centroid as neck origin for session %s",
+            session_id,
+        )
+        return cand
 
     logger.warning("No neck origin available for session %s — using (0,0,0)", session_id)
     return (0.0, 0.0, 0.0)

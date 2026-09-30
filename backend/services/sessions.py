@@ -270,6 +270,25 @@ def measured_candidate_vtp_name(session_id: str) -> str:
     return read_state(session_id, "detect.best_vtp_name", "")
 
 
+def measured_candidate_centroid(session_id: str) -> tuple[float, float, float] | None:
+    """Centroide del candidato elegido (el de `measured_candidate_vtp_name`).
+
+    Perforantes y corredores apuntaban a `detect.cand_001` cuando aún no había
+    morfometría. El orden de la lista no es un diagnóstico —en IM_0055 la
+    lesión llegó a salir 3.ª—, así que la diana es la que eligió el clínico.
+    """
+    import re
+    m = re.fullmatch(r"aneurysm_cand_(\d{3})\.vtp", measured_candidate_vtp_name(session_id))
+    if not m:
+        return None
+    prefix = f"detect.cand_{m.group(1)}"
+    try:
+        return tuple(float(read_state(session_id, f"{prefix}.centroid_{a}", ""))
+                     for a in "xyz")  # type: ignore[return-value]
+    except ValueError:
+        return None
+
+
 # ── Static file URL helpers ────────────────────────────────────────────────── #
 
 def mesh_url(session_id: str, filename: str) -> str:

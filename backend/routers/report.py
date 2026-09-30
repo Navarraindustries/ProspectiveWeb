@@ -536,9 +536,8 @@ async def suggest_corridors(
         objetivo = (_f("morpho.neck_origin_x"), _f("morpho.neck_origin_y"),
                     _f("morpho.neck_origin_z"))
         if objetivo == (0.0, 0.0, 0.0):
-            objetivo = (_f("detect.cand_001.centroid_x"),
-                        _f("detect.cand_001.centroid_y"),
-                        _f("detect.cand_001.centroid_z"))
+            from services.sessions import measured_candidate_centroid
+            objetivo = measured_candidate_centroid(session_id) or (0.0, 0.0, 0.0)
         if objetivo == (0.0, 0.0, 0.0):
             raise HTTPException(
                 status_code=409,

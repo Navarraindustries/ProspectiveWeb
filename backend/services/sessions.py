@@ -194,7 +194,8 @@ def _write_state_file(state_file: Path, lines: dict[str, str]) -> None:
         "\n".join(f"{k}={v}" for k, v in lines.items()) + "\n",
         encoding=_STATE_ENCODING,
     )
-    os.replace(tmp, state_file)
+    from services import atomic
+    atomic.replace(tmp, state_file)
 
 
 def _read_state_map(state_file: Path) -> dict[str, str]:

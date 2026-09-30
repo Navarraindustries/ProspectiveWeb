@@ -195,7 +195,7 @@ La detección busca la curvatura sobre una copia de 80 000 vértices cuando la m
   ```
 
   Sin eso el panel cae al sondeo por GET cada medio segundo, que funciona igual pero con más peticiones.
-- **Un solo proceso.** Arranca uvicorn con un único worker (sin `--workers N`). El progreso de cada trabajo y el semáforo que deja correr una sola segmentación tubular a la vez viven en la memoria del proceso: con varios workers, el progreso se consultaría en un proceso que no es el que segmenta, y dos segmentaciones tubulares podrían correr a la vez y agotar la memoria.
+- **Un solo proceso.** Arranca uvicorn con un único worker (sin `--workers N`). El progreso de cada trabajo y el semáforo que deja correr una sola segmentación tubular a la vez viven en la memoria del proceso: con varios workers, el progreso se consultaría en un proceso que no es el que segmenta, y dos segmentaciones tubulares podrían correr a la vez y agotar la memoria. Está defendido: al arrancar, cada proceso toma un cerrojo exclusivo del sistema sobre `backend/data/.proceso.lock`, y un segundo proceso sobre los mismos datos (otro worker, o un uvicorn antiguo que siguiera vivo) no arranca y dice por qué. `PROSPECTIVE_ALLOW_MULTI_PROCESS=1` lo desactiva; solo lo usan los tests.
 
 ---
 

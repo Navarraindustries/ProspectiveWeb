@@ -53,16 +53,29 @@ async def ws_progress(websocket: WebSocket, session_id: str) -> None:
     if user is None or not session_exists(session_id):
         await websocket.close(code=4401)
         return
+    # El bucle solo ENVÍA, y enviar no falla hasta que hay algo que mandar: con
+    # una sesión sin trabajo el estado no cambia nunca y un cliente que se fue
+    # dejaba la tarea girando a 4 Hz para siempre. Se escucha a la vez: la
+    # desconexión llega como un mensaje `websocket.disconnect`.
+    escucha = asyncio.ensure_future(websocket.receive())
     last: dict | None = None
     try:
         while True:
+            if escucha.done():
+                msg = escucha.result()
+                if msg.get("type") == "websocket.disconnect":
+                    return
+                escucha = asyncio.ensure_future(websocket.receive())
             cur = progress.get(session_id) or dict(_IDLE)
             if cur != last:
                 await websocket.send_json(cur)
                 last = cur
                 if not cur["running"] and cur["ok"] is not None:
                     break
-            await asyncio.sleep(0.25)
-    except WebSocketDisconnect:
+            await asyncio.wait({escucha}, timeout=0.25)
+    except (WebSocketDisconnect, RuntimeError):
         return
+    finally:
+        if not escucha.done():
+            escucha.cancel()
     await websocket.close()

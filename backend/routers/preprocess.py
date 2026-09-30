@@ -77,7 +77,8 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     # Write to a sibling .npy then atomically replace (avoids partial writes).
     tmp_path = npy_path.with_name("_volume_new.npy")
     np.save(tmp_path, np.ascontiguousarray(new_vol, dtype=np.float32))
-    os.replace(tmp_path, npy_path)
+    from services import atomic
+    atomic.replace(tmp_path, npy_path)   # el MPR puede tener el .npy abierto
 
     # cache_key y orientation_manual son por llamada: ensure_volume_cached las
     # añade al dict devuelto pero nunca las persiste; copiarlas aquí las dejaría

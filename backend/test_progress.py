@@ -112,3 +112,65 @@ class TestWebSocket:
             assert False, "debía cerrar"
         except WebSocketDisconnect as exc:
             assert exc.code == 4401
+
+
+class TestNoSeAcumula:
+    def test_un_trabajo_terminado_hace_rato_se_olvida(self):
+        viejo, vivo = create_session(), create_session()
+        progress.start(viejo)
+        progress.finish(viejo, ok=True)
+        progress._state[viejo]["updated_at"] -= progress.FINISHED_TTL_S + 1
+        progress.start(vivo)
+        assert progress.get(viejo) is None
+        assert progress.get(vivo)["running"] is True
+
+    def test_uno_en_curso_no_se_olvida_aunque_sea_antiguo(self):
+        largo, otro = create_session(), create_session()
+        progress.start(largo)
+        progress._state[largo]["updated_at"] -= progress.FINISHED_TTL_S + 1
+        progress.start(otro)
+        assert progress.get(largo)["running"] is True
+
+    def test_uno_recien_terminado_se_puede_leer(self):
+        sid, otro = create_session(), create_session()
+        progress.start(sid)
+        progress.finish(sid, ok=False, message="sin memoria")
+        progress.start(otro)
+        assert progress.get(sid)["message"] == "sin memoria"
+
+
+class TestClienteQueSeVa:
+    def test_el_bucle_termina_cuando_el_cliente_cierra_sin_trabajo_en_curso(self, monkeypatch):
+        """Sin trabajo el estado no cambia, el bucle no envía y no se enteraba
+        de la desconexión: giraba a 4 Hz para siempre.
+
+        Con un socket falso y no con TestClient: TestClient CANCELA la tarea
+        al cerrar, uvicorn no, y es la tarea sin cancelar la que se quedaba.
+        """
+        import asyncio
+        from routers import progress as rp
+
+        sid = create_session()
+        monkeypatch.setattr(rp, "user_for_token", lambda db, tok: object())
+
+        class Socket:
+            cookies = {COOKIE_NAME: "x"}
+            def __init__(self):
+                self.enviados = []
+                self.recibidos = 0
+            async def accept(self):
+                pass
+            async def send_json(self, d):
+                self.enviados.append(d)
+            async def receive(self):
+                self.recibidos += 1
+                if self.recibidos == 1:
+                    await asyncio.sleep(0.3)          # el cliente se va al rato
+                    return {"type": "websocket.disconnect", "code": 1001}
+                await asyncio.Event().wait()          # nunca más
+            async def close(self, code=1000):
+                pass
+
+        ws = Socket()
+        asyncio.run(asyncio.wait_for(rp.ws_progress(ws, sid), timeout=3.0))
+        assert ws.enviados and ws.enviados[0]["running"] is False

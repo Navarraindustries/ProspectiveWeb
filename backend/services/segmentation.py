@@ -547,17 +547,11 @@ def write_vtp(poly_data: vtk.vtkPolyData, path: str | Path) -> None:
     # El escritor de VTK no fallaba porque sobrescribía en sitio; a cambio dejaba
     # colas del fichero viejo. Se reintenta un poco antes de rendirse: la ventana
     # en que un lector tiene el .vtp abierto es de milisegundos.
-    ultimo: Exception | None = None
-    for intento in range(10):
-        try:
-            os.replace(tmp, path)
-            break
-        except PermissionError as exc:          # pragma: no cover - depende del SO
-            ultimo = exc
-            time.sleep(0.05 * (intento + 1))
-    else:
-        tmp.unlink(missing_ok=True)
-        raise IOError(f"No se pudo reemplazar la malla {path}: {ultimo}")
+    from services import atomic
+    try:
+        atomic.replace(tmp, path)
+    except PermissionError as exc:              # pragma: no cover - depende del SO
+        raise IOError(f"No se pudo reemplazar la malla {path}: {exc}") from exc
 
     logger.info("Wrote VTP: %s (%d verts, %d tris)",
                 path, poly_data.GetNumberOfPoints(), poly_data.GetNumberOfPolys())

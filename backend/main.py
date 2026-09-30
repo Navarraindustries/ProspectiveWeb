@@ -77,9 +77,13 @@ def _backfill_clip_order_patients() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
     """Initialise DB, seed admin, purge stale sessions, start the purge loop."""
-    from services.database import init_db, SessionLocal
+    from services.database import DATA_DIR, init_db, SessionLocal
     from services.auth_service import seed_default_user
     from services.sessions import purge_expired_sessions
+    from services import single_process
+    # Antes que nada: un segundo proceso sobre los mismos datos no arranca
+    # (ver services/single_process.py).
+    single_process.acquire(DATA_DIR)
     init_db()
     db = SessionLocal()
     try:
@@ -102,6 +106,7 @@ async def _lifespan(app: FastAPI):  # noqa: ARG001
             await purge_task
         except asyncio.CancelledError:
             pass
+        single_process.release()
 
 
 # ── App ───────────────────────────────────────────────────────────────────── #

@@ -544,7 +544,8 @@ async def suggest_corridors(
                 detail=("No hay aneurisma al que apuntar: marca el cuello en "
                         "Morfometría, detecta un candidato, o pasa la diana."))
 
-    ejes = axes_from_dicom(session_subdir(session_id, "dicom"))
+    ejes = axes_from_dicom(session_subdir(session_id, "dicom"),
+                           read_state(session_id, "dicom.series_id", ""))
 
     ramas = []
     try:

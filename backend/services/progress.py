@@ -13,9 +13,24 @@ import time
 _lock = threading.Lock()
 _state: dict[str, dict] = {}
 
+#: Cuánto se conserva el resultado de un trabajo terminado. Basta con que el
+#: cliente que esperaba lo lea; después sobra. Sin esto el dict crecía una
+#: entrada por sesión mientras viviera el proceso, aunque las sesiones se
+#: purgan a las 24 h.
+FINISHED_TTL_S: float = 15 * 60
+
+
+def _prune(now: float) -> None:
+    """Quita los trabajos terminados hace más de `FINISHED_TTL_S`. Con `_lock`."""
+    viejos = [k for k, s in _state.items()
+              if not s["running"] and now - s["updated_at"] > FINISHED_TTL_S]
+    for k in viejos:
+        del _state[k]
+
 
 def start(session_id: str) -> None:
     with _lock:
+        _prune(time.time())
         _state[session_id] = {
             "phase": "", "pct": 0.0, "running": True, "ok": None,
             "message": "", "updated_at": time.time(),

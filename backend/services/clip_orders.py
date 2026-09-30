@@ -153,7 +153,8 @@ def _read(name: str) -> list[dict]:
 def _write(name: str, entries: list[dict]) -> None:
     tmp = _path(name).with_suffix(".tmp")
     tmp.write_text(json.dumps(entries, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, _path(name))
+    from services import atomic
+    atomic.replace(tmp, _path(name))
 
 
 def list_workshops() -> list[Workshop]:

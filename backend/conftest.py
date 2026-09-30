@@ -23,6 +23,9 @@ for _suffix in ("", "-wal", "-shm"):
         except OSError:
             pass
 os.environ["PROSPECTIVE_DB_URL"] = f"sqlite:///{_TEST_DB}"
+# Los tests arrancan la app muchas veces, a veces en procesos paralelos: el
+# cerrojo de un solo proceso (services/single_process.py) no va con ellos.
+os.environ["PROSPECTIVE_ALLOW_MULTI_PROCESS"] = "1"
 
 # The audit chain too. Without this the suite appended thousands of blocks to
 # the developer's real chain, and the endpoint test then asserted a property of

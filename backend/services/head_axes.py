@@ -97,17 +97,33 @@ def _iop_from_dataset(ds) -> tuple[list[float] | None, list[float] | None]:
     return None, None
 
 
-def axes_from_dicom(dicom_dir: Path | str) -> HeadAxes:
-    """Lee la orientación del primer fichero de la carpeta."""
+def axes_from_dicom(dicom_dir: Path | str, series_id: str = "") -> HeadAxes:
+    """Lee la orientación de la SERIE con la que se trabaja.
+
+    Antes leía los cinco primeros ficheros de la carpeta, fueran de la serie
+    que fueran. En el estudio DICOM-20260714 (55 ficheros, 12 series) los 51
+    localizadores y cines no traen orientación y solo la llevan los cuatro
+    volúmenes 3DRA: subida la carpeta entera, se leían IM_0001–0005, no se
+    encontraba nada y los ejes salían «desconocidos» —sin corredores de
+    abordaje— aunque el volumen elegido sí la trae.
+    """
     import pydicom
 
     carpeta = Path(dicom_dir)
-    ficheros = sorted(p for p in carpeta.rglob("*") if p.is_file())
-    if not ficheros:
+    ficheros: list[Path] = []
+    if series_id:
+        try:
+            from services.dicom_loader import _series_file_names
+            ficheros = [Path(f) for f in _series_file_names(series_id, carpeta)]
+        except Exception:  # noqa: BLE001 — sin la serie, se busca en la carpeta
+            ficheros = []
+    # Sin serie conocida: se recorre la carpeta hasta dar con uno que la traiga.
+    buscar_en = ficheros[:5] if ficheros else sorted(p for p in carpeta.rglob("*") if p.is_file())
+    if not buscar_en:
         return UNKNOWN
 
     iop = ipp = None
-    for f in ficheros[:5]:
+    for f in buscar_en:
         try:
             ds = pydicom.dcmread(str(f), stop_before_pixels=True)
         except Exception:  # noqa: BLE001 — un fichero ilegible no es el final

@@ -263,10 +263,12 @@ export function MeshView({
     const fillLight = vtkLight.newInstance({ intensity: 0.35, position: [-1, -0.5, -1] as Vector3 });
     keyLight.setLightTypeToCameraLight(); fillLight.setLightTypeToCameraLight();
     renderer.addLight(keyLight); renderer.addLight(fillLight);
-    // Translucidez sin artefactos de orden al bajar la opacidad del árbol.
-    renderer.setUseDepthPeeling(true);
-    renderer.setMaximumNumberOfPeels(4);
-    renderer.setOcclusionRatio(0.0);
+    // Translucidez: vtk.js no hace depth peeling. `setUseDepthPeeling` y sus
+    // dos compañeros solo existen como propiedades del renderer y ningún pase
+    // los lee (comprobado en vtk.js 36.2: Rendering/Core/Renderer.js). El orden
+    // lo resuelve `OrderIndependentTranslucentPass`, que ForwardPass solo
+    // ejecuta cuando hay algún actor translúcido, así que no hay nada que
+    // encender ni que pagar en las escenas opacas.
 
     const inset = createOrientationInset(renderWindow, renderer, orientationRef.current);
     insetRef.current = inset;

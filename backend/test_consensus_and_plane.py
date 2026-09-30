@@ -269,6 +269,35 @@ class TestTheConsensusOrdering:
         assert hit_diameter_mm(h) == pytest.approx(5.0)
 
 
+class TestLaPuertaDeCurvaturaNoDependeDelRestoDeLaMalla:
+    """La malla tubular recupera muchos vasos finos, y la puerta de curvatura
+    media era un percentil de TODA la malla: subía hasta ~1 mm⁻¹ y tiraba
+    cualquier cúpula de más de ~2 mm de radio. En Case 3 segmentado de cero
+    la lesión caía por ahí y no entraba en la lista."""
+
+    @staticmethod
+    def _arbol_con_saco():
+        partes = [_tubo(radio=1.5, largo=60.0, res=40), _bola((0.0, 5.0, 3.2), 2.0, res=40)]
+        partes += [_tubo(centro=(8.0 + 3.0 * k, 0.0, 0.0), radio=0.5, largo=50.0, res=16)
+                   for k in range(10)]
+        return _une(*partes)
+
+    def _saco(self, det):
+        malla = self._arbol_con_saco()
+        return [c for c in det.detect(malla).candidates
+                if np.linalg.norm(np.asarray(c.centroid) - np.array([0.0, 5.0, 4.0])) < 4.0]
+
+    def test_con_el_percentil_global_el_saco_se_pierde(self):
+        from routers.detect import _detector_for_modality
+        det = _detector_for_modality("XA")
+        det.min_mean_curv_radius = None
+        assert not self._saco(det), "si esto pasa, el ejemplo ya no reproduce el fallo"
+
+    def test_el_preset_xa_lo_encuentra(self):
+        from routers.detect import _detector_for_modality
+        assert self._saco(_detector_for_modality("XA"))
+
+
 class TestWhatTheBlueRegionMeans:
     """El usuario preguntó qué denota el azul, y tenía razón en sospechar.
 

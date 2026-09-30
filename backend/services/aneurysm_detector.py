@@ -156,6 +156,11 @@ class AneurysmDetector:
         Hard gate — min(bbox)/max(bbox) required.
     pre_smooth_iterations:
         Laplacian passes before curvature computation (0 = off for CTA, 25 for XA).
+    min_mean_curv_radius:
+        Si se da, sustituye a `mean_curv_gate_percentile`: la región pasa si
+        su curvatura media × el radio de su esfera ajustada llega a este
+        valor (esfera 1, tubo 0,5). No depende del resto de la malla, que es
+        lo que fallaba con el percentil en mallas llenas de vasos finos.
     """
 
     def __init__(
@@ -171,7 +176,9 @@ class AneurysmDetector:
         min_compactness:           float = 0.20,
         min_sphericity:            float = 0.28,
         pre_smooth_iterations:     int   = 0,
+        min_mean_curv_radius:      float | None = None,
     ) -> None:
+        self.min_mean_curv_radius      = min_mean_curv_radius
         self.gauss_percentile          = gauss_percentile
         self.mean_curv_gate_percentile = mean_curv_gate_percentile
         self.min_radius_mm             = min_radius_mm
@@ -397,7 +404,11 @@ class AneurysmDetector:
             mean_curv_region  = float(np.mean(r_mean_arr))
             gauss_curv_region = float(np.mean(r_gauss_arr))
 
-            if mean_curv_region < mean_curv_gate:
+            if self.min_mean_curv_radius is not None:
+                convexa = mean_curv_region * radius >= self.min_mean_curv_radius
+            else:
+                convexa = mean_curv_region >= mean_curv_gate
+            if not convexa:
                 n_fail_mean += 1
                 continue
 

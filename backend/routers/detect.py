@@ -118,6 +118,17 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
             min_positive_gauss_frac   = 0.40,
             min_sphericity            = 0.25,
             pre_smooth_iterations     = 25,
+            # La puerta de curvatura media, adimensional: curvatura media de la
+            # región × radio de su esfera ajustada. Una esfera da 1, un tubo
+            # 0,5; 0,7 queda entre los dos. Antes era el percentil 40 de TODA
+            # la malla, y la malla tubular está llena de vasos finos (radio
+            # ~0,5 mm, curvatura ~1): el percentil subía a ~1,0 mm⁻¹ y tiraba
+            # cualquier cúpula de más de ~2 mm de radio, cuya curvatura es
+            # 0,5–0,6. En Case 3 segmentado de cero la lesión caía por ahí
+            # (0,64 < 1,00) y no entraba en la lista; en la sesión del usuario
+            # pasaba por los pelos (1,014 ≥ 1,014). Con H·r ≥ 0,7 sale 1.ª en
+            # las dos mallas de Case 3 y en IM_0055, e igual con 0,5 o 0,9.
+            min_mean_curv_radius      = 0.7,
         )
     return AneurysmDetector(
         gauss_percentile          = 85.0,
@@ -1048,11 +1059,18 @@ def _run_morphometry_sync(
     vessel_path = vtp_path.parent / "vessel_tree.vtp"
     if vessel_path.exists():
         try:
-            from services.parent_artery import estimate_parent_artery_diameter
+            from services.parent_artery import (estimate_parent_artery_diameter,
+                                                neck_point_on_axis)
             vessel = read_vtp(vessel_path)
+            # El cuello en mundo: el plano marcado si lo hay; si no, la
+            # posición del cuello a lo largo del eje del SACO (no del árbol).
+            if plane_arg is not None:
+                neck_pt = plane_arg[0]
+            else:
+                neck_pt = neck_point_on_axis(poly, mr.centroid, mr.principal_axis,
+                                             mr.neck_plane_pos)
             parent_dia = estimate_parent_artery_diameter(
-                vessel, mr.centroid, mr.principal_axis,
-                mr.neck_diameter_mm, mr.neck_plane_pos,
+                vessel, neck_pt, mr.principal_axis, mr.neck_diameter_mm,
             )
             if parent_dia > 0.1:
                 mr.size_ratio = mr.max_diameter_mm / parent_dia

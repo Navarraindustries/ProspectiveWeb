@@ -76,7 +76,11 @@ async def compute_centerline(session_id: str, req: CenterlineRequest) -> Centerl
         raise HTTPException(status_code=500, detail=f"Error en línea central: {exc}")
 
     url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(time.time() * 1000)}"
+    return _to_out(result, url)
 
+
+def _to_out(result, url: str) -> CenterlineResult:
+    """Las métricas de la respuesta, igual al extraer que al volver a leerlas."""
     tort = result.tortuosity
     warning = None
     if tort >= 1.25:
@@ -94,6 +98,39 @@ async def compute_centerline(session_id: str, req: CenterlineRequest) -> Centerl
         max_diameter_mm=round(result.max_radius_mm * 2.0, 2),
         warning=warning,
     )
+
+
+@router.get(
+    "/centerline/{session_id}",
+    response_model=CenterlineResult | None,
+    summary="The centreline already extracted in this session, or null",
+    description=(
+        "Rebuilds the metrics from the medial-axis points the extraction saved "
+        "(`centerline_points.npz`), with the same arithmetic as the extraction. "
+        "After «Reanudar» the tube came back but the metrics table stayed empty "
+        "until the centreline was extracted again. Null when none was extracted."
+    ),
+)
+async def get_centerline(session_id: str) -> CenterlineResult | None:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    meshes_dir = session_subdir(session_id, "meshes")
+    points_path = meshes_dir / "centerline_points.npz"
+    if not points_path.exists() or not (meshes_dir / "centerline.vtp").exists():
+        return None
+    try:
+        with np.load(points_path) as data:
+            pts = data["points"].astype(float)
+            radii = data["radii"].astype(float)
+    except Exception as exc:  # noqa: BLE001 — un fichero dañado es «no hay»
+        logger.warning("centerline_points.npz ilegible en %s: %s", session_id, exc)
+        return None
+    if len(pts) < 2:
+        return None
+    from services.centerline import CenterlineExtractor
+    result = CenterlineExtractor._compute_metrics(pts, radii)
+    url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(points_path.stat().st_mtime * 1000)}"
+    return _to_out(result, url)
 
 
 def _run_cross_section(vessel_path, points_path, n_samples):

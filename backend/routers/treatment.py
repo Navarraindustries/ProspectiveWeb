@@ -1,11 +1,16 @@
 """Treatment decision router — CLIP vs ENDOVASCULAR."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
 
 import json
 
 from models import TreatmentDecisionRequest, TreatmentDecisionResult, DecisionFactor
+from services.audit import ACT_TREATMENT_DECISION, audit_append
+from services.auth_service import get_current_user
+from services.db_models import User
 from services.treatment import compute_decision
 from services.sessions  import read_state, write_state, session_exists
 
@@ -40,6 +45,7 @@ def _load_float(session_id: str, key: str, default: float) -> float:
 )
 async def compute_treatment_decision(
     req: TreatmentDecisionRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> TreatmentDecisionResult:
     # Validate session (soft check — morpho may not be available yet in early development)
     if not session_exists(req.session_id):
@@ -125,6 +131,16 @@ async def compute_treatment_decision(
                 "" if req.prior_stroke is None else str(req.prior_stroke))
     write_state(req.session_id, "clinical.has_comorbidities",
                 "1" if req.has_comorbidities else "0")
+
+    # La recomendación es lo que el informe imprime y lo que se lleva a la
+    # sesión multidisciplinar: queda quién la pidió y con qué salió. La
+    # constante existía y nadie la usaba.
+    audit_append(ACT_TREATMENT_DECISION, {
+        "session_id": req.session_id,
+        "recommendation": result.get("recommendation_key", ""),
+        "confidence": result.get("confidence", ""),
+        "ruptured": bool(req.is_ruptured),
+    }, username=current_user.username if current_user else "")
 
     return TreatmentDecisionResult(**result)
 

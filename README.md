@@ -2158,6 +2158,34 @@ patient imaging.
 | `POST` | `/api/export/stl` | Binary STL export |
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
 | `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
+| `POST` `GET` | `/api/captures` · `/api/captures/{id}/image` | Viewer capture (PNG) attached to the imaging study · list · serve |
+| `POST` `GET` | `/api/captures/video` · `/api/captures/{id}/video` | Viewer recording (MP4/WebM, ≤ 80 MB, checked by its bytes) · serve |
+| `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |
+
+**Captures and recordings.** «Captura» and «● Grabar», in the top bar, save what
+the *viewer* shows — every visible pane in place plus the HUD readouts
+(orientation, slice, measurements) — and never the screen: the top bar carries
+the patient's name and an image or a video gets forwarded without thinking.
+Both are composed by the same `paintFrame`, so a capture and a video of the same
+viewer cannot differ. A recording is video only (no audio), MP4 where the browser
+can encode it and WebM otherwise, stops by itself at 3 minutes, downloads
+immediately and is also stored in the imaging study next to the captures; with
+no archived study it only downloads, and says so. They live in the durable
+archive, never under `data/`, and are served only by the authenticated
+endpoints above. The PDF report offers and embeds captures only, not videos.
+
+The «CORTES» and «REGLAS» toggles hide the slice strip and the HUD decoration
+(corners, heading tape, slice ladder, reticle); orientation letters, slice
+number, measurements and safety warnings stay. They are per-browser view
+preferences, and captures and recordings follow what is on screen.
+
+**What the audit chain records.** Login, password changes and resets, PDF and
+DICOM-SR generation, clip workshops and every order transition, the treatment
+recommendation, saving or deleting a capture or recording, and deleting a
+patient or a case. The signer is the logged-in user — not the surgeon name
+typed into the report form. Patients enter as a hash of their record number
+and date of birth; no name and no free text written by the professional (a
+capture's label, for instance) goes into the chain.
 
 **Where the clip sits.** `pose_transform` puts a device's LOCAL ORIGIN on the
 neck, and the synthetic catalogue clips are drawn with the jaw straddling that
@@ -2288,10 +2316,15 @@ clinician.
   the strategy key and a clinical hint; the UI reads the slider range from
   `GET /api/segment/suggested-band/{sid}` instead. Both share the same
   `compute_auto_thresholds` core, so they cannot drift apart.
-- **No progress streaming.** Long operations show an indeterminate bar. A
-  WebSocket route used to exist but emitted a canned sequence unrelated to real
-  work and no client connected to it, so it was removed rather than left to look
-  like a feature.
+- **Progress is reported for segmentation only.** `/ws/progress/{sid}` (cookie
+  auth) and its `GET /api/progress/{sid}` fallback carry the real phase and
+  percentage of a segmentation; detection, morphometry and the rest still show
+  an indeterminate bar. `POST /api/segment` itself stays synchronous, so behind
+  a proxy with a short timeout the browser can get a 504 while the server
+  finishes and replaces the mesh anyway.
+- **Recordings run at up to 30 fps only while the tab is visible.** In a
+  background tab the browser throttles timers to about once a second, so the
+  video keeps going but with few frames.
 - **CSRF relies on `SameSite=Lax`.** The auth cookie is not sent on cross-site
   requests, and the API only accepts JSON, but there is no anti-CSRF token. Add
   one before serving the app from a domain that also hosts untrusted content.

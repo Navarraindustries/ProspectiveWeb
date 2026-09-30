@@ -17,6 +17,8 @@ _STUDY_CASE_FIELDS = (
 )
 from services.database import get_db
 from services.auth_service import get_current_user
+from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, audit_append,
+                            audit_patient)
 from services.db_models import Patient, PlanningSession, Study, User
 
 # Patient demographic + history fields copied on create / update.
@@ -329,12 +331,15 @@ async def delete_study(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> None:
     study = _get_owned_study(db, patient_id, study_id, current_user)
+    paciente = audit_patient(db.get(Patient, patient_id))
     # Its planning sessions have a study_id FK without cascade — detach them so
     # the saved planning work survives under the patient.
     db.query(PlanningSession).filter(PlanningSession.study_id == study_id).update({"study_id": None})
     db.delete(study)
     db.commit()
     logger.info("Study deleted — patient=%d study=%d", patient_id, study_id)
+    audit_append(ACT_CASE_DELETED, {"patient": patient_id, "case": study_id},
+                 username=current_user.username if current_user else "", **paciente)
 
 
 # ── GET /patients/{patient_id} ─────────────────────────────────────────────── #
@@ -413,12 +418,17 @@ async def delete_patient(
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     _require_owner_or_admin(patient, current_user)
 
+    paciente = audit_patient(patient)
+    n_casos = len(patient.studies or [])
     # Planning sessions carry a patient_id FK without cascade — remove them first
     # (studies are removed by the ORM cascade on Patient.studies).
-    db.query(PlanningSession).filter(PlanningSession.patient_id == patient_id).delete()
+    n_sesiones = db.query(PlanningSession).filter(PlanningSession.patient_id == patient_id).delete()
     db.delete(patient)
     db.commit()
     logger.info("Patient deleted — id=%d", patient_id)
+    audit_append(ACT_PATIENT_DELETED,
+                 {"patient": patient_id, "cases": n_casos, "planning_sessions": n_sesiones},
+                 username=current_user.username if current_user else "", **paciente)
 
 
 # ── GET /patients/{patient_id}/sessions ────────────────────────────────────── #

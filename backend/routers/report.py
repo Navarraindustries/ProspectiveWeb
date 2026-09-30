@@ -22,7 +22,9 @@ from models.trajectory import (CorridorAssessmentOut, ProposedCorridorOut,
                                SuggestCorridorsRequest, SuggestCorridorsResult,
                                TrajectoryRequest, TrajectoryResult,
                                VesselCrossingOut)
+from services.auth_service import get_current_user
 from services.database import get_db
+from services.db_models import User
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state,
 )
@@ -35,6 +37,16 @@ from services.segmentation import read_vtp
 
 logger  = logging.getLogger(__name__)
 router  = APIRouter(prefix="/api", tags=["report"])
+
+
+def _quien(user: "User | None", req: ReportRequest) -> str:
+    """Quién firma en la auditoría: el usuario que ha iniciado sesión.
+
+    Antes era `req.surgeon_name`, el texto libre del formulario: cualquiera
+    podía generar un informe y dejar en la cadena el nombre de otro. El
+    cirujano que figura en el PDF sigue siendo el del formulario; la cadena
+    registra quién lo generó."""
+    return user.username if user else (req.surgeon_name or "")
 
 
 def _versioned(url: str) -> str:
@@ -70,6 +82,7 @@ _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="report-worker"
 async def generate_report(
     req: ReportRequest,
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> ReportResult:
     if not session_exists(req.session_id):
         raise HTTPException(
@@ -115,7 +128,7 @@ async def generate_report(
 
     from services.audit import audit_append, ACT_REPORT_GENERATED
     audit_append(ACT_REPORT_GENERATED, {"session_id": req.session_id, "pages": page_count},
-                 username=req.surgeon_name or "", patient_id=req.hospital_id or "")
+                 username=_quien(current_user, req), patient_id=req.hospital_id or "")
 
     logger.info(
         "Report generated — session=%s  pages=%s  size=%.1f KB",
@@ -161,6 +174,7 @@ def _pdf_page_count(path: Path) -> int | None:
 async def generate_dicom_sr(
     req: ReportRequest,
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> ReportResult:
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
@@ -228,7 +242,7 @@ async def generate_dicom_sr(
 
     from services.audit import audit_append, ACT_SR_GENERATED
     audit_append(ACT_SR_GENERATED, {"session_id": req.session_id},
-                 username=req.surgeon_name or "", patient_id=req.hospital_id or "")
+                 username=_quien(current_user, req), patient_id=req.hospital_id or "")
 
     logger.info("DICOM SR generated — session=%s  size=%.1f KB",
                 req.session_id, sr_path.stat().st_size / 1024)

@@ -99,6 +99,36 @@ class TestCenterline:
             assert k in r.json(), f"missing {k}"
 
 
+class TestVolverALeerLaLineaCentral:
+    """Tras «Reanudar» el tubo volvía pero la tabla salía vacía: las métricas
+    solo existían en la respuesta de la extracción."""
+
+    def test_devuelve_las_mismas_metricas_que_la_extraccion(self):
+        sid = _session_with_vessel()
+        extraida = client.post(f"/api/centerline/{sid}", json=_body(0, 0, 3, 0, 0, 37)).json()
+        leida = client.get(f"/api/centerline/{sid}")
+        assert leida.status_code == 200
+        leida = leida.json()
+        for k in ("n_points", "arc_length_mm", "chord_length_mm", "tortuosity",
+                  "tortuosity_index_pct", "mean_diameter_mm", "min_diameter_mm", "max_diameter_mm"):
+            assert leida[k] == extraida[k], k
+        assert leida["centerline_mesh_url"].split("?")[0] == extraida["centerline_mesh_url"].split("?")[0]
+
+    def test_sin_extraer_devuelve_null(self):
+        sid = _session_with_vessel()
+        r = client.get(f"/api/centerline/{sid}")
+        assert r.status_code == 200 and r.json() is None
+
+    def test_tras_borrarla_devuelve_null(self):
+        sid = _session_with_vessel()
+        client.post(f"/api/centerline/{sid}", json=_body(0, 0, 3, 0, 0, 37))
+        client.delete(f"/api/centerline/{sid}")
+        assert client.get(f"/api/centerline/{sid}").json() is None
+
+    def test_sesion_inexistente(self):
+        assert client.get("/api/centerline/nope").status_code == 404
+
+
 class TestCrossSection:
     def test_requires_centerline_first(self):
         sid = _session_with_vessel()

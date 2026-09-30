@@ -27,6 +27,13 @@ ACT_DEVICE_PLACED      = "DEVICE_PLACED"
 ACT_REPORT_GENERATED   = "REPORT_GENERATED"
 ACT_SR_GENERATED       = "DICOM_SR_GENERATED"
 ACT_INTEGRITY_CHECK    = "INTEGRITY_CHECK"
+# Lo que no se puede deshacer, y lo que pasa a formar parte del caso. Antes no
+# quedaba rastro de quién borró un paciente o una captura.
+ACT_PATIENT_DELETED    = "PATIENT_DELETED"
+ACT_CASE_DELETED       = "CASE_DELETED"
+ACT_CAPTURE_SAVED      = "CAPTURE_SAVED"
+ACT_RECORDING_SAVED    = "RECORDING_SAVED"
+ACT_CAPTURE_DELETED    = "CAPTURE_DELETED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a
@@ -199,6 +206,16 @@ class SkullChain:
                 lines.append(f"  Block #{b['id']} ({b['iso_ts']}) {b['action']}: {b['reason']}")
         lines.append("=" * 100)
         return "\n".join(lines) + "\n"
+
+
+def audit_patient(patient) -> dict:
+    """Los argumentos de paciente de `audit_append` para una fila `Patient`.
+
+    Solo su historia clínica y su fecha de nacimiento, que la cadena guarda
+    como hash: el nombre no entra nunca en el registro."""
+    if patient is None:
+        return {}
+    return {"patient_id": patient.hospital_id or f"id:{patient.id}", "patient_dob": patient.dob or ""}
 
 
 def audit_append(action: str, payload: dict, username: str = "",

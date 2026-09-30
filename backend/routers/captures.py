@@ -30,7 +30,9 @@ from sqlalchemy.orm import Session
 from models.captures import CaptureCreate, CaptureOut, CaptureRename
 from services.auth_service import get_current_user
 from services.database import get_db
-from services.db_models import CaseCapture, ImagingStudy, User
+from services.audit import (ACT_CAPTURE_DELETED, ACT_CAPTURE_SAVED, ACT_RECORDING_SAVED,
+                            audit_append, audit_patient)
+from services.db_models import CaseCapture, ImagingStudy, Patient, User
 from services.storage import capture_key, get_storage
 
 logger = logging.getLogger(__name__)
@@ -100,6 +102,17 @@ def _out(row: CaseCapture) -> CaptureOut:
     )
 
 
+def _auditar(db: Session, accion: str, row: CaseCapture, user: User | None) -> None:
+    """Deja rastro en la cadena. Sin el rótulo ni nada que el profesional
+    escriba: el paciente va como hash y la captura por su id."""
+    paciente = audit_patient(db.get(Patient, row.patient_id)) if row.patient_id else {}
+    audit_append(accion, {
+        "capture": row.id, "imaging_study": row.imaging_study_id, "case": row.case_id,
+        "step": row.step or "", "media_type": row.media_type or "image/png",
+        "size_bytes": row.size_bytes or 0, "duration_s": float(row.duration_s or 0.0),
+    }, username=user.username if user else "", **paciente)
+
+
 def _get(db: Session, capture_id: int) -> CaseCapture:
     row = db.query(CaseCapture).filter(CaseCapture.id == capture_id).first()
     if row is None:
@@ -166,6 +179,7 @@ async def create_capture(
     db.commit()
     db.refresh(row)
     logger.info("Captura %s archivada en el estudio %s (%.0f KB)", row.id, img.id, len(raw) / 1024)
+    _auditar(db, ACT_CAPTURE_SAVED, row, current_user)
     return _out(row)
 
 
@@ -276,6 +290,7 @@ async def create_video(
     db.refresh(row)
     logger.info("Grabación %s archivada en el estudio %s (%.1f MB, %.0f s)",
                 row.id, img.id, len(raw) / 1e6, duration_s)
+    _auditar(db, ACT_RECORDING_SAVED, row, current_user)
     return _out(row)
 
 
@@ -409,10 +424,13 @@ async def rename_capture(
     description="Quita la fila y el fichero del archivo. No se puede deshacer.",
 )
 async def delete_capture(
-    capture_id: int,
-    db:         Annotated[Session, Depends(get_db)],
+    capture_id:   int,
+    db:           Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> Response:
     row = _get(db, capture_id)
+    # Antes de borrarla: después ya no hay fila de la que sacar el paciente.
+    _auditar(db, ACT_CAPTURE_DELETED, row, current_user)
     key = row.storage_key
     db.delete(row)
     db.commit()

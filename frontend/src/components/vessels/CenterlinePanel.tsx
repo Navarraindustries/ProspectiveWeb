@@ -2,7 +2,7 @@
    the 3D viewer, then extract the medial-axis centreline (arc length, tortuosity,
    vessel diameter). Mirrors the desktop CenterlinePanel. */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { CenterlineResult, CrossSectionResult } from "../../api/types";
 import { Badge } from "../Badge";
@@ -49,6 +49,18 @@ export function CenterlinePanel() {
 
   const hasMesh = !!segmentation?.mesh_url;
   const ready = hasMesh && !!clSource && !!clTarget && !busy;
+
+  // Tras «Reanudar» (o al volver a este paso) el tubo ya está en el visor pero
+  // las métricas vivían solo en este estado local, y la tabla salía vacía hasta
+  // volver a extraer. Se piden al backend, que las rehace de los puntos guardados.
+  useEffect(() => {
+    if (!sessionId || !centerlineMesh || result) return;
+    let vivo = true;
+    api.getCenterline(sessionId)
+      .then((r) => { if (vivo && r) setResult(r); })
+      .catch(() => { /* sin métricas se ve lo de antes: el botón para extraer */ });
+    return () => { vivo = false; };
+  }, [sessionId, centerlineMesh, result]);
 
   const extract = async () => {
     if (!sessionId || !clSource || !clTarget) return;

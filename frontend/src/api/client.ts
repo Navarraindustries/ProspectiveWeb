@@ -336,6 +336,9 @@ export const api = {
     ),
   centerline: (sessionId: string, req: CenterlineRequest) =>
     post<CenterlineResult>(`/api/centerline/${sessionId}`, req),
+  /** La línea central ya extraída en la sesión (métricas incluidas), o null. */
+  getCenterline: (sessionId: string) =>
+    get<CenterlineResult | null>(`/api/centerline/${sessionId}`),
   /** Discard the centreline, its cached points and any stent built along it. */
   clearCenterline: (sessionId: string) =>
     request<CenterlineClearResult>(`/api/centerline/${sessionId}`, { method: "DELETE" }),

@@ -100,6 +100,22 @@ describe("la captura lleva los cinco paneles", () => {
   });
 });
 
+describe("debajo de cada panel hay negro", () => {
+  it("si la imagen del panel llega vacía se ve negro, no el color de las separaciones", async () => {
+    // Pasó en vídeo: un lienzo de vtk copiado ya descartado es transparente, y
+    // asomaba el fondo verde de las separaciones en fotogramas enteros.
+    const { deps: d, rec } = deps();
+    await composeCapture(base(visor(), d));
+    for (const p of visor()) {
+      const r = p.rect;
+      const negro = rec.rects.findIndex((x) => x.color === "#000" && x.x === r.x && x.y === r.y && x.w === r.w && x.h === r.h);
+      const imagen = rec.imagenes.findIndex((i) => i.x === r.x && i.y === r.y);
+      expect(negro, p.id).toBeGreaterThanOrEqual(0);
+      expect(imagen, p.id).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
 describe("el HUD viaja dentro de la imagen", () => {
   it("lleva el rumbo y el aviso de resolución", async () => {
     const { deps: d, rec } = deps();

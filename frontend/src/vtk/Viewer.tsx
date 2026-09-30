@@ -429,7 +429,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
       const r = el.getBoundingClientRect();
       return { x: Math.round(r.x - base.x), y: Math.round(r.y - base.y), w: Math.round(r.width), h: Math.round(r.height) };
     };
-    const capturaDe = (id: PaneId) => (id === "scene" ? meshCapture.current : paneCaptures.current.get(id) ?? null);
+    // La escena: la malla si la hay; si no, el corte axial que hace de escena
+    // (registrado como «scene», ver `renderPane`).
+    const capturaDe = (id: PaneId) => (id === "scene"
+      ? meshCapture.current ?? paneCaptures.current.get("scene") ?? null
+      : paneCaptures.current.get(id) ?? null);
     const panes: PaneShot[] = [];
     const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
     anotar(layoutRef.current.main, mainEl);
@@ -845,7 +849,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
     </select>
   );
 
-  const renderPane = (id: PaneId, slot: "main" | "strip"): ReactNode => {
+  // `captureAs`: con qué nombre registra su captura. Casi siempre el propio
+  // panel; pero sin malla la escena ES un corte axial, y registrándose como
+  // «axial» chocaba con el axial de la franja: la escena quedaba sin captura
+  // («SIN IMAGEN» en el principal) y, al desmontarse uno, el otro perdía la suya.
+  const renderPane = (id: PaneId, slot: "main" | "strip", captureAs: PaneId = id): ReactNode => {
     const compact = slot === "strip";
     if (id === "scene") return renderScene(compact);
     if (id === "mip") {
@@ -888,7 +896,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
           crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
           band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
-          active={slot === "main"} compact={compact} registerCapture={regPane(id)} />
+          active={slot === "main"} compact={compact} registerCapture={regPane(captureAs)} />
       </Suspense>
     );
   };
@@ -946,7 +954,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       );
       mode = segPreview ? "3D · MALLA GRUESA" : "3D";
     } else if (sceneIsSlice) {
-      body = renderPane("axial", compact ? "strip" : "main");
+      body = renderPane("axial", compact ? "strip" : "main", "scene");
     } else {
       body = (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>

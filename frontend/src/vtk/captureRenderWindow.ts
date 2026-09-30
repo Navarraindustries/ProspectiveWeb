@@ -35,6 +35,32 @@ export interface CapturableWindow {
     captureNextImage?: (fmt: string) => Promise<string>;
     getCanvas?: () => HTMLCanvasElement | null;
   } | null;
+  /** La ventana de render del núcleo: la que sabe dibujar sin pasar por el
+   *  interactor (ver `drawNow`). */
+  getRenderWindow?: () => {
+    preRender?: () => void;
+    getViews?: () => { traverseAllPasses: () => void }[];
+  } | null;
+}
+
+/** Dibuja YA, aunque el interactor esté animando.
+ *
+ *  `renderWindow.render()` pasa por el interactor, y el interactor NO dibuja
+ *  mientras anima (vtk.js, RenderWindowInteractor.render: «if
+ *  (!isAnimating() && !inRender) forceRender()»): mientras el profesional
+ *  gira la malla, esa llamada no hace nada. Se copiaba entonces un lienzo ya
+ *  descartado —transparente— y en el vídeo asomaba el fondo verde de las
+ *  separaciones. Esto hace lo mismo que el `forceRender` interno de vtk.js:
+ *  recorrer los pases de cada vista. Si la ventana no lo permite, `render`. */
+export function drawNow(win: CapturableWindow | null | undefined, render: () => void): void {
+  const rw = win?.getRenderWindow?.();
+  const vistas = rw?.getViews?.();
+  if (rw && vistas && vistas.length > 0) {
+    rw.preRender?.();
+    vistas.forEach((v) => v.traverseAllPasses());
+  } else {
+    render();
+  }
 }
 
 /** Una función que devuelve el PNG (data URL) de esa ventana, o null, y que
@@ -60,9 +86,10 @@ export function captureRenderWindow(win: CapturableWindow | (() => CapturableWin
   };
   capture.grab = (ctx, rect) => {
     try {
-      const canvas = ventana()?.getApiSpecificRenderWindow?.()?.getCanvas?.();
+      const w = ventana();
+      const canvas = w?.getApiSpecificRenderWindow?.()?.getCanvas?.();
       if (!canvas || canvas.width === 0 || canvas.height === 0) return false;
-      render();
+      drawNow(w, render);
       ctx.drawImage(canvas, rect.x, rect.y, rect.w, rect.h);
       return true;
     } catch {

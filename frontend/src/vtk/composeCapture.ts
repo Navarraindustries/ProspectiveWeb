@@ -145,9 +145,12 @@ export function paintFrame(
 
   panes.forEach((p, i) => {
     const { x, y, w, h } = p.rect;
+    // Negro debajo de cada panel, como en el visor: si su imagen llega vacía
+    // o transparente, se ve negro y no el color de las separaciones. Así salía
+    // un vídeo con fotogramas enteros en verde.
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x, y, w, h);
     if (!draw(i, p.rect)) {
-      ctx.fillStyle = "#000";
-      ctx.fillRect(x, y, w, h);
       ctx.fillStyle = colors.dim;
       ctx.font = `${SIZE}px ${fontFamily}`;
       ctx.textAlign = "center";

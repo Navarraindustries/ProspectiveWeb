@@ -94,3 +94,31 @@ describe("el peso", () => {
     expect(humanSize(0)).toBe("");
   });
 });
+
+describe("grabaciones en la galería", () => {
+  const video = () => fila({ id: 9, label: "Giro del domo", media_type: "video/mp4", duration_s: 65,
+                             video_url: "/api/captures/9/video", image_url: "", size_bytes: 12_000_000 });
+
+  it("no descarga el vídeo al abrir la galería: pesa megas", async () => {
+    listCaptures.mockResolvedValue([video()]);
+    render(<CaptureGallery patientId={4} />);
+    expect(await screen.findByText("Giro del domo")).toBeInTheDocument();
+    expect(screen.getByTitle("Reproducir la grabación")).toHaveTextContent("1:05");
+    expect(captureObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it("al darle a reproducir lo pide con credenciales y lo enseña", async () => {
+    const { api } = await import("../api/client");
+    (api as unknown as { recordingObjectUrl: (id: number) => Promise<string> }).recordingObjectUrl = vi.fn().mockResolvedValue("blob:video-9");
+    listCaptures.mockResolvedValue([video()]);
+    const { container } = render(<CaptureGallery patientId={4} />);
+    (await screen.findByTitle("Reproducir la grabación")).click();
+    await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBe("blob:video-9"));
+  });
+
+  it("el fichero sale con su extensión de vídeo", () => {
+    expect(downloadName({ ...video(), media_type: "video/mp4" })).toMatch(/\.mp4$/);
+    expect(downloadName({ ...video(), media_type: "video/webm" })).toMatch(/\.webm$/);
+    expect(downloadName(fila())).toMatch(/\.png$/);
+  });
+});

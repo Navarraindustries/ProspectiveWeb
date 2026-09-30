@@ -1681,9 +1681,33 @@ export interface CaptureOut {
   created_at: string;
   created_by: string;
   image_url: string;
+  /** "image/png" en una captura; "video/mp4" o "video/webm" en una grabación.
+   *  Opcional para leer filas de un backend anterior, que eran todas PNG. */
+  media_type?: string;
+  /** Duración de la grabación en segundos; 0 en una captura. */
+  duration_s?: number;
+  /** Endpoint autenticado del vídeo; vacío en una captura. */
+  video_url?: string;
   /** El estado que la produjo: cámara, candidato, umbral, medidas en pantalla.
    *  Es lo que permite situar la imagen dentro de seis semanas. */
   state: Record<string, unknown>;
+}
+
+/** ¿Es una grabación y no una imagen? */
+export function isRecording(c: Pick<CaptureOut, "media_type">): boolean {
+  return (c.media_type ?? "image/png").startsWith("video/");
+}
+
+/** Lo que el grabador del visor manda al terminar (el vídeo va aparte). */
+export interface RecordingCreate {
+  imaging_study_id: number;
+  session_id?: string;
+  step?: string;
+  label?: string;
+  width?: number;
+  height?: number;
+  duration_s?: number;
+  state?: Record<string, unknown>;
 }
 
 /** Lo que el visor manda al pulsar el botón de captura. */

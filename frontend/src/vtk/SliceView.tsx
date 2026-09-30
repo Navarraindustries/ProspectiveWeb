@@ -322,10 +322,10 @@ export function SliceView(p: SliceViewProps) {
           <HudReticle cx={box.left + p.crosshair.u * box.w} cy={box.top + p.crosshair.v * box.h} mmPerPx={box.mmPerPx} />
         )}
         {box && p.referenceLines?.u != null && (
-          <div style={{ position: "absolute", left: box.left + p.referenceLines.u * box.w, top: box.top, width: 1, height: box.h, background: "var(--hud-amber)", opacity: 0.5 }} />
+          <div className="hud-decor" style={{ position: "absolute", left: box.left + p.referenceLines.u * box.w, top: box.top, width: 1, height: box.h, background: "var(--hud-amber)", opacity: 0.5 }} />
         )}
         {box && p.referenceLines?.v != null && (
-          <div style={{ position: "absolute", top: box.top + p.referenceLines.v * box.h, left: box.left, height: 1, width: box.w, background: "var(--hud-amber)", opacity: 0.5 }} />
+          <div className="hud-decor" style={{ position: "absolute", top: box.top + p.referenceLines.v * box.h, left: box.left, height: 1, width: box.w, background: "var(--hud-amber)", opacity: 0.5 }} />
         )}
         <HudLadder count={count} index={p.index} />
         <HudReadout at="bl" lines={[`${String(p.index + 1).padStart(3, " ")}/${count}`]} />

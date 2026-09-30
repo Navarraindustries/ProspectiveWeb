@@ -6,7 +6,7 @@ export function HudReticle({ cx, cy, mmPerPx, label }: { cx: number; cy: number;
   if (tick >= 6) for (let d = tick; d < 2000; d += tick) marks.push(d);
   const line = { position: "absolute" as const, background: "var(--hud-dim)" };
   return (
-    <>
+    <div className="hud-decor" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
       <div style={{ ...line, left: 0, width: `calc(${cx}px - ${gap}px)`, top: cy, height: 1 } as React.CSSProperties} />
       <div style={{ ...line, left: cx + gap, right: 0, top: cy, height: 1 }} />
       <div style={{ ...line, top: 0, height: `calc(${cy}px - ${gap}px)`, left: cx, width: 1 } as React.CSSProperties} />
@@ -22,6 +22,6 @@ export function HudReticle({ cx, cy, mmPerPx, label }: { cx: number; cy: number;
       {label && (
         <span style={{ position: "absolute", left: cx + 10, top: cy + 6, fontSize: 10, color: "var(--hud)" }}>{label}</span>
       )}
-    </>
+    </div>
   );
 }

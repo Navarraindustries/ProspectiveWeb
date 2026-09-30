@@ -77,3 +77,17 @@ describe("el selector", () => {
     expect(await screen.findByText(/No hay capturas guardadas/)).toBeInTheDocument();
   });
 });
+
+describe("grabaciones", () => {
+  it("no ofrece vídeos para el PDF, que no los puede llevar", async () => {
+    listCaptures.mockResolvedValue([
+      fila(1, "cuello"),
+      { ...fila(9, "giro del domo"), media_type: "video/mp4", duration_s: 12, video_url: "/api/captures/9/video", image_url: "" },
+    ]);
+    render(<Harness />);
+    await screen.findByText("cuello");
+    expect(screen.queryByText("giro del domo")).toBeNull();
+    await waitFor(() => expect(captureObjectUrl).toHaveBeenCalledTimes(1));
+    expect(captureObjectUrl).not.toHaveBeenCalledWith(9);
+  });
+});

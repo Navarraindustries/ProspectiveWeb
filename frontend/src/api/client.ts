@@ -6,6 +6,7 @@ import type {
   AuditBlock,
   AuditVerifyResult,
   CaptureCreate,
+  RecordingCreate,
   ScissorsRequest,
   ScissorsResult,
   CaptureOut,
@@ -601,9 +602,27 @@ export const api = {
     if (by.patientId != null) p.set("patient_id", String(by.patientId));
     return get<CaptureOut[]>(`/api/captures?${p.toString()}`);
   },
+  /** Guarda una grabación del visor: multipart, porque pesa megas. */
+  saveRecording: (video: Blob, meta: RecordingCreate) => {
+    const fd = new FormData();
+    const ext = video.type.includes("mp4") ? "mp4" : "webm";
+    fd.append("file", video, `grabacion.${ext}`);
+    fd.append("imaging_study_id", String(meta.imaging_study_id));
+    fd.append("session_id", meta.session_id ?? "");
+    fd.append("step", meta.step ?? "");
+    fd.append("label", meta.label ?? "");
+    fd.append("width", String(Math.round(meta.width ?? 0)));
+    fd.append("height", String(Math.round(meta.height ?? 0)));
+    fd.append("duration_s", String(meta.duration_s ?? 0));
+    fd.append("state", JSON.stringify(meta.state ?? {}));
+    return post<CaptureOut>("/api/captures/video", fd);
+  },
   /** El PNG; necesita el JWT, así que va por blob y URL de objeto. */
   captureObjectUrl: async (captureId: number) =>
     URL.createObjectURL(await getBlob(`/api/captures/${captureId}/image`)),
+  /** El vídeo de una grabación, igual: blob y URL de objeto. */
+  recordingObjectUrl: async (captureId: number) =>
+    URL.createObjectURL(await getBlob(`/api/captures/${captureId}/video`)),
   renameCapture: (captureId: number, label: string) =>
     request<CaptureOut>(`/api/captures/${captureId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label }),

@@ -21,6 +21,7 @@ import { DevicesPanel } from "../components/planning/DevicesPanel";
 import { ManufacturePanel } from "../components/planning/ManufacturePanel";
 import { ReportPanel } from "../components/planning/ReportPanel";
 import { ViewerWorkspace } from "../vtk/Viewer";
+import { RecordButton } from "../components/RecordButton";
 import { usePlanning } from "../store/planning";
 
 
@@ -83,6 +84,8 @@ export function Workspace({
       setTimeout(() => setShot((v) => (v === "err" ? "idle" : v)), 4000);
     }
   };
+  // Cómo terminó la última grabación: guardada, solo descargada o fallida.
+  const [recMessage, setRecMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   // A failed save used to reset the button to "Guardar progreso" with no notice,
   // so the user believed their work was stored when it was not.
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -216,6 +219,7 @@ export function Workspace({
         >
           {shot === "busy" ? "Capturando…" : shot === "ok" ? "Captura guardada ✓" : shot === "err" ? "No se guardó" : "Captura"}
         </Button>
+        <RecordButton step={step} onMessage={setRecMessage} />
         <Button
           variant="outline"
           size="sm"
@@ -266,6 +270,29 @@ export function Workspace({
         >
           <Icon name="STATUS_WARN" size={14} color="var(--destructive)" />
           <span style={{ flex: 1, minWidth: 0 }}>No se pudo guardar la captura: {shotError}</span>
+          <span style={{ opacity: 0.7 }}>✕</span>
+        </div>
+      )}
+
+      {/* Cómo terminó la grabación: el vídeo se descarga siempre, y esto dice
+          si además quedó en el caso. Un «solo descargado» callado haría creer
+          que está en el historial. */}
+      {recMessage && (
+        <div
+          role={recMessage.tone === "err" ? "alert" : "status"}
+          onClick={() => setRecMessage(null)}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+            padding: "8px 18px", fontSize: 12, fontWeight: 600,
+            background: recMessage.tone === "err"
+              ? "color-mix(in srgb, var(--destructive) 12%, transparent)"
+              : "color-mix(in srgb, var(--success, #2f7d5b) 12%, transparent)",
+            color: recMessage.tone === "err" ? "var(--destructive)" : "var(--success, #2f7d5b)",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <Icon name={recMessage.tone === "err" ? "STATUS_WARN" : "STATUS_OK"} size={14} />
+          <span style={{ flex: 1, minWidth: 0 }}>{recMessage.text}</span>
           <span style={{ opacity: 0.7 }}>✕</span>
         </div>
       )}

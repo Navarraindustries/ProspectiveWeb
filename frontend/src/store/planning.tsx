@@ -4,6 +4,13 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { PartsHandle } from "../vtk/MeshView";
+import type { FrameSource } from "../vtk/viewerRecorder";
+
+/** Lo que el visor le da al grabador del topbar. */
+export interface ViewerRecordingSource extends FrameSource {
+  /** El estado que se guarda con el vídeo, como con una captura. */
+  state: () => Record<string, unknown>;
+}
 import { loadLayout, saveLayout, type ViewerLayout } from "../vtk/layout";
 import { mmToVoxel, type ManualOrientation } from "../vtk/geometry";
 import type {
@@ -126,6 +133,10 @@ interface PlanningState {
    *  botón del topbar, que es donde el profesional la busca. Lanza si falla. */
   captureCase: (() => Promise<void>) | null;
   setCaptureCase: (fn: (() => Promise<void>) | null) => void;
+  /** Lo que el grabador del topbar necesita del visor: cómo leer cada
+   *  fotograma y el estado que acompaña al vídeo. Lo publica el visor. */
+  viewerRecording: ViewerRecordingSource | null;
+  setViewerRecording: (src: ViewerRecordingSource | null) => void;
   /** Encuadra el 3D y los cortes en la lesión (cuello medido o candidato
    *  elegido). Lo registra el visor; los paneles solo lo llaman. */
   centerOnLesion: (() => void) | null;
@@ -293,6 +304,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [captureCase, _setCaptureCase] = useState<(() => Promise<void>) | null>(null);
   // Guardar una función en useState la INVOCA si se pasa directa; va envuelta.
   const setCaptureCase = useCallback((fn: (() => Promise<void>) | null) => _setCaptureCase(() => fn), []);
+  const [viewerRecording, setViewerRecording] = useState<ViewerRecordingSource | null>(null);
   // Guardar una función en useState exige envolverla: pasada tal cual, React
   // la toma por actualizador, la llama y guarda lo que devuelve (aquí, una
   // Promise). Así estuvo la captura del informe: nunca era una función.
@@ -401,7 +413,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, centerOnLesion, dirty,
+        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,

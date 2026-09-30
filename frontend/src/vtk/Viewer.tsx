@@ -21,6 +21,7 @@ import { api } from "../api/client";
 import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
+import { PREF_DECOR_HIDDEN, PREF_STRIP_HIDDEN, useStoredFlag } from "./viewerPrefs";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
@@ -175,8 +176,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion,
-    imagingStudyId, setCaptureCase,
+    imagingStudyId, setCaptureCase, setViewerRecording,
   } = usePlanning();
+
+  // Ver solo la vista principal, y la vista sin su decoración: preferencias
+  // del profesional, en su navegador. Las refs las leen la captura y la
+  // grabación, que se publican una vez y no pueden depender del render.
+  const [stripHidden, setStripHidden] = useStoredFlag(PREF_STRIP_HIDDEN);
+  const [decorHidden, setDecorHidden] = useStoredFlag(PREF_DECOR_HIDDEN);
+  const stripHiddenRef = useRef(stripHidden);
+  stripHiddenRef.current = stripHidden;
+  const decorHiddenRef = useRef(decorHidden);
+  decorHiddenRef.current = decorHidden;
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
   const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[] } | null>(() => {
@@ -387,39 +398,69 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // La imagen se adjunta al ESTUDIO DE IMAGEN, que es de donde salió la malla.
   // Sin estudio archivado no hay dónde colgarla y el botón lo dice: no se
   // guarda en la carpeta de la sesión, que se purga a las 24 h.
-  const capturarVisor = useCallback(async () => {
+  // El estado que acompaña a una captura o a una grabación.
+  const levelNoteRef = useRef(levelNote);
+  levelNoteRef.current = levelNote;
+  const estadoVisor = useCallback((root: HTMLElement): Record<string, unknown> => ({
+    layout: layoutRef.current,
+    strip_hidden: stripHiddenRef.current,
+    hud_decor_hidden: decorHiddenRef.current,
+    heading: readHeading(root) ?? null,
+    level_note: levelNote ?? null,
+    view_mode: viewMode,
+    candidate_index: selectedCandidate,
+    candidate_id: candidates[selectedCandidate]?.id ?? null,
+    neck_mm: morphometry?.neck_mm ?? null,
+    max_diameter_mm: morphometry?.max_diameter_mm ?? null,
+    window: mprWl ?? null,
+    orientation_known: effectiveDirection(orientation).known,
+  }), [levelNote, viewMode, selectedCandidate, candidates, morphometry, mprWl, orientation]);
+
+  // Lo que se ve AHORA: cada panel visible con su sitio, su HUD y su captura.
+  // Lo usan la captura (una vez) y la grabación (en cada fotograma), así que
+  // una imagen y un vídeo del mismo visor no pueden diferir. Los paneles de la
+  // franja solo entran si la franja está a la vista.
+  const leerVisor = useCallback(() => {
     const root = viewerRef.current;
     const mainEl = mainAreaRef.current;
-    if (!root || !mainEl || !imagingStudyId) {
-      throw new Error("No hay ningún estudio archivado al que adjuntar la captura.");
-    }
-    {
-      const base = root.getBoundingClientRect();
-      const rel = (el: Element) => {
-        const r = el.getBoundingClientRect();
-        return { x: Math.round(r.x - base.x), y: Math.round(r.y - base.y), w: Math.round(r.width), h: Math.round(r.height) };
-      };
-      const capturaDe = (id: PaneId) => (id === "scene" ? meshCapture.current : paneCaptures.current.get(id) ?? null);
-      const panes: PaneShot[] = [];
-      const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
-      anotar(layoutRef.current.main, mainEl);
+    if (!root || !mainEl) return null;
+    const base = root.getBoundingClientRect();
+    const rel = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.x - base.x), y: Math.round(r.y - base.y), w: Math.round(r.width), h: Math.round(r.height) };
+    };
+    const capturaDe = (id: PaneId) => (id === "scene" ? meshCapture.current : paneCaptures.current.get(id) ?? null);
+    const panes: PaneShot[] = [];
+    const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
+    anotar(layoutRef.current.main, mainEl);
+    if (!stripHiddenRef.current) {
       layoutRef.current.strip.forEach((id, i) => {
         const el = stripCells.current[i];
         if (el) anotar(id, el);
       });
+    }
+    const cs = getComputedStyle(root);
+    const color = (nombre: string, porDefecto: string) => cs.getPropertyValue(nombre).trim() || porDefecto;
+    return {
+      width: Math.round(base.width),
+      height: Math.round(base.height),
+      panes,
+      heading: readHeading(root),
+      note: levelNoteRef.current ?? undefined,
+      colors: { hud: color("--hud", "#cfe3f0"), dim: color("--hud-dim", "#5b6b77"), gap: color("--hud-dim", "#5b6b77") },
+      fontFamily: color("--font-mono", "monospace"),
+    };
+  }, []);
 
-      const cs = getComputedStyle(root);
-      const color = (nombre: string, porDefecto: string) => cs.getPropertyValue(nombre).trim() || porDefecto;
-      const width = Math.round(base.width);
-      const height = Math.round(base.height);
-      const png = await composeCapture({
-        width, height, panes,
-        heading: readHeading(root),
-        note: levelNote ?? undefined,
-        colors: { hud: color("--hud", "#cfe3f0"), dim: color("--hud-dim", "#5b6b77"), gap: color("--hud-dim", "#5b6b77") },
-        fontFamily: color("--font-mono", "monospace"),
-        deps: browserDeps,
-      });
+  const capturarVisor = useCallback(async () => {
+    const vista = leerVisor();
+    if (!vista || !imagingStudyId) {
+      throw new Error("No hay ningún estudio archivado al que adjuntar la captura.");
+    }
+    {
+      const root = viewerRef.current!;
+      const { width, height } = vista;
+      const png = await composeCapture({ ...vista, deps: browserDeps });
       if (!png) throw new Error("No hay ningún panel que capturar.");
 
       const ahora = new Date();
@@ -432,21 +473,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
         width, height,
         // El estado que la produjo. Sin esto, dentro de seis semanas la imagen
         // no contesta qué candidato era ni desde dónde se estaba mirando.
-        state: {
-          layout: layoutRef.current,
-          heading: readHeading(root) ?? null,
-          level_note: levelNote ?? null,
-          view_mode: viewMode,
-          candidate_index: selectedCandidate,
-          candidate_id: candidates[selectedCandidate]?.id ?? null,
-          neck_mm: morphometry?.neck_mm ?? null,
-          max_diameter_mm: morphometry?.max_diameter_mm ?? null,
-          window: mprWl ?? null,
-          orientation_known: effectiveDirection(orientation).known,
-        },
+        state: estadoVisor(root),
       });
     }
-  }, [imagingStudyId, sessionId, step, levelNote, viewMode, selectedCandidate, morphometry, mprWl, orientation]);
+  }, [imagingStudyId, sessionId, step, leerVisor, estadoVisor]);
   // Se publica UNA VEZ una envoltura estable que lee la versión vigente de una
   // ref. Dependiendo de `capturarVisor`, cualquier dependencia suya que naciera
   // nueva en cada render —bastó un objeto literal— volvía a llamar a
@@ -460,6 +490,26 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setCaptureCase(() => capturarRef.current());
     return () => setCaptureCase(null);
   }, [setCaptureCase]);
+
+  // Lo mismo para la grabación, por la misma razón: una sola publicación de
+  // algo estable que lee por refs. En cada fotograma se relee el visor —si a
+  // mitad se oculta la franja o se cambia de panel, el vídeo lo refleja— y
+  // cada panel se copia con `grab`, no con la captura en PNG.
+  const leerVisorRef = useRef(leerVisor);
+  leerVisorRef.current = leerVisor;
+  const estadoVisorRef = useRef(estadoVisor);
+  estadoVisorRef.current = estadoVisor;
+  useEffect(() => {
+    setViewerRecording({
+      read: () => {
+        const v = leerVisorRef.current();
+        if (!v) return null;
+        return { ...v, grabs: v.panes.map((p) => p.capture?.grab ?? null) };
+      },
+      state: () => (viewerRef.current ? estadoVisorRef.current(viewerRef.current) : {}),
+    });
+    return () => setViewerRecording(null);
+  }, [setViewerRecording]);
 
   // Transient "you clicked outside the mesh" hint — without it a missed pick is
   // silent and the tool feels broken.
@@ -1011,7 +1061,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   };
 
   return (
-    <div ref={viewerRef} style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+    <div ref={viewerRef} className={decorHidden ? "hud-nodecor" : undefined}
+         style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
       {sessionId && (
         <OrientationSheet open={orientationOpen} onClose={() => setOrientationOpen(false)} sessionId={sessionId}
           current={manualForSession} onApply={setOrientationManual} />
@@ -1024,21 +1075,33 @@ export function ViewerWorkspace({ step }: { step: string }) {
         {hint && <div key={hintSeq} className="hud-hint">{hint}</div>}
         {/* Arriba del todo (top 2) para no pisar las lecturas `tr` de la celda,
             que empiezan a 22 px; a 24 px del borde, fuera de la marca de esquina. */}
-        <div style={{ position: "absolute", top: 2, right: 24, zIndex: 6, lineHeight: 1.2, fontFamily: "var(--font-mono)" }}>
+        <div style={{ position: "absolute", top: 2, right: 24, zIndex: 6, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
+          {/* CORTES y REGLAS van con SINCRO: los tres dicen cómo se ve el
+              visor, no qué hay en él. Se recuerdan en el navegador. */}
+          <HudToggleGroup
+            options={[{ key: "strip", label: stripHidden ? "CORTES ○" : "CORTES ●",
+                        title: stripHidden ? "Mostrar los cortes axial, coronal, sagital y el MIP" : "Ocultar los cortes y dejar solo la vista principal" }]}
+            value={stripHidden ? "" : "strip"} onChange={() => setStripHidden(!stripHidden)} />
+          <HudToggleGroup
+            options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
+                        title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}
+            value={decorHidden ? "" : "decor"} onChange={() => setDecorHidden(!decorHidden)} />
           <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
             value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
         </div>
       </div>
-      <div className="mpr-strip" style={{ height: "clamp(160px, 26vh, 240px)", flexShrink: 0, display: "flex", gap: 1, background: "var(--hud-dim)" }}>
-        {viewerLayout.strip.map((id, i) => (
-          <div key={id} ref={(el) => { stripCells.current[i] = el; }}
-               style={{ flex: 1, position: "relative", minWidth: 0, background: "#000", overflow: "hidden" }}
-               onDoubleClick={() => setViewerLayout(swapPane(viewerLayout, id))}
-               title="Doble clic: maximizar">
-            {renderPane(id, "strip")}
-          </div>
-        ))}
-      </div>
+      {!stripHidden && (
+        <div className="mpr-strip" style={{ height: "clamp(160px, 26vh, 240px)", flexShrink: 0, display: "flex", gap: 1, background: "var(--hud-dim)" }}>
+          {viewerLayout.strip.map((id, i) => (
+            <div key={id} ref={(el) => { stripCells.current[i] = el; }}
+                 style={{ flex: 1, position: "relative", minWidth: 0, background: "#000", overflow: "hidden" }}
+                 onDoubleClick={() => setViewerLayout(swapPane(viewerLayout, id))}
+                 title="Doble clic: maximizar">
+              {renderPane(id, "strip")}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

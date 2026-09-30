@@ -539,6 +539,12 @@ def _load_captures(capture_ids, db) -> list[ReportCapture]:
         if fila is None:
             logger.warning("Captura %s pedida para el informe y no existe", cid)
             continue
+        if (fila.media_type or "image/png") != "image/png":
+            # Un PDF no lleva vídeo, y sus bytes metidos como imagen rompían
+            # el informe entero. El selector ya no los ofrece; esto es por si
+            # otro cliente los pide igualmente.
+            logger.warning("Captura %s es una grabación (%s): no va en el PDF", cid, fila.media_type)
+            continue
         try:
             png = almacen.get_bytes(fila.storage_key)
         except Exception:  # noqa: BLE001 — la fila puede sobrevivir al fichero

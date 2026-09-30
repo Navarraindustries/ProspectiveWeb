@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../../api/client";
-import type { CaptureOut } from "../../api/types";
+import { isRecording, type CaptureOut } from "../../api/types";
 import { SectionLabel } from "../PanelHead";
 
 export function CapturePicker({
@@ -32,9 +32,12 @@ export function CapturePicker({
     try {
       // Por caso cuando se sabe: un informe cubre el caso, y puede querer una
       // imagen del TAC inicial junto a otra de la angiografía de control.
-      setRows(await api.listCaptures(
+      // Solo imágenes: un PDF no lleva vídeo, y ofrecer una grabación para
+      // luego no ponerla sería engañar.
+      const todas = await api.listCaptures(
         caseId != null ? { caseId } : { imagingStudyId: imagingStudyId ?? undefined },
-      ));
+      );
+      setRows(todas.filter((c) => !isRecording(c)));
     } catch {
       setRows([]);   // sin capturas que ofrecer; el informe sale igual
     }

@@ -24,3 +24,9 @@
 .hud-warn { color: var(--hud-amber); } .hud-err { color: var(--hud-red); }
 .hud-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 10.5px; letter-spacing: .06em; color: var(--hud-dim); animation: hud-hint-fade 3s forwards; }
 @keyframes hud-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+/* «REGLAS ○»: fuera la decoración —esquinas, cinta de rumbo, escalera de
+   cortes, retícula y líneas de referencia—. Se quedan el texto que sitúa la
+   imagen (letras de orientación, número de corte, medidas) y los avisos. */
+.hud-nodecor .hud-decor, .hud-nodecor .hud-corner { display: none !important; }
+/* Con la escalera oculta, la letra derecha vuelve a su sitio. */
+.hud-nodecor .hud-edge.right.beside-ladder { right: 8px; }

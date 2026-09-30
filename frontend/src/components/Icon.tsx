@@ -50,6 +50,9 @@ export const GLYPHS = {
   BRAIN: "✺",
   // Visor: la captura de lo que se ve, adjunta al caso.
   CAMERA: "⧉",
+  RECORD: "●",
+  STOP: "■",
+  VIDEO: "▶" + T,
   MARK_PERF: "✦",
   ANNOTATION: "⊞",
   ANGLE_MEAS: "∠",

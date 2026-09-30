@@ -65,7 +65,7 @@ def thumb_key(study_id: int) -> str:
     return f"{study_prefix(study_id)}/thumb.png"
 
 
-def capture_key(study_id: int, capture_uid: str) -> str:
+def capture_key(study_id: int, capture_uid: str, ext: str = "png") -> str:
     """Una captura del visor, junto al DICOM del que salió.
 
     Va al archivo durable y NO a `data/sessions/…`: las sesiones se purgan a
@@ -74,7 +74,9 @@ def capture_key(study_id: int, capture_uid: str) -> str:
     cliente: un nombre de fichero venido de fuera puede escaparse del prefijo.
     """
     safe = Path(capture_uid).name
-    return f"{study_prefix(study_id)}/captures/{safe}.png"
+    if ext not in ("png", "mp4", "webm"):
+        raise ValueError(f"extensión de captura no admitida: {ext!r}")
+    return f"{study_prefix(study_id)}/captures/{safe}.{ext}"
 
 
 class StorageBackend(Protocol):

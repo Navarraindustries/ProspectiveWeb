@@ -93,7 +93,7 @@ const LABEL_SIZE = 10;   // .hud-label
 
 /** Compone la imagen. Devuelve el data URL, o null si no hubo ni un panel. */
 export async function composeCapture(input: ComposeInput): Promise<string | null> {
-  const { width, height, panes, colors, fontFamily, deps } = input;
+  const { width, height, panes, deps } = input;
   if (width <= 0 || height <= 0 || panes.length === 0) return null;
 
   // Las capturas se piden TODAS a la vez y antes de dibujar nada: cada una
@@ -113,17 +113,39 @@ export async function composeCapture(input: ComposeInput): Promise<string | null
   if (shots.every((s) => s === null)) return null;
 
   const { ctx, toDataURL } = deps.makeCanvas(width, height);
+  paintFrame(ctx, input, (i, r) => {
+    const img = shots[i];
+    if (!img) return false;
+    ctx.drawImage(img, r.x, r.y, r.w, r.h);
+    return true;
+  });
+  return toDataURL();
+}
+
+/** Lo que hace falta para pintar un fotograma, sin las capturas. */
+export type FrameLayout = Pick<ComposeInput, "width" | "height" | "heading" | "note" | "colors" | "fontFamily"> & {
+  panes: Omit<PaneShot, "capture">[];
+};
+
+/** Pinta un fotograma del visor: fondo, cada panel (lo pone `draw`) y el HUD.
+ *
+ *  Es lo común a la captura y a la grabación, para que una imagen y un vídeo
+ *  del mismo visor no puedan diferir. `draw(i, rect)` dibuja el panel i y
+ *  devuelve false si no pudo: su hueco queda en negro con «SIN IMAGEN». */
+export function paintFrame(
+  ctx: Ctx2D,
+  frame: FrameLayout,
+  draw: (index: number, rect: PaneRect) => boolean,
+): void {
+  const { width, height, panes, colors, fontFamily } = frame;
   // El fondo es el color de las separaciones: los huecos de 1 px entre paneles
   // salen solos, igual que en la franja del visor.
   ctx.fillStyle = colors.gap;
   ctx.fillRect(0, 0, width, height);
 
   panes.forEach((p, i) => {
-    const img = shots[i];
     const { x, y, w, h } = p.rect;
-    if (img) {
-      ctx.drawImage(img, x, y, w, h);
-    } else {
+    if (!draw(i, p.rect)) {
       ctx.fillStyle = "#000";
       ctx.fillRect(x, y, w, h);
       ctx.fillStyle = colors.dim;
@@ -135,12 +157,11 @@ export async function composeCapture(input: ComposeInput): Promise<string | null
     drawPaneHud(ctx, p, colors, fontFamily);
   });
 
-  drawTopBand(ctx, input);
-  return toDataURL();
+  drawTopBand(ctx, frame);
 }
 
 /** Rótulo del panel y sus lecturas, en las esquinas de siempre. */
-function drawPaneHud(ctx: Ctx2D, p: PaneShot, colors: HudColors, fontFamily: string): void {
+function drawPaneHud(ctx: Ctx2D, p: Omit<PaneShot, "capture">, colors: HudColors, fontFamily: string): void {
   const { x, y, w, h } = p.rect;
   if (p.label) {
     ctx.fillStyle = colors.dim;
@@ -165,7 +186,7 @@ function drawPaneHud(ctx: Ctx2D, p: PaneShot, colors: HudColors, fontFamily: str
 }
 
 /** Cinta de rumbo y aviso, arriba del todo. */
-function drawTopBand(ctx: Ctx2D, input: ComposeInput): void {
+function drawTopBand(ctx: Ctx2D, input: Pick<ComposeInput, "heading" | "note" | "colors" | "fontFamily" | "width">): void {
   const { heading, note, colors, fontFamily, width } = input;
   ctx.font = `${LABEL_SIZE}px ${fontFamily}`;
   ctx.textBaseline = "top";

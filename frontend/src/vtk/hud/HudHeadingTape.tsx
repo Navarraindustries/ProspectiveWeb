@@ -11,7 +11,7 @@ export function HudHeadingTape({ azimuthDeg, elevationDeg, known }: { azimuthDeg
   const norm = (a: number) => ((a + 540) % 360) - 180;
   const pxPerDeg = 2;
   return (
-    <div style={{ position: "absolute", top: 6, left: "20%", right: "20%", height: 22, borderBottom: "var(--hud-line) solid var(--hud-dim)" }}>
+    <div className="hud-decor" style={{ position: "absolute", top: 6, left: "20%", right: "20%", height: 22, borderBottom: "var(--hud-line) solid var(--hud-dim)" }}>
       <div data-testid="heading-band" style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: HEADING_READOUT_PX, overflow: "hidden" }}>
         {POINTS.map(([deg, name]) => {
           const off = norm(deg - azimuthDeg) * pxPerDeg;

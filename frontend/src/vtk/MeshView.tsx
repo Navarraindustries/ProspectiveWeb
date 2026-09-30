@@ -22,6 +22,7 @@ import vtkLineSource from "@kitware/vtk.js/Filters/Sources/LineSource";
 import vtkTubeFilter from "@kitware/vtk.js/Filters/General/TubeFilter";
 import type { Vector3 } from "@kitware/vtk.js/types";
 import { createOrientationInset, type OrientationInset } from "./OrientationInset";
+import { captureRenderWindow, type CapturableWindow, type CaptureFn } from "./captureRenderWindow";
 import { standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
 
 export interface MeshLayer {
@@ -152,7 +153,7 @@ export function MeshView({
   /** Registers a function that captures the live viewport as a PNG data URL
    *  (used to embed the 3D scene in the PDF report). Published once the scene
    *  is on screen; called with null on unmount. */
-  registerCapture?: (fn: (() => Promise<string | null>) | null) => void;
+  registerCapture?: (fn: CaptureFn | null) => void;
   /** Registers a camera controller so the viewer can offer standard views, a
    *  «fit to scene», and centre the shared focus point. Published once the
    *  scene is on screen; called with null on unmount. */
@@ -302,20 +303,13 @@ export function MeshView({
     });
 
     // Expose a viewport-capture function (PNG data URL) for the PDF report.
-    const capture = async (): Promise<string | null> => {
-      const h = handles.current;
-      if (!h) return null;
-      try {
-        const glrw = (h.fsrw as unknown as { getApiSpecificRenderWindow?: () => { captureNextImage: (fmt: string) => Promise<string> } }).getApiSpecificRenderWindow?.();
-        if (!glrw) return null;
-        const promise = glrw.captureNextImage("image/png");
-        h.renderWindow.render();
-        return await promise;
-      } catch (err) {
-        console.warn("MeshView capture failed", err);
-        return null;
-      }
-    };
+    // La misma que usan los demás visores, que además sabe copiarse para
+    // grabar (`grab`). Lee `handles.current` en cada llamada: la escena se
+    // rehace sin volver a registrar la captura.
+    const capture = captureRenderWindow(
+      () => (handles.current?.fsrw as unknown as CapturableWindow) ?? null,
+      () => handles.current?.renderWindow.render(),
+    );
 
     // Standard viewpoints. resetCamera() preserves the view direction and up
     // vector, so pointing the camera and refitting is all it takes. Without this

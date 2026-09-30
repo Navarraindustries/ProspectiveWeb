@@ -13,14 +13,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api/client";
-import type { CaptureOut } from "../api/types";
+import { isRecording, type CaptureOut } from "../api/types";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { Card, ErrorNote, SectionLabel } from "./PanelHead";
 import { Icon } from "./Icon";
 
 /** Nombre del fichero al descargar: legible y sin datos del paciente. */
-export function downloadName(c: Pick<CaptureOut, "id" | "label" | "created_at">): string {
+export function downloadName(c: Pick<CaptureOut, "id" | "label" | "created_at" | "media_type">): string {
   const fecha = new Date(c.created_at);
   const sello = Number.isNaN(fecha.getTime())
     ? String(c.id)
@@ -30,7 +30,14 @@ export function downloadName(c: Pick<CaptureOut, "id" | "label" | "created_at">)
     .normalize("NFD").replace(/[̀-ͯ]/g, "")   // sin tildes: viaja mejor
     .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()
     .slice(0, 60) || "captura";
-  return `prospective-${sello}-${limpio}.png`;
+  const ext = c.media_type === "video/mp4" ? "mp4" : c.media_type === "video/webm" ? "webm" : "png";
+  return `prospective-${sello}-${limpio}.${ext}`;
+}
+
+/** Duración de una grabación: «1:05». */
+export function formatDuration(s: number): string {
+  const t = Math.max(0, Math.round(s));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
 }
 
 /** Peso legible, para que se vea cuánto ocupa lo que se va acumulando. */
@@ -68,13 +75,14 @@ export function CaptureGallery({
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  // Las miniaturas, una vez cada una.
+  // Las miniaturas, una vez cada una. Los vídeos NO: pesan megas cada uno y
+  // se piden al darle a reproducir o a descargar.
   useEffect(() => {
     if (!rows) return;
     let vivo = true;
     (async () => {
       for (const r of rows) {
-        if (urlsRef.current[r.id]) continue;
+        if (urlsRef.current[r.id] || isRecording(r)) continue;
         try {
           const url = await api.captureObjectUrl(r.id);
           if (!vivo) { URL.revokeObjectURL(url); return; }
@@ -89,8 +97,25 @@ export function CaptureGallery({
     for (const url of Object.values(urlsRef.current)) URL.revokeObjectURL(url);
   }, []);
 
-  const descargar = (c: CaptureOut) => {
-    const url = urls[c.id];
+  const [cargandoVideo, setCargandoVideo] = useState<number | null>(null);
+  /** La URL del vídeo, pidiéndolo la primera vez. */
+  const urlVideo = async (c: CaptureOut): Promise<string | null> => {
+    if (urlsRef.current[c.id]) return urlsRef.current[c.id];
+    setCargandoVideo(c.id);
+    try {
+      const url = await api.recordingObjectUrl(c.id);
+      setUrls((u) => ({ ...u, [c.id]: url }));
+      return url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cargar el vídeo");
+      return null;
+    } finally {
+      setCargandoVideo(null);
+    }
+  };
+
+  const descargar = async (c: CaptureOut) => {
+    const url = isRecording(c) ? await urlVideo(c) : urls[c.id];
     if (!url) return;
     const a = document.createElement("a");
     a.href = url;
@@ -138,6 +163,23 @@ export function CaptureGallery({
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
           {rows.map((c) => (
             <Card key={c.id} style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+              {isRecording(c) ? (
+                <div style={{ background: "#000", borderRadius: "var(--radius-md)", overflow: "hidden", aspectRatio: "16 / 10" }}>
+                  {urls[c.id] ? (
+                    <video src={urls[c.id]} controls autoPlay playsInline
+                           aria-label={c.label}
+                           style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+                  ) : (
+                    <button type="button" onClick={() => void urlVideo(c)}
+                            disabled={cargandoVideo === c.id}
+                            title="Reproducir la grabación"
+                            style={{ all: "unset", cursor: "pointer", width: "100%", height: "100%", display: "grid", placeItems: "center",
+                                     fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--hud, #8CFF9E)" }}>
+                      {cargandoVideo === c.id ? "CARGANDO…" : `▶ ${formatDuration(c.duration_s ?? 0)}`}
+                    </button>
+                  )}
+                </div>
+              ) : (
               <a href={urls[c.id]} target="_blank" rel="noreferrer"
                  title="Abrir a tamaño completo"
                  style={{ display: "block", background: "#000", borderRadius: "var(--radius-md)", overflow: "hidden", aspectRatio: "16 / 10" }}>
@@ -151,6 +193,7 @@ export function CaptureGallery({
                   </div>
                 )}
               </a>
+              )}
 
               {editando === c.id ? (
                 <input
@@ -175,6 +218,7 @@ export function CaptureGallery({
 
               <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)",
                             display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                {isRecording(c) && <Badge variant="outline">vídeo · {formatDuration(c.duration_s ?? 0)}</Badge>}
                 {c.step && <Badge variant="outline">{c.step}</Badge>}
                 <span>{new Date(c.created_at).toLocaleString()}</span>
                 {c.width > 0 && <span>{c.width}×{c.height}</span>}
@@ -183,7 +227,7 @@ export function CaptureGallery({
 
               <div style={{ display: "flex", gap: 6 }}>
                 <Button size="sm" variant="outline" style={{ flex: 1 }}
-                  disabled={!urls[c.id]} onClick={() => descargar(c)}
+                  disabled={isRecording(c) ? cargandoVideo === c.id : !urls[c.id]} onClick={() => void descargar(c)}
                   leadingIcon={<Icon name="STEP_EXPORT" size={12} />}>
                   Descargar
                 </Button>

@@ -60,4 +60,11 @@ class CaptureOut(BaseModel):
     image_url: str = Field(
         "", description="Endpoint autenticado que devuelve el PNG. Nunca una ruta bajo /data."
     )
+    media_type: str = Field(
+        "image/png", description="image/png para una captura; video/mp4 o video/webm para una grabación"
+    )
+    duration_s: float = Field(0.0, description="Duración de la grabación; 0 en una captura")
+    video_url: str = Field(
+        "", description="Endpoint autenticado del vídeo; vacío en una captura"
+    )
     state: dict[str, Any] = Field(default_factory=dict)

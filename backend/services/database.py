@@ -77,6 +77,7 @@ def init_db() -> None:
     _migrate_user_columns()
     _migrate_study_columns()
     _migrate_session_columns()
+    _migrate_capture_columns()
     _migrate_imaging_studies()
     _migrate_step_after_manufacture()
     logger.info("Database initialised at %s", DATA_DIR / "prospective.db")
@@ -154,6 +155,27 @@ def _migrate_session_columns() -> None:
         if "imaging_study_id" not in existing:
             conn.execute(text("ALTER TABLE planning_sessions ADD COLUMN imaging_study_id INTEGER"))
             logger.info("Migrated planning_sessions: added column imaging_study_id")
+
+
+def _migrate_capture_columns() -> None:
+    """Grabaciones del visor: las capturas ganan tipo de medio y duración.
+
+    Las filas anteriores son todas PNG, que es el valor por defecto.
+    """
+    from sqlalchemy import text
+
+    new_cols = {
+        "media_type": "VARCHAR(32) NOT NULL DEFAULT 'image/png'",
+        "duration_s": "FLOAT NOT NULL DEFAULT 0",
+    }
+    with engine.begin() as conn:
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(case_captures)"))}
+        if not existing:        # la tabla la crea create_all con todo; nada que migrar
+            return
+        for col, ddl in new_cols.items():
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE case_captures ADD COLUMN {col} {ddl}"))
+                logger.info("Migrated case_captures: added column %s", col)
 
 
 #: Migrations that CHANGE DATA rather than shape. Unlike an ADD COLUMN they are

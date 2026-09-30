@@ -286,6 +286,11 @@ class CaseCapture(Base):
     height      = Column(Integer, nullable=False, default=0)
     size_bytes  = Column(Integer, nullable=False, default=0)
     state_json  = Column(Text,    nullable=False, default="{}")
+    # Una grabación del visor es una captura más, con otro tipo: misma
+    # adquisición, mismo archivo privado, misma galería. Las filas anteriores
+    # son todas PNG.
+    media_type  = Column(String(32), nullable=False, default="image/png")
+    duration_s  = Column(Float,      nullable=False, default=0.0)
 
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=func.now())

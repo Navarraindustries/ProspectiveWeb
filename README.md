@@ -2002,6 +2002,41 @@ because it looks automatable:
   bounding box — across that axis the envelope is two blades plus the gap — so
   the stored figures are named `envelope_*`.
 
+### The clip heat map: what the blades actually close
+
+Placing a clip («Colocar … y verificar») now also asks `POST /api/clips/field/{sid}`
+for a field over the closed sac and a ring of parent vessel around the neck, and
+moving or rotating a placed clip asks again 250 ms after the last edit. The
+viewer swaps the plain sac for that field, one colour per vertex:
+
+| Category | Colour | Meaning |
+|---|---|---|
+| Cubierto | green, amber, red or blue | Between the blades; coloured by the pressure verdict (óptima · aceptable · exceso · insuficiente) |
+| Cuello residual | magenta | Neck the blades do not reach — what stays open to flow |
+| No alcanzado | grey | Sac out of the blades' reach |
+| No evaluado | dark grey | Vessel ring, shown for context, not scored |
+
+Pressure is the catalogue's minimum closing force spread over the contact area
+(g/mm²), compared with the clip's force window for this neck converted over the
+same area — so the pressure verdict mirrors the force-against-window verdict
+and is informational. Several clips add their forces and their covered areas. A
+clip imported without a datasheet has no force: coverage still paints, pressure
+reads «Sin fuerza de catálogo» and the verdict is `warn`. Without an isolated sac
+nothing paints and the panel says to mark the neck plane in Morfometría.
+
+The «Mapa de calor del clip» card under the placement repeats the percentages,
+the pressure against its window and the selection criteria (cobertura, alcance,
+apertura de las hojas, fuerza de cierre). Its «Mostrar en el visor» box and the
+viewer header's «CALOR» toggle switch the layer off and bring the plain sac back;
+«Limpiar clips colocados» removes layer, legend and card. During the placement
+rehearsal the animation frames take the viewer; the field returns on leaving it.
+
+Both the legend and the card carry a fixed label, «Estimación geométrica: fuerza
+de catálogo repartida sobre el área de contacto; no modela pared, deformación ni
+deslizamiento.» It is geometry, not mechanics: no wall thickness or stiffness,
+no deformation of the neck under the blades, no slip, and the force is the low
+end of a design band that has not been measured on a real spring.
+
 ### What this is not
 
 The geometric criteria are arithmetic on measured quantities. The clinical
@@ -2144,6 +2179,7 @@ patient imaging.
 | `GET` | `/api/clip-orders/{part}/packet` · `/files/{what}` | ZIP for the workshop · STL and dossiers |
 | `GET` | `/api/clip-orders/summary` | How many orders sit in each state |
 | `POST` | `/api/clips/plan` | Placement + real VTK collision |
+| `POST` | `/api/clips/field/{sid}` | Heat map of the placed clips over the closed sac: coverage, estimated pressure, verdict |
 | `GET` `POST` `DELETE` | `/api/clips/custom/{sid}` | Imported clip library: list · upload · remove one |
 | `POST` | `/api/coils/plan` · `/api/plan` | Coil packing · stent deployment |
 | `POST` | `/api/cl-stent/{sid}` | Centerline-guided stent along vessel curvature |

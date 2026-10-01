@@ -1,6 +1,6 @@
 # Mapa de calor del clip — plan de implementación (subproyecto C)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Al colocar un clip, pintar el saco y el anillo de cuello según lo que el clip cubre y la presión estimada que ejerce, y decir si la hoja, la apertura y la fuerza bastan, siempre etiquetado como estimación geométrica.
 
@@ -61,7 +61,7 @@ def combine_coverage(per_clip: list[np.ndarray]) -> np.ndarray      # cubierto g
 def field_mesh(sac: vtk.vtkPolyData, ring: vtk.vtkPolyData) -> vtk.vtkPolyData   # append + limpieza, conserva triángulos
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```python
 # backend/test_clip_field.py
@@ -213,9 +213,9 @@ class TestMallaDelCampo:
             m.GetCellPoints(i, ids); assert ids.GetNumberOfIds() == 3
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar** → `cd backend && ./.venv/Scripts/python.exe -m pytest test_clip_field.py -v` FAIL (módulo inexistente).
+- [x] **Step 2: Ejecutar y ver fallar** → `cd backend && ./.venv/Scripts/python.exe -m pytest test_clip_field.py -v` FAIL (módulo inexistente).
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```python
 # backend/services/clip_field.py
@@ -351,9 +351,9 @@ def field_mesh(sac: vtk.vtkPolyData, ring: vtk.vtkPolyData) -> vtk.vtkPolyData:
 
 Nota: si `jaw_geometry` devuelve `long_axis`/`open_axis` como listas o con otra convención de signo, adapta `blade_frame` para que los tests del marco pasen y documenta en el informe lo que devuelve exactamente (lee `services/clip_animation.py:78–190`).
 
-- [ ] **Step 4: Ejecutar y ver pasar** → `pytest test_clip_field.py -v` PASS.
+- [x] **Step 4: Ejecutar y ver pasar** → `pytest test_clip_field.py -v` PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/services/clip_field.py backend/test_clip_field.py
@@ -389,7 +389,7 @@ def colorize(coverage: np.ndarray, pressure_verdict: str) -> np.ndarray      # (
 def write_field(mesh, coverage, pressure_g_mm2: float, colors, path) -> None  # arrays "coverage", "pressure_g_mm2", "colors"; `colors` activo como escalares
 ```
 
-- [ ] **Step 1: Tests que fallan** (añadir a `test_clip_field.py`)
+- [x] **Step 1: Tests que fallan** (añadir a `test_clip_field.py`)
 
 ```python
 from services.clip_field import (
@@ -463,9 +463,9 @@ class TestColores:
         assert pd.GetScalars().GetName() == "colors"
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL (símbolos inexistentes).
+- [x] **Step 2: Ver fallar** → FAIL (símbolos inexistentes).
 
-- [ ] **Step 3: Implementación** (añadir a `clip_field.py`)
+- [x] **Step 3: Implementación** (añadir a `clip_field.py`)
 
 ```python
 PRESSURE_COLORS = {
@@ -546,9 +546,9 @@ def write_field(mesh: vtk.vtkPolyData, coverage: np.ndarray, pressure_g_mm2: flo
 
 Si `GetPolys().GetConnectivityArray()` devuelve una vista no contigua con polígonos de más de 3 lados, `field_mesh` ya triangula; si aun así falla, usa `GetOffsetsArray()` para filtrar. `write_vtp` puede serializar el escalar activo: confirma con el test que `GetScalars().GetName() == "colors"`.
 
-- [ ] **Step 4: Ver pasar** → PASS.
+- [x] **Step 4: Ver pasar** → PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/services/clip_field.py backend/test_clip_field.py
@@ -583,7 +583,7 @@ class ClipFieldResult(BaseModel):
 
 Veredicto global (regla de Global Constraints): `fail` si `cand.verdict == "fail"` o `pressure_verdict in ("insuficiente","exceso")` o `covered_pct < 50`; `warn` si `cand.verdict == "warn"` o `pressure_verdict == "aceptable"` o `residual_pct > 10`; si no `ok`. Sin ficha (clip importado): `criteria=[]`, `force_g=0`, nota ampliada «Clip importado sin ficha: sin fuerza de catálogo, la presión no se puede estimar».
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```python
 # backend/test_clip_field_api.py
@@ -696,9 +696,9 @@ class TestNegativas:
         assert s["force_g"] == 0.0 and s["criteria"] == [] and "sin ficha" in s["note"]
 ```
 
-- [ ] **Step 2: Ver fallar** → `pytest test_clip_field_api.py -v` FAIL (404/405 en la ruta).
+- [x] **Step 2: Ver fallar** → `pytest test_clip_field_api.py -v` FAIL (404/405 en la ruta).
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 En `backend/models/clips.py` (al final):
 
@@ -809,9 +809,9 @@ async def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
 
 Importa `ClipFieldResult`, `ClipFieldSummary` del módulo de modelos y `evaluate_clip` de `services.clip_selection` (ya hay un bloque de imports de ese módulo). `vtk` se importa dentro si el archivo no lo importa arriba. Nota: «sin_contacto» cuenta como `fail` (un clip que no toca el cuello no sirve).
 
-- [ ] **Step 4: Ver pasar** → `pytest test_clip_field_api.py test_clip_field.py -v` PASS; `pytest test_session_abc.py test_oclusion_clip.py -q` sin regresiones nuevas frente a la línea base.
+- [x] **Step 4: Ver pasar** → `pytest test_clip_field_api.py test_clip_field.py -v` PASS; `pytest test_session_abc.py test_oclusion_clip.py -q` sin regresiones nuevas frente a la línea base.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/routers/clips.py backend/models/clips.py backend/test_clip_field_api.py
@@ -839,7 +839,7 @@ showClipField: boolean; setShowClipField(v: boolean): void;   // por defecto tru
 // `clearDeviceMeshes("clips")`, `clearDeviceMeshes()` y el reset de sesión ponen clipField a null
 ```
 
-- [ ] **Step 1: Test que falla**
+- [x] **Step 1: Test que falla**
 
 ```tsx
 // frontend/src/store/clipField.test.tsx
@@ -877,13 +877,13 @@ describe("campo del clip en el store", () => {
 
 Si el proveedor del store se llama de otra forma (`PlanningProvider` es el nombre a comprobar en `store/planning.tsx`), usa el real.
 
-- [ ] **Step 2: Ver fallar** → `npx vitest run src/store/clipField.test.tsx` FAIL.
+- [x] **Step 2: Ver fallar** → `npx vitest run src/store/clipField.test.tsx` FAIL.
 
-- [ ] **Step 3: Implementación** — tipos en `types.ts` junto a `OcclusionOut`; `clipField: (sessionId: string, req: ClipPlanRequest) => post<ClipFieldResult>(`/api/clips/field/${sessionId}`, req)` en `client.ts` junto a `planClips`; en el store: `const [clipField, setClipField] = useState<ClipFieldResult | null>(null); const [showClipField, setShowClipField] = useState(true);`, en `clearDeviceMeshes` poner `setClipField(null)` cuando `kind === "clips"` o sin `kind`, y en el reset de sesión; exponer en el tipo del contexto y en el value. Comentario WHY: «el campo describe un plan de clips concreto; sin clips no hay nada que describa».
+- [x] **Step 3: Implementación** — tipos en `types.ts` junto a `OcclusionOut`; `clipField: (sessionId: string, req: ClipPlanRequest) => post<ClipFieldResult>(`/api/clips/field/${sessionId}`, req)` en `client.ts` junto a `planClips`; en el store: `const [clipField, setClipField] = useState<ClipFieldResult | null>(null); const [showClipField, setShowClipField] = useState(true);`, en `clearDeviceMeshes` poner `setClipField(null)` cuando `kind === "clips"` o sin `kind`, y en el reset de sesión; exponer en el tipo del contexto y en el value. Comentario WHY: «el campo describe un plan de clips concreto; sin clips no hay nada que describa».
 
-- [ ] **Step 4: Ver pasar** → PASS; `npx tsc --noEmit -p .` limpio.
+- [x] **Step 4: Ver pasar** → PASS; `npx tsc --noEmit -p .` limpio.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/api/types.ts frontend/src/api/client.ts frontend/src/store/planning.tsx frontend/src/store/clipField.test.tsx
@@ -910,7 +910,7 @@ export function legendLines(s: ClipFieldSummary): HudLine[];   // 3 categorías 
 export const FIELD_COLORS: Record<"cubierto_optima"|"cubierto_aceptable"|"cubierto_insuficiente"|"cubierto_exceso"|"cubierto_sin_contacto"|"cubierto_sin_fuerza"|"residual"|"no_alcanzado", string>;
 ```
 
-- [ ] **Step 1: Test que falla**
+- [x] **Step 1: Test que falla**
 
 ```ts
 // frontend/src/vtk/clipFieldLegend.test.ts
@@ -946,9 +946,9 @@ describe("legendLines", () => {
 
 Ajusta el tercer test al formato que elijas para marcar la banda provisional (p. ej. sufijo «(mín. de banda provisional)» en el `title`, no en el texto); el formato de los dos primeros tests es el obligatorio.
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/clipFieldLegend.ts
@@ -998,9 +998,9 @@ if (layer.scalars) {
 
 `Viewer.tsx`: en el `useMemo` de `layers`, cuando `showDevice && clipField && showClipField`, en lugar de la capa del saco (`sacUrl`) empuja `{ url: clipField.field_mesh_url, color: SAC_COLOR, opacity: 1, id: "clip-field", scalars: { array: "colors" }, silhouette: true }` (añade `clipField` y `showClipField` a las dependencias). Leyenda: en `renderScene`, cuando esa capa está activa, `br.push(...legendLines(clipField.summary))` (ya existe el `br` para dispositivos). Interruptor: junto a REGLAS/SINCRO, `HudToggleGroup` «CALOR ●/○» visible solo cuando `clipField` existe, que llama a `setShowClipField`.
 
-- [ ] **Step 4: Verificar** → `npx vitest run src/vtk/clipFieldLegend.test.ts`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3, con un clip NAVARRO™ colocado y un saco cerrado — si no hay saco, márcalo en Morfometría): llama al endpoint desde la consola o espera a la Task 6; comprueba que la capa pinta verde/magenta/gris, la leyenda aparece abajo a la derecha, «CALOR ○» la quita y vuelve el saco normal, y no hay errores de consola.
+- [x] **Step 4: Verificar** → `npx vitest run src/vtk/clipFieldLegend.test.ts`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3, con un clip NAVARRO™ colocado y un saco cerrado — si no hay saco, márcalo en Morfometría): llama al endpoint desde la consola o espera a la Task 6; comprueba que la capa pinta verde/magenta/gris, la leyenda aparece abajo a la derecha, «CALOR ○» la quita y vuelve el saco normal, y no hay errores de consola.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/MeshView.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/clipFieldLegend.ts frontend/src/vtk/clipFieldLegend.test.ts
@@ -1019,7 +1019,7 @@ git commit -m "El visor pinta el campo del clip con sus colores y lo explica en 
 - Consumes: `api.clipField`, store (`clipField`, `setClipField`, `showClipField`, `setShowClipField`), `ClipCriterion` (cómo lo pinta `ClipSelection.tsx`).
 - Produces: `<ClipFieldCard summary={ClipFieldSummary} show={boolean} onToggle={(v) => void} />`.
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```tsx
 // frontend/src/components/planning/ClipFieldCard.test.tsx
@@ -1089,17 +1089,17 @@ describe("DevicesPanel · campo del clip", () => {
 
 El segundo archivo exige leer cómo se prueba hoy `DevicesPanel` (fixtures del store y del `sessionId`); si no existe un test previo del panel, construye el wrapper mínimo con `PlanningProvider` y un `sessionId` fijo, y documenta en el informe lo que hizo falta.
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 `ClipFieldCard.tsx`: una `Card` con el título «Mapa de calor del clip» y un `<label><input type="checkbox" aria-label="Mapa de calor" checked={show} onChange={(e) => onToggle(e.target.checked)} /> Mostrar en el visor</label>`; `Metric` para «Cobertura» (`covered_pct.toFixed(1)` %), «Cuello residual», «No alcanzado», «Presión estimada» (`pressure_g_mm2.toFixed(1)` g/mm² con badge según `pressure_verdict`: optima → success, aceptable → warning, insuficiente/exceso/sin_contacto → destructive) y la ventana «óptima 11.6–17.4 · aceptable 10.1–21.8 g/mm²»; línea «Fuerza: 120 g (fuerza mínima de la banda, provisional)» cuando `force_is_band_min`; lista de `criteria` con el mismo componente/estilo que usa `ClipSelection.tsx` para los criterios; al pie, `note` en 11 px color `--muted-foreground`.
 
 `DevicesPanel.tsx`: tras `setDeviceMesh("clips", …)` en `place()`, `const field = await api.clipField(sessionId, { session_id: sessionId, placements })` dentro de un `try` propio (un fallo del campo no deshace la colocación: se enseña el error en una línea bajo la tarjeta) y `setClipField(field)`. Debounce: `useEffect` sobre `placed` (posiciones/giro) que, si `plan` existe, programa `setTimeout(…, 250)` para repetir la llamada y limpia el temporizador anterior (comentario WHY: «mover un deslizador dispara decenas de cambios por segundo; el servidor tarda ~100 ms por campo»). Renderiza `<ClipFieldCard summary={clipField.summary} show={showClipField} onToggle={setShowClipField} />` bajo la `Card` del plan cuando `clipField` existe.
 
-- [ ] **Step 4: Verificar** → vitest de los dos archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): Dispositivos → Clips → coloca un NAVARRO™ T1 10 mm sobre el cuello → el saco se pinta y aparece la tarjeta; mueve el clip 2 mm fuera del cuello → sube el magenta y el veredicto empeora; gira 90° → cambia la cobertura; «Mostrar en el visor» apaga y encienda la capa; limpia los clips → la capa y la tarjeta desaparecen; sin errores de consola. Capturas `t6_*.png`.
+- [x] **Step 4: Verificar** → vitest de los dos archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): Dispositivos → Clips → coloca un NAVARRO™ T1 10 mm sobre el cuello → el saco se pinta y aparece la tarjeta; mueve el clip 2 mm fuera del cuello → sube el magenta y el veredicto empeora; gira 90° → cambia la cobertura; «Mostrar en el visor» apaga y encienda la capa; limpia los clips → la capa y la tarjeta desaparecen; sin errores de consola. Capturas `t6_*.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/planning/DevicesPanel.tsx frontend/src/components/planning/ClipFieldCard.tsx frontend/src/components/planning/ClipFieldCard.test.tsx frontend/src/components/planning/DevicesPanel.clipField.test.tsx
@@ -1113,7 +1113,7 @@ git commit -m "Colocar un clip pide su mapa de calor y la tarjeta dice si la hoj
 **Files:**
 - Modify: `README.md` (sección de clips: el mapa de calor y su etiqueta de estimación), este plan (casillas).
 
-- [ ] **Step 1: Comprobación completa**
+- [x] **Step 1: Comprobación completa**
 
 ```bash
 cd frontend && npx tsc -b && npx vitest run && npm run build
@@ -1122,7 +1122,7 @@ cd ../backend && .venv\Scripts\python -m pytest -q -rf --no-header -p no:cachepr
 
 Expected: frontend en verde; backend sin fallos NUEVOS frente a la línea base del ledger (37 ids). Tiempo del endpoint sobre Case 3 con la malla tubular: medir y anotar (< 1 s esperado).
 
-- [ ] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
+- [x] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
 
 1. Con saco cerrado y un NAVARRO™ T1 10 mm colocado: el saco se pinta, la leyenda abajo a la derecha dice cobertura, residual, no alcanzado, presión frente a ventana y veredicto con «ESTIMACIÓN GEOMÉTRICA».
 2. Mover el clip 2 mm fuera del cuello pinta cuello residual (magenta) y el veredicto pasa a fail/warn.
@@ -1134,7 +1134,7 @@ Expected: frontend en verde; backend sin fallos NUEVOS frente a la línea base d
 8. Clip importado (STL propio): la tarjeta dice que sin ficha no hay presión; la cobertura sí se pinta.
 9. El ensayo de colocación (animación) sigue funcionando con el campo encendido (el campo se calcula para la pose final).
 
-- [ ] **Step 3: README y commit de cierre**
+- [x] **Step 3: README y commit de cierre**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-10-01-mapa-calor-clip.md

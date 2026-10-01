@@ -52,3 +52,23 @@ if (!URL.createObjectURL) {
 if (!URL.revokeObjectURL) {
   URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL;
 }
+
+// Ni PointerEvent: sin él `fireEvent.pointerDown` crea un Event genérico sin
+// `button`, `clientX` ni `pointerId`, y el arrastre de ViewerGrid no se puede
+// probar. Lo mínimo: un MouseEvent con `pointerId`.
+if (typeof globalThis.PointerEvent === "undefined") {
+  class PointerEventPolyfill extends MouseEvent {
+    pointerId: number;
+    constructor(type: string, init?: PointerEventInit) {
+      super(type, init);
+      this.pointerId = init?.pointerId ?? 0;
+    }
+  }
+  globalThis.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
+}
+
+// Ni `elementFromPoint`: jsdom no maqueta. Se define (sin acertar nunca) para
+// que las pruebas puedan espiarlo y simular el destino del arrastre.
+if (!Document.prototype.elementFromPoint) {
+  Document.prototype.elementFromPoint = () => null;
+}

@@ -30,3 +30,12 @@
 .hud-nodecor .hud-decor, .hud-nodecor .hud-corner { display: none !important; }
 /* Con la escalera oculta, la letra derecha vuelve a su sitio. */
 .hud-nodecor .hud-edge.right.beside-ladder { right: 8px; }
+
+/* Rejilla del visor (ViewerGrid). Una vista oculta en «sola» sigue montada a
+   1×1 px: vtk se queja de un lienzo de 0 px y remontarla perdería la cámara. */
+.viewer-cell--hidden { width: 1px !important; height: 1px !important; opacity: 0; pointer-events: none; left: 0; top: 0; }
+.viewer-cell--over { outline: 1px solid var(--hud); outline-offset: -1px; }
+.viewer-handle { position: absolute; top: 0; left: 0; right: 0; height: 14px; cursor: grab; touch-action: none; z-index: 7; }
+.viewer-handle:active { cursor: grabbing; }
+.viewer-splitter { background: var(--hud-dim); }
+.viewer-splitter:hover { background: var(--hud); opacity: .6; }

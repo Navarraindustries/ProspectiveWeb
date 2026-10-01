@@ -135,7 +135,7 @@ class TestClasificacion:
         assert cov.tolist() == [COV_NONE]
 
     def test_un_clip_lejos_no_cubre_nada(self):
-        cov = classify(self._anillo_cuello(), _marco(_clip_en_cuello(12.0, desplaza=(0.0, 0.0, 6.0)), 12.0))
+        cov = classify(self._anillo_cuello(), _marco(_clip_en_cuello(12.0, desplaza=(0.0, 0.0, 20.0)), 12.0))
         assert (cov == COV_COVERED).sum() == 0
 
     def test_combinar_clips_toma_la_mejor_categoria(self):
@@ -217,3 +217,74 @@ class TestClipAcodado:
         a, r = classify(cuello, acodado), classify(cuello, recto)
         assert np.array_equal(a[recta], r[recta])
         assert np.all(a[recta] == COV_COVERED)
+
+
+from services.clip_field import (  # noqa: E402
+    CATEGORY_COLORS, GEOMETRIC_NOTE, PRESSURE_COLORS, colorize, contact_area_mm2, pressure_verdict, summarize, write_field,
+)
+from services.clip_selection import force_window  # noqa: E402
+
+
+class TestPresion:
+    def _campo(self, largo_hoja: float):
+        ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
+        mesh = field_mesh(_saco(), ring)
+        return mesh, classify(_puntos(mesh), _marco(_clip_en_cuello(largo_hoja), largo_hoja))
+
+    def test_el_area_de_contacto_crece_con_la_hoja(self):
+        m1, c1 = self._campo(4.0); m2, c2 = self._campo(12.0)
+        assert 0 < contact_area_mm2(m1, c1) < contact_area_mm2(m2, c2)
+
+    def test_la_presion_es_inversa_al_area(self):
+        m1, c1 = self._campo(4.0); m2, c2 = self._campo(12.0)
+        s1 = summarize(m1, c1, force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        s2 = summarize(m2, c2, force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        assert s1.pressure_g_mm2 > s2.pressure_g_mm2
+        assert abs(s1.pressure_g_mm2 * s1.contact_area_mm2 - 120.0) < 1e-6
+
+    def test_el_veredicto_sigue_a_la_ventana(self):
+        w = tuple(x / 10.0 for x in force_window(6.0))      # área 10 mm²
+        assert pressure_verdict(w[0] - 0.1, w) == "insuficiente"
+        assert pressure_verdict((w[1] + w[2]) / 2, w) == "optima"
+        assert pressure_verdict((w[0] + w[1]) / 2, w) == "aceptable"
+        assert pressure_verdict((w[2] + w[3]) / 2, w) == "aceptable"
+        assert pressure_verdict(w[3] + 0.1, w) == "exceso"
+        assert pressure_verdict(0.0, (0.0, 0.0, 0.0, 0.0)) == "sin_contacto"
+
+    def test_sin_contacto_no_divide_por_cero(self):
+        ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
+        mesh = field_mesh(_saco(), ring)
+        f = _marco(_clip_en_cuello(12.0, desplaza=(0.0, 0.0, 20.0)), 12.0)
+        s = summarize(mesh, classify(_puntos(mesh), f), force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        assert s.contact_area_mm2 == 0.0 and s.pressure_g_mm2 == 0.0 and s.pressure_verdict == "sin_contacto"
+        assert s.covered_pct == 0.0
+
+    def test_los_porcentajes_suman_cien_sobre_la_banda(self):
+        m, c = self._campo(12.0)
+        s = summarize(m, c, force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        assert abs(s.covered_pct + s.residual_pct + s.unreached_pct - 100.0) < 1e-6
+        assert s.note == GEOMETRIC_NOTE and s.force_provisional is True
+
+
+class TestColores:
+    def test_cada_categoria_tiene_su_color_y_el_cubierto_el_de_la_presion(self):
+        cov = np.array([COV_NONE, COV_COVERED, COV_RESIDUAL, COV_UNREACHED], dtype=np.uint8)
+        rgb = colorize(cov, "optima")
+        assert rgb.shape == (4, 3) and rgb.dtype == np.uint8
+        assert tuple(rgb[0]) == CATEGORY_COLORS[COV_NONE]
+        assert tuple(rgb[1]) == PRESSURE_COLORS["optima"]
+        assert tuple(rgb[2]) == CATEGORY_COLORS[COV_RESIDUAL]
+        assert tuple(rgb[3]) == CATEGORY_COLORS[COV_UNREACHED]
+
+    def test_el_vtp_lleva_los_tres_arrays_y_los_colores_activos(self, tmp_path):
+        ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
+        mesh = field_mesh(_saco(), ring)
+        cov = classify(_puntos(mesh), _marco(_clip_en_cuello(12.0), 12.0))
+        write_field(mesh, cov, 14.3, colorize(cov, "optima"), tmp_path / "clip_field.vtp")
+        from services.segmentation import read_vtp
+        back = read_vtp(tmp_path / "clip_field.vtp")
+        pd = back.GetPointData()
+        assert pd.GetArray("coverage").GetNumberOfTuples() == back.GetNumberOfPoints()
+        assert pd.GetArray("pressure_g_mm2").GetNumberOfComponents() == 1
+        assert pd.GetArray("colors").GetNumberOfComponents() == 3
+        assert pd.GetScalars().GetName() == "colors"

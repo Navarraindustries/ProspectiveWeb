@@ -271,3 +271,107 @@ def field_mesh(sac: vtk.vtkPolyData, ring: vtk.vtkPolyData) -> vtk.vtkPolyData:
     clean = vtk.vtkCleanPolyData(); clean.SetInputData(tri.GetOutput()); clean.Update()
     out = vtk.vtkPolyData(); out.DeepCopy(clean.GetOutput())
     return out
+
+
+PRESSURE_COLORS = {
+    "insuficiente": (59, 130, 246), "optima": (34, 197, 94), "aceptable": (245, 158, 11),
+    "exceso": (239, 68, 68), "sin_contacto": (148, 163, 184),
+}
+CATEGORY_COLORS = {COV_NONE: (120, 112, 124), COV_RESIDUAL: (217, 70, 239), COV_UNREACHED: (107, 114, 128)}
+GEOMETRIC_NOTE = ("Estimación geométrica: fuerza de catálogo repartida sobre el área de contacto; "
+                  "no modela pared, deformación ni deslizamiento.")
+
+
+def contact_area_mm2(mesh: vtk.vtkPolyData, coverage: np.ndarray) -> float:
+    """Área de los triángulos cuyos tres vértices quedan entre las hojas.
+
+    Un triángulo con un vértice fuera cubre solo en parte: contarlo entero
+    inflaría el área y rebajaría la presión estimada, así que se exige el trío.
+    """
+    if mesh.GetNumberOfCells() == 0:
+        return 0.0
+    # field_mesh ya triangula; los índices de celda se leen por celda para no
+    # depender de que la malla venga solo con triángulos.
+    polys = ns.vtk_to_numpy(mesh.GetPolys().GetConnectivityArray())
+    offsets = ns.vtk_to_numpy(mesh.GetPolys().GetOffsetsArray())
+    if len(polys) == 0 or not np.all(np.diff(offsets) == 3):
+        tri = vtk.vtkTriangleFilter(); tri.SetInputData(mesh); tri.PassLinesOff(); tri.PassVertsOff(); tri.Update()
+        mesh = tri.GetOutput()
+        polys = ns.vtk_to_numpy(mesh.GetPolys().GetConnectivityArray())
+    polys = polys.reshape(-1, 3)
+    cov = np.asarray(coverage) == COV_COVERED
+    covered = cov[polys].all(axis=1)
+    if not covered.any():
+        return 0.0
+    pts = points_of(mesh)
+    a, b, c = pts[polys[covered, 0]], pts[polys[covered, 1]], pts[polys[covered, 2]]
+    return float(0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1).sum())
+
+
+def pressure_verdict(pressure_g_mm2: float, window_g_mm2) -> str:
+    acc_lo, opt_lo, opt_hi, acc_hi = window_g_mm2
+    if acc_hi <= 0.0 or pressure_g_mm2 <= 0.0:
+        return "sin_contacto"
+    if pressure_g_mm2 < acc_lo:
+        return "insuficiente"
+    if pressure_g_mm2 > acc_hi:
+        return "exceso"
+    if opt_lo <= pressure_g_mm2 <= opt_hi:
+        return "optima"
+    return "aceptable"
+
+
+@dataclass
+class FieldSummary:
+    covered_pct: float; residual_pct: float; unreached_pct: float
+    contact_area_mm2: float; force_g: float; force_is_band_min: bool; force_provisional: bool
+    pressure_g_mm2: float; window_g_mm2: tuple[float, float, float, float]; pressure_verdict: str
+    note: str = GEOMETRIC_NOTE
+
+
+def summarize(mesh, coverage: np.ndarray, *, force_g: float, force_is_band_min: bool,
+              force_provisional: bool, neck_mm: float) -> FieldSummary:
+    from services.clip_selection import force_window
+    coverage = np.asarray(coverage)
+    # Los porcentajes se reparten solo entre las categorías evaluadas: los
+    # vértices «fuera de evaluación» no son parte del problema ni del resultado.
+    band = coverage != COV_NONE
+    n = int(band.sum())
+
+    def pct(cat: int) -> float:
+        return float(100.0 * (coverage == cat).sum() / n) if n else 0.0
+
+    area = contact_area_mm2(mesh, coverage)
+    pressure = float(force_g / area) if area > 0 and force_g > 0 else 0.0
+    window = tuple(float(w / area) if area > 0 else 0.0 for w in force_window(neck_mm))
+    return FieldSummary(
+        covered_pct=pct(COV_COVERED), residual_pct=pct(COV_RESIDUAL), unreached_pct=pct(COV_UNREACHED),
+        contact_area_mm2=area, force_g=float(force_g), force_is_band_min=force_is_band_min,
+        force_provisional=force_provisional, pressure_g_mm2=pressure,
+        window_g_mm2=window, pressure_verdict=pressure_verdict(pressure, window),  # type: ignore[arg-type]
+    )
+
+
+def colorize(coverage: np.ndarray, pressure_verdict: str) -> np.ndarray:
+    """RGB por vértice: el cubierto lleva el color del veredicto de presión."""
+    coverage = np.asarray(coverage)
+    rgb = np.empty((len(coverage), 3), dtype=np.uint8)
+    for cat, col in CATEGORY_COLORS.items():
+        rgb[coverage == cat] = col
+    rgb[coverage == COV_COVERED] = PRESSURE_COLORS.get(pressure_verdict, PRESSURE_COLORS["sin_contacto"])
+    return rgb
+
+
+def write_field(mesh: vtk.vtkPolyData, coverage: np.ndarray, pressure_g_mm2: float, colors: np.ndarray, path) -> None:
+    """Escribe el .vtp con `coverage`, `pressure_g_mm2` y `colors` (escalar activo)."""
+    from services.segmentation import write_vtp
+    coverage = np.asarray(coverage)
+    out = vtk.vtkPolyData(); out.ShallowCopy(mesh)
+    cov = ns.numpy_to_vtk(coverage.astype(np.uint8), deep=True, array_type=vtk.VTK_UNSIGNED_CHAR); cov.SetName("coverage")
+    # La presión es de toda la zona cubierta (una sola cifra); fuera, cero.
+    pres = ns.numpy_to_vtk(np.where(coverage == COV_COVERED, np.float32(pressure_g_mm2), np.float32(0.0)).astype(np.float32),
+                           deep=True, array_type=vtk.VTK_FLOAT); pres.SetName("pressure_g_mm2")
+    col = ns.numpy_to_vtk(np.ascontiguousarray(colors, dtype=np.uint8), deep=True, array_type=vtk.VTK_UNSIGNED_CHAR)
+    col.SetNumberOfComponents(3); col.SetName("colors")
+    pd = out.GetPointData(); pd.AddArray(cov); pd.AddArray(pres); pd.SetScalars(col)
+    write_vtp(out, path)

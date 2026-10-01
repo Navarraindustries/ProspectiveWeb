@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ALL_PANES, defaultFraction, promote, setMainFraction, swapPanes, type PaneId, type ViewerLayout } from "./layout";
 import { fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
+import { MAIN_LABELS } from "./mainOptions";
 import { beginDrag, cancelDrag, endDrag, moveDrag, type DragState } from "./paneDrag";
 
 export interface PaneContext { compact: boolean; isMain: boolean }
@@ -175,6 +176,13 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
               <div className="viewer-handle" title="Arrastrar para intercambiar · Doble clic para maximizar"
                    onPointerDown={onHandleDown(id)} onPointerMove={onHandleMove}
                    onPointerUp={onHandleUp} onPointerCancel={onHandleCancel} />
+            )}
+            {!hidden && !isMain && (
+              <button type="button" className="viewer-maximize" title="Hacer principal" aria-label={`Hacer principal: ${MAIN_LABELS[id]}`}
+                      // El asa de arrastre ocupa el borde superior: el botón va encima (z 8) y
+                      // detiene el puntero para que pulsarlo no empiece un arrastre.
+                      onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); onLayoutChange(promote(layout, id)); }}>⤢</button>
             )}
           </div>
         );

@@ -31,6 +31,7 @@ import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
+import { mainOptions } from "./mainOptions";
 import { legendLines } from "./clipFieldLegend";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { OrientationSheet } from "./OrientationSheet";
@@ -1157,8 +1158,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
                   arrastre de la celda (z 7): si no, el asa se tragaría los clics
                   de estos conmutadores. */}
               <div style={{ position: "absolute", top: 2, left: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
-                {/* DISTRIBUCIÓN, REGLAS y SINCRO dicen cómo se ve el visor, no
-                    qué hay en él. */}
+                {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
+                    REGLAS y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
+                <span style={{ color: "var(--hud-dim)" }}>PRINCIPAL</span>
+                <HudToggleGroup options={mainOptions()} value={viewerLayout.main}
+                  onChange={(k) => setViewerLayout(promote(viewerLayout, k as PaneId))} />
                 <HudToggleGroup
                   options={[
                     { key: "derecha", label: "DERECHA", title: "Vista principal y las otras cuatro en columna (Alt+2)" },

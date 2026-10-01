@@ -42,3 +42,8 @@
 .viewer-handle:active { cursor: grabbing; }
 .viewer-splitter { background: var(--hud-dim); }
 .viewer-splitter:hover { background: var(--hud); opacity: .6; }
+
+/* Botón «hacer principal» de cada celda secundaria. A 20 px de la derecha para
+   no pisar la marca de esquina (12 px a 6 px del borde). */
+.viewer-maximize { position: absolute; top: 2px; right: 20px; width: 24px; height: 20px; z-index: 8; background: transparent; border: none; color: var(--hud-dim); font-family: var(--font-mono); font-size: 13px; cursor: pointer; }
+.viewer-maximize:hover { color: var(--hud); }

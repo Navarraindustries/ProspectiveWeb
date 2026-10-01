@@ -46,6 +46,26 @@ describe("ViewerGrid", () => {
     expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["axial", "scene", "sagital", "mip"] });
   });
 
+  it("cada celda secundaria tiene el botón de maximizar y la principal no", () => {
+    const { cell, onLayoutChange } = setup();
+    expect(cell("scene").querySelector(".viewer-maximize")).toBeNull();
+    const btn = cell("coronal").querySelector<HTMLButtonElement>(".viewer-maximize")!;
+    expect(btn.getAttribute("aria-label")).toBe("Hacer principal: COR");
+    fireEvent.click(btn);
+    expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["axial", "scene", "sagital", "mip"] });
+  });
+
+  it("el botón de maximizar no inicia un arrastre ni cuenta como doble clic del asa", () => {
+    const { cell, onLayoutChange } = setup();
+    const btn = cell("mip").querySelector<HTMLButtonElement>(".viewer-maximize")!;
+    fireEvent.pointerDown(btn, { button: 0, clientX: 5, clientY: 5, pointerId: 9 });
+    fireEvent.pointerMove(btn, { clientX: 60, clientY: 5, pointerId: 9 });
+    fireEvent.pointerUp(btn, { clientX: 60, clientY: 5, pointerId: 9 });
+    expect(onLayoutChange).not.toHaveBeenCalled();
+    fireEvent.click(btn);
+    expect(onLayoutChange).toHaveBeenCalledTimes(1);
+  });
+
   it("arrastrar el asa de una vista sobre otra las intercambia; un arrastre corto no", () => {
     const { container, cell, onLayoutChange } = setup();
     const handle = cell("axial").querySelector<HTMLDivElement>(".viewer-handle")!;

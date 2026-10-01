@@ -19,6 +19,7 @@ import type {
   MorphometryResult,
   PatientSummary,
   ClipAnimationResult,
+  ClipFieldResult,
   PerforatorCandidate,
   SegmentResult,
   SeriesInfo,
@@ -94,6 +95,9 @@ interface PlanningState {
   /** Clip rehearsal in progress: the three meshes the viewer must draw instead
    *  of the placed clip while the manoeuvre plays. Null when not rehearsing. */
   clipRehearsal: ClipAnimationResult | null;
+  /** Mapa de calor del clip colocado y su veredicto; null si aún no se ha pedido. */
+  clipField: ClipFieldResult | null;
+  showClipField: boolean;
   /** Índice del fotograma del saco constreñido que toca enseñar, o null para el
    *  saco sin deformar. Lo escribe el ensayo en cada cuadro y lo lee el visor:
    *  la deformación es geometría calculada en el backend, no una matriz que la
@@ -203,6 +207,8 @@ interface PlanningState {
   setScissorsKeepSide: (s: number) => void;
   setPerforators: (p: PerforatorCandidate[], zones?: [number, number, number] | null) => void;
   setClipRehearsal: (a: ClipAnimationResult | null) => void;
+  setClipField: (f: ClipFieldResult | null) => void;
+  setShowClipField: (v: boolean) => void;
   /** Handle the viewer publishes for moving the rehearsal's parts, and the
    *  panel consumes to drive the motion. Imperative on purpose: a matrix per
    *  frame through React would re-render the workspace 60 times a second. */
@@ -281,6 +287,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [scissorsPreview, setScissorsPreview] = useState<string | null>(null);
   const [scissorsKeepSide, setScissorsKeepSide] = useState(0);
   const [clipRehearsal, setClipRehearsal] = useState<ClipAnimationResult | null>(null);
+  const [clipField, setClipField] = useState<ClipFieldResult | null>(null);
+  const [showClipField, setShowClipField] = useState(true);
   const [sacFrame, setSacFrame] = useState<number | null>(null);
   const [clipParts, registerClipParts] = useState<PartsHandle | null>(null);
   const [perforators, _setPerforators] = useState<PerforatorCandidate[]>([]);
@@ -362,6 +370,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   };
   const clearDeviceMeshes = (kind?: DeviceKind) => {
     _setDeviceMeshes((d) => (kind ? { ...d, [kind]: null } : { clips: null, coils: null, stent: null }));
+    // El campo describe un plan de clips concreto; sin clips no hay nada que describa.
+    if (!kind || kind === "clips") setClipField(null);
     setDirty(true);
   };
 
@@ -386,6 +396,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setNeckDome(null);
     setNeckRim([]);
     setClipRehearsal(null);
+    // Un campo de otra sesión no describe los clips de la nueva.
+    setClipField(null);
     _setPerforators([]);
     setPerforatorZones(null);
     setVisiblePerforators([]);
@@ -422,12 +434,12 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
-        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
+        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, registerClipParts,
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,

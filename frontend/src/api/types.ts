@@ -1001,6 +1001,18 @@ export interface OcclusionOut {
   clip_name: string;
 }
 
+/** Veredicto del campo del clip: cuánto cuello cubre, qué presión estima y si cae
+ *  dentro de la ventana de fuerza. Es una estimación geométrica, no una medida. */
+export interface ClipFieldSummary {
+  covered_pct: number; residual_pct: number; unreached_pct: number;
+  contact_area_mm2: number; force_g: number; force_is_band_min: boolean; force_provisional: boolean;
+  pressure_g_mm2: number; window_g_mm2: [number, number, number, number];
+  pressure_verdict: "sin_contacto" | "sin_fuerza" | "insuficiente" | "optima" | "aceptable" | "exceso";
+  verdict: "ok" | "warn" | "fail";
+  criteria: ClipCriterion[]; clip_name: string; note: string;
+}
+export interface ClipFieldResult { field_mesh_url: string; scalars: Record<string, string>; summary: ClipFieldSummary }
+
 export interface ClipCaseOut {
   neck_mm: number;
   /** Mordaza mínima que cierra este cuello: NO es el diámetro, sino lo que

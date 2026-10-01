@@ -25,6 +25,7 @@ import type {
   Workshop,
   WorkshopIn,
   ClipLibraryItem,
+  ClipFieldResult,
   ClipPlanRequest,
   ClipPlanResult,
   ClipRecommendation,
@@ -411,6 +412,8 @@ export const api = {
   clipRecommendations: (sessionId: string) =>
     get<ClipRecommendation[]>(`/api/clips/recommendations/${sessionId}`),
   planClips: (req: ClipPlanRequest) => post<ClipPlanResult>("/api/clips/plan", req),
+  clipField: (sessionId: string, req: ClipPlanRequest) =>
+    post<ClipFieldResult>(`/api/clips/field/${sessionId}`, req),
   listCustomClips: (sessionId: string) =>
     get<CustomClipInfo[]>(`/api/clips/custom/${sessionId}`),
   /** Remove an imported clip from the session catalogue (geometry included). */

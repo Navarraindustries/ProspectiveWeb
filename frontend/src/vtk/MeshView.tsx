@@ -252,6 +252,12 @@ export function MeshView({
     const renderer = fsrw.getRenderer();
     const renderWindow = fsrw.getRenderWindow();
     handles.current = { fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map() };
+    // vtk.js solo se redimensiona con la VENTANA. La rejilla del visor mueve
+    // la escena entre la principal y una celda lateral sin remontarla, así que
+    // el lienzo tiene que seguir a su celda: si no, se queda con el tamaño con
+    // que nació (y la captura del informe tras subirla saldría de ese tamaño).
+    const ro = new ResizeObserver(() => fsrw.resize());
+    ro.observe(container);
 
     // Dos luces que siguen la cámara: una principal y un relleno opuesto al 35 %.
     // Con la única luz de cabeza de vtk.js el lado en sombra del vaso era negro y
@@ -479,8 +485,7 @@ export function MeshView({
       }
       renderWindow.render();
       // Captura y cámara se publican cuando la escena ya está en pantalla, no
-      // al montar: capturar antes daba un lienzo negro (el informe espera a
-      // este registro tras subir la escena al principal), y un foco aplicado
+      // al montar: capturar antes daba un lienzo negro, y un foco aplicado
       // antes lo pisaba el encuadre inicial de arriba.
       registerCaptureRef.current?.(capture);
       registerCameraRef.current?.(controller);
@@ -502,6 +507,7 @@ export function MeshView({
 
     return () => {
       cancelled = true;
+      ro.disconnect();
       pickSub.unsubscribe();
       camSub.unsubscribe();
       inset.dispose();

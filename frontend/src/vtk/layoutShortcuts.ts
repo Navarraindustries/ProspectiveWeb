@@ -4,16 +4,19 @@
    probarlo sin montar el visor. */
 import type { LayoutPreset } from "./layout";
 
-const KEYS: Record<string, LayoutPreset> = { "1": "sola", "2": "derecha", "3": "abajo" };
+// Por `KeyboardEvent.code` (la tecla física), no por `key`: en macOS
+// Option+1 escribe «¡» y el `key` ya no es «1»; en un teclado AZERTY la fila
+// de números da «&» sin mayúsculas. La tecla física es la misma en todos.
+const CODES: Record<string, LayoutPreset> = { Digit1: "sola", Digit2: "derecha", Digit3: "abajo" };
 
 /** Un atajo numérico nunca debe robarle la tecla a un campo donde se escribe:
  *  escribir en el umbral de segmentación no puede cambiar la distribución. */
-export function presetForKey(key: string, target: EventTarget | null, altKey: boolean): LayoutPreset | null {
+export function presetForKey(code: string, target: EventTarget | null, altKey: boolean): LayoutPreset | null {
   if (!altKey) return null;
   const el = target as HTMLElement | null;
   const tag = el?.tagName?.toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select") return null;
   // Editable también por herencia (un nodo dentro de un contenteditable).
   if (el?.closest?.('[contenteditable]:not([contenteditable="false"])')) return null;
-  return KEYS[key] ?? null;
+  return CODES[code] ?? null;
 }

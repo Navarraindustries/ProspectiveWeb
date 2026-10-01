@@ -1,10 +1,11 @@
 /* Captura del 3D para el informe, sea cual sea la distribución del visor.
 
-   Con un corte maximizado la escena vive en una celda de la franja (~235 px)
-   y capturarla allí mete en el PDF una miniatura. Así que, si la escena no es
-   el principal, se sube al principal, se espera a que la MeshView que se
-   monta ahí tenga la escena en pantalla y registre su captura, se deja pasar
-   un fotograma, se captura y se vuelve a la distribución de antes.
+   Si la escena ocupa un hueco lateral pequeño, capturarla allí mete en el PDF
+   una miniatura. Así que, si la escena no es la principal, se sube al hueco
+   principal, se espera a que el lienzo tome el tamaño nuevo (el visor dice
+   cuántos fotogramas), se captura y se vuelve a la distribución de antes. La
+   rejilla ya no remonta las vistas al repartirlas, así que la captura
+   registrada sigue siendo válida: no hay que esperar a que se registre otra.
 
    Sin vtk.js ni React: el visor pone las piezas y esto solo las ordena, para
    poder probar la secuencia con funciones falsas. */
@@ -12,36 +13,32 @@
 export type CaptureFn = () => Promise<string | null>;
 
 export interface CaptureLayoutDeps {
-  /** ¿Está la escena en el panel principal? */
+  /** ¿Está la escena en el hueco principal? */
   sceneIsMain: () => boolean;
-  /** La captura registrada ahora mismo (null si no hay escena montada). */
+  /** La captura de la escena; siempre registrada porque ya no se remonta
+   *  (null solo si la escena aún no tiene nada en pantalla). */
   current: () => CaptureFn | null;
   /** Sube la escena al principal. */
   promote: () => void;
   /** Deja la distribución como estaba antes de promover. */
   restore: () => void;
-  /** Resuelve con la captura de la escena recién montada, o con null si no
-   *  llega a tiempo. Se arma ANTES de promover para no perder el registro. */
-  waitForCapture: () => Promise<CaptureFn | null>;
-  /** Un fotograma de animación: el lienzo ya tiene el tamaño del principal. */
+  /** Resuelve cuando el lienzo ya tiene el tamaño del principal. */
   nextFrame: () => Promise<void>;
 }
 
 export async function captureWithLayout(d: CaptureLayoutDeps): Promise<string | null> {
-  if (d.sceneIsMain()) {
-    const cap = d.current();
-    return cap ? cap() : null;
-  }
-  const waiting = d.waitForCapture();
+  const cap = d.current();
+  if (!cap) return null;
+  if (d.sceneIsMain()) return cap();
+  // La escena ya no se remonta al subir: basta con que el lienzo tome el
+  // tamaño del hueco principal antes de leerlo.
   d.promote();
   try {
-    const cap = await waiting;
-    if (!cap) return null;
     await d.nextFrame();
     return await cap();
   } finally {
-    // Pase lo que pase (captura fallida, tiempo agotado), el usuario recupera
-    // la distribución que tenía.
+    // Pase lo que pase (captura fallida), el usuario recupera la distribución
+    // que tenía.
     d.restore();
   }
 }

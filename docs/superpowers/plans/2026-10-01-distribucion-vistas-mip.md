@@ -866,7 +866,7 @@ git commit -m "ViewerGrid monta las cinco vistas una vez y las reparte, intercam
 ### Task 5: El visor usa la rejilla: presets, atajos, pista y modo compacto por tamaño
 
 
-> **Corrección previa a revisión (controlador):** los atajos son `Alt+1/2/3` y `presetForKey(key, target, altKey)` devuelve `null` sin Alt; el HUD compacto es `isCompact(ancho, alto)` = ancho < 420 o alto < 260 (`COMPACT_MIN_HEIGHT_PX`). El código de abajo es la versión original.
+> **Corrección previa a revisión (controlador):** los atajos son `Alt+1/2/3` y `presetForKey(code, target, altKey)` (por `e.code`) devuelve `null` sin Alt; el HUD compacto es `isCompact(ancho, alto)` = ancho < 420 o alto < 260 (`COMPACT_MIN_HEIGHT_PX`). El código de los atajos de abajo ya es el real; el resto es la versión original.
 
 **Files:**
 - Modify: `frontend/src/vtk/Viewer.tsx` (zona de render final ~1075–1115, `renderPane` ~856, `pickMode` ~744, prefs ~185–188, `estadoVisor` ~405)
@@ -876,7 +876,7 @@ git commit -m "ViewerGrid monta las cinco vistas una vez y las reparte, intercam
 
 **Interfaces:**
 - Consumes: `ViewerGrid`, `PaneContext` (Task 4); `promote`, `setPreset` (Task 1).
-- Produces: `presetForKey(key: string, target: EventTarget | null): LayoutPreset | null` (puro; `null` desde `input`/`textarea`/`select` o `[contenteditable]`).
+- Produces: `presetForKey(code: string, target: EventTarget | null, altKey: boolean): LayoutPreset | null` (puro, por `e.code`; `null` sin Alt o `null` desde `input`/`textarea`/`select` o `[contenteditable]`).
 
 - [ ] **Step 1: Test del atajo (falla)**
 
@@ -887,17 +887,20 @@ import { presetForKey } from "./layoutShortcuts";
 
 describe("presetForKey", () => {
   it("Alt+1/2/3 eligen sola/derecha/abajo", () => {
-    expect(presetForKey("1", document.body)).toBe("sola");
-    expect(presetForKey("2", document.body)).toBe("derecha");
-    expect(presetForKey("3", document.body)).toBe("abajo");
-    expect(presetForKey("4", document.body)).toBeNull();
+    expect(presetForKey("Digit1", document.body, true)).toBe("sola");
+    expect(presetForKey("Digit2", document.body, true)).toBe("derecha");
+    expect(presetForKey("Digit3", document.body, true)).toBe("abajo");
+    expect(presetForKey("Digit4", document.body, true)).toBeNull();
+  });
+  it("sin Alt el dígito es del salto de paso, no de la distribución", () => {
+    expect(presetForKey("Digit2", document.body, false)).toBeNull();
   });
   it("no roba la tecla a un campo de texto", () => {
-    expect(presetForKey("2", document.createElement("input"))).toBeNull();
-    expect(presetForKey("2", document.createElement("textarea"))).toBeNull();
-    expect(presetForKey("2", document.createElement("select"))).toBeNull();
+    expect(presetForKey("Digit2", document.createElement("input"), true)).toBeNull();
+    expect(presetForKey("Digit2", document.createElement("textarea"), true)).toBeNull();
+    expect(presetForKey("Digit2", document.createElement("select"), true)).toBeNull();
     const ce = document.createElement("div"); ce.setAttribute("contenteditable", "true");
-    expect(presetForKey("2", ce)).toBeNull();
+    expect(presetForKey("Digit2", ce, true)).toBeNull();
   });
 });
 ```
@@ -905,13 +908,16 @@ describe("presetForKey", () => {
 ```ts
 // frontend/src/vtk/layoutShortcuts.ts
 import type { LayoutPreset } from "./layout";
-const KEYS: Record<string, LayoutPreset> = { "1": "sola", "2": "derecha", "3": "abajo" };
+// Por `KeyboardEvent.code` (tecla física): en macOS Option+1 da key «¡».
+const CODES: Record<string, LayoutPreset> = { Digit1: "sola", Digit2: "derecha", Digit3: "abajo" };
 /** Un atajo numérico nunca debe robarle la tecla a un campo donde se escribe. */
-export function presetForKey(key: string, target: EventTarget | null): LayoutPreset | null {
+export function presetForKey(code: string, target: EventTarget | null, altKey: boolean): LayoutPreset | null {
+  if (!altKey) return null;
   const el = target as HTMLElement | null;
   const tag = el?.tagName?.toLowerCase();
-  if (tag === "input" || tag === "textarea" || tag === "select" || el?.getAttribute?.("contenteditable") === "true") return null;
-  return KEYS[key] ?? null;
+  if (tag === "input" || tag === "textarea" || tag === "select") return null;
+  if (el?.closest?.('[contenteditable]:not([contenteditable="false"])')) return null;
+  return CODES[code] ?? null;
 }
 ```
 
@@ -924,7 +930,7 @@ export function presetForKey(key: string, target: EventTarget | null): LayoutPre
 ```tsx
 <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden" }}
      tabIndex={0}
-     onKeyDown={(e) => { const p = presetForKey(e.key, e.target); if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); } }}>
+     onKeyDown={(e) => { if (e.ctrlKey || e.metaKey) return; const p = presetForKey(e.code, e.target, e.altKey); if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); } }}>
   <ViewerGrid
     layout={viewerLayout}
     onLayoutChange={setViewerLayout}

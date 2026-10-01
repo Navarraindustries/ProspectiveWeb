@@ -96,6 +96,12 @@ export function VolumeView({ sessionId, registerCapture }: {
     const interactor = fsrw.getInteractor();
     rwRef.current = renderWindow;
     let cancelled = false;
+    // vtk.js solo se redimensiona con la VENTANA. La rejilla del visor mueve
+    // la escena entre la principal y una celda lateral sin remontarla, así que
+    // el lienzo tiene que seguir a su celda: si no, se queda con el tamaño con
+    // que nació (y la captura del informe tras subirla saldría de ese tamaño).
+    const ro = new ResizeObserver(() => fsrw.resize());
+    ro.observe(container);
 
     (async () => {
       try {
@@ -141,6 +147,7 @@ export function VolumeView({ sessionId, registerCapture }: {
 
     return () => {
       cancelled = true;
+      ro.disconnect();
       registerCaptureRef.current?.(null);
       actorRef.current = null;
       rwRef.current = null;

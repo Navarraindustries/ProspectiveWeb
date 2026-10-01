@@ -20,6 +20,8 @@ import { cameraHeading, effectiveDirection, voxelToMm, type Orientation, type Pl
 import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
 import { ViewerGrid, type PaneContext } from "./ViewerGrid";
 import { presetForKey } from "./layoutShortcuts";
+import { gridFor } from "./layoutGrid";
+import { flushSync } from "react-dom";
 import { api } from "../api/client";
 import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
@@ -328,7 +330,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   // Captura del 3D para el informe. MeshView registra aquí la suya (cuando
   // la escena ya está en pantalla); al store va una envoltura que, si la
-  // escena está en la franja, la sube al principal para capturarla a tamaño
+  // escena ocupa un hueco lateral, la sube al principal para capturarla a tamaño
   // completo y luego deja la distribución como estaba (captureWithLayout.ts).
   const meshCapture = useRef<CaptureFn | null>(null);
   // Captura del VISOR ENTERO, la que guarda el profesional en el caso: cada
@@ -341,12 +343,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // de aquí dónde está cada una en pantalla.
   const cellEls = useRef<Partial<Record<PaneId, HTMLDivElement | null>>>({});
   const registerCell = useCallback((id: PaneId, el: HTMLDivElement | null) => { cellEls.current[id] = el; }, []);
-  // Cada espera devuelve true cuando acepta la captura y deja de esperar.
-  const captureWaiters = useRef<((fn: CaptureFn) => boolean)[]>([]);
-  const registerMeshCapture = useCallback((fn: CaptureFn | null) => {
-    meshCapture.current = fn;
-    if (fn) captureWaiters.current = captureWaiters.current.filter((w) => !w(fn));
-  }, []);
+  const registerMeshCapture = useCallback((fn: CaptureFn | null) => { meshCapture.current = fn; }, []);
   // La envoltura es estable: lee la distribución y su setter por refs.
   const layoutRef = useRef<ViewerLayout>(viewerLayout);
   layoutRef.current = viewerLayout;
@@ -354,29 +351,21 @@ export function ViewerWorkspace({ step }: { step: string }) {
   setLayoutRef.current = setViewerLayout;
   const captureScene = useCallback((): Promise<string | null> => {
     const before = layoutRef.current;
-    // La captura de la celda de la franja, que se desmonta al subir: no vale.
-    const stale = meshCapture.current;
+    // La rejilla no remonta la escena al subirla: la captura que ya tenía
+    // registrada sigue valiendo; solo hay que dejar que el lienzo tome el
+    // tamaño del hueco grande antes de leerlo.
     return captureWithLayout({
       sceneIsMain: () => layoutRef.current.main === "scene",
       current: () => meshCapture.current,
-      promote: () => setLayoutRef.current(promote(before, "scene")),
+      // flushSync: la celda tiene que estar ya en el hueco grande cuando
+      // empiece a contar el fotograma, no cuando React encuentre turno.
+      promote: () => flushSync(() => setLayoutRef.current(promote(before, "scene"))),
       restore: () => setLayoutRef.current(before),
-      waitForCapture: () => new Promise<CaptureFn | null>((resolve) => {
-        // Una malla grande tarda en volver a cargarse; si ni así llega, el
-        // informe sale sin imagen en lugar de quedarse colgado.
-        const timer = setTimeout(() => {
-          captureWaiters.current = captureWaiters.current.filter((w) => w !== waiter);
-          resolve(null);
-        }, 15000);
-        const waiter = (fn: CaptureFn) => {
-          if (fn === stale) return false;
-          clearTimeout(timer);
-          resolve(fn);
-          return true;
-        };
-        captureWaiters.current.push(waiter);
-      }),
-      nextFrame: () => new Promise<void>((r) => requestAnimationFrame(() => r())),
+      // Dos fotogramas, no uno: el ResizeObserver que redimensiona el lienzo
+      // de vtk.js se entrega DESPUÉS de los requestAnimationFrame del mismo
+      // fotograma. En el primero se recoloca y redimensiona; en el segundo ya
+      // se puede leer a tamaño completo.
+      nextFrame: () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
     });
   }, []);
   const sceneHasMesh = viewMode === "default" && meshVisible;
@@ -418,15 +407,26 @@ export function ViewerWorkspace({ step }: { step: string }) {
     orientation_known: effectiveDirection(orientation).known,
   }), [levelNote, viewMode, selectedCandidate, candidates, morphometry, mprWl, orientation]);
 
+  // ¿Visor vertical? Lo necesita `gridFor` para saber qué celdas se ven, con
+  // la misma regla que ViewerGrid (alto > ancho). En una ref: la lee la
+  // grabación en cada fotograma y no debe re-renderizar el visor.
+  const portraitRef = useRef(false);
+  useEffect(() => {
+    const el = viewerRef.current; if (!el) return;
+    const ro = new ResizeObserver(([e]) => { if (e) portraitRef.current = e.contentRect.height > e.contentRect.width; });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Lo que se ve AHORA: cada panel visible con su sitio, su HUD y su captura.
   // Lo usan la captura (una vez) y la grabación (en cada fotograma), así que
-  // una imagen y un vídeo del mismo visor no pueden diferir. Las vistas
-  // laterales solo entran si el preset las enseña (en «sola» siguen montadas,
-  // pero ocultas).
+  // una imagen y un vídeo del mismo visor no pueden diferir. Se recorre la
+  // rejilla y entra cada celda que se ve donde se ve; en «sola» las laterales
+  // siguen montadas, pero ocultas, y no entran.
   const leerVisor = useCallback(() => {
     const root = viewerRef.current;
-    const mainEl = cellEls.current[layoutRef.current.main];
-    if (!root || !mainEl) return null;
+    const layout = layoutRef.current;
+    if (!root || !cellEls.current[layout.main]) return null;
     const base = root.getBoundingClientRect();
     const rel = (el: Element) => {
       const r = el.getBoundingClientRect();
@@ -439,12 +439,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
       : paneCaptures.current.get(id) ?? null);
     const panes: PaneShot[] = [];
     const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
-    anotar(layoutRef.current.main, mainEl);
-    if (layoutRef.current.preset !== "sola") {
-      layoutRef.current.side.forEach((id) => {
-        const el = cellEls.current[id];
-        if (el) anotar(id, el);
-      });
+    const spec = gridFor(layout, portraitRef.current);
+    for (const id of [layout.main, ...layout.side]) {
+      const el = cellEls.current[id];
+      if (el && spec.visible[id]) anotar(id, el);
     }
     const cs = getComputedStyle(root);
     const color = (nombre: string, porDefecto: string) => cs.getPropertyValue(nombre).trim() || porDefecto;
@@ -861,7 +859,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const renderPane = (id: PaneId, ctx: PaneContext, captureAs: PaneId = id): ReactNode => {
     const compact = ctx.compact;
     const active = ctx.isMain;
-    if (id === "scene") return renderScene(compact);
+    if (id === "scene") return renderScene(ctx);
     if (id === "mip") {
       // El MIP necesita el volumen en el navegador (WebGL2 + vtkImageData);
       // sin él la celda dice por qué está vacía en lugar de quedarse negra.
@@ -910,7 +908,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // La escena: 3D / volumen / oblicuo, o el corte axial mientras no hay malla.
   // Todo el cromo es HUD: lecturas en mono y grupos de conmutadores sin fondo,
   // en esquinas que no pisan las lecturas propias de SliceView (bl/br/tr).
-  const renderScene = (compact: boolean): ReactNode => {
+  const renderScene = (ctx: PaneContext): ReactNode => {
+    // `compact` es el tamaño de la celda; `isMain`, si es la principal: una
+    // principal estrecha va compacta pero sigue siendo la activa.
+    const { compact, isMain } = ctx;
     const isMesh = viewMode === "default" && meshVisible;
     // Dispositivos y bandas de perforantes comparten esquina: en el paso de
     // dispositivos pueden verse las dos cosas a la vez. Las bandas salen de
@@ -944,7 +945,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         body = (
           <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
-              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} active={!compact}
+              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} active={isMain}
               registerCapture={registerMeshCapture} />
           </Suspense>
         );
@@ -960,7 +961,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       );
       mode = segPreview ? "3D · MALLA GRUESA" : "3D";
     } else if (sceneIsSlice) {
-      body = renderPane("axial", { compact, isMain: !compact }, "scene");
+      body = renderPane("axial", ctx, "scene");
     } else {
       body = (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1014,7 +1015,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             </div>
           )
         ) : (
-          <HudFrame active={!compact} label={compact ? (mode ?? "ESCENA") : undefined}>
+          <HudFrame active={isMain} label={compact ? (mode ?? "ESCENA") : undefined}>
             {!compact && <HudReadout at="tl" lines={tl} />}
             {!compact && mode && <HudReadout at="tr" lines={[mode]} />}
             {/* El nivel del volumen, una línea más abajo y en ámbar. */}
@@ -1097,7 +1098,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
            }}
            onKeyDown={(e) => {
              if (e.ctrlKey || e.metaKey) return;
-             const p = presetForKey(e.key, e.target, e.altKey);
+             const p = presetForKey(e.code, e.target, e.altKey);
              if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); }
            }}>
         <ViewerGrid

@@ -55,7 +55,7 @@ class BladeFrame:
     length_mm: float; half_gap_mm: float; half_height_mm: float; close_half_mm: float
 
 def vessel_ring(vessel: vtk.vtkPolyData, neck_origin, neck_axis, neck_mm: float) -> vtk.vtkPolyData
-def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm: float, blade_height_mm: float, neck_mm: float, neck_axis, jaw_mm: float = 1.2) -> BladeFrame   # depth_axis orientado hacia el domo (dot con neck_axis > 0)
+def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm: float, blade_height_mm: float, neck_mm: float, neck_axis, pose: vtk.vtkTransform, jaw_mm: float = 1.2) -> BladeFrame   # pose OBLIGATORIA (el marco se lee en el sistema local del clip); depth_axis orientado hacia el domo (dot con neck_axis > 0)
 def classify(points: np.ndarray, frame: BladeFrame) -> np.ndarray   # (N,) uint8 por vértice para UN clip
 def combine_coverage(per_clip: list[np.ndarray]) -> np.ndarray      # cubierto gana a residual gana a no alcanzado gana a 0
 def field_mesh(sac: vtk.vtkPolyData, ring: vtk.vtkPolyData) -> vtk.vtkPolyData   # append + limpieza, conserva triángulos
@@ -762,19 +762,21 @@ async def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
     sin_ficha = False
     for i, pl in enumerate(req.placements):
         local = _clip_geometry_for(pl.clip_id, meshes_dir)
-        world = devices.apply_transform(local, devices.pose_transform(
-            (pl.position.x, pl.position.y, pl.position.z), tuple(pl.normal) if pl.normal else (0.0, 0.0, 1.0), pl.rotation_deg))
+        t = devices.pose_transform(
+            (pl.position.x, pl.position.y, pl.position.z), tuple(pl.normal) if pl.normal else (0.0, 0.0, 1.0), pl.rotation_deg)
+        world = devices.apply_transform(local, t)
         spec = index.get(pl.clip_id)
         if spec is None:
             sin_ficha = True
-            # Sin ficha: la hoja se mide en la malla; sin fuerza no hay presión.
-            b = world.GetBounds(); length = max(b[1] - b[0], b[3] - b[2], b[5] - b[4])
+            # Sin ficha: la hoja se mide en la malla LOCAL (la caja de mundo de un clip
+            # girado no mide su largo); sin fuerza no hay presión.
+            b = local.GetBounds(); length = max(b[1] - b[0], b[3] - b[2], b[5] - b[4])
             frame = cf.blade_frame(world, length_mm=length, blade_width_mm=0.5, blade_height_mm=1.4,
-                                   neck_mm=neck_mm, neck_axis=neck_axis)
+                                   neck_mm=neck_mm, neck_axis=neck_axis, pose=t)
             names.append(_custom_clip_name(session_id, pl.clip_id) if pl.clip_id.startswith("custom:") else pl.clip_id)
         else:
             frame = cf.blade_frame(world, length_mm=spec.blade_length_mm, blade_width_mm=spec.blade_width_mm,
-                                   blade_height_mm=spec.blade_height_mm, neck_mm=neck_mm, neck_axis=neck_axis)
+                                   blade_height_mm=spec.blade_height_mm, neck_mm=neck_mm, neck_axis=neck_axis, pose=t)
             lo, hi = spec.force_band()
             force_total += lo; band_min = band_min or hi > lo; provisional = provisional or spec.force_provisional
             names.append(spec.name)

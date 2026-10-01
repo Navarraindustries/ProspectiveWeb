@@ -164,37 +164,44 @@ def _frame_in_mesh_coords(mesh: vtk.vtkPolyData):
 
 
 def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm: float,
-                blade_height_mm: float, neck_mm: float, neck_axis, jaw_mm: float = 1.2,
-                pose: vtk.vtkTransform | None = None) -> BladeFrame:
+                blade_height_mm: float, neck_mm: float, neck_axis, pose: vtk.vtkTransform,
+                jaw_mm: float = 1.2) -> BladeFrame:
     """El marco de las hojas, leído de la malla colocada.
 
     `jaw_geometry` ya sabe dónde empieza el pasillo entre hojas y hacia dónde
     apunta: sirve igual para el clip sintético (bisagra en el extremo) y para la
     pieza NAVARRO™ (bisagra a media pieza, cuerpo detrás).
 
-    Con `pose`, la malla se devuelve a su sistema local antes de leerla: en el
-    mundo el clip está girado y desplazado y el análisis por ejes de
-    `jaw_geometry` daría un marco equivocado sin avisar. Sin `pose` se lee tal
-    cual, lo que exige una malla alineada con los ejes y centrada en la mordaza.
+    La pose es obligatoria: la malla se devuelve a su sistema local antes de
+    leerla. En el mundo el clip está girado y desplazado (coordenadas de paciente
+    como (62, 64, 63)) y el análisis por ejes de `jaw_geometry`, que busca el
+    pasillo en la coordenada 0, daría un marco equivocado, incluso con la hoja
+    apuntando al revés, sin avisar.
     """
-    if pose is not None:
-        inverse = vtk.vtkTransform(); inverse.SetMatrix(pose.GetMatrix()); inverse.Inverse()
-        # vtkTransformFilter: vtkTransformPolyDataFilter está obsoleto en VTK 9.7.
-        local = vtk.vtkTransformFilter(); local.SetInputData(clip_world)
-        local.SetTransform(inverse); local.Update()
-        try:
-            hinge_l, long_l, open_l = _frame_in_mesh_coords(local.GetOutput())
-        except ValueError:
-            # Una malla que no se puede analizar (muy pocos puntos) no debe tumbar el
-            # mapa entero: la pose dice exactamente dónde está el clip y su modelo
-            # local fija la bisagra en x = −L/2, las hojas en +X y la apertura en +Y.
-            hinge_l = np.array([-float(length_mm) / 2.0, 0.0, 0.0])
-            long_l = np.array([1.0, 0.0, 0.0]); open_l = np.array([0.0, 1.0, 0.0])
-        hinge = np.array(pose.TransformPoint(*map(float, hinge_l)))
-        long_axis = np.array(pose.TransformVector(*map(float, long_l)))
-        open_axis = np.array(pose.TransformVector(*map(float, open_l)))
+    inverse = vtk.vtkTransform(); inverse.SetMatrix(pose.GetMatrix()); inverse.Inverse()
+    # vtkTransformFilter: vtkTransformPolyDataFilter está obsoleto en VTK 9.7.
+    local = vtk.vtkTransformFilter(); local.SetInputData(clip_world)
+    local.SetTransform(inverse); local.Update()
+    analytic = (np.array([-float(length_mm) / 2.0, 0.0, 0.0]),
+                np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]))
+    try:
+        hinge_l, long_l, open_l = _frame_in_mesh_coords(local.GetOutput())
+    except ValueError:
+        # Una malla que no se puede analizar (muy pocos puntos) no debe tumbar el
+        # mapa entero: la pose dice exactamente dónde está el clip y su modelo
+        # local fija la bisagra en x = −L/2, las hojas en +X y la apertura en +Y.
+        hinge_l, long_l, open_l = analytic
     else:
-        hinge, long_axis, open_axis = _frame_in_mesh_coords(clip_world)
+        # Todos los clips se modelan con las hojas a lo largo de X local y la
+        # apertura en Y. `jaw_geometry` elige los ejes por extensión y pasillo, y en
+        # los ANGLED cortos la rama doblada en Z gana a la hoja: devuelve la
+        # apertura en X y el «a través de la mordaza» se mediría a lo largo de la
+        # hoja. Si lo leído no cuadra con el diseño local, manda el diseño.
+        if abs(float(long_l[0])) <= 0.9 or abs(float(open_l[1])) <= 0.9:
+            hinge_l, long_l, open_l = analytic
+    hinge = np.array(pose.TransformPoint(*map(float, hinge_l)))
+    long_axis = np.array(pose.TransformVector(*map(float, long_l)))
+    open_axis = np.array(pose.TransformVector(*map(float, open_l)))
 
     long_axis = _unit(long_axis)
     open_axis = _unit(open_axis)
@@ -215,7 +222,13 @@ def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm
 
 
 def classify(points: np.ndarray, frame: BladeFrame) -> np.ndarray:
-    """Categoría por vértice para UN clip (ver constantes COV_*)."""
+    """Categoría por vértice para UN clip (ver constantes COV_*).
+
+    Limitación conocida: la banda de profundidad es una losa plana alrededor del
+    plano de la bisagra. Una hoja curva (CURVED, ANGLED) se sale de ella hacia la
+    punta, así que el cuello bajo la parte doblada queda sin evaluar. Es parte
+    de la estimación geométrica; la simulación mecánica lo sustituirá.
+    """
     pts = np.asarray(points, dtype=float).reshape(-1, 3)
     rel = pts - frame.hinge
     l = rel @ frame.long_axis            # a lo largo de la hoja, desde la bisagra
@@ -241,6 +254,9 @@ _RANK[COV_NONE], _RANK[COV_UNREACHED], _RANK[COV_RESIDUAL], _RANK[COV_COVERED] =
 
 def combine_coverage(per_clip: list[np.ndarray]) -> np.ndarray:
     """Con varios clips manda la mejor categoría de cada vértice."""
+    if not per_clip:
+        # Sin clips colocados no hay nada que clasificar; el llamador decide el tamaño.
+        return np.zeros(0, dtype=np.uint8)
     best = np.asarray(per_clip[0], dtype=np.uint8).copy()
     for cov in per_clip[1:]:
         cov = np.asarray(cov, dtype=np.uint8)

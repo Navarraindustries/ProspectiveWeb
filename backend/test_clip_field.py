@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import vtk
 from vtkmodules.util import numpy_support as ns
 
@@ -35,16 +36,24 @@ def _puntos(poly: vtk.vtkPolyData) -> np.ndarray:
     return ns.vtk_to_numpy(poly.GetPoints().GetData()).astype(float)
 
 
-def _clip_en_cuello(largo_hoja: float, rot_deg: float = 0.0, desplaza=(0.0, 0.0, 0.0)) -> vtk.vtkPolyData:
-    """Clip recto cerrado sobre el cuello (plano z = 0): hojas en el plano, +Z normal."""
-    local = devices.make_clip_shaped(largo_hoja, 0.5, 1.4, "STRAIGHT")
+def _clip_y_pose(largo_hoja: float, rot_deg: float = 0.0, desplaza=(0.0, 0.0, 0.0),
+                 forma: str = "STRAIGHT", **kw) -> tuple[vtk.vtkPolyData, vtk.vtkTransform]:
+    """Clip cerrado sobre el cuello (plano z = 0), hojas en el plano, +Z normal, y su pose."""
+    local = devices.make_clip_shaped(largo_hoja, 0.5, 1.4, forma, **kw)
     t = devices.pose_transform((desplaza[0], desplaza[1], desplaza[2]), (0.0, 0.0, 1.0), rot_deg)
-    return devices.apply_transform(local, t)
+    return devices.apply_transform(local, t), t
 
 
-def _marco(clip_world: vtk.vtkPolyData, largo_hoja: float, neck_mm: float = 6.0) -> BladeFrame:
-    return blade_frame(clip_world, length_mm=largo_hoja, blade_width_mm=0.5, blade_height_mm=1.4,
-                       neck_mm=neck_mm, neck_axis=(0.0, 0.0, 1.0))
+def _clip_en_cuello(largo_hoja: float, rot_deg: float = 0.0, desplaza=(0.0, 0.0, 0.0)):
+    """Clip recto colocado: (malla de mundo, pose), lo que `_marco` necesita."""
+    return _clip_y_pose(largo_hoja, rot_deg, desplaza)
+
+
+def _marco(clip: tuple[vtk.vtkPolyData, vtk.vtkTransform], largo_hoja: float,
+           neck_mm: float = 6.0) -> BladeFrame:
+    world, t = clip
+    return blade_frame(world, length_mm=largo_hoja, blade_width_mm=0.5, blade_height_mm=1.4,
+                       neck_mm=neck_mm, neck_axis=(0.0, 0.0, 1.0), pose=t)
 
 
 class TestAnillo:
@@ -80,11 +89,11 @@ class TestMarco:
     def test_una_pieza_con_bisagra_en_el_centro_da_el_mismo_marco(self):
         # Las piezas NAVARRO™ llevan el cuerpo detrás de la bisagra: el marco debe
         # leer la bisagra donde empieza el pasillo entre hojas, no en el borde de la malla.
-        clip = _clip_en_cuello(10.0)
+        clip, t = _clip_en_cuello(10.0)
         cuerpo = vtk.vtkCubeSource(); cuerpo.SetXLength(8.0); cuerpo.SetYLength(3.0); cuerpo.SetZLength(1.4)
         cuerpo.SetCenter(-5.0 - 4.0, 0.0, 0.0); cuerpo.Update()     # pegado detrás de la bisagra (x = −5)
         con_cuerpo = devices.combine([clip, cuerpo.GetOutput()])
-        f = _marco(con_cuerpo, 10.0)
+        f = _marco((con_cuerpo, t), 10.0)
         assert abs(f.hinge[0] - (-5.0)) < 0.6
         assert f.long_axis[0] > 0.99                           # apunta a la punta (+X)
 
@@ -161,14 +170,11 @@ class TestMarcoDePose:
         np.testing.assert_allclose(np.abs(f.open_axis), [1.0, 0.0, 0.0], atol=1e-9)
         np.testing.assert_allclose(f.depth_axis, [0.0, 0.0, 1.0], atol=1e-9)
 
-    def test_sin_pose_una_malla_degenerada_falla(self):
-        import pytest
-        pts = vtk.vtkPoints()
-        for i in range(10):
-            pts.InsertNextPoint(float(i), 0.0, 0.0)
-        degenerada = vtk.vtkPolyData(); degenerada.SetPoints(pts)
-        with pytest.raises(ValueError):
-            blade_frame(degenerada, length_mm=8.0, blade_width_mm=0.5, blade_height_mm=1.4,
+    def test_la_pose_es_obligatoria(self):
+        # Sin pose el marco se leería en coordenadas de mundo y saldría mal sin avisar.
+        world, _ = _clip_en_cuello(10.0)
+        with pytest.raises(TypeError):
+            blade_frame(world, length_mm=10.0, blade_width_mm=0.5, blade_height_mm=1.4,
                         neck_mm=6.0, neck_axis=(0.0, 0.0, 1.0))
 
     def test_con_pose_un_clip_lejos_del_origen_da_el_marco_correcto(self):
@@ -183,3 +189,31 @@ class TestMarcoDePose:
         assert float(np.dot(f.long_axis, pose.TransformVector(1.0, 0.0, 0.0))) > 0.999
         assert abs(float(np.dot(f.open_axis, pose.TransformVector(0.0, 1.0, 0.0)))) > 0.999
         assert float(np.dot(f.depth_axis, np.array([1.0, 1.0, 1.0]) / np.sqrt(3.0))) > 0.999
+
+
+class TestClipAcodado:
+    @pytest.mark.parametrize("forma, angulo", [("ANGLED", 90.0), ("ANGLED_45", 0.0)])
+    def test_un_clip_acodado_abre_en_y_local(self, forma, angulo):
+        # jaw_geometry lee la apertura en X en los ANGLED cortos: el marco debe
+        # corregirlo con el diseño local (hojas en +X, apertura en +Y).
+        world, t = _clip_y_pose(10.0, 30.0, (2.0, 1.0, 0.0), forma, angle_deg=angulo)
+        f = _marco((world, t), 10.0)
+        assert abs(float(np.dot(f.open_axis, t.TransformVector(0.0, 1.0, 0.0)))) > 0.999
+        assert float(np.dot(f.long_axis, t.TransformVector(1.0, 0.0, 0.0))) > 0.999
+
+    def test_la_parte_recta_de_un_acodado_clasifica_como_un_recto(self):
+        pose = dict(rot_deg=30.0, desplaza=(2.0, 1.0, 0.0))
+        world_a, t = _clip_y_pose(10.0, forma="ANGLED", angle_deg=90.0, **pose)
+        acodado = _marco((world_a, t), 10.0)
+        recto = _marco(_clip_y_pose(10.0, **pose), 10.0)
+        ang = np.linspace(0, 2 * np.pi, 72, endpoint=False)
+        cuello = np.stack([3.0 * np.cos(ang), 3.0 * np.sin(ang), np.zeros_like(ang)], axis=1)
+        # Parte recta: el 45 % proximal de la hoja, x local de −5 a −0,5. Se deja fuera
+        # el grosor de la barra de bisagra (x < −4,5): en el recto la bisagra se lee en
+        # su cara interior (−4,75) y en el acodado se toma la analítica (−5).
+        x_local = (cuello - np.array(t.TransformPoint(0.0, 0.0, 0.0))) @ np.array(t.TransformVector(1.0, 0.0, 0.0))
+        recta = (x_local > -4.5) & (x_local < -0.8)
+        assert recta.sum() > 10
+        a, r = classify(cuello, acodado), classify(cuello, recto)
+        assert np.array_equal(a[recta], r[recta])
+        assert np.all(a[recta] == COV_COVERED)

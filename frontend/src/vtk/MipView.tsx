@@ -27,6 +27,7 @@ import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
 import { usePlanning } from "../store/planning";
 import { cameraHeading, effectiveDirection, sliceCamera, type Orientation, type Plane } from "./geometry";
+import { PLANE_HEX } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { HudLadder } from "./hud/HudLadder";
@@ -292,7 +293,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           // Dónde está el corte dentro de lo que se ve: ámbar tenue, sin
           // capturar el ratón, y oculta con REGLAS ○ como el resto de líneas.
           <svg className="hud-decor" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-            {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke="var(--hud-amber)" strokeOpacity={0.6} strokeWidth={1} />)}
+            {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={PLANE_HEX[plane]} strokeOpacity={0.6} strokeWidth={1} />)}
           </svg>
         )}
         <HudLadder count={count} index={index} />

@@ -67,6 +67,10 @@
   --hud:        #8CFF9E;
   --hud-dim:    rgba(140, 255, 158, 0.55);
   --hud-amber:  #FFC857;
+  /* Un color por plano de corte (rótulo, líneas de referencia, traza del MIP, 3D). */
+  --plane-axial:   #4cc9f0;
+  --plane-coronal: #80ed99;
+  --plane-sagital: #f4a261;
   --hud-red:    #FF5A5A;
   --hud-line:   1px;
 

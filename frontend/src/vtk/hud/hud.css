@@ -8,6 +8,9 @@
 .hud-corner.br { bottom: 6px; right: 6px; border-bottom-width: var(--hud-line); border-right-width: var(--hud-line); }
 .hud.active .hud-corner { border-color: var(--hud); }
 .hud-label { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-dim); }
+.hud-label[data-plane="axial"] { color: var(--plane-axial); }
+.hud-label[data-plane="coronal"] { color: var(--plane-coronal); }
+.hud-label[data-plane="sagital"] { color: var(--plane-sagital); }
 .hud-readout { position: absolute; font-size: 10.5px; line-height: 1.5; letter-spacing: .04em; white-space: pre; }
 .hud-readout.tl { top: 22px; left: 14px; } .hud-readout.tr { top: 22px; right: 14px; text-align: right; }
 .hud-readout.bl { bottom: 22px; left: 14px; } .hud-readout.br { bottom: 22px; right: 14px; text-align: right; }

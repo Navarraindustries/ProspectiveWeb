@@ -17,6 +17,7 @@ import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
 import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane } from "./geometry";
+import { PLANE_CSS_VAR, referencePlanes } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
@@ -313,7 +314,7 @@ export function SliceView(p: SliceViewProps) {
       style={{ position: "relative", width: "100%", height: "100%", background: "#000", overflow: "hidden", cursor: "crosshair", outline: "none" }}
       title="Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · Clic: centrar"
     >
-      <HudFrame active={p.active} label={LABEL[p.plane]}>
+      <HudFrame active={p.active} label={LABEL[p.plane]} labelPlane={p.plane}>
         <span className="hud-edge top">{labels.top}</span>
         <span className="hud-edge bottom">{labels.bottom}</span>
         <span className="hud-edge left">{labels.left}</span>
@@ -322,10 +323,10 @@ export function SliceView(p: SliceViewProps) {
           <HudReticle cx={box.left + p.crosshair.u * box.w} cy={box.top + p.crosshair.v * box.h} mmPerPx={box.mmPerPx} />
         )}
         {box && p.referenceLines?.u != null && (
-          <div className="hud-decor" style={{ position: "absolute", left: box.left + p.referenceLines.u * box.w, top: box.top, width: 1, height: box.h, background: "var(--hud-amber)", opacity: 0.5 }} />
+          <div className="hud-decor" data-plane={referencePlanes(p.plane).u} style={{ position: "absolute", left: box.left + p.referenceLines.u * box.w, top: box.top, width: 1, height: box.h, background: PLANE_CSS_VAR[referencePlanes(p.plane).u], opacity: 0.7 }} />
         )}
         {box && p.referenceLines?.v != null && (
-          <div className="hud-decor" style={{ position: "absolute", top: box.top + p.referenceLines.v * box.h, left: box.left, height: 1, width: box.w, background: "var(--hud-amber)", opacity: 0.5 }} />
+          <div className="hud-decor" data-plane={referencePlanes(p.plane).v} style={{ position: "absolute", top: box.top + p.referenceLines.v * box.h, left: box.left, height: 1, width: box.w, background: PLANE_CSS_VAR[referencePlanes(p.plane).v], opacity: 0.7 }} />
         )}
         <HudLadder count={count} index={p.index} />
         <HudReadout at="bl" lines={[`${String(p.index + 1).padStart(3, " ")}/${count}`]} />

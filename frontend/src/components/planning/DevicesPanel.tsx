@@ -4,8 +4,9 @@
    Stents: GET /api/stents · POST /api/plan */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../../api/client";
+import { api, ApiError } from "../../api/client";
 import type {
+  ClipPlacement,
   ClipPlanResult,
   CorridorAssessmentOut,
   ClipLibraryItem,
@@ -27,6 +28,7 @@ import type {
 } from "../../api/types";
 import { Button } from "../Button";
 import { CenterOnLesionButton } from "../CenterOnLesionButton";
+import { ClipFieldCard } from "./ClipFieldCard";
 import { ClipRehearsal } from "./ClipRehearsal";
 import { ClipSelectionPanel } from "./ClipSelection";
 import { Icon } from "../Icon";
@@ -139,7 +141,10 @@ function NumField({ label, value, onChange, step = 1 }: { label: string; value: 
 const CLIP_STEPS = ["Elegir", "Colocar"] as const;
 
 function ClipsTab() {
-  const { sessionId, caseId, morphometry, setDeviceMesh } = usePlanning();
+  const {
+    sessionId, caseId, morphometry, setDeviceMesh,
+    clipField, setClipField, showClipField, setShowClipField,
+  } = usePlanning();
   const clearer = useClearDevice("clips");
   const [recs, setRecs] = useState<ClipRecommendation[]>([]);
   const [customs, setCustoms] = useState<CustomClipInfo[]>([]);
@@ -165,6 +170,15 @@ function ClipsTab() {
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const nextKey = useRef(1);
+  // El campo del clip va aparte del plan: un fallo al pedirlo no deshace la
+  // colocación. Un 409 (sin saco aislado, sin cuello) no es un error sino algo
+  // que falta por hacer, y se lee como nota.
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [fieldNote, setFieldNote] = useState<string | null>(null);
+  const fieldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cada petición lleva su número y solo la última escribe: con el debounce
+  // pueden cruzarse dos respuestas, y la vieja pintaría una posición que ya no es.
+  const fieldSeq = useRef(0);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -263,24 +277,83 @@ function ClipsTab() {
     }
   };
 
+  const placementsFor = (clips: PlacedClip[]): ClipPlacement[] => {
+    const { normal } = neckPlacement(morphometry);
+    return clips.map((c) => ({ clip_id: c.clip_id, position: c.position, normal, rotation_deg: c.rotation_deg }));
+  };
+
+  const cancelFieldTimer = () => {
+    if (fieldTimer.current) { clearTimeout(fieldTimer.current); fieldTimer.current = null; }
+  };
+
+  /** Pide el mapa de calor para estas colocaciones. Nunca lanza: lo que falle se
+   *  queda en la línea bajo la tarjeta, y el plan colocado sigue en pie. */
+  const requestField = async (placements: ClipPlacement[]) => {
+    if (!sessionId || placements.length === 0) return;
+    const seq = ++fieldSeq.current;
+    try {
+      const field = await api.clipField(sessionId, { session_id: sessionId, placements });
+      if (seq !== fieldSeq.current) return;
+      setClipField(field);
+      setFieldError(null);
+      setFieldNote(null);
+    } catch (err) {
+      if (seq !== fieldSeq.current) return;
+      // Sin campo para esta posición, mejor ninguno que el de la anterior.
+      setClipField(null);
+      if (err instanceof ApiError && err.status === 409) {
+        setFieldNote(err.message);
+        setFieldError(null);
+      } else {
+        setFieldError(err instanceof Error ? err.message : "No se pudo calcular el mapa de calor");
+        setFieldNote(null);
+      }
+    }
+  };
+
   const place = async () => {
     if (!sessionId || placed.length === 0) return;
     setBusy(true);
     setError(null);
+    const placements = placementsFor(placed);
     try {
-      const { normal } = neckPlacement(morphometry);
-      const res = await api.planClips({
-        session_id: sessionId,
-        placements: placed.map((c) => ({ clip_id: c.clip_id, position: c.position, normal, rotation_deg: c.rotation_deg })),
-      });
+      const res = await api.planClips({ session_id: sessionId, placements });
       setPlan(res);
       setDeviceMesh("clips", res.clips_mesh_url || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al colocar los clips");
+      setBusy(false);
+      return;
+    }
+    // Esta petición ya cubre lo que un movimiento reciente iba a pedir.
+    cancelFieldTimer();
+    try {
+      await requestField(placements);
     } finally {
       setBusy(false);
     }
   };
+
+  // Mover o girar un clip ya colocado vuelve a pedir su campo, con debounce:
+  // mover un deslizador dispara decenas de cambios por segundo; el servidor
+  // tarda ~100 ms por campo. Solo `placed` en las dependencias: colocar ya pide
+  // su campo, y que `plan` cambiase no debe pedirlo otra vez. En el primer
+  // render no hay plan, así que no se pide nada. Sin malla de clips (la barra
+  // «Limpiar todos» la quita sin tocar este plan) no hay clip al que pintar campo.
+  useEffect(() => {
+    if (!plan || !clearer.placed || placed.length === 0) return;
+    cancelFieldTimer();
+    const placements = placementsFor(placed);
+    fieldTimer.current = setTimeout(() => {
+      fieldTimer.current = null;
+      void requestField(placements);
+    }, 250);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placed]);
+
+  // Al desmontar, nada pendiente: ni el temporizador ni una respuesta en vuelo
+  // que escribiese el campo de un panel que ya no está.
+  useEffect(() => () => { cancelFieldTimer(); fieldSeq.current++; }, []);
 
   return (
     <div style={{ marginTop: 12 }}>
@@ -476,6 +549,13 @@ function ClipsTab() {
               )}
             </Card>
           )}
+          {plan && clipField && (
+            <ClipFieldCard summary={clipField.summary} show={showClipField} onToggle={setShowClipField} />
+          )}
+          {plan && fieldNote && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{fieldNote}</div>
+          )}
+          {plan && <ErrorNote>{fieldError}</ErrorNote>}
           <ErrorNote>{error}</ErrorNote>
 
           <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void place()} disabled={busy || placed.length === 0} leadingIcon={<Icon name="CLIP_PLACE" />}>
@@ -488,7 +568,15 @@ function ClipsTab() {
             label="Limpiar clips colocados"
             disabled={!clearer.placed && !plan}
             busy={clearer.busy}
-            onClick={() => void clearer.clear(() => { setPlan(null); setPlaced([]); })}
+            onClick={() => void clearer.clear(() => {
+              // Lo que estuviera en vuelo o pendiente ya no tiene clip al que pintar.
+              cancelFieldTimer();
+              fieldSeq.current++;
+              setFieldError(null);
+              setFieldNote(null);
+              setPlan(null);
+              setPlaced([]);
+            })}
           />
           <ErrorNote>{clearer.error}</ErrorNote>
         </div>

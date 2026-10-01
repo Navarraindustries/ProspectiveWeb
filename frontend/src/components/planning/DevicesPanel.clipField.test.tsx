@@ -1,0 +1,86 @@
+// Comprueba que colocar pide el campo justo después del plan y que mover el clip lo
+// vuelve a pedir con debounce. No había test previo de DevicesPanel: el wrapper es
+// el mínimo — PlanningProvider con una sesión fija y una morfometría con cuello —
+// y se simulan las llamadas que el panel hace al montarse para que ninguna salga a
+// la red de verdad.
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../api/client", async (orig) => {
+  const mod = await orig<typeof import("../../api/client")>();
+  return { ...mod, api: { ...mod.api,
+    clipRecommendations: vi.fn(async () => [{ clip_id: "navarro:t1:0:10.0", clip_name: "NAVARRO T1 10 mm" }]),
+    listCustomClips: vi.fn(async () => []),
+    clipSelection: vi.fn(() => new Promise(() => { /* nunca resuelve: no es lo que se prueba */ })),
+    placedDevices: vi.fn(async () => ({ remaining: [], mesh_urls: {} })),
+    planClips: vi.fn(async () => ({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null })),
+    clipField: vi.fn(async () => ({ field_mesh_url: "/m/clip_field.vtp?v=1", scalars: {}, summary: { covered_pct: 90, residual_pct: 10, unreached_pct: 0, contact_area_mm2: 8, force_g: 120, force_is_band_min: true, force_provisional: true, pressure_g_mm2: 15, window_g_mm2: [10, 12, 18, 22], pressure_verdict: "optima", verdict: "ok", criteria: [], clip_name: "x", note: "Estimación geométrica" } })),
+  } };
+});
+import { api, ApiError } from "../../api/client";
+import { DevicesPanel } from "./DevicesPanel";
+import { PlanningProvider, usePlanning } from "../../store/planning";
+import type { MorphometryResult } from "../../api/types";
+
+const morpho = {
+  neck_origin: { x: 1, y: 2, z: 3 }, principal_axis: [0, 0, 1],
+  centroid: { x: 1, y: 2, z: 5 }, dome_height_mm: 4, reliable: true,
+} as unknown as MorphometryResult;
+
+function Seed({ children }: { children: ReactNode }) {
+  const { sessionId, setSession, setMorphometry } = usePlanning();
+  useEffect(() => { if (!sessionId) { setSession("s1"); setMorphometry(morpho); } }, [sessionId, setSession, setMorphometry]);
+  return sessionId ? <>{children}</> : null;
+}
+
+/** Monta el panel, añade el clip recomendado y pulsa «Colocar 1 y verificar». */
+async function colocar() {
+  render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+  const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
+  await waitFor(() => expect(addBtn()).not.toBeDisabled());
+  fireEvent.click(addBtn());
+  fireEvent.click(screen.getByRole("button", { name: /Colocar 1 y verificar/ }));
+}
+
+describe("DevicesPanel · campo del clip", () => {
+  // shouldAdvanceTime: el waitFor de Testing Library usa los temporizadores del
+  // navegador; congelados del todo, nunca vuelve a mirar.
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.clearAllMocks(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("tras colocar pide el campo una vez y enseña la tarjeta", async () => {
+    await colocar();
+    await waitFor(() => expect(api.clipField).toHaveBeenCalledTimes(1));
+    expect(api.planClips).toHaveBeenCalledTimes(1);
+    const [sid, req] = vi.mocked(api.clipField).mock.calls[0];
+    expect(sid).toBe("s1");
+    expect(req.placements[0]).toMatchObject({ clip_id: "navarro:t1:0:10.0", position: { x: 1, y: 2, z: 3 }, rotation_deg: 0 });
+    expect(await screen.findByText(/Estimación geométrica/)).toBeInTheDocument();
+    // Colocar no debe disparar además el debounce: sigue siendo una sola llamada.
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.clipField).toHaveBeenCalledTimes(1);
+  });
+
+  it("mover el clip vuelve a pedir el campo tras 250 ms, no en cada tecla", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    expect(api.clipField).toHaveBeenCalledTimes(1);
+    const [x] = screen.getAllByRole("spinbutton");
+    fireEvent.change(x, { target: { value: "1.5" } });
+    fireEvent.change(x, { target: { value: "2" } });
+    expect(api.clipField).toHaveBeenCalledTimes(1);
+    act(() => { vi.advanceTimersByTime(260); });
+    await waitFor(() => expect(api.clipField).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api.clipField).mock.calls[1][1].placements[0].position.x).toBe(2);
+  });
+
+  it("un fallo del campo no deshace la colocación y un 409 se lee como nota", async () => {
+    vi.mocked(api.clipField).mockRejectedValueOnce(new ApiError(409, "No hay saco aislado: separa el saco antes de pedir el campo."));
+    await colocar();
+    expect(await screen.findByText(/No hay saco aislado/)).toBeInTheDocument();
+    // El plan sigue ahí: la tarjeta de cobertura del plan se pintó.
+    expect(screen.getByText("Cobertura de cuello")).toBeInTheDocument();
+    expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull();
+  });
+});

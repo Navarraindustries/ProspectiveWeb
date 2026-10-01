@@ -31,8 +31,10 @@ const VERDICT_COLOR: Record<ClipVerdict, string> = {
   fail: "var(--destructive)",
 };
 
-/** One criterion as a chip: the mark, the label, and the number behind it. */
-function CriterionChip({ c }: { c: ClipCriterion }) {
+/** One criterion as a chip: the mark, the label, and the number behind it.
+ *  Exportado para la tarjeta del mapa de calor del clip: los mismos criterios
+ *  tienen que leerse igual en los dos sitios. */
+export function CriterionChip({ c }: { c: ClipCriterion }) {
   return (
     <div
       title={c.detail}
@@ -53,7 +55,9 @@ function CriterionChip({ c }: { c: ClipCriterion }) {
         {VERDICT_MARK[c.verdict]}
       </span>
       <span style={{ color: "var(--muted-foreground)", minWidth: 0 }}>
-        <b style={{ color: "var(--foreground)", fontWeight: 700 }}>{c.label}:</b>{" "}
+        {/* Los dos puntos en su propio nodo: el rótulo queda solo en el <b> y se
+            puede buscar por su texto exacto («Fuerza»), sin cambiar cómo se ve. */}
+        <b style={{ color: "var(--foreground)", fontWeight: 700 }}>{c.label}<span>:</span></b>{" "}
         {c.detail}
       </span>
     </div>

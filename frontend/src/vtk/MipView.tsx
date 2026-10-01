@@ -37,6 +37,7 @@ import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from "./OrientationInset";
 import { mipReadoutLines } from "./mipReadout";
 import { AXIS_OF, indexOf, wheelAction, withIndex } from "./mipGestures";
+import { planeCorners, toPixels, tracePolygon, traceVisible } from "./planeTrace";
 
 type Vec3 = [number, number, number];
 
@@ -78,6 +79,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkVolumeMapper; actor: vtkVolume } | null>(null);
   const [heading, setHeading] = useState<ReturnType<typeof cameraHeading> | null>(null);
   const [reverse, setReverse] = useState(false);
+  // Contornos del corte actual sobre el MIP, un atributo `points` por plano
+  // separados por «|»; null si la cámara mira el plano de canto.
+  const [trace, setTrace] = useState<string | null>(null);
   // La cámara avisa desde vtk, fuera del ciclo de React: leer la orientación
   // de un ref evita que el oyente se quede con la de cuando se montó (la
   // orientación fijada a mano puede cambiar sin rehacer la escena).
@@ -138,12 +142,16 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     const readHeading = () => setHeading(cameraHeading(
       cam.getDirectionOfProjection() as Vec3, cam.getViewUp() as Vec3, orientationRef.current,
     ));
-    const sub = cam.onModified(readHeading);
+    // La traza depende de la cámara además del corte: se recalcula en cada
+    // giro, zoom o desplazamiento (y al cambiar el tamaño), por ref para usar
+    // siempre el corte y el modo de este render.
+    const sub = cam.onModified(() => { readHeading(); computeTraceRef.current(); });
     readHeading();
-    const ro = new ResizeObserver(() => { grw.resize(); grw.getRenderWindow().render(); });
+    const ro = new ResizeObserver(() => { grw.resize(); grw.getRenderWindow().render(); computeTraceRef.current(); });
     ro.observe(el);
     scene.current = { grw, mapper, actor };
     grw.getRenderWindow().render();
+    computeTraceRef.current();
     registerCaptureRef.current?.(captureRenderWindow(grw, () => grw.getRenderWindow().render()));
     return () => { registerCaptureRef.current?.(null); sub.unsubscribe(); inset.dispose(); insetRef.current = null; ro.disconnect(); scene.current = null; grw.delete(); };
   }, [image]);
@@ -232,6 +240,31 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     s.grw.getRenderWindow().render();
   }, [axis, posMm, mipMode, mipSlabMm, reverse, image]);
 
+  // Proyecta con la cámara del MIP las esquinas del volumen en el plano (o los
+  // dos planos de la lámina). Son 4 u 8 proyecciones: barato para cada evento
+  // de cámara.
+  const computeTraceRef = useRef<() => void>(() => {});
+  computeTraceRef.current = () => {
+    const s = scene.current; const el = ref.current;
+    if (!s || !el) { setTrace(null); return; }
+    const ren = s.grw.getRenderer();
+    const cam = ren.getActiveCamera();
+    if (!traceVisible(cam.getDirectionOfProjection() as Vec3, axis)) { setTrace(null); return; }
+    const { width, height } = el.getBoundingClientRect();
+    if (width < 1 || height < 1) { setTrace(null); return; }
+    const aspect = width / height;
+    const bounds = image.getBounds();
+    const toPx = (p: Vec3) => {
+      const d = ren.worldToNormalizedDisplay(p[0], p[1], p[2], aspect);
+      return toPixels([d[0], d[1]], width, height);
+    };
+    const planes = mipMode === "acumulado" ? [posMm] : [posMm - mipSlabMm, posMm + mipSlabMm];
+    const next = planes.map((mm) => tracePolygon(planeCorners(bounds, axis, mm).map(toPx))).join("|");
+    // Evita renders de React cuando la cámara se mueve sin cambiar la traza.
+    setTrace((prev) => (prev === next ? prev : next));
+  };
+  useEffect(() => { computeTraceRef.current(); }, [posMm, axis, mipMode, mipSlabMm, image]);
+
   const fit = () => { const s = scene.current; if (!s) return; s.grw.getRenderer().resetCamera(); s.grw.getRenderWindow().render(); };
 
   return (
@@ -245,6 +278,13 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           <div style={{ position: "absolute", top: 18, left: 0, right: 0, height: 28 }}>
             <HudHeadingTape azimuthDeg={heading.azimuthDeg} elevationDeg={heading.elevationDeg} known={heading.known} />
           </div>
+        )}
+        {trace && (
+          // Dónde está el corte dentro de lo que se ve: ámbar tenue, sin
+          // capturar el ratón, y oculta con REGLAS ○ como el resto de líneas.
+          <svg className="hud-decor" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+            {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke="var(--hud-amber)" strokeOpacity={0.6} strokeWidth={1} />)}
+          </svg>
         )}
         <HudLadder count={count} index={index} />
         {/* En la celda no hay cinta de rumbo con corchetes: sin esta línea el

@@ -199,6 +199,15 @@ def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm
         # hoja. Si lo leído no cuadra con el diseño local, manda el diseño.
         if abs(float(long_l[0])) <= 0.9 or abs(float(open_l[1])) <= 0.9:
             hinge_l, long_l, open_l = analytic
+        else:
+            # El marco se ancla en la PUNTA de la mordaza, no en la barra de bisagra:
+            # la mordaza NAVARRO™ termina en una garganta abierta antes de la barra,
+            # así que la barra no es donde empiezan las hojas. El largo útil viene de
+            # la ficha y la punta es un extremo medible en ambas familias de clip
+            # (en el sintético, punta en +L/2 → bisagra en −L/2, como antes).
+            P = points_of(local.GetOutput())
+            tip = float(((P - hinge_l) @ long_l).max())
+            hinge_l = hinge_l + (tip - float(length_mm)) * long_l
     hinge = np.array(pose.TransformPoint(*map(float, hinge_l)))
     long_axis = np.array(pose.TransformVector(*map(float, long_l)))
     open_axis = np.array(pose.TransformVector(*map(float, open_l)))
@@ -221,7 +230,8 @@ def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm
     )
 
 
-def classify(points: np.ndarray, frame: BladeFrame) -> np.ndarray:
+def classify(points: np.ndarray, frame: BladeFrame, *, neck_origin, neck_axis,
+             neck_mm: float) -> np.ndarray:
     """Categoría por vértice para UN clip (ver constantes COV_*).
 
     Limitación conocida: la banda de profundidad es una losa plana alrededor del
@@ -236,14 +246,24 @@ def classify(points: np.ndarray, frame: BladeFrame) -> np.ndarray:
     d = rel @ frame.depth_axis           # profundidad respecto al plano de las hojas
     out = np.full(len(pts), COV_NONE, dtype=np.uint8)
     band = np.abs(d) <= frame.half_height_mm + DEPTH_TOL_MM
-    dome_side = d > frame.half_height_mm + DEPTH_TOL_MM
     near = np.abs(g) <= frame.close_half_mm
     behind = l < 0.0
     beyond = l > frame.length_mm
     within = ~behind & ~beyond
+    # «Cuello residual» y «no alcanzado» describen el CUELLO: solo se juzgan dentro
+    # de su disco (distancia en el plano del cuello ≤ cuello/2 + tolerancia). Fuera
+    # de él la banda corta la pared de la arteria madre, y un clip paralelo a la
+    # arteria (la orientación habitual) vería esa pared más allá de la punta como
+    # cuello sin cerrar. La cúpula tampoco cuenta: con el cuello pinzado en todo su
+    # ancho queda excluida entera. «Cubierto» no se limita al disco: es lo que las
+    # hojas pinzan, anillo incluido, y lo que mide el área de presión.
+    rel_neck = pts - np.asarray(neck_origin, dtype=float)
+    n = _unit(neck_axis)
+    in_plane = rel_neck - np.outer(rel_neck @ n, n)
+    in_disc = np.linalg.norm(in_plane, axis=1) <= float(neck_mm) / 2.0 + DEPTH_TOL_MM
     out[band & near & within] = COV_COVERED
-    out[band & near & behind] = COV_RESIDUAL
-    out[(band | dome_side) & near & beyond] = COV_UNREACHED
+    out[band & near & behind & in_disc] = COV_RESIDUAL
+    out[band & near & beyond & in_disc] = COV_UNREACHED
     return out
 
 

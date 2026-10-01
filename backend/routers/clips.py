@@ -1271,7 +1271,7 @@ async def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
             names.append(spec.name)
             if i == 0:
                 criteria = _criteria_out(evaluate_clip(spec, _build_case(session_id, None)))
-        per_clip.append(cf.classify(pts, frame))
+        per_clip.append(cf.classify(pts, frame, neck_origin=neck_origin, neck_axis=neck_axis, neck_mm=neck_mm))
     coverage = cf.combine_coverage(per_clip)
     s = cf.summarize(mesh, coverage, force_g=force_total, force_is_band_min=band_min,
                      force_provisional=provisional, neck_mm=neck_mm)

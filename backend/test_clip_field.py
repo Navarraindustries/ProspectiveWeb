@@ -56,6 +56,11 @@ def _marco(clip: tuple[vtk.vtkPolyData, vtk.vtkTransform], largo_hoja: float,
                        neck_mm=neck_mm, neck_axis=(0.0, 0.0, 1.0), pose=t)
 
 
+def _clasifica(points, frame: BladeFrame, neck_mm: float = 6.0) -> np.ndarray:
+    """`classify` con el cuello del fantoma: origen (0,0,0), eje +Z, 6 mm."""
+    return classify(points, frame, neck_origin=(0.0, 0.0, 0.0), neck_axis=(0.0, 0.0, 1.0), neck_mm=neck_mm)
+
+
 class TestAnillo:
     def test_el_anillo_queda_cerca_del_cuello_y_del_lado_del_vaso(self):
         ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
@@ -108,34 +113,36 @@ class TestClasificacion:
 
     def test_hoja_larga_cubre_todo_el_contorno(self):
         # Hoja de 12 mm centrada sobre un cuello de 6: ≥ cuello + 1 mm → 100 % (spec §5.4).
-        cov = classify(self._anillo_cuello(), _marco(_clip_en_cuello(12.0), 12.0))
+        cov = _clasifica(self._anillo_cuello(), _marco(_clip_en_cuello(12.0), 12.0))
         assert np.all(cov[:72] == COV_COVERED)
         assert np.all(cov[72:] == COV_NONE)                       # la cúpula sobre la hoja no se evalúa
 
     def test_hoja_corta_deja_cuello_no_alcanzado_mas_alla_de_la_punta(self):
         # Hoja de 4 mm con la bisagra en x = −3: la punta llega a x = +1.
-        cov = classify(self._anillo_cuello(), _marco(_clip_en_cuello(4.0, desplaza=(-1.0, 0.0, 0.0)), 4.0))
+        cov = _clasifica(self._anillo_cuello(), _marco(_clip_en_cuello(4.0, desplaza=(-1.0, 0.0, 0.0)), 4.0))
         pts = self._anillo_cuello()[:72]
         assert np.all(cov[:72][pts[:, 0] > 1.3] == COV_UNREACHED)
         assert np.all(cov[:72][(pts[:, 0] > -2.7) & (pts[:, 0] < 0.7)] == COV_COVERED)
 
     def test_lo_que_queda_detras_de_la_bisagra_es_cuello_residual(self):
         # Bisagra en x = −1: el contorno con x < −1,3 queda fuera del alcance de la hoja.
-        cov = classify(self._anillo_cuello(), _marco(_clip_en_cuello(4.0, desplaza=(1.0, 0.0, 0.0)), 4.0))
+        cov = _clasifica(self._anillo_cuello(), _marco(_clip_en_cuello(4.0, desplaza=(1.0, 0.0, 0.0)), 4.0))
         pts = self._anillo_cuello()[:72]
         assert np.all(cov[:72][pts[:, 0] < -1.3] == COV_RESIDUAL)
 
-    def test_la_cupula_mas_alla_de_la_punta_es_no_alcanzada(self):
-        cov = classify(np.array([[5.0, 0.0, 4.0], [-1.0, 0.0, 4.0]]), _marco(_clip_en_cuello(4.0, desplaza=(-1.0, 0.0, 0.0)), 4.0))
-        assert cov.tolist() == [COV_UNREACHED, COV_NONE]
+    def test_la_cupula_mas_alla_de_la_punta_no_se_evalua(self):
+        # Con el cuello pinzado la cúpula queda excluida entera: lo no alcanzado se
+        # juzga a la altura del cuello, no sobre el domo.
+        cov = _clasifica(np.array([[5.0, 0.0, 4.0], [-1.0, 0.0, 4.0]]), _marco(_clip_en_cuello(4.0, desplaza=(-1.0, 0.0, 0.0)), 4.0))
+        assert cov.tolist() == [COV_NONE, COV_NONE]
 
     def test_lejos_de_la_mordaza_no_se_evalua(self):
         # Pared del vaso en la banda pero a 4 mm de la mordaza (> cuello/2 + 0,3).
-        cov = classify(np.array([[0.0, 4.0, 0.0]]), _marco(_clip_en_cuello(12.0), 12.0))
+        cov = _clasifica(np.array([[0.0, 4.0, 0.0]]), _marco(_clip_en_cuello(12.0), 12.0))
         assert cov.tolist() == [COV_NONE]
 
     def test_un_clip_lejos_no_cubre_nada(self):
-        cov = classify(self._anillo_cuello(), _marco(_clip_en_cuello(12.0, desplaza=(0.0, 0.0, 20.0)), 12.0))
+        cov = _clasifica(self._anillo_cuello(), _marco(_clip_en_cuello(12.0, desplaza=(0.0, 0.0, 20.0)), 12.0))
         assert (cov == COV_COVERED).sum() == 0
 
     def test_combinar_clips_toma_la_mejor_categoria(self):
@@ -214,7 +221,7 @@ class TestClipAcodado:
         x_local = (cuello - np.array(t.TransformPoint(0.0, 0.0, 0.0))) @ np.array(t.TransformVector(1.0, 0.0, 0.0))
         recta = (x_local > -4.5) & (x_local < -0.8)
         assert recta.sum() > 10
-        a, r = classify(cuello, acodado), classify(cuello, recto)
+        a, r = _clasifica(cuello, acodado), _clasifica(cuello, recto)
         assert np.array_equal(a[recta], r[recta])
         assert np.all(a[recta] == COV_COVERED)
 
@@ -229,7 +236,7 @@ class TestPresion:
     def _campo(self, largo_hoja: float):
         ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
         mesh = field_mesh(_saco(), ring)
-        return mesh, classify(_puntos(mesh), _marco(_clip_en_cuello(largo_hoja), largo_hoja))
+        return mesh, _clasifica(_puntos(mesh), _marco(_clip_en_cuello(largo_hoja), largo_hoja))
 
     def test_el_area_de_contacto_crece_con_la_hoja(self):
         m1, c1 = self._campo(4.0); m2, c2 = self._campo(12.0)
@@ -255,7 +262,7 @@ class TestPresion:
         ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
         mesh = field_mesh(_saco(), ring)
         f = _marco(_clip_en_cuello(12.0, desplaza=(0.0, 0.0, 20.0)), 12.0)
-        s = summarize(mesh, classify(_puntos(mesh), f), force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        s = summarize(mesh, _clasifica(_puntos(mesh), f), force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
         assert s.contact_area_mm2 == 0.0 and s.pressure_g_mm2 == 0.0 and s.pressure_verdict == "sin_contacto"
         assert s.covered_pct == 0.0
 
@@ -279,7 +286,7 @@ class TestColores:
     def test_el_vtp_lleva_los_tres_arrays_y_los_colores_activos(self, tmp_path):
         ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
         mesh = field_mesh(_saco(), ring)
-        cov = classify(_puntos(mesh), _marco(_clip_en_cuello(12.0), 12.0))
+        cov = _clasifica(_puntos(mesh), _marco(_clip_en_cuello(12.0), 12.0))
         write_field(mesh, cov, 14.3, colorize(cov, "optima"), tmp_path / "clip_field.vtp")
         from services.segmentation import read_vtp
         back = read_vtp(tmp_path / "clip_field.vtp")

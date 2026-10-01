@@ -65,12 +65,12 @@ class TestCampo:
 
     def test_girar_el_clip_cambia_la_cobertura(self):
         sid = _sesion()
-        cid = _primer_clip_id()
+        cid = "navarro:t1:0:13.0"
         a = _campo(sid, cid, rot=0.0).json()["summary"]
         b = _campo(sid, cid, rot=90.0).json()["summary"]
-        # Un clip de 7 mm cubre el cuello de 6 mm a cualquier giro, así que el
+        # Un clip de 13 mm cubre el cuello de 6 mm a cualquier giro, así que el
         # porcentaje puede coincidir; lo que el giro cambia es qué pared pinza
-        # (anillo de vaso frente a saco), y eso se ve en el par cobertura/área.
+        # (a lo largo de la arteria o a través de ella), y eso se ve en el área.
         assert (a["covered_pct"], a["contact_area_mm2"]) != (b["covered_pct"], b["contact_area_mm2"])
 
     def test_varios_clips_suman_su_fuerza(self):
@@ -83,6 +83,18 @@ class TestCampo:
         s = client.post(f"/api/clips/field/{sid}", json=body).json()["summary"]
         uno = _campo(sid, cid).json()["summary"]
         assert s["force_g"] == 2 * uno["force_g"]
+
+    def test_un_clip_con_margen_sale_ok_o_warn(self):
+        # 13 mm de hoja sobre un cuello de 6 mm: margen de sobra para cerrarlo entero.
+        s = _campo(_sesion(), "navarro:t1:0:13.0").json()["summary"]
+        assert s["verdict"] in ("ok", "warn"), s
+        assert s["pressure_verdict"] != "sin_contacto" and s["covered_pct"] >= 90
+
+    def test_la_arteria_madre_no_cuenta_como_cuello_no_alcanzado(self):
+        # Un clip corto paralelo a la arteria deja pared de vaso más allá de la punta;
+        # eso no es cuello: lo no alcanzado se juzga solo dentro del disco del cuello.
+        s = _campo(_sesion(), "navarro:t1:0:7.0").json()["summary"]
+        assert s["unreached_pct"] <= 20, s
 
 
 class TestNegativas:

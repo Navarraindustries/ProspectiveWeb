@@ -47,10 +47,12 @@ const MipView = lazy(() => import("./MipView").then((m) => ({ default: m.MipView
 const ObliqueView = lazy(() => import("./ObliqueView").then((m) => ({ default: m.ObliqueView })));
 
 /* Pistas efímeras del panel principal (Task 14): qué gesto usar según lo que
-   haya montado ahí. */
-const HINT_TEXT: Record<"rotate" | "slice", string> = {
+   haya montado ahí. El MIP gira como el 3D pero su rueda es la de los cortes. */
+type HintKind = "rotate" | "slice" | "mip";
+const HINT_TEXT: Record<HintKind, string> = {
   rotate: "ARRASTRAR ROTA · RUEDA ZOOM · DOBLE CLIC EN UNA CELDA LA MAXIMIZA",
   slice: "RUEDA CORTE · CTRL+RUEDA ZOOM · ARRASTRAR VENTANA · SHIFT DESPLAZA",
+  mip: "RUEDA CORTE · CTRL+RUEDA ZOOM · ARRASTRAR ROTA · SHIFT DESPLAZA",
 };
 
 const STEP_SCENE: Record<string, string> = {
@@ -180,7 +182,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     clipRehearsal, registerClipParts,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
-    focusPoint, setFocusMm, setCenterOnLesion, volumeVersion,
+    focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     imagingStudyId, setCaptureCase, setViewerRecording,
   } = usePlanning();
 
@@ -791,15 +793,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // .hud-hint dura lo mismo). El texto depende de si el principal es girable
   // (3D o MIP) o un corte; en cualquier otro caso (volumen sin malla, oblicuo,
   // sin sesión) no hay nada que enseñar. «?» la vuelve a mostrar.
-  const mainRotatable = viewerLayout.main === "mip"
-    || (viewerLayout.main === "scene" && ((viewMode === "default" && meshVisible) || viewMode === "volume"));
-  const hintKind: "rotate" | "slice" | null = mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
+  const mainRotatable = viewerLayout.main === "scene" && ((viewMode === "default" && meshVisible) || viewMode === "volume");
+  const hintKind: HintKind | null = viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
   const [hint, setHint] = useState<string | null>(null);
   // La animación de desvanecido corre una vez, al montar el div: reaparecer con
   // «?» necesita un nodo nuevo (de ahí `key`) o se vería ya apagada.
   const [hintSeq, setHintSeq] = useState(0);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showHint = useCallback((kind: "rotate" | "slice") => {
+  const showHint = useCallback((kind: HintKind) => {
     setHint(HINT_TEXT[kind]);
     setHintSeq((n) => n + 1);
     if (hintTimer.current) clearTimeout(hintTimer.current);
@@ -870,12 +871,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
           </HudFrame>
         );
       }
-      // Recorta según el corte que se está recorriendo: el del panel principal
-      // si es coronal o sagital; si no (axial, 3D, MIP), el axial.
-      const mipPlane: Plane = viewerLayout.main === "coronal" || viewerLayout.main === "sagital" ? viewerLayout.main : "axial";
+      // Acumula en el eje elegido en su HUD; sin elección, en el del corte que
+      // se está recorriendo: el del panel principal si es coronal o sagital;
+      // si no (axial, 3D, MIP), el axial.
+      const mipPlane: Plane = storeMipPlane ?? (viewerLayout.main === "coronal" || viewerLayout.main === "sagital" ? viewerLayout.main : "axial");
       return (
         <Suspense fallback={<ViewerLoading label="Cargando MIP…" />}>
-          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} mainPlane={mipPlane} registerCapture={regPane("mip")} />
+          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} />
         </Suspense>
       );
     }

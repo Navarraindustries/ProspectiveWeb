@@ -6,8 +6,11 @@
    desaparece. «Lámina»: dos planos a ±N mm. La función de transferencia
    «Vasos» arranca en el umbral inferior de la banda, no en HU fijos.
 
-   A diferencia de SliceView, aquí se conserva la interacción de vtk
-   (arrastrar rota, rueda hace zoom): un MIP se entiende girándolo. */
+   Los gestos son los de SliceView para no cambiar de mano al cambiar de
+   vista: la rueda avanza el corte compartido (y el MIP se ve construirse),
+   Ctrl+rueda hace zoom, Shift+arrastrar o el botón central desplazan. Lo
+   propio del MIP es que arrastrar lo gira (se entiende girándolo) y que elige
+   su eje de acumulación (AX · COR · SAG) sin depender de la vista principal. */
 
 import { useEffect, useRef, useState } from "react";
 import "@kitware/vtk.js/Rendering/Profiles/Volume";
@@ -17,10 +20,14 @@ import vtkVolumeMapper from "@kitware/vtk.js/Rendering/Core/VolumeMapper";
 import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
+import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator";
+import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
+import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
+import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
 import { usePlanning } from "../store/planning";
-import { cameraHeading, effectiveDirection, sliceCamera, type Orientation, type Plane } from "./geometry";
+import { cameraHeading, effectiveDirection, standardViewInVolume, type Orientation, type Plane } from "./geometry";
 import { HudFrame } from "./hud/HudFrame";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { HudLadder } from "./hud/HudLadder";
@@ -29,19 +36,41 @@ import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from "./OrientationInset";
 import { mipReadoutLines } from "./mipReadout";
+import { AXIS_OF, indexOf, wheelAction, withIndex } from "./mipGestures";
 
 type Vec3 = [number, number, number];
 
-const AXIS_OF: Record<Plane, 0 | 1 | 2> = { sagital: 0, coronal: 1, axial: 2 };   // eje vtk (x,y,z)
+const PLANE_OPTIONS = [
+  { key: "axial", label: "AX", title: "Acumular en el eje axial" },
+  { key: "coronal", label: "COR", title: "Acumular en el eje coronal" },
+  { key: "sagital", label: "SAG", title: "Acumular en el eje sagital" },
+];
 
-export function MipView({ image, meta, orientation, compact = false, mainPlane = "axial", registerCapture }: {
-  image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean; mainPlane?: Plane;
+/** Cámara en la vista estándar del eje, centrada en el volumen: al cambiar de
+ *  eje se mira de frente lo que se acumula. */
+function cameraToPlane(grw: vtkGenericRenderWindow, image: vtkImageData, plane: Plane, orientation: Orientation) {
+  const renderer = grw.getRenderer();
+  const cam = renderer.getActiveCamera();
+  const { direction, viewUp } = standardViewInVolume(plane, orientation);
+  const b = image.getBounds();
+  const c = [(b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2];
+  cam.setFocalPoint(c[0], c[1], c[2]);
+  cam.setPosition(c[0] - direction[0] * 1000, c[1] - direction[1] * 1000, c[2] - direction[2] * 1000);
+  cam.setViewUp(viewUp[0], viewUp[1], viewUp[2]);
+  renderer.resetCamera();
+}
+
+export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture }: {
+  image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean;
+  /** Eje en el que acumula y que recorre la rueda. */
+  plane: Plane;
+  onPlaneChange: (p: Plane) => void;
   /** Publica la captura de este panel en PNG mientras su escena viva.
    *  El lienzo de vtk.js se lee negro si no se pide la imagen del
    *  siguiente render, así que la captura tiene que salir de aquí. */
   registerCapture?: (fn: CaptureFn | null) => void;
 }) {
-  const { mprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation } = usePlanning();
+  const { mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation } = usePlanning();
   // Por ref: cambiar de destinatario no puede rehacer la escena.
   const registerCaptureRef = useRef(registerCapture);
   registerCaptureRef.current = registerCapture;
@@ -55,11 +84,14 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
   const orientationRef = useRef(orientation);
   orientationRef.current = orientation;
   const insetRef = useRef<OrientationInset | null>(null);
+  // La escena se crea con el eje vigente pero no se rehace al cambiarlo.
+  const planeRef = useRef(plane);
+  planeRef.current = plane;
 
-  const axis = AXIS_OF[mainPlane];
-  const index = mainPlane === "axial" ? mprVoxel.z : mainPlane === "coronal" ? mprVoxel.y : mprVoxel.x;
-  const count = mainPlane === "axial" ? meta.shape[0] : mainPlane === "coronal" ? meta.shape[1] : meta.shape[2];
-  const spacingAlong = mainPlane === "axial" ? meta.spacing[0] : mainPlane === "coronal" ? meta.spacing[1] : meta.spacing[2];
+  const axis = AXIS_OF[plane];
+  const index = indexOf(plane, mprVoxel);
+  const count = plane === "axial" ? meta.shape[0] : plane === "coronal" ? meta.shape[1] : meta.shape[2];
+  const spacingAlong = plane === "axial" ? meta.spacing[0] : plane === "coronal" ? meta.spacing[1] : meta.spacing[2];
   // El vtkImageData tiene origen 0 y el tamaño físico del nativo (el nivel
   // grueso agranda el espaciado), así que índice nativo × espaciado nativo es
   // la coordenada de mundo del corte en cualquiera de los dos niveles.
@@ -86,13 +118,19 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     actor.setMapper(mapper);
     renderer.addVolume(actor);
     const cam = renderer.getActiveCamera();
-    const { direction, viewUp } = sliceCamera(mainPlane);
-    const b = image.getBounds();
-    const c = [(b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2];
-    cam.setFocalPoint(c[0], c[1], c[2]);
-    cam.setPosition(c[0] - direction[0] * 1000, c[1] - direction[1] * 1000, c[2] - direction[2] * 1000);
-    cam.setViewUp(viewUp[0], viewUp[1], viewUp[2]);
-    renderer.resetCamera();
+    cameraToPlane(grw, image, planeRef.current, orientationRef.current);
+    // Rotar con el botón izquierdo, desplazar con el central o con Shift, zoom
+    // solo con Ctrl+rueda: la rueda sola queda libre para avanzar el corte,
+    // como en SliceView. vtk elige el manipulador por modificadores exactos,
+    // así que Shift+izquierdo desplaza sin rotar a la vez.
+    const style = vtkInteractorStyleManipulator.newInstance();
+    const rotate = vtkMouseCameraTrackballRotateManipulator.newInstance(); rotate.setButton(1);
+    const panMid = vtkMouseCameraTrackballPanManipulator.newInstance(); panMid.setButton(2);
+    const panShift = vtkMouseCameraTrackballPanManipulator.newInstance(); panShift.setButton(1); panShift.setShift(true);
+    const zoom = vtkMouseCameraTrackballZoomManipulator.newInstance();
+    zoom.setControl(true); zoom.setDragEnabled(false); zoom.setScrollEnabled(true);
+    style.addMouseManipulator(rotate); style.addMouseManipulator(panMid); style.addMouseManipulator(panShift); style.addMouseManipulator(zoom);
+    grw.getInteractor().setInteractorStyle(style);
     // El maniquí del recuadro sigue a esta cámara: al rotar el MIP se ve desde
     // dónde se está mirando al paciente, no solo el número de la cinta.
     const inset = createOrientationInset(grw.getRenderWindow(), renderer, orientationRef.current);
@@ -108,7 +146,35 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     grw.getRenderWindow().render();
     registerCaptureRef.current?.(captureRenderWindow(grw, () => grw.getRenderWindow().render()));
     return () => { registerCaptureRef.current?.(null); sub.unsubscribe(); inset.dispose(); insetRef.current = null; ro.disconnect(); scene.current = null; grw.delete(); };
-  }, [image, mainPlane]);
+  }, [image]);
+
+  // Al cambiar de eje solo se mueve la cámara (y, abajo, los planos de
+  // recorte): la escena y su volumen siguen siendo los mismos. Al montar
+  // repite lo que ya hizo la escena, sin efecto visible.
+  useEffect(() => {
+    const s = scene.current; if (!s) return;
+    cameraToPlane(s.grw, image, plane, orientationRef.current);
+    s.grw.getRenderWindow().render();
+  }, [plane]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // La rueda es nuestra: en fase de captura sobre el contenedor (donde vtk
+  // escucha la suya, en fase de burbuja) llega antes y la detiene; Ctrl+rueda
+  // se deja pasar para el zoom de vtk, que además impide el de la página. No
+  // pasiva, como en SliceView, para que preventDefault sirva; el ref da
+  // siempre el corte de este render sin volver a registrar el oyente.
+  const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
+  wheelRef.current = (e) => {
+    const a = wheelAction(e, index, count);
+    if (a.kind === "zoom") return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (a.kind === "slice" && a.next !== index) setMprVoxel(withIndex(plane, mprVoxel, a.next));
+  };
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const h = (e: WheelEvent) => wheelRef.current(e);
+    el.addEventListener("wheel", h, { passive: false, capture: true });
+    return () => el.removeEventListener("wheel", h, { capture: true });
+  }, []);
 
   // Si cambia la orientación (fijada a mano), la cinta se recalcula sin
   // esperar a que la cámara se mueva.
@@ -119,7 +185,7 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     insetRef.current?.setOrientation(orientation);
   }, [orientation.direction, orientation.manual]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Maximizado, la fila de controles (ACUMULADO · AJUSTAR) ocupa el pie de la
+  // Maximizado, la fila de controles (AX · COR · SAG · ACUMULADO · CENTRAR) ocupa el pie de la
   // esquina derecha: el recuadro sube por encima. En la celda estrecha la
   // escalera de cortes (44 px) ocupa todo el borde derecho y el recuadro caía
   // debajo de sus marcas: va a la esquina superior izquierda, libre porque en
@@ -128,7 +194,7 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     const [x0, y0, x1, y1] = INSET_VIEWPORT;
     const w = x1 - x0, h = y1 - y0;
     insetRef.current?.setViewport(compact ? [0.02, 0.96 - h, 0.02 + w, 0.96] : [x0, y0 + 0.09, x1, y1 + 0.09]);
-  }, [compact, image, mainPlane]);
+  }, [compact, image]);
 
   // Función de transferencia «Vasos»: gris, opaca desde el umbral inferior.
   // Depende también de la imagen: al llegar el volumen completo la escena se
@@ -143,7 +209,7 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
     prop.setRGBTransferFunction(0, ctf); prop.setScalarOpacity(0, otf);
     prop.setInterpolationTypeToLinear(); prop.setShade(false);
     s.grw.getRenderWindow().render();
-  }, [lo, rlo, rhi, image, mainPlane]);
+  }, [lo, rlo, rhi, image]);
 
   // Planos de recorte: es lo que hace que el MIP «avance» con el corte.
   // vtk conserva el semiespacio (p − origen)·normal ≥ 0.
@@ -162,13 +228,13 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
       s.mapper.addClippingPlane(a); s.mapper.addClippingPlane(b);
     }
     s.grw.getRenderWindow().render();
-  }, [axis, posMm, mipMode, mipSlabMm, reverse, image, mainPlane]);
+  }, [axis, posMm, mipMode, mipSlabMm, reverse, image]);
 
   const fit = () => { const s = scene.current; if (!s) return; s.grw.getRenderer().resetCamera(); s.grw.getRenderWindow().render(); };
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", background: "#000" }}>
-      <div ref={ref} style={{ position: "absolute", inset: 0 }} title="Arrastrar: rotar · Rueda: zoom" />
+      <div ref={ref} style={{ position: "absolute", inset: 0 }} title="Arrastrar: rotar · Shift o botón central: desplazar · Rueda: corte · Ctrl+rueda: zoom" />
       <HudFrame label="MIP" active={!compact}>
         {heading && !compact && (
           // La cinta va arriba centrada, justo donde HudFrame pone el rótulo:
@@ -190,11 +256,12 @@ export function MipView({ image, meta, orientation, compact = false, mainPlane =
         <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact })} />
         {!compact && (
           <div style={{ position: "absolute", bottom: 22, right: 14, display: "flex", gap: 14, alignItems: "center", pointerEvents: "auto" }}>
+            <HudToggleGroup options={PLANE_OPTIONS} value={plane} onChange={(k) => onPlaneChange(k as Plane)} />
             <HudToggleGroup options={[{ key: "acumulado", label: "ACUMULADO" }, { key: "lamina", label: "LÁMINA" }]} value={mipMode} onChange={(k) => setMipMode(k as "acumulado" | "lamina")} />
             {mipMode === "acumulado"
               ? <HudToggleGroup options={[{ key: "rev", label: reverse ? "DESDE EL FINAL" : "DESDE EL INICIO" }]} value="rev" onChange={() => setReverse(!reverse)} />
               : <input type="range" min={2} max={40} value={mipSlabMm} onChange={(e) => setMipSlabMm(Number(e.target.value))} style={{ width: 90, accentColor: "var(--hud)" }} title="Grosor de la lámina" />}
-            <HudToggleGroup options={[{ key: "fit", label: "AJUSTAR" }]} value="" onChange={fit} />
+            <HudToggleGroup options={[{ key: "fit", label: "CENTRAR" }]} value="" onChange={fit} />
           </div>
         )}
       </HudFrame>

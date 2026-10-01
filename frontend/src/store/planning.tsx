@@ -12,7 +12,7 @@ export interface ViewerRecordingSource extends FrameSource {
   state: () => Record<string, unknown>;
 }
 import { loadLayout, saveLayout, type ViewerLayout } from "../vtk/layout";
-import { mmToVoxel, type ManualOrientation } from "../vtk/geometry";
+import { mmToVoxel, type ManualOrientation, type Plane } from "../vtk/geometry";
 import type {
   AneurysmCandidate,
   DeviceKind,
@@ -160,6 +160,10 @@ interface PlanningState {
   setMipMode: (m: "acumulado" | "lamina") => void;
   mipSlabMm: number;
   setMipSlabMm: (mm: number) => void;
+  /** Eje en el que acumula el MIP, elegido en su propio HUD. `null`: sigue a
+   *  la vista principal (coronal o sagital; si no, axial), como antes. */
+  mipPlane: Plane | null;
+  setMipPlane: (p: Plane | null) => void;
   /** Sube cada vez que el volumen de la sesión cambia en el servidor sin que
    *  cambie la sesión (otra serie, preproceso o su reversión): el visor vuelve
    *  a pedir la meta y, con su cache_key nuevo, el volumen del navegador. */
@@ -320,6 +324,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [orientationManual, setOrientationManual] = useState<ManualOrientation | null>(null);
   const [mipMode, setMipMode] = useState<"acumulado" | "lamina">("acumulado");
   const [mipSlabMm, setMipSlabMm] = useState(10);
+  const [mipPlane, setMipPlane] = useState<Plane | null>(null);
   const [volumeVersion, setVolumeVersion] = useState(0);
   const bumpVolumeVersion = useCallback(() => setVolumeVersion((v) => v + 1), []);
   const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
@@ -414,7 +419,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
-        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
+        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
@@ -422,7 +427,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
-        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, bumpVolumeVersion,
+        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, bumpVolumeVersion,
         reset, resetDownstream,
       }}
     >

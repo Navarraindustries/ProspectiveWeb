@@ -438,7 +438,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
     anotar(layoutRef.current.main, mainEl);
     if (!stripHiddenRef.current) {
-      layoutRef.current.strip.forEach((id, i) => {
+      layoutRef.current.side.forEach((id, i) => {
         const el = stripCells.current[i];
         if (el) anotar(id, el);
       });
@@ -1100,7 +1100,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       </div>
       {!stripHidden && (
         <div className="mpr-strip" style={{ height: "clamp(160px, 26vh, 240px)", flexShrink: 0, display: "flex", gap: 1, background: "var(--hud-dim)" }}>
-          {viewerLayout.strip.map((id, i) => (
+          {viewerLayout.side.map((id, i) => (
             <div key={id} ref={(el) => { stripCells.current[i] = el; }}
                  style={{ flex: 1, position: "relative", minWidth: 0, background: "#000", overflow: "hidden" }}
                  onDoubleClick={() => setViewerLayout(swapPane(viewerLayout, id))}

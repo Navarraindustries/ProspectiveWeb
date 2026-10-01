@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, defaultFraction, setPreset } from "./layout";
+import { DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, setPreset } from "./layout";
 import { COMPACT_MAX_WIDTH_PX, SPLITTER_PX, effectivePreset, fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
 
 describe("effectivePreset", () => {
@@ -21,8 +21,7 @@ describe("gridFor", () => {
     expect(Object.values(g.visible).every(Boolean)).toBe(true);
   });
   it("abajo: dos filas con el separador y cuatro columnas", () => {
-    // setPreset conserva la fracción: el 0,74 propio de «abajo» se fija a propósito.
-    const g = gridFor({ ...setPreset(DEFAULT_LAYOUT, "abajo"), mainFraction: defaultFraction("abajo") }, false);
+    const g = gridFor(setPreset(DEFAULT_LAYOUT, "abajo"), false);
     expect(g.rows).toBe(`0.74fr ${SPLITTER_PX}px 0.26fr`);
     expect(g.columns).toBe("repeat(4, minmax(0, 1fr))");
     expect(g.areas).toBe('"main main main main" "gap gap gap gap" "s0 s1 s2 s3"');

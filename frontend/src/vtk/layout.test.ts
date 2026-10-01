@@ -28,9 +28,11 @@ describe("intercambiar y subir", () => {
 });
 
 describe("preset y fracción", () => {
-  it("setPreset cambia solo el preset y conserva la asignación", () => {
-    const l = setPreset(DEFAULT_LAYOUT, "abajo");
+  it("setPreset cambia el preset, conserva la asignación y devuelve la fracción por defecto del preset", () => {
+    const l = setPreset({ ...DEFAULT_LAYOUT, mainFraction: 0.6 }, "abajo");
     expect(l.preset).toBe("abajo");
+    expect(l.mainFraction).toBe(defaultFraction("abajo"));
+    expect(setPreset(DEFAULT_LAYOUT, "derecha")).toBe(DEFAULT_LAYOUT);
     expect(l.main).toBe("scene"); expect(l.side).toEqual(DEFAULT_LAYOUT.side);
   });
   it("setMainFraction acota a los límites", () => {

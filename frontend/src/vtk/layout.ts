@@ -50,8 +50,10 @@ export function promote(l: ViewerLayout, id: PaneId): ViewerLayout {
   return { ...l, main: id, side };
 }
 
+/** Al cambiar de preset la fracción vuelve al defecto de ese preset: la de
+ *  «derecha» es un ancho y en «abajo» sería un alto, no significa lo mismo. */
 export function setPreset(l: ViewerLayout, p: LayoutPreset): ViewerLayout {
-  return l.preset === p ? l : { ...l, preset: p };
+  return l.preset === p ? l : { ...l, preset: p, mainFraction: defaultFraction(p) };
 }
 
 export function setMainFraction(l: ViewerLayout, f: number): ViewerLayout {

@@ -9,7 +9,7 @@
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { usePlanning, type PickMode } from "../store/planning";
-import type { CameraController, CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
+import type { CameraController, CameraView, MeshFocus, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { useVolumeMeta } from "./useVolumeMeta";
@@ -659,8 +659,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (trajEntry) out.push({ pos: trajEntry, color: TRAJ_ENTRY_COLOR });
     if (trajTarget) out.push({ pos: trajTarget, color: TRAJ_TARGET_COLOR });
     if (overlay) out.push(...overlay.markers);
-    // El punto compartido de los cortes, con radio fijo en mm (no depende de la escena).
-    if (showPlanes && meta) out.push({ pos: voxelToMm(mprVoxel, meta), color: HUD_RGB, radiusMm: 0.6 });
     // Where each perforator actually is — but only the ones switched on in the
     // list. The panel gave distances with nothing to say WHICH vessel a row
     // meant; the marker answers that, one at a time, on request.
@@ -673,7 +671,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, trajEntry, trajTarget, overlay, perforators, visiblePerforators, showPlanes, meta, mprVoxel]);
+  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+
+  // El punto compartido de los cortes, con radio fijo en mm (no depende de la
+  // escena). Va aparte de `markers`: MeshView lo dibuja encima de la malla.
+  const focusMarker = useMemo<MeshFocus | null>(
+    () => (showPlanes && meta ? { pos: voxelToMm(mprVoxel, meta), color: HUD_RGB, radiusMm: 0.6 } : null),
+    [showPlanes, meta, mprVoxel],
+  );
 
   // Legend bands built from the radii actually used, so they cannot drift from
   // the computation the way the hard-coded ones had.
@@ -1025,7 +1030,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     } else if (isMesh) {
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
-          <MeshView layers={layers} markers={markers} planes={planes} lines={lines} cropPreview={cropPreview}
+          <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices"}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />

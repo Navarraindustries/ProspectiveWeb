@@ -16,6 +16,7 @@ import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkPolyData from "@kitware/vtk.js/Common/DataModel/PolyData";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+import vtkRenderer from "@kitware/vtk.js/Rendering/Core/Renderer";
 import vtkLight from "@kitware/vtk.js/Rendering/Core/Light";
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
 import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
@@ -60,9 +61,17 @@ export interface MeshMarker {
   /** Multiplier on the shared marker radius. Lets one marker in a set stand out
    *  (a selected perforator) without breaking the scale everything else uses. */
   scale?: number;
-  /** Radio absoluto en mm: sustituye a radio compartido × `scale`. Para el punto
-   *  del corte, que debe verse igual aunque cambie el tamaño de la escena. */
-  radiusMm?: number;
+}
+
+/** El punto compartido de los cortes. No es un marcador más: se dibuja en una
+ *  capa propia encima de la malla (ver el efecto de escena), porque el punto
+ *  que se busca suele estar DENTRO del vaso o del saco, y una esfera con
+ *  prueba de profundidad quedaba tapada justo ahí. Radio fijo en mm: debe
+ *  verse igual aunque cambie el tamaño de la escena. */
+export interface MeshFocus {
+  pos: Vec3;
+  color: Vector3;
+  radiusMm: number;
 }
 
 export interface MeshLine {
@@ -103,6 +112,12 @@ export interface CropPreview {
 interface Handles {
   fsrw: vtkFullScreenRenderWindow;
   renderer: ReturnType<vtkFullScreenRenderWindow["getRenderer"]>;
+  /** Capa 1, sin prueba de profundidad contra la malla: solo el punto del foco. */
+  overlay: vtkRenderer;
+  focusActor: vtkActor;
+  focusSphere: ReturnType<typeof vtkSphereSource.newInstance>;
+  /** Copia la cámara principal a la de la capa y ajusta su recorte al punto. */
+  syncOverlay: () => void;
   renderWindow: ReturnType<vtkFullScreenRenderWindow["getRenderWindow"]>;
   actors: vtkActor[];
   actorByUrl: Map<string, vtkActor>;   // for incremental opacity/color updates
@@ -121,6 +136,7 @@ function outlineOpacity(layerOpacity: number): number {
 export function MeshView({
   layers,
   markers = [],
+  focus = null,
   planes = [],
   lines = [],
   cropPreview = null,
@@ -140,6 +156,8 @@ export function MeshView({
 }: {
   layers: MeshLayer[];
   markers?: MeshMarker[];
+  /** El punto compartido de los cortes, visible siempre encima de la malla. */
+  focus?: MeshFocus | null;
   lines?: MeshLine[];
   /** Los planos de corte como rectángulos sin iluminación y no seleccionables. */
   planes?: PlaneOutline[];
@@ -243,7 +261,8 @@ export function MeshView({
   const key = sceneKey(layers, focusUrl);
   const geoKey = geometryKey(layers);
   const appearanceKey = layers.map((l) => `${l.id ?? l.url}|${l.color.join(",")}|${l.opacity ?? 1}`).join(";");
-  const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}|${m.radiusMm ?? ""}`).join(";");
+  const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}`).join(";");
+  const focusKey = focus ? `${focus.pos.join(",")}|${focus.color.join(",")}|${focus.radiusMm}` : "";
   const planeKey = planes.map((p) => p.corners.flat().join(",") + "|" + p.color.join(",")).join(";");
   const lineKey = lines
     .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}`)
@@ -264,7 +283,53 @@ export function MeshView({
     });
     const renderer = fsrw.getRenderer();
     const renderWindow = fsrw.getRenderWindow();
-    handles.current = { fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map() };
+
+    // Capa del punto compartido. Un segundo renderer en la capa 1 conserva el
+    // color de la escena (setLayer(1) ya lo pide) pero NO su profundidad: lo
+    // que dibuja queda encima de la malla aunque el punto esté dentro del vaso.
+    // No es interactivo, así que el interactor, la rotación y la selección de
+    // puntos siguen yendo al renderer principal; y su actor no está en este,
+    // así que no cuenta para AJUSTAR ni para la escala de los marcadores.
+    // Cámara: una propia que copia la principal en cada cambio (como el
+    // recuadro del maniquí) en vez de compartir la misma. Compartida, el
+    // recorte cercano/lejano lo fijaría solo la malla, y un punto fuera de
+    // sus límites en profundidad (hueso, otra rama) quedaría recortado. Con
+    // cámara propia la capa ajusta su recorte al punto sin tocar la escena.
+    if (renderWindow.getNumberOfLayers() < 2) renderWindow.setNumberOfLayers(2);
+    const overlay = vtkRenderer.newInstance();
+    overlay.setLayer(1);
+    overlay.setPreserveColorBuffer(true);
+    overlay.setPreserveDepthBuffer(false);
+    overlay.setInteractive(false);
+    renderWindow.addRenderer(overlay);
+    const focusSphere = vtkSphereSource.newInstance({ radius: 0.6, thetaResolution: 16, phiResolution: 16 });
+    const focusMapper = vtkMapper.newInstance();
+    focusMapper.setInputConnection(focusSphere.getOutputPort());
+    const focusActor = vtkActor.newInstance();
+    focusActor.setMapper(focusMapper);
+    // Sin luz: un punto de color plano se lee como punto, no como otra bola.
+    focusActor.getProperty().setLighting(false);
+    focusActor.setPickable(false);
+    focusActor.setVisibility(false);
+    overlay.addActor(focusActor);
+    const syncOverlay = () => {
+      const src = renderer.getActiveCamera(), dst = overlay.getActiveCamera();
+      dst.setPosition(...(src.getPosition() as Vector3));
+      dst.setFocalPoint(...(src.getFocalPoint() as Vector3));
+      dst.setViewUp(...(src.getViewUp() as Vector3));
+      dst.setViewAngle(src.getViewAngle());
+      dst.setParallelProjection(src.getParallelProjection());
+      dst.setParallelScale(src.getParallelScale());
+      // Con el actor oculto no hay límites y vtk.js deja el recorte como esté.
+      if (focusActor.getVisibility()) overlay.resetCameraClippingRange();
+    };
+    const overlaySub = renderer.getActiveCamera().onModified(syncOverlay);
+    syncOverlay();
+
+    handles.current = {
+      fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map(),
+      overlay, focusActor, focusSphere, syncOverlay,
+    };
     // vtk.js solo se redimensiona con la VENTANA. La rejilla del visor mueve
     // la escena entre la principal y una celda lateral sin remontarla, así que
     // el lienzo tiene que seguir a su celda: si no, se queda con el tamaño con
@@ -531,6 +596,7 @@ export function MeshView({
       ro.disconnect();
       pickSub.unsubscribe();
       camSub.unsubscribe();
+      overlaySub.unsubscribe();
       inset.dispose();
       insetRef.current = null;
       registerCaptureRef.current?.(null);
@@ -560,6 +626,8 @@ export function MeshView({
           savedCamera.current = null;
         }
         h.actors.forEach((a) => h.renderer.removeActor(a));
+        h.renderWindow.removeRenderer(h.overlay);
+        h.overlay.delete();
         // Unbind the interactor's DOM listeners BEFORE delete(). vtk.js does not
         // release them on delete(), so a rebuilt scene (new step / mesh) would
         // leave a "zombie" interactor firing pointer events on a torn-down
@@ -679,7 +747,7 @@ export function MeshView({
     const rMarker = markerRadiusMm(referenceDiameterMm, sceneDiagonal);
 
     for (const m of markers) {
-      const sphere = vtkSphereSource.newInstance({ radius: m.radiusMm ?? rMarker * (m.scale ?? 1), thetaResolution: 16, phiResolution: 16 });
+      const sphere = vtkSphereSource.newInstance({ radius: rMarker * (m.scale ?? 1), thetaResolution: 16, phiResolution: 16 });
       sphere.setCenter(m.pos[0], m.pos[1], m.pos[2]);
       const mapper = vtkMapper.newInstance();
       mapper.setInputConnection(sphere.getOutputPort());
@@ -727,6 +795,28 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, markerKey, lineKey, sceneDiagonal, referenceDiameterMm]);
+
+  // ── Punto compartido: solo se mueve su actor en la capa de encima ──────── #
+  //
+  // Va aparte de los marcadores: cada paso de rueda en un corte mueve el
+  // punto, y si estuviera en `markers` se rehacían todas las esferas y tubos
+  // de regla en cada paso. Aquí solo cambian la posición y, si hace falta,
+  // el radio o el color de un único actor.
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    if (focus) {
+      h.focusSphere.setRadius(focus.radiusMm);
+      h.focusActor.setPosition(focus.pos[0], focus.pos[1], focus.pos[2]);
+      h.focusActor.getProperty().setColor(...focus.color);
+      h.focusActor.setVisibility(true);
+    } else {
+      h.focusActor.setVisibility(false);
+    }
+    h.syncOverlay();
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, focusKey]);
 
   // ── Planos de corte: rectángulos sin iluminación, fuera del encuadre ────── #
   //

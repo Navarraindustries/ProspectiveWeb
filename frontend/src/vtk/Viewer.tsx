@@ -1081,26 +1081,24 @@ export function ViewerWorkspace({ step }: { step: string }) {
         <OrientationSheet open={orientationOpen} onClose={() => setOrientationOpen(false)} sessionId={sessionId}
           current={manualForSession} onApply={setOrientationManual} />
       )}
-      {/* Las teclas 1/2/3 cambian la distribución mientras el foco está en el
-          visor; nunca desde un campo de texto (presetForKey). Workspace escucha
-          en `window` los dígitos para saltar de paso: sin parar la propagación
-          una misma pulsación cambiaría la distribución Y el paso. Fuera del
-          visor los dígitos siguen saltando de paso. */}
+      {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;
+          nunca desde un campo de texto (presetForKey). Los dígitos solos son
+          del salto de paso de Workspace, que ignora Alt. */}
       <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden" }}
            tabIndex={0}
            // Los lienzos de vtk.js y los cortes anulan la acción por defecto del
            // puntero, y con ella el foco: sin esto, pinchar en el visor dejaba
-           // el foco donde estuviera (el botón de un paso) y «1» saltaba de
-           // paso en vez de cambiar la distribución. Si el foco ya está dentro
+           // el foco donde estuviera (el botón de un paso) y Alt+1 no llegaba
+           // al visor. Si el foco ya está dentro
            // (un desplegable, un corte con teclado) no se le quita.
            onPointerDownCapture={(e) => {
              const host = e.currentTarget;
              if (!host.contains(document.activeElement)) host.focus({ preventScroll: true });
            }}
            onKeyDown={(e) => {
-             if (e.altKey || e.ctrlKey || e.metaKey) return;
-             const p = presetForKey(e.key, e.target);
-             if (p) { e.preventDefault(); e.stopPropagation(); setViewerLayout(setPreset(viewerLayout, p)); }
+             if (e.ctrlKey || e.metaKey) return;
+             const p = presetForKey(e.key, e.target, e.altKey);
+             if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); }
            }}>
         <ViewerGrid
           layout={viewerLayout}
@@ -1122,9 +1120,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
                     qué hay en él. */}
                 <HudToggleGroup
                   options={[
-                    { key: "derecha", label: "DERECHA", title: "3D grande y cuatro cortes en columna (tecla 2)" },
-                    { key: "abajo", label: "ABAJO", title: "3D grande y cuatro cortes en franja (tecla 3)" },
-                    { key: "sola", label: "SOLA", title: "Solo la vista principal (tecla 1)" },
+                    { key: "derecha", label: "DERECHA", title: "3D grande y cuatro cortes en columna (Alt+2)" },
+                    { key: "abajo", label: "ABAJO", title: "3D grande y cuatro cortes en franja (Alt+3)" },
+                    { key: "sola", label: "SOLA", title: "Solo la vista principal (Alt+1)" },
                   ]}
                   value={viewerLayout.preset}
                   onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />

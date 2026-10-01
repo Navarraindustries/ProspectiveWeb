@@ -20,9 +20,9 @@
 - Visor más alto que ancho (relación < 1) → `derecha` se dibuja como `abajo` sin cambiar el estado guardado.
 - Arrastre para intercambiar: empieza tras > 6 px; `Escape` cancela; soltar fuera de una vista no intercambia; sin HTML5 DnD (eventos de puntero).
 - Separador de 6 px, cursor `col-resize`/`row-resize`; doble clic devuelve la fracción por defecto del preset.
-- Modo compacto del HUD por tamaño real de la celda: ancho < 420 px.
+- Modo compacto del HUD por tamaño real de la celda: ancho < 420 px o alto < 260 px.
 - MIP: rueda = corte ±1 acotado a [0, n−1]; Ctrl+rueda = zoom factor 1,1; arrastrar = rotar; botón central o Shift+arrastrar = desplazar; traza del corte en `var(--hud-amber)` (el color que las vistas de cortes ya usan para las líneas de referencia), oculta si la cámara mira el plano de canto (< 5°).
-- Atajos `1`/`2`/`3` (sola/derecha/abajo) solo con el foco dentro del visor y nunca desde `input`, `textarea` o `select`.
+- Atajos `Alt+1`/`Alt+2`/`Alt+3` (sola/derecha/abajo) solo con el foco dentro del visor y nunca desde `input`, `textarea` o `select`. Con Alt porque los dígitos solos ya saltan de paso (Workspace).
 - Verificación: `npx tsc --noEmit -p .` limpio; `npx vitest run` sin regresiones (364 tests al empezar); `npm run build` correcto; comprobación en navegador con Case 3 (sesión «Case 3 revision», admin/admin123) donde la tarea lo indique.
 
 ## Review Focus
@@ -865,6 +865,9 @@ git commit -m "ViewerGrid monta las cinco vistas una vez y las reparte, intercam
 
 ### Task 5: El visor usa la rejilla: presets, atajos, pista y modo compacto por tamaño
 
+
+> **Corrección previa a revisión (controlador):** los atajos son `Alt+1/2/3` y `presetForKey(key, target, altKey)` devuelve `null` sin Alt; el HUD compacto es `isCompact(ancho, alto)` = ancho < 420 o alto < 260 (`COMPACT_MIN_HEIGHT_PX`). El código de abajo es la versión original.
+
 **Files:**
 - Modify: `frontend/src/vtk/Viewer.tsx` (zona de render final ~1075–1115, `renderPane` ~856, `pickMode` ~744, prefs ~185–188, `estadoVisor` ~405)
 - Modify: `frontend/src/vtk/viewerPrefs.ts` (quitar `PREF_STRIP_HIDDEN`)
@@ -883,7 +886,7 @@ import { describe, expect, it } from "vitest";
 import { presetForKey } from "./layoutShortcuts";
 
 describe("presetForKey", () => {
-  it("1/2/3 eligen sola/derecha/abajo", () => {
+  it("Alt+1/2/3 eligen sola/derecha/abajo", () => {
     expect(presetForKey("1", document.body)).toBe("sola");
     expect(presetForKey("2", document.body)).toBe("derecha");
     expect(presetForKey("3", document.body)).toBe("abajo");
@@ -935,9 +938,9 @@ export function presetForKey(key: string, target: EventTarget | null): LayoutPre
           {/* DISTRIBUCIÓN, REGLAS y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
           <HudToggleGroup
             options={[
-              { key: "derecha", label: "DERECHA", title: "3D grande y cuatro cortes en columna (tecla 2)" },
-              { key: "abajo", label: "ABAJO", title: "3D grande y cuatro cortes en franja (tecla 3)" },
-              { key: "sola", label: "SOLA", title: "Solo la vista principal (tecla 1)" },
+              { key: "derecha", label: "DERECHA", title: "3D grande y cuatro cortes en columna (Alt+2)" },
+              { key: "abajo", label: "ABAJO", title: "3D grande y cuatro cortes en franja (Alt+3)" },
+              { key: "sola", label: "SOLA", title: "Solo la vista principal (Alt+1)" },
             ]}
             value={viewerLayout.preset} onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />
           <HudToggleGroup options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●", title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}
@@ -961,7 +964,7 @@ export function presetForKey(key: string, target: EventTarget | null): LayoutPre
 
 Run: `npx tsc --noEmit -p . && npx vitest run` → limpio y en verde (ajusta tests del visor que mencionen `strip`/`CORTES` si los hay: `grep -rn "CORTES\|stripHidden\|\.strip" src --include=*.test.tsx`).
 
-Navegador (Case 3): abrir el estudio → 3D grande a la izquierda y columna de cuatro a la derecha; arrastrar el asa del MIP sobre el 3D → se intercambian sin parpadeo y la cámara del 3D se conserva; mover el separador; teclas 1/2/3; recargar → se recuerda; estrechar la ventana hasta hacerla vertical → la columna pasa a franja. Guarda capturas en el scratchpad como `t5_*.png`.
+Navegador (Case 3): abrir el estudio → 3D grande a la izquierda y columna de cuatro a la derecha; arrastrar el asa del MIP sobre el 3D → se intercambian sin parpadeo y la cámara del 3D se conserva; mover el separador; Alt+1/2/3 (y el «2» solo sigue saltando de paso); recargar → se recuerda; estrechar la ventana hasta hacerla vertical → la columna pasa a franja. Guarda capturas en el scratchpad como `t5_*.png`.
 
 - [ ] **Step 4: Commit**
 
@@ -1382,7 +1385,7 @@ Expected: frontend en verde (≥ 364 + nuevos) y chunk de entrada sin vtk.js; ba
 2. Arrastrar el MIP sobre el 3D: se intercambian sin parpadeo; la cámara del 3D y la ventana/nivel de los cortes se conservan.
 3. Rueda sobre el MIP grande: se construye corte a corte y los cortes siguen el mismo punto; Shift+arrastrar desplaza; Ctrl+rueda zoom; la traza ámbar avanza.
 4. Separador: arrastrar reparte; doble clic vuelve al defecto; la fracción no sale de 50–85 %.
-5. Teclas 1/2/3 cambian el preset; escribir «2» en el umbral del panel de segmentación no lo cambia.
+5. Alt+1/2/3 cambian el preset (los dígitos solos saltan de paso); escribir «2» en el umbral del panel de segmentación no lo cambia.
 6. Recargar: se recuerda la distribución. Con una sesión que tenía `ws.viewer.layout` v1 y franja oculta: arranca en «sola» y las claves viejas desaparecen.
 7. Ventana estrecha y alta: la columna pasa a franja; al ensanchar vuelve.
 8. Captura del visor desde el topbar con el MIP en principal: las cinco vistas en su sitio.
@@ -1390,7 +1393,7 @@ Expected: frontend en verde (≥ 364 + nuevos) y chunk de entrada sin vtk.js; ba
 
 - [ ] **Step 3: README y commit de cierre**
 
-En `README.md`, en la sección del visor, un párrafo: presets (DERECHA/ABAJO/SOLA, teclas 1/2/3), intercambio arrastrando el borde superior de una vista, separador, y los gestos del MIP (rueda corte · Ctrl+rueda zoom · arrastrar rota · Shift/central desplaza · AX/COR/SAG eje · CENTRAR).
+En `README.md`, en la sección del visor, un párrafo: presets (DERECHA/ABAJO/SOLA, Alt+1/2/3), intercambio arrastrando el borde superior de una vista, separador, y los gestos del MIP (rueda corte · Ctrl+rueda zoom · arrastrar rota · Shift/central desplaza · AX/COR/SAG eje · CENTRAR).
 
 ```bash
 git add README.md docs/superpowers/plans/2026-10-01-distribucion-vistas-mip.md

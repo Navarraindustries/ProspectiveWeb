@@ -7,6 +7,10 @@ export const SPLITTER_PX = 6;
 /** Por debajo de este ancho la celda no tiene sitio para la cinta de rumbo ni
  *  los conmutadores: el HUD pasa a compacto. */
 export const COMPACT_MAX_WIDTH_PX = 420;
+/** Ni por debajo de esta altura: una celda ancha pero baja (columna lateral
+ *  ensanchada con el separador) apilaba barra de herramientas, lecturas y
+ *  recuadro de orientación unos encima de otros. */
+export const COMPACT_MIN_HEIGHT_PX = 260;
 
 export interface GridSpec {
   columns: string; rows: string; areas: string;
@@ -58,4 +62,6 @@ export function fractionFromPointer(
   return Math.min(FRACTION_MAX, Math.max(FRACTION_MIN, raw));
 }
 
-export function isCompact(cellWidthPx: number): boolean { return cellWidthPx < COMPACT_MAX_WIDTH_PX; }
+export function isCompact(cellWidthPx: number, cellHeightPx: number): boolean {
+  return cellWidthPx < COMPACT_MAX_WIDTH_PX || cellHeightPx < COMPACT_MIN_HEIGHT_PX;
+}

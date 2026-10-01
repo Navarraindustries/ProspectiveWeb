@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, setPreset } from "./layout";
-import { COMPACT_MAX_WIDTH_PX, SPLITTER_PX, effectivePreset, fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
+import { COMPACT_MAX_WIDTH_PX, COMPACT_MIN_HEIGHT_PX, SPLITTER_PX, effectivePreset, fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
 
 describe("effectivePreset", () => {
   it("derecha en una ventana vertical se pinta como abajo, sin tocar el estado", () => {
@@ -55,7 +55,13 @@ describe("fractionFromPointer", () => {
 
 describe("isCompact", () => {
   it("compacto por debajo de 420 px de ancho", () => {
-    expect(isCompact(COMPACT_MAX_WIDTH_PX - 1)).toBe(true);
-    expect(isCompact(COMPACT_MAX_WIDTH_PX)).toBe(false);
+    expect(isCompact(COMPACT_MAX_WIDTH_PX - 1, 900)).toBe(true);
+    expect(isCompact(COMPACT_MAX_WIDTH_PX, 900)).toBe(false);
+  });
+  it("compacto por debajo de 260 px de alto aunque sea ancha", () => {
+    expect(COMPACT_MIN_HEIGHT_PX).toBe(260);
+    expect(isCompact(421, 221)).toBe(true);
+    expect(isCompact(900, COMPACT_MIN_HEIGHT_PX - 1)).toBe(true);
+    expect(isCompact(900, COMPACT_MIN_HEIGHT_PX)).toBe(false);
   });
 });

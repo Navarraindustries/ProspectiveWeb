@@ -41,7 +41,7 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
   // Sin medida todavía (o con el ResizeObserver de las pruebas, que no dispara):
   // apaisado y nada compacto, que es lo que ve un escritorio.
   const [portrait, setPortrait] = useState(false);
-  const [widths, setWidths] = useState<Partial<Record<PaneId, number>>>({});
+  const [sizes, setSizes] = useState<Partial<Record<PaneId, { w: number; h: number }>>>({});
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const setDragBoth = useCallback((s: DragState | null) => { dragRef.current = s; setDrag(s); }, []);
@@ -58,8 +58,8 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
   const spec = gridFor(layout, portrait);
 
   // ── Medida de cada celda ─────────────────────────────────────────────── #
-  // Cada celda mide su ancho: el HUD compacto depende del tamaño real, no del
-  // hueco. Un observador por vista, guardado aparte, y referencias estables por
+  // Cada celda mide su ancho y su alto: el HUD compacto depende del tamaño
+  // real, no del hueco. Un observador por vista, guardado aparte, y referencias estables por
   // id: una función nueva en cada render haría que React soltara y volviera a
   // enganchar la celda (y su observador) en cada pintado.
   const observers = useRef(new Map<PaneId, ResizeObserver>());
@@ -76,8 +76,8 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
     cellEls.current.set(id, el);
     const ro = new ResizeObserver(([e]) => {
       if (!e) return;
-      const w = e.contentRect.width;
-      setWidths((prev) => (prev[id] === w ? prev : { ...prev, [id]: w }));
+      const { width: w, height: h } = e.contentRect;
+      setSizes((prev) => (prev[id]?.w === w && prev[id]?.h === h ? prev : { ...prev, [id]: { w, h } }));
     });
     ro.observe(el);
     observers.current.set(id, ro);
@@ -160,7 +160,8 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
         const hidden = !spec.visible[id];
         const isMain = slot === "main";
         // Sin medida aún, no compacta: Infinity nunca es «estrecho».
-        const compact = isCompact(widths[id] ?? Number.POSITIVE_INFINITY);
+        const size = sizes[id];
+        const compact = isCompact(size?.w ?? Number.POSITIVE_INFINITY, size?.h ?? Number.POSITIVE_INFINITY);
         return (
           // Oculta: sin gridArea y fuera del flujo (1×1 px), para que el lienzo
           // WebGL siga vivo sin ocupar un hueco que en «sola» no existe.

@@ -47,7 +47,7 @@ export const DEFAULT_LAYOUT: ViewerLayout = {
 
 ## 3. Interacción
 
-**Las vistas no se remontan.** Las cinco se renderizan siempre, una sola vez cada una, dentro de una rejilla CSS; cambiar la distribución solo cambia el `grid-area` (o el orden) de cada celda y las plantillas de la rejilla. Así el lienzo WebGL de cada vista sobrevive al intercambio, no parpadea y no pierde cámara ni ventana/nivel. Cada vista ya se ajusta a su celda con `ResizeObserver`. La principal y los huecos secundarios difieren solo en tamaño y en el modo `compact` del HUD, que pasa a derivarse del tamaño real de la celda (ancho < 420 px) y no del hueco.
+**Las vistas no se remontan.** Las cinco se renderizan siempre, una sola vez cada una, dentro de una rejilla CSS; cambiar la distribución solo cambia el `grid-area` (o el orden) de cada celda y las plantillas de la rejilla. Así el lienzo WebGL de cada vista sobrevive al intercambio, no parpadea y no pierde cámara ni ventana/nivel. Cada vista ya se ajusta a su celda con `ResizeObserver`. La principal y los huecos secundarios difieren solo en tamaño y en el modo `compact` del HUD, que pasa a derivarse del tamaño real de la celda (ancho < 420 px o alto < 260 px) y no del hueco.
 
 **Intercambiar arrastrando.** Cada vista tiene una cabecera fina (la cinta de orientación que ya existe hace de asa). Arrastrar la asa sobre otra vista las intercambia; el destino se resalta con el borde HUD mientras se sobrevuela; el arrastre solo empieza tras mover más de 6 px, y Escape lo cancela. Implementación con eventos de puntero propios (no HTML5 DnD, que no funciona bien sobre lienzos ni en táctil); sin dependencias nuevas.
 
@@ -55,7 +55,7 @@ export const DEFAULT_LAYOUT: ViewerLayout = {
 
 **Separador.** Entre la principal y la columna/franja hay una barra de 6 px arrastrable (cursor `col-resize`/`row-resize`); ajusta `mainFraction` en vivo con límites 0,5–0,85 y guarda al soltar. Doble clic en la barra vuelve al valor por defecto del preset.
 
-**Presets.** Un `HudToggleGroup` en la cabecera del visor con «DERECHA · ABAJO · SOLA» sustituye al interruptor «CORTES». Atajos: `1` preset sola, `2` derecha, `3` abajo (solo con el visor enfocado; no roban teclas a los campos de texto).
+**Presets.** Un `HudToggleGroup` en la cabecera del visor con «DERECHA · ABAJO · SOLA» sustituye al interruptor «CORTES». Atajos: `Alt+1` preset sola, `Alt+2` derecha, `Alt+3` abajo (solo con el visor enfocado; no roban teclas a los campos de texto). Con Alt porque los dígitos solos ya saltan de paso en el flujo.
 
 ## 4. El MIP como las demás vistas
 

@@ -47,18 +47,6 @@ html, body, #root {
   .ws-steps-compact { display: flex !important; }
 }
 
-/* ── Workspace: la franja MPR se encoge y desaparece en pantallas bajas ─── */
-@media (max-height: 700px) {
-  .mpr-strip { height: 104px !important; }
-}
-@media (max-height: 560px) {
-  .mpr-strip { display: none !important; }
-  /* Sembrar sobre los cortes MPR es el camino recomendado para estudios con
-     hueso, y el panel lo sigue proponiendo aunque la franja no quepa. Avisar es
-     mejor que dejar la instrucción apuntando a un sitio vacío. */
-  .mpr-gone-note { display: flex !important; }
-}
-
 /* ── Tablas anchas: scroll propio en vez de romper la página ───────────── */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 

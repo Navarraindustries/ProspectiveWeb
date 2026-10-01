@@ -127,6 +127,50 @@ describe("DevicesPanel · campo del clip", () => {
     await waitFor(() => expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull());
   });
 
+  it("«Limpiar todos» con un cambio pendiente tampoco vuelve a colocar el clip", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    let releaseClear: () => void = () => {};
+    vi.mocked(api.clearDevices).mockImplementationOnce(() => new Promise((r) => {
+      releaseClear = () => r({ status: "ok" } as never);
+    }));
+    const [x] = screen.getAllByRole("spinbutton");
+    fireEvent.change(x, { target: { value: "5" } });
+    act(() => { vi.advanceTimersByTime(100); });
+    fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    act(() => { vi.advanceTimersByTime(400); });
+    // Un cambio hecho mientras el borrado no responde tampoco recoloca.
+    fireEvent.change(x, { target: { value: "6" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(1);
+    await act(async () => { releaseClear(); });
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(1);
+    expect(api.clipField).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull());
+  });
+
+  it("volver a la pose anterior mientras otra está en vuelo la recoloca al terminar", async () => {
+    await colocar(); // pose A: x = 1
+    await screen.findByText(/Estimación geométrica/);
+    let release: () => void = () => {};
+    vi.mocked(api.planClips).mockImplementationOnce(() => new Promise((r) => {
+      release = () => r({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null });
+    }));
+    const [x] = screen.getAllByRole("spinbutton");
+    fireEvent.change(x, { target: { value: "5" } }); // pose B
+    act(() => { vi.advanceTimersByTime(260); });
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
+    fireEvent.change(x, { target: { value: "1" } }); // de vuelta a A, con B en vuelo
+    act(() => { vi.advanceTimersByTime(260); });
+    expect(api.planClips).toHaveBeenCalledTimes(2);
+    await act(async () => { release(); });
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(3));
+    expect(vi.mocked(api.planClips).mock.calls[2][0].placements[0].position.x).toBe(1);
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(3);
+  });
+
   it("volver a la pose ya colocada no pide nada", async () => {
     await colocar();
     await screen.findByText(/Estimación geométrica/);

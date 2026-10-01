@@ -115,6 +115,28 @@ export function neckPlacement(m: MorphometryResult | null): { position: Position
 }
 
 /* ── Clips ─────────────────────────────────────────────────────────────── */
+
+/** Recolocaciones de clips pendientes, visibles para los dos sitios que limpian:
+ *  la pestaña de clips y la barra «Limpiar todos». Cada limpieza cancela lo
+ *  programado AL PULSAR, antes de esperar al servidor, y mientras dura nada se
+ *  recoloca: un clip recolocado detrás del borrado quedaría en el informe sin
+ *  verse en pantalla. */
+const clipReplace = { cancellers: new Set<() => void>(), clears: 0 };
+
+function cancelPendingReplace() {
+  for (const cancel of clipReplace.cancellers) cancel();
+}
+
+async function whileClearingClips<T>(clear: () => Promise<T>): Promise<T> {
+  cancelPendingReplace();
+  clipReplace.clears++;
+  try {
+    return await clear();
+  } finally {
+    clipReplace.clears--;
+  }
+}
+
 interface PlacedClip {
   key: number;
   clip_id: string;
@@ -194,10 +216,13 @@ function ClipsTab() {
   const planRef = useRef(plan);
   planRef.current = plan;
   const meshPlacedRef = useRef(false);
-  const clearing = useRef(false);
-  // La última pose colocada con éxito, como texto: teclear «2» → «2.» → «2.0»
-  // crea listas nuevas con los mismos números y no merece otra ida y vuelta.
+  // Poses como texto: teclear «2» → «2.» → «2.0» crea listas nuevas con los
+  // mismos números y no merece otra ida y vuelta. Se compara con la última pose
+  // PEDIDA, no con la última terminada: volver a A mientras B está en vuelo
+  // tiene que recolocar A cuando B acabe, o servidor, malla y tarjeta se
+  // quedarían en B con la lista diciendo A.
   const lastPlacedKey = useRef<string | null>(null);
+  const lastRequestedKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -306,7 +331,7 @@ function ClipsTab() {
 
   /** ¿Sigue habiendo algo que recolocar? Se pregunta justo antes de mandar. */
   const canReplace = () =>
-    !!planRef.current && meshPlacedRef.current && !clearing.current
+    !!planRef.current && meshPlacedRef.current && clipReplace.clears === 0
     && latestPlaced.current.length > 0;
 
   const cancelFieldTimer = () => {
@@ -349,13 +374,18 @@ function ClipsTab() {
     setError(null);
     const placements = placementsFor(clips);
     const hadPlan = !!planRef.current;
+    const key = poseKey(clips);
+    lastRequestedKey.current = key;
     try {
       const res = await api.planClips({ session_id: sessionId, placements });
-      lastPlacedKey.current = poseKey(clips);
+      lastPlacedKey.current = key;
       setPlan(res);
       setDeviceMesh("clips", res.clips_mesh_url || null);
       await requestField(placements);
     } catch (err) {
+      // Lo pedido no llegó: lo vigente vuelve a ser lo último colocado, y pedir
+      // otra vez esta misma pose tiene que poder recolocarla.
+      lastRequestedKey.current = lastPlacedKey.current;
       const msg = err instanceof Error ? err.message : "Error al colocar los clips";
       // Los números de la lista ya son los nuevos, pero malla, mapa y tarjeta
       // siguen en la colocación anterior: que se lea cuál se está viendo.
@@ -366,7 +396,9 @@ function ClipsTab() {
     }
     if (pendingPlace.current && mounted.current) {
       pendingPlace.current = false;
-      if (canReplace()) void placeRef.current(latestPlaced.current);
+      if (canReplace() && poseKey(latestPlaced.current) !== lastRequestedKey.current) {
+        void placeRef.current(latestPlaced.current);
+      }
     }
   };
   // El temporizador y la recolocación encolada llaman a la versión de `place`
@@ -388,8 +420,9 @@ function ClipsTab() {
   useEffect(() => {
     if (!plan || !clearer.placed || placed.length === 0) return;
     cancelFieldTimer();
-    // Volver a la pose que ya está colocada no pide nada (y anula lo pendiente).
-    if (poseKey(placed) === lastPlacedKey.current) return;
+    // Volver a la pose ya pedida no pide nada, y anula lo encolado: lo que está
+    // en vuelo (o ya colocado) es justo la pose que la lista dice.
+    if (poseKey(placed) === lastRequestedKey.current) { pendingPlace.current = false; return; }
     fieldTimer.current = setTimeout(() => {
       fieldTimer.current = null;
       if (canReplace()) void placeRef.current(latestPlaced.current);
@@ -401,7 +434,9 @@ function ClipsTab() {
   // la pose que el servidor ya tiene, y malla y campo deben quedar de acuerdo.
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; cancelFieldTimer(); pendingPlace.current = false; };
+    const cancel = () => { cancelFieldTimer(); pendingPlace.current = false; };
+    clipReplace.cancellers.add(cancel);
+    return () => { mounted.current = false; cancel(); clipReplace.cancellers.delete(cancel); };
   }, []);
 
   return (
@@ -622,18 +657,16 @@ function ClipsTab() {
             onClick={() => {
               // Se cancela AL PULSAR, antes de esperar al servidor: un temporizador
               // que disparase durante el borrado recolocaría el clip detrás de él.
-              cancelFieldTimer();
-              pendingPlace.current = false;
-              clearing.current = true;
-              void clearer.clear(() => {
+              void whileClearingClips(() => clearer.clear(() => {
               // Lo que estuviera en vuelo ya no tiene clip al que pintar.
               lastPlacedKey.current = null;
+              lastRequestedKey.current = null;
               fieldSeq.current++;
               setFieldError(null);
               setFieldNote(null);
               setPlan(null);
               setPlaced([]);
-              }).finally(() => { clearing.current = false; });
+              }));
             }}
           />
           <ErrorNote>{clearer.error}</ErrorNote>
@@ -1445,7 +1478,8 @@ function PlacedDevicesBar() {
     setBusy(true);
     setError(null);
     try {
-      await api.clearDevices(sessionId);
+      // Como «Limpiar clips»: nada de recolocar un clip detrás del borrado.
+      await whileClearingClips(() => api.clearDevices(sessionId));
       clearDeviceMeshes();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron limpiar los dispositivos");

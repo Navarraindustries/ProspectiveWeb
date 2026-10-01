@@ -641,7 +641,7 @@ function ClipsTab() {
                   mapa de calor («Cuello cubierto»). Con el mismo nombre se leían
                   como la misma cifra y se contradecían. */}
               <div title="Anchura de las hojas en el plano del cuello frente al diámetro del cuello. No mide qué parte del cuello queda cerrada.">
-                <Metric label="Extensión de las hojas sobre el cuello" value={plan.neck_coverage_pct.toFixed(1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Alcanza", "success"] : ["No alcanza", "warning"]} />
+                <Metric wrapLabel label="Extensión de las hojas sobre el cuello" value={plan.neck_coverage_pct.toFixed(1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Alcanza", "success"] : ["No alcanza", "warning"]} />
               </div>
               {/* «Colisión clip–vaso» a secas se leía como un veredicto sobre la
                   colocación, y era un artefacto: se comprobaba contra la malla

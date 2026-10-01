@@ -329,7 +329,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const [viewMode, setViewMode] = useState<"default" | "volume" | "oblique">("default");
   // Camera controller published by MeshView while its scene is on screen.
   const [camera, setCamera] = useState<CameraController | null>(null);
-  const registerCamera = useCallback((c: CameraController | null) => setCamera(c), []);
+  // Las cámaras de escenas montadas en Dispositivos, donde MeshView conserva la
+  // cámara al rehacer la escena (ver el efecto del foco, más abajo).
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const devicesCameras = useRef(new WeakSet<CameraController>());
+  const registerCamera = useCallback((c: CameraController | null) => {
+    if (c && stepRef.current === "devices") devicesCameras.current.add(c);
+    setCamera(c);
+  }, []);
 
   // Captura del 3D para el informe. MeshView registra aquí la suya (cuando
   // la escena ya está en pantalla); al store va una envoltura que, si la
@@ -672,7 +680,19 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // La cámara 3D sigue al foco sin cambiar el zoom. También al registrarse
   // una escena nueva (cambio de paso, subir la escena al principal). El MIP no
   // mueve su cámara: su corte ya sale de mprVoxel.
-  useEffect(() => { if (focusPoint && syncViews) camera?.focus(focusPoint); }, [focusPoint, syncViews, camera]);
+  //
+  // Salvo una escena rehecha dentro de Dispositivos con el mismo foco (primera
+  // llegada del mapa de calor, CALOR): ahí MeshView ya ha devuelto la cámara del
+  // usuario, y volver a centrar la desplazaría también en profundidad, que se ve
+  // como un zoom. Al entrar en el paso el foco se aplica con normalidad.
+  const lastFocus = useRef<{ point: Vec3 | null; inDevices: boolean }>({ point: null, inDevices: false });
+  useEffect(() => {
+    if (!focusPoint || !syncViews || !camera) return;
+    const inDevices = devicesCameras.current.has(camera);
+    if (inDevices && lastFocus.current.inDevices && lastFocus.current.point === focusPoint) return;
+    camera.focus(focusPoint);
+    lastFocus.current = { point: focusPoint, inDevices };
+  }, [focusPoint, syncViews, camera]);
 
   // Al volver a activar SINCRO, el 3D y los cortes pueden estar en puntos
   // distintos (los cortes siguieron moviéndose solos). Se parte del crosshair:
@@ -1164,7 +1184,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
                                               title: clipRehearsal
                                                 ? "Durante el ensayo de cierre se ve el saco que se deforma; el mapa de calor vuelve al terminar"
                                                 : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
-                    value={showClipField ? "calor" : ""} onChange={() => setShowClipField(!showClipField)} />
+                    value={showClipField && !clipRehearsal ? "calor" : ""} onChange={() => setShowClipField(!showClipField)} />
                 )}
               </div>
             </>

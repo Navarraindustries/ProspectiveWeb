@@ -59,7 +59,7 @@ export function ClipFieldCard({
       <Metric label="Cuello cubierto" value={neckPct(s, s.covered_pct, 1)} />
       <Metric label="Cuello residual" value={neckPct(s, s.residual_pct, 1)} />
       <Metric label="Cuello no alcanzado" value={neckPct(s, s.unreached_pct, 1)} />
-      <Metric label="Fuerza de cierre" value={forcesText(s)} badge={FORCE_BADGE[s.pressure_verdict]} />
+      <Metric wrapLabel label="Fuerza de cierre" value={forcesText(s)} badge={FORCE_BADGE[s.pressure_verdict]} />
       {/* La ventana en gramos sirve incluso sin ficha: quien conozca la fuerza de
           su clip importado puede compararla. */}
       <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
@@ -79,6 +79,7 @@ export function ClipFieldCard({
       )}
       <div title="Incluye la pared de vaso que queda entre las hojas, dentro de su banda de profundidad: es una cota amplia, no el contacto real hoja-tejido.">
         <Metric
+          wrapLabel
           label="Área pinzada estimada"
           value={s.contact_area_mm2 > 0 ? `${s.contact_area_mm2.toFixed(1)} mm²` : "—"}
         />

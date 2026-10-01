@@ -32,7 +32,7 @@ import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
-import { mainOptions } from "./mainOptions";
+import { mainOptions, presetOptions } from "./mainOptions";
 import { legendLines } from "./clipFieldLegend";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { OrientationSheet } from "./OrientationSheet";
@@ -369,6 +369,21 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // de aquí dónde está cada una en pantalla.
   const cellEls = useRef<Partial<Record<PaneId, HTMLDivElement | null>>>({});
   const registerCell = useCallback((id: PaneId, el: HTMLDivElement | null) => { cellEls.current[id] = el; }, []);
+  // Ancho de la celda principal para abreviar los presets de la cabecera
+  // (presetOptions). Se mide la celda que contiene la cabecera: al cambiar de
+  // principal la cabecera se monta en otra celda y la ref vuelve a observar.
+  const [mainWidth, setMainWidth] = useState(Number.POSITIVE_INFINITY);
+  const headObs = useRef<ResizeObserver | null>(null);
+  const headRef = useCallback((el: HTMLDivElement | null) => {
+    headObs.current?.disconnect();
+    headObs.current = null;
+    const cell = el?.parentElement;
+    if (!cell || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setMainWidth(cell.clientWidth));
+    ro.observe(cell);
+    headObs.current = ro;
+    setMainWidth(cell.clientWidth);
+  }, []);
   const registerMeshCapture = useCallback((fn: CaptureFn | null) => { meshCapture.current = fn; }, []);
   // La envoltura es estable: lee la distribución y su setter por refs.
   const layoutRef = useRef<ViewerLayout>(viewerLayout);
@@ -1176,18 +1191,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
                   ~800 px, lo normal en un portátil de 1280. Por encima del asa de
                   arrastre de la celda (z 7): si no, el asa se tragaría los clics
                   de estos conmutadores. */}
-              <div style={{ position: "absolute", top: 2, left: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
+              <div ref={headRef} style={{ position: "absolute", top: 2, left: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
                 {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
                     REGLAS y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
                 <span style={{ color: "var(--hud-dim)" }}>PRINCIPAL</span>
                 <HudToggleGroup options={mainOptions()} value={viewerLayout.main}
                   onChange={(k) => setViewerLayout(promote(viewerLayout, k as PaneId))} />
                 <HudToggleGroup
-                  options={[
-                    { key: "derecha", label: "DERECHA", title: "Vista principal y las otras cuatro en columna (Alt+2)" },
-                    { key: "abajo", label: "ABAJO", title: "Vista principal y las otras cuatro en franja (Alt+3)" },
-                    { key: "sola", label: "SOLA", title: "Solo la vista principal (Alt+1)" },
-                  ]}
+                  options={presetOptions(mainWidth)}
                   value={viewerLayout.preset}
                   onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />
               </div>

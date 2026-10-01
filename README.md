@@ -2174,10 +2174,31 @@ no archived study it only downloads, and says so. They live in the durable
 archive, never under `data/`, and are served only by the authenticated
 endpoints above. The PDF report offers and embeds captures only, not videos.
 
-The «CORTES» and «REGLAS» toggles hide the slice strip and the HUD decoration
-(corners, heading tape, slice ladder, reticle); orientation letters, slice
-number, measurements and safety warnings stay. They are per-browser view
-preferences, and captures and recordings follow what is on screen.
+**Viewer layout.** The five views (3D, axial, coronal, sagittal and MIP) share
+one grid in three presets, chosen in the main view's header or with
+**Alt+1 · Alt+2 · Alt+3**: «SOLA» (the main view alone), «DERECHA» (main view
+plus a column of four, the default) and «ABAJO» (main view plus a strip of
+four). Plain digits keep jumping between pipeline steps, and no shortcut fires
+while typing in a field. Dragging the thin handle along the top edge of a view
+onto another swaps them; a double click promotes a view to main. The views are
+never remounted, so the 3D camera, slice positions and window/level survive
+every swap. The splitter between the main view and the others sets the share
+of the main view (50–85 %); a double click restores the preset's default. In a
+portrait window «DERECHA» is laid out as «ABAJO», and cells too small for the
+full HUD (under 420 × 260 px) show a compact one. Steps that pick on the model
+(neck, dome, centreline, crop centre) bring the 3D to main by themselves. The
+layout is remembered per browser; the older «CORTES» setting is migrated once.
+
+**MIP.** The MIP is built from the shared slice: the wheel moves that slice (the
+slice views follow it), Ctrl+wheel zooms, dragging rotates, Shift+drag or the
+middle button pans. «AX · COR · SAG» chooses the voxel axis it accumulates
+along, the same axes the slice views use, and an amber outline traces the
+current plane. «CENTRAR» recentres pan and zoom without undoing the rotation.
+
+The «REGLAS» toggle hides the HUD decoration (corners, heading tape, slice
+ladder, reticle); orientation letters, slice number, measurements and safety
+warnings stay. Layout and «REGLAS» are per-browser view preferences, and
+captures and recordings follow what is on screen.
 
 **What the audit chain records.** Login, password changes and resets, PDF and
 DICOM-SR generation, clip workshops and every order transition, the treatment

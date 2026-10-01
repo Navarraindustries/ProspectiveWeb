@@ -1,6 +1,6 @@
 # Distribución configurable de las vistas y MIP interactivo — plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Que las cinco vistas del visor se vean grandes y siempre visibles en una rejilla configurable (presets, separador arrastrable, intercambio arrastrando) que se recuerda por usuario, y que el MIP responda a los mismos gestos que las vistas de cortes y se vea construirse corte a corte desde él mismo.
 
@@ -66,7 +66,7 @@ export function loadLayout(): ViewerLayout;
 export function saveLayout(l: ViewerLayout): void;
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/layout.test.ts
@@ -174,12 +174,12 @@ describe("persistencia", () => {
 });
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 Run: `cd frontend && npx vitest run src/vtk/layout.test.ts`
 Expected: FAIL (`swapPanes`, `promote`, … no exportados).
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/layout.ts
@@ -288,7 +288,7 @@ export function saveLayout(l: ViewerLayout): void {
 }
 ```
 
-- [ ] **Step 4: Ejecutar y ver pasar**
+- [x] **Step 4: Ejecutar y ver pasar**
 
 Run: `cd frontend && npx vitest run src/vtk/layout.test.ts`
 Expected: PASS (todos). `npx tsc --noEmit -p .` fallará todavía en `Viewer.tsx` (usa `swapPane`/`strip`): es esperado hasta la Task 5; en este commit NO toques `Viewer.tsx`. Para que el proyecto compile entre tareas, añade al final de `layout.ts` un puente temporal:
@@ -303,7 +303,7 @@ y en `frontend/src/vtk/Viewer.tsx` cambia SOLO las tres lecturas `viewerLayout.s
 Run: `npx tsc --noEmit -p . && npx vitest run`
 Expected: limpio; 364 + nuevos tests en verde.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/layout.ts frontend/src/vtk/layout.test.ts frontend/src/vtk/Viewer.tsx
@@ -338,7 +338,7 @@ export function fractionFromPointer(rect: { left: number; top: number; width: nu
 export function isCompact(cellWidthPx: number): boolean;   // < COMPACT_MAX_WIDTH_PX
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/layoutGrid.test.ts
@@ -405,11 +405,11 @@ describe("isCompact", () => {
 });
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 Run: `cd frontend && npx vitest run src/vtk/layoutGrid.test.ts` → FAIL (módulo inexistente).
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/layoutGrid.ts
@@ -476,11 +476,11 @@ export function fractionFromPointer(
 export function isCompact(cellWidthPx: number): boolean { return cellWidthPx < COMPACT_MAX_WIDTH_PX; }
 ```
 
-- [ ] **Step 4: Ejecutar y ver pasar**
+- [x] **Step 4: Ejecutar y ver pasar**
 
 Run: `npx vitest run src/vtk/layoutGrid.test.ts && npx tsc --noEmit -p .` → PASS, limpio.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/layoutGrid.ts frontend/src/vtk/layoutGrid.test.ts
@@ -507,7 +507,7 @@ export function cancelDrag(): null;
 export function endDrag(s: DragState | null): [PaneId, PaneId] | null;   // par a intercambiar, o null
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/paneDrag.test.ts
@@ -543,9 +543,9 @@ describe("arrastre para intercambiar", () => {
 });
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar** → `npx vitest run src/vtk/paneDrag.test.ts` FAIL.
+- [x] **Step 2: Ejecutar y ver fallar** → `npx vitest run src/vtk/paneDrag.test.ts` FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/paneDrag.ts
@@ -574,9 +574,9 @@ export function endDrag(s: DragState | null): [PaneId, PaneId] | null {
 }
 ```
 
-- [ ] **Step 4: Ejecutar y ver pasar** → PASS.
+- [x] **Step 4: Ejecutar y ver pasar** → PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/paneDrag.ts frontend/src/vtk/paneDrag.test.ts
@@ -619,7 +619,7 @@ Comportamiento:
 - Doble clic en una celda secundaria → `onLayoutChange(promote(layout, id))`.
 - Separador `div.viewer-splitter[data-testid=splitter]` con `gridArea: "gap"` solo si `splitter !== null`; `cursor` según eje; `onPointerDown` captura; `onPointerMove` → `onLayoutChange(setMainFraction(layout, fractionFromPointer(rect, x, y, splitter)))` (`rect` del contenedor); doble clic → `setMainFraction(layout, defaultFraction(layout.preset))`.
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```tsx
 // frontend/src/vtk/ViewerGrid.test.tsx
@@ -719,9 +719,9 @@ describe("ViewerGrid", () => {
 
 Nota para el implementador: si jsdom no define `PointerEvent`, añade en `src/test/setup.ts` un polyfill mínimo (`class PointerEvent extends MouseEvent { pointerId; constructor(t, i) { super(t, i); this.pointerId = i?.pointerId ?? 0; } }`) para que `fireEvent.pointerDown` llegue a `onPointerDown` de React. jsdom tampoco implementa `setPointerCapture`/`releasePointerCapture`; llámalos con `try { el.setPointerCapture?.(id) } catch {}`. El `ResizeObserver` del `setup.ts` de tests no dispara: el componente debe arrancar con `portrait = false` y `compact = false` hasta la primera medida.
 
-- [ ] **Step 2: Ejecutar y ver fallar** → `npx vitest run src/vtk/ViewerGrid.test.tsx` FAIL (módulo inexistente).
+- [x] **Step 2: Ejecutar y ver fallar** → `npx vitest run src/vtk/ViewerGrid.test.tsx` FAIL (módulo inexistente).
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```tsx
 // frontend/src/vtk/ViewerGrid.tsx
@@ -852,9 +852,9 @@ CSS en `frontend/src/index.css` (junto a las reglas `.hud-*` existentes):
 .viewer-splitter:hover { background: var(--hud); opacity: .6; }
 ```
 
-- [ ] **Step 4: Ejecutar y ver pasar** → `npx vitest run src/vtk/ViewerGrid.test.tsx && npx tsc --noEmit -p .` PASS.
+- [x] **Step 4: Ejecutar y ver pasar** → `npx vitest run src/vtk/ViewerGrid.test.tsx && npx tsc --noEmit -p .` PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/ViewerGrid.tsx frontend/src/vtk/ViewerGrid.test.tsx frontend/src/index.css
@@ -878,7 +878,7 @@ git commit -m "ViewerGrid monta las cinco vistas una vez y las reparte, intercam
 - Consumes: `ViewerGrid`, `PaneContext` (Task 4); `promote`, `setPreset` (Task 1).
 - Produces: `presetForKey(code: string, target: EventTarget | null, altKey: boolean): LayoutPreset | null` (puro, por `e.code`; `null` sin Alt o `null` desde `input`/`textarea`/`select` o `[contenteditable]`).
 
-- [ ] **Step 1: Test del atajo (falla)**
+- [x] **Step 1: Test del atajo (falla)**
 
 ```ts
 // frontend/src/vtk/layoutShortcuts.test.ts
@@ -921,7 +921,7 @@ export function presetForKey(code: string, target: EventTarget | null, altKey: b
 }
 ```
 
-- [ ] **Step 2: Integrar en `Viewer.tsx`**
+- [x] **Step 2: Integrar en `Viewer.tsx`**
 
 1. Imports: `import { ViewerGrid, type PaneContext } from "./ViewerGrid";`, `import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";`, `import { presetForKey } from "./layoutShortcuts";`. Quita `swapPane` y `PREF_STRIP_HIDDEN`/`stripHidden` (y `stripHiddenRef`, `stripCells`, `mainAreaRef`).
 2. `renderPane(id, slot, captureAs)` pasa a `renderPane(id, ctx: PaneContext, captureAs = id)`: `compact = ctx.compact`, `active = ctx.isMain`; dentro de `renderScene`, la llamada `renderPane("axial", compact ? "strip" : "main", "scene")` pasa a `renderPane("axial", { compact, isMain: !compact }, "scene")`.
@@ -966,13 +966,13 @@ export function presetForKey(code: string, target: EventTarget | null, altKey: b
 7. `viewerPrefs.ts`: borra `PREF_STRIP_HIDDEN` (la migración la hizo `loadLayout`). `layout.ts`: borra el puente `swapPane`.
 8. El MIP recibe por ahora `mainPlane={mipPlane}` igual que antes (la Task 7 lo cambia).
 
-- [ ] **Step 3: Verificar**
+- [x] **Step 3: Verificar**
 
 Run: `npx tsc --noEmit -p . && npx vitest run` → limpio y en verde (ajusta tests del visor que mencionen `strip`/`CORTES` si los hay: `grep -rn "CORTES\|stripHidden\|\.strip" src --include=*.test.tsx`).
 
 Navegador (Case 3): abrir el estudio → 3D grande a la izquierda y columna de cuatro a la derecha; arrastrar el asa del MIP sobre el 3D → se intercambian sin parpadeo y la cámara del 3D se conserva; mover el separador; Alt+1/2/3 (y el «2» solo sigue saltando de paso); recargar → se recuerda; estrechar la ventana hasta hacerla vertical → la columna pasa a franja. Guarda capturas en el scratchpad como `t5_*.png`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/vtk/Viewer.tsx frontend/src/vtk/viewerPrefs.ts frontend/src/vtk/layout.ts frontend/src/vtk/layoutShortcuts.ts frontend/src/vtk/layoutShortcuts.test.ts
@@ -1002,7 +1002,7 @@ export interface CaptureLayoutDeps {
 export async function captureWithLayout(d: CaptureLayoutDeps): Promise<string | null>;
 ```
 
-- [ ] **Step 1: Tests (reescribir `captureWithLayout.test.ts`)**
+- [x] **Step 1: Tests (reescribir `captureWithLayout.test.ts`)**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -1046,7 +1046,7 @@ describe("captureWithLayout", () => {
 });
 ```
 
-- [ ] **Step 2: Implementación**
+- [x] **Step 2: Implementación**
 
 ```ts
 export async function captureWithLayout(d: CaptureLayoutDeps): Promise<string | null> {
@@ -1077,9 +1077,9 @@ for (const id of [layoutRef.current.main, ...layoutRef.current.side]) {
 
 donde `portraitRef` refleja si el visor es vertical (`viewerRef` medido con el mismo `ResizeObserver` de la Task 4; expón un callback `onPortraitChange` en `ViewerGrid` o mide `viewerRef` aquí: elige medir aquí, es local).
 
-- [ ] **Step 3: Verificar** → `npx vitest run src/vtk/captureWithLayout.test.ts && npx tsc --noEmit -p . && npx vitest run`. Navegador: botón de captura del topbar con el MIP en principal → la imagen compuesta trae las cinco vistas en su sitio; con preset «sola», solo la principal.
+- [x] **Step 3: Verificar** → `npx vitest run src/vtk/captureWithLayout.test.ts && npx tsc --noEmit -p . && npx vitest run`. Navegador: botón de captura del topbar con el MIP en principal → la imagen compuesta trae las cinco vistas en su sitio; con preset «sola», solo la principal.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/vtk/captureWithLayout.ts frontend/src/vtk/captureWithLayout.test.ts frontend/src/vtk/Viewer.tsx
@@ -1111,7 +1111,7 @@ mipPlane: Plane | null; setMipPlane: (p: Plane | null) => void;   // null = segu
 { image, meta, orientation, compact, plane: Plane, onPlaneChange: (p: Plane) => void, registerCapture }
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/mipGestures.test.ts
@@ -1146,7 +1146,7 @@ describe("índice por plano", () => {
 });
 ```
 
-- [ ] **Step 2: Implementación pura**
+- [x] **Step 2: Implementación pura**
 
 ```ts
 // frontend/src/vtk/mipGestures.ts
@@ -1173,7 +1173,7 @@ export function withIndex(plane: Plane, v: { x: number; y: number; z: number }, 
 }
 ```
 
-- [ ] **Step 3: `MipView.tsx`**
+- [x] **Step 3: `MipView.tsx`**
 
 1. Props: `plane: Plane` y `onPlaneChange: (p: Plane) => void` sustituyen a `mainPlane`. `index = indexOf(plane, mprVoxel)`, `count` y `spacingAlong` por `plane` como hasta ahora.
 2. Interacción de vtk: tras crear `grw`, sustituye el estilo por defecto:
@@ -1219,15 +1219,15 @@ useEffect(() => {
 4. Al cambiar `plane`: la cámara se recoloca con `standardViewInVolume(viewOf(plane), orientation)` donde `viewOf = { axial: "axial", coronal: "coronal", sagital: "sagital" }`, y `resetCamera()`; el efecto de escena deja de depender de `mainPlane` (la escena no se rehace al cambiar de eje; solo se mueve la cámara y los planos de recorte).
 5. HUD (no compacto): añade `HudToggleGroup` «AX · COR · SAG» con `value={plane}` y `onChange={(k) => onPlaneChange(k as Plane)}`; renombra «AJUSTAR» a «CENTRAR» y cambia el `title` del contenedor a `"Arrastrar: rotar · Shift o botón central: desplazar · Rueda: corte · Ctrl+rueda: zoom"`. Actualiza el comentario de cabecera del archivo (ya no «la rueda hace zoom»).
 
-- [ ] **Step 4: Store y Viewer**
+- [x] **Step 4: Store y Viewer**
 
 `planning.tsx`: `const [mipPlane, setMipPlane] = useState<Plane | null>(null);` y expónlos en el contexto (tipo e implementación). `Viewer.tsx`: `const mipPlane = storeMipPlane ?? (viewerLayout.main === "coronal" || viewerLayout.main === "sagital" ? viewerLayout.main : "axial");` y `<MipView … plane={mipPlane} onPlaneChange={setMipPlane} />`.
 
-- [ ] **Step 5: Verificar**
+- [x] **Step 5: Verificar**
 
 `npx vitest run src/vtk/mipGestures.test.ts && npx tsc --noEmit -p . && npx vitest run`. Navegador (Case 3, MIP en principal): rueda → el MIP crece y decrece corte a corte y las vistas de cortes siguen al mismo punto; Ctrl+rueda zoom; arrastrar rota; Shift+arrastrar y botón central desplazan; AX/COR/SAG recoloca la cámara y cambia el eje de acumulación; CENTRAR recoloca. Sin errores en consola. Capturas `t7_*.png`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/vtk/mipGestures.ts frontend/src/vtk/mipGestures.test.ts frontend/src/vtk/MipView.tsx frontend/src/store/planning.tsx frontend/src/vtk/Viewer.tsx
@@ -1254,7 +1254,7 @@ export function toPixels(ndc: [number, number], widthPx: number, heightPx: numbe
 export function tracePolygon(points: { x: number; y: number }[]): string;                                      // atributo `points` de un <polygon> SVG
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/planeTrace.test.ts
@@ -1291,7 +1291,7 @@ describe("toPixels y tracePolygon", () => {
 });
 ```
 
-- [ ] **Step 2: Implementación pura**
+- [x] **Step 2: Implementación pura**
 
 ```ts
 // frontend/src/vtk/planeTrace.ts
@@ -1326,7 +1326,7 @@ export function tracePolygon(points: { x: number; y: number }[]): string {
 }
 ```
 
-- [ ] **Step 3: Superposición en `MipView.tsx`**
+- [x] **Step 3: Superposición en `MipView.tsx`**
 
 Estado `trace: string | null` (atributo `points`). Un efecto recalcula la traza cuando cambian `posMm`, `axis`, `mipMode`, `mipSlabMm` y en cada `cam.onModified` (ya hay una suscripción para la cinta de rumbo: añade la llamada ahí):
 
@@ -1359,9 +1359,9 @@ Dibuja, dentro del `HudFrame` y con `className="hud-decor"` (para que REGLAS ○
 
 Comprueba `worldToView`/`viewToNormalizedDisplay` en `node_modules/@kitware/vtk.js/Rendering/Core/Renderer/index.d.ts`; si la firma de `viewToNormalizedDisplay` no acepta `aspect`, usa `vtkCoordinate` (`setCoordinateSystemToWorld`, `getComputedNormalizedDisplayValue(renderer)`) y anótalo.
 
-- [ ] **Step 4: Verificar** → `npx vitest run src/vtk/planeTrace.test.ts && npx tsc --noEmit -p . && npx vitest run`. Navegador: con el MIP de frente la traza es un rectángulo ámbar que avanza con la rueda; al rotar se vuelve un paralelogramo y desaparece al mirar de canto; en LÁMINA son dos; REGLAS ○ la oculta. Capturas `t8_*.png`.
+- [x] **Step 4: Verificar** → `npx vitest run src/vtk/planeTrace.test.ts && npx tsc --noEmit -p . && npx vitest run`. Navegador: con el MIP de frente la traza es un rectángulo ámbar que avanza con la rueda; al rotar se vuelve un paralelogramo y desaparece al mirar de canto; en LÁMINA son dos; REGLAS ○ la oculta. Capturas `t8_*.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/planeTrace.ts frontend/src/vtk/planeTrace.test.ts frontend/src/vtk/MipView.tsx
@@ -1376,7 +1376,7 @@ git commit -m "El MIP dibuja la traza del corte hasta donde ha acumulado"
 - Modify: `README.md` (sección del visor: presets, gestos del MIP, atajos)
 - Modify: `docs/superpowers/plans/2026-10-01-distribucion-vistas-mip.md` (marcar casillas)
 
-- [ ] **Step 1: Comprobación completa**
+- [x] **Step 1: Comprobación completa**
 
 ```bash
 cd frontend && npx tsc -b && npx vitest run && npm run build
@@ -1385,7 +1385,7 @@ cd ../backend && .venv\Scripts\python -m pytest -q -rf --no-header -p no:cachepr
 
 Expected: frontend en verde (≥ 364 + nuevos) y chunk de entrada sin vtk.js; backend con los 38 fallos preexistentes y ninguno nuevo (lista en el ledger del plan anterior o regenerada en `master`).
 
-- [ ] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
+- [x] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
 
 1. Abrir «Case 3 revision» sin preferencias guardadas (borrar `ws.viewer.layout.v2`): 3D grande a la izquierda, columna de cuatro a la derecha, cada una ≈ un cuarto del alto.
 2. Arrastrar el MIP sobre el 3D: se intercambian sin parpadeo; la cámara del 3D y la ventana/nivel de los cortes se conservan.
@@ -1397,7 +1397,7 @@ Expected: frontend en verde (≥ 364 + nuevos) y chunk de entrada sin vtk.js; ba
 8. Captura del visor desde el topbar con el MIP en principal: las cinco vistas en su sitio.
 9. Marcado de cuello (pick) con el MIP en principal: el 3D sube solo a principal como antes.
 
-- [ ] **Step 3: README y commit de cierre**
+- [x] **Step 3: README y commit de cierre**
 
 En `README.md`, en la sección del visor, un párrafo: presets (DERECHA/ABAJO/SOLA, Alt+1/2/3), intercambio arrastrando el borde superior de una vista, separador, y los gestos del MIP (rueda corte · Ctrl+rueda zoom · arrastrar rota · Shift/central desplaza · AX/COR/SAG eje · CENTRAR).
 

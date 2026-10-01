@@ -30,7 +30,9 @@ import { PREF_DECOR_HIDDEN, useStoredFlag } from "./viewerPrefs";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
+import type { ClipFieldResult } from "../api/types";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
+import { legendLines } from "./clipFieldLegend";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { OrientationSheet } from "./OrientationSheet";
 import { manualFromMeta, shouldSeed } from "./orientationSeed";
@@ -179,7 +181,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
-    clipRehearsal, registerClipParts,
+    clipRehearsal, registerClipParts, clipField, showClipField, setClipField, setShowClipField,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
@@ -531,6 +533,19 @@ export function ViewerWorkspace({ step }: { step: string }) {
     [deviceMeshes],
   );
   const showDevice = step === "devices" && devices.length > 0;
+  // El mapa de calor del clip ocupa el sitio del saco: es el mismo saco,
+  // pintado según el clip colocado. Los dos a la vez se pisarían.
+  const showField = showDevice && !!clipField && showClipField;
+
+  // Gancho de depuración, solo en desarrollo: hasta que el panel de clips pida
+  // el campo (Task 6), esta es la única forma de meter un resultado de
+  // POST /api/clips/field en el visor y verlo pintado. No llega a producción.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const w = window as unknown as { __setClipField?: (f: ClipFieldResult | null) => void };
+    w.__setClipField = setClipField;
+    return () => { delete w.__setClipField; };
+  }, [setClipField]);
   const showCenterline = !!centerlineMesh && centerlineMesh.startsWith("/data/");
 
   const layers = useMemo<MeshLayer[]>(() => {
@@ -553,7 +568,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const sacUrl = (sacFrame !== null && sacFrames[sacFrame])
       ? sacFrames[sacFrame]
       : morphometry?.sac_mesh_url;
-    if (sacUrl && step !== "segment" && step !== "upload") {
+    if (showField && clipField) {
+      // Opaco: los colores son el dato, y translúcidos sobre el árbol se
+      // mezclarían con el rojo del vaso y dejarían de casar con la leyenda.
+      out.push({ url: clipField.field_mesh_url, color: SAC_COLOR, opacity: 1, id: "clip-field", scalars: { array: "colors" }, silhouette: true });
+    } else if (sacUrl && step !== "segment" && step !== "upload") {
       // Con contorno: translúcido sobre el árbol, su borde se perdía.
       out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true });
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
@@ -578,7 +597,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: scissorsPreview, color: DOOMED_COLOR, opacity: 1, id: "tijera" });
     }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview]);
+  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField]);
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
@@ -914,6 +933,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       for (const d of devices) {
         br.push({ text: DEVICE_LABEL[d.kind].toUpperCase(), color: `rgb(${d.color.map((c) => Math.round(c * 255)).join(",")})` });
       }
+      if (showField && clipField) br.push(...legendLines(clipField.summary));
     }
     if (isMesh && meshUrl && visiblePerforators.length > 0 && (step === "morpho" || step === "treatment" || step === "devices")) {
       for (const b of perforatorBands) br.push({ text: b.label, color: b.color });
@@ -1132,6 +1152,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
                   value={decorHidden ? "" : "decor"} onChange={() => setDecorHidden(!decorHidden)} />
                 <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
                   value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
+                {/* CALOR solo existe cuando hay un campo del clip calculado: sin
+                    él no habría nada que encender. */}
+                {clipField && (
+                  <HudToggleGroup options={[{ key: "calor", label: showClipField ? "CALOR ●" : "CALOR ○",
+                                              title: showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
+                    value={showClipField ? "calor" : ""} onChange={() => setShowClipField(!showClipField)} />
+                )}
               </div>
             </>
           }

@@ -37,6 +37,9 @@ export interface MeshLayer {
    *  invertido, ver el efecto de escena). Lo pide el saco: translúcido sobre
    *  el árbol, su borde se perdía y no se sabía dónde acababa el aneurisma. */
   silhouette?: boolean;
+  /** Color directo RGB por vértice desde ese array del .vtp (uint8×3), en vez
+   *  del color sólido de la capa. Lo pide el mapa de calor del clip. */
+  scalars?: { array: string };
 }
 
 /** Imperative handle for moving named layers, published while the scene lives.
@@ -378,7 +381,15 @@ export function MeshView({
 
           const mapper = vtkMapper.newInstance();
           mapper.setInputData(poly);
-          mapper.setScalarVisibility(false); // solid color, not scalar-mapped
+          if (layer.scalars) {
+            // Color directo por vértice: el servidor ya decidió el color de cada punto
+            // (categoría y presión), así la leyenda y la malla no pueden discrepar.
+            poly.getPointData().setActiveScalars(layer.scalars.array);
+            mapper.setScalarVisibility(true);
+            mapper.setColorModeToDirectScalars();
+          } else {
+            mapper.setScalarVisibility(false); // solid color, not scalar-mapped
+          }
 
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
@@ -620,6 +631,9 @@ export function MeshView({
           if (cancelled) return;
           const poly = reader.getOutputData();
           if (!poly || poly.getNumberOfPoints() === 0) continue;
+          // Un campo del clip recalculado llega como fichero nuevo de la misma
+          // capa: su array de color tiene que volver a ser el escalar activo.
+          if (l.scalars) poly.getPointData().setActiveScalars(l.scalars.array);
           (actor.getMapper() as vtkMapper).setInputData(poly);
           // El casco comparte el mapper, así que ya tiene la geometría nueva,
           // pero su centro de escala se fijó con los límites de la primera

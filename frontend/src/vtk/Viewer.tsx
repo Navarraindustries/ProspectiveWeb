@@ -535,7 +535,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const showDevice = step === "devices" && devices.length > 0;
   // El mapa de calor del clip ocupa el sitio del saco: es el mismo saco,
   // pintado según el clip colocado. Los dos a la vez se pisarían.
-  const showField = showDevice && !!clipField && showClipField;
+  // Durante el ensayo de cierre manda el saco que se deforma: el campo se
+  // calcula para la pose final, y pintarlo encima de la maniobra diría que el
+  // clip ya apretaba mientras entraba por el corredor. Basta mirar el ensayo:
+  // los fotogramas del saco viven dentro de él, y `sacFrame` se queda con su
+  // último valor al salir, así que mirarlo dejaría el campo apagado para siempre.
+  const showField = showDevice && !!clipField && showClipField && !clipRehearsal;
 
   // Gancho de depuración, solo en desarrollo: hasta que el panel de clips pida
   // el campo (Task 6), esta es la única forma de meter un resultado de

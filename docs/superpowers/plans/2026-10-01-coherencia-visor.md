@@ -51,7 +51,7 @@ export const RESERVED_HEX: string[];                                   // ámbar
 export function referencePlanes(plane: Plane): { u: Plane; v: Plane };  // axial → {u:"sagital", v:"coronal"}, coronal → {u:"sagital", v:"axial"}, sagital → {u:"coronal", v:"axial"}
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/planeColors.test.ts
@@ -76,9 +76,9 @@ describe("planeColors", () => {
 });
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar** → `cd frontend && npx vitest run src/vtk/planeColors.test.ts` FAIL (módulo inexistente).
+- [x] **Step 2: Ejecutar y ver fallar** → `cd frontend && npx vitest run src/vtk/planeColors.test.ts` FAIL (módulo inexistente).
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/planeColors.ts
@@ -121,9 +121,9 @@ Los valores de `RESERVED_HEX` salen de `styles/tokens/colors.css` (`--hud`, `--h
 
 Test adicional en `SliceView` (si existe `SliceView.test.tsx`; si no, créalo mínimo con el patrón de los tests de componentes vtk, mockeando el render): las dos líneas de referencia del corte axial llevan `data-plane="sagital"` (vertical) y `data-plane="coronal"` (horizontal). Si montar `SliceView` en jsdom resulta impracticable (vtk.js), deja el test del módulo puro y comprueba las líneas en navegador en la Task 5; dilo en el informe.
 
-- [ ] **Step 4: Verificar** → `npx vitest run src/vtk/planeColors.test.ts`, `npx tsc --noEmit -p .`, `npx vitest run`.
+- [x] **Step 4: Verificar** → `npx vitest run src/vtk/planeColors.test.ts`, `npx tsc --noEmit -p .`, `npx vitest run`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/planeColors.ts frontend/src/vtk/planeColors.test.ts frontend/src/vtk/SliceView.tsx frontend/src/vtk/MipView.tsx frontend/src/vtk/hud/hud.css frontend/src/vtk/hud/HudFrame.tsx frontend/src/styles/tokens/colors.css
@@ -149,7 +149,7 @@ export function mainOptions(): { key: PaneId; label: string; title: string }[]; 
 // ViewerGrid: cada celda secundaria renderiza <button class="viewer-maximize" title="Hacer principal" aria-label="Hacer principal: <LABEL>">⤢</button>
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/mainOptions.test.ts
@@ -190,9 +190,9 @@ it("el botón de maximizar no inicia un arrastre ni cuenta como doble clic del a
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → `npx vitest run src/vtk/mainOptions.test.ts src/vtk/ViewerGrid.test.tsx` FAIL.
+- [x] **Step 2: Ver fallar** → `npx vitest run src/vtk/mainOptions.test.ts src/vtk/ViewerGrid.test.tsx` FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/mainOptions.ts
@@ -231,9 +231,9 @@ export function mainOptions() { return ORDER.map((key) => ({ key, label: MAIN_LA
 
 con un rótulo mono «PRINCIPAL» delante (un `span` con `color: var(--hud-dim)`). Si en una principal estrecha (< 800 px) el grupo pisa el rótulo centrado, los presets pasan a abreviaturas «DER · ABA · SOLA» (comprobación en navegador).
 
-- [ ] **Step 4: Verificar** → vitest de los dos archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): PRINCIPAL cambia la vista grande y refleja el estado tras un doble clic o un arrastre; «⤢» en cada celda; a 1280×720 nada se pisa en la cabecera.
+- [x] **Step 4: Verificar** → vitest de los dos archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): PRINCIPAL cambia la vista grande y refleja el estado tras un doble clic o un arrastre; «⤢» en cada celda; a 1280×720 nada se pisa en la cabecera.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/mainOptions.ts frontend/src/vtk/mainOptions.test.ts frontend/src/vtk/ViewerGrid.tsx frontend/src/vtk/ViewerGrid.test.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/hud/hud.css
@@ -263,7 +263,7 @@ planes?: PlaneOutline[];      // rectángulos de líneas sin iluminación, no se
 export const PREF_PLANES_HIDDEN = "viewer.planesHidden";
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/planeOutlines.test.ts
@@ -301,9 +301,9 @@ describe("planeOutlines", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/planeOutlines.ts
@@ -336,9 +336,9 @@ export function planeOutlines(voxel: { x: number; y: number; z: number } | null,
 
 `Viewer.tsx`: `const [planesHidden, setPlanesHidden] = useStoredFlag(PREF_PLANES_HIDDEN);` `const planes = useMemo(() => (planesHidden || decorHidden || !meta ? [] : planeOutlines(mprVoxel, meta)), [planesHidden, decorHidden, meta, mprVoxel]);` y pásalo a `<MeshView planes={planes} …/>` en la escena de malla. Marcador del punto: `MeshMarker` gana `radiusMm?: number` (radio absoluto en mm; cuando está, sustituye a `markerRadiusMm(...) * scale` en el `vtkSphereSource`), y `Viewer` añade a `markers` `{ pos: voxelToMm(mprVoxel, meta), color: HUD_RGB, radiusMm: 0.6 }` donde `HUD_RGB` es `#8CFF9E` en 0–1 (`[0.549, 1, 0.620]`), solo cuando hay `meta` y los planos no están ocultos. Interruptor en la cabecera (grupo de la derecha, antes de REGLAS): «PLANOS ●/○» con `title` «Mostrar/ocultar los planos de corte en el 3D». `estadoVisor` añade `planes_hidden: planesHiddenRef.current`.
 
-- [ ] **Step 4: Verificar** → `npx vitest run src/vtk/planeOutlines.test.ts`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): tres rectángulos en el 3D con los colores de los cortes, moviéndose con la rueda en cada corte; el marcador del punto; PLANOS ○ los quita y REGLAS ○ también; comparar con la traza del MIP y las líneas de referencia: mismos planos, mismos colores. Capturas `t3_*.png` en el scratchpad.
+- [x] **Step 4: Verificar** → `npx vitest run src/vtk/planeOutlines.test.ts`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): tres rectángulos en el 3D con los colores de los cortes, moviéndose con la rueda en cada corte; el marcador del punto; PLANOS ○ los quita y REGLAS ○ también; comparar con la traza del MIP y las líneas de referencia: mismos planos, mismos colores. Capturas `t3_*.png` en el scratchpad.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/planeOutlines.ts frontend/src/vtk/planeOutlines.test.ts frontend/src/vtk/MeshView.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/viewerPrefs.ts
@@ -370,7 +370,7 @@ export function presetToRange(preset: VolumePreset, range: [number, number]): Tr
 volumeMode: "mip" | "compuesto"; setVolumeMode; volumePreset: VolumePreset; setVolumePreset;   // defectos "mip", "Vasos CTA"; se reinician con la sesión
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/volumePresets.test.ts
@@ -410,9 +410,9 @@ it("en compuesto la lectura nombra el preajuste y el corte", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/volumePresets.ts
@@ -448,9 +448,9 @@ export function presetToRange(preset: VolumePreset, range: [number, number]): Tr
 
 `Viewer.tsx`: quita `"volume"` del tipo `viewMode` y del conmutador (queda `[{default: 3D/MPR}, {oblique: Oblicuo}]`), elimina la rama `viewMode === "volume"` y el import de `VolumeView`; borra `frontend/src/vtk/VolumeView.tsx`; `estadoVisor` añade `volume_mode` y `volume_preset`. README: en la sección del visor, nota de que la vista VOLUMEN tiene modos MIP y COMPUESTO y que `GET /volume/{sid}/raw` queda sin consumidor en el frontend (D2 decide).
 
-- [ ] **Step 4: Verificar** → vitest de `volumePresets`, `mipReadout`, `store/planning`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): VOLUMEN como principal; MIP igual que antes; COMPUESTO con «Vasos CTA» enseña el árbol a color y la rueda lo construye; «Hueso» y «Cerebro» cambian el tejido visible; fps medidos (anotar); la traza del plano se ve en los dos modos; el conmutador de la escena ya no ofrece «Volumen». Capturas `t4_*.png`.
+- [x] **Step 4: Verificar** → vitest de `volumePresets`, `mipReadout`, `store/planning`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): VOLUMEN como principal; MIP igual que antes; COMPUESTO con «Vasos CTA» enseña el árbol a color y la rueda lo construye; «Hueso» y «Cerebro» cambian el tejido visible; fps medidos (anotar); la traza del plano se ve en los dos modos; el conmutador de la escena ya no ofrece «Volumen». Capturas `t4_*.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/volumePresets.ts frontend/src/vtk/volumePresets.test.ts frontend/src/vtk/MipView.tsx frontend/src/vtk/mipReadout.ts frontend/src/vtk/mipReadout.test.ts frontend/src/store/planning.tsx frontend/src/store/planning.test.tsx frontend/src/vtk/Viewer.tsx README.md
@@ -465,7 +465,7 @@ git commit -m "La vista VOLUMEN reúne MIP y compuesto por tejidos sobre el volu
 **Files:**
 - Modify: `README.md` (sección del visor: selector PRINCIPAL, botón ⤢, colores de plano y PLANOS, VOLUMEN), este plan (casillas).
 
-- [ ] **Step 1: Comprobación completa**
+- [x] **Step 1: Comprobación completa**
 
 ```bash
 cd frontend && npx tsc -b && npx vitest run && npm run build
@@ -474,7 +474,7 @@ cd ../backend && .venv\Scripts\python -m pytest -q -rf --no-header -p no:cachepr
 
 Expected: frontend en verde; backend sin fallos nuevos frente a la línea base del ledger (este plan no toca el backend).
 
-- [ ] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
+- [x] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
 
 1. PRINCIPAL ▸ AX pone el axial grande; ▸ VOL la vista de volumen; el selector refleja un doble clic en otra celda.
 2. «⤢» en cada celda secundaria la sube; la principal no lo tiene.
@@ -486,7 +486,7 @@ Expected: frontend en verde; backend sin fallos nuevos frente a la línea base d
 8. El conmutador de la escena ofrece 3D · Oblicuo, sin Volumen; el oblicuo sigue funcionando.
 9. Captura compuesta y grabación con VOLUMEN en COMPUESTO: la celda sale pintada; el estado guardado trae `volume_mode`, `volume_preset`, `planes_hidden`.
 
-- [ ] **Step 3: README y commit de cierre**
+- [x] **Step 3: README y commit de cierre**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-10-01-coherencia-visor.md

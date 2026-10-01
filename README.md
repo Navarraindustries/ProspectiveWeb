@@ -2236,13 +2236,17 @@ no archived study it only downloads, and says so. They live in the durable
 archive, never under `data/`, and are served only by the authenticated
 endpoints above. The PDF report offers and embeds captures only, not videos.
 
-**Viewer layout.** The five views (3D, axial, coronal, sagittal and MIP) share
+**Viewer layout.** The five views (3D, axial, coronal, sagittal and VOLUMEN) share
 one grid in three presets, chosen in the main view's header or with
 **Alt+1 · Alt+2 · Alt+3**: «SOLA» (the main view alone), «DERECHA» (main view
 plus a column of four, the default) and «ABAJO» (main view plus a strip of
-four). Plain digits keep jumping between pipeline steps, and no shortcut fires
-while typing in a field. Dragging the thin handle along the top edge of a view
-onto another swaps them; a double click promotes a view to main. The views are
+four). When the main view is narrower than 800 px the presets read
+«DER · ABA · SOLA». Plain digits keep jumping between pipeline steps, and no shortcut fires
+while typing in a field. The header selector «PRINCIPAL ▸ 3D · AX · COR · SAG · VOL»
+chooses the main view directly; every secondary view also has a «⤢» button in
+its top-right corner that promotes it (the main view has none), and a double
+click does the same. Dragging the thin handle along the top edge of a view
+onto another swaps them. The views are
 never remounted, so the 3D camera, slice positions and window/level survive
 every swap. The splitter between the main view and the others sets the share
 of the main view (50–85 %); a double click restores the preset's default. In a
@@ -2254,8 +2258,8 @@ layout is remembered per browser; the older «CORTES» setting is migrated once.
 **MIP.** The MIP is built from the shared slice: the wheel moves that slice (the
 slice views follow it), Ctrl+wheel zooms, dragging rotates, Shift+drag or the
 middle button pans. «AX · COR · SAG» chooses the voxel axis it accumulates
-along, the same axes the slice views use, and an amber outline traces the
-current plane. «CENTRAR» recentres pan and zoom without undoing the rotation.
+along, the same axes the slice views use, and an outline in that plane's colour
+traces the current plane. «CENTRAR» recentres pan and zoom without undoing the rotation.
 
 **VOLUMEN.** The MIP cell is labelled «VOLUMEN» and has two render modes,
 switched with «MIP · COMPUESTO» next to the axis selector. MIP is the view
@@ -2266,10 +2270,21 @@ copy already in the browser; clipping, plane trace and gestures are the same in
 both. The 3D scene no longer has a «Volumen» mode, so `GET /api/volume/{sid}/raw`
 has no consumer in the frontend; whether the endpoint stays is left to D2.
 
+**Plane colours and «PLANOS».** Each slice plane has one colour everywhere:
+axial cyan, coronal green, sagittal orange. It colours the slice label, the
+reference lines that other slices draw for it (the axial view shows a sagittal
+line and a coronal line) and the MIP trace. The 3D scene draws the three planes
+as rectangles in the same colours, plus a point where they meet; scrolling a
+slice moves its rectangle. The rectangles do not count for framing or for the
+scale of markers, so «AJUSTAR» still frames the vessel tree. «PLANOS» in the
+header hides them without moving the camera, «REGLAS» hides them too, and the
+choice is remembered per browser. The scene toggle offers «3D · Oblicuo».
+
 The «REGLAS» toggle hides the HUD decoration (corners, heading tape, slice
 ladder, reticle); orientation letters, slice number, measurements and safety
-warnings stay. Layout and «REGLAS» are per-browser view preferences, and
-captures and recordings follow what is on screen.
+warnings stay. Layout, «REGLAS» and «PLANOS» are per-browser view preferences, and
+captures and recordings follow what is on screen; their saved state includes
+`planes_hidden`, `volume_mode` and `volume_preset`.
 
 **What the audit chain records.** Login, password changes and resets, PDF and
 DICOM-SR generation, clip workshops and every order transition, the treatment

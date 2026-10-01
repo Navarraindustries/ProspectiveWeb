@@ -14,6 +14,7 @@ vi.mock("../../api/client", async (orig) => {
     listCustomClips: vi.fn(async () => []),
     clipSelection: vi.fn(() => new Promise(() => { /* nunca resuelve: no es lo que se prueba */ })),
     placedDevices: vi.fn(async () => ({ remaining: [], mesh_urls: {} })),
+    clearDevices: vi.fn(async () => ({ status: "ok" })),
     planClips: vi.fn(async () => ({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null })),
     clipField: vi.fn(async () => ({ field_mesh_url: "/m/clip_field.vtp?v=1", scalars: {}, summary: { covered_pct: 90, residual_pct: 10, unreached_pct: 0, contact_area_mm2: 8, force_g: 120, force_is_band_min: true, force_provisional: true, pressure_g_mm2: 15, window_g_mm2: [10, 12, 18, 22], pressure_verdict: "optima", verdict: "ok", criteria: [], clip_name: "x", note: "Estimación geométrica" } })),
   } };
@@ -103,6 +104,53 @@ describe("DevicesPanel · campo del clip", () => {
     await waitFor(() => expect(api.clipField).toHaveBeenCalledTimes(3));
     act(() => { vi.advanceTimersByTime(400); });
     expect(api.planClips).toHaveBeenCalledTimes(3);
+  });
+
+  it("limpiar con un cambio pendiente no vuelve a colocar el clip", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    let releaseClear: () => void = () => {};
+    vi.mocked(api.clearDevices).mockImplementationOnce(() => new Promise((r) => {
+      releaseClear = () => r({ status: "ok" } as never);
+    }));
+    const [x] = screen.getAllByRole("spinbutton");
+    fireEvent.change(x, { target: { value: "5" } });
+    // Limpiar antes de que venzan los 250 ms, con el borrado aún sin responder.
+    act(() => { vi.advanceTimersByTime(100); });
+    fireEvent.click(screen.getByRole("button", { name: /Limpiar clips colocados/ }));
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(1);
+    await act(async () => { releaseClear(); });
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(1);
+    expect(api.clipField).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull());
+  });
+
+  it("volver a la pose ya colocada no pide nada", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    const [x] = screen.getAllByRole("spinbutton");
+    fireEvent.change(x, { target: { value: "1.5" } });
+    fireEvent.change(x, { target: { value: "1" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(1);
+  });
+
+  it("un fallo del plan no pide el campo", async () => {
+    vi.mocked(api.planClips).mockRejectedValueOnce(new Error("Sin malla"));
+    await colocar();
+    expect(await screen.findByText(/Sin malla/)).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.clipField).not.toHaveBeenCalled();
+  });
+
+  it("un fallo del campo que no es 409 se enseña como error y el plan se queda", async () => {
+    vi.mocked(api.clipField).mockRejectedValueOnce(new ApiError(500, "Fallo del servidor"));
+    await colocar();
+    expect(await screen.findByText(/Fallo del servidor/)).toBeInTheDocument();
+    expect(screen.getByText("Cobertura de cuello")).toBeInTheDocument();
+    expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull();
   });
 
   it("un fallo del campo no deshace la colocación y un 409 se lee como nota", async () => {

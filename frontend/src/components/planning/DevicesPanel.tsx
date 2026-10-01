@@ -176,8 +176,9 @@ function ClipsTab() {
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [fieldNote, setFieldNote] = useState<string | null>(null);
   const fieldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Cada petición lleva su número y solo la última escribe: con el debounce
-  // pueden cruzarse dos respuestas, y la vieja pintaría una posición que ya no es.
+  // Cada petición lleva su número y solo la última escribe. Con una sola
+  // colocación en vuelo ya no se cruzan dos campos; lo que cubre es limpiar: un
+  // campo que llegue después de «Limpiar» no puede volver a pintarse.
   const fieldSeq = useRef(0);
   // Una sola colocación en vuelo. Si llega otro cambio mientras tanto se anota
   // y, al terminar, se recoloca una vez con lo último que haya en la lista: ni
@@ -187,6 +188,16 @@ function ClipsTab() {
   const latestPlaced = useRef(placed);
   latestPlaced.current = placed;
   const mounted = useRef(true);
+  // Lo que el temporizador mira AL DISPARAR, no al programarse: entre una cosa y
+  // otra se puede haber limpiado (aquí o con «Limpiar todos»), y recolocar
+  // entonces dejaría en el servidor un clip que la pantalla ya no enseña.
+  const planRef = useRef(plan);
+  planRef.current = plan;
+  const meshPlacedRef = useRef(false);
+  const clearing = useRef(false);
+  // La última pose colocada con éxito, como texto: teclear «2» → «2.» → «2.0»
+  // crea listas nuevas con los mismos números y no merece otra ida y vuelta.
+  const lastPlacedKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -290,6 +301,14 @@ function ClipsTab() {
     return clips.map((c) => ({ clip_id: c.clip_id, position: c.position, normal, rotation_deg: c.rotation_deg }));
   };
 
+  const poseKey = (clips: PlacedClip[]) =>
+    JSON.stringify(clips.map((c) => [c.clip_id, c.position.x, c.position.y, c.position.z, c.rotation_deg]));
+
+  /** ¿Sigue habiendo algo que recolocar? Se pregunta justo antes de mandar. */
+  const canReplace = () =>
+    !!planRef.current && meshPlacedRef.current && !clearing.current
+    && latestPlaced.current.length > 0;
+
   const cancelFieldTimer = () => {
     if (fieldTimer.current) { clearTimeout(fieldTimer.current); fieldTimer.current = null; }
   };
@@ -329,22 +348,32 @@ function ClipsTab() {
     setBusy(true);
     setError(null);
     const placements = placementsFor(clips);
+    const hadPlan = !!planRef.current;
     try {
       const res = await api.planClips({ session_id: sessionId, placements });
+      lastPlacedKey.current = poseKey(clips);
       setPlan(res);
       setDeviceMesh("clips", res.clips_mesh_url || null);
       await requestField(placements);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al colocar los clips");
+      const msg = err instanceof Error ? err.message : "Error al colocar los clips";
+      // Los números de la lista ya son los nuevos, pero malla, mapa y tarjeta
+      // siguen en la colocación anterior: que se lea cuál se está viendo.
+      setError(hadPlan ? `${msg}. Se muestra la última colocación válida.` : msg);
     } finally {
       placing.current = false;
       setBusy(false);
     }
     if (pendingPlace.current && mounted.current) {
       pendingPlace.current = false;
-      void place(latestPlaced.current);
+      if (canReplace()) void placeRef.current(latestPlaced.current);
     }
   };
+  // El temporizador y la recolocación encolada llaman a la versión de `place`
+  // del último render, con la sesión y la morfometría de ahora.
+  const placeRef = useRef(place);
+  placeRef.current = place;
+  meshPlacedRef.current = clearer.placed;
 
   // Mover o girar un clip ya colocado lo vuelve a colocar y a pedir su campo,
   // con debounce: la malla del clip, el campo y la tarjeta tienen que hablar de
@@ -359,9 +388,11 @@ function ClipsTab() {
   useEffect(() => {
     if (!plan || !clearer.placed || placed.length === 0) return;
     cancelFieldTimer();
+    // Volver a la pose que ya está colocada no pide nada (y anula lo pendiente).
+    if (poseKey(placed) === lastPlacedKey.current) return;
     fieldTimer.current = setTimeout(() => {
       fieldTimer.current = null;
-      void place(latestPlaced.current);
+      if (canReplace()) void placeRef.current(latestPlaced.current);
     }, 250);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed]);
@@ -588,16 +619,22 @@ function ClipsTab() {
             label="Limpiar clips colocados"
             disabled={(!clearer.placed && !plan) || busy}
             busy={clearer.busy}
-            onClick={() => void clearer.clear(() => {
-              // Lo que estuviera en vuelo o pendiente ya no tiene clip al que pintar.
+            onClick={() => {
+              // Se cancela AL PULSAR, antes de esperar al servidor: un temporizador
+              // que disparase durante el borrado recolocaría el clip detrás de él.
               cancelFieldTimer();
               pendingPlace.current = false;
+              clearing.current = true;
+              void clearer.clear(() => {
+              // Lo que estuviera en vuelo ya no tiene clip al que pintar.
+              lastPlacedKey.current = null;
               fieldSeq.current++;
               setFieldError(null);
               setFieldNote(null);
               setPlan(null);
               setPlaced([]);
-            })}
+              }).finally(() => { clearing.current = false; });
+            }}
           />
           <ErrorNote>{clearer.error}</ErrorNote>
         </div>

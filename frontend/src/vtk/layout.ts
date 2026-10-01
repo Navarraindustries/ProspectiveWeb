@@ -86,12 +86,17 @@ export function loadLayout(): ViewerLayout {
     }
     const v1 = localStorage.getItem(LAYOUT_KEY_V1);
     const stripHidden = localStorage.getItem(STRIP_HIDDEN_KEY_V1) === "1";
-    const migrated = v1 !== null ? migrateV1(JSON.parse(v1), stripHidden) : null;
-    // Las claves viejas se van: si se quedaran, un navegador con las dos
-    // podría resucitar la distribución antigua al borrar la nueva.
+    let migrated = v1 !== null ? migrateV1(JSON.parse(v1), stripHidden) : null;
+    // Con la franja oculta y sin distribución guardada, la intención del usuario
+    // (ver solo la principal) se conserva sobre el defecto.
+    if (!migrated && stripHidden) migrated = { ...DEFAULT_LAYOUT, preset: "sola" };
+    // Primero se escribe la nueva y luego se borran las viejas: si la escritura
+    // falla no se pierde el estado anterior. Las viejas se van para que un
+    // navegador con las dos no resucite la distribución antigua al borrar la nueva.
+    if (migrated) localStorage.setItem(LAYOUT_KEY_V2, JSON.stringify(migrated));
     localStorage.removeItem(LAYOUT_KEY_V1);
     localStorage.removeItem(STRIP_HIDDEN_KEY_V1);
-    if (migrated) { localStorage.setItem(LAYOUT_KEY_V2, JSON.stringify(migrated)); return migrated; }
+    if (migrated) return migrated;
     return DEFAULT_LAYOUT;
   } catch {
     return DEFAULT_LAYOUT;

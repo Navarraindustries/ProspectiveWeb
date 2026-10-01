@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, LAYOUT_KEY_V1, LAYOUT_KEY_V2, STRIP_HIDDEN_KEY_V1,
   defaultFraction, isValidLayout, loadLayout, migrateV1, promote, saveLayout, setMainFraction, setPreset, swapPanes,
@@ -72,6 +72,14 @@ describe("migración desde v1", () => {
 
 describe("persistencia", () => {
   beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+  it("solo la bandera de franja oculta, sin v1, da el defecto en preset sola y se persiste", () => {
+    localStorage.setItem(STRIP_HIDDEN_KEY_V1, "1");
+    const l = loadLayout();
+    expect(l).toEqual({ ...DEFAULT_LAYOUT, preset: "sola" });
+    expect(localStorage.getItem(STRIP_HIDDEN_KEY_V1)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(LAYOUT_KEY_V2)!)).toEqual(l);
+  });
   it("guarda y lee en la clave v2", () => {
     saveLayout(promote(DEFAULT_LAYOUT, "coronal"));
     expect(loadLayout()).toEqual(promote(DEFAULT_LAYOUT, "coronal"));

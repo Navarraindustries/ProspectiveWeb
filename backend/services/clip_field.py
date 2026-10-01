@@ -240,14 +240,43 @@ def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm
     )
 
 
+def neck_disc(points: np.ndarray, *, neck_origin, neck_axis, neck_mm: float) -> np.ndarray:
+    """Máscara de los vértices dentro del disco del cuello (en su plano).
+
+    Distancia al eje del cuello ≤ cuello/2 + tolerancia: es la población de la
+    que hablan «cuello cubierto», «residual» y «no alcanzado».
+    """
+    pts = np.asarray(points, dtype=float).reshape(-1, 3)
+    rel = pts - np.asarray(neck_origin, dtype=float)
+    n = _unit(neck_axis)
+    in_plane = rel - np.outer(rel @ n, n)
+    return np.linalg.norm(in_plane, axis=1) <= float(neck_mm) / 2.0 + DISC_TOL_MM
+
+
 def classify(points: np.ndarray, frame: BladeFrame, *, neck_origin, neck_axis,
              neck_mm: float) -> np.ndarray:
     """Categoría por vértice para UN clip (ver constantes COV_*).
 
-    Limitación conocida: la banda de profundidad es una losa plana alrededor del
-    plano de la bisagra. Una hoja curva (CURVED, ANGLED) se sale de ella hacia la
-    punta, así que el cuello bajo la parte doblada queda sin evaluar. Es parte
-    de la estimación geométrica; la simulación mecánica lo sustituirá.
+    Dentro de la banda y del disco del cuello todo vértice recibe veredicto: lo
+    que las hojas cierran es cubierto, lo que queda más allá de la punta es no
+    alcanzado y todo lo demás (detrás de la bisagra o al lado de la mordaza) es
+    residual. Un clip desplazado a través de la mordaza deja el cuello a un lado
+    de las hojas, y ese cuello tiene que leerse abierto, nunca «no evaluado»:
+    era la falsa tranquilidad de un clip que no pinzaba nada.
+
+    Fuera del disco la banda corta la pared de la arteria madre: un clip paralelo
+    a la arteria (la orientación habitual) vería esa pared más allá de la punta
+    como cuello sin cerrar, así que ahí solo se marca lo que las hojas pinzan
+    (cubierto, para el área de contacto) y el resto queda sin evaluar. La cúpula,
+    fuera de la banda, tampoco cuenta.
+
+    Limitaciones conocidas: la banda de profundidad es una losa plana alrededor
+    del plano de la bisagra, y una hoja curva (CURVED, ANGLED) se sale de ella
+    hacia la punta, así que el cuello bajo la parte doblada queda sin evaluar.
+    Con dos clips a distinta altura, un trozo de cuello en la banda de B pero al
+    lado de su mordaza sale residual aunque A lo cierre más abajo: es
+    conservador (magenta, no verde). Todo es parte de la estimación geométrica;
+    la simulación mecánica lo sustituirá.
     """
     pts = np.asarray(points, dtype=float).reshape(-1, 3)
     rel = pts - frame.hinge
@@ -260,20 +289,16 @@ def classify(points: np.ndarray, frame: BladeFrame, *, neck_origin, neck_axis,
     behind = l < 0.0
     beyond = l > frame.length_mm
     within = ~behind & ~beyond
-    # «Cuello residual» y «no alcanzado» describen el CUELLO: solo se juzgan dentro
-    # de su disco (distancia en el plano del cuello ≤ cuello/2 + tolerancia). Fuera
-    # de él la banda corta la pared de la arteria madre, y un clip paralelo a la
-    # arteria (la orientación habitual) vería esa pared más allá de la punta como
-    # cuello sin cerrar. La cúpula tampoco cuenta: con el cuello pinzado en todo su
-    # ancho queda excluida entera. «Cubierto» no se limita al disco: es lo que las
-    # hojas pinzan, anillo incluido, y lo que mide el área de presión.
-    rel_neck = pts - np.asarray(neck_origin, dtype=float)
-    n = _unit(neck_axis)
-    in_plane = rel_neck - np.outer(rel_neck @ n, n)
-    in_disc = np.linalg.norm(in_plane, axis=1) <= float(neck_mm) / 2.0 + DISC_TOL_MM
+    in_disc = neck_disc(pts, neck_origin=neck_origin, neck_axis=neck_axis, neck_mm=neck_mm)
+    # Dentro del disco la holgura lateral se iguala a la del disco: la del disco
+    # (0,6 mm) es más ancha que la de la mordaza (0,3 mm), y sin igualarlas un clip
+    # centrado dejaría un halo de «residual» en el borde del cuello.
+    closes_neck = (np.abs(g) <= frame.close_half_mm + (DISC_TOL_MM - GAP_TOL_MM)) & within
+    neck = band & in_disc
     out[band & near & within] = COV_COVERED
-    out[band & near & behind & in_disc] = COV_RESIDUAL
-    out[band & near & beyond & in_disc] = COV_UNREACHED
+    out[neck & closes_neck] = COV_COVERED
+    out[neck & beyond] = COV_UNREACHED
+    out[neck & ~beyond & ~closes_neck] = COV_RESIDUAL
     return out
 
 
@@ -341,6 +366,12 @@ def contact_area_mm2(mesh: vtk.vtkPolyData, coverage: np.ndarray) -> float:
 
 
 def pressure_verdict(pressure_g_mm2: float, window_g_mm2, *, has_force: bool = True) -> str:
+    """Presión de UN clip frente a la ventana del cuello repartida sobre su área.
+
+    Presión y ventana se dividen por la misma área, así que el veredicto es en el
+    fondo «fuerza del clip frente a la ventana de fuerza del cuello». Una ventana
+    nula significa que no hay área de contacto.
+    """
     acc_lo, opt_lo, opt_hi, acc_hi = window_g_mm2
     # La ventana solo es positiva si hay área de contacto. Con contacto pero sin
     # fuerza conocida (clip importado sin ficha) la presión es desconocida, no
@@ -358,55 +389,133 @@ def pressure_verdict(pressure_g_mm2: float, window_g_mm2, *, has_force: bool = T
     return "aceptable"
 
 
+# Gravedad para quedarse con el peor clip. «sin_fuerza» va por debajo de todo: un
+# importado sin ficha no puede tapar el veredicto de un clip que sí la tiene, y
+# solo manda cuando ningún clip tiene fuerza conocida.
+_VERDICT_RANK = {"sin_fuerza": 0, "optima": 1, "aceptable": 2, "insuficiente": 3,
+                 "exceso": 4, "sin_contacto": 5}
+
+
+@dataclass(frozen=True)
+class ClipLoad:
+    """La fuerza de UN clip frente a la ventana del cuello."""
+    force_g: float
+    contact_area_mm2: float
+    pressure_g_mm2: float
+    window_g_mm2: tuple[float, float, float, float]
+    verdict: str
+
+
+def clip_load(mesh, coverage: np.ndarray, *, force_g: float, neck_mm: float) -> ClipLoad:
+    """Cada clip se juzga con su propia fuerza: dos clips en tándem no suman.
+
+    Sumar las fuerzas y compararlas con la ventana de UN clip pintaba de rojo
+    («exceso») cualquier pareja, un montaje habitual en cuellos anchos.
+    """
+    from services.clip_selection import force_window
+    area = contact_area_mm2(mesh, coverage)
+    pressure = float(force_g / area) if area > 0 and force_g > 0 else 0.0
+    window = tuple(float(w / area) if area > 0 else 0.0 for w in force_window(neck_mm))
+    return ClipLoad(force_g=float(force_g), contact_area_mm2=area, pressure_g_mm2=pressure,
+                    window_g_mm2=window,  # type: ignore[arg-type]
+                    verdict=pressure_verdict(pressure, window, has_force=force_g > 0))
+
+
+def worst_load(loads: list[ClipLoad]) -> int:
+    """Índice del clip con el peor veredicto de fuerza (el primero si empatan)."""
+    return max(range(len(loads)), key=lambda i: (_VERDICT_RANK.get(loads[i].verdict, 5), -i))
+
+
 @dataclass
 class FieldSummary:
     covered_pct: float; residual_pct: float; unreached_pct: float
     contact_area_mm2: float; force_g: float; force_is_band_min: bool; force_provisional: bool
     pressure_g_mm2: float; window_g_mm2: tuple[float, float, float, float]; pressure_verdict: str
+    force_window_g: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+    neck_evaluated: bool = True
     note: str = GEOMETRIC_NOTE
 
 
-def summarize(mesh, coverage: np.ndarray, *, force_g: float, force_is_band_min: bool,
-              force_provisional: bool, neck_mm: float) -> FieldSummary:
+def summarize(mesh, coverage: np.ndarray, *, in_neck: np.ndarray, loads: list[ClipLoad],
+              force_is_band_min: bool, force_provisional: bool, neck_mm: float) -> FieldSummary:
+    """Cifras del campo: porcentajes sobre el cuello y la fuerza del peor clip.
+
+    Los porcentajes se reparten solo entre los vértices evaluados DENTRO del
+    disco del cuello: la pared del anillo que las hojas pinzan se pinta cubierta
+    (es lo que aprietan) pero no es cuello, y contarla inflaba «cuello cubierto».
+    Si ningún vértice del cuello cae en la banda (clip lejos a lo largo del eje)
+    no hay cuello evaluado y los porcentajes no significan nada: se marca para
+    que la tarjeta muestre «—» y no 0/0/0.
+    """
     from services.clip_selection import force_window
     coverage = np.asarray(coverage)
-    # Los porcentajes se reparten solo entre las categorías evaluadas: los
-    # vértices «fuera de evaluación» no son parte del problema ni del resultado.
-    band = coverage != COV_NONE
-    n = int(band.sum())
+    neck = (coverage != COV_NONE) & np.asarray(in_neck, dtype=bool)
+    n = int(neck.sum())
 
     def pct(cat: int) -> float:
-        return float(100.0 * (coverage == cat).sum() / n) if n else 0.0
+        return float(100.0 * ((coverage == cat) & neck).sum() / n) if n else 0.0
 
-    area = contact_area_mm2(mesh, coverage)
-    pressure = float(force_g / area) if area > 0 and force_g > 0 else 0.0
-    window = tuple(float(w / area) if area > 0 else 0.0 for w in force_window(neck_mm))
+    worst = (loads[worst_load(loads)] if loads
+             else ClipLoad(0.0, 0.0, 0.0, (0.0, 0.0, 0.0, 0.0), "sin_contacto"))
     return FieldSummary(
         covered_pct=pct(COV_COVERED), residual_pct=pct(COV_RESIDUAL), unreached_pct=pct(COV_UNREACHED),
-        contact_area_mm2=area, force_g=float(force_g), force_is_band_min=force_is_band_min,
-        force_provisional=force_provisional, pressure_g_mm2=pressure,
-        window_g_mm2=window, pressure_verdict=pressure_verdict(pressure, window, has_force=force_g > 0),  # type: ignore[arg-type]
+        contact_area_mm2=contact_area_mm2(mesh, coverage), force_g=worst.force_g,
+        force_is_band_min=force_is_band_min, force_provisional=force_provisional,
+        pressure_g_mm2=worst.pressure_g_mm2, window_g_mm2=worst.window_g_mm2,
+        pressure_verdict=worst.verdict,
+        force_window_g=tuple(float(w) for w in force_window(neck_mm)),  # type: ignore[arg-type]
+        neck_evaluated=n > 0,
     )
 
 
-def colorize(coverage: np.ndarray, pressure_verdict: str) -> np.ndarray:
-    """RGB por vértice: el cubierto lleva el color del veredicto de presión."""
+def vertex_loads(per_clip: list[np.ndarray], loads: list[ClipLoad]) -> tuple[np.ndarray, np.ndarray]:
+    """(veredicto, presión) por vértice: los del peor clip de los que lo cubren.
+
+    Fuera de lo cubierto el veredicto es «» y la presión cero.
+    """
+    n = len(per_clip[0]) if per_clip else 0
+    verdicts = np.full(n, "", dtype=object)
+    pressure = np.zeros(n, dtype=np.float32)
+    rank = np.full(n, -1, dtype=int)
+    for cov, load in zip(per_clip, loads):
+        r = _VERDICT_RANK.get(load.verdict, 5)
+        hit = (np.asarray(cov) == COV_COVERED) & (r > rank)
+        verdicts[hit] = load.verdict
+        pressure[hit] = np.float32(load.pressure_g_mm2)
+        rank[hit] = r
+    return verdicts, pressure
+
+
+def colorize(coverage: np.ndarray, pressure_verdict) -> np.ndarray:
+    """RGB por vértice: el cubierto lleva el color del veredicto de presión.
+
+    `pressure_verdict` es un veredicto para todo lo cubierto o uno por vértice
+    (`vertex_loads`): con varios clips cada zona lleva el del clip que la pinza.
+    """
     coverage = np.asarray(coverage)
     rgb = np.empty((len(coverage), 3), dtype=np.uint8)
     for cat, col in CATEGORY_COLORS.items():
         rgb[coverage == cat] = col
-    rgb[coverage == COV_COVERED] = PRESSURE_COLORS.get(pressure_verdict, PRESSURE_COLORS["sin_contacto"])
+    covered = coverage == COV_COVERED
+    if isinstance(pressure_verdict, str):
+        rgb[covered] = PRESSURE_COLORS.get(pressure_verdict, PRESSURE_COLORS["sin_contacto"])
+        return rgb
+    per = np.asarray(pressure_verdict, dtype=object)
+    rgb[covered] = PRESSURE_COLORS["sin_contacto"]
+    for name, col in PRESSURE_COLORS.items():
+        rgb[covered & (per == name)] = col
     return rgb
 
 
-def write_field(mesh: vtk.vtkPolyData, coverage: np.ndarray, pressure_g_mm2: float, colors: np.ndarray, path) -> None:
+def write_field(mesh: vtk.vtkPolyData, coverage: np.ndarray, pressure_g_mm2, colors: np.ndarray, path) -> None:
     """Escribe el .vtp con `coverage`, `pressure_g_mm2` y `colors` (escalar activo)."""
     from services.segmentation import write_vtp
     coverage = np.asarray(coverage)
     out = vtk.vtkPolyData(); out.ShallowCopy(mesh)
     cov = ns.numpy_to_vtk(coverage.astype(np.uint8), deep=True, array_type=vtk.VTK_UNSIGNED_CHAR); cov.SetName("coverage")
-    # La presión es de toda la zona cubierta (una sola cifra); fuera, cero.
-    pres = ns.numpy_to_vtk(np.where(coverage == COV_COVERED, np.float32(pressure_g_mm2), np.float32(0.0)).astype(np.float32),
+    # La presión es la del clip que pinza cada vértice (una cifra o una por vértice); fuera, cero.
+    pres_v = np.broadcast_to(np.asarray(pressure_g_mm2, dtype=np.float32), coverage.shape)
+    pres = ns.numpy_to_vtk(np.where(coverage == COV_COVERED, pres_v, np.float32(0.0)).astype(np.float32),
                            deep=True, array_type=vtk.VTK_FLOAT); pres.SetName("pressure_g_mm2")
     col = ns.numpy_to_vtk(np.ascontiguousarray(colors, dtype=np.uint8), deep=True, array_type=vtk.VTK_UNSIGNED_CHAR)
     col.SetNumberOfComponents(3); col.SetName("colors")

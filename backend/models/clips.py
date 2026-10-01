@@ -477,11 +477,24 @@ class OcclusionOut(BaseModel):
     clip_name: str = ""
 
 
+class ClipFieldClip(BaseModel):
+    """La fuerza de un clip frente a la ventana del cuello (cada clip se juzga solo)."""
+    name: str
+    force_g: float
+    verdict: str = Field(..., description="Veredicto de fuerza de este clip (mismo vocabulario que pressure_verdict)")
+
+
 class ClipFieldSummary(BaseModel):
     """Lo que el campo mide: cobertura, presión estimada y veredicto. Estimación geométrica."""
     covered_pct: float; residual_pct: float; unreached_pct: float
     contact_area_mm2: float; force_g: float; force_is_band_min: bool; force_provisional: bool
     pressure_g_mm2: float; window_g_mm2: list[float]; pressure_verdict: str
+    force_window_g: list[float] = Field(
+        default_factory=list,
+        description="Ventana de fuerza del cuello en gramos: aceptable mín, óptima mín, óptima máx, aceptable máx")
+    neck_evaluated: bool = Field(
+        True, description="False si ningún vértice del cuello cae en la banda: los porcentajes no significan nada")
+    clips: list[ClipFieldClip] = Field(default_factory=list)
     verdict: str = Field(..., description="ok | warn | fail")
     criteria: list[ClipCriterion] = Field(default_factory=list)
     clip_name: str = ""

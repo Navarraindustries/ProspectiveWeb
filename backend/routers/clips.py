@@ -17,6 +17,7 @@ from models.clips import (
     ClipCandidateOut,
     ClipCaseOut,
     ClipCriterion,
+    ClipFieldClip,
     ClipFieldResult,
     ClipFieldSummary,
     ClipFitCheck,
@@ -1195,9 +1196,9 @@ async def clip_animation(
     response_model=ClipFieldResult,
     summary="Mapa de calor del clip (estimación geométrica)",
     description=(
-        "Pinta el saco y el anillo de cuello según lo que cubren las hojas y la presión "
-        "estimada (fuerza mínima de catálogo / área de contacto) frente a la ventana de "
-        "fuerza del cuello. No modela pared ni deformación."
+        "Pinta el saco y el anillo de cuello según lo que cubren las hojas y la fuerza "
+        "mínima de catálogo de cada clip frente a la ventana de fuerza del cuello (manda "
+        "el peor clip). Los porcentajes son del disco del cuello. No modela pared ni deformación."
     ),
 )
 def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
@@ -1242,9 +1243,10 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
 
     index = _catalogue_index()
     per_clip: list = []
+    forces: list[float] = []
     criteria: list[ClipCriterion] = []
     names: list[str] = []
-    force_total, band_min, provisional, sin_ficha = 0.0, False, False, False
+    band_min, provisional, sin_ficha = False, False, False
     for pl in req.placements:
         local = _clip_geometry_for(pl.clip_id, meshes_dir)
         t = devices.pose_transform(
@@ -1262,6 +1264,7 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
                                    neck_mm=neck_mm, neck_axis=neck_axis, pose=t)
             names.append(_custom_clip_name(session_id, pl.clip_id)
                          if pl.clip_id.startswith("custom:") else pl.clip_id)
+            forces.append(0.0)
         else:
             frame = cf.blade_frame(world, length_mm=spec.blade_length_mm, blade_width_mm=spec.blade_width_mm,
                                    blade_height_mm=spec.blade_height_mm, neck_mm=neck_mm,
@@ -1269,7 +1272,7 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
             # La fuerza es el mínimo de la banda: la presión estimada es una cota
             # inferior, nunca una promesa de cierre.
             lo, hi = spec.force_band
-            force_total += lo
+            forces.append(float(lo))
             band_min = band_min or hi > lo
             provisional = provisional or spec.force_provisional
             names.append(spec.name)
@@ -1279,15 +1282,21 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
                 criteria = _criteria_out(evaluate_clip(spec, _build_case(session_id, None)))
         per_clip.append(cf.classify(pts, frame, neck_origin=neck_origin, neck_axis=neck_axis, neck_mm=neck_mm))
     coverage = cf.combine_coverage(per_clip)
-    s = cf.summarize(mesh, coverage, force_g=force_total, force_is_band_min=band_min,
+    # Cada clip se juzga con su propia fuerza frente a la ventana del cuello y manda
+    # el peor: sumar las fuerzas de un tándem lo pintaba siempre de «exceso».
+    loads = [cf.clip_load(mesh, cov, force_g=f, neck_mm=neck_mm) for cov, f in zip(per_clip, forces)]
+    in_neck = cf.neck_disc(pts, neck_origin=neck_origin, neck_axis=neck_axis, neck_mm=neck_mm)
+    s = cf.summarize(mesh, coverage, in_neck=in_neck, loads=loads, force_is_band_min=band_min,
                      force_provisional=provisional, neck_mm=neck_mm)
-    colors = cf.colorize(coverage, s.pressure_verdict)
+    vertex_verdicts, vertex_pressure = cf.vertex_loads(per_clip, loads)
+    colors = cf.colorize(coverage, vertex_verdicts)
+    force_total = sum(forces)
     # Escritura atómica: dos peticiones solapadas (arrastre con debounce) no deben
     # servir un .vtp a medio escribir ni mezclar el de otra.
     import os
     import uuid
     tmp_path = meshes_dir / f"clip_field.{uuid.uuid4().hex}.tmp.vtp"
-    cf.write_field(mesh, coverage, s.pressure_g_mm2, colors, tmp_path)
+    cf.write_field(mesh, coverage, vertex_pressure, colors, tmp_path)
     os.replace(tmp_path, meshes_dir / "clip_field.vtp")
 
     # Un clip que no toca el cuello («sin_contacto») no sirve: cuenta como fallo.
@@ -1316,7 +1325,11 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
             covered_pct=s.covered_pct, residual_pct=s.residual_pct, unreached_pct=s.unreached_pct,
             contact_area_mm2=s.contact_area_mm2, force_g=s.force_g, force_is_band_min=s.force_is_band_min,
             force_provisional=s.force_provisional, pressure_g_mm2=s.pressure_g_mm2,
-            window_g_mm2=list(s.window_g_mm2), pressure_verdict=s.pressure_verdict, verdict=verdict,
+            window_g_mm2=list(s.window_g_mm2), pressure_verdict=s.pressure_verdict,
+            force_window_g=list(s.force_window_g), neck_evaluated=s.neck_evaluated,
+            clips=[ClipFieldClip(name=nm, force_g=ld.force_g, verdict=ld.verdict)
+                   for nm, ld in zip(names, loads)],
+            verdict=verdict,
             criteria=criteria, clip_name=" + ".join(names), note=note),
     )
 

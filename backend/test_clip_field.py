@@ -145,6 +145,22 @@ class TestClasificacion:
         cov = _clasifica(self._anillo_cuello(), _marco(_clip_en_cuello(12.0, desplaza=(0.0, 0.0, 20.0)), 12.0))
         assert (cov == COV_COVERED).sum() == 0
 
+    def test_el_cuello_al_lado_de_la_mordaza_es_residual(self):
+        # Clip desplazado 3 mm a través de la mordaza (+Y): el contorno del lado
+        # opuesto queda fuera de las hojas. Es cuello abierto, no «sin evaluar».
+        cov = _clasifica(self._anillo_cuello(), _marco(_clip_en_cuello(12.0, desplaza=(0.0, 3.0, 0.0)), 12.0))
+        pts = self._anillo_cuello()[:72]
+        assert np.all(cov[:72][pts[:, 1] < -0.7] == COV_RESIDUAL)
+        assert np.all(cov[:72][pts[:, 1] > 0.0] == COV_COVERED)
+
+    def test_un_clip_centrado_no_deja_halo_residual_en_el_borde_del_cuello(self):
+        # La holgura del disco (0,6 mm) es mayor que la de la mordaza (0,3 mm): el
+        # borde del disco no debe salir residual con el clip bien puesto.
+        ang = np.linspace(0, 2 * np.pi, 72, endpoint=False)
+        borde = np.stack([3.55 * np.cos(ang), 3.55 * np.sin(ang), np.zeros_like(ang)], axis=1)
+        cov = _clasifica(borde, _marco(_clip_en_cuello(12.0), 12.0))
+        assert np.all(cov == COV_COVERED)
+
     def test_combinar_clips_toma_la_mejor_categoria(self):
         a = np.array([COV_NONE, COV_RESIDUAL, COV_UNREACHED, COV_COVERED], dtype=np.uint8)
         b = np.array([COV_UNREACHED, COV_COVERED, COV_NONE, COV_RESIDUAL], dtype=np.uint8)
@@ -227,9 +243,17 @@ class TestClipAcodado:
 
 
 from services.clip_field import (  # noqa: E402
-    CATEGORY_COLORS, GEOMETRIC_NOTE, PRESSURE_COLORS, colorize, contact_area_mm2, pressure_verdict, summarize, write_field,
+    CATEGORY_COLORS, GEOMETRIC_NOTE, PRESSURE_COLORS, clip_load, colorize, contact_area_mm2, neck_disc,
+    pressure_verdict, summarize, vertex_loads, worst_load, write_field,
 )
 from services.clip_selection import force_window  # noqa: E402
+
+
+def _resumen(mesh, cov, force_g: float = 120.0, neck_mm: float = 6.0):
+    """`summarize` de un solo clip con el cuello del fantoma."""
+    disco = neck_disc(_puntos(mesh), neck_origin=(0.0, 0.0, 0.0), neck_axis=(0.0, 0.0, 1.0), neck_mm=neck_mm)
+    return summarize(mesh, cov, in_neck=disco, loads=[clip_load(mesh, cov, force_g=force_g, neck_mm=neck_mm)],
+                     force_is_band_min=True, force_provisional=True, neck_mm=neck_mm)
 
 
 class TestPresion:
@@ -244,8 +268,7 @@ class TestPresion:
 
     def test_la_presion_es_inversa_al_area(self):
         m1, c1 = self._campo(4.0); m2, c2 = self._campo(12.0)
-        s1 = summarize(m1, c1, force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
-        s2 = summarize(m2, c2, force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        s1 = _resumen(m1, c1); s2 = _resumen(m2, c2)
         assert s1.pressure_g_mm2 > s2.pressure_g_mm2
         assert abs(s1.pressure_g_mm2 * s1.contact_area_mm2 - 120.0) < 1e-6
 
@@ -262,15 +285,91 @@ class TestPresion:
         ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
         mesh = field_mesh(_saco(), ring)
         f = _marco(_clip_en_cuello(12.0, desplaza=(0.0, 0.0, 20.0)), 12.0)
-        s = summarize(mesh, _clasifica(_puntos(mesh), f), force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        s = _resumen(mesh, _clasifica(_puntos(mesh), f))
         assert s.contact_area_mm2 == 0.0 and s.pressure_g_mm2 == 0.0 and s.pressure_verdict == "sin_contacto"
         assert s.covered_pct == 0.0
 
     def test_los_porcentajes_suman_cien_sobre_la_banda(self):
         m, c = self._campo(12.0)
-        s = summarize(m, c, force_g=120.0, force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        s = _resumen(m, c)
         assert abs(s.covered_pct + s.residual_pct + s.unreached_pct - 100.0) < 1e-6
         assert s.note == GEOMETRIC_NOTE and s.force_provisional is True
+
+
+class TestPorcentajesDelCuello:
+    def _campo(self, desplaza=(0.0, 0.0, 0.0), largo_hoja: float = 12.0):
+        ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
+        mesh = field_mesh(_saco(), ring)
+        return mesh, _clasifica(_puntos(mesh), _marco(_clip_en_cuello(largo_hoja, desplaza=desplaza), largo_hoja))
+
+    def test_la_pared_pinzada_fuera_del_disco_no_cuenta_en_los_porcentajes(self):
+        mesh, cov = self._campo()
+        disco = neck_disc(_puntos(mesh), neck_origin=(0.0, 0.0, 0.0), neck_axis=(0.0, 0.0, 1.0), neck_mm=6.0)
+        # Hay pared del anillo pinzada fuera del disco: se pinta, pero no es cuello.
+        assert ((cov == COV_COVERED) & ~disco).any()
+        s = _resumen(mesh, cov)
+        cuello = (cov != COV_NONE) & disco
+        esperado = 100.0 * ((cov == COV_COVERED) & cuello).sum() / cuello.sum()
+        assert abs(s.covered_pct - esperado) < 1e-9 and s.neck_evaluated
+
+    def test_un_clip_desplazado_a_traves_de_la_mordaza_no_cubre_el_cuello(self):
+        centrado = _resumen(*self._campo())
+        fuera = _resumen(*self._campo(desplaza=(0.0, 7.0, 0.0)))
+        assert centrado.covered_pct > 95
+        assert fuera.covered_pct < 10 and fuera.residual_pct > 90
+
+    def test_sin_cuello_en_la_banda_los_porcentajes_no_se_evaluan(self):
+        s = _resumen(*self._campo(desplaza=(0.0, 0.0, 20.0)))
+        assert s.neck_evaluated is False
+        assert (s.covered_pct, s.residual_pct, s.unreached_pct) == (0.0, 0.0, 0.0)
+
+
+class TestFuerzaPorClip:
+    def _campo(self):
+        ring = vessel_ring(_tubo(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 6.0)
+        mesh = field_mesh(_saco(), ring)
+        return mesh, _clasifica(_puntos(mesh), _marco(_clip_en_cuello(12.0), 12.0))
+
+    def test_el_veredicto_es_la_fuerza_frente_a_la_ventana_en_gramos(self):
+        mesh, cov = self._campo()
+        acc_lo, opt_lo, opt_hi, acc_hi = force_window(6.0)
+        assert clip_load(mesh, cov, force_g=(opt_lo + opt_hi) / 2, neck_mm=6.0).verdict == "optima"
+        assert clip_load(mesh, cov, force_g=acc_hi + 1.0, neck_mm=6.0).verdict == "exceso"
+        assert clip_load(mesh, cov, force_g=acc_lo - 1.0, neck_mm=6.0).verdict == "insuficiente"
+        assert clip_load(mesh, cov, force_g=0.0, neck_mm=6.0).verdict == "sin_fuerza"
+
+    def test_dos_clips_optimos_no_suman_exceso(self):
+        mesh, cov = self._campo()
+        _, opt_lo, opt_hi, _ = force_window(6.0)
+        uno = clip_load(mesh, cov, force_g=opt_hi, neck_mm=6.0)
+        s = summarize(mesh, cov, in_neck=np.ones(len(cov), dtype=bool), loads=[uno, uno],
+                      force_is_band_min=True, force_provisional=True, neck_mm=6.0)
+        assert s.pressure_verdict == "optima" and s.force_g == opt_hi
+        assert s.force_window_g == tuple(float(w) for w in force_window(6.0))
+
+    def test_manda_el_peor_clip_y_un_importado_no_tapa_a_uno_con_ficha(self):
+        mesh, cov = self._campo()
+        acc_lo, opt_lo, opt_hi, acc_hi = force_window(6.0)
+        bien = clip_load(mesh, cov, force_g=opt_hi, neck_mm=6.0)
+        mal = clip_load(mesh, cov, force_g=acc_hi + 10.0, neck_mm=6.0)
+        sin = clip_load(mesh, cov, force_g=0.0, neck_mm=6.0)
+        assert worst_load([bien, mal]) == 1
+        assert worst_load([sin, bien]) == 1
+        assert worst_load([sin, sin]) == 0
+
+    def test_cada_vertice_lleva_el_veredicto_del_peor_clip_que_lo_cubre(self):
+        mesh, cov = self._campo()
+        _, _, opt_hi, acc_hi = force_window(6.0)
+        solo_a = np.where(np.arange(len(cov)) % 2 == 0, cov, COV_NONE).astype(np.uint8)
+        a = clip_load(mesh, cov, force_g=opt_hi, neck_mm=6.0)
+        b = clip_load(mesh, solo_a, force_g=acc_hi + 10.0, neck_mm=6.0)
+        verd, pres = vertex_loads([cov, solo_a], [a, b])
+        cub = cov == COV_COVERED
+        assert np.all(verd[cub & (solo_a == COV_COVERED)] == "exceso")
+        assert np.all(verd[cub & (solo_a != COV_COVERED)] == "optima")
+        assert np.all(pres[~cub] == 0.0)
+        rgb = colorize(cov, verd)
+        assert tuple(rgb[np.flatnonzero(cub & (solo_a == COV_COVERED))[0]]) == PRESSURE_COLORS["exceso"]
 
 
 class TestColores:

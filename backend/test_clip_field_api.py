@@ -53,7 +53,7 @@ class TestCampo:
         poly = read_vtp(session_subdir(sid, "meshes") / "clip_field.vtp")
         assert poly.GetPointData().GetArray("colors").GetNumberOfComponents() == 3
 
-    def test_mover_el_clip_fuera_del_cuello_pinta_cuello_residual(self):
+    def test_un_clip_lejos_no_hay_contacto(self):
         sid = _sesion()
         cid = _primer_clip_id()
         bien = _campo(sid, cid).json()["summary"]
@@ -62,6 +62,20 @@ class TestCampo:
         lejos = _campo(sid, cid, pos=(0.0, 0.0, 20.0)).json()["summary"]
         assert lejos["covered_pct"] < bien["covered_pct"]
         assert lejos["pressure_verdict"] == "sin_contacto" and lejos["verdict"] == "fail"
+        # Ningún vértice del cuello cae en la banda: los porcentajes no se evalúan.
+        assert lejos["neck_evaluated"] is False and bien["neck_evaluated"] is True
+
+    def test_un_clip_desplazado_a_traves_de_la_mordaza_deja_el_cuello_residual(self):
+        # El clip de 13 mm resbala a lo largo del eje de apertura (Y a 0°): el cuello
+        # queda al lado de las hojas. Antes salía «100 % cubierto · Óptima».
+        sid = _sesion()
+        cid = "navarro:t1:0:13.0"
+        centrado = _campo(sid, cid).json()["summary"]
+        assert centrado["covered_pct"] >= 95, centrado
+        for dy in (6.0, 7.0):
+            s = _campo(sid, cid, pos=(0.0, dy, 0.0)).json()["summary"]
+            assert s["covered_pct"] < 10 and s["residual_pct"] > 90, (dy, s)
+            assert s["verdict"] == "fail", (dy, s)
 
     def test_girar_el_clip_cambia_la_cobertura(self):
         sid = _sesion()
@@ -73,16 +87,28 @@ class TestCampo:
         # (a lo largo de la arteria o a través de ella), y eso se ve en el área.
         assert (a["covered_pct"], a["contact_area_mm2"]) != (b["covered_pct"], b["contact_area_mm2"])
 
-    def test_varios_clips_suman_su_fuerza(self):
+    def test_dos_clips_en_tandem_se_juzgan_cada_uno_con_su_fuerza(self):
+        # Dos NAVARRO de 7 mm: sumar sus fuerzas contra la ventana de UN clip los
+        # pintaba siempre de «exceso». Cada uno se juzga solo y manda el peor.
         sid = _sesion()
-        cid = _primer_clip_id()
+        cid = "navarro:t1:0:7.0"
         body = {"session_id": sid, "placements": [
             {"clip_id": cid, "position": {"x": 0.0, "y": -1.5, "z": 0.0}, "normal": [0, 0, 1], "rotation_deg": 0.0},
             {"clip_id": cid, "position": {"x": 0.0, "y": 1.5, "z": 0.0}, "normal": [0, 0, 1], "rotation_deg": 0.0},
         ]}
         s = client.post(f"/api/clips/field/{sid}", json=body).json()["summary"]
         uno = _campo(sid, cid).json()["summary"]
-        assert s["force_g"] == 2 * uno["force_g"]
+        assert s["pressure_verdict"] != "exceso", s
+        assert s["pressure_verdict"] == uno["pressure_verdict"]
+        assert s["force_g"] == uno["force_g"]
+        assert [c["force_g"] for c in s["clips"]] == [uno["force_g"]] * 2
+        assert all(c["verdict"] == uno["pressure_verdict"] and c["name"] for c in s["clips"])
+
+    def test_la_ventana_de_fuerza_viaja_en_gramos(self):
+        from services.clip_selection import force_window
+        s = _campo(_sesion(), "navarro:t1:0:13.0").json()["summary"]
+        assert s["force_window_g"] == list(force_window(6.0))
+        assert len(s["window_g_mm2"]) == 4          # se mantiene por compatibilidad
 
     def test_un_clip_con_margen_sale_ok_o_warn(self):
         # 13 mm de hoja sobre un cuello de 6 mm: margen de sobra para cerrarlo entero.

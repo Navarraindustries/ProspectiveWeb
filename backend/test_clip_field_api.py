@@ -90,6 +90,15 @@ class TestCampo:
         assert s["verdict"] in ("ok", "warn"), s
         assert s["pressure_verdict"] != "sin_contacto" and s["covered_pct"] >= 90
 
+    def test_el_marco_de_respaldo_respeta_el_sentido_de_la_mordaza_navarro(self):
+        # La T4 (fenestrada) usa el marco de diseño; la T1 se lee de la malla. Las dos
+        # apuntan la mordaza a −X: desplazadas +2 mm, el cuello que sobra queda más
+        # allá de la punta (no alcanzado), nunca detrás de la bisagra (residual).
+        sid = _sesion()
+        for cid in ("navarro:t1:0:7.0", "navarro:t4:0:7.0:5.0"):
+            s = _campo(sid, cid, pos=(2.0, 0.0, 0.0)).json()["summary"]
+            assert s["unreached_pct"] > 0 and s["residual_pct"] == 0.0, (cid, s)
+
     def test_la_arteria_madre_no_cuenta_como_cuello_no_alcanzado(self):
         # Un clip corto paralelo a la arteria deja pared de vaso más allá de la punta;
         # eso no es cuello: lo no alcanzado se juzga solo dentro del disco del cuello.
@@ -121,3 +130,18 @@ class TestNegativas:
         write_vtp(devices.make_clip_shaped(10.0), meshes / "custom_clip_0.vtp")
         s = _campo(sid, "custom:0").json()["summary"]
         assert s["force_g"] == 0.0 and s["criteria"] == [] and "sin ficha" in s["note"]
+        # Pinza el cuello entero: la presión es desconocida, no «sin contacto», y lo
+        # desconocido avisa en vez de suspender.
+        assert s["covered_pct"] >= 90 and s["contact_area_mm2"] > 0
+        assert s["pressure_verdict"] == "sin_fuerza" and s["verdict"] == "warn"
+
+    def test_un_importado_delante_no_deja_el_veredicto_sin_criterios(self):
+        sid = _sesion()
+        write_vtp(devices.make_clip_shaped(10.0), session_subdir(sid, "meshes") / "custom_clip_0.vtp")
+        en_cuello = {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "normal": [0, 0, 1], "rotation_deg": 0.0}
+        solo = _campo(sid, "navarro:t1:0:13.0").json()["summary"]
+        mixto = client.post(f"/api/clips/field/{sid}", json={"session_id": sid, "placements": [
+            {"clip_id": "custom:0", **en_cuello}, {"clip_id": "navarro:t1:0:13.0", **en_cuello}]}).json()["summary"]
+        assert mixto["criteria"] == solo["criteria"] and mixto["criteria"]
+        assert mixto["verdict"] == solo["verdict"]
+        assert "solo cuenta la fuerza de los clips con ficha" in mixto["note"]

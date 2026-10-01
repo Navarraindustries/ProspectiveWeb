@@ -17,6 +17,8 @@ RING_MIN_MM = 3.0
 RING_MAX_MM = 12.0
 DEPTH_TOL_MM = 0.6
 GAP_TOL_MM = 0.3
+# Holgura radial del disco del cuello (en su plano); independiente de la de profundidad.
+DISC_TOL_MM = 0.6
 
 COV_NONE, COV_COVERED, COV_RESIDUAL, COV_UNREACHED = 0, 1, 2, 3
 
@@ -39,8 +41,6 @@ def points_of(mesh: vtk.vtkPolyData) -> np.ndarray:
         return np.zeros((0, 3), dtype=float)
     return ns.vtk_to_numpy(mesh.GetPoints().GetData()).astype(float)
 
-
-_points = points_of
 
 
 def _unit(v) -> np.ndarray:
@@ -182,14 +182,24 @@ def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm
     # vtkTransformFilter: vtkTransformPolyDataFilter está obsoleto en VTK 9.7.
     local = vtk.vtkTransformFilter(); local.SetInputData(clip_world)
     local.SetTransform(inverse); local.Update()
-    analytic = (np.array([-float(length_mm) / 2.0, 0.0, 0.0]),
-                np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]))
+    # Marco de diseño: ambas familias centran la mordaza en el origen local, con
+    # las hojas a lo largo de X y la apertura en Y, pero no hacia el mismo lado: el
+    # sintético apunta la mordaza a +X y la pieza NAVARRO™ a −X (cuerpo en +X). El
+    # sentido se lee de la malla: el lado largo desde el origen es el del cuerpo o
+    # la barra, la mordaza va hacia el corto. Con el sentido al revés, «detrás de la
+    # bisagra» y «más allá de la punta» se intercambian y residual y no alcanzado
+    # salen cambiados. La punta queda en ±L/2 (anclada en la punta, como el camino
+    # leído); no se mide el extremo porque en un ANGLED lo marca el codo, no la hoja.
+    b = local.GetOutput().GetBounds()
+    sgn = -1.0 if b[1] > -b[0] else 1.0
+    analytic = (np.array([-sgn * float(length_mm) / 2.0, 0.0, 0.0]),
+                np.array([sgn, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]))
     try:
         hinge_l, long_l, open_l = _frame_in_mesh_coords(local.GetOutput())
     except ValueError:
         # Una malla que no se puede analizar (muy pocos puntos) no debe tumbar el
-        # mapa entero: la pose dice exactamente dónde está el clip y su modelo
-        # local fija la bisagra en x = −L/2, las hojas en +X y la apertura en +Y.
+        # mapa entero: la pose dice exactamente dónde está el clip y manda el
+        # marco de diseño.
         hinge_l, long_l, open_l = analytic
     else:
         # Todos los clips se modelan con las hojas a lo largo de X local y la
@@ -260,7 +270,7 @@ def classify(points: np.ndarray, frame: BladeFrame, *, neck_origin, neck_axis,
     rel_neck = pts - np.asarray(neck_origin, dtype=float)
     n = _unit(neck_axis)
     in_plane = rel_neck - np.outer(rel_neck @ n, n)
-    in_disc = np.linalg.norm(in_plane, axis=1) <= float(neck_mm) / 2.0 + DEPTH_TOL_MM
+    in_disc = np.linalg.norm(in_plane, axis=1) <= float(neck_mm) / 2.0 + DISC_TOL_MM
     out[band & near & within] = COV_COVERED
     out[band & near & behind & in_disc] = COV_RESIDUAL
     out[band & near & beyond & in_disc] = COV_UNREACHED
@@ -296,6 +306,8 @@ def field_mesh(sac: vtk.vtkPolyData, ring: vtk.vtkPolyData) -> vtk.vtkPolyData:
 PRESSURE_COLORS = {
     "insuficiente": (59, 130, 246), "optima": (34, 197, 94), "aceptable": (245, 158, 11),
     "exceso": (239, 68, 68), "sin_contacto": (148, 163, 184),
+    # Sin fuerza conocida el cubierto no tiene presión que colorear: gris neutro.
+    "sin_fuerza": (148, 163, 184),
 }
 CATEGORY_COLORS = {COV_NONE: (120, 112, 124), COV_RESIDUAL: (217, 70, 239), COV_UNREACHED: (107, 114, 128)}
 GEOMETRIC_NOTE = ("Estimación geométrica: fuerza de catálogo repartida sobre el área de contacto; "
@@ -328,8 +340,13 @@ def contact_area_mm2(mesh: vtk.vtkPolyData, coverage: np.ndarray) -> float:
     return float(0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1).sum())
 
 
-def pressure_verdict(pressure_g_mm2: float, window_g_mm2) -> str:
+def pressure_verdict(pressure_g_mm2: float, window_g_mm2, *, has_force: bool = True) -> str:
     acc_lo, opt_lo, opt_hi, acc_hi = window_g_mm2
+    # La ventana solo es positiva si hay área de contacto. Con contacto pero sin
+    # fuerza conocida (clip importado sin ficha) la presión es desconocida, no
+    # nula: decir «sin contacto» negaría el cuello que el clip sí pinza.
+    if acc_hi > 0.0 and not has_force:
+        return "sin_fuerza"
     if acc_hi <= 0.0 or pressure_g_mm2 <= 0.0:
         return "sin_contacto"
     if pressure_g_mm2 < acc_lo:
@@ -368,7 +385,7 @@ def summarize(mesh, coverage: np.ndarray, *, force_g: float, force_is_band_min: 
         covered_pct=pct(COV_COVERED), residual_pct=pct(COV_RESIDUAL), unreached_pct=pct(COV_UNREACHED),
         contact_area_mm2=area, force_g=float(force_g), force_is_band_min=force_is_band_min,
         force_provisional=force_provisional, pressure_g_mm2=pressure,
-        window_g_mm2=window, pressure_verdict=pressure_verdict(pressure, window),  # type: ignore[arg-type]
+        window_g_mm2=window, pressure_verdict=pressure_verdict(pressure, window, has_force=force_g > 0),  # type: ignore[arg-type]
     )
 
 

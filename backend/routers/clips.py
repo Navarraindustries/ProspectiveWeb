@@ -1200,7 +1200,11 @@ async def clip_animation(
         "fuerza del cuello. No modela pared ni deformación."
     ),
 )
-async def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
+def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
+    # `def`, no `async def`: son ~300 ms de VTK y el visor lo pide al arrastrar el
+    # clip; en el pool de hilos no bloquea el bucle de eventos.
+    # Manda la sesión de la ruta; `req.session_id` se ignora (el modelo es el
+    # mismo que el de /clips/plan y lo trae por compatibilidad).
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     if not req.placements:
@@ -1241,7 +1245,7 @@ async def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
     criteria: list[ClipCriterion] = []
     names: list[str] = []
     force_total, band_min, provisional, sin_ficha = 0.0, False, False, False
-    for i, pl in enumerate(req.placements):
+    for pl in req.placements:
         local = _clip_geometry_for(pl.clip_id, meshes_dir)
         t = devices.pose_transform(
             (pl.position.x, pl.position.y, pl.position.z),
@@ -1269,26 +1273,42 @@ async def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
             band_min = band_min or hi > lo
             provisional = provisional or spec.force_provisional
             names.append(spec.name)
-            if i == 0:
+            # Los criterios son los del primer clip CON ficha: un importado delante no
+            # debe dejar el veredicto sin criterios (y salir «ok» sin evaluar nada).
+            if not criteria:
                 criteria = _criteria_out(evaluate_clip(spec, _build_case(session_id, None)))
         per_clip.append(cf.classify(pts, frame, neck_origin=neck_origin, neck_axis=neck_axis, neck_mm=neck_mm))
     coverage = cf.combine_coverage(per_clip)
     s = cf.summarize(mesh, coverage, force_g=force_total, force_is_band_min=band_min,
                      force_provisional=provisional, neck_mm=neck_mm)
     colors = cf.colorize(coverage, s.pressure_verdict)
-    cf.write_field(mesh, coverage, s.pressure_g_mm2, colors, meshes_dir / "clip_field.vtp")
+    # Escritura atómica: dos peticiones solapadas (arrastre con debounce) no deben
+    # servir un .vtp a medio escribir ni mezclar el de otra.
+    import os
+    import uuid
+    tmp_path = meshes_dir / f"clip_field.{uuid.uuid4().hex}.tmp.vtp"
+    cf.write_field(mesh, coverage, s.pressure_g_mm2, colors, tmp_path)
+    os.replace(tmp_path, meshes_dir / "clip_field.vtp")
 
     # Un clip que no toca el cuello («sin_contacto») no sirve: cuenta como fallo.
     crit_verdicts = {c.verdict for c in criteria}
     if ("fail" in crit_verdicts or s.pressure_verdict in ("insuficiente", "exceso", "sin_contacto")
             or s.covered_pct < 50):
         verdict = "fail"
-    elif "warn" in crit_verdicts or s.pressure_verdict == "aceptable" or s.residual_pct > 10:
+    # «sin_fuerza» (pinza pero sin fuerza conocida) avisa: lo desconocido no es malo.
+    elif ("warn" in crit_verdicts or s.pressure_verdict in ("aceptable", "sin_fuerza")
+          or s.residual_pct > 10):
         verdict = "warn"
     else:
         verdict = "ok"
-    note = s.note + (" Clip importado sin ficha: sin fuerza de catálogo, la presión no se puede estimar."
-                     if sin_ficha else "")
+    # La nota no debe contradecir las cifras: con algún clip con ficha sí hay presión,
+    # pero solo cuenta la fuerza de esos.
+    if sin_ficha and force_total > 0:
+        note = s.note + " Hay clips importados sin ficha: la presión solo cuenta la fuerza de los clips con ficha."
+    elif sin_ficha:
+        note = s.note + " Clip importado sin ficha: sin fuerza de catálogo, la presión no se puede estimar."
+    else:
+        note = s.note
     return ClipFieldResult(
         field_mesh_url=f"{mesh_url(session_id, 'clip_field.vtp')}?v={int(time.time() * 1000)}",
         scalars={"coverage": "uint8", "pressure_g_mm2": "float32", "colors": "uint8x3"},

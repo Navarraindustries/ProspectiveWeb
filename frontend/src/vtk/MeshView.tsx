@@ -755,6 +755,9 @@ export function MeshView({
         prop.setLighting(false);
         if (cells === "lines") prop.setLineWidth(1);
         actor.setPickable(false);
+        // Los rectángulos abarcan todo el volumen: no deben dictar el encuadre
+        // ni la escala de los marcadores (computeVisiblePropBounds los ignora).
+        actor.setUseBounds(false);
         h.renderer.addActor(actor);
         planeActors.current.push(actor);
       };

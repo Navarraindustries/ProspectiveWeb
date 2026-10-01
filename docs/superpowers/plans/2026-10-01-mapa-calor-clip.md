@@ -830,7 +830,7 @@ git commit -m "POST /api/clips/field pinta el saco según el clip colocado y dic
 - Produces:
 
 ```ts
-export interface ClipFieldSummary { covered_pct: number; residual_pct: number; unreached_pct: number; contact_area_mm2: number; force_g: number; force_is_band_min: boolean; force_provisional: boolean; pressure_g_mm2: number; window_g_mm2: [number, number, number, number]; pressure_verdict: "sin_contacto" | "insuficiente" | "optima" | "aceptable" | "exceso"; verdict: "ok" | "warn" | "fail"; criteria: ClipCriterion[]; clip_name: string; note: string }
+export interface ClipFieldSummary { covered_pct: number; residual_pct: number; unreached_pct: number; contact_area_mm2: number; force_g: number; force_is_band_min: boolean; force_provisional: boolean; pressure_g_mm2: number; window_g_mm2: [number, number, number, number]; pressure_verdict: "sin_contacto" | "sin_fuerza" | "insuficiente" | "optima" | "aceptable" | "exceso"; verdict: "ok" | "warn" | "fail"; criteria: ClipCriterion[]; clip_name: string; note: string }
 export interface ClipFieldResult { field_mesh_url: string; scalars: Record<string, string>; summary: ClipFieldSummary }
 api.clipField(sessionId: string, req: ClipPlanRequest): Promise<ClipFieldResult>
 // store
@@ -907,7 +907,7 @@ git commit -m "El cliente conoce el campo del clip y lo olvida cuando se limpian
 scalars?: { array: string };   // color directo RGB por vértice desde ese array del .vtp
 // clipFieldLegend.ts (puro)
 export function legendLines(s: ClipFieldSummary): HudLine[];   // 3 categorías + presión + veredicto, con colores
-export const FIELD_COLORS: Record<"cubierto_optima"|"cubierto_aceptable"|"cubierto_insuficiente"|"cubierto_exceso"|"residual"|"no_alcanzado", string>;
+export const FIELD_COLORS: Record<"cubierto_optima"|"cubierto_aceptable"|"cubierto_insuficiente"|"cubierto_exceso"|"cubierto_sin_contacto"|"cubierto_sin_fuerza"|"residual"|"no_alcanzado", string>;
 ```
 
 - [ ] **Step 1: Test que falla**
@@ -959,18 +959,18 @@ import type { HudLine } from "./hud/HudReadout";
 
 export const FIELD_COLORS = {
   cubierto_optima: "rgb(34,197,94)", cubierto_aceptable: "rgb(245,158,11)", cubierto_insuficiente: "rgb(59,130,246)",
-  cubierto_exceso: "rgb(239,68,68)", cubierto_sin_contacto: "rgb(148,163,184)", residual: "rgb(217,70,239)", no_alcanzado: "rgb(107,114,128)",
+  cubierto_exceso: "rgb(239,68,68)", cubierto_sin_contacto: "rgb(148,163,184)", cubierto_sin_fuerza: "rgb(148,163,184)", residual: "rgb(217,70,239)", no_alcanzado: "rgb(107,114,128)",
 } as const;
 
 const VERDICT_LABEL: Record<ClipFieldSummary["pressure_verdict"], string> = {
-  sin_contacto: "SIN CONTACTO", insuficiente: "INSUFICIENTE", optima: "ÓPTIMA", aceptable: "ACEPTABLE", exceso: "EXCESO",
+  sin_contacto: "SIN CONTACTO", sin_fuerza: "SIN FUERZA", insuficiente: "INSUFICIENTE", optima: "ÓPTIMA", aceptable: "ACEPTABLE", exceso: "EXCESO",
 };
 
 export function legendLines(s: ClipFieldSummary): HudLine[] {
   const covKey = `cubierto_${s.pressure_verdict}` as keyof typeof FIELD_COLORS;
   const [, optLo, optHi] = s.window_g_mm2;
-  const presion = s.pressure_verdict === "sin_contacto"
-    ? "PRESIÓN — · SIN CONTACTO"
+  const presion = s.pressure_verdict === "sin_contacto" || s.pressure_verdict === "sin_fuerza"
+    ? `PRESIÓN — · ${VERDICT_LABEL[s.pressure_verdict]}`
     : `PRESIÓN ${s.pressure_g_mm2.toFixed(1)} g/mm² · ${VERDICT_LABEL[s.pressure_verdict]} (${optLo.toFixed(1)}–${optHi.toFixed(1)})`;
   return [
     { text: `CUBIERTO ${Math.round(s.covered_pct)} %`, color: FIELD_COLORS[covKey] ?? FIELD_COLORS.cubierto_sin_contacto },

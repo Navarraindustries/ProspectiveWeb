@@ -435,7 +435,7 @@ aneurysm, and if not, what has to be made?**
 
    | Criterion | What it compares |
    |---|---|
-   | Cobertura | Blade length against the **flattened** neck (see below) |
+   | Longitud de hoja | Blade length against the **flattened** neck (see below) |
    | Fenestración | Window calibre against the measured parent artery |
    | Alcance | Shape against dome depth (AR) |
    | Forma / localización | Shape against the anatomical region on the case |
@@ -2011,31 +2011,57 @@ viewer swaps the plain sac for that field, one colour per vertex:
 
 | Category | Colour | Meaning |
 |---|---|---|
-| Cubierto | green, amber, red or blue | Between the blades; coloured by the pressure verdict (óptima · aceptable · exceso · insuficiente) |
-| Cuello residual | magenta | Neck the blades do not reach — what stays open to flow |
-| No alcanzado | grey | Sac out of the blades' reach |
-| No evaluado | dark grey | Vessel ring, shown for context, not scored |
+| Cuello cubierto | green, amber, red or blue | Between the blades; coloured by the force verdict of the clip that grips it (óptima · aceptable · exceso · insuficiente) |
+| Cubierto sin veredicto | slate grey | Between the blades, but no force to judge: «sin contacto» or «sin fuerza» (imported clip without a datasheet) |
+| Cuello residual | magenta | Neck inside the blades' band that they do not close: behind the hinge or beside the jaws. What stays open to flow |
+| Cuello no alcanzado | grey | Neck past the blade tip |
+| No evaluado | dark mauve grey | Outside the blades' band: most of the dome and of the vessel ring. Shown for context, not scored |
 
-Pressure is the catalogue's minimum closing force spread over the contact area
-(g/mm²), compared with the clip's force window for this neck converted over the
-same area — so the pressure verdict mirrors the force-against-window verdict
-and is informational. Several clips add their forces and their covered areas. A
-clip imported without a datasheet has no force: coverage still paints, pressure
-reads «Sin fuerza de catálogo» and the verdict is `warn`. Without an isolated sac
-nothing paints and the panel says to mark the neck plane in Morfometría.
+The three percentages are shares of the **neck disc** (the neck's own outline
+plus 0.6 mm) inside the blades' band. Vessel wall the blades press outside that
+disc is still painted as covered, because that is what they squeeze, but it is
+not neck and never enters the percentages. A clip slid sideways across its jaws
+leaves the neck beside the blades, and that reads as residual (magenta), not as
+«no evaluado». When no neck lies in the band at all, the card and the legend
+show «—» instead of 0 %.
 
-The «Mapa de calor del clip» card under the placement repeats the percentages,
-the pressure against its window and the selection criteria (cobertura, alcance,
-apertura de las hojas, fuerza de cierre). Its «Mostrar en el visor» box and the
-viewer header's «CALOR» toggle switch the layer off and bring the plain sac back;
-«Limpiar clips colocados» removes layer, legend and card. During the placement
-rehearsal the animation frames take the viewer; the field returns on leaving it.
+Each clip is judged on its own: its catalogue minimum closing force in grams
+against the force window for this neck in grams. With several clips the worst
+verdict wins, and each covered zone takes the colour of the clip that grips it.
+Forces are not added: a tandem pair judged as one double-force clip read
+«exceso» every time. The card shows «Fuerza de cierre 120 g · Óptima» with the
+window («óptima 80–120 g · aceptable 70–150 g»), the force of each clip when
+there are several, and «Área pinzada estimada» as a separate figure (it includes
+vessel wall in the band, so it is a generous bound). The legend reads, for
+example, «FUERZA 120 g · ÓPTIMA (80–120 g)». The pressure in g/mm² stays in the
+API (`pressure_g_mm2`, `window_g_mm2`) and in the `.vtp` for the mechanical
+phase, but is not displayed: force and window were divided by the same area, so
+it only restated the force while jumping with the pose. The API also returns
+the window in grams (`force_window_g`), the per-clip list (`clips`) and
+`neck_evaluated`. A clip imported without a datasheet has no force: coverage
+still paints, the force reads «Sin fuerza de catálogo» next to the window in
+grams, and the verdict is `warn`. Without an isolated sac nothing paints and
+the panel says to mark the neck plane in Morfometría.
 
-Both the legend and the card carry a fixed label, «Estimación geométrica: fuerza
-de catálogo repartida sobre el área de contacto; no modela pared, deformación ni
-deslizamiento.» It is geometry, not mechanics: no wall thickness or stiffness,
-no deformation of the neck under the blades, no slip, and the force is the low
-end of a design band that has not been measured on a real spring.
+The «Mapa de calor del clip» card under the placement repeats the neck
+percentages («Cuello cubierto», «Cuello residual», «Cuello no alcanzado»), the
+force against its window, the clamped area and the selection criteria (longitud
+de hoja, alcance, apertura de las hojas, fuerza de cierre). The placement card
+above it keeps a different figure, «Extensión de las hojas sobre el cuello»
+(Alcanza / No alcanza): blade span in the neck plane against the neck diameter,
+which says nothing about how much of the neck is closed. The card's «Mostrar en
+el visor» box and the viewer header's «CALOR» toggle switch the layer off and
+bring the plain sac back; «Limpiar clips colocados» removes layer, legend and
+card. Re-placing after an edit and toggling «CALOR» keep the camera where the
+user left it. During the placement rehearsal the animation frames take the
+viewer and «CALOR» shows ○; the field returns on leaving it.
+
+The card carries the full fixed note, «Estimación geométrica: fuerza de catálogo
+repartida sobre el área de contacto; no modela pared, deformación ni
+deslizamiento.», and the legend its short form, «ESTIMACIÓN GEOMÉTRICA». It is
+geometry, not mechanics: no wall thickness or stiffness, no deformation of the
+neck under the blades, no slip, and the force is the low end of a design band
+that has not been measured on a real spring.
 
 ### What this is not
 

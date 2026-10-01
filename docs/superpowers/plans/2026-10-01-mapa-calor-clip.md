@@ -1,6 +1,6 @@
 # Mapa de calor del clip — plan de implementación (subproyecto C)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Al colocar un clip, pintar el saco y el anillo de cuello según lo que el clip cubre y la presión estimada que ejerce, y decir si la hoja, la apertura y la fuerza bastan, siempre etiquetado como estimación geométrica.
 

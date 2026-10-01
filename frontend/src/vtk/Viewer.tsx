@@ -30,7 +30,6 @@ import { PREF_DECOR_HIDDEN, useStoredFlag } from "./viewerPrefs";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
-import type { ClipFieldResult } from "../api/types";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { legendLines } from "./clipFieldLegend";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
@@ -181,7 +180,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
-    clipRehearsal, registerClipParts, clipField, showClipField, setClipField, setShowClipField,
+    clipRehearsal, registerClipParts, clipField, showClipField, setShowClipField,
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
@@ -542,15 +541,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // último valor al salir, así que mirarlo dejaría el campo apagado para siempre.
   const showField = showDevice && !!clipField && showClipField && !clipRehearsal;
 
-  // Gancho de depuración, solo en desarrollo: hasta que el panel de clips pida
-  // el campo (Task 6), esta es la única forma de meter un resultado de
-  // POST /api/clips/field en el visor y verlo pintado. No llega a producción.
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const w = window as unknown as { __setClipField?: (f: ClipFieldResult | null) => void };
-    w.__setClipField = setClipField;
-    return () => { delete w.__setClipField; };
-  }, [setClipField]);
   const showCenterline = !!centerlineMesh && centerlineMesh.startsWith("/data/");
 
   const layers = useMemo<MeshLayer[]>(() => {
@@ -589,9 +579,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: clipRehearsal.body_url,    color: DEVICE_COLOR, opacity: 1, id: "clip-body" });
       out.push({ url: clipRehearsal.blade_a_url, color: DEVICE_COLOR, opacity: 1, id: "clip-blade-a" });
       out.push({ url: clipRehearsal.blade_b_url, color: DEVICE_COLOR, opacity: 1, id: "clip-blade-b" });
-      for (const d of devices) if (d.kind !== "clips") out.push({ url: d.url, color: d.color, opacity: 1 });
+      for (const d of devices) if (d.kind !== "clips") out.push({ url: d.url, color: d.color, opacity: 1, id: `device-${d.kind}` });
     } else if (showDevice) {
-      for (const d of devices) out.push({ url: d.url, color: d.color, opacity: 1 });
+      // Con nombre: cada recolocación (una por edición asentada) trae un fichero
+      // nuevo, y sin nombre la escena entera se rehacía, recargaba el árbol y
+      // devolvía la cámara al encuadre inicial un cuarto de segundo después de
+      // cada retoque. Con nombre solo se sustituye la geometría del clip.
+      // Lo que aún rehace la escena en este paso (la primera llegada del campo,
+      // que cambia la capa «sac» por «clip-field», y el conmutador CALOR) conserva
+      // la cámara: MeshView recibe `preserveCamera` mientras se está en Dispositivos.
+      for (const d of devices) out.push({ url: d.url, color: d.color, opacity: 1, id: `device-${d.kind}` });
     }
     if (showCenterline && centerlineMesh) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
@@ -974,6 +971,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
           <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
+            preserveCamera={step === "devices"}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
         </Suspense>
       );
@@ -1160,8 +1158,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
                 {/* CALOR solo existe cuando hay un campo del clip calculado: sin
                     él no habría nada que encender. */}
                 {clipField && (
-                  <HudToggleGroup options={[{ key: "calor", label: showClipField ? "CALOR ●" : "CALOR ○",
-                                              title: showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
+                  // Durante el ensayo manda el saco que se deforma y el campo no se
+                  // pinta: «●» diría que se está viendo.
+                  <HudToggleGroup options={[{ key: "calor", label: showClipField && !clipRehearsal ? "CALOR ●" : "CALOR ○",
+                                              title: clipRehearsal
+                                                ? "Durante el ensayo de cierre se ve el saco que se deforma; el mapa de calor vuelve al terminar"
+                                                : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
                     value={showClipField ? "calor" : ""} onChange={() => setShowClipField(!showClipField)} />
                 )}
               </div>

@@ -13,4 +13,10 @@ describe("mipReadoutLines", () => {
     expect(mipReadoutLines({ ...base, mode: "acumulado", compact: true })).toEqual(["ACUM 193/384"]);
     expect(mipReadoutLines({ ...base, mode: "lamina", compact: true })).toEqual(["LÁMINA ±10"]);
   });
+  it("en compuesto la lectura nombra el preajuste y el corte", () => {
+    expect(mipReadoutLines({ mode: "acumulado", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: false, render: "compuesto", preset: "Vasos CTA" }))
+      .toEqual(["COMPUESTO · VASOS CTA", "ACUMULADO HASTA 5/10"]);
+    expect(mipReadoutLines({ mode: "lamina", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: true, render: "compuesto", preset: "Hueso" }))
+      .toEqual(["COMP ±8"]);
+  });
 });

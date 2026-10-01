@@ -2257,6 +2257,15 @@ middle button pans. «AX · COR · SAG» chooses the voxel axis it accumulates
 along, the same axes the slice views use, and an amber outline traces the
 current plane. «CENTRAR» recentres pan and zoom without undoing the rotation.
 
+**VOLUMEN.** The MIP cell is labelled «VOLUMEN» and has two render modes,
+switched with «MIP · COMPUESTO» next to the axis selector. MIP is the view
+described above. COMPUESTO is shaded compositing with the six tissue presets of
+the retired 3D «Volumen» mode (CTA, Vasos CTA, Cerebro, Hemorragia, Hueso,
+Tejido blando), mapped onto the volume's robust intensity range (p1–p99) of the
+copy already in the browser; clipping, plane trace and gestures are the same in
+both. The 3D scene no longer has a «Volumen» mode, so `GET /api/volume/{sid}/raw`
+has no consumer in the frontend; whether the endpoint stays is left to D2.
+
 The «REGLAS» toggle hides the HUD decoration (corners, heading tape, slice
 ladder, reticle); orientation letters, slice number, measurements and safety
 warnings stay. Layout and «REGLAS» are per-browser view preferences, and

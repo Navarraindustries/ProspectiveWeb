@@ -44,7 +44,6 @@ import type { Vector3 } from "@kitware/vtk.js/types";
 // with it the whole vtk.js runtime — lazily. The landing/login/MPR-only views
 // never pull it into their bundle.
 const MeshView = lazy(() => import("./MeshView").then((m) => ({ default: m.MeshView })));
-const VolumeView = lazy(() => import("./VolumeView").then((m) => ({ default: m.VolumeView })));
 const SliceView = lazy(() => import("./SliceView").then((m) => ({ default: m.SliceView })));
 const MipView = lazy(() => import("./MipView").then((m) => ({ default: m.MipView })));
 const ObliqueView = lazy(() => import("./ObliqueView").then((m) => ({ default: m.ObliqueView })));
@@ -188,6 +187,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
+    volumeMode, volumePreset,
     imagingStudyId, setCaptureCase, setViewerRecording,
   } = usePlanning();
 
@@ -203,6 +203,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const [planesHidden, setPlanesHidden] = useStoredFlag(PREF_PLANES_HIDDEN);
   const planesHiddenRef = useRef(planesHidden);
   planesHiddenRef.current = planesHidden;
+  // El modo y el preajuste de la vista VOLUMEN viajan con la captura y la
+  // grabación; por ref, como el resto, para no rehacer lo ya publicado.
+  const volumeModeRef = useRef(volumeMode);
+  volumeModeRef.current = volumeMode;
+  const volumePresetRef = useRef(volumePreset);
+  volumePresetRef.current = volumePreset;
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
   const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[] } | null>(() => {
@@ -335,7 +341,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, nx, ny, nz]);
-  const [viewMode, setViewMode] = useState<"default" | "volume" | "oblique">("default");
+  const [viewMode, setViewMode] = useState<"default" | "oblique">("default");
   // Camera controller published by MeshView while its scene is on screen.
   const [camera, setCamera] = useState<CameraController | null>(null);
   // Las cámaras de escenas montadas en Dispositivos, donde MeshView conserva la
@@ -417,6 +423,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     layout: layoutRef.current,
     hud_decor_hidden: decorHiddenRef.current,
     planes_hidden: planesHiddenRef.current,
+    volume_mode: volumeModeRef.current,
+    volume_preset: volumePresetRef.current,
     heading: readHeading(root) ?? null,
     level_note: levelNote ?? null,
     view_mode: viewMode,
@@ -838,9 +846,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // La pista del panel principal ocupaba la esquina para siempre; ahora aparece
   // 3 s cuando cambia lo que hay en él y se desvanece (la animación de
   // .hud-hint dura lo mismo). El texto depende de si el principal es girable
-  // (3D o MIP) o un corte; en cualquier otro caso (volumen sin malla, oblicuo,
-  // sin sesión) no hay nada que enseñar. «?» la vuelve a mostrar.
-  const mainRotatable = viewerLayout.main === "scene" && ((viewMode === "default" && meshVisible) || viewMode === "volume");
+  // (3D o VOLUMEN) o un corte; en cualquier otro caso (oblicuo, sin sesión) no
+  // hay nada que enseñar. «?» la vuelve a mostrar.
+  const mainRotatable = viewerLayout.main === "scene" && viewMode === "default" && meshVisible;
   const hintKind: HintKind | null = viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
   const [hint, setHint] = useState<string | null>(null);
   // La animación de desvanecido corre una vez, al montar el div: reaparecer con
@@ -913,7 +921,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // sin él la celda dice por qué está vacía en lugar de quedarse negra.
       if (!meta || !clientVol.image) {
         return (
-          <HudFrame label="MIP" active={active}>
+          <HudFrame label="VOLUMEN" active={active}>
             <HudReadout at="bl" lines={[meta && hasWebGL2() && !clientVol.error ? "CARGANDO…" : "SIN VOLUMEN"]} />
           </HudFrame>
         );
@@ -982,10 +990,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // El cuerpo dibuja su propio HudFrame (esquinas y rótulo): el marco de la
     // escena no repite ni esquinas, ni rótulo, ni la lectura del modo.
     let bodyFramed = sceneIsSlice;
-    if (viewMode === "volume" && sessionId && meta) {
-      body = <Suspense fallback={<ViewerLoading label="Cargando volumen 3D…" />}><VolumeView sessionId={sessionId} registerCapture={registerMeshCapture} /></Suspense>;
-      mode = "VOLUMEN";
-    } else if (viewMode === "oblique" && sessionId && meta) {
+    if (viewMode === "oblique" && sessionId && meta) {
       // Sin WebGL2 o sin volumen en el cliente, el oblicuo del servidor (PNG),
       // que no trae marco: ese sí lleva el de la escena.
       if (legacy || !clientVol.image) {
@@ -1093,7 +1098,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         {!compact && sessionId && meta && !pickMode && (
           <div style={{ position: "absolute", top: togglesTop, left: 14, zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
             <HudToggleGroup
-              options={[{ key: "default", label: meshVisible ? "3D" : "MPR" }, { key: "volume", label: "Volumen" }, { key: "oblique", label: "Oblicuo" }]}
+              options={[{ key: "default", label: meshVisible ? "3D" : "MPR" }, { key: "oblique", label: "Oblicuo" }]}
               value={viewMode} onChange={(k) => setViewMode(k as typeof viewMode)} />
             {/* Vistas estándar + reencuadre. Sin esto, perder la orientación
                 rotando no tenía vuelta atrás. */}

@@ -271,3 +271,29 @@ describe("volume version", () => {
     expect(result.current.volumeVersion).toBe(before + 2);
   });
 });
+
+describe("modo y preajuste de la vista VOLUMEN", () => {
+  it("empieza en MIP con «Vasos CTA» y los setters no tocan el modo del MIP", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.volumeMode).toBe("mip");
+    expect(result.current.volumePreset).toBe("Vasos CTA");
+    act(() => {
+      result.current.setVolumeMode("compuesto");
+      result.current.setVolumePreset("Hueso");
+    });
+    expect(result.current.volumeMode).toBe("compuesto");
+    expect(result.current.volumePreset).toBe("Hueso");
+    expect(result.current.mipMode).toBe("acumulado");
+  });
+
+  it("vuelve a los valores por defecto al cambiar de estudio", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => {
+      result.current.setVolumeMode("compuesto");
+      result.current.setVolumePreset("Cerebro");
+    });
+    act(() => result.current.reset());
+    expect(result.current.volumeMode).toBe("mip");
+    expect(result.current.volumePreset).toBe("Vasos CTA");
+  });
+});

@@ -13,6 +13,7 @@ export interface ViewerRecordingSource extends FrameSource {
 }
 import { loadLayout, saveLayout, type ViewerLayout } from "../vtk/layout";
 import { mmToVoxel, type ManualOrientation, type Plane } from "../vtk/geometry";
+import type { VolumePreset } from "../vtk/volumePresets";
 import type {
   AneurysmCandidate,
   DeviceKind,
@@ -169,6 +170,12 @@ interface PlanningState {
    *  la vista principal (coronal o sagital; si no, axial), como antes. */
   mipPlane: Plane | null;
   setMipPlane: (p: Plane | null) => void;
+  /** Cómo pinta la vista VOLUMEN: proyección de máxima intensidad o
+   *  composición por tejidos con el preajuste de abajo. */
+  volumeMode: "mip" | "compuesto";
+  setVolumeMode: (m: "mip" | "compuesto") => void;
+  volumePreset: VolumePreset;
+  setVolumePreset: (p: VolumePreset) => void;
   /** Sube cada vez que el volumen de la sesión cambia en el servidor sin que
    *  cambie la sesión (otra serie, preproceso o su reversión): el visor vuelve
    *  a pedir la meta y, con su cache_key nuevo, el volumen del navegador. */
@@ -334,6 +341,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [mipMode, setMipMode] = useState<"acumulado" | "lamina">("acumulado");
   const [mipSlabMm, setMipSlabMm] = useState(10);
   const [mipPlane, setMipPlane] = useState<Plane | null>(null);
+  const [volumeMode, setVolumeMode] = useState<"mip" | "compuesto">("mip");
+  const [volumePreset, setVolumePreset] = useState<VolumePreset>("Vasos CTA");
   const [volumeVersion, setVolumeVersion] = useState(0);
   const bumpVolumeVersion = useCallback(() => setVolumeVersion((v) => v + 1), []);
   const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
@@ -425,6 +434,10 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     // El eje del MIP se eligió para el estudio anterior: el nuevo vuelve a
     // seguir a la vista principal.
     setMipPlane(null);
+    // El modo y el preajuste de VOLUMEN también son de la sesión: el estudio
+    // nuevo abre en MIP, como siempre.
+    setVolumeMode("mip");
+    setVolumePreset("Vasos CTA");
     resetDownstream();
   };
 
@@ -435,7 +448,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
-        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeVersion,
+        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
@@ -443,7 +456,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
-        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, bumpVolumeVersion,
+        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         reset, resetDownstream,
       }}
     >

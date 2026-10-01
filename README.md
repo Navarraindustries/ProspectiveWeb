@@ -2237,11 +2237,11 @@ archive, never under `data/`, and are served only by the authenticated
 endpoints above. The PDF report offers and embeds captures only, not videos.
 
 **Viewer layout.** The five views (3D, axial, coronal, sagittal and VOLUMEN) share
-one grid in three presets, chosen in the main view's header or with
+one grid in three presets, chosen in the header band above the grid or with
 **Alt+1 · Alt+2 · Alt+3**: «SOLA» (the main view alone), «DERECHA» (main view
 plus a column of four, the default) and «ABAJO» (main view plus a strip of
-four). When the main view is narrower than 800 px the presets read
-«DER · ABA · SOLA». Plain digits keep jumping between pipeline steps, and no shortcut fires
+four). When the header band is narrower than 800 px the presets read
+«DER · ABA · SOLA» and «PRINCIPAL» shrinks to «▸». Plain digits keep jumping between pipeline steps, and no shortcut fires
 while typing in a field. The header selector «PRINCIPAL ▸ 3D · AX · COR · SAG · VOL»
 chooses the main view directly; every secondary view also has a «⤢» button in
 its top-right corner that promotes it (the main view has none), and a double

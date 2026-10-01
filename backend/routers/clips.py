@@ -17,6 +17,8 @@ from models.clips import (
     ClipCandidateOut,
     ClipCaseOut,
     ClipCriterion,
+    ClipFieldResult,
+    ClipFieldSummary,
     ClipFitCheck,
     ClipSelectionResult,
     CustomJawOut,
@@ -33,6 +35,7 @@ from services.clip_selection import (
     ClipSelection,
     ManufactureSpec,
     derive_manufacture_spec,
+    evaluate_clip,
     select_clips,
 )
 from services.sessions import (
@@ -1182,6 +1185,119 @@ async def clip_animation(
         clip_name=spec.name if spec is not None else pl.clip_id,
         sac_frames=sac_frames,
         sac_frames_note=sac_note,
+    )
+
+
+# ── Mapa de calor del clip: qué cubre y con qué presión ─────────────────────── #
+
+@router.post(
+    "/clips/field/{session_id}",
+    response_model=ClipFieldResult,
+    summary="Mapa de calor del clip (estimación geométrica)",
+    description=(
+        "Pinta el saco y el anillo de cuello según lo que cubren las hojas y la presión "
+        "estimada (fuerza mínima de catálogo / área de contacto) frente a la ventana de "
+        "fuerza del cuello. No modela pared ni deformación."
+    ),
+)
+async def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    if not req.placements:
+        raise HTTPException(status_code=409, detail="No hay ningún clip colocado que evaluar.")
+    import vtk
+    from services import devices
+    from services import clip_field as cf
+    from services.segmentation import read_vtp
+
+    meshes_dir = session_subdir(session_id, "meshes")
+    sac_name = read_state(session_id, "morpho.sac_vtp_name", "") or "aneurysm_sac.vtp"
+    sac_path = meshes_dir / sac_name
+    if not sac_path.exists():
+        raise HTTPException(status_code=409, detail=(
+            "No hay un saco aislado sobre el que pintar. Marca el plano del cuello en "
+            "Morfometría: sin el saco cerrado no se puede estimar la cobertura."))
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    if neck_mm <= 0.1:
+        raise HTTPException(status_code=409, detail=(
+            "No hay cuello medido: la ventana de fuerza depende de su anchura."))
+    neck_origin = tuple(_load_float(session_id, f"morpho.neck_origin_{a}", 0.0) for a in "xyz")
+    neck_axis = (
+        _load_float(session_id, "morpho.axis_x", 0.0),
+        _load_float(session_id, "morpho.axis_y", 0.0),
+        _load_float(session_id, "morpho.axis_z", 1.0),
+    )
+
+    sac = read_vtp(sac_path)
+    vessel_path = meshes_dir / "vessel_tree.vtp"
+    # Sin árbol de vasos se pinta solo el saco: el anillo es contexto, no requisito.
+    ring = (cf.vessel_ring(read_vtp(vessel_path), neck_origin, neck_axis, neck_mm)
+            if vessel_path.exists() else vtk.vtkPolyData())
+    mesh = cf.field_mesh(sac, ring)
+    pts = cf.points_of(mesh)
+
+    index = _catalogue_index()
+    per_clip: list = []
+    criteria: list[ClipCriterion] = []
+    names: list[str] = []
+    force_total, band_min, provisional, sin_ficha = 0.0, False, False, False
+    for i, pl in enumerate(req.placements):
+        local = _clip_geometry_for(pl.clip_id, meshes_dir)
+        t = devices.pose_transform(
+            (pl.position.x, pl.position.y, pl.position.z),
+            tuple(pl.normal) if pl.normal else (0.0, 0.0, 1.0), pl.rotation_deg)
+        world = devices.apply_transform(local, t)
+        spec = index.get(pl.clip_id)
+        if spec is None:
+            sin_ficha = True
+            # Sin ficha: la hoja se mide en la malla LOCAL (la caja de mundo de un clip
+            # girado no mide su largo); sin fuerza no hay presión.
+            b = local.GetBounds()
+            length = max(b[1] - b[0], b[3] - b[2], b[5] - b[4])
+            frame = cf.blade_frame(world, length_mm=length, blade_width_mm=0.5, blade_height_mm=1.4,
+                                   neck_mm=neck_mm, neck_axis=neck_axis, pose=t)
+            names.append(_custom_clip_name(session_id, pl.clip_id)
+                         if pl.clip_id.startswith("custom:") else pl.clip_id)
+        else:
+            frame = cf.blade_frame(world, length_mm=spec.blade_length_mm, blade_width_mm=spec.blade_width_mm,
+                                   blade_height_mm=spec.blade_height_mm, neck_mm=neck_mm,
+                                   neck_axis=neck_axis, pose=t)
+            # La fuerza es el mínimo de la banda: la presión estimada es una cota
+            # inferior, nunca una promesa de cierre.
+            lo, hi = spec.force_band
+            force_total += lo
+            band_min = band_min or hi > lo
+            provisional = provisional or spec.force_provisional
+            names.append(spec.name)
+            if i == 0:
+                criteria = _criteria_out(evaluate_clip(spec, _build_case(session_id, None)))
+        per_clip.append(cf.classify(pts, frame))
+    coverage = cf.combine_coverage(per_clip)
+    s = cf.summarize(mesh, coverage, force_g=force_total, force_is_band_min=band_min,
+                     force_provisional=provisional, neck_mm=neck_mm)
+    colors = cf.colorize(coverage, s.pressure_verdict)
+    cf.write_field(mesh, coverage, s.pressure_g_mm2, colors, meshes_dir / "clip_field.vtp")
+
+    # Un clip que no toca el cuello («sin_contacto») no sirve: cuenta como fallo.
+    crit_verdicts = {c.verdict for c in criteria}
+    if ("fail" in crit_verdicts or s.pressure_verdict in ("insuficiente", "exceso", "sin_contacto")
+            or s.covered_pct < 50):
+        verdict = "fail"
+    elif "warn" in crit_verdicts or s.pressure_verdict == "aceptable" or s.residual_pct > 10:
+        verdict = "warn"
+    else:
+        verdict = "ok"
+    note = s.note + (" Clip importado sin ficha: sin fuerza de catálogo, la presión no se puede estimar."
+                     if sin_ficha else "")
+    return ClipFieldResult(
+        field_mesh_url=f"{mesh_url(session_id, 'clip_field.vtp')}?v={int(time.time() * 1000)}",
+        scalars={"coverage": "uint8", "pressure_g_mm2": "float32", "colors": "uint8x3"},
+        summary=ClipFieldSummary(
+            covered_pct=s.covered_pct, residual_pct=s.residual_pct, unreached_pct=s.unreached_pct,
+            contact_area_mm2=s.contact_area_mm2, force_g=s.force_g, force_is_band_min=s.force_is_band_min,
+            force_provisional=s.force_provisional, pressure_g_mm2=s.pressure_g_mm2,
+            window_g_mm2=list(s.window_g_mm2), pressure_verdict=s.pressure_verdict, verdict=verdict,
+            criteria=criteria, clip_name=" + ".join(names), note=note),
     )
 
 

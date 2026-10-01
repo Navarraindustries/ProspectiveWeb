@@ -475,3 +475,20 @@ class OcclusionOut(BaseModel):
     remnant_mesh_url: str | None = Field(
         None, description="El muñón, para pintarlo. Null si no queda nada medible.")
     clip_name: str = ""
+
+
+class ClipFieldSummary(BaseModel):
+    """Lo que el campo mide: cobertura, presión estimada y veredicto. Estimación geométrica."""
+    covered_pct: float; residual_pct: float; unreached_pct: float
+    contact_area_mm2: float; force_g: float; force_is_band_min: bool; force_provisional: bool
+    pressure_g_mm2: float; window_g_mm2: list[float]; pressure_verdict: str
+    verdict: str = Field(..., description="ok | warn | fail")
+    criteria: list[ClipCriterion] = Field(default_factory=list)
+    clip_name: str = ""
+    note: str = ""
+
+
+class ClipFieldResult(BaseModel):
+    field_mesh_url: str
+    scalars: dict[str, str]
+    summary: ClipFieldSummary

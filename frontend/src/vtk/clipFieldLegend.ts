@@ -1,6 +1,6 @@
 /* Leyenda del mapa de calor del clip: los mismos colores que pinta el servidor
    (services/clip_field.py), para que la barra diga lo que la malla enseña. */
-import type { ClipFieldSummary } from "../api/types";
+import type { ClipFieldSummary, ClipForceVerdict } from "../api/types";
 import type { HudTextLine } from "./hud/HudReadout";
 
 export const FIELD_COLORS = {
@@ -12,24 +12,37 @@ export const FIELD_COLORS = {
   no_evaluado: "rgb(120,112,124)",
 } as const;
 
-const VERDICT_LABEL: Record<ClipFieldSummary["pressure_verdict"], string> = {
+const VERDICT_LABEL: Record<ClipForceVerdict, string> = {
   sin_contacto: "SIN CONTACTO", sin_fuerza: "SIN FUERZA", insuficiente: "INSUFICIENTE", optima: "ÓPTIMA", aceptable: "ACEPTABLE", exceso: "EXCESO",
 };
 
+/** Un porcentaje del cuello, o «—» si no hay cuello evaluado: 0/0/0 se leería
+ *  como «nada cubierto», y lo que pasa es que el clip no está a su altura. */
+export function neckPct(s: ClipFieldSummary, v: number, digits = 0): string {
+  return s.neck_evaluated ? `${v.toFixed(digits)} %` : "—";
+}
+
+/** La fuerza de cada clip en gramos («120 g + 120 g»); «—» si un clip no tiene ficha. */
+export function forcesText(s: ClipFieldSummary): string {
+  const g = (f: number) => (f > 0 ? `${f.toFixed(0)} g` : "—");
+  return s.clips.length > 1 ? s.clips.map((c) => g(c.force_g)).join(" + ") : g(s.force_g);
+}
+
+/** La ventana óptima del cuello en gramos, «80–120 g». La de g/mm² divide por la
+ *  misma área que la presión y no añade nada: el veredicto es fuerza contra ventana. */
+export function optimalWindowText(s: ClipFieldSummary): string {
+  const [, optLo, optHi] = s.force_window_g;
+  return `${optLo.toFixed(0)}–${optHi.toFixed(0)} g`;
+}
+
 export function legendLines(s: ClipFieldSummary): HudTextLine[] {
   const covKey = `cubierto_${s.pressure_verdict}` as keyof typeof FIELD_COLORS;
-  const [, optLo, optHi] = s.window_g_mm2;
-  // Sin contacto o sin fuerza conocida no hay presión que dar: un número ahí
-  // (0 o la de un clip sin ficha) se leería como medida.
-  const presion = s.pressure_verdict === "sin_contacto" || s.pressure_verdict === "sin_fuerza"
-    ? `PRESIÓN — · ${VERDICT_LABEL[s.pressure_verdict]}`
-    : `PRESIÓN ${s.pressure_g_mm2.toFixed(1)} g/mm² · ${VERDICT_LABEL[s.pressure_verdict]} (${optLo.toFixed(1)}–${optHi.toFixed(1)})`;
   return [
-    { text: `CUBIERTO ${Math.round(s.covered_pct)} %`, color: FIELD_COLORS[covKey] ?? FIELD_COLORS.cubierto_sin_contacto },
-    { text: `CUELLO RESIDUAL ${Math.round(s.residual_pct)} %`, color: FIELD_COLORS.residual },
-    { text: `NO ALCANZADO ${Math.round(s.unreached_pct)} %`, color: FIELD_COLORS.no_alcanzado },
+    { text: `CUELLO CUBIERTO ${neckPct(s, s.covered_pct)}`, color: FIELD_COLORS[covKey] ?? FIELD_COLORS.cubierto_sin_contacto },
+    { text: `CUELLO RESIDUAL ${neckPct(s, s.residual_pct)}`, color: FIELD_COLORS.residual },
+    { text: `CUELLO NO ALCANZADO ${neckPct(s, s.unreached_pct)}`, color: FIELD_COLORS.no_alcanzado },
     { text: "NO EVALUADO", color: FIELD_COLORS.no_evaluado },
-    { text: presion },
+    { text: `FUERZA ${forcesText(s)} · ${VERDICT_LABEL[s.pressure_verdict]} (${optimalWindowText(s)})` },
     { text: `VEREDICTO ${s.verdict.toUpperCase()} · ESTIMACIÓN GEOMÉTRICA` },
   ];
 }

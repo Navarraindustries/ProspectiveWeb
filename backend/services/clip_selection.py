@@ -346,7 +346,7 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
 
     if req.mm > 0.0 and bl < req.mm:
         return Criterion(
-            "coverage", "Cobertura", "fail",
+            "coverage", "Longitud de hoja", "fail",
             f"Hoja de {bl:.0f} mm insuficiente: el cuello de {neck:.1f} mm mide "
             f"{req.mm:.1f} mm una vez aplastado entre las hojas, y por debajo de "
             f"eso el cierre queda incompleto",
@@ -354,7 +354,7 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
         )
     if cov > BLADE_MAX_RATIO:
         return Criterion(
-            "coverage", "Cobertura", "fail",
+            "coverage", "Longitud de hoja", "fail",
             f"Hoja de {bl:.0f} mm sobredimensionada (×{cov:.1f} el cuello): "
             f"el extremo distal queda sobre tejido sano",
             0.0, weight=2.0,
@@ -366,13 +366,13 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
     score = max(WARN_SCORE_FLOOR, math.exp(-0.5 * (margin / EXCESS_SIGMA_MM) ** 2))
     if cov > COVERAGE_COMFORTABLE_HI:
         return Criterion(
-            "coverage", "Cobertura", "warn",
+            "coverage", "Longitud de hoja", "warn",
             f"Cierra el cuello aplastado ({req.mm:.1f} mm) pero sobran "
             f"{margin:.1f} mm de hoja (×{cov:.2f} el cuello)",
             score, weight=2.0,
         )
     return Criterion(
-        "coverage", "Cobertura", "ok",
+        "coverage", "Longitud de hoja", "ok",
         f"Cierra el cuello aplastado ({req.mm:.1f} mm) con {margin:.1f} mm "
         f"de margen (×{cov:.2f} el cuello sin deformar)",
         score, weight=2.0,

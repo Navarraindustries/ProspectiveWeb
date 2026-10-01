@@ -475,9 +475,9 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
                    f"cuello: un clip bien puesto lo toca por definición. Ejecuta la "
                    f"morfometría para que esta comprobación distinga una cosa de la otra.")
     elif neck_mm <= 0.1:
-        warning = "Ejecuta la morfometría para calcular la cobertura del cuello."
+        warning = "Ejecuta la morfometría para medir la extensión de las hojas sobre el cuello."
     elif coverage < 95.0:
-        warning = "Cobertura parcial del cuello — considerar reposicionar o añadir un clip."
+        warning = "Las hojas no alcanzan toda la anchura del cuello — considerar reposicionar o añadir un clip."
 
     return ClipPlanResult(
         clips_mesh_url=clips_url,

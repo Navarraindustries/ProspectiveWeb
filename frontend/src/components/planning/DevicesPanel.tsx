@@ -621,7 +621,13 @@ function ClipsTab() {
 
           {plan && (
             <Card style={{ marginTop: 14 }}>
-              <Metric label="Cobertura de cuello" value={plan.neck_coverage_pct.toFixed(1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Óptimo", "success"] : ["Parcial", "warning"]} />
+              {/* Es la anchura de las hojas en el plano del cuello frente al diámetro
+                  del cuello, no qué parte del cuello queda cerrada: eso lo dice el
+                  mapa de calor («Cuello cubierto»). Con el mismo nombre se leían
+                  como la misma cifra y se contradecían. */}
+              <div title="Anchura de las hojas en el plano del cuello frente al diámetro del cuello. No mide qué parte del cuello queda cerrada.">
+                <Metric label="Extensión de las hojas sobre el cuello" value={plan.neck_coverage_pct.toFixed(1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Alcanza", "success"] : ["No alcanza", "warning"]} />
+              </div>
               {/* «Colisión clip–vaso» a secas se leía como un veredicto sobre la
                   colocación, y era un artefacto: se comprobaba contra la malla
                   entera, cuello incluido, que es justo lo que un clip bien puesto

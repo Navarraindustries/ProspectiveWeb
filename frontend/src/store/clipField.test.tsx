@@ -6,7 +6,7 @@ import type { ClipFieldResult } from "../api/types";
 const campo: ClipFieldResult = {
   field_mesh_url: "/m/clip_field.vtp?v=1", scalars: { colors: "uint8x3" },
   summary: { covered_pct: 90, residual_pct: 10, unreached_pct: 0, contact_area_mm2: 8, force_g: 120, force_is_band_min: true,
-    force_provisional: true, pressure_g_mm2: 15, window_g_mm2: [10, 12, 18, 22], pressure_verdict: "optima", verdict: "ok",
+    force_provisional: true, pressure_g_mm2: 15, window_g_mm2: [10, 12, 18, 22], pressure_verdict: "optima", force_window_g: [70, 80, 120, 150], neck_evaluated: true, clips: [{ name: "x", force_g: 120, verdict: "optima" }], verdict: "ok",
     criteria: [], clip_name: "NAVARRO T1 10", note: "Estimación geométrica" },
 };
 

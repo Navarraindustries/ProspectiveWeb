@@ -1003,11 +1003,25 @@ export interface OcclusionOut {
 
 /** Veredicto del campo del clip: cuánto cuello cubre, qué presión estima y si cae
  *  dentro de la ventana de fuerza. Es una estimación geométrica, no una medida. */
+export type ClipForceVerdict = "sin_contacto" | "sin_fuerza" | "insuficiente" | "optima" | "aceptable" | "exceso";
+/** Un clip juzgado con su propia fuerza frente a la ventana del cuello. */
+export interface ClipFieldClip { name: string; force_g: number; verdict: ClipForceVerdict }
 export interface ClipFieldSummary {
+  /** Porcentajes sobre el disco del cuello; sin sentido si `neck_evaluated` es false. */
   covered_pct: number; residual_pct: number; unreached_pct: number;
-  contact_area_mm2: number; force_g: number; force_is_band_min: boolean; force_provisional: boolean;
+  contact_area_mm2: number;
+  /** Fuerza del peor clip (el que da `pressure_verdict`). */
+  force_g: number; force_is_band_min: boolean; force_provisional: boolean;
+  /** g/mm²: solo para la capa del .vtp y por compatibilidad. Presión y ventana se
+   *  dividen por la misma área, así que no se enseña: se enseña la fuerza en gramos. */
   pressure_g_mm2: number; window_g_mm2: [number, number, number, number];
-  pressure_verdict: "sin_contacto" | "sin_fuerza" | "insuficiente" | "optima" | "aceptable" | "exceso";
+  pressure_verdict: ClipForceVerdict;
+  /** Ventana de fuerza del cuello en gramos: aceptable mín, óptima mín, óptima máx, aceptable máx. */
+  force_window_g: [number, number, number, number];
+  /** False si ningún vértice del cuello cae en la banda (clip lejos a lo largo del eje). */
+  neck_evaluated: boolean;
+  /** Cada clip con su fuerza y su veredicto; `pressure_verdict` es el peor. */
+  clips: ClipFieldClip[];
   verdict: "ok" | "warn" | "fail";
   criteria: ClipCriterion[]; clip_name: string; note: string;
 }

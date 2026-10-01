@@ -51,7 +51,7 @@ const candidate = (over: Partial<ClipCandidateOut> = {}): ClipCandidateOut => ({
   closing_force_max_g: 110,
   force_provisional: false,
   criteria: [
-    { key: "coverage", label: "Cobertura", verdict: "ok", detail: "Cubre el cuello con 3.0 mm de margen (×1.50)" },
+    { key: "coverage", label: "Longitud de hoja", verdict: "ok", detail: "Cubre el cuello con 3.0 mm de margen (×1.50)" },
     { key: "force", label: "Fuerza de cierre", verdict: "ok", detail: "110 g dentro de la ventana 100–150 g" },
   ],
   fit: null,
@@ -109,7 +109,7 @@ describe("showing the reasoning, not a score", () => {
     render(<ClipSelectionPanel sessionId="s1" />);
 
     expect(await screen.findByText("Yasargil Recto 9mm")).toBeInTheDocument();
-    // The number, not just the word "Cobertura".
+    // The number, not just the label «Longitud de hoja».
     expect(screen.getByText(/3\.0 mm de margen/)).toBeInTheDocument();
     expect(screen.getByText(/ventana 100–150 g/)).toBeInTheDocument();
   });
@@ -172,7 +172,7 @@ describe("accountability for what was withheld", () => {
         clip_id: "mini", clip_name: "Yasargil Mini recto", verdict: "fail", score: 0,
         headline: "Hoja de 5 mm insuficiente para un cuello de 6.0 mm",
         criteria: [{
-          key: "coverage", label: "Cobertura", verdict: "fail",
+          key: "coverage", label: "Longitud de hoja", verdict: "fail",
           detail: "Hoja de 5 mm insuficiente para un cuello de 6.0 mm (hacen falta ≥ 7.0 mm)",
         }],
       })],

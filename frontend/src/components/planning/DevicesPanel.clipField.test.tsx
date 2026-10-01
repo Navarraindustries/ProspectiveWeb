@@ -16,7 +16,7 @@ vi.mock("../../api/client", async (orig) => {
     placedDevices: vi.fn(async () => ({ remaining: [], mesh_urls: {} })),
     clearDevices: vi.fn(async () => ({ status: "ok" })),
     planClips: vi.fn(async () => ({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null })),
-    clipField: vi.fn(async () => ({ field_mesh_url: "/m/clip_field.vtp?v=1", scalars: {}, summary: { covered_pct: 90, residual_pct: 10, unreached_pct: 0, contact_area_mm2: 8, force_g: 120, force_is_band_min: true, force_provisional: true, pressure_g_mm2: 15, window_g_mm2: [10, 12, 18, 22], pressure_verdict: "optima", verdict: "ok", criteria: [], clip_name: "x", note: "Estimación geométrica" } })),
+    clipField: vi.fn(async () => ({ field_mesh_url: "/m/clip_field.vtp?v=1", scalars: {}, summary: { covered_pct: 90, residual_pct: 10, unreached_pct: 0, contact_area_mm2: 8, force_g: 120, force_is_band_min: true, force_provisional: true, pressure_g_mm2: 15, window_g_mm2: [10, 12, 18, 22], pressure_verdict: "optima", force_window_g: [70, 80, 120, 150], neck_evaluated: true, clips: [{ name: "x", force_g: 120, verdict: "optima" }], verdict: "ok", criteria: [], clip_name: "x", note: "Estimación geométrica" } })),
   } };
 });
 import { api, ApiError } from "../../api/client";
@@ -169,7 +169,7 @@ describe("DevicesPanel · campo del clip", () => {
     act(() => { vi.advanceTimersByTime(400); });
     // Nada vuelve: ni la tarjeta del plan, ni la barra (malla de clips), ni el
     // campo, ni otra petición.
-    expect(screen.queryByText("Cobertura de cuello")).toBeNull();
+    expect(screen.queryByText("Extensión de las hojas sobre el cuello")).toBeNull();
     expect(screen.queryByText(/En el plan/)).toBeNull();
     expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull();
     expect(api.clipField).toHaveBeenCalledTimes(1);
@@ -222,7 +222,7 @@ describe("DevicesPanel · campo del clip", () => {
     vi.mocked(api.clipField).mockRejectedValueOnce(new ApiError(500, "Fallo del servidor"));
     await colocar();
     expect(await screen.findByText(/Fallo del servidor/)).toBeInTheDocument();
-    expect(screen.getByText("Cobertura de cuello")).toBeInTheDocument();
+    expect(screen.getByText("Extensión de las hojas sobre el cuello")).toBeInTheDocument();
     expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull();
   });
 
@@ -231,7 +231,7 @@ describe("DevicesPanel · campo del clip", () => {
     await colocar();
     expect(await screen.findByText(/No hay saco aislado/)).toBeInTheDocument();
     // El plan sigue ahí: la tarjeta de cobertura del plan se pintó.
-    expect(screen.getByText("Cobertura de cuello")).toBeInTheDocument();
+    expect(screen.getByText("Extensión de las hojas sobre el cuello")).toBeInTheDocument();
     expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull();
   });
 });

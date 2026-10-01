@@ -150,6 +150,35 @@ describe("DevicesPanel · campo del clip", () => {
     await waitFor(() => expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull());
   });
 
+  it("una colocación que responde después de «Limpiar todos» no pinta nada ni pide más", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    let release: () => void = () => {};
+    vi.mocked(api.planClips).mockImplementationOnce(() => new Promise((r) => {
+      release = () => r({ clips_mesh_url: "/m/clips_tarde.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null });
+    }));
+    const [x] = screen.getAllByRole("spinbutton");
+    fireEvent.change(x, { target: { value: "5" } });
+    act(() => { vi.advanceTimersByTime(260); });
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
+    // Con la segunda colocación en vuelo, «Limpiar todos» sigue disponible.
+    fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    await waitFor(() => expect(api.clearDevices).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByText(/En el plan/)).toBeNull());
+    await act(async () => { release(); });
+    act(() => { vi.advanceTimersByTime(400); });
+    // Nada vuelve: ni la tarjeta del plan, ni la barra (malla de clips), ni el
+    // campo, ni otra petición.
+    expect(screen.queryByText("Cobertura de cuello")).toBeNull();
+    expect(screen.queryByText(/En el plan/)).toBeNull();
+    expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull();
+    expect(api.clipField).toHaveBeenCalledTimes(1);
+    expect(api.planClips).toHaveBeenCalledTimes(2);
+    const order = (fn: unknown) => (fn as { mock: { invocationCallOrder: number[] } }).mock.invocationCallOrder.at(-1) ?? 0;
+    expect(order(api.clearDevices)).toBeGreaterThan(order(api.planClips));
+    expect(order(api.clearDevices)).toBeGreaterThan(order(api.clipField));
+  });
+
   it("volver a la pose anterior mientras otra está en vuelo la recoloca al terminar", async () => {
     await colocar(); // pose A: x = 1
     await screen.findByText(/Estimación geométrica/);

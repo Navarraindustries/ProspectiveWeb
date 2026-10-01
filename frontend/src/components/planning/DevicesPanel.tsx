@@ -121,7 +121,14 @@ export function neckPlacement(m: MorphometryResult | null): { position: Position
  *  programado AL PULSAR, antes de esperar al servidor, y mientras dura nada se
  *  recoloca: un clip recolocado detrás del borrado quedaría en el informe sin
  *  verse en pantalla. */
-const clipReplace = { cancellers: new Set<() => void>(), clears: 0 };
+const clipReplace = {
+  cancellers: new Set<() => void>(),
+  // Lo que la pestaña de clips olvida cuando «Limpiar todos» termina bien: su
+  // tarjeta del plan describía clips que el servidor ya no tiene.
+  forgetters: new Set<() => void>(),
+  clears: 0,
+  clearSeq: 0,
+};
 
 function cancelPendingReplace() {
   for (const cancel of clipReplace.cancellers) cancel();
@@ -129,6 +136,10 @@ function cancelPendingReplace() {
 
 async function whileClearingClips<T>(clear: () => Promise<T>): Promise<T> {
   cancelPendingReplace();
+  // Cada limpieza cambia el número AL PULSAR. Una colocación que empezó antes y
+  // responde después lo encuentra cambiado y no pinta nada: «Limpiar todos»
+  // sigue disponible mientras se coloca, y lo que llegue tarde ya no es del plan.
+  clipReplace.clearSeq++;
   clipReplace.clears++;
   try {
     return await clear();
@@ -340,17 +351,18 @@ function ClipsTab() {
 
   /** Pide el mapa de calor para estas colocaciones. Nunca lanza: lo que falle se
    *  queda en la línea bajo la tarjeta, y el plan colocado sigue en pie. */
-  const requestField = async (placements: ClipPlacement[]) => {
+  const requestField = async (placements: ClipPlacement[], clearSeq = clipReplace.clearSeq) => {
     if (!sessionId || placements.length === 0) return;
     const seq = ++fieldSeq.current;
+    const stale = () => seq !== fieldSeq.current || clearSeq !== clipReplace.clearSeq;
     try {
       const field = await api.clipField(sessionId, { session_id: sessionId, placements });
-      if (seq !== fieldSeq.current) return;
+      if (stale()) return;
       setClipField(field);
       setFieldError(null);
       setFieldNote(null);
     } catch (err) {
-      if (seq !== fieldSeq.current) return;
+      if (stale()) return;
       // Sin campo para esta posición, mejor ninguno que el de la anterior.
       setClipField(null);
       if (err instanceof ApiError && err.status === 409) {
@@ -376,13 +388,19 @@ function ClipsTab() {
     const hadPlan = !!planRef.current;
     const key = poseKey(clips);
     lastRequestedKey.current = key;
+    // Si se limpia mientras esta colocación vuela, su respuesta ya no es del
+    // plan: no se pinta, no se pide su campo y no se encola nada detrás.
+    const clearSeq = clipReplace.clearSeq;
+    const cleared = () => clearSeq !== clipReplace.clearSeq;
     try {
       const res = await api.planClips({ session_id: sessionId, placements });
+      if (cleared()) return;
       lastPlacedKey.current = key;
       setPlan(res);
       setDeviceMesh("clips", res.clips_mesh_url || null);
-      await requestField(placements);
+      await requestField(placements, clearSeq);
     } catch (err) {
+      if (cleared()) return;
       // Lo pedido no llegó: lo vigente vuelve a ser lo último colocado, y pedir
       // otra vez esta misma pose tiene que poder recolocarla.
       lastRequestedKey.current = lastPlacedKey.current;
@@ -394,6 +412,7 @@ function ClipsTab() {
       placing.current = false;
       setBusy(false);
     }
+    if (cleared()) { pendingPlace.current = false; return; }
     if (pendingPlace.current && mounted.current) {
       pendingPlace.current = false;
       if (canReplace() && poseKey(latestPlaced.current) !== lastRequestedKey.current) {
@@ -435,8 +454,22 @@ function ClipsTab() {
   useEffect(() => {
     mounted.current = true;
     const cancel = () => { cancelFieldTimer(); pendingPlace.current = false; };
+    // La lista se queda (es lo que mandará el próximo «Colocar»); el plan no.
+    const forget = () => {
+      lastPlacedKey.current = null;
+      lastRequestedKey.current = null;
+      setFieldError(null);
+      setFieldNote(null);
+      setPlan(null);
+    };
     clipReplace.cancellers.add(cancel);
-    return () => { mounted.current = false; cancel(); clipReplace.cancellers.delete(cancel); };
+    clipReplace.forgetters.add(forget);
+    return () => {
+      mounted.current = false;
+      cancel();
+      clipReplace.cancellers.delete(cancel);
+      clipReplace.forgetters.delete(forget);
+    };
   }, []);
 
   return (
@@ -1481,6 +1514,7 @@ function PlacedDevicesBar() {
       // Como «Limpiar clips»: nada de recolocar un clip detrás del borrado.
       await whileClearingClips(() => api.clearDevices(sessionId));
       clearDeviceMeshes();
+      for (const forget of clipReplace.forgetters) forget();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron limpiar los dispositivos");
     } finally {

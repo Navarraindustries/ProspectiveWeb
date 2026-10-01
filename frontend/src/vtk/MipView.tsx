@@ -27,7 +27,7 @@ import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
 import { usePlanning } from "../store/planning";
-import { cameraHeading, effectiveDirection, standardViewInVolume, type Orientation, type Plane } from "./geometry";
+import { cameraHeading, effectiveDirection, sliceCamera, type Orientation, type Plane } from "./geometry";
 import { HudFrame } from "./hud/HudFrame";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { HudLadder } from "./hud/HudLadder";
@@ -47,12 +47,13 @@ const PLANE_OPTIONS = [
   { key: "sagital", label: "SAG", title: "Acumular en el eje sagital" },
 ];
 
-/** Cámara en la vista estándar del eje, centrada en el volumen: al cambiar de
- *  eje se mira de frente lo que se acumula. */
-function cameraToPlane(grw: vtkGenericRenderWindow, image: vtkImageData, plane: Plane, orientation: Orientation) {
+/** Cámara de frente al eje de vóxel que se acumula, centrada en el volumen.
+ *  El recorte sigue los ejes de vóxel, así que la cámara también: en un
+ *  volumen no alineado con LPS la vista anatómica miraría el plano de canto. */
+function cameraToPlane(grw: vtkGenericRenderWindow, image: vtkImageData, plane: Plane) {
   const renderer = grw.getRenderer();
   const cam = renderer.getActiveCamera();
-  const { direction, viewUp } = standardViewInVolume(plane, orientation);
+  const { direction, viewUp } = sliceCamera(plane);
   const b = image.getBounds();
   const c = [(b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2];
   cam.setFocalPoint(c[0], c[1], c[2]);
@@ -122,7 +123,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     actor.setMapper(mapper);
     renderer.addVolume(actor);
     const cam = renderer.getActiveCamera();
-    cameraToPlane(grw, image, planeRef.current, orientationRef.current);
+    cameraToPlane(grw, image, planeRef.current);
     // Rotar con el botón izquierdo, desplazar con el central o con Shift, zoom
     // solo con Ctrl+rueda: la rueda sola queda libre para avanzar el corte,
     // como en SliceView. vtk elige el manipulador por modificadores exactos,
@@ -161,7 +162,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // repite lo que ya hizo la escena, sin efecto visible.
   useEffect(() => {
     const s = scene.current; if (!s) return;
-    cameraToPlane(s.grw, image, plane, orientationRef.current);
+    cameraToPlane(s.grw, image, plane);
     s.grw.getRenderWindow().render();
   // Solo el eje: la imagen nueva ya coloca la cámara al rehacer la escena, y
   // repetirlo aquí desharía el giro del profesional sin que cambiara el eje.

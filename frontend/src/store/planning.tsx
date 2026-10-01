@@ -409,6 +409,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setSeries(null);
     setOrientationManual(null);
+    // El eje del MIP se eligió para el estudio anterior: el nuevo vuelve a
+    // seguir a la vista principal.
+    setMipPlane(null);
     resetDownstream();
   };
 

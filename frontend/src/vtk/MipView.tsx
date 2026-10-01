@@ -155,6 +155,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     const s = scene.current; if (!s) return;
     cameraToPlane(s.grw, image, plane, orientationRef.current);
     s.grw.getRenderWindow().render();
+  // Solo el eje: la imagen nueva ya coloca la cámara al rehacer la escena, y
+  // repetirlo aquí desharía el giro del profesional sin que cambiara el eje.
   }, [plane]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // La rueda es nuestra: en fase de captura sobre el contenedor (donde vtk
@@ -253,10 +255,20 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             <HudReadout at="tl" lines={["ORIENTACIÓN ASUMIDA"]} tone="warn" />
           </div>
         )}
+        {/* El eje va arriba a la izquierda, como AX · COR · SAG en el HUD del
+            3D: en la fila de abajo, junto a modo y CENTRAR, tapaba la lectura
+            de la izquierda en ventanas de 1280 px. */}
+        {!compact && (
+          <div style={{ position: "absolute", top: 52, left: 14, pointerEvents: "auto" }}>
+            <HudToggleGroup options={PLANE_OPTIONS} value={plane} onChange={(k) => onPlaneChange(k as Plane)} />
+          </div>
+        )}
         <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact })} />
         {!compact && (
-          <div style={{ position: "absolute", bottom: 22, right: 14, display: "flex", gap: 14, alignItems: "center", pointerEvents: "auto" }}>
-            <HudToggleGroup options={PLANE_OPTIONS} value={plane} onChange={(k) => onPlaneChange(k as Plane)} />
+          // right: 58 deja libre la escalera de cortes (44 px) para CENTRAR.
+          // bottom: 58 la sube por encima de las dos líneas de la lectura de
+          // la izquierda: a la misma altura se pisaban en paneles de ~530 px.
+          <div style={{ position: "absolute", bottom: 58, right: 58, display: "flex", gap: 14, alignItems: "center", pointerEvents: "auto" }}>
             <HudToggleGroup options={[{ key: "acumulado", label: "ACUMULADO" }, { key: "lamina", label: "LÁMINA" }]} value={mipMode} onChange={(k) => setMipMode(k as "acumulado" | "lamina")} />
             {mipMode === "acumulado"
               ? <HudToggleGroup options={[{ key: "rev", label: reverse ? "DESDE EL FINAL" : "DESDE EL INICIO" }]} value="rev" onChange={() => setReverse(!reverse)} />

@@ -150,7 +150,7 @@ describe("DevicesPanel · campo del clip", () => {
     await waitFor(() => expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull());
   });
 
-  it("una colocación que responde después de «Limpiar todos» no pinta nada ni pide más", async () => {
+  it("«Limpiar todos» con una colocación en vuelo espera al plan antes del DELETE y no pinta nada", async () => {
     await colocar();
     await screen.findByText(/Estimación geométrica/);
     let release: () => void = () => {};
@@ -161,11 +161,15 @@ describe("DevicesPanel · campo del clip", () => {
     fireEvent.change(x, { target: { value: "5" } });
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
-    // Con la segunda colocación en vuelo, «Limpiar todos» sigue disponible.
+    // Con la segunda colocación en vuelo, «Limpiar todos» sigue disponible…
     fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    // …pero el DELETE no sale mientras el plan no haya respondido: el servidor
+    // atendería los dos a la vez y podría volver a apuntar el clip tras borrarlo.
+    await act(async () => { vi.advanceTimersByTime(400); });
+    expect(api.clearDevices).not.toHaveBeenCalled();
+    await act(async () => { release(); });
     await waitFor(() => expect(api.clearDevices).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByText(/En el plan/)).toBeNull());
-    await act(async () => { release(); });
     act(() => { vi.advanceTimersByTime(400); });
     // Nada vuelve: ni la tarjeta del plan, ni la barra (malla de clips), ni el
     // campo, ni otra petición.
@@ -177,6 +181,23 @@ describe("DevicesPanel · campo del clip", () => {
     const order = (fn: unknown) => (fn as { mock: { invocationCallOrder: number[] } }).mock.invocationCallOrder.at(-1) ?? 0;
     expect(order(api.clearDevices)).toBeGreaterThan(order(api.planClips));
     expect(order(api.clearDevices)).toBeGreaterThan(order(api.clipField));
+  });
+
+  it("«Limpiar todos» sigue limpiando aunque el plan en vuelo falle", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    let fail: () => void = () => {};
+    vi.mocked(api.planClips).mockImplementationOnce(() => new Promise((_, rej) => { fail = () => rej(new Error("caído")); }));
+    const [x] = screen.getAllByRole("spinbutton");
+    fireEvent.change(x, { target: { value: "5" } });
+    act(() => { vi.advanceTimersByTime(260); });
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    expect(api.clearDevices).not.toHaveBeenCalled();
+    await act(async () => { fail(); });
+    await waitFor(() => expect(api.clearDevices).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByText(/En el plan/)).toBeNull());
+    expect(screen.queryByText(/caído/)).toBeNull();
   });
 
   it("volver a la pose anterior mientras otra está en vuelo la recoloca al terminar", async () => {

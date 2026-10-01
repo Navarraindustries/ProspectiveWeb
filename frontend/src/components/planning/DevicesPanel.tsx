@@ -128,6 +128,12 @@ const clipReplace = {
   forgetters: new Set<() => void>(),
   clears: 0,
   clearSeq: 0,
+  // Las peticiones de plan en vuelo. La limpieza las espera antes de mandar el
+  // DELETE: el servidor atiende las dos en su pool de hilos y, si el plan llegaba
+  // después del borrado, volvía a apuntar el clip; el informe lo listaba con el
+  // visor vacío. clearSeq descarta la respuesta en el cliente, esto ordena el
+  // servidor.
+  inflight: new Set<Promise<unknown>>(),
 };
 
 function cancelPendingReplace() {
@@ -142,6 +148,8 @@ async function whileClearingClips<T>(clear: () => Promise<T>): Promise<T> {
   clipReplace.clearSeq++;
   clipReplace.clears++;
   try {
+    // Sin nada en vuelo el borrado sale en el mismo tick, como antes.
+    if (clipReplace.inflight.size > 0) await Promise.allSettled([...clipReplace.inflight]);
     return await clear();
   } finally {
     clipReplace.clears--;
@@ -393,7 +401,14 @@ function ClipsTab() {
     const clearSeq = clipReplace.clearSeq;
     const cleared = () => clearSeq !== clipReplace.clearSeq;
     try {
-      const res = await api.planClips({ session_id: sessionId, placements });
+      const request = api.planClips({ session_id: sessionId, placements });
+      clipReplace.inflight.add(request);
+      let res: Awaited<typeof request>;
+      try {
+        res = await request;
+      } finally {
+        clipReplace.inflight.delete(request);
+      }
       if (cleared()) return;
       lastPlacedKey.current = key;
       setPlan(res);

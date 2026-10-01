@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { geometryKey, sceneKey } from "./sceneKeys";
+import type { PlaneOutline } from "./planeOutlines";
 import { markerRadiusMm, RULER_BEAD_RATIO, RULER_TUBE_RATIO } from "./markerSize";
 
 import "@kitware/vtk.js/Rendering/Profiles/Geometry";
@@ -13,6 +14,7 @@ import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreen
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
+import vtkPolyData from "@kitware/vtk.js/Common/DataModel/PolyData";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 import vtkLight from "@kitware/vtk.js/Rendering/Core/Light";
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
@@ -58,6 +60,9 @@ export interface MeshMarker {
   /** Multiplier on the shared marker radius. Lets one marker in a set stand out
    *  (a selected perforator) without breaking the scale everything else uses. */
   scale?: number;
+  /** Radio absoluto en mm: sustituye a radio compartido × `scale`. Para el punto
+   *  del corte, que debe verse igual aunque cambie el tamaño de la escena. */
+  radiusMm?: number;
 }
 
 export interface MeshLine {
@@ -116,6 +121,7 @@ function outlineOpacity(layerOpacity: number): number {
 export function MeshView({
   layers,
   markers = [],
+  planes = [],
   lines = [],
   cropPreview = null,
   boxPreview = null,
@@ -135,6 +141,8 @@ export function MeshView({
   layers: MeshLayer[];
   markers?: MeshMarker[];
   lines?: MeshLine[];
+  /** Los planos de corte como rectángulos sin iluminación y no seleccionables. */
+  planes?: PlaneOutline[];
   /** Translucent sphere/box preview of the crop ROI (null to hide). */
   cropPreview?: CropPreview | null;
   /** Caja de recorte: los seis límites, en mm de mundo. Recorta EN VIVO por sus
@@ -181,6 +189,7 @@ export function MeshView({
   // Set once the geometry is on screen; markers re-render at the new size.
   const [sceneDiagonal, setSceneDiagonal] = useState(0);
   const markerActors = useRef<vtkActor[]>([]);
+  const planeActors = useRef<vtkActor[]>([]);
   // Actors that carry a layer id, so the rehearsal can move them by name.
   const namedActors = useRef<Map<string, vtkActor>>(new Map());
   // El contorno de cada capa que lo pide, por id (o URL), para que siga los
@@ -234,7 +243,8 @@ export function MeshView({
   const key = sceneKey(layers, focusUrl);
   const geoKey = geometryKey(layers);
   const appearanceKey = layers.map((l) => `${l.id ?? l.url}|${l.color.join(",")}|${l.opacity ?? 1}`).join(";");
-  const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}`).join(";");
+  const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}|${m.radiusMm ?? ""}`).join(";");
+  const planeKey = planes.map((p) => p.corners.flat().join(",") + "|" + p.color.join(",")).join(";");
   const lineKey = lines
     .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}`)
     .join(";");
@@ -532,6 +542,7 @@ export function MeshView({
       namedActors.current.clear();
       outlineActors.current.clear();
       markerActors.current = [];
+      planeActors.current = [];
       const h = handles.current;
       if (h) {
         // Remember the camera so a preview refresh can restore the viewpoint.
@@ -668,7 +679,7 @@ export function MeshView({
     const rMarker = markerRadiusMm(referenceDiameterMm, sceneDiagonal);
 
     for (const m of markers) {
-      const sphere = vtkSphereSource.newInstance({ radius: rMarker * (m.scale ?? 1), thetaResolution: 16, phiResolution: 16 });
+      const sphere = vtkSphereSource.newInstance({ radius: m.radiusMm ?? rMarker * (m.scale ?? 1), thetaResolution: 16, phiResolution: 16 });
       sphere.setCenter(m.pos[0], m.pos[1], m.pos[2]);
       const mapper = vtkMapper.newInstance();
       mapper.setInputConnection(sphere.getOutputPort());
@@ -716,6 +727,43 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, markerKey, lineKey, sceneDiagonal, referenceDiameterMm]);
+
+  // ── Planos de corte: rectángulos sin iluminación, fuera del encuadre ────── #
+  //
+  // Se añaden después de encuadrar la cámara (igual que los marcadores) y no
+  // entran en sceneDiagonal, así que dibujarlos o quitarlos no mueve la vista.
+  // No se pueden seleccionar: el clic debe llegar a la malla que hay detrás.
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    planeActors.current.forEach((a) => h.renderer.removeActor(a));
+    planeActors.current = [];
+    for (const p of planes) {
+      const pts = new Float32Array(p.corners.flat());
+      const mk = (cells: "lines" | "polys", data: number[], opacity: number) => {
+        const pd = vtkPolyData.newInstance();
+        pd.getPoints().setData(pts, 3);
+        if (cells === "lines") pd.getLines().setData(new Uint32Array(data));
+        else pd.getPolys().setData(new Uint32Array(data));
+        const mapper = vtkMapper.newInstance();
+        mapper.setInputData(pd);
+        const actor = vtkActor.newInstance();
+        actor.setMapper(mapper);
+        const prop = actor.getProperty();
+        prop.setColor(...p.color);
+        prop.setOpacity(opacity);
+        prop.setLighting(false);
+        if (cells === "lines") prop.setLineWidth(1);
+        actor.setPickable(false);
+        h.renderer.addActor(actor);
+        planeActors.current.push(actor);
+      };
+      mk("polys", [4, 0, 1, 2, 3], 0.06);
+      mk("lines", [5, 0, 1, 2, 3, 0], 0.85);
+    }
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, planeKey]);
 
   // ── Previa del corte por plano: se recorta el render, no se dibuja nada ─── #
   //

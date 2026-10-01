@@ -9,6 +9,7 @@
 import { useCallback, useState } from "react";
 
 export const PREF_DECOR_HIDDEN = "viewer.hudDecorHidden";
+export const PREF_PLANES_HIDDEN = "viewer.planesHidden";
 
 function leer(key: string, porDefecto: boolean): boolean {
   try {

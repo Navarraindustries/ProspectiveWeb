@@ -26,7 +26,8 @@ import { api } from "../api/client";
 import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
-import { PREF_DECOR_HIDDEN, useStoredFlag } from "./viewerPrefs";
+import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, useStoredFlag } from "./viewerPrefs";
+import { planeOutlines } from "./planeOutlines";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
@@ -67,6 +68,8 @@ const STEP_SCENE: Record<string, string> = {
   report: "Escena final",
 };
 
+/** --hud (#8CFF9E) en 0–1: el punto compartido de los cortes, dibujado en el 3D. */
+const HUD_RGB: Vector3 = [0.549, 1, 0.62];
 const VESSEL_COLOR: Vector3 = [0.65, 0.7, 0.76];
 const DOME_COLOR: Vector3 = [0.32, 0.55, 0.75];
 /* El saco cerrado, en verde para no confundirlo con el localizador azul del
@@ -195,6 +198,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const [decorHidden, setDecorHidden] = useStoredFlag(PREF_DECOR_HIDDEN);
   const decorHiddenRef = useRef(decorHidden);
   decorHiddenRef.current = decorHidden;
+  // Los planos de corte en el 3D también son decoración de la vista: se quitan
+  // con PLANOS o con REGLAS, y es una preferencia de quien mira, no del caso.
+  const [planesHidden, setPlanesHidden] = useStoredFlag(PREF_PLANES_HIDDEN);
+  const planesHiddenRef = useRef(planesHidden);
+  planesHiddenRef.current = planesHidden;
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
   const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[] } | null>(() => {
@@ -408,6 +416,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const estadoVisor = useCallback((root: HTMLElement): Record<string, unknown> => ({
     layout: layoutRef.current,
     hud_decor_hidden: decorHiddenRef.current,
+    planes_hidden: planesHiddenRef.current,
     heading: readHeading(root) ?? null,
     level_note: levelNote ?? null,
     view_mode: viewMode,
@@ -610,6 +619,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return out;
   }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField]);
 
+  const showPlanes = !planesHidden && !decorHidden && !!meta;
+  const planes = useMemo(() => (showPlanes ? planeOutlines(mprVoxel, meta) : []), [showPlanes, meta, mprVoxel]);
+
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
     if (clSource) out.push({ pos: clSource, color: SOURCE_COLOR });
@@ -623,6 +635,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (trajEntry) out.push({ pos: trajEntry, color: TRAJ_ENTRY_COLOR });
     if (trajTarget) out.push({ pos: trajTarget, color: TRAJ_TARGET_COLOR });
     if (overlay) out.push(...overlay.markers);
+    // El punto compartido de los cortes, con radio fijo en mm (no depende de la escena).
+    if (showPlanes && meta) out.push({ pos: voxelToMm(mprVoxel, meta), color: HUD_RGB, radiusMm: 0.6 });
     // Where each perforator actually is — but only the ones switched on in the
     // list. The panel gave distances with nothing to say WHICH vessel a row
     // meant; the marker answers that, one at a time, on request.
@@ -635,7 +649,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, trajEntry, trajTarget, overlay, perforators, visiblePerforators, showPlanes, meta, mprVoxel]);
 
   // Legend bands built from the radii actually used, so they cannot drift from
   // the computation the way the hard-coded ones had.
@@ -990,7 +1004,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     } else if (isMesh) {
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
-          <MeshView layers={layers} markers={markers} lines={lines} cropPreview={cropPreview}
+          <MeshView layers={layers} markers={markers} planes={planes} lines={lines} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices"}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
@@ -1173,6 +1187,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
                   onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />
               </div>
               <div style={{ position: "absolute", top: 2, right: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
+                <HudToggleGroup
+                  options={[{ key: "planes", label: planesHidden ? "PLANOS ○" : "PLANOS ●", title: "Mostrar/ocultar los planos de corte en el 3D" }]}
+                  value={planesHidden ? "" : "planes"} onChange={() => setPlanesHidden(!planesHidden)} />
                 <HudToggleGroup
                   options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
                               title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}

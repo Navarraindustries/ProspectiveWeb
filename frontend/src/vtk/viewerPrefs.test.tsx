@@ -1,8 +1,8 @@
-/* Ocultar la franja y la decoración: preferencias que se recuerdan, y una
+/* Ocultar la decoración: preferencias que se recuerdan, y una
    decoración que se puede quitar sin llevarse la orientación ni los avisos. */
 import { act, render, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PREF_STRIP_HIDDEN, useStoredFlag } from "./viewerPrefs";
+import { PREF_DECOR_HIDDEN, useStoredFlag } from "./viewerPrefs";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReticle } from "./hud/HudReticle";
@@ -13,19 +13,19 @@ beforeEach(() => window.localStorage.clear());
 
 describe("preferencias de vista", () => {
   it("se recuerdan entre sesiones", () => {
-    const a = renderHook(() => useStoredFlag(PREF_STRIP_HIDDEN));
+    const a = renderHook(() => useStoredFlag(PREF_DECOR_HIDDEN));
     expect(a.result.current[0]).toBe(false);
     act(() => a.result.current[1](true));
     expect(a.result.current[0]).toBe(true);
     a.unmount();
-    const b = renderHook(() => useStoredFlag(PREF_STRIP_HIDDEN));
+    const b = renderHook(() => useStoredFlag(PREF_DECOR_HIDDEN));
     expect(b.result.current[0]).toBe(true);
   });
 
   it("si el navegador no deja guardar, la vista sigue funcionando", () => {
     const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("privado"); });
     const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("privado"); });
-    const h = renderHook(() => useStoredFlag(PREF_STRIP_HIDDEN));
+    const h = renderHook(() => useStoredFlag(PREF_DECOR_HIDDEN));
     expect(h.result.current[0]).toBe(false);
     act(() => h.result.current[1](true));
     expect(h.result.current[0]).toBe(true);

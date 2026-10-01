@@ -109,5 +109,3 @@ export function saveLayout(l: ViewerLayout): void {
   try { localStorage.setItem(LAYOUT_KEY_V2, JSON.stringify(l)); } catch { /* almacenamiento bloqueado: queda en memoria */ }
 }
 
-/** PUENTE TEMPORAL hasta que ViewerGrid sustituya a la franja (Task 5). */
-export const swapPane = promote;

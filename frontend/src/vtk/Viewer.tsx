@@ -2,9 +2,10 @@
    - Con malla segmentada: render 3D real (.vtp) con vtk.js.
    - Sin malla pero con volumen cargado: vista previa DICOM (MPR axial navegable).
    - Sin nada: placeholder honesto.
-   Distribución 1+4: un panel principal y una franja de cuatro celdas (escena,
-   axial, coronal, sagital, MIP); doble clic en una celda la sube al principal.
-   Todas las celdas leen el mismo volumen del navegador. */
+   Distribución en rejilla (ViewerGrid): una vista principal y cuatro a la
+   derecha o abajo, o la principal sola; las vistas se arrastran para
+   intercambiarse y doble clic sube una a principal. Las cinco celdas (escena,
+   axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { usePlanning, type PickMode } from "../store/planning";
@@ -16,12 +17,14 @@ import { levelNoteFor } from "./levelNote";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
 import { cameraHeading, effectiveDirection, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
-import { swapPane, type PaneId, type ViewerLayout } from "./layout";
+import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
+import { ViewerGrid, type PaneContext } from "./ViewerGrid";
+import { presetForKey } from "./layoutShortcuts";
 import { api } from "../api/client";
 import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
-import { PREF_DECOR_HIDDEN, PREF_STRIP_HIDDEN, useStoredFlag } from "./viewerPrefs";
+import { PREF_DECOR_HIDDEN, useStoredFlag } from "./viewerPrefs";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
@@ -179,13 +182,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
     imagingStudyId, setCaptureCase, setViewerRecording,
   } = usePlanning();
 
-  // Ver solo la vista principal, y la vista sin su decoración: preferencias
-  // del profesional, en su navegador. Las refs las leen la captura y la
-  // grabación, que se publican una vez y no pueden depender del render.
-  const [stripHidden, setStripHidden] = useStoredFlag(PREF_STRIP_HIDDEN);
+  // La vista sin su decoración: preferencia del profesional, en su navegador
+  // (ver solo la principal es ahora el preset «sola» de la distribución). La
+  // ref la leen la captura y la grabación, que se publican una vez y no
+  // pueden depender del render.
   const [decorHidden, setDecorHidden] = useStoredFlag(PREF_DECOR_HIDDEN);
-  const stripHiddenRef = useRef(stripHidden);
-  stripHiddenRef.current = stripHidden;
   const decorHiddenRef = useRef(decorHidden);
   decorHiddenRef.current = decorHidden;
 
@@ -268,8 +269,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       ? candidate.dome_mesh_url
       : undefined;
   const { meta, forSession: metaFor } = useVolumeMeta(sessionId, volumeVersion);
-  // Un solo volumen en el navegador para las cinco celdas: la franja y el
-  // principal leen el mismo vtkImageData, así que no se descarga dos veces ni
+  // Un solo volumen en el navegador para las cinco celdas: las laterales y
+  // la principal leen el mismo vtkImageData, así que no se descarga dos veces ni
   // pueden enseñar niveles distintos. Sin WebGL2 ni se pide.
   const clientVol = useClientVolume(hasWebGL2() ? sessionId : null, meta, mprVoxel.z);
   const legacy = !hasWebGL2() || !clientVol.image;
@@ -307,7 +308,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     cameraFeed.current.listener?.(cam);
   }, []);
   const levelNote = levelNoteFor(clientVol.level, clientVol.stride, clientVol.progress, clientVol.error);
-  // En una celda de la franja (~¼ del ancho) la nota larga se monta sobre el
+  // En una celda compacta (estrecha) la nota larga se monta sobre el
   // rótulo del plano; allí basta con la forma corta.
   const levelNoteShort = levelNoteFor(clientVol.level, clientVol.stride, clientVol.progress, clientVol.error, true);
   const [nz, ny, nx] = meta?.shape ?? [1, 1, 1];
@@ -336,8 +337,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const paneCaptures = useRef<Map<PaneId, CaptureFn | null>>(new Map());
   const regPane = (id: PaneId) => (fn: CaptureFn | null) => { paneCaptures.current.set(id, fn); };
   const viewerRef = useRef<HTMLDivElement>(null);
-  const mainAreaRef = useRef<HTMLDivElement>(null);
-  const stripCells = useRef<(HTMLDivElement | null)[]>([]);
+  // El nodo de cada celda de la rejilla, por vista: la captura compuesta lee
+  // de aquí dónde está cada una en pantalla.
+  const cellEls = useRef<Partial<Record<PaneId, HTMLDivElement | null>>>({});
+  const registerCell = useCallback((id: PaneId, el: HTMLDivElement | null) => { cellEls.current[id] = el; }, []);
   // Cada espera devuelve true cuando acepta la captura y deja de esperar.
   const captureWaiters = useRef<((fn: CaptureFn) => boolean)[]>([]);
   const registerMeshCapture = useCallback((fn: CaptureFn | null) => {
@@ -356,7 +359,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return captureWithLayout({
       sceneIsMain: () => layoutRef.current.main === "scene",
       current: () => meshCapture.current,
-      promote: () => setLayoutRef.current(swapPane(before, "scene")),
+      promote: () => setLayoutRef.current(promote(before, "scene")),
       restore: () => setLayoutRef.current(before),
       waitForCapture: () => new Promise<CaptureFn | null>((resolve) => {
         // Una malla grande tarda en volver a cargarse; si ni así llega, el
@@ -403,7 +406,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
   levelNoteRef.current = levelNote;
   const estadoVisor = useCallback((root: HTMLElement): Record<string, unknown> => ({
     layout: layoutRef.current,
-    strip_hidden: stripHiddenRef.current,
     hud_decor_hidden: decorHiddenRef.current,
     heading: readHeading(root) ?? null,
     level_note: levelNote ?? null,
@@ -418,11 +420,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   // Lo que se ve AHORA: cada panel visible con su sitio, su HUD y su captura.
   // Lo usan la captura (una vez) y la grabación (en cada fotograma), así que
-  // una imagen y un vídeo del mismo visor no pueden diferir. Los paneles de la
-  // franja solo entran si la franja está a la vista.
+  // una imagen y un vídeo del mismo visor no pueden diferir. Las vistas
+  // laterales solo entran si el preset las enseña (en «sola» siguen montadas,
+  // pero ocultas).
   const leerVisor = useCallback(() => {
     const root = viewerRef.current;
-    const mainEl = mainAreaRef.current;
+    const mainEl = cellEls.current[layoutRef.current.main];
     if (!root || !mainEl) return null;
     const base = root.getBoundingClientRect();
     const rel = (el: Element) => {
@@ -437,9 +440,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const panes: PaneShot[] = [];
     const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
     anotar(layoutRef.current.main, mainEl);
-    if (!stripHiddenRef.current) {
-      layoutRef.current.side.forEach((id, i) => {
-        const el = stripCells.current[i];
+    if (layoutRef.current.preset !== "sola") {
+      layoutRef.current.side.forEach((id) => {
+        const el = cellEls.current[id];
         if (el) anotar(id, el);
       });
     }
@@ -497,7 +500,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   // Lo mismo para la grabación, por la misma razón: una sola publicación de
   // algo estable que lee por refs. En cada fotograma se relee el visor —si a
-  // mitad se oculta la franja o se cambia de panel, el vídeo lo refleja— y
+  // mitad se cambia de preset o se intercambian vistas, el vídeo lo refleja— y
   // cada panel se copia con `grab`, no con la captura en PNG.
   const leerVisorRef = useRef(leerVisor);
   leerVisorRef.current = leerVisor;
@@ -738,10 +741,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm],
   );
 
-  // Un marcado se hace sobre la malla: si la escena está en la franja, sube al
-  // principal, porque en una celda de ~235 px ni se apunta ni se lee el aviso.
+  // Un marcado se hace sobre la malla: si la escena es una vista lateral, sube
+  // a principal, porque en una celda pequeña ni se apunta ni se lee el aviso.
   useEffect(() => {
-    if (pickMode !== null && viewerLayout.main !== "scene") setViewerLayout(swapPane(viewerLayout, "scene"));
+    if (pickMode !== null && viewerLayout.main !== "scene") setViewerLayout(promote(viewerLayout, "scene"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickMode]);
 
@@ -817,7 +820,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   useEffect(() => () => { if (hintTimer.current) clearTimeout(hintTimer.current); }, []);
 
   // Los preajustes de ventana van junto a la lectura W/L del corte que ocupa
-  // el panel principal, nunca en una celda de la franja: allí no hay lectura
+  // el panel principal, nunca en una vista lateral: allí no hay lectura
   // W/L y el desplegable tapaba la etiqueta inferior. Qué preajustes hay lo
   // decide Task 14.
   const wlHost: PaneId | null = !sessionId || !meta || !mainIsSlice ? null : viewerLayout.main;
@@ -851,17 +854,20 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   // `captureAs`: con qué nombre registra su captura. Casi siempre el propio
   // panel; pero sin malla la escena ES un corte axial, y registrándose como
-  // «axial» chocaba con el axial de la franja: la escena quedaba sin captura
+  // «axial» chocaba con el axial lateral: la escena quedaba sin captura
   // («SIN IMAGEN» en el principal) y, al desmontarse uno, el otro perdía la suya.
-  const renderPane = (id: PaneId, slot: "main" | "strip", captureAs: PaneId = id): ReactNode => {
-    const compact = slot === "strip";
+  // `ctx.compact` lo decide el ancho REAL de la celda (ViewerGrid), no si es la
+  // principal: una principal estrecha también necesita el HUD reducido.
+  const renderPane = (id: PaneId, ctx: PaneContext, captureAs: PaneId = id): ReactNode => {
+    const compact = ctx.compact;
+    const active = ctx.isMain;
     if (id === "scene") return renderScene(compact);
     if (id === "mip") {
       // El MIP necesita el volumen en el navegador (WebGL2 + vtkImageData);
       // sin él la celda dice por qué está vacía en lugar de quedarse negra.
       if (!meta || !clientVol.image) {
         return (
-          <HudFrame label="MIP" active={slot === "main"}>
+          <HudFrame label="MIP" active={active}>
             <HudReadout at="bl" lines={[meta && hasWebGL2() && !clientVol.error ? "CARGANDO…" : "SIN VOLUMEN"]} />
           </HudFrame>
         );
@@ -896,7 +902,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
           crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
           band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
-          active={slot === "main"} compact={compact} registerCapture={regPane(captureAs)} />
+          active={active} compact={compact} registerCapture={regPane(captureAs)} />
       </Suspense>
     );
   };
@@ -954,7 +960,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       );
       mode = segPreview ? "3D · MALLA GRUESA" : "3D";
     } else if (sceneIsSlice) {
-      body = renderPane("axial", compact ? "strip" : "main", "scene");
+      body = renderPane("axial", { compact, isMain: !compact }, "scene");
     } else {
       body = (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1075,41 +1081,64 @@ export function ViewerWorkspace({ step }: { step: string }) {
         <OrientationSheet open={orientationOpen} onClose={() => setOrientationOpen(false)} sessionId={sessionId}
           current={manualForSession} onApply={setOrientationManual} />
       )}
-      <div ref={mainAreaRef} style={{ flex: 1, position: "relative", background: "#000", minHeight: 0, overflow: "hidden" }}>
-        {renderPane(viewerLayout.main, "main")}
-        {wlHost === viewerLayout.main && wlSelect}
-        {/* Pista del panel principal: fuera de renderPane/renderScene porque
-            aplica igual a la escena 3D, el MIP o un corte. */}
-        {hint && <div key={hintSeq} className="hud-hint">{hint}</div>}
-        {/* Arriba del todo (top 2) para no pisar las lecturas `tr` de la celda,
-            que empiezan a 22 px; a 24 px del borde, fuera de la marca de esquina. */}
-        <div style={{ position: "absolute", top: 2, right: 24, zIndex: 6, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
-          {/* CORTES y REGLAS van con SINCRO: los tres dicen cómo se ve el
-              visor, no qué hay en él. Se recuerdan en el navegador. */}
-          <HudToggleGroup
-            options={[{ key: "strip", label: stripHidden ? "CORTES ○" : "CORTES ●",
-                        title: stripHidden ? "Mostrar los cortes axial, coronal, sagital y el MIP" : "Ocultar los cortes y dejar solo la vista principal" }]}
-            value={stripHidden ? "" : "strip"} onChange={() => setStripHidden(!stripHidden)} />
-          <HudToggleGroup
-            options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
-                        title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}
-            value={decorHidden ? "" : "decor"} onChange={() => setDecorHidden(!decorHidden)} />
-          <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
-            value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
-        </div>
+      {/* Las teclas 1/2/3 cambian la distribución mientras el foco está en el
+          visor; nunca desde un campo de texto (presetForKey). Workspace escucha
+          en `window` los dígitos para saltar de paso: sin parar la propagación
+          una misma pulsación cambiaría la distribución Y el paso. Fuera del
+          visor los dígitos siguen saltando de paso. */}
+      <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden" }}
+           tabIndex={0}
+           // Los lienzos de vtk.js y los cortes anulan la acción por defecto del
+           // puntero, y con ella el foco: sin esto, pinchar en el visor dejaba
+           // el foco donde estuviera (el botón de un paso) y «1» saltaba de
+           // paso en vez de cambiar la distribución. Si el foco ya está dentro
+           // (un desplegable, un corte con teclado) no se le quita.
+           onPointerDownCapture={(e) => {
+             const host = e.currentTarget;
+             if (!host.contains(document.activeElement)) host.focus({ preventScroll: true });
+           }}
+           onKeyDown={(e) => {
+             if (e.altKey || e.ctrlKey || e.metaKey) return;
+             const p = presetForKey(e.key, e.target);
+             if (p) { e.preventDefault(); e.stopPropagation(); setViewerLayout(setPreset(viewerLayout, p)); }
+           }}>
+        <ViewerGrid
+          layout={viewerLayout}
+          onLayoutChange={setViewerLayout}
+          registerCell={registerCell}
+          renderPane={(id, ctx) => renderPane(id, ctx)}
+          mainOverlay={
+            <>
+              {wlHost === viewerLayout.main && wlSelect}
+              {/* Pista de la principal: fuera de renderPane/renderScene porque
+                  aplica igual a la escena 3D, el MIP o un corte. */}
+              {hint && <div key={hintSeq} className="hud-hint">{hint}</div>}
+              {/* Arriba del todo (top 2) para no pisar las lecturas `tr` de la
+                  celda, que empiezan a 22 px; a 24 px del borde, fuera de la marca
+                  de esquina. Por encima del asa de arrastre de la celda (z 7): si
+                  no, el asa se tragaría los clics de estos conmutadores. */}
+              <div style={{ position: "absolute", top: 2, right: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
+                {/* DISTRIBUCIÓN, REGLAS y SINCRO dicen cómo se ve el visor, no
+                    qué hay en él. */}
+                <HudToggleGroup
+                  options={[
+                    { key: "derecha", label: "DERECHA", title: "3D grande y cuatro cortes en columna (tecla 2)" },
+                    { key: "abajo", label: "ABAJO", title: "3D grande y cuatro cortes en franja (tecla 3)" },
+                    { key: "sola", label: "SOLA", title: "Solo la vista principal (tecla 1)" },
+                  ]}
+                  value={viewerLayout.preset}
+                  onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />
+                <HudToggleGroup
+                  options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
+                              title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}
+                  value={decorHidden ? "" : "decor"} onChange={() => setDecorHidden(!decorHidden)} />
+                <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
+                  value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
+              </div>
+            </>
+          }
+        />
       </div>
-      {!stripHidden && (
-        <div className="mpr-strip" style={{ height: "clamp(160px, 26vh, 240px)", flexShrink: 0, display: "flex", gap: 1, background: "var(--hud-dim)" }}>
-          {viewerLayout.side.map((id, i) => (
-            <div key={id} ref={(el) => { stripCells.current[i] = el; }}
-                 style={{ flex: 1, position: "relative", minWidth: 0, background: "#000", overflow: "hidden" }}
-                 onDoubleClick={() => setViewerLayout(swapPane(viewerLayout, id))}
-                 title="Doble clic: maximizar">
-              {renderPane(id, "strip")}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

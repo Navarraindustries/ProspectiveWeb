@@ -1,13 +1,13 @@
 /* Preferencias de vista de cada profesional: se guardan en SU navegador.
 
-   Ocultar la franja de cortes u ocultar la decoración del HUD es una manera
-   de mirar, no un dato del caso: no viaja al servidor ni a otros usuarios.
+   Ocultar la decoración del HUD es una manera de mirar, no un dato del caso:
+   no viaja al servidor ni a otros usuarios. (Ver solo la vista principal es
+   ahora el preset «sola» de la distribución, en layout.ts.)
    El almacenamiento puede fallar (navegación privada, cuota); entonces se
    vuelve al valor por defecto y la vista sigue funcionando. */
 
 import { useCallback, useState } from "react";
 
-export const PREF_STRIP_HIDDEN = "viewer.stripHidden";
 export const PREF_DECOR_HIDDEN = "viewer.hudDecorHidden";
 
 function leer(key: string, porDefecto: boolean): boolean {

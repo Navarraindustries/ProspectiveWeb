@@ -23,6 +23,11 @@ describe("arrastre para intercambiar", () => {
     expect(endDrag(moveDrag(beginDrag("axial", 0, 0), 40, 0, "axial"))).toBeNull();
     expect(endDrag(moveDrag(beginDrag("axial", 0, 0), 40, 0, null))).toBeNull();
   });
+  it("sobre sí misma no se marca como destino", () => {
+    const s = moveDrag(beginDrag("axial", 0, 0), 40, 0, "axial");
+    expect(s.active).toBe(true);
+    expect(s.over).toBeNull();
+  });
   it("cancelar deja el estado vacío y soltar después no hace nada", () => {
     expect(cancelDrag()).toBeNull();
     expect(endDrag(null)).toBeNull();

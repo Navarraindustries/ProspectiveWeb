@@ -82,6 +82,13 @@ describe("persistencia", () => {
     expect(localStorage.getItem(STRIP_HIDDEN_KEY_V1)).toBeNull();
     expect(JSON.parse(localStorage.getItem(LAYOUT_KEY_V2)!)).toEqual(l);
   });
+  it("una v1 corrupta se descarta: se borran las claves viejas y se respeta la franja oculta", () => {
+    localStorage.setItem(LAYOUT_KEY_V1, "{no json");
+    localStorage.setItem(STRIP_HIDDEN_KEY_V1, "1");
+    expect(loadLayout()).toEqual({ ...DEFAULT_LAYOUT, preset: "sola" });
+    expect(localStorage.getItem(LAYOUT_KEY_V1)).toBeNull();
+    expect(localStorage.getItem(STRIP_HIDDEN_KEY_V1)).toBeNull();
+  });
   it("guarda y lee en la clave v2", () => {
     saveLayout(promote(DEFAULT_LAYOUT, "coronal"));
     expect(loadLayout()).toEqual(promote(DEFAULT_LAYOUT, "coronal"));

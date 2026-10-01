@@ -88,7 +88,12 @@ export function loadLayout(): ViewerLayout {
     }
     const v1 = localStorage.getItem(LAYOUT_KEY_V1);
     const stripHidden = localStorage.getItem(STRIP_HIDDEN_KEY_V1) === "1";
-    let migrated = v1 !== null ? migrateV1(JSON.parse(v1), stripHidden) : null;
+    // Una v1 corrupta se trata como ausente, en su propio try: si el error
+    // llegara al catch de fuera, las claves viejas no se borrarían nunca y la
+    // bandera de franja oculta se ignoraría en cada carga.
+    let rawV1: unknown = null;
+    if (v1 !== null) { try { rawV1 = JSON.parse(v1); } catch { rawV1 = null; } }
+    let migrated = migrateV1(rawV1, stripHidden);
     // Con la franja oculta y sin distribución guardada, la intención del usuario
     // (ver solo la principal) se conserva sobre el defecto.
     if (!migrated && stripHidden) migrated = { ...DEFAULT_LAYOUT, preset: "sola" };

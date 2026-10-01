@@ -2185,7 +2185,7 @@ never remounted, so the 3D camera, slice positions and window/level survive
 every swap. The splitter between the main view and the others sets the share
 of the main view (50–85 %); a double click restores the preset's default. In a
 portrait window «DERECHA» is laid out as «ABAJO», and cells too small for the
-full HUD (under 420 × 260 px) show a compact one. Steps that pick on the model
+full HUD (narrower than 420 px or shorter than 260 px) show a compact one. Steps that pick on the model
 (neck, dome, centreline, crop centre) bring the 3D to main by themselves. The
 layout is remembered per browser; the older «CORTES» setting is migrated once.
 

@@ -144,7 +144,8 @@ interface PlanningState {
    *  Saving is a manual action, so without this a click on the logo threw away
    *  an afternoon's analysis with no warning at all. */
   dirty: boolean;
-  /** Distribución del visor: panel principal + franja de cuatro. */
+  /** Distribución del visor: la vista principal y las otras cuatro (en columna,
+   *  en franja o ocultas), y qué vista ocupa cada sitio. */
   viewerLayout: ViewerLayout;
   setViewerLayout: (l: ViewerLayout) => void;
   /** Punto (mm de mundo) en el que se centran todas las vistas cuando

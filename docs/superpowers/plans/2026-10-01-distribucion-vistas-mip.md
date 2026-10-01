@@ -1,6 +1,6 @@
 # Distribución configurable de las vistas y MIP interactivo — plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que las cinco vistas del visor se vean grandes y siempre visibles en una rejilla configurable (presets, separador arrastrable, intercambio arrastrando) que se recuerda por usuario, y que el MIP responda a los mismos gestos que las vistas de cortes y se vea construirse corte a corte desde él mismo.
 

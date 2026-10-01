@@ -409,17 +409,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
     orientation_known: effectiveDirection(orientation).known,
   }), [levelNote, viewMode, selectedCandidate, candidates, morphometry, mprWl, orientation]);
 
-  // ¿Visor vertical? Lo necesita `gridFor` para saber qué celdas se ven, con
-  // la misma regla que ViewerGrid (alto > ancho). En una ref: la lee la
-  // grabación en cada fotograma y no debe re-renderizar el visor.
-  const portraitRef = useRef(false);
-  useEffect(() => {
-    const el = viewerRef.current; if (!el) return;
-    const ro = new ResizeObserver(([e]) => { if (e) portraitRef.current = e.contentRect.height > e.contentRect.width; });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   // Lo que se ve AHORA: cada panel visible con su sitio, su HUD y su captura.
   // Lo usan la captura (una vez) y la grabación (en cada fotograma), así que
   // una imagen y un vídeo del mismo visor no pueden diferir. Se recorre la
@@ -441,7 +430,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       : paneCaptures.current.get(id) ?? null);
     const panes: PaneShot[] = [];
     const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
-    const spec = gridFor(layout, portraitRef.current);
+    // Qué celdas se ven no depende de la orientación del visor (vertical solo
+    // cambia DERECHA por ABAJO, y ambas muestran las cinco): basta `false`.
+    const spec = gridFor(layout, false);
     for (const id of [layout.main, ...layout.side]) {
       const el = cellEls.current[id];
       if (el && spec.visible[id]) anotar(id, el);
@@ -1114,21 +1105,27 @@ export function ViewerWorkspace({ step }: { step: string }) {
               {/* Pista de la principal: fuera de renderPane/renderScene porque
                   aplica igual a la escena 3D, el MIP o un corte. */}
               {hint && <div key={hintSeq} className="hud-hint">{hint}</div>}
-              {/* Arriba del todo (top 2) para no pisar las lecturas `tr` de la
-                  celda, que empiezan a 22 px; a 24 px del borde, fuera de la marca
-                  de esquina. Por encima del asa de arrastre de la celda (z 7): si
-                  no, el asa se tragaría los clics de estos conmutadores. */}
-              <div style={{ position: "absolute", top: 2, right: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
+              {/* Arriba del todo (top 2) para no pisar las lecturas de las
+                  esquinas de la celda, que empiezan a 22 px; a 24 px del borde,
+                  fuera de la marca de esquina. Partidos en dos grupos, a la
+                  izquierda y a la derecha: juntos ocupaban el centro y tapaban
+                  la etiqueta de la principal (MIP, AXIAL…) en celdas de menos de
+                  ~800 px, lo normal en un portátil de 1280. Por encima del asa de
+                  arrastre de la celda (z 7): si no, el asa se tragaría los clics
+                  de estos conmutadores. */}
+              <div style={{ position: "absolute", top: 2, left: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
                 {/* DISTRIBUCIÓN, REGLAS y SINCRO dicen cómo se ve el visor, no
                     qué hay en él. */}
                 <HudToggleGroup
                   options={[
-                    { key: "derecha", label: "DERECHA", title: "3D grande y cuatro cortes en columna (Alt+2)" },
-                    { key: "abajo", label: "ABAJO", title: "3D grande y cuatro cortes en franja (Alt+3)" },
+                    { key: "derecha", label: "DERECHA", title: "Vista principal y las otras cuatro en columna (Alt+2)" },
+                    { key: "abajo", label: "ABAJO", title: "Vista principal y las otras cuatro en franja (Alt+3)" },
                     { key: "sola", label: "SOLA", title: "Solo la vista principal (Alt+1)" },
                   ]}
                   value={viewerLayout.preset}
                   onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />
+              </div>
+              <div style={{ position: "absolute", top: 2, right: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
                 <HudToggleGroup
                   options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
                               title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}

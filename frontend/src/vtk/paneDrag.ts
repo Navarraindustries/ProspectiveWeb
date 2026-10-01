@@ -12,7 +12,9 @@ export function beginDrag(from: PaneId, x: number, y: number): DragState {
 
 export function moveDrag(s: DragState, x: number, y: number, over: PaneId | null): DragState {
   const active = s.active || Math.hypot(x - s.x0, y - s.y0) > DRAG_THRESHOLD_PX;
-  return { ...s, active, over: active ? over : null };
+  // Sobre sí misma no se marca: soltar ahí no hace nada y el resalte
+  // prometería un intercambio que no ocurre.
+  return { ...s, active, over: active && over !== s.from ? over : null };
 }
 
 export function cancelDrag(): null { return null; }

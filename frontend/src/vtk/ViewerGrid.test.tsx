@@ -51,12 +51,18 @@ describe("ViewerGrid", () => {
     const handle = cell("axial").querySelector<HTMLDivElement>(".viewer-handle")!;
     // elementFromPoint no existe en jsdom: se simula el destino.
     const target = cell("mip");
-    vi.spyOn(document, "elementFromPoint").mockImplementation(() => target);
+    let hit: Element = target;
+    vi.spyOn(document, "elementFromPoint").mockImplementation(() => hit);
     fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
     fireEvent.pointerMove(handle, { clientX: 13, clientY: 10, pointerId: 1 });
     fireEvent.pointerUp(handle, { clientX: 13, clientY: 10, pointerId: 1 });
     expect(onLayoutChange).not.toHaveBeenCalled();
     fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    // Activo pero aún sobre sí misma: ninguna celda se resalta.
+    hit = cell("axial");
+    fireEvent.pointerMove(handle, { clientX: 40, clientY: 10, pointerId: 1 });
+    expect(container.querySelector(".viewer-cell--over")).toBeNull();
+    hit = target;
     fireEvent.pointerMove(handle, { clientX: 60, clientY: 10, pointerId: 1 });
     expect(target.className).toContain("viewer-cell--over");
     fireEvent.pointerUp(handle, { clientX: 60, clientY: 10, pointerId: 1 });

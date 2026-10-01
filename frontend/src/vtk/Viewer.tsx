@@ -7,7 +7,7 @@
    intercambiarse y doble clic sube una a principal. Las cinco celdas (escena,
    axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { usePlanning, type PickMode } from "../store/planning";
 import type { CameraController, CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
@@ -32,7 +32,7 @@ import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
-import { mainOptions, presetOptions } from "./mainOptions";
+import { headerLabels, mainOptions, presetOptions } from "./mainOptions";
 import { legendLines } from "./clipFieldLegend";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { OrientationSheet } from "./OrientationSheet";
@@ -369,21 +369,20 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // de aquí dónde está cada una en pantalla.
   const cellEls = useRef<Partial<Record<PaneId, HTMLDivElement | null>>>({});
   const registerCell = useCallback((id: PaneId, el: HTMLDivElement | null) => { cellEls.current[id] = el; }, []);
-  // Ancho de la celda principal para abreviar los presets de la cabecera
-  // (presetOptions). Se mide la celda que contiene la cabecera: al cambiar de
-  // principal la cabecera se monta en otra celda y la ref vuelve a observar.
-  const [mainWidth, setMainWidth] = useState(Number.POSITIVE_INFINITY);
-  const headObs = useRef<ResizeObserver | null>(null);
-  const headRef = useCallback((el: HTMLDivElement | null) => {
-    headObs.current?.disconnect();
-    headObs.current = null;
-    const cell = el?.parentElement;
-    if (!cell || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setMainWidth(cell.clientWidth));
-    ro.observe(cell);
-    headObs.current = ro;
-    setMainWidth(cell.clientWidth);
+  // Ancho de la banda de cabecera para abreviar sus rótulos (headerLabels).
+  const gridHostRef = useRef<HTMLDivElement | null>(null);
+  const [bandWidth, setBandWidth] = useState(Number.POSITIVE_INFINITY);
+  const bandObs = useRef<ResizeObserver | null>(null);
+  const bandRef = useCallback((el: HTMLDivElement | null) => {
+    bandObs.current?.disconnect();
+    bandObs.current = null;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setBandWidth(el.clientWidth));
+    ro.observe(el);
+    bandObs.current = ro;
+    setBandWidth(el.clientWidth);
   }, []);
+  const header = headerLabels(bandWidth);
   const registerMeshCapture = useCallback((fn: CaptureFn | null) => { meshCapture.current = fn; }, []);
   // La envoltura es estable: lee la distribución y su setter por refs.
   const layoutRef = useRef<ViewerLayout>(viewerLayout);
@@ -460,7 +459,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const root = viewerRef.current;
     const layout = layoutRef.current;
     if (!root || !cellEls.current[layout.main]) return null;
-    const base = root.getBoundingClientRect();
+    // El origen es la rejilla, no el visor entero: la banda de cabecera queda
+    // encima y no entra en la captura (sus conmutadores no son imagen).
+    const base = (gridHostRef.current ?? root).getBoundingClientRect();
     const rel = (el: Element) => {
       const r = el.getBoundingClientRect();
       return { x: Math.round(r.x - base.x), y: Math.round(r.y - base.y), w: Math.round(r.width), h: Math.round(r.height) };
@@ -1146,6 +1147,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
     );
   };
 
+  const onLayoutKey = (e: ReactKeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey) return;
+    const p = presetForKey(e.code, e.target, e.altKey);
+    if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); }
+  };
+
   return (
     <div ref={viewerRef} className={decorHidden ? "hud-nodecor" : undefined}
          style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
@@ -1153,10 +1160,56 @@ export function ViewerWorkspace({ step }: { step: string }) {
         <OrientationSheet open={orientationOpen} onClose={() => setOrientationOpen(false)} sessionId={sessionId}
           current={manualForSession} onApply={setOrientationManual} />
       )}
+      {/* La cabecera del visor va en su propia banda, encima de la rejilla.
+          Estuvo dentro de la celda principal, partida en dos grupos a izquierda
+          y derecha, pero en un portátil de 1280 con DERECHA esa celda mide
+          ~530 px y los dos grupos se pisaban entre sí y tapaban el rótulo de
+          la vista (AXIAL, VOLUMEN…). Fuera de la celda no tapan nada y la
+          rejilla toma el resto del alto. En 1280 la banda mide ~740 px: con
+          CALOR encendido los grupos solo caben con los presets abreviados y
+          «PRINCIPAL» reducido a «▸» (headerLabels). Mismas teclas Alt+1/2/3
+          que la rejilla, para que el foco en un conmutador no las pierda. */}
+      <div ref={bandRef} className="viewer-band"
+           onKeyDown={onLayoutKey}
+           style={{ flex: "none", height: 22, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "0 12px", lineHeight: 1.2, fontFamily: "var(--font-mono)", background: "#000", borderBottom: "1px solid var(--hud-dim)", overflow: "hidden", whiteSpace: "nowrap" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
+          {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
+              REGLAS y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
+          <span style={{ color: "var(--hud-dim)" }} title="Vista principal">{header.mainCaption}</span>
+          <HudToggleGroup options={mainOptions()} value={viewerLayout.main}
+            onChange={(k) => setViewerLayout(promote(viewerLayout, k as PaneId))} />
+          <HudToggleGroup
+            options={presetOptions(bandWidth)}
+            value={viewerLayout.preset}
+            onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
+          <HudToggleGroup
+            options={[{ key: "planes", label: planesHidden ? "PLANOS ○" : "PLANOS ●", title: "Mostrar/ocultar los planos de corte en el 3D" }]}
+            value={planesHidden ? "" : "planes"} onChange={() => setPlanesHidden(!planesHidden)} />
+          <HudToggleGroup
+            options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
+                        title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}
+            value={decorHidden ? "" : "decor"} onChange={() => setDecorHidden(!decorHidden)} />
+          <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
+            value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
+          {/* CALOR solo existe cuando hay un campo del clip calculado: sin
+              él no habría nada que encender. */}
+          {clipField && (
+            // Durante el ensayo manda el saco que se deforma y el campo no se
+            // pinta: «●» diría que se está viendo.
+            <HudToggleGroup options={[{ key: "calor", label: showClipField && !clipRehearsal ? "CALOR ●" : "CALOR ○",
+                                        title: clipRehearsal
+                                          ? "Durante el ensayo de cierre se ve el saco que se deforma; el mapa de calor vuelve al terminar"
+                                          : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
+              value={showClipField && !clipRehearsal ? "calor" : ""} onChange={() => setShowClipField(!showClipField)} />
+          )}
+        </div>
+      </div>
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;
           nunca desde un campo de texto (presetForKey). Los dígitos solos son
           del salto de paso de Workspace, que ignora Alt. */}
-      <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden" }}
+      <div ref={gridHostRef} style={{ flex: "1 1 0", position: "relative", minHeight: 0, overflow: "hidden" }}
            tabIndex={0}
            // Los lienzos de vtk.js y los cortes anulan la acción por defecto del
            // puntero, y con ella el foco: sin esto, pinchar en el visor dejaba
@@ -1167,11 +1220,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
              const host = e.currentTarget;
              if (!host.contains(document.activeElement)) host.focus({ preventScroll: true });
            }}
-           onKeyDown={(e) => {
-             if (e.ctrlKey || e.metaKey) return;
-             const p = presetForKey(e.code, e.target, e.altKey);
-             if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); }
-           }}>
+           onKeyDown={onLayoutKey}>
         <ViewerGrid
           layout={viewerLayout}
           onLayoutChange={setViewerLayout}
@@ -1183,47 +1232,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
               {/* Pista de la principal: fuera de renderPane/renderScene porque
                   aplica igual a la escena 3D, el MIP o un corte. */}
               {hint && <div key={hintSeq} className="hud-hint">{hint}</div>}
-              {/* Arriba del todo (top 2) para no pisar las lecturas de las
-                  esquinas de la celda, que empiezan a 22 px; a 24 px del borde,
-                  fuera de la marca de esquina. Partidos en dos grupos, a la
-                  izquierda y a la derecha: juntos ocupaban el centro y tapaban
-                  la etiqueta de la principal (MIP, AXIAL…) en celdas de menos de
-                  ~800 px, lo normal en un portátil de 1280. Por encima del asa de
-                  arrastre de la celda (z 7): si no, el asa se tragaría los clics
-                  de estos conmutadores. */}
-              <div ref={headRef} style={{ position: "absolute", top: 2, left: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
-                {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
-                    REGLAS y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
-                <span style={{ color: "var(--hud-dim)" }}>PRINCIPAL</span>
-                <HudToggleGroup options={mainOptions()} value={viewerLayout.main}
-                  onChange={(k) => setViewerLayout(promote(viewerLayout, k as PaneId))} />
-                <HudToggleGroup
-                  options={presetOptions(mainWidth)}
-                  value={viewerLayout.preset}
-                  onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />
-              </div>
-              <div style={{ position: "absolute", top: 2, right: 24, zIndex: 8, lineHeight: 1.2, fontFamily: "var(--font-mono)", display: "flex", gap: 14 }}>
-                <HudToggleGroup
-                  options={[{ key: "planes", label: planesHidden ? "PLANOS ○" : "PLANOS ●", title: "Mostrar/ocultar los planos de corte en el 3D" }]}
-                  value={planesHidden ? "" : "planes"} onChange={() => setPlanesHidden(!planesHidden)} />
-                <HudToggleGroup
-                  options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
-                              title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}
-                  value={decorHidden ? "" : "decor"} onChange={() => setDecorHidden(!decorHidden)} />
-                <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
-                  value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
-                {/* CALOR solo existe cuando hay un campo del clip calculado: sin
-                    él no habría nada que encender. */}
-                {clipField && (
-                  // Durante el ensayo manda el saco que se deforma y el campo no se
-                  // pinta: «●» diría que se está viendo.
-                  <HudToggleGroup options={[{ key: "calor", label: showClipField && !clipRehearsal ? "CALOR ●" : "CALOR ○",
-                                              title: clipRehearsal
-                                                ? "Durante el ensayo de cierre se ve el saco que se deforma; el mapa de calor vuelve al terminar"
-                                                : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
-                    value={showClipField && !clipRehearsal ? "calor" : ""} onChange={() => setShowClipField(!showClipField)} />
-                )}
-              </div>
             </>
           }
         />

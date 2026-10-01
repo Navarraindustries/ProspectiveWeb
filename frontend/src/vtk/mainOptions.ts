@@ -9,15 +9,21 @@ const TITLES: Record<PaneId, string> = {
 };
 export function mainOptions() { return ORDER.map((key) => ({ key, label: MAIN_LABELS[key], title: TITLES[key] })); }
 
-/* Por debajo de 800 px de celda principal (un portátil de 1280 con DERECHA deja
-   ~530) los dos grupos de la cabecera no caben y se pisan: los presets se
-   abrevian para ganar sitio. El título sigue diciendo el nombre entero. */
-export const NARROW_MAIN_PX = 800;
-export function presetOptions(mainWidth: number) {
-  const short = mainWidth < NARROW_MAIN_PX;
+/* Por debajo de 800 px de banda de cabecera (un portátil de 1280 deja ~740
+   entre el flujo y el panel lateral) los dos grupos no caben enteros: los
+   presets se abrevian para ganar sitio. El título sigue diciendo el nombre. */
+export const NARROW_HEADER_PX = 800;
+export function presetOptions(bandWidth: number) {
+  const short = bandWidth < NARROW_HEADER_PX;
   return [
     { key: "derecha", label: short ? "DER" : "DERECHA", title: "Vista principal y las otras cuatro en columna (Alt+2)" },
     { key: "abajo", label: short ? "ABA" : "ABAJO", title: "Vista principal y las otras cuatro en franja (Alt+3)" },
     { key: "sola", label: "SOLA", title: "Solo la vista principal (Alt+1)" },
   ];
+}
+
+/** Rótulo del selector de la principal: «PRINCIPAL» con sitio, «▸» en una
+ *  banda estrecha (el título del elemento dice «Vista principal»). */
+export function headerLabels(bandWidth: number) {
+  return { mainCaption: bandWidth < NARROW_HEADER_PX ? "▸" : "PRINCIPAL" };
 }

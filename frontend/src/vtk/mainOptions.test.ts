@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAIN_LABELS, mainOptions, presetOptions } from "./mainOptions";
+import { headerLabels, MAIN_LABELS, mainOptions, presetOptions } from "./mainOptions";
 
 describe("mainOptions", () => {
   it("cinco vistas en orden fijo con rótulos cortos", () => {
@@ -13,7 +13,7 @@ describe("mainOptions", () => {
 });
 
 describe("presetOptions", () => {
-  it("abrevia los presets cuando la principal mide menos de 800 px", () => {
+  it("abrevia los presets cuando la banda de cabecera mide menos de 800 px", () => {
     expect(presetOptions(530).map((o) => o.label)).toEqual(["DER", "ABA", "SOLA"]);
     expect(presetOptions(799).map((o) => o.label)).toEqual(["DER", "ABA", "SOLA"]);
   });
@@ -24,5 +24,13 @@ describe("presetOptions", () => {
   it("las claves y los títulos no cambian al abreviar", () => {
     expect(presetOptions(500).map((o) => o.key)).toEqual(["derecha", "abajo", "sola"]);
     expect(presetOptions(500).map((o) => o.title)).toEqual(presetOptions(1000).map((o) => o.title));
+  });
+});
+
+describe("headerLabels", () => {
+  it("«PRINCIPAL» se reduce a «▸» en una banda de menos de 800 px", () => {
+    expect(headerLabels(742).mainCaption).toBe("▸");
+    expect(headerLabels(800).mainCaption).toBe("PRINCIPAL");
+    expect(headerLabels(Number.POSITIVE_INFINITY).mainCaption).toBe("PRINCIPAL");
   });
 });

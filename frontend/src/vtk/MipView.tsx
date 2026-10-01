@@ -23,7 +23,6 @@ import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator";
 import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
-import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
 import { usePlanning } from "../store/planning";
@@ -124,17 +123,16 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     renderer.addVolume(actor);
     const cam = renderer.getActiveCamera();
     cameraToPlane(grw, image, planeRef.current);
-    // Rotar con el botón izquierdo, desplazar con el central o con Shift, zoom
-    // solo con Ctrl+rueda: la rueda sola queda libre para avanzar el corte,
-    // como en SliceView. vtk elige el manipulador por modificadores exactos,
-    // así que Shift+izquierdo desplaza sin rotar a la vez.
+    // Rotar con el botón izquierdo, desplazar con el central o con Shift. Sin
+    // manipulador de zoom: Ctrl+rueda lo resuelve el oyente de rueda de abajo
+    // (el de vtk acercaba al girar hacia abajo, al revés que los cortes). vtk
+    // elige el manipulador por modificadores exactos, así que Shift+izquierdo
+    // desplaza sin rotar a la vez.
     const style = vtkInteractorStyleManipulator.newInstance();
     const rotate = vtkMouseCameraTrackballRotateManipulator.newInstance(); rotate.setButton(1);
     const panMid = vtkMouseCameraTrackballPanManipulator.newInstance(); panMid.setButton(2);
     const panShift = vtkMouseCameraTrackballPanManipulator.newInstance(); panShift.setButton(1); panShift.setShift(true);
-    const zoom = vtkMouseCameraTrackballZoomManipulator.newInstance();
-    zoom.setControl(true); zoom.setDragEnabled(false); zoom.setScrollEnabled(true);
-    style.addMouseManipulator(rotate); style.addMouseManipulator(panMid); style.addMouseManipulator(panShift); style.addMouseManipulator(zoom);
+    style.addMouseManipulator(rotate); style.addMouseManipulator(panMid); style.addMouseManipulator(panShift);
     grw.getInteractor().setInteractorStyle(style);
     // El maniquí del recuadro sigue a esta cámara: al rotar el MIP se ve desde
     // dónde se está mirando al paciente, no solo el número de la cinta.
@@ -169,15 +167,25 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   }, [plane]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // La rueda es nuestra: en fase de captura sobre el contenedor (donde vtk
-  // escucha la suya, en fase de burbuja) llega antes y la detiene; Ctrl+rueda
-  // se deja pasar para el zoom de vtk, que además impide el de la página. No
-  // pasiva, como en SliceView, para que preventDefault sirva; el ref da
-  // siempre el corte de este render sin volver a registrar el oyente.
+  // escucha la suya, en fase de burbuja) llega antes y la detiene. También
+  // Ctrl+rueda: el zoom se hace aquí con el sentido de SliceView (arriba
+  // acerca), y preventDefault impide además el zoom de la página (el pellizco
+  // del trackpad llega como Ctrl+rueda y va por el mismo camino). No pasiva,
+  // como en SliceView, para que preventDefault sirva; el ref da siempre el
+  // corte de este render sin volver a registrar el oyente.
   const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
   wheelRef.current = (e) => {
     const a = wheelAction(e, index, count);
-    if (a.kind === "zoom") return;
     e.preventDefault(); e.stopImmediatePropagation();
+    if (a.kind === "zoom") {
+      const s = scene.current; if (!s) return;
+      const renderer = s.grw.getRenderer();
+      const cam = renderer.getActiveCamera();
+      if (cam.getParallelProjection()) cam.setParallelScale(cam.getParallelScale() / a.factor);
+      else { cam.dolly(a.factor); renderer.resetCameraClippingRange(); }
+      s.grw.getRenderWindow().render();
+      return;
+    }
     if (a.kind === "slice" && a.next !== index) setMprVoxel(withIndex(plane, mprVoxel, a.next));
   };
   useEffect(() => {

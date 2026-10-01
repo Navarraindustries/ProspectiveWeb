@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { indexOf, wheelAction, withIndex } from "./mipGestures";
+import { ZOOM_STEP, indexOf, wheelAction, withIndex } from "./mipGestures";
 
 describe("wheelAction", () => {
   it("la rueda avanza o retrocede un corte acotado", () => {
@@ -11,8 +11,11 @@ describe("wheelAction", () => {
   it("con un solo corte no se mueve", () => {
     expect(wheelAction({ deltaY: 100, ctrlKey: false }, 0, 1)).toEqual({ kind: "slice", next: 0 });
   });
-  it("Ctrl+rueda es zoom y lo hace vtk", () => {
-    expect(wheelAction({ deltaY: 100, ctrlKey: true }, 5, 10)).toEqual({ kind: "zoom" });
+  it("Ctrl+rueda arriba acerca y abajo aleja, como en los cortes", () => {
+    expect(wheelAction({ deltaY: -100, ctrlKey: true }, 5, 10)).toEqual({ kind: "zoom", factor: ZOOM_STEP });
+    expect(wheelAction({ deltaY: 100, ctrlKey: true }, 5, 10)).toEqual({ kind: "zoom", factor: 1 / ZOOM_STEP });
+    expect(ZOOM_STEP).toBeGreaterThan(1);
+    expect(wheelAction({ deltaY: 0, ctrlKey: true }, 5, 10)).toEqual({ kind: "none" });
   });
   it("deltaY cero no hace nada", () => {
     expect(wheelAction({ deltaY: 0, ctrlKey: false }, 5, 10)).toEqual({ kind: "none" });

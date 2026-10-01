@@ -14,7 +14,7 @@
 
 - Categorías (`coverage`, uint8): 0 = fuera de evaluación, 1 = cubierto, 2 = cuello residual, 3 = no alcanzado. Colores RGB 0–255: cubierto según presión (insuficiente `[59,130,246]` azul · óptima `[34,197,94]` verde · aceptable `[245,158,11]` ámbar · exceso `[239,68,68]` rojo · sin área `[148,163,184]`), residual `[217,70,239]` magenta, no alcanzado `[107,114,128]` gris, fuera de evaluación `[120,112,124]`.
 - Anillo de vaso: puntos del árbol a menos de `1.5 × neck_mm` del origen del cuello y del lado del vaso respecto al plano de cuello; radio acotado a [3, 12] mm.
-- Marco de las hojas (leído de la malla): `l` a lo largo de la hoja desde la bisagra, `g` a través de la mordaza, `d` profundidad (orientada hacia el domo con el eje del cuello). Banda de cuello: |d| ≤ `H/2 + 0.6` mm (H = alto de hoja). Anchura de cierre `close_half = max(jaw/2 + w + 0.3, 0.35 × neck_mm)`: las hojas pinzan todo el cuello que queda a su alcance, no solo la ranura entre ellas. Dentro de la banda y con |g| ≤ close_half: `0 ≤ l ≤ L` → cubierto; `l < 0` (detrás de la bisagra) → residual; `l > L` → no alcanzado. Fuera de la banda, del lado del domo (`d > H/2 + 0.6`) y con `l > L`, |g| ≤ close_half → no alcanzado (saco más allá de la punta). Todo lo demás → fuera de evaluación.
+- Marco de las hojas (leído de la malla): `l` a lo largo de la hoja desde la bisagra, `g` a través de la mordaza, `d` profundidad (orientada hacia el domo con el eje del cuello). Banda de cuello: |d| ≤ `H/2 + 0.6` mm (H = alto de hoja). Anchura de cierre `close_half = max(jaw/2 + w + 0.3, neck_mm/2 + 0.3)`: las hojas pinzan todo el cuello que queda a su alcance, no solo la ranura entre ellas. Dentro de la banda y con |g| ≤ close_half: `0 ≤ l ≤ L` → cubierto; `l < 0` (detrás de la bisagra) → residual; `l > L` → no alcanzado. Fuera de la banda, del lado del domo (`d > H/2 + 0.6`) y con `l > L`, |g| ≤ close_half → no alcanzado (saco más allá de la punta). Todo lo demás → fuera de evaluación.
 - Fuerza: el MÍNIMO de la banda de catálogo (`ClipSpec.force_band()[0]`); si el clip no tiene ficha (importado), fuerza 0 y el resumen lo dice. `force_provisional` se propaga. Presión en g/mm² = `Σ F_mín / A_contacto`, con `A_contacto` = suma de áreas de los triángulos cuyos tres vértices son cubiertos. Ventana = `force_window(neck_mm) / A_contacto`.
 - Veredicto de presión: `sin_contacto` (A = 0) · `insuficiente` (< acceptable_lo) · `optima` · `aceptable` · `exceso` (> acceptable_hi). Veredicto global `ok|warn|fail`: `fail` si algún criterio falla, si la presión es `insuficiente`/`exceso` o si `covered_pct < 50`; `warn` si algún criterio avisa, presión `aceptable` o `residual_pct > 10`; si no, `ok`.
 - Texto fijo en el resumen y en la tarjeta: «Estimación geométrica: fuerza de catálogo repartida sobre el área de contacto; no modela pared, deformación ni deslizamiento».
@@ -136,7 +136,9 @@ class TestMarco:
         assert f.depth_axis[2] > 0.99                          # profundidad = normal, hacia el domo (+Z)
         assert f.length_mm == 10.0 and abs(f.half_height_mm - 0.7) < 1e-9
         assert abs(f.half_gap_mm - (0.6 + 0.5)) < 1e-9        # jaw/2 + width
-        assert abs(f.close_half_mm - 0.35 * 6.0) < 1e-9       # manda 0,35 × cuello sobre la ranura
+        # Las hojas cerradas colapsan todo el ancho del cuello que alcanzan: medio cuello
+        # más la holgura, no una fracción menor que dejaría fuera el borde del contorno.
+        assert abs(f.close_half_mm - (6.0 / 2 + 0.3)) < 1e-9   # manda medio cuello sobre la ranura
 
     def test_girar_el_clip_gira_el_marco(self):
         f = _marco(_clip_en_cuello(10.0, rot_deg=90.0), 10.0)
@@ -186,7 +188,7 @@ class TestClasificacion:
         assert cov.tolist() == [COV_UNREACHED, COV_NONE]
 
     def test_lejos_de_la_mordaza_no_se_evalua(self):
-        # Pared del vaso en la banda pero a 4 mm de la mordaza (> 0,35 × cuello).
+        # Pared del vaso en la banda pero a 4 mm de la mordaza (> cuello/2 + 0,3).
         cov = classify(np.array([[0.0, 4.0, 0.0]]), _marco(_clip_en_cuello(12.0), 12.0))
         assert cov.tolist() == [COV_NONE]
 
@@ -302,8 +304,8 @@ def blade_frame(clip_world: vtk.vtkPolyData, *, length_mm: float, blade_width_mm
         depth_axis=depth_axis, length_mm=float(length_mm), half_gap_mm=half_gap,
         half_height_mm=float(blade_height_mm) / 2.0,
         # Las hojas cerradas pinzan el cuello entero que alcanzan, no solo la
-        # ranura: lo que queda a menos de 0,35 × cuello de la mordaza se colapsa.
-        close_half_mm=max(half_gap + GAP_TOL_MM, 0.35 * float(neck_mm)),
+        # ranura: todo el ancho del cuello (medio cuello + holgura) se colapsa.
+        close_half_mm=max(half_gap + GAP_TOL_MM, float(neck_mm) / 2.0 + GAP_TOL_MM),
     )
 
 

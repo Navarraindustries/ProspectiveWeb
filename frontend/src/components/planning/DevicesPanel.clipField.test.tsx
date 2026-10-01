@@ -70,9 +70,39 @@ describe("DevicesPanel · campo del clip", () => {
     fireEvent.change(x, { target: { value: "1.5" } });
     fireEvent.change(x, { target: { value: "2" } });
     expect(api.clipField).toHaveBeenCalledTimes(1);
+    expect(api.planClips).toHaveBeenCalledTimes(1);
     act(() => { vi.advanceTimersByTime(260); });
+    // Se recoloca y se recalcula: malla, campo y tarjeta hablan de la misma pose.
     await waitFor(() => expect(api.clipField).toHaveBeenCalledTimes(2));
+    expect(api.planClips).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(api.planClips).mock.calls[1][0].placements[0].position.x).toBe(2);
     expect(vi.mocked(api.clipField).mock.calls[1][1].placements[0].position.x).toBe(2);
+  });
+
+  it("un cambio con una colocación en vuelo se recoloca una vez al terminar, sin apilar", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    let release: () => void = () => {};
+    vi.mocked(api.planClips).mockImplementationOnce(() => new Promise((r) => {
+      release = () => r({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null });
+    }));
+    const [x] = screen.getAllByRole("spinbutton");
+    fireEvent.change(x, { target: { value: "5" } });
+    act(() => { vi.advanceTimersByTime(260); });
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
+    // Dos cambios más con la segunda colocación aún en vuelo: no se apilan.
+    fireEvent.change(x, { target: { value: "6" } });
+    act(() => { vi.advanceTimersByTime(260); });
+    fireEvent.change(x, { target: { value: "7" } });
+    act(() => { vi.advanceTimersByTime(260); });
+    expect(api.planClips).toHaveBeenCalledTimes(2);
+    await act(async () => { release(); });
+    // Al terminar, una sola recolocación con la última pose.
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(3));
+    expect(vi.mocked(api.planClips).mock.calls[2][0].placements[0].position.x).toBe(7);
+    await waitFor(() => expect(api.clipField).toHaveBeenCalledTimes(3));
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(3);
   });
 
   it("un fallo del campo no deshace la colocación y un 409 se lee como nota", async () => {

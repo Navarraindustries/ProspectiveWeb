@@ -179,6 +179,14 @@ function ClipsTab() {
   // Cada petición lleva su número y solo la última escribe: con el debounce
   // pueden cruzarse dos respuestas, y la vieja pintaría una posición que ya no es.
   const fieldSeq = useRef(0);
+  // Una sola colocación en vuelo. Si llega otro cambio mientras tanto se anota
+  // y, al terminar, se recoloca una vez con lo último que haya en la lista: ni
+  // se apilan peticiones ni se pierde la pose final.
+  const placing = useRef(false);
+  const pendingPlace = useRef(false);
+  const latestPlaced = useRef(placed);
+  latestPlaced.current = placed;
+  const mounted = useRef(true);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -311,49 +319,59 @@ function ClipsTab() {
     }
   };
 
-  const place = async () => {
-    if (!sessionId || placed.length === 0) return;
+  /** Coloca y luego pide el campo de esas mismas colocaciones. */
+  const place = async (clips: PlacedClip[] = latestPlaced.current) => {
+    if (!sessionId || clips.length === 0) return;
+    if (placing.current) { pendingPlace.current = true; return; }
+    placing.current = true;
+    // Esta colocación ya cubre lo que un movimiento reciente iba a pedir.
+    cancelFieldTimer();
     setBusy(true);
     setError(null);
-    const placements = placementsFor(placed);
+    const placements = placementsFor(clips);
     try {
       const res = await api.planClips({ session_id: sessionId, placements });
       setPlan(res);
       setDeviceMesh("clips", res.clips_mesh_url || null);
+      await requestField(placements);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al colocar los clips");
-      setBusy(false);
-      return;
-    }
-    // Esta petición ya cubre lo que un movimiento reciente iba a pedir.
-    cancelFieldTimer();
-    try {
-      await requestField(placements);
     } finally {
+      placing.current = false;
       setBusy(false);
+    }
+    if (pendingPlace.current && mounted.current) {
+      pendingPlace.current = false;
+      void place(latestPlaced.current);
     }
   };
 
-  // Mover o girar un clip ya colocado vuelve a pedir su campo, con debounce:
-  // mover un deslizador dispara decenas de cambios por segundo; el servidor
-  // tarda ~100 ms por campo. Solo `placed` en las dependencias: colocar ya pide
-  // su campo, y que `plan` cambiase no debe pedirlo otra vez. En el primer
-  // render no hay plan, así que no se pide nada. Sin malla de clips (la barra
-  // «Limpiar todos» la quita sin tocar este plan) no hay clip al que pintar campo.
+  // Mover o girar un clip ya colocado lo vuelve a colocar y a pedir su campo,
+  // con debounce: la malla del clip, el campo y la tarjeta tienen que hablar de
+  // la misma pose. Recalcular solo el campo dejaba el mapa describiendo una
+  // posición donde el clip no estaba dibujado. Mover un deslizador dispara
+  // decenas de cambios por segundo; el servidor tarda ~100 ms por campo.
+  // Solo `placed` en las dependencias: colocar no cambia la lista, y que `plan`
+  // cambiase no debe volver a colocar. En el primer render no hay plan, así que
+  // no se pide nada. Sin malla de clips (la barra «Limpiar todos» la quita sin
+  // tocar este plan) no se recoloca: limpiar fue una decisión, no un estado que
+  // se deshaga al tocar un número.
   useEffect(() => {
     if (!plan || !clearer.placed || placed.length === 0) return;
     cancelFieldTimer();
-    const placements = placementsFor(placed);
     fieldTimer.current = setTimeout(() => {
       fieldTimer.current = null;
-      void requestField(placements);
+      void place(latestPlaced.current);
     }, 250);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed]);
 
-  // Al desmontar, nada pendiente: ni el temporizador ni una respuesta en vuelo
-  // que escribiese el campo de un panel que ya no está.
-  useEffect(() => () => { cancelFieldTimer(); fieldSeq.current++; }, []);
+  // Al desmontar no queda nada programado. Lo que esté en vuelo sí termina: es
+  // la pose que el servidor ya tiene, y malla y campo deben quedar de acuerdo.
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; cancelFieldTimer(); pendingPlace.current = false; };
+  }, []);
 
   return (
     <div style={{ marginTop: 12 }}>
@@ -558,19 +576,22 @@ function ClipsTab() {
           {plan && <ErrorNote>{fieldError}</ErrorNote>}
           <ErrorNote>{error}</ErrorNote>
 
-          <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void place()} disabled={busy || placed.length === 0} leadingIcon={<Icon name="CLIP_PLACE" />}>
+          <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void place(placed)} disabled={busy || placed.length === 0} leadingIcon={<Icon name="CLIP_PLACE" />}>
             {busy ? "Verificando…" : `Colocar ${placed.length || ""} y verificar`}
           </Button>
-          {/* Removing a clip from the list above only changes what the NEXT
-              «Colocar» will send; the clips already placed stay in the scene and
-              in the report until they are cleared here. */}
+          {/* Once placed, editing or removing a clip in the list re-places the
+              set after the debounce; emptying the list leaves the last placement
+              in the scene and in the report until it is cleared here. Clearing
+              waits for a placement in flight: otherwise the late response would
+              draw a clip the backend no longer records. */}
           <ClearDeviceButton
             label="Limpiar clips colocados"
-            disabled={!clearer.placed && !plan}
+            disabled={(!clearer.placed && !plan) || busy}
             busy={clearer.busy}
             onClick={() => void clearer.clear(() => {
               // Lo que estuviera en vuelo o pendiente ya no tiene clip al que pintar.
               cancelFieldTimer();
+              pendingPlace.current = false;
               fieldSeq.current++;
               setFieldError(null);
               setFieldNote(null);

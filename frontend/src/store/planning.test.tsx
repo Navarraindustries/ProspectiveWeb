@@ -328,3 +328,22 @@ describe("plano libre, recorte y ventana por preajuste", () => {
     expect(result.current.volumeWindows).toEqual({});
   });
 });
+
+describe("clips colocados", () => {
+  it("arrancan vacíos, se escriben con función o lista y se reinician con la sesión", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.placedClips).toEqual([]); expect(result.current.selectedClipKey).toBeNull(); expect(result.current.plannedClips).toBeNull();
+    act(() => result.current.setPlacedClips([{ key: 1, clip_id: "a", name: "A", position: [0, 0, 0], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 }]));
+    act(() => result.current.setPlacedClips((p) => p.map((c) => ({ ...c, rotation_deg: 15 }))));
+    expect(result.current.placedClips[0].rotation_deg).toBe(15);
+    act(() => result.current.setSelectedClipKey(1));
+    act(() => result.current.reset());
+    expect(result.current.placedClips).toEqual([]); expect(result.current.selectedClipKey).toBeNull();
+  });
+  it("limpiar los clips vacía la lista y lo planificado", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => { result.current.setPlacedClips([{ key: 1, clip_id: "a", name: "A", position: [0, 0, 0], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 }]); result.current.setPlannedClips(result.current.placedClips); });
+    act(() => result.current.clearDeviceMeshes("clips"));
+    expect(result.current.placedClips).toEqual([]); expect(result.current.plannedClips).toBeNull();
+  });
+});

@@ -21,7 +21,7 @@ import { Button } from "../Button";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { Slider } from "../Slider";
 import { usePlanning } from "../../store/planning";
-import { neckPlacement } from "./DevicesPanel";
+import { neckPlacement } from "./placedClips";
 
 /** Seconds each phase lasts. Travel is the long one; the close is a snap. */
 const TRAVEL_SEC = 2.4;
@@ -137,11 +137,12 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
     setBusy(true);
     setError(null);
     try {
+      const pose = neckPlacement(morphometry);
       const anim = await api.clipAnimation(sessionId, {
         session_id: sessionId,
         // The SAME pose the placement uses: a rehearsal that ended anywhere else
         // would show a manoeuvre the plan does not agree with.
-        placements: [{ clip_id: clipId, ...neckPlacement(morphometry), rotation_deg: 0 }],
+        placements: [{ clip_id: clipId, position: { x: pose.position[0], y: pose.position[1], z: pose.position[2] }, normal: pose.normal, rotation_deg: 0 }],
         trajectory_entry: trajEntry ? { x: trajEntry[0], y: trajEntry[1], z: trajEntry[2] } : null,
         trajectory_target: trajTarget ? { x: trajTarget[0], y: trajTarget[1], z: trajTarget[2] } : null,
       });

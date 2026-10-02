@@ -17,7 +17,6 @@ import type {
   CoilConstructResult,
   CoilLibraryItem,
   CoilPlanResult,
-  MorphometryResult,
   OcclusionOut,
   Position3D,
   ProposedCorridorOut,
@@ -37,7 +36,12 @@ import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { Select } from "../Select";
 import { Slider } from "../Slider";
 import { Tabs } from "../Tabs";
-import { usePlanning } from "../../store/planning";
+import { TILT_MAX_DEG } from "../../vtk/clipPose";
+import { usePlanning, type PlacedClip } from "../../store/planning";
+import { neckPlacement, toPlacement, poseKey } from "./placedClips";
+
+// Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
+export { neckPlacement };
 
 const TABS = ["Clips", "Coils", "Stents", "Stent CL"] as const;
 const ORIGIN: Position3D = { x: 0, y: 0, z: 0 };
@@ -85,35 +89,6 @@ function ClearDeviceButton({
   );
 }
 
-/** Where to place a clip/stent: the neck centre the backend measured, with the
-    principal axis as the neck-plane normal.
-
-    The backend already knows this point exactly (it is the same one the
-    perforator analysis uses). Approximating it here as centroid − axis·(dome/2)
-    landed on the parent vessel instead — 0 % neck coverage — and collapsed onto
-    the centroid, inside the dome, whenever the dome height was not measured.
-    The approximation survives only as a fallback for older sessions whose
-    morphometry predates `neck_origin`. */
-/** Where a device sits on the neck. Exported so the rehearsal animates the
- *  clip onto the SAME pose the placement uses — two answers would show a
- *  manoeuvre ending somewhere the plan does not put the clip. */
-export function neckPlacement(m: MorphometryResult | null): { position: Position3D; normal: number[] } {
-  const ax = m?.principal_axis;
-  const normal = ax && ax.length === 3 ? ax : [0, 0, 1];
-
-  if (m?.neck_origin) return { position: { ...m.neck_origin }, normal };
-
-  const c = m?.centroid;
-  const dh = m?.dome_height_mm ?? 0;
-  if (c && ax && ax.length === 3) {
-    return {
-      position: { x: c.x - (ax[0] * dh) / 2, y: c.y - (ax[1] * dh) / 2, z: c.z - (ax[2] * dh) / 2 },
-      normal,
-    };
-  }
-  return { position: ORIGIN, normal };
-}
-
 /* ── Clips ─────────────────────────────────────────────────────────────── */
 
 /** Recolocaciones de clips pendientes, visibles para los dos sitios que limpian:
@@ -156,21 +131,13 @@ async function whileClearingClips<T>(clear: () => Promise<T>): Promise<T> {
   }
 }
 
-interface PlacedClip {
-  key: number;
-  clip_id: string;
-  name: string;
-  position: Position3D;
-  rotation_deg: number;
-}
-
 /** Compact numeric field for live clip repositioning. */
-function NumField({ label, value, onChange, step = 1 }: { label: string; value: number; onChange: (v: number) => void; step?: number }) {
+function NumField({ label, value, onChange, step = 1, min, max }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
       <span style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</span>
       <input
-        type="number" value={Number.isFinite(value) ? value : 0} step={step}
+        type="number" value={Number.isFinite(value) ? value : 0} step={step} min={min} max={max}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
         style={{ width: "100%", fontSize: 12, fontFamily: "var(--font-mono)", padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)" }}
       />
@@ -185,6 +152,8 @@ function ClipsTab() {
   const {
     sessionId, caseId, morphometry, setDeviceMesh,
     clipField, setClipField, showClipField, setShowClipField,
+    placedClips: placed, setPlacedClips: setPlaced, setPlannedClips,
+    selectedClipKey, setSelectedClipKey,
   } = usePlanning();
   const clearer = useClearDevice("clips");
   const [recs, setRecs] = useState<ClipRecommendation[]>([]);
@@ -204,12 +173,13 @@ function ClipsTab() {
   // Select showed no selection and the placed clip was labelled with its raw
   // id ("navarro:t1:0:7.0") instead of its name.
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
-  const [placed, setPlaced] = useState<PlacedClip[]>([]);
   const [plan, setPlan] = useState<ClipPlanResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // La lista vive en el store y sobrevive a desmontar la pestaña: la clave
+  // siguiente parte también de lo que ya hay, o un clip nuevo repetiría otra.
   const nextKey = useRef(1);
   // El campo del clip va aparte del plan: un fallo al pedirlo no deshace la
   // colocación. Un 409 (sin saco aislado, sin cuello) no es un error sino algo
@@ -317,12 +287,18 @@ function ClipsTab() {
   const addClip = () => {
     if (!sel) return;
     const { position } = neckPlacement(morphometry);
-    setPlaced((p) => [...p, { key: nextKey.current++, clip_id: sel, name: nameFor(sel), position: { ...position }, rotation_deg: 0 }]);
+    const key = Math.max(nextKey.current, ...placed.map((c) => c.key + 1));
+    nextKey.current = key + 1;
+    setPlaced((p) => [...p, { key, clip_id: sel, name: nameFor(sel), position, rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 }]);
+    setSelectedClipKey(key);
   };
 
   const updateClip = (key: number, patch: Partial<PlacedClip>) =>
     setPlaced((p) => p.map((c) => (c.key === key ? { ...c, ...patch } : c)));
-  const removeClip = (key: number) => setPlaced((p) => p.filter((c) => c.key !== key));
+  const removeClip = (key: number) => {
+    setPlaced((p) => p.filter((c) => c.key !== key));
+    if (selectedClipKey === key) setSelectedClipKey(null);
+  };
 
   const importClip = async (file: File) => {
     if (!sessionId) return;
@@ -340,13 +316,9 @@ function ClipsTab() {
     }
   };
 
-  const placementsFor = (clips: PlacedClip[]): ClipPlacement[] => {
-    const { normal } = neckPlacement(morphometry);
-    return clips.map((c) => ({ clip_id: c.clip_id, position: c.position, normal, rotation_deg: c.rotation_deg }));
-  };
-
-  const poseKey = (clips: PlacedClip[]) =>
-    JSON.stringify(clips.map((c) => [c.clip_id, c.position.x, c.position.y, c.position.z, c.rotation_deg]));
+  // Cada clip con su normal: la inclinación es de cada clip, no del cuello.
+  const placementsFor = (clips: PlacedClip[]): ClipPlacement[] =>
+    clips.map((c) => toPlacement(morphometry, c));
 
   /** ¿Sigue habiendo algo que recolocar? Se pregunta justo antes de mandar. */
   const canReplace = () =>
@@ -412,6 +384,9 @@ function ClipsTab() {
       if (cleared()) return;
       lastPlacedKey.current = key;
       setPlan(res);
+      // Con esta lista se cocieron las mallas que llegan: el visor compara con
+      // ella para saber cuánto se ha movido el clip desde entonces.
+      setPlannedClips(clips);
       setDeviceMesh("clips", res.clips_mesh_url || null);
       await requestField(placements, clearSeq);
     } catch (err) {
@@ -469,7 +444,8 @@ function ClipsTab() {
   useEffect(() => {
     mounted.current = true;
     const cancel = () => { cancelFieldTimer(); pendingPlace.current = false; };
-    // La lista se queda (es lo que mandará el próximo «Colocar»); el plan no.
+    // El plan local se olvida; la lista y lo planificado ya los vació el store
+    // (clearDeviceMeshes) al quitar la malla de clips.
     const forget = () => {
       lastPlacedKey.current = null;
       lastRequestedKey.current = null;
@@ -621,10 +597,16 @@ function ClipsTab() {
                       <button onClick={() => removeClip(c.key)} title="Quitar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
                     </div>
                     <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                      <NumField label="X" value={c.position.x} onChange={(v) => updateClip(c.key, { position: { ...c.position, x: v } })} />
-                      <NumField label="Y" value={c.position.y} onChange={(v) => updateClip(c.key, { position: { ...c.position, y: v } })} />
-                      <NumField label="Z" value={c.position.z} onChange={(v) => updateClip(c.key, { position: { ...c.position, z: v } })} />
+                      <NumField label="X" value={c.position[0]} onChange={(v) => updateClip(c.key, { position: [v, c.position[1], c.position[2]] })} />
+                      <NumField label="Y" value={c.position[1]} onChange={(v) => updateClip(c.key, { position: [c.position[0], v, c.position[2]] })} />
+                      <NumField label="Z" value={c.position[2]} onChange={(v) => updateClip(c.key, { position: [c.position[0], c.position[1], v] })} />
+                    </div>
+                    {/* La inclinación de la normal en el marco del cuello: azimut
+                        alrededor del eje, elevación desde él. El store la acota. */}
+                    <div style={{ display: "flex", gap: 6 }}>
                       <NumField label="Rot°" value={c.rotation_deg} onChange={(v) => updateClip(c.key, { rotation_deg: v })} step={5} />
+                      <NumField label="Azimut°" value={c.azimuthDeg} onChange={(v) => updateClip(c.key, { azimuthDeg: v })} step={5} min={-180} max={180} />
+                      <NumField label="Elevación°" value={c.elevationDeg} onChange={(v) => updateClip(c.key, { elevationDeg: v })} step={5} min={0} max={TILT_MAX_DEG} />
                     </div>
                   </Card>
                 ))}
@@ -719,7 +701,8 @@ function ClipsTab() {
               setFieldError(null);
               setFieldNote(null);
               setPlan(null);
-              setPlaced([]);
+              // La lista, lo planificado y la selección los vacía
+              // clearDeviceMeshes("clips") dentro de clear().
               }));
             }}
           />
@@ -940,7 +923,8 @@ function StentsTab() {
     setBusy(true);
     setError(null);
     try {
-      const { position } = neckPlacement(morphometry);
+      const [x, y, z] = neckPlacement(morphometry).position;
+      const position: Position3D = { x, y, z };
       const res = await api.planStent(sessionId, {
         stent_id: current.id,
         diameter_mm: diameter,

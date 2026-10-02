@@ -36,6 +36,11 @@ import pytest
 import vtk
 from fastapi.testclient import TestClient
 
+from eval.synthetic import SACO, tubo_con_saco
+from eval.synthetic import bola as _bola
+from eval.synthetic import limpia as _limpia
+from eval.synthetic import tubo as _tubo
+from eval.synthetic import une as _une
 from main import app
 from services.aneurysm_consensus import (CH_CALIBRE, CH_CURVATURE, CH_RATIO,
                                          PATCH_LOCATOR, PATCH_REGION,
@@ -54,48 +59,10 @@ Base.metadata.create_all(bind=engine)
 client = TestClient(app, raise_server_exceptions=True)
 
 
-def _limpia(poly):
-    tri = vtk.vtkTriangleFilter(); tri.SetInputData(poly); tri.Update()
-    cl = vtk.vtkCleanPolyData(); cl.SetInputConnection(tri.GetOutputPort())
-    cl.PointMergingOn(); cl.Update()
-    return cl.GetOutput()
-
-
-def _tubo(centro=(0, 0, 0), largo=60.0, radio=1.0, segmentos=60, res=20):
-    pts = vtk.vtkPoints(); linea = vtk.vtkPolyLine()
-    linea.GetPointIds().SetNumberOfIds(segmentos)
-    for i in range(segmentos):
-        t = i / (segmentos - 1)
-        pts.InsertNextPoint(centro[0], centro[1] + (t - 0.5) * largo, centro[2])
-        linea.GetPointIds().SetId(i, i)
-    ca = vtk.vtkCellArray(); ca.InsertNextCell(linea)
-    pd = vtk.vtkPolyData(); pd.SetPoints(pts); pd.SetLines(ca)
-    tf = vtk.vtkTubeFilter(); tf.SetInputData(pd); tf.SetRadius(radio)
-    tf.SetNumberOfSides(res); tf.CappingOn(); tf.Update()
-    return _limpia(tf.GetOutput())
-
-
-def _bola(centro, radio, res=26):
-    s = vtk.vtkSphereSource(); s.SetCenter(*centro); s.SetRadius(radio)
-    s.SetThetaResolution(res); s.SetPhiResolution(res); s.Update()
-    return _limpia(s.GetOutput())
-
-
-def _une(*polys):
-    ap = vtk.vtkAppendPolyData()
-    for p in polys:
-        ap.AddInputData(p)
-    ap.Update()
-    return _limpia(ap.GetOutput())
-
-
 @pytest.fixture(scope="module")
 def vaso_con_saco():
     """Un vaso fino de 1 mm con un saco de 3 mm pegado a media altura."""
-    return _une(_tubo(radio=1.0, largo=60.0), _bola((0.0, 5.0, 2.2), 3.0))
-
-
-SACO = np.array([0.0, 5.0, 2.2])
+    return tubo_con_saco()[0]
 
 
 # ── 1. El canal de calibre ve lo que la curvatura no ─────────────────────── #

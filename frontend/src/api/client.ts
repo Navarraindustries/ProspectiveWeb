@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  DicomSegResult,
   AttachRequest, AttachResult, SessionIdentity,
   GlbExportResult,
   WebSizingResult,
@@ -610,6 +611,8 @@ export const api = {
   /** La escena con un objeto por malla y su color, en metros: para verla o
    *  compartirla (visores 3D, PowerPoint, realidad aumentada). */
   exportGlb: (sessionId: string) => post<GlbExportResult>(`/api/export/glb/${sessionId}`),
+  /** Vaso y aneurisma como DICOM SEG, para superponerlos a la serie en el PACS. */
+  exportDicomSeg: (sessionId: string) => post<DicomSegResult>(`/api/export/dicom-seg/${sessionId}`),
 
   /* sessions */
   saveSession: (req: SessionSaveRequest) =>

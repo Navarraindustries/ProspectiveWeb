@@ -1914,3 +1914,14 @@ export interface AttachResult {
   imaging_study_id: number;
   relinked_confirmations: number;
 }
+
+/** La segmentación en DICOM SEG, sobre la serie original (backend/services/dicom_seg.py). */
+export interface DicomSegResult {
+  seg_url: string;
+  /** «Vaso» y, si hay saco aislado, «Aneurisma». */
+  segments: string[];
+  n_frames: number;
+  voxel_volumes_mm3: Record<string, number>;
+  mesh_volumes_mm3: Record<string, number>;
+  warnings: string[];
+}

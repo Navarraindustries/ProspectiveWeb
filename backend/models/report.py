@@ -96,3 +96,14 @@ class GlbExportResult(BaseModel):
     glb_url: str = Field(..., description="URL /data/… del .glb")
     parts: list[str] = Field(..., description="Objetos incluidos, en orden")
     size_kb: float
+
+
+class DicomSegResult(BaseModel):
+    """La segmentación en DICOM SEG, sobre la serie original."""
+
+    seg_url: str = Field(..., description="URL /data/… del .dcm")
+    segments: list[str] = Field(..., description="Segmentos incluidos: «Vaso», «Aneurisma»")
+    n_frames: int
+    voxel_volumes_mm3: dict[str, float] = Field(..., description="Volumen de cada segmento en la rejilla original")
+    mesh_volumes_mm3: dict[str, float] = Field(..., description="Volumen de la malla de la que sale")
+    warnings: list[str] = Field(default_factory=list)

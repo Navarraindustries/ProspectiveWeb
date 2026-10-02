@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from models import ReportRequest, ReportResult, ExportRequest
-from models.report import GlbExportResult
+from models.report import DicomSegResult, GlbExportResult
 from models.detection import Position3D
 from models.trajectory import (CorridorAssessmentOut, ProposedCorridorOut,
                                SuggestCorridorsRequest, SuggestCorridorsResult,
@@ -411,6 +411,48 @@ async def export_glb_endpoint(session_id: str) -> GlbExportResult:
         glb_url=_versioned(f"/data/sessions/{session_id}/exports/escena.glb"),
         parts=names,
         size_kb=round(out.stat().st_size / 1024, 1),
+    )
+
+
+# ── POST /export/dicom-seg/{session_id} ────────────────────────────────────── #
+
+@router.post(
+    "/export/dicom-seg/{session_id}",
+    response_model=DicomSegResult,
+    summary="Exportar la segmentación como DICOM SEG sobre la serie original",
+    description=(
+        "Segmentos «Vaso» (la malla de trabajo) y «Aneurisma» (el saco aislado, "
+        "si existe), rasterizados en la rejilla ORIGINAL de la serie y con sus "
+        "referencias, para que el PACS o 3D Slicer los superpongan a las "
+        "imágenes. Lleva los datos del paciente de la serie, como cualquier SEG. "
+        "Ver services/dicom_seg.py."
+    ),
+)
+async def export_dicom_seg(
+    session_id: str,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> DicomSegResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    from services.dicom_seg import build_dicom_seg
+    out = session_subdir(session_id, "exports") / "segmentacion.dcm"
+    try:
+        r = await asyncio.to_thread(build_dicom_seg, session_id, out)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("DICOM SEG failed for session %s", session_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo generar el DICOM SEG: {exc}") from exc
+
+    from services.audit import ACT_SEG_GENERATED, audit_append
+    audit_append(ACT_SEG_GENERATED, {
+        "session_id": session_id, "segments": r.segments, "frames": r.n_frames,
+    }, username=current_user.username if current_user else "")
+    return DicomSegResult(
+        seg_url=_versioned(f"/data/sessions/{session_id}/exports/segmentacion.dcm"),
+        segments=r.segments, n_frames=r.n_frames,
+        voxel_volumes_mm3=r.voxel_volumes_mm3, mesh_volumes_mm3=r.mesh_volumes_mm3,
+        warnings=r.warnings,
     )
 
 

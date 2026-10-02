@@ -2216,6 +2216,7 @@ of leaving it in the state.
 | `POST` | `/api/report/dicom-sr` | DICOM Structured Report (TID 1500) |
 | `POST` | `/api/export/stl` | Binary STL export |
 | `POST` | `/api/export/glb/{sid}` | Scene as glTF 2.0 binary: one coloured object per mesh, metres, centred |
+| `POST` | `/api/export/dicom-seg/{sid}` | Vessel and aneurysm as DICOM SEG on the original series, for the PACS |
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
 | `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
 | `POST` `GET` | `/api/captures` · `/api/captures/{id}/image` | Viewer capture (PNG) attached to the imaging study · list · serve |
@@ -2223,6 +2224,27 @@ of leaving it in the state.
 | `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |
 | `POST` `GET` `DELETE` | `/api/ground-truth` · `/current` · `/{id}` | Confirm where the lesion is (or that there is none) · current one · retract |
 | `GET` | `/api/ground-truth/summary` · `/export` | How the detector ranks against what was confirmed · full export (admin) |
+
+**DICOM SEG.** The SR carries the measurements; the SEG carries the regions, so
+the hospital PACS, 3D Slicer or OsiriX/Horos paint them over the original series.
+Two segments: «Vaso» (the working mesh, with its crops and erasures) and
+«Aneurisma» (the sac isolated in Morfometría; the detection candidate is an open
+surface patch and is not exported). The meshes are in mm from the first voxel
+of the loaded volume; isotropic resampling and half resolution both keep that
+voxel at the origin, so mesh mm / ORIGINAL spacing is the index in the original
+grid whatever resolution the segmentation ran at. Slice order is the loader's
+(`_series_file_names`); in a single-file multi-frame, frame i is slice i.
+Written with highdicom. Checked on case 3 by reading the SEG back with pydicom
+alone and placing each voxel in patient space from the positions the SEG itself
+declares, against the mesh taken to patient space through the original frames:
+aneurysm centroid 0.28 mm apart (voxel 0.32 mm) and every mesh point within
+0.17 mm of a SEG voxel; the test does the same on an oblique, offset classic
+series. Two things the source must have: the orientation shared by its frames
+(case 3 repeats it per frame, so it is moved to the shared group in an in-memory
+copy) and a Frame of Reference UID, which is never invented — a new one would not
+match the images. Empty type-2 patient/study attributes are added when an
+anonymised source lacks them. The SEG carries the series' patient module, like
+any SEG, and is served only through the authenticated `/data` route.
 
 **3D scene export (GLB).** The STL is for printing: one merged mesh, no colour.
 «Exportar escena 3D (GLB)» writes glTF 2.0 for showing the case — any 3D

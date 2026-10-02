@@ -37,6 +37,7 @@ ACT_CAPTURE_DELETED    = "CAPTURE_DELETED"
 ACT_LESION_CONFIRMED   = "LESION_CONFIRMED"
 ACT_LESION_RETRACTED   = "LESION_RETRACTED"
 ACT_SESSION_ATTACHED   = "SESSION_ATTACHED"
+ACT_SEG_GENERATED      = "DICOM_SEG_GENERATED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a

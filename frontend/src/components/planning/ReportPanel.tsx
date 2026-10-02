@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
-import type { GlbExportResult, ReportResult } from "../../api/types";
+import type { DicomSegResult, GlbExportResult, ReportResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
@@ -55,8 +55,9 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const [report, setReport] = useState<ReportResult | null>(null);
   const [stl, setStl] = useState<ReportResult | null>(null);
   const [glb, setGlb] = useState<GlbExportResult | null>(null);
+  const [seg, setSeg] = useState<DicomSegResult | null>(null);
   const [sr, setSr] = useState<ReportResult | null>(null);
-  const [busy, setBusy] = useState<"pdf" | "stl" | "glb" | "sr" | "save" | null>(null);
+  const [busy, setBusy] = useState<"pdf" | "stl" | "glb" | "seg" | "sr" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // What the outputs describe. A PDF is a snapshot of the mesh, the measurements
@@ -71,7 +72,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   }), [planning.segmentation?.mesh_url, morphometry, treatment, planning.deviceMeshes]);
 
   const generatedFrom = useRef<Record<string, string>>({});
-  const stale = (kind: "pdf" | "stl" | "glb" | "sr") =>
+  const stale = (kind: "pdf" | "stl" | "glb" | "seg" | "sr") =>
     generatedFrom.current[kind] !== undefined && generatedFrom.current[kind] !== planSignature;
 
   const genPdf = async () => {
@@ -133,6 +134,20 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
       generatedFrom.current.glb = planSignature;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error exportando la escena");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const genSeg = async () => {
+    if (!sessionId) return;
+    setBusy("seg");
+    setError(null);
+    try {
+      setSeg(await api.exportDicomSeg(sessionId));
+      generatedFrom.current.seg = planSignature;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error generando el DICOM SEG");
     } finally {
       setBusy(null);
     }
@@ -260,6 +275,19 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         {sr?.dicom_sr_url && (
           <OutputLink href={sr.dicom_sr_url} stale={stale("sr")}>
             Descargar informe estructurado DICOM (.dcm) →
+          </OutputLink>
+        )}
+        {/* El SR lleva las medidas; el SEG, las regiones, para que el PACS o
+            3D Slicer las pinten sobre la serie original. */}
+        <Button variant="outline" leadingIcon={<Icon name="DATABASE" />} onClick={() => void genSeg()} disabled={busy !== null}>
+          {busy === "seg" ? "Generando…" : stale("seg") ? "Regenerar DICOM SEG" : "Generar DICOM SEG (segmentación)"}
+        </Button>
+        {seg?.warnings.map((w) => (
+          <div key={w} style={{ fontSize: 11.5, color: "var(--warning)", lineHeight: 1.5 }}>{w}</div>
+        ))}
+        {seg?.seg_url && (
+          <OutputLink href={seg.seg_url} stale={stale("seg")} download="prospective-segmentacion.dcm">
+            Descargar segmentación DICOM ({seg.segments.join(" + ")}) →
           </OutputLink>
         )}
         <Separator style={{ margin: "6px 0" }} />

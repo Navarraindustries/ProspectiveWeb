@@ -26,3 +26,13 @@ export function matrixAfterSwap(userMatrix: Mat4 | undefined, hadMatrix: boolean
   if (userMatrix) return userMatrix;
   return hadMatrix ? IDENTITY : null;
 }
+
+/** La matriz de una capa (por filas, como la construye clipPose) en el orden
+ *  que espera `actor.setUserMatrix`: vtk.js la multiplica con gl-matrix, que
+ *  lee POR COLUMNAS. Sin esto la traslación caía en la fila proyectiva y el
+ *  clip desaparecía mientras se arrastraba. Devuelve una copia. */
+export function toColumnMajor(m: Mat4): number[] {
+  const r = new Array<number>(16);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) r[j * 4 + i] = m[i * 4 + j];
+  return r;
+}

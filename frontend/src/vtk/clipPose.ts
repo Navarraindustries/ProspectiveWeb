@@ -1,13 +1,15 @@
 // frontend/src/vtk/clipPose.ts
 /* La pose del clip tal y como la cuece el servidor (services/devices.pose_transform),
    reproducida en el cliente para mover la malla ya cocida con una matriz delta
-   mientras llega el plan nuevo. Matrices 4×4 por filas, como vtk.js. */
+   mientras llega el plan nuevo. Matrices 4×4 por filas (como VTK en C++ y el
+   servidor); vtk.js las lee por columnas, así que MeshView las traspone con
+   `toColumnMajor` (layerMatrix.ts) al dárselas a `setUserMatrix`. */
 import type { Vec3 } from "./geometry";
 
 export type Mat4 = number[];
 export const TILT_MAX_DEG = 60;
-// Congelada: se comparte por referencia (MeshView la pasa a setUserMatrix, que
-// copia), y una escritura accidental movería todo lo que vuelve a la identidad.
+// Congelada: se comparte por referencia, y una escritura accidental movería
+// todo lo que vuelve a la identidad. Simétrica: igual por filas que por columnas.
 export const IDENTITY = Object.freeze([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]) as Mat4;
 const rad = (d: number) => (d * Math.PI) / 180;
 const norm = (v: Vec3): Vec3 => { const l = Math.hypot(v[0], v[1], v[2]); return l > 1e-9 ? [v[0]/l, v[1]/l, v[2]/l] : [0, 0, 0]; };

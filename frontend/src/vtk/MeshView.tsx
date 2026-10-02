@@ -28,7 +28,7 @@ import { createOrientationInset, type OrientationInset } from "./OrientationInse
 import { captureRenderWindow, type CapturableWindow, type CaptureFn } from "./captureRenderWindow";
 import { standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
 import { IDENTITY } from "./clipPose";
-import { matrixAfterSwap, shouldApplyMatrix } from "./layerMatrix";
+import { matrixAfterSwap, shouldApplyMatrix, toColumnMajor } from "./layerMatrix";
 import { nextDrag, type DragEvent, type DragState } from "./handleDrag";
 import { cameraLike, type CameraLike, type Viewport } from "./dragController";
 
@@ -559,7 +559,7 @@ export function MeshView({
             loadedUrlById.current.set(layer.id, layer.url);
             // Nace ya en su sitio: sin esto el clip aparecería un fotograma en
             // la pose del fichero antes de que el efecto de la matriz lo mueva.
-            actor.setUserMatrix((layer.userMatrix ?? IDENTITY) as never);   // el .d.ts pide mat4; vtk.js copia cualquier array de 16
+            actor.setUserMatrix(toColumnMajor(layer.userMatrix ?? IDENTITY) as never);   // por columnas, como lee vtk.js; el .d.ts pide mat4 y copia cualquier array de 16
           }
           const prop = actor.getProperty();
           prop.setColor(...layer.color);
@@ -814,7 +814,7 @@ export function MeshView({
           // hasta que llegara el fichero.
           const cur = latestLayers.current.find((x) => x.id === l.id);
           const m = matrixAfterSwap(cur?.userMatrix, matrixIds.current.has(l.id));
-          if (m) actor.setUserMatrix(m as never);   // el .d.ts pide mat4; vtk.js copia cualquier array de 16
+          if (m) actor.setUserMatrix(toColumnMajor(m) as never);   // por columnas, como lee vtk.js; el .d.ts pide mat4
           if (cur?.userMatrix) matrixIds.current.add(l.id);
           else matrixIds.current.delete(l.id);
           // El casco comparte el mapper, así que ya tiene la geometría nueva,
@@ -952,9 +952,10 @@ export function MeshView({
       if (l.userMatrix) now.add(l.id);
       const actor = namedActors.current.get(l.id);
       if (!actor) continue;
-      // El .d.ts pide mat4 y declara void; vtk.js copia cualquier array de 16
-      // y devuelve si cambió algo.
-      const set = (m: number[]) => Boolean(actor.setUserMatrix(m as never) as unknown);
+      // Las capas traen la matriz por filas (clipPose); vtk.js la lee por
+      // columnas. El .d.ts pide mat4 y declara void; vtk.js copia cualquier
+      // array de 16 y devuelve si cambió algo.
+      const set = (m: number[]) => Boolean(actor.setUserMatrix(toColumnMajor(m) as never) as unknown);
       if (l.userMatrix) {
         if (set(l.userMatrix)) changed = true;
       } else if (matrixIds.current.has(l.id)) {

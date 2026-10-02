@@ -29,7 +29,12 @@ export function screenToPlane(cam: CameraLike, vp: Viewport, px: number, py: num
   const { origin, dir } = pixelRay(cam, vp, px, py);
   const d = dot(dir, plane.normal);
   if (Math.abs(d) < 1e-6) return null;
-  return add(origin, dir, dot(sub(plane.origin, origin), plane.normal) / d);
+  const t = dot(sub(plane.origin, origin), plane.normal) / d;
+  // Detrás del ojo (en perspectiva, con el plano casi de canto o la cámara
+  // al otro lado) el corte es geométricamente válido pero no está en pantalla:
+  // seguirlo lanzaría el asa al lado opuesto del cursor.
+  if (t < 0) return null;
+  return add(origin, dir, t);
 }
 export function screenToAxis(cam: CameraLike, vp: Viewport, px: number, py: number, axis: { origin: Vec3; dir: Vec3 }): number | null {
   const { origin, dir } = pixelRay(cam, vp, px, py);

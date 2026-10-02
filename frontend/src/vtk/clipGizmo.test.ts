@@ -15,6 +15,22 @@ describe("clipGizmo", () => {
     const s = beginDrag("clip:move", clip, n, n, cam, vp, 100, 50, false);
     expect(dragPose("clip:move", s, cam, vp, 150, 50, false)!.position.map((v) => +v.toFixed(6))).toEqual([10, 0, 0]);
   });
+  it("con el plano del cuello casi de canto el desplazamiento se detiene (null): unos píxeles serían decenas de mm", () => {
+    // Vista lateral con el cuello a ~1° de canto: |rayo·normal| ≈ 0,02.
+    const camGraze = { ...cam, position: [100, 0, 2] as [number, number, number], viewUp: [0, 0, 1] as [number, number, number] };
+    const s = beginDrag("clip:move", clip, n, n, camGraze, vp, 100, 50, false);
+    expect(s.p0).not.toBeNull();
+    expect(dragPose("clip:move", s, camGraze, vp, 100, 48, false)).toBeNull();
+    expect(dragPose("clip:move", s, { ...camGraze, parallel: false }, vp, 100, 48, false)).toBeNull();
+  });
+  it("un arrastre largo en el plano se acota a 50 mm", () => {
+    const camWide = { ...cam, parallelScale: 100 };                                      // 50 px son 100 mm
+    const s = beginDrag("clip:move", clip, n, n, camWide, vp, 100, 50, false);
+    const p = dragPose("clip:move", s, camWide, vp, 150, 50, false)!;
+    expect(p.position.map((v) => +v.toFixed(6))).toEqual([50, 0, 0]);
+    const q = dragPose("clip:move", s, camWide, vp, 110, 50, false)!;                  // 20 mm: sin tocar
+    expect(q.position.map((v) => +v.toFixed(6))).toEqual([20, 0, 0]);
+  });
   it("con Shift se desplaza a lo largo de la normal", () => {
     const camSide = { ...cam, position: [100, 0, 0] as [number, number, number], viewUp: [0, 0, 1] as [number, number, number] };   // mira desde +x; z es vertical en pantalla
     const s = beginDrag("clip:move", clip, n, n, camSide, vp, 100, 50, true);

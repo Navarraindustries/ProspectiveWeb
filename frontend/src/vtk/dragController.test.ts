@@ -20,6 +20,9 @@ describe("pixelRay", () => {
 });
 describe("screenToPlane / Axis / Sphere / angleAround", () => {
   it("plano z=0: el píxel (150,50) cae en x=10", () => { close(screenToPlane(ortho, vp, 150, 50, { origin: [0, 0, 0], normal: [0, 0, 1] }), [10, 0, 0]); });
+  it("plano detrás del ojo (perspectiva) → null: el corte no está en pantalla", () => {
+    expect(screenToPlane(persp, vp, 150, 50, { origin: [0, 0, 200], normal: [0, 0, 1] })).toBeNull();
+  });
   it("plano paralelo al rayo → null", () => { expect(screenToPlane(ortho, vp, 150, 50, { origin: [0, 0, 0], normal: [1, 0, 0] })).toBeNull(); });
   it("eje x por el origen: el píxel (150,50) da t=10; eje paralelo al rayo → null", () => {
     expect(screenToAxis(ortho, vp, 150, 50, { origin: [0, 0, 0], dir: [1, 0, 0] })).toBeCloseTo(10, 6);

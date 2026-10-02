@@ -3,21 +3,29 @@
    sale de cada gesto. Tres asas, una por grado de libertad que el cirujano
    ajusta a mano: la esfera verde desplaza (en el plano del cuello, o por la
    normal con Shift), el anillo ámbar gira el clip sobre su normal y la esfera
-   lavanda en la punta del brazo lo inclina (acotado a 60°, como el servidor).
+   lavanda en la punta del brazo lo inclina (acotado a 60° en el cliente: el
+   servidor no pone tope).
    Todo lo que necesita del gesto se congela al empezar (DragStart): si la
    normal o el eje se recalcularan a mitad del arrastre, el punto de agarre se
    iría moviendo bajo el ratón. */
 import type { PlacedClip } from "../store/planning";
 import type { Handle } from "./MeshView";
 import type { Vec3 } from "./geometry";
-import { angleAround, screenToAxis, screenToPlane, screenToSphereBoth, type CameraLike, type Viewport } from "./dragController";
+import { angleAround, pixelRay, screenToAxis, screenToPlane, screenToSphereBoth, type CameraLike, type Viewport } from "./dragController";
 import { clampTilt, neckFrameAngles, neckFrameNormal } from "./clipPose";
 import { HUD_HEX, hexToRgb01, planeRgb01 } from "./planeColors";
 
 export const RING_MM = 3, TILT_ARM_MM = 6, HANDLE_MM = 0.9;
-/** Con Shift, a lo largo de la normal: con la vista casi paralela a la normal
- *  el rayo y el eje se cortan muy lejos y un píxel serían metros. */
-const AXIS_MAX_MM = 50;
+/** Tope de un arrastre de desplazamiento, en los dos modos. Con Shift, a lo
+ *  largo de la normal: con la vista casi paralela a la normal el rayo y el eje
+ *  se cortan muy lejos y un píxel serían metros. En el plano del cuello pasa lo
+ *  mismo con la vista casi de canto. */
+const MOVE_MAX_MM = 50;
+/** Por debajo de este |rayo·normal| el plano del cuello se ve casi de canto
+ *  (≈84° o más entre el rayo y la normal) y unos píxeles serían decenas de mm:
+ *  el desplazamiento en el plano se detiene y la pose se conserva hasta que la
+ *  vista vuelve a servir (o se usa Shift). */
+const GRAZING_MIN = 0.1;
 const ROLL_HEX = "#ffc857";
 
 export type ClipHandleId = "clip:move" | "clip:roll" | "clip:tilt";
@@ -97,13 +105,19 @@ export function dragPose(
   const { clip, normal } = start;
   if (id === "clip:move") {
     if (start.p0) {
+      const { dir } = pixelRay(cam, vp, px, py);
+      if (Math.abs(dir[0] * normal[0] + dir[1] * normal[1] + dir[2] * normal[2]) < GRAZING_MIN) return null;
       const p = screenToPlane(cam, vp, px, py, { origin: clip.position, normal });
-      return p ? { ...clip, position: add(clip.position, sub(p, start.p0)) } : null;
+      if (!p) return null;
+      let d = sub(p, start.p0);
+      const len = Math.hypot(d[0], d[1], d[2]);
+      if (len > MOVE_MAX_MM) d = [d[0] * MOVE_MAX_MM / len, d[1] * MOVE_MAX_MM / len, d[2] * MOVE_MAX_MM / len];
+      return { ...clip, position: add(clip.position, d) };
     }
     if (start.t0 !== null) {
       const t = screenToAxis(cam, vp, px, py, { origin: clip.position, dir: normal });
       if (t === null) return null;
-      const d = Math.max(-AXIS_MAX_MM, Math.min(AXIS_MAX_MM, t - start.t0));
+      const d = Math.max(-MOVE_MAX_MM, Math.min(MOVE_MAX_MM, t - start.t0));
       return { ...clip, position: add(clip.position, normal, d) };
     }
     return null;

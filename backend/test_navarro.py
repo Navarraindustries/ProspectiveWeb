@@ -27,6 +27,7 @@ import vtk
 
 from services import navarro
 from services.clip_selection import (
+    BLADE_MAX_RATIO,
     ClipCase,
     evaluate_clip,
     ideal_jaw_mm,
@@ -578,8 +579,24 @@ class TestTheFamilyIsNeverHiddenByRanking:
         assert scores == sorted(scores, reverse=True)
 
     def test_nothing_unusable_sneaks_in_through_the_guarantee(self):
-        # A neck too small for the smallest jaw must still offer no NAVARRO.
-        sel = select_clips(ClipCase(neck_mm=1.5, ar=1.4, dome_height_mm=2.1,
-                                    neck_source="rim"))
-        assert all(c.viable for c in sel.recommended)
-        assert not any("NAVARRO" in c.clip.name for c in sel.recommended)
+        # A 1.5 mm neck: every NAVARRO™ jaw (7 mm and up) is more than ×3 the
+        # neck. That used to be a failed criterion; since the long-blade ruling
+        # it is "usable with reservations" (warn), so NAVARRO clips may now be
+        # offered here. What the guarantee must still never let through is a
+        # clip that cannot close the neck: nothing recommended fails a
+        # criterion, no blade is shorter than the flattened neck, and a long
+        # blade comes back flagged, not silently promoted.
+        case = ClipCase(neck_mm=1.5, ar=1.4, dome_height_mm=2.1, neck_source="rim")
+        sel = select_clips(case)
+        assert sel.recommended, "con hojas largas como reserva siempre queda algo que ofrecer"
+        need = case.jaw_requirement.mm
+        for c in sel.recommended:
+            assert c.viable
+            assert not [k for k in c.criteria if k.verdict == "fail"], c.clip.name
+            assert c.clip.blade_length_mm >= need, (
+                f"{c.clip.name}: hoja de {c.clip.blade_length_mm} mm, el cuello aplastado pide {need} mm")
+            if c.clip.blade_length_mm / case.neck_mm > BLADE_MAX_RATIO:
+                blade = next(k for k in c.criteria if k.key == "coverage")
+                assert blade.verdict == "warn", c.clip.name
+                assert "Hoja larga" in blade.detail
+                assert c.verdict != "ok", "una hoja larga no puede quedar como recomendación sin reservas"

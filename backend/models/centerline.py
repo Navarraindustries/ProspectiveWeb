@@ -106,3 +106,47 @@ class CenterlineClearResult(BaseModel):
     had_centerline: bool = Field(
         ..., description="False when there was no centreline to discard"
     )
+
+
+# ── Dimensionado de flow-diverter (services/fd_sizing.py) ─────────────────── #
+
+class FdLandingZone(BaseModel):
+    """Calibre del vaso en un anclaje, medido con cortes perpendiculares."""
+
+    arc_from_mm: float
+    arc_to_mm: float
+    diameter_mm: float = Field(..., description="Mediana de los cortes redondos; 0 = sin medir")
+    min_mm: float
+    max_mm: float
+    n_sections: int
+    truncated: bool = Field(..., description="La línea central se acaba antes del anclaje entero")
+
+
+class FdOption(BaseModel):
+    device_id: str
+    name: str
+    manufacturer: str
+    diameter_mm: float = Field(..., description="Medida elegida; 0 = ninguna encaja")
+    length_mm: float = Field(..., description="Longitud ETIQUETADA elegida; 0 = ninguna basta")
+    fits: bool
+    reason: str
+    neck_note: str = Field("", description="Cobertura metálica a la altura del cuello")
+    narrow_end_note: str = Field("", description="Cobertura en el anclaje más estrecho")
+    deploy_arc_mm: list[float] = Field(..., description="[inicio, fin] centrado en el cuello")
+    elongated_length_mm: float = Field(..., description="La etiqueta + 32,6 % (alargamiento medio medido)")
+
+
+class FdSizingResult(BaseModel):
+    neck_arc_mm: list[float]
+    neck_from_rim: bool
+    total_arc_mm: float
+    proximal: FdLandingZone
+    distal: FdLandingZone
+    mismatch_mm: float
+    target_diameter_mm: float
+    required_length_mm: float
+    multiple_devices: bool
+    options: list[FdOption]
+    warnings: list[str]
+    notes: list[str]
+    sources: list[str]

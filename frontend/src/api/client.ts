@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  FdSizingResult,
   LesionConfirmIn, LesionConfirmation, LesionSummary,
   AneurysmDetectionResult,
   AuditBlock,
@@ -381,6 +382,9 @@ export const api = {
     post<CrossSectionResult>(`/api/cross-section/${sessionId}`, req),
   deployClStent: (sessionId: string, req: ClStentRequest) =>
     post<ClStentResult>(`/api/cl-stent/${sessionId}`, req),
+  /** Calibre de los anclajes y medida de cada flow-diverter del catálogo. */
+  fdSizing: (sessionId: string) =>
+    post<FdSizingResult>(`/api/centerline/${sessionId}/fd-sizing`),
   /** Cuánto aneurisma queda con el clip colocado: oclusión completa, resto de
    *  cuello o residual. Geometría, no mecánica. */
   clipOcclusion: (sessionId: string) =>

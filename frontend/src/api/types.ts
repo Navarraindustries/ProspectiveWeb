@@ -1792,3 +1792,47 @@ export interface LesionSummary {
   by_modality: Record<string, number>;
   reproducible: number;
 }
+
+/* ── Dimensionado de flow-diverter (backend/services/fd_sizing.py) ─────────── */
+
+export interface FdLandingZone {
+  arc_from_mm: number;
+  arc_to_mm: number;
+  /** Mediana de los cortes redondos; 0 = sin medir. */
+  diameter_mm: number;
+  min_mm: number;
+  max_mm: number;
+  n_sections: number;
+  truncated: boolean;
+}
+
+export interface FdOption {
+  device_id: string;
+  name: string;
+  manufacturer: string;
+  diameter_mm: number;
+  /** Longitud ETIQUETADA. */
+  length_mm: number;
+  fits: boolean;
+  reason: string;
+  neck_note: string;
+  narrow_end_note: string;
+  deploy_arc_mm: [number, number];
+  elongated_length_mm: number;
+}
+
+export interface FdSizingResult {
+  neck_arc_mm: [number, number];
+  neck_from_rim: boolean;
+  total_arc_mm: number;
+  proximal: FdLandingZone;
+  distal: FdLandingZone;
+  mismatch_mm: number;
+  target_diameter_mm: number;
+  required_length_mm: number;
+  multiple_devices: boolean;
+  options: FdOption[];
+  warnings: string[];
+  notes: string[];
+  sources: string[];
+}

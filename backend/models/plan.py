@@ -114,6 +114,10 @@ class StentLibraryItem(BaseModel):
     min_diameter_mm: float
     max_diameter_mm: float
     available_lengths_mm: list[float]
+    available_diameters_mm: list[float] = Field(
+        default_factory=list,
+        description="Medidas comercializadas, cuando se conocen. Vacío = solo el rango.",
+    )
     type: str = Field(
         ..., description="Stent type: 'flow_diverter' | 'coil_assist' | 'neck_bridge'"
     )

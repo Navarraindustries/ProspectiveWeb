@@ -29,6 +29,7 @@ import { Button } from "../Button";
 import { CenterOnLesionButton } from "../CenterOnLesionButton";
 import { ClipRehearsal } from "./ClipRehearsal";
 import { ClipSelectionPanel } from "./ClipSelection";
+import { FdSizing } from "./FdSizing";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -872,6 +873,16 @@ function ClStentTab() {
 
   return (
     <div style={{ marginTop: 12 }}>
+      {sessionId && (
+        <FdSizing
+          sessionId={sessionId}
+          onApply={(d, a, b) => {
+            setDiameter(d);
+            setStartArc(Math.floor(a));
+            setEndArc(Math.ceil(b));
+          }}
+        />
+      )}
       <SectionLabel>Segmento de la línea central</SectionLabel>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "6px 0 12px" }}>
         Arco total: <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{total.toFixed(1)} mm</b>.

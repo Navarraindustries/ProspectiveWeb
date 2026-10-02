@@ -16,6 +16,7 @@ from services.db_models import User
 from models.centerline import (
     CenterlineClearResult, CenterlineRequest, CenterlineResult,
     CrossSectionRequest, CrossSectionResult, ClStentRequest, ClStentResult,
+    FdSizingResult,
 )
 from services.centerline import extract_centerline
 from services.cross_section import compute_cross_sections
@@ -294,6 +295,73 @@ async def deploy_cl_stent(
         total_arc_mm=round(result.total_arc_mm, 1),
         warning=warning,
     )
+
+
+# ── POST /centerline/{session_id}/fd-sizing ───────────────────────────────── #
+
+def _run_fd_sizing(session_id: str, vessel_path, points_path):
+    from routers.detect import _read_rim_points
+    from routers.plan import _STENT_LIBRARY, _load_float
+    from services.fd_sizing import size_flow_diverter
+
+    neck = [_load_float(session_id, f"morpho.neck_origin_{k}", float("nan")) for k in "xyz"]
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    if any(v != v for v in neck) or neck_mm <= 0:
+        raise ValueError("Falta la morfometría: hace falta el cuello medido para "
+                         "saber dónde caen los anclajes.")
+    rim = [(p.x, p.y, p.z) for p in _read_rim_points(session_id)]
+    r = size_flow_diverter(
+        read_vtp(vessel_path), np.load(points_path)["points"], neck, neck_mm,
+        [s.model_dump() for s in _STENT_LIBRARY], rim_points=rim,
+    )
+    # Dos medidas de la misma arteria que no casan: la pestaña «Stents»
+    # dimensiona con la de la morfometría. En un caso real dio 1,67 mm donde
+    # los cortes sobre la línea central miden 4–5 mm.
+    parent = _load_float(session_id, "morpho.parent_artery_mm", 0.0)
+    medidos = [z.diameter_mm for z in (r.proximal, r.distal) if z.diameter_mm > 0]
+    if parent > 0 and medidos:
+        aqui = sum(medidos) / len(medidos)
+        if abs(parent - aqui) > 1.0:
+            r.warnings.append(
+                f"La arteria madre de la morfometría ({parent:.2f} mm) no coincide con "
+                f"el calibre medido aquí sobre la línea central ({aqui:.2f} mm). La "
+                f"pestaña «Stents» dimensiona con la de la morfometría: compruébala.")
+    return r
+
+
+@router.post(
+    "/centerline/{session_id}/fd-sizing",
+    response_model=FdSizingResult,
+    summary="Dimensionar un flow-diverter sobre la línea central",
+    description=(
+        "Mide el calibre del vaso en el anclaje proximal y en el distal del "
+        "cuello con cortes perpendiculares a la línea central, y propone el "
+        "diámetro y la longitud etiquetada de cada flow-diverter del catálogo. "
+        "Necesita la línea central y la morfometría. No simula el despliegue "
+        "de la trenza: ver services/fd_sizing.py."
+    ),
+)
+async def fd_sizing(session_id: str) -> FdSizingResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    meshes_dir = session_subdir(session_id, "meshes")
+    points_path = meshes_dir / "centerline_points.npz"
+    vessel_path = meshes_dir / "vessel_tree.vtp"
+    if not points_path.exists():
+        raise HTTPException(status_code=422, detail="Extrae primero la línea central.")
+    if not vessel_path.exists():
+        raise HTTPException(status_code=422, detail="No hay malla segmentada.")
+    try:
+        r = await asyncio.to_thread(_run_fd_sizing, session_id, vessel_path, points_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    from dataclasses import asdict
+    d = asdict(r)
+    d["neck_arc_mm"] = list(r.neck_arc_mm)
+    for o in d["options"]:
+        o["deploy_arc_mm"] = list(o["deploy_arc_mm"])
+    return FdSizingResult(**d)
 
 
 # ── DELETE /centerline/{session_id} ───────────────────────────────────────── #

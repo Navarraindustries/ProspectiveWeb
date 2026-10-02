@@ -2155,7 +2155,29 @@ and logout, which a stale cookie must never block.
 | `GET` `POST` `DELETE` | `/api/clips/custom/{sid}` | Imported clip library: list · upload · remove one |
 | `POST` | `/api/coils/plan` · `/api/plan` | Coil packing · stent deployment |
 | `POST` | `/api/cl-stent/{sid}` | Centerline-guided stent along vessel curvature |
+| `POST` | `/api/centerline/{sid}/fd-sizing` | Flow-diverter sizing: landing-zone calibres, catalogue diameter and labelled length |
 | `POST` `DELETE` | `/api/trajectory/{sid}` | Surgical trajectory |
+
+**Flow-diverter sizing** («Stent CL» tab → «Dimensionar»). On the extracted
+centreline it finds the stretch of vessel the neck occupies (from the marked
+rim when there is one, else the neck width), then measures the vessel with
+perpendicular cuts in a 5 mm landing zone on each side, leaving 1 mm clear of
+the neck. A cut only counts if it is round and the centreline runs through its
+centre: on a real case the nearest contour at one point was a 1.7 mm branch
+touching a 4–5 mm vessel, and without that check the landing zone of a
+synthetic test came out at 1.59 mm instead of 4. For each flow diverter in the
+catalogue it proposes the marketed diameter closest to the LARGER landing zone
+(never more than 0.25 mm below it) and the shortest labelled length that covers
+neck plus landing zones, with what that diameter does to metal coverage at the
+neck and at the narrow end. A proximal–distal difference above 1 mm is flagged
+as calling for several devices, each sized to its segment. The length is the
+LABELLED one: deployed Pipelines measured 32.6 % longer on average (26–109 %,
+101 patients, JNIS 2023), so the panel says how far that could reach. It does
+not simulate the braid (Sim&Size, AneuGuide do, per device design). Proximal is
+the centreline's ORIGIN. «Usar en el despliegue» fills the centreline stent
+with that diameter and span. When `morpho.parent_artery_mm` disagrees with
+these calibres by more than 1 mm it says so: the «Stents» tab sizes with that
+figure.
 
 ### Report, export & audit
 

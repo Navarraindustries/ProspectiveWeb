@@ -34,6 +34,9 @@ _STENT_LIBRARY: list[StentLibraryItem] = [
         min_diameter_mm=2.5,
         max_diameter_mm=5.0,
         available_lengths_mm=[10, 14, 16, 18, 20, 25, 30, 35],
+        # De 2,50 a 5,00 en pasos de 0,25 (familia Pipeline, Medtronic). No
+        # todas las longitudes existen en todos los diámetros.
+        available_diameters_mm=[2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.0],
         type="flow_diverter",
     ),
     StentLibraryItem(

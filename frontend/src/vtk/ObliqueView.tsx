@@ -1,7 +1,8 @@
-/* ObliqueView — corte inclinado, resuelto en el navegador con
-   vtkImageResliceMapper. El plano pasa por el crosshair (no por el centro
-   del volumen, como el oblicuo del servidor), así que lo que se inclina es
-   lo que se está mirando. */
+/* ObliqueView — corte libre, resuelto en el navegador con
+   vtkImageResliceMapper. El plano es el plano libre compartido del store
+   (azimut, elevación y desplazamiento desde el crosshair): el mismo que
+   recorta el volumen y que se dibuja en el 3D y en los cortes, así que
+   orientarlo aquí lo orienta en todas las vistas. */
 
 import { useEffect, useRef, useState } from "react";
 import "@kitware/vtk.js/Rendering/Profiles/Volume";
@@ -12,36 +13,19 @@ import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
 import { usePlanning } from "../store/planning";
-import { voxelToMm } from "./geometry";
+import type { Vec3 } from "./geometry";
+import {
+  AZIMUTH_RANGE, ELEVATION_RANGE, clampOffsetToBox, clipPolygon, normalOf, originOf, rightOf, upOf, type FreePlane,
+} from "./freePlane";
+import { dragAngles, obliqueReadout, wheelOffset } from "./obliqueGestures";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 
-type Vec3 = [number, number, number];
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-
-/** Extensión (mm) del corte a lo largo de `right` y `up`: el polígono que
- *  deja el plano (punto `o`, normal `n`) al cortar la caja `b` del volumen,
- *  como puntos de corte con sus 12 aristas, proyectados en esos dos ejes. */
-function sliceExtent(b: number[], o: Vec3, n: Vec3, right: Vec3, up: Vec3): [number, number] {
-  const xs = [b[0], b[1]], ys = [b[2], b[3]], zs = [b[4], b[5]];
-  const pts: Vec3[] = [];
-  const edge = (p: Vec3, q: Vec3) => {
-    const dp = dot(n, [p[0] - o[0], p[1] - o[1], p[2] - o[2]]);
-    const dq = dot(n, [q[0] - o[0], q[1] - o[1], q[2] - o[2]]);
-    if (dp * dq > 0 || dp === dq) return;
-    const t = dp / (dp - dq);
-    pts.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]), p[2] + t * (q[2] - p[2])]);
-  };
-  for (const y of ys) for (const z of zs) edge([xs[0], y, z], [xs[1], y, z]);
-  for (const x of xs) for (const z of zs) edge([x, ys[0], z], [x, ys[1], z]);
-  for (const x of xs) for (const y of ys) edge([x, y, zs[0]], [x, y, zs[1]]);
-  if (pts.length === 0) return [0, 0];
-  const span = (v: Vec3) => { const d = pts.map((p) => dot(p, v)); return Math.max(...d) - Math.min(...d); };
-  return [span(right), span(up)];
-}
+type Voxel = { x: number; y: number; z: number };
+const degLabel = (d: number) => { const r = Math.round(d); return `${r < 0 ? "−" : ""}${Math.abs(r)}°`; };
 
 export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false, registerCapture }: {
   image: vtkImageData; meta: VolumeMeta; wc: number; ww: number; onWindowLevel: (wc: number, ww: number) => void; active?: boolean;
@@ -50,30 +34,44 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
    *  siguiente render, así que la captura tiene que salir de aquí. */
   registerCapture?: (fn: CaptureFn | null) => void;
 }) {
-  const { mprVoxel } = usePlanning();
+  const { mprVoxel, freePlane, setFreePlane } = usePlanning();
   // Por ref: cambiar de destinatario no puede rehacer la escena.
   const registerCaptureRef = useRef(registerCapture);
   registerCaptureRef.current = registerCapture;
   const ref = useRef<HTMLDivElement>(null);
   const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkImageResliceMapper; actor: vtkImageSlice; plane: vtkPlane; fit: () => boolean } | null>(null);
-  const [tilt, setTilt] = useState(20);
-  const [pos, setPos] = useState(0);        // mm a lo largo de la normal, desde el crosshair
-  const [axis, setAxis] = useState<"x" | "y">("x");
   // «AJUSTAR»/«CENTRAR» piden un reencuadre; el contador lo convierte en un cambio.
   const [fitRequest, setFitRequest] = useState(0);
-  // Geometría vigente del plano, para que el encuadre (y el ResizeObserver,
-  // que vive fuera del ciclo de React) la lean sin rehacer la escena.
-  const geom = useRef<{ o: Vec3; n: Vec3; up: Vec3 } | null>(null);
-  // Encuadre pendiente: la escena recién hecha, un cambio de eje o un botón.
-  // Inclinación, rueda y crosshair no lo piden: conservan el zoom del usuario.
+  // Plano y crosshair vigentes, para que el encuadre (y el ResizeObserver y la
+  // rueda, que viven fuera del ciclo de React) los lean sin rehacer la escena.
+  const geom = useRef<{ p: FreePlane; voxel: Voxel }>({ p: freePlane, voxel: mprVoxel });
+  // También por ref: el encuadre lo necesita y la escena no se rehace por él.
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
+  // Encuadre pendiente: la escena recién hecha o un botón. Ángulos, rueda y
+  // crosshair no lo piden: conservan el zoom del usuario.
   const needFit = useRef(true);
+
+  /** Todo cambio del plano pasa por aquí. El desplazamiento se acota a la caja
+   *  también al girar, porque un giro puede dejar fuera un plano que estaba
+   *  dentro. `geom` se adelanta al render para que dos eventos seguidos de la
+   *  rueda acumulen en vez de partir los dos del mismo plano. */
+  const commitPlane = (p: FreePlane) => {
+    const next = clampOffsetToBox(p, geom.current.voxel, meta);
+    geom.current = { ...geom.current, p: next };
+    setFreePlane(next);
+  };
+  // La rueda es un oyente nativo registrado una vez por volumen: lee la última
+  // versión de `commitPlane` por ref.
+  const commitRef = useRef(commitPlane);
+  commitRef.current = commitPlane;
 
   useEffect(() => {
     const el = ref.current; if (!el) return;
     const grw = vtkGenericRenderWindow.newInstance({ background: [0, 0, 0] });
     grw.setContainer(el);
     // Sin interacción de vtk: su estilo trackball giraría la cámara fuera de
-    // la normal del plano al arrastrar, y el arrastre aquí es ventana/nivel.
+    // la normal del plano al arrastrar, y los arrastres aquí son nuestros.
     try { grw.getInteractor().unbindEvents(); } catch { /* older vtk.js */ }
     const renderer = grw.getRenderer();
     const plane = vtkPlane.newInstance();
@@ -89,13 +87,18 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
 
     // La misma regla que SliceView: la media altura visible (parallelScale)
     // es la media extensión vertical del corte, o su media anchura dividida
-    // por el aspecto si el panel es más estrecho que el corte. El foco es el
-    // crosshair, así que la imagen queda centrada en él. Devuelve false si el
-    // panel aún mide 0 (montado oculto): el encuadre sigue pendiente.
+    // por el aspecto si el panel es más estrecho que el corte. Las extensiones
+    // son las del polígono plano–caja proyectado en los ejes de pantalla
+    // (rightOf, upOf). El foco es el crosshair, así que la imagen queda
+    // centrada en él. Devuelve false si el panel aún mide 0 (montado oculto):
+    // el encuadre sigue pendiente.
     const fit = () => {
-      const g = geom.current; if (!g) return false;
       const w = el.clientWidth, h = el.clientHeight; if (w <= 0 || h <= 0) return false;
-      const [ew, eh] = sliceExtent(image.getBounds(), g.o, g.n, cross(g.n, g.up), g.up);
+      const { p, voxel } = geom.current;
+      const poly = clipPolygon(p, voxel, metaRef.current);
+      if (poly.length < 3) return false;
+      const span = (v: Vec3) => { const d = poly.map((q) => dot(q, v)); return Math.max(...d) - Math.min(...d); };
+      const ew = span(rightOf(p)), eh = span(upOf(p));
       if (ew <= 0 || eh <= 0) return false;
       cam.setParallelScale(Math.max(eh / 2, ew / 2 / (w / h)) * 1.02);
       return true;
@@ -113,36 +116,30 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
   }, [image]);
 
   // Declarado antes que el efecto del plano: corre antes en el mismo commit,
-  // así que el cambio de eje o el botón encuadran ya en esa pasada.
-  useEffect(() => { needFit.current = true; }, [axis, fitRequest]);
+  // así que el botón encuadra ya en esa pasada.
+  useEffect(() => { needFit.current = true; }, [fitRequest]);
 
   // Plano y cámara. Depende también de la imagen: al llegar el volumen
   // completo la escena se rehace con un plano nuevo que nadie orientaría.
   useEffect(() => {
+    geom.current = { p: freePlane, voxel: mprVoxel };
     const s = scene.current; if (!s) return;
-    const th = (tilt * Math.PI) / 180;
-    // Plano axial inclinado hacia y (eje X de giro) o hacia x (eje Y).
-    const n: Vec3 = axis === "x" ? [0, Math.sin(th), Math.cos(th)] : [Math.sin(th), 0, Math.cos(th)];
-    // up ⟂ n para toda inclinación (su producto escalar es −sin·cos + cos·sin = 0,
-    // y ambos son unitarios), así que nunca degenera.
-    const up: Vec3 = axis === "x" ? [0, -Math.cos(th), Math.sin(th)] : [-Math.cos(th), 0, Math.sin(th)];
-    const c = voxelToMm(mprVoxel, meta);
-    const o: Vec3 = [c[0] + n[0] * pos, c[1] + n[1] * pos, c[2] + n[2] * pos];
-    geom.current = { o, n, up };
+    const n = normalOf(freePlane), o = originOf(freePlane, mprVoxel, meta), up = upOf(freePlane);
     s.plane.setNormal(...n);
     s.plane.setOrigin(...o);
-    // El foco es el crosshair SIN el desplazamiento de la rueda: la rueda
-    // mueve el plano bajo un encuadre quieto (con cámara paralela, que el foco
-    // quede fuera del plano solo afecta al rango de recorte).
+    // Foco en el origen del plano y cámara sobre su normal. Con proyección
+    // paralela, el origen y el crosshair caen en el mismo punto de pantalla
+    // (uno es el otro desplazado por la normal), así que la rueda mueve el
+    // plano bajo un encuadre quieto.
     const renderer = s.grw.getRenderer();
     const cam = renderer.getActiveCamera();
-    cam.setFocalPoint(c[0], c[1], c[2]);
-    cam.setPosition(c[0] - n[0] * 1000, c[1] - n[1] * 1000, c[2] - n[2] * 1000);
+    cam.setFocalPoint(...o);
+    cam.setPosition(o[0] - n[0] * 1000, o[1] - n[1] * 1000, o[2] - n[2] * 1000);
     cam.setViewUp(...up);
     if (needFit.current && s.fit()) needFit.current = false;
     renderer.resetCameraClippingRange();
     s.grw.getRenderWindow().render();
-  }, [tilt, pos, axis, mprVoxel, meta, image, fitRequest]);
+  }, [freePlane, mprVoxel, meta, image, fitRequest]);
 
   // Ventana/nivel aparte: arrastrar no debe reencuadrar la cámara.
   useEffect(() => {
@@ -153,10 +150,12 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
 
   // React registra la rueda como pasiva (su preventDefault no hace nada y lo
   // avisa en consola): un oyente nativo no pasivo retiene el scroll de la página.
-  // Un paso es un espaciado z (meta.spacing es [z, y, x]); con Ctrl, zoom,
-  // como en SliceView.
+  // Un paso es el espaciado más fino, para no saltarse cortes en ninguna
+  // orientación, y el desplazamiento no sale de la caja. Con Ctrl, zoom, como
+  // en SliceView.
   useEffect(() => {
     const el = ref.current; if (!el) return;
+    const step = Math.min(...meta.spacing);
     const h = (e: WheelEvent) => {
       e.preventDefault();
       if (e.ctrlKey) {
@@ -166,33 +165,69 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
         s.grw.getRenderWindow().render();
         return;
       }
-      setPos((p) => p + (e.deltaY > 0 ? 1 : -1) * meta.spacing[0]);
+      if (e.deltaY === 0) return;
+      commitRef.current(wheelOffset(geom.current.p, e.deltaY, step));
     };
     el.addEventListener("wheel", h, { passive: false });
     return () => el.removeEventListener("wheel", h);
   }, [meta]);
 
-  const drag = useRef<{ x: number; y: number; wc: number; ww: number } | null>(null);
+  // Botón izquierdo: ventana/nivel. Botón derecho: orientar el plano a partir
+  // del que había al empezar (no por incrementos, así volver al punto de
+  // partida deshace el gesto). Con captura de puntero, el arrastre sigue
+  // aunque el cursor salga del panel.
+  const drag = useRef<
+    | { kind: "wl"; x: number; y: number; wc: number; ww: number }
+    | { kind: "orient"; x: number; y: number; plane: FreePlane }
+    | null
+  >(null);
   const k = (meta.intensity_range[1] - meta.intensity_range[0]) / 400;   // 400 px recorren todo el rango
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    drag.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+  const slider = (label: string, aria: string, [min, max]: [number, number], value: number, set: (v: number) => void) => (
+    <>
+      <span>{label}</span>
+      <input type="range" min={min} max={max} step={1} value={Math.round(value)} onChange={(e) => set(Number(e.target.value))}
+        style={{ flex: 1, minWidth: 60, accentColor: "var(--hud)" }} aria-label={aria} />
+      <span style={{ minWidth: 36, textAlign: "right", color: "var(--hud)" }}>{degLabel(value)}</span>
+    </>
+  );
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "#000" }}>
-      <div ref={ref} style={{ flex: 1, position: "relative", minHeight: 0, cursor: "crosshair" }}
-        title="Rueda: desplazar el plano · Ctrl+rueda: zoom · Arrastrar: ventana/nivel"
-        onMouseDown={(e) => { if (e.button === 0) { e.preventDefault(); drag.current = { x: e.clientX, y: e.clientY, wc, ww }; } }}
-        onMouseMove={(e) => { const d = drag.current; if (!d) return; onWindowLevel(d.wc - (e.clientY - d.y) * k, Math.max(1, d.ww + (e.clientX - d.x) * k)); }}
-        onMouseUp={() => { drag.current = null; }} onMouseLeave={() => { drag.current = null; }}>
+      <div ref={ref} style={{ flex: 1, position: "relative", minHeight: 0, cursor: "crosshair", touchAction: "none" }}
+        title="Arrastrar: ventana/nivel · Botón derecho: orientar el plano · Rueda: desplazarlo · Ctrl+rueda: zoom"
+        onContextMenu={(e) => e.preventDefault()}
+        onPointerDown={(e) => {
+          if (e.button !== 0 && e.button !== 2) return;
+          // El interactor de vtk está desatado, pero el gesto es nuestro: que
+          // ningún oyente de más arriba lo trate también.
+          e.preventDefault(); e.stopPropagation();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          drag.current = e.button === 0
+            ? { kind: "wl", x: e.clientX, y: e.clientY, wc, ww }
+            : { kind: "orient", x: e.clientX, y: e.clientY, plane: geom.current.p };
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current; if (!d) return;
+          const dx = e.clientX - d.x, dy = e.clientY - d.y;
+          if (d.kind === "wl") onWindowLevel(d.wc - dy * k, Math.max(1, d.ww + dx * k));
+          else commitPlane(dragAngles(d.plane, dx, dy));
+        }}
+        onPointerUp={endDrag} onPointerCancel={endDrag}>
         <HudFrame active={active} label="OBLICUO">
-          <HudReadout at="bl" lines={[`INCL ${tilt}°  EJE ${axis.toUpperCase()}`, `DESPL ${pos.toFixed(1)} mm`]} />
+          <HudReadout at="bl" lines={[obliqueReadout(freePlane)]} />
           <HudReadout at="br" lines={[`W ${Math.round(ww)}  L ${Math.round(wc)}`]} />
         </HudFrame>
       </div>
-      <div style={{ flexShrink: 0, padding: "8px 16px", display: "flex", gap: 16, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-dim)" }}>
-        <span>INCLINACIÓN</span>
-        <input type="range" min={-80} max={80} value={tilt} onChange={(e) => setTilt(Number(e.target.value))} style={{ flex: 1, accentColor: "var(--hud)" }} aria-label="Inclinación" />
-        <HudToggleGroup options={[{ key: "x", label: "EJE X" }, { key: "y", label: "EJE Y" }]} value={axis} onChange={(v) => setAxis(v as "x" | "y")} />
+      <div style={{ flexShrink: 0, padding: "8px 16px", display: "flex", gap: 12, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-dim)" }}>
+        {slider("AZIMUT", "Azimut", AZIMUTH_RANGE, freePlane.azimuthDeg, (v) => commitPlane({ ...freePlane, azimuthDeg: v }))}
+        {slider("ELEVACIÓN", "Elevación", ELEVATION_RANGE, freePlane.elevationDeg, (v) => commitPlane({ ...freePlane, elevationDeg: v }))}
         <HudToggleGroup
           options={[{ key: "fit", label: "AJUSTAR", title: "Reencuadrar el corte" }, { key: "reset", label: "CENTRAR", title: "Devolver el plano al crosshair y reencuadrar" }]}
-          value="" onChange={(key) => { if (key === "reset") setPos(0); setFitRequest((r) => r + 1); }} />
+          value="" onChange={(key) => { if (key === "reset") commitPlane({ ...freePlane, offsetMm: 0 }); setFitRequest((r) => r + 1); }} />
       </div>
     </div>
   );

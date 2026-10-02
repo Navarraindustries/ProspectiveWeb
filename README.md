@@ -2281,6 +2281,21 @@ scale of markers, so «AJUSTAR» still frames the vessel tree. «PLANOS» in the
 header hides them without moving the camera, «REGLAS» hides them too, and the
 choice is remembered per browser. The scene toggle offers «3D · Oblicuo».
 
+**The «Oblicuo» view.** The oblique slice is the shared free plane: the same
+plane that clips the volume and is drawn in the 3D scene and on the slices, so
+orienting it here orients it everywhere. It is set by azimuth, elevation and an
+offset along its normal from the crosshair. «AZIMUT» (−180° to 180°) and
+«ELEVACIÓN» (−89° to 89°) sliders set the angles, and a right-button drag on the
+slice does the same: half a degree per pixel, right turns the azimuth, up
+raises the elevation. The wheel moves the plane one step of the finest voxel
+spacing per notch and stops where the plane would leave the volume box.
+Ctrl+wheel zooms, and a left-button drag still sets window/level. «CENTRAR»
+puts the plane back through the crosshair and reframes, «AJUSTAR» only reframes.
+The readout reads like `AZ 20° · EL −10° · +3,3 mm`. Without WebGL2, or before
+the client copy of the volume is in, the scene falls back to the server-side
+oblique (a PNG with its own tilt, position and axis); that degraded mode does not read or
+move the shared plane.
+
 The «REGLAS» toggle hides the HUD decoration (corners, heading tape, slice
 ladder, reticle); orientation letters, slice number, measurements and safety
 warnings stay. Layout, «REGLAS» and «PLANOS» are per-browser view preferences, and

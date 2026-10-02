@@ -24,7 +24,7 @@ export interface ViewerRecordingSource extends FrameSource {
   /** El estado que se guarda con el vídeo, como con una captura. */
   state: () => Record<string, unknown>;
 }
-import { loadLayout, saveLayout, type ViewerLayout } from "../vtk/layout";
+import { loadLayout, saveLayout, type PaneId, type ViewerLayout } from "../vtk/layout";
 import { mmToVoxel, type ManualOrientation, type Plane } from "../vtk/geometry";
 import type { VolumePreset } from "../vtk/volumePresets";
 import { clampPlane, DEFAULT_FREE_PLANE, type FreePlane } from "../vtk/freePlane";
@@ -235,6 +235,14 @@ interface PlanningState {
   /** Si la malla se ve (translúcida) en el modo «Cortes 3D» de la escena. */
   slices3dMeshVisible: boolean;
   setSlices3dMeshVisible: (v: boolean) => void;
+  /** Reproductor de cortes de UNA celda (null = parado). Siempre con ida y
+   *  vuelta: saltar del último al primero desorienta al recorrer un vaso. */
+  cine: { pane: PaneId; fps: number; bounce: true } | null;
+  setCine: (c: { pane: PaneId; fps: number; bounce: true } | null) => void;
+  /** La celda con el foco de teclado (la última pulsada o enfocada): a ella
+   *  van el espacio, +/− y la barra del cine. */
+  focusedPane: PaneId | null;
+  setFocusedPane: (p: PaneId | null) => void;
   /** Ventana (nivel y anchura) elegida por preajuste; sin entrada, rige la del rango completo. */
   volumeWindows: Partial<Record<VolumePreset, { wc: number; ww: number }>>;
   /** null borra la entrada del preajuste y devuelve su ventana por defecto. */
@@ -444,6 +452,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [clipMode, setClipMode] = useState<"eje" | "libre">("eje");
   const [cutFaceVisible, setCutFaceVisible] = useState(true);
   const [slices3dMeshVisible, setSlices3dMeshVisible] = useState(true);
+  const [cine, setCine] = useState<{ pane: PaneId; fps: number; bounce: true } | null>(null);
+  const [focusedPane, setFocusedPane] = useState<PaneId | null>(null);
   const [volumeWindows, setVolumeWindows] = useState<Partial<Record<VolumePreset, { wc: number; ww: number }>>>({});
   const setVolumeWindow = (k: VolumePreset, w: { wc: number; ww: number } | null) =>
     setVolumeWindows((m) => { const n = { ...m }; if (w) n[k] = w; else delete n[k]; return n; });
@@ -573,6 +583,10 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     // anterior; el nuevo abre con ella a la vista.
     setSlices3dMeshVisible(true);
     setVolumeWindows({});
+    // WHY: un cine que siguiera corriendo movería los cortes del estudio nuevo
+    // sin que nadie lo pidiera; la celda enfocada era de la sesión anterior.
+    setCine(null);
+    setFocusedPane(null);
     resetDownstream();
   };
 
@@ -584,7 +598,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
-        freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows,
+        freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setMorphoInvalidatedNotice, clearMorphometry,
@@ -594,7 +608,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
-        setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow,
+        setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setCine, setFocusedPane,
         reset, resetDownstream,
       }}
     >

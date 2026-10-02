@@ -373,4 +373,11 @@ describe("candidatos descartados", () => {
     act(() => { result.current.setCandidates([]); result.current.setRejectedCandidates([r]); });
     expect(result.current.allCandidates.map((x) => x.id)).toEqual(["cand-001"]);
   });
+  it("cine y focusedPane arrancan vacíos y se reinician", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.cine).toBeNull(); expect(result.current.focusedPane).toBeNull();
+    act(() => { result.current.setCine({ pane: "axial", fps: 8, bounce: true }); result.current.setFocusedPane("axial"); });
+    act(() => result.current.reset());
+    expect(result.current.cine).toBeNull();
+  });
 });

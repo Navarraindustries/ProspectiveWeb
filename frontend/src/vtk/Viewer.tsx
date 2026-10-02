@@ -30,11 +30,14 @@ import { api } from "../api/client";
 import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
-import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, useStoredFlag } from "./viewerPrefs";
+import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, readCineFps, useStoredFlag, writeCineFps } from "./viewerPrefs";
+import { applyStep, clampFps, nextIndex } from "./cine";
+import { startClock } from "./cineClock";
+import { HudCineBar } from "./hud/HudCineBar";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
-import { clampOffsetToBox, sliceSegment } from "./freePlane";
+import { clampOffsetToBox, sliceSegment, type FreePlane } from "./freePlane";
 import { HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
@@ -55,6 +58,13 @@ const MeshView = lazy(() => import("./MeshView").then((m) => ({ default: m.MeshV
 const SliceView = lazy(() => import("./SliceView").then((m) => ({ default: m.SliceView })));
 const MipView = lazy(() => import("./MipView").then((m) => ({ default: m.MipView })));
 const ObliqueView = lazy(() => import("./ObliqueView").then((m) => ({ default: m.ObliqueView })));
+
+/** Qué recorre el cine de una celda: un eje del vóxel o el plano libre. */
+type CineTarget = { kind: "axis"; axis: "x" | "y" | "z" } | { kind: "free" };
+/** El índice de cada corte es la coordenada perpendicular a él. */
+const PLANE_AXIS: Record<Plane, "x" | "y" | "z"> = { axial: "z", coronal: "y", sagital: "x" };
+/** Posición del eje en `meta.shape`, que va como [z, y, x]. */
+const AXIS_DIM = { z: 0, y: 1, x: 2 } as const;
 
 /* Pistas efímeras del panel principal (Task 14): qué gesto usar según lo que
    haya montado ahí. El MIP gira como el 3D pero su rueda es la de los cortes. */
@@ -199,7 +209,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     volumeMode, volumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
-    slices3dMeshVisible, setSlices3dMeshVisible,
+    slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
   } = usePlanning();
@@ -235,6 +245,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   slices3dMeshVisibleRef.current = slices3dMeshVisible;
   const volumeWindowRef = useRef(volumeWindows[volumePreset] ?? null);
   volumeWindowRef.current = volumeWindows[volumePreset] ?? null;
+  // El cine en marcha viaja con la captura y lo leen sus atajos sin depender
+  // del render.
+  const cineRef = useRef(cine);
+  cineRef.current = cine;
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
   const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[] } | null>(() => {
@@ -487,6 +501,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     view_mode: viewMode,
     scene_mode: viewMode === "default" ? "mesh" : viewMode,
     slices3d_mesh_visible: slices3dMeshVisibleRef.current,
+    cine: cineRef.current ? { pane: cineRef.current.pane, fps: cineRef.current.fps } : null,
     candidate_index: selectedCandidate,
     candidate_id: allCandidates[selectedCandidate]?.id ?? null,
     neck_mm: morphometry?.neck_mm ?? null,
@@ -820,6 +835,142 @@ export function ViewerWorkspace({ step }: { step: string }) {
   mprVoxelRef.current = mprVoxel;
   const metaRef = useRef(meta);
   metaRef.current = meta;
+
+  // ── Cine por celda ──────────────────────────────────────────────────── #
+  // El eje de VOLUMEN: el elegido en su HUD o, sin elección, el del corte que
+  // se recorre en la principal (coronal o sagital; si no, axial). La celda y
+  // el cine leen este mismo valor para que el cine mueva lo que se ve.
+  const volumeAxis: Plane = storeMipPlane ?? (viewerLayout.main === "coronal" || viewerLayout.main === "sagital" ? viewerLayout.main : "axial");
+  // Qué recorre el cine de cada celda: un eje de la rejilla, o el plano libre
+  // (VOLUMEN en LIBRE y Oblicuo). null = la celda no tiene nada que recorrer
+  // (sin volumen, o la escena enseña la malla o los Cortes 3D).
+  const cineTarget = (pane: PaneId): CineTarget | null => {
+    if (!meta || !sessionId) return null;
+    if (pane === "scene") return viewMode === "oblique" && !legacy && clientVol.image ? { kind: "free" } : null;
+    if (pane === "mip") {
+      if (!clientVol.image) return null;
+      return clipMode === "libre" ? { kind: "free" } : { kind: "axis", axis: PLANE_AXIS[volumeAxis] };
+    }
+    return { kind: "axis", axis: PLANE_AXIS[pane] };
+  };
+  // El reloj vive fuera del render: lee la última versión por ref.
+  const cineTargetRef = useRef(cineTarget);
+  cineTargetRef.current = cineTarget;
+  // Sentido actual del recorrido; el rebote lo invierte en los extremos.
+  const cineDirRef = useRef<1 | -1>(1);
+  /** Un paso del cine en la celda. Con `bounce` (el reloj) da la vuelta en los
+   *  extremos; sin él (◀ ▶ de la barra) se queda en el borde. false = la
+   *  celda ya no tiene qué recorrer (cambió de modo) y el reloj debe pararse.
+   *  El plano libre avanza por el espaciado más fino, como la rueda. */
+  const cineMove = (pane: PaneId, dir: 1 | -1, bounce: boolean): boolean => {
+    const t = cineTargetRef.current(pane), m = metaRef.current;
+    if (!t || !m) return false;
+    const vox = mprVoxelRef.current;
+    if (t.kind === "axis") {
+      const count = m.shape[AXIS_DIM[t.axis]], i = vox[t.axis];
+      const next = bounce ? nextIndex(i, dir, count, true) : { index: applyStep(i, dir, count), dir };
+      if (bounce) cineDirRef.current = next.dir;
+      if (next.index !== i) {
+        const v = { ...vox, [t.axis]: next.index };
+        // Adelantado al render: dos pasos seguidos no pueden partir del mismo vóxel.
+        mprVoxelRef.current = v;
+        setMprVoxel(v);
+      }
+      return true;
+    }
+    const p = freePlaneRef.current, stepMm = Math.min(...m.spacing);
+    const go = (d: 1 | -1): { want: number; got: FreePlane } => {
+      const want = p.offsetMm + d * stepMm;
+      return { want, got: clampOffsetToBox({ ...p, offsetMm: want }, vox, m) };
+    };
+    let d = dir, r = go(d);
+    // La caja acotó el paso: estamos en el borde y el rebote da la vuelta.
+    if (bounce && r.got.offsetMm !== r.want) { d = d === 1 ? -1 : 1; r = go(d); }
+    if (bounce) cineDirRef.current = d;
+    if (r.got.offsetMm !== p.offsetMm) { freePlaneRef.current = r.got; setFreePlane(r.got); }
+    return true;
+  };
+  const cineMoveRef = useRef(cineMove);
+  cineMoveRef.current = cineMove;
+  /** Dónde está la celda en su recorrido, para la barra: el índice del eje o,
+   *  en el plano libre, el desplazamiento contado en pasos desde el borde. */
+  const cinePosition = (pane: PaneId): { index: number; count: number } | null => {
+    const t = cineTarget(pane);
+    if (!t || !meta) return null;
+    if (t.kind === "axis") return { index: mprVoxel[t.axis], count: meta.shape[AXIS_DIM[t.axis]] };
+    const stepMm = Math.min(...meta.spacing);
+    const lo = clampOffsetToBox({ ...freePlane, offsetMm: -Infinity }, mprVoxel, meta).offsetMm;
+    const hi = clampOffsetToBox({ ...freePlane, offsetMm: Infinity }, mprVoxel, meta).offsetMm;
+    const count = Math.max(1, Math.floor((hi - lo) / stepMm) + 1);
+    return { index: Math.min(count - 1, Math.max(0, Math.round((freePlane.offsetMm - lo) / stepMm))), count };
+  };
+
+  // La cadencia es una preferencia de quien mira: se lee al arrancar el cine
+  // y se guarda al cambiarla. Con el cine parado la barra enseña la guardada.
+  const [cineFps, setCineFps] = useState(readCineFps);
+  const cineFpsRef = useRef(cineFps);
+  cineFpsRef.current = cineFps;
+  /** Reproducir/parar el cine de una celda (la barra y, en Task 6, el espacio). */
+  const toggleCine = useCallback((pane: PaneId) => {
+    if (cineRef.current?.pane === pane) { setCine(null); return; }
+    if (!cineTargetRef.current(pane)) return;
+    cineDirRef.current = 1;
+    const fps = readCineFps();
+    setCineFps(fps);
+    setCine({ pane, fps, bounce: true });
+  }, [setCine]);
+  /** Un fotograma por segundo más o menos (la barra y, en Task 6, +/−). Con
+   *  el cine en marcha cambia su reloj sin perder el sentido del recorrido. */
+  const bumpFps = useCallback((d: 1 | -1) => {
+    const fps = clampFps((cineRef.current?.fps ?? cineFpsRef.current) + d);
+    writeCineFps(fps);
+    setCineFps(fps);
+    const c = cineRef.current;
+    if (c && c.fps !== fps) setCine({ ...c, fps });
+  }, [setCine]);
+  // El reloj: uno solo, el del cine vigente; se rehace al cambiar de celda o
+  // de cadencia y se para al desmontar.
+  useEffect(() => {
+    if (!cine) return;
+    const pane = cine.pane;
+    return startClock(cine.fps, () => { if (!cineMoveRef.current(pane, cineDirRef.current, true)) setCine(null); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cine]);
+  // Paradas: otra celda con el foco, otro paso del pipeline u otra sesión.
+  // Un cine que siguiera solo movería cortes que ya nadie mira.
+  useEffect(() => {
+    const c = cineRef.current;
+    if (c && c.pane !== focusedPane) setCine(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedPane]);
+  useEffect(() => {
+    if (cineRef.current) setCine(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, sessionId]);
+  /** La barra del cine de una celda: solo en la enfocada o en la que reproduce.
+   *  `bottom` la sube por encima de lo que la celda tenga abajo a la izquierda. */
+  const cineBarFor = (id: PaneId, compact: boolean, bottom?: number): ReactNode => {
+    if (focusedPane !== id && cine?.pane !== id) return null;
+    const pos = cinePosition(id);
+    if (!pos) return null;
+    const playing = cine?.pane === id;
+    const fps = playing ? cine.fps : cineFps;
+    return (
+      <HudCineBar index={pos.index} count={pos.count} playing={playing} fps={fps} compact={compact}
+        onPlay={() => toggleCine(id)} onStep={(d) => { cineMoveRef.current(id, d, false); }}
+        // La barra emite la cadencia de destino; las teclas +/− harán lo mismo por bumpFps.
+        onFps={(f) => { if (f !== fps) bumpFps(f > fps ? 1 : -1); }}
+        style={bottom === undefined ? undefined : { bottom }} />
+    );
+  };
+  /** Altura de la barra en cada celda que no es la escena: encima de la lectura
+   *  de abajo a la izquierda. En VOLUMEN esa lectura tiene dos líneas y a su
+   *  derecha va la fila ACUMULADO…CENTRAR; en COMPUESTO, además, la fila de
+   *  preajustes (bottom 100): la barra va por encima de todo ello. */
+  const cineBottom = (id: PaneId, compact: boolean): number | undefined => {
+    if (id !== "mip" || compact) return undefined;
+    return volumeMode === "compuesto" ? 128 : 84;
+  };
   // Foto al agarrar el asa: el eje por el centroide de entonces, el parámetro
   // t0 donde cayó el ratón y el índice o desplazamiento de partida. Cada
   // movimiento se mide contra ella, no contra el plano que ya se ha movido.
@@ -1172,7 +1323,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // Acumula en el eje elegido en su HUD; sin elección, en el del corte que
       // se está recorriendo: el del panel principal si es coronal o sagital;
       // si no (axial, 3D, MIP), el axial.
-      const mipPlane: Plane = storeMipPlane ?? (viewerLayout.main === "coronal" || viewerLayout.main === "sagital" ? viewerLayout.main : "axial");
+      const mipPlane: Plane = volumeAxis;
       return (
         <Suspense fallback={<ViewerLoading label="Cargando VOLUMEN…" />}>
           <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} />
@@ -1245,7 +1396,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
               onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} active={isMain}
-              registerCapture={registerMeshCapture} />
+              registerCapture={registerMeshCapture} overlay={cineBarFor("scene", compact)} />
           </Suspense>
         );
         bodyFramed = true;
@@ -1395,6 +1546,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   };
 
   const onLayoutKey = (e: ReactKeyboardEvent) => {
+    // Escape para el cine desde cualquier celda: las celdas no se lo quedan.
+    if (e.key === "Escape" && cineRef.current) setCine(null);
     if (e.ctrlKey || e.metaKey) return;
     const p = presetForKey(e.code, e.target, e.altKey);
     if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); }
@@ -1435,6 +1588,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
            // al visor. Si el foco ya está dentro
            // (un desplegable, un corte con teclado) no se le quita.
            onPointerDownCapture={(e) => {
+             // Arrastrar en la celda que reproduce es tomar el mando: el cine
+             // se para. Pulsar su propia barra no cuenta.
+             const c = cineRef.current, t = e.target as Element;
+             if (c && e.button === 0 && !t.closest?.(".hud-cine")
+                 && t.closest?.("[data-pane]")?.getAttribute("data-pane") === c.pane) setCine(null);
              const host = e.currentTarget;
              if (!host.contains(document.activeElement)) host.focus({ preventScroll: true });
            }}
@@ -1443,7 +1601,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
           layout={viewerLayout}
           onLayoutChange={setViewerLayout}
           registerCell={registerCell}
-          renderPane={(id, ctx) => renderPane(id, ctx)}
+          onPaneFocus={setFocusedPane}
+          // La barra del cine va en la celda, no en la vista: en la escena la
+          // pone el oblicuo dentro de su imagen (encima de sus deslizadores).
+          renderPane={(id, ctx) => (
+            <>
+              {renderPane(id, ctx)}
+              {id !== "scene" && cineBarFor(id, ctx.compact, cineBottom(id, ctx.compact))}
+            </>
+          )}
           mainOverlay={
             <>
               {wlHost === viewerLayout.main && wlSelect}

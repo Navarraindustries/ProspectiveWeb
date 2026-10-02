@@ -7,9 +7,12 @@
    vuelve al valor por defecto y la vista sigue funcionando. */
 
 import { useCallback, useState } from "react";
+import { CINE_FPS_DEFAULT, clampFps } from "./cine";
 
 export const PREF_DECOR_HIDDEN = "viewer.hudDecorHidden";
 export const PREF_PLANES_HIDDEN = "viewer.planesHidden";
+/** La cadencia del cine es un gusto de quien mira, como la decoración. */
+export const PREF_CINE_FPS = "viewer.cineFps";
 
 function leer(key: string, porDefecto: boolean): boolean {
   try {
@@ -28,4 +31,18 @@ export function useStoredFlag(key: string, porDefecto = false): [boolean, (v: bo
     try { window.localStorage.setItem(key, v ? "1" : "0"); } catch { /* se queda en memoria */ }
   }, [key]);
   return [valor, set];
+}
+
+/** Fotogramas por segundo guardados; un valor ilegible vuelve al defecto. */
+export function readCineFps(): number {
+  try {
+    const v = window.localStorage.getItem(PREF_CINE_FPS);
+    return v === null ? CINE_FPS_DEFAULT : clampFps(Number(v));
+  } catch {
+    return CINE_FPS_DEFAULT;
+  }
+}
+
+export function writeCineFps(fps: number): void {
+  try { window.localStorage.setItem(PREF_CINE_FPS, String(clampFps(fps))); } catch { /* se queda en memoria */ }
 }

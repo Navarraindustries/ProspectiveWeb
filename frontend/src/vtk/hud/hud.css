@@ -18,6 +18,14 @@
 .hud-toggle button { background: none; border: none; padding: 2px 0; font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-dim); cursor: pointer; }
 .hud-toggle button[aria-pressed="true"] { color: var(--hud); border-bottom: var(--hud-line) solid var(--hud); }
 .hud-toggle button:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
+/* Cine de la celda: encima de la lectura de abajo a la izquierda. Sin
+   `hud-decor`: es un control y se ve también con REGLAS ○. */
+.hud-cine { position: absolute; left: 14px; bottom: 40px; z-index: 6; display: inline-flex; align-items: center; gap: 8px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-dim); white-space: nowrap; }
+.hud-cine button { background: none; border: none; padding: 1px 2px; font: inherit; font-size: 11px; color: var(--hud-dim); cursor: pointer; }
+.hud-cine button:hover:not(:disabled), .hud-cine .hud-cine-play { color: var(--hud); }
+.hud-cine button:disabled { opacity: .4; cursor: default; }
+.hud-cine button:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
+.hud-cine .hud-cine-pos { color: var(--hud); }
 .hud-edge { position: absolute; font-size: 10px; letter-spacing: .08em; color: var(--hud-dim); }
 .hud-edge.top { top: 22px; left: 50%; transform: translateX(-50%); } .hud-edge.bottom { bottom: 8px; left: 50%; transform: translateX(-50%); }
 .hud-edge.left { left: 8px; top: 50%; transform: translateY(-50%); } .hud-edge.right { right: 8px; top: 50%; transform: translateY(-50%); }

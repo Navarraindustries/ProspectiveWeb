@@ -21,6 +21,9 @@ export interface ViewerGridProps {
   /** Contenido que va encima de la principal: la pista de gestos y el
    *  selector de ventana/nivel. Los conmutadores van en la banda de cabecera. */
   mainOverlay?: ReactNode;
+  /** La celda que el usuario acaba de pulsar o enfocar: a ella van las teclas
+   *  del cine y en ella aparece su barra. */
+  onPaneFocus?: (id: PaneId) => void;
 }
 
 /** Tras soltar un arrastre de verdad el navegador puede rematar con un `click`
@@ -38,7 +41,7 @@ const paneUnder = (x: number, y: number): PaneId | null => {
 const capture = (el: Element, id: number) => { try { (el as HTMLElement).setPointerCapture?.(id); } catch { /* sin captura */ } };
 const release = (el: Element, id: number) => { try { (el as HTMLElement).releasePointerCapture?.(id); } catch { /* sin captura */ } };
 
-export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, mainOverlay }: ViewerGridProps) {
+export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, mainOverlay, onPaneFocus }: ViewerGridProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   // Sin medida todavía (o con el ResizeObserver de las pruebas, que no dispara):
   // apaisado y nada compacto, que es lo que ve un escritorio.
@@ -170,6 +173,9 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
           <div key={id} ref={cellRef(id)} data-pane={id} data-slot={slot}
                className={`viewer-cell${hidden ? " viewer-cell--hidden" : ""}${drag?.over === id ? " viewer-cell--over" : ""}`}
                style={{ gridArea: hidden ? undefined : slot, position: hidden ? "absolute" : "relative", minWidth: 0, minHeight: 0, overflow: "hidden", background: "#000" }}
+               // En captura: los lienzos de vtk.js y la barra del cine cortan la
+               // propagación del puntero, y la celda tiene que enterarse igual.
+               onPointerDownCapture={() => onPaneFocus?.(id)} onFocusCapture={() => onPaneFocus?.(id)}
                onDoubleClick={() => { if (!isMain) onLayoutChange(promote(layout, id)); }}>
             {renderPane(id, { compact, isMain })}
             {isMain && mainOverlay}

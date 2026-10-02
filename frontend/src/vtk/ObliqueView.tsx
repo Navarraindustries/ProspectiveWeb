@@ -4,7 +4,7 @@
    recorta el volumen y que se dibuja en el 3D y en los cortes, así que
    orientarlo aquí lo orienta en todas las vistas. */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import "@kitware/vtk.js/Rendering/Profiles/Volume";
 import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
 import vtkImageResliceMapper from "@kitware/vtk.js/Rendering/Core/ImageResliceMapper";
@@ -28,8 +28,11 @@ const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 type Voxel = { x: number; y: number; z: number };
 const degLabel = (d: number) => { const r = Math.round(d); return `${r < 0 ? "−" : ""}${Math.abs(r)}°`; };
 
-export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false, registerCapture }: {
+export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false, registerCapture, overlay }: {
   image: vtkImageData; meta: VolumeMeta; wc: number; ww: number; onWindowLevel: (wc: number, ww: number) => void; active?: boolean;
+  /** Algo que va sobre la imagen (la barra del cine): dentro del área del
+   *  corte, para que quede encima de su lectura y no de la fila de deslizadores. */
+  overlay?: ReactNode;
   /** Publica la captura de este panel en PNG mientras su escena viva.
    *  El lienzo de vtk.js se lee negro si no se pide la imagen del
    *  siguiente render, así que la captura tiene que salir de aquí. */
@@ -235,6 +238,7 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
           <HudReadout at="bl" lines={[obliqueReadout(freePlane)]} />
           <HudReadout at="br" lines={[`W ${Math.round(ww)}  L ${Math.round(wc)}`]} />
         </HudFrame>
+        {overlay}
       </div>
       {/* La fila se parte en dos líneas en una celda estrecha: sin ello ELEVACIÓN
           quedaba recortada y solo se podía cambiar con el botón derecho. */}

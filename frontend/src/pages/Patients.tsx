@@ -367,6 +367,7 @@ export function Patients({
   onOpenStudy,
   onOpenPending,
   onOpenOrders,
+  onStartWithoutPatient,
 }: {
   onOpenPatient: (p: PatientSummary) => void;
   onResume: (sessionId: string, patient: PatientSummary) => void;
@@ -377,6 +378,8 @@ export function Patients({
   onOpenPending: () => void;
   /** Abre el registro de pedidos filtrado por un paciente. */
   onOpenOrders?: (p: PatientSummary) => void;
+  /** Al pipeline sin paciente ni caso; se adjuntan después. */
+  onStartWithoutPatient?: () => void;
 }) {
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -494,6 +497,13 @@ export function Patients({
             <Button variant="outline" leadingIcon={<Icon name="FOLDER" />} onClick={() => nav.go("studies")} style={{ marginRight: 10 }}>
               Estudios
             </Button>
+            {onStartWithoutPatient && (
+              <Button variant="outline" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
+                      style={{ marginRight: 10 }}
+                      title="Sube un DICOM y usa el pipeline ya; luego, si quieres, lo adjuntas a un paciente y un caso">
+                Empezar sin paciente
+              </Button>
+            )}
             <Button variant="outline" leadingIcon={<Icon name="STEP_PATIENT" />} onClick={openCreate} style={{ marginRight: 10 }}>
               Nuevo paciente
             </Button>

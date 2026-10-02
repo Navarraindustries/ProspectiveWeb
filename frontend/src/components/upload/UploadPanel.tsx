@@ -318,6 +318,12 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
                 Archivado en «{planning.caseLabel || `Caso ${planning.caseId}`}»
               </span>
             </div>
+          ) : planning.patient == null ? (
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", display: "flex", gap: 6, alignItems: "flex-start", lineHeight: 1.5 }}>
+              <Icon name="STATUS_WARN" size={14} />
+              <span>Sesión sin paciente. Cuando quieras guardarla, usa <b style={{ color: "var(--foreground)" }}>«Adjuntar
+              a un caso»</b> en la barra superior: elige o crea el paciente y el caso y archiva este DICOM.</span>
+            </div>
           ) : studies.length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--warning)", display: "flex", gap: 6, alignItems: "flex-start" }}>
               <Icon name="STATUS_WARN" size={14} />

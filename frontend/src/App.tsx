@@ -86,6 +86,15 @@ function Router() {
     setScreen("workspace");
   };
 
+  // Empezar sin paciente: subir el DICOM y usar el pipeline ya, y decidir
+  // después si se guarda («Adjuntar a un caso», en la barra del pipeline).
+  const startWithoutPatient = () => {
+    planning.reset();
+    setPatient(null);
+    setResumeStep(0);
+    setScreen("workspace");
+  };
+
   // Enter the pipeline for a clinical case: patient + case are known upfront, so
   // the upload panel no longer has to ask which case the DICOM belongs to.
   const planCase = (study: StudySummary, p: PatientSummary) => {
@@ -255,6 +264,7 @@ function Router() {
         onOpenPatient={openPatient}
         onResume={resumeSession}
         onPlanCase={planCase}
+        onStartWithoutPatient={startWithoutPatient}
         onOpenStudy={(s) => void openStudy(s)}
         onOpenPending={() => setScreen("pending")}
         onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}

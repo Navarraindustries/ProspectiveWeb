@@ -322,10 +322,14 @@ def _run_fd_sizing(session_id: str, vessel_path, points_path):
     if parent > 0 and medidos:
         aqui = sum(medidos) / len(medidos)
         if abs(parent - aqui) > 1.0:
+            from services.sessions import read_state
+            vieja = read_state(session_id, "morpho.parent_artery_method", "") != "p25"
             r.warnings.append(
                 f"La arteria madre de la morfometría ({parent:.2f} mm) no coincide con "
                 f"el calibre medido aquí sobre la línea central ({aqui:.2f} mm). La "
-                f"pestaña «Stents» dimensiona con la de la morfometría: compruébala.")
+                f"pestaña «Stents» dimensiona con la de la morfometría: "
+                + ("es de una versión anterior del cálculo; vuelve a ejecutar la morfometría."
+                   if vieja else "compruébala."))
     return r
 
 

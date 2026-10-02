@@ -165,6 +165,7 @@ _MORPHO_STATE_KEYS = (
     "morpho.ar", "morpho.dnr", "morpho.bf", "morpho.ui",
     "morpho.compactness", "morpho.rupture_risk",
     "morpho.neck_source", "morpho.neck_tilt_deg", "morpho.parent_artery_mm",
+    "morpho.parent_artery_method",
     # El saco aislado y los puntos del borde. Sin esto, «Limpiar candidatos y
     # morfometría» dejaba el saco verde pintado en el visor y los puntos del
     # cuello listos para reaparecer al reanudar: una medida borrada que seguía
@@ -1087,9 +1088,17 @@ def _run_morphometry_sync(
             parent_dia = estimate_parent_artery_diameter(
                 vessel, neck_pt, mr.principal_axis, mr.neck_diameter_mm,
             )
+            # Lo de la medida anterior no describe esta: si ahora no sale
+            # cifra, no puede quedarse la de antes en el estado.
+            write_state(session_id, "morpho.parent_artery_mm", "")
+            write_state(session_id, "morpho.parent_artery_method", "")
             if parent_dia > 0.1:
                 mr.size_ratio = mr.max_diameter_mm / parent_dia
                 write_state(session_id, "morpho.parent_artery_mm", str(round(parent_dia, 3)))
+                # Con qué versión del cálculo: las anteriores al percentil 25
+                # (services/parent_artery.py) se quedaban en el estado de las
+                # sesiones guardadas, y el dimensionado tiene que poder decirlo.
+                write_state(session_id, "morpho.parent_artery_method", "p25")
                 logger.info("SR = %.2f (parent Ø %.2f mm)", mr.size_ratio, parent_dia)
         except Exception as exc:
             logger.warning("Parent-artery / SR estimation skipped: %s", exc)

@@ -34,6 +34,24 @@ redonda; si el contorno es alargado (> 1,6), su eje largo ES la dirección del
 vaso, y se vuelve a cortar perpendicular a ella por su centro. Solo cuentan
 los contornos redondos, y sin al menos tres no se da cifra: un SR «no medido»
 es mejor que uno equivocado. En la misma sesión: 3,87 mm.
+
+Percentil 25, no mediana (2026-10-02)
+-------------------------------------
+Lo que estropea un corte casi siempre lo ENSANCHA: un plano algo oblicuo da
+una elipse más larga que el vaso, y junto al cuello el contorno arrastra parte
+del saco. La mediana se quedaba con esos cortes. Contrastado con el calibre
+medido sobre una línea central del mismo vaso (cortes perpendiculares a ella,
+services/fd_sizing.py), en tres sesiones reales:
+
+    sesión           línea central   mediana   percentil 25
+    Cerón (×2)       ≈ 4,25 mm       4,94/4,78   4,48/4,49
+    Hernández        ≈ 4,15 mm       5,00        4,32
+
+Con la mediana el SR salía un 15–20 % bajo. La anchura del eje menor de cada
+contorno, que es inmune a la oblicuidad, acertaba en Cerón (4,1) pero daba
+4,83 en Hernández, donde los cortes junto al cuello están mezclados con el
+saco: no se usa. El percentil 25 tolera un corte de una rama pequeña entre
+ocho; dos ya no.
 """
 from __future__ import annotations
 
@@ -104,7 +122,7 @@ def estimate_parent_artery_diameter(
     if len(diameters) < _MIN_ROUND_SECTIONS:
         logger.info("parent_artery: solo %d secciones transversales válidas; sin cifra", len(diameters))
         return 0.0
-    result = float(np.median(diameters))
+    result = float(np.percentile(diameters, _PERCENTILE))
     logger.info("parent_artery: Ø = %.2f mm (from %d samples)", result, len(diameters))
     return result
 
@@ -114,6 +132,8 @@ def estimate_parent_artery_diameter(
 _MAX_ELONGATION = 1.6
 #: Sin al menos tantas secciones redondas no se da cifra.
 _MIN_ROUND_SECTIONS = 3
+#: Ver el docstring del módulo: los cortes estropeados ensanchan, no estrechan.
+_PERCENTILE = 25
 
 
 def _cross_section_diameter(poly, origin, normal, reach_mm: float) -> float:

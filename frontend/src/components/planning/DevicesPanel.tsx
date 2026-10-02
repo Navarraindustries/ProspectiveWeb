@@ -38,7 +38,7 @@ import { Slider } from "../Slider";
 import { Tabs } from "../Tabs";
 import { TILT_MAX_DEG } from "../../vtk/clipPose";
 import { usePlanning, type PlacedClip } from "../../store/planning";
-import { neckPlacement, toPlacement, poseKey, isStale } from "./placedClips";
+import { neckPlacement, toPlacement, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
 
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
 export { neckPlacement };
@@ -153,7 +153,7 @@ function ClipsTab() {
     sessionId, caseId, morphometry, setDeviceMesh,
     clipField, setClipField, showClipField, setShowClipField,
     placedClips: placed, setPlacedClips: setPlaced, plannedClips, setPlannedClips,
-    fieldClips, selectedClipKey, setSelectedClipKey, setClipsTabActive,
+    fieldClips, fieldMeshOnScreen, selectedClipKey, setSelectedClipKey, setClipsTabActive,
   } = usePlanning();
   // El que maneja el asa del 3D: el elegido en la lista o, si no hay, el último.
   const activeKey = placed.some((c) => c.key === selectedClipKey) ? selectedClipKey : placed.at(-1)?.key ?? null;
@@ -694,7 +694,7 @@ function ClipsTab() {
             </Card>
           )}
           {plan && clipField && (
-            <ClipFieldCard summary={clipField.summary} show={showClipField} onToggle={setShowClipField} stale={isStale(placed, fieldClips)} />
+            <ClipFieldCard summary={clipField.summary} show={showClipField} onToggle={setShowClipField} stale={isStale(placed, fieldClips) || !fieldColoursOnScreen({ shown: fieldMeshOnScreen.shown, fieldUrl: clipField.field_mesh_url, loadedUrl: fieldMeshOnScreen.url })} />
           )}
           {plan && fieldNote && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{fieldNote}</div>

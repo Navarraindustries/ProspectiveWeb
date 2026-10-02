@@ -39,6 +39,16 @@ describe("campo del clip en el store", () => {
     act(() => result.current.clearDeviceMeshes("clips"));
     expect(result.current.fieldClips).toBeNull();
   });
+  it("lo que enseña el 3D del campo: por defecto nada; el visor fija si se ve y qué fichero tiene", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper: PlanningProvider });
+    expect(result.current.fieldMeshOnScreen).toEqual({ shown: false, url: null });
+    act(() => result.current.setFieldMeshShown(true));
+    act(() => result.current.setFieldMeshUrl("/m/clip_field.vtp?v=2"));
+    expect(result.current.fieldMeshOnScreen).toEqual({ shown: true, url: "/m/clip_field.vtp?v=2" });
+    const same = result.current.fieldMeshOnScreen;
+    act(() => result.current.setFieldMeshShown(true));
+    expect(result.current.fieldMeshOnScreen).toBe(same);   // sin cambio, sin render
+  });
   it("la pestaña de clips se anuncia montada; por defecto no lo está", () => {
     const { result } = renderHook(() => usePlanning(), { wrapper: PlanningProvider });
     expect(result.current.clipsTabActive).toBe(false);

@@ -92,6 +92,27 @@ describe("DevicesPanel · campo del clip", () => {
     await waitFor(() => expect(screen.queryByText("DESFASADO")).toBeNull());
   });
 
+  it("DESFASADO sigue mientras el 3D no enseña la malla del campo nuevo", async () => {
+    let store: ReturnType<typeof usePlanning> | null = null;
+    function Probe() { store = usePlanning(); return null; }
+    render(<PlanningProvider><Seed><Probe /><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+    const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
+    await waitFor(() => expect(addBtn()).not.toBeDisabled());
+    fireEvent.click(addBtn());
+    fireEvent.click(screen.getByRole("button", { name: /Colocar 1 y verificar/ }));
+    await screen.findByText(/Estimación geométrica/);
+    expect(screen.queryByText("DESFASADO")).toBeNull();
+    // El 3D enseña el campo, pero con otro fichero (el de la pose anterior).
+    act(() => { store!.setFieldMeshShown(true); store!.setFieldMeshUrl("/m/otro_campo.vtp?v=0"); });
+    expect(screen.getByText("DESFASADO")).toBeInTheDocument();
+    // Ya tiene puesto el del campo vigente.
+    act(() => store!.setFieldMeshUrl(store!.clipField!.field_mesh_url));
+    expect(screen.queryByText("DESFASADO")).toBeNull();
+    // Sin el campo en el 3D (CALOR ○, otra vista) solo manda la respuesta.
+    act(() => { store!.setFieldMeshUrl(null); store!.setFieldMeshShown(false); });
+    expect(screen.queryByText("DESFASADO")).toBeNull();
+  });
+
   it("la pestaña de clips se anuncia montada y, al volver con el clip movido desde fuera, recoloca", async () => {
     let store: ReturnType<typeof usePlanning> | null = null;
     function Probe() { store = usePlanning(); return null; }

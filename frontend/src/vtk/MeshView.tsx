@@ -193,6 +193,7 @@ export function MeshView({
   handles: handleList = NO_HANDLES,
   onHandleDrag,
   onHandleDoubleClick,
+  onLayerLoaded,
 }: {
   layers: MeshLayer[];
   markers?: MeshMarker[];
@@ -250,6 +251,11 @@ export function MeshView({
   onHandleDrag?: (e: HandleDragEvent) => void;
   /** Doble clic sobre un asa. No llega a la celda (que si no promovería la vista). */
   onHandleDoubleClick?: (id: string) => void;
+  /** Una capa con nombre ya ENSEÑA este fichero: se llama tras ponerle la
+   *  geometría y pintar, al montar la escena y en cada cambio de geometría.
+   *  El visor lo usa para saber cuándo están en pantalla los colores nuevos
+   *  del mapa de calor, que llegan después de la respuesta del campo. */
+  onLayerLoaded?: (id: string, url: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handles = useRef<Handles | null>(null);
@@ -309,6 +315,8 @@ export function MeshView({
   onHandleDragRef.current = onHandleDrag;
   const onHandleDoubleClickRef = useRef(onHandleDoubleClick);
   onHandleDoubleClickRef.current = onHandleDoubleClick;
+  const onLayerLoadedRef = useRef(onLayerLoaded);
+  onLayerLoadedRef.current = onLayerLoaded;
 
   // Latest pick config, read inside the vtk interactor callback without
   // forcing the scene to rebuild when the pick mode toggles.
@@ -659,6 +667,7 @@ export function MeshView({
       }
       renderWindow.render();
       // Captura y cámara se publican cuando la escena ya está en pantalla, no
+      for (const [id, url] of loadedUrlById.current) onLayerLoadedRef.current?.(id, url);
       // al montar: capturar antes daba un lienzo negro, y un foco aplicado
       // antes lo pisaba el encuadre inicial de arriba.
       registerCaptureRef.current?.(capture);
@@ -791,7 +800,6 @@ export function MeshView({
     if (!handles.current) return;
     let cancelled = false;
     (async () => {
-      let cambiado = false;
       for (const l of layers) {
         if (!l.id || loadedUrlById.current.get(l.id) === l.url) continue;
         const actor = namedActors.current.get(l.id);
@@ -828,13 +836,16 @@ export function MeshView({
             outline.setOrigin((b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2);
           }
           loadedUrlById.current.set(l.id, l.url);
-          cambiado = true;
+          // Se pinta y se avisa por capa, no al final del bucle: si no, el
+          // mapa de calor nuevo esperaría a que bajara también la malla del
+          // clip (segundos con mala red) para decir que ya está en pantalla.
+          handles.current?.renderWindow.render();
+          onLayerLoadedRef.current?.(l.id, l.url);
         } catch (err) {
           // Un fotograma que no llega no puede dejar la escena a medias.
           console.warn("MeshView: no se pudo cambiar la geometría de", l.id, err);
         }
       }
-      if (cambiado && !cancelled) handles.current?.renderWindow.render();
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

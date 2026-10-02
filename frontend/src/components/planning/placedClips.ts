@@ -77,3 +77,12 @@ export function poseKey(clips: PlacedClip[]): string {
 export function isStale(placed: PlacedClip[], planned: PlacedClip[] | null): boolean {
   return planned !== null && poseKey(placed) !== poseKey(planned);
 }
+
+/** ¿Enseña ya el 3D los colores del campo vigente? La respuesta del campo
+ *  llega antes que su malla (.vtp), y hasta que esa malla está puesta el mapa
+ *  de calor pinta la pose anterior. Si el campo no se está enseñando en un 3D
+ *  montado (CALOR ○, Oblicuo, ensayo) no hay colores que esperar: manda solo
+ *  la respuesta. */
+export function fieldColoursOnScreen(o: { shown: boolean; fieldUrl: string | null; loadedUrl: string | null }): boolean {
+  return !o.shown || !o.fieldUrl || o.loadedUrl === o.fieldUrl;
+}

@@ -123,6 +123,15 @@ interface PlanningState {
    *  El plan llega antes que el campo: «DESFASADO» y el mapa atenuado siguen
    *  hasta que llega ESTE, porque hasta entonces el veredicto es el de antes. */
   fieldClips: PlacedClip[] | null;
+  /** Qué enseña el 3D del mapa de calor: si la capa está en un 3D montado y
+   *  qué fichero tiene puesto. Lo escribe el visor. La respuesta del campo
+   *  llega antes que su malla, así que «DESFASADO» sigue hasta que `url` es la
+   *  del campo vigente (ver fieldColoursOnScreen). Se guarda la URL y no un
+   *  «ya está»: la tarjeta la compara con el campo nuevo en el mismo render en
+   *  que este llega, sin esperar a que el visor reaccione. */
+  fieldMeshOnScreen: { shown: boolean; url: string | null };
+  setFieldMeshShown: (v: boolean) => void;
+  setFieldMeshUrl: (url: string | null) => void;
   /** La pestaña de clips está montada. Ella es la que recoloca tras mover el
    *  clip: sin ella, el manipulador del 3D dejaría un delta que nadie replanea. */
   clipsTabActive: boolean;
@@ -349,6 +358,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setFieldClips(f ? forClips : null);
   }, []);
   const [clipsTabActive, setClipsTabActive] = useState(false);
+  const [fieldMeshOnScreen, setFieldMeshOnScreen] = useState<{ shown: boolean; url: string | null }>({ shown: false, url: null });
+  const setFieldMeshShown = useCallback((shown: boolean) => setFieldMeshOnScreen((o) => (o.shown === shown ? o : { ...o, shown })), []);
+  const setFieldMeshUrl = useCallback((url: string | null) => setFieldMeshOnScreen((o) => (o.url === url ? o : { ...o, url })), []);
   const [showClipField, setShowClipField] = useState(true);
   const [placedClips, _setPlacedClips] = useState<PlacedClip[]>([]);
   const [plannedClips, setPlannedClips] = useState<PlacedClip[] | null>(null);
@@ -531,13 +543,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, volumeWindows,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
-        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
+        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,

@@ -12,7 +12,7 @@ import { usePlanning, type PickMode, type PlacedClip } from "../store/planning";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
 import { poseDelta } from "./clipPose";
-import { clipNormal, isStale, neckAxis, neckPlacement } from "../components/planning/placedClips";
+import { clipNormal, fieldColoursOnScreen, isStale, neckAxis, neckPlacement } from "../components/planning/placedClips";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { useVolumeMeta } from "./useVolumeMeta";
@@ -199,7 +199,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     volumeMode, volumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
     imagingStudyId, setCaptureCase, setViewerRecording,
-    placedClips, setPlacedClips, plannedClips, fieldClips, clipsTabActive, selectedClipKey,
+    placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
   } = usePlanning();
 
   // La vista sin su decoración: preferencia del profesional, en su navegador
@@ -638,8 +638,20 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const clipsStale = isStale(placedClips, plannedClips);
   // El DESFASADO del mapa de calor se mide contra la lista para la que se
   // calculó el campo, no contra el plan: el plan llega antes, y hasta que
-  // llega el campo nuevo los colores son los de la pose anterior.
-  const fieldStale = isStale(placedClips, fieldClips);
+  // llega el campo nuevo los colores son los de la pose anterior. Y la
+  // respuesta del campo llega antes que su malla: hasta que MeshView avisa de
+  // que la capa enseña ESE fichero, los colores siguen siendo los de antes.
+  const onLayerLoaded = useCallback((id: string, url: string) => {
+    if (id === "clip-field") setFieldMeshUrl(url);
+  }, [setFieldMeshUrl]);
+  // «Enseñado» = la capa está en un 3D montado: con «SOLA» y otra vista
+  // principal la celda 3D no existe y no habrá aviso que esperar.
+  const sceneMounted = sceneHasMesh && (viewerLayout.preset !== "sola" || viewerLayout.main === "scene");
+  const fieldShown = showField && sceneMounted;
+  useEffect(() => { setFieldMeshShown(fieldShown); }, [fieldShown, setFieldMeshShown]);
+  const fieldStale = isStale(placedClips, fieldClips) || !fieldColoursOnScreen({
+    shown: fieldShown, fieldUrl: clipField?.field_mesh_url ?? null, loadedUrl: fieldMeshOnScreen.url,
+  });
   // Sin ensayo, y solo con la pestaña de clips montada (ver gizmoVisible).
   const gizmoOn = gizmoVisible({
     sceneHasMesh, step, clipsTabActive, hasClips: !!selectedClip, rehearsing: !!clipRehearsal,
@@ -1216,6 +1228,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices"}
             handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
+            onLayerLoaded={onLayerLoaded}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
         </Suspense>
       );

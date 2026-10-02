@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeClip, clipNormal, isStale, neckPlacement, poseKey, toPlacement } from "./placedClips";
+import { activeClip, clipNormal, fieldColoursOnScreen, isStale, neckPlacement, poseKey, toPlacement } from "./placedClips";
 import type { MorphometryResult } from "../../api/types";
 const morpho = { principal_axis: [0, 1, 0], neck_origin: { x: 1, y: 2, z: 3 } } as unknown as MorphometryResult;
 const clip = { key: 1, clip_id: "navarro:x", name: "X", position: [1, 2, 3] as [number, number, number], rotation_deg: 10, azimuthDeg: 0, elevationDeg: 0 };
@@ -31,5 +31,21 @@ describe("activeClip", () => {
     expect(activeClip([c(1), c(2)], 7)?.key).toBe(2);
     expect(activeClip([c(1), c(2)], null)?.key).toBe(2);
     expect(activeClip([], null)).toBeNull();
+  });
+});
+
+describe("fieldColoursOnScreen", () => {
+  // La respuesta del campo llega antes que su .vtp: hasta que el 3D enseña ESE
+  // fichero, los colores son los de la pose anterior.
+  it("con el campo en el 3D, solo cuando el fichero cargado es el del campo", () => {
+    expect(fieldColoursOnScreen({ shown: true, fieldUrl: "/f.vtp?v=2", loadedUrl: "/f.vtp?v=1" })).toBe(false);
+    expect(fieldColoursOnScreen({ shown: true, fieldUrl: "/f.vtp?v=2", loadedUrl: null })).toBe(false);
+    expect(fieldColoursOnScreen({ shown: true, fieldUrl: "/f.vtp?v=2", loadedUrl: "/f.vtp?v=2" })).toBe(true);
+  });
+  it("sin el campo en el 3D (CALOR ○, otra vista, ensayo) no hay colores que esperar", () => {
+    expect(fieldColoursOnScreen({ shown: false, fieldUrl: "/f.vtp?v=2", loadedUrl: "/f.vtp?v=1" })).toBe(true);
+  });
+  it("sin campo tampoco", () => {
+    expect(fieldColoursOnScreen({ shown: true, fieldUrl: null, loadedUrl: null })).toBe(true);
   });
 });

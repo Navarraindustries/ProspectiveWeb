@@ -29,7 +29,7 @@ import { captureRenderWindow, type CapturableWindow, type CaptureFn } from "./ca
 import { standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
 import { IDENTITY } from "./clipPose";
 import { matrixAfterSwap, shouldApplyMatrix, toColumnMajor } from "./layerMatrix";
-import { nextDrag, type DragEvent, type DragState } from "./handleDrag";
+import { chooseHandle, nextDrag, type DragEvent, type DragState } from "./handleDrag";
 import { cameraLike, type CameraLike, type Viewport } from "./dragController";
 
 /** Un asa que se puede agarrar con el ratón (el clip, sus planos). Se dibuja en
@@ -308,6 +308,7 @@ export function MeshView({
   // el recorte de la capa las abarque (ver allí).
   const handleActors = useRef<vtkActor[]>([]);
   const handleIdByActor = useRef<Map<vtkActor, string>>(new Map());
+  const handleKindByActor = useRef<Map<vtkActor, string>>(new Map());
   const handleBounds = useRef<number[] | null>(null);
   // Lo último que llegó por props, leído desde los oyentes del puntero, que
   // viven mientras el componente y no se rehacen en cada render.
@@ -666,8 +667,8 @@ export function MeshView({
         renderer.updateLightsGeometryToFollowCamera();
       }
       renderWindow.render();
-      // Captura y cámara se publican cuando la escena ya está en pantalla, no
       for (const [id, url] of loadedUrlById.current) onLayerLoadedRef.current?.(id, url);
+      // Captura y cámara se publican cuando la escena ya está en pantalla, no
       // al montar: capturar antes daba un lienzo negro, y un foco aplicado
       // antes lo pisaba el encuadre inicial de arriba.
       registerCaptureRef.current?.(capture);
@@ -710,6 +711,7 @@ export function MeshView({
       // asas las vuelve a poner en la capa nueva.
       handleActors.current = [];
       handleIdByActor.current.clear();
+      handleKindByActor.current.clear();
       const h = handles.current;
       if (h) {
         // Remember the camera so a preview refresh can restore the viewpoint.
@@ -990,11 +992,12 @@ export function MeshView({
     handleActors.current.forEach((a) => h.overlay.removeActor(a));
     handleActors.current = [];
     handleIdByActor.current.clear();
+    handleKindByActor.current.clear();
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     const grow = (p: Vec3, r: number) => {
       for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], p[i] - r); hi[i] = Math.max(hi[i], p[i] + r); }
     };
-    const add = (mapper: vtkMapper, color: Vector3, id: string | null, lineWidth?: number) => {
+    const add = (mapper: vtkMapper, color: Vector3, id: string | null, lineWidth?: number, kind = "") => {
       const actor = vtkActor.newInstance();
       actor.setMapper(mapper);
       const prop = actor.getProperty();
@@ -1005,7 +1008,7 @@ export function MeshView({
       // el recorte de la capa las tiene en cuenta aparte (`handleBounds`).
       actor.setUseBounds(false);
       actor.setPickable(id !== null);
-      if (id !== null) handleIdByActor.current.set(actor, id);
+      if (id !== null) { handleIdByActor.current.set(actor, id); handleKindByActor.current.set(actor, kind); }
       h.overlay.addActor(actor);
       handleActors.current.push(actor);
     };
@@ -1033,12 +1036,12 @@ export function MeshView({
         src.setCenter(g.pos[0], g.pos[1], g.pos[2]);
         const mapper = vtkMapper.newInstance();
         mapper.setInputConnection(src.getOutputPort());
-        add(mapper, color, g.id);
+        add(mapper, color, g.id, undefined, "sphere");
       } else if (g.kind === "square") {
         const src = vtkCubeSource.newInstance({ center: g.pos, xLength: g.radiusMm, yLength: g.radiusMm, zLength: g.radiusMm });
         const mapper = vtkMapper.newInstance();
         mapper.setInputConnection(src.getOutputPort());
-        add(mapper, color, g.id);
+        add(mapper, color, g.id, undefined, "square");
       } else {
         // Anillo: circunferencia de 48 puntos en el plano ⟂ a la normal por
         // `pos`. La base (u, v) sale de cualquier eje que no sea paralelo a n.
@@ -1056,7 +1059,7 @@ export function MeshView({
           const t = (2 * Math.PI * i) / 48, c = Math.cos(t) * g.radiusMm, s = Math.sin(t) * g.radiusMm;
           pts.push(g.pos[0] + c * u[0] + s * v[0], g.pos[1] + c * u[1] + s * v[1], g.pos[2] + c * u[2] + s * v[2]);
         }
-        add(polyline(pts, true), color, g.id, 2);
+        add(polyline(pts, true), color, g.id, 2, "ring");
       }
       grow(g.pos, g.radiusMm);
     }
@@ -1102,8 +1105,13 @@ export function MeshView({
       w.h.syncOverlay();
       const sx = w.canvas.width / w.r.width, sy = w.canvas.height / w.r.height;
       picker.pick([w.px * sx, (w.r.height - w.py) * sy, 0], w.h.overlay);
-      const actor = picker.getActors()[0] as vtkActor | undefined;
-      return actor ? handleIdByActor.current.get(actor) ?? null : null;
+      // Todas las que toca, de la más cercana a la más lejana; chooseHandle
+      // da prioridad a las esferas sobre el anillo que las cruza.
+      const hits = (picker.getActors() as vtkActor[]).flatMap((a) => {
+        const id = handleIdByActor.current.get(a);
+        return id ? [{ id, kind: handleKindByActor.current.get(a) ?? "" }] : [];
+      });
+      return chooseHandle(hits);
     };
     const emit = (phase: HandleDragEvent["phase"], id: string, shift: boolean) => {
       const h = handles.current;

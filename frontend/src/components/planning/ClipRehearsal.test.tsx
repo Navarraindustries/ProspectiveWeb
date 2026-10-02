@@ -94,8 +94,10 @@ describe("preparing the rehearsal", () => {
     expect(placements[0].position).toEqual(morpho.neck_origin);
   });
 
-  it("ensaya la pose del clip activo tal como se dejó a mano (posición, normal inclinada y giro)", async () => {
-    const movido = { key: 2, clip_id: "navarro:t1:0:10.0", name: "N", position: [4, 5, 6] as [number, number, number], rotation_deg: 30, azimuthDeg: 0, elevationDeg: 20 };
+  it("ensaya el clip activo (su modelo, no el de la tarjeta) en la pose que se dejó a mano", async () => {
+    // Tras volver a la pestaña, el selector de la tarjeta vuelve al primero
+    // del catálogo; el ensayo tiene que ser el del clip colocado.
+    const movido = { key: 2, clip_id: "navarro:t4:0:7.0:3.0", name: "NAVARRO T4 Fenestrado 7 mm", position: [4, 5, 6] as [number, number, number], rotation_deg: 30, azimuthDeg: 0, elevationDeg: 20 };
     const otro = { ...movido, key: 1, position: [9, 9, 9] as [number, number, number], rotation_deg: 0, elevationDeg: 0 };
     function Seed({ children }: { children: ReactNode }) {
       const { sessionId, setSession, setMorphometry, setPlacedClips, setSelectedClipKey } = usePlanning();
@@ -107,8 +109,9 @@ describe("preparing the rehearsal", () => {
     render(<PlanningProvider><Seed><ClipRehearsal clipId="navarro:t1:0:10.0" clipName="NAVARRO T1 10 mm" /></Seed></PlanningProvider>);
     fireEvent.click(await screen.findByRole("button", { name: /Preparar ensayo/ }));
     await waitFor(() => expect(clipAnimation).toHaveBeenCalled());
-    const [, req] = clipAnimation.mock.calls[0] as [string, { placements: Array<{ position: unknown; normal: number[]; rotation_deg: number }> }];
+    const [, req] = clipAnimation.mock.calls[0] as [string, { placements: Array<{ clip_id: string; position: unknown; normal: number[]; rotation_deg: number }> }];
     const p = req.placements[0];
+    expect(p.clip_id).toBe("navarro:t4:0:7.0:3.0");
     expect(p.position).toEqual({ x: 4, y: 5, z: 6 });
     expect(p.rotation_deg).toBe(30);
     // Inclinada 20° respecto al eje del cuello (+z): ya no es el eje tal cual.

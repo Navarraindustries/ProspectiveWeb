@@ -142,7 +142,9 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
       // cirujano los dejó: un ensayo que acabara en otro sitio enseñaría una
       // maniobra que el plan no contiene. Sin clips en la lista, el centro del
       // cuello sin inclinar ni girar, que es donde nacería el primero. El
-      // modelo es el que nombra esta tarjeta.
+      // modelo también es el del clip activo: el selector de la tarjeta vuelve
+      // al primero del catálogo cuando la pestaña se monta de nuevo, y el
+      // ensayo enseñaría otro clip en la pose de este. Sin lista, el de la tarjeta.
       const active = activeClip(placedClips, selectedClipKey);
       const neck = neckPlacement(morphometry);
       const pose = active
@@ -150,7 +152,7 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
         : { position: { x: neck.position[0], y: neck.position[1], z: neck.position[2] }, normal: [...neck.normal], rotation_deg: 0 };
       const anim = await api.clipAnimation(sessionId, {
         session_id: sessionId,
-        placements: [{ clip_id: clipId, position: pose.position, normal: pose.normal, rotation_deg: pose.rotation_deg }],
+        placements: [{ clip_id: active?.clip_id ?? clipId, position: pose.position, normal: pose.normal, rotation_deg: pose.rotation_deg }],
         trajectory_entry: trajEntry ? { x: trajEntry[0], y: trajEntry[1], z: trajEntry[2] } : null,
         trajectory_target: trajTarget ? { x: trajTarget[0], y: trajTarget[1], z: trajTarget[2] } : null,
       });
@@ -203,7 +205,7 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
       <div>
         <SectionLabel>Ensayo de colocación</SectionLabel>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "4px 0 8px", lineHeight: 1.5 }}>
-          Muestra cómo entra {clipName} por el corredor de abordaje, abre la mordaza
+          Muestra cómo entra {activeClip(placedClips, selectedClipKey)?.name ?? clipName} por el corredor de abordaje, abre la mordaza
           y cierra sobre el cuello.
         </div>
         <ErrorNote>{error}</ErrorNote>

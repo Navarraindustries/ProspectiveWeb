@@ -17,3 +17,12 @@ export function nextDrag(state: DragState, ev: DragEvent): DragStep {
   if (ev.type === "escape") return { state: { id: null }, emit: "cancel", cameraEnabled: true };
   return { state: { id: null }, emit: "end", cameraEnabled: true };
 }
+
+/** Qué asa coge una pulsación que toca varias (llegan de la más cercana a la
+ *  más lejana). Una esfera gana a todo lo demás: el anillo pasa por el centro
+ *  de la esfera verde y, visto de canto, es una raya que la cruza; con la
+ *  tolerancia del picker se quedaba la pulsación y el clip giraba en vez de
+ *  moverse. Entre iguales, la más cercana. */
+export function chooseHandle(hits: { id: string; kind: string }[]): string | null {
+  return (hits.find((h) => h.kind === "sphere") ?? hits[0])?.id ?? null;
+}

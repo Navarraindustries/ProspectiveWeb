@@ -43,6 +43,9 @@ export interface SliceViewProps {
   crosshair: { u: number; v: number } | null;
   onPlaneClick: (u: number, v: number) => void;
   referenceLines?: { u: number | null; v: number | null } | null;
+  /** Traza del plano libre en este corte, en fracciones (u, v) del rectángulo
+   *  del corte; null si no se enseña o no lo corta. */
+  freeSegment?: [[number, number], [number, number]] | null;
   band?: [number, number] | null;
   orientation: Orientation;
   levelNote?: string | null;
@@ -327,6 +330,15 @@ export function SliceView(p: SliceViewProps) {
         )}
         {box && p.referenceLines?.v != null && (
           <div className="hud-decor" data-plane={referencePlanes(p.plane).v} style={{ position: "absolute", top: box.top + p.referenceLines.v * box.h, left: box.left, height: 1, width: box.w, background: PLANE_CSS_VAR[referencePlanes(p.plane).v], opacity: 0.7 }} />
+        )}
+        {box && p.freeSegment && (
+          // Oblicua: no cabe en un div de 1 px como las de referencia, así que va en SVG.
+          <svg className="hud-decor" data-plane="libre" width={box.w} height={box.h}
+            style={{ position: "absolute", left: box.left, top: box.top, pointerEvents: "none", overflow: "visible" }}>
+            <line x1={p.freeSegment[0][0] * box.w} y1={p.freeSegment[0][1] * box.h}
+              x2={p.freeSegment[1][0] * box.w} y2={p.freeSegment[1][1] * box.h}
+              stroke={PLANE_CSS_VAR.libre} strokeWidth={1} strokeOpacity={0.85} />
+          </svg>
         )}
         <HudLadder count={count} index={p.index} />
         <HudReadout at="bl" lines={[`${String(p.index + 1).padStart(3, " ")}/${count}`]} />

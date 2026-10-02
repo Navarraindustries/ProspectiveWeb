@@ -851,8 +851,12 @@ export function MeshView({
         h.renderer.addActor(actor);
         planeActors.current.push(actor);
       };
-      mk("polys", [4, 0, 1, 2, 3], 0.06);
-      mk("lines", [5, 0, 1, 2, 3, 0], 0.85);
+      // N vértices: 4 en los planos de índice, de 3 a 6 en el plano libre
+      // (su corte con la caja). El polígono es convexo, así que una sola celda basta.
+      const n = p.corners.length;
+      const ids = Array.from({ length: n }, (_, i) => i);
+      mk("polys", [n, ...ids], 0.06);
+      mk("lines", [n + 1, ...ids, 0], 0.85);
     }
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps

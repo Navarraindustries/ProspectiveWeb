@@ -29,4 +29,15 @@ describe("planeOutlines", () => {
     expect(a.find((p) => p.plane === "coronal")).toEqual(b.find((p) => p.plane === "coronal"));
     expect(a.find((p) => p.plane === "axial")).not.toEqual(b.find((p) => p.plane === "axial"));
   });
+  it("con plano libre hay un cuarto contorno con N vértices y su color", () => {
+    const out = planeOutlines({ x: 3, y: 4, z: 5 }, meta, { azimuthDeg: 30, elevationDeg: 50, offsetMm: 0 });
+    expect(out).toHaveLength(4);
+    const libre = out.find((p) => p.plane === "libre")!;
+    expect(libre.corners.length).toBeGreaterThanOrEqual(3);
+    expect(libre.color[2]).toBeGreaterThan(libre.color[1]);     // lavanda: más azul que verde
+  });
+  it("sin plano libre o con el plano fuera de la caja siguen siendo tres", () => {
+    expect(planeOutlines({ x: 3, y: 4, z: 5 }, meta)).toHaveLength(3);
+    expect(planeOutlines({ x: 3, y: 4, z: 5 }, meta, { azimuthDeg: 0, elevationDeg: 0, offsetMm: 999 })).toHaveLength(3);
+  });
 });

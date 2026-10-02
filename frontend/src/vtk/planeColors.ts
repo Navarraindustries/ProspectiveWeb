@@ -2,13 +2,18 @@
    sus líneas de referencia en los otros cortes, la traza del MIP y su rectángulo
    en el 3D. Elegidos para no chocar con los colores que ya significan algo:
    ámbar (avisos), verde del HUD, magenta (cuello residual), gris (no alcanzado),
-   verde del saco y dorado del clip. */
+   verde del saco y dorado del clip. El plano libre de la vista Oblicuo tiene
+   el suyo, lavanda, para no confundirse con ninguno de los tres. */
 import type { Plane } from "./geometry";
 export type { Plane };
 
-export const PLANE_HEX: Record<Plane, string> = { axial: "#4cc9f0", coronal: "#80ed99", sagital: "#f4a261" };
-export const PLANE_CSS_VAR: Record<Plane, string> = {
-  axial: "var(--plane-axial)", coronal: "var(--plane-coronal)", sagital: "var(--plane-sagital)",
+/** Lo que puede dibujarse como contorno o traza: los tres cortes y el plano libre.
+ *  `Plane` sigue siendo solo los tres cortes, que son los únicos con celda propia. */
+export type OutlinePlane = Plane | "libre";
+
+export const PLANE_HEX: Record<OutlinePlane, string> = { axial: "#4cc9f0", coronal: "#80ed99", sagital: "#f4a261", libre: "#c77dff" };
+export const PLANE_CSS_VAR: Record<OutlinePlane, string> = {
+  axial: "var(--plane-axial)", coronal: "var(--plane-coronal)", sagital: "var(--plane-sagital)", libre: "var(--plane-libre)",
 };
 /** --hud: el verde del HUD, y del punto compartido de los cortes en el 3D.
  *  Una sola fuente en TypeScript; la prueba lo ata a colors.css. */
@@ -22,7 +27,7 @@ export function hexToRgb01(hex: string): [number, number, number] {
   return [parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255];
 }
 
-export function planeRgb01(p: Plane): [number, number, number] {
+export function planeRgb01(p: OutlinePlane): [number, number, number] {
   return hexToRgb01(PLANE_HEX[p]);
 }
 

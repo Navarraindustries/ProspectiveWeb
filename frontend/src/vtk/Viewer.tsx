@@ -28,6 +28,7 @@ import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
 import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, useStoredFlag } from "./viewerPrefs";
 import { planeOutlines } from "./planeOutlines";
+import { sliceSegment } from "./freePlane";
 import { HUD_HEX, hexToRgb01 } from "./planeColors";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
@@ -188,7 +189,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
-    volumeMode, volumePreset,
+    volumeMode, volumePreset, freePlane, clipMode, cutFaceVisible, volumeWindows,
     imagingStudyId, setCaptureCase, setViewerRecording,
   } = usePlanning();
 
@@ -210,6 +211,17 @@ export function ViewerWorkspace({ step }: { step: string }) {
   volumeModeRef.current = volumeMode;
   const volumePresetRef = useRef(volumePreset);
   volumePresetRef.current = volumePreset;
+  // El plano libre, el modo de recorte, la cara de corte y la ventana del
+  // preajuste activo: sin ellos una captura de un recorte libre no se podría
+  // reproducir. Por ref, igual que los anteriores.
+  const freePlaneRef = useRef(freePlane);
+  freePlaneRef.current = freePlane;
+  const clipModeRef = useRef(clipMode);
+  clipModeRef.current = clipMode;
+  const cutFaceVisibleRef = useRef(cutFaceVisible);
+  cutFaceVisibleRef.current = cutFaceVisible;
+  const volumeWindowRef = useRef(volumeWindows[volumePreset] ?? null);
+  volumeWindowRef.current = volumeWindows[volumePreset] ?? null;
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
   const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[] } | null>(() => {
@@ -427,6 +439,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
     planes_hidden: planesHiddenRef.current,
     volume_mode: volumeModeRef.current,
     volume_preset: volumePresetRef.current,
+    free_plane: {
+      azimuth_deg: freePlaneRef.current.azimuthDeg,
+      elevation_deg: freePlaneRef.current.elevationDeg,
+      offset_mm: freePlaneRef.current.offsetMm,
+    },
+    clip_mode: clipModeRef.current,
+    cut_face_visible: cutFaceVisibleRef.current,
+    volume_window: volumeWindowRef.current,
     heading: readHeading(root) ?? null,
     level_note: levelNote ?? null,
     view_mode: viewMode,
@@ -632,7 +652,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField]);
 
   const showPlanes = !planesHidden && !decorHidden && !!meta;
-  const planes = useMemo(() => (showPlanes ? planeOutlines(mprVoxel, meta) : []), [showPlanes, meta, mprVoxel]);
+  // El plano libre se enseña donde significa algo: en la vista Oblicuo, que lo
+  // corta, o cuando VOLUMEN recorta por él. Con el recorte por eje sería ruido.
+  const showFreePlane = showPlanes && (viewMode === "oblique" || clipMode === "libre");
+  const planes = useMemo(
+    () => (showPlanes ? planeOutlines(mprVoxel, meta, showFreePlane ? freePlane : null) : []),
+    [showPlanes, showFreePlane, freePlane, meta, mprVoxel],
+  );
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
@@ -965,6 +991,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         <SliceView image={clientVol.image!} meta={meta} plane={id} index={c.index} onIndexChange={c.onIndexChange}
           wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
           crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
+          freeSegment={showFreePlane ? sliceSegment(freePlane, mprVoxel, meta, id, c.index) : null}
           band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
           active={active} compact={compact} registerCapture={regPane(captureAs)} />
       </Suspense>

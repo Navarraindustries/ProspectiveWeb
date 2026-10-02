@@ -68,10 +68,6 @@ const CLIP_OPTIONS = [
   { key: "libre", label: "LIBRE", title: "Recortar por el plano libre de la vista Oblicuo" },
 ];
 
-// Color de la traza del plano libre. Provisional: Task 6 añade PLANE_HEX.libre
-// y sustituye este literal.
-const FREE_PLANE_HEX = "#c77dff";
-
 const RENDER_OPTIONS = [
   { key: "mip", label: "MIP", title: "Proyección de máxima intensidad" },
   { key: "compuesto", label: "COMPUESTO", title: "Composición por tejidos con el preajuste elegido" },
@@ -486,7 +482,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           // plano (PLANE_HEX) al 60 %, sin capturar el ratón, y oculta con
           // REGLAS ○ como el resto de líneas.
           <svg className="hud-decor" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-            {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={libre ? FREE_PLANE_HEX : PLANE_HEX[plane]} strokeOpacity={0.6} strokeWidth={1} />)}
+            {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={libre ? PLANE_HEX.libre : PLANE_HEX[plane]} strokeOpacity={0.6} strokeWidth={1} />)}
           </svg>
         )}
         <HudLadder count={count} index={index} />

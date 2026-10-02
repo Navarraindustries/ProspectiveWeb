@@ -435,7 +435,7 @@ aneurysm, and if not, what has to be made?**
 
    | Criterion | What it compares |
    |---|---|
-   | Longitud de hoja | Blade length against the **flattened** neck (see below) |
+   | Longitud de hoja | Blade length against the **flattened** neck (see below). A blade shorter than that fails; one longer than ×3 the neck only warns (provisional rule, like the force band) |
    | Fenestración | Window calibre against the measured parent artery |
    | Alcance | Shape against dome depth (AR) |
    | Forma / localización | Shape against the anatomical region on the case |

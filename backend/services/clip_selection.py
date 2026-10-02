@@ -353,11 +353,15 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
             0.0, weight=2.0,
         )
     if cov > BLADE_MAX_RATIO:
+        # Antes descartaba. En cuellos pequeños (Case 3: 1,1–1,4 mm) toda hoja del
+        # catálogo supera ×3 y no quedaba ningún clip con el que trabajar; la hoja
+        # larga es un aviso que el cirujano valora, no un descarte. Regla
+        # provisional, como la banda de fuerza.
         return Criterion(
-            "coverage", "Longitud de hoja", "fail",
-            f"Hoja de {bl:.0f} mm sobredimensionada (×{cov:.1f} el cuello): "
-            f"el extremo distal queda sobre tejido sano",
-            0.0, weight=2.0,
+            "coverage", "Longitud de hoja", "warn",
+            f"Hoja larga para el cuello: hoja de {bl:.0f} mm, ×{cov:.1f} el "
+            f"cuello; el extremo distal queda sobre tejido sano",
+            WARN_SCORE_FLOOR, weight=2.0,
         )
     # Con el mínimo ya garantizado arriba, la puntuación solo ordena por exceso:
     # entre dos hojas que cierran, la más corta estorba menos. Conserva el suelo

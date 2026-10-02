@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipNormal, isStale, neckPlacement, poseKey, toPlacement } from "./placedClips";
+import { activeClip, clipNormal, isStale, neckPlacement, poseKey, toPlacement } from "./placedClips";
 import type { MorphometryResult } from "../../api/types";
 const morpho = { principal_axis: [0, 1, 0], neck_origin: { x: 1, y: 2, z: 3 } } as unknown as MorphometryResult;
 const clip = { key: 1, clip_id: "navarro:x", name: "X", position: [1, 2, 3] as [number, number, number], rotation_deg: 10, azimuthDeg: 0, elevationDeg: 0 };
@@ -21,5 +21,15 @@ describe("placedClips", () => {
   });
   it("neckPlacement parte del origen del cuello", () => {
     expect(neckPlacement(morpho).position).toEqual([1, 2, 3]);
+  });
+});
+
+describe("activeClip", () => {
+  const c = (key: number) => ({ key, clip_id: "c", name: "C", position: [0, 0, 0] as [number, number, number], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 });
+  it("el elegido si está; si no, el último; sin lista, ninguno", () => {
+    expect(activeClip([c(1), c(2)], 1)?.key).toBe(1);
+    expect(activeClip([c(1), c(2)], 7)?.key).toBe(2);
+    expect(activeClip([c(1), c(2)], null)?.key).toBe(2);
+    expect(activeClip([], null)).toBeNull();
   });
 });

@@ -23,9 +23,9 @@ export function neckAxis(m: MorphometryResult | null): Vec3 | null {
     The approximation survives only as a fallback for older sessions whose
     morphometry predates `neck_origin`.
 
-    The rehearsal animates the clip onto the SAME pose the placement uses — two
-    answers would show a manoeuvre ending somewhere the plan does not put the
-    clip. */
+    Es la pose de partida de un clip recién añadido. El ensayo NO la usa si hay
+    clips en la lista: anima hasta la pose del clip activo (ver `activeClip`),
+    que el cirujano puede haber movido, girado e inclinado a mano. */
 export function neckPlacement(m: MorphometryResult | null): { position: Vec3; normal: Vec3 } {
   const ax = neckAxis(m);
   const normal: Vec3 = ax ?? [0, 0, 1];
@@ -49,6 +49,12 @@ const snap = (v: number) => (Math.abs(v) < 1e-12 ? 0 : v);
 export function clipNormal(m: MorphometryResult | null, c: PlacedClip): Vec3 {
   const n = neckFrameNormal(neckAxis(m), c.azimuthDeg, c.elevationDeg);
   return [snap(n[0]), snap(n[1]), snap(n[2])];
+}
+
+/** El clip que manejan las asas del 3D y que ensaya «Ensayar»: el elegido en
+ *  la lista o, si no hay ninguno elegido (o ya no está), el último colocado. */
+export function activeClip(placed: PlacedClip[], selectedKey: number | null): PlacedClip | null {
+  return placed.find((c) => c.key === selectedKey) ?? placed.at(-1) ?? null;
 }
 
 /** Lo que espera /clips/plan y /clips/field. */

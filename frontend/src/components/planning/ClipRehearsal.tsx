@@ -21,7 +21,7 @@ import { Button } from "../Button";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { Slider } from "../Slider";
 import { usePlanning } from "../../store/planning";
-import { neckPlacement } from "./placedClips";
+import { activeClip, neckPlacement, toPlacement } from "./placedClips";
 
 /** Seconds each phase lasts. Travel is the long one; the close is a snap. */
 const TRAVEL_SEC = 2.4;
@@ -72,7 +72,7 @@ export function sacFrameFor(close: number, frames: number): number | null {
 
 export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: string }) {
   const { sessionId, morphometry, clipRehearsal, setClipRehearsal, clipParts,
-          trajEntry, trajTarget, setSacFrame, deviceMeshes } = usePlanning();
+          trajEntry, trajTarget, setSacFrame, deviceMeshes, placedClips, selectedClipKey } = usePlanning();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -137,12 +137,20 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
     setBusy(true);
     setError(null);
     try {
-      const pose = neckPlacement(morphometry);
+      // La pose del clip ACTIVO (el de las asas: el elegido o el último
+      // colocado), con su posición, su normal inclinada y su giro tal como el
+      // cirujano los dejó: un ensayo que acabara en otro sitio enseñaría una
+      // maniobra que el plan no contiene. Sin clips en la lista, el centro del
+      // cuello sin inclinar ni girar, que es donde nacería el primero. El
+      // modelo es el que nombra esta tarjeta.
+      const active = activeClip(placedClips, selectedClipKey);
+      const neck = neckPlacement(morphometry);
+      const pose = active
+        ? toPlacement(morphometry, active)
+        : { position: { x: neck.position[0], y: neck.position[1], z: neck.position[2] }, normal: [...neck.normal], rotation_deg: 0 };
       const anim = await api.clipAnimation(sessionId, {
         session_id: sessionId,
-        // The SAME pose the placement uses: a rehearsal that ended anywhere else
-        // would show a manoeuvre the plan does not agree with.
-        placements: [{ clip_id: clipId, position: { x: pose.position[0], y: pose.position[1], z: pose.position[2] }, normal: pose.normal, rotation_deg: 0 }],
+        placements: [{ clip_id: clipId, position: pose.position, normal: pose.normal, rotation_deg: pose.rotation_deg }],
         trajectory_entry: trajEntry ? { x: trajEntry[0], y: trajEntry[1], z: trajEntry[2] } : null,
         trajectory_target: trajTarget ? { x: trajTarget[0], y: trajTarget[1], z: trajTarget[2] } : null,
       });
@@ -153,7 +161,7 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
     } finally {
       setBusy(false);
     }
-  }, [sessionId, clipId, morphometry, trajEntry, trajTarget, setClipRehearsal]);
+  }, [sessionId, clipId, morphometry, placedClips, selectedClipKey, trajEntry, trajTarget, setClipRehearsal]);
 
   // Once the viewer has loaded the three parts, put them at the start.
   useEffect(() => {

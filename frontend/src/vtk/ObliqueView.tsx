@@ -18,7 +18,7 @@ import {
   AZIMUTH_RANGE, ELEVATION_RANGE, clampOffsetToBox, clipPolygon, normalOf, originOf, rightOf, upOf, type FreePlane,
 } from "./freePlane";
 import { dragAngles, obliqueReadout, wheelOffset } from "./obliqueGestures";
-import { stepFromKey } from "./cine";
+import { isNativeKeyTarget, stepFromKey } from "./cine";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
@@ -198,6 +198,7 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
   );
   // Mismas teclas que en los cortes: el paso mueve el plano por el espaciado más fino.
   const onKey = (e: React.KeyboardEvent) => {
+    if (isNativeKeyTarget(e.target)) return;
     const step = stepFromKey(e.key); if (step === null) return;
     e.preventDefault();
     const p = geom.current.p;

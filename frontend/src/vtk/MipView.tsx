@@ -42,7 +42,7 @@ import { cameraHeading, effectiveDirection, sliceCamera, type Orientation, type 
 import { PLANE_HEX } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
-import { applyStep, stepFromKey } from "./cine";
+import { applyStep, isNativeKeyTarget, stepFromKey } from "./cine";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
@@ -536,6 +536,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // Mismas teclas que en los cortes. En LIBRE el paso mueve el plano libre por
   // el espaciado más fino (como la rueda); ±Infinity lo lleva al borde de la caja.
   const onKey = (e: React.KeyboardEvent) => {
+    if (isNativeKeyTarget(e.target)) return;
     const step = stepFromKey(e.key); if (step === null) return;
     e.preventDefault();
     if (libre) commitFree({ ...freeRef.current, offsetMm: freeRef.current.offsetMm + step * Math.min(...meta.spacing) });

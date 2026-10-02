@@ -19,7 +19,7 @@ import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane } from "./geometry";
 import { PLANE_CSS_VAR, referencePlanes } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
-import { applyStep, stepFromKey } from "./cine";
+import { applyStep, isNativeKeyTarget, stepFromKey } from "./cine";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudReticle } from "./hud/HudReticle";
@@ -301,6 +301,7 @@ export function SliceView(p: SliceViewProps) {
     if (d && !d.moved) { const f = frac(e); if (f) p.onPlaneClick(f.u, f.v); }
   };
   const onKey = (e: React.KeyboardEvent) => {
+    if (isNativeKeyTarget(e.target)) return;
     const step = stepFromKey(e.key); if (step === null) return;
     e.preventDefault();
     p.onIndexChange(applyStep(p.index, step, count));

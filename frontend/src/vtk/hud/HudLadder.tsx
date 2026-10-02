@@ -6,7 +6,7 @@ import { indexAtY, ladderTicks } from "./ladder";
  *  el nuevo índice. */
 export function HudLadder({ count, index, onIndexChange }: { count: number; index: number; onIndexChange?: (i: number) => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  const grabbed = useRef(false);
+  const grabbed = useRef<number | null>(null);
   const [h, setH] = useState(0);
   useEffect(() => {
     const el = ref.current; if (!el) return;
@@ -28,11 +28,15 @@ export function HudLadder({ count, index, onIndexChange }: { count: number; inde
         if (e.button !== 0 || h <= 0) return;
         // La escalera es suya: que la celda no lo tome como arrastre de ventana/nivel.
         e.preventDefault(); e.stopPropagation();
-        e.currentTarget.setPointerCapture(e.pointerId); grabbed.current = true; emit(e);
+        e.currentTarget.setPointerCapture(e.pointerId); grabbed.current = e.pointerId;
+        // preventDefault anula los eventos de ratón de compatibilidad y con ellos el foco: sin
+        // esto las teclas de página no responderían tras arrastrar hasta el siguiente clic.
+        (e.currentTarget.closest("[tabindex]") as HTMLElement | null)?.focus({ preventScroll: true });
+        emit(e);
       } : undefined}
-      onPointerMove={onIndexChange ? (e) => { if (grabbed.current) emit(e); } : undefined}
-      onPointerUp={() => { grabbed.current = false; }}
-      onLostPointerCapture={() => { grabbed.current = false; }}
+      onPointerMove={onIndexChange ? (e) => { if (grabbed.current === e.pointerId) emit(e); } : undefined}
+      onPointerUp={(e) => { if (grabbed.current === e.pointerId) grabbed.current = null; }}
+      onLostPointerCapture={(e) => { if (grabbed.current === e.pointerId) grabbed.current = null; }}
       onMouseDown={onIndexChange ? (e) => e.stopPropagation() : undefined}
       style={{ position: "absolute", right: 0, top: 24, bottom: 24, width: 44, overflow: "hidden",
         ...(onIndexChange ? { pointerEvents: "auto", cursor: "ns-resize", touchAction: "none" } : null) }}>

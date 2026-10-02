@@ -16,3 +16,11 @@ describe("cine", () => {
     expect(applyStep(95, 10, 100)).toBe(99); expect(applyStep(3, -Infinity, 100)).toBe(0); expect(applyStep(3, Infinity, 100)).toBe(99);
   });
 });
+
+import { isNativeKeyTarget } from "./cine";
+it("isNativeKeyTarget reconoce controles con teclado propio", () => {
+  expect(isNativeKeyTarget(document.createElement("input"))).toBe(true);
+  expect(isNativeKeyTarget(document.createElement("button"))).toBe(true);
+  expect(isNativeKeyTarget(document.createElement("div"))).toBe(false);
+  expect(isNativeKeyTarget(null)).toBe(false);
+});

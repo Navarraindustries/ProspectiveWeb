@@ -36,3 +36,11 @@ export function stepFromKey(key: string): number | null {
 export function applyStep(i: number, step: number, count: number): number {
   return Math.max(0, Math.min(count - 1, i + step));
 }
+
+/** Un control con teclado propio (deslizador, selector, botón, texto) dentro de
+ *  la celda se queda con sus flechas: si la celda también las atendiera, el
+ *  deslizador dejaría de moverse y se movería el corte. */
+export function isNativeKeyTarget(t: EventTarget | null): boolean {
+  return t instanceof HTMLInputElement || t instanceof HTMLSelectElement
+    || t instanceof HTMLTextAreaElement || t instanceof HTMLButtonElement;
+}

@@ -8,7 +8,10 @@ import { voxelToMm, type Plane, type Vec3 } from "./geometry";
 export interface FreePlane { azimuthDeg: number; elevationDeg: number; offsetMm: number }
 export const DEFAULT_FREE_PLANE: FreePlane = { azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 };
 export const AZIMUTH_RANGE: [number, number] = [-180, 180];
-/* 89 y no 90: con la normal paralela a y (elevación 90°) el «arriba» proyectado se anula. */
+/* ±89 y no ±90: el «arriba» de upOf no se anula en ningún punto de este rango
+   (su única singularidad es 180°), así que el límite no protege de ninguna
+   degeneración. Solo mantiene legible el «arriba» del corte: más allá de 90° la
+   imagen del oblicuo quedaría cabeza abajo respecto al axial. */
 export const ELEVATION_RANGE: [number, number] = [-89, 89];
 
 const EPS = 1e-9;
@@ -29,15 +32,17 @@ export function normalOf(p: FreePlane): Vec3 {
   return norm([Math.sin(e) * Math.sin(a), Math.sin(e) * Math.cos(a), Math.cos(e)]);
 }
 
-/** Proyección de −y sobre el plano: un «arriba» fijo para que el oblicuo no gire
- *  solo al mover los ángulos. Es continuo en todo el rango permitido (solo se
- *  anula con la normal paralela a y, que |elevación| ≤ 89° excluye) y con
- *  elevación 0 da −y, el mismo «arriba» del corte axial en pantalla. */
+/** «Arriba» del oblicuo: el −y del corte axial girado e alrededor del eje
+ *  k = (−cos a, sin a, 0), el mismo giro que lleva +z a la normal. Así el
+ *  oblicuo es el axial «inclinado» y su imagen gira poco al mover el azimut
+ *  también cerca del coronal (la proyección de −y que se usaba antes giraba
+ *  decenas de grados por píxel al acercarse a elevación 90°). Es unitario y
+ *  ortogonal a n; con elevación 0 da −y (el «arriba» del axial en pantalla) y
+ *  con azimut 0 da (0, −cos e, sin e), el del oblicuo «EJE X» anterior. */
 export function upOf(p: FreePlane): Vec3 {
-  const n = normalOf(p);
-  const ref: Vec3 = [0, -1, 0];
-  const k = dot(ref, n);
-  return norm(sub(ref, [n[0] * k, n[1] * k, n[2] * k]));
+  const a = rad(p.azimuthDeg), e = rad(p.elevationDeg);
+  const sa = Math.sin(a), ca = Math.cos(a), ce = Math.cos(e), se = Math.sin(e);
+  return [sa * ca * (1 - ce), -ce - sa * sa * (1 - ce), ca * se];
 }
 
 export function rightOf(p: FreePlane): Vec3 { return norm(cross(upOf(p), normalOf(p))); }

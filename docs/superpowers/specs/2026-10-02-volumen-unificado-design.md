@@ -26,13 +26,13 @@ Geometría, en el marco de índices (vóxel × espaciado, origen 0, el mismo que
 
 - `normalOf({azimuthDeg, elevationDeg})`, con `a` y `e` en radianes:
   - `n = [ sin(e)·sin(a), sin(e)·cos(a), cos(e) ]` → con `e = 0`, `n = [0,0,1]` (el plano axial de índices que pasa por el punto); la elevación `e` inclina la normal desde `+z` y el azimut `a` elige hacia qué lado (`a = 0` inclina hacia `+y`, `a = 90°` hacia `+x`).
-  - `upOf(angles)`: vector «arriba» determinista para el reslice: la proyección de `−y` sobre el plano, `up = normalize( [0,−1,0] − (n·[0,−1,0]) n )`, para toda elevación. Es continua en todo el rango permitido (solo degenera con la normal paralela a `y`, que `|e| ≤ 89°` excluye) y con elevación 0 coincide con el «arriba» del oblicuo actual (−y, la orientación del corte axial). Así el oblicuo no gira solo al mover los ángulos.
+  - `upOf(angles)`: vector «arriba» determinista para el reslice: el `−y` del corte axial girado `e` alrededor del eje `k = (−cos a, sin a, 0)`, el mismo giro que lleva `+z` a `n`. En forma cerrada, `up = [sin(a)·cos(a)·(1 − cos e), −cos e − sin²(a)·(1 − cos e), cos(a)·sin(e)]`; ya es unitario y ortogonal a `n`. Con elevación 0 coincide con el «arriba» del oblicuo actual (−y, la orientación del corte axial) y con azimut 0 con el del oblicuo «EJE X» anterior, `(0, −cos e, sin e)`. Gira menos de 1° por cada 0,5° de azimut en todo el rango, también cerca del coronal (la proyección de `−y` sobre el plano giraba decenas de grados allí). Así el oblicuo no gira solo al mover los ángulos.
   - `rightOf = normalize(up × n)`.
 - `originOf(plane, mprVoxel, meta) = voxelToMm(mprVoxel, meta) + n · offsetMm`.
 - `clipPolygon(plane, mprVoxel, meta): Vec3[]`: intersección del plano con la caja del volumen `[0, (n−1)·s]` en cada eje: entre 3 y 6 vértices ordenados en sentido antihorario visto desde `n`; `[]` si el plano no corta la caja. Se usa para el polígono en el 3D, la traza en VOLUMEN y el encuadre del oblicuo (sustituye a `sliceExtent` de `ObliqueView`).
 - `sliceSegment(plane, mprVoxel, meta, slicePlane, index): [Vec2, Vec2] | null`: segmento de intersección del plano libre con un corte de índice (`axial|coronal|sagital` en `index`), en fracciones `u,v` del corte (mismas convenciones que `planeCfg`), o `null` si son paralelos o no se cortan dentro del corte.
 
-Rangos: azimut −180..180, elevación −89..89 (la normal nunca se pone horizontal, para que el «arriba» siga definido), `offsetMm` libre pero acotado a la caja al usarlo. Se reinicia con la sesión como el resto del estado del visor.
+Rangos: azimut −180..180, elevación −89..89 (el «arriba» no degenera en ese rango; el límite solo mantiene legible la orientación del corte), `offsetMm` libre pero acotado a la caja al usarlo. Se reinicia con la sesión como el resto del estado del visor.
 
 ## 3. Vista Oblicuo (`vtk/ObliqueView.tsx`)
 

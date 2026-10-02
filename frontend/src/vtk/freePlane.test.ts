@@ -23,6 +23,19 @@ describe("normalOf / upOf / rightOf", () => {
       expect(dot(u, n)).toBeCloseTo(0, 6); expect(dot(r, n)).toBeCloseTo(0, 6); expect(dot(r, u)).toBeCloseTo(0, 6);
     }
   });
+  it("con azimut 0 el arriba es (0, −cos e, sin e), el del oblicuo «EJE X» anterior", () => {
+    const e = 30, r = (e * Math.PI) / 180;
+    const u = upOf({ azimuthDeg: 0, elevationDeg: e, offsetMm: 0 });
+    expect(u[0]).toBeCloseTo(0, 9); expect(u[1]).toBeCloseTo(-Math.cos(r), 9); expect(u[2]).toBeCloseTo(Math.sin(r), 9);
+  });
+  it("cerca del coronal el arriba gira menos de 1° por cada 0,5° de azimut", () => {
+    const deg = (x: number[], y: number[]) => (Math.acos(Math.min(1, Math.max(-1, dot(x, y) / (len(x) * len(y))))) * 180) / Math.PI;
+    for (const e of [80, 85, 89]) for (const a of [0, 45, 90]) {
+      const u0 = upOf({ azimuthDeg: a, elevationDeg: e, offsetMm: 0 });
+      const u1 = upOf({ azimuthDeg: a + 0.5, elevationDeg: e, offsetMm: 0 });
+      expect(deg(u0, u1)).toBeLessThan(1);
+    }
+  });
   it("clampPlane acota los ángulos", () => {
     expect(clampPlane({ azimuthDeg: 200, elevationDeg: 95, offsetMm: 3 })).toEqual({ azimuthDeg: 180, elevationDeg: 89, offsetMm: 3 });
   });

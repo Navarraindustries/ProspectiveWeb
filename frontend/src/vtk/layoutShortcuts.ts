@@ -1,5 +1,5 @@
 /* Atajos de teclado de la distribución del visor: Alt+1 sola, Alt+2 derecha,
-   Alt+3 abajo. Con Alt porque los dígitos solos ya saltan de paso en el flujo
+   Alt+3 abajo, Alt+4 cuatro. Con Alt porque los dígitos solos ya saltan de paso en el flujo
    (Workspace): el mismo «2» no puede significar dos cosas. Puro para poder
    probarlo sin montar el visor. */
 import type { LayoutPreset } from "./layout";
@@ -7,7 +7,7 @@ import type { LayoutPreset } from "./layout";
 // Por `KeyboardEvent.code` (la tecla física), no por `key`: en macOS
 // Option+1 escribe «¡» y el `key` ya no es «1»; en un teclado AZERTY la fila
 // de números da «&» sin mayúsculas. La tecla física es la misma en todos.
-const CODES: Record<string, LayoutPreset> = { Digit1: "sola", Digit2: "derecha", Digit3: "abajo" };
+const CODES: Record<string, LayoutPreset> = { Digit1: "sola", Digit2: "derecha", Digit3: "abajo", Digit4: "cuatro" };
 
 /** Un atajo numérico nunca debe robarle la tecla a un campo donde se escribe:
  *  escribir en el umbral de segmentación no puede cambiar la distribución. */

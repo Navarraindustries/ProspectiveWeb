@@ -34,9 +34,18 @@ export function gridFor(l: ViewerLayout, portrait: boolean): GridSpec {
   l.side.forEach((id, i) => { slotOf[id] = slots[i]; });
   const allVisible = Object.fromEntries([l.main, ...l.side].map((id) => [id, preset !== "sola"])) as Record<PaneId, boolean>;
   allVisible[l.main] = true;
+  // 2×2: cuatro celdas para cinco vistas, la última de `side` queda sin hueco.
+  if (preset === "cuatro") allVisible[l.side[3]] = false;
   const f = l.mainFraction, g = 1 - l.mainFraction;
   if (preset === "sola") {
     return { columns: "1fr", rows: "1fr", areas: '"main"', slotOf, visible: allVisible, splitter: null };
+  }
+  if (preset === "cuatro") {
+    // Sin separador (las cuatro celdas son iguales) y también en vertical.
+    return {
+      columns: "repeat(2, minmax(0, 1fr))", rows: "repeat(2, minmax(0, 1fr))",
+      areas: '"main s0" "s1 s2"', slotOf, visible: allVisible, splitter: null,
+    };
   }
   if (preset === "derecha") {
     return {

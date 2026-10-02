@@ -117,3 +117,19 @@ describe("persistencia", () => {
     get.mockRestore(); set.mockRestore();
   });
 });
+
+describe("preset cuatro", () => {
+  beforeEach(() => localStorage.clear());
+  it("cuatro oculta la quinta vista y deja VOLUMEN fuera salvo que sea la principal", () => {
+    const l = setPreset(DEFAULT_LAYOUT, "cuatro");
+    expect(l.preset).toBe("cuatro"); expect(l.side[3]).toBe("mip");
+    const m = setPreset({ ...DEFAULT_LAYOUT, main: "mip", side: ["axial", "coronal", "sagital", "scene"] }, "cuatro");
+    expect(m.main).toBe("mip"); expect(m.side[3]).toBe("scene");
+  });
+  it("loadLayout acepta cuatro y sigue aceptando los presets anteriores", () => {
+    localStorage.setItem(LAYOUT_KEY_V2, JSON.stringify({ ...DEFAULT_LAYOUT, preset: "cuatro" }));
+    expect(loadLayout().preset).toBe("cuatro");
+    localStorage.setItem(LAYOUT_KEY_V2, JSON.stringify({ ...DEFAULT_LAYOUT, preset: "abajo" }));
+    expect(loadLayout().preset).toBe("abajo");
+  });
+});

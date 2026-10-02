@@ -18,6 +18,7 @@ export function presetOptions(bandWidth: number) {
   return [
     { key: "derecha", label: short ? "DER" : "DERECHA", title: "Vista principal y las otras cuatro en columna (Alt+2)" },
     { key: "abajo", label: short ? "ABA" : "ABAJO", title: "Vista principal y las otras cuatro en franja (Alt+3)" },
+    { key: "cuatro", label: short ? "4" : "CUATRO", title: "Axial, coronal, sagital y 3D a cuartos (Alt+4)" },
     { key: "sola", label: "SOLA", title: "Solo la vista principal (Alt+1)" },
   ];
 }

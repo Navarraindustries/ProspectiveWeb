@@ -14,15 +14,15 @@ describe("mainOptions", () => {
 
 describe("presetOptions", () => {
   it("abrevia los presets cuando la banda de cabecera mide menos de 800 px", () => {
-    expect(presetOptions(530).map((o) => o.label)).toEqual(["DER", "ABA", "SOLA"]);
-    expect(presetOptions(799).map((o) => o.label)).toEqual(["DER", "ABA", "SOLA"]);
+    expect(presetOptions(530).map((o) => o.label)).toEqual(["DER", "ABA", "4", "SOLA"]);
+    expect(presetOptions(799).map((o) => o.label)).toEqual(["DER", "ABA", "4", "SOLA"]);
   });
   it("nombre entero desde 800 px o sin medida", () => {
-    expect(presetOptions(800).map((o) => o.label)).toEqual(["DERECHA", "ABAJO", "SOLA"]);
-    expect(presetOptions(Number.POSITIVE_INFINITY).map((o) => o.label)).toEqual(["DERECHA", "ABAJO", "SOLA"]);
+    expect(presetOptions(800).map((o) => o.label)).toEqual(["DERECHA", "ABAJO", "CUATRO", "SOLA"]);
+    expect(presetOptions(Number.POSITIVE_INFINITY).map((o) => o.label)).toEqual(["DERECHA", "ABAJO", "CUATRO", "SOLA"]);
   });
   it("las claves y los títulos no cambian al abreviar", () => {
-    expect(presetOptions(500).map((o) => o.key)).toEqual(["derecha", "abajo", "sola"]);
+    expect(presetOptions(500).map((o) => o.key)).toEqual(["derecha", "abajo", "cuatro", "sola"]);
     expect(presetOptions(500).map((o) => o.title)).toEqual(presetOptions(1000).map((o) => o.title));
   });
 });
@@ -32,5 +32,12 @@ describe("headerLabels", () => {
     expect(headerLabels(742).mainCaption).toBe("▸");
     expect(headerLabels(800).mainCaption).toBe("PRINCIPAL");
     expect(headerLabels(Number.POSITIVE_INFINITY).mainCaption).toBe("PRINCIPAL");
+  });
+});
+
+describe("presetOptions cuatro", () => {
+  it("CUATRO está entre los presets y se abrevia a 4", () => {
+    expect(presetOptions(1000).map((o) => o.key)).toContain("cuatro");
+    expect(presetOptions(600).find((o) => o.key === "cuatro")!.label).toBe("4");
   });
 });

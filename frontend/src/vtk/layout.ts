@@ -7,12 +7,12 @@
    «franja oculta» se migran una vez y se borran. */
 
 export type PaneId = "scene" | "axial" | "coronal" | "sagital" | "mip";
-export type LayoutPreset = "derecha" | "abajo" | "sola";
+export type LayoutPreset = "derecha" | "abajo" | "sola" | "cuatro";
 export type SidePanes = [PaneId, PaneId, PaneId, PaneId];
 export interface ViewerLayout { preset: LayoutPreset; main: PaneId; side: SidePanes; mainFraction: number }
 
 export const ALL_PANES: PaneId[] = ["scene", "axial", "coronal", "sagital", "mip"];
-const PRESETS: LayoutPreset[] = ["derecha", "abajo", "sola"];
+const PRESETS: LayoutPreset[] = ["derecha", "abajo", "sola", "cuatro"];
 export const LAYOUT_KEY_V2 = "ws.viewer.layout.v2";
 export const LAYOUT_KEY_V1 = "ws.viewer.layout";
 export const STRIP_HIDDEN_KEY_V1 = "viewer.stripHidden";
@@ -53,7 +53,15 @@ export function promote(l: ViewerLayout, id: PaneId): ViewerLayout {
 /** Al cambiar de preset la fracción vuelve al defecto de ese preset: la de
  *  «derecha» es un ancho y en «abajo» sería un alto, no significa lo mismo. */
 export function setPreset(l: ViewerLayout, p: LayoutPreset): ViewerLayout {
-  return l.preset === p ? l : { ...l, preset: p, mainFraction: defaultFraction(p) };
+  if (l.preset === p) return l;
+  const next = { ...l, preset: p, mainFraction: defaultFraction(p) };
+  // «cuatro» dibuja solo cuatro vistas y oculta la última de `side`: VOLUMEN
+  // (la menos usada) se aparta ahí, salvo que sea la principal. El orden del
+  // resto no se toca para que volver a otro preset lo encuentre igual.
+  if (p === "cuatro" && l.main !== "mip" && l.side.includes("mip")) {
+    next.side = [...l.side.filter((id) => id !== "mip"), "mip"] as SidePanes;
+  }
+  return next;
 }
 
 export function setMainFraction(l: ViewerLayout, f: number): ViewerLayout {

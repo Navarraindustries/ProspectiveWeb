@@ -65,3 +65,12 @@ describe("isCompact", () => {
     expect(isCompact(900, COMPACT_MIN_HEIGHT_PX)).toBe(false);
   });
 });
+
+describe("cuatro", () => {
+  it("cuatro es una rejilla 2×2 sin separador con side[3] oculta", () => {
+    const g = gridFor({ ...DEFAULT_LAYOUT, preset: "cuatro" }, false);
+    expect(g.areas).toBe('"main s0" "s1 s2"'); expect(g.splitter).toBeNull();
+    expect(g.visible.mip).toBe(false); expect(g.visible.scene).toBe(true);
+    expect(gridFor({ ...DEFAULT_LAYOUT, preset: "cuatro" }, true).areas).toBe('"main s0" "s1 s2"');   // en vertical también 2×2
+  });
+});

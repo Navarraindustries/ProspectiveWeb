@@ -1370,7 +1370,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           la vista (AXIAL, VOLUMEN…). Fuera de la celda no tapan nada y la
           rejilla toma el resto del alto. En 1280 la banda mide ~740 px: con
           CALOR encendido los grupos solo caben con los presets abreviados y
-          «PRINCIPAL» reducido a «▸» (headerLabels). Mismas teclas Alt+1/2/3
+          «PRINCIPAL» reducido a «▸» (headerLabels). Mismas teclas Alt+1/2/3/4
           que la rejilla, para que el foco en un conmutador no las pierda.
           La banda vive en ViewerHeader, con su prueba. */}
       <ViewerHeader

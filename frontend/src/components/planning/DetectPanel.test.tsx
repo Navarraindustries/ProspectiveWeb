@@ -1,8 +1,8 @@
 /* El panel de detección enseña los descartados con su motivo, el puesto de
    cada aceptado y el aviso cuando el backend ha limpiado la morfometría. */
 
-import { fireEvent, render, screen } from "@testing-library/react";
-import { useEffect, type ReactNode } from "react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { StrictMode, useEffect, useRef, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const detect = vi.fn();
@@ -16,7 +16,7 @@ vi.mock("../../api/client", () => ({
 import { DetectPanel } from "./DetectPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import type {
-  AneurysmCandidate, AneurysmDetectionResult, DetectionDiagnostics,
+  AneurysmCandidate, AneurysmDetectionResult, DetectionDiagnostics, MorphometryResult,
 } from "../../api/types";
 
 const diag: DetectionDiagnostics = {
@@ -108,6 +108,8 @@ describe("DetectPanel", () => {
     expect(screen.queryByText(/compruébalo en el 3D/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("cand-002"));
     expect(screen.getByText(/compruébalo en el 3D/)).toBeInTheDocument();
+    // La nota nombra el motivo de ESE descartado (spec §5).
+    expect(screen.getByText("Descartado por «Resto de segmentación»: compruébalo en el 3D antes de medir.")).toBeInTheDocument();
     // Volver a un aceptado retira la advertencia.
     fireEvent.click(screen.getByText("cand-000"));
     expect(screen.queryByText(/compruébalo en el 3D/)).not.toBeInTheDocument();
@@ -143,4 +145,97 @@ describe("DetectPanel", () => {
     expect(await screen.findByText(/La malla no tiene regiones de curvatura suficientes/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Descartados/ })).not.toBeInTheDocument();
   });
+
+  it("con la morfometría invalidada la borra del store aunque el elegido ya fuera el 0", async () => {
+    mockDetect({ morphometry_invalidated: true });
+    render(<WithMeasure />);
+    // La medida sembrada está antes de que llegue la respuesta.
+    await screen.findByText(/La morfometría se ha limpiado/);
+    expect(screen.getByTestId("medida")).toHaveTextContent("sin medida");
+    expect(screen.getByTestId("cuello")).toHaveTextContent("0 marcas");
+  });
+
+  it("sin invalidación la medida del elegido 0 se conserva", async () => {
+    mockDetect({ morphometry_invalidated: false });
+    render(<WithMeasure />);
+    await screen.findByText("Puesto #1");
+    expect(screen.getByTestId("medida")).toHaveTextContent("con medida");
+  });
+
+  it("con todos los sitios descartados no dice que no encontró nada y deja medir", async () => {
+    mockDetect({ found: false, candidates: [], rejected: [rejected[0]!] });
+    render(<Wrapped />);
+    expect(await screen.findByRole("button", { name: /Descartados \(1\)/ })).toBeInTheDocument();
+    expect(screen.getByText(/Todos los sitios encontrados se descartaron/)).toBeInTheDocument();
+    expect(screen.queryByText(/No se encontraron candidatos/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Por qué no se encontró nada")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Analizar morfometría/ })).toBeEnabled();
+    // El elegido (índice 0) es el descartado: su advertencia se ve con la lista plegada.
+    expect(screen.getByText(/cand-001: Descartado por «Recorte de la malla»/)).toBeInTheDocument();
+  });
+
+  it("en StrictMode detecta una sola vez al montarse", async () => {
+    render(<StrictMode><Wrapped /></StrictMode>);
+    await screen.findByText("Puesto #1");
+    expect(detect).toHaveBeenCalledTimes(1);
+  });
+
+  it("la respuesta de una detección anterior no pisa la de la última", async () => {
+    let resolveOld!: (r: AneurysmDetectionResult) => void;
+    let resolveNew!: (r: AneurysmDetectionResult) => void;
+    detect.mockReset();
+    detect
+      .mockImplementationOnce(() => new Promise((ok) => { resolveOld = ok; }))
+      .mockImplementationOnce(() => new Promise((ok) => { resolveNew = ok; }));
+    const base = { found: true, rejected: [], morphometry_invalidated: false, diagnostics: diag };
+    const { rerender } = render(<Toggle show />);
+    await vi.waitFor(() => expect(detect).toHaveBeenCalledTimes(1));
+    // Se sale del paso y se vuelve con la primera detección aún en vuelo.
+    rerender(<Toggle show={false} />);
+    rerender(<Toggle show />);
+    await vi.waitFor(() => expect(detect).toHaveBeenCalledTimes(2));
+    await act(async () => { resolveNew({ ...base, candidates: [cand("cand-nueva", 1)] }); });
+    expect(await screen.findByText("cand-nueva")).toBeInTheDocument();
+    await act(async () => { resolveOld({ ...base, candidates: [cand("cand-vieja", 1)] }); });
+    expect(screen.queryByText("cand-vieja")).not.toBeInTheDocument();
+    expect(screen.getByText("cand-nueva")).toBeInTheDocument();
+  });
 });
+
+/** Siembra una morfometría y un cuello marcado sobre el elegido 0 antes de
+ *  montar el panel, como tras medir y volver a Detección. */
+function SeedMeasure({ children }: { children: ReactNode }) {
+  const p = usePlanning();
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current) return;
+    seeded.current = true;
+    p.setSession("s1");
+    p.setCandidates([]);
+    p.setMorphometry({ max_diameter_mm: 7 } as unknown as MorphometryResult);
+    p.setNeckRim([[0, 0, 0], [1, 0, 0], [0, 1, 0]]);
+  });
+  return p.sessionId && p.morphometry !== undefined ? (
+    <>
+      <span data-testid="medida">{p.morphometry ? "con medida" : "sin medida"}</span>
+      <span data-testid="cuello">{p.neckRim.length} marcas</span>
+      {children}
+    </>
+  ) : null;
+}
+
+function WithMeasure() {
+  return (
+    <PlanningProvider>
+      <SeedMeasure><DetectPanel onNext={() => {}} /></SeedMeasure>
+    </PlanningProvider>
+  );
+}
+
+function Toggle({ show }: { show: boolean }) {
+  return (
+    <PlanningProvider>
+      <Seed>{show ? <DetectPanel onNext={() => {}} /> : <span>fuera</span>}</Seed>
+    </PlanningProvider>
+  );
+}

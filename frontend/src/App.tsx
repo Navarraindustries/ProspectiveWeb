@@ -22,7 +22,8 @@ import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
 import { ClipOrdersPage } from "./pages/ClipOrders";
 import { WorkshopsPage } from "./pages/Workshops";
 import type { Screen } from "./store/nav";
-import { clampStep } from "./pipeline/steps";
+import { STEPS, clampStep } from "./pipeline/steps";
+import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
 
 function Router() {
   const { user, ready, expiredNotice } = useAuth();
@@ -154,6 +155,8 @@ function Router() {
       // Replay downstream so the saved step shows its results (deterministic on
       // the restored mesh). Failures are non-fatal — the user can re-run a step.
       let restoredIds: string[] = [];
+      // El backend tiró la medida al re-detectar: el sitio medido ya no está.
+      let invalidated = false;
       if (r.current_step >= 2) {
         try {
           const det = await api.detect(r.session_id);
@@ -164,9 +167,16 @@ function Router() {
           // La misma lista combinada que allCandidates: una morfometría medida
           // sobre un descartado también recupera su índice.
           restoredIds = [...det.candidates, ...(det.rejected ?? [])].map((c) => c.id);
+          if (det.morphometry_invalidated === true) {
+            invalidated = true;
+            planning.setMorphoInvalidatedNotice(true);
+          }
         } catch { /* leave candidates empty */ }
       }
-      if (r.current_step >= 3) {
+      // Con la medida invalidada no se pide otra: sin elección guardada el
+      // backend mediría cand-001 y la enseñaría como la de la sesión, aunque
+      // sea otro sitio. El clínico vuelve a Detección, ve el aviso y elige.
+      if (r.current_step >= 3 && !invalidated) {
         try {
           // Sin id: el backend repite el candidato que se eligió al medir
           // (detect.selected_candidate). La selección se lleva a ese mismo
@@ -195,13 +205,20 @@ function Router() {
           planning.setTrajTarget([tr.target[0], tr.target[1], tr.target[2]]);
         }
       } catch { /* sin trayectoria guardada, se sigue igual */ }
-      setResumeStep(clampStep(r.current_step));
+      setResumeStep(clampStep(invalidated
+        ? Math.min(r.current_step, STEPS.findIndex((s) => s.key === "detect"))
+        : r.current_step));
       // The store now mirrors what is on disk, so the session is NOT dirty: it
       // was, because rehydrating goes through the same setters a real edit does,
       // and resuming then immediately asked "tienes cambios sin guardar" before
       // the user had touched anything.
       planning.markSaved();
-      setToast(null);
+      if (invalidated) {
+        setToast(MORPHO_INVALIDATED);
+        setTimeout(() => setToast(null), 5000);
+      } else {
+        setToast(null);
+      }
       setScreen("workspace");
     } catch (e) {
       setToast(e instanceof Error ? e.message : "No se pudo restaurar la sesión");

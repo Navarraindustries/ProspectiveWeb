@@ -2440,17 +2440,22 @@ El panel de detección enseña:
   que marcaron calibre o cociente, no una región de curvatura).
 - **«Descartados (n)»**, plegado debajo de la lista, con la etiqueta del motivo
   en cada uno. Se pueden elegir: el elegido se pinta en el 3D, la cabecera lo
-  nombra y el panel avisa «Descartado por un criterio geométrico: compruébalo
-  en el 3D antes de medir.». «Analizar morfometría» funciona sobre él igual que
-  sobre un aceptado. Sin candidatos no hay desplegable: el panel explica el
-  vacío.
+  nombra y el panel avisa «Descartado por «<motivo>»: compruébalo en el 3D
+  antes de medir.». «Analizar morfometría» funciona sobre él igual que sobre un
+  aceptado, también cuando todos los sitios se descartaron: el paso de
+  Morfometría sigue abierto y el panel lo dice en vez de explicar un vacío. Sin
+  ningún sitio no hay desplegable: el panel explica el vacío.
 
 **La morfometría se invalida si el elegido cambió.** Al re-detectar, el
-servidor compara el candidato que estaba elegido con el del mismo id en la
-lista nueva (aceptados y descartados). Si ya no existe, si su centro se movió
-más de 2 mm (`REDETECT_MOVE_MM`) o si no se sabe dónde estaba, borra la
-morfometría y responde `morphometry_invalidated: true`, y el panel avisa «La
-morfometría se ha limpiado: el candidato elegido cambió al re-detectar.».
+servidor busca el sitio medido por su posición, no por su id: los ids son
+puestos en la lista y un veto nuevo delante del medido los renumera. Si algún
+sitio nuevo (aceptado o descartado) cae a menos de 2 mm (`REDETECT_MOVE_MM`)
+del centro medido, la elección pasa a ese id y la medida se conserva. Si
+ninguno cae ahí o no se sabe dónde estaba, borra la morfometría y responde
+`morphometry_invalidated: true`; el panel avisa «La morfometría se ha limpiado:
+el candidato elegido cambió al re-detectar.» y el cliente olvida también las
+cifras, el tratamiento y las marcas del cuello. Al reanudar, ese aviso sale como
+mensaje, no se pide otra morfometría y la sesión abre en Detección para elegir.
 Re-detectar sobre la misma malla es determinista y conserva la medida.
 Re-segmentar ya limpia la detección y la morfometría por su cuenta, así que
 tras re-segmentar el aviso no aparece: no queda medida que limpiar.

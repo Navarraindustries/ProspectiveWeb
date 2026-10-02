@@ -65,6 +65,10 @@ interface PlanningState {
   /** Aceptados seguidos de descartados: `selectedCandidate` indexa ESTA lista. */
   allCandidates: AneurysmCandidate[];
   selectedCandidate: number;
+  /** El backend limpió la morfometría al re-detectar (el sitio medido ya no
+   *  está). En el store y no en el panel porque «Reanudar» también lo recibe y
+   *  el panel de detección tiene que poder decirlo después. */
+  morphoInvalidatedNotice: boolean;
   morphometry: MorphometryResult | null;
   treatment: TreatmentDecisionResult | null;
   /** Placed device meshes by family, shown together in the viewer. One slot per
@@ -251,6 +255,10 @@ interface PlanningState {
   setSelectedCandidate: (i: number) => void;
   setMorphometry: (m: MorphometryResult | null) => void;
   setTreatment: (t: TreatmentDecisionResult | null) => void;
+  setMorphoInvalidatedNotice: (v: boolean) => void;
+  /** Olvida la medida y todo lo que cuelga de ella: cifras, recomendación y
+   *  las marcas del cuello que se pusieron para ese sitio. */
+  clearMorphometry: () => void;
   setDeviceMesh: (kind: DeviceKind, url: string | null) => void;
   /** Forget placed devices locally (the API call is the panel's job). */
   clearDeviceMeshes: (kind?: DeviceKind) => void;
@@ -340,6 +348,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [selectedCandidate, _setSelectedCandidate] = useState(0);
   const selectedRef = useRef(0);
   const [morphometry, _setMorphometry] = useState<MorphometryResult | null>(null);
+  const [morphoInvalidatedNotice, setMorphoInvalidatedNotice] = useState(false);
   const [treatment, _setTreatment] = useState<TreatmentDecisionResult | null>(null);
   const [deviceMeshes, _setDeviceMeshes] = useState<Record<DeviceKind, string | null>>(
     { clips: null, coils: null, stent: null },
@@ -463,6 +472,16 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     selectedRef.current = i;
     _setSelectedCandidate(i);
   };
+  // Cuando el backend invalida la medida, `setSelectedCandidate(0)` no basta:
+  // si el elegido ya era el 0 no cambia nada y las cifras viejas seguían en
+  // Morfometría y Tratamiento describiendo un sitio que ya no existe.
+  const clearMorphometry = () => {
+    setMorphometry(null);
+    setTreatment(null);
+    setNeckOrigin(null);
+    setNeckDome(null);
+    setNeckRim([]);
+  };
   const setCenterlineMesh = touch(_setCenterlineMesh);
   const setMeasurements = touch(_setMeasurements);
   const setDeviceMesh = (kind: DeviceKind, url: string | null) => {
@@ -494,6 +513,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     _setSelectedCandidate(0);
     _setMorphometry(null);
     _setTreatment(null);
+    setMorphoInvalidatedNotice(false);
     _setDeviceMeshes({ clips: null, coils: null, stent: null });
     _setCenterlineMesh(null);
     setCenterlineArcMm(null);
@@ -553,13 +573,14 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     <PlanningContext.Provider
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
-        selectedCandidate, morphometry, treatment, deviceMeshes,
+        selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, volumeWindows,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment,
+        setMorphoInvalidatedNotice, clearMorphometry,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,

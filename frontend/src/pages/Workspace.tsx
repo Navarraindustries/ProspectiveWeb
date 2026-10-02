@@ -23,6 +23,7 @@ import { ReportPanel } from "../components/planning/ReportPanel";
 import { ViewerWorkspace } from "../vtk/Viewer";
 import { RecordButton } from "../components/RecordButton";
 import { usePlanning } from "../store/planning";
+import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
 /** What each step needs before it can say anything true, or null when it's ready.
@@ -33,13 +34,14 @@ import { usePlanning } from "../store/planning";
  *  turns the disabled state into an instruction instead of a dead end. */
 function missingFor(
   i: number,
-  p: Pick<ReturnType<typeof usePlanning>, "series" | "segmentation" | "candidates" | "morphometry">,
+  p: Pick<ReturnType<typeof usePlanning>, "series" | "segmentation" | "candidates" | "rejectedCandidates" | "morphometry">,
 ): string | null {
   switch (i) {
     case 0: return null;
     case 1: return p.series ? null : "Carga una serie DICOM primero";
     case 2: return p.segmentation ? null : "Segmenta el vaso primero";
-    case 3: return p.candidates.length > 0 ? null : "Detecta un candidato primero";
+    // Un descartado también se mide: con todo vetado el paso sigue abierto.
+    case 3: return canAdvanceFromDetect(p.candidates, p.rejectedCandidates) ? null : "Detecta un candidato primero";
     default: return p.morphometry ? null : "Calcula la morfometría primero";
   }
 }
@@ -148,7 +150,7 @@ export function Workspace({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIdx, planning.series, planning.segmentation, planning.candidates, planning.morphometry]);
+  }, [stepIdx, planning.series, planning.segmentation, planning.candidates, planning.rejectedCandidates, planning.morphometry]);
 
   const panel = {
     upload: <UploadPanel onNext={next} />,

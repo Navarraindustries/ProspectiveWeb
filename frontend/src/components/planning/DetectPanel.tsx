@@ -1,6 +1,6 @@
 /* Paso 3 — Detección de candidatos. POST /api/detect/{session}. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
@@ -9,7 +9,14 @@ import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
-import { MORPHO_INVALIDATED, VETO_HINT, rankLabel, rejectedSummary } from "./detectCopy";
+import { ALL_REJECTED, MORPHO_INVALIDATED, rankLabel, rejectedSummary, vetoHint } from "./detectCopy";
+import { canAdvanceFromDetect } from "./detectGate";
+
+/** Número de la última detección pedida. De módulo y no del componente: si el
+ *  panel se desmonta y se vuelve a montar con una detección en vuelo, la
+ *  respuesta vieja llegaría después y pisaría la nueva en el store. Solo la
+ *  respuesta de la última petición escribe. */
+let detectSeq = 0;
 
 /** Turn the rejection counts into the one sentence that matters.
  *
@@ -55,15 +62,16 @@ function explainEmpty(d: DetectionDiagnostics): { reason: string; advice: string
 
 export function DetectPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
-  const { sessionId, candidates, rejectedCandidates, selectedCandidate } = planning;
+  const {
+    sessionId, candidates, rejectedCandidates, allCandidates, selectedCandidate,
+    morphoInvalidatedNotice,
+  } = planning;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ran, setRan] = useState(candidates.length > 0);
+  // Con solo descartados también hubo detección: no se repite al volver.
+  const [ran, setRan] = useState(allCandidates.length > 0);
   const [clearing, setClearing] = useState(false);
   const [diag, setDiag] = useState<DetectionDiagnostics | null>(null);
-  // El backend limpió la morfometría porque el elegido cambió al re-detectar.
-  // Solo dura hasta la siguiente detección.
-  const [morphoInvalidated, setMorphoInvalidated] = useState(false);
   // Los descartados empiezan plegados: están para poder discrepar del
   // detector, no para recorrerlos primero.
   const [showRejected, setShowRejected] = useState(false);
@@ -74,21 +82,30 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
 
   const run = async () => {
     if (!sessionId) return;
+    const seq = ++detectSeq;
     setBusy(true);
     setError(null);
     try {
       const res = await api.detect(sessionId);
+      if (seq !== detectSeq) return;
+      const rejected = res.rejected ?? [];
       planning.setCandidates(res.candidates);
-      planning.setRejectedCandidates(res.rejected ?? []);
+      planning.setRejectedCandidates(rejected);
       planning.setSelectedCandidate(0);
+      // El backend ya borró la medida; el store tiene que olvidarla también.
+      // `setSelectedCandidate(0)` solo lo hace si el índice cambia.
+      if (res.morphometry_invalidated === true) planning.clearMorphometry();
+      planning.setMorphoInvalidatedNotice(res.morphometry_invalidated === true);
       setRan(true);
       setDiag(res.diagnostics ?? null);
-      setMorphoInvalidated(res.morphometry_invalidated === true);
-      if (!res.found) setError("No se encontraron candidatos aneurismáticos en la malla.");
+      if (!res.found && rejected.length === 0) {
+        setError("No se encontraron candidatos aneurismáticos en la malla.");
+      }
     } catch (err) {
+      if (seq !== detectSeq) return;
       setError(err instanceof Error ? err.message : "Error en la detección");
     } finally {
-      setBusy(false);
+      if (seq === detectSeq) setBusy(false);
     }
   };
 
@@ -108,7 +125,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       planning.setMorphometry(null);
       planning.setTreatment(null);
       setDiag(null);
-      setMorphoInvalidated(false);
+      planning.setMorphoInvalidatedNotice(false);
       setRan(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron limpiar los candidatos");
@@ -117,8 +134,14 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     }
   };
 
-  // Run automatically the first time the step opens.
+  // Run automatically the first time the step opens. Once per mount: StrictMode
+  // runs mount effects twice, and two concurrent detections on one session
+  // race on the server (the second can read the first's half-cleared state and
+  // wrongly invalidate the morphometry).
+  const autoRan = useRef(false);
   useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
     if (!ran && sessionId && !busy) void run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -148,7 +171,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           <br />
           Es una <b>lista para recorrer, no un veredicto</b>: el orden no está validado
           contra casos anotados. En el único caso con diagnóstico que tenemos, la lesión
-          la encontró solo el canal de calibre y la curvatura no la veía.
+          la encuentra el canal de curvatura a resolución nativa y solo el de cociente a
+          media resolución: que la vea un solo canal no la descarta.
           <br />
           <b>Lo que se pinta de azul no es el saco.</b> Cuando lo encontró la curvatura
           es la región detectada; cuando lo encontró el calibre es una bola alrededor del
@@ -277,7 +301,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     </div>
                     {on && (
                       <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 6 }}>
-                        {VETO_HINT}
+                        {vetoHint(c.veto?.label)}
                       </div>
                     )}
                   </div>
@@ -292,11 +316,11 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           advertencia no puede quedarse escondida dentro. */}
       {selectedRejected && !showRejected && (
         <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8 }}>
-          {selectedRejected.id}: {VETO_HINT}
+          {selectedRejected.id}: {vetoHint(selectedRejected.veto?.label)}
         </div>
       )}
 
-      {morphoInvalidated && (
+      {morphoInvalidatedNotice && (
         <div role="status" style={{
           marginTop: 10, padding: "8px 12px", borderRadius: "var(--radius-md)",
           border: "1px solid var(--warning)", background: "var(--warning-bg)",
@@ -308,8 +332,15 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
 
       <ErrorNote>{error}</ErrorNote>
 
+      {/* Todo vetado no es un vacío: hay sitios, y se pueden elegir y medir. */}
+      {ran && !busy && candidates.length === 0 && rejectedCandidates.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 10 }}>
+          {ALL_REJECTED}
+        </div>
+      )}
+
       {/* An empty result is a finding, not a failure — but only if it says why. */}
-      {ran && !busy && candidates.length === 0 && diag && (() => {
+      {ran && !busy && allCandidates.length === 0 && diag && (() => {
         const { reason, advice } = explainEmpty(diag);
         return (
           <div style={{
@@ -339,13 +370,13 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         <Button
           style={{ flex: 1 }}
           onClick={onNext}
-          disabled={candidates.length === 0}
+          disabled={!canAdvanceFromDetect(candidates, rejectedCandidates)}
           trailingIcon={<Icon name="STEP_MORPHO" />}
         >
           Analizar morfometría
         </Button>
       </div>
-      {(candidates.length > 0 || ran) && (
+      {(allCandidates.length > 0 || ran) && (
         <Button
           variant="ghost"
           style={{ marginTop: 8, width: "100%" }}

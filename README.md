@@ -2065,22 +2065,30 @@ that has not been measured on a real spring.
 
 ### Moving the clip in the 3D view
 
-In Dispositivos, with the 3D scene mounted and no rehearsal running, the clip
-carries three handles drawn on top of the meshes. The green sphere moves it in
-the neck plane, or along its normal with Shift (at most 50 mm per drag). The
-amber ring turns it about its normal. The lavender sphere at the tip of the arm
-tilts it, clamped to 60° like the server. Escape during a drag restores the pose
-it started from; a double click on the green sphere puts it back on the neck
-centre, untilted. The camera keeps orbiting when the press lands off the handles.
+In Dispositivos, with the Clips tab open, the 3D scene mounted and no rehearsal
+running, the clip carries three handles drawn on top of the meshes; the Coils
+and Stents tabs hide them, since only the Clips tab re-places the set after a
+move. The green sphere moves it in the neck plane, or along its normal with
+Shift; either way a single drag moves it at most 50 mm. When the neck plane is
+seen almost edge-on (the view ray within about 6° of the plane) the in-plane
+move holds the pose instead of throwing the clip; orbit a little or use Shift.
+The amber ring turns it about its normal. The lavender sphere at the tip of the
+arm tilts it, clamped to 60° by the client (the server sets no limit). Escape
+during a drag restores the pose it started from; a double click on the green
+sphere puts it back on the neck centre, untilted. The camera keeps orbiting when
+the press lands off the handles.
 
 While the clip moves, the baked clip mesh follows it through a delta matrix
 (planned pose to current pose), the heat map dims and its card reads
 «DESFASADO»; the usual 250 ms debounce re-places the set, and the new mesh and
-field replace both. The handles act on the clip selected in the «Clips
-colocados» list, or on the last one placed. There is no click-to-select on the
-clip body: the 3D view only picks surfaces while a pick mode is active. With
-several clips baked into one mesh, the delta matrix moves the whole mesh until
-the new plan arrives.
+field replace both. The old mesh keeps its delta until the new one has loaded,
+and the dim and «DESFASADO» last until the new heat map arrives, not just the
+plan. The handles act on the clip selected in the «Clips colocados» list, or on
+the last one placed, and «Ensayar» rehearses onto that clip's pose as it was
+left by hand (position, tilt and roll); with no clip placed it uses the neck
+centre. There is no click-to-select on the clip body: the 3D view only picks
+surfaces while a pick mode is active. With several clips baked into one mesh,
+the delta matrix moves the whole mesh until the new plan arrives.
 
 ### What this is not
 

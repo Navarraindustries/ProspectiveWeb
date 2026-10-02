@@ -6,7 +6,9 @@ import type { Vec3 } from "./geometry";
 
 export type Mat4 = number[];
 export const TILT_MAX_DEG = 60;
-export const IDENTITY: Mat4 = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+// Congelada: se comparte por referencia (MeshView la pasa a setUserMatrix, que
+// copia), y una escritura accidental movería todo lo que vuelve a la identidad.
+export const IDENTITY = Object.freeze([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]) as Mat4;
 const rad = (d: number) => (d * Math.PI) / 180;
 const norm = (v: Vec3): Vec3 => { const l = Math.hypot(v[0], v[1], v[2]); return l > 1e-9 ? [v[0]/l, v[1]/l, v[2]/l] : [0, 0, 0]; };
 const cross = (a: Vec3, b: Vec3): Vec3 => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
@@ -38,11 +40,13 @@ export function invert(m: Mat4): Mat4 {
 /** Rotación mínima que lleva +z a `axis`; 180° alrededor de x si son antiparalelos (como VTK); identidad si `axis` es nulo. */
 export function axisRotation(axis: Vec3): Mat4 {
   const n = norm(axis);
-  if (dot(n, n) < 0.5) return IDENTITY;
+  // Copias de la identidad: como las otras ramas, el resultado es una matriz
+  // nueva que quien la recibe puede modificar sin tocar la constante congelada.
+  if (dot(n, n) < 0.5) return [...IDENTITY];
   const z: Vec3 = [0, 0, 1];
   const ax = cross(z, n), l = Math.hypot(ax[0], ax[1], ax[2]);
   if (l >= 1e-9) return rotationWXYZ((Math.acos(Math.max(-1, Math.min(1, dot(z, n)))) * 180) / Math.PI, [ax[0]/l, ax[1]/l, ax[2]/l]);
-  return n[2] < 0 ? rotationWXYZ(180, [1, 0, 0]) : IDENTITY;
+  return n[2] < 0 ? rotationWXYZ(180, [1, 0, 0]) : [...IDENTITY];
 }
 
 export function poseMatrix(position: Vec3, normal: Vec3, rotationDeg: number): Mat4 {

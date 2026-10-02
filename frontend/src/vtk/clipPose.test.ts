@@ -1,6 +1,6 @@
 // frontend/src/vtk/clipPose.test.ts
 import { describe, expect, it } from "vitest";
-import { applyPoint, clampTilt, invert, multiply, neckFrameAngles, neckFrameNormal, poseDelta, poseMatrix, IDENTITY } from "./clipPose";
+import { applyPoint, axisRotation, clampTilt, invert, multiply, neckFrameAngles, neckFrameNormal, poseDelta, poseMatrix, IDENTITY } from "./clipPose";
 const close = (a: number[], b: number[]) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], 6));
 
 describe("poseMatrix reproduce pose_transform", () => {
@@ -54,5 +54,17 @@ describe("marco del cuello", () => {
   it("clampTilt acota a 60° y a ±180°", () => {
     expect(clampTilt({ azimuthDeg: 200, elevationDeg: 95 })).toEqual({ azimuthDeg: 180, elevationDeg: 60 });
     expect(clampTilt({ azimuthDeg: -10, elevationDeg: -5 })).toEqual({ azimuthDeg: -10, elevationDeg: 0 });
+  });
+});
+
+describe("IDENTITY compartida", () => {
+  it("está congelada y axisRotation devuelve una copia que se puede modificar", () => {
+    expect(Object.isFrozen(IDENTITY)).toBe(true);
+    const r = axisRotation([0, 0, 1]);
+    expect(r).toEqual(IDENTITY);
+    expect(r).not.toBe(IDENTITY);
+    r[3] = 5;
+    expect(IDENTITY[3]).toBe(0);
+    expect(axisRotation([0, 0, 0])).not.toBe(IDENTITY);
   });
 });

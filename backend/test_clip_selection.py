@@ -75,6 +75,10 @@ class TestNeverSilent:
             assert cand.verdict == "warn"
             assert any(c.detail.startswith("Hoja larga para el cuello")
                        for c in cand.warnings)
+        # Lo que motivó reescribir este test: con clips «con reservas» la
+        # alternativa a fabricar y la mordaza a medida siguen en la respuesta.
+        assert sel.manufacture is not None
+        assert sel.custom_jaw is not None
 
     def test_a_neck_too_large_for_any_clip_yields_a_specification(self):
         # 25 mm, not the 20 this used to use: the NAVARRO™ family reaches 22 mm

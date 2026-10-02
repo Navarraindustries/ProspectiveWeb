@@ -32,4 +32,16 @@ describe("ShortcutsSheet", () => {
     fireEvent.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalledTimes(3);
   });
+
+  it("lleva el foco a la tarjeta y lo devuelve al cerrar", () => {
+    const cell = document.createElement("div");
+    cell.tabIndex = 0;
+    document.body.appendChild(cell);
+    cell.focus();
+    const { rerender } = render(<ShortcutsSheet open onClose={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+    rerender(<ShortcutsSheet open={false} onClose={vi.fn()} />);
+    expect(document.activeElement).toBe(cell);
+    cell.remove();
+  });
 });

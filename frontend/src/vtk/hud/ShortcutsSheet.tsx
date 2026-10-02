@@ -2,7 +2,7 @@
    por ámbito. Sale de la misma tabla que atiende las teclas (shortcuts.ts),
    así que no puede quedarse desfasada. Sustituye a la pista efímera que «?»
    volvía a mostrar: aquella solo enseñaba los gestos de la celda principal. */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { shortcutsByScope, type Shortcut, type ShortcutScope } from "../shortcuts";
 
 const HEADINGS: [ShortcutScope, string][] = [["visor", "Visor"], ["celda", "Celda"], ["flujo", "Flujo"]];
@@ -30,13 +30,23 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+  // El foco entra en la tarjeta al abrir y vuelve a donde estaba al cerrar:
+  // si se quedara en el cuerpo, las teclas de corte (que atiende la celda con
+  // el foco) dejarían de funcionar tras cerrar la hoja.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    cardRef.current?.focus({ preventScroll: true });
+    return () => { if (prev?.isConnected) prev.focus({ preventScroll: true }); };
+  }, [open]);
   if (!open) return null;
   const groups = shortcutsByScope();
   return (
     <div data-testid="shortcuts-backdrop" onClick={onClose}
          style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div role="dialog" aria-modal="true" aria-label="Atajos" onClick={(e) => e.stopPropagation()}
-           style={{ background: "#000", border: "1px solid var(--hud-dim)", color: "var(--hud)", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".04em", padding: "14px 18px 16px", maxWidth: 920, width: "100%", maxHeight: "100%", overflow: "auto" }}>
+      <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Atajos" onClick={(e) => e.stopPropagation()}
+           style={{ background: "#000", border: "1px solid var(--hud-dim)", color: "var(--hud)", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".04em", padding: "14px 18px 16px", maxWidth: 920, width: "100%", maxHeight: "100%", overflow: "auto", outline: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
           <span style={{ letterSpacing: ".08em" }}>ATAJOS</span>
           <span style={{ color: "var(--hud-dim)" }}>ESC · ? · CLIC FUERA PARA CERRAR</span>

@@ -80,8 +80,11 @@ export function matchShortcut(
   }
   if (e.code === "KeyS") return "sync";
   if (e.code === "KeyC") return "center";
+  // En el teclado numérico la tecla física no basta: con Bloq Num apagado,
+  // Numpad8 manda ArrowUp y Numpad1 End. Sin mirar `key`, la misma pulsación
+  // movería el corte en la celda y saltaría de paso a la vez.
   const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
-  if (digit && !e.shiftKey) {
+  if (digit && !e.shiftKey && (e.code.startsWith("Digit") || /^[1-9]$/.test(e.key))) {
     const n = Number(digit[1]);
     return n <= STEP_COUNT ? `step-${n}` : null;
   }

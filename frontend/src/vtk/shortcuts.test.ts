@@ -55,6 +55,11 @@ describe("matchShortcut — bordes", () => {
     expect(matchShortcut(ev({ key: "1", code: "Digit1", altKey: true }), null)).toBe("preset-sola");
     expect(matchShortcut(ev({ key: "5", code: "Digit5", altKey: true }), null)).toBeNull();
   });
+  it("teclado numérico: dígito con Bloq Num, tecla de corte sin él", () => {
+    expect(matchShortcut(ev({ key: "8", code: "Numpad8" }), null)).toBe("step-8");
+    expect(matchShortcut(ev({ key: "ArrowUp", code: "Numpad8" }), null)).toBe("slice-up");
+    expect(matchShortcut(ev({ key: "End", code: "Numpad1" }), null)).toBe("end");
+  });
   it("H y P no hacen nada", () => {
     expect(matchShortcut(ev({ key: "h", code: "KeyH" }), null)).toBeNull();
     expect(matchShortcut(ev({ key: "p", code: "KeyP" }), null)).toBeNull();

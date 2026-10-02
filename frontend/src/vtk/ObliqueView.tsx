@@ -188,12 +188,12 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
   const slider = (label: string, aria: string, [min, max]: [number, number], value: number, set: (v: number) => void) => (
-    <>
+    <span style={{ display: "flex", gap: 12, alignItems: "center", flex: "1 1 200px", minWidth: 0 }}>
       <span>{label}</span>
       <input type="range" min={min} max={max} step={1} value={Math.round(value)} onChange={(e) => set(Number(e.target.value))}
         style={{ flex: 1, minWidth: 60, accentColor: "var(--hud)" }} aria-label={aria} />
       <span style={{ minWidth: 36, textAlign: "right", color: "var(--hud)" }}>{degLabel(value)}</span>
-    </>
+    </span>
   );
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "#000" }}>
@@ -212,17 +212,24 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
         }}
         onPointerMove={(e) => {
           const d = drag.current; if (!d) return;
+          // Si el botón del gesto ya no está pulsado (se soltó fuera de la
+          // ventana o se perdió el foco sin pointerup), el arrastre acaba aquí:
+          // si no, el simple paso del ratón seguiría moviendo el plano o la
+          // ventana compartidos en todas las vistas.
+          if (!(e.buttons & (d.kind === "wl" ? 1 : 2))) { endDrag(e); return; }
           const dx = e.clientX - d.x, dy = e.clientY - d.y;
           if (d.kind === "wl") onWindowLevel(d.wc - dy * k, Math.max(1, d.ww + dx * k));
           else commitPlane(dragAngles(d.plane, dx, dy));
         }}
-        onPointerUp={endDrag} onPointerCancel={endDrag}>
+        onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag}>
         <HudFrame active={active} label="OBLICUO">
           <HudReadout at="bl" lines={[obliqueReadout(freePlane)]} />
           <HudReadout at="br" lines={[`W ${Math.round(ww)}  L ${Math.round(wc)}`]} />
         </HudFrame>
       </div>
-      <div style={{ flexShrink: 0, padding: "8px 16px", display: "flex", gap: 12, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-dim)" }}>
+      {/* La fila se parte en dos líneas en una celda estrecha: sin ello ELEVACIÓN
+          quedaba recortada y solo se podía cambiar con el botón derecho. */}
+      <div style={{ flexShrink: 0, padding: "8px 16px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-dim)" }}>
         {slider("AZIMUT", "Azimut", AZIMUTH_RANGE, freePlane.azimuthDeg, (v) => commitPlane({ ...freePlane, azimuthDeg: v }))}
         {slider("ELEVACIÓN", "Elevación", ELEVATION_RANGE, freePlane.elevationDeg, (v) => commitPlane({ ...freePlane, elevationDeg: v }))}
         <HudToggleGroup

@@ -28,7 +28,7 @@ import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
 import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, useStoredFlag } from "./viewerPrefs";
 import { planeOutlines } from "./planeOutlines";
-import { sliceSegment } from "./freePlane";
+import { clampOffsetToBox, sliceSegment } from "./freePlane";
 import { HUD_HEX, hexToRgb01 } from "./planeColors";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
@@ -189,7 +189,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
-    volumeMode, volumePreset, freePlane, clipMode, cutFaceVisible, volumeWindows,
+    volumeMode, volumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
     imagingStudyId, setCaptureCase, setViewerRecording,
   } = usePlanning();
 
@@ -354,6 +354,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, nx, ny, nz]);
+  // El plano libre pasa por el punto compartido más su desplazamiento: un clic
+  // en un corte mueve ese punto y podía dejar el plano fuera del volumen (el
+  // oblicuo en negro, el recorte LIBRE en todo o nada). Se reacota aquí, en un
+  // solo sitio; el plano se lee por ref para que solo lo disparen el punto y
+  // la meta, no cada escritura del propio plano (que ya se acota al escribirse).
+  useEffect(() => {
+    if (!meta) return;
+    const fp = freePlaneRef.current;
+    const c = clampOffsetToBox(fp, mprVoxel, meta);
+    if (c.offsetMm !== fp.offsetMm) setFreePlane(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mprVoxel, meta]);
   const [viewMode, setViewMode] = useState<"default" | "oblique">("default");
   // Camera controller published by MeshView while its scene is on screen.
   const [camera, setCamera] = useState<CameraController | null>(null);

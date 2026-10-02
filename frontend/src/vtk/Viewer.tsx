@@ -35,6 +35,7 @@ import { applyStep, clampFps, nextIndex } from "./cine";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
+import { focusOnPointerDown } from "./pointerFocus";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
@@ -1625,17 +1626,17 @@ export function ViewerWorkspace({ step }: { step: string }) {
            tabIndex={0}
            // Los lienzos de vtk.js y los cortes anulan la acción por defecto del
            // puntero, y con ella el foco: sin esto, pinchar en el visor dejaba
-           // el foco donde estuviera (el botón de un paso) y Alt+1 no llegaba
-           // al visor. Si el foco ya está dentro
-           // (un desplegable, un corte con teclado) no se le quita.
+           // el foco donde estuviera (el botón de un paso), Alt+1 no llegaba al
+           // visor y las teclas de corte no llegaban a la celda pinchada. Va a
+           // la celda pinchada; fuera de toda celda, al contenedor. Un control
+           // nativo se queda su foco (focusOnPointerDown).
            onPointerDownCapture={(e) => {
              // Arrastrar en la celda que reproduce es tomar el mando: el cine
              // se para. Pulsar su propia barra no cuenta.
              const c = cineRef.current, t = e.target as Element;
              if (c && e.button === 0 && !t.closest?.(".hud-cine")
                  && t.closest?.("[data-pane]")?.getAttribute("data-pane") === c.pane) setCine(null);
-             const host = e.currentTarget;
-             if (!host.contains(document.activeElement)) host.focus({ preventScroll: true });
+             focusOnPointerDown(e.target, e.currentTarget, document.activeElement)?.focus({ preventScroll: true });
            }}
            onKeyDown={onLayoutKey}>
         <ViewerGrid

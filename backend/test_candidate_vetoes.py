@@ -6,7 +6,7 @@ from eval.synthetic import (bifurcacion_con_saco_apical, bifurcacion_sin_saco, s
                             tubo, tubo_con_saco, tubo_curvo_sin_saco, tubo_mas_isla, bola, _suelda)
 from routers.detect import _detect_hits, _detector_for_modality
 from services.aneurysm_consensus import hit_patch
-from services.candidate_vetoes import (component_fraction, crossing_count, evaluate, neck_ratio,
+from services.candidate_vetoes import (NECK_RATIO, component_fraction, crossing_count, evaluate, neck_ratio,
                                        open_edge_length_mm, veto_bifurcation, veto_border, veto_island, veto_shape)
 
 
@@ -81,6 +81,32 @@ class TestForma:
         for h, patch, kind in _hits(curva):
             if kind == "region":
                 assert veto_shape(curva, h, patch, kind) is not None
+
+    def test_veto_shape_directo_tubo_semiesfera_y_disco(self):
+        """Sin pasar por el detector: un trozo de tubo es «forma»; un
+        casquete (media bola) y un disco plano no."""
+        class _H:
+            position = (0.0, 0.0, 0.0); radius_mm = 1.2; candidate = None
+
+        trozo = tubo(largo=8.0, radio=1.2)
+        assert neck_ratio(trozo) >= NECK_RATIO
+        v = veto_shape(trozo, _H(), trozo, "region")
+        assert v is not None and v.reason == "forma" and v.label == "No es sacular"
+
+        pl = vtk.vtkPlane(); pl.SetOrigin(0, 0, 0); pl.SetNormal(0, 0, 1)
+        cl = vtk.vtkClipPolyData(); cl.SetInputData(bola((0, 0, 0), 3.0)); cl.SetClipFunction(pl); cl.Update()
+        casquete = cl.GetOutput()
+        assert neck_ratio(casquete) < NECK_RATIO
+        assert veto_shape(casquete, _H(), casquete, "region") is None
+
+        disco = vtk.vtkDiskSource(); disco.SetInnerRadius(0.0); disco.SetOuterRadius(3.0)
+        disco.SetCircumferentialResolution(32); disco.SetRadialResolution(4); disco.Update()
+        tri = vtk.vtkTriangleFilter(); tri.SetInputConnection(disco.GetOutputPort()); tri.Update()
+        plano = tri.GetOutput()
+        assert neck_ratio(plano) is None
+        assert veto_shape(plano, _H(), plano, "region") is None
+        # Y un localizador nunca se juzga por su forma.
+        assert veto_shape(trozo, _H(), trozo, "locator") is None
 
     def test_un_parche_vacio_o_minimo_no_lanza(self):
         vacio = vtk.vtkPolyData()

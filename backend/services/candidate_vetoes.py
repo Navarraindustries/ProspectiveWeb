@@ -14,7 +14,7 @@ aplique; el orden va de lo más seguro (aristas abiertas, componentes) a lo
 más interpretativo (la forma).
 
 Nada de esto toca la lesión de Case 3: está en el tronco basilar, dentro del
-árbol principal, lejos de la caja de la malla, y tiene cuello. Cada veto
+árbol principal, lejos de la caja de la malla, y es un casquete. Cada veto
 explica abajo por qué no la caza.
 """
 from __future__ import annotations
@@ -39,8 +39,11 @@ BIF_RADIUS_K: float = 1.5
 BIF_MIN_RADIUS_MM: float = 3.0
 #: Sección mínima / máxima a partir de la cual no hay cuello.
 NECK_RATIO: float = 0.85
-#: Cortes a lo largo del eje principal del parche.
+#: Cortes a lo largo de la profundidad del parche.
 NECK_SLICES: int = 10
+#: Profundidad mínima (sobre el eje de menor varianza) para juzgar la forma:
+#: por debajo el parche es una tapa plana y `neck_ratio` devuelve `None`.
+NECK_MIN_DEPTH_MM: float = 1.0
 
 LABELS: dict[str, str] = {
     "borde": "Recorte de la malla",
@@ -280,14 +283,24 @@ def _diameter(pts: np.ndarray) -> float:
 
 
 def neck_ratio(patch) -> float | None:
-    """Sección mínima / diámetro máximo a lo largo del eje principal.
+    """Cuerda mínima / cuerda máxima a lo largo de la PROFUNDIDAD del parche.
 
-    El eje principal sale del PCA de los puntos del parche; se corta con
-    `NECK_SLICES` planos perpendiculares entre el 10 % y el 90 % de su
-    extensión y el diámetro de cada corte es la mayor distancia entre sus
-    puntos. Un saco con cuello se estrecha (ratio bajo); un trozo de tubo
-    mantiene la sección (ratio cerca de 1). `None` si hay menos de 3 cortes
-    válidos.
+    La profundidad se mide sobre el eje de MENOR varianza del PCA de los
+    puntos: en un parche con forma de casquete (una cúpula, una tapa) es su
+    normal. Si el parche tiene menos de `NECK_MIN_DEPTH_MM` de profundidad es
+    plano (una tapa) y no hay veredicto de forma: `None`. Si no, se corta
+    con `NECK_SLICES` planos perpendiculares a ese eje entre el 10 % y el
+    90 % de la profundidad y de cada corte se toma su extensión (la mayor
+    distancia entre sus puntos, una cuerda a través del parche).
+
+    Un casquete esférico (un saco) se estrecha hacia la cima y el ratio cae
+    (0,44 en una semiesfera ideal); un trozo de tubo o un ensanchamiento
+    fusiforme da cuerdas casi iguales en todas las alturas (ratio cerca de
+    1). `None` también si hay menos de 3 cortes válidos.
+
+    Con el eje de MAYOR varianza, el de antes, cualquier casquete compacto
+    daba ≈ 0,60 por geometría de las cuerdas y un disco plano daba 0,60 en
+    vez de «sin medida».
     """
     if _is_tiny(patch):
         return None
@@ -297,10 +310,10 @@ def neck_ratio(patch) -> float | None:
     if not np.all(np.isfinite(cov)):
         return None
     _, vecs = np.linalg.eigh(cov)
-    axis = vecs[:, -1]
+    axis = vecs[:, 0]          # eigh ordena de menor a mayor varianza
     proj = (pts - c) @ axis
     lo, hi = float(proj.min()), float(proj.max())
-    if hi - lo <= 1e-9:
+    if hi - lo < NECK_MIN_DEPTH_MM:
         return None
 
     diams: list[float] = []
@@ -378,20 +391,20 @@ def veto_bifurcation(tree, hit, patch) -> Veto | None:
     rama y los canales de calibre y cociente la leen como un bulto. Se veta
     si la malla sale por 3 o más sitios de una esfera alrededor del sitio
     (el trozo conectado al sitio, ver `crossing_count`) y no hay un cuello
-    que lo salve: un saco en el ápice de la Y se estrecha hacia su cuello y
-    se queda.
+    que lo salve: un saco en el ápice de la Y es un casquete, sus cuerdas
+    se acortan hacia la cima (`neck_ratio` bajo), y se queda.
 
     El cuello solo cuenta si el parche es una región de curvatura. El de un
     localizador es una bola recortada alrededor de un punto (`hit_patch`):
     en una Y esa bola recoge el tronco y el arranque de las dos ramas, así
-    que su sección «se estrecha» por pura geometría del recorte — medido en
-    la Y sintética, 0,48 en la unión sin saco. Es el mismo motivo por el que
+    que sus cuerdas cambian por pura geometría del recorte — medido en
+    la Y sintética, 0,32 en la unión sin saco. Es el mismo motivo por el que
     `veto_shape` no mira localizadores. Sobre un localizador decide el número
     de salidas: el saco en el ápice de la Y sintética, con su centro sobre la
     cúpula, sale por 2.
 
     No caza la lesión de Case 3: su sitio es una región de curvatura con una
-    sola salida (la cúpula) y cuello 0,68, medidos sobre la malla nativa.
+    sola salida (la cúpula) y cuello 0,12, medidos sobre la malla nativa.
     """
     if _is_tiny(patch):
         return None
@@ -418,15 +431,18 @@ def veto_bifurcation(tree, hit, patch) -> Veto | None:
 def veto_shape(tree, hit, patch, patch_kind) -> Veto | None:
     """Una región de curvatura que no es un saco.
 
-    Caza: la curvatura marca trozos de vaso curvo o de pared ondulada; su
-    sección no cambia a lo largo del eje (ratio ≥ `NECK_RATIO`). Solo se
+    Caza: la curvatura marca trozos de vaso curvo o de pared ondulada. Sus
+    cuerdas, cortadas a distintas profundidades sobre la normal del parche
+    (`neck_ratio`), apenas cambian (ratio ≥ `NECK_RATIO`): es pared de tubo,
+    no un casquete que se cierre como la cúpula de un saco. Un parche plano
+    (menos de `NECK_MIN_DEPTH_MM` de profundidad) no tiene veredicto. Solo se
     aplica a parches de tipo «region»: el de un localizador es una bola
     recortada alrededor de un punto e incluye pared de vaso, así que su forma
     no dice nada de la lesión.
 
     No caza la lesión de Case 3: su región incluye la cúpula y el arranque
-    del cuello, y la sección cae hacia el cuello (0,68 medido sobre la malla
-    nativa, por debajo de `NECK_RATIO`).
+    del cuello: es un casquete y sus cuerdas se acortan hacia la cima
+    (0,12 medido sobre la malla nativa, por debajo de `NECK_RATIO`).
     """
     if patch_kind != "region" or _is_tiny(patch):
         return None

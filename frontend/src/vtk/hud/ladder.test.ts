@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ladderTicks } from "./ladder";
+import { indexAtY, ladderTicks } from "./ladder";
 
 describe("ladderTicks", () => {
   it("puts the current index at the vertical centre", () => {
@@ -19,4 +19,10 @@ describe("ladderTicks", () => {
     expect(Math.min(...t.map((x) => x.index))).toBe(0);
     expect(Math.max(...t.map((x) => x.index))).toBe(19);
   });
+});
+
+it("indexAtY es la inversa de ladderTicks", () => {
+  const ticks = ladderTicks(100, 50, 400);
+  for (const t of ticks.filter((_, k) => k % 7 === 0)) expect(indexAtY(t.y, 100, 50, 400)).toBe(t.index);
+  expect(indexAtY(-9999, 100, 50, 400)).toBe(99); expect(indexAtY(9999, 100, 50, 400)).toBe(0);
 });

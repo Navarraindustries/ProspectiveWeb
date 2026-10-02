@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ladderTicks } from "./ladder";
+import { indexAtY, ladderTicks } from "./ladder";
 
-/** Cinta vertical de cortes en el borde derecho, como la escalera de altitud. */
-export function HudLadder({ count, index }: { count: number; index: number }) {
+/** Cinta vertical de cortes en el borde derecho, como la escalera de altitud.
+ *  Con `onIndexChange` se puede pulsar o arrastrar: el corte bajo el puntero es
+ *  el nuevo índice. */
+export function HudLadder({ count, index, onIndexChange }: { count: number; index: number; onIndexChange?: (i: number) => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const grabbed = useRef(false);
   const [h, setH] = useState(0);
   useEffect(() => {
     const el = ref.current; if (!el) return;
@@ -12,8 +15,27 @@ export function HudLadder({ count, index }: { count: number; index: number }) {
     return () => ro.disconnect();
   }, []);
   const ticks = h > 0 ? ladderTicks(count, index, h) : [];
+  // El centro de la escalera es el índice ACTUAL: al arrastrar, el índice
+  // cambia y el centro se mueve con él, así el gesto recorre los cortes
+  // (scrub) en vez de quedarse en la posición del primer clic.
+  const emit = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    onIndexChange?.(indexAtY(e.clientY - r.top, count, index, h));
+  };
   return (
-    <div ref={ref} className="hud-decor" style={{ position: "absolute", right: 0, top: 24, bottom: 24, width: 44, overflow: "hidden" }}>
+    <div ref={ref} className="hud-decor"
+      onPointerDown={onIndexChange ? (e) => {
+        if (e.button !== 0 || h <= 0) return;
+        // La escalera es suya: que la celda no lo tome como arrastre de ventana/nivel.
+        e.preventDefault(); e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId); grabbed.current = true; emit(e);
+      } : undefined}
+      onPointerMove={onIndexChange ? (e) => { if (grabbed.current) emit(e); } : undefined}
+      onPointerUp={() => { grabbed.current = false; }}
+      onLostPointerCapture={() => { grabbed.current = false; }}
+      onMouseDown={onIndexChange ? (e) => e.stopPropagation() : undefined}
+      style={{ position: "absolute", right: 0, top: 24, bottom: 24, width: 44, overflow: "hidden",
+        ...(onIndexChange ? { pointerEvents: "auto", cursor: "ns-resize", touchAction: "none" } : null) }}>
       {ticks.map((t) => (
         <span key={t.index} style={{ position: "absolute", right: 0, top: t.y, width: t.major ? 14 : 7, height: 1, background: "var(--hud-dim)" }}>
           {t.major && <span style={{ position: "absolute", right: 16, top: -6, fontSize: 9, color: "var(--hud-dim)" }}>{t.index + 1}</span>}

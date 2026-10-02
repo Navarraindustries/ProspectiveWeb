@@ -42,6 +42,7 @@ import { cameraHeading, effectiveDirection, sliceCamera, type Orientation, type 
 import { PLANE_HEX } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
+import { applyStep, stepFromKey } from "./cine";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
@@ -532,8 +533,19 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     s.grw.getRenderWindow().render();
   };
 
+  // Mismas teclas que en los cortes. En LIBRE el paso mueve el plano libre por
+  // el espaciado más fino (como la rueda); ±Infinity lo lleva al borde de la caja.
+  const onKey = (e: React.KeyboardEvent) => {
+    const step = stepFromKey(e.key); if (step === null) return;
+    e.preventDefault();
+    if (libre) commitFree({ ...freeRef.current, offsetMm: freeRef.current.offsetMm + step * Math.min(...meta.spacing) });
+    else setMprVoxel(withIndex(plane, mprVoxel, applyStep(index, step, count)));
+  };
+  // En LIBRE la escalera sigue mostrando el índice del eje; arrastrarla mueve ese eje.
+  const onLadder = (i: number) => { if (i !== index) setMprVoxel(withIndex(plane, mprVoxel, i)); };
+
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", background: "#000" }}>
+    <div tabIndex={0} onKeyDown={onKey} style={{ position: "relative", width: "100%", height: "100%", background: "#000", outline: "none" }}>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} onContextMenu={(e) => e.preventDefault()}
         title={`Arrastrar: rotar · Shift o botón central: desplazar · Rueda: corte · Ctrl+rueda: zoom${volumeMode === "compuesto" ? " · Botón derecho: nivel y ventana" : ""}`} />
       <HudFrame label="VOLUMEN" active={!compact}>
@@ -553,7 +565,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={libre ? PLANE_HEX.libre : PLANE_HEX[plane]} strokeOpacity={0.6} strokeWidth={1} />)}
           </svg>
         )}
-        <HudLadder count={count} index={index} />
+        <HudLadder count={count} index={index} onIndexChange={onLadder} />
         {/* En la celda no hay cinta de rumbo con corchetes: sin esta línea el
             gris del maniquí sería la única señal de orientación supuesta. Va
             justo debajo del recuadro, que en la celda está arriba a la izquierda. */}

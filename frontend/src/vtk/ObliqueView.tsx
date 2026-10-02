@@ -18,6 +18,7 @@ import {
   AZIMUTH_RANGE, ELEVATION_RANGE, clampOffsetToBox, clipPolygon, normalOf, originOf, rightOf, upOf, type FreePlane,
 } from "./freePlane";
 import { dragAngles, obliqueReadout, wheelOffset } from "./obliqueGestures";
+import { stepFromKey } from "./cine";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
@@ -195,8 +196,15 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
       <span style={{ minWidth: 36, textAlign: "right", color: "var(--hud)" }}>{degLabel(value)}</span>
     </span>
   );
+  // Mismas teclas que en los cortes: el paso mueve el plano por el espaciado más fino.
+  const onKey = (e: React.KeyboardEvent) => {
+    const step = stepFromKey(e.key); if (step === null) return;
+    e.preventDefault();
+    const p = geom.current.p;
+    commitPlane({ ...p, offsetMm: p.offsetMm + step * Math.min(...meta.spacing) });
+  };
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "#000" }}>
+    <div tabIndex={0} onKeyDown={onKey} style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "#000", outline: "none" }}>
       <div ref={ref} style={{ flex: 1, position: "relative", minHeight: 0, cursor: "crosshair", touchAction: "none" }}
         title="Arrastrar: ventana/nivel · Botón derecho: orientar el plano · Rueda: desplazarlo · Ctrl+rueda: zoom"
         onContextMenu={(e) => e.preventDefault()}

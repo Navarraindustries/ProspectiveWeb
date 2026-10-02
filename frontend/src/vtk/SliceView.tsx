@@ -19,6 +19,7 @@ import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane } from "./geometry";
 import { PLANE_CSS_VAR, referencePlanes } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
+import { applyStep, stepFromKey } from "./cine";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudReticle } from "./hud/HudReticle";
@@ -300,10 +301,9 @@ export function SliceView(p: SliceViewProps) {
     if (d && !d.moved) { const f = frac(e); if (f) p.onPlaneClick(f.u, f.v); }
   };
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowUp" || e.key === "ArrowRight") { e.preventDefault(); p.onIndexChange(Math.min(count - 1, p.index + 1)); }
-    if (e.key === "ArrowDown" || e.key === "ArrowLeft") { e.preventDefault(); p.onIndexChange(Math.max(0, p.index - 1)); }
-    if (e.key === "Home") p.onIndexChange(0);
-    if (e.key === "End") p.onIndexChange(count - 1);
+    const step = stepFromKey(e.key); if (step === null) return;
+    e.preventDefault();
+    p.onIndexChange(applyStep(p.index, step, count));
   };
 
   const labels = edgeLabels(p.plane, p.orientation);
@@ -340,7 +340,7 @@ export function SliceView(p: SliceViewProps) {
               stroke={PLANE_CSS_VAR.libre} strokeWidth={1} strokeOpacity={0.85} />
           </svg>
         )}
-        <HudLadder count={count} index={p.index} />
+        <HudLadder count={count} index={p.index} onIndexChange={p.onIndexChange} />
         <HudReadout at="bl" lines={[`${String(p.index + 1).padStart(3, " ")}/${count}`]} />
         {/* En la celda estrecha de la franja solo cabe el índice: W/L y la
             barra de 10 mm se pisaban con él. Se leen al maximizar la celda. */}

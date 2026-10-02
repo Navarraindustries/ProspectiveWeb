@@ -28,6 +28,7 @@ import { createOrientationInset, type OrientationInset } from "./OrientationInse
 import { captureRenderWindow, type CapturableWindow, type CaptureFn } from "./captureRenderWindow";
 import { standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
 import { IDENTITY } from "./clipPose";
+import { matrixAfterSwap, shouldApplyMatrix } from "./layerMatrix";
 import { nextDrag, type DragEvent, type DragState } from "./handleDrag";
 import { cameraLike, type CameraLike, type Viewport } from "./dragController";
 
@@ -264,6 +265,14 @@ export function MeshView({
   // Qué fichero tiene cargado ahora mismo cada capa CON NOMBRE. Una capa con
   // nombre puede cambiar de geometría sin reconstruir la escena.
   const loadedUrlById = useRef<Map<string, string>>(new Map());
+  // Las capas del último render: el cambio de geometría es asíncrono y, al
+  // terminar, tiene que aplicar la matriz de ESE momento, no la de cuando
+  // empezó la descarga (el arrastre pudo seguir mientras tanto).
+  const latestLayers = useRef(layers);
+  latestLayers.current = layers;
+  // Capas con nombre a las que el efecto de la matriz puso una matriz propia
+  // (ver ese efecto); el cambio de geometría también la consulta.
+  const matrixIds = useRef<Set<string>>(new Set());
   // Sube al terminar de cargar la escena: el cambio de geometría en sitio se
   // reintenta entonces, porque hasta ese momento no hay actores que tocar.
   const [sceneEpoch, setSceneEpoch] = useState(0);
@@ -797,6 +806,17 @@ export function MeshView({
           // capa: su array de color tiene que volver a ser el escalar activo.
           if (l.scalars) poly.getPointData().setActiveScalars(l.scalars.array);
           (actor.getMapper() as vtkMapper).setInputData(poly);
+          // La matriz va con la geometría: el efecto de la matriz dejó de
+          // tocar este actor mientras se descargaba el fichero (conservaba el
+          // delta que casa con la malla vieja), así que es aquí, justo con la
+          // malla nueva puesta, donde le toca la matriz ACTUAL de la capa. Si
+          // se aplicara antes, el clip volvería a su pose previa al arrastre
+          // hasta que llegara el fichero.
+          const cur = latestLayers.current.find((x) => x.id === l.id);
+          const m = matrixAfterSwap(cur?.userMatrix, matrixIds.current.has(l.id));
+          if (m) actor.setUserMatrix(m as never);   // el .d.ts pide mat4; vtk.js copia cualquier array de 16
+          if (cur?.userMatrix) matrixIds.current.add(l.id);
+          else matrixIds.current.delete(l.id);
           // El casco comparte el mapper, así que ya tiene la geometría nueva,
           // pero su centro de escala se fijó con los límites de la primera
           // carga: si el saco se desplaza o cambia de tamaño en el ensayo, el
@@ -913,7 +933,6 @@ export function MeshView({
   // demás capas con nombre no se tocan: una pieza del ensayo en pausa lleva la
   // pose que le puso `registerParts`, y devolverla a la identidad al cambiar
   // la matriz de otra capa la sacaría de su sitio.
-  const matrixIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     const h = handles.current;
     if (!h) return;
@@ -921,6 +940,15 @@ export function MeshView({
     const now = new Set<string>();
     for (const l of layers) {
       if (!l.id) continue;
+      // Cambio de geometría pendiente (llegó un plan nuevo y su malla aún se
+      // descarga): la matriz nueva es para la malla nueva. Se deja la que el
+      // actor tiene, que casa con la malla que se ve; el cambio de geometría
+      // aplica la actual en cuanto pone el fichero. Se conserva si la capa
+      // tuvo matriz, para que allí se sepa si hay que volver a la identidad.
+      if (!shouldApplyMatrix(loadedUrlById.current.get(l.id), l.url)) {
+        if (l.userMatrix || matrixIds.current.has(l.id)) now.add(l.id);
+        continue;
+      }
       if (l.userMatrix) now.add(l.id);
       const actor = namedActors.current.get(l.id);
       if (!actor) continue;

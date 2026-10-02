@@ -138,3 +138,34 @@ def test_morfometria_sin_id_ni_eleccion_guarda_lo_medido(session_con_saco):
     assert m.status_code == 200
     assert m.json()["candidate_id"] == "cand-001"
     assert read_state(session_con_saco, "detect.selected_candidate") == "cand-001"
+
+
+def test_dos_repeticiones_sin_id_conservan_el_desplazamiento_del_cuello(session_con_saco):
+    """Reanudar dos veces (GET sin id) sobre la misma malla no toca morpho.*."""
+    from services.sessions import read_state
+    client.post(f"/api/detect/{session_con_saco}")
+    first = client.get(f"/api/morphometry/{session_con_saco}")
+    assert first.status_code == 200
+    shift = read_state(session_con_saco, "morpho.neck_shift_mm")
+    assert shift
+    r = client.post(f"/api/detect/{session_con_saco}").json()
+    assert r["morphometry_invalidated"] is False
+    for _ in range(2):
+        m = client.get(f"/api/morphometry/{session_con_saco}")
+        assert m.status_code == 200
+        assert m.json()["neck_shift_mm"] == first.json()["neck_shift_mm"]
+    assert read_state(session_con_saco, "morpho.neck_shift_mm") == shift
+
+
+def test_sin_eleccion_con_mejor_de_otro_nombre_no_guarda_un_id_que_no_existe(session_con_saco):
+    """Una sesión antigua cuyo mejor candidato no se llama aneurysm_cand_001.vtp:
+    guardar cand-001 rompería la siguiente repetición."""
+    from services.sessions import read_state
+    client.post(f"/api/detect/{session_con_saco}")
+    meshes = session_subdir(session_con_saco, "meshes")
+    (meshes / "candidate_001.vtp").write_bytes((meshes / "aneurysm_cand_001.vtp").read_bytes())
+    (meshes / "aneurysm_cand_001.vtp").unlink()
+    write_state(session_con_saco, "detect.best_vtp_name", "candidate_001.vtp")
+    for _ in range(2):
+        assert client.get(f"/api/morphometry/{session_con_saco}").status_code == 200
+    assert read_state(session_con_saco, "detect.selected_candidate", "") == ""

@@ -685,8 +685,11 @@ async def get_morphometry(
         )
     measured_id = f"cand-{rank if rank is not None else 1:03d}"
     # Sin elección guardada se mide cand-001; se guarda como elegido para que
-    # una re-detección sepa qué sitio describe esta medida y lo siga.
-    if rank is None:
+    # una re-detección sepa qué sitio describe esta medida y lo siga. Solo si
+    # el fichero medido ES el de cand-001: con un `best_vtp_name` de otro
+    # nombre (sesiones antiguas), guardar el id haría que la siguiente
+    # repetición buscara `aneurysm_cand_001.vtp`, que no existe, y fallara.
+    if rank is None and best_vtp_name == f"aneurysm_cand_{1:03d}.vtp":
         write_state(session_id, "detect.selected_candidate", measured_id)
 
     meshes_dir = session_subdir(session_id, "meshes")

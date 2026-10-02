@@ -2,7 +2,7 @@
   "generated": "2026-10-02T17:48:03+00:00",
   "vetoes": false,
   "lesion_hit_mm": 8.0,
-  "cases": [
+  "results": [
     {
       "name": "tubo_con_saco",
       "lesion_rank": 1,

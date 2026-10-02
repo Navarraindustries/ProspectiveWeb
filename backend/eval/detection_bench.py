@@ -202,7 +202,11 @@ def _veto_fn(vetoes: bool):
         return None
     try:
         from services.candidate_vetoes import evaluate
-    except ImportError:
+    except ModuleNotFoundError as exc:
+        # Solo la ausencia del propio módulo significa «sin vetos». Si falla
+        # un import DENTRO de él, callarlo mediría sin vetos sin decirlo.
+        if exc.name != "services.candidate_vetoes":
+            raise
         return None
     return evaluate
 
@@ -270,7 +274,7 @@ def to_json(results: list[BenchResult], *, vetoes: bool | None = None) -> dict:
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "vetoes": vetoes,
         "lesion_hit_mm": LESION_HIT_MM,
-        "cases": [asdict(r) for r in results],
+        "results": [asdict(r) for r in results],
     }
 
 

@@ -9,7 +9,7 @@ a la línea base. Los casos reales son `slow` y se saltan si no hay sesión.
 import pytest
 
 from eval.detection_bench import (BenchCase, _veto_fn, real_cases, run_bench,
-                                  run_case, synthetic_cases)
+                                  run_case, synthetic_cases, to_json)
 
 SYN = {c.name: c for c in synthetic_cases()}
 #: En la línea base (sin vetos) estos dos sacan más de un falso positivo: la
@@ -65,3 +65,5 @@ def test_sin_sesion_de_case3_no_hay_casos_reales(monkeypatch, tmp_path):
 def test_run_bench_devuelve_un_resultado_por_caso():
     rs = run_bench([SYN["tubo_mas_isla"]], vetoes=False)
     assert [r.name for r in rs] == ["tubo_mas_isla"] and rs[0].lesion_rank is None
+    fila = to_json(rs)["results"][0]
+    assert {"name", "lesion_rank", "false_positives", "rejected_true"} <= set(fila)

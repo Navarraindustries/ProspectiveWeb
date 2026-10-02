@@ -1,55 +1,65 @@
 {
-  "generated": "2026-10-02T18:21:20+00:00",
-  "vetoes": false,
+  "generated": "2026-10-02T18:21:36+00:00",
+  "vetoes": true,
   "lesion_hit_mm": 8.0,
   "results": [
     {
       "name": "tubo_con_saco",
       "lesion_rank": 1,
       "lesion_distance_mm": 0.0,
-      "false_positives": 2,
+      "false_positives": 1,
       "rejected_true": 0,
-      "rejected_fp": 0,
-      "n_accepted": 3,
-      "n_rejected": 0,
-      "seconds": 0.1,
-      "rejected_reasons": []
+      "rejected_fp": 1,
+      "n_accepted": 2,
+      "n_rejected": 1,
+      "seconds": 0.12,
+      "rejected_reasons": [
+        "forma"
+      ]
     },
     {
       "name": "saco_en_borde",
       "lesion_rank": 1,
       "lesion_distance_mm": 3.0,
-      "false_positives": 2,
+      "false_positives": 0,
       "rejected_true": 0,
-      "rejected_fp": 0,
-      "n_accepted": 3,
-      "n_rejected": 0,
-      "seconds": 0.42,
-      "rejected_reasons": []
+      "rejected_fp": 2,
+      "n_accepted": 1,
+      "n_rejected": 2,
+      "seconds": 0.43,
+      "rejected_reasons": [
+        "borde",
+        "forma"
+      ]
     },
     {
       "name": "bifurcacion_con_saco_apical",
       "lesion_rank": 1,
       "lesion_distance_mm": 2.5,
-      "false_positives": 1,
+      "false_positives": 0,
       "rejected_true": 0,
-      "rejected_fp": 0,
-      "n_accepted": 2,
-      "n_rejected": 0,
-      "seconds": 1.15,
-      "rejected_reasons": []
+      "rejected_fp": 1,
+      "n_accepted": 1,
+      "n_rejected": 1,
+      "seconds": 1.17,
+      "rejected_reasons": [
+        "forma"
+      ]
     },
     {
       "name": "bifurcacion_sin_saco",
       "lesion_rank": null,
       "lesion_distance_mm": null,
-      "false_positives": 2,
+      "false_positives": 0,
       "rejected_true": 0,
-      "rejected_fp": 0,
-      "n_accepted": 2,
-      "n_rejected": 0,
-      "seconds": 0.86,
-      "rejected_reasons": []
+      "rejected_fp": 2,
+      "n_accepted": 0,
+      "n_rejected": 2,
+      "seconds": 0.89,
+      "rejected_reasons": [
+        "bifurcacion",
+        "forma"
+      ]
     },
     {
       "name": "tubo_curvo_sin_saco",
@@ -60,20 +70,22 @@
       "rejected_fp": 0,
       "n_accepted": 0,
       "n_rejected": 0,
-      "seconds": 0.01,
+      "seconds": 0.0,
       "rejected_reasons": []
     },
     {
       "name": "tubo_mas_isla",
       "lesion_rank": null,
       "lesion_distance_mm": null,
-      "false_positives": 5,
+      "false_positives": 4,
       "rejected_true": 0,
-      "rejected_fp": 0,
-      "n_accepted": 5,
-      "n_rejected": 0,
-      "seconds": 0.27,
-      "rejected_reasons": []
+      "rejected_fp": 1,
+      "n_accepted": 4,
+      "n_rejected": 1,
+      "seconds": 0.29,
+      "rejected_reasons": [
+        "isla"
+      ]
     },
     {
       "name": "case3_native",
@@ -81,11 +93,13 @@
       "lesion_distance_mm": 5.02,
       "false_positives": 4,
       "rejected_true": 0,
-      "rejected_fp": 0,
+      "rejected_fp": 1,
       "n_accepted": 5,
-      "n_rejected": 0,
-      "seconds": 9.81,
-      "rejected_reasons": []
+      "n_rejected": 1,
+      "seconds": 11.36,
+      "rejected_reasons": [
+        "bifurcacion"
+      ]
     }
   ]
 }

@@ -6,25 +6,16 @@ Fija los umbrales del diseño D4: ningún veto quita una lesión
 tienen saco dejan como mucho un falso positivo, y Case 3 no empeora respecto
 a la línea base. Los casos reales son `slow` y se saltan si no hay sesión.
 """
+import json
+from pathlib import Path
+
 import pytest
 
-from eval.detection_bench import (BenchCase, _veto_fn, real_cases, run_bench,
-                                  run_case, synthetic_cases, to_json)
+from eval.detection_bench import (BenchCase, real_cases, run_bench, run_case,
+                                  synthetic_cases, to_json)
 
 SYN = {c.name: c for c in synthetic_cases()}
-#: En la línea base (sin vetos) estos dos sacan más de un falso positivo: la
-#: Y da 4 y la isla 3. Son justo lo que los vetos de D4 deben arreglar, así que
-#: mientras `services.candidate_vetoes` no exista se esperan fallidos; en
-#: cuanto exista la marca desaparece sola y el umbral manda.
-_SIN_VETOS = _veto_fn(True) is None
-_FALLAN_SIN_VETOS = {"bifurcacion_sin_saco", "tubo_mas_isla"}
-
-
-def _sintetico(name):
-    if _SIN_VETOS and name in _FALLAN_SIN_VETOS:
-        return pytest.param(name, marks=pytest.mark.xfail(
-            strict=True, reason="línea base sin vetos: más de un falso positivo"))
-    return name
+RESULTS = Path(__file__).resolve().parent / "eval" / "results"
 #: Sin sesión de Case 3 el parametrize quedaría vacío; un `param` saltado
 #: deja constancia del motivo en vez de un «no tests collected» mudo.
 _REALES = real_cases() or [pytest.param(None, marks=pytest.mark.skip(
@@ -37,7 +28,7 @@ def test_hay_seis_sinteticos_con_sus_expectativas():
     assert SYN["tubo_con_saco"].lesion_mm is not None and SYN["bifurcacion_sin_saco"].lesion_mm is None
 
 
-@pytest.mark.parametrize("name", [_sintetico(n) for n in sorted(SYN)])
+@pytest.mark.parametrize("name", sorted(SYN))
 def test_los_sinteticos_cumplen_sus_umbrales(name):
     c = SYN[name]
     r = run_case(c)
@@ -69,3 +60,15 @@ def test_run_bench_devuelve_un_resultado_por_caso():
     assert [r.name for r in rs] == ["tubo_mas_isla"] and rs[0].lesion_rank is None
     fila = to_json(rs)["results"][0]
     assert {"name", "lesion_rank", "false_positives", "rejected_true"} <= set(fila)
+
+
+def test_los_vetos_no_empeoran_ninguna_fila_del_banco():
+    base = {r["name"]: r for r in json.loads((RESULTS / "baseline.json").read_text(encoding="utf-8"))["results"]}
+    con = {r["name"]: r for r in json.loads((RESULTS / "with_vetoes.json").read_text(encoding="utf-8"))["results"]}
+    assert set(base) == set(con)
+    for name, b in base.items():
+        c = con[name]
+        assert c["rejected_true"] == 0, name
+        if b["lesion_rank"] is not None:
+            assert c["lesion_rank"] is not None and c["lesion_rank"] <= b["lesion_rank"], name
+        assert c["false_positives"] <= b["false_positives"], name

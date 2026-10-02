@@ -2431,25 +2431,26 @@ La sesión de Case 3 se localiza por contenido, no por id: `state.txt` con
 `meshes/vessel_tree.vtp` de más de 1 MB. Si no hay ninguna, la fila no se
 mide y su test `slow` se salta. Hoy solo existe la nativa.
 
-**Línea base** (sin vetos, 2026-10-02, `backend/eval/results/baseline.json`):
+**Sin vetos y con vetos** (2026-10-02, `backend/eval/results/baseline.json` y
+`with_vetoes.json`, regenerados con los generadores sintéticos actuales):
 
-| Caso | Puesto de la lesión | Distancia (mm) | Falsos positivos | Aceptados | Segundos |
+| Caso | Puesto (sin vetos) | FP (sin vetos) | Puesto (con vetos) | FP (con vetos) | Descartados (motivos) |
 |---|---|---|---|---|---|
-| tubo_con_saco | 1 | 0.0 | 2 | 3 | 0.1 |
-| saco_en_borde | 1 | 3.0 | 1 | 2 | 0.3 |
-| bifurcacion_con_saco_apical | 1 | 2.5 | 2 | 3 | 0.9 |
-| bifurcacion_sin_saco | sin lesión | | 4 | 4 | 0.6 |
-| tubo_curvo_sin_saco | sin lesión | | 0 | 0 | 0.0 |
-| tubo_mas_isla | sin lesión | | 3 | 3 | 0.1 |
-| case3_native | 1 | 5.0 | 4 | 5 | 10.4 |
+| tubo_con_saco | 1 | 2 | 1 | 1 | 1 (forma) |
+| saco_en_borde | 1 | 2 | 1 | 0 | 2 (borde, forma) |
+| bifurcacion_con_saco_apical | 1 | 1 | 1 | 0 | 1 (forma) |
+| bifurcacion_sin_saco | sin lesión | 2 | sin lesión | 0 | 2 (bifurcacion, forma) |
+| tubo_curvo_sin_saco | sin lesión | 0 | sin lesión | 0 | 0 (—) |
+| tubo_mas_isla | sin lesión | 5 | sin lesión | 4 | 1 (isla) |
+| case3_native | 1 | 4 | 1 | 4 | 1 (bifurcacion) |
 
 Umbrales que fija `backend/test_detection_bench.py`: ningún veto descarta la
-lesión; los sintéticos con saco la sacan 1.ª; los que no tienen saco dejan como
-mucho un falso positivo; Case 3 nativa en puesto ≤ 2 y media ≤ 3. La línea base
-cumple el de Case 3 nativa, así que no se ha rebajado. Sin vetos,
-`bifurcacion_sin_saco` y `tubo_mas_isla` superan el falso positivo permitido:
-sus tests están marcados como fallo esperado mientras no exista
-`services/candidate_vetoes.py`, y la marca desaparece sola cuando exista.
+lesión; los sintéticos con saco la sacan 1.ª; `bifurcacion_sin_saco` y
+`tubo_curvo_sin_saco` dejan como mucho un falso positivo; Case 3 nativa en
+puesto ≤ 2 y media ≤ 3. Un test compara ambos JSON: con vetos ningún puesto
+empeora, ningún falso positivo sube y nada verdadero se descarta. Los vetos
+cumplieron todo a la primera, así que no se ha tocado ninguna constante de
+`services/candidate_vetoes.py`.
 
 La fila `tubo_mas_isla` mide el veto de isla, no el ruido de calibre del tubo:
 exige que la isla salga descartada con motivo `isla` y como mucho los falsos

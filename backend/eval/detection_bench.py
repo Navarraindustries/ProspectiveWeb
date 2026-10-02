@@ -209,26 +209,6 @@ def _build_mesh(case: BenchCase) -> vtk.vtkPolyData:
     return case.mesh()
 
 
-def _veto_fn(vetoes: bool):
-    """`candidate_vetoes.evaluate` si se piden vetos y el módulo existe.
-
-    Hasta la Task 4 de D4 el módulo no existe y el banco mide sin vetos; el
-    parámetro se acepta desde ya para que la línea base y las medidas
-    posteriores salgan del mismo código.
-    """
-    if not vetoes:
-        return None
-    try:
-        from services.candidate_vetoes import evaluate
-    except ModuleNotFoundError as exc:
-        # Solo la ausencia del propio módulo significa «sin vetos». Si falla
-        # un import DENTRO de él, callarlo mediría sin vetos sin decirlo.
-        if exc.name != "services.candidate_vetoes":
-            raise
-        return None
-    return evaluate
-
-
 def _dist(a, b) -> float:
     return math.dist(tuple(a), tuple(b))
 
@@ -250,12 +230,14 @@ def run_case(case: BenchCase, *, vetoes: bool = True) -> BenchResult:
     hits, _ = _detect_hits(poly, case.modality,
                            _detector_for_modality(case.modality), top=BENCH_TOP)
 
-    evaluate = _veto_fn(vetoes)
+    evaluate = None
+    if vetoes:
+        from services.aneurysm_consensus import hit_patch
+        from services.candidate_vetoes import evaluate
     accepted, rejected, reasons = [], [], []
     for h in hits:
         veto = None
         if evaluate is not None:
-            from services.aneurysm_consensus import hit_patch
             patch, kind = hit_patch(poly, h)
             veto = evaluate(poly, h, patch, kind)
         (rejected if veto is not None else accepted).append(h)
@@ -325,8 +307,7 @@ def main(argv: list[str] | None = None) -> int:
         cases = [c for c in cases if c.name in set(args.only)]
         if not cases:
             ap.error(f"ningún caso se llama {args.only}")
-    # Lo que de verdad se aplicó: con el módulo de vetos ausente, sin vetos.
-    applied = _veto_fn(not args.no_vetoes) is not None
+    applied = not args.no_vetoes
     results = run_bench(cases, vetoes=not args.no_vetoes)
     print_table(results)
     if args.json:

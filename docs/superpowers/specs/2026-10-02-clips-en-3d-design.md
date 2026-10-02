@@ -29,12 +29,12 @@ export interface PlacedClip extends ClipPose { key: string; clip_id: string; nam
 ## 3. Movimiento inmediato en el cliente (`vtk/clipPose.ts`)
 
 - Módulo puro con `poseMatrix(pose): number[16]` que reproduce `services/devices.pose_transform`: traslación a `position`, rotación que lleva +z local a `normal` (giro de 180° alrededor de x si son antiparalelas, como VTK), después giro `rotation_deg` alrededor de z local. `poseDelta(from, to) = poseMatrix(to) · poseMatrix(from)⁻¹`.
-- `MeshLayer` gana `userMatrix?: number[16]`. La capa `clips` (malla cocida por el servidor en la pose `from` = la última planificada) recibe `poseDelta(from, actual)` mientras la pose del store difiere de la planificada; cuando llega el plan nuevo, `from` pasa a ser la pose nueva y la matriz vuelve a la identidad. El mismo delta se aplica a `clip-body`, `clip-blade-a` y `clip-blade-b` durante el ensayo si está visible.
+- `MeshLayer` gana `userMatrix?: number[16]`. La capa `clips` (malla cocida por el servidor en la pose `from` = la última planificada) recibe `poseDelta(from, actual)` mientras la pose del store difiere de la planificada; cuando llega el plan nuevo, `from` pasa a ser la pose nueva y la matriz vuelve a la identidad. Durante el ensayo (`clipRehearsal` no nulo) el manipulador se oculta y no se aplica ningún delta: la animación ya mueve `clip-body` y las dos hojas con sus propias matrices y no deben pisarse.
 - El mapa de calor (`clip-field`) se atenúa a opacidad 0,35 mientras la pose del store difiere de la planificada («DESFASADO» en la tarjeta del mapa), y vuelve a 1 cuando llega el campo nuevo. Así el profesional ve el clip moverse en el acto y sabe que el color va unos cientos de milisegundos por detrás.
 
 ## 4. Asas del clip en el 3D
 
-- Un «manipulador» por el clip elegido (`selectedClipKey`; por defecto el último colocado; clic sobre el cuerpo de un clip lo elige). Solo cuando la escena 3D de malla está montada y hay clips.
+- Un «manipulador» por el clip elegido (`selectedClipKey`: la fila activa de la lista de `DevicesPanel`; por defecto el último colocado; no hay selección por clic sobre el cuerpo del clip, porque el picking del 3D solo actúa con un modo de marcado). Solo cuando la escena 3D de malla está montada y hay clips.
 - Tres asas en la capa superior (la del punto de D1: siempre visibles, no afectan al encuadre, `setUseBounds(false)`), con radio en mm derivado de `markerRadiusMm` (≈ 0,9 mm):
   - **Desplazar**: esfera color HUD (`#8CFF9E`) en `position`. Arrastrar la mueve en el plano del cuello (el plano perpendicular a la normal que pasa por `position`); con **Shift**, a lo largo de la normal.
   - **Girar**: anillo ámbar (`--hud-amber`) de radio 3 mm en el plano del cuello, centrado en `position`. Arrastrar cambia `rotation_deg` según el ángulo del puntero alrededor del centro proyectado.

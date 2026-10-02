@@ -908,15 +908,32 @@ export function MeshView({
   // `id` (las únicas con actor por nombre). No compite con `registerParts`
   // del ensayo: mientras hay ensayo el visor no manda `userMatrix`, así que
   // esta clave no cambia y el efecto no pisa la animación.
+  //
+  // Solo vuelve a la identidad la capa que TUVO matriz y ya no la tiene. Las
+  // demás capas con nombre no se tocan: una pieza del ensayo en pausa lleva la
+  // pose que le puso `registerParts`, y devolverla a la identidad al cambiar
+  // la matriz de otra capa la sacaría de su sitio.
+  const matrixIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     const h = handles.current;
     if (!h) return;
     let changed = false;
+    const now = new Set<string>();
     for (const l of layers) {
       if (!l.id) continue;
+      if (l.userMatrix) now.add(l.id);
       const actor = namedActors.current.get(l.id);
-      if (actor && actor.setUserMatrix((l.userMatrix ?? IDENTITY) as never)) changed = true;
+      if (!actor) continue;
+      // El .d.ts pide mat4 y declara void; vtk.js copia cualquier array de 16
+      // y devuelve si cambió algo.
+      const set = (m: number[]) => Boolean(actor.setUserMatrix(m as never) as unknown);
+      if (l.userMatrix) {
+        if (set(l.userMatrix)) changed = true;
+      } else if (matrixIds.current.has(l.id)) {
+        if (set(IDENTITY)) changed = true;
+      }
     }
+    matrixIds.current = now;
     if (changed) h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userMatrixKey, sceneEpoch]);
@@ -1058,6 +1075,8 @@ export function MeshView({
     };
     const finish = () => {
       window.removeEventListener("keydown", onKey, { capture: true });
+      window.removeEventListener("pointerup", onWindowUp, { capture: true });
+      window.removeEventListener("pointercancel", onWindowUp, { capture: true });
       if (pointerId !== null) {
         try { el.releasePointerCapture(pointerId); } catch { /* ya liberada */ }
       }
@@ -1082,8 +1101,15 @@ export function MeshView({
       drag = s.state;
       pointerId = e.pointerId;
       last = { px: w.px, py: w.py, vp: w.vp };
-      // La captura sigue el arrastre aunque el puntero salga del lienzo.
-      try { el.setPointerCapture(e.pointerId); } catch { /* el puntero ya no existe */ }
+      // La captura sigue el arrastre aunque el puntero salga del lienzo. Si
+      // no se puede capturar (el puntero ya no existe, un navegador que no
+      // la admite), soltar FUERA del contenedor no llegaría a nadie y el
+      // arrastre quedaría enganchado con la cámara apagada: la ventana entera
+      // escucha entonces el final.
+      try { el.setPointerCapture(e.pointerId); } catch {
+        window.addEventListener("pointerup", onWindowUp, { capture: true });
+        window.addEventListener("pointercancel", onWindowUp, { capture: true });
+      }
       window.addEventListener("keydown", onKey, { capture: true });
       emit("start", s.state.id, e.shiftKey);
     };
@@ -1097,6 +1123,10 @@ export function MeshView({
         : e.type === "pointercancel" ? "cancel" : "lost";
       step({ type }, e.shiftKey);
     };
+    function onWindowUp(e: PointerEvent) {
+      if (drag.id === null || e.pointerId !== pointerId) return;
+      step({ type: e.type === "pointerup" ? "up" : "cancel" }, e.shiftKey);
+    }
     // Escape deshace el arrastre en curso y no le llega a nadie más (que, por
     // ejemplo, no cierre además el panel de la herramienta).
     function onKey(e: KeyboardEvent) {
@@ -1129,6 +1159,8 @@ export function MeshView({
       el.removeEventListener("lostpointercapture", onPointer, opts);
       el.removeEventListener("dblclick", onDbl, opts);
       window.removeEventListener("keydown", onKey, opts);
+      window.removeEventListener("pointerup", onWindowUp, opts);
+      window.removeEventListener("pointercancel", onWindowUp, opts);
       picker.delete();
     };
   }, []);

@@ -10,6 +10,7 @@
 
 import type { ClipFieldSummary, ClipForceVerdict } from "../../api/types";
 import { forcesText, neckPct } from "../../vtk/clipFieldLegend";
+import { Badge } from "../Badge";
 import { Metric } from "../Metric";
 import { Card, SectionLabel } from "../PanelHead";
 import { CriterionChip } from "./ClipSelection";
@@ -30,11 +31,14 @@ const FORCE_BADGE: Record<ClipForceVerdict, [string, BadgeVariant]> = {
 const g0 = (n: number) => `${n.toFixed(0)} g`;
 
 export function ClipFieldCard({
-  summary, show, onToggle,
+  summary, show, onToggle, stale = false,
 }: {
   summary: ClipFieldSummary;
   show: boolean;
   onToggle: (v: boolean) => void;
+  /** El clip se ha movido desde el plan con el que se calcularon estas cifras:
+   *  siguen siendo las de la pose anterior hasta que llegue el plan nuevo. */
+  stale?: boolean;
 }) {
   const s = summary;
   const [accLo, optLo, optHi, accHi] = s.force_window_g;
@@ -48,6 +52,13 @@ export function ClipFieldCard({
     <Card style={{ marginTop: 14 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
         <SectionLabel style={{ flex: 1 }}>Mapa de calor del clip</SectionLabel>
+        {/* Mientras se arrastra el clip las cifras son de la pose de antes: que
+            se lea, en vez de dejar creer que describen lo que se ve. */}
+        {stale && (
+          <span title="El clip se ha movido; el mapa se recalcula al soltar" style={{ display: "inline-flex" }}>
+            <Badge variant="warning">DESFASADO</Badge>
+          </span>
+        )}
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
           <input type="checkbox" aria-label="Mapa de calor" checked={show} onChange={(e) => onToggle(e.target.checked)} />
           Mostrar en el visor

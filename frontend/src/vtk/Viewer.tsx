@@ -8,8 +8,11 @@
    axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
-import { usePlanning, type PickMode } from "../store/planning";
-import type { CameraController, CameraView, MeshFocus, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
+import { usePlanning, type PickMode, type PlacedClip } from "../store/planning";
+import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
+import { beginDrag, clipHandles, dragPose, gizmoReadout, type DragStart } from "./clipGizmo";
+import { poseDelta } from "./clipPose";
+import { clipNormal, isStale, neckAxis, neckPlacement } from "../components/planning/placedClips";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { useVolumeMeta } from "./useVolumeMeta";
@@ -191,6 +194,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     volumeMode, volumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
     imagingStudyId, setCaptureCase, setViewerRecording,
+    placedClips, setPlacedClips, plannedClips, selectedClipKey,
   } = usePlanning();
 
   // La vista sin su decoración: preferencia del profesional, en su navegador
@@ -445,6 +449,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // El estado que acompaña a una captura o a una grabación.
   const levelNoteRef = useRef(levelNote);
   levelNoteRef.current = levelNote;
+  const placedClipsRef = useRef(placedClips);
+  placedClipsRef.current = placedClips;
+  const selectedClipKeyRef = useRef(selectedClipKey);
+  selectedClipKeyRef.current = selectedClipKey;
   const estadoVisor = useCallback((root: HTMLElement): Record<string, unknown> => ({
     layout: layoutRef.current,
     hud_decor_hidden: decorHiddenRef.current,
@@ -468,6 +476,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     max_diameter_mm: morphometry?.max_diameter_mm ?? null,
     window: mprWl ?? null,
     orientation_known: effectiveDirection(orientation).known,
+    // La pose de cada clip tal y como está en la lista (también a mitad de un
+    // arrastre), y cuál maneja el asa: lo que la captura enseña, por escrito.
+    placed_clips: placedClipsRef.current.map((c) => ({
+      key: c.key, clip_id: c.clip_id, name: c.name, position: c.position,
+      rotation_deg: c.rotation_deg, azimuth_deg: c.azimuthDeg, elevation_deg: c.elevationDeg,
+    })),
+    selected_clip: (placedClipsRef.current.find((c) => c.key === selectedClipKeyRef.current) ?? placedClipsRef.current.at(-1))?.key ?? null,
   }), [levelNote, viewMode, selectedCandidate, candidates, morphometry, mprWl, orientation]);
 
   // Lo que se ve AHORA: cada panel visible con su sitio, su HUD y su captura.
@@ -603,6 +618,75 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // último valor al salir, así que mirarlo dejaría el campo apagado para siempre.
   const showField = showDevice && !!clipField && showClipField && !clipRehearsal;
 
+  // ── El manipulador del clip ─────────────────────────────────────────── #
+  //
+  // El clip que manejan las asas es el elegido en la lista de Dispositivos o,
+  // si no hay ninguno, el último colocado. No se elige pinchando el cuerpo del
+  // clip: el picking de MeshView solo actúa con un modo de pinchado activo.
+  const selectedClip = placedClips.find((c) => c.key === selectedClipKey) ?? placedClips.at(-1) ?? null;
+  const selectedClipRef = useRef(selectedClip);
+  selectedClipRef.current = selectedClip;
+  const morphometryRef = useRef(morphometry);
+  morphometryRef.current = morphometry;
+  // La lista ya no es la que se coció en las mallas: el clip se está moviendo
+  // (o acaba de moverse) y el plan nuevo aún no ha llegado.
+  const clipsStale = isStale(placedClips, plannedClips);
+  // Sin ensayo: durante la maniobra el clip colocado ni se dibuja (lo
+  // sustituyen sus tres piezas) y moverlo cambiaría la pose que se ensaya.
+  const gizmoOn = sceneHasMesh && step === "devices" && !!selectedClip && !clipRehearsal;
+  const clipGizmoHandles = useMemo(
+    () => (gizmoOn && selectedClip ? clipHandles(selectedClip, clipNormal(morphometry, selectedClip)) : []),
+    [gizmoOn, selectedClip, morphometry],
+  );
+  // La malla del clip sigue al arrastre sin esperar al servidor: la malla
+  // cocida con la pose del plan, movida por la diferencia entre esa pose y la
+  // de ahora. Al llegar el plan nuevo la lista vuelve a coincidir y la matriz
+  // se va (la malla nueva ya viene en su sitio).
+  const clipsMatrix = useMemo(() => {
+    if (clipRehearsal || !clipsStale || !plannedClips || !selectedClip) return undefined;
+    const planned = plannedClips.find((c) => c.key === selectedClip.key);
+    if (!planned) return undefined;   // un clip recién añadido no está en la malla
+    const poseOf = (c: PlacedClip) => ({ position: c.position, normal: clipNormal(morphometry, c), rotationDeg: c.rotation_deg });
+    return poseDelta(poseOf(planned), poseOf(selectedClip));
+  }, [clipRehearsal, clipsStale, plannedClips, selectedClip, morphometry]);
+
+  // Lo que se ve al empezar a arrastrar: Escape vuelve a ello. El gesto entero
+  // se calcula desde esta foto (DragStart), no desde la pose que va cambiando.
+  const clipDragRef = useRef<{ start: DragStart; before: PlacedClip } | null>(null);
+  const onHandleDrag = useCallback((e: HandleDragEvent) => {
+    if (!e.id.startsWith("clip:")) return;
+    const replace = (pose: PlacedClip) => setPlacedClips((p) => p.map((c) => (c.key === pose.key ? pose : c)));
+    if (e.phase === "start") {
+      const clip = selectedClipRef.current;
+      if (!clip) return;
+      const m = morphometryRef.current;
+      clipDragRef.current = {
+        start: beginDrag(e.id, clip, clipNormal(m, clip), neckAxis(m), e.camera, e.viewport, e.px, e.py, e.shift),
+        before: clip,
+      };
+      return;
+    }
+    const d = clipDragRef.current;
+    if (!d) return;
+    if (e.phase === "move") {
+      // Sin corte (el rayo no toca el plano o la esfera) la pose se queda.
+      const pose = dragPose(e.id, d.start, e.camera, e.viewport, e.px, e.py, e.shift);
+      if (pose) replace(pose);
+      return;
+    }
+    if (e.phase === "cancel") replace(d.before);
+    clipDragRef.current = null;
+  }, [setPlacedClips]);
+  // Doble clic en la esfera verde: el clip vuelve al centro del cuello, sin
+  // inclinar. El giro se respeta: es una decisión aparte de dónde va.
+  const onHandleDoubleClick = useCallback((id: string) => {
+    if (id !== "clip:move") return;
+    const clip = selectedClipRef.current;
+    if (!clip) return;
+    const { position } = neckPlacement(morphometryRef.current);
+    setPlacedClips((p) => p.map((c) => (c.key === clip.key ? { ...c, position, azimuthDeg: 0, elevationDeg: 0 } : c)));
+  }, [setPlacedClips]);
+
   const showCenterline = !!centerlineMesh && centerlineMesh.startsWith("/data/");
 
   const layers = useMemo<MeshLayer[]>(() => {
@@ -628,7 +712,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (showField && clipField) {
       // Opaco: los colores son el dato, y translúcidos sobre el árbol se
       // mezclarían con el rojo del vaso y dejarían de casar con la leyenda.
-      out.push({ url: clipField.field_mesh_url, color: SAC_COLOR, opacity: 1, id: "clip-field", scalars: { array: "colors" }, silhouette: true });
+      // Más tenue mientras el clip se mueve: los colores son los de la pose de
+      // antes y, opacos, se leerían como el veredicto de la de ahora.
+      out.push({ url: clipField.field_mesh_url, color: SAC_COLOR, opacity: clipsStale ? 0.35 : 1, id: "clip-field", scalars: { array: "colors" }, silhouette: true });
     } else if (sacUrl && step !== "segment" && step !== "upload") {
       // Con contorno: translúcido sobre el árbol, su borde se perdía.
       out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true });
@@ -650,7 +736,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // Lo que aún rehace la escena en este paso (la primera llegada del campo,
       // que cambia la capa «sac» por «clip-field», y el conmutador CALOR) conserva
       // la cámara: MeshView recibe `preserveCamera` mientras se está en Dispositivos.
-      for (const d of devices) out.push({ url: d.url, color: d.color, opacity: 1, id: `device-${d.kind}` });
+      for (const d of devices) {
+        out.push({ url: d.url, color: d.color, opacity: 1, id: `device-${d.kind}`, ...(d.kind === "clips" && clipsMatrix ? { userMatrix: clipsMatrix } : null) });
+      }
     }
     if (showCenterline && centerlineMesh) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
@@ -661,7 +749,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: scissorsPreview, color: DOOMED_COLOR, opacity: 1, id: "tijera" });
     }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField]);
+  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, clipsStale, clipsMatrix]);
 
   const showPlanes = !planesHidden && !decorHidden && !!meta;
   // El plano libre se enseña donde significa algo: en la vista Oblicuo, que lo
@@ -1060,6 +1148,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices"}
+            handles={clipGizmoHandles} onHandleDrag={onHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
         </Suspense>
       );
@@ -1083,6 +1172,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     if (previewActive && previewBand) tl.push(`VISTA PREVIA · CAPTURA [${Math.round(previewBand[0])}, ${Math.round(previewBand[1])}]`);
     if (viewMode === "default" && segPreview) tl.push("PULSA «SEGMENTAR» PARA LA MALLA FINAL");
+    if (isMesh && gizmoOn && selectedClip) tl.push(gizmoReadout(selectedClip));
 
     // Leyendas de la escena 3D: cada línea lleva la muestra del color con que
     // la escena dibuja lo que nombra; sin ella, «Ø CUELLO» no dice cuál de los

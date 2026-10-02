@@ -63,6 +63,28 @@ describe("DevicesPanel · campo del clip", () => {
     expect(api.clipField).toHaveBeenCalledTimes(1);
   });
 
+  it("mientras la lista no es la del plan la tarjeta dice DESFASADO, y deja de decirlo al recolocar", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    expect(screen.queryByText("DESFASADO")).toBeNull();
+    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "2" } });
+    expect(screen.getByText("DESFASADO")).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(260); });
+    await waitFor(() => expect(screen.queryByText("DESFASADO")).toBeNull());
+  });
+
+  it("la fila elegida es el clip de las asas: por defecto el último, y un clic elige otro", async () => {
+    render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+    const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
+    await waitFor(() => expect(addBtn()).not.toBeDisabled());
+    fireEvent.click(addBtn());
+    fireEvent.click(screen.getByRole("button", { name: /^Añadir$/ }));   // la segunda pantalla añade otro igual
+    const rows = () => screen.getAllByRole("button", { name: /^#\d · / });
+    expect(rows().map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "true"]);
+    fireEvent.click(rows()[0]);
+    expect(rows().map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "false"]);
+  });
+
   it("mover el clip vuelve a pedir el campo tras 250 ms, no en cada tecla", async () => {
     await colocar();
     await screen.findByText(/Estimación geométrica/);

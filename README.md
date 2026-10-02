@@ -2063,6 +2063,25 @@ geometry, not mechanics: no wall thickness or stiffness, no deformation of the
 neck under the blades, no slip, and the force is the low end of a design band
 that has not been measured on a real spring.
 
+### Moving the clip in the 3D view
+
+In Dispositivos, with the 3D scene mounted and no rehearsal running, the clip
+carries three handles drawn on top of the meshes. The green sphere moves it in
+the neck plane, or along its normal with Shift (at most 50 mm per drag). The
+amber ring turns it about its normal. The lavender sphere at the tip of the arm
+tilts it, clamped to 60° like the server. Escape during a drag restores the pose
+it started from; a double click on the green sphere puts it back on the neck
+centre, untilted. The camera keeps orbiting when the press lands off the handles.
+
+While the clip moves, the baked clip mesh follows it through a delta matrix
+(planned pose to current pose), the heat map dims and its card reads
+«DESFASADO»; the usual 250 ms debounce re-places the set, and the new mesh and
+field replace both. The handles act on the clip selected in the «Clips
+colocados» list, or on the last one placed. There is no click-to-select on the
+clip body: the 3D view only picks surfaces while a pick mode is active. With
+several clips baked into one mesh, the delta matrix moves the whole mesh until
+the new plan arrives.
+
 ### What this is not
 
 The geometric criteria are arithmetic on measured quantities. The clinical

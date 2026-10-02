@@ -38,7 +38,7 @@ import { Slider } from "../Slider";
 import { Tabs } from "../Tabs";
 import { TILT_MAX_DEG } from "../../vtk/clipPose";
 import { usePlanning, type PlacedClip } from "../../store/planning";
-import { neckPlacement, toPlacement, poseKey } from "./placedClips";
+import { neckPlacement, toPlacement, poseKey, isStale } from "./placedClips";
 
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
 export { neckPlacement };
@@ -152,9 +152,11 @@ function ClipsTab() {
   const {
     sessionId, caseId, morphometry, setDeviceMesh,
     clipField, setClipField, showClipField, setShowClipField,
-    placedClips: placed, setPlacedClips: setPlaced, setPlannedClips,
+    placedClips: placed, setPlacedClips: setPlaced, plannedClips, setPlannedClips,
     selectedClipKey, setSelectedClipKey,
   } = usePlanning();
+  // El que maneja el asa del 3D: el elegido en la lista o, si no hay, el último.
+  const activeKey = placed.some((c) => c.key === selectedClipKey) ? selectedClipKey : placed.at(-1)?.key ?? null;
   const clearer = useClearDevice("clips");
   const [recs, setRecs] = useState<ClipRecommendation[]>([]);
   const [customs, setCustoms] = useState<CustomClipInfo[]>([]);
@@ -590,11 +592,17 @@ function ClipsTab() {
             <>
               <SectionLabel>Clips colocados ({placed.length})</SectionLabel>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                {/* La fila elegida es el clip que mueven las asas del 3D. Tocar
+                    cualquier parte de la fila (también sus números) la elige:
+                    se edita el clip que se está mirando. */}
                 {placed.map((c, i) => (
-                  <Card key={c.key} style={{ padding: "10px 12px" }}>
+                  <Card key={c.key} onClick={() => setSelectedClipKey(c.key)}
+                    style={{ padding: "10px 12px", cursor: "pointer", ...(c.key === activeKey ? { borderColor: "var(--primary)", boxShadow: "0 0 0 1px var(--primary)" } : null) }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>#{i + 1} · {c.name}</span>
-                      <button onClick={() => removeClip(c.key)} title="Quitar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
+                      <button type="button" aria-pressed={c.key === activeKey} title="Manejar este clip en el 3D"
+                        onClick={(e) => { e.stopPropagation(); setSelectedClipKey(c.key); }}
+                        style={{ all: "unset", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>#{i + 1} · {c.name}</button>
+                      <button onClick={(e) => { e.stopPropagation(); removeClip(c.key); }} title="Quitar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
                     </div>
                     <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
                       <NumField label="X" value={c.position[0]} onChange={(v) => updateClip(c.key, { position: [v, c.position[1], c.position[2]] })} />
@@ -670,7 +678,7 @@ function ClipsTab() {
             </Card>
           )}
           {plan && clipField && (
-            <ClipFieldCard summary={clipField.summary} show={showClipField} onToggle={setShowClipField} />
+            <ClipFieldCard summary={clipField.summary} show={showClipField} onToggle={setShowClipField} stale={isStale(placed, plannedClips)} />
           )}
           {plan && fieldNote && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{fieldNote}</div>

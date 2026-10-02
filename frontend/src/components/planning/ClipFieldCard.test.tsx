@@ -30,6 +30,12 @@ describe("ClipFieldCard", () => {
     expect(screen.getByText(/Estimación geométrica/)).toBeInTheDocument();
     expect(screen.getByText(/fuerza mínima de la banda/i)).toBeInTheDocument();
   });
+  it("con el clip movido desde el último plan lleva el aviso DESFASADO; sin moverlo, no", () => {
+    const { rerender } = render(<ClipFieldCard summary={s} show onToggle={vi.fn()} stale />);
+    expect(screen.getByTitle("El clip se ha movido; el mapa se recalcula al soltar")).toHaveTextContent("DESFASADO");
+    rerender(<ClipFieldCard summary={s} show onToggle={vi.fn()} />);
+    expect(screen.queryByText("DESFASADO")).toBeNull();
+  });
   it("el interruptor del mapa de calor avisa al padre", () => {
     const onToggle = vi.fn();
     render(<ClipFieldCard summary={s} show={false} onToggle={onToggle} />);

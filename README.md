@@ -2150,7 +2150,7 @@ patient imaging.
 |---|---|---|
 | `POST` | `/api/upload` | Upload DICOM files/folder → session + series list |
 | `POST` | `/api/upload/{sid}/series/{series_id}` | Switch the active series |
-| `GET` | `/api/volume/{sid}/meta` · `/raw` | Volume metadata · raw uint8 volume |
+| `GET` | `/api/volume/{sid}/meta` | Volume metadata |
 | `GET` | `/api/slice/{sid}/{plane}/{index}` | MPR slice PNG (`wc`, `ww`, optional `lower`/`upper` tint) |
 | `GET` | `/api/slice-oblique/{sid}` | Oblique reslice PNG |
 | `POST` | `/api/sessions/save` · `/{sid}/restore` | Durable snapshot · rehydrate |
@@ -2268,8 +2268,8 @@ the retired 3D «Volumen» mode (CTA, Vasos CTA, Cerebro, Hemorragia, Hueso,
 Tejido blando), mapped onto the volume's robust intensity range
 (p0.5–p99.9, close to the p1–p99 the old server used) of the copy already in
 the browser; clipping, plane trace and gestures are the same in
-both. The 3D scene no longer has a «Volumen» mode, so `GET /api/volume/{sid}/raw`
-has no consumer in the frontend; whether the endpoint stays is left to D2.
+both. The 3D scene no longer has a «Volumen» mode, and `GET /api/volume/{sid}/raw`
+was retired in D2: the client loads the volume through `/api/volume/{sid}/chunk/...`.
 
 **Plane colours and «PLANOS».** Each slice plane has one colour everywhere:
 axial cyan, coronal green, sagittal orange. It colours the slice label, the

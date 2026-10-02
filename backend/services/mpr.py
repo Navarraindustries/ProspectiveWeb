@@ -270,34 +270,9 @@ def _apply_window(slc: np.ndarray, wc: float, ww: float) -> np.ndarray:
     return ((np.clip(slc, lo, hi) - lo) / (hi - lo) * 255.0).astype(np.uint8)
 
 
-def get_volume_raw_uint8(session_id: str, max_dim: int = 192) -> tuple[bytes, list[int], list[float]]:
-    """Return the volume as raw uint8 bytes for client-side volume rendering.
-
-    Downsampled by an integer stride so the largest axis is <= max_dim, and
-    rescaled over a robust [p1, p99] intensity window to 0-255. Returns
-    (bytes, dims[z,y,x], spacing[sz,sy,sx]).
-    """
-    meta = ensure_volume_cached(session_id)
-    vol = _get_volume(session_id)
-    z, y, x = vol.shape
-
-    stride = max(1, int(np.ceil(max(z, y, x) / float(max_dim))))
-    sub = np.ascontiguousarray(vol[::stride, ::stride, ::stride], dtype=np.float32)
-
-    lo, hi = np.percentile(sub, [1.0, 99.0])
-    if hi - lo < 1e-3:
-        lo, hi = float(sub.min()), float(sub.max()) or 1.0
-    u8 = np.clip((sub - lo) / (hi - lo) * 255.0, 0, 255).astype(np.uint8)
-
-    sp = meta["spacing"]  # [sz, sy, sx]
-    dims = [int(d) for d in u8.shape]
-    spacing = [float(sp[i]) * stride for i in range(3)]
-    return u8.tobytes(order="C"), dims, spacing
-
-
 def volume_coarse_int16(session_id: str, max_dim: int = 192) -> tuple[bytes, list[int], list[float], int]:
     """El nivel grueso del visor: el volumen con stride entero en los tres ejes
-    (el eje mayor ≤ max_dim, misma regla que `get_volume_raw_uint8`), en int16
+    (el eje mayor ≤ max_dim, regla de stride: el eje mayor ≤ max_dim), en int16
     little-endian con intensidades CRUDAS, como el nivel completo.
 
     El uint8 reescalado a [p1, p99] servía al render de volumen, pero en los

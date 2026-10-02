@@ -13,7 +13,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from services.mpr import (
-    ensure_volume_cached, render_slice_png, render_oblique_png, get_volume_raw_uint8,
+    ensure_volume_cached, render_slice_png, render_oblique_png,
     volume_chunk_int16, volume_coarse_int16,
 )
 from services.sessions import session_exists, write_state
@@ -70,41 +70,6 @@ async def put_orientation(session_id: str, body: ManualOrientation) -> dict:
     except Exception as exc:
         logger.error("Volume meta failed for %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
-
-
-@router.get(
-    "/volume/{session_id}/raw",
-    summary="Get the downsampled volume as raw uint8 for 3D volume rendering",
-    description=(
-        "Returns the DICOM volume as raw uint8 bytes (C-order, z·y·x), downsampled "
-        "so the largest axis is ≤ 192 and rescaled over a robust intensity window. "
-        "Dimensions and spacing are returned in the X-Dims / X-Spacing headers. "
-        "Consumed by the client-side vtk.js volume renderer."
-    ),
-    response_class=Response,
-    responses={200: {"content": {"application/octet-stream": {}}}},
-)
-async def get_volume_raw(session_id: str) -> Response:
-    if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-    loop = asyncio.get_event_loop()
-    try:
-        data, dims, spacing = await loop.run_in_executor(
-            _executor, partial(get_volume_raw_uint8, session_id)
-        )
-    except Exception as exc:
-        logger.error("Volume raw failed for %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
-    return Response(
-        content=data,
-        media_type="application/octet-stream",
-        headers={
-            "X-Dims": ",".join(str(d) for d in dims),
-            "X-Spacing": ",".join(f"{s:.5f}" for s in spacing),
-            "Access-Control-Expose-Headers": "X-Dims, X-Spacing",
-            "Cache-Control": "public, max-age=3600",
-        },
-    )
 
 
 @router.get(

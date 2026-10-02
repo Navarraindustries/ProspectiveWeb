@@ -26,7 +26,7 @@ Geometría, en el marco de índices (vóxel × espaciado, origen 0, el mismo que
 
 - `normalOf({azimuthDeg, elevationDeg})`, con `a` y `e` en radianes:
   - `n = [ sin(e)·sin(a), sin(e)·cos(a), cos(e) ]` → con `e = 0`, `n = [0,0,1]` (el plano axial de índices que pasa por el punto); la elevación `e` inclina la normal desde `+z` y el azimut `a` elige hacia qué lado (`a = 0` inclina hacia `+y`, `a = 90°` hacia `+x`).
-  - `upOf(angles)`: vector «arriba» determinista para el reslice: `up = normalize( [0,0,1] − (n·[0,0,1]) n )` si `|e| < 89°`; en el límite (`|e| ≥ 89°`) `up = [0,1,0]` proyectado igual. Así el oblicuo no gira solo al mover los ángulos.
+  - `upOf(angles)`: vector «arriba» determinista para el reslice: la proyección de `−y` sobre el plano, `up = normalize( [0,−1,0] − (n·[0,−1,0]) n )`, para toda elevación. Es continua en todo el rango permitido (solo degenera con la normal paralela a `y`, que `|e| ≤ 89°` excluye) y con elevación 0 coincide con el «arriba» del oblicuo actual (−y, la orientación del corte axial). Así el oblicuo no gira solo al mover los ángulos.
   - `rightOf = normalize(up × n)`.
 - `originOf(plane, mprVoxel, meta) = voxelToMm(mprVoxel, meta) + n · offsetMm`.
 - `clipPolygon(plane, mprVoxel, meta): Vec3[]`: intersección del plano con la caja del volumen `[0, (n−1)·s]` en cada eje: entre 3 y 6 vértices ordenados en sentido antihorario visto desde `n`; `[]` si el plano no corta la caja. Se usa para el polígono en el 3D, la traza en VOLUMEN y el encuadre del oblicuo (sustituye a `sliceExtent` de `ObliqueView`).

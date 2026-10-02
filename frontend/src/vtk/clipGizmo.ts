@@ -10,8 +10,8 @@
 import type { PlacedClip } from "../store/planning";
 import type { Handle } from "./MeshView";
 import type { Vec3 } from "./geometry";
-import { angleAround, screenToAxis, screenToPlane, screenToSphere, type CameraLike, type Viewport } from "./dragController";
-import { clampTilt, neckFrameAngles } from "./clipPose";
+import { angleAround, screenToAxis, screenToPlane, screenToSphereBoth, type CameraLike, type Viewport } from "./dragController";
+import { clampTilt, neckFrameAngles, neckFrameNormal } from "./clipPose";
 import { HUD_HEX, hexToRgb01, planeRgb01 } from "./planeColors";
 
 export const RING_MM = 3, TILT_ARM_MM = 6, HANDLE_MM = 0.9;
@@ -33,6 +33,13 @@ const wrapDeg = (d: number) => { const w = ((d + 180) % 360 + 360) % 360 - 180; 
 /** Diferencia de ángulos a (−π, π]: cruzar ±π no es una vuelta entera. */
 const wrapRad = (r: number) => { const w = r - 2 * Math.PI * Math.ceil((r - Math.PI) / (2 * Math.PI)); return w; };
 
+const dist2 = (a: Vec3, b: Vec3) => { const d = sub(a, b); return d[0] * d[0] + d[1] * d[1] + d[2] * d[2]; };
+/** La cara más cercana a `ref`; en empate, la cercana a la cámara. */
+function pickRoot(roots: [Vec3, Vec3] | null, ref: Vec3): Vec3 | null {
+  if (!roots) return null;
+  return dist2(roots[1], ref) < dist2(roots[0], ref) ? roots[1] : roots[0];
+}
+
 export function clipHandles(clip: PlacedClip, normal: Vec3): Handle[] {
   const p = clip.position;
   return [
@@ -42,19 +49,31 @@ export function clipHandles(clip: PlacedClip, normal: Vec3): Handle[] {
   ];
 }
 
-export interface DragStart { clip: PlacedClip; normal: Vec3; axis: Vec3 | null; p0: Vec3 | null; t0: number | null; a0: number | null }
+export interface DragStart {
+  clip: PlacedClip; normal: Vec3; axis: Vec3 | null; p0: Vec3 | null; t0: number | null; a0: number | null;
+  /** Inclinar: la punta del brazo en la última pose aceptada. Decide qué cara
+   *  de la esfera sigue al asa; se actualiza en cada movimiento que cuenta. */
+  tip: Vec3 | null;
+  /** Inclinar: de dónde se agarró la esfera a la punta. Restarlo evita que el
+   *  primer movimiento salte hasta ~8,6° (el radio del asa sobre el brazo). */
+  grabOffset: Vec3 | null;
+}
 
 export function beginDrag(
   id: string, clip: PlacedClip, normal: Vec3, axis: Vec3 | null,
   cam: CameraLike, vp: Viewport, px: number, py: number, shift: boolean,
 ): DragStart {
-  const s: DragStart = { clip, normal, axis, p0: null, t0: null, a0: null };
+  const s: DragStart = { clip, normal, axis, p0: null, t0: null, a0: null, tip: null, grabOffset: null };
   if (id === "clip:move") {
     // Solo uno de los dos: el modo (plano o normal) queda fijado al empezar.
     if (shift) s.t0 = screenToAxis(cam, vp, px, py, { origin: clip.position, dir: normal });
     else s.p0 = screenToPlane(cam, vp, px, py, { origin: clip.position, normal });
   } else if (id === "clip:roll") {
     s.a0 = angleAround(cam, vp, px, py, clip.position, normal);
+  } else if (id === "clip:tilt") {
+    s.tip = add(clip.position, normal, TILT_ARM_MM);
+    const g = pickRoot(screenToSphereBoth(cam, vp, px, py, { center: clip.position, r: TILT_ARM_MM }), s.tip);
+    s.grabOffset = g ? sub(s.tip, g) : [0, 0, 0];
   }
   return s;
 }
@@ -85,11 +104,17 @@ export function dragPose(
     return { ...clip, rotation_deg: wrapDeg(clip.rotation_deg + (wrapRad(a - start.a0) * 180) / Math.PI) };
   }
   if (id === "clip:tilt") {
-    const p = screenToSphere(cam, vp, px, py, { center: clip.position, r: TILT_ARM_MM });
+    const tip = start.tip ?? add(clip.position, normal, TILT_ARM_MM);
+    const off = start.grabOffset ?? [0, 0, 0];
+    // La cara que sigue al punto agarrado (punta menos desplazamiento): la
+    // cercana siempre reflejaba la normal con el brazo de espaldas a la cámara.
+    const p = pickRoot(screenToSphereBoth(cam, vp, px, py, { center: clip.position, r: TILT_ARM_MM }), sub(tip, off));
     if (!p) return null;
-    const n = norm(sub(p, clip.position));
+    const n = norm(sub(add(p, off), clip.position));
     if (!n) return null;
     const { azimuthDeg, elevationDeg } = clampTilt(neckFrameAngles(start.axis, n));
+    // La punta que se dibuja es la acotada: la siguiente elección de cara parte de ahí.
+    start.tip = add(clip.position, neckFrameNormal(start.axis, azimuthDeg, elevationDeg), TILT_ARM_MM);
     return { ...clip, azimuthDeg, elevationDeg };
   }
   return null;

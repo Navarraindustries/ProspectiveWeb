@@ -30,6 +30,22 @@ describe("clipGizmo", () => {
     const p = dragPose("clip:tilt", s, camSide, vp, 100, 50, false)!;                   // llevado hacia el centro → cerca de 90° → se acota
     expect(p.elevationDeg).toBeCloseTo(60, 5);
   });
+  // Revisión de la Tarea 5: el brazo que apunta lejos de la cámara se agarra
+  // por la cara de atrás de la esfera; tomar siempre la cercana lo reflejaba.
+  it("inclinar con el brazo de espaldas a la cámara: un píxel es un ángulo pequeño, sin reflejo", () => {
+    const camBack = { ...cam, position: [0, 0, -100] as [number, number, number] };   // mira hacia +z; la punta (0,0,6) es la cara lejana
+    const s = beginDrag("clip:tilt", clip, n, n, camBack, vp, 100, 50, false);
+    const p = dragPose("clip:tilt", s, camBack, vp, 101, 50, false)!;               // 0,2 mm al lado
+    expect(p.elevationDeg).toBeGreaterThan(0.5);
+    expect(p.elevationDeg).toBeLessThan(5);
+    const q = dragPose("clip:tilt", s, camBack, vp, 102, 50, false)!;               // y sigue por la misma cara
+    expect(q.elevationDeg).toBeGreaterThan(p.elevationDeg);
+    expect(q.elevationDeg).toBeLessThan(10);
+  });
+  it("inclinar sin mover el puntero no salta: se descuenta dónde se agarró el asa", () => {
+    const s = beginDrag("clip:tilt", clip, n, n, cam, vp, 102.5, 50, false);        // 0,5 mm al lado de la punta
+    expect(dragPose("clip:tilt", s, cam, vp, 102.5, 50, false)!.elevationDeg).toBeCloseTo(0, 6);
+  });
   it("sin intersección devuelve null", () => {
     const s = beginDrag("clip:tilt", clip, n, n, cam, vp, 100, 50, false);
     expect(dragPose("clip:tilt", s, cam, vp, 199, 99, false)).toBeNull();

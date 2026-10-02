@@ -1,6 +1,6 @@
 // frontend/src/vtk/dragController.test.ts
 import { describe, expect, it } from "vitest";
-import { angleAround, pixelRay, screenToAxis, screenToPlane, screenToSphere } from "./dragController";
+import { angleAround, pixelRay, screenToAxis, screenToPlane, screenToSphere, screenToSphereBoth } from "./dragController";
 const ortho = { position: [0, 0, 100] as [number, number, number], focalPoint: [0, 0, 0] as [number, number, number], viewUp: [0, 1, 0] as [number, number, number], parallel: true, parallelScale: 10, viewAngleDeg: 30 };
 const persp = { ...ortho, parallel: false };
 const vp = { width: 200, height: 100 };
@@ -28,6 +28,12 @@ describe("screenToPlane / Axis / Sphere / angleAround", () => {
   it("esfera de radio 5 en el origen: el centro corta en z=5 (la cara cercana); fuera → null", () => {
     close(screenToSphere(ortho, vp, 100, 50, { center: [0, 0, 0], r: 5 }), [0, 0, 5]);
     expect(screenToSphere(ortho, vp, 190, 50, { center: [0, 0, 0], r: 5 })).toBeNull();
+  });
+  it("screenToSphereBoth: las dos caras, la cercana primero; fuera → null", () => {
+    const both = screenToSphereBoth(ortho, vp, 100, 50, { center: [0, 0, 0], r: 5 })!;
+    close(both[0], [0, 0, 5]);
+    close(both[1], [0, 0, -5]);
+    expect(screenToSphereBoth(ortho, vp, 190, 50, { center: [0, 0, 0], r: 5 })).toBeNull();
   });
   it("angleAround crece en sentido antihorario visto desde la normal", () => {
     const a0 = angleAround(ortho, vp, 150, 50, [0, 0, 0], [0, 0, 1])!;

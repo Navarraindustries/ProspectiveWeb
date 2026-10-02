@@ -46,6 +46,16 @@ export function screenToSphere(cam: CameraLike, vp: Viewport, px: number, py: nu
   const t = -b - Math.sqrt(disc);
   return add(origin, dir, t);
 }
+/** Las dos caras que corta el rayo, la cercana primero; null si no la toca.
+ *  Un asa que está detrás de la esfera (el brazo apuntando lejos de la cámara)
+ *  se agarra por la cara lejana: quien arrastra elige la que sigue al asa. */
+export function screenToSphereBoth(cam: CameraLike, vp: Viewport, px: number, py: number, s: { center: Vec3; r: number }): [Vec3, Vec3] | null {
+  const { origin, dir } = pixelRay(cam, vp, px, py);
+  const oc = sub(origin, s.center), b = dot(oc, dir), c = dot(oc, oc) - s.r * s.r, disc = b * b - c;
+  if (disc < 0) return null;
+  const q = Math.sqrt(disc);
+  return [add(origin, dir, -b - q), add(origin, dir, -b + q)];
+}
 export function angleAround(cam: CameraLike, vp: Viewport, px: number, py: number, center: Vec3, normal: Vec3): number | null {
   const p = screenToPlane(cam, vp, px, py, { origin: center, normal });
   if (!p) return null;

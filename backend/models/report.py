@@ -88,3 +88,11 @@ class ExportRequest(BaseModel):
         1.0, gt=0.0,
         description="Uniform scale factor applied before STL export (1.0 = real size)"
     )
+
+
+class GlbExportResult(BaseModel):
+    """La escena en glTF binario: un objeto por malla, con color, en metros."""
+
+    glb_url: str = Field(..., description="URL /data/… del .glb")
+    parts: list[str] = Field(..., description="Objetos incluidos, en orden")
+    size_kb: float

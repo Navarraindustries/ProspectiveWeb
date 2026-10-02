@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  GlbExportResult,
   WebSizingResult,
   FdSizingResult,
   LesionConfirmIn, LesionConfirmation, LesionSummary,
@@ -600,6 +601,9 @@ export const api = {
   report: (req: ReportRequest) => post<ReportResult>("/api/report", req),
   dicomSr: (req: ReportRequest) => post<ReportResult>("/api/report/dicom-sr", req),
   exportStl: (req: ExportRequest) => post<ReportResult>("/api/export/stl", req),
+  /** La escena con un objeto por malla y su color, en metros: para verla o
+   *  compartirla (visores 3D, PowerPoint, realidad aumentada). */
+  exportGlb: (sessionId: string) => post<GlbExportResult>(`/api/export/glb/${sessionId}`),
 
   /* sessions */
   saveSession: (req: SessionSaveRequest) =>

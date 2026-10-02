@@ -1870,3 +1870,11 @@ export interface WebSizingResult {
   notes: string[];
   sources: string[];
 }
+
+/** La escena en glTF binario (backend/services/glb_export.py). */
+export interface GlbExportResult {
+  glb_url: string;
+  /** Objetos incluidos, en orden: «Vaso», «Saco», «Clip»… */
+  parts: string[];
+  size_kb: number;
+}

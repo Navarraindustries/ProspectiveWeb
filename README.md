@@ -2215,6 +2215,7 @@ of leaving it in the state.
 | `POST` | `/api/report` | PDF surgical planning report |
 | `POST` | `/api/report/dicom-sr` | DICOM Structured Report (TID 1500) |
 | `POST` | `/api/export/stl` | Binary STL export |
+| `POST` | `/api/export/glb/{sid}` | Scene as glTF 2.0 binary: one coloured object per mesh, metres, centred |
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
 | `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
 | `POST` `GET` | `/api/captures` · `/api/captures/{id}/image` | Viewer capture (PNG) attached to the imaging study · list · serve |
@@ -2222,6 +2223,19 @@ of leaving it in the state.
 | `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |
 | `POST` `GET` `DELETE` | `/api/ground-truth` · `/current` · `/{id}` | Confirm where the lesion is (or that there is none) · current one · retract |
 | `GET` | `/api/ground-truth/summary` · `/export` | How the detector ranks against what was confirmed · full export (admin) |
+
+**3D scene export (GLB).** The STL is for printing: one merged mesh, no colour.
+«Exportar escena 3D (GLB)» writes glTF 2.0 for showing the case — any 3D
+viewer, PowerPoint, phone AR — with the vessel (semi-transparent), the isolated
+sac (or the chosen candidate when there is none) and every placed device as
+separate named objects in the viewer's colours. glTF's unit is the metre, so the
+scene is exported at real size in metres and centred; in millimetres an AR
+viewer would place a six-metre aneurysm. It is not reoriented to Y-up: the
+anatomical frame is not always known and a blind rotation would be worse. Node
+names say what each object is and nothing about the patient; the download is
+named `prospective-escena.glb`. Written without a new dependency
+(`services/glb_export.py`); a real scene (vessel, sac, clip; 1.3 MB) passes the
+Khronos glTF validator with no errors or warnings.
 
 **Captures and recordings.** «Captura» and «● Grabar», in the top bar, save what
 the *viewer* shows — every visible pane in place plus the HUD readouts

@@ -9,7 +9,8 @@
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { usePlanning, type PickMode, type PlacedClip } from "../store/planning";
-import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
+import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
+import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
 import { poseDelta } from "./clipPose";
 import { clipNormal, fieldColoursOnScreen, isStale, neckAxis, neckPlacement } from "../components/planning/placedClips";
@@ -198,6 +199,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     volumeMode, volumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
+    slices3dMeshVisible, setSlices3dMeshVisible,
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
   } = usePlanning();
@@ -229,6 +231,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   clipModeRef.current = clipMode;
   const cutFaceVisibleRef = useRef(cutFaceVisible);
   cutFaceVisibleRef.current = cutFaceVisible;
+  const slices3dMeshVisibleRef = useRef(slices3dMeshVisible);
+  slices3dMeshVisibleRef.current = slices3dMeshVisible;
   const volumeWindowRef = useRef(volumeWindows[volumePreset] ?? null);
   volumeWindowRef.current = volumeWindows[volumePreset] ?? null;
 
@@ -375,7 +379,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (c.offsetMm !== fp.offsetMm) setFreePlane(c);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mprVoxel, meta]);
-  const [viewMode, setViewMode] = useState<"default" | "oblique">("default");
+  // «default» es la escena de malla (3D, o el corte axial sin malla);
+  // «slices3d», la misma escena con los tres cortes en su sitio y la malla
+  // translúcida; «oblique», el corte oblicuo.
+  const [viewMode, setViewMode] = useState<"default" | "slices3d" | "oblique">("default");
+  // Cortes 3D es la escena de malla con algo más: todo lo que vale para el 3D
+  // (captura, manipulador del clip, asas, cámara) vale igual para él.
+  const meshScene = viewMode === "default" || viewMode === "slices3d";
   // Camera controller published by MeshView while its scene is on screen.
   const [camera, setCamera] = useState<CameraController | null>(null);
   // Las cámaras de escenas montadas en Dispositivos, donde MeshView conserva la
@@ -429,7 +439,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       nextFrame: () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
     });
   }, []);
-  const sceneHasMesh = viewMode === "default" && meshVisible;
+  const sceneHasMesh = meshScene && meshVisible;
   useEffect(() => {
     setCaptureViewport(sceneHasMesh ? captureScene : null);
   }, [sceneHasMesh, captureScene, setCaptureViewport]);
@@ -475,6 +485,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     heading: readHeading(root) ?? null,
     level_note: levelNote ?? null,
     view_mode: viewMode,
+    scene_mode: viewMode === "default" ? "mesh" : viewMode,
+    slices3d_mesh_visible: slices3dMeshVisibleRef.current,
     candidate_index: selectedCandidate,
     candidate_id: allCandidates[selectedCandidate]?.id ?? null,
     neck_mm: morphometry?.neck_mm ?? null,
@@ -715,7 +727,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const layers = useMemo<MeshLayer[]>(() => {
     if (!displayMeshUrl) return [];
     const vesselDim = step === "detect" || step === "morpho" || showDevice || pickMode !== null || showCenterline;
-    const out: MeshLayer[] = [{ url: displayMeshUrl, color: VESSEL_COLOR, opacity: vesselDim ? 0.45 : 1 }];
+    // En Cortes 3D la malla se vuelve translúcida para ver los cortes a través
+    // de ella; con MALLA ○ baja a 0 en vez de salir de las capas, así no se
+    // vuelve a descargar al encenderla (la opacidad cambia el actor en sitio).
+    const vesselOpacity = viewMode === "slices3d"
+      ? (slices3dMeshVisible ? SLICES3D_MESH_OPACITY : 0)
+      : vesselDim ? 0.45 : 1;
+    const out: MeshLayer[] = [{ url: displayMeshUrl, color: VESSEL_COLOR, opacity: vesselOpacity }];
     // En Morfometría se marcan el cuello y el ápice PINCHANDO la superficie, y
     // una mancha opaca encima tapa justo el sitio donde hay que pinchar. Así
     // que ahí el resalte se vuelve translúcido: sigue diciendo dónde está, y
@@ -772,7 +790,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: scissorsPreview, color: DOOMED_COLOR, opacity: 1, id: "tijera" });
     }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix]);
+  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
+
+  // Los tres cortes de Cortes 3D sobre el volumen del cliente, con la ventana
+  // de los cortes. Sin volumen en el cliente (sin WebGL2 o aún cargando) no
+  // hay cortes que dibujar: el modo exige WebGL2, como el oblicuo.
+  const slicePlanesProp = useMemo<SlicePlanesProp | null>(() => {
+    if (viewMode !== "slices3d" || !meta || !clientVol.image) return null;
+    return {
+      specs: slicePlaneSpecs(mprVoxel, meta), image: clientVol.image,
+      wc: mprWl?.wc ?? meta.wc, ww: mprWl?.ww ?? meta.ww,
+    };
+  }, [viewMode, meta, clientVol.image, mprVoxel, mprWl]);
 
   const showPlanes = !planesHidden && !decorHidden && !!meta;
   // El plano libre se enseña donde significa algo: en la vista Oblicuo, que lo
@@ -1053,7 +1082,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   // Sin malla, la escena ES el corte axial: el principal enseña cortes aunque
   // su celda se llame «scene».
-  const sceneIsSlice = viewMode === "default" && !meshVisible && !!sessionId && !!meta;
+  const sceneIsSlice = meshScene && !meshVisible && !!sessionId && !!meta;
   const mainIsSlice = viewerLayout.main === "axial" || viewerLayout.main === "coronal"
     || viewerLayout.main === "sagital" || (viewerLayout.main === "scene" && sceneIsSlice);
 
@@ -1062,7 +1091,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // .hud-hint dura lo mismo). El texto depende de si el principal es girable
   // (3D o VOLUMEN) o un corte; en cualquier otro caso (oblicuo, sin sesión) no
   // hay nada que enseñar. «?» la vuelve a mostrar.
-  const mainRotatable = viewerLayout.main === "scene" && viewMode === "default" && meshVisible;
+  const mainRotatable = viewerLayout.main === "scene" && sceneHasMesh;
   const hintKind: HintKind | null = viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
   const [hint, setHint] = useState<string | null>(null);
   // La animación de desvanecido corre una vez, al montar el div: reaparecer con
@@ -1184,7 +1213,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // `compact` es el tamaño de la celda; `isMain`, si es la principal: una
     // principal estrecha va compacta pero sigue siendo la activa.
     const { compact, isMain } = ctx;
-    const isMesh = viewMode === "default" && meshVisible;
+    const isMesh = sceneHasMesh;
     // Dispositivos y bandas de perforantes comparten esquina: en el paso de
     // dispositivos pueden verse las dos cosas a la vez. Las bandas salen de
     // los radios del resultado, no de constantes de aquí.
@@ -1228,11 +1257,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices"}
             handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
-            onLayerLoaded={onLayerLoaded}
+            onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
         </Suspense>
       );
-      mode = segPreview ? "3D · MALLA GRUESA" : "3D";
+      mode = viewMode === "slices3d"
+        ? (clientVol.image ? "CORTES 3D" : hasWebGL2() ? "CORTES 3D · CARGANDO VOLUMEN" : "CORTES 3D · SIN WEBGL2")
+        : segPreview ? "3D · MALLA GRUESA" : "3D";
     } else if (sceneIsSlice) {
       body = renderPane("axial", ctx, "scene");
     } else {
@@ -1251,7 +1282,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       tl.push(`${candidate.id} · Ø ${candidate.max_diameter_mm.toFixed(1)} mm`);
     }
     if (previewActive && previewBand) tl.push(`VISTA PREVIA · CAPTURA [${Math.round(previewBand[0])}, ${Math.round(previewBand[1])}]`);
-    if (viewMode === "default" && segPreview) tl.push("PULSA «SEGMENTAR» PARA LA MALLA FINAL");
+    if (meshScene && segPreview) tl.push("PULSA «SEGMENTAR» PARA LA MALLA FINAL");
     if (isMesh && gizmoOn && selectedClip) tl.push(gizmoReadout(selectedClip));
 
     // Leyendas de la escena 3D: cada línea lleva la muestra del color con que
@@ -1316,9 +1347,22 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
         {!compact && sessionId && meta && !pickMode && (
           <div style={{ position: "absolute", top: togglesTop, left: 14, zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
-            <HudToggleGroup
-              options={[{ key: "default", label: meshVisible ? "3D" : "MPR" }, { key: "oblique", label: "Oblicuo" }]}
-              value={viewMode} onChange={(k) => setViewMode(k as typeof viewMode)} />
+            {/* Cortes 3D solo con malla: sin ella la escena es el corte axial
+                y no hay escena en la que colocar los cortes. */}
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <HudToggleGroup
+                options={[
+                  { key: "default", label: meshVisible ? "3D" : "MPR" },
+                  ...(meshVisible ? [{ key: "slices3d", label: "Cortes 3D", title: "Los tres cortes en su posición dentro de la escena" }] : []),
+                  { key: "oblique", label: "Oblicuo" },
+                ]}
+                value={viewMode === "slices3d" && !meshVisible ? "default" : viewMode} onChange={(k) => setViewMode(k as typeof viewMode)} />
+              {viewMode === "slices3d" && isMesh && (
+                <HudToggleGroup options={[{ key: "malla", label: slices3dMeshVisible ? "MALLA ●" : "MALLA ○",
+                                            title: slices3dMeshVisible ? "Ocultar la malla para ver solo los cortes" : "Enseñar la malla translúcida" }]}
+                  value={slices3dMeshVisible ? "malla" : ""} onChange={() => setSlices3dMeshVisible(!slices3dMeshVisible)} />
+              )}
+            </div>
             {/* Vistas estándar + reencuadre. Sin esto, perder la orientación
                 rotando no tenía vuelta atrás. */}
             {isMesh && camera && (

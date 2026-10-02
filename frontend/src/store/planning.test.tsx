@@ -327,6 +327,13 @@ describe("plano libre, recorte y ventana por preajuste", () => {
     expect(result.current.freePlane).toEqual({ azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 });
     expect(result.current.volumeWindows).toEqual({});
   });
+  it("slices3dMeshVisible arranca en true y se reinicia", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.slices3dMeshVisible).toBe(true);
+    act(() => result.current.setSlices3dMeshVisible(false));
+    act(() => result.current.reset());
+    expect(result.current.slices3dMeshVisible).toBe(true);
+  });
 });
 
 describe("clips colocados", () => {

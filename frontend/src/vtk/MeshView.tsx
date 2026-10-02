@@ -10,6 +10,11 @@ import type { PlaneOutline } from "./planeOutlines";
 import { markerRadiusMm, RULER_BEAD_RATIO, RULER_TUBE_RATIO } from "./markerSize";
 
 import "@kitware/vtk.js/Rendering/Profiles/Geometry";
+// Los cortes de «Cortes 3D» usan el mapper de reslice, que registra este perfil.
+import "@kitware/vtk.js/Rendering/Profiles/Volume";
+import vtkImageResliceMapper from "@kitware/vtk.js/Rendering/Core/ImageResliceMapper";
+import vtkImageSlice from "@kitware/vtk.js/Rendering/Core/ImageSlice";
+import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
@@ -31,6 +36,7 @@ import { IDENTITY } from "./clipPose";
 import { matrixAfterSwap, shouldApplyMatrix, toColumnMajor } from "./layerMatrix";
 import { chooseHandle, nextDrag, type DragEvent, type DragState } from "./handleDrag";
 import { cameraLike, type CameraLike, type Viewport } from "./dragController";
+import type { SlicePlaneSpec } from "./slicePlanes";
 
 /** Un asa que se puede agarrar con el ratón (el clip, sus planos). Se dibuja en
  *  la capa superior, encima de la malla, porque el asa suele quedar dentro del
@@ -59,6 +65,21 @@ export interface HandleDragEvent {
 }
 
 const NO_HANDLES: Handle[] = [];
+
+/** Los tres cortes de índice en gris dentro de la escena (modo «Cortes 3D»):
+ *  dónde va cada uno, el volumen que remuestrean y la ventana de los cortes. */
+export interface SlicePlanesProp {
+  specs: SlicePlaneSpec[];
+  image: vtkImageData;
+  wc: number;
+  ww: number;
+}
+
+interface SliceActor {
+  plane: ReturnType<typeof vtkPlane.newInstance>;
+  mapper: ReturnType<typeof vtkImageResliceMapper.newInstance>;
+  actor: ReturnType<typeof vtkImageSlice.newInstance>;
+}
 
 export interface MeshLayer {
   url: string;
@@ -194,6 +215,7 @@ export function MeshView({
   onHandleDrag,
   onHandleDoubleClick,
   onLayerLoaded,
+  slicePlanes = null,
 }: {
   layers: MeshLayer[];
   markers?: MeshMarker[];
@@ -256,6 +278,9 @@ export function MeshView({
    *  El visor lo usa para saber cuándo están en pantalla los colores nuevos
    *  del mapa de calor, que llegan después de la respuesta del campo. */
   onLayerLoaded?: (id: string, url: string) => void;
+  /** Modo «Cortes 3D»: los tres cortes de índice remuestreados en gris en su
+   *  posición real. null = escena normal, sin cortes. */
+  slicePlanes?: SlicePlanesProp | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handles = useRef<Handles | null>(null);
@@ -263,6 +288,8 @@ export function MeshView({
   const [sceneDiagonal, setSceneDiagonal] = useState(0);
   const markerActors = useRef<vtkActor[]>([]);
   const planeActors = useRef<vtkActor[]>([]);
+  // Los tres cortes del modo «Cortes 3D», con el volumen para el que se crearon.
+  const sliceActors = useRef<{ image: vtkImageData; items: SliceActor[] } | null>(null);
   // Actors that carry a layer id, so the rehearsal can move them by name.
   const namedActors = useRef<Map<string, vtkActor>>(new Map());
   // El contorno de cada capa que lo pide, por id (o URL), para que siga los
@@ -707,6 +734,11 @@ export function MeshView({
       outlineActors.current.clear();
       markerActors.current = [];
       planeActors.current = [];
+      const sl = sliceActors.current;
+      if (sl) {
+        for (const it of sl.items) { renderer.removeActor(it.actor); it.actor.delete(); it.mapper.delete(); }
+        sliceActors.current = null;
+      }
       // Las asas se van con la capa superior que se borra aquí; el efecto de las
       // asas las vuelve a poner en la capa nueva.
       handleActors.current = [];
@@ -933,6 +965,82 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, focusKey]);
+
+  // ── Cortes 3D: los tres cortes de índice en gris en su posición real ──── #
+  //
+  // El patrón de la cara del corte de VOLUMEN (MipView): un mapper de reslice
+  // por plano sobre el MISMO vtkImageData de los cortes, así que la textura 3D
+  // del volumen se sube una vez y la comparten los tres. Van en el renderer
+  // principal, con prueba de profundidad: la malla translúcida se ve encima y
+  // detrás de ellos en su sitio, y los contornos y asas siguen en su capa.
+  // Mover el punto compartido solo mueve el origen de cada plano: nada se crea.
+  const sliceSpecKey = slicePlanes
+    ? slicePlanes.specs.map((p) => `${p.plane}|${p.normal.join(",")}|${p.originMm.join(",")}`).join(";")
+    : "";
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    const drop = () => {
+      const sl = sliceActors.current;
+      if (!sl) return;
+      for (const it of sl.items) { h.renderer.removeActor(it.actor); it.actor.delete(); it.mapper.delete(); }
+      sliceActors.current = null;
+    };
+    if (!slicePlanes) {
+      if (sliceActors.current) { drop(); h.renderWindow.render(); }
+      return;
+    }
+    // Otro volumen (otra serie, otro nivel de detalle): se rehacen sobre él.
+    if (sliceActors.current && sliceActors.current.image !== slicePlanes.image) drop();
+    if (!sliceActors.current) {
+      const items = slicePlanes.specs.map((): SliceActor => {
+        const plane = vtkPlane.newInstance();
+        const mapper = vtkImageResliceMapper.newInstance();
+        mapper.setInputData(slicePlanes.image);
+        mapper.setSlabThickness(0);
+        mapper.setSlicePlane(plane);
+        const actor = vtkImageSlice.newInstance();
+        actor.setMapper(mapper);
+        actor.getProperty().setInterpolationTypeToLinear();
+        // Fuera del picking (el clic en la malla y las asas no deben chocar
+        // con un corte) y del encuadre: AJUSTAR sigue encuadrando la malla.
+        actor.setPickable(false);
+        actor.setUseBounds(false);
+        h.renderer.addActor(actor);
+        return { plane, mapper, actor };
+      });
+      sliceActors.current = { image: slicePlanes.image, items };
+    }
+    const ww = Math.max(1, slicePlanes.ww);
+    sliceActors.current.items.forEach((it, i) => {
+      const spec = slicePlanes.specs[i];
+      if (!spec) return;
+      it.plane.setNormal(...spec.normal);
+      it.plane.setOrigin(...spec.originMm);
+      it.actor.getProperty().setColorWindow(ww);
+      it.actor.getProperty().setColorLevel(slicePlanes.wc);
+    });
+    // WHY: los cortes no cuentan para los límites, así que el recorte
+    // cercano/lejano de la cámara lo fijaría solo la malla, y un corte que
+    // sobresale de ella en profundidad se vería truncado al girar. Cada vez
+    // que la cámara cambia (también tras el reajuste del interactor) el
+    // recorte se ensancha a la caja del volumen. Converge: el segundo ajuste
+    // da el mismo rango y ya no modifica la cámara.
+    const box = slicePlanes.image.getBounds();
+    const widen = () => {
+      if (!sliceActors.current) return;
+      const v = h.renderer.computeVisiblePropBounds();
+      const b = isFinite(v[0]) && v[1] >= v[0]
+        ? [Math.min(v[0], box[0]), Math.max(v[1], box[1]), Math.min(v[2], box[2]), Math.max(v[3], box[3]), Math.min(v[4], box[4]), Math.max(v[5], box[5])]
+        : [...box];
+      h.renderer.resetCameraClippingRange(b as Bounds);
+    };
+    const sub = h.renderer.getActiveCamera().onModified(widen);
+    widen();
+    h.renderWindow.render();
+    return () => sub.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, slicePlanes?.image, sliceSpecKey, slicePlanes?.wc, slicePlanes?.ww]);
 
   // ── Matriz de usuario por capa: mover un actor sin recargar su malla ───── #
   //

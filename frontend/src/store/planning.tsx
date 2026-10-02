@@ -232,6 +232,9 @@ interface PlanningState {
   /** Si la cara del corte se dibuja rellena o se deja abierta. */
   cutFaceVisible: boolean;
   setCutFaceVisible: (v: boolean) => void;
+  /** Si la malla se ve (translúcida) en el modo «Cortes 3D» de la escena. */
+  slices3dMeshVisible: boolean;
+  setSlices3dMeshVisible: (v: boolean) => void;
   /** Ventana (nivel y anchura) elegida por preajuste; sin entrada, rige la del rango completo. */
   volumeWindows: Partial<Record<VolumePreset, { wc: number; ww: number }>>;
   /** null borra la entrada del preajuste y devuelve su ventana por defecto. */
@@ -440,6 +443,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const setFreePlane = (p: FreePlane) => setFreePlaneState(clampPlane(p));
   const [clipMode, setClipMode] = useState<"eje" | "libre">("eje");
   const [cutFaceVisible, setCutFaceVisible] = useState(true);
+  const [slices3dMeshVisible, setSlices3dMeshVisible] = useState(true);
   const [volumeWindows, setVolumeWindows] = useState<Partial<Record<VolumePreset, { wc: number; ww: number }>>>({});
   const setVolumeWindow = (k: VolumePreset, w: { wc: number; ww: number } | null) =>
     setVolumeWindows((m) => { const n = { ...m }; if (w) n[k] = w; else delete n[k]; return n; });
@@ -565,6 +569,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setFreePlaneState(DEFAULT_FREE_PLANE);
     setClipMode("eje");
     setCutFaceVisible(true);
+    // WHY: quitar la malla en Cortes 3D era una decisión sobre el estudio
+    // anterior; el nuevo abre con ella a la vista.
+    setSlices3dMeshVisible(true);
     setVolumeWindows({});
     resetDownstream();
   };
@@ -577,7 +584,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
-        freePlane, clipMode, cutFaceVisible, volumeWindows,
+        freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setMorphoInvalidatedNotice, clearMorphometry,
@@ -587,7 +594,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
-        setFreePlane, setClipMode, setCutFaceVisible, setVolumeWindow,
+        setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow,
         reset, resetDownstream,
       }}
     >

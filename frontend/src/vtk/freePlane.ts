@@ -28,13 +28,15 @@ export function normalOf(p: FreePlane): Vec3 {
   return norm([Math.sin(e) * Math.sin(a), Math.sin(e) * Math.cos(a), Math.cos(e)]);
 }
 
-/** Proyección de +z sobre el plano: un «arriba» fijo para que el oblicuo no gire
- *  solo al mover los ángulos. Con la normal paralela a z (elevación 0) esa
- *  proyección se anula, y ahí se usa +y, como el corte axial de índices. */
+/** Proyección de −y sobre el plano: un «arriba» fijo para que el oblicuo no gire
+ *  solo al mover los ángulos. Es continuo en todo el rango permitido (solo se
+ *  anula con la normal paralela a y, que |elevación| ≤ 89° excluye) y con
+ *  elevación 0 da −y, el mismo «arriba» del corte axial en pantalla. */
 export function upOf(p: FreePlane): Vec3 {
   const n = normalOf(p);
-  const ref: Vec3 = Math.abs(n[2]) > 1 - 1e-9 ? [0, 1, 0] : [0, 0, 1];
-  return norm(sub(ref, [n[0] * dot(ref, n), n[1] * dot(ref, n), n[2] * dot(ref, n)]));
+  const ref: Vec3 = [0, -1, 0];
+  const k = dot(ref, n);
+  return norm(sub(ref, [n[0] * k, n[1] * k, n[2] * k]));
 }
 
 export function rightOf(p: FreePlane): Vec3 { return norm(cross(upOf(p), normalOf(p))); }

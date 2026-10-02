@@ -6,7 +6,9 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
+from models.elapss import ElapssRequest, ElapssResult
 from models.phases import PhasesRequest, PhasesResult
+from services.elapss import compute_elapss
 from services.phases import compute_phases
 from services.sessions import read_state, session_exists, write_state
 
@@ -96,4 +98,34 @@ async def phases(req: PhasesRequest) -> PhasesResult:
         logger.info("PHASES recorded for %s — score=%d (%.1f%%)",
                     req.session_id, result.total_score, result.risk_5yr_pct)
 
+    return result
+
+
+@router.post(
+    "/elapss",
+    response_model=ElapssResult,
+    summary="ELAPSS: riesgo de crecimiento a 3 y 5 años",
+    description=(
+        "Backes et al., Neurology 2017. Seis factores: HSA previa, localización, "
+        "edad, población, tamaño y forma. Predice CRECIMIENTO, no rotura: orienta "
+        "cada cuánto repetir la imagen. Con `session_id` queda registrado y llega "
+        "al informe PDF, con los valores introducidos al lado de sus puntos."
+    ),
+)
+async def elapss(req: ElapssRequest) -> ElapssResult:
+    result = compute_elapss(req)
+    if req.session_id:
+        if not session_exists(req.session_id):
+            raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        write_state(req.session_id, "elapss.json", json.dumps({
+            "total_score": result.total_score, "score_band": result.score_band,
+            "growth_3yr_pct": result.growth_3yr_pct, "growth_5yr_pct": result.growth_5yr_pct,
+            "points": {
+                "earlier_sah": result.earlier_sah_pts, "location": result.location_pts,
+                "age": result.age_pts, "population": result.population_pts,
+                "size": result.size_pts, "shape": result.shape_pts,
+            },
+            "inputs": req.model_dump(exclude={"session_id"}),
+        }))
+        logger.info("ELAPSS recorded for %s — score=%d", req.session_id, result.total_score)
     return result

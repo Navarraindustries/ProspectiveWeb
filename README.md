@@ -2133,6 +2133,7 @@ and logout, which a stale cookie must never block.
 | `POST` | `/api/treatment-decision` | Heuristic CLIP vs ENDOVASCULAR scoring + the JSDB per-route risk on ruptured cases |
 | `DELETE` | `/api/treatment-decision/{sid}` | Drop the recommendation, its context and the PHASES score |
 | `POST` | `/api/phases` | PHASES 5-year rupture risk |
+| `POST` | `/api/elapss` | ELAPSS 3- and 5-year GROWTH risk (follow-up planning) |
 | `GET` `DELETE` | `/api/devices/{sid}` | What the plan has placed · remove one family (`kind=clips\|coils\|stent`) |
 | `GET` | `/api/clips` · `/api/coils` · `/api/stents` | Device catalogues |
 | `GET` | `/api/clips/recommendations/{sid}` | Ranked clip recommendations (legacy score) |
@@ -2224,6 +2225,18 @@ of leaving it in the state.
 | `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |
 | `POST` `GET` `DELETE` | `/api/ground-truth` · `/current` · `/{id}` | Confirm where the lesion is (or that there is none) · current one · retract |
 | `GET` | `/api/ground-truth/summary` · `/export` | How the detector ranks against what was confirmed · full export (admin) |
+
+**ELAPSS.** Next to PHASES in Morfometría: the 3- and 5-year risk of GROWTH
+(not rupture) of an unruptured aneurysm, for deciding how often to repeat the
+imaging (Backes et al., Neurology 2017). Points as reproduced by the external
+validation (J Stroke 2019) and the Stroke Manual, which agree item by item —
+including the counter-intuitive earlier-SAH item (yes 0, no 1). Size fills from
+the morphometry; irregular shape is never set automatically, the panel only
+hints when the undulation index is high. Recorded in the session it reaches the
+PDF report with each input next to its points, and the same caveat as PHASES:
+it discriminates poorly outside its derivation cohorts, and populations outside
+them (Latin America, for instance) were not studied. UIATS is not implemented:
+its 29 items need the published table, and no score is written from memory.
 
 **DICOM SEG.** The SR carries the measurements; the SEG carries the regions, so
 the hospital PACS, 3D Slicer or OsiriX/Horos paint them over the original series.

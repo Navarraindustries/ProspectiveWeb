@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  ElapssRequest, ElapssResult,
   DicomSegResult,
   AttachRequest, AttachResult, SessionIdentity,
   GlbExportResult,
@@ -373,6 +374,8 @@ export const api = {
   longitudinal: (sessionId: string) =>
     get<LongitudinalResult>(`/api/longitudinal/${sessionId}`),
   phases: (req: PhasesRequest) => post<PhasesResult>("/api/phases", req),
+  /** Riesgo de crecimiento a 3 y 5 años (no de rotura). */
+  elapss: (req: ElapssRequest) => post<ElapssResult>("/api/elapss", req),
   /** Drop the candidate domes and the morphometry derived from them (including a
       manually marked neck plane, which is otherwise reused by every later run). */
   clearDetection: (sessionId: string) =>

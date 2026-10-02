@@ -169,6 +169,8 @@ class ReportData:
     # PHASES 5-year rupture risk, as recorded by POST /api/phases (score,
     # per-factor points and the inputs it was computed from). {} when not run.
     phases: dict[str, Any] = field(default_factory=dict)
+    # ELAPSS, riesgo de crecimiento (POST /api/elapss). {} si no se calculó.
+    elapss: dict[str, Any] = field(default_factory=dict)
     #: Clips being made for this case. Empty for the common case, where the piece
     #: comes off a drawn size.
     manufacture: list[OrderEntry] = field(default_factory=list)
@@ -453,6 +455,16 @@ def build_report_data_from_session(
         except (ValueError, TypeError):
             logger.warning("Could not parse phases.json for session %s", session_id)
 
+    elapss: dict[str, Any] = {}
+    raw_elapss = _rs("elapss.json")
+    if raw_elapss:
+        try:
+            loaded = json.loads(raw_elapss)
+            if isinstance(loaded, dict):
+                elapss = loaded
+        except (ValueError, TypeError):
+            logger.warning("Could not parse elapss.json for session %s", session_id)
+
     return ReportData(
         patient      = patient,
         morphometrics= morpho,
@@ -465,6 +477,7 @@ def build_report_data_from_session(
         stent        = stent,
         clinical     = clinical,
         phases       = phases,
+        elapss       = elapss,
         trajectory   = trajectory,
         screenshot_png = screenshot_bytes,
         captures     = capturas,
@@ -705,6 +718,7 @@ class ReportGenerator:
         story += self._section_trajectory()
         story += self._section_risk()
         story += self._section_phases()
+        story += self._section_elapss()
         story += self._section_notes()
         story += self._section_footer()
         return story
@@ -1730,6 +1744,61 @@ class ReportGenerator:
             "de un centro en 2025 en la que PHASES, ELAPSS y UIATS no discriminaron "
             "fiablemente): es una referencia poblacional, no una predicción para "
             "este paciente.",
+            self._style_td_disclaimer,
+        ))
+        return elems
+
+    _ELAPSS_LOC = {"ica_aca_acom": "ACI / ACA / AComA", "mca": "ACM",
+                   "pcom_posterior": "AComP / circulación posterior"}
+    _ELAPSS_POP = {"other": "Norteamérica, China o Europa (salvo Finlandia)",
+                   "japan": "Japón", "finland": "Finlandia"}
+
+    def _section_elapss(self) -> list:
+        el = self._data.elapss
+        if not el:
+            return []
+        pts = el.get("points", {}) or {}
+        inp = el.get("inputs", {}) or {}
+        elems = [Paragraph("ELAPSS — riesgo de crecimiento a 3 y 5 años", self._style_h2)]
+        elems.append(Paragraph(
+            f"ELAPSS {el.get('total_score', 0)} (banda {el.get('score_band', '—')}) — "
+            f"crecimiento {float(el.get('growth_3yr_pct', 0.0)):.1f} % a 3 años · "
+            f"{float(el.get('growth_5yr_pct', 0.0)):.1f} % a 5 años",
+            self._style_body,
+        ))
+        elems.append(Spacer(1, 0.1*cm))
+        rows = [
+            ["Factor", "Valor introducido", "Pts"],
+            ["HSA previa (E)", "Sí" if inp.get("earlier_sah") else "No", f"+{pts.get('earlier_sah', 0)}"],
+            ["Localización (L)", self._ELAPSS_LOC.get(str(inp.get("location", "")), "—"), f"+{pts.get('location', 0)}"],
+            ["Edad (A)", f"{inp.get('age_years', '—')} años", f"+{pts.get('age', 0)}"],
+            ["Población (P)", self._ELAPSS_POP.get(str(inp.get("population", "")), "—"), f"+{pts.get('population', 0)}"],
+            ["Tamaño (S)", f"{float(inp.get('size_mm', 0.0)):.1f} mm", f"+{pts.get('size', 0)}"],
+            ["Forma (S)", "Irregular" if inp.get("irregular") else "Regular", f"+{pts.get('shape', 0)}"],
+        ]
+        tbl = Table(rows, colWidths=[5.5*cm, 8.4*cm, 4.0*cm])
+        ts = TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), self._BLUE_DARK),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("GRID",       (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN",      (2, 0), (2, -1), "CENTER"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ])
+        for i in range(1, len(rows)):
+            ts.add("BACKGROUND", (0, i), (-1, i), colors.white if i % 2 else self._GREY_LIGHT)
+        tbl.setStyle(ts)
+        elems.append(tbl)
+        elems.append(Spacer(1, 0.1*cm))
+        elems.append(Paragraph(
+            "(*) ELAPSS (Backes et al., <i>Neurology</i> 2017) estima el riesgo de "
+            "<b>crecimiento</b> de un aneurisma no roto, no el de rotura: orienta cada "
+            "cuánto repetir la imagen. Como PHASES, discrimina mal fuera de sus "
+            "cohortes de derivación: es una referencia poblacional, no una predicción "
+            "para este paciente.",
             self._style_td_disclaimer,
         ))
         return elems

@@ -11,11 +11,12 @@ import { Metric } from "../Metric";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { Tabs } from "../Tabs";
+import { ElapssCalculator } from "./ElapssCalculator";
 import { PhasesCalculator } from "./PhasesCalculator";
 import { LongitudinalChart } from "./LongitudinalChart";
 import { usePlanning } from "../../store/planning";
 
-const TABS = ["Métricas", "Índices", "PHASES", "Seguimiento"] as const;
+const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "Seguimiento"] as const;
 
 export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
@@ -293,6 +294,10 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             )}
             {tab === "PHASES" && (
               <PhasesCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} />
+            )}
+            {tab === "ELAPSS" && (
+              <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId}
+                                irregularHint={m.volume_valid && m.ui > 0.15} />
             )}
             {tab === "Seguimiento" && (
               <div>

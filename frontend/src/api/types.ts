@@ -1927,3 +1927,33 @@ export interface DicomSegResult {
   mesh_volumes_mm3: Record<string, number>;
   warnings: string[];
 }
+
+/* ── ELAPSS: riesgo de crecimiento (backend/services/elapss.py) ──────────────── */
+
+export type ElapssPopulation = "other" | "japan" | "finland";
+export type ElapssLocation = "ica_aca_acom" | "mca" | "pcom_posterior";
+
+export interface ElapssRequest {
+  session_id: string | null;
+  earlier_sah: boolean;
+  location: ElapssLocation;
+  age_years: number;
+  population: ElapssPopulation;
+  size_mm: number;
+  irregular: boolean;
+}
+
+export interface ElapssResult {
+  earlier_sah_pts: number;
+  location_pts: number;
+  age_pts: number;
+  population_pts: number;
+  size_pts: number;
+  shape_pts: number;
+  total_score: number;
+  score_band: string;
+  growth_3yr_pct: number;
+  growth_5yr_pct: number;
+  notes: string[];
+  sources: string[];
+}

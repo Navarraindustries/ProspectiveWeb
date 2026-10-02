@@ -1,12 +1,16 @@
 /** Lectura de esquina del MIP. En la celda de la franja va en una sola
     línea corta (la larga se cortaba y pisaba el icono del maniquí); el
     sentido y el umbral se leen al maximizar. En compuesto la primera línea
-    nombra el preajuste en lugar del umbral, que solo gobierna el MIP. */
+    nombra el preajuste en lugar del umbral, que solo gobierna el MIP. Con
+    recorte libre la línea del corte dice el desplazamiento del plano (o el
+    grosor de la lámina): el índice de un eje no describe un plano oblicuo. */
 export function mipReadoutLines(o: {
   mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number;
   slabMm: number; threshold: number; compact: boolean;
   render?: "mip" | "compuesto"; preset?: string;
+  clip?: "eje" | "libre"; offsetMm?: number;
 }): string[] {
+  if (o.clip === "libre" && o.compact) return [o.mode === "acumulado" ? `LIB ${signedMm(o.offsetMm ?? 0)}` : `LIB ±${o.slabMm}`];
   if (o.render === "compuesto") {
     if (o.compact) return [o.mode === "acumulado" ? `COMP ${o.index + 1}/${o.count}` : `COMP ±${o.slabMm}`];
     return [`COMPUESTO · ${(o.preset ?? "").toUpperCase()}`, cutLine(o)];
@@ -15,6 +19,14 @@ export function mipReadoutLines(o: {
   return [cutLine(o), `UMBRAL ${Math.round(o.threshold)}`];
 }
 
-function cutLine(o: { mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number; slabMm: number }): string {
+function cutLine(o: { mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number; slabMm: number; clip?: "eje" | "libre"; offsetMm?: number }): string {
+  if (o.clip === "libre") return o.mode === "acumulado" ? `LIBRE ${signedMm(o.offsetMm ?? 0)} mm` : `LIBRE ±${o.slabMm} mm`;
   return o.mode === "acumulado" ? `ACUMULADO ${o.reverse ? "DESDE" : "HASTA"} ${o.index + 1}/${o.count}` : `LÁMINA ±${o.slabMm} mm`;
+}
+
+/** Una décima con coma y signo explícito; el signo se decide sobre el valor
+ *  redondeado para no leer «−0,0». */
+function signedMm(v: number): string {
+  const r = Math.round(v * 10) / 10;
+  return `${r < 0 ? "−" : "+"}${Math.abs(r).toFixed(1).replace(".", ",")}`;
 }

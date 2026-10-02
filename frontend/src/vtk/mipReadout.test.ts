@@ -19,4 +19,8 @@ describe("mipReadoutLines", () => {
     expect(mipReadoutLines({ mode: "lamina", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: true, render: "compuesto", preset: "Hueso" }))
       .toEqual(["COMP ±8"]);
   });
+  it("en recorte libre la línea del corte dice el desplazamiento", () => {
+    expect(mipReadoutLines({ mode: "acumulado", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: false, clip: "libre", offsetMm: 3.25 })).toEqual(["LIBRE +3,3 mm", "UMBRAL 1470"]);
+    expect(mipReadoutLines({ mode: "lamina", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: true, clip: "libre", offsetMm: 0 })).toEqual(["LIB ±8"]);
+  });
 });

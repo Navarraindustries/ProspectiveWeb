@@ -14,13 +14,18 @@
    vista: la rueda avanza el corte compartido (y el MIP se ve construirse),
    Ctrl+rueda hace zoom, Shift+arrastrar o el botón central desplazan. Lo
    propio del MIP es que arrastrar lo gira (se entiende girándolo) y que elige
-   su eje de acumulación (AX · COR · SAG) sin depender de la vista principal. */
+   su eje de acumulación (AX · COR · SAG) sin depender de la vista principal.
+   RECORTE LIBRE cambia el eje por el plano libre compartido con la vista
+   Oblicuo: la rueda lo desplaza aquí y allí a la vez, y la cara del corte se
+   pinta en gris con la ventana de los cortes. */
 
 import { useEffect, useRef, useState } from "react";
 import "@kitware/vtk.js/Rendering/Profiles/Volume";
 import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
 import vtkVolume from "@kitware/vtk.js/Rendering/Core/Volume";
 import vtkVolumeMapper from "@kitware/vtk.js/Rendering/Core/VolumeMapper";
+import vtkImageResliceMapper from "@kitware/vtk.js/Rendering/Core/ImageResliceMapper";
+import vtkImageSlice from "@kitware/vtk.js/Rendering/Core/ImageSlice";
 import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
@@ -42,7 +47,9 @@ import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from ".
 import { mipReadoutLines } from "./mipReadout";
 import { presetToRange, VOLUME_PRESETS, type VolumePreset } from "./volumePresets";
 import { AXIS_OF, indexOf, wheelAction, withIndex } from "./mipGestures";
-import { planeCorners, toPixels, tracePolygon, traceVisible } from "./planeTrace";
+import { planeCorners, toPixels, tracePolygon, traceVisible, traceVisibleForNormal } from "./planeTrace";
+import { clampOffsetToBox, clipPolygon, normalOf, originOf, type FreePlane } from "./freePlane";
+import { wheelOffset } from "./obliqueGestures";
 
 type Vec3 = [number, number, number];
 
@@ -51,6 +58,15 @@ const PLANE_OPTIONS = [
   { key: "coronal", label: "COR", title: "Acumular en el eje coronal" },
   { key: "sagital", label: "SAG", title: "Acumular en el eje sagital" },
 ];
+
+const CLIP_OPTIONS = [
+  { key: "eje", label: "EJE", title: "Recortar por el eje elegido (AX · COR · SAG)" },
+  { key: "libre", label: "LIBRE", title: "Recortar por el plano libre de la vista Oblicuo" },
+];
+
+// Color de la traza del plano libre. Provisional: Task 6 añade PLANE_HEX.libre
+// y sustituye este literal.
+const FREE_PLANE_HEX = "#c77dff";
 
 const RENDER_OPTIONS = [
   { key: "mip", label: "MIP", title: "Proyección de máxima intensidad" },
@@ -86,12 +102,29 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   const {
     mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
     volumeMode, setVolumeMode, volumePreset, setVolumePreset,
+    clipMode, setClipMode, cutFaceVisible, setCutFaceVisible, freePlane, setFreePlane, mprWl,
   } = usePlanning();
+  const libre = clipMode === "libre";
+  // Plano libre vigente para la rueda, que vive fuera del ciclo de React: se
+  // adelanta al render en cada paso para que dos eventos seguidos acumulen en
+  // vez de partir los dos del mismo plano (como en ObliqueView).
+  const freeRef = useRef<FreePlane>(freePlane);
+  freeRef.current = freePlane;
+  /** Todo cambio del plano libre desde esta vista se acota a la caja, como en
+   *  Oblicuo: un desplazamiento fuera no cortaría nada. */
+  const commitFree = (p: FreePlane) => {
+    const next = clampOffsetToBox(p, mprVoxel, meta);
+    freeRef.current = next;
+    setFreePlane(next);
+  };
   // Por ref: cambiar de destinatario no puede rehacer la escena.
   const registerCaptureRef = useRef(registerCapture);
   registerCaptureRef.current = registerCapture;
   const ref = useRef<HTMLDivElement>(null);
   const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkVolumeMapper; actor: vtkVolume } | null>(null);
+  // Cara del corte en recorte libre: se crea la primera vez que hace falta y se
+  // reutiliza (quitada del renderer) al apagarla; muere con la escena.
+  const face = useRef<{ mapper: vtkImageResliceMapper; actor: vtkImageSlice; plane: vtkPlane } | null>(null);
   const [heading, setHeading] = useState<ReturnType<typeof cameraHeading> | null>(null);
   const [reverse, setReverse] = useState(false);
   // Contornos del corte actual sobre el MIP, un atributo `points` por plano
@@ -167,7 +200,12 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     grw.getRenderWindow().render();
     computeTraceRef.current();
     registerCaptureRef.current?.(captureRenderWindow(grw, () => grw.getRenderWindow().render()));
-    return () => { registerCaptureRef.current?.(null); sub.unsubscribe(); inset.dispose(); insetRef.current = null; ro.disconnect(); scene.current = null; grw.delete(); };
+    return () => {
+      registerCaptureRef.current?.(null); sub.unsubscribe(); inset.dispose(); insetRef.current = null; ro.disconnect(); scene.current = null;
+      const f = face.current; face.current = null;
+      if (f) { renderer.removeActor(f.actor); f.actor.delete(); f.mapper.delete(); f.plane.delete(); }
+      grw.delete();
+    };
   }, [image]);
 
   // Al cambiar de eje solo se mueve la cámara (y, abajo, los planos de
@@ -199,6 +237,12 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
       if (cam.getParallelProjection()) cam.setParallelScale(cam.getParallelScale() / a.factor);
       else { cam.dolly(a.factor); renderer.resetCameraClippingRange(); }
       s.grw.getRenderWindow().render();
+      return;
+    }
+    // En LIBRE la rueda desplaza el plano libre un corte (el espaciado más
+    // fino), el mismo paso que en Oblicuo, en vez de mover el índice del eje.
+    if (libre) {
+      if (e.deltaY !== 0) commitFree(wheelOffset(freeRef.current, e.deltaY, Math.min(...meta.spacing)));
       return;
     }
     if (a.kind === "slice" && a.next !== index) setMprVoxel(withIndex(plane, mprVoxel, a.next));
@@ -266,10 +310,27 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   }, [lo, rlo, rhi, image, volumeMode, volumePreset]);
 
   // Planos de recorte: es lo que hace que el MIP «avance» con el corte.
-  // vtk conserva el semiespacio (p − origen)·normal ≥ 0.
+  // vtk conserva el semiespacio (p − origen)·normal ≥ 0. En LIBRE la misma
+  // regla con la normal del plano libre y su origen (crosshair + offset).
   useEffect(() => {
     const s = scene.current; if (!s) return;
     s.mapper.removeAllClippingPlanes();
+    if (libre) {
+      const nl = normalOf(freePlane), ol = originOf(freePlane, mprVoxel, meta);
+      const at = (k: number): Vec3 => [ol[0] + nl[0] * k, ol[1] + nl[1] * k, ol[2] + nl[2] * k];
+      if (mipMode === "acumulado") {
+        // Normal −n: queda lo que está detrás del plano; «desde el final», delante.
+        const sg = reverse ? 1 : -1;
+        const pl = vtkPlane.newInstance(); pl.setOrigin(...ol); pl.setNormal(nl[0] * sg, nl[1] * sg, nl[2] * sg);
+        s.mapper.addClippingPlane(pl);
+      } else {
+        const a = vtkPlane.newInstance(); a.setOrigin(...at(-mipSlabMm)); a.setNormal(...nl);
+        const b = vtkPlane.newInstance(); b.setOrigin(...at(mipSlabMm)); b.setNormal(-nl[0], -nl[1], -nl[2]);
+        s.mapper.addClippingPlane(a); s.mapper.addClippingPlane(b);
+      }
+      s.grw.getRenderWindow().render();
+      return;
+    }
     const n = (sign: 1 | -1): Vec3 => { const v: Vec3 = [0, 0, 0]; v[axis] = sign; return v; };
     const o = (mm: number): Vec3 => { const v: Vec3 = [0, 0, 0]; v[axis] = mm; return v; };
     if (mipMode === "acumulado") {
@@ -282,7 +343,40 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
       s.mapper.addClippingPlane(a); s.mapper.addClippingPlane(b);
     }
     s.grw.getRenderWindow().render();
-  }, [axis, posMm, mipMode, mipSlabMm, reverse, image]);
+  }, [axis, posMm, mipMode, mipSlabMm, reverse, image, libre, freePlane, mprVoxel]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cara del corte: el plano libre remuestreado en gris con la ventana de los
+  // cortes. WHY: la geometría opaca se dibuja antes que el volumen, así que la
+  // cara se ve donde el tejido es transparente y los vasos por delante la tapan.
+  useEffect(() => {
+    const s = scene.current; if (!s) return;
+    const renderer = s.grw.getRenderer();
+    if (!(libre && cutFaceVisible)) {
+      if (face.current) { renderer.removeActor(face.current.actor); s.grw.getRenderWindow().render(); }
+      return;
+    }
+    if (!face.current) {
+      const plane = vtkPlane.newInstance();
+      const mapper = vtkImageResliceMapper.newInstance();
+      mapper.setInputData(image);
+      mapper.setSlabThickness(0);
+      mapper.setSlicePlane(plane);
+      const actor = vtkImageSlice.newInstance();
+      actor.setMapper(mapper);
+      actor.getProperty().setInterpolationTypeToLinear();
+      // Fuera del encuadre (CENTRAR encuadra el volumen) y del picking.
+      actor.setPickable(false);
+      actor.setUseBounds(false);
+      face.current = { mapper, actor, plane };
+    }
+    const f = face.current;
+    f.plane.setNormal(...normalOf(freePlane));
+    f.plane.setOrigin(...originOf(freePlane, mprVoxel, meta));
+    f.actor.getProperty().setColorWindow(Math.max(1, mprWl?.ww ?? meta.ww));
+    f.actor.getProperty().setColorLevel(mprWl?.wc ?? meta.wc);
+    if (!renderer.getActors().includes(f.actor)) renderer.addActor(f.actor);
+    s.grw.getRenderWindow().render();
+  }, [libre, cutFaceVisible, freePlane, mprVoxel, image, mprWl]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Proyecta con la cámara del MIP las esquinas del volumen en el plano (o los
   // dos planos de la lámina). Son 4 u 8 proyecciones: barato para cada evento
@@ -293,7 +387,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     if (!s || !el) { setTrace(null); return; }
     const ren = s.grw.getRenderer();
     const cam = ren.getActiveCamera();
-    if (!traceVisible(cam.getDirectionOfProjection() as Vec3, axis)) { setTrace(null); return; }
+    const dop = cam.getDirectionOfProjection() as Vec3;
+    if (libre ? !traceVisibleForNormal(dop, normalOf(freePlane)) : !traceVisible(dop, axis)) { setTrace(null); return; }
     const { width, height } = el.getBoundingClientRect();
     if (width < 1 || height < 1) { setTrace(null); return; }
     const aspect = width / height;
@@ -302,14 +397,28 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
       const d = ren.worldToNormalizedDisplay(p[0], p[1], p[2], aspect);
       return toPixels([d[0], d[1]], width, height);
     };
-    const planes = mipMode === "acumulado" ? [posMm] : [posMm - mipSlabMm, posMm + mipSlabMm];
-    const next = planes.map((mm) => tracePolygon(planeCorners(bounds, axis, mm).map(toPx))).join("|");
+    let next: string;
+    if (libre) {
+      // El polígono plano–caja (o los dos de la lámina, desplazados ±slab por
+      // la normal); uno que cae fuera de la caja no se dibuja.
+      const offs = mipMode === "acumulado" ? [0] : [-mipSlabMm, mipSlabMm];
+      next = offs.map((k) => clipPolygon({ ...freePlane, offsetMm: freePlane.offsetMm + k }, mprVoxel, meta))
+        .filter((poly) => poly.length >= 3).map((poly) => tracePolygon(poly.map(toPx))).join("|");
+      if (!next) { setTrace(null); return; }
+    } else {
+      const planes = mipMode === "acumulado" ? [posMm] : [posMm - mipSlabMm, posMm + mipSlabMm];
+      next = planes.map((mm) => tracePolygon(planeCorners(bounds, axis, mm).map(toPx))).join("|");
+    }
     // Evita renders de React cuando la cámara se mueve sin cambiar la traza.
     setTrace((prev) => (prev === next ? prev : next));
   };
-  useEffect(() => { computeTraceRef.current(); }, [posMm, axis, mipMode, mipSlabMm, image]);
+  useEffect(() => { computeTraceRef.current(); }, [posMm, axis, mipMode, mipSlabMm, image, libre, freePlane, mprVoxel]);
 
-  const fit = () => { const s = scene.current; if (!s) return; s.grw.getRenderer().resetCamera(); s.grw.getRenderWindow().render(); };
+  // En LIBRE, CENTRAR además devuelve el plano al crosshair (offset 0).
+  const fit = () => {
+    if (libre) commitFree({ ...freeRef.current, offsetMm: 0 });
+    const s = scene.current; if (!s) return; s.grw.getRenderer().resetCamera(); s.grw.getRenderWindow().render();
+  };
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", background: "#000" }}>
@@ -328,7 +437,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           // plano (PLANE_HEX) al 60 %, sin capturar el ratón, y oculta con
           // REGLAS ○ como el resto de líneas.
           <svg className="hud-decor" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-            {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={PLANE_HEX[plane]} strokeOpacity={0.6} strokeWidth={1} />)}
+            {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={libre ? FREE_PLANE_HEX : PLANE_HEX[plane]} strokeOpacity={0.6} strokeWidth={1} />)}
           </svg>
         )}
         <HudLadder count={count} index={index} />
@@ -345,12 +454,25 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             de la izquierda en ventanas de 1280 px. MIP · COMPUESTO va a su
             lado: es la otra pregunta de «cómo se ve» este volumen. */}
         {!compact && (
-          <div style={{ position: "absolute", top: 52, left: 14, display: "flex", gap: 14, alignItems: "center", pointerEvents: "auto" }}>
-            <HudToggleGroup options={PLANE_OPTIONS} value={plane} onChange={(k) => onPlaneChange(k as Plane)} />
+          // Con RECORTE y CARA la fila no cabe en una celda principal de
+          // ~530 px: los grupos saltan enteros a otra línea (sin partir sus
+          // botones) y el ancho máximo deja libre la escalera de cortes.
+          <div style={{ position: "absolute", top: 52, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
+            {/* En LIBRE el eje solo orienta la cámara: se atenúa sin apagarse. */}
+            <HudToggleGroup options={PLANE_OPTIONS} value={plane} onChange={(k) => onPlaneChange(k as Plane)} style={libre ? { opacity: 0.45 } : undefined} />
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ color: "var(--hud-dim)", fontSize: 11, letterSpacing: ".08em", whiteSpace: "nowrap" }}>RECORTE ▸</span>
+              <HudToggleGroup options={CLIP_OPTIONS} value={clipMode} onChange={(k) => setClipMode(k as "eje" | "libre")} />
+            </div>
+            {libre && (
+              <HudToggleGroup options={[{ key: "cara", label: cutFaceVisible ? "CARA ●" : "CARA ○",
+                                          title: cutFaceVisible ? "Ocultar el corte en gris sobre la cara" : "Pintar el corte en gris sobre la cara" }]}
+                value={cutFaceVisible ? "cara" : ""} onChange={() => setCutFaceVisible(!cutFaceVisible)} />
+            )}
             <HudToggleGroup options={RENDER_OPTIONS} value={volumeMode} onChange={(k) => setVolumeMode(k as "mip" | "compuesto")} />
           </div>
         )}
-        <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact, render: volumeMode, preset: volumePreset })} />
+        <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact, render: volumeMode, preset: volumePreset, clip: clipMode, offsetMm: freePlane.offsetMm })} />
         {!compact && volumeMode === "compuesto" && (
           // Encima de la lectura de la izquierda y una fila por encima de la de
           // abajo a la derecha (bottom: 58): a la misma altura, en paneles

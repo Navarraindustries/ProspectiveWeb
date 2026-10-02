@@ -17,9 +17,16 @@ export function planeCorners(bounds: number[], axis: 0 | 1 | 2, posMm: number): 
 /** De canto el rectángulo degenera en una línea que no informa: se oculta
  *  cuando la dirección de la cámara y el plano forman menos de EDGE_ON_DEG. */
 export function traceVisible(cameraDirection: [number, number, number], axis: 0 | 1 | 2): boolean {
-  const n = Math.hypot(...cameraDirection) || 1;
-  const cos = Math.abs(cameraDirection[axis]) / n;      // |dir·normal|, normal = eje
-  return cos >= Math.sin((EDGE_ON_DEG * Math.PI) / 180);
+  const n: [number, number, number] = [0, 0, 0]; n[axis] = 1;
+  return traceVisibleForNormal(cameraDirection, n);
+}
+
+/** La misma regla para un plano de normal cualquiera (el plano libre):
+ *  |cos| entre la dirección y la normal es el seno del ángulo cámara–plano. */
+export function traceVisibleForNormal(cameraDirection: [number, number, number], normal: [number, number, number]): boolean {
+  const ld = Math.hypot(...cameraDirection) || 1, ln = Math.hypot(...normal) || 1;
+  const cos = Math.abs(cameraDirection[0] * normal[0] + cameraDirection[1] * normal[1] + cameraDirection[2] * normal[2]) / (ld * ln);
+  return cos > Math.sin((EDGE_ON_DEG * Math.PI) / 180);
 }
 
 /** vtk da el display normalizado con y hacia arriba; SVG, píxeles con y hacia abajo. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planeCorners, toPixels, traceVisible, tracePolygon } from "./planeTrace";
+import { planeCorners, toPixels, traceVisible, traceVisibleForNormal, tracePolygon } from "./planeTrace";
 
 describe("planeCorners", () => {
   it("devuelve el rectángulo del volumen en el plano z = pos", () => {
@@ -27,5 +27,13 @@ describe("toPixels y tracePolygon", () => {
   });
   it("escribe los puntos para el polígono SVG", () => {
     expect(tracePolygon([{ x: 1, y: 2 }, { x: 3.456, y: 4 }])).toBe("1,2 3.5,4");
+  });
+});
+
+describe("traceVisibleForNormal", () => {
+  it("traceVisibleForNormal oculta la traza cuando la cámara mira de canto al plano", () => {
+    expect(traceVisibleForNormal([0, 0, 1], [0, 0, 1])).toBe(true);
+    expect(traceVisibleForNormal([1, 0, 0], [0, 0, 1])).toBe(false);
+    expect(traceVisibleForNormal([Math.sin(4 * Math.PI / 180), 0, Math.cos(4 * Math.PI / 180)], [1, 0, 0])).toBe(false);
   });
 });

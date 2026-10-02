@@ -250,6 +250,22 @@ def read_state(session_id: str, key: str, default: str = "") -> str:
     return default
 
 
+def listed_candidates(session_id: str) -> int:
+    """Cuántos `cand-00N` dio la última detección: aceptados + descartados.
+
+    Los descartados por un veto llevan ids a continuación de los aceptados y
+    tienen malla, así que se pueden elegir y medir igual. Quien valide un id
+    contra `detect.n_candidates` solo dejaría fuera justo a esos.
+    """
+    total = 0
+    for key in ("detect.n_candidates", "detect.n_rejected"):
+        try:
+            total += int(read_state(session_id, key, "0") or 0)
+        except ValueError:
+            pass
+    return total
+
+
 def measured_candidate_vtp_name(session_id: str) -> str:
     """Malla del candidato cuyas medidas lleva la sesión.
 
@@ -262,10 +278,7 @@ def measured_candidate_vtp_name(session_id: str) -> str:
     """
     import re
     m = re.fullmatch(r"cand-(\d{3})", read_state(session_id, "detect.selected_candidate", ""))
-    try:
-        n = int(read_state(session_id, "detect.n_candidates", "0") or 0)
-    except ValueError:
-        n = 0
+    n = listed_candidates(session_id)
     if m and 1 <= int(m.group(1)) <= n:
         return f"aneurysm_cand_{int(m.group(1)):03d}.vtp"
     return read_state(session_id, "detect.best_vtp_name", "")

@@ -28,6 +28,20 @@ class Position3D(BaseModel):
     z: float = Field(..., description="Z coordinate in mm (patient space)")
 
 
+class Veto(BaseModel):
+    """Por qué un sitio propuesto se apartó de la lista (`candidate_vetoes`).
+
+    Se devuelve el motivo en vez de borrar el sitio: el veto es geométrico y
+    puede equivocarse, así que el clínico tiene que poder ver lo descartado.
+    """
+
+    reason: Literal["borde", "isla", "bifurcacion", "forma"] = Field(
+        ..., description="Clave estable del motivo"
+    )
+    label: str = Field(..., description="Motivo legible («Recorte de la malla», …)")
+    detail: str = Field(..., description="Una frase con la cifra que lo decidió")
+
+
 class AneurysmCandidate(BaseModel):
     """One aneurysm candidate returned by the detection step."""
 
@@ -63,6 +77,17 @@ class AneurysmCandidate(BaseModel):
             "contra casos anotados y no debe leerse como un veredicto."
         ),
     )
+    rank: int = Field(
+        ...,
+        description=(
+            "Posición 1-based dentro de su lista: los aceptados 1..n en el "
+            "orden del consenso, los descartados 1..m en el suyo."
+        ),
+    )
+    veto: Veto | None = Field(
+        None,
+        description="None si el sitio se acepta; el motivo si se descartó.",
+    )
 
 
 class DetectionDiagnostics(BaseModel):
@@ -91,6 +116,13 @@ class DetectionDiagnostics(BaseModel):
     )
     min_radius_mm: float = Field(0.0, description="Lower bound of the size gate")
     max_radius_mm: float = Field(0.0, description="Upper bound of the size gate")
+    n_rejected: int = Field(
+        0, description="Sitios del consenso apartados por un veto (ver `rejected`)"
+    )
+    rejected_by_reason: dict[str, int] = Field(
+        default_factory=dict,
+        description="Cuántos descartados por cada motivo (`Veto.reason`)",
+    )
 
 
 class AneurysmDetectionResult(BaseModel):
@@ -104,6 +136,21 @@ class AneurysmDetectionResult(BaseModel):
     diagnostics: DetectionDiagnostics = Field(
         default_factory=DetectionDiagnostics,
         description="Region counts per rejection reason — explains an empty result",
+    )
+    rejected: list[AneurysmCandidate] = Field(
+        default_factory=list,
+        description=(
+            "Sitios que el consenso propuso y un veto apartó, cada uno con su "
+            "`veto`. Sus ids siguen a los de `candidates` (cand-00N "
+            "consecutivos) y su malla existe: GET /morphometry los mide igual."
+        ),
+    )
+    morphometry_invalidated: bool = Field(
+        False,
+        description=(
+            "True si esta detección borró la morfometría porque el candidato "
+            "medido ya no está en la lista o se movió más de 2 mm."
+        ),
     )
 
 

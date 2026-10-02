@@ -36,6 +36,7 @@ from .detection import (
     MorphometryResult,
     NeckPlaneRequest,
     Position3D,
+    Veto,
 )
 from .dicom import SeriesInfo, SpacingXYZ, UploadResult
 from .longitudinal import LongitudinalDelta, LongitudinalEntry, LongitudinalResult
@@ -74,7 +75,7 @@ __all__ = [
     "CoilConstructResult", "CoilConstructStep",
     "CoilLibraryItem", "CoilPlacement", "CoilPlanRequest", "CoilPlanResult",
     # detection
-    "AneurysmCandidate", "AneurysmDetectionResult", "DetectionDiagnostics", "MorphometryResult", "NeckPlaneRequest", "Position3D",
+    "AneurysmCandidate", "AneurysmDetectionResult", "DetectionDiagnostics", "MorphometryResult", "NeckPlaneRequest", "Position3D", "Veto",
     # dicom
     "SeriesInfo", "SpacingXYZ", "UploadResult",
     # longitudinal

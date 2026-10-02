@@ -1856,6 +1856,8 @@ export interface WebOption {
   target_height_mm: number;
   dav: number | null;
   label: string;
+  /** Por qué no cumple la regla al pie de la letra (vacío si la cumple). */
+  note: string;
 }
 
 export interface WebSizingResult {
@@ -1877,4 +1879,38 @@ export interface GlbExportResult {
   /** Objetos incluidos, en orden: «Vaso», «Saco», «Clip»… */
   parts: string[];
   size_kb: number;
+}
+
+/* ── Adjuntar una sesión a un caso (backend/routers/attach.py) ─────────────── */
+
+export interface PatientSuggestion {
+  surname: string;
+  given_name: string;
+  hospital_id: string;
+  dob: string;
+  sex: string;
+}
+
+export interface SessionIdentity {
+  /** Lo que propone la cabecera DICOM. Nunca se escribe solo. */
+  suggestion: PatientSuggestion;
+  study_date: string;
+  modality: string;
+  matches: { id: number; full_name: string; hospital_id: string; dob: string; reason: "hospital_id" | "name" }[];
+  attached: boolean;
+}
+
+export interface AttachRequest {
+  patient_id?: number;
+  new_patient?: PatientSuggestion;
+  case_id?: number;
+  new_case?: { dx_principal: string; study_date: string };
+}
+
+export interface AttachResult {
+  patient: PatientSummary;
+  case_id: number;
+  case_label: string;
+  imaging_study_id: number;
+  relinked_confirmations: number;
 }

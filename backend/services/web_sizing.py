@@ -67,6 +67,11 @@ CATALOGUE_SLS: tuple[tuple[float, float], ...] = (
 MIN_ADD_MM, MAX_ADD_MM = 1.0, 2.0
 #: Las alturas del catálogo van de milímetro en milímetro: medio de holgura.
 HEIGHT_TOL_MM = 0.5
+#: Lo mismo con la anchura: el catálogo va de milímetro en milímetro, así que
+#: «+1» no siempre existe. En el case 3 (7,2 × 4,7 mm) ninguna medida cumplía
+#: la regla estricta: el de 8 suma 0,8 y el de 9 obliga a una altura de 3 que
+#: no hay. Se admite hasta medio milímetro por debajo, y se dice.
+WIDTH_TOL_MM = 0.5
 #: Domo indicado por la FDA.
 DOME_RANGE_MM = (3.0, 10.0)
 #: Por debajo de esta fracción del volumen de un semielipsoide con las mismas
@@ -95,6 +100,7 @@ class WebOption:
     target_height_mm: float  # altura del aneurisma − lo sumado
     dav: float | None        # volumen envolvente del dispositivo / volumen del aneurisma
     label: str = ""
+    note: str = ""            # por qué esta opción no cumple la regla al pie de la letra
 
 
 @dataclass
@@ -147,7 +153,7 @@ def _candidates(shape: str, catalogue, W: float, H: float, volume: float) -> lis
     out = []
     for w, h in catalogue:
         add = w - W
-        if not (MIN_ADD_MM - 1e-6 <= add <= MAX_ADD_MM + 1e-6):
+        if not (MIN_ADD_MM - WIDTH_TOL_MM - 1e-6 <= add <= MAX_ADD_MM + 1e-6):
             continue
         target = H - add
         if h > target + HEIGHT_TOL_MM:      # más alto de lo que cabe: protruye
@@ -155,9 +161,12 @@ def _candidates(shape: str, catalogue, W: float, H: float, volume: float) -> lis
         out.append(WebOption(shape=shape, width_mm=float(w), height_mm=float(h),
                              added_mm=round(add, 2), target_height_mm=round(target, 2),
                              dav=_dav(shape, w, h, volume),
-                             label=f"WEB {shape} {w:g}" + (f"×{h:g}" if shape == "SL" else "")))
-    # Primero la altura que más se acerca a la buscada; luego lo menos sumado.
-    out.sort(key=lambda o: (abs(o.height_mm - o.target_height_mm), o.added_mm))
+                             label=f"WEB {shape} {w:g}" + (f"×{h:g}" if shape == "SL" else ""),
+                             note=(f"Solo {add:.1f} mm más ancho que el aneurisma: por debajo "
+                                   f"del +1 de la regla." if add < MIN_ADD_MM - 1e-6 else "")))
+    # Primero las que cumplen la regla entera; luego la altura que más se acerca
+    # a la buscada; luego lo menos sumado.
+    out.sort(key=lambda o: (bool(o.note), abs(o.height_mm - o.target_height_mm), o.added_mm))
     return out
 
 

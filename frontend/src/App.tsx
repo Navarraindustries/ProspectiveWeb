@@ -307,6 +307,10 @@ function Router() {
         Esta sesión tiene resultados que no se han guardado. Si sales ahora se
         perderán: usa <b style={{ color: "var(--foreground)" }}>Guardar progreso</b> en
         la barra superior para poder reanudarla después.
+        {!planning.imagingStudyId && (
+          <> Además no está adjunta a ningún caso: con <b style={{ color: "var(--foreground)" }}>Adjuntar
+          a un caso</b> queda ligada a un paciente y su DICOM archivado.</>
+        )}
       </ConfirmDialog>
       {toast && (
         <div

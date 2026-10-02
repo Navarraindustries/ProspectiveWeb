@@ -2237,6 +2237,22 @@ named `prospective-escena.glb`. Written without a new dependency
 (`services/glb_export.py`); a real scene (vessel, sac, clip; 1.3 MB) passes the
 Khronos glTF validator with no errors or warnings.
 
+**Attach to a case later («Adjuntar a un caso»).** A session can start with no
+patient: upload the DICOM and use the pipeline. While it has no archived study
+the top bar offers «Adjuntar a un caso», one sheet that picks an existing
+patient or creates one, then an existing case of that patient or a new one
+(just the reason). `POST /api/sessions/{sid}/attach` then archives the DICOM
+already in the session as an imaging study of that case (no re-upload), links
+the session, moves any lesion confirmation made before attaching onto the study,
+and logs `SESSION_ATTACHED` with the patient as a hash. If anything fails no
+half-created patient or case is left behind. The DICOM header only PROPOSES the
+patient (`GET /api/sessions/{sid}/identity`): nothing is written until the
+professional presses «Rellenar con la cabecera DICOM» and confirms, and a patient
+whose record number matches the header is selected instead of creating a
+duplicate (the server refuses a duplicate record number with 409). Captures
+already downloaded are not recovered; from then on they go to the case. Leaving
+an unattached session with unsaved work says so.
+
 **Captures and recordings.** «Captura» and «● Grabar», in the top bar, save what
 the *viewer* shows — every visible pane in place plus the HUD readouts
 (orientation, slice, measurements) — and never the screen: the top bar carries

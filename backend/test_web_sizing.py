@@ -129,3 +129,15 @@ def test_un_domo_lleno_si_da_dav():
     r = size_web(SacDims(6.0, 6.0, 6.0, 6.0, "sac"), neck_mm=4.5, volume_mm3=113.0)
     assert r.fill_ratio == pytest.approx(1.0, abs=0.01)
     assert r.options and all(o.dav is not None for o in r.options)
+
+
+def test_el_catalogo_va_de_milimetro_en_milimetro():
+    # Case 3 en el navegador: 7,2 × 4,7 mm y ninguna opción con la regla estricta.
+    r = size_web(SacDims(7.2, 8.4, 5.9, 4.7, "sac"), neck_mm=4.2, dnr=2.05)
+    assert r.options, r.warnings
+    o = r.options[0]
+    assert o.label == "WEB SL 8×4" and o.added_mm == pytest.approx(0.8)
+    assert "por debajo" in o.note
+    # Las que cumplen la regla entera van delante de las que no.
+    r2 = size_web(SacDims(6.0, 6.0, 6.0, 6.0, "sac"), neck_mm=4.5)
+    assert r2.options[0].note == ""

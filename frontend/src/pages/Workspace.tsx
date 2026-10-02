@@ -1,6 +1,8 @@
 /* Sesión de planificación — rail de flujo (7 pasos) · visor 3D + MPR · panel del paso. */
 
 import { useEffect, useState } from "react";
+import { AttachCaseSheet } from "../components/AttachCaseSheet";
+import type { AttachResult } from "../api/types";
 import { api } from "../api/client";
 import type { PatientSummary } from "../api/types";
 import { Badge, riskVariant } from "../components/Badge";
@@ -81,7 +83,7 @@ export function Workspace({
       // Sin estudio archivado la imagen se descarga y NO queda en el caso: se
       // dice, igual que con la grabación, para que nadie crea que está guardada.
       if (destino === "downloaded") {
-        setRecMessage({ tone: "err", text: "Captura descargada, pero no guardada en el caso: archiva el estudio para poder adjuntarle capturas." });
+        setRecMessage({ tone: "err", text: "Captura descargada, pero no guardada en el caso: usa «Adjuntar a un caso» para que las siguientes se guarden en él." });
       }
     } catch (e) {
       setShot("err");
@@ -94,6 +96,29 @@ export function Workspace({
   // A failed save used to reset the button to "Guardar progreso" with no notice,
   // so the user believed their work was stored when it was not.
   const [saveError, setSaveError] = useState<string | null>(null);
+  // «Adjuntar a un caso»: la sesión puede empezar sin paciente y ligarse después.
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attachNote, setAttachNote] = useState<string | null>(null);
+  const onAttached = async (r: AttachResult) => {
+    planning.setPatient(r.patient);
+    planning.setCase(r.case_id, r.case_label);
+    planning.setImagingStudyId(r.imaging_study_id);
+    // Guardar ya, con los ids recién creados: el estado de React aún no los
+    // tiene en este cierre, y sin guardar la galería no vería el progreso.
+    if (sessionId) {
+      try {
+        await api.saveSession({
+          session_id: sessionId, patient_id: r.patient.id, study_id: r.case_id,
+          imaging_study_id: r.imaging_study_id, current_step: stepIdx,
+          label: `${r.patient.full_name} · ${STEPS[stepIdx].label}`,
+        });
+        markSaved();
+      } catch { /* adjunto igualmente; «Guardar progreso» lo reintenta */ }
+    }
+    setAttachNote(`Adjunto a ${r.patient.full_name} · ${r.case_label}. El estudio está archivado`
+      + (r.relinked_confirmations ? " y la confirmación de lesión pasó al caso." : "."));
+    setTimeout(() => setAttachNote(null), 6000);
+  };
   const step = STEPS[stepIdx].key;
 
   const saveProgress = async () => {
@@ -227,6 +252,18 @@ export function Workspace({
             : shot === "err" ? "No se guardó" : "Captura"}
         </Button>
         <RecordButton step={step} onMessage={setRecMessage} />
+        {/* Sin estudio archivado: la sesión aún no es de nadie. */}
+        {sessionId && !imagingStudyId && (
+          <Button
+            size="sm"
+            onClick={() => setAttachOpen(true)}
+            leadingIcon={<Icon name="SAVE" />}
+            style={{ marginRight: 8 }}
+            title="Liga esta sesión a un paciente y un caso y archiva su DICOM"
+          >
+            Adjuntar a un caso
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -242,6 +279,15 @@ export function Workspace({
         </Button>
       </Topbar>
 
+      {sessionId && (
+        <AttachCaseSheet open={attachOpen} onClose={() => setAttachOpen(false)}
+                         sessionId={sessionId} onAttached={(r) => void onAttached(r)} />
+      )}
+      {attachNote && (
+        <div role="status" style={{ padding: "8px 16px", fontSize: 12.5, background: "var(--brand-subtle)", color: "var(--foreground)" }}>
+          {attachNote}
+        </div>
+      )}
       {saveError && (
         <div
           role="alert"

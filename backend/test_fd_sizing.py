@@ -191,3 +191,35 @@ def test_una_arteria_madre_de_la_version_anterior_pide_repetir_la_morfometria():
     j = client.post(f"/api/centerline/{sid}/fd-sizing").json()
     assert not any("vuelve a ejecutar" in w for w in j["warnings"])
     assert any("compruébala" in w for w in j["warnings"])
+
+
+def test_un_vaso_ovalado_se_mide():
+    # El basilar del case 3 antes del cuello: secciones 1,7–1,9 veces más largas
+    # que anchas. Con el filtro de la arteria madre (1,6) no salía calibre.
+    malla, linea = _vaso(2.0, 2.0)
+    estira = vtk.vtkTransform(); estira.Scale(1.35, 1.0 / 1.35, 1.0)   # 1,82 : 1, misma área
+    f = vtk.vtkTransformPolyDataFilter(); f.SetTransform(estira); f.SetInputData(malla); f.Update()
+    r = size_flow_diverter(f.GetOutput(), linea, (2.0, 0, 30.0), 4.0, LIB)
+    assert r.proximal.diameter_mm == pytest.approx(4.0, abs=0.15)
+    assert r.distal.diameter_mm == pytest.approx(4.0, abs=0.15)
+
+
+def test_calibre_de_un_tramo_sin_el_cuello():
+    from services.fd_sizing import segment_diameter
+    malla, linea = _vaso(2.0, 2.0, saco=3.0)
+    d, n = segment_diameter(malla, linea, 10.0, 50.0, exclude=(28.0, 32.0))
+    assert d == pytest.approx(4.0, abs=0.1) and n >= 3
+
+
+def test_el_stent_sobre_la_linea_central_mide_el_vaso_con_cortes():
+    # Antes salía de los radios de la extracción (esfera inscrita en vóxeles de
+    # 0,8 mm): en el case 3, 3,44 mm donde los cortes miden 3,9–4,4.
+    sid = TestEndpoint()._sesion()
+    m = session_subdir(sid, "meshes")
+    data = np.load(m / "centerline_points.npz")
+    np.savez(m / "centerline_points.npz", points=data["points"], radii=np.full(len(data["points"]), 1.6))
+    j = client.post(f"/api/cl-stent/{sid}", json={"session_id": sid, "stent_diameter_mm": 4.0,
+                                                  "start_arc_mm": 10, "end_arc_mm": 50}).json()
+    assert j["mean_vessel_diameter_mm"] == pytest.approx(4.0, abs=0.1)
+    assert j["coverage_ratio"] == pytest.approx(1.0, abs=0.05)
+    assert j["warning"] is None

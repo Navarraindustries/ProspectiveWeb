@@ -204,7 +204,7 @@ async def compute_cross_section(session_id: str, req: CrossSectionRequest) -> Cr
     )
 
 
-def _run_cl_stent(points_path, req: ClStentRequest, out_path):
+def _run_cl_stent(points_path, req: ClStentRequest, out_path, session_id: str | None = None):
     data = np.load(points_path)
     result = deploy_stent_on_centerline(
         data["points"], data["radii"],
@@ -215,7 +215,34 @@ def _run_cl_stent(points_path, req: ClStentRequest, out_path):
         braid_count=req.braid_count,
     )
     write_vtp(result.stent_poly_data, out_path)
+    if session_id:
+        _measure_vessel_like_sizing(session_id, data["points"], req, result, out_path.parent)
     return result
+
+
+def _measure_vessel_like_sizing(session_id, points, req, result, meshes_dir) -> None:
+    """Sustituye el calibre de los radios de la línea central por el de los
+    cortes, el mismo que da el dimensionado (services/fd_sizing.py). Si no hay
+    cortes suficientes, se queda el de los radios."""
+    from routers.plan import _load_float
+    from services.fd_sizing import _arc, project_on_centerline, segment_diameter
+    vessel = meshes_dir / "vessel_tree.vtp"
+    if not vessel.exists():
+        return
+    pts = np.asarray(points, float)
+    arc = _arc(pts)
+    s0 = req.start_arc_mm if req.start_arc_mm is not None else 0.0
+    s1 = req.end_arc_mm if req.end_arc_mm is not None else float(arc[-1])
+    exclude = None
+    neck = [_load_float(session_id, f"morpho.neck_origin_{k}", float("nan")) for k in "xyz"]
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    if not any(v != v for v in neck) and neck_mm > 0:
+        sn, _d = project_on_centerline(pts, arc, neck)
+        exclude = (sn - neck_mm / 2, sn + neck_mm / 2)
+    d, _n = segment_diameter(read_vtp(vessel), pts, s0, s1, exclude)
+    if d > 0:
+        result.mean_vessel_diameter_mm = d
+        result.coverage_ratio = req.stent_diameter_mm / d
 
 
 @router.post(
@@ -245,7 +272,7 @@ async def deploy_cl_stent(
 
     out_path = meshes_dir / "cl_stent.vtp"
     try:
-        result = await asyncio.to_thread(_run_cl_stent, points_path, req, out_path)
+        result = await asyncio.to_thread(_run_cl_stent, points_path, req, out_path, session_id)
         from services.device_state import save_stent
         save_stent(session_id, {
             "name": "Stent guiado por centerline",

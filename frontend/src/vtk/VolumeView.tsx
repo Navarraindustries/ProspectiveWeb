@@ -9,6 +9,7 @@
    ported in intent from rendering/transfer_functions.py — are expressed in the
    normalized 0–255 domain (band emphasis), not absolute HU. */
 
+import { followContainer } from "./followContainer";
 import { useEffect, useRef, useState } from "react";
 
 import "@kitware/vtk.js/Rendering/Profiles/Volume";
@@ -95,6 +96,7 @@ export function VolumeView({ sessionId, registerCapture }: {
     const renderWindow = fsrw.getRenderWindow();
     const interactor = fsrw.getInteractor();
     rwRef.current = renderWindow;
+    const stopFollowing = followContainer(container, fsrw);
     let cancelled = false;
 
     (async () => {
@@ -141,6 +143,7 @@ export function VolumeView({ sessionId, registerCapture }: {
 
     return () => {
       cancelled = true;
+      stopFollowing();
       registerCaptureRef.current?.(null);
       actorRef.current = null;
       rwRef.current = null;

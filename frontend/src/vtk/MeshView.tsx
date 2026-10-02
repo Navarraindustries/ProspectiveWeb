@@ -4,6 +4,7 @@
    on the black clinical surface. Optionally supports point picking on the mesh
    surface (for centreline endpoints) and small sphere markers. */
 
+import { followContainer } from "./followContainer";
 import { useEffect, useRef, useState } from "react";
 import { geometryKey, sceneKey } from "./sceneKeys";
 import { markerRadiusMm, RULER_BEAD_RATIO, RULER_TUBE_RATIO } from "./markerSize";
@@ -252,6 +253,7 @@ export function MeshView({
     const renderer = fsrw.getRenderer();
     const renderWindow = fsrw.getRenderWindow();
     handles.current = { fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map() };
+    const stopFollowing = followContainer(container, fsrw);
 
     // Dos luces que siguen la cámara: una principal y un relleno opuesto al 35 %.
     // Con la única luz de cabeza de vtk.js el lado en sombra del vaso era negro y
@@ -502,6 +504,7 @@ export function MeshView({
 
     return () => {
       cancelled = true;
+      stopFollowing();
       pickSub.unsubscribe();
       camSub.unsubscribe();
       inset.dispose();

@@ -71,12 +71,9 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
           ))}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
-            {r.options.length === 0 && (
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Ninguna medida del catálogo cumple la regla.</div>
-            )}
             {r.options.map((o) => (
               <div key={o.label} style={{
-                display: "flex", alignItems: "baseline", gap: 10, padding: "8px 10px",
+                display: "flex", alignItems: "baseline", gap: 10, padding: "8px 10px", flexWrap: "wrap",
                 border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
               }}>
                 <b style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>{o.label}</b>
@@ -86,6 +83,9 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
                 </span>
                 {o.dav != null && (
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5 }}>DAV {o.dav.toFixed(2)}</span>
+                )}
+                {o.note && (
+                  <div style={{ width: "100%", fontSize: 11, color: "var(--warning)" }}>{o.note}</div>
                 )}
               </div>
             ))}

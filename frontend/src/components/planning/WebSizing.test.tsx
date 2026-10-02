@@ -13,8 +13,8 @@ const base: WebSizingResult = {
   dims: { width_mm: 6, width_max_mm: 6.4, width_min_mm: 5.6, height_mm: 6, source: "sac" },
   neck_mm: 4.5, dnr: 1.33, volume_mm3: 113, within_indication: true, fill_ratio: 1,
   options: [
-    { shape: "SL", width_mm: 7, height_mm: 5, added_mm: 1, target_height_mm: 5, dav: 1.7, label: "WEB SL 7×5" },
-    { shape: "SL", width_mm: 8, height_mm: 4, added_mm: 2, target_height_mm: 4, dav: 1.78, label: "WEB SL 8×4" },
+    { shape: "SL", width_mm: 7, height_mm: 5, added_mm: 1, target_height_mm: 5, dav: 1.7, label: "WEB SL 7×5", note: "" },
+    { shape: "SL", width_mm: 8, height_mm: 4, added_mm: 2, target_height_mm: 4, dav: 1.78, label: "WEB SL 8×4", note: "Solo 0.8 mm más ancho que el aneurisma: por debajo del +1 de la regla." },
   ],
   warnings: [], notes: ["nota"], sources: ["fuente"],
 };
@@ -28,6 +28,7 @@ describe("dimensionado de WEB", () => {
     expect(screen.getByText("WEB SL 8×4")).toBeInTheDocument();
     expect(screen.getByText("Dentro de la indicación aprobada")).toBeInTheDocument();
     expect(screen.getByText("DAV 1.70")).toBeInTheDocument();
+    expect(screen.getByText(/por debajo del \+1 de la regla/)).toBeInTheDocument();
   });
 
   it("dice cuándo está fuera de la indicación y por qué, sin DAV", async () => {

@@ -37,7 +37,7 @@ import numpy as np
 
 from services.endovascular import (LANDING_ZONE_MM, MCR_OVERSIZED, SIZING_TOLERANCE_MM,
                                    SRC_BRAID, SRC_OVERSIZING, metal_coverage_note)
-from services.parent_artery import _cross_section_diameter, _nearest_contour
+from services.parent_artery import _nearest_contour, _section_shape
 
 SRC_MISMATCH = (
     "neuroangio.org, Pipeline: dimensionar tan cerca como se pueda de la arteria "
@@ -136,6 +136,25 @@ def _at_arc(points, arc, tangents, s):
     return points[i], tangents[i]
 
 
+#: Alargamiento máximo de un corte de anclaje. No es el 1,6 de la arteria madre
+#: (services/parent_artery.py): allí el plano no sigue al vaso y un contorno
+#: alargado delata un corte en diagonal. Aquí el plano es perpendicular a la
+#: línea central, así que el alargamiento es la FORMA del vaso. En el case 3 el
+#: basilar, justo antes del cuello, mide 4,3–4,7 mm con secciones 1,7–1,9 veces
+#: más largas que anchas, y con 1,6 el anclaje proximal se quedaba sin medir.
+#: Por encima de 2,5 el corte ha atrapado otra cosa (el saco, una rama).
+MAX_SECTION_ELONGATION = 2.5
+
+
+def _transverse_diameter(poly, p, t, reach_mm: float = 8.0) -> float:
+    """Diámetro de igual área del corte perpendicular a la línea central; 0 si no vale."""
+    c = _nearest_contour(poly, p, t)
+    if c is None or float(np.min(np.linalg.norm(c - np.asarray(p, float), axis=1))) > reach_mm:
+        return 0.0
+    d, elong = _section_shape(c, t)
+    return d if elong <= MAX_SECTION_ELONGATION else 0.0
+
+
 def _centred(poly, p, t, diameter: float) -> bool:
     """El corte es del vaso que recorre la línea central y no de una rama pegada.
 
@@ -159,7 +178,7 @@ def measure_zone(poly, points, arc, tangents, s_from: float, s_to: float) -> Lan
     diams = []
     for s in np.arange(a, b + 1e-9, SAMPLE_STEP_MM):
         p, t = _at_arc(points, arc, tangents, s)
-        d = _cross_section_diameter(poly, p, t, reach_mm=8.0)
+        d = _transverse_diameter(poly, p, t)
         if d > 0 and _centred(poly, p, t, d):
             diams.append(d)
     zone.n_sections = len(diams)
@@ -311,3 +330,31 @@ def size_flow_diverter(
         notes=notes,
         sources=[SRC_MISMATCH, SRC_ELONGATION, SRC_OVERSIZING, SRC_BRAID],
     )
+
+
+def segment_diameter(poly, points: np.ndarray, s_from: float, s_to: float,
+                     exclude: tuple[float, float] | None = None) -> tuple[float, int]:
+    """(mediana del calibre, nº de cortes) entre dos longitudes de arco.
+
+    Lo usa el stent sobre la línea central para juzgar su diámetro con la MISMA
+    medida que el dimensionado. Antes usaba los radios de la extracción de la
+    línea central —la esfera más grande que cabe en el vaso, sobre una malla
+    de vóxeles de 0,8 mm—, que en un vaso ovalado es su lado estrecho: en el
+    case 3 decía 3,44 mm donde los cortes miden 3,9–4,4, y avisaba de un
+    sobredimensionado que no había. `exclude` es el tramo del cuello: ahí el
+    corte arrastra el saco."""
+    pts = np.asarray(points, float)
+    arc = _arc(pts)
+    tan = _tangents(pts)
+    a, b = max(0.0, s_from), min(float(arc[-1]), s_to)
+    diams = []
+    for s in np.arange(a, b + 1e-9, SAMPLE_STEP_MM):
+        if exclude is not None and exclude[0] - NECK_CLEARANCE_MM <= s <= exclude[1] + NECK_CLEARANCE_MM:
+            continue
+        p, t = _at_arc(pts, arc, tan, s)
+        d = _transverse_diameter(poly, p, t)
+        if d > 0 and _centred(poly, p, t, d):
+            diams.append(d)
+    if len(diams) < MIN_SECTIONS:
+        return 0.0, len(diams)
+    return round(float(np.median(diams)), 2), len(diams)

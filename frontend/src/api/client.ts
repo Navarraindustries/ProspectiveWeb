@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  AttachRequest, AttachResult, SessionIdentity,
   GlbExportResult,
   WebSizingResult,
   FdSizingResult,
@@ -265,6 +266,11 @@ export const api = {
 
   /* patients */
   listPatients: () => get<PatientSummary[]>("/api/patients"),
+  /** Lo que propone la cabecera DICOM de la sesión y si ese paciente ya existe. */
+  sessionIdentity: (sessionId: string) => get<SessionIdentity>(`/api/sessions/${sessionId}/identity`),
+  /** Liga la sesión a un paciente y un caso (nuevos o existentes) y archiva su DICOM. */
+  attachSession: (sessionId: string, req: AttachRequest) =>
+    post<AttachResult>(`/api/sessions/${sessionId}/attach`, req),
   createPatient: (p: PatientCreate) => post<PatientSummary>("/api/patients", p),
   patientStudies: (id: number) => get<StudySummary[]>(`/api/patients/${id}/studies`),
   createStudy: (patientId: number, s: StudyCreate) =>

@@ -68,7 +68,7 @@ describe("el botón de grabar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Grabar/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Detener/ }));
     await waitFor(() => expect(onMessage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ tone: "err", text: expect.stringMatching(/descargado.*archiva el estudio/) })));
+      expect.objectContaining({ tone: "err", text: expect.stringMatching(/descargado.*Adjuntar a un caso/) })));
     expect(saveRecording).not.toHaveBeenCalled();
   });
 

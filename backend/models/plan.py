@@ -165,6 +165,7 @@ class WebOption(BaseModel):
     target_height_mm: float = Field(..., description="Altura del aneurisma − lo sumado")
     dav: float | None = Field(None, description="Volumen de la envolvente / volumen del aneurisma")
     label: str
+    note: str = Field("", description="Por qué no cumple la regla al pie de la letra")
 
 
 class WebSizingResult(BaseModel):

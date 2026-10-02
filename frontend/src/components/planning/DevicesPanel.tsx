@@ -30,6 +30,7 @@ import { CenterOnLesionButton } from "../CenterOnLesionButton";
 import { ClipRehearsal } from "./ClipRehearsal";
 import { ClipSelectionPanel } from "./ClipSelection";
 import { FdSizing } from "./FdSizing";
+import { WebSizing } from "./WebSizing";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -38,7 +39,7 @@ import { Slider } from "../Slider";
 import { Tabs } from "../Tabs";
 import { usePlanning } from "../../store/planning";
 
-const TABS = ["Clips", "Coils", "Stents", "Stent CL"] as const;
+const TABS = ["Clips", "Coils", "Stents", "Stent CL", "WEB"] as const;
 const ORIGIN: Position3D = { x: 0, y: 0, z: 0 };
 
 /** Take a placed device family off the plan: its mesh AND the record the report
@@ -1356,6 +1357,7 @@ function PlacedDevicesBar() {
 /* ── Panel ─────────────────────────────────────────────────────────────── */
 export function DevicesPanel({ onNext }: { onNext: () => void }) {
   const [tab, setTab] = useState<string>("Clips");
+  const { sessionId } = usePlanning();
   return (
     <div className="fade-rise">
       <PanelHead title="Planificación de dispositivos" desc="Elige clip, coils o stent del catálogo y verifica su colocación." />
@@ -1367,6 +1369,7 @@ export function DevicesPanel({ onNext }: { onNext: () => void }) {
       {tab === "Coils" && <CoilsTab />}
       {tab === "Stents" && <StentsTab />}
       {tab === "Stent CL" && <ClStentTab />}
+      {tab === "WEB" && sessionId && <WebSizing sessionId={sessionId} />}
       <Button variant="outline" style={{ marginTop: 18, width: "100%" }} onClick={onNext} trailingIcon={<Icon name="SETTINGS" />}>
         Continuar a fabricación
       </Button>

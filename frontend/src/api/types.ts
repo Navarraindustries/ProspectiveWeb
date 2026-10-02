@@ -1836,3 +1836,37 @@ export interface FdSizingResult {
   notes: string[];
   sources: string[];
 }
+
+/* ── Dimensionado de WEB (backend/services/web_sizing.py) ──────────────────── */
+
+export interface WebSacDims {
+  width_mm: number;
+  width_max_mm: number;
+  width_min_mm: number;
+  height_mm: number;
+  /** "sac" = saco aislado; "morpho" = cifras de la morfometría (orientativo). */
+  source: "sac" | "morpho";
+}
+
+export interface WebOption {
+  shape: "SL" | "SLS";
+  width_mm: number;
+  height_mm: number;
+  added_mm: number;
+  target_height_mm: number;
+  dav: number | null;
+  label: string;
+}
+
+export interface WebSizingResult {
+  dims: WebSacDims;
+  neck_mm: number;
+  dnr: number;
+  volume_mm3: number;
+  within_indication: boolean;
+  fill_ratio: number | null;
+  options: WebOption[];
+  warnings: string[];
+  notes: string[];
+  sources: string[];
+}

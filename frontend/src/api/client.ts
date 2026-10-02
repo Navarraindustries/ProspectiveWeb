@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  WebSizingResult,
   FdSizingResult,
   LesionConfirmIn, LesionConfirmation, LesionSummary,
   AneurysmDetectionResult,
@@ -382,6 +383,8 @@ export const api = {
     post<CrossSectionResult>(`/api/cross-section/${sessionId}`, req),
   deployClStent: (sessionId: string, req: ClStentRequest) =>
     post<ClStentResult>(`/api/cl-stent/${sessionId}`, req),
+  /** Anchura y altura del saco y las medidas WEB SL/SLS que cumplen +1/−1. */
+  webSizing: (sessionId: string) => post<WebSizingResult>(`/api/web-sizing/${sessionId}`),
   /** Calibre de los anclajes y medida de cada flow-diverter del catálogo. */
   fdSizing: (sessionId: string) =>
     post<FdSizingResult>(`/api/centerline/${sessionId}/fd-sizing`),

@@ -2156,7 +2156,26 @@ and logout, which a stale cookie must never block.
 | `POST` | `/api/coils/plan` · `/api/plan` | Coil packing · stent deployment |
 | `POST` | `/api/cl-stent/{sid}` | Centerline-guided stent along vessel curvature |
 | `POST` | `/api/centerline/{sid}/fd-sizing` | Flow-diverter sizing: landing-zone calibres, catalogue diameter and labelled length |
+| `POST` | `/api/web-sizing/{sid}` | WEB sizing: sac width and height on the neck plane, catalogue SL/SLS sizes by the +1/−1 rule |
 | `POST` `DELETE` | `/api/trajectory/{sid}` | Surgical trajectory |
+
+**WEB sizing** («WEB» tab). From the isolated sac and the neck plane it
+measures the average width (mean of the widest and narrowest caliper in the
+plane of the neck) and the height (neck plane to the top of the sac). It
+proposes the WEB SL and SLS sizes that actually exist (MicroVention WEB 17
+selection tables) by the +1/−1 rule: device width = aneurysm width + 1–2 mm,
+device height no more than the aneurysm height minus the same amount (Ansari,
+Brain Sci 2021). It says whether the aneurysm is inside the FDA indication (dome
+3–10 mm; neck ≥ 4 mm or dome/neck between 1 and 2) and warns when a device is
+not wider than the neck. The device/aneurysm volume ratio (DAV) is shown as a
+figure, not a criterion: the published ranges disagree (0.6–0.8, 0.90–1.16,
+0.76–1.24) and a 133-case multicentre study found none better than the classic
+rule. When the sac encloses less than half the volume of a half-ellipsoid with
+the same measurements it is not a filled dome — Hernández's closed sac measures
+9.5 × 6.2 × 4.8 mm and encloses 56 mm³ against ~150 — so the panel says the width
+may include space the device cannot occupy and gives no DAV. Without a marked
+neck there is no isolated sac and the figures come from the morphometry, flagged
+as approximate. Whether the artery is a bifurcation is for the reader to say.
 
 **Flow-diverter sizing** («Stent CL» tab → «Dimensionar»). On the extracted
 centreline it finds the stretch of vessel the neck occupies (from the marked
@@ -2178,6 +2197,16 @@ the centreline's ORIGIN. «Usar en el despliegue» fills the centreline stent
 with that diameter and span. When `morpho.parent_artery_mm` disagrees with
 these calibres by more than 1 mm it says so: the «Stents» tab sizes with that
 figure.
+
+**Parent artery: 25th percentile, not median.** A spoiled cut almost always
+WIDENS: a slightly oblique plane gives an ellipse longer than the vessel, and
+next to the neck the contour drags part of the sac in. Against the calibre
+measured on a centreline of the same vessel (≈ 4.2 mm), the median gave
+4.94/4.78 (Cerón) and 5.00 (Hernández); the 25th percentile gives 4.48/4.49 and
+4.32. Values stored before this change are marked as such
+(`morpho.parent_artery_method`) and the sizing panels ask to re-run the
+morphometry; a re-run that cannot measure it now clears the old figure instead
+of leaving it in the state.
 
 ### Report, export & audit
 

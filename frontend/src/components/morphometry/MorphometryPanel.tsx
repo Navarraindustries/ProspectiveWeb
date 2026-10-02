@@ -128,7 +128,10 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
 
       {m && (
         <>
-          {!m.neck_valid && m.warning && (
+          {/* Cualquier aviso, no solo el de cuello inválido: el de «cuello mayor
+              que el saco», el del recorte y el de las partes finas que inflan el
+              Ø máximo llegaban con un cuello válido y no se veían. */}
+          {m.warning && (
             <div style={{ background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 12, display: "flex", gap: 10 }}>
               <Icon name="STATUS_WARN" color="var(--warning)" size={18} />
               <div style={{ fontSize: 12, color: "var(--warning)" }}>{m.warning}</div>
@@ -233,6 +236,11 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                     medido se ocultaba en cuanto fallaba el volumen — mientras el
                     visor, que no consulta la bandera, seguía anotándolo en 3D. */}
                 <Metric label="Ø máximo" value={m.max_diameter_mm.toFixed(1)} unit=" mm" />
+                {/* El mismo Ø sin ramas finas pegadas al saco: si se separa del de
+                    arriba, el aviso explica por qué (services/sac_body.py). */}
+                {m.body_max_diameter_mm != null && (
+                  <Metric label="Ø máximo del cuerpo (sin ramas finas)" value={m.body_max_diameter_mm.toFixed(1)} unit=" mm" />
+                )}
                 <Metric label="Cuello" value={neckOk ? m.neck_mm.toFixed(1) : "—"} unit={neckOk ? " mm" : ""} />
                 <Metric label="Altura de domo" value={neckOk ? m.dome_height_mm.toFixed(1) : "—"} unit={neckOk ? " mm" : ""} />
                 <Metric label="Volumen" value={volOk ? m.volume_mm3.toFixed(1) : "—"} unit={volOk ? " mm³" : ""} />

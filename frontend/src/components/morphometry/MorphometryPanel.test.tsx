@@ -140,3 +140,20 @@ describe("la pestaña PHASES", () => {
     expect(await screen.findByText(/referencia poblacional, no una predicción/)).toBeInTheDocument();
   });
 });
+
+describe("partes finas que inflan el Ø máximo", () => {
+  const inflado = {
+    ...openCap, max_diameter_mm: 8.7, body_max_diameter_mm: 5.0,
+    reliable: true, volume_valid: true, neck_valid: true,
+    warning: "El saco aislado incluye partes finas (ramas o ruido) que inflan el Ø máximo: 8.7 mm frente a 5.0 mm del cuerpo del aneurisma.",
+  } as unknown as MorphometryResult;
+
+  it("enseña el aviso aunque el cuello sea válido, y la cifra del cuerpo", async () => {
+    // El aviso solo salía con el cuello inválido: este, y los de «cuello mayor
+    // que el saco» o el del recorte, llegaban y no se veían.
+    withMorphometry(inflado);
+    expect(await screen.findByText(/inflan el Ø máximo/)).toBeInTheDocument();
+    expect(screen.getByText("Ø máximo del cuerpo (sin ramas finas)")).toBeInTheDocument();
+    expect(screen.getByText("5.0")).toBeInTheDocument();
+  });
+});

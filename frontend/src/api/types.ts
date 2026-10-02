@@ -678,6 +678,8 @@ export interface MorphometryResult {
       —comprobado con sacos sintéticos de 4, 6 y 8 mm, que devolvían los tres
       la misma región de 27,5 mm—. Lo que lo delimita es el cuello. */
   sac_mesh_url: string;
+  /** Ø máximo del cuerpo del saco sin ramas finas pegadas; null sin saco aislado. */
+  body_max_diameter_mm?: number | null;
   neck_source: "auto" | "manual" | "rim";
   /** Angle between the neck plane and the neck→dome axis (degrees). Only
    *  meaningful for neck_source "rim": near 0° the two-click method would have

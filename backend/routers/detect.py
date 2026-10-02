@@ -1197,6 +1197,30 @@ def _run_morphometry_sync(
         warning = f"{warning} {note}" if warning else note
         logger.warning("Sac isolation reached the crop bound — session=%s", session_id)
 
+    # ── ¿Inflan el Ø máximo partes finas pegadas al saco? ─────────────── #
+    # Ramas o ruido que quedan unidos al aislar el saco: el Ø máximo se mide
+    # hasta su punta. No se cambia la cifra; se enseña la del cuerpo y se
+    # avisa cuando se separan de verdad (services/sac_body.py).
+    body_max = None
+    sac_file = read_state(session_id, "morpho.sac_vtp_name", "")
+    if sac_file and (vtp_path.parent / sac_file).exists():
+        try:
+            from services.sac_body import sac_body
+            body = sac_body(read_vtp(vtp_path.parent / sac_file))
+        except Exception as exc:  # noqa: BLE001 — un aviso no hunde la medida
+            logger.warning("Sac body check skipped: %s", exc)
+            body = None
+        if body is not None:
+            body_max = body.body_max_mm
+            if body.inflated:
+                note = (
+                    f"El saco aislado incluye partes finas (ramas o ruido) que inflan el "
+                    f"Ø máximo: {mr.max_diameter_mm:.1f} mm frente a {body.body_max_mm:.1f} mm "
+                    f"del cuerpo del aneurisma. Revisa el borde marcado: cortando en la unión "
+                    f"del saco con el vaso, esas partes quedan fuera."
+                )
+                warning = f"{warning} {note}" if warning else note
+
     if indices_out_of_range:
         note = (
             "Índices de forma fuera de rango físico (malla de domo abierta) — "
@@ -1215,6 +1239,7 @@ def _run_morphometry_sync(
 
     return MorphometryResult(
         sac_mesh_url      = sac_url,
+        body_max_diameter_mm = body_max,
         volume_mm3        = round(mr.volume_mm3,        2),
         surface_area_mm2  = round(mr.surface_area_mm2,  2),
         eq_sphere_diam_mm = round(mr.eq_sphere_diam_mm, 3),

@@ -195,6 +195,14 @@ class MorphometryResult(BaseModel):
             "'rim' = plane fitted to points marked around the neck rim."
         ),
     )
+    body_max_diameter_mm: float | None = Field(
+        None,
+        description=(
+            "Ø máximo del CUERPO del saco, sin lo más fino de 1 mm (ramas o "
+            "ruido pegados al aislarlo), con la misma definición que el Ø "
+            "máximo. Solo con saco aislado. Ver services/sac_body.py."
+        ),
+    )
     sac_mesh_url: str = Field(
         "",
         description=(

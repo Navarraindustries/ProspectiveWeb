@@ -161,7 +161,9 @@ function Router() {
           // Al reanudar puede no haber aceptados y sí descartados: el índice elegido los recorre.
           planning.setRejectedCandidates(det.rejected ?? []);
           planning.setSelectedCandidate(0);
-          restoredIds = det.candidates.map((c) => c.id);
+          // La misma lista combinada que allCandidates: una morfometría medida
+          // sobre un descartado también recupera su índice.
+          restoredIds = [...det.candidates, ...(det.rejected ?? [])].map((c) => c.id);
         } catch { /* leave candidates empty */ }
       }
       if (r.current_step >= 3) {

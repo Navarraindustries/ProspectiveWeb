@@ -9,6 +9,7 @@ import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
+import { MORPHO_INVALIDATED, VETO_HINT, rankLabel, rejectedSummary } from "./detectCopy";
 
 /** Turn the rejection counts into the one sentence that matters.
  *
@@ -54,12 +55,22 @@ function explainEmpty(d: DetectionDiagnostics): { reason: string; advice: string
 
 export function DetectPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
-  const { sessionId, candidates, selectedCandidate } = planning;
+  const { sessionId, candidates, rejectedCandidates, selectedCandidate } = planning;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ran, setRan] = useState(candidates.length > 0);
   const [clearing, setClearing] = useState(false);
   const [diag, setDiag] = useState<DetectionDiagnostics | null>(null);
+  // El backend limpió la morfometría porque el elegido cambió al re-detectar.
+  // Solo dura hasta la siguiente detección.
+  const [morphoInvalidated, setMorphoInvalidated] = useState(false);
+  // Los descartados empiezan plegados: están para poder discrepar del
+  // detector, no para recorrerlos primero.
+  const [showRejected, setShowRejected] = useState(false);
+  // Índice combinado: los descartados van detrás de los aceptados.
+  const selectedRejected = selectedCandidate >= candidates.length
+    ? rejectedCandidates[selectedCandidate - candidates.length] ?? null
+    : null;
 
   const run = async () => {
     if (!sessionId) return;
@@ -72,6 +83,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       planning.setSelectedCandidate(0);
       setRan(true);
       setDiag(res.diagnostics ?? null);
+      setMorphoInvalidated(res.morphometry_invalidated === true);
       if (!res.found) setError("No se encontraron candidatos aneurismáticos en la malla.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en la detección");
@@ -96,6 +108,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       planning.setMorphometry(null);
       planning.setTreatment(null);
       setDiag(null);
+      setMorphoInvalidated(false);
       setRan(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron limpiar los candidatos");
@@ -149,6 +162,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {candidates.map((c, i) => {
           const on = selectedCandidate === i;
+          const rank = c.rank ?? i + 1;
+          const low = rank > 3;
           return (
             <div
               key={c.id}
@@ -164,11 +179,6 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
-                {/* Antes decía «Principal» en verde. Con 38 % de confianza eso
-                    afirma más de lo que el dato sostiene, y en el único caso con
-                    diagnóstico médico el primero era el equivocado. Un número de
-                    orden dice lo mismo sin prometer nada. */}
-                <Badge variant="subtle">{`#${i + 1}`}</Badge>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}
                 {(c.channels ?? []).map((ch) => (
@@ -176,7 +186,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     {ch}
                   </Badge>
                 ))}
-                {c.confidence < 0.5 && <Badge variant="warning">Baja confianza</Badge>}
+                {low && <Badge variant="warning">Puesto bajo</Badge>}
                 <div style={{ flex: 1 }} />
                 {on && <Icon name="STATUS_OK" size={15} color="var(--brand-deep)" />}
               </div>
@@ -193,18 +203,108 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     azul = dónde, no el saco
                   </span>
                 )}
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)", flex: 1 }}>Confianza</span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)" }}>
-                  {(c.confidence * 100).toFixed(0)}%
+                <span style={{ flex: 1 }} />
+                {/* Antes decía «Principal» y luego un porcentaje de confianza.
+                    Ese número afirmaba más de lo que el dato sostiene, y en el
+                    único caso con diagnóstico médico el primero era el
+                    equivocado. El puesto dice el orden sin prometer nada; la
+                    barra sigue dando la puntuación relativa. */}
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)", whiteSpace: "nowrap" }}>
+                  {rankLabel(rank)}
                 </span>
               </div>
               <div style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${c.confidence * 100}%`, background: c.confidence < 0.5 ? "var(--warning)" : "var(--primary)" }} />
+                <div style={{ height: "100%", width: `${c.confidence * 100}%`, background: low ? "var(--warning)" : "var(--primary)" }} />
               </div>
             </div>
           );
         })}
       </div>
+
+      {rejectedCandidates.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            aria-expanded={showRejected}
+            onClick={() => setShowRejected((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, width: "100%",
+              background: "none", border: "none", padding: "4px 0", cursor: "pointer",
+              fontSize: 12, fontWeight: 700, color: "var(--muted-foreground)", textAlign: "left",
+            }}
+          >
+            <span aria-hidden style={{ display: "inline-block", width: 10 }}>{showRejected ? "▾" : "▸"}</span>
+            {rejectedSummary(rejectedCandidates.length)}
+          </button>
+          {showRejected && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                El detector los apartó por un criterio geométrico. Se listan para poder
+                discrepar: elegir uno lo pinta en el 3D.
+              </div>
+              {rejectedCandidates.map((c, i) => {
+                const idx = candidates.length + i;
+                const on = selectedCandidate === idx;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => planning.setSelectedCandidate(idx)}
+                    style={{
+                      cursor: "pointer",
+                      border: `1px ${on ? "solid var(--warning)" : "dashed var(--border)"}`,
+                      background: on ? "var(--warning-bg)" : "transparent",
+                      borderRadius: "var(--radius-md)",
+                      padding: "8px 12px",
+                      transition: "all var(--dur-fast) var(--ease-out)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
+                      <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                        Ø{" "}
+                        <b style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
+                          {c.max_diameter_mm.toFixed(1)} mm
+                        </b>
+                        {" "}est.
+                      </span>
+                      <div style={{ flex: 1 }} />
+                      {c.veto && (
+                        <span title={c.veto.detail}>
+                          <Badge variant="warning">{c.veto.label}</Badge>
+                        </span>
+                      )}
+                      {on && <Icon name="STATUS_OK" size={15} color="var(--warning)" />}
+                    </div>
+                    {on && (
+                      <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 6 }}>
+                        {VETO_HINT}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Si el elegido es un descartado con el desplegable cerrado, la
+          advertencia no puede quedarse escondida dentro. */}
+      {selectedRejected && !showRejected && (
+        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8 }}>
+          {selectedRejected.id}: {VETO_HINT}
+        </div>
+      )}
+
+      {morphoInvalidated && (
+        <div role="status" style={{
+          marginTop: 10, padding: "8px 12px", borderRadius: "var(--radius-md)",
+          border: "1px solid var(--warning)", background: "var(--warning-bg)",
+          fontSize: 12, color: "var(--warning)",
+        }}>
+          {MORPHO_INVALIDATED}
+        </div>
+      )}
 
       <ErrorNote>{error}</ErrorNote>
 

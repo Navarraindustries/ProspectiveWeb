@@ -1957,3 +1957,32 @@ export interface ElapssResult {
   notes: string[];
   sources: string[];
 }
+
+/* ── Superposición de seguimiento (backend/routers/followup.py) ─────────────── */
+
+export interface FollowupStudy {
+  imaging_study_id: number;
+  session_id: string;
+  acquired_at: string;
+  modality: string;
+  description: string;
+  has_sac: boolean;
+  has_lesion: boolean;
+}
+
+export interface FollowupResult {
+  map_url: string;
+  ghost_url: string | null;
+  /** Por debajo de esto un cambio no se distingue. */
+  noise_mm: number;
+  residual_median_mm: number;
+  max_growth_mm: number;
+  max_shrink_mm: number;
+  grew_area_pct: number;
+  volume_prev_mm3: number | null;
+  volume_curr_mm3: number | null;
+  rotation_deg: number;
+  lesion_source_prev: string;
+  lesion_source_curr: string;
+  warnings: string[];
+}

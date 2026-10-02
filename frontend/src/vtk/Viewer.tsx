@@ -64,6 +64,7 @@ const DOME_COLOR: Vector3 = [0.32, 0.55, 0.75];
 /* El saco cerrado, en verde para no confundirlo con el localizador azul del
    candidato: aquel señala dónde mirar, este ES el cuerpo del aneurisma. */
 const SAC_COLOR: Vector3 = [0.25, 0.80, 0.45];
+const FOLLOWUP_GHOST_COLOR: Vector3 = [0.98, 0.62, 0.20]; // naranja — saco del estudio anterior
 const DEVICE_COLOR: Vector3 = [0.92, 0.82, 0.45];     // warm gold — placed clip
 const COIL_COLOR: Vector3 = [0.85, 0.55, 0.85];       // orchid — packed coils
 const STENT_COLOR: Vector3 = [0.55, 0.80, 0.95];      // steel blue — deployed stent
@@ -170,7 +171,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
-    cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark,
+    cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
@@ -598,8 +599,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (scissorsPreview && step === "segment") {
       out.push({ url: scissorsPreview, color: DOOMED_COLOR, opacity: 1, id: "tijera" });
     }
+    // Seguimiento: el mapa de cambio pintado sobre los vasos cerca de la
+    // lesión (rojo = creció, azul = encogió, gris = dentro del ruido) y el
+    // saco del estudio anterior, translúcido, para ver de dónde venía.
+    if (followup && step === "morpho") {
+      out.push({ url: followup.mapUrl, color: VESSEL_COLOR, opacity: 1, id: "seguimiento",
+                 scalars: { name: "cambio_mm", range: followup.range, deadband: followup.noise } });
+      if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
+    }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview]);
+  }, [followup, displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview]);
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];

@@ -107,6 +107,10 @@ interface PlanningState {
   cropCenter: Vec3 | null;
   /** Punto marcado a mano como la lesión, pendiente de confirmar (Detección). */
   lesionMark: Vec3 | null;
+  /** Superposición de un estudio anterior (Morfometría → Seguimiento): el mapa
+   *  de cambio y el saco anterior ya colocado. Es de la malla actual, así que
+   *  se olvida al resegmentar. */
+  followup: FollowupOverlay | null;
   /** Previa del corte por plano: el eje, la altura y qué lado se conserva.
    *  El visor la usa para recortar el render en vivo, de modo que al arrastrar
    *  el deslizador se vea desaparecer justo lo que el corte se llevaría. */
@@ -211,6 +215,7 @@ interface PlanningState {
   setVisiblePerforators: (ids: string[]) => void;
   setCropCenter: (p: Vec3 | null) => void;
   setLesionMark: (p: Vec3 | null) => void;
+  setFollowup: (f: FollowupOverlay | null) => void;
   setErasePick: (p: Vec3 | null) => void;
   setCropRadius: (r: number) => void;
   setCropShape: (s: "sphere" | "box") => void;
@@ -227,6 +232,13 @@ interface PlanningState {
 }
 
 export type Vec3 = [number, number, number];
+export interface FollowupOverlay {
+  mapUrl: string;
+  ghostUrl: string | null;
+  /** Saturación del color (mm) y franja gris de ruido (mm). */
+  range: number;
+  noise: number;
+}
 export type PickMode =
   | "cl_source" | "cl_target" | "measure" | "neck_origin" | "neck_dome"
   | "neck_rim"
@@ -297,6 +309,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   }, []);
   const [cropCenter, setCropCenter] = useState<Vec3 | null>(null);
   const [lesionMark, setLesionMark] = useState<Vec3 | null>(null);
+  const [followup, setFollowup] = useState<FollowupOverlay | null>(null);
   const [erasePick, setErasePick] = useState<Vec3 | null>(null);
   const [boxCut, setBoxCut] = useState<{ min: [number, number, number]; max: [number, number, number] } | null>(null);
   const [cropRadius, setCropRadius] = useState(10);
@@ -392,6 +405,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setMeasurePending(null);
     setCropCenter(null);
     setLesionMark(null);
+    setFollowup(null);
     setErasePick(null);
     setTrajEntry(null);
     setTrajTarget(null);
@@ -419,7 +433,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,

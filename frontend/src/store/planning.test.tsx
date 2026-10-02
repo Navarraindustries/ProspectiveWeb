@@ -271,3 +271,13 @@ describe("volume version", () => {
     expect(result.current.volumeVersion).toBe(before + 2);
   });
 });
+
+describe("superposición de seguimiento", () => {
+  it("se olvida al resegmentar: el mapa es de la malla que había", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setFollowup({ mapUrl: "/data/m.vtp", ghostUrl: null, range: 1, noise: 0.3 }));
+    expect(result.current.followup).not.toBeNull();
+    act(() => result.current.resetDownstream());
+    expect(result.current.followup).toBeNull();
+  });
+});

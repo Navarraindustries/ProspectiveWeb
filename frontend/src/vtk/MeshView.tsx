@@ -13,6 +13,7 @@ import "@kitware/vtk.js/Rendering/Profiles/Geometry";
 import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 import vtkLight from "@kitware/vtk.js/Rendering/Core/Light";
@@ -38,6 +39,11 @@ export interface MeshLayer {
    *  invertido, ver el efecto de escena). Lo pide el saco: translúcido sobre
    *  el árbol, su borde se perdía y no se sabía dónde acababa el aneurisma. */
   silhouette?: boolean;
+  /** Colorea por un campo de puntos en vez de un color liso: azul (negativo),
+   *  gris (0) y rojo (positivo), saturando en ±`range`. Lo usa el mapa de
+   *  cambio del seguimiento. Por debajo de `deadband` en valor absoluto se
+   *  pinta gris: es ruido de la comparación, no cambio. */
+  scalars?: { name: string; range: number; deadband?: number };
 }
 
 /** Imperative handle for moving named layers, published while the scene lives.
@@ -374,7 +380,16 @@ export function MeshView({
 
           const mapper = vtkMapper.newInstance();
           mapper.setInputData(poly);
-          mapper.setScalarVisibility(false); // solid color, not scalar-mapped
+          if (layer.scalars && poly.getPointData().getArrayByName(layer.scalars.name)) {
+            mapper.setLookupTable(divergingLut(layer.scalars.range, layer.scalars.deadband ?? 0));
+            mapper.setUseLookupTableScalarRange(true);
+            mapper.setScalarModeToUsePointFieldData();
+            mapper.setColorByArrayName(layer.scalars.name);
+            mapper.setColorModeToMapScalars();
+            mapper.setScalarVisibility(true);
+          } else {
+            mapper.setScalarVisibility(false); // solid color, not scalar-mapped
+          }
 
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
@@ -804,4 +819,20 @@ export function MeshView({
   }, [key, boxKey]);
 
   return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
+}
+
+
+/** Azul → gris → rojo, con una franja gris de ±`deadband` alrededor de 0. */
+export function divergingLut(range: number, deadband: number) {
+  const r = Math.max(range, 1e-3);
+  const d = Math.min(Math.max(deadband, 0), r * 0.9);
+  const lut = vtkColorTransferFunction.newInstance();
+  const grey: [number, number, number] = [0.78, 0.8, 0.82];
+  lut.addRGBPoint(-r, 0.15, 0.35, 0.85);
+  lut.addRGBPoint(-d, ...grey);
+  lut.addRGBPoint(d, ...grey);
+  lut.addRGBPoint(r, 0.88, 0.2, 0.15);
+  lut.setMappingRange(-r, r);
+  lut.updateRange();
+  return lut;
 }

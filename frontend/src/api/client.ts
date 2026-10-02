@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  FollowupResult, FollowupStudy,
   ElapssRequest, ElapssResult,
   DicomSegResult,
   AttachRequest, AttachResult, SessionIdentity,
@@ -376,6 +377,11 @@ export const api = {
   phases: (req: PhasesRequest) => post<PhasesResult>("/api/phases", req),
   /** Riesgo de crecimiento a 3 y 5 años (no de rotura). */
   elapss: (req: ElapssRequest) => post<ElapssResult>("/api/elapss", req),
+  /** Otros estudios del paciente con una sesión guardada que se pueda superponer. */
+  followupStudies: (sessionId: string) => get<FollowupStudy[]>(`/api/followup/${sessionId}/studies`),
+  /** Superpone un estudio anterior y devuelve el mapa de cambio. */
+  followup: (sessionId: string, previousSessionId: string) =>
+    post<FollowupResult>(`/api/followup/${sessionId}`, { previous_session_id: previousSessionId }),
   /** Drop the candidate domes and the morphometry derived from them (including a
       manually marked neck plane, which is otherwise reused by every later run). */
   clearDetection: (sessionId: string) =>

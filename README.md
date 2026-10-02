@@ -2218,6 +2218,7 @@ of leaving it in the state.
 | `POST` | `/api/export/stl` | Binary STL export |
 | `POST` | `/api/export/glb/{sid}` | Scene as glTF 2.0 binary: one coloured object per mesh, metres, centred |
 | `POST` | `/api/export/dicom-seg/{sid}` | Vessel and aneurysm as DICOM SEG on the original series, for the PACS |
+| `GET` `POST` | `/api/followup/{sid}/studies` · `/api/followup/{sid}` | Other studies of the patient · overlay one and map where the aneurysm changed |
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
 | `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
 | `POST` `GET` | `/api/captures` · `/api/captures/{id}/image` | Viewer capture (PNG) attached to the imaging study · list · serve |
@@ -2225,6 +2226,25 @@ of leaving it in the state.
 | `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |
 | `POST` `GET` `DELETE` | `/api/ground-truth` · `/current` · `/{id}` | Confirm where the lesion is (or that there is none) · current one · retract |
 | `GET` | `/api/ground-truth/summary` · `/export` | How the detector ranks against what was confirmed · full export (admin) |
+
+**Follow-up overlay** (Morfometría → Seguimiento). The longitudinal chart says
+how much the aneurysm changed; this says where. Each mesh is in mm from the
+first voxel of its own volume, so both are first taken to patient space with
+their own DICOM geometry (anatomical axes match between studies, the table
+origin does not), the lesion centres are overlaid, and a rigid ICP of the
+vessels around the lesion — the lesion itself excluded, so the growth being
+measured is not «corrected» away — refines it. The current vessels near the
+lesion are then coloured by their distance to the previous study (red grew,
+blue shrank, grey within the noise). The noise is the 90th percentile of the
+residual on those surrounding vessels, or the larger voxel; nothing below it is
+called growth. The sign does not come from face normals: a synthetic surface
+with inward faces read growth as shrinkage, and VTK's `InsideOrOutside` also
+reads the first face's normal, so inside/outside is decided by counting ray
+crossings (three rays, majority). Validated on the real case 3 tree moved by a
+6° head turn and 12 mm of table: the turn is recovered exactly and bumps of 1.5,
+0.8 and 0.3 mm read 1.37, 0.71 and 0.27 mm — a narrow peak comes out at ~90 %,
+and the 0.3 mm one stays under the noise. Different modalities draw the wall
+differently and that shows as a uniform offset, which the panel warns about.
 
 **ELAPSS.** Next to PHASES in Morfometría: the 3- and 5-year risk of GROWTH
 (not rupture) of an unruptured aneurysm, for deciding how often to repeat the

@@ -11,6 +11,7 @@ import { Metric } from "../Metric";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { Tabs } from "../Tabs";
+import { FollowupOverlay } from "./FollowupOverlay";
 import { ElapssCalculator } from "./ElapssCalculator";
 import { PhasesCalculator } from "./PhasesCalculator";
 import { LongitudinalChart } from "./LongitudinalChart";
@@ -301,6 +302,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             )}
             {tab === "Seguimiento" && (
               <div>
+                {sessionId && <FollowupOverlay sessionId={sessionId} />}
                 {longi?.growth_alert && (
                   <div style={{ background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 12, display: "flex", gap: 10 }}>
                     <Icon name="GROWTH" color="var(--warning)" size={18} />

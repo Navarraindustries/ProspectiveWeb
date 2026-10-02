@@ -32,7 +32,7 @@ import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
-import { headerLabels, mainOptions, presetOptions } from "./mainOptions";
+import { ViewerHeader } from "./ViewerHeader";
 import { legendLines } from "./clipFieldLegend";
 import { HudHeadingTape } from "./hud/HudHeadingTape";
 import { OrientationSheet } from "./OrientationSheet";
@@ -369,20 +369,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // de aquí dónde está cada una en pantalla.
   const cellEls = useRef<Partial<Record<PaneId, HTMLDivElement | null>>>({});
   const registerCell = useCallback((id: PaneId, el: HTMLDivElement | null) => { cellEls.current[id] = el; }, []);
-  // Ancho de la banda de cabecera para abreviar sus rótulos (headerLabels).
   const gridHostRef = useRef<HTMLDivElement | null>(null);
-  const [bandWidth, setBandWidth] = useState(Number.POSITIVE_INFINITY);
-  const bandObs = useRef<ResizeObserver | null>(null);
-  const bandRef = useCallback((el: HTMLDivElement | null) => {
-    bandObs.current?.disconnect();
-    bandObs.current = null;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setBandWidth(el.clientWidth));
-    ro.observe(el);
-    bandObs.current = ro;
-    setBandWidth(el.clientWidth);
-  }, []);
-  const header = headerLabels(bandWidth);
   const registerMeshCapture = useCallback((fn: CaptureFn | null) => { meshCapture.current = fn; }, []);
   // La envoltura es estable: lee la distribución y su setter por refs.
   const layoutRef = useRef<ViewerLayout>(viewerLayout);
@@ -1173,44 +1160,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
           rejilla toma el resto del alto. En 1280 la banda mide ~740 px: con
           CALOR encendido los grupos solo caben con los presets abreviados y
           «PRINCIPAL» reducido a «▸» (headerLabels). Mismas teclas Alt+1/2/3
-          que la rejilla, para que el foco en un conmutador no las pierda. */}
-      <div ref={bandRef} className="viewer-band"
-           onKeyDown={onLayoutKey}
-           style={{ flex: "none", height: 22, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "0 12px", lineHeight: 1.2, fontFamily: "var(--font-mono)", background: "#000", borderBottom: "1px solid var(--hud-dim)", overflow: "hidden", whiteSpace: "nowrap" }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
-          {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
-              REGLAS y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
-          <span style={{ color: "var(--hud-dim)" }} title="Vista principal">{header.mainCaption}</span>
-          <HudToggleGroup options={mainOptions()} value={viewerLayout.main}
-            onChange={(k) => setViewerLayout(promote(viewerLayout, k as PaneId))} />
-          <HudToggleGroup
-            options={presetOptions(bandWidth)}
-            value={viewerLayout.preset}
-            onChange={(k) => setViewerLayout(setPreset(viewerLayout, k as ViewerLayout["preset"]))} />
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
-          <HudToggleGroup
-            options={[{ key: "planes", label: planesHidden ? "PLANOS ○" : "PLANOS ●", title: "Mostrar/ocultar los planos de corte en el 3D" }]}
-            value={planesHidden ? "" : "planes"} onChange={() => setPlanesHidden(!planesHidden)} />
-          <HudToggleGroup
-            options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
-                        title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}
-            value={decorHidden ? "" : "decor"} onChange={() => setDecorHidden(!decorHidden)} />
-          <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
-            value={syncViews ? "sync" : ""} onChange={() => setSyncViews(!syncViews)} />
-          {/* CALOR solo existe cuando hay un campo del clip calculado: sin
-              él no habría nada que encender. */}
-          {clipField && (
-            // Durante el ensayo manda el saco que se deforma y el campo no se
-            // pinta: «●» diría que se está viendo.
-            <HudToggleGroup options={[{ key: "calor", label: showClipField && !clipRehearsal ? "CALOR ●" : "CALOR ○",
-                                        title: clipRehearsal
-                                          ? "Durante el ensayo de cierre se ve el saco que se deforma; el mapa de calor vuelve al terminar"
-                                          : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
-              value={showClipField && !clipRehearsal ? "calor" : ""} onChange={() => setShowClipField(!showClipField)} />
-          )}
-        </div>
-      </div>
+          que la rejilla, para que el foco en un conmutador no las pierda.
+          La banda vive en ViewerHeader, con su prueba. */}
+      <ViewerHeader
+        layout={viewerLayout} onLayoutChange={setViewerLayout} onKeyDown={onLayoutKey}
+        planesHidden={planesHidden} onPlanesHiddenChange={setPlanesHidden}
+        decorHidden={decorHidden} onDecorHiddenChange={setDecorHidden}
+        syncViews={syncViews} onSyncViewsChange={setSyncViews}
+        hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
+        onShowClipFieldChange={setShowClipField} />
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;
           nunca desde un campo de texto (presetForKey). Los dígitos solos son
           del salto de paso de Workspace, que ignora Alt. */}

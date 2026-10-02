@@ -10,7 +10,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { usePlanning, type PickMode, type PlacedClip } from "../store/planning";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
-import { beginDrag, clipHandles, dragPose, gizmoReadout, type DragStart } from "./clipGizmo";
+import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
 import { poseDelta } from "./clipPose";
 import { clipNormal, isStale, neckAxis, neckPlacement } from "../components/planning/placedClips";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
@@ -199,7 +199,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     volumeMode, volumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
     imagingStudyId, setCaptureCase, setViewerRecording,
-    placedClips, setPlacedClips, plannedClips, selectedClipKey,
+    placedClips, setPlacedClips, plannedClips, fieldClips, clipsTabActive, selectedClipKey,
   } = usePlanning();
 
   // La vista sin su decoración: preferencia del profesional, en su navegador
@@ -636,9 +636,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // La lista ya no es la que se coció en las mallas: el clip se está moviendo
   // (o acaba de moverse) y el plan nuevo aún no ha llegado.
   const clipsStale = isStale(placedClips, plannedClips);
-  // Sin ensayo: durante la maniobra el clip colocado ni se dibuja (lo
-  // sustituyen sus tres piezas) y moverlo cambiaría la pose que se ensaya.
-  const gizmoOn = sceneHasMesh && step === "devices" && !!selectedClip && !clipRehearsal;
+  // El DESFASADO del mapa de calor se mide contra la lista para la que se
+  // calculó el campo, no contra el plan: el plan llega antes, y hasta que
+  // llega el campo nuevo los colores son los de la pose anterior.
+  const fieldStale = isStale(placedClips, fieldClips);
+  // Sin ensayo, y solo con la pestaña de clips montada (ver gizmoVisible).
+  const gizmoOn = gizmoVisible({
+    sceneHasMesh, step, clipsTabActive, hasClips: !!selectedClip, rehearsing: !!clipRehearsal,
+  });
   const clipGizmoHandles = useMemo(
     () => (gizmoOn && selectedClip ? clipHandles(selectedClip, clipNormal(morphometry, selectedClip)) : []),
     [gizmoOn, selectedClip, morphometry],
@@ -646,7 +651,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // La malla del clip sigue al arrastre sin esperar al servidor: la malla
   // cocida con la pose del plan, movida por la diferencia entre esa pose y la
   // de ahora. Al llegar el plan nuevo la lista vuelve a coincidir y la matriz
-  // se va (la malla nueva ya viene en su sitio).
+  // se va (la malla nueva ya viene en su sitio); MeshView conserva la matriz
+  // vieja hasta que esa malla nueva termina de cargar (ver layerMatrix).
   const clipsMatrix = useMemo(() => {
     if (clipRehearsal || !clipsStale || !plannedClips || !selectedClip) return undefined;
     const planned = plannedClips.find((c) => c.key === selectedClip.key);
@@ -719,7 +725,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // mezclarían con el rojo del vaso y dejarían de casar con la leyenda.
       // Más tenue mientras el clip se mueve: los colores son los de la pose de
       // antes y, opacos, se leerían como el veredicto de la de ahora.
-      out.push({ url: clipField.field_mesh_url, color: SAC_COLOR, opacity: clipsStale ? 0.35 : 1, id: "clip-field", scalars: { array: "colors" }, silhouette: true });
+      out.push({ url: clipField.field_mesh_url, color: SAC_COLOR, opacity: fieldStale ? 0.35 : 1, id: "clip-field", scalars: { array: "colors" }, silhouette: true });
     } else if (sacUrl && step !== "segment" && step !== "upload") {
       // Con contorno: translúcido sobre el árbol, su borde se perdía.
       out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true });
@@ -754,7 +760,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: scissorsPreview, color: DOOMED_COLOR, opacity: 1, id: "tijera" });
     }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, clipsStale, clipsMatrix]);
+  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix]);
 
   const showPlanes = !planesHidden && !decorHidden && !!meta;
   // El plano libre se enseña donde significa algo: en la vista Oblicuo, que lo

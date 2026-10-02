@@ -40,6 +40,17 @@ function pickRoot(roots: [Vec3, Vec3] | null, ref: Vec3): Vec3 | null {
   return dist2(roots[1], ref) < dist2(roots[0], ref) ? roots[1] : roots[0];
 }
 
+/** ¿Se enseñan las asas del clip? Hace falta malla en la escena, estar en
+ *  Dispositivos con la pestaña de clips MONTADA (es la que recoloca al soltar:
+ *  en Coils o Stents un arrastre dejaría un delta que nadie replanea), algún
+ *  clip que manejar y ningún ensayo en curso (durante la maniobra el clip
+ *  colocado ni se dibuja, y moverlo cambiaría la pose que se ensaya). */
+export function gizmoVisible(g: {
+  sceneHasMesh: boolean; step: string; clipsTabActive: boolean; hasClips: boolean; rehearsing: boolean;
+}): boolean {
+  return g.sceneHasMesh && g.step === "devices" && g.clipsTabActive && g.hasClips && !g.rehearsing;
+}
+
 export function clipHandles(clip: PlacedClip, normal: Vec3): Handle[] {
   const p = clip.position;
   return [

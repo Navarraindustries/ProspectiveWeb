@@ -153,7 +153,7 @@ function ClipsTab() {
     sessionId, caseId, morphometry, setDeviceMesh,
     clipField, setClipField, showClipField, setShowClipField,
     placedClips: placed, setPlacedClips: setPlaced, plannedClips, setPlannedClips,
-    selectedClipKey, setSelectedClipKey,
+    fieldClips, selectedClipKey, setSelectedClipKey, setClipsTabActive,
   } = usePlanning();
   // El que maneja el asa del 3D: el elegido en la lista o, si no hay, el último.
   const activeKey = placed.some((c) => c.key === selectedClipKey) ? selectedClipKey : placed.at(-1)?.key ?? null;
@@ -206,14 +206,21 @@ function ClipsTab() {
   // entonces dejaría en el servidor un clip que la pantalla ya no enseña.
   const planRef = useRef(plan);
   planRef.current = plan;
+  // Lo planificado vive en el store y sobrevive a desmontar la pestaña: es lo
+  // que dice si hay algo que recolocar, también al volver de Coils o Stents con
+  // el clip movido desde el 3D (el `plan` local nace vacío en cada montaje).
+  const plannedRef = useRef(plannedClips);
+  plannedRef.current = plannedClips;
   const meshPlacedRef = useRef(false);
   // Poses como texto: teclear «2» → «2.» → «2.0» crea listas nuevas con los
   // mismos números y no merece otra ida y vuelta. Se compara con la última pose
   // PEDIDA, no con la última terminada: volver a A mientras B está en vuelo
   // tiene que recolocar A cuando B acabe, o servidor, malla y tarjeta se
   // quedarían en B con la lista diciendo A.
-  const lastPlacedKey = useRef<string | null>(null);
-  const lastRequestedKey = useRef<string | null>(null);
+  // Al montar parten de lo ya planificado: volver a la pestaña con la lista
+  // igual al plan no pide nada, y con la lista movida sí.
+  const lastPlacedKey = useRef<string | null>(plannedClips ? poseKey(plannedClips) : null);
+  const lastRequestedKey = useRef<string | null>(plannedClips ? poseKey(plannedClips) : null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -324,7 +331,7 @@ function ClipsTab() {
 
   /** ¿Sigue habiendo algo que recolocar? Se pregunta justo antes de mandar. */
   const canReplace = () =>
-    !!planRef.current && meshPlacedRef.current && clipReplace.clears === 0
+    plannedRef.current !== null && meshPlacedRef.current && clipReplace.clears === 0
     && latestPlaced.current.length > 0;
 
   const cancelFieldTimer = () => {
@@ -333,14 +340,16 @@ function ClipsTab() {
 
   /** Pide el mapa de calor para estas colocaciones. Nunca lanza: lo que falle se
    *  queda en la línea bajo la tarjeta, y el plan colocado sigue en pie. */
-  const requestField = async (placements: ClipPlacement[], clearSeq = clipReplace.clearSeq) => {
+  const requestField = async (clips: PlacedClip[], placements: ClipPlacement[], clearSeq = clipReplace.clearSeq) => {
     if (!sessionId || placements.length === 0) return;
     const seq = ++fieldSeq.current;
     const stale = () => seq !== fieldSeq.current || clearSeq !== clipReplace.clearSeq;
     try {
       const field = await api.clipField(sessionId, { session_id: sessionId, placements });
       if (stale()) return;
-      setClipField(field);
+      // El campo dice para qué lista se calculó: «DESFASADO» y el mapa atenuado
+      // se comparan con ella, no con el plan, que llega antes.
+      setClipField(field, clips);
       setFieldError(null);
       setFieldNote(null);
     } catch (err) {
@@ -367,7 +376,7 @@ function ClipsTab() {
     setBusy(true);
     setError(null);
     const placements = placementsFor(clips);
-    const hadPlan = !!planRef.current;
+    const hadPlan = !!planRef.current || plannedRef.current !== null;
     const key = poseKey(clips);
     lastRequestedKey.current = key;
     // Si se limpia mientras esta colocación vuela, su respuesta ya no es del
@@ -390,7 +399,7 @@ function ClipsTab() {
       // ella para saber cuánto se ha movido el clip desde entonces.
       setPlannedClips(clips);
       setDeviceMesh("clips", res.clips_mesh_url || null);
-      await requestField(placements, clearSeq);
+      await requestField(clips, placements, clearSeq);
     } catch (err) {
       if (cleared()) return;
       // Lo pedido no llegó: lo vigente vuelve a ser lo último colocado, y pedir
@@ -425,11 +434,14 @@ function ClipsTab() {
   // decenas de cambios por segundo; el servidor tarda ~100 ms por campo.
   // Solo `placed` en las dependencias: colocar no cambia la lista, y que `plan`
   // cambiase no debe volver a colocar. En el primer render no hay plan, así que
-  // no se pide nada. Sin malla de clips (la barra «Limpiar todos» la quita sin
-  // tocar este plan) no se recoloca: limpiar fue una decisión, no un estado que
-  // se deshaga al tocar un número.
+  // no se pide nada. Lo que cuenta es lo planificado del store, no el `plan`
+  // local: al volver a la pestaña con el clip movido desde el 3D, este efecto
+  // corre al montar y recoloca la pose pendiente. Sin malla de clips no se
+  // recoloca: «Limpiar todos» quita la malla y vacía la lista (y lo
+  // planificado) en el store; limpiar fue una decisión, no un estado que se
+  // deshaga al tocar un número.
   useEffect(() => {
-    if (!plan || !clearer.placed || placed.length === 0) return;
+    if (plannedClips === null || !clearer.placed || placed.length === 0) return;
     cancelFieldTimer();
     // Volver a la pose ya pedida no pide nada, y anula lo encolado: lo que está
     // en vuelo (o ya colocado) es justo la pose que la lista dice.
@@ -445,6 +457,9 @@ function ClipsTab() {
   // la pose que el servidor ya tiene, y malla y campo deben quedar de acuerdo.
   useEffect(() => {
     mounted.current = true;
+    // El manipulador del 3D solo se enseña con esta pestaña montada: es ella
+    // la que recoloca al soltar.
+    setClipsTabActive(true);
     const cancel = () => { cancelFieldTimer(); pendingPlace.current = false; };
     // El plan local se olvida; la lista y lo planificado ya los vació el store
     // (clearDeviceMeshes) al quitar la malla de clips.
@@ -459,6 +474,7 @@ function ClipsTab() {
     clipReplace.forgetters.add(forget);
     return () => {
       mounted.current = false;
+      setClipsTabActive(false);
       cancel();
       clipReplace.cancellers.delete(cancel);
       clipReplace.forgetters.delete(forget);
@@ -678,7 +694,7 @@ function ClipsTab() {
             </Card>
           )}
           {plan && clipField && (
-            <ClipFieldCard summary={clipField.summary} show={showClipField} onToggle={setShowClipField} stale={isStale(placed, plannedClips)} />
+            <ClipFieldCard summary={clipField.summary} show={showClipField} onToggle={setShowClipField} stale={isStale(placed, fieldClips)} />
           )}
           {plan && fieldNote && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{fieldNote}</div>

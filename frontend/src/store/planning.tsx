@@ -119,6 +119,14 @@ interface PlanningState {
   placedClips: PlacedClip[];
   /** La lista con la que se cocieron las mallas vigentes; null sin plan. */
   plannedClips: PlacedClip[] | null;
+  /** La lista para la que se calculó el mapa de calor vigente; null sin campo.
+   *  El plan llega antes que el campo: «DESFASADO» y el mapa atenuado siguen
+   *  hasta que llega ESTE, porque hasta entonces el veredicto es el de antes. */
+  fieldClips: PlacedClip[] | null;
+  /** La pestaña de clips está montada. Ella es la que recoloca tras mover el
+   *  clip: sin ella, el manipulador del 3D dejaría un delta que nadie replanea. */
+  clipsTabActive: boolean;
+  setClipsTabActive: (v: boolean) => void;
   selectedClipKey: number | null;
   /** Índice del fotograma del saco constreñido que toca enseñar, o null para el
    *  saco sin deformar. Lo escribe el ensayo en cada cuadro y lo lee el visor:
@@ -249,7 +257,8 @@ interface PlanningState {
   setScissorsKeepSide: (s: number) => void;
   setPerforators: (p: PerforatorCandidate[], zones?: [number, number, number] | null) => void;
   setClipRehearsal: (a: ClipAnimationResult | null) => void;
-  setClipField: (f: ClipFieldResult | null) => void;
+  /** `forClips`: la lista para la que se calculó el campo (queda en `fieldClips`). */
+  setClipField: (f: ClipFieldResult | null, forClips?: PlacedClip[] | null) => void;
   setShowClipField: (v: boolean) => void;
   setPlacedClips: (u: PlacedClip[] | ((p: PlacedClip[]) => PlacedClip[])) => void;
   setPlannedClips: (p: PlacedClip[] | null) => void;
@@ -332,7 +341,14 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [scissorsPreview, setScissorsPreview] = useState<string | null>(null);
   const [scissorsKeepSide, setScissorsKeepSide] = useState(0);
   const [clipRehearsal, setClipRehearsal] = useState<ClipAnimationResult | null>(null);
-  const [clipField, setClipField] = useState<ClipFieldResult | null>(null);
+  const [clipField, _setClipField] = useState<ClipFieldResult | null>(null);
+  const [fieldClips, setFieldClips] = useState<PlacedClip[] | null>(null);
+  // Campo y lista van juntos: sin campo no hay lista de la que hablar.
+  const setClipField = useCallback((f: ClipFieldResult | null, forClips: PlacedClip[] | null = null) => {
+    _setClipField(f);
+    setFieldClips(f ? forClips : null);
+  }, []);
+  const [clipsTabActive, setClipsTabActive] = useState(false);
   const [showClipField, setShowClipField] = useState(true);
   const [placedClips, _setPlacedClips] = useState<PlacedClip[]>([]);
   const [plannedClips, setPlannedClips] = useState<PlacedClip[] | null>(null);
@@ -515,13 +531,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, volumeWindows,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
-        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
+        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,

@@ -14,6 +14,7 @@ vi.mock("../../api/client", async (orig) => {
     listCustomClips: vi.fn(async () => []),
     clipSelection: vi.fn(() => new Promise(() => { /* nunca resuelve: no es lo que se prueba */ })),
     placedDevices: vi.fn(async () => ({ remaining: [], mesh_urls: {} })),
+    coilRecommendations: vi.fn(() => new Promise(() => { /* la pestaña de coils solo se monta y se desmonta */ })),
     clearDevices: vi.fn(async () => ({ status: "ok" })),
     planClips: vi.fn(async () => ({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null })),
     clipField: vi.fn(async () => ({ field_mesh_url: "/m/clip_field.vtp?v=1", scalars: {}, summary: { covered_pct: 90, residual_pct: 10, unreached_pct: 0, contact_area_mm2: 8, force_g: 120, force_is_band_min: true, force_provisional: true, pressure_g_mm2: 15, window_g_mm2: [10, 12, 18, 22], pressure_verdict: "optima", force_window_g: [70, 80, 120, 150], neck_evaluated: true, clips: [{ name: "x", force_g: 120, verdict: "optima" }], verdict: "ok", criteria: [], clip_name: "x", note: "Estimación geométrica" } })),
@@ -71,6 +72,57 @@ describe("DevicesPanel · campo del clip", () => {
     expect(screen.getByText("DESFASADO")).toBeInTheDocument();
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(screen.queryByText("DESFASADO")).toBeNull());
+  });
+
+  it("DESFASADO dura hasta que llega el CAMPO nuevo, no solo el plan", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    const campo = await vi.mocked(api.clipField).mock.results[0].value;
+    let releaseField: () => void = () => {};
+    vi.mocked(api.clipField).mockImplementationOnce(() => new Promise((r) => { releaseField = () => r(campo); }));
+    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "2" } });
+    expect(screen.getByText("DESFASADO")).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(260); });
+    // El plan nuevo ya llegó y se pidió el campo, que sigue en vuelo…
+    await waitFor(() => expect(api.clipField).toHaveBeenCalledTimes(2));
+    expect(api.planClips).toHaveBeenCalledTimes(2);
+    // …y la tarjeta sigue enseñando el veredicto de la pose anterior: DESFASADO.
+    expect(screen.getByText("DESFASADO")).toBeInTheDocument();
+    await act(async () => { releaseField(); });
+    await waitFor(() => expect(screen.queryByText("DESFASADO")).toBeNull());
+  });
+
+  it("la pestaña de clips se anuncia montada y, al volver con el clip movido desde fuera, recoloca", async () => {
+    let store: ReturnType<typeof usePlanning> | null = null;
+    function Probe() { store = usePlanning(); return null; }
+    render(<PlanningProvider><Seed><Probe /><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+    const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
+    await waitFor(() => expect(addBtn()).not.toBeDisabled());
+    fireEvent.click(addBtn());
+    fireEvent.click(screen.getByRole("button", { name: /Colocar 1 y verificar/ }));
+    await screen.findByText(/Estimación geométrica/);
+    expect(store!.clipsTabActive).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Coils" }));
+    expect(store!.clipsTabActive).toBe(false);
+    // Sin pestaña de clips nadie recoloca (y el 3D esconde las asas). Si aun
+    // así la lista cambia, volver a Clips tiene que recolocar la pose pendiente.
+    act(() => store!.setPlacedClips((p) => p.map((c) => ({ ...c, position: [4, 2, 3] }))));
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Clips" }));
+    expect(store!.clipsTabActive).toBe(true);
+    act(() => { vi.advanceTimersByTime(260); });
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api.planClips).mock.calls[1][0].placements[0].position.x).toBe(4);
+  });
+
+  it("volver a la pestaña de clips sin nada movido no recoloca", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    fireEvent.click(screen.getByRole("button", { name: "Coils" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clips" }));
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).toHaveBeenCalledTimes(1);
   });
 
   it("la fila elegida es el clip de las asas: por defecto el último, y un clic elige otro", async () => {

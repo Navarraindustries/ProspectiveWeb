@@ -27,4 +27,24 @@ describe("campo del clip en el store", () => {
     act(() => result.current.clearDeviceMeshes());
     expect(result.current.clipField).toBeNull();
   });
+  it("guarda la lista para la que se calculó el campo y la olvida con él", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper: PlanningProvider });
+    expect(result.current.fieldClips).toBeNull();
+    const clips = [{ key: 1, clip_id: "x", name: "x", position: [1, 2, 3] as [number, number, number], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 }];
+    act(() => result.current.setClipField(campo, clips));
+    expect(result.current.fieldClips).toEqual(clips);
+    act(() => result.current.setClipField(null, clips));
+    expect(result.current.fieldClips).toBeNull();
+    act(() => result.current.setClipField(campo, clips));
+    act(() => result.current.clearDeviceMeshes("clips"));
+    expect(result.current.fieldClips).toBeNull();
+  });
+  it("la pestaña de clips se anuncia montada; por defecto no lo está", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper: PlanningProvider });
+    expect(result.current.clipsTabActive).toBe(false);
+    act(() => result.current.setClipsTabActive(true));
+    expect(result.current.clipsTabActive).toBe(true);
+    act(() => result.current.setClipsTabActive(false));
+    expect(result.current.clipsTabActive).toBe(false);
+  });
 });

@@ -1,6 +1,6 @@
 // frontend/src/vtk/clipGizmo.test.ts
 import { describe, expect, it } from "vitest";
-import { beginDrag, clipHandles, dragPose, gizmoReadout } from "./clipGizmo";
+import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible } from "./clipGizmo";
 const cam = { position: [0, 0, 100] as [number, number, number], focalPoint: [0, 0, 0] as [number, number, number], viewUp: [0, 1, 0] as [number, number, number], parallel: true, parallelScale: 10, viewAngleDeg: 30 };
 const vp = { width: 200, height: 100 };
 const clip = { key: 1, clip_id: "c", name: "C", position: [0, 0, 0] as [number, number, number], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 };
@@ -68,5 +68,21 @@ describe("clipGizmo", () => {
     const camSide = { ...cam, position: [100, 0, 0] as [number, number, number], viewUp: [0, 0, 1] as [number, number, number] };
     const s = beginDrag("clip:move", clip, n, n, camSide, vp, 100, 50, true);
     expect(dragPose("clip:move", s, camSide, vp, 100, 25, false)!.position.map((v) => +v.toFixed(6))).toEqual([0, 0, 5]);
+  });
+});
+
+describe("gizmoVisible", () => {
+  const on = { sceneHasMesh: true, step: "devices", clipsTabActive: true, hasClips: true, rehearsing: false };
+  it("se enseña en Dispositivos con la pestaña de clips montada y un clip", () => {
+    expect(gizmoVisible(on)).toBe(true);
+  });
+  it("se esconde en Coils o Stents: sin pestaña de clips nadie recoloca al soltar", () => {
+    expect(gizmoVisible({ ...on, clipsTabActive: false })).toBe(false);
+  });
+  it("se esconde sin malla, fuera de Dispositivos, sin clips o durante el ensayo", () => {
+    expect(gizmoVisible({ ...on, sceneHasMesh: false })).toBe(false);
+    expect(gizmoVisible({ ...on, step: "morphometry" })).toBe(false);
+    expect(gizmoVisible({ ...on, hasClips: false })).toBe(false);
+    expect(gizmoVisible({ ...on, rehearsing: true })).toBe(false);
   });
 });

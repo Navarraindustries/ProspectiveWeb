@@ -95,3 +95,46 @@ def test_re_detectar_con_el_elegido_movido_limpia_la_morfometria(session_con_sac
 def test_sin_candidatos_rejected_vacio(session_tubo_liso):
     r = client.post(f"/api/detect/{session_tubo_liso}").json()
     assert r["candidates"] == [] and r["rejected"] == [] and r["diagnostics"]["n_rejected"] == 0
+
+
+def test_re_detectar_la_misma_malla_conserva_la_medida(session_con_saco):
+    from services.sessions import read_state
+    client.post(f"/api/detect/{session_con_saco}")
+    m = client.get(f"/api/morphometry/{session_con_saco}", params={"candidate_id": "cand-001"})
+    assert m.status_code == 200
+    before = read_state(session_con_saco, "morpho.max_diameter_mm")
+    assert before
+    r = client.post(f"/api/detect/{session_con_saco}").json()
+    assert r["morphometry_invalidated"] is False
+    assert read_state(session_con_saco, "detect.selected_candidate") == "cand-001"
+    assert read_state(session_con_saco, "morpho.max_diameter_mm") == before
+
+
+def test_re_detectar_con_el_elegido_renumerado_sigue_al_sitio(session_con_saco):
+    """Una sesión anterior a los vetos midió el sitio bajo otro id: mismo sitio,
+    otro número. La elección se reescribe y la medida se conserva."""
+    from services.sessions import read_state
+    r1 = client.post(f"/api/detect/{session_con_saco}").json()
+    client.get(f"/api/morphometry/{session_con_saco}", params={"candidate_id": "cand-001"})
+    before = read_state(session_con_saco, "morpho.max_diameter_mm")
+    assert before
+    site = r1["candidates"][0]["center_mm"]
+    # El estado antiguo: el sitio medido se llamaba cand-002 y estaba donde la
+    # detección nueva pone cand-001.
+    write_state(session_con_saco, "detect.selected_candidate", "cand-002")
+    for a in "xyz":
+        write_state(session_con_saco, f"detect.cand_002.centroid_{a}", str(site[a]))
+    r = client.post(f"/api/detect/{session_con_saco}").json()
+    assert r["morphometry_invalidated"] is False
+    assert read_state(session_con_saco, "detect.selected_candidate") == "cand-001"
+    assert read_state(session_con_saco, "morpho.max_diameter_mm") == before
+
+
+def test_morfometria_sin_id_ni_eleccion_guarda_lo_medido(session_con_saco):
+    from services.sessions import read_state
+    client.post(f"/api/detect/{session_con_saco}")
+    assert not read_state(session_con_saco, "detect.selected_candidate", "")
+    m = client.get(f"/api/morphometry/{session_con_saco}")
+    assert m.status_code == 200
+    assert m.json()["candidate_id"] == "cand-001"
+    assert read_state(session_con_saco, "detect.selected_candidate") == "cand-001"

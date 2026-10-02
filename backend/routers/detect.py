@@ -230,7 +230,7 @@ def _clear_detection_state(session_id: str, meshes_dir: Path, *, morphometry: bo
         # La malla cambió (o se borra el análisis): el candidato elegido para
         # medir era de la detección anterior. Volver a detectar sobre la MISMA
         # malla (morphometry=False, lo que hace «Reanudar») lo conserva salvo
-        # que el elegido se haya movido (ver `_choice_moved`).
+        # que el elegido se haya movido (ver `_match_choice`).
         removed += _clear_morphometry_state(session_id, meshes_dir)
 
     return removed
@@ -401,20 +401,31 @@ def _previous_choice(session_id: str) -> tuple[str, np.ndarray | None] | None:
     return chosen, centroid
 
 
-def _choice_moved(previous: tuple[str, np.ndarray | None],
-                  new_positions: dict[str, np.ndarray]) -> bool:
-    """¿La morfometría guardada ya no describe el candidato de ese id?
+def _match_choice(previous: tuple[str, np.ndarray | None],
+                  new_positions: dict[str, np.ndarray]) -> str | None:
+    """El id que el sitio medido tiene en la lista nueva, o None si ya no está.
 
-    Sí si el id no está en la lista nueva (ni aceptado ni descartado), si se
-    movió más de `REDETECT_MOVE_MM`, o si no se sabe dónde estaba: sin el
+    Se busca por SITIO, no por id: los ids son posiciones en la lista, y un
+    veto que ahora salta sobre un sitio anterior al medido (p. ej. una sesión
+    guardada antes de los vetos) renumera todos los de detrás sin moverlos.
+    Primero el mismo id si sigue a menos de `REDETECT_MOVE_MM`; si no, el sitio
+    nuevo (aceptado o descartado) más cercano al centroide anterior dentro de
+    ese radio. None si ninguno cae ahí o si no se sabe dónde estaba: sin el
     centroide anterior no se puede afirmar que sea el mismo sitio, y una
     medida de otro sitio que sigue en pantalla es peor que volver a medir.
     """
     chosen, old = previous
-    new = new_positions.get(chosen)
-    if new is None or old is None:
-        return True
-    return float(np.linalg.norm(new - old)) > REDETECT_MOVE_MM
+    if old is None:
+        return None
+    same = new_positions.get(chosen)
+    if same is not None and float(np.linalg.norm(same - old)) <= REDETECT_MOVE_MM:
+        return chosen
+    best: tuple[float, str] | None = None
+    for cid, pos in new_positions.items():
+        d = float(np.linalg.norm(pos - old))
+        if d <= REDETECT_MOVE_MM and (best is None or d < best[0]):
+            best = (d, cid)
+    return best[1] if best is not None else None
 
 
 def _run_detection_sync(
@@ -540,14 +551,22 @@ def _run_detection_sync(
     # ── ¿Sigue valiendo la morfometría? ───────────────────────────────── #
     # Re-detectar no la borraba nunca (morphometry=False), confiando en que los
     # ids se repiten. Con los vetos los ids se reparten de otra forma, y una
-    # malla editada mueve los sitios: si el id medido ya no está o se movió,
-    # sus cifras describen otro sitio y se tiran con todo lo derivado.
+    # malla editada mueve los sitios. Si el sitio medido sigue ahí con otro id,
+    # la elección pasa a ese id y la medida se conserva: describe la misma
+    # anatomía. Solo si no queda ningún sitio a menos de 2 mm sus cifras
+    # describen otro sitio y se tiran con todo lo derivado.
     invalidated = False
-    if previous is not None and _choice_moved(previous, new_positions):
-        _clear_morphometry_state(session_id, meshes_dir)
-        invalidated = True
-        logger.info("Chosen candidate %s moved or vanished — morphometry cleared "
-                    "for session %s", previous[0], session_id)
+    if previous is not None:
+        match = _match_choice(previous, new_positions)
+        if match is None:
+            _clear_morphometry_state(session_id, meshes_dir)
+            invalidated = True
+            logger.info("Chosen candidate %s moved or vanished — morphometry cleared "
+                        "for session %s", previous[0], session_id)
+        elif match != previous[0]:
+            write_state(session_id, "detect.selected_candidate", match)
+            logger.info("Chosen candidate %s renumbered to %s — morphometry kept "
+                        "for session %s", previous[0], match, session_id)
 
     by_reason: dict[str, int] = {}
     for c in pyd_rejected:
@@ -665,6 +684,10 @@ async def get_morphometry(
             detail="Todos los sitios se descartaron: elige uno para medirlo.",
         )
     measured_id = f"cand-{rank if rank is not None else 1:03d}"
+    # Sin elección guardada se mide cand-001; se guarda como elegido para que
+    # una re-detección sepa qué sitio describe esta medida y lo siga.
+    if rank is None:
+        write_state(session_id, "detect.selected_candidate", measured_id)
 
     meshes_dir = session_subdir(session_id, "meshes")
     vtp_path   = meshes_dir / best_vtp_name

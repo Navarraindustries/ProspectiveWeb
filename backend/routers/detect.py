@@ -643,7 +643,11 @@ async def get_morphometry(
         if rank is None or rank > n_candidates:
             raise HTTPException(
                 status_code=422,
-                detail=f"El candidato '{candidate_id}' no existe: la detección dio {n_candidates}.",
+                detail=(
+                    f"El candidato '{candidate_id}' no existe: la detección dio "
+                    f"{_int_state(session_id, 'detect.n_candidates')} aceptados y "
+                    f"{_int_state(session_id, 'detect.n_rejected')} descartados."
+                ),
             )
         write_state(session_id, "detect.selected_candidate", candidate_id)
     else:

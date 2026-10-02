@@ -1,6 +1,6 @@
 # Volumen unificado (D2) — plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Un único plano libre (azimut, elevación, desplazamiento) compartido por la vista Oblicuo, el recorte de VOLUMEN (con el corte pintado en la cara), el 3D y los cortes; ventana y nivel por preajuste en COMPUESTO; y la retirada de `GET /volume/{sid}/raw`.
 
@@ -58,7 +58,7 @@ export function clampOffsetToBox(p: FreePlane, voxel: {x,y,z}, meta: VolumeMeta)
 export function sliceSegment(p: FreePlane, voxel: {x,y,z}, meta: VolumeMeta, slice: Plane, index: number): [[number, number], [number, number]] | null; // fracciones u,v del corte
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/freePlane.test.ts
@@ -146,9 +146,9 @@ describe("sliceSegment", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → `cd frontend && npx vitest run src/vtk/freePlane.test.ts` FAIL (módulo inexistente).
+- [x] **Step 2: Ver fallar** → `cd frontend && npx vitest run src/vtk/freePlane.test.ts` FAIL (módulo inexistente).
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/freePlane.ts
@@ -267,9 +267,9 @@ export function sliceSegment(p: FreePlane, voxel: { x: number; y: number; z: num
 
 Para `index` fuera de `[0, n−1]` devuelve `null`.
 
-- [ ] **Step 4: Verificar** → `npx vitest run src/vtk/freePlane.test.ts`, `npx tsc --noEmit -p .`.
+- [x] **Step 4: Verificar** → `npx vitest run src/vtk/freePlane.test.ts`, `npx tsc --noEmit -p .`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/freePlane.ts frontend/src/vtk/freePlane.test.ts
@@ -301,7 +301,7 @@ export function presetToWindow(preset: VolumePreset, w: VolumeWindow): TransferP
 
 `presetToRange` queda como envoltorio: `presetToRange(preset, [lo, hi]) === presetToWindow(preset, defaultWindow([lo, hi]))`.
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // añadir a frontend/src/vtk/volumePresets.test.ts
@@ -357,9 +357,9 @@ describe("plano libre, recorte y ventana por preajuste", () => {
 
 Adapta `renderPlanning`/`switchStudy` a los helpers reales del archivo (léelo primero); si el cambio de estudio hoy no reinicia `mipMode`/`volumeMode`, añade los cuatro campos nuevos a la misma rutina de reinicio que usa `mprVoxel`/`mprWl` y anótalo en el informe.
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // volumePresets.ts
@@ -382,9 +382,9 @@ export function presetToRange(preset: VolumePreset, range: [number, number]): Tr
 
 Store: cuatro `useState` junto a `volumeMode`/`volumePreset` (líneas ~344–345), tipos junto a las líneas ~175–177, en el `value` (línea ~451), reinicio en la rutina de cambio de estudio; `setFreePlane = (p) => setFreePlaneState(clampPlane(p))`; `setVolumeWindow = (k, w) => setVolumeWindows((m) => { const n = { ...m }; if (w) n[k] = w; else delete n[k]; return n; })`.
 
-- [ ] **Step 4: Verificar** → vitest de los dos archivos, `npx tsc --noEmit -p .`, `npx vitest run`.
+- [x] **Step 4: Verificar** → vitest de los dos archivos, `npx tsc --noEmit -p .`, `npx vitest run`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/store/planning.tsx frontend/src/store/planning.test.tsx frontend/src/vtk/volumePresets.ts frontend/src/vtk/volumePresets.test.ts
@@ -411,7 +411,7 @@ export function wheelOffset(p: FreePlane, deltaY: number, stepMm: number): FreeP
 export function obliqueReadout(p: FreePlane): string;                                 // "AZ 20° · EL −10° · +3,2 mm"
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/obliqueGestures.test.ts
@@ -436,9 +436,9 @@ describe("gestos del oblicuo", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // obliqueGestures.ts
@@ -459,9 +459,9 @@ export function obliqueReadout(p: FreePlane): string {
 
 `ObliqueView.tsx`: elimina `tilt`, `pos`, `axis` y `sliceExtent`; lee `freePlane`, `setFreePlane`, `mprVoxel` del store. Efecto del plano: `n = normalOf(freePlane)`, `o = originOf(freePlane, mprVoxel, meta)`, `up = upOf(freePlane)`; `s.plane.setNormal(...n); s.plane.setOrigin(...o)`; cámara: foco en `o`, posición `o − n·1000`, `setViewUp(...up)`. `fit()`: con `clipPolygon(...)` proyecta los vértices sobre `(rightOf, upOf)` y usa la extensión máxima como `parallelScale` (mismo criterio que tenía `sliceExtent`). Gestos: botón izquierdo = ventana/nivel (como hoy); **botón derecho** (`e.button === 2`, con `onContextMenu={e => e.preventDefault()}`) = `dragAngles` desde el plano al empezar el arrastre; rueda sin Ctrl = `setFreePlane(clampOffsetToBox(wheelOffset(freePlane, e.deltaY, Math.min(...meta.spacing)), mprVoxel, meta))`; Ctrl+rueda zoom como hoy. Fila inferior: dos `<input type="range">` «AZIMUT» (−180..180) y «ELEVACIÓN» (−89..89) con su cifra, y `HudToggleGroup` AJUSTAR · CENTRAR (CENTRAR → `offsetMm: 0`). Lectura `bl`: `obliqueReadout(freePlane)`; `br` W/L como hoy. `Viewer.tsx`: `ObliqueView` ya no recibe nada del plano (sus props siguen siendo `image, meta, wc, ww, onWindowLevel, active, registerCapture`); `ObliqueMprView` no cambia. README: sección del oblicuo con los controles nuevos y la nota del modo degradado.
 
-- [ ] **Step 4: Verificar** → vitest del archivo, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3, escena en Oblicuo): deslizadores y arrastre derecho orientan el corte; rueda lo desplaza y no sale de la caja; CENTRAR vuelve al punto; AJUSTAR encuadra; ventana con arrastre izquierdo sigue. Captura `t3_oblicuo.png`.
+- [x] **Step 4: Verificar** → vitest del archivo, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3, escena en Oblicuo): deslizadores y arrastre derecho orientan el corte; rueda lo desplaza y no sale de la caja; CENTRAR vuelve al punto; AJUSTAR encuadra; ventana con arrastre izquierdo sigue. Captura `t3_oblicuo.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/ObliqueView.tsx frontend/src/vtk/obliqueGestures.ts frontend/src/vtk/obliqueGestures.test.ts frontend/src/vtk/Viewer.tsx README.md
@@ -485,7 +485,7 @@ export function traceVisibleForNormal(cameraDirection: Vec3, normal: Vec3): bool
 // mipReadout.ts: nuevo parámetro opcional `clip?: "eje" | "libre"`; en libre la línea del corte dice «LIBRE +3,2 mm» (acumulado) o «LIBRE ±8 mm» (lámina); compacto «LIB +3,2» / «LIB ±8»
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // añadir a frontend/src/vtk/planeTrace.test.ts
@@ -501,9 +501,9 @@ it("en recorte libre la línea del corte dice el desplazamiento", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 `planeTrace.ts`: `traceVisibleForNormal(d, n) = Math.abs(dot(norm(d), norm(n))) > Math.sin(EDGE_ON_DEG·π/180)` (la actual `traceVisible(d, axis)` pasa a llamarla con el vector del eje).
 
@@ -519,9 +519,9 @@ it("en recorte libre la línea del corte dice el desplazamiento", () => {
 - CENTRAR en LIBRE: `setFreePlane({ ...freePlane, offsetMm: 0 })` además del encuadre actual.
 - Lectura: `mipReadoutLines({..., clip: clipMode, offsetMm: freePlane.offsetMm })`.
 
-- [ ] **Step 4: Verificar** → vitest de `planeTrace`, `mipReadout`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3, VOLUMEN principal): RECORTE LIBRE con el plano del oblicuo; rueda mueve el mismo plano (comprobar en Oblicuo); cara en gris con la ventana de los cortes y vasos por delante tapándola; CARA ○ la quita; LÁMINA ±slab; MIP y COMPUESTO; volver a EJE restaura el recorte por eje y CENTRAR encuadra como en D1; fps en COMPUESTO + LIBRE + CARA (anotar). Capturas `t4_*.png`.
+- [x] **Step 4: Verificar** → vitest de `planeTrace`, `mipReadout`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3, VOLUMEN principal): RECORTE LIBRE con el plano del oblicuo; rueda mueve el mismo plano (comprobar en Oblicuo); cara en gris con la ventana de los cortes y vasos por delante tapándola; CARA ○ la quita; LÁMINA ±slab; MIP y COMPUESTO; volver a EJE restaura el recorte por eje y CENTRAR encuadra como en D1; fps en COMPUESTO + LIBRE + CARA (anotar). Capturas `t4_*.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/MipView.tsx frontend/src/vtk/mipReadout.ts frontend/src/vtk/mipReadout.test.ts frontend/src/vtk/planeTrace.ts frontend/src/vtk/planeTrace.test.ts
@@ -546,7 +546,7 @@ export function windowFromDrag(start: VolumeWindow, dxPx: number, dyPx: number, 
 // mipReadout.ts: parámetro opcional `window?: VolumeWindow`; en compuesto añade la línea «NIV n · VENT n» (enteros); en compacto no se añade
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/windowDrag.test.ts
@@ -567,9 +567,9 @@ it("en compuesto la lectura añade nivel y ventana", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // windowDrag.ts
@@ -584,9 +584,9 @@ export function windowFromDrag(start: VolumeWindow, dxPx: number, dyPx: number, 
 
 `MipView.tsx`: `const window = volumeWindows[volumePreset] ?? defaultWindow([rlo, rhi])`; el efecto de transferencia en COMPUESTO usa `presetToWindow(volumePreset, window)` (dependencia `window.wc, window.ww`); **botón derecho** (`e.button === 2`, `onContextMenu` prevenido) en COMPUESTO arrastra la ventana: al bajar guarda `{x, y, start: window}`, al mover `setVolumeWindow(volumePreset, windowFromDrag(start, dx, dy, [rlo, rhi]))` (en MIP el botón derecho no hace nada nuevo); en la fila de preajustes añade `HudToggleGroup` «RESTABLECER» → `setVolumeWindow(volumePreset, null)`; lectura con `window`. Comprueba cómo `MipView` intercepta ya Shift/central para el desplazamiento (listener en fase de captura que para la propagación hacia el interactor de vtk) y usa el mismo mecanismo para el botón derecho, para que vtk no haga zoom con él.
 
-- [ ] **Step 4: Verificar** → vitest de `windowDrag`, `mipReadout`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: en COMPUESTO el arrastre derecho cambia nivel/ventana con lectura en vivo; cambiar de preajuste recuerda cada ventana; RESTABLECER vuelve al defecto; en MIP el botón derecho no cambia nada. Captura `t5_ventana.png`.
+- [x] **Step 4: Verificar** → vitest de `windowDrag`, `mipReadout`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: en COMPUESTO el arrastre derecho cambia nivel/ventana con lectura en vivo; cambiar de preajuste recuerda cada ventana; RESTABLECER vuelve al defecto; en MIP el botón derecho no cambia nada. Captura `t5_ventana.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/MipView.tsx frontend/src/vtk/mipReadout.ts frontend/src/vtk/mipReadout.test.ts frontend/src/vtk/windowDrag.ts frontend/src/vtk/windowDrag.test.ts
@@ -616,7 +616,7 @@ export function planeOutlines(voxel, meta, free?: FreePlane | null): PlaneOutlin
 // SliceView: prop nueva `freeSegment?: [[number, number], [number, number]] | null` dibujada en SVG
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // añadir a planeColors.test.ts: PLANE_HEX.libre existe, es distinto de los tres y de los reservados, y coincide con --plane-libre en colors.css (ampliar el test de sincronía existente)
@@ -634,15 +634,15 @@ it("sin plano libre o con el plano fuera de la caja siguen siendo tres", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 `colors.css`: `--plane-libre: #c77dff;` junto a los otros tres. `planeColors.ts`: tipo `OutlinePlane`, entradas `libre` en `PLANE_HEX`/`PLANE_CSS_VAR`; `referencePlanes` sigue tipada con `Plane`. `planeOutlines.ts`: `corners: Vec3[]`; tercer parámetro `free`; si `free`, `const poly = clipPolygon(free, voxel, meta); if (poly.length >= 3) out.push({ plane: "libre", corners: poly, color: planeRgb01("libre") })`. `MeshView.tsx`: el efecto de planos construye `lines = [N+1, 0..N−1, 0]` y `polys = [N, 0..N−1]` con `N = p.corners.length` (hoy fijo a 4). `SliceView.tsx`: prop `freeSegment`; un `<svg className="hud-decor" data-plane="libre">` absoluto sobre `box` con una `<line>` de `(u0·w, v0·h)` a `(u1·w, v1·h)`, `stroke=PLANE_CSS_VAR.libre`, `strokeWidth 1`, `strokeOpacity 0.85`, `pointer-events: none`. `Viewer.tsx`: `const showFreePlane = showPlanes && (viewMode === "oblique" || clipMode === "libre")`; `planes = planeOutlines(mprVoxel, meta, showFreePlane ? freePlane : null)`; cada `SliceView` recibe `freeSegment={showFreePlane ? sliceSegment(freePlane, mprVoxel, meta, plane, index) : null}`; `estadoVisor` añade `free_plane: { azimuth_deg, elevation_deg, offset_mm }`, `clip_mode`, `cut_face_visible`, `volume_window` (la del preajuste activo o `null`) leídos por refs como los campos de D1. `MipView.tsx`: sustituye el literal `"#c77dff"` por `PLANE_HEX.libre`.
 
-- [ ] **Step 4: Verificar** → vitest de `planeColors`, `planeOutlines`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: con la escena en Oblicuo o VOLUMEN en LIBRE aparece el polígono lavanda en el 3D y el segmento en los tres cortes, y se mueven con los deslizadores/rueda; en EJE y 3D normal no aparecen; PLANOS ○ los quita; el estado guardado trae los campos nuevos. Capturas `t6_*.png`.
+- [x] **Step 4: Verificar** → vitest de `planeColors`, `planeOutlines`, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: con la escena en Oblicuo o VOLUMEN en LIBRE aparece el polígono lavanda en el 3D y el segmento en los tres cortes, y se mueven con los deslizadores/rueda; en EJE y 3D normal no aparecen; PLANOS ○ los quita; el estado guardado trae los campos nuevos. Capturas `t6_*.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/planeColors.ts frontend/src/vtk/planeColors.test.ts frontend/src/styles/tokens/colors.css frontend/src/vtk/planeOutlines.ts frontend/src/vtk/planeOutlines.test.ts frontend/src/vtk/MeshView.tsx frontend/src/vtk/SliceView.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/MipView.tsx
@@ -656,7 +656,7 @@ git commit -m "El plano libre se ve en el 3D, en los cortes y en el estado de la
 **Files:**
 - Modify: `backend/routers/mpr.py` (quitar `get_volume_raw` y su import), `backend/services/mpr.py` (quitar `get_volume_raw_uint8`; dejar `_downsampled_volume`, `_get_downsampled`, `volume_coarse_int16` y actualizar su docstring que cita a la función borrada), `backend/test_mpr_advanced.py` (quitar el import y las pruebas del servicio, del 200 y del 404 del raw), `frontend/src/api/client.ts` (quitar `volumeRawUrl`), `README.md` (quitar la nota «sin consumidor»; describir que el cliente carga el volumen por `/volume/{sid}/chunk/...`)
 
-- [ ] **Step 1: Prueba que falla** → añade en `backend/test_mpr_advanced.py`:
+- [x] **Step 1: Prueba que falla** → añade en `backend/test_mpr_advanced.py`:
 
 ```python
 def test_volume_raw_route_is_gone(client, session_id):
@@ -665,13 +665,13 @@ def test_volume_raw_route_is_gone(client, session_id):
 
 (usa los fixtures que ya usan las pruebas vecinas; si el 404 lo da ya el router por sesión inexistente, usa una sesión válida).
 
-- [ ] **Step 2: Ver fallar** → `cd backend && .venv\Scripts\python -m pytest -q test_mpr_advanced.py -k raw` FAIL (hoy devuelve 200).
+- [x] **Step 2: Ver fallar** → `cd backend && .venv\Scripts\python -m pytest -q test_mpr_advanced.py -k raw` FAIL (hoy devuelve 200).
 
-- [ ] **Step 3: Implementación** → borra la ruta, el servicio, el import, las tres pruebas antiguas y `volumeRawUrl`; README.
+- [x] **Step 3: Implementación** → borra la ruta, el servicio, el import, las tres pruebas antiguas y `volumeRawUrl`; README.
 
-- [ ] **Step 4: Verificar** → `pytest -q test_mpr_advanced.py test_volume_chunks.py`; `cd frontend && npx tsc --noEmit -p . && npx vitest run`; `grep -rn "volume_raw\|volumeRawUrl\|/raw" backend frontend/src README.md` sin restos (salvo documentos históricos en `docs/`).
+- [x] **Step 4: Verificar** → `pytest -q test_mpr_advanced.py test_volume_chunks.py`; `cd frontend && npx tsc --noEmit -p . && npx vitest run`; `grep -rn "volume_raw\|volumeRawUrl\|/raw" backend frontend/src README.md` sin restos (salvo documentos históricos en `docs/`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/routers/mpr.py backend/services/mpr.py backend/test_mpr_advanced.py frontend/src/api/client.ts README.md
@@ -685,7 +685,7 @@ git commit -m "Se retira GET /volume/{sid}/raw: el cliente carga el volumen por 
 **Files:**
 - Modify: `README.md` (sección del visor: plano libre compartido, RECORTE EJE/LIBRE, CARA, ventana por preajuste), este plan (casillas).
 
-- [ ] **Step 1: Comprobación completa**
+- [x] **Step 1: Comprobación completa**
 
 ```bash
 cd frontend && npx tsc -b && npx vitest run && npm run build
@@ -694,7 +694,7 @@ cd ../backend && .venv\Scripts\python -m pytest -q -rf --no-header -p no:cachepr
 
 Expected: frontend en verde; backend sin fallos nuevos frente a la línea base (36–37 preexistentes; las tres pruebas del raw ya no existen).
 
-- [ ] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
+- [x] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
 
 1. Oblicuo: AZIMUT/ELEVACIÓN y arrastre derecho orientan; rueda desplaza y se detiene en la caja; CENTRAR y AJUSTAR.
 2. VOLUMEN LIBRE muestra el mismo plano; la rueda en VOLUMEN se refleja en Oblicuo y al revés.
@@ -707,7 +707,7 @@ Expected: frontend en verde; backend sin fallos nuevos frente a la línea base (
 9. Estado guardado con `free_plane`, `clip_mode`, `cut_face_visible`, `volume_window`.
 10. `GET /api/volume/{sid}/raw` responde 404; el visor sigue cargando el volumen por trozos.
 
-- [ ] **Step 3: README y commit de cierre**
+- [x] **Step 3: README y commit de cierre**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-10-02-volumen-unificado.md

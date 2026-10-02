@@ -2260,6 +2260,8 @@ slice views follow it), Ctrl+wheel zooms, dragging rotates, Shift+drag or the
 middle button pans. «AX · COR · SAG» chooses the voxel axis it accumulates
 along, the same axes the slice views use, and an outline in that plane's colour
 traces the current plane. «CENTRAR» recentres pan and zoom without undoing the rotation.
+With «RECORTE ▸ LIBRE» (below) the wheel moves the free plane instead of the
+slice.
 
 **VOLUMEN.** The MIP cell is labelled «VOLUMEN» and has two render modes,
 switched with «MIP · COMPUESTO» next to the axis selector. MIP is the view
@@ -2267,9 +2269,25 @@ described above. COMPUESTO is shaded compositing with the six tissue presets of
 the retired 3D «Volumen» mode (CTA, Vasos CTA, Cerebro, Hemorragia, Hueso,
 Tejido blando), mapped onto the volume's robust intensity range
 (p0.5–p99.9, close to the p1–p99 the old server used) of the copy already in
-the browser; clipping, plane trace and gestures are the same in
-both. The 3D scene no longer has a «Volumen» mode, and `GET /api/volume/{sid}/raw`
-was retired in D2: the client loads the volume through `/api/volume/{sid}/chunk/...`.
+the browser; clipping and plane trace are the same in both. In COMPUESTO a
+right-button drag sets the preset's level (vertical) and window (horizontal),
+as in the slices; the readout adds `NIV 1485 · VENT 6562`. Each preset keeps
+its own window, and «RESTABLECER» returns the current one to the default that
+spans the robust range. In MIP the right button does nothing. The 3D scene no
+longer has a «Volumen» mode, and `GET /api/volume/{sid}/raw` was retired in D2
+(it answers 404): the client loads the volume in chunks through
+`/api/volume/{sid}/chunk/...`.
+
+**«RECORTE ▸ EJE · LIBRE».** «EJE» clips along the chosen axis as described
+above. «LIBRE» clips by the shared free plane of the «Oblicuo» view instead
+(the axis selector dims): the wheel in VOLUMEN moves that plane and the
+«Oblicuo» view follows, and the other way round. «ACUMULADO» keeps one side of
+the plane, «DESDE EL FINAL» keeps the other, and «LÁMINA» keeps a slab of ±N mm
+around it (2–40 mm). The cut face is painted in grey with the slices'
+window/level, so changing the window in a slice changes the face; vessels in
+front of it still cover it. «CARA ● / ○» shows or hides the face. «CENTRAR» in
+LIBRE also puts the plane back through the crosshair. Going back to «EJE»
+restores the axis clip and removes the face. The trace is lavender in LIBRE.
 
 **Plane colours and «PLANOS».** Each slice plane has one colour everywhere:
 axial cyan, coronal green, sagittal orange. It colours the slice label, the
@@ -2280,6 +2298,11 @@ slice moves its rectangle. The rectangles do not count for framing or for the
 scale of markers, so «AJUSTAR» still frames the vessel tree. «PLANOS» in the
 header hides them without moving the camera, «REGLAS» hides them too, and the
 choice is remembered per browser. The scene toggle offers «3D · Oblicuo».
+The shared free plane has its own colour, lavender: a polygon (the plane cut by
+the volume box) in the 3D scene and a segment on each slice. Both appear only
+while the scene shows «Oblicuo» or VOLUMEN clips by «LIBRE», where the plane
+means something, and «PLANOS» hides them with the rest. The VOLUMEN trace is
+not governed by «PLANOS», in either clip mode.
 
 **The «Oblicuo» view.** The oblique slice is the shared free plane: the same
 plane that clips the volume and is drawn in the 3D scene and on the slices, so
@@ -2300,7 +2323,9 @@ The «REGLAS» toggle hides the HUD decoration (corners, heading tape, slice
 ladder, reticle); orientation letters, slice number, measurements and safety
 warnings stay. Layout, «REGLAS» and «PLANOS» are per-browser view preferences, and
 captures and recordings follow what is on screen; their saved state includes
-`planes_hidden`, `volume_mode` and `volume_preset`.
+`planes_hidden`, `volume_mode`, `volume_preset`, `free_plane` (azimuth,
+elevation and offset), `clip_mode`, `cut_face_visible` and `volume_window` (the
+current preset's window, or null while it is the default).
 
 **What the audit chain records.** Login, password changes and resets, PDF and
 DICOM-SR generation, clip workshops and every order transition, the treatment

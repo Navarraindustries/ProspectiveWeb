@@ -89,17 +89,24 @@ def _gira_z(poly, grados_z) -> vtk.vtkPolyData:
 
 
 def bifurcacion_sin_saco() -> vtk.vtkPolyData:
-    """Tronco en y y dos ramas que salen de (0,0,0) a ±35° en el plano xy.
+    """Una Y: tronco en y que acaba en (0,0,0) y dos ramas a ±35° en el plano xy.
 
     Las ramas arrancan en el origen (su extremo, no su centro) y se sueldan
     al tronco para que la Y sea un solo componente tras `limpia`.
+
+    El tronco ACABA en la unión: si siguiera hasta y = +30 la malla tendría
+    cuatro salidas y no tres, y no sería una Y. La unión se ensancha con una
+    bola de 1,6 mm, como el ápice de una bifurcación real, que es más ancho
+    que cada rama: es ese ensanchamiento lo que los canales de calibre leen
+    como un bulto, y lo que el veto de bifurcación tiene que descartar (sin
+    él los canales no proponen ningún sitio en la unión).
     """
-    y = tubo(largo=60.0, radio=1.2)
+    y = tubo(centro=(0, -15.0, 0), largo=30.0, radio=1.2)
     for grados in (35.0, -35.0):
         # Rama a lo largo de +y con su base en el origen, luego rotada.
         r = tubo(centro=(0, 12.5, 0), largo=25.0, radio=0.9)
         y = _suelda(y, _gira_z(r, grados))
-    return y
+    return _suelda(y, bola((0.0, 0.0, 0.0), 1.6))
 
 
 def tubo_curvo_sin_saco() -> vtk.vtkPolyData:
@@ -113,20 +120,34 @@ def saco_en_borde() -> tuple[vtk.vtkPolyData, Vec3]:
     """Tubo cortado sin tapa (aristas abiertas) con un saco cerca del corte.
 
     Es el caso que engaña al detector: un borde abierto parece un cuello.
+    El vaso se ensancha (2,2 mm de radio) justo antes del corte, como uno que
+    el borde del volumen corta en un bulbo: la boca abierta queda con una
+    cúpula detrás y la curvatura la propone (centroide en y ≈ 19, a 9 mm del
+    saco). Sin ese ensanchamiento ningún canal propone nada en el extremo
+    abierto y el veto de borde no tendría a quién descartar.
     """
     pl = vtk.vtkPlane(); pl.SetOrigin(0, 20, 0); pl.SetNormal(0, -1, 0)
     centro = (0.0, 10.0, 2.2)
     # Se suelda el saco al tubo cerrado y después se corta: la unión booleana
     # exige mallas cerradas y el corte deja el borde abierto.
+    malla = _suelda(tubo(largo=60.0, radio=1.0), bola(centro, 3.0))
+    # Tramo grueso de y = 19 a 27: el corte en y = 20 deja 1 mm de él.
+    malla = _suelda(malla, tubo(centro=(0, 23.0, 0), largo=8.0, radio=2.2))
     cl = vtk.vtkClipPolyData()
-    cl.SetInputData(_suelda(tubo(largo=60.0, radio=1.0), bola(centro, 3.0)))
+    cl.SetInputData(malla)
     cl.SetClipFunction(pl); cl.Update()  # sin InsideOut: se queda y < 20, donde está el saco
     return limpia(cl.GetOutput()), centro
 
 
 def tubo_mas_isla() -> vtk.vtkPolyData:
-    """Tubo y una bola suelta: un componente que no es vaso."""
-    return une(tubo(largo=60.0, radio=1.0), bola((15.0, 0.0, 0.0), 1.5))
+    """Tubo y una bola suelta: un componente que no es vaso.
+
+    La isla es una bola tosca (26 vértices, 1,4 % de la malla): un resto de
+    segmentación es una fracción pequeña del árbol, y el veto de isla mide
+    justo eso (`ISLAND_FRAC` = 2 %). Con una esfera fina era un tercio de los
+    vértices y no se distinguía de un árbol pequeño.
+    """
+    return une(tubo(largo=60.0, radio=1.0, res=30), bola((15.0, 0.0, 0.0), 1.5, res=6))
 
 
 def bifurcacion_con_saco_apical() -> tuple[vtk.vtkPolyData, Vec3]:

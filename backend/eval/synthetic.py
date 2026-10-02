@@ -70,6 +70,8 @@ def _suelda(a, b) -> vtk.vtkPolyData:
     f = vtk.vtkLoopBooleanPolyDataFilter()
     f.SetInputData(0, a); f.SetInputData(1, b)
     f.SetOperationToUnion(); f.Update()
+    if f.GetOutput().GetNumberOfPolys() == 0:
+        raise RuntimeError("la unión booleana salió vacía")
     return limpia(f.GetOutput())
 
 
@@ -113,10 +115,13 @@ def saco_en_borde() -> tuple[vtk.vtkPolyData, Vec3]:
     Es el caso que engaña al detector: un borde abierto parece un cuello.
     """
     pl = vtk.vtkPlane(); pl.SetOrigin(0, 20, 0); pl.SetNormal(0, -1, 0)
-    cl = vtk.vtkClipPolyData(); cl.SetInputData(tubo(largo=60.0, radio=1.0))
-    cl.SetClipFunction(pl); cl.InsideOutOn(); cl.Update()
     centro = (0.0, 10.0, 2.2)
-    return une(cl.GetOutput(), bola(centro, 3.0)), centro
+    # Se suelda el saco al tubo cerrado y después se corta: la unión booleana
+    # exige mallas cerradas y el corte deja el borde abierto.
+    cl = vtk.vtkClipPolyData()
+    cl.SetInputData(_suelda(tubo(largo=60.0, radio=1.0), bola(centro, 3.0)))
+    cl.SetClipFunction(pl); cl.Update()  # sin InsideOut: se queda y < 20, donde está el saco
+    return limpia(cl.GetOutput()), centro
 
 
 def tubo_mas_isla() -> vtk.vtkPolyData:

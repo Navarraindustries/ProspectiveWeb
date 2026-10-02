@@ -37,6 +37,13 @@ def test_el_borde_cortado_tiene_aristas_abiertas_y_el_tubo_cerrado_no():
     assert _open_edge_mm(tubo()) < 1e-6
 
 
+def test_el_saco_en_borde_esta_pegado_al_tubo_cortado():
+    poly, _ = saco_en_borde()
+    assert _n_components(poly) == 1
+    assert _open_edge_mm(poly) > 3.0
+    assert poly.GetBounds()[3] < 20.5
+
+
 def test_el_saco_declarado_esta_sobre_la_malla():
     for poly, saco in (tubo_con_saco(), saco_en_borde(), bifurcacion_con_saco_apical()):
         pts = np.array([poly.GetPoint(i) for i in range(poly.GetNumberOfPoints())])

@@ -105,4 +105,11 @@ describe("ViewerHeader — conmutadores y teclas", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: /^AX$/ }), { code: "Digit1", altKey: true });
     expect(props.onKeyDown).toHaveBeenCalledTimes(1);
   });
+
+  it("el botón «?» del final de la banda abre la hoja de atajos", () => {
+    const onHelp = vi.fn();
+    setup({ onHelp });
+    fireEvent.click(screen.getByTitle("Atajos (?)"));
+    expect(onHelp).toHaveBeenCalledTimes(1);
+  });
 });

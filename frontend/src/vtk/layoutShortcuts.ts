@@ -12,11 +12,16 @@ const CODES: Record<string, LayoutPreset> = { Digit1: "sola", Digit2: "derecha",
 /** Un atajo numérico nunca debe robarle la tecla a un campo donde se escribe:
  *  escribir en el umbral de segmentación no puede cambiar la distribución. */
 export function presetForKey(code: string, target: EventTarget | null, altKey: boolean): LayoutPreset | null {
-  if (!altKey) return null;
+  if (!altKey || isTextEntryTarget(target)) return null;
+  return CODES[code] ?? null;
+}
+
+/** ¿Se está escribiendo ahí? Campo, área, selector o algo editable. La usan
+ *  también los atajos de una letra (shortcuts.ts): una sola regla para todos. */
+export function isTextEntryTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   const tag = el?.tagName?.toLowerCase();
-  if (tag === "input" || tag === "textarea" || tag === "select") return null;
+  if (tag === "input" || tag === "textarea" || tag === "select") return true;
   // Editable también por herencia (un nodo dentro de un contenteditable).
-  if (el?.closest?.('[contenteditable]:not([contenteditable="false"])')) return null;
-  return CODES[code] ?? null;
+  return !!el?.closest?.('[contenteditable]:not([contenteditable="false"])');
 }

@@ -56,6 +56,9 @@ export interface SliceViewProps {
    *  Sin esto el panel no puede salir en una captura del visor: el lienzo
    *  de vtk.js se lee negro si no se pide la imagen del siguiente render. */
   registerCapture?: (fn: CaptureFn | null) => void;
+  /** Publica el reencuadre de esta celda (la tecla C) mientras su escena viva,
+   *  como `registerCapture`: el visor no ve la cámara de cada celda. */
+  registerFit?: (fn: (() => void) | null) => void;
 }
 
 interface Scene {
@@ -79,6 +82,8 @@ export function SliceView(p: SliceViewProps) {
   // Por ref: cambiar de destinatario no puede rehacer la escena.
   const registerCaptureRef = useRef(p.registerCapture);
   registerCaptureRef.current = p.registerCapture;
+  const registerFitRef = useRef(p.registerFit);
+  registerFitRef.current = p.registerFit;
   // Rectángulo de la imagen en px del contenedor, para retícula y clics.
   const [box, setBox] = useState<{ left: number; top: number; w: number; h: number; mmPerPx: number } | null>(null);
   const count = planeCount(p.meta, p.plane);
@@ -183,8 +188,19 @@ export function SliceView(p: SliceViewProps) {
     measure();
     rw.render();
     registerCaptureRef.current?.(captureRenderWindow(grw, () => rw.render()));
+    // C: el mismo encuadre que al montar sin cámara guardada (foco en el centro
+    // del volumen y el corte entero), que deshace desplazamiento y zoom.
+    registerFitRef.current?.(() => {
+      cam.setFocalPoint(c[0], c[1], c[2]);
+      cam.setPosition(c[0] - direction[0] * 1000, c[1] - direction[1] * 1000, c[2] - direction[2] * 1000);
+      cam.setViewUp(viewUp[0], viewUp[1], viewUp[2]);
+      fit();
+      renderer.resetCameraClippingRange();
+      measure(); rw.render();
+    });
     return () => {
       registerCaptureRef.current?.(null);
+      registerFitRef.current?.(null);
       ro.disconnect();
       savedCam.current = { plane: p.plane, focal: cam.getFocalPoint(), position: cam.getPosition(), scale: cam.getParallelScale() };
       scene.current = null;

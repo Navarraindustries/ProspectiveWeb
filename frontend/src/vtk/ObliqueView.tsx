@@ -28,7 +28,7 @@ const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 type Voxel = { x: number; y: number; z: number };
 const degLabel = (d: number) => { const r = Math.round(d); return `${r < 0 ? "−" : ""}${Math.abs(r)}°`; };
 
-export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false, registerCapture, overlay }: {
+export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false, registerCapture, registerFit, overlay }: {
   image: vtkImageData; meta: VolumeMeta; wc: number; ww: number; onWindowLevel: (wc: number, ww: number) => void; active?: boolean;
   /** Algo que va sobre la imagen (la barra del cine): dentro del área del
    *  corte, para que quede encima de su lectura y no de la fila de deslizadores. */
@@ -37,6 +37,9 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
    *  El lienzo de vtk.js se lee negro si no se pide la imagen del
    *  siguiente render, así que la captura tiene que salir de aquí. */
   registerCapture?: (fn: CaptureFn | null) => void;
+  /** Publica el reencuadre de esta celda (la tecla C) mientras su escena viva,
+   *  como `registerCapture`: el visor no ve la cámara de cada celda. */
+  registerFit?: (fn: (() => void) | null) => void;
 }) {
   const { mprVoxel, freePlane, setFreePlane } = usePlanning();
   // Por ref: cambiar de destinatario no puede rehacer la escena.
@@ -118,6 +121,14 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
     registerCaptureRef.current?.(captureRenderWindow(grw, () => grw.getRenderWindow().render()));
     return () => { registerCaptureRef.current?.(null); ro.disconnect(); scene.current = null; grw.delete(); };
   }, [image]);
+
+  // C pide lo mismo que «AJUSTAR»: un reencuadre, sin tocar el plano.
+  const registerFitRef = useRef(registerFit);
+  registerFitRef.current = registerFit;
+  useEffect(() => {
+    registerFitRef.current?.(() => setFitRequest((r) => r + 1));
+    return () => registerFitRef.current?.(null);
+  }, []);
 
   // Declarado antes que el efecto del plano: corre antes en el mismo commit,
   // así que el botón encuadra ya en esa pasada.

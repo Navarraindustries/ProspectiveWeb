@@ -1,5 +1,5 @@
 /* Banda de cabecera del visor: selector de la vista PRINCIPAL, presets de
-   distribución y los conmutadores PLANOS · REGLAS · SINCRO · CALOR.
+   distribución, los conmutadores PLANOS · REGLAS · SINCRO · CALOR y «?».
 
    Separada de Viewer para poder probarla sola (spec §6: el selector refleja
    `layout.main` y cambia la distribución). Es presentacional: el estado vive
@@ -29,6 +29,8 @@ export interface ViewerHeaderProps {
   showClipField: boolean;
   clipRehearsal: boolean;
   onShowClipFieldChange: (on: boolean) => void;
+  /** «?» al final de la banda: abre la hoja de atajos (la misma que la tecla). */
+  onHelp?: () => void;
 }
 
 export function ViewerHeader({
@@ -36,7 +38,7 @@ export function ViewerHeader({
   planesHidden, onPlanesHiddenChange,
   decorHidden, onDecorHiddenChange,
   syncViews, onSyncViewsChange,
-  hasClipField, showClipField, clipRehearsal, onShowClipFieldChange,
+  hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
 }: ViewerHeaderProps) {
   // Ancho de la banda para abreviar sus rótulos (headerLabels).
   const [bandWidth, setBandWidth] = useState(Number.POSITIVE_INFINITY);
@@ -86,6 +88,11 @@ export function ViewerHeader({
                                         ? "Durante el ensayo de cierre se ve el saco que se deforma; el mapa de calor vuelve al terminar"
                                         : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
             value={calorOn ? "calor" : ""} onChange={() => onShowClipFieldChange(!showClipField)} />
+        )}
+        {/* Al final, donde se busca la ayuda: las teclas no se ven en ningún
+            otro sitio de la pantalla. */}
+        {onHelp && (
+          <HudToggleGroup options={[{ key: "help", label: "?", title: "Atajos (?)" }]} value="" onChange={onHelp} />
         )}
       </div>
     </div>

@@ -21,10 +21,14 @@ import { DevicesPanel } from "../components/planning/DevicesPanel";
 import { ManufacturePanel } from "../components/planning/ManufacturePanel";
 import { ReportPanel } from "../components/planning/ReportPanel";
 import { ViewerWorkspace } from "../vtk/Viewer";
+import { matchShortcut } from "../vtk/shortcuts";
 import { RecordButton } from "../components/RecordButton";
 import { usePlanning } from "../store/planning";
 import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
+
+/** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
+const VIEWER_SHORTCUTS = new Set(["sync", "center", "cine-toggle", "cine-faster", "cine-slower", "help"]);
 
 /** What each step needs before it can say anything true, or null when it's ready.
  *
@@ -125,26 +129,34 @@ export function Workspace({
   };
   const next = () => go(Math.min(stepIdx + 1, STEPS.length - 1));
 
-  // Teclado: Escape cancela el modo de marcado activo (antes había que volver al
-  // panel y pulsar el mismo botón otra vez, con el banner ocupando el visor), y
-  // los dígitos saltan de paso. Se ignora mientras se escribe en un campo.
+  // Teclado: la tabla única de atajos (vtk/shortcuts) decide qué pide cada
+  // tecla y no responde con el foco en un campo de texto. Aquí se atiende lo
+  // del flujo: Escape cancela el modo de marcado activo (antes había que volver
+  // al panel y pulsar el mismo botón otra vez, con el banner ocupando el visor)
+  // y los dígitos saltan de paso. Lo del visor (S, C, espacio, +/−, «?») se le
+  // reenvía por `viewer:shortcut`: el estado que tocan vive en el visor.
+  // Alt+1…4 no se atienden aquí: los atiende el visor por su único camino
+  // (presetForKey); hacerlo también aquí los dispararía dos veces. Las teclas de
+  // corte las atiende la celda con el foco.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
-      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
-      if (e.key === "Escape") {
+      const id = matchShortcut(e, e.target);
+      if (!id) return;
+      if (id === "escape") {
+        // Sin preventDefault: el visor también usa Escape (parar el cine,
+        // cerrar la hoja de atajos).
         setPickMode(null);
         return;
       }
-      if (e.key === "?") {
-        window.dispatchEvent(new CustomEvent("viewer:hint"));
+      if (VIEWER_SHORTCUTS.has(id)) {
+        // Que el espacio y +/− no desplacen ni amplíen la página.
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: id }));
         return;
       }
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
-      const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= STEPS.length) {
-        const i = n - 1;
-        if (i === stepIdx || !missingFor(i, planning)) { e.preventDefault(); go(i); }
+      if (id.startsWith("step-")) {
+        const i = Number(id.slice(5)) - 1;
+        if (i < STEPS.length && (i === stepIdx || !missingFor(i, planning))) { e.preventDefault(); go(i); }
       }
     };
     window.addEventListener("keydown", onKey);

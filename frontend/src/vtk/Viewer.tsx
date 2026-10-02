@@ -34,6 +34,7 @@ import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, readCineFps, useStoredFlag, writ
 import { applyStep, clampFps, nextIndex } from "./cine";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
+import { ShortcutsSheet } from "./hud/ShortcutsSheet";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
@@ -422,6 +423,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // informe (meshCapture) es otra cosa: una sola escena a tamaño completo.
   const paneCaptures = useRef<Map<PaneId, CaptureFn | null>>(new Map());
   const regPane = (id: PaneId) => (fn: CaptureFn | null) => { paneCaptures.current.set(id, fn); };
+  // El reencuadre de cada celda (tecla C), publicado igual que la captura: el
+  // visor no tiene la cámara de los cortes, del VOLUMEN ni del oblicuo.
+  const paneFits = useRef<Map<PaneId, (() => void) | null>>(new Map());
+  const regFit = (id: PaneId) => (fn: (() => void) | null) => { paneFits.current.set(id, fn); };
   const viewerRef = useRef<HTMLDivElement>(null);
   // El nodo de cada celda de la rejilla, por vista: la captura compuesta lee
   // de aquí dónde está cada una en pantalla.
@@ -1241,12 +1246,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // 3 s cuando cambia lo que hay en él y se desvanece (la animación de
   // .hud-hint dura lo mismo). El texto depende de si el principal es girable
   // (3D o VOLUMEN) o un corte; en cualquier otro caso (oblicuo, sin sesión) no
-  // hay nada que enseñar. «?» la vuelve a mostrar.
+  // hay nada que enseñar. «?» ya no la repite: abre la hoja de atajos, que
+  // tiene todas las teclas y no se desvanece.
   const mainRotatable = viewerLayout.main === "scene" && sceneHasMesh;
   const hintKind: HintKind | null = viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
   const [hint, setHint] = useState<string | null>(null);
-  // La animación de desvanecido corre una vez, al montar el div: reaparecer con
-  // «?» necesita un nodo nuevo (de ahí `key`) o se vería ya apagada.
+  // La animación de desvanecido corre una vez, al montar el div: reaparecer al
+  // cambiar la principal necesita un nodo nuevo (de ahí `key`) o se vería ya apagada.
   const [hintSeq, setHintSeq] = useState(0);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showHint = useCallback((kind: HintKind) => {
@@ -1260,12 +1266,46 @@ export function ViewerWorkspace({ step }: { step: string }) {
     else setHint(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hintKind]);
-  useEffect(() => {
-    const onHint = () => { if (hintKind) showHint(hintKind); };
-    window.addEventListener("viewer:hint", onHint);
-    return () => window.removeEventListener("viewer:hint", onHint);
-  }, [hintKind, showHint]);
   useEffect(() => () => { if (hintTimer.current) clearTimeout(hintTimer.current); }, []);
+
+  // Hoja «Atajos». Viewer solo la ABRE con «help»: el cierre (Esc, «?», clic
+  // fuera) es de la hoja. Si los dos alternaran con el mismo «?», según el
+  // orden de las escuchas se cerraría y se volvería a abrir en la misma tecla;
+  // la ref se lee en el momento de la tecla, antes del nuevo render.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetOpenRef = useRef(sheetOpen);
+  sheetOpenRef.current = sheetOpen;
+  const openSheet = useCallback(() => { if (!sheetOpenRef.current) setSheetOpen(true); }, []);
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
+
+  // Atajos del visor que reenvía Workspace (vtk/shortcuts). Actúan sobre la
+  // celda enfocada; sin foco todavía, sobre la principal, que es la que se mira.
+  const onShortcut = (id: string) => {
+    // Con la hoja abierta el visor queda detrás: una tecla no puede cambiarlo sin verse.
+    if (sheetOpenRef.current) return;
+    const pane = focusedPane ?? viewerLayout.main;
+    switch (id) {
+      case "sync": setSyncViews(!syncViews); return;
+      case "help": openSheet(); return;
+      case "cine-toggle": toggleCine(pane); return;   // sin recorrido (3D) no hace nada
+      case "cine-faster": bumpFps(1); return;
+      case "cine-slower": bumpFps(-1); return;
+      case "center":
+        // La escena es oblicuo o corte axial (sin malla) con encuadre propio;
+        // si no, 3D o CORTES 3D de MeshView, que encuadra con su propia cámara.
+        if (pane === "scene" && viewMode !== "oblique" && !sceneIsSlice) camera?.setView("fit");
+        else paneFits.current.get(pane)?.();
+        return;
+    }
+  };
+  // Por ref: la escucha se pone una vez y siempre ve el estado del último render.
+  const onShortcutRef = useRef(onShortcut);
+  onShortcutRef.current = onShortcut;
+  useEffect(() => {
+    const on = (e: Event) => onShortcutRef.current(String((e as CustomEvent).detail));
+    window.addEventListener("viewer:shortcut", on);
+    return () => window.removeEventListener("viewer:shortcut", on);
+  }, []);
 
   // Los preajustes de ventana van junto a la lectura W/L del corte que ocupa
   // el panel principal, nunca en una vista lateral: allí no hay lectura
@@ -1326,7 +1366,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       const mipPlane: Plane = volumeAxis;
       return (
         <Suspense fallback={<ViewerLoading label="Cargando VOLUMEN…" />}>
-          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} />
+          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} registerFit={regFit("mip")} />
         </Suspense>
       );
     }
@@ -1352,7 +1392,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
           freeSegment={showFreePlane ? sliceSegment(freePlane, mprVoxel, meta, id, c.index) : null}
           band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
-          active={active} compact={compact} registerCapture={regPane(captureAs)} />
+          active={active} compact={compact} registerCapture={regPane(captureAs)} registerFit={regFit(captureAs)} />
       </Suspense>
     );
   };
@@ -1396,7 +1436,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
               onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} active={isMain}
-              registerCapture={registerMeshCapture} overlay={cineBarFor("scene", compact)} />
+              registerCapture={registerMeshCapture} registerFit={regFit("scene")} overlay={cineBarFor("scene", compact)} />
           </Suspense>
         );
         bodyFramed = true;
@@ -1576,7 +1616,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
         decorHidden={decorHidden} onDecorHiddenChange={setDecorHidden}
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
         hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
-        onShowClipFieldChange={setShowClipField} />
+        onShowClipFieldChange={setShowClipField} onHelp={openSheet} />
+      <ShortcutsSheet open={sheetOpen} onClose={closeSheet} />
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;
           nunca desde un campo de texto (presetForKey). Los dígitos solos son
           del salto de paso de Workspace, que ignora Alt. */}

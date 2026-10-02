@@ -15,6 +15,7 @@
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Running the App](#running-the-app)
+- [Atajos de teclado](#atajos-de-teclado)
 - [Environment Variables](#environment-variables)
 - [Data Model](#data-model)
 - [Session Lifecycle](#session-lifecycle)
@@ -262,6 +263,28 @@ can also reset another user's password from the Usuarios page.
 > **Note on `--reload`**: uvicorn's reloader does not reliably pick up *new*
 > modules, and a stale process on :8000 will silently serve old code. Restart the
 > backend for real when verifying a change end to end.
+
+---
+
+## Atajos de teclado
+
+Una sola tabla (`frontend/src/vtk/shortcuts.ts`) decide qué hace cada tecla y
+alimenta la hoja «Atajos» del visor (tecla **?** o el botón «?» de la banda).
+Ningún atajo actúa con el cursor en un campo de texto. H y P quedan sin asignar.
+
+| Tecla | Acción | Ámbito |
+|---|---|---|
+| ? | Abrir o cerrar la hoja de atajos | Visor |
+| Alt+1 · Alt+2 · Alt+3 · Alt+4 | Distribución SOLA · DERECHA · ABAJO · CUATRO | Visor |
+| S | Encender o apagar SINCRO | Visor |
+| C | Volver a encuadrar la celda enfocada | Celda |
+| Espacio | Reproducir o parar el cine de la celda | Celda |
+| + / − | Cine un fotograma por segundo más rápido / lento | Celda |
+| ↑ / → · ↓ / ← | Corte siguiente · anterior | Celda |
+| Re Pág · Av Pág | Diez cortes adelante · atrás | Celda |
+| Inicio · Fin | Primer · último corte | Celda |
+| Esc | Cancelar el marcado, parar el cine o cerrar la hoja | Flujo |
+| 1 … 8 | Ir a ese paso del flujo (si ya está disponible) | Flujo |
 
 ---
 

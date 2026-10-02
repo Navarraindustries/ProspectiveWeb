@@ -94,7 +94,7 @@ function cameraToPlane(grw: vtkGenericRenderWindow, image: vtkImageData, plane: 
   renderer.resetCamera();
 }
 
-export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture }: {
+export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit }: {
   image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean;
   /** Eje en el que acumula y que recorre la rueda. */
   plane: Plane;
@@ -103,6 +103,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
    *  El lienzo de vtk.js se lee negro si no se pide la imagen del
    *  siguiente render, así que la captura tiene que salir de aquí. */
   registerCapture?: (fn: CaptureFn | null) => void;
+  /** Publica el reencuadre de esta celda (la tecla C) mientras su escena viva,
+   *  como `registerCapture`: el visor no ve la cámara de cada celda. */
+  registerFit?: (fn: (() => void) | null) => void;
 }) {
   const {
     mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
@@ -532,6 +535,17 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     applyCenter();
     s.grw.getRenderWindow().render();
   };
+
+  // C hace lo mismo que «CENTRAR». `fit` cierra sobre el estado de este
+  // render; por ref, la función publicada una vez usa siempre la última.
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+  const registerFitRef = useRef(registerFit);
+  registerFitRef.current = registerFit;
+  useEffect(() => {
+    registerFitRef.current?.(() => fitRef.current());
+    return () => registerFitRef.current?.(null);
+  }, []);
 
   // Mismas teclas que en los cortes. En LIBRE el paso mueve el plano libre por
   // el espaciado más fino (como la rueda); ±Infinity lo lleva al borde de la caja.

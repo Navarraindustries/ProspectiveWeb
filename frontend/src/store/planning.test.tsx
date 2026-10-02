@@ -297,3 +297,34 @@ describe("modo y preajuste de la vista VOLUMEN", () => {
     expect(result.current.volumePreset).toBe("Vasos CTA");
   });
 });
+
+describe("plano libre, recorte y ventana por preajuste", () => {
+  it("arrancan en sus valores por defecto", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.freePlane).toEqual({ azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 });
+    expect(result.current.clipMode).toBe("eje");
+    expect(result.current.cutFaceVisible).toBe(true);
+    expect(result.current.volumeWindows).toEqual({});
+  });
+  it("setFreePlane acota los ángulos y setVolumeWindow guarda por preajuste y borra con null", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setFreePlane({ azimuthDeg: 400, elevationDeg: -95, offsetMm: 1 }));
+    expect(result.current.freePlane).toEqual({ azimuthDeg: 180, elevationDeg: -89, offsetMm: 1 });
+    act(() => result.current.setVolumeWindow("Hueso", { wc: 1, ww: 2 }));
+    expect(result.current.volumeWindows).toEqual({ Hueso: { wc: 1, ww: 2 } });
+    act(() => result.current.setVolumeWindow("Hueso", null));
+    expect(result.current.volumeWindows).toEqual({});
+  });
+  it("cambiar de estudio los devuelve a los valores por defecto", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => {
+      result.current.setClipMode("libre"); result.current.setCutFaceVisible(false);
+      result.current.setFreePlane({ azimuthDeg: 10, elevationDeg: 10, offsetMm: 2 });
+      result.current.setVolumeWindow("Hueso", { wc: 1, ww: 2 });
+    });
+    act(() => result.current.reset());
+    expect(result.current.clipMode).toBe("eje"); expect(result.current.cutFaceVisible).toBe(true);
+    expect(result.current.freePlane).toEqual({ azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 });
+    expect(result.current.volumeWindows).toEqual({});
+  });
+});

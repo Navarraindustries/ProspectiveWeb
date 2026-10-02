@@ -14,6 +14,7 @@ export interface ViewerRecordingSource extends FrameSource {
 import { loadLayout, saveLayout, type ViewerLayout } from "../vtk/layout";
 import { mmToVoxel, type ManualOrientation, type Plane } from "../vtk/geometry";
 import type { VolumePreset } from "../vtk/volumePresets";
+import { clampPlane, DEFAULT_FREE_PLANE, type FreePlane } from "../vtk/freePlane";
 import type {
   AneurysmCandidate,
   DeviceKind,
@@ -176,6 +177,20 @@ interface PlanningState {
   setVolumeMode: (m: "mip" | "compuesto") => void;
   volumePreset: VolumePreset;
   setVolumePreset: (p: VolumePreset) => void;
+  /** Plano de corte libre del volumen unificado (azimut, elevación, desplazamiento). */
+  freePlane: FreePlane;
+  /** Guarda el plano ya acotado (clampPlane), para que ningún consumidor reciba ángulos fuera de rango. */
+  setFreePlane: (p: FreePlane) => void;
+  /** Si el recorte sigue los ejes de la rejilla o el plano libre. */
+  clipMode: "eje" | "libre";
+  setClipMode: (m: "eje" | "libre") => void;
+  /** Si la cara del corte se dibuja rellena o se deja abierta. */
+  cutFaceVisible: boolean;
+  setCutFaceVisible: (v: boolean) => void;
+  /** Ventana (nivel y anchura) elegida por preajuste; sin entrada, rige la del rango completo. */
+  volumeWindows: Partial<Record<VolumePreset, { wc: number; ww: number }>>;
+  /** null borra la entrada del preajuste y devuelve su ventana por defecto. */
+  setVolumeWindow: (preset: VolumePreset, w: { wc: number; ww: number } | null) => void;
   /** Sube cada vez que el volumen de la sesión cambia en el servidor sin que
    *  cambie la sesión (otra serie, preproceso o su reversión): el visor vuelve
    *  a pedir la meta y, con su cache_key nuevo, el volumen del navegador. */
@@ -343,6 +358,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [mipPlane, setMipPlane] = useState<Plane | null>(null);
   const [volumeMode, setVolumeMode] = useState<"mip" | "compuesto">("mip");
   const [volumePreset, setVolumePreset] = useState<VolumePreset>("Vasos CTA");
+  const [freePlane, setFreePlaneState] = useState<FreePlane>(DEFAULT_FREE_PLANE);
+  const setFreePlane = (p: FreePlane) => setFreePlaneState(clampPlane(p));
+  const [clipMode, setClipMode] = useState<"eje" | "libre">("eje");
+  const [cutFaceVisible, setCutFaceVisible] = useState(true);
+  const [volumeWindows, setVolumeWindows] = useState<Partial<Record<VolumePreset, { wc: number; ww: number }>>>({});
+  const setVolumeWindow = (k: VolumePreset, w: { wc: number; ww: number } | null) =>
+    setVolumeWindows((m) => { const n = { ...m }; if (w) n[k] = w; else delete n[k]; return n; });
   const [volumeVersion, setVolumeVersion] = useState(0);
   const bumpVolumeVersion = useCallback(() => setVolumeVersion((v) => v + 1), []);
   const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
@@ -438,6 +460,12 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     // nuevo abre en MIP, como siempre.
     setVolumeMode("mip");
     setVolumePreset("Vasos CTA");
+    // El plano libre, el modo de recorte y las ventanas se ajustaron sobre el
+    // volumen anterior: el estudio nuevo abre con el recorte por ejes.
+    setFreePlaneState(DEFAULT_FREE_PLANE);
+    setClipMode("eje");
+    setCutFaceVisible(true);
+    setVolumeWindows({});
     resetDownstream();
   };
 
@@ -449,6 +477,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
+        freePlane, clipMode, cutFaceVisible, volumeWindows,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
@@ -457,6 +486,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
+        setFreePlane, setClipMode, setCutFaceVisible, setVolumeWindow,
         reset, resetDownstream,
       }}
     >

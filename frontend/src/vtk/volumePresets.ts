@@ -41,14 +41,28 @@ const RAW: Record<VolumePreset, TransferPoints> = {
   },
 };
 
-/** Los puntos del preajuste (dominio 0–255) llevados linealmente al rango real [lo, hi]; con lo ≥ hi se usa [lo, lo+1]. */
-export function presetToRange(preset: VolumePreset, range: [number, number]): TransferPoints {
-  const lo = range[0], hi = range[1] > range[0] ? range[1] : range[0] + 1;
-  const map = (x: number) => lo + (x / 255) * (hi - lo);
+/** Ventana de intensidad (nivel y anchura) a la que se llevan los puntos 0–255 de un preajuste. */
+export interface VolumeWindow { wc: number; ww: number }
+
+/** La ventana que abarca todo el rango; con hi ≤ lo se usa anchura 1 para que el dominio no degenere. */
+export function defaultWindow(range: [number, number]): VolumeWindow {
+  const lo = range[0], hi = Math.max(range[1], range[0] + 1);
+  return { wc: (lo + hi) / 2, ww: hi - lo };
+}
+
+/** Los puntos del preajuste (dominio 0–255) llevados linealmente a la ventana; ww se acota a ≥ 1 para que los puntos sigan siendo monótonos. */
+export function presetToWindow(preset: VolumePreset, w: VolumeWindow): TransferPoints {
+  const ww = Math.max(1, w.ww), lo = w.wc - ww / 2;
+  const map = (x: number) => lo + (x / 255) * ww;
   const p = RAW[preset];
   return {
     color: p.color.map(([x, r, g, b]) => [map(x), r, g, b] as [number, number, number, number]),
     opacity: p.opacity.map(([x, a]) => [map(x), a] as [number, number]),
     lighting: p.lighting,
   };
+}
+
+/** Los puntos del preajuste llevados al rango real [lo, hi]: es la ventana por defecto de ese rango. */
+export function presetToRange(preset: VolumePreset, range: [number, number]): TransferPoints {
+  return presetToWindow(preset, defaultWindow(range));
 }

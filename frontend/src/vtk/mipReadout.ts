@@ -1,19 +1,26 @@
+import type { VolumeWindow } from "./volumePresets";
+
 /** Lectura de esquina del MIP. En la celda de la franja va en una sola
     línea corta (la larga se cortaba y pisaba el icono del maniquí); el
     sentido y el umbral se leen al maximizar. En compuesto la primera línea
     nombra el preajuste en lugar del umbral, que solo gobierna el MIP. Con
     recorte libre la línea del corte dice el desplazamiento del plano (o el
-    grosor de la lámina): el índice de un eje no describe un plano oblicuo. */
+    grosor de la lámina): el índice de un eje no describe un plano oblicuo.
+    En compuesto ampliado se añade el nivel y la ventana del preajuste, que
+    el botón derecho cambia; en la celda compacta no cabe. */
 export function mipReadoutLines(o: {
   mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number;
   slabMm: number; threshold: number; compact: boolean;
   render?: "mip" | "compuesto"; preset?: string;
   clip?: "eje" | "libre"; offsetMm?: number;
+  window?: VolumeWindow;
 }): string[] {
   if (o.clip === "libre" && o.compact) return [o.mode === "acumulado" ? `LIB ${signedMm(o.offsetMm ?? 0)}` : `LIB ±${o.slabMm}`];
   if (o.render === "compuesto") {
     if (o.compact) return [o.mode === "acumulado" ? `COMP ${o.index + 1}/${o.count}` : `COMP ±${o.slabMm}`];
-    return [`COMPUESTO · ${(o.preset ?? "").toUpperCase()}`, cutLine(o)];
+    const lines = [`COMPUESTO · ${(o.preset ?? "").toUpperCase()}`, cutLine(o)];
+    if (o.window) lines.push(`NIV ${Math.round(o.window.wc)} · VENT ${Math.round(o.window.ww)}`);
+    return lines;
   }
   if (o.compact) return [o.mode === "acumulado" ? `ACUM ${o.index + 1}/${o.count}` : `LÁMINA ±${o.slabMm}`];
   return [cutLine(o), `UMBRAL ${Math.round(o.threshold)}`];

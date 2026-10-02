@@ -2451,6 +2451,11 @@ cumple el de Case 3 nativa, así que no se ha rebajado. Sin vetos,
 sus tests están marcados como fallo esperado mientras no exista
 `services/candidate_vetoes.py`, y la marca desaparece sola cuando exista.
 
+La fila `tubo_mas_isla` mide el veto de isla, no el ruido de calibre del tubo:
+exige que la isla salga descartada con motivo `isla` y como mucho los falsos
+positivos de sin vetos. Los picos de calibre en la pared de un tubo desnudo
+quedan para fuera de D4: un valor mínimo de pico en `_peaks`.
+
 ---
 
 ## Running Tests

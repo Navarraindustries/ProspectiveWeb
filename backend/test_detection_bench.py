@@ -45,6 +45,8 @@ def test_los_sinteticos_cumplen_sus_umbrales(name):
     if c.lesion_mm is not None:
         assert r.lesion_rank is not None and r.lesion_rank <= c.expect_rank_max
     assert r.false_positives <= c.expect_fp_max
+    if c.expect_rejected_reason is not None:
+        assert c.expect_rejected_reason in r.rejected_reasons, r.rejected_reasons
 
 
 @pytest.mark.slow

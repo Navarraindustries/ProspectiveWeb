@@ -54,8 +54,12 @@ import { AXIS_OF, indexOf, wheelAction, withIndex } from "./mipGestures";
 import { planeCorners, toPixels, tracePolygon, traceVisible, traceVisibleForNormal } from "./planeTrace";
 import { clampOffsetToBox, clipPolygon, normalOf, originOf, type FreePlane } from "./freePlane";
 import { wheelOffset } from "./obliqueGestures";
+import { rotationCenterMm, visibleBounds, visiblePoints, type Bounds6, type ClipState } from "./orbit";
 
 type Vec3 = [number, number, number];
+
+/** Fracción de la celda que ocupa lo visible tras CENTRAR (por el lado que manda). */
+const FIT_FILL = 0.9;
 
 const PLANE_OPTIONS = [
   { key: "axial", label: "AX", title: "Acumular en el eje axial" },
@@ -121,7 +125,16 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   const registerCaptureRef = useRef(registerCapture);
   registerCaptureRef.current = registerCapture;
   const ref = useRef<HTMLDivElement>(null);
-  const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkVolumeMapper; actor: vtkVolume } | null>(null);
+  const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkVolumeMapper; actor: vtkVolume; style: vtkInteractorStyleManipulator } | null>(null);
+  // Centro de giro = el punto compartido, en mm. WHY: sin él vtk giraba
+  // alrededor de (0,0,0), una esquina del volumen (origen 0), y en Case 3 tras
+  // un arrastre de 90° el centro del volumen quedaba a 124 mm del foco, fuera
+  // de la celda. Por ref para que la escena y CENTRAR usen el de este render.
+  const centerRef = useRef(rotationCenterMm(mprVoxel, meta));
+  centerRef.current = rotationCenterMm(mprVoxel, meta);
+  /** Va en el estilo, no en el manipulador: el estilo copia su
+   *  `centerOfRotation` al manipulador en cada pulsación y pisaría el otro. */
+  const applyCenter = () => { scene.current?.style.setCenterOfRotation(...centerRef.current); };
   // Cara del corte en recorte libre: se crea la primera vez que hace falta y se
   // reutiliza (quitada del renderer) al apagarla; muere con la escena.
   const face = useRef<{ mapper: vtkImageResliceMapper; actor: vtkImageSlice; plane: vtkPlane } | null>(null);
@@ -199,7 +212,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     readHeading();
     const ro = new ResizeObserver(() => { grw.resize(); grw.getRenderWindow().render(); computeTraceRef.current(); });
     ro.observe(el);
-    scene.current = { grw, mapper, actor };
+    scene.current = { grw, mapper, actor, style };
+    applyCenter();
     grw.getRenderWindow().render();
     computeTraceRef.current();
     registerCaptureRef.current?.(captureRenderWindow(grw, () => grw.getRenderWindow().render()));
@@ -217,6 +231,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   useEffect(() => {
     const s = scene.current; if (!s) return;
     cameraToPlane(s.grw, image, plane);
+    applyCenter();
     s.grw.getRenderWindow().render();
   // Solo el eje: la imagen nueva ya coloca la cámara al rehacer la escena, y
   // repetirlo aquí desharía el giro del profesional sin que cambiara el eje.
@@ -458,10 +473,63 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   };
   useEffect(() => { computeTraceRef.current(); }, [posMm, axis, mipMode, mipSlabMm, image, libre, freePlane, mprVoxel]);
 
-  // En LIBRE, CENTRAR además devuelve el plano al crosshair (offset 0).
+  // El punto compartido se mueve con la rueda y con los cortes: el giro le
+  // sigue sin mover la cámara (el siguiente arrastre gira alrededor del nuevo).
+  useEffect(() => { applyCenter(); }, [mprVoxel, meta, image]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // CENTRAR encuadra solo lo que el recorte deja ver, no la caja entera: en
+  // acumulado al principio del recorrido o en una lámina fina, la caja entera
+  // dejaba lo visible como una franja pequeña. En LIBRE además devuelve el
+  // plano al crosshair (offset 0), así que el encuadre se calcula con ese plano.
   const fit = () => {
-    if (libre) commitFree({ ...freeRef.current, offsetMm: 0 });
-    const s = scene.current; if (!s) return; s.grw.getRenderer().resetCamera(); s.grw.getRenderWindow().render();
+    const fp = libre ? { ...freeRef.current, offsetMm: 0 } : freeRef.current;
+    if (libre) commitFree(fp);
+    const s = scene.current; if (!s) return;
+    const acumulado = mipMode === "acumulado";
+    const clip: ClipState = libre
+      ? {
+          mode: "libre", normal: normalOf(fp), originMm: originOf(fp, mprVoxel, meta),
+          polygon: clipPolygon(fp, mprVoxel, meta),
+          polygons: acumulado ? undefined : [-mipSlabMm, mipSlabMm].map((k) => clipPolygon({ ...fp, offsetMm: fp.offsetMm + k }, mprVoxel, meta)),
+          acumulado, reverse, slabMm: mipSlabMm,
+        }
+      : { mode: "eje", axis, posMm, acumulado, reverse, slabMm: mipSlabMm };
+    const v = visibleBounds(image.getBounds() as Bounds6, clip);
+    const pts = visiblePoints(image.getBounds() as Bounds6, clip);
+    const renderer = s.grw.getRenderer();
+    renderer.resetCamera(v);
+    // resetCamera ajusta la esfera de la caja al ángulo VERTICAL y la centra: en
+    // una celda más alta que ancha (530 × 632 en Case 3) lo visible se salía un
+    // 6 % por los lados, y con un plano libre oblicuo la caja alineada incluye
+    // la esquina cortada, así que lo visible quedaba descentrado. Se proyectan
+    // los vértices de lo visible, se desplaza la cámara para centrar su caja en
+    // pantalla y se acerca o aleja hasta que el lado que manda ocupe FIT_FILL
+    // (tres pasadas: en perspectiva nada de esto es exactamente lineal).
+    const r = ref.current?.getBoundingClientRect();
+    if (r && r.width > 0 && r.height > 0) {
+      const cam = renderer.getActiveCamera(), aspect = r.width / r.height;
+      for (let pass = 0; pass < 3; pass++) {
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        for (const p of pts) {
+          const d = renderer.worldToNormalizedDisplay(p[0], p[1], p[2], aspect);
+          x0 = Math.min(x0, d[0]); x1 = Math.max(x1, d[0]); y0 = Math.min(y0, d[1]); y1 = Math.max(y1, d[1]);
+        }
+        const extent = Math.max(x1 - x0, y1 - y0);
+        if (!(extent > 0) || !Number.isFinite(extent)) break;
+        // Desplazamiento en el plano del foco: el punto de pantalla del centro de
+        // la caja proyectada, a la profundidad del foco, pasa a ser el foco.
+        const foc = cam.getFocalPoint(), pos = cam.getPosition();
+        const zf = renderer.worldToNormalizedDisplay(foc[0], foc[1], foc[2], aspect)[2];
+        const w = renderer.normalizedDisplayToWorld((x0 + x1) / 2, (y0 + y1) / 2, zf, aspect);
+        const t = [w[0] - foc[0], w[1] - foc[1], w[2] - foc[2]];
+        cam.setFocalPoint(foc[0] + t[0], foc[1] + t[1], foc[2] + t[2]);
+        cam.setPosition(pos[0] + t[0], pos[1] + t[1], pos[2] + t[2]);
+        cam.dolly(FIT_FILL / extent);
+      }
+    }
+    renderer.resetCameraClippingRange();
+    applyCenter();
+    s.grw.getRenderWindow().render();
   };
 
   return (

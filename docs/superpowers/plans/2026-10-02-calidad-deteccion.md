@@ -55,7 +55,7 @@ def bifurcacion_con_saco_apical() -> tuple[vtk.vtkPolyData, Vec3]   # bifurcacio
 SACO: np.ndarray                                          # (0, 5, 2.2), como hoy
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```python
 # backend/test_synthetic.py
@@ -110,13 +110,13 @@ def test_el_tubo_admite_otro_eje():
     assert b[1] - b[0] > 15 and b[3] - b[2] < 5
 ```
 
-- [ ] **Step 2: Ver fallar** → `cd backend && .venv\Scripts\python -m pytest -q test_synthetic.py` FAIL (módulo inexistente).
+- [x] **Step 2: Ver fallar** → `cd backend && .venv\Scripts\python -m pytest -q test_synthetic.py` FAIL (módulo inexistente).
 
-- [ ] **Step 3: Implementación** → mueve `_limpia`, `_tubo`, `_bola`, `_une`, `vaso_con_saco`, `SACO` desde `test_consensus_and_plane.py` (líneas ~56–96) a `eval/synthetic.py` con los nombres públicos; `tubo(…, eje)` genera la polilínea a lo largo del eje elegido; `tubo_curvo_sin_saco` construye la polilínea del arco (`centro + 12·(cos θ, sin θ, 0)`, θ de 0 a π/2, 40 puntos) y la pasa por `vtkTubeFilter` con radio 1,2 y tapas; `saco_en_borde` recorta con `vtkClipPolyData` (`vtkPlane` origen (0,20,0), normal (0,−1,0), `InsideOutOn`) sin tapar; las bifurcaciones unen tubos rotados (`vtkTransformPolyDataFilter` con `RotateZ(±35)`) a un tronco; todo pasa por `limpia`. `test_consensus_and_plane.py` importa `from eval.synthetic import limpia as _limpia, tubo as _tubo, bola as _bola, une as _une, SACO` y mantiene la fixture `vaso_con_saco` llamando a `tubo_con_saco()[0]`. Comentario WHY: los generadores salen de los tests porque el banco de pruebas (Task 2) también los necesita.
+- [x] **Step 3: Implementación** → mueve `_limpia`, `_tubo`, `_bola`, `_une`, `vaso_con_saco`, `SACO` desde `test_consensus_and_plane.py` (líneas ~56–96) a `eval/synthetic.py` con los nombres públicos; `tubo(…, eje)` genera la polilínea a lo largo del eje elegido; `tubo_curvo_sin_saco` construye la polilínea del arco (`centro + 12·(cos θ, sin θ, 0)`, θ de 0 a π/2, 40 puntos) y la pasa por `vtkTubeFilter` con radio 1,2 y tapas; `saco_en_borde` recorta con `vtkClipPolyData` (`vtkPlane` origen (0,20,0), normal (0,−1,0), `InsideOutOn`) sin tapar; las bifurcaciones unen tubos rotados (`vtkTransformPolyDataFilter` con `RotateZ(±35)`) a un tronco; todo pasa por `limpia`. `test_consensus_and_plane.py` importa `from eval.synthetic import limpia as _limpia, tubo as _tubo, bola as _bola, une as _une, SACO` y mantiene la fixture `vaso_con_saco` llamando a `tubo_con_saco()[0]`. Comentario WHY: los generadores salen de los tests porque el banco de pruebas (Task 2) también los necesita.
 
-- [ ] **Step 4: Verificar** → `pytest -q test_synthetic.py test_consensus_and_plane.py` en verde.
+- [x] **Step 4: Verificar** → `pytest -q test_synthetic.py test_consensus_and_plane.py` en verde.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/eval/__init__.py backend/eval/synthetic.py backend/test_synthetic.py backend/test_consensus_and_plane.py
@@ -161,7 +161,7 @@ def to_json(results) -> dict; def print_table(results) -> None
 if __name__ == "__main__": argparse --json PATH --no-vetoes --only NAME
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```python
 # backend/test_detection_bench.py
@@ -203,13 +203,13 @@ def test_sin_sesion_de_case3_no_hay_casos_reales(monkeypatch, tmp_path):
 
 Si `real_cases()` está vacío en el entorno, el parametrize `slow` queda sin casos y pytest lo marca como skip (usa `pytest.param` o `pytest.skip` dentro si hace falta).
 
-- [ ] **Step 2: Ver fallar** → FAIL (módulo inexistente).
+- [x] **Step 2: Ver fallar** → FAIL (módulo inexistente).
 
-- [ ] **Step 3: Implementación** → `run_case`: construye la malla (llama al generador o `read_vtp(Path)` + `keep_main_tree` para las reales), `hits, _ = _detect_hits(poly, modality, _detector_for_modality(modality))` con `top` grande (pasar `top=30` a `consensus` a través de un parámetro nuevo opcional de `_detect_hits`, por defecto `_MAX_CANDIDATES`), aplica los vetos si `vetoes` y existe `services.candidate_vetoes` (import protegido: hasta Task 4 no existe → sin vetos), toma los 5 primeros aceptados, calcula: `lesion_rank` = puesto 1-based del primer aceptado a < `LESION_HIT_MM` de la lesión; `lesion_distance_mm` = mínimo sobre aceptados+descartados; `false_positives` = aceptados a ≥ `LESION_HIT_MM` (todos si no hay lesión); `rejected_true` = 1 si algún descartado está a < `LESION_HIT_MM` y ningún aceptado lo está; `rejected_fp` = descartados restantes; `seconds`. `find_case3_session` parsea `state.txt` (líneas `clave=valor`). Expectativas: sintéticos con lesión `expect_rank_max=1`, sin lesión `expect_fp_max=1`; Case 3 nativa `expect_rank_max=2`, media `3`. Corre `python -m eval.detection_bench --no-vetoes --json eval/results/baseline.json` y commitea el resultado; si una fila de Case 3 no cumple su umbral en la línea base, ajusta `expect_rank_max` de esa fila al valor medido y anótalo en el README (regla de Global Constraints). README: sección «Banco de detección» con la tabla y el comando.
+- [x] **Step 3: Implementación** → `run_case`: construye la malla (llama al generador o `read_vtp(Path)` + `keep_main_tree` para las reales), `hits, _ = _detect_hits(poly, modality, _detector_for_modality(modality))` con `top` grande (pasar `top=30` a `consensus` a través de un parámetro nuevo opcional de `_detect_hits`, por defecto `_MAX_CANDIDATES`), aplica los vetos si `vetoes` y existe `services.candidate_vetoes` (import protegido: hasta Task 4 no existe → sin vetos), toma los 5 primeros aceptados, calcula: `lesion_rank` = puesto 1-based del primer aceptado a < `LESION_HIT_MM` de la lesión; `lesion_distance_mm` = mínimo sobre aceptados+descartados; `false_positives` = aceptados a ≥ `LESION_HIT_MM` (todos si no hay lesión); `rejected_true` = 1 si algún descartado está a < `LESION_HIT_MM` y ningún aceptado lo está; `rejected_fp` = descartados restantes; `seconds`. `find_case3_session` parsea `state.txt` (líneas `clave=valor`). Expectativas: sintéticos con lesión `expect_rank_max=1`, sin lesión `expect_fp_max=1`; Case 3 nativa `expect_rank_max=2`, media `3`. Corre `python -m eval.detection_bench --no-vetoes --json eval/results/baseline.json` y commitea el resultado; si una fila de Case 3 no cumple su umbral en la línea base, ajusta `expect_rank_max` de esa fila al valor medido y anótalo en el README (regla de Global Constraints). README: sección «Banco de detección» con la tabla y el comando.
 
-- [ ] **Step 4: Verificar** → `pytest -q test_detection_bench.py test_synthetic.py` (los `slow` se saltan sin Case 3; ejecútalos con `-m slow` si la sesión existe y anota los tiempos). `git check-ignore -v backend/eval/results/baseline.json` no debe devolver nada.
+- [x] **Step 4: Verificar** → `pytest -q test_detection_bench.py test_synthetic.py` (los `slow` se saltan sin Case 3; ejecútalos con `-m slow` si la sesión existe y anota los tiempos). `git check-ignore -v backend/eval/results/baseline.json` no debe devolver nada.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/eval/detection_bench.py backend/eval/results/baseline.json backend/test_detection_bench.py backend/routers/detect.py .gitignore README.md
@@ -249,7 +249,7 @@ def veto_shape(tree, hit, patch, patch_kind) -> Veto | None     # solo "region"
 def evaluate(tree, hit, patch, patch_kind) -> Veto | None       # el primero en el orden fijado
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```python
 # backend/test_candidate_vetoes.py
@@ -352,13 +352,13 @@ def test_evaluate_respeta_el_orden_y_devuelve_el_primero():
     assert v is not None and v.reason == "borde" and v.label == "Recorte de la malla"
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → `open_edge_length_mm`: `vtkFeatureEdges` (solo boundary) y suma de longitudes. `touches_bbox_face`: alguna coordenada de los bounds del parche a < `tol` de la cara correspondiente de los bounds del árbol. `component_fraction`: `vtkPolyDataConnectivityFilter` en modo `ClosestPointRegion` con el punto, fracción = puntos del componente / puntos del árbol; `es_el_mayor` comparando con el modo `LargestRegion`. `crossing_count`: `vtkClipPolyData` con `vtkSphere` (`InsideOutOn`), luego `vtkFeatureEdges` boundary sobre el recorte y `vtkPolyDataConnectivityFilter` AllRegions → número de contornos (un tubo que atraviesa da 2, una Y da 3; los contornos abiertos del propio árbol se descartan si estaban ya en `open_edge_length_mm` del árbol: compara contra las aristas abiertas originales por distancia). `neck_ratio`: eje principal del parche (PCA de sus puntos), 10 cortes con `vtkCutter` + `vtkPlane` entre el 10 % y el 90 % de la extensión; diámetro de cada corte = extensión máxima del contorno; ratio = mínimo / máximo; `None` si menos de 3 cortes válidos. `veto_border`: `touches_bbox_face(patch, tree, BORDER_TOL_MM) and open_edge_length_mm(patch) > OPEN_EDGE_MM`. `veto_island`: `frac < ISLAND_FRAC and not mayor`. `veto_bifurcation`: `crossing_count(tree, hit.position, max(BIF_MIN_RADIUS_MM, BIF_RADIUS_K·hit.radius_mm)) >= 3 and (neck_ratio(patch) is None or neck_ratio(patch) >= NECK_RATIO)`. `veto_shape`: solo `patch_kind == "region"`, `neck_ratio(patch) is not None and >= NECK_RATIO`. Todos devuelven `None` ante parches vacíos. `evaluate` en el orden fijado. Comentarios WHY en español por veto (qué falso positivo caza y por qué no caza la lesión de Case 3).
+- [x] **Step 3: Implementación** → `open_edge_length_mm`: `vtkFeatureEdges` (solo boundary) y suma de longitudes. `touches_bbox_face`: alguna coordenada de los bounds del parche a < `tol` de la cara correspondiente de los bounds del árbol. `component_fraction`: `vtkPolyDataConnectivityFilter` en modo `ClosestPointRegion` con el punto, fracción = puntos del componente / puntos del árbol; `es_el_mayor` comparando con el modo `LargestRegion`. `crossing_count`: `vtkClipPolyData` con `vtkSphere` (`InsideOutOn`), luego `vtkFeatureEdges` boundary sobre el recorte y `vtkPolyDataConnectivityFilter` AllRegions → número de contornos (un tubo que atraviesa da 2, una Y da 3; los contornos abiertos del propio árbol se descartan si estaban ya en `open_edge_length_mm` del árbol: compara contra las aristas abiertas originales por distancia). `neck_ratio`: eje principal del parche (PCA de sus puntos), 10 cortes con `vtkCutter` + `vtkPlane` entre el 10 % y el 90 % de la extensión; diámetro de cada corte = extensión máxima del contorno; ratio = mínimo / máximo; `None` si menos de 3 cortes válidos. `veto_border`: `touches_bbox_face(patch, tree, BORDER_TOL_MM) and open_edge_length_mm(patch) > OPEN_EDGE_MM`. `veto_island`: `frac < ISLAND_FRAC and not mayor`. `veto_bifurcation`: `crossing_count(tree, hit.position, max(BIF_MIN_RADIUS_MM, BIF_RADIUS_K·hit.radius_mm)) >= 3 and (neck_ratio(patch) is None or neck_ratio(patch) >= NECK_RATIO)`. `veto_shape`: solo `patch_kind == "region"`, `neck_ratio(patch) is not None and >= NECK_RATIO`. Todos devuelven `None` ante parches vacíos. `evaluate` en el orden fijado. Comentarios WHY en español por veto (qué falso positivo caza y por qué no caza la lesión de Case 3).
 
-- [ ] **Step 4: Verificar** → `pytest -q test_candidate_vetoes.py`. Ajusta constantes solo si un test del banco lo exige y anótalo.
+- [x] **Step 4: Verificar** → `pytest -q test_candidate_vetoes.py`. Ajusta constantes solo si un test del banco lo exige y anótalo.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/services/candidate_vetoes.py backend/test_candidate_vetoes.py
@@ -372,7 +372,7 @@ git commit -m "Vetos con motivo para los candidatos: borde, isla, bifurcación y
 **Files:**
 - Modify: `backend/eval/detection_bench.py` (quita el import protegido: usa `candidate_vetoes.evaluate` siempre que `vetoes=True`), `backend/eval/results/with_vetoes.json` (nuevo, commiteado), `backend/test_detection_bench.py` (los tests de sintéticos corren CON vetos por defecto; un test compara `with_vetoes` contra `baseline`: ningún `lesion_rank` empeora y `false_positives` no sube en ningún caso), `README.md` (tabla con ambas columnas), constantes de `candidate_vetoes.py` si el banco lo exige (anotar cada cambio)
 
-- [ ] **Step 1: Test que falla**
+- [x] **Step 1: Test que falla**
 
 ```python
 # añadir a backend/test_detection_bench.py
@@ -391,13 +391,13 @@ def test_los_vetos_no_empeoran_ninguna_fila_del_banco():
         assert c["false_positives"] <= b["false_positives"]
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL (`with_vetoes.json` no existe).
+- [x] **Step 2: Ver fallar** → FAIL (`with_vetoes.json` no existe).
 
-- [ ] **Step 3: Implementación** → genera `with_vetoes.json` con `python -m eval.detection_bench --json eval/results/with_vetoes.json` (vetos activos); si alguna fila empeora, ajusta la constante responsable en `candidate_vetoes.py` (nunca el canal), vuelve a generar ambos JSON y anota en el README qué constante y por qué. README: tabla «sin vetos / con vetos» por caso (puesto, falsos positivos, descartados).
+- [x] **Step 3: Implementación** → genera `with_vetoes.json` con `python -m eval.detection_bench --json eval/results/with_vetoes.json` (vetos activos); si alguna fila empeora, ajusta la constante responsable en `candidate_vetoes.py` (nunca el canal), vuelve a generar ambos JSON y anota en el README qué constante y por qué. README: tabla «sin vetos / con vetos» por caso (puesto, falsos positivos, descartados).
 
-- [ ] **Step 4: Verificar** → `pytest -q test_detection_bench.py test_candidate_vetoes.py` (y `-m slow` si Case 3 está).
+- [x] **Step 4: Verificar** → `pytest -q test_detection_bench.py test_candidate_vetoes.py` (y `-m slow` si Case 3 está).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/eval/detection_bench.py backend/eval/results/with_vetoes.json backend/test_detection_bench.py backend/services/candidate_vetoes.py README.md
@@ -424,7 +424,7 @@ class AneurysmDetectionResult(BaseModel): ... + rejected: list[AneurysmCandidate
 # estado: detect.cand_00N.veto_reason ("" si aceptado), detect.n_rejected; REDETECT_MOVE_MM = 2.0
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```python
 # backend/test_detect_api.py (nuevo)
@@ -471,13 +471,13 @@ def test_sin_candidatos_rejected_vacio(session_tubo_liso):
 
 Las fixtures `session_con_saco`, `session_con_saco_en_borde`, `session_tubo_liso` crean una sesión (`create_session`), escriben `meshes/vessel_tree.vtp` con el generador correspondiente (`tubo_con_saco()[0]`, `saco_en_borde()[0]`, `tubo(radio=2.5)`) y `dicom.modality=XA` en el estado; copia el patrón de `test_consensus_and_plane.py` (`_session_with_mesh` o equivalente).
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → en `_run_detection_sync`: antes de `_clear_detection_state`, lee `detect.selected_candidate` y, si existe, su `centroid_*` (la detección anterior); `_detect_hits(..., top=30)`; para cada hit `patch, patch_kind = hit_patch(poly, hit)`, `veto = evaluate(poly, hit, patch, patch_kind)`; aceptados = los sin veto hasta `_MAX_CANDIDATES`; descartados = los con veto (todos) + los aceptados que sobraron del tope NO entran (se tiran, como hoy); ids consecutivos: aceptados `cand-001..`, luego descartados; escribe `aneurysm_cand_00N.vtp` para ambos grupos (así `GET /morphometry` acepta descartados), estado con `veto_reason`, `detect.n_candidates` = aceptados, `detect.n_rejected`; `_clear_detection_state` limpia también `veto_reason` y `n_rejected` y recorre `n_candidates + n_rejected`; invalidación: tras calcular los ids, si había elegido y (no está entre aceptados+descartados o `‖centro_nuevo − centro_viejo‖ > REDETECT_MOVE_MM`), aplica la rama `morphometry=True` de la limpieza (saco, `_MORPHO_STATE_KEYS`, tratamiento, `selected_candidate`) y marca `morphometry_invalidated=True`. `DetectionDiagnostics` con `n_rejected` y `rejected_by_reason`. Comentarios WHY.
+- [x] **Step 3: Implementación** → en `_run_detection_sync`: antes de `_clear_detection_state`, lee `detect.selected_candidate` y, si existe, su `centroid_*` (la detección anterior); `_detect_hits(..., top=30)`; para cada hit `patch, patch_kind = hit_patch(poly, hit)`, `veto = evaluate(poly, hit, patch, patch_kind)`; aceptados = los sin veto hasta `_MAX_CANDIDATES`; descartados = los con veto (todos) + los aceptados que sobraron del tope NO entran (se tiran, como hoy); ids consecutivos: aceptados `cand-001..`, luego descartados; escribe `aneurysm_cand_00N.vtp` para ambos grupos (así `GET /morphometry` acepta descartados), estado con `veto_reason`, `detect.n_candidates` = aceptados, `detect.n_rejected`; `_clear_detection_state` limpia también `veto_reason` y `n_rejected` y recorre `n_candidates + n_rejected`; invalidación: tras calcular los ids, si había elegido y (no está entre aceptados+descartados o `‖centro_nuevo − centro_viejo‖ > REDETECT_MOVE_MM`), aplica la rama `morphometry=True` de la limpieza (saco, `_MORPHO_STATE_KEYS`, tratamiento, `selected_candidate`) y marca `morphometry_invalidated=True`. `DetectionDiagnostics` con `n_rejected` y `rejected_by_reason`. Comentarios WHY.
 
-- [ ] **Step 4: Verificar** → `pytest -q test_detect_api.py test_candidato_elegido.py test_consensus_and_plane.py test_detect_diagnostics.py test_morphometry_sac.py` en verde (ajusta tests que asumían `n_candidates == len(archivos)`); `test_detector_case3.py -m slow` si Case 3 está.
+- [x] **Step 4: Verificar** → `pytest -q test_detect_api.py test_candidato_elegido.py test_consensus_and_plane.py test_detect_diagnostics.py test_morphometry_sac.py` en verde (ajusta tests que asumían `n_candidates == len(archivos)`); `test_detector_case3.py -m slow` si Case 3 está.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/models/detection.py backend/routers/detect.py backend/test_detect_api.py backend/test_candidato_elegido.py
@@ -491,7 +491,7 @@ git commit -m "La detección devuelve los descartados con su motivo y limpia la 
 **Files:**
 - Modify: `frontend/src/api/types.ts` (`Veto`, `AneurysmCandidate.rank`, `.veto`, `DetectionDiagnostics.n_rejected`, `.rejected_by_reason`, `AneurysmDetectionResult.rejected`, `.morphometry_invalidated`), `frontend/src/store/planning.tsx` (`rejectedCandidates: AneurysmCandidate[]`, `setRejectedCandidates`; `candidates` sigue siendo la lista de aceptados; el store expone `allCandidates = [...candidates, ...rejectedCandidates]` memoizado y `selectedCandidate` indexa ESA lista combinada; `MorphometryPanel` y `Viewer` leen `allCandidates[selectedCandidate]`), `frontend/src/components/morphometry/MorphometryPanel.tsx`, `frontend/src/vtk/Viewer.tsx`, `frontend/src/store/planning.test.tsx`
 
-- [ ] **Step 1: Test que falla**
+- [x] **Step 1: Test que falla**
 
 ```tsx
 // añadir a planning.test.tsx
@@ -507,13 +507,13 @@ it("los descartados se guardan aparte y el índice elegido recorre la lista comb
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → tipos; store con `rejectedCandidates` (reiniciado en `reset()` y donde se reinician `candidates`), `allCandidates` memoizado; sustituye las lecturas `candidates[selectedCandidate]` en `MorphometryPanel.tsx` (~79) y `Viewer.tsx` (~300, ~478) por `allCandidates[selectedCandidate]`; `setSelectedCandidate` sigue anulando morfometría/tratamiento al cambiar.
+- [x] **Step 3: Implementación** → tipos; store con `rejectedCandidates` (reiniciado en `reset()` y donde se reinician `candidates`), `allCandidates` memoizado; sustituye las lecturas `candidates[selectedCandidate]` en `MorphometryPanel.tsx` (~79) y `Viewer.tsx` (~300, ~478) por `allCandidates[selectedCandidate]`; `setSelectedCandidate` sigue anulando morfometría/tratamiento al cambiar.
 
-- [ ] **Step 4: Verificar** → `npx tsc --noEmit -p .`, `npx vitest run`.
+- [x] **Step 4: Verificar** → `npx tsc --noEmit -p .`, `npx vitest run`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/api/types.ts frontend/src/store/planning.tsx frontend/src/store/planning.test.tsx frontend/src/components/morphometry/MorphometryPanel.tsx frontend/src/vtk/Viewer.tsx
@@ -539,7 +539,7 @@ export function rankLabel(rank: number): string;                 // "Puesto #3"
 export function rejectedSummary(n: number): string;              // "Descartados (3)" / "Descartados (0)"
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```tsx
 // frontend/src/components/planning/DetectPanel.test.tsx (Testing Library; mock de `api.detect` que devuelve 1 aceptado y 2 descartados, uno «borde» y otro «isla»; render dentro de PlanningProvider con sessionId)
@@ -571,13 +571,13 @@ it("sin candidatos sigue explicando el vacío y no muestra el desplegable", asyn
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → `run()` guarda `setRejectedCandidates(res.rejected)` y `setMorphoInvalidated(res.morphometry_invalidated)` (estado local); la barra y el porcentaje pasan a «Puesto #n» (el `confidence` sigue alimentando el ancho de la barra); «Baja confianza» pasa a «Puesto bajo» si `rank > 3`; debajo de la lista, si `rejected.length > 0`, un `<button aria-expanded>` «Descartados (n)» que despliega filas con id, Ø est., `<Badge variant="warning">{veto.label}</Badge>` con `title={veto.detail}`; clic en una fila → `setSelectedCandidate(candidates.length + i)`; si el elegido es un descartado, nota `VETO_HINT`; si `morphoInvalidated`, aviso `MORPHO_INVALIDATED` (se oculta al re-detectar sin invalidación). El texto «Lo que se pinta de azul no es el saco» no cambia.
+- [x] **Step 3: Implementación** → `run()` guarda `setRejectedCandidates(res.rejected)` y `setMorphoInvalidated(res.morphometry_invalidated)` (estado local); la barra y el porcentaje pasan a «Puesto #n» (el `confidence` sigue alimentando el ancho de la barra); «Baja confianza» pasa a «Puesto bajo» si `rank > 3`; debajo de la lista, si `rejected.length > 0`, un `<button aria-expanded>` «Descartados (n)» que despliega filas con id, Ø est., `<Badge variant="warning">{veto.label}</Badge>` con `title={veto.detail}`; clic en una fila → `setSelectedCandidate(candidates.length + i)`; si el elegido es un descartado, nota `VETO_HINT`; si `morphoInvalidated`, aviso `MORPHO_INVALIDATED` (se oculta al re-detectar sin invalidación). El texto «Lo que se pinta de azul no es el saco» no cambia.
 
-- [ ] **Step 4: Verificar** → vitest del archivo, `npx tsc --noEmit -p .`, `npx vitest run`, `npm run build`. Navegador (Case 3, paso Detección): la lesión entre los dos primeros; «Descartados (n)» con motivos; elegir uno descartado lo pinta en el 3D y muestra la advertencia; medir y re-detectar no avisa (determinista); captura `t7_*.png`.
+- [x] **Step 4: Verificar** → vitest del archivo, `npx tsc --noEmit -p .`, `npx vitest run`, `npm run build`. Navegador (Case 3, paso Detección): la lesión entre los dos primeros; «Descartados (n)» con motivos; elegir uno descartado lo pinta en el 3D y muestra la advertencia; medir y re-detectar no avisa (determinista); captura `t7_*.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/planning/DetectPanel.tsx frontend/src/components/planning/DetectPanel.test.tsx frontend/src/components/planning/detectCopy.ts
@@ -591,7 +591,7 @@ git commit -m "El panel de detección enseña los descartados con su motivo, el 
 **Files:**
 - Modify: `README.md` (sección de detección: vetos, banco, «Puesto», descartados, invalidación), este plan (casillas).
 
-- [ ] **Step 1: Comprobación completa**
+- [x] **Step 1: Comprobación completa**
 
 ```bash
 cd backend && .venv\Scripts\python -m pytest -q --no-header -p no:cacheprovider --deselect test_corredor_abordaje.py && .venv\Scripts\python -m pytest -q --no-header -p no:cacheprovider test_corredor_abordaje.py
@@ -601,7 +601,7 @@ cd frontend && npx tsc -b && npx vitest run && npm run build
 
 Expected: backend sin fallos nuevos frente a la línea base (28 + 8–9); frontend en verde.
 
-- [ ] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
+- [x] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
 
 1. Detección en Case 3 nativa: la lesión (tronco basilar) entre los dos primeros aceptados; los descartados listados con motivo.
 2. Cada descartado, al elegirlo, se pinta en el 3D y muestra la advertencia; «Analizar morfometría» funciona sobre él.
@@ -610,7 +610,7 @@ Expected: backend sin fallos nuevos frente a la línea base (28 + 8–9); fronte
 5. Sin candidatos (umbral absurdo): explicación del vacío, sin desplegable.
 6. `python -m eval.detection_bench` imprime la tabla con Case 3 nativa (y media si existe) y los seis sintéticos; los JSON de `eval/results/` coinciden con el README.
 
-- [ ] **Step 3: README y commit de cierre**
+- [x] **Step 3: README y commit de cierre**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-10-02-calidad-deteccion.md

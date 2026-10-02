@@ -22,6 +22,7 @@
 - [Choosing a Clip](#choosing-a-clip)
 - [Navigation & Unsaved Work](#navigation--unsaved-work)
 - [API Reference](#api-reference)
+- [Candidatos descartados y puesto](#candidatos-descartados-y-puesto)
 - [Banco de detección](#banco-de-detección)
 - [Running Tests](#running-tests)
 - [Development Scripts](#development-scripts)
@@ -177,7 +178,7 @@ El método tubular (`services/vascular_mask.py` + `mask_to_surface` en `services
 
 La variable de entorno `PROSPECTIVE_MEM_BUDGET_MB` fija el presupuesto de memoria por encima del cual el método tubular se fuerza a media resolución y lo dice. Si no está definida, el presupuesto es el 70 % de la RAM disponible que detecta el sistema (`/proc/meminfo` en Linux, `GlobalMemoryStatusEx` en Windows), y 1400 MB si no puede leerla.
 
-La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. Las regiones de curvatura que tocan una cara de la caja de la malla (las tapas de los vasos cortados por el borde del volumen) van al final de la lista. En Case 3 la lesión confirmada sale 2.ª, con «solo el árbol» y con la malla completa, y la detección tarda unos 10 s. Eso es **a resolución nativa**. A media resolución (10 594 vértices, «solo el árbol») la misma lesión sale 5.ª, el último puesto de la lista, y solo por el cociente: el objetivo «lesión ≤ 3» no se cumple ahí.
+La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. Las regiones de curvatura que tocan una cara de la caja de la malla (las tapas de los vasos cortados por el borde del volumen) van al final de la lista. En Case 3 (método tubular, 103 978 vértices, «solo el árbol») la lesión confirmada sale 1.ª, la encuentra el canal de curvatura y la detección tarda unos 11–13 s con los vetos incluidos. Eso es **a resolución nativa**. A media resolución (10 594 vértices, «solo el árbol») la misma lesión sale 5.ª, el último puesto de la lista, y solo por el cociente: el objetivo «lesión ≤ 3» no se cumple ahí.
 
 #### Despliegue
 
@@ -2409,6 +2410,50 @@ the remedy: place the device and generate the report again.
 
 They are diagrams of the segmentation, not radiological images, and the caption
 under them says so.
+
+---
+
+## Candidatos descartados y puesto
+
+Tras el consenso de los tres canales, `backend/services/candidate_vetoes.py`
+mira cada sitio y, si una causa geométrica conocida lo explica, lo aparta con
+un motivo en vez de borrarlo. Se prueban en este orden y gana el primero que
+aplique:
+
+| Motivo | Etiqueta en pantalla | Cuándo se veta |
+|---|---|---|
+| `borde` | «Recorte de la malla» | El parche toca una cara de la caja de la malla (a menos de 1 mm) y lleva más de 3 mm de aristas abiertas del árbol: es la tapa de un vaso cortado por el borde del volumen. |
+| `isla` | «Resto de segmentación» | El sitio está en un trozo suelto que no es el mayor y tiene menos del 2 % de los vértices. |
+| `bifurcacion` | «Unión de ramas» | La malla sale por 3 o más sitios de una esfera de 1,5 radios (mínimo 3 mm) y no hay cuello: la sección mín./máx. no baja de 0,85. En un localizador decide solo el número de salidas. |
+| `forma` | «No es sacular» | Región de curvatura cuya sección apenas cambia (mín./máx. ≥ 0,85) a lo largo de al menos 1 mm: pared de tubo, no un saco. |
+
+`POST /api/detect/{sid}` devuelve los aceptados en `candidates` y los vetados
+en `rejected`, cada uno con `veto: {reason, label, detail}`. Ningún veto toca
+la lesión de Case 3: es una región de curvatura con una sola salida y cuello
+0,12, en el tronco basilar, lejos de la caja de la malla.
+
+El panel de detección enseña:
+
+- **«Puesto #n»** en cada aceptado, en lugar de un porcentaje: el orden es una
+  lista para recorrer, no una probabilidad. La nota «azul = dónde, no el saco»
+  sigue en los candidatos que son un localizador (una bola alrededor del punto
+  que marcaron calibre o cociente, no una región de curvatura).
+- **«Descartados (n)»**, plegado debajo de la lista, con la etiqueta del motivo
+  en cada uno. Se pueden elegir: el elegido se pinta en el 3D, la cabecera lo
+  nombra y el panel avisa «Descartado por un criterio geométrico: compruébalo
+  en el 3D antes de medir.». «Analizar morfometría» funciona sobre él igual que
+  sobre un aceptado. Sin candidatos no hay desplegable: el panel explica el
+  vacío.
+
+**La morfometría se invalida si el elegido cambió.** Al re-detectar, el
+servidor compara el candidato que estaba elegido con el del mismo id en la
+lista nueva (aceptados y descartados). Si ya no existe, si su centro se movió
+más de 2 mm (`REDETECT_MOVE_MM`) o si no se sabe dónde estaba, borra la
+morfometría y responde `morphometry_invalidated: true`, y el panel avisa «La
+morfometría se ha limpiado: el candidato elegido cambió al re-detectar.».
+Re-detectar sobre la misma malla es determinista y conserva la medida.
+Re-segmentar ya limpia la detección y la morfometría por su cuenta, así que
+tras re-segmentar el aviso no aparece: no queda medida que limpiar.
 
 ---
 

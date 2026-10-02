@@ -30,9 +30,11 @@ import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
 import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, useStoredFlag } from "./viewerPrefs";
-import { planeOutlines } from "./planeOutlines";
+import { planeOutlines, polygonCentroid } from "./planeOutlines";
+import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
+import { screenToAxis } from "./dragController";
 import { clampOffsetToBox, sliceSegment } from "./freePlane";
-import { HUD_HEX, hexToRgb01 } from "./planeColors";
+import { HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
@@ -125,6 +127,9 @@ const PERFORATOR_COLOR: Record<number, Vector3> = {
  *  is actually findable: nothing is competing for attention that the user did
  *  not switch on. The colour carries the severity, never the size. */
 const PERFORATOR_SCALE = 1.8;
+/** Tope del desplazamiento de un plano por gesto desde su asa (mm): con el eje
+ *  casi paralelo al rayo, `screenToAxis` da saltos enormes por píxel. */
+const PLANE_DRAG_MAX_MM = 100;
 
 /* Small 3-vector helpers for the morphometric overlay geometry. */
 type V3 = [number, number, number];
@@ -759,6 +764,62 @@ export function ViewerWorkspace({ step }: { step: string }) {
     () => (showPlanes ? planeOutlines(mprVoxel, meta, showFreePlane ? freePlane : null) : []),
     [showPlanes, showFreePlane, freePlane, meta, mprVoxel],
   );
+  // Las asas de los planos salen con sus contornos (PLANOS/REGLAS, y el libre
+  // solo en Oblicuo o con VOLUMEN en LIBRE); el clip conserva su propia puerta.
+  const sceneHandles = useMemo(() => [...clipGizmoHandles, ...planeHandles(planes)], [clipGizmoHandles, planes]);
+  const planesRef = useRef(planes);
+  planesRef.current = planes;
+  const mprVoxelRef = useRef(mprVoxel);
+  mprVoxelRef.current = mprVoxel;
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
+  // Foto al agarrar el asa: el eje por el centroide de entonces, el parámetro
+  // t0 donde cayó el ratón y el índice o desplazamiento de partida. Cada
+  // movimiento se mide contra ella, no contra el plano que ya se ha movido.
+  const planeDragRef = useRef<{ plane: OutlinePlane; origin: Vec3; dir: Vec3; t0: number; startIndex: number; startOffset: number } | null>(null);
+  const onPlaneDrag = useCallback((e: HandleDragEvent) => {
+    const m = metaRef.current;
+    if (!m) return;
+    const writePlane = (plane: OutlinePlane, index: number, offsetMm: number) => {
+      const vox = mprVoxelRef.current;
+      // El mismo setter que usan las celdas de corte (planeCfg.onIndexChange).
+      if (plane === "axial") setMprVoxel({ ...vox, z: index });
+      else if (plane === "coronal") setMprVoxel({ ...vox, y: index });
+      else if (plane === "sagital") setMprVoxel({ ...vox, x: index });
+      else setFreePlane(clampOffsetToBox({ ...freePlaneRef.current, offsetMm }, vox, m));
+    };
+    if (e.phase === "start") {
+      const plane = e.id.slice("plane:".length) as OutlinePlane;
+      const outline = planesRef.current.find((o) => o.plane === plane);
+      if (!outline) return;
+      const origin = polygonCentroid(outline.corners), dir = planeAxis(plane, freePlaneRef.current);
+      const t0 = screenToAxis(e.camera, e.viewport, e.px, e.py, { origin, dir });
+      if (t0 === null) return;
+      const vox = mprVoxelRef.current;
+      const startIndex = plane === "axial" ? vox.z : plane === "coronal" ? vox.y : plane === "sagital" ? vox.x : 0;
+      planeDragRef.current = { plane, origin, dir, t0, startIndex, startOffset: freePlaneRef.current.offsetMm };
+      return;
+    }
+    const d = planeDragRef.current;
+    if (!d) return;
+    if (e.phase === "move") {
+      const t = screenToAxis(e.camera, e.viewport, e.px, e.py, { origin: d.origin, dir: d.dir });
+      if (t === null) return;   // rayo paralelo al eje: el plano se queda donde estaba
+      // Con el eje casi de frente un píxel son metros: se acota el salto por
+      // gesto para que el corte no salga disparado al otro extremo.
+      const dt = Math.max(-PLANE_DRAG_MAX_MM, Math.min(PLANE_DRAG_MAX_MM, t - d.t0));
+      if (d.plane === "libre") writePlane(d.plane, 0, d.startOffset + dt);
+      else writePlane(d.plane, indexFromDrag(d.plane, d.startIndex, dt, m), 0);
+      return;
+    }
+    // Escape: el plano vuelve a donde estaba al agarrarlo.
+    if (e.phase === "cancel") writePlane(d.plane, d.startIndex, d.startOffset);
+    planeDragRef.current = null;
+  }, [setMprVoxel, setFreePlane]);
+  const onSceneHandleDrag = useCallback(
+    (e: HandleDragEvent) => (e.id.startsWith("plane:") ? onPlaneDrag(e) : onHandleDrag(e)),
+    [onPlaneDrag, onHandleDrag],
+  );
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
@@ -1148,7 +1209,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices"}
-            handles={clipGizmoHandles} onHandleDrag={onHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
+            handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
         </Suspense>
       );

@@ -35,3 +35,12 @@ export function planeOutlines(
   }
   return out;
 }
+
+/** Media de los vértices. En un rectángulo es su centro; en el polígono del
+ *  plano libre (3 a 6 vértices, convexo) cae dentro, que es lo que hace falta
+ *  para poner ahí el asa: no es el centro de masas del área, ni lo necesita. */
+export function polygonCentroid(corners: Vec3[]): Vec3 {
+  const n = corners.length || 1;
+  const s = corners.reduce<Vec3>((a, c) => [a[0] + c[0], a[1] + c[1], a[2] + c[2]], [0, 0, 0]);
+  return [s[0] / n, s[1] / n, s[2] / n];
+}

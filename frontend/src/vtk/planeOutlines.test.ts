@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planeOutlines } from "./planeOutlines";
+import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import type { VolumeMeta } from "../api/types";
 
 const meta = { shape: [10, 20, 30], spacing: [1, 0.5, 0.25] } as unknown as VolumeMeta;   // (z,y,x) y (sz,sy,sx)
@@ -39,5 +39,14 @@ describe("planeOutlines", () => {
   it("sin plano libre o con el plano fuera de la caja siguen siendo tres", () => {
     expect(planeOutlines({ x: 3, y: 4, z: 5 }, meta)).toHaveLength(3);
     expect(planeOutlines({ x: 3, y: 4, z: 5 }, meta, { azimuthDeg: 0, elevationDeg: 0, offsetMm: 999 })).toHaveLength(3);
+  });
+});
+
+describe("polygonCentroid", () => {
+  it("es la media de los vértices, también en el polígono del plano libre", () => {
+    expect(polygonCentroid([[0, 0, 0], [6, 0, 0], [0, 3, 0]])).toEqual([2, 1, 0]);
+    const libre = planeOutlines({ x: 3, y: 4, z: 5 }, meta, { azimuthDeg: 30, elevationDeg: 50, offsetMm: 0 }).find((p) => p.plane === "libre")!;
+    const c = polygonCentroid(libre.corners);
+    for (let k = 0; k < 3; k++) expect(c[k]).toBeCloseTo(libre.corners.reduce((a, v) => a + v[k], 0) / libre.corners.length);
   });
 });

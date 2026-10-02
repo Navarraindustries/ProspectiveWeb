@@ -8,9 +8,10 @@ import { voxelToMm, type Plane, type Vec3 } from "./geometry";
 export interface FreePlane { azimuthDeg: number; elevationDeg: number; offsetMm: number }
 export const DEFAULT_FREE_PLANE: FreePlane = { azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 };
 export const AZIMUTH_RANGE: [number, number] = [-180, 180];
-/* 89 y no 90: con la normal horizontal el «arriba» proyectado se anula. */
+/* 89 y no 90: con la normal paralela a y (elevación 90°) el «arriba» proyectado se anula. */
 export const ELEVATION_RANGE: [number, number] = [-89, 89];
 
+const EPS = 1e-9;
 const rad = (d: number) => (d * Math.PI) / 180;
 const clamp = (v: number, [lo, hi]: [number, number]) => Math.min(hi, Math.max(lo, v));
 const norm = (v: Vec3): Vec3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
@@ -61,8 +62,12 @@ export function clipPolygon(p: FreePlane, voxel: { x: number; y: number; z: numb
     if (i & bit) continue;
     const a = corner(i), b = corner(i | bit);
     const da = dot(sub(a, o), n), db = dot(sub(b, o), n);
-    if (da === 0) pts.push(a);
-    if ((da < 0 && db > 0) || (da > 0 && db < 0)) { const t = da / (da - db); pts.push(add(a, sub(b, a), t)); }
+    // Un vértice sobre el plano cuenta aunque sea el extremo b de la arista (el
+    // vértice máximo solo es b); la tolerancia absorbe el error de coma flotante
+    // cuando el offset se acota exactamente a esa cara.
+    if (Math.abs(da) < EPS) pts.push(a);
+    if (Math.abs(db) < EPS) pts.push(b);
+    if ((da < -EPS && db > EPS) || (da > EPS && db < -EPS)) { const t = da / (da - db); pts.push(add(a, sub(b, a), t)); }
   }
   // Quitar duplicados (aristas que comparten un vértice cortado exactamente).
   const uniq: Vec3[] = [];

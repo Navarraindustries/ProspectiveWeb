@@ -51,6 +51,24 @@ describe("clipPolygon", () => {
     for (let i = 1; i < ang.length; i++) expect((ang[i] - ang[i - 1] + 2 * Math.PI) % (2 * Math.PI)).toBeLessThan(Math.PI);
     expect(len(n)).toBeCloseTo(1, 6);
   });
+  it("con el offset acotado a una cara, el polígono es esa cara (4 vértices), también la del vértice máximo", () => {
+    const top = clampOffsetToBox({ ...DEFAULT_FREE_PLANE, offsetMm: 99 }, centre, meta);
+    const polyTop = clipPolygon(top, centre, meta);
+    expect(polyTop).toHaveLength(4);
+    expect(polyTop.every((v) => Math.abs(v[2] - 10) < 1e-6)).toBe(true);
+    const bottom = clampOffsetToBox({ ...DEFAULT_FREE_PLANE, offsetMm: -99 }, centre, meta);
+    const polyBottom = clipPolygon(bottom, centre, meta);
+    expect(polyBottom).toHaveLength(4);
+    expect(polyBottom.every((v) => Math.abs(v[2]) < 1e-6)).toBe(true);
+    const px = clampOffsetToBox({ azimuthDeg: 90, elevationDeg: 90, offsetMm: 99 }, centre, meta);
+    const polyX = clipPolygon(px, centre, meta);
+    expect(polyX).toHaveLength(4);
+    expect(polyX.every((v) => Math.abs(v[0] - 30) < 1e-6)).toBe(true);
+    const py = clampOffsetToBox({ azimuthDeg: 0, elevationDeg: 90, offsetMm: 99 }, centre, meta);
+    const polyY = clipPolygon(py, centre, meta);
+    expect(polyY).toHaveLength(4);
+    expect(polyY.every((v) => Math.abs(v[1] - 20) < 1e-6)).toBe(true);
+  });
   it("fuera de la caja no hay polígono", () => {
     expect(clipPolygon({ ...DEFAULT_FREE_PLANE, offsetMm: 50 }, centre, meta)).toEqual([]);
   });

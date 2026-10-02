@@ -299,7 +299,8 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
 
 
 def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
-                 detector: AneurysmDetector | None = None):
+                 detector: AneurysmDetector | None = None,
+                 top: int = _MAX_CANDIDATES):
     """Los candidatos: curvatura sobre ≤ 80 000 vértices, calibre sobre ≤ 40 000.
 
     La malla completa (107 000 vértices en Case 3 a resolución nativa) hace que
@@ -317,7 +318,9 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     Devuelve ``(hits, det_result)``: el resultado de la curvatura, el mismo
     que alimenta el consenso, es el que dan los diagnósticos de la respuesta.
     *detector*, si se da, es el que usa quien llama para esos diagnósticos:
-    una sola instancia por petición.
+    una sola instancia por petición. *top* es el tope del consenso: el banco
+    de pruebas (`eval/detection_bench.py`) pide más de 5 para poder aplicar
+    los vetos antes de cortar.
     """
     from services.aneurysm_consensus import consensus
     from services.segmentation import decimate_to
@@ -340,7 +343,7 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     logger.info("Detection mesh: %d vertices for curvature, %d for calibre/ratio",
                 curv.GetNumberOfPoints(), small.GetNumberOfPoints())
     det_result = detector.detect(curv)
-    hits = consensus(curv, detector, top=_MAX_CANDIDATES,
+    hits = consensus(curv, detector, top=top,
                      geometric_poly=small, curvature_result=det_result)
     return hits, det_result
 

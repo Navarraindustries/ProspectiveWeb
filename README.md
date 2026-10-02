@@ -22,6 +22,7 @@
 - [Choosing a Clip](#choosing-a-clip)
 - [Navigation & Unsaved Work](#navigation--unsaved-work)
 - [API Reference](#api-reference)
+- [Banco de detección](#banco-de-detección)
 - [Running Tests](#running-tests)
 - [Development Scripts](#development-scripts)
 - [Relationship to the Desktop App](#relationship-to-the-desktop-app)
@@ -2408,6 +2409,47 @@ the remedy: place the device and generate the report again.
 
 They are diagrams of the segmentation, not radiological images, and the caption
 under them says so.
+
+---
+
+## Banco de detección
+
+`backend/eval/detection_bench.py` mide la detección con métricas fijas sobre
+Case 3 (el único estudio anotado: lesión en el tronco basilar,
+`[62.1, 63.7, 62.9]` mm) y seis vasos sintéticos (`backend/eval/synthetic.py`).
+Existe para que ningún ajuste del detector se mida solo contra Case 3. Un
+candidato cuenta como la lesión si su centro queda a menos de 8 mm.
+
+```bash
+cd backend
+.venv\Scripts\python -m eval.detection_bench --no-vetoes --json eval/results/baseline.json
+.venv\Scripts\python -m eval.detection_bench --only case3_native   # un solo caso
+```
+
+La sesión de Case 3 se localiza por contenido, no por id: `state.txt` con
+`dicom.modality=XA` y `seg.downsample_factor=1` (nativa) o `=2` (media), y un
+`meshes/vessel_tree.vtp` de más de 1 MB. Si no hay ninguna, la fila no se
+mide y su test `slow` se salta. Hoy solo existe la nativa.
+
+**Línea base** (sin vetos, 2026-10-02, `backend/eval/results/baseline.json`):
+
+| Caso | Puesto de la lesión | Distancia (mm) | Falsos positivos | Aceptados | Segundos |
+|---|---|---|---|---|---|
+| tubo_con_saco | 1 | 0.0 | 2 | 3 | 0.1 |
+| saco_en_borde | 1 | 3.0 | 1 | 2 | 0.3 |
+| bifurcacion_con_saco_apical | 1 | 2.5 | 2 | 3 | 0.9 |
+| bifurcacion_sin_saco | sin lesión | | 4 | 4 | 0.6 |
+| tubo_curvo_sin_saco | sin lesión | | 0 | 0 | 0.0 |
+| tubo_mas_isla | sin lesión | | 3 | 3 | 0.1 |
+| case3_native | 1 | 5.0 | 4 | 5 | 10.4 |
+
+Umbrales que fija `backend/test_detection_bench.py`: ningún veto descarta la
+lesión; los sintéticos con saco la sacan 1.ª; los que no tienen saco dejan como
+mucho un falso positivo; Case 3 nativa en puesto ≤ 2 y media ≤ 3. La línea base
+cumple el de Case 3 nativa, así que no se ha rebajado. Sin vetos,
+`bifurcacion_sin_saco` y `tubo_mas_isla` superan el falso positivo permitido:
+sus tests están marcados como fallo esperado mientras no exista
+`services/candidate_vetoes.py`, y la marca desaparece sola cuando exista.
 
 ---
 

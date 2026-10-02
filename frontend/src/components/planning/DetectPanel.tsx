@@ -68,6 +68,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     try {
       const res = await api.detect(sessionId);
       planning.setCandidates(res.candidates);
+      planning.setRejectedCandidates(res.rejected ?? []);
       planning.setSelectedCandidate(0);
       setRan(true);
       setDiag(res.diagnostics ?? null);
@@ -90,6 +91,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     try {
       await api.clearDetection(sessionId);
       planning.setCandidates([]);
+      planning.setRejectedCandidates([]);
       planning.setSelectedCandidate(0);
       planning.setMorphometry(null);
       planning.setTreatment(null);

@@ -184,7 +184,7 @@ function ViewerLoading({ label }: { label: string }) {
 
 export function ViewerWorkspace({ step }: { step: string }) {
   const {
-    sessionId, segmentation, candidates, selectedCandidate, series, deviceMeshes,
+    sessionId, segmentation, allCandidates, selectedCandidate, series, deviceMeshes,
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
@@ -297,7 +297,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // even after a mesh has been segmented — so navigating back to it from a later
   // step shows the study's DICOM views, not the leftover 3D mesh.
   const meshVisible = !!displayMeshUrl && step !== "upload" && !previewActive;
-  const candidate = candidates[selectedCandidate];
+  const candidate = allCandidates[selectedCandidate];
 
   // What the markers should be sized against. The candidate's own diameter is
   // the honest reference — the neck, the apex and the seeds are all placed on
@@ -476,7 +476,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     level_note: levelNote ?? null,
     view_mode: viewMode,
     candidate_index: selectedCandidate,
-    candidate_id: candidates[selectedCandidate]?.id ?? null,
+    candidate_id: allCandidates[selectedCandidate]?.id ?? null,
     neck_mm: morphometry?.neck_mm ?? null,
     max_diameter_mm: morphometry?.max_diameter_mm ?? null,
     window: mprWl ?? null,
@@ -488,7 +488,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       rotation_deg: c.rotation_deg, azimuth_deg: c.azimuthDeg, elevation_deg: c.elevationDeg,
     })),
     selected_clip: (placedClipsRef.current.find((c) => c.key === selectedClipKeyRef.current) ?? placedClipsRef.current.at(-1))?.key ?? null,
-  }), [levelNote, viewMode, selectedCandidate, candidates, morphometry, mprWl, orientation]);
+  }), [levelNote, viewMode, selectedCandidate, allCandidates, morphometry, mprWl, orientation]);
 
   // Lo que se ve AHORA: cada panel visible con su sitio, su HUD y su captura.
   // Lo usan la captura (una vez) y la grabación (en cada fotograma), así que
@@ -945,10 +945,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // Candidato elegido en Detección → foco. Con la meta en las dependencias:
   // al reanudar una sesión el candidato llega antes que el volumen.
   useEffect(() => {
-    const c = candidates[selectedCandidate];
+    const c = allCandidates[selectedCandidate];
     if (c && syncViews && meta && step === "detect") setFocusMm([c.center_mm.x, c.center_mm.y, c.center_mm.z], meta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCandidate, candidates, step, meta]);
+  }, [selectedCandidate, allCandidates, step, meta]);
 
   // Entrar en Morfometría o Dispositivos con el cuello medido → foco.
   useEffect(() => {

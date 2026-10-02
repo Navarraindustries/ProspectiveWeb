@@ -347,3 +347,23 @@ describe("clips colocados", () => {
     expect(result.current.placedClips).toEqual([]); expect(result.current.plannedClips).toBeNull();
   });
 });
+
+describe("candidatos descartados", () => {
+  it("los descartados se guardan aparte y el índice elegido recorre la lista combinada", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const c = (id: string) => ({ id, center_mm: { x: 0, y: 0, z: 0 }, max_diameter_mm: 3, confidence: 0.5, dome_mesh_url: "", selected: false, channels: [], patch_kind: "region" as const, rank: 1, veto: null });
+    act(() => { result.current.setCandidates([c("cand-001")]); result.current.setRejectedCandidates([{ ...c("cand-002"), veto: { reason: "borde", label: "Recorte de la malla", detail: "" } }]); });
+    expect(result.current.allCandidates.map((x) => x.id)).toEqual(["cand-001", "cand-002"]);
+    act(() => result.current.setSelectedCandidate(1));
+    expect(result.current.allCandidates[result.current.selectedCandidate!].id).toBe("cand-002");
+    act(() => result.current.reset());
+    expect(result.current.rejectedCandidates).toEqual([]);
+  });
+
+  it("con aceptados vacíos (reanudar) el índice recorre solo los descartados", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const r = { id: "cand-001", center_mm: { x: 0, y: 0, z: 0 }, max_diameter_mm: 3, confidence: 0.5, dome_mesh_url: "", selected: false, channels: [], patch_kind: "region" as const, rank: 1, veto: { reason: "isla" as const, label: "Isla", detail: "" } };
+    act(() => { result.current.setCandidates([]); result.current.setRejectedCandidates([r]); });
+    expect(result.current.allCandidates.map((x) => x.id)).toEqual(["cand-001"]);
+  });
+});

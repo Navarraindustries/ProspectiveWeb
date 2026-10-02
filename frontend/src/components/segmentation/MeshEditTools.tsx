@@ -23,7 +23,7 @@ export function MeshEditTools() {
     scissorsPoints, setScissorsPoints,
     scissorsPreview, setScissorsPreview,
     scissorsKeepSide, setScissorsKeepSide,
-    setSegmentation, setCandidates, setSelectedCandidate,
+    setSegmentation, setCandidates, setRejectedCandidates, setSelectedCandidate,
     setMorphometry, setTreatment, setCenterlineMesh,
   } = usePlanning();
 
@@ -137,7 +137,7 @@ export function MeshEditTools() {
           setSegmentation(segmentation
             ? { ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces }
             : segmentation);
-          setCandidates([]); setSelectedCandidate(0);
+          setCandidates([]); setRejectedCandidates([]); setSelectedCandidate(0);
           setMorphometry(null); setTreatment(null); setCenterlineMesh(null);
           setEraseMsg(`Borrados ${res.removed_vertices.toLocaleString("es")} vértices.`);
           setEraseLeft(null);
@@ -159,7 +159,7 @@ export function MeshEditTools() {
           : segmentation);
         // La pieza que se acaba de borrar puede ser la que sostenía un
         // candidato o una medida: se tiran, igual que tras un recorte.
-        setCandidates([]); setSelectedCandidate(0);
+        setCandidates([]); setRejectedCandidates([]); setSelectedCandidate(0);
         setMorphometry(null); setTreatment(null); setCenterlineMesh(null);
         setEraseMsg(
           `Borrada una pieza de ${res.removed.volume_mm3.toFixed(0)} mm³ ` +
@@ -191,7 +191,7 @@ export function MeshEditTools() {
 
   // Anything derived from the old mesh is invalid once it changes.
   const clearDownstream = () => {
-    setCandidates([]);
+    setCandidates([]); setRejectedCandidates([]);
     setSelectedCandidate(0);
     setMorphometry(null);
     setTreatment(null);

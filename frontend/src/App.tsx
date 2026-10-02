@@ -158,6 +158,8 @@ function Router() {
         try {
           const det = await api.detect(r.session_id);
           planning.setCandidates(det.candidates);
+          // Al reanudar puede no haber aceptados y sí descartados: el índice elegido los recorre.
+          planning.setRejectedCandidates(det.rejected ?? []);
           planning.setSelectedCandidate(0);
           restoredIds = det.candidates.map((c) => c.id);
         } catch { /* leave candidates empty */ }

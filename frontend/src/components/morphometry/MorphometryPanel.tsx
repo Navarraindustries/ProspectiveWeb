@@ -20,7 +20,7 @@ const TABS = ["Métricas", "Índices", "PHASES", "Seguimiento"] as const;
 export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const {
-    sessionId, morphometry, candidates, selectedCandidate,
+    sessionId, morphometry, allCandidates, selectedCandidate,
     pickMode, setPickMode, neckOrigin, neckDome, setNeckOrigin, setNeckDome,
     neckRim, setNeckRim,
   } = planning;
@@ -76,7 +76,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   // Se mide el candidato elegido en Detección, no siempre el primero: en
   // Case 3 la lesión es cand-002. Cambiar la elección vacía `morphometry` en el
   // store, y este efecto vuelve a pedirla para el nuevo.
-  const candidateId = candidates[selectedCandidate]?.id;
+  const candidateId = allCandidates[selectedCandidate]?.id;
   useEffect(() => {
     if (morphometry || !sessionId) return;
     let alive = true;

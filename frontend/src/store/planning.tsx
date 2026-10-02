@@ -1,7 +1,7 @@
 /* PlanningContext — state shared across the 7-step workspace:
    session id, DICOM series, thresholds, segmentation, detection, morphometry… */
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { PartsHandle } from "../vtk/MeshView";
 import type { FrameSource } from "../vtk/viewerRecorder";
@@ -60,6 +60,10 @@ interface PlanningState {
   previewMeshUrl: string | null;
   segmentation: SegmentResult | null;
   candidates: AneurysmCandidate[];
+  /** Sitios que un veto descartó; se listan aparte pero se pueden elegir. */
+  rejectedCandidates: AneurysmCandidate[];
+  /** Aceptados seguidos de descartados: `selectedCandidate` indexa ESTA lista. */
+  allCandidates: AneurysmCandidate[];
   selectedCandidate: number;
   morphometry: MorphometryResult | null;
   treatment: TreatmentDecisionResult | null;
@@ -243,6 +247,7 @@ interface PlanningState {
   setPreviewMeshUrl: (u: string | null) => void;
   setSegmentation: (s: SegmentResult | null) => void;
   setCandidates: (c: AneurysmCandidate[]) => void;
+  setRejectedCandidates: (c: AneurysmCandidate[]) => void;
   setSelectedCandidate: (i: number) => void;
   setMorphometry: (m: MorphometryResult | null) => void;
   setTreatment: (t: TreatmentDecisionResult | null) => void;
@@ -327,6 +332,11 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [previewMeshUrl, setPreviewMeshUrl] = useState<string | null>(null);
   const [segmentation, _setSegmentation] = useState<SegmentResult | null>(null);
   const [candidates, _setCandidates] = useState<AneurysmCandidate[]>([]);
+  const [rejectedCandidates, _setRejectedCandidates] = useState<AneurysmCandidate[]>([]);
+  // Memoizada para que los efectos que dependen de ella no se disparen en
+  // cada render; con `candidates` vacío (reanudar una sesión donde todo se
+  // descartó) es simplemente la lista de descartados.
+  const allCandidates = useMemo(() => [...candidates, ...rejectedCandidates], [candidates, rejectedCandidates]);
   const [selectedCandidate, _setSelectedCandidate] = useState(0);
   const selectedRef = useRef(0);
   const [morphometry, _setMorphometry] = useState<MorphometryResult | null>(null);
@@ -437,6 +447,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const touch = <T,>(set: (v: T) => void) => (v: T) => { set(v); setDirty(true); };
   const setSegmentation = touch(_setSegmentation);
   const setCandidates = touch(_setCandidates);
+  const setRejectedCandidates = touch(_setRejectedCandidates);
   const setMorphometry = touch(_setMorphometry);
   const setTreatment = touch(_setTreatment);
   // La morfometría automática mide el candidato elegido: si la elección
@@ -478,6 +489,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setPreviewMeshUrl(null);
     _setSegmentation(null);
     _setCandidates([]);
+    _setRejectedCandidates([]);
     selectedRef.current = 0;
     _setSelectedCandidate(0);
     _setMorphometry(null);
@@ -540,14 +552,14 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   return (
     <PlanningContext.Provider
       value={{
-        patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
+        patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, volumeWindows,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
-        setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
+        setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,

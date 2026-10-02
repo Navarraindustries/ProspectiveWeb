@@ -623,6 +623,19 @@ export interface AneurysmCandidate {
       la morfometría, que se mide sobre el saco aislado desde el volumen a
       partir del plano de cuello marcado. */
   patch_kind: "region" | "locator";
+  /** Posición entre los aceptados (1 = el primero). En un descartado numera
+      el orden en que se evaluó. */
+  rank: number;
+  /** null si el sitio pasó los vetos; si no, el motivo por el que se descartó.
+      Los descartados se listan igualmente para que el cirujano pueda verlos
+      y discrepar del detector. */
+  veto: Veto | null;
+}
+
+export interface Veto {
+  reason: "borde" | "isla" | "bifurcacion" | "forma";
+  label: string;
+  detail: string;
 }
 
 /** Why the detector kept or rejected what it did. An empty result used to be
@@ -639,11 +652,17 @@ export interface DetectionDiagnostics {
   removed_components: number;
   min_radius_mm: number;
   max_radius_mm: number;
+  n_rejected: number;
+  rejected_by_reason: Record<string, number>;
 }
 
 export interface AneurysmDetectionResult {
   found: boolean;
   candidates: AneurysmCandidate[];
+  /** Sitios descartados por un veto, con su motivo. */
+  rejected: AneurysmCandidate[];
+  /** true si el elegido cambió y la morfometría previa ya no le corresponde. */
+  morphometry_invalidated: boolean;
   diagnostics: DetectionDiagnostics;
 }
 

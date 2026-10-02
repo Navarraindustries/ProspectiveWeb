@@ -63,7 +63,7 @@ Rangos: azimut −180..180, elevación −89..89 (el «arriba» no degenera en e
 - **3D** (`MeshView` prop `planes`): `PlaneOutline.corners` pasa de 4 a `Vec3[]` (≥ 3) y las líneas/relleno se construyen con N vértices; `planeOutlines` devuelve el polígono libre como cuarto elemento cuando procede.
 - **Cortes** (`SliceView`): un SVG superpuesto (como la traza del MIP) dibuja el segmento de `sliceSegment` con el color lavanda, grosor 1, opacidad 0,85. Las tres líneas de referencia de índice no cambian.
 - **VOLUMEN**: la traza del recorte en LIBRE (§4).
-- **Cuándo se ve**: solo si la escena está en Oblicuo o VOLUMEN está en recorte LIBRE (`showFreePlane = viewMode === "oblique" || clipMode === "libre"`), para no ensuciar el caso normal; PLANOS ○ y REGLAS ○ lo ocultan como a los demás.
+- **Cuándo se ve**: solo si la escena está en Oblicuo o VOLUMEN está en recorte LIBRE (`showFreePlane = viewMode === "oblique" || clipMode === "libre"`), para no ensuciar el caso normal; PLANOS ○ y REGLAS ○ lo ocultan como a los demás. La traza del plano libre en VOLUMEN sigue a REGLAS y no a PLANOS, como la traza del eje en D1, porque muestra el recorte que está activo; PLANOS ○ solo oculta el polígono del 3D y los segmentos de los cortes.
 
 ## 7. Retirar `GET /volume/{sid}/raw`
 

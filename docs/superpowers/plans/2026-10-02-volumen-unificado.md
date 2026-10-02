@@ -1,6 +1,6 @@
 # Volumen unificado (D2) — plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Un único plano libre (azimut, elevación, desplazamiento) compartido por la vista Oblicuo, el recorte de VOLUMEN (con el corte pintado en la cara), el 3D y los cortes; ventana y nivel por preajuste en COMPUESTO; y la retirada de `GET /volume/{sid}/raw`.
 

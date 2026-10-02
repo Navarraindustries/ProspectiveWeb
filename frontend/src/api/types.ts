@@ -1752,3 +1752,43 @@ export interface ScissorsResult {
   undo_depth: number;
 }
 
+
+/* ── Confirmación de la lesión (verdad de referencia del detector) ─────────── */
+
+export type LesionSource = "candidate" | "marked" | "no_lesion";
+
+export interface LesionConfirmIn {
+  session_id: string;
+  imaging_study_id: number | null;
+  source: LesionSource;
+  candidate_id?: string;
+  position?: Position3D;
+}
+
+export interface LesionConfirmation {
+  id: number;
+  session_id: string;
+  imaging_study_id: number | null;
+  source: LesionSource;
+  position: Position3D | null;
+  /** Puesto del candidato que ES la lesión; null si ninguno lo era. */
+  candidate_rank: number | null;
+  n_candidates: number;
+  channels: string;
+  modality: string;
+  /** Hay estudio archivado: se puede volver a pasar el detector. */
+  reproducible: boolean;
+  created_at: string;
+  created_by: string;
+}
+
+export interface LesionSummary {
+  confirmed: number;
+  no_lesion: number;
+  first: number;
+  top3: number;
+  top5: number;
+  missed: number;
+  by_modality: Record<string, number>;
+  reproducible: number;
+}

@@ -90,6 +90,7 @@ const NECK_RIM_COLOR: Vector3 = [0.90, 0.45, 0.95];    // violet — marked neck
 const SCISSORS_COLOR: Vector3 = [1.00, 0.75, 0.10];    // amber — el anillo de la tijera
 const DOOMED_COLOR: Vector3 = [1.00, 0.25, 0.25];      // rojo — lo que se llevaría el corte
 const CROP_CENTER_COLOR: Vector3 = [0.98, 0.60, 0.20]; // orange — crop ROI centre
+const LESION_MARK_COLOR: Vector3 = [0.95, 0.25, 0.55]; // magenta — lesión marcada a mano
 const TRAJ_ENTRY_COLOR: Vector3 = [0.40, 0.80, 1.00];  // sky blue — approach entry
 const TRAJ_TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29]; // red — approach target
 const TRAJ_LINE_COLOR: Vector3 = [0.55, 0.85, 1.00];   // light blue — approach corridor
@@ -169,7 +170,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
-    cropCenter, setCropCenter, setErasePick,
+    cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark,
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
@@ -610,6 +611,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     for (const r of neckRim) out.push({ pos: r, color: NECK_RIM_COLOR });
     for (const r of scissorsPoints) out.push({ pos: r, color: SCISSORS_COLOR });
     if (cropCenter) out.push({ pos: cropCenter, color: CROP_CENTER_COLOR });
+    if (lesionMark) out.push({ pos: lesionMark, color: LESION_MARK_COLOR });
     if (trajEntry) out.push({ pos: trajEntry, color: TRAJ_ENTRY_COLOR });
     if (trajTarget) out.push({ pos: trajTarget, color: TRAJ_TARGET_COLOR });
     if (overlay) out.push(...overlay.markers);
@@ -625,7 +627,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
 
   // Legend bands built from the radii actually used, so they cannot drift from
   // the computation the way the hard-coded ones had.
@@ -729,6 +731,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       else if (pickMode === "neck_origin") { setNeckOrigin(xyz); setPickMode(null); }
       else if (pickMode === "neck_dome") { setNeckDome(xyz); setPickMode(null); }
       else if (pickMode === "crop_center") { setCropCenter(xyz); setPickMode(null); }
+      else if (pickMode === "lesion_mark") { setLesionMark(xyz); setPickMode(null); }
       // Sigue armado: borrar una pieza y tener que rearmar para la siguiente
       // convierte una limpieza de diez clics en veinte.
       else if (pickMode === "erase_piece") { setErasePick(xyz); }
@@ -749,7 +752,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         }
       }
     },
-    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm],
+    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm],
   );
 
   // Un marcado se hace sobre la malla: si la escena está en la franja, sube al
@@ -1138,6 +1141,7 @@ function pickText(mode: NonNullable<PickMode>, measurePending: boolean, rimCount
     case "neck_rim": return `Clic alrededor del borde del cuello (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;
     case "scissors": return `Clic alrededor de la arteria, rodeándola (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;
     case "crop_center": return "Clic sobre la malla para el centro del recorte";
+    case "lesion_mark": return "Clic sobre la lesión";
     case "erase_piece": return "Clic sobre la pieza que quieres borrar";
     case "traj_entry": return "Clic para el punto de entrada del abordaje";
     case "traj_target": return "Clic sobre el aneurisma (punto diana)";

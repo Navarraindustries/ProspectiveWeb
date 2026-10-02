@@ -2169,6 +2169,8 @@ and logout, which a stale cookie must never block.
 | `POST` `GET` | `/api/captures` · `/api/captures/{id}/image` | Viewer capture (PNG) attached to the imaging study · list · serve |
 | `POST` `GET` | `/api/captures/video` · `/api/captures/{id}/video` | Viewer recording (MP4/WebM, ≤ 80 MB, checked by its bytes) · serve |
 | `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |
+| `POST` `GET` `DELETE` | `/api/ground-truth` · `/current` · `/{id}` | Confirm where the lesion is (or that there is none) · current one · retract |
+| `GET` | `/api/ground-truth/summary` · `/export` | How the detector ranks against what was confirmed · full export (admin) |
 
 **Captures and recordings.** «Captura» and «● Grabar», in the top bar, save what
 the *viewer* shows — every visible pane in place plus the HUD readouts
@@ -2187,12 +2189,28 @@ The «CORTES» and «REGLAS» toggles hide the slice strip and the HUD decoratio
 number, measurements and safety warnings stay. They are per-browser view
 preferences, and captures and recordings follow what is on screen.
 
+**Confirming the lesion («¿Cuál es la lesión?»).** The detector was tuned on
+two diagnosed cases and its ranking is unstable, so without more cases with a
+known answer nobody can tell whether a change improves it. In the detection step
+the professional can say *this candidate is the lesion*, mark it by hand on the
+mesh when no candidate is, or record that the study has no aneurysm. It does not
+change the plan. Each answer is stored against the **archived imaging study**
+(the session is purged after 24 h; the study keeps the DICOM) with the list of
+candidates as it came out and the parameters that made the mesh (`seg.params`,
+preprocessing, number of mesh edits), so a new detector can be re-run on the
+same study and compared. A hand-marked point counts as a candidate when it falls
+within that candidate's diameter of its centre, never less than 5 mm. A new
+answer for the same study retracts the previous one, which stays in the table
+and in the audit chain. `GET /api/ground-truth/summary` gives how often the
+lesion came first, in the top 3 and top 5, or was missed; the panel shows it.
+No free text is stored; the export carries internal ids only.
+
 **What the audit chain records.** Login, password changes and resets, PDF and
 DICOM-SR generation, clip workshops and every order transition, the treatment
 recommendation, saving or deleting a capture or recording, deleting a
 patient or a case, every segmentation (method, vertices, resolution) and every
 device placed in the plan (clips, coils, stent, centreline stent — family,
-models and the session). The signer is the logged-in user — not the surgeon name
+models and the session), and every lesion confirmation or retraction. The signer is the logged-in user — not the surgeon name
 typed into the report form. Patients enter as a hash of their record number
 and date of birth; no name and no free text written by the professional (a
 capture's label, for instance) goes into the chain.

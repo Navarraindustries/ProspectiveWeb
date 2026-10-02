@@ -963,6 +963,15 @@ def _run_segmentation_sync(
     write_state(session_id, "seg.downsample_factor", str(ds_factor))
     write_state(session_id, "seg.fallback_note",  fallback_note)
     write_state(session_id, "seg.strategy",       strategy)
+    # Todo lo que hizo esta malla, junto: una lesión confirmada sobre ella solo
+    # sirve para medir un detector nuevo si la malla se puede rehacer igual
+    # desde el estudio archivado (routers/ground_truth.py).
+    write_state(session_id, "seg.params", json.dumps({
+        "series_id": series_id, "lower": lower, "upper": upper,
+        "smooth_iters": smooth_iters, "min_mm3": min_mm3, "top_n": top_n,
+        "closing_mm": closing_mm, "main_tree_only": main_tree_only,
+        "method": method, "reclaim_mm": reclaim_mm, "half_resolution": half_resolution,
+    }))
     # Volume geometry — needed by Session C (morphometry + aneurysm detection)
     # Geometría del volumen SEGMENTADO: el preprocesado (remuestreado) cuando lo
     # está, no la del DICOM original, aunque las claves digan «dicom.».

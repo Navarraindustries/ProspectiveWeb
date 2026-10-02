@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  LesionConfirmIn, LesionConfirmation, LesionSummary,
   AneurysmDetectionResult,
   AuditBlock,
   AuditVerifyResult,
@@ -303,6 +304,15 @@ export const api = {
   /** Progreso de un trabajo largo (segmentación, morfometría…); respaldo por
    *  GET cuando watchProgress no consigue abrir el WebSocket. */
   progress: (sessionId: string) => get<ProgressState>(`/api/progress/${sessionId}`),
+  /* confirmación de la lesión */
+  confirmLesion: (req: LesionConfirmIn) => post<LesionConfirmation>("/api/ground-truth", req),
+  currentLesion: (sessionId: string, imagingStudyId: number | null) =>
+    get<LesionConfirmation | null>(
+      `/api/ground-truth/current?session_id=${encodeURIComponent(sessionId)}`
+      + (imagingStudyId != null ? `&imaging_study_id=${imagingStudyId}` : ""),
+    ),
+  retractLesion: (id: number) => request<void>(`/api/ground-truth/${id}`, { method: "DELETE" }),
+  lesionSummary: () => get<LesionSummary>("/api/ground-truth/summary"),
   /** Segmenta y detecta CON y SIN techo del umbral y devuelve ambas listas.
    *  Cuesta dos segmentaciones y dos detecciones; no toca la malla de la
    *  sesión, así que elegir configuración es un paso aparte. */

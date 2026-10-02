@@ -7,6 +7,7 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
+import { LesionConfirm } from "./LesionConfirm";
 import { SegmentProgress } from "../segmentation/SegmentProgress";
 import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
@@ -227,6 +228,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       </div>
 
       <ErrorNote>{error}</ErrorNote>
+
+      {ran && !busy && <LesionConfirm />}
 
       {/* An empty result is a finding, not a failure — but only if it says why. */}
       {ran && !busy && candidates.length === 0 && diag && (() => {

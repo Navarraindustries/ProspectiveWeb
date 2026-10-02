@@ -302,3 +302,53 @@ class CaseCapture(Base):
 
     def __repr__(self) -> str:
         return f"<CaseCapture id={self.id} imaging_study={self.imaging_study_id} {self.label!r}>"
+
+
+# ── LesionConfirmation ─────────────────────────────────────────────────────── #
+
+class LesionConfirmation(Base):
+    """Dónde está la lesión según el profesional: la verdad con que medir el detector.
+
+    El detector se ha ajustado con dos casos con diagnóstico. Cada fila es uno
+    más: el candidato que el profesional confirma, un punto que marca a mano
+    cuando el detector no la encontró, o la constancia de que el estudio no
+    tiene aneurisma.
+
+    Cuelga del ESTUDIO DE IMAGEN, no de la sesión: la sesión se purga a las 24 h
+    y el estudio archivado conserva el DICOM, que es lo que permite volver a
+    pasar un detector nuevo sobre el mismo caso. Para eso van también los
+    parámetros con que se hizo la malla (`seg_params_json`) y la lista de
+    candidatos tal como salió (`candidates_json`).
+
+    Sin texto libre: nada que el profesional escriba entra aquí. La posición va
+    en mm del mismo marco que la malla y el volumen.
+    """
+    __tablename__ = "lesion_confirmations"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    imaging_study_id = Column(Integer, ForeignKey("imaging_studies.id"), nullable=True, index=True)
+    case_id          = Column(Integer, ForeignKey("studies.id"),  nullable=True, index=True)
+    patient_id       = Column(Integer, ForeignKey("patients.id"), nullable=True, index=True)
+    session_id       = Column(String(64), nullable=False, default="", index=True)
+
+    # "candidate" | "marked" | "no_lesion"
+    source = Column(String(16), nullable=False)
+    x_mm   = Column(Float, nullable=True)
+    y_mm   = Column(Float, nullable=True)
+    z_mm   = Column(Float, nullable=True)
+    # Puesto (1 = primero) del candidato que ES la lesión; None si ninguno lo era.
+    candidate_rank = Column(Integer, nullable=True)
+    n_candidates   = Column(Integer, nullable=False, default=0)
+    channels       = Column(String(64), nullable=False, default="")
+    modality       = Column(String(16), nullable=False, default="")
+    seg_params_json  = Column(Text, nullable=False, default="{}")
+    candidates_json  = Column(Text, nullable=False, default="[]")
+
+    # Una confirmación nueva del mismo estudio sustituye a la anterior, que se
+    # queda (retirada) para que el historial no se reescriba.
+    retracted  = Column(Boolean, nullable=False, default=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+
+    def __repr__(self) -> str:
+        return f"<LesionConfirmation id={self.id} {self.source} rank={self.candidate_rank}>"

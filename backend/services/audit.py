@@ -34,6 +34,8 @@ ACT_CASE_DELETED       = "CASE_DELETED"
 ACT_CAPTURE_SAVED      = "CAPTURE_SAVED"
 ACT_RECORDING_SAVED    = "RECORDING_SAVED"
 ACT_CAPTURE_DELETED    = "CAPTURE_DELETED"
+ACT_LESION_CONFIRMED   = "LESION_CONFIRMED"
+ACT_LESION_RETRACTED   = "LESION_RETRACTED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a

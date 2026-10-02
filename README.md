@@ -182,7 +182,7 @@ La detección busca la curvatura sobre una copia de 80 000 vértices cuando la m
 
 - **Memoria y resolución.** Case 3 (56,6 M vóxeles) necesita unos 2,1 GiB para el método tubular a resolución nativa. En una instancia de 2 GB el presupuesto automático (70 % de la RAM disponible) no llega, así que los estudios de ese tamaño se segmentan siempre a media resolución: la tarjeta lo dice («1/2 · Submuestreada») y la lesión de Case 3 cae al 5.º puesto. Recomendado: una instancia de 4 GB, que pasa justo, o fijar `PROSPECTIVE_MEM_BUDGET_MB` a lo que la máquina aguante de verdad.
 - **Tiempo.** A media resolución, máscara más superficie de Case 3 tardan unos 27 s en un solo núcleo del equipo de desarrollo, casi todo en los dos pases de Frangi. En una vCPU compartida hay que contar con 40–80 s.
-- **Proxy inverso.** `POST /api/segment` es síncrono: la respuesta llega cuando termina la segmentación. El proxy tiene que dejar al menos 180 s de tiempo de lectura (nginx: `proxy_read_timeout 180s;`); con el típico límite de 30 s el navegador recibe un 504 mientras el servidor termina y sustituye la malla igualmente. El progreso va por `/ws/progress/…`, así que el proxy también tiene que reenviar `/ws/` con las cabeceras de actualización:
+- **Proxy inverso.** La interfaz lanza la segmentación con `POST /api/segment?background=true`, que responde 202 al instante, y recoge el resultado en `GET /api/segment/result/{sid}` (409 mientras sigue en curso), así que ninguna petición dura minutos y el límite típico de 30 s del proxy basta. Sin `background` el endpoint sigue siendo síncrono, para scripts. El progreso va por `/ws/progress/…`, así que el proxy también tiene que reenviar `/ws/` con las cabeceras de actualización:
 
   ```nginx
   location /ws/ {
@@ -2052,6 +2052,13 @@ cookie that login also sets — the browser cannot attach a header to an `<img
 src>` or to the requests vtk.js makes for `.vtp` meshes, and those URLs serve
 patient imaging.
 
+A `POST`/`PUT`/`PATCH`/`DELETE` under `/api/` that is authenticated **by cookie
+alone** (no `Authorization` header) must also carry `X-CSRF-Token` equal to the
+`prospective_csrf` cookie, which login sets readable by the page's JavaScript
+(double submit, `services/csrf.py`); otherwise 403. Bearer requests are exempt:
+no other page can set that header without passing CORS. So are login, signup
+and logout, which a stale cookie must never block.
+
 ### Authentication & users
 
 | Method | Endpoint | Description |
@@ -2101,7 +2108,8 @@ patient imaging.
 |---|---|---|
 | `GET` | `/api/segment/suggested-band/{sid}` | Auto HU band + strategy used |
 | `POST` | `/api/segment/preview/{sid}` | Coarse live preview mesh while tuning sliders |
-| `POST` | `/api/segment` | Full Marching Cubes segmentation |
+| `POST` | `/api/segment` | Full Marching Cubes segmentation (`?background=true` → 202) |
+| `GET` | `/api/segment/result/{sid}` | Result of a background segmentation (409 while running) |
 | `POST` | `/api/segment/compare-ceiling/{sid}` | Detect with and without the band's ceiling, and contrast both lists |
 | `POST` | `/api/mesh-crop/{sid}` | Box / sphere ROI crop of the mesh |
 | `GET` | `/api/mesh-bounds/{sid}` | Bounding box, so the plane-cut slider has a real range |
@@ -2181,8 +2189,10 @@ preferences, and captures and recordings follow what is on screen.
 
 **What the audit chain records.** Login, password changes and resets, PDF and
 DICOM-SR generation, clip workshops and every order transition, the treatment
-recommendation, saving or deleting a capture or recording, and deleting a
-patient or a case. The signer is the logged-in user — not the surgeon name
+recommendation, saving or deleting a capture or recording, deleting a
+patient or a case, every segmentation (method, vertices, resolution) and every
+device placed in the plan (clips, coils, stent, centreline stent — family,
+models and the session). The signer is the logged-in user — not the surgeon name
 typed into the report form. Patients enter as a hash of their record number
 and date of birth; no name and no free text written by the professional (a
 capture's label, for instance) goes into the chain.
@@ -2316,12 +2326,12 @@ clinician.
   the strategy key and a clinical hint; the UI reads the slider range from
   `GET /api/segment/suggested-band/{sid}` instead. Both share the same
   `compute_auto_thresholds` core, so they cannot drift apart.
-- **Progress is reported for segmentation only.** `/ws/progress/{sid}` (cookie
-  auth) and its `GET /api/progress/{sid}` fallback carry the real phase and
-  percentage of a segmentation; detection, morphometry and the rest still show
-  an indeterminate bar. `POST /api/segment` itself stays synchronous, so behind
-  a proxy with a short timeout the browser can get a 504 while the server
-  finishes and replaces the mesh anyway.
+- **Progress is reported for segmentation and detection only.**
+  `/ws/progress/{sid}` (cookie auth) and its `GET /api/progress/{sid}` fallback
+  carry the real phase and percentage of a segmentation and of a detection
+  (lectura, curvatura, calibre y cociente, regiones); morphometry and the rest
+  still show an indeterminate bar. Detection's phases are coarse: inside
+  «curvatura» the bar does not move.
 - **Recordings run at up to 30 fps only while the tab is visible.** In a
   background tab the browser throttles timers to about once a second, so the
   video keeps going but with few frames.

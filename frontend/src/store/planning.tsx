@@ -131,8 +131,8 @@ interface PlanningState {
   /** Guarda la vista actual del visor como captura del caso. La publica el
    *  visor —es el único que sabe componer sus cinco paneles— y la llama el
    *  botón del topbar, que es donde el profesional la busca. Lanza si falla. */
-  captureCase: (() => Promise<void>) | null;
-  setCaptureCase: (fn: (() => Promise<void>) | null) => void;
+  captureCase: (() => Promise<"saved" | "downloaded">) | null;
+  setCaptureCase: (fn: (() => Promise<"saved" | "downloaded">) | null) => void;
   /** Lo que el grabador del topbar necesita del visor: cómo leer cada
    *  fotograma y el estado que acompaña al vídeo. Lo publica el visor. */
   viewerRecording: ViewerRecordingSource | null;
@@ -301,9 +301,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [trajTarget, setTrajTarget] = useState<Vec3 | null>(null);
   const [morphoOverlay, setMorphoOverlay] = useState(false);
   const [captureViewport, _setCaptureViewport] = useState<(() => Promise<string | null>) | null>(null);
-  const [captureCase, _setCaptureCase] = useState<(() => Promise<void>) | null>(null);
+  const [captureCase, _setCaptureCase] = useState<(() => Promise<"saved" | "downloaded">) | null>(null);
   // Guardar una función en useState la INVOCA si se pasa directa; va envuelta.
-  const setCaptureCase = useCallback((fn: (() => Promise<void>) | null) => _setCaptureCase(() => fn), []);
+  const setCaptureCase = useCallback((fn: (() => Promise<"saved" | "downloaded">) | null) => _setCaptureCase(() => fn), []);
   const [viewerRecording, setViewerRecording] = useState<ViewerRecordingSource | null>(null);
   // Guardar una función en useState exige envolverla: pasada tal cual, React
   // la toma por actualizador, la llama y guarda lo que devuelve (aquí, una

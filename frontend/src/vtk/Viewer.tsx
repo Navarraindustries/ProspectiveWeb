@@ -22,6 +22,7 @@ import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
 import { PREF_DECOR_HIDDEN, PREF_STRIP_HIDDEN, useStoredFlag } from "./viewerPrefs";
+import { captureFileName } from "./viewerRecorder";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
@@ -456,11 +457,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
     };
   }, []);
 
-  const capturarVisor = useCallback(async () => {
+  // Devuelve "saved" si quedó en el estudio y "downloaded" si solo se descargó
+  // porque no hay estudio archivado. Antes, sin estudio, el botón quedaba
+  // desactivado mientras «Grabar» sí descargaba su vídeo: misma situación, dos
+  // respuestas. Ahora la captura también se descarga, y el topbar dice que no
+  // quedó en el caso.
+  const capturarVisor = useCallback(async (): Promise<"saved" | "downloaded"> => {
     const vista = leerVisor();
-    if (!vista || !imagingStudyId) {
-      throw new Error("No hay ningún estudio archivado al que adjuntar la captura.");
-    }
+    if (!vista) throw new Error("No hay visor que capturar.");
     {
       const root = viewerRef.current!;
       const { width, height } = vista;
@@ -468,6 +472,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (!png) throw new Error("No hay ningún panel que capturar.");
 
       const ahora = new Date();
+      if (!imagingStudyId) {
+        const a = document.createElement("a");
+        a.href = png;
+        a.download = captureFileName(ahora);
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return "downloaded";
+      }
       await api.saveCapture({
         imaging_study_id: imagingStudyId,
         session_id: sessionId ?? "",
@@ -479,6 +492,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         // no contesta qué candidato era ni desde dónde se estaba mirando.
         state: estadoVisor(root),
       });
+      return "saved";
     }
   }, [imagingStudyId, sessionId, step, leerVisor, estadoVisor]);
   // Se publica UNA VEZ una envoltura estable que lee la versión vigente de una

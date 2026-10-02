@@ -3,7 +3,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from services.auth_service import get_current_user
+from services.audit import audit_device
+from services.db_models import User
 
 from models import PlanRequest, PlanResult, StentLibraryItem
 from services.endovascular import stent_bridging
@@ -82,7 +87,10 @@ async def get_stent_library() -> list[StentLibraryItem]:
         "does not compute."
     ),
 )
-async def compute_plan(req: PlanRequest) -> PlanResult:
+async def compute_plan(
+    req: PlanRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> PlanResult:
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
@@ -199,6 +207,10 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
         "follows_centerline": follows_centerline,
     })
 
+    audit_device("stent", req.session_id, current_user, {
+        "stent": p.stent_id, "diameter_mm": p.diameter_mm, "length_mm": p.length_mm,
+        "deployed": bool(deployed),
+    })
     return PlanResult(
         stent_mesh_url=stent_url,
         coverage_pct=coverage,

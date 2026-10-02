@@ -225,3 +225,13 @@ def audit_append(action: str, payload: dict, username: str = "",
         SkullChain.instance().append(action, payload, username, patient_id, patient_dob)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Audit append failed (%s): %s", action, exc)
+
+
+def audit_device(kind: str, session_id: str, user, detail: dict) -> None:
+    """Un dispositivo colocado en el plan: qué familia, qué modelo y quién.
+
+    La sesión de trabajo no está ligada a un paciente en el servidor (lo está
+    el caso, al guardar), así que aquí no va hash de paciente: la cadena
+    enlaza por `session_id` con el guardado del caso."""
+    audit_append(ACT_DEVICE_PLACED, {"kind": kind, "session_id": session_id, **detail},
+                 username=getattr(user, "username", "") or "")

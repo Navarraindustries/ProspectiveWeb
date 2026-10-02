@@ -120,6 +120,16 @@ async def login(
         secure=os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes"),
         path="/",
     )
+    # La pareja del doble envío (services/csrf.py): legible por el JavaScript
+    # del propio origen, que la devuelve en X-CSRF-Token.
+    from services.csrf import CSRF_COOKIE, new_token
+    response.set_cookie(
+        CSRF_COOKIE, new_token(),
+        max_age=ACCESS_TOKEN_EXPIRE_MIN * 60,
+        httponly=False, samesite="lax",
+        secure=os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes"),
+        path="/",
+    )
 
     return LoginResponse(
         access_token=token,
@@ -135,7 +145,9 @@ async def login(
     description="Drops the auth cookie. The bearer token stays valid until it expires.",
 )
 async def logout(response: Response) -> dict:
+    from services.csrf import CSRF_COOKIE
     response.delete_cookie(COOKIE_NAME, path="/")
+    response.delete_cookie(CSRF_COOKIE, path="/")
     return {"status": "ok"}
 
 

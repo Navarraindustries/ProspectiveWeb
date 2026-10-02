@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  MAX_RECORDING_MS, outputSize, pickMimeType, recordingFileName, startRecording,
+  MAX_RECORDING_MS, captureFileName, outputSize, pickMimeType, recordingFileName, startRecording,
   type FrameSource, type RecorderDeps,
 } from "./viewerRecorder";
 
@@ -129,5 +129,13 @@ describe("grabar", () => {
     const d = dobles();
     startRecording(visor(vi.fn(() => false)), {}, d.deps);
     expect(d.pintados).toContain("SIN IMAGEN");
+  });
+});
+
+describe("nombre de una captura descargada", () => {
+  it("lleva fecha y hora y nada del paciente", () => {
+    // Sin estudio archivado la captura se descarga en vez de perderse; el
+    // nombre sigue la misma regla que las grabaciones.
+    expect(captureFileName(new Date(2026, 9, 2, 14, 3, 9))).toBe("prospective-20261002-140309.png");
   });
 });

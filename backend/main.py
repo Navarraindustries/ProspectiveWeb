@@ -160,6 +160,16 @@ _PROTECTED_STATIC_PREFIXES = ("/data/",)
 
 
 @app.middleware("http")
+async def guard_csrf(request: Request, call_next):
+    """Doble envío para lo que se autentica por cookie (services/csrf.py)."""
+    from services.csrf import violation
+    motivo = violation(request.method, request.url.path, request.headers, request.cookies)
+    if motivo:
+        return JSONResponse({"detail": motivo}, status_code=403)
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def guard_private_static(request: Request, call_next):
     path = request.url.path
     if any(path.startswith(p) for p in _PROTECTED_STATIC_PREFIXES):

@@ -6,7 +6,12 @@ import logging
 import time
 from dataclasses import replace
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from typing import Annotated
+
+from services.auth_service import get_current_user
+from services.audit import audit_device
+from services.db_models import User
 from pydantic import BaseModel
 
 from models import ClipLibraryItem, ClipPlanRequest, ClipPlanResult, ClipRecommendation
@@ -320,7 +325,10 @@ async def upload_custom_clip(
         "Returns the combined clip mesh URL (.vtp) for the 3D viewer."
     ),
 )
-async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
+async def plan_clips(
+    req: ClipPlanRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> ClipPlanResult:
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
@@ -475,6 +483,10 @@ async def plan_clips(req: ClipPlanRequest) -> ClipPlanResult:
     elif coverage < 95.0:
         warning = "Cobertura parcial del cuello — considerar reposicionar o añadir un clip."
 
+    audit_device("clips", req.session_id, current_user, {
+        "clips": [pl.clip_id for pl in req.placements],
+        "neck_coverage_pct": round(coverage, 1), "collision": bool(collision),
+    })
     return ClipPlanResult(
         clips_mesh_url=clips_url,
         trajectory_mesh_url=trajectory_url,

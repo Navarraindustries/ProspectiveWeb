@@ -3,7 +3,11 @@ import type { ProgressState } from "../../api/types";
 import { ProgressBar } from "../ProgressBar";
 
 /** Fase y porcentaje de la segmentación, con aviso cuando el servidor va lento. */
-export function SegmentProgress({ state }: { state: ProgressState | null }) {
+export function SegmentProgress({ state, slowNote = "El servidor tarda: en un equipo pequeño la segmentación lleva minutos." }: {
+  state: ProgressState | null;
+  /** Lo que se dice cuando la fase no avanza en 10 s. */
+  slowNote?: string;
+}) {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     setSlow(false);
@@ -22,7 +26,7 @@ export function SegmentProgress({ state }: { state: ProgressState | null }) {
           el umbral clásico, que no calcula tubularidad; culparla ahí era falso. */}
       {slow && pct < 5 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
-          El servidor tarda: en un equipo pequeño la segmentación lleva minutos.
+          {slowNote}
         </div>
       )}
     </div>

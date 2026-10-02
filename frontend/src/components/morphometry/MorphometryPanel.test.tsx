@@ -6,7 +6,7 @@
    DNR of 1.58 — while the 3D legend, which consulted no flag at all, went on
    annotating those same numbers over the scene. One screen, two answers. */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -100,5 +100,43 @@ describe("a fully valid measurement", () => {
     expect(await screen.findByText("7.0")).toBeInTheDocument();
     expect(screen.getByText("310.2")).toBeInTheDocument();
     expect(screen.queryByText("sin medir")).not.toBeInTheDocument();
+  });
+});
+
+describe("SR con el cuello estimado", () => {
+  // El SR se divide por la arteria madre, medida justo bajo el cuello: con un
+  // cuello automático esa referencia es frágil y la cifra no puede salir con
+  // un «Alto» que parezca un hallazgo.
+  const conSr = (neck_source: "auto" | "manual", sr: number) => ({
+    ...openCap, sr, neck_source,
+    volume_mm3: 310.2, reliable: true, volume_valid: true, neck_valid: true,
+  } as unknown as MorphometryResult);
+
+  const indices = async () => fireEvent.click(await screen.findByText("Índices"));
+
+  it("lo marca orientativo y dice por qué", async () => {
+    withMorphometry(conSr("auto", 3.6));
+    await indices();
+    expect(await screen.findByText("orientativo")).toBeInTheDocument();
+    expect(screen.queryByText("Alto")).not.toBeInTheDocument();
+    expect(screen.getByText(/SR orientativo: el cuello está estimado/)).toBeInTheDocument();
+  });
+
+  it("con el borde marcado a mano vuelve a valorarlo", async () => {
+    withMorphometry(conSr("manual", 3.6));
+    await indices();
+    expect(await screen.findByText("3.60")).toBeInTheDocument();
+    expect(screen.queryByText("orientativo")).not.toBeInTheDocument();
+    expect(screen.queryByText(/SR orientativo/)).not.toBeInTheDocument();
+  });
+});
+
+describe("la pestaña PHASES", () => {
+  it("dice junto a la cifra que es una referencia poblacional", async () => {
+    // En series externas PHASES discrimina mal; dicho solo en el informe, nadie
+    // lo leía delante del número.
+    withMorphometry(openCap);
+    fireEvent.click(await screen.findByText("PHASES"));
+    expect(await screen.findByText(/referencia poblacional, no una predicción/)).toBeInTheDocument();
   });
 });

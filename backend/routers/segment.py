@@ -12,9 +12,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
+from typing import Annotated
 
 import numpy as np
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from models import AutoThresholdResult, SegmentRequest, SegmentResult
 from models.detection import Position3D
@@ -22,6 +24,8 @@ from models.segmentation import (CeilingCompareRequest, CeilingCompareResult,
                                  ComparedCandidate, PreviewRequest,
                                  PreviewResult, SuggestedBand)
 from services              import mesh_backup, progress
+from services.auth_service import get_current_user
+from services.db_models    import User
 from services.sessions     import read_state, session_exists, session_subdir, write_state, mesh_url
 from services.thresholds   import compute_auto_thresholds, strategy_hint
 from services.dicom_loader import DicomLoadResult, load_series
@@ -300,7 +304,20 @@ async def get_thresholds(session_id: str) -> AutoThresholdResult:
         "Use the WebSocket `/ws/progress/{session_id}` endpoint to stream progress updates."
     ),
 )
-async def segment(req: SegmentRequest) -> SegmentResult:
+async def segment(
+    req: SegmentRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+    background: bool = Query(
+        False,
+        description=(
+            "Si es true, responde 202 al instante y el trabajo sigue en el servidor; "
+            "el resultado se recoge en GET /api/segment/result/{session_id}. Sin "
+            "esto la petición dura minutos y, detrás de un proxy con un tiempo "
+            "límite corto, el navegador recibía un 504 mientras el servidor "
+            "terminaba y sustituía la malla igualmente."
+        ),
+    ),
+):
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
@@ -368,10 +385,31 @@ async def segment(req: SegmentRequest) -> SegmentResult:
             if tubular:
                 _TUBULAR_SLOT.release()
 
+    usuario = current_user.username if current_user else ""
+
     # Run heavy CPU work off the event loop. El progreso se abre aquí y se cierra
     # en TODAS las salidas: el WebSocket sólo se cierra cuando ve running=False.
     progress.start(req.session_id)
+    _RESULTS.pop(req.session_id, None)
     loop = asyncio.get_event_loop()
+
+    if background:
+        try:
+            # El futuro del propio pool, no el de asyncio: su callback corre en
+            # el hilo del trabajo y no depende de que siga vivo el bucle que
+            # atendió la petición.
+            fut = _executor.submit(job)
+        except BaseException:
+            if tubular:
+                _TUBULAR_SLOT.release()
+            progress.finish(req.session_id, ok=False, message="no se pudo lanzar")
+            raise
+        fut.add_done_callback(lambda f: _store_result(req.session_id, f, req.method, usuario))
+        return JSONResponse(status_code=202, content={
+            "status": "accepted",
+            "result_url": f"/api/segment/result/{req.session_id}",
+        })
+
     try:
         try:
             fut = loop.run_in_executor(_executor, job)
@@ -399,7 +437,73 @@ async def segment(req: SegmentRequest) -> SegmentResult:
         raise HTTPException(status_code=500, detail=f"Segmentation error: {exc}") from exc
 
     progress.finish(req.session_id, ok=True)
+    _audit_segmentation(req.session_id, result, req.method, usuario)
     return result
+
+
+# ── Segmentación en segundo plano ──────────────────────────────────────────── #
+#
+# El resultado de cada sesión mientras nadie lo recoge. En memoria del proceso,
+# como el progreso: hay un solo proceso (services/single_process.py), y si se
+# reinicia el trabajo muere con él.
+_RESULTS: dict[str, dict] = {}
+
+
+def _store_result(session_id: str, fut, method: str, usuario: str) -> None:
+    """Callback del hilo: guarda el resultado o el error con su código HTTP."""
+    try:
+        result = fut.result()
+    except ValueError as exc:
+        _RESULTS[session_id] = {"status": 422, "detail": str(exc)}
+        progress.finish(session_id, ok=False, message=str(exc))
+        return
+    except FileNotFoundError as exc:
+        _RESULTS[session_id] = {"status": 404, "detail": str(exc)}
+        progress.finish(session_id, ok=False, message=str(exc))
+        return
+    except BaseException as exc:  # noqa: BLE001 — se informa, no se propaga a un hilo
+        logger.error("Segmentation failed for session %s: %s", session_id, exc, exc_info=exc)
+        _RESULTS[session_id] = {"status": 500, "detail": f"Segmentation error: {exc}"}
+        progress.finish(session_id, ok=False, message=str(exc) or type(exc).__name__)
+        return
+    _RESULTS[session_id] = {"status": 200, "result": result}
+    progress.finish(session_id, ok=True)
+    _audit_segmentation(session_id, result, method, usuario)
+
+
+def _audit_segmentation(session_id: str, result: SegmentResult, method: str, usuario: str) -> None:
+    """La malla sobre la que se mide todo lo demás: queda quién la hizo y cómo."""
+    from services.audit import ACT_SEGMENTATION, audit_append
+    audit_append(ACT_SEGMENTATION, {
+        "session_id": session_id, "method": method,
+        "vertices": result.vertices,
+        "downsample_factor": getattr(result, "downsample_factor", 1),
+    }, username=usuario)
+
+
+@router.get(
+    "/segment/result/{session_id}",
+    response_model=SegmentResult,
+    summary="Resultado de una segmentación lanzada en segundo plano",
+    description=(
+        "200 con el resultado cuando terminó; 409 mientras sigue en curso; el "
+        "mismo código de error que habría dado la petición síncrona (422, 404, "
+        "500) si falló; 404 si no hay ninguna lanzada. El resultado se queda "
+        "disponible hasta la siguiente segmentación de la sesión."
+    ),
+)
+async def segment_result(session_id: str):
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    r = _RESULTS.get(session_id)
+    if r is None:
+        p = progress.get(session_id)
+        if p and p.get("running"):
+            raise HTTPException(status_code=409, detail="La segmentación sigue en curso.")
+        raise HTTPException(status_code=404, detail="No hay ninguna segmentación lanzada en esta sesión.")
+    if r["status"] != 200:
+        raise HTTPException(status_code=r["status"], detail=r["detail"])
+    return r["result"]
 
 
 # ── GET /segment/suggested-band/{session_id} ───────────────────────────────── #

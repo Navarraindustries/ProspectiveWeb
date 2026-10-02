@@ -7,6 +7,8 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
+import { SegmentProgress } from "../segmentation/SegmentProgress";
+import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
 
@@ -56,6 +58,9 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const { sessionId, candidates, selectedCandidate } = planning;
   const [busy, setBusy] = useState(false);
+  // Medio minuto en una malla real: la fase que va (curvatura, calibre y
+  // cociente, regiones) en vez de una barra muda.
+  const progress = useProgress(sessionId, busy);
   const [error, setError] = useState<string | null>(null);
   const [ran, setRan] = useState(candidates.length > 0);
   const [clearing, setClearing] = useState(false);
@@ -118,10 +123,26 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
 
       {busy && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 6 }}>
-            Analizando curvatura de la malla…
-          </div>
-          <ProgressBar />
+          {progress === CONNECTION_LOST
+            ? <ProgressBar />
+            : <SegmentProgress state={progress} slowNote="El servidor tarda: en una malla grande la detección pasa del minuto." />}
+        </div>
+      )}
+
+      {/* A media resolución el orden de la lista empeora de forma medida: en
+          Case 3 la lesión pasa del 1.º-3.º puesto al 5.º. Lo decía el README,
+          que nadie lee delante del caso; aquí se ve donde importa. */}
+      {(planning.segmentation?.downsample_factor ?? 1) > 1 && (
+        <div role="note" style={{
+          fontSize: 11, lineHeight: 1.5, marginBottom: 10, padding: "8px 10px",
+          borderRadius: "var(--radius-md)",
+          background: "color-mix(in srgb, var(--warning) 12%, transparent)", color: "var(--warning)",
+        }}>
+          <b>La malla está a media resolución</b>
+          {planning.segmentation?.fallback_note ? ` (${planning.segmentation.fallback_note.replace(/\.$/, "")})` : ""}.
+          Así el orden de candidatos es menos fiable: en un caso con diagnóstico, la
+          lesión bajó al 5.º puesto. Recorre la lista entera, o segmenta a resolución
+          completa en un equipo con más memoria.
         </div>
       )}
 
@@ -132,8 +153,9 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           que el vaso de al lado). Cada candidato dice cuáles lo encontraron.
           <br />
           Es una <b>lista para recorrer, no un veredicto</b>: el orden no está validado
-          contra casos anotados. En el único caso con diagnóstico que tenemos, la lesión
-          la encontró solo el canal de calibre y la curvatura no la veía.
+          contra casos anotados. En los dos casos con diagnóstico que tenemos la lesión
+          la encontró un criterio distinto en cada uno —en uno la curvatura, en el otro
+          el cociente—, así que ningún criterio basta por sí solo.
           <br />
           <b>Lo que se pinta de azul no es el saco.</b> Cuando lo encontró la curvatura
           es la región detectada; cuando lo encontró el calibre es una bola alrededor del

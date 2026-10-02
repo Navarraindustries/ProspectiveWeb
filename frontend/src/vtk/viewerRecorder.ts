@@ -203,7 +203,15 @@ export const browserRecorderDeps: RecorderDeps = {
 
 /** Un nombre de fichero sin datos del paciente: fecha y hora, nada más. */
 export function recordingFileName(mimeType: string, when: Date = new Date()): string {
+  return `${sello(when)}.${mimeType.includes("mp4") ? "mp4" : "webm"}`;
+}
+
+/** Lo mismo para una captura que se descarga: fecha y hora, nada del paciente. */
+export function captureFileName(when: Date = new Date()): string {
+  return `${sello(when)}.png`;
+}
+
+function sello(when: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
-  const ext = mimeType.includes("mp4") ? "mp4" : "webm";
-  return `prospective-${when.getFullYear()}${p(when.getMonth() + 1)}${p(when.getDate())}-${p(when.getHours())}${p(when.getMinutes())}${p(when.getSeconds())}.${ext}`;
+  return `prospective-${when.getFullYear()}${p(when.getMonth() + 1)}${p(when.getDate())}-${p(when.getHours())}${p(when.getMinutes())}${p(when.getSeconds())}`;
 }

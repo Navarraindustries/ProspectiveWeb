@@ -75,9 +75,14 @@ export function Workspace({
     setShot("busy");
     setShotError(null);
     try {
-      await captureCase();
+      const destino = await captureCase();
       setShot("ok");
       setTimeout(() => setShot((v) => (v === "ok" ? "idle" : v)), 2500);
+      // Sin estudio archivado la imagen se descarga y NO queda en el caso: se
+      // dice, igual que con la grabación, para que nadie crea que está guardada.
+      if (destino === "downloaded") {
+        setRecMessage({ tone: "err", text: "Captura descargada, pero no guardada en el caso: archiva el estudio para poder adjuntarle capturas." });
+      }
     } catch (e) {
       setShot("err");
       setShotError(e instanceof Error ? e.message : "No se pudo guardar la captura.");
@@ -200,24 +205,26 @@ export function Workspace({
           ...(caseLabel ? [{ label: caseLabel, onClick: patient ? onOpenPatient : undefined }] : []),
         ]}
       >
-        {/* Por qué no se puede, dicho en el propio botón y no solo en el
-            tooltip: sin estudio archivado la captura no tiene dónde colgarse. */}
+        {/* Sin estudio archivado la captura se descarga en vez de guardarse en
+            el caso, como la grabación; el tooltip lo dice antes de pulsar. */}
         <Button
           variant="outline"
           size="sm"
           onClick={() => void tomarCaptura()}
-          disabled={!captureCase || !imagingStudyId || shot === "busy"}
+          disabled={!captureCase || shot === "busy"}
           title={
-            !imagingStudyId
-              ? "Archiva el estudio en el caso para poder adjuntarle capturas"
-              : !captureCase
-                ? "Abre un paso con el visor para capturar lo que se ve"
+            !captureCase
+              ? "Abre un paso con el visor para capturar lo que se ve"
+              : !imagingStudyId
+                ? "Descarga una imagen de lo que se ve (sin estudio archivado no se puede guardar en el caso)"
                 : "Guarda una imagen de lo que se ve ahora, adjunta al caso"
           }
           leadingIcon={<Icon name={shot === "ok" ? "STATUS_OK" : "CAMERA"} />}
           style={{ marginRight: 8 }}
         >
-          {shot === "busy" ? "Capturando…" : shot === "ok" ? "Captura guardada ✓" : shot === "err" ? "No se guardó" : "Captura"}
+          {shot === "busy" ? "Capturando…"
+            : shot === "ok" ? (imagingStudyId ? "Captura guardada ✓" : "Captura descargada ✓")
+            : shot === "err" ? "No se guardó" : "Captura"}
         </Button>
         <RecordButton step={step} onMessage={setRecMessage} />
         <Button

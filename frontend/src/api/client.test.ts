@@ -75,3 +75,54 @@ describe("expired credentials", () => {
     await expect(api.deletePatient(1)).resolves.toBeUndefined();
   });
 });
+
+describe("segmentación en segundo plano", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("lanza el trabajo y pregunta hasta que el resultado está listo", async () => {
+    // Una sola petición de minutos acababa en 504 detrás de un proxy, con la
+    // malla sustituida en el servidor y el panel diciendo que había fallado.
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ status: "accepted" }, 202))
+      .mockResolvedValueOnce(jsonResponse({ detail: "sigue en curso" }, 409))
+      .mockResolvedValueOnce(jsonResponse({ mesh_url: "/data/m.vtp", vertices: 9 }));
+
+    const r = await api.segment({ session_id: "s1" } as never, 0);
+
+    expect(r.mesh_url).toBe("/data/m.vtp");
+    const urls = fetchSpy.mock.calls.map((c) => String(c[0]));
+    expect(urls[0]).toBe("/api/segment?background=true");
+    expect(urls[1]).toBe("/api/segment/result/s1");
+    expect(urls).toHaveLength(3);
+  });
+
+  it("devuelve el error del trabajo en vez de seguir preguntando", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ status: "accepted" }, 202))
+      .mockResolvedValueOnce(jsonResponse({ detail: "Umbral imposible" }, 422));
+    await expect(api.segment({ session_id: "s1" } as never, 0)).rejects.toThrow("Umbral imposible");
+  });
+});
+
+describe("token CSRF", () => {
+  afterEach(() => {
+    document.cookie = "prospective_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    vi.restoreAllMocks();
+  });
+
+  it("devuelve la cookie del login en la cabecera de lo que cambia algo", async () => {
+    document.cookie = "prospective_csrf=abc123; path=/";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    await api.deletePatient(1);
+    const headers = new Headers((fetchSpy.mock.calls[0]![1] as RequestInit).headers);
+    expect(headers.get("X-CSRF-Token")).toBe("abc123");
+  });
+
+  it("no la manda en una lectura", async () => {
+    document.cookie = "prospective_csrf=abc123; path=/";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([]));
+    await api.listPatients();
+    const headers = new Headers((fetchSpy.mock.calls[0]![1] as RequestInit).headers);
+    expect(headers.get("X-CSRF-Token")).toBeNull();
+  });
+});

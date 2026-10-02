@@ -263,11 +263,22 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 <Metric label="UI · Undulación" value={volOk ? m.ui.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : m.ui > 0.15 ? ["Irregular", "warning"] : ["Bajo", "success"]} />
                 <Metric label="EI · Elipticidad" value={volOk ? m.ei.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : m.ei > 0.35 ? ["Alto", "warning"] : ["Bajo", "success"]} />
                 <Metric label="NSI · No-esfericidad" value={volOk ? m.nsi.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
+                {/* El SR depende de la arteria madre, que se mide justo por debajo
+                    del cuello: con un cuello estimado automáticamente esa referencia
+                    es frágil, y la cifra se presenta como orientativa. */}
                 <Metric
                   label="SR · Size Ratio"
                   value={m.sr > 0 ? m.sr.toFixed(2) : "—"}
-                  badge={m.sr > 3.0 ? ["Alto", "destructive"] : undefined}
+                  badge={m.sr <= 0 ? ["sin medir", "outline"]
+                    : m.neck_source === "auto" ? ["orientativo", "outline"]
+                    : m.sr > 3.0 ? ["Alto", "destructive"] : undefined}
                 />
+                {m.sr > 0 && m.neck_source === "auto" && (
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "-2px 0 8px" }}>
+                    SR orientativo: el cuello está estimado, no marcado. La arteria madre se
+                    mide justo bajo el cuello, así que marca el borde para fiarte de esta cifra.
+                  </div>
+                )}
                 <Metric label="Compacidad (Wadell)" value={volOk ? m.compactness.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
                 <Metric label="Ø esfera equivalente" value={volOk ? m.eq_sphere_diam_mm.toFixed(1) : "—"} unit={volOk ? " mm" : ""} />
               </div>

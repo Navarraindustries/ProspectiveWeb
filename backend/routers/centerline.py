@@ -6,7 +6,12 @@ import logging
 import time
 
 import numpy as np
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from services.auth_service import get_current_user
+from services.audit import audit_device
+from services.db_models import User
 
 from models.centerline import (
     CenterlineClearResult, CenterlineRequest, CenterlineResult,
@@ -224,7 +229,11 @@ def _run_cl_stent(points_path, req: ClStentRequest, out_path):
         "(POST /api/centerline/{session_id})."
     ),
 )
-async def deploy_cl_stent(session_id: str, req: ClStentRequest) -> ClStentResult:
+async def deploy_cl_stent(
+    session_id: str,
+    req: ClStentRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> ClStentResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
@@ -272,6 +281,10 @@ async def deploy_cl_stent(session_id: str, req: ClStentRequest) -> ClStentResult
         )
 
     url = f"{mesh_url(session_id, 'cl_stent.vtp')}?v={int(time.time() * 1000)}"
+    audit_device("stent_cl", session_id, current_user, {
+        "length_mm": round(result.length_mm, 1),
+        "nominal_diameter_mm": round(result.nominal_diameter_mm, 2),
+    })
     return ClStentResult(
         stent_mesh_url=url,
         length_mm=round(result.length_mm, 1),

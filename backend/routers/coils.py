@@ -4,7 +4,12 @@ from __future__ import annotations
 import logging
 import math
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from services.auth_service import get_current_user
+from services.audit import audit_device
+from services.db_models import User
 
 from models import (
     CoilConstructResult, CoilConstructStep,
@@ -102,7 +107,10 @@ async def get_coil_recommendations(session_id: str) -> CoilConstructResult:
         f"{PACKING_AIM * 100:.0f}% (Sluzewski et al., AJNR 2004)."
     ),
 )
-async def plan_coils(req: CoilPlanRequest) -> CoilPlanResult:
+async def plan_coils(
+    req: CoilPlanRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> CoilPlanResult:
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
@@ -195,6 +203,10 @@ async def plan_coils(req: CoilPlanRequest) -> CoilPlanResult:
         for i, pl in enumerate(req.placements)
     ])
 
+    audit_device("coils", req.session_id, current_user, {
+        "coils": [pl.coil_id for pl in req.placements],
+        "packing_density": round(packing, 3),
+    })
     return CoilPlanResult(
         coils_mesh_url=coils_url,
         total_packing_density=round(packing, 3),

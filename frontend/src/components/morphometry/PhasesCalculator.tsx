@@ -86,6 +86,15 @@ export function PhasesCalculator({
         Riesgo de rotura a 5 años (Greving et al., <i>Lancet Neurology</i> 2014). El tamaño se
         auto-rellena desde la morfometría.
       </div>
+      {/* Lo que vale la cifra, dicho junto a ella y no solo en el informe: en
+          series externas PHASES discrimina mal los aneurismas que se rompen de
+          los que no (también ELAPSS y UIATS, serie de un centro, 2025). */}
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
+                    padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--muted)" }}>
+        Es una referencia poblacional, no una predicción para este paciente: fuera de la
+        cohorte en que se desarrolló, PHASES distingue mal los aneurismas que acaban
+        rompiéndose de los que no. Úsala para la conversación, no como umbral.
+      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Select label="Población" options={POPULATIONS} value={population} onChange={(e) => setPopulation(e.target.value as PhasesPopulation)} />

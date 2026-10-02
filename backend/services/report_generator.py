@@ -1724,7 +1724,12 @@ class ReportGenerator:
         elems.append(Paragraph(
             "(*) PHASES (Greving et al., <i>Lancet Neurology</i> 2014) estima el riesgo "
             "de rotura a 5 años de un aneurisma <b>no roto</b>; no es aplicable a un "
-            "aneurisma ya roto ni sustituye el juicio clínico.",
+            "aneurisma ya roto ni sustituye el juicio clínico. Su capacidad para "
+            "distinguir los aneurismas que se rompen de los que no es limitada en "
+            "series externas a la de derivación (p. ej., una serie retrospectiva "
+            "de un centro en 2025 en la que PHASES, ELAPSS y UIATS no discriminaron "
+            "fiablemente): es una referencia poblacional, no una predicción para "
+            "este paciente.",
             self._style_td_disclaimer,
         ))
         return elems

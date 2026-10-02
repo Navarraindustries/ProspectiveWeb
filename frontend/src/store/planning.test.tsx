@@ -250,7 +250,7 @@ describe("funciones que registra el visor", () => {
     // en el caso sin que nadie la haya pedido.
     const { result } = renderHook(() => usePlanning(), { wrapper });
     let veces = 0;
-    const capturar = async () => { veces++; };
+    const capturar = async () => { veces++; return "saved" as const; };
     act(() => result.current.setCaptureCase(capturar));
     expect(result.current.captureCase).toBe(capturar);
     expect(veces).toBe(0);

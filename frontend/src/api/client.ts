@@ -157,9 +157,20 @@ export function authHeaders(): Headers {
   return headers;
 }
 
+/** La pareja del doble envío contra CSRF (backend/services/csrf.py): la cookie
+ *  que puso el login, devuelta en una cabecera. Solo la exige el servidor
+ *  cuando la petición va autenticada por cookie y sin Bearer. */
+function csrfToken(): string | null {
+  const m = document.cookie.match(/(?:^|;\s*)prospective_csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]!) : null;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   for (const [k, v] of authHeaders()) headers.set(k, v);
+  const method = (init.method ?? "GET").toUpperCase();
+  const csrf = method === "GET" || method === "HEAD" ? null : csrfToken();
+  if (csrf) headers.set("X-CSRF-Token", csrf);
   if (init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
@@ -272,7 +283,21 @@ export const api = {
     for (const f of files) form.append("files", f, f.name);
     return post<UploadResult>("/api/upload", form);
   },
-  segment: (req: SegmentRequest) => post<SegmentResult>("/api/segment", req),
+  /** Lanza la segmentación en segundo plano y espera su resultado preguntando
+   *  cada poco. Antes era una sola petición de minutos, y detrás de un proxy
+   *  con tiempo límite corto el navegador recibía un 504 mientras el servidor
+   *  terminaba igualmente y sustituía la malla. */
+  segment: async (req: SegmentRequest, pollMs = 1500): Promise<SegmentResult> => {
+    await post<unknown>("/api/segment?background=true", req);
+    for (;;) {
+      try {
+        return await get<SegmentResult>(`/api/segment/result/${req.session_id}`);
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 409) throw e;
+      }
+      await new Promise((r) => setTimeout(r, pollMs));
+    }
+  },
   suggestedBand: (sessionId: string) =>
     get<SuggestedBand>(`/api/segment/suggested-band/${sessionId}`),
   /** Progreso de un trabajo largo (segmentación, morfometría…); respaldo por

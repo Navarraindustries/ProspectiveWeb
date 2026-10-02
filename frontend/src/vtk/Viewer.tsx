@@ -28,6 +28,7 @@ import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
 import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, useStoredFlag } from "./viewerPrefs";
 import { planeOutlines } from "./planeOutlines";
+import { HUD_HEX, hexToRgb01 } from "./planeColors";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
@@ -67,8 +68,8 @@ const STEP_SCENE: Record<string, string> = {
   report: "Escena final",
 };
 
-/** --hud (#8CFF9E) en 0–1: el punto compartido de los cortes, dibujado en el 3D. */
-const HUD_RGB: Vector3 = [0.549, 1, 0.62];
+/** --hud en 0–1: el punto compartido de los cortes, dibujado en el 3D. */
+const HUD_RGB: Vector3 = hexToRgb01(HUD_HEX);
 const VESSEL_COLOR: Vector3 = [0.65, 0.7, 0.76];
 const DOME_COLOR: Vector3 = [0.32, 0.55, 0.75];
 /* El saco cerrado, en verde para no confundirlo con el localizador azul del
@@ -939,7 +940,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // si no (axial, 3D, MIP), el axial.
       const mipPlane: Plane = storeMipPlane ?? (viewerLayout.main === "coronal" || viewerLayout.main === "sagital" ? viewerLayout.main : "axial");
       return (
-        <Suspense fallback={<ViewerLoading label="Cargando MIP…" />}>
+        <Suspense fallback={<ViewerLoading label="Cargando VOLUMEN…" />}>
           <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} />
         </Suspense>
       );
@@ -1062,7 +1063,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (morphometry.neck_valid !== false) bl.push(`AR ${morphometry.ar.toFixed(2)} · DNR ${morphometry.dnr.toFixed(2)}`);
     }
     // Los conmutadores van bajo la lectura de la izquierda: la derecha es de
-    // la escalera de cortes, las lecturas de nivel y SINCRO.
+    // la escalera de cortes y las lecturas de nivel. SINCRO y los demás
+    // conmutadores del visor van en la banda de cabecera (ViewerHeader).
     const togglesTop = 22 + tl.length * 16 + 8;
 
     return (

@@ -24,7 +24,7 @@
 
 ## Review Focus
 
-1. Sin volumen cargado en el navegador (WebGL2 ausente o carga en curso): ni rectángulos ni marcador se dibujan y nada lanza; el selector PRINCIPAL sigue funcionando → test en Task 3 (`planeOutlines` devuelve `[]` sin `meta`) y Task 2.
+1. Sin `meta` (estudio sin volumen o carga en curso): ni rectángulos ni marcador se dibujan y nada lanza; el selector PRINCIPAL sigue funcionando → test en Task 3 (`planeOutlines` devuelve `[]` sin `meta`) y Task 2.
 2. Volumen no alineado con LPS (Case 3): los rectángulos son los planos de ÍNDICE (ejes de vóxel), igual que las vistas de cortes y la traza del MIP; nunca los anatómicos → test en Task 3 (esquinas en coordenadas de vóxel·spacing) y comprobación visual en Task 5.
 3. Celda pequeña (< 260 px de alto): el botón «⤢» no pisa el asa de arrastre ni la marca de esquina y sigue siendo pulsable → test en Task 2 (posición/clase) y navegador en Task 5.
 4. Estado del store: `volumeMode`/`volumePreset` arrancan en `"mip"`/`"Vasos CTA"`, sus setters cambian el valor y no tocan `mipMode`/`mipPlane` (misma vida que el resto del estado del MIP: el store se crea por sesión) → test en Task 4 (`store/planning.test.tsx`).

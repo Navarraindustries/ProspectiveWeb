@@ -2265,8 +2265,9 @@ traces the current plane. «CENTRAR» recentres pan and zoom without undoing the
 switched with «MIP · COMPUESTO» next to the axis selector. MIP is the view
 described above. COMPUESTO is shaded compositing with the six tissue presets of
 the retired 3D «Volumen» mode (CTA, Vasos CTA, Cerebro, Hemorragia, Hueso,
-Tejido blando), mapped onto the volume's robust intensity range (p1–p99) of the
-copy already in the browser; clipping, plane trace and gestures are the same in
+Tejido blando), mapped onto the volume's robust intensity range
+(p0.5–p99.9, close to the p1–p99 the old server used) of the copy already in
+the browser; clipping, plane trace and gestures are the same in
 both. The 3D scene no longer has a «Volumen» mode, so `GET /api/volume/{sid}/raw`
 has no consumer in the frontend; whether the endpoint stays is left to D2.
 

@@ -18,7 +18,8 @@ export interface ViewerGridProps {
   renderPane: (id: PaneId, ctx: PaneContext) => ReactNode;
   /** El nodo de cada celda, para componer la captura del visor. */
   registerCell?: (id: PaneId, el: HTMLDivElement | null) => void;
-  /** Contenido que va encima de la principal (pista, conmutadores de cabecera). */
+  /** Contenido que va encima de la principal: la pista de gestos y el
+   *  selector de ventana/nivel. Los conmutadores van en la banda de cabecera. */
   mainOverlay?: ReactNode;
 }
 

@@ -232,8 +232,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
 
   // Modo de mezcla y función de transferencia van juntos: cada modo tiene la
   // suya. MIP: «Vasos» gris, opaca desde el umbral inferior. COMPUESTO: el
-  // preajuste de tejido llevado al rango robusto [p1, p99] del volumen, que es
-  // lo que el servidor reescalaba a 0–255 para el antiguo VolumeView.
+  // preajuste de tejido llevado al rango robusto del volumen
+  // (`intensity_range`, [p0.5, p99.9]), cercano al p1–p99 que el servidor
+  // reescalaba a 0–255 para el antiguo VolumeView: el mapeo es aproximado.
   // Funciones nuevas en cada pasada (no se acumulan puntos al ir y volver
   // entre modos). Depende también de la imagen: al llegar el volumen completo
   // la escena se rehace con un actor nuevo que nace sin función de
@@ -323,8 +324,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           </div>
         )}
         {trace && (
-          // Dónde está el corte dentro de lo que se ve: ámbar tenue, sin
-          // capturar el ratón, y oculta con REGLAS ○ como el resto de líneas.
+          // Dónde está el corte dentro de lo que se ve: en el color de su
+          // plano (PLANE_HEX) al 60 %, sin capturar el ratón, y oculta con
+          // REGLAS ○ como el resto de líneas.
           <svg className="hud-decor" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
             {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={PLANE_HEX[plane]} strokeOpacity={0.6} strokeWidth={1} />)}
           </svg>

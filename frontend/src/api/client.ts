@@ -2,6 +2,7 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  UiatsRequest, UiatsResult,
   FollowupResult, FollowupStudy,
   ElapssRequest, ElapssResult,
   DicomSegResult,
@@ -377,6 +378,8 @@ export const api = {
   phases: (req: PhasesRequest) => post<PhasesResult>("/api/phases", req),
   /** Riesgo de crecimiento a 3 y 5 años (no de rotura). */
   elapss: (req: ElapssRequest) => post<ElapssResult>("/api/elapss", req),
+  /** Suma a favor de tratar y a favor de vigilar (consenso, no decide). */
+  uiats: (req: UiatsRequest) => post<UiatsResult>("/api/uiats", req),
   /** Otros estudios del paciente con una sesión guardada que se pueda superponer. */
   followupStudies: (sessionId: string) => get<FollowupStudy[]>(`/api/followup/${sessionId}/studies`),
   /** Superpone un estudio anterior y devuelve el mapa de cambio. */

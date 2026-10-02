@@ -130,3 +130,7 @@ backend/clip_orders/
 
 # Estudios DICOM de prueba (109 MB): quedan en local
 frontend/Estudios/
+
+# Artículos de referencia descargados (derechos de autor): no van al repositorio público
+NEUROLOGY*.pdf
+*.article.pdf

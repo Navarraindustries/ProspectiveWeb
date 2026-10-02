@@ -171,6 +171,8 @@ class ReportData:
     phases: dict[str, Any] = field(default_factory=dict)
     # ELAPSS, riesgo de crecimiento (POST /api/elapss). {} si no se calculó.
     elapss: dict[str, Any] = field(default_factory=dict)
+    # UIATS, a favor de tratar y de vigilar (POST /api/uiats). {} si no se calculó.
+    uiats: dict[str, Any] = field(default_factory=dict)
     #: Clips being made for this case. Empty for the common case, where the piece
     #: comes off a drawn size.
     manufacture: list[OrderEntry] = field(default_factory=list)
@@ -465,6 +467,16 @@ def build_report_data_from_session(
         except (ValueError, TypeError):
             logger.warning("Could not parse elapss.json for session %s", session_id)
 
+    uiats: dict[str, Any] = {}
+    raw_uiats = _rs("uiats.json")
+    if raw_uiats:
+        try:
+            loaded = json.loads(raw_uiats)
+            if isinstance(loaded, dict):
+                uiats = loaded
+        except (ValueError, TypeError):
+            logger.warning("Could not parse uiats.json for session %s", session_id)
+
     return ReportData(
         patient      = patient,
         morphometrics= morpho,
@@ -478,6 +490,7 @@ def build_report_data_from_session(
         clinical     = clinical,
         phases       = phases,
         elapss       = elapss,
+        uiats        = uiats,
         trajectory   = trajectory,
         screenshot_png = screenshot_bytes,
         captures     = capturas,
@@ -719,6 +732,7 @@ class ReportGenerator:
         story += self._section_risk()
         story += self._section_phases()
         story += self._section_elapss()
+        story += self._section_uiats()
         story += self._section_notes()
         story += self._section_footer()
         return story
@@ -1799,6 +1813,51 @@ class ReportGenerator:
             "cuánto repetir la imagen. Como PHASES, discrimina mal fuera de sus "
             "cohortes de derivación: es una referencia poblacional, no una predicción "
             "para este paciente.",
+            self._style_td_disclaimer,
+        ))
+        return elems
+
+    _UIATS_REC = {"repair": "a favor de TRATAR", "conservative": "a favor de VIGILAR",
+                  "not_definitive": "no concluyente (diferencia de 2 puntos o menos)"}
+
+    def _section_uiats(self) -> list:
+        u = self._data.uiats
+        if not u:
+            return []
+        elems = [Paragraph("UIATS — tratar frente a vigilar", self._style_h2)]
+        elems.append(Paragraph(
+            f"Tratar {u.get('repair', 0)} · Vigilar {u.get('conservative', 0)} "
+            f"(diferencia {u.get('difference', 0):+d}) — "
+            f"{self._UIATS_REC.get(str(u.get('recommendation', '')), '—')}",
+            self._style_body,
+        ))
+        elems.append(Spacer(1, 0.1*cm))
+        rep = [f"{l} (+{p})" for l, p in u.get("repair_items", [])]
+        con = [f"{l} (+{p})" for l, p in u.get("conservative_items", [])]
+        n = max(len(rep), len(con), 1)
+        rows = [["A favor de tratar", "A favor de vigilar"]]
+        for i in range(n):
+            rows.append([rep[i] if i < len(rep) else "", con[i] if i < len(con) else ""])
+        tbl = Table(rows, colWidths=[8.95*cm, 8.95*cm])
+        ts = TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), self._BLUE_DARK),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("GRID",       (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("VALIGN",     (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ])
+        tbl.setStyle(ts)
+        elems.append(tbl)
+        elems.append(Spacer(1, 0.1*cm))
+        elems.append(Paragraph(
+            "(*) UIATS (Etminan et al., <i>Neurology</i> 2015) es un consenso de 69 "
+            "especialistas, no un modelo ajustado a desenlaces: con 3 puntos o más de "
+            "diferencia sugiere la columna mayor y, con menos, cualquiera de las dos "
+            "puede defenderse. En series externas no discriminó de forma fiable. "
+            "Ordena la conversación; no sustituye el juicio clínico.",
             self._style_td_disclaimer,
         ))
         return elems

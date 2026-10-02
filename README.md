@@ -2134,6 +2134,7 @@ and logout, which a stale cookie must never block.
 | `DELETE` | `/api/treatment-decision/{sid}` | Drop the recommendation, its context and the PHASES score |
 | `POST` | `/api/phases` | PHASES 5-year rupture risk |
 | `POST` | `/api/elapss` | ELAPSS 3- and 5-year GROWTH risk (follow-up planning) |
+| `POST` | `/api/uiats` | UIATS: points for repair vs conservative management |
 | `GET` `DELETE` | `/api/devices/{sid}` | What the plan has placed · remove one family (`kind=clips\|coils\|stent`) |
 | `GET` | `/api/clips` · `/api/coils` · `/api/stents` | Device catalogues |
 | `GET` | `/api/clips/recommendations/{sid}` | Ranked clip recommendations (legacy score) |
@@ -2255,8 +2256,18 @@ the morphometry; irregular shape is never set automatically, the panel only
 hints when the undulation index is high. Recorded in the session it reaches the
 PDF report with each input next to its points, and the same caveat as PHASES:
 it discriminates poorly outside its derivation cohorts, and populations outside
-them (Latin America, for instance) were not studied. UIATS is not implemented:
-its 29 items need the published table, and no score is written from memory.
+them (Latin America, for instance) were not studied.
+
+**UIATS** (Morfometría → UIATS). Two independent sums, in favour of repair and
+in favour of conservative management, transcribed item by item from figure 2
+of Etminan et al., Neurology 2015 (each value has its test). A difference of 3
+or more suggests the larger column; 2 or less is «not definitive». Age fills
+from the date of birth and the diameter from the morphometry; SR/AR and a neck
+wider than the parent artery are shown as hints, never ticked. The figure skips
+age 40 in the conservative column («< 40», «41-60»): it is counted with 41-60
+and the result says so. A Delphi consensus, not a model fitted to outcomes, and
+it did not discriminate reliably in external series; it reaches the PDF with
+both columns item by item.
 
 **DICOM SEG.** The SR carries the measurements; the SEG carries the regions, so
 the hospital PACS, 3D Slicer or OsiriX/Horos paint them over the original series.

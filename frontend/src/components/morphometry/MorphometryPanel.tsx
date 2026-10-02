@@ -12,12 +12,13 @@ import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { Tabs } from "../Tabs";
 import { FollowupOverlay } from "./FollowupOverlay";
+import { UiatsCalculator } from "./UiatsCalculator";
 import { ElapssCalculator } from "./ElapssCalculator";
 import { PhasesCalculator } from "./PhasesCalculator";
 import { LongitudinalChart } from "./LongitudinalChart";
 import { usePlanning } from "../../store/planning";
 
-const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "Seguimiento"] as const;
+const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "UIATS", "Seguimiento"] as const;
 
 export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
@@ -295,6 +296,9 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             )}
             {tab === "PHASES" && (
               <PhasesCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} />
+            )}
+            {tab === "UIATS" && (
+              <UiatsCalculator m={m} sessionId={sessionId} dob={planning.patient?.dob} />
             )}
             {tab === "ELAPSS" && (
               <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId}

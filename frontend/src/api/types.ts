@@ -1986,3 +1986,31 @@ export interface FollowupResult {
   lesion_source_curr: string;
   warnings: string[];
 }
+
+/* ── UIATS: tratar frente a vigilar (backend/services/uiats.py) ─────────────── */
+
+export interface UiatsRequest {
+  session_id: string | null;
+  age_years: number;
+  risk_factors: string[];
+  symptoms: string[];
+  patient_other: string[];
+  diameter_mm: number;
+  morphology: string[];
+  location: "basilar_bifurcation" | "vertebrobasilar" | "acom_pcom" | "other";
+  aneurysm_other: string[];
+  life_expectancy: "lt5" | "5to10" | "gt10" | null;
+  comorbid: string[];
+  complexity: "high" | "low";
+}
+
+export interface UiatsResult {
+  repair: number;
+  conservative: number;
+  difference: number;
+  recommendation: "repair" | "conservative" | "not_definitive";
+  repair_items: { label: string; points: number }[];
+  conservative_items: { label: string; points: number }[];
+  notes: string[];
+  sources: string[];
+}

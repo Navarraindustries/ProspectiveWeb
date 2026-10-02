@@ -20,6 +20,20 @@ Dos errores del port, arreglados (2026-09-29)
 
 Medido en IM_0055 (3DRA con lesión anotada): SR 13,2 → la arteria madre salía
 de 0,7 mm.
+
+Aneurismas laterales (2026-09-30)
+---------------------------------
+El método suponía que la arteria madre sigue el eje del aneurisma (aneurisma
+de punta). En uno lateral —el saco sale del costado del tronco— los planos
+perpendiculares a ese eje cortan la arteria A LO LARGO: el contorno sale 4–5
+veces más largo que ancho y su «diámetro» es el de una loncha. En la sesión de
+Hernandez (cuello marcado a mano, basilar) daba 9,67 mm y un SR de 0,87.
+
+Ahora cada corte se juzga por su forma. Una sección transversal es casi
+redonda; si el contorno es alargado (> 1,6), su eje largo ES la dirección del
+vaso, y se vuelve a cortar perpendicular a ella por su centro. Solo cuentan
+los contornos redondos, y sin al menos tres no se da cifra: un SR «no medido»
+es mejor que uno equivocado. En la misma sesión: 3,87 mm.
 """
 from __future__ import annotations
 
@@ -83,82 +97,82 @@ def estimate_parent_artery_diameter(
     diameters: list[float] = []
     for t in np.linspace(_OFFSET_START, _OFFSET_END, _N_SAMPLES):
         origin = p0 - axis * (t * neck_r)
-        d = _cut_nearest_contour_diameter(vessel_poly, origin, axis, reach)
+        d = _cross_section_diameter(vessel_poly, origin, axis, reach)
         if d > 0:
             diameters.append(d)
 
-    if not diameters:
+    if len(diameters) < _MIN_ROUND_SECTIONS:
+        logger.info("parent_artery: solo %d secciones transversales válidas; sin cifra", len(diameters))
         return 0.0
     result = float(np.median(diameters))
     logger.info("parent_artery: Ø = %.2f mm (from %d samples)", result, len(diameters))
     return result
 
 
-def _cut_nearest_contour_diameter(poly_data, origin, normal, reach_mm: float) -> float:
-    plane = vtk.vtkPlane()
-    plane.SetOrigin(float(origin[0]), float(origin[1]), float(origin[2]))
-    plane.SetNormal(float(normal[0]), float(normal[1]), float(normal[2]))
+#: Una sección transversal de un vaso es casi redonda. Por encima de esto el
+#: plano corta el vaso en oblicuo o a lo largo.
+_MAX_ELONGATION = 1.6
+#: Sin al menos tantas secciones redondas no se da cifra.
+_MIN_ROUND_SECTIONS = 3
 
+
+def _cross_section_diameter(poly, origin, normal, reach_mm: float) -> float:
+    """Diámetro de la sección TRANSVERSAL del vaso más cercano a `origin`.
+
+    Corta con `normal`; si el contorno sale alargado, vuelve a cortar
+    perpendicular a su eje largo (la dirección del vaso), por su centro.
+    Devuelve 0 si no hay contorno cerca o si ni así sale redondo.
+    """
+    pts = _nearest_contour(poly, origin, normal)
+    if pts is None or float(np.min(np.linalg.norm(pts - np.asarray(origin, float), axis=1))) > reach_mm:
+        return 0.0
+    diam, elong = _section_shape(pts, normal)
+    if elong > _MAX_ELONGATION:
+        centro = pts.mean(axis=0)
+        _w, vecs = np.linalg.eigh(np.cov((pts - centro).T))
+        eje_vaso = vecs[:, 2]
+        pts = _nearest_contour(poly, centro, eje_vaso)
+        if pts is None:
+            return 0.0
+        diam, elong = _section_shape(pts, eje_vaso)
+    return diam if elong <= _MAX_ELONGATION else 0.0
+
+
+def _nearest_contour(poly, origin, normal) -> "np.ndarray | None":
+    """Puntos del contorno del corte más cercano a `origin`, o None."""
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(*(float(v) for v in origin))
+    plane.SetNormal(*(float(v) for v in normal))
     cutter = vtk.vtkCutter()
     cutter.SetCutFunction(plane)
-    cutter.SetInputData(poly_data)
+    cutter.SetInputData(poly)
     cutter.Update()
-    cut = cutter.GetOutput()
-    if cut.GetNumberOfPoints() < 3:
-        return 0.0
-
+    if cutter.GetOutput().GetNumberOfPoints() < 3:
+        return None
     conn = vtk.vtkConnectivityFilter()
-    conn.SetInputData(cut)
+    conn.SetInputData(cutter.GetOutput())
     conn.SetExtractionModeToClosestPointRegion()
-    conn.SetClosestPoint(float(origin[0]), float(origin[1]), float(origin[2]))
+    conn.SetClosestPoint(*(float(v) for v in origin))
     conn.Update()
-    nearest = vtk.vtkGeometryFilter()
-    nearest.SetInputConnection(conn.GetOutputPort())
-    nearest.Update()
-    region = nearest.GetOutput()
-    if region.GetNumberOfPoints() < 3:
-        return 0.0
-    pts = vtk_to_numpy(region.GetPoints().GetData()).astype(float)
-    if float(np.min(np.linalg.norm(pts - np.asarray(origin, float), axis=1))) > reach_mm:
-        return 0.0
-
-    stripper = vtk.vtkStripper()
-    stripper.SetInputData(region)
-    stripper.JoinContiguousSegmentsOn()
-    stripper.Update()
-    stripped = stripper.GetOutput()
-    if stripped.GetNumberOfPoints() < 3:
-        return 0.0
-
-    all_pts = vtk_to_numpy(stripped.GetPoints().GetData())
-    lines = stripped.GetLines()
-    if lines is None or lines.GetNumberOfCells() == 0:
-        return 0.0
-    best: list[int] = []
-    lines.InitTraversal()
-    id_list = vtk.vtkIdList()
-    while lines.GetNextCell(id_list):
-        m = id_list.GetNumberOfIds()
-        if m > len(best):
-            best = [id_list.GetId(i) for i in range(m)]
-    if len(best) < 3:
-        return 0.0
-
-    area = _shoelace(all_pts[best], np.asarray(origin, float), np.asarray(normal, float))
-    if area <= 0:
-        return 0.0
-    return 2.0 * math.sqrt(area / math.pi)
+    geo = vtk.vtkGeometryFilter()
+    geo.SetInputConnection(conn.GetOutputPort())
+    geo.Update()
+    if geo.GetOutput().GetNumberOfPoints() < 8:
+        return None
+    return vtk_to_numpy(geo.GetOutput().GetPoints().GetData()).astype(float)
 
 
-def _shoelace(pts: np.ndarray, origin: np.ndarray, normal: np.ndarray) -> float:
-    n = normal / (np.linalg.norm(normal) + 1e-12)
+def _section_shape(pts: np.ndarray, normal) -> tuple[float, float]:
+    """(diámetro del círculo de igual área, alargamiento) del contorno en su plano."""
+    n = np.asarray(normal, float)
+    n = n / (np.linalg.norm(n) + 1e-12)
     helper = np.array([1.0, 0.0, 0.0]) if abs(n[0]) < 0.8 else np.array([0.0, 1.0, 0.0])
     u = np.cross(n, helper); u /= np.linalg.norm(u)
     v = np.cross(n, u)
-    rel = pts.astype(float) - origin.astype(float)
-    x = rel @ u
-    y = rel @ v
-    cx, cy = x.mean(), y.mean()
-    order = np.argsort(np.arctan2(y - cy, x - cx))
+    rel = pts - pts.mean(axis=0)
+    x, y = rel @ u, rel @ v
+    ev = np.sqrt(np.maximum(np.linalg.eigvalsh(np.cov(np.vstack([x, y]))), 1e-12))
+    order = np.argsort(np.arctan2(y, x))
     x, y = x[order], y[order]
-    return float(0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+    area = float(0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+    return 2.0 * math.sqrt(area / math.pi), float(ev[1] / ev[0])

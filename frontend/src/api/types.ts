@@ -1438,6 +1438,9 @@ export interface ClipOrderPrefill {
   advised_shape: string;
   advised_navarro_shape: NavarroShape;
   advised_window_mm: number;
+  /** La pieza es la colocada en Dispositivos, no la propuesta del selector.
+   *  Opcional: un backend anterior no lo manda. */
+  placed_in_plan?: boolean;
   jaw_is_free: boolean;
   stock_window_mm: number[];
   drawn_angles_deg: number[];

@@ -49,10 +49,11 @@ const NEXT_LABEL: Partial<Record<OrderStatus, string>> = {
   recibida: "Registrar recepción",
 };
 
+/** Cómo se obtuvo el cuello, para completar «El cuello se midió …». */
 const NECK_SOURCE: Record<string, string> = {
-  rim: "borde marcado a mano",
-  manual: "punto marcado",
-  auto: "estimado automáticamente",
+  rim: "sobre el borde marcado a mano",
+  manual: "con un punto de cuello marcado a mano",
+  auto: "automáticamente, sin marcarlo",
 };
 
 /** El backend devuelve una lista de problemas en `detail`; el cliente la
@@ -306,7 +307,7 @@ export function ClipOrderForm({
             />
           </div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
-            El cuello está <b>{NECK_SOURCE[pre.neck_source] ?? pre.neck_source}</b>. Toda la
+            El cuello se midió <b>{NECK_SOURCE[pre.neck_source] ?? pre.neck_source}</b>. Toda la
             pieza se deriva de esa medida: si no es correcta, corrígela en Morfometría
             antes de pedir nada.
           </div>

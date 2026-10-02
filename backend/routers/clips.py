@@ -878,6 +878,11 @@ async def clip_manufacture_spec(
         perfect = perfect_from_id(placed_id, spec)
     if perfect is None:
         perfect = resolve_perfect_clip(case, spec)
+    # Lo que se describe es la pieza que se fabrica, no la que el selector
+    # habría propuesto: con un NAVARRO colocado, la ficha titulaba «T2 Curvo,
+    # mordaza 7 mm» y sus filas —forma, hoja, número de pieza— eran las del
+    # recto de 8 mm del selector.
+    spec = perfect.spec
 
     # Traceable and stable: the same case re-ordered keeps its number, and the
     # workshop's copy can be reconciled with ours by nothing else.

@@ -66,3 +66,20 @@ def test_la_posicion_del_cuello_es_del_saco_no_del_arbol():
     assert np.allclose(p, (0, 0, 0), atol=0.05)
     p = neck_point_on_axis(s.GetOutput(), (0, 0, 3), (0, 0, 1), 0.5)
     assert np.allclose(p, (0, 0, 3), atol=0.05)
+
+
+def test_aneurisma_lateral_mide_la_seccion_transversal_no_una_loncha():
+    # La arteria corre por x; el saco sale de su costado hacia +y. Los planos
+    # perpendiculares al eje del aneurisma (y = cte) cortan la arteria a lo
+    # largo: con el método de antes, en la sesión de Hernandez, 9,67 mm.
+    madre = _tubo((0, 0, 0), 2.0, 40, eje="x")
+    d = estimate_parent_artery_diameter(madre, (0, 2.0, 0), (0, 1, 0), neck_mm=4.0)
+    assert d == pytest.approx(4.0, abs=0.4)
+
+
+def test_sin_secciones_redondas_no_da_cifra():
+    # Una placa plana: ningún corte sale redondo. Mejor «no medido» que un SR
+    # calculado con la loncha.
+    s = vtk.vtkCubeSource(); s.SetXLength(40); s.SetYLength(1.0); s.SetZLength(30); s.Update()
+    tr = vtk.vtkTriangleFilter(); tr.SetInputConnection(s.GetOutputPort()); tr.Update()
+    assert estimate_parent_artery_diameter(tr.GetOutput(), (0, 0.5, 0), (0, 1, 0), 4.0) == 0.0

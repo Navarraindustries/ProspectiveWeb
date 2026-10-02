@@ -185,6 +185,9 @@ class PrefillOut(BaseModel):
     #: the controls that series actually has.
     advised_navarro_shape: str = "straight"
     advised_window_mm: float = 0.0
+    #: La pieza es la colocada en Dispositivos, no la que propone el selector.
+    #: La ficha de fabricación la usa para no describir otra antes de generar.
+    placed_in_plan: bool = False
     #: What this shape lets the user change. A curved jaw is an arc and cannot
     #: be stretched, so its size is a choice among the drawn ones.
     jaw_is_free: bool = True
@@ -520,7 +523,8 @@ async def prefill(session_id: str, user: CurrentUser,
                   case_id: int | None = Query(None)) -> PrefillOut:
     from dataclasses import asdict
 
-    from services.clip_manufacture import MATERIAL, TOL_JAW_MM, TOL_OTHER_MM
+    from services.clip_manufacture import (MATERIAL, TOL_JAW_MM, TOL_OTHER_MM,
+                                           placed_navarro_id)
     from services.clip_animation import MAX_TIP_OPENING_MM
     from services.navarro import (CLOSING_FORCE_MAX_G, CLOSING_FORCE_MIN_G,
                                   STOCK_JAW_MM, STOCK_WINDOW_MM, list_variants)
@@ -547,6 +551,8 @@ async def prefill(session_id: str, user: CurrentUser,
         advised_shape=spec.shape.value,
         advised_navarro_shape=piece.navarro_shape,
         advised_window_mm=piece.navarro_window_mm,
+        placed_in_plan=(piece.source == "navarro"
+                        and placed_navarro_id(session_id) is not None),
         jaw_is_free=piece.navarro_shape != "curved",
         stock_window_mm=list(STOCK_WINDOW_MM),
         drawn_angles_deg=sorted({v.angle_deg for v in list_variants()

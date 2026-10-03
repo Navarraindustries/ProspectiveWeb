@@ -21,6 +21,7 @@
 - [Session Lifecycle](#session-lifecycle)
 - [Undoing Work](#undoing-work)
 - [Choosing a Clip](#choosing-a-clip)
+- [Navegación y orientación del visor](#navegación-y-orientación-del-visor)
 - [Navigation & Unsaved Work](#navigation--unsaved-work)
 - [API Reference](#api-reference)
 - [Candidatos descartados y puesto](#candidatos-descartados-y-puesto)
@@ -2132,6 +2133,65 @@ Whether a branch actually runs through the neck is not visible in the isolated
 sac mesh, so "consider a fenestrated clip" is raised once as a case-level
 caveat, never as a defect on each non-fenestrated clip. A warning that fires on
 almost the whole catalogue stops carrying information.
+
+---
+
+## Navegación y orientación del visor
+
+**VOLUMEN gira alrededor del punto compartido.** Antes giraba alrededor de
+(0,0,0), que es una esquina del volumen: en Case 3, tras un arrastre de 90° el
+centro del volumen quedaba a 124 mm del foco y fuera de la celda. Ahora el
+centro de giro es el punto del crosshair, en MIP y en COMPUESTO, recortando por
+EJE o LIBRE: al girar, ese punto se queda en el mismo píxel. Pasar cortes no
+mueve la cámara; el punto avanza con el corte. CENTRAR encuadra **lo que se ve**,
+no la caja entera: en acumulado, desde el principio (o el final) hasta el corte;
+en lámina, el corte ± el grosor; en LIBRE, la mitad que conserva el plano. Lo
+visible queda centrado y su lado mayor ocupa la celda; el giro posterior sigue
+siendo alrededor del punto. La escena 3D ya giraba alrededor de su foco, y
+«Centrar en la lesión» lleva ese foco a la lesión.
+
+**CUATRO** es una rejilla 2×2 de celdas iguales: la principal arriba a la
+izquierda y después las secundarias en orden de lectura. Caben cuatro vistas,
+así que VOLUMEN (la menos usada) se aparta, salvo que sea la principal; «VOL» en
+la banda (con «▸ VOL» en una banda estrecha) o «⤢» la traen, intercambiándola
+como en los demás presets. Atajo Alt+4; bajo 800 px el rótulo es «4». El reparto
+del separador no aplica aquí y se conserva para volver a DERECHA o ABAJO.
+
+**Cortes 3D** es el tercer modo de la escena («3D · Cortes 3D · Oblicuo»). Pone
+los tres cortes (axial, coronal y sagital) como imágenes en su sitio dentro de
+la escena, con la ventana del MPR, cruzándose en el punto compartido. No se
+pueden seleccionar: el clic sigue siendo de la malla y de las asas. La malla
+pasa al 35 % para no tapar los cortes, y «MALLA ●/○» la quita del todo. Las asas
+cuadradas de cada plano mueven su corte (el 2D lo sigue) y la rueda en un corte
+2D mueve su imagen en el 3D. Los tres cortes salen del volumen que ya está en
+memoria: en Case 3 un fotograma cuesta menos de un milisegundo.
+
+**Recorrer cortes.** La escalera del borde derecho de cada celda se pulsa
+(salta a ese corte) o se arrastra (recorre los cortes bajo el puntero); solo
+está con REGLAS ●. Con la celda enfocada, las flechas avanzan uno, Re Pág y
+Av Pág diez, Inicio y Fin van a los extremos. En VOLUMEN mueven el eje activo,
+o el plano libre en LIBRE; en Oblicuo, que no tiene escalera, desplazan el
+plano. Pinchar una celda le da el foco, así que las teclas funcionan tras un
+clic.
+
+**Cine por celda.** Espacio reproduce los cortes de la celda enfocada a 8 fps,
+con ida y vuelta al llegar a un extremo. Se para con espacio, ⏸, Esc, al
+arrastrar en esa celda, al enfocar otra o al cambiar de paso. La barra mínima
+de la esquina inferior (◀ ▶ ▶, el índice, − fps +) hace lo mismo con el ratón.
++ y − cambian la velocidad de uno en uno entre 1 y 30 fps, y la última se
+recuerda en este navegador (`viewer.cineFps`). Es un cine por celda: no hay un
+cine global sincronizado.
+
+**Atajos.** S enciende o apaga SINCRO y C reencuadra la celda enfocada (en el
+3D, AJUSTAR). La lista completa está en [Atajos de teclado](#atajos-de-teclado)
+y en la hoja que abre «?». Los presets (Alt+1…4) actúan con el foco dentro del
+visor, y ningún atajo actúa con el cursor en un campo de texto.
+
+**Lo que guarda una captura.** El estado que acompaña a una captura o a una
+grabación añade `scene_mode` (`mesh`, `slices3d` u `oblique`),
+`slices3d_mesh_visible` y `cine` (`{pane, fps}` mientras reproduce, si no
+`null`); el preset `cuatro` va en `layout.preset`. La captura compuesta recorre
+las cuatro celdas del 2×2 en su sitio, como en los demás presets.
 
 ---
 

@@ -1,6 +1,6 @@
 # Navegación y orientación (E1) — plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Que VOLUMEN gire alrededor del punto compartido y CENTRAR encuadre lo visible; un preset de distribución 2×2; un modo «Cortes 3D» con los tres cortes en su posición; un reproductor de cortes (escalera arrastrable, teclas, cine con espacio); y una tabla única de atajos con su hoja «?».
 
@@ -54,7 +54,7 @@ export function visibleBounds(bounds: Bounds6, clip: ClipState): Bounds6;       
 export function boundsCenter(b: Bounds6): Vec3;
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/orbit.test.ts
@@ -101,9 +101,9 @@ describe("visibleBounds en libre", () => {
 it("boundsCenter", () => { expect(boundsCenter(B)).toEqual([15, 10, 5]); });
 ```
 
-- [ ] **Step 2: Ver fallar** → `cd frontend && npx vitest run src/vtk/orbit.test.ts` FAIL.
+- [x] **Step 2: Ver fallar** → `cd frontend && npx vitest run src/vtk/orbit.test.ts` FAIL.
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/orbit.ts
@@ -165,9 +165,9 @@ export function visibleBounds(bounds: Bounds6, clip: ClipState): Bounds6 {
 
 `MipView.tsx`: tras crear `rotate` (línea ~183) guarda la referencia en `scene.current.rotate`; un efecto con dependencias `[mprVoxel, meta, image]` llama `rotate.setCenterOfRotation(...rotationCenterMm(mprVoxel, meta))` (también justo después de `cameraToPlane` y de `fit`). `fit` (línea ~462): construye `ClipState` desde el estado actual (`libre`, `plane`→`axis`, `posMm`, `mipMode`, `mipSlabMm`, `reverse`, y en libre `normalOf/originOf/clipPolygon` ya calculados para la traza), `v = visibleBounds(image.getBounds(), clip)`, `cam.setFocalPoint(...rotationCenterMm(...))`, `renderer.resetCamera(v)`, reafirma el centro de giro y renderiza; en libre sigue poniendo `offsetMm` a 0 antes. Comentarios WHY con la medida (124 mm).
 
-- [ ] **Step 4: Verificar** → vitest del archivo, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3, VOLUMEN principal, MIP·EJE): girar 90° dos veces y pasar 20 cortes: el punto compartido no sale del centro de la celda; CENTRAR en acumulado, lámina y libre encuadra lo visible; repetir en COMPUESTO. Capturas `t1_*.png`.
+- [x] **Step 4: Verificar** → vitest del archivo, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3, VOLUMEN principal, MIP·EJE): girar 90° dos veces y pasar 20 cortes: el punto compartido no sale del centro de la celda; CENTRAR en acumulado, lámina y libre encuadra lo visible; repetir en COMPUESTO. Capturas `t1_*.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/orbit.ts frontend/src/vtk/orbit.test.ts frontend/src/vtk/MipView.tsx
@@ -184,7 +184,7 @@ git commit -m "VOLUMEN gira alrededor del punto compartido y CENTRAR encuadra so
 **Interfaces:**
 - Produces: `LayoutPreset` incluye `"cuatro"`; `setPreset(l, "cuatro")` reordena `side` para que `mip` quede en `side[3]` (oculta) salvo que `mip` sea `main`; `gridFor` devuelve `columns: "repeat(2, minmax(0, 1fr))"`, `rows: "repeat(2, minmax(0, 1fr))"`, `areas: '"main s0" "s1 s2"'`, `visible[side[3]] = false`, `splitter: null`; `presetForKey("Digit4", …, alt=true) === "cuatro"`; `presetOptions` incluye `{ key: "cuatro", label: short ? "4" : "CUATRO", title: "Axial, coronal, sagital y 3D a cuartos (Alt+4)" }`.
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // añadir a layout.test.ts
@@ -216,13 +216,13 @@ it("CUATRO está entre los presets y se abrevia a 4", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → `layout.ts`: `PRESETS` y el tipo ganan `cuatro`; `defaultFraction("cuatro")` = 0.5 (no se usa); `setPreset` para `cuatro`: si `l.main !== "mip"` y `mip` está en `side`, mueve `mip` a la última posición conservando el orden del resto. `layoutGrid.ts`: rama `cuatro` (sin `effectivePreset` de vertical: 2×2 también en vertical); `visible[l.side[3]] = false`. `ViewerGrid.tsx`: si tiene un `switch` por preset o asume `splitter !== null` fuera de `sola`, trata `cuatro` como `sola` para el separador. `layoutShortcuts.ts`: `Digit4: "cuatro"`. `mainOptions.ts`: opción nueva. README: preset CUATRO y Alt+4.
+- [x] **Step 3: Implementación** → `layout.ts`: `PRESETS` y el tipo ganan `cuatro`; `defaultFraction("cuatro")` = 0.5 (no se usa); `setPreset` para `cuatro`: si `l.main !== "mip"` y `mip` está en `side`, mueve `mip` a la última posición conservando el orden del resto. `layoutGrid.ts`: rama `cuatro` (sin `effectivePreset` de vertical: 2×2 también en vertical); `visible[l.side[3]] = false`. `ViewerGrid.tsx`: si tiene un `switch` por preset o asume `splitter !== null` fuera de `sola`, trata `cuatro` como `sola` para el separador. `layoutShortcuts.ts`: `Digit4: "cuatro"`. `mainOptions.ts`: opción nueva. README: preset CUATRO y Alt+4.
 
-- [ ] **Step 4: Verificar** → vitest de los cuatro archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: CUATRO enseña AX, COR, SAG y 3D a cuartos; «▸ VOL» trae VOLUMEN al cuadrante; Alt+4; volver a DERECHA conserva el orden.
+- [x] **Step 4: Verificar** → vitest de los cuatro archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: CUATRO enseña AX, COR, SAG y 3D a cuartos; «▸ VOL» trae VOLUMEN al cuadrante; Alt+4; volver a DERECHA conserva el orden.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/layout.ts frontend/src/vtk/layout.test.ts frontend/src/vtk/layoutGrid.ts frontend/src/vtk/layoutGrid.test.ts frontend/src/vtk/layoutShortcuts.ts frontend/src/vtk/layoutShortcuts.test.ts frontend/src/vtk/mainOptions.ts frontend/src/vtk/mainOptions.test.ts frontend/src/vtk/ViewerGrid.tsx README.md
@@ -254,7 +254,7 @@ slices3dMeshVisible: boolean; setSlices3dMeshVisible(v): void;   // defecto true
 viewMode: "default" | "slices3d" | "oblique"
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/slicePlanes.test.ts
@@ -281,13 +281,13 @@ it("slices3dMeshVisible arranca en true y se reinicia", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → `slicePlanes.ts` según las firmas. `MeshView.tsx`: efecto propio keyed en `slicePlanes` (null → quita los tres actores; si cambia `image` los recrea): por spec, `vtkImageResliceMapper` (`setInputData(image)`, `setSlabThickness(0)`, `setSlicePlane(vtkPlane{normal, origin})`) + `vtkImageSlice` (`setColorWindow(ww)`, `setColorLevel(wc)`, interpolación lineal, `setPickable(false)`, `setUseBounds(false)`), en el renderer principal; en cada cambio de spec/ventana actualiza plano y ventana; limpieza en el desmontaje de la escena. `Viewer.tsx`: `viewMode` gana `slices3d`; conmutador `[{default: 3D|MPR}, {slices3d: "Cortes 3D"}, {oblique: "Oblicuo"}]`; en `slices3d` la escena de malla se monta igual que en `default` (misma celda, mismo `MeshView`) con `slicePlanes={{ specs: slicePlaneSpecs(mprVoxel, meta), image: clientVol.image, wc, ww }}` (null si no hay imagen cliente: el modo exige WebGL2 como el oblicuo), las capas de malla con `opacity: slices3dMeshVisible ? SLICES3D_MESH_OPACITY : 0` (la malla sigue cargada para no refetch), `planes` y `handles` como en `default`, y un `HudToggleGroup` «MALLA ●/○» junto al conmutador; `estadoVisor.scene_mode` y `slices3d_mesh_visible`; `sceneHasMesh` y las puertas del manipulador de D3 tratan `slices3d` como `default`. Medir fps (rAF 2 s girando) y anotar; si < 20, aplicar el fallback de la constraint.
+- [x] **Step 3: Implementación** → `slicePlanes.ts` según las firmas. `MeshView.tsx`: efecto propio keyed en `slicePlanes` (null → quita los tres actores; si cambia `image` los recrea): por spec, `vtkImageResliceMapper` (`setInputData(image)`, `setSlabThickness(0)`, `setSlicePlane(vtkPlane{normal, origin})`) + `vtkImageSlice` (`setColorWindow(ww)`, `setColorLevel(wc)`, interpolación lineal, `setPickable(false)`, `setUseBounds(false)`), en el renderer principal; en cada cambio de spec/ventana actualiza plano y ventana; limpieza en el desmontaje de la escena. `Viewer.tsx`: `viewMode` gana `slices3d`; conmutador `[{default: 3D|MPR}, {slices3d: "Cortes 3D"}, {oblique: "Oblicuo"}]`; en `slices3d` la escena de malla se monta igual que en `default` (misma celda, mismo `MeshView`) con `slicePlanes={{ specs: slicePlaneSpecs(mprVoxel, meta), image: clientVol.image, wc, ww }}` (null si no hay imagen cliente: el modo exige WebGL2 como el oblicuo), las capas de malla con `opacity: slices3dMeshVisible ? SLICES3D_MESH_OPACITY : 0` (la malla sigue cargada para no refetch), `planes` y `handles` como en `default`, y un `HudToggleGroup` «MALLA ●/○» junto al conmutador; `estadoVisor.scene_mode` y `slices3d_mesh_visible`; `sceneHasMesh` y las puertas del manipulador de D3 tratan `slices3d` como `default`. Medir fps (rAF 2 s girando) y anotar; si < 20, aplicar el fallback de la constraint.
 
-- [ ] **Step 4: Verificar** → vitest de los dos archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): «Cortes 3D» muestra los tres cortes en gris cruzándose en el punto, la malla al 35 %, MALLA ○ la quita, arrastrar un cuadrado mueve su corte (y la celda 2D correspondiente), la rueda en un corte mueve su imagen en el 3D; fps anotados; captura compuesta incluye la celda. Capturas `t3_*.png`.
+- [x] **Step 4: Verificar** → vitest de los dos archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador (Case 3): «Cortes 3D» muestra los tres cortes en gris cruzándose en el punto, la malla al 35 %, MALLA ○ la quita, arrastrar un cuadrado mueve su corte (y la celda 2D correspondiente), la rueda en un corte mueve su imagen en el 3D; fps anotados; captura compuesta incluye la celda. Capturas `t3_*.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/MeshView.tsx frontend/src/vtk/Viewer.tsx frontend/src/store/planning.tsx frontend/src/store/planning.test.tsx frontend/src/vtk/slicePlanes.ts frontend/src/vtk/slicePlanes.test.ts
@@ -318,7 +318,7 @@ export function indexAtY(y: number, count: number, index: number, heightPx: numb
 onIndexChange?: (i: number) => void;   // clic → indexAtY; arrastre (pointer capture) → indexAtY continuo
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/cine.test.ts
@@ -361,13 +361,13 @@ it("clic en la escalera salta al índice y arrastrar lo recorre", () => {
 
 Adapta el cálculo de `clientY` a cómo el test fija `getBoundingClientRect`/altura (usa `vi.spyOn(el, "getBoundingClientRect")` devolviendo `top: 0, height: 400`).
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → `cine.ts` según las firmas (`nextIndex` con `bounce` siempre true en E1 pero el parámetro queda). `ladder.ts`: `indexAtY = clamp(round(index + (heightPx/2 − y)/pxPerTick), 0, count−1)`. `HudLadder`: `onPointerDown` (botón 0: `setPointerCapture`, `onIndexChange(indexAtY(y − rect.top, …))`), `onPointerMove` mientras captura, `onPointerUp`/`onLostPointerCapture` sueltan; `cursor: ns-resize`; `pointerEvents: "auto"` aunque sea `hud-decor` (se oculta igual con REGLAS ○). `SliceView`/`MipView`/`ObliqueView`: pasan `onIndexChange` (el mismo setter de la rueda); en `onKey` de `SliceView` añaden `PageUp/PageDown` vía `stepFromKey`/`applyStep`; `MipView` y `ObliqueView` ganan `tabIndex=0` y un `onKeyDown` con el mismo mapa (en LIBRE/oblicuo el paso mueve `offsetMm` por `spacing` × paso).
+- [x] **Step 3: Implementación** → `cine.ts` según las firmas (`nextIndex` con `bounce` siempre true en E1 pero el parámetro queda). `ladder.ts`: `indexAtY = clamp(round(index + (heightPx/2 − y)/pxPerTick), 0, count−1)`. `HudLadder`: `onPointerDown` (botón 0: `setPointerCapture`, `onIndexChange(indexAtY(y − rect.top, …))`), `onPointerMove` mientras captura, `onPointerUp`/`onLostPointerCapture` sueltan; `cursor: ns-resize`; `pointerEvents: "auto"` aunque sea `hud-decor` (se oculta igual con REGLAS ○). `SliceView`/`MipView`/`ObliqueView`: pasan `onIndexChange` (el mismo setter de la rueda); en `onKey` de `SliceView` añaden `PageUp/PageDown` vía `stepFromKey`/`applyStep`; `MipView` y `ObliqueView` ganan `tabIndex=0` y un `onKeyDown` con el mismo mapa (en LIBRE/oblicuo el paso mueve `offsetMm` por `spacing` × paso).
 
-- [ ] **Step 4: Verificar** → vitest de los archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: clic y arrastre en la escalera de un corte y de VOLUMEN; Re Pág/Av Pág en los tres tipos de celda.
+- [x] **Step 4: Verificar** → vitest de los archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: clic y arrastre en la escalera de un corte y de VOLUMEN; Re Pág/Av Pág en los tres tipos de celda.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/cine.ts frontend/src/vtk/cine.test.ts frontend/src/vtk/hud/ladder.ts frontend/src/vtk/hud/HudLadder.tsx frontend/src/vtk/hud/HudLadder.test.tsx frontend/src/vtk/SliceView.tsx frontend/src/vtk/MipView.tsx frontend/src/vtk/ObliqueView.tsx
@@ -397,7 +397,7 @@ export function startClock(fps: number, tick: () => void): () => void;       // 
 // render: compacto «▶ 152/384» / «⏸ 152/384»; completo «◀ ▶|⏸ ▶ 152/384 · 8 fps» con botones title «Reproducir (espacio)», «Parar (espacio)», «Corte anterior», «Corte siguiente», «Más lento (−)», «Más rápido (+)»
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/cineClock.test.ts
@@ -432,13 +432,13 @@ it("cine y focusedPane arrancan vacíos y se reinician", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → store según las firmas. `Viewer.tsx`: cada celda registra `setFocusedPane(id)` en `onPointerDownCapture`/`onFocusCapture` del contenedor de la celda (en `ViewerGrid` ya hay `registerCell`; añade un callback `onPaneFocus`); un `useEffect` keyed en `[cine]` arranca `startClock(cine.fps, tick)` donde `tick` lee refs (`mprVoxelRef`, `metaRef`, `cine`) y escribe el eje de la celda (`axial→z`, `coronal→y`, `sagital→x`, `mip→ el eje activo o `offsetMm` en LIBRE, oblicuo→`offsetMm`) con `nextIndex` (dirección guardada en un ref); limpia al cambiar `cine` o desmontar; **parada**: `setCine(null)` en Escape (en el `onLayoutKey`/manejador de la celda), al cambiar `focusedPane`, al cambiar `step`, y en `pointerdown` con botón izquierdo dentro de la celda del cine (arrastre); **espacio** y `+`/`−` se manejan en Task 6 a través de la tabla (aquí expón `toggleCine(pane)` y `bumpFps(±1)` como funciones del Viewer). `HudCineBar` montado en la esquina inferior izquierda de cada celda de corte/VOLUMEN/oblicuo cuando `focusedPane === id || cine?.pane === id` (no estorba al readout: colócala encima del readout `bl` con `bottom: 40`; en VOLUMEN, por encima de la fila de preajustes). Pref `viewer.cineFps` leída al arrancar el cine y escrita al cambiar.
+- [x] **Step 3: Implementación** → store según las firmas. `Viewer.tsx`: cada celda registra `setFocusedPane(id)` en `onPointerDownCapture`/`onFocusCapture` del contenedor de la celda (en `ViewerGrid` ya hay `registerCell`; añade un callback `onPaneFocus`); un `useEffect` keyed en `[cine]` arranca `startClock(cine.fps, tick)` donde `tick` lee refs (`mprVoxelRef`, `metaRef`, `cine`) y escribe el eje de la celda (`axial→z`, `coronal→y`, `sagital→x`, `mip→ el eje activo o `offsetMm` en LIBRE, oblicuo→`offsetMm`) con `nextIndex` (dirección guardada en un ref); limpia al cambiar `cine` o desmontar; **parada**: `setCine(null)` en Escape (en el `onLayoutKey`/manejador de la celda), al cambiar `focusedPane`, al cambiar `step`, y en `pointerdown` con botón izquierdo dentro de la celda del cine (arrastre); **espacio** y `+`/`−` se manejan en Task 6 a través de la tabla (aquí expón `toggleCine(pane)` y `bumpFps(±1)` como funciones del Viewer). `HudCineBar` montado en la esquina inferior izquierda de cada celda de corte/VOLUMEN/oblicuo cuando `focusedPane === id || cine?.pane === id` (no estorba al readout: colócala encima del readout `bl` con `bottom: 40`; en VOLUMEN, por encima de la fila de preajustes). Pref `viewer.cineFps` leída al arrancar el cine y escrita al cambiar.
 
-- [ ] **Step 4: Verificar** → vitest de los archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: la barra aparece en la celda enfocada; ▶ reproduce, rebota en los extremos, ⏸ para; cambiar de celda o pulsar Escape para; arrastrar en la celda para; VOLUMEN y oblicuo también.
+- [x] **Step 4: Verificar** → vitest de los archivos, `npx tsc --noEmit -p .`, `npx vitest run`. Navegador: la barra aparece en la celda enfocada; ▶ reproduce, rebota en los extremos, ⏸ para; cambiar de celda o pulsar Escape para; arrastrar en la celda para; VOLUMEN y oblicuo también.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/store/planning.tsx frontend/src/store/planning.test.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/viewerPrefs.ts frontend/src/vtk/hud/hud.css frontend/src/vtk/hud/HudCineBar.tsx frontend/src/vtk/hud/HudCineBar.test.tsx frontend/src/vtk/cineClock.ts frontend/src/vtk/cineClock.test.ts
@@ -465,7 +465,7 @@ export function matchShortcut(e: { key: string; code: string; altKey: boolean; c
 export function shortcutsByScope(): Record<ShortcutScope, Shortcut[]>;
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/shortcuts.test.ts
@@ -500,13 +500,13 @@ describe("tabla de atajos", () => {
 // ShortcutsSheet.test.tsx: renderiza las tres secciones y cierra con Escape y con ?
 ```
 
-- [ ] **Step 2: Ver fallar** → FAIL.
+- [x] **Step 2: Ver fallar** → FAIL.
 
-- [ ] **Step 3: Implementación** → `shortcuts.ts` con la tabla (keys legibles: «Esc», «?», «1 … 8», «Alt+1», «Alt+2», «Alt+3», «Alt+4», «S», «C», «Espacio», «+», «−», «↑ / →», «↓ / ←», «Re Pág», «Av Pág», «Inicio», «Fin») y `matchShortcut` por `code` para letras/dígitos/espacio y por `key` para `?`/`+`/`-`; `Workspace.tsx`: su manejador global pasa a `const id = matchShortcut(e, e.target); if (!id) return;` y despacha `escape`, `help`, `step-N` como hoy, y los de ámbito visor/celda mediante un evento `viewer:shortcut` con `detail: id` (o un contexto); `Viewer.tsx` escucha y ejecuta: `sync` → `setSyncViews(!syncViews)`, `center` → `fit` de la celda enfocada (3D: `setView("fit")`; VOLUMEN: su `fit`; cortes: `resetCamera` del corte si existe, si no nada), `cine-toggle` → `toggleCine(focusedPane)`, `cine-faster/slower` → `bumpFps`, `preset-cuatro` ya lo hace `layoutShortcuts` (deja un solo camino: `presetForKey` se alimenta de la tabla o la tabla delega en él; evita doble disparo). La hoja: `ShortcutsSheet` modal ligera (fondo oscuro, tarjeta mono, tres columnas por ámbito, cierre con Esc/«?»/clic fuera), abierta por `help`; sustituye a la pista efímera (`viewer:hint`) que queda solo para la pista de gestos de la celda. Botón «?» al final de la banda de cabecera. README: tabla de atajos.
+- [x] **Step 3: Implementación** → `shortcuts.ts` con la tabla (keys legibles: «Esc», «?», «1 … 8», «Alt+1», «Alt+2», «Alt+3», «Alt+4», «S», «C», «Espacio», «+», «−», «↑ / →», «↓ / ←», «Re Pág», «Av Pág», «Inicio», «Fin») y `matchShortcut` por `code` para letras/dígitos/espacio y por `key` para `?`/`+`/`-`; `Workspace.tsx`: su manejador global pasa a `const id = matchShortcut(e, e.target); if (!id) return;` y despacha `escape`, `help`, `step-N` como hoy, y los de ámbito visor/celda mediante un evento `viewer:shortcut` con `detail: id` (o un contexto); `Viewer.tsx` escucha y ejecuta: `sync` → `setSyncViews(!syncViews)`, `center` → `fit` de la celda enfocada (3D: `setView("fit")`; VOLUMEN: su `fit`; cortes: `resetCamera` del corte si existe, si no nada), `cine-toggle` → `toggleCine(focusedPane)`, `cine-faster/slower` → `bumpFps`, `preset-cuatro` ya lo hace `layoutShortcuts` (deja un solo camino: `presetForKey` se alimenta de la tabla o la tabla delega en él; evita doble disparo). La hoja: `ShortcutsSheet` modal ligera (fondo oscuro, tarjeta mono, tres columnas por ámbito, cierre con Esc/«?»/clic fuera), abierta por `help`; sustituye a la pista efímera (`viewer:hint`) que queda solo para la pista de gestos de la celda. Botón «?» al final de la banda de cabecera. README: tabla de atajos.
 
-- [ ] **Step 4: Verificar** → vitest de los archivos, `npx tsc --noEmit -p .`, `npx vitest run`, `npm run build`. Navegador: S alterna SINCRO, C centra la celda enfocada, espacio reproduce/para, +/− cambian fps, «?» abre la hoja y la cierra; con el cursor en un campo de texto ninguna actúa.
+- [x] **Step 4: Verificar** → vitest de los archivos, `npx tsc --noEmit -p .`, `npx vitest run`, `npm run build`. Navegador: S alterna SINCRO, C centra la celda enfocada, espacio reproduce/para, +/− cambian fps, «?» abre la hoja y la cierra; con el cursor en un campo de texto ninguna actúa.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/vtk/shortcuts.ts frontend/src/vtk/shortcuts.test.ts frontend/src/vtk/hud/ShortcutsSheet.tsx frontend/src/vtk/hud/ShortcutsSheet.test.tsx frontend/src/pages/Workspace.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/ViewerHeader.tsx README.md
@@ -520,7 +520,7 @@ git commit -m "Tabla única de atajos: S, C, espacio, Alt+4 y la hoja de ayuda c
 **Files:**
 - Modify: `README.md` (sección del visor: centro de giro, CUATRO, Cortes 3D, reproductor, atajos), este plan (casillas).
 
-- [ ] **Step 1: Comprobación completa**
+- [x] **Step 1: Comprobación completa**
 
 ```bash
 cd frontend && npx tsc -b && npx vitest run && npm run build
@@ -529,7 +529,7 @@ cd ../backend && .venv\Scripts\python -m pytest -q --no-header -p no:cacheprovid
 
 Expected: frontend en verde; backend sin fallos nuevos frente a la línea base (28 + 8–9; este plan no toca el backend).
 
-- [ ] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
+- [x] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
 
 1. VOLUMEN (MIP y COMPUESTO, EJE y LIBRE): girar 90° dos veces y pasar 20 cortes; el punto compartido permanece en el centro de la celda; CENTRAR encuadra lo visible en acumulado, lámina y libre.
 2. CUATRO: cuatro celdas iguales; «▸ VOL» y «⤢» traen VOLUMEN; Alt+4; volver a DERECHA.
@@ -539,7 +539,7 @@ Expected: frontend en verde; backend sin fallos nuevos frente a la línea base (
 6. Atajos: S, C, «?» abre la hoja completa; nada actúa con el foco en un campo de texto.
 7. Captura/estado con `scene_mode`, `slices3d_mesh_visible`, `cine`, preset `cuatro`.
 
-- [ ] **Step 3: README y commit de cierre**
+- [x] **Step 3: README y commit de cierre**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-10-02-navegacion-orientacion.md

@@ -7,7 +7,7 @@
    intercambiarse y doble clic sube una a principal. Las cinco celdas (escena,
    axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { usePlanning, type PickMode, type PlacedClip } from "../store/planning";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
@@ -35,7 +35,7 @@ import { applyStep, cineShouldStop, clampFps, nextIndex } from "./cine";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
-import { focusOnPointerDown } from "./pointerFocus";
+import { focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
@@ -951,10 +951,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // reproduce (cineShouldStop), otro paso del pipeline u otra sesión. La
   // visibilidad no depende de vertical/apaisado: `false` basta, como en la
   // captura compuesta. Una celda enfocada que queda oculta suelta el foco:
-  // si no, el espacio, C y +/− actuarían sobre una celda que no se ve.
-  useEffect(() => {
+  // si no, el espacio, C y +/− actuarían sobre una celda que no se ve. Y el
+  // foco del teclado pasa a la principal (refocusAfterHide): la celda oculta
+  // es `inert` y el navegador la desenfoca, así que Alt+2 ya no llegaría al
+  // visor. En efecto de maquetación, para que no haya un fotograma sin foco.
+  useLayoutEffect(() => {
     const visible = gridFor(viewerLayout, false).visible;
-    if (focusedPane && !visible[focusedPane]) setFocusedPane(null);
+    if (focusedPane && !visible[focusedPane]) {
+      setFocusedPane(null);
+      // Después de soltarla: enfocar la principal la vuelve la celda enfocada.
+      refocusAfterHide(document.activeElement, cellEls.current[focusedPane], cellEls.current[viewerLayout.main], gridHostRef.current)
+        ?.focus({ preventScroll: true });
+    }
     if (cineShouldStop(cineRef.current, { focusedPane, visible })) setCine(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedPane, viewerLayout]);

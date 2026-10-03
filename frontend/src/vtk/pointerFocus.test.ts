@@ -47,3 +47,33 @@ describe("focusOnPointerDown", () => {
     expect(focusOnPointerDown($("gap"), host, document.activeElement)).toBeNull();
   });
 });
+
+import { refocusAfterHide } from "./pointerFocus";
+describe("refocusAfterHide", () => {
+  const mk = () => {
+    const host = document.createElement("div");
+    const main = document.createElement("div"), hidden = document.createElement("div"), scene = document.createElement("div");
+    const mainWrap = document.createElement("div"); mainWrap.tabIndex = 0; main.appendChild(mainWrap);
+    const hiddenWrap = document.createElement("div"); hiddenWrap.tabIndex = 0; hidden.appendChild(hiddenWrap);
+    const panelBtn = document.createElement("button");
+    host.append(main, hidden, scene); document.body.append(host, panelBtn);
+    return { host, main, mainWrap, hidden, hiddenWrap, scene, panelBtn, done: () => { host.remove(); panelBtn.remove(); } };
+  };
+  it("foco perdido o aún en la celda oculta: al envoltorio de la principal", () => {
+    const t = mk();
+    expect(refocusAfterHide(document.body, t.hidden, t.main, t.host)).toBe(t.mainWrap);
+    expect(refocusAfterHide(t.hiddenWrap, t.hidden, t.main, t.host)).toBe(t.mainWrap);
+    expect(refocusAfterHide(null, t.hidden, t.main, t.host)).toBe(t.mainWrap);
+    t.done();
+  });
+  it("principal sin envoltorio (3D): al contenedor del visor", () => {
+    const t = mk();
+    expect(refocusAfterHide(document.body, t.hidden, t.scene, t.host)).toBe(t.host);
+    t.done();
+  });
+  it("un control fuera de la celda oculta conserva el foco", () => {
+    const t = mk();
+    expect(refocusAfterHide(t.panelBtn, t.hidden, t.main, t.host)).toBeNull();
+    t.done();
+  });
+});

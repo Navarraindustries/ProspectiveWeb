@@ -25,3 +25,20 @@ export function focusOnPointerDown(target: EventTarget | null, host: HTMLElement
   // Alt+1…4 lleguen al visor; si el foco ya está dentro, no se le quita.
   return host.contains(active) ? null : host;
 }
+
+/** Adónde va el foco cuando la distribución oculta la celda enfocada (Alt+1,
+ *  Alt+4, «▸ VOL»). La celda oculta es `inert` y el navegador la desenfoca:
+ *  el foco caería al cuerpo y Alt+2 y las teclas de corte quedarían muertas
+ *  hasta el siguiente clic. Va al envoltorio con teclado de la principal o,
+ *  si no tiene (la escena 3D), al contenedor del visor. Solo si el foco se
+ *  ha perdido o sigue en la celda oculta: un control del panel derecho que lo
+ *  tenga se lo queda. null = no tocar el foco. */
+export function refocusAfterHide(
+  active: Element | null, hiddenCell: Element | null | undefined,
+  mainCell: Element | null | undefined, host: HTMLElement | null,
+): HTMLElement | null {
+  const doc = (hiddenCell ?? mainCell ?? host)?.ownerDocument;
+  const lost = !active || active === doc?.body || active === doc?.documentElement || !!hiddenCell?.contains(active);
+  if (!lost) return null;
+  return mainCell?.querySelector<HTMLElement>('[tabindex="0"]') ?? host;
+}

@@ -17,7 +17,19 @@ describe("cine", () => {
   });
 });
 
-import { isNativeKeyTarget } from "./cine";
+import { cineShouldStop, isNativeKeyTarget } from "./cine";
+it("cineShouldStop: otra celda enfocada u oculta lo para; sin foco o sin cine, no", () => {
+  const all = { scene: true, axial: true, coronal: true, sagital: true, mip: true };
+  const c = { pane: "coronal" as const };
+  expect(cineShouldStop(null, { focusedPane: "axial", visible: all })).toBe(false);
+  expect(cineShouldStop(c, { focusedPane: "coronal", visible: all })).toBe(false);
+  // Espacio sin haber pinchado ninguna celda: el cine es de la principal y sigue.
+  expect(cineShouldStop(c, { focusedPane: null, visible: all })).toBe(false);
+  expect(cineShouldStop(c, { focusedPane: "axial", visible: all })).toBe(true);
+  // La distribución ocultó la celda que reproduce (SOLA, o el quinto hueco de CUATRO).
+  expect(cineShouldStop(c, { focusedPane: "coronal", visible: { ...all, coronal: false } })).toBe(true);
+  expect(cineShouldStop(c, { focusedPane: null, visible: { ...all, coronal: false } })).toBe(true);
+});
 it("isNativeKeyTarget reconoce controles con teclado propio", () => {
   expect(isNativeKeyTarget(document.createElement("input"))).toBe(true);
   expect(isNativeKeyTarget(document.createElement("button"))).toBe(true);

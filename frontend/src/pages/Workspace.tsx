@@ -143,9 +143,12 @@ export function Workspace({
       const id = matchShortcut(e, e.target);
       if (!id) return;
       if (id === "escape") {
-        // Sin preventDefault: el visor también usa Escape (parar el cine,
-        // cerrar la hoja de atajos).
+        // Sin preventDefault. Escape también para el cine del visor: el
+        // espacio lo arranca con el foco en cualquier sitio y Escape tiene que
+        // pararlo igual. Con la hoja de atajos abierta no llega aquí: la hoja
+        // se queda la tecla (fase de captura) y solo se cierra ella.
         setPickMode(null);
+        window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: "escape" }));
         return;
       }
       if (VIEWER_SHORTCUTS.has(id)) {

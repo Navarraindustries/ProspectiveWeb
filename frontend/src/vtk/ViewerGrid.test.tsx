@@ -55,6 +55,30 @@ describe("ViewerGrid", () => {
     expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["axial", "scene", "sagital", "mip"] });
   });
 
+  it("tras «⤢» el foco queda en la celda subida (su envoltorio) o en la rejilla", async () => {
+    // Una celda con envoltorio enfocable, como las de corte; la escena 3D no lo tiene.
+    const withWrapper = (id: PaneId) => (id === "scene" ? <span>3d</span> : <div tabIndex={0} data-testid={`wrap-${id}`}>{id}</div>);
+    const onLayoutChange = vi.fn();
+    const { container } = render(<ViewerGrid layout={{ ...DEFAULT_LAYOUT, main: "axial", side: ["scene", "coronal", "sagital", "mip"] }}
+                                             onLayoutChange={onLayoutChange} renderPane={withWrapper} />);
+    const btn = (id: PaneId) => container.querySelector<HTMLButtonElement>(`[data-pane="${id}"] .viewer-maximize`)!;
+    btn("coronal").focus();
+    fireEvent.click(btn("coronal"));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(document.activeElement).toBe(screen.getByTestId("wrap-coronal"));
+    // Sin envoltorio (3D): la rejilla, para que Alt+N siga llegando al visor.
+    fireEvent.click(btn("scene"));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(document.activeElement).toBe(container.firstChild);
+  });
+
+  it("las celdas ocultas son inertes: Tab no entra en ellas", () => {
+    const { cell } = setup(setPreset(DEFAULT_LAYOUT, "sola"));
+    // jsdom no implementa la propiedad `inert`: se mira el atributo que pone React.
+    expect(cell("axial").hasAttribute("inert")).toBe(true);
+    expect(cell("scene").hasAttribute("inert")).toBe(false);
+  });
+
   it("el botón de maximizar no inicia un arrastre ni cuenta como doble clic del asa", () => {
     const { cell, onLayoutChange } = setup();
     const btn = cell("mip").querySelector<HTMLButtonElement>(".viewer-maximize")!;

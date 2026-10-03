@@ -22,15 +22,35 @@ describe("ShortcutsSheet", () => {
   it("cierra con Escape, con ? y con clic fuera", () => {
     const onClose = vi.fn();
     render(<ShortcutsSheet open onClose={onClose} />);
-    fireEvent.keyDown(window, { key: "Escape" });
+    // Sobre el cuerpo, como una tecla de verdad: la hoja escucha en captura.
+    fireEvent.keyDown(document.body, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
-    fireEvent.keyDown(window, { key: "?" });
+    fireEvent.keyDown(document.body, { key: "?" });
     expect(onClose).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByTestId("shortcuts-backdrop"));
     expect(onClose).toHaveBeenCalledTimes(3);
     // Un clic dentro de la tarjeta no la cierra.
     fireEvent.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalledTimes(3);
+  });
+
+  it("abierta se traga las teclas (Esc no llega a Workspace, 3 no salta de paso) salvo Tab", () => {
+    // Registrada antes que la hoja, como la escucha de Workspace.
+    const behind = vi.fn();
+    window.addEventListener("keydown", behind);
+    const onClose = vi.fn();
+    const { rerender } = render(<ShortcutsSheet open onClose={onClose} />);
+    fireEvent.keyDown(document.body, { key: "3", code: "Digit3" });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(behind).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    expect(behind).toHaveBeenCalledTimes(1);
+    // Cerrada, las teclas vuelven a pasar.
+    rerender(<ShortcutsSheet open={false} onClose={onClose} />);
+    fireEvent.keyDown(document.body, { key: "3", code: "Digit3" });
+    expect(behind).toHaveBeenCalledTimes(2);
+    window.removeEventListener("keydown", behind);
   });
 
   it("lleva el foco a la tarjeta y lo devuelve al cerrar", () => {

@@ -8,7 +8,7 @@ describe("HudCineBar", () => {
     render(<HudCineBar index={151} count={384} playing={false} fps={8} compact={false} onPlay={onPlay} onStep={onStep} onFps={onFps} />);
     expect(screen.getByText("152/384")).toBeInTheDocument(); expect(screen.getByText("8 fps")).toBeInTheDocument();
     fireEvent.click(screen.getByTitle("Reproducir (espacio)")); expect(onPlay).toHaveBeenCalled();
-    fireEvent.click(screen.getByTitle("Corte siguiente")); expect(onStep).toHaveBeenCalledWith(1);
+    fireEvent.click(screen.getByTitle("Corte siguiente (↑)")); expect(onStep).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByTitle("Más rápido (+)")); expect(onFps).toHaveBeenCalledWith(9);
   });
 });

@@ -379,5 +379,6 @@ describe("candidatos descartados", () => {
     act(() => { result.current.setCine({ pane: "axial", fps: 8, bounce: true }); result.current.setFocusedPane("axial"); });
     act(() => result.current.reset());
     expect(result.current.cine).toBeNull();
+    expect(result.current.focusedPane).toBeNull();
   });
 });

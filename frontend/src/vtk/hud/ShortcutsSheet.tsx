@@ -22,13 +22,19 @@ function rows(list: Shortcut[]): { keys: string; action: string }[] {
 export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   // Esc y «?» cierran. El «?» que la abrió no la cierra: Viewer solo ABRE con
   // «help» y deja el cierre a esta escucha (ver Viewer, sheetOpenRef).
+  // La hoja es modal también para el teclado: escucha en la fase de captura
+  // de `window`, antes que nadie, y se traga toda tecla salvo Tab. Si no, Esc
+  // cancelaría además el modo de marcado de Workspace y los dígitos saltarían
+  // de paso detrás de la hoja.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Tab") return;
+      e.stopImmediatePropagation();
       if (e.key === "Escape" || e.key === "?") onClose();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [open, onClose]);
   // El foco entra en la tarjeta al abrir y vuelve a donde estaba al cerrar:
   // si se quedara en el cuerpo, las teclas de corte (que atiende la celda con

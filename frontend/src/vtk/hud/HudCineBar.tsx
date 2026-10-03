@@ -24,10 +24,10 @@ const stop = (e: SyntheticEvent) => e.stopPropagation();
 export function HudCineBar({ index, count, playing, fps, compact, onPlay, onStep, onFps, style }: HudCineBarProps) {
   return (
     <div className="hud-cine" role="group" aria-label="Cine" style={style} onPointerDown={stop} onDoubleClick={stop}>
-      {!compact && <button type="button" title="Corte anterior" onClick={() => onStep(-1)}>◀</button>}
+      {!compact && <button type="button" title="Corte anterior (↓)" onClick={() => onStep(-1)}>◀</button>}
       <button type="button" className="hud-cine-play" aria-pressed={playing}
               title={playing ? "Parar (espacio)" : "Reproducir (espacio)"} onClick={onPlay}>{playing ? "⏸" : "▶"}</button>
-      {!compact && <button type="button" title="Corte siguiente" onClick={() => onStep(1)}>▶</button>}
+      {!compact && <button type="button" title="Corte siguiente (↑)" onClick={() => onStep(1)}>▶</button>}
       <span className="hud-cine-pos">{`${index + 1}/${count}`}</span>
       {!compact && (
         <>

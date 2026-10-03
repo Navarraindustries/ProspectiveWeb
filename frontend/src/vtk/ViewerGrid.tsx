@@ -170,7 +170,10 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
         return (
           // Oculta: sin gridArea y fuera del flujo (1×1 px), para que el lienzo
           // WebGL siga vivo sin ocupar un hueco que en «sola» no existe.
-          <div key={id} ref={cellRef(id)} data-pane={id} data-slot={slot}
+          // `inert`: una celda oculta (SOLA, la quinta en CUATRO) mide 1×1 px
+          // pero conserva su envoltorio enfocable; sin esto Tab entraría en
+          // ella y la haría la celda enfocada sin que se vea.
+          <div key={id} ref={cellRef(id)} data-pane={id} data-slot={slot} inert={hidden}
                className={`viewer-cell${hidden ? " viewer-cell--hidden" : ""}${drag?.over === id ? " viewer-cell--over" : ""}`}
                style={{ gridArea: hidden ? undefined : slot, position: hidden ? "absolute" : "relative", minWidth: 0, minHeight: 0, overflow: "hidden", background: "#000" }}
                // En captura: los lienzos de vtk.js y la barra del cine cortan la
@@ -189,7 +192,20 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
                       // El asa de arrastre ocupa el borde superior: el botón va encima (z 8) y
                       // detiene el puntero para que pulsarlo no empiece un arrastre.
                       onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); onLayoutChange(promote(layout, id)); }}>⤢</button>
+                      // El botón solo existe en las secundarias: al subir la vista
+                      // desaparece y el foco caería al cuerpo, dejando muertas
+                      // Alt+1…4 y las teclas de corte. La celda nunca se remonta
+                      // (clave = id), así que tras el cambio el foco vuelve a su
+                      // envoltorio enfocable; la escena 3D no tiene, y va a la
+                      // rejilla, que sigue dentro del contenedor del visor.
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onLayoutChange(promote(layout, id));
+                        requestAnimationFrame(() => {
+                          const target = cellEls.current.get(id)?.querySelector<HTMLElement>('[tabindex="0"]') ?? rootRef.current;
+                          target?.focus({ preventScroll: true });
+                        });
+                      }}>⤢</button>
             )}
           </div>
         );

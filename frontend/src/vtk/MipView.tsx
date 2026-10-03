@@ -22,7 +22,7 @@
    (vertical nivel, horizontal ventana, como en los cortes); cada preajuste
    recuerda la suya y RESTABLECER vuelve a la que abarca el rango robusto. */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import "@kitware/vtk.js/Rendering/Profiles/Volume";
 import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
 import vtkVolume from "@kitware/vtk.js/Rendering/Core/Volume";
@@ -94,7 +94,7 @@ function cameraToPlane(grw: vtkGenericRenderWindow, image: vtkImageData, plane: 
   renderer.resetCamera();
 }
 
-export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit }: {
+export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit, overlay }: {
   image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean;
   /** Eje en el que acumula y que recorre la rueda. */
   plane: Plane;
@@ -106,6 +106,10 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   /** Publica el reencuadre de esta celda (la tecla C) mientras su escena viva,
    *  como `registerCapture`: el visor no ve la cámara de cada celda. */
   registerFit?: (fn: (() => void) | null) => void;
+  /** Lo que el visor pone encima (la barra del cine). Fuera de la celda
+   *  compacta se apila con la fila de preajustes de COMPUESTO: si la fila se
+   *  parte en dos líneas, empuja la barra hacia arriba en vez de pisarla. */
+  overlay?: ReactNode;
 }) {
   const {
     mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
@@ -214,7 +218,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     // siempre el corte y el modo de este render.
     const sub = cam.onModified(() => { readHeading(); computeTraceRef.current(); });
     readHeading();
-    const ro = new ResizeObserver(() => { grw.resize(); grw.getRenderWindow().render(); computeTraceRef.current(); });
+    // El alto de la celda cambia lo que mide en fracción la fila de controles:
+    // el recuadro se recoloca antes de pintar.
+    const ro = new ResizeObserver(() => { grw.resize(); placeInsetRef.current(); grw.getRenderWindow().render(); computeTraceRef.current(); });
     ro.observe(el);
     scene.current = { grw, mapper, actor, style };
     applyCenter();
@@ -331,11 +337,23 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // escalera de cortes (44 px) ocupa todo el borde derecho y el recuadro caía
   // debajo de sus marcas: va a la esquina superior izquierda, libre porque en
   // la celda no hay cinta de rumbo.
-  useEffect(() => {
+  // La subida se mide en píxeles: la fila ACUMULADO…CENTRAR está a 58–80 px
+  // del pie (72–94 en COMPUESTO), y una fracción fija del alto (0.09) se
+  // quedaba corta en celdas de ~450 px y el cubo caía sobre la fila.
+  const placeInset = () => {
     const [x0, y0, x1, y1] = INSET_VIEWPORT;
     const w = x1 - x0, h = y1 - y0;
-    insetRef.current?.setViewport(compact ? [0.02, 0.96 - h, 0.02 + w, 0.96] : [x0, y0 + 0.09, x1, y1 + 0.09]);
-  }, [compact, image]);
+    const height = ref.current?.clientHeight ?? 0;
+    const lift = height > 0 ? Math.max(0.09, (volumeMode === "compuesto" ? 100 : 86) / height) : 0.09;
+    insetRef.current?.setViewport(compact ? [0.02, 0.96 - h, 0.02 + w, 0.96] : [x0, y0 + lift, x1, y1 + lift]);
+  };
+  // Por ref: el ResizeObserver se crea una vez por volumen y lee siempre el último.
+  const placeInsetRef = useRef(placeInset);
+  placeInsetRef.current = placeInset;
+  useEffect(() => {
+    placeInset();
+    scene.current?.grw.getRenderWindow().render();
+  }, [compact, image, volumeMode]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Modo de mezcla y función de transferencia van juntos: cada modo tiene la
   // suya. MIP: «Vasos» gris, opaca desde el umbral inferior. COMPUESTO: el
@@ -613,18 +631,27 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           </div>
         )}
         <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact, render: volumeMode, preset: volumePreset, clip: clipMode, offsetMm: freePlane.offsetMm, window: win })} />
-        {!compact && volumeMode === "compuesto" && (
-          // Encima de la lectura de la izquierda y una fila por encima de la de
-          // abajo a la derecha (en compuesto bottom: 72, por la línea NIV ·
-          // VENT de la lectura): a la misma altura, en paneles estrechos, los
-          // seis nombres llegaban hasta ACUMULADO y CENTRAR. El ancho máximo
-          // deja libre la escalera de cortes si la fila se parte; sin `right`
-          // la caja no tapa el arrastre fuera de los nombres. RESTABLECER va
-          // al final de la fila y salta con ella si no cabe.
-          <div style={{ position: "absolute", bottom: 100, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
-            <HudToggleGroup options={PRESET_OPTIONS} value={volumePreset} onChange={(k) => setVolumePreset(k as VolumePreset)} style={{ flexWrap: "wrap" }} />
-            <HudToggleGroup options={[{ key: "reset", label: "RESTABLECER", title: "Volver a la ventana por defecto de este preajuste (todo el rango robusto)" }]}
-              value="" onChange={() => setVolumeWindow(volumePreset, null)} />
+        {compact ? overlay : (
+          // Una sola columna abajo a la izquierda, de abajo arriba: la fila de
+          // preajustes (solo en COMPUESTO) y encima la barra del cine. Así,
+          // si la fila se parte en dos líneas, empuja la barra en vez de
+          // crecer por debajo de ella. Arranca encima de la lectura de la
+          // izquierda (dos líneas; tres en COMPUESTO, con NIV · VENT) y una
+          // fila por encima de la de abajo a la derecha (en compuesto bottom:
+          // 72): a la misma altura, en paneles estrechos, los seis nombres
+          // llegaban hasta ACUMULADO y CENTRAR. El ancho máximo deja libre la
+          // escalera de cortes; la columna no recibe el puntero (sus hijos sí),
+          // para no tapar el arrastre fuera de los nombres.
+          <div className="hud-stack" style={{ position: "absolute", bottom: volumeMode === "compuesto" ? 100 : 84, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexDirection: "column-reverse", alignItems: "flex-start", gap: 6, pointerEvents: "none" }}>
+            {volumeMode === "compuesto" && (
+              // RESTABLECER va al final de la fila y salta con ella si no cabe.
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
+                <HudToggleGroup options={PRESET_OPTIONS} value={volumePreset} onChange={(k) => setVolumePreset(k as VolumePreset)} style={{ flexWrap: "wrap" }} />
+                <HudToggleGroup options={[{ key: "reset", label: "RESTABLECER", title: "Volver a la ventana por defecto de este preajuste (todo el rango robusto)" }]}
+                  value="" onChange={() => setVolumeWindow(volumePreset, null)} />
+              </div>
+            )}
+            {overlay}
           </div>
         )}
         {!compact && (

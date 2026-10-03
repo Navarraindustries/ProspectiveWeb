@@ -26,6 +26,9 @@
 .hud-cine button:disabled { opacity: .4; cursor: default; }
 .hud-cine button:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
 .hud-cine .hud-cine-pos { color: var(--hud); }
+/* Dentro de una columna apilada (VOLUMEN) la barra sigue al flujo: la columna
+   ya la coloca encima de la fila de preajustes. */
+.hud-stack > .hud-cine { position: static; }
 .hud-edge { position: absolute; font-size: 10px; letter-spacing: .08em; color: var(--hud-dim); }
 .hud-edge.top { top: 22px; left: 50%; transform: translateX(-50%); } .hud-edge.bottom { bottom: 8px; left: 50%; transform: translateX(-50%); }
 .hud-edge.left { left: 8px; top: 50%; transform: translateY(-50%); } .hud-edge.right { right: 8px; top: 50%; transform: translateY(-50%); }

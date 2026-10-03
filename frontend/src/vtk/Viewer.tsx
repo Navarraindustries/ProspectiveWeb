@@ -31,7 +31,7 @@ import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
 import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, readCineFps, useStoredFlag, writeCineFps } from "./viewerPrefs";
-import { applyStep, clampFps, nextIndex } from "./cine";
+import { applyStep, cineShouldStop, clampFps, nextIndex } from "./cine";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
@@ -505,7 +505,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     heading: readHeading(root) ?? null,
     level_note: levelNote ?? null,
     view_mode: viewMode,
-    scene_mode: viewMode === "default" ? "mesh" : viewMode,
+    // Lo que se dibuja, no el conmutador: sin malla la escena es el corte axial
+    // (MPR), aunque `viewMode` se quedara en slices3d de antes.
+    scene_mode: viewMode === "oblique" ? "oblique" : !meshVisible ? "slice" : viewMode === "slices3d" ? "slices3d" : "mesh",
     slices3d_mesh_visible: slices3dMeshVisibleRef.current,
     cine: cineRef.current ? { pane: cineRef.current.pane, fps: cineRef.current.fps } : null,
     candidate_index: selectedCandidate,
@@ -751,8 +753,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // En Cortes 3D la malla se vuelve translúcida para ver los cortes a través
     // de ella; con MALLA ○ baja a 0 en vez de salir de las capas, así no se
     // vuelve a descargar al encenderla (la opacidad cambia el actor en sitio).
+    // Pero el picker de vtk.js no mira la opacidad: con un modo de marcado
+    // activo la malla vuelve a verse, o el cuello, el ápice o una medida
+    // caerían sobre una superficie que nadie ve.
     const vesselOpacity = viewMode === "slices3d"
-      ? (slices3dMeshVisible ? SLICES3D_MESH_OPACITY : 0)
+      ? ((slices3dMeshVisible || pickMode !== null) ? SLICES3D_MESH_OPACITY : 0)
       : vesselDim ? 0.45 : 1;
     const out: MeshLayer[] = [{ url: displayMeshUrl, color: VESSEL_COLOR, opacity: vesselOpacity }];
     // En Morfometría se marcan el cuello y el ápice PINCHANDO la superficie, y
@@ -942,20 +947,24 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return startClock(cine.fps, () => { if (!cineMoveRef.current(pane, cineDirRef.current, true)) setCine(null); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cine]);
-  // Paradas: otra celda con el foco, otro paso del pipeline u otra sesión.
-  // Un cine que siguiera solo movería cortes que ya nadie mira.
+  // Paradas: otra celda con el foco, una distribución que oculta la celda que
+  // reproduce (cineShouldStop), otro paso del pipeline u otra sesión. La
+  // visibilidad no depende de vertical/apaisado: `false` basta, como en la
+  // captura compuesta. Una celda enfocada que queda oculta suelta el foco:
+  // si no, el espacio, C y +/− actuarían sobre una celda que no se ve.
   useEffect(() => {
-    const c = cineRef.current;
-    if (c && c.pane !== focusedPane) setCine(null);
+    const visible = gridFor(viewerLayout, false).visible;
+    if (focusedPane && !visible[focusedPane]) setFocusedPane(null);
+    if (cineShouldStop(cineRef.current, { focusedPane, visible })) setCine(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedPane]);
+  }, [focusedPane, viewerLayout]);
   useEffect(() => {
     if (cineRef.current) setCine(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, sessionId]);
   /** La barra del cine de una celda: solo en la enfocada o en la que reproduce.
-   *  `bottom` la sube por encima de lo que la celda tenga abajo a la izquierda. */
-  const cineBarFor = (id: PaneId, compact: boolean, bottom?: number): ReactNode => {
+   *  En VOLUMEN y en el oblicuo la coloca la propia vista (prop `overlay`). */
+  const cineBarFor = (id: PaneId, compact: boolean): ReactNode => {
     if (focusedPane !== id && cine?.pane !== id) return null;
     const pos = cinePosition(id);
     if (!pos) return null;
@@ -965,17 +974,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       <HudCineBar index={pos.index} count={pos.count} playing={playing} fps={fps} compact={compact}
         onPlay={() => toggleCine(id)} onStep={(d) => { cineMoveRef.current(id, d, false); }}
         // La barra emite la cadencia de destino; las teclas +/− harán lo mismo por bumpFps.
-        onFps={(f) => { if (f !== fps) bumpFps(f > fps ? 1 : -1); }}
-        style={bottom === undefined ? undefined : { bottom }} />
+        onFps={(f) => { if (f !== fps) bumpFps(f > fps ? 1 : -1); }} />
     );
-  };
-  /** Altura de la barra en cada celda que no es la escena: encima de la lectura
-   *  de abajo a la izquierda. En VOLUMEN esa lectura tiene dos líneas y a su
-   *  derecha va la fila ACUMULADO…CENTRAR; en COMPUESTO, además, la fila de
-   *  preajustes (bottom 100): la barra va por encima de todo ello. */
-  const cineBottom = (id: PaneId, compact: boolean): number | undefined => {
-    if (id !== "mip" || compact) return undefined;
-    return volumeMode === "compuesto" ? 128 : 84;
   };
   // Foto al agarrar el asa: el eje por el centroide de entonces, el parámetro
   // t0 donde cayó el ratón y el índice o desplazamiento de partida. Cada
@@ -1291,6 +1291,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       case "cine-toggle": toggleCine(pane); return;   // sin recorrido (3D) no hace nada
       case "cine-faster": bumpFps(1); return;
       case "cine-slower": bumpFps(-1); return;
+      // Escape llega de Workspace esté donde esté el foco: el espacio arranca el
+      // cine desde cualquier sitio y Escape tiene que pararlo igual.
+      case "escape": setCine(null); return;
       case "center":
         // La escena es oblicuo o corte axial (sin malla) con encuadre propio;
         // si no, 3D o CORTES 3D de MeshView, que encuadra con su propia cámara.
@@ -1367,7 +1370,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       const mipPlane: Plane = volumeAxis;
       return (
         <Suspense fallback={<ViewerLoading label="Cargando VOLUMEN…" />}>
-          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} registerFit={regFit("mip")} />
+          <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} registerFit={regFit("mip")}
+            overlay={cineBarFor("mip", compact)} />
         </Suspense>
       );
     }
@@ -1587,8 +1591,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
   };
 
   const onLayoutKey = (e: ReactKeyboardEvent) => {
-    // Escape para el cine desde cualquier celda: las celdas no se lo quedan.
-    if (e.key === "Escape" && cineRef.current) setCine(null);
     if (e.ctrlKey || e.metaKey) return;
     const p = presetForKey(e.code, e.target, e.altKey);
     if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); }
@@ -1644,12 +1646,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
           onLayoutChange={setViewerLayout}
           registerCell={registerCell}
           onPaneFocus={setFocusedPane}
-          // La barra del cine va en la celda, no en la vista: en la escena la
-          // pone el oblicuo dentro de su imagen (encima de sus deslizadores).
+          // La barra del cine va en la celda, no en la vista; salvo en la escena
+          // (el oblicuo la pone encima de sus deslizadores) y en VOLUMEN (la
+          // apila con la fila de preajustes para que no se pisen).
           renderPane={(id, ctx) => (
             <>
               {renderPane(id, ctx)}
-              {id !== "scene" && cineBarFor(id, ctx.compact, cineBottom(id, ctx.compact))}
+              {id !== "scene" && id !== "mip" && cineBarFor(id, ctx.compact)}
             </>
           )}
           mainOverlay={

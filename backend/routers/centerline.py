@@ -15,7 +15,7 @@ from services.db_models import User
 
 from models.centerline import (
     CenterlineClearResult, CenterlineRequest, CenterlineResult,
-    CrossSectionRequest, CrossSectionResult, ClStentRequest, ClStentResult,
+    CrossSectionRequest, CrossSectionResult, ClStentApposition, ClStentRequest, ClStentResult,
     FdSizingResult,
 )
 from services.centerline import extract_centerline
@@ -217,7 +217,33 @@ def _run_cl_stent(points_path, req: ClStentRequest, out_path, session_id: str | 
     write_vtp(result.stent_poly_data, out_path)
     if session_id:
         _measure_vessel_like_sizing(session_id, data["points"], req, result, out_path.parent)
+        result.apposition = _apposition(session_id, result, out_path)
     return result
+
+
+def _apposition(session_id: str, result, out_path):
+    """Pinta en la malla del stent su distancia a la pared y la resume. Si
+    falla, el stent se queda como estaba: un mapa no vale un despliegue."""
+    from dataclasses import asdict
+    from routers.plan import _load_float
+    from services.apposition import annotate
+    vessel = out_path.parent / "vessel_tree.vtp"
+    if not vessel.exists():
+        return None
+    try:
+        neck = [_load_float(session_id, f"morpho.neck_origin_{k}", float("nan")) for k in "xyz"]
+        neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+        tiene_cuello = not any(v != v for v in neck) and neck_mm > 0
+        a = annotate(
+            result.stent_poly_data, read_vtp(vessel), result.centerline_segment,
+            neck_center=neck if tiene_cuello else None, neck_mm=neck_mm if tiene_cuello else 0.0,
+            voxel_mm=_load_float(session_id, "dicom.spacing_x", 0.0),
+        )
+        write_vtp(result.stent_poly_data, out_path)
+        return asdict(a)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Apposition map skipped for %s: %s", session_id, exc)
+        return None
 
 
 def _measure_vessel_like_sizing(session_id, points, req, result, meshes_dir) -> None:
@@ -321,6 +347,7 @@ async def deploy_cl_stent(
         coverage_ratio=round(result.coverage_ratio, 2),
         total_arc_mm=round(result.total_arc_mm, 1),
         warning=warning,
+        apposition=ClStentApposition(**ap) if (ap := getattr(result, "apposition", None)) else None,
     )
 
 

@@ -12,6 +12,7 @@ import type {
   CustomClipInfo,
   DeviceKind,
   ClipRecommendation,
+  ClStentApposition,
   ClStentResult,
   CoilConstructResult,
   CoilLibraryItem,
@@ -911,6 +912,7 @@ function ClStentTab() {
             badge={plan.coverage_ratio >= 0.9 && plan.coverage_ratio <= 1.15 ? ["Buen ajuste", "success"] : ["Revisar", "warning"]}
           />
           {plan.warning && <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>}
+          {plan.apposition && <AppositionSummary a={plan.apposition} />}
         </Card>
       )}
       <ErrorNote>{error}</ErrorNote>
@@ -925,6 +927,36 @@ function ClStentTab() {
         onClick={() => void clearer.clear(() => setPlan(null))}
       />
       <ErrorNote>{clearer.error}</ErrorNote>
+    </div>
+  );
+}
+
+/* ── Aposición del stent a la pared ─────────────────────────────────────── */
+
+/** El resumen del mapa que se ve sobre el stent en el visor. La cifra única
+ *  (Ø stent / Ø vaso medio) no dice DÓNDE falla el ajuste; esto sí. */
+export function AppositionSummary({ a }: { a: ClStentApposition }) {
+  const separado = a.gap_area_pct >= 10;
+  const extremo = Math.max(a.proximal_gap_mm, a.distal_gap_mm) > a.noise_mm;
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+      <SectionLabel>Aposición a la pared</SectionLabel>
+      <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
+                                background: "linear-gradient(90deg, #2659d9, #c7ccd1 35%, #c7ccd1 65%, #e0331f)" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
+        <span>comprimido</span><span>± {a.noise_mm.toFixed(2)} mm = contacto</span><span>separado</span>
+      </div>
+      <Metric label="Separado de la pared" value={a.gap_area_pct.toFixed(0)} unit=" %"
+              badge={separado ? ["Revisar", "warning"] : ["Bien", "success"]} />
+      <Metric label="Comprimido (nominal mayor que el vaso)" value={a.compressed_area_pct.toFixed(0)} unit=" %" />
+      <Metric label="Separación máxima" value={a.max_gap_mm.toFixed(2)} unit=" mm" />
+      <Metric label="Extremo proximal · distal" value={`${a.proximal_gap_mm.toFixed(2)} · ${a.distal_gap_mm.toFixed(2)}`} unit=" mm"
+              badge={extremo ? ["Extremo separado", "warning"] : undefined} />
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
+        Geometría del tubo nominal contra la malla, no una simulación de la trenza.
+        {a.neck_excluded ? " Sobre el cuello no hay pared: se deja en gris y no cuenta." : ""}
+        {a.notes.map((n) => ` ${n}`)}
+      </div>
     </div>
   );
 }

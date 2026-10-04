@@ -64,6 +64,9 @@ const DOME_COLOR: Vector3 = [0.32, 0.55, 0.75];
 /* El saco cerrado, en verde para no confundirlo con el localizador azul del
    candidato: aquel señala dónde mirar, este ES el cuerpo del aneurisma. */
 const SAC_COLOR: Vector3 = [0.25, 0.80, 0.45];
+/** Mapa de aposición del stent: satura a ±1 mm; por debajo de 0,3 mm (un vóxel) es ruido. */
+export const APPOSITION_RANGE_MM = 1.0;
+export const APPOSITION_NOISE_MM = 0.3;
 const FOLLOWUP_GHOST_COLOR: Vector3 = [0.98, 0.62, 0.20]; // naranja — saco del estudio anterior
 const DEVICE_COLOR: Vector3 = [0.92, 0.82, 0.45];     // warm gold — placed clip
 const COIL_COLOR: Vector3 = [0.85, 0.55, 0.85];       // orchid — packed coils
@@ -587,9 +590,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: clipRehearsal.body_url,    color: DEVICE_COLOR, opacity: 1, id: "clip-body" });
       out.push({ url: clipRehearsal.blade_a_url, color: DEVICE_COLOR, opacity: 1, id: "clip-blade-a" });
       out.push({ url: clipRehearsal.blade_b_url, color: DEVICE_COLOR, opacity: 1, id: "clip-blade-b" });
-      for (const d of devices) if (d.kind !== "clips") out.push({ url: d.url, color: d.color, opacity: 1 });
+      for (const d of devices) if (d.kind !== "clips") out.push(deviceLayer(d));
     } else if (showDevice) {
-      for (const d of devices) out.push({ url: d.url, color: d.color, opacity: 1 });
+      for (const d of devices) out.push(deviceLayer(d));
     }
     if (showCenterline && centerlineMesh) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
@@ -1138,6 +1141,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
       )}
     </div>
   );
+}
+
+/** La capa de un dispositivo. El stent sobre la línea central trae en su malla
+ *  la distancia a la pared (`aposicion_mm`): rojo, separado; azul, comprimido;
+ *  gris, dentro del ruido. Si la malla no lo trae (el stent recto), MeshView
+ *  usa el color liso. */
+function deviceLayer(d: { kind: "clips" | "coils" | "stent"; url: string; color: Vector3 }): MeshLayer {
+  const layer: MeshLayer = { url: d.url, color: d.color, opacity: 1 };
+  if (d.kind === "stent") layer.scalars = { name: "aposicion_mm", range: APPOSITION_RANGE_MM, deadband: APPOSITION_NOISE_MM };
+  return layer;
 }
 
 /** Texto del aviso de marcado para cada modo. */

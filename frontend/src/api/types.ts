@@ -598,6 +598,20 @@ export interface ClStentResult {
   coverage_ratio: number;
   total_arc_mm: number;
   warning: string | null;
+  /** Aposición a la pared; el mapa va en la malla (`aposicion_mm`). */
+  apposition?: ClStentApposition | null;
+}
+
+export interface ClStentApposition {
+  /** Por debajo de esto una separación no se distingue. */
+  noise_mm: number;
+  gap_area_pct: number;
+  compressed_area_pct: number;
+  max_gap_mm: number;
+  proximal_gap_mm: number;
+  distal_gap_mm: number;
+  neck_excluded: boolean;
+  notes: string[];
 }
 
 /* ── detection / morphometry ───────────────────────────────────────────── */

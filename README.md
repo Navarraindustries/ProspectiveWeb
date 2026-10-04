@@ -2276,6 +2276,19 @@ crossings (three rays, majority). Validated on the real case 3 tree moved by a
 and the 0.3 mm one stays under the noise. Different modalities draw the wall
 differently and that shows as a uniform offset, which the panel warns about.
 
+**Stent apposition map** (Dispositivos → stent sobre la línea central). The
+single figure Ø stent / mean Ø vessel does not say where the fit fails. Each
+point of the deployed tube now carries its signed distance to the wall
+(`aposicion_mm` in `cl_stent.vtp`): positive, inside the lumen and short of the
+wall at nominal diameter (red); negative, the nominal is larger than the vessel
+there, so the real device would sit compressed (blue); grey within one voxel.
+Points over the neck have no wall to touch and do not count. The panel gives
+the separated and compressed share of the surface, the largest gap and the gap
+at each 3 mm end, where the device has to anchor. It is the nominal tube
+against the mesh, not a braid simulation: a real device narrows and lengthens
+when compressed. On a real case, Ø 3.5 / 4.25 / 5.0 mm read 37 / 16 / 8 %
+separated and 12 / 30 / 58 % compressed.
+
 **ELAPSS.** Next to PHASES in Morfometría: the 3- and 5-year risk of GROWTH
 (not rupture) of an unruptured aneurysm, for deciding how often to repeat the
 imaging (Backes et al., Neurology 2017). Points as reproduced by the external

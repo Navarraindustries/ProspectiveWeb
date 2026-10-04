@@ -68,6 +68,19 @@ class ClStentRequest(BaseModel):
     braid_count: int = Field(6, ge=0, le=16, description="Braid wires per wind direction")
 
 
+class ClStentApposition(BaseModel):
+    """Aposición del stent a la pared, punto a punto (services/apposition.py)."""
+
+    noise_mm: float = Field(..., description="Por debajo de esto una separación no se distingue")
+    gap_area_pct: float = Field(..., description="% del stent (fuera del cuello) separado de la pared")
+    compressed_area_pct: float = Field(..., description="% donde el nominal es mayor que el vaso")
+    max_gap_mm: float
+    proximal_gap_mm: float = Field(..., description="Separación (p90) en los primeros 3 mm")
+    distal_gap_mm: float = Field(..., description="Separación (p90) en los últimos 3 mm")
+    neck_excluded: bool
+    notes: list[str] = Field(default_factory=list)
+
+
 class ClStentResult(BaseModel):
     """Deployed centreline-guided stent mesh + fit metrics."""
 
@@ -78,6 +91,8 @@ class ClStentResult(BaseModel):
     coverage_ratio: float = Field(..., description="stent_r / vessel_r (1.0 = perfect fit; <1 undersized)")
     total_arc_mm: float = Field(..., description="Total centreline arc length (for range sliders)")
     warning: str | None = Field(None, description="Fit warning (over/undersized)")
+    apposition: ClStentApposition | None = Field(
+        None, description="El mapa va en la malla, en el campo `aposicion_mm`")
 
 
 class CrossSectionResult(BaseModel):

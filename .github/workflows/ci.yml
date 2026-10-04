@@ -49,7 +49,10 @@ jobs:
         run: |
           set +e
           grep -aE "^(FAILED|ERROR) |INTERNALERROR" pytest.log | head -6 | while IFS= read -r l; do echo "::error::${l}"; done
-          echo "::error::FINAL: $(tail -n 30 pytest.log | paste -sd '|' - | cut -c1-3500)"
+          n=$(grep -anE "Fatal Python error|Windows fatal exception" pytest.log | head -1 | cut -d: -f1)
+          if [ -n "$n" ]; then echo "::error::CAIDA: $(sed -n "${n},$((n+16))p" pytest.log | paste -sd '|' - | cut -c1-3500)"; fi
+          echo "::error::ULTIMOS TESTS: $(grep -aE '^test_[a-z0-9_]+\.py::' pytest.log | tail -n 3 | paste -sd '|' - | cut -c1-1500)"
+          echo "::error::FINAL: $(tail -n 5 pytest.log | paste -sd '|' - | cut -c1-1500)"
           exit 0
 
   frontend:

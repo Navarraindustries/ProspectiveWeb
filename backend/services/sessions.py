@@ -37,6 +37,45 @@ SESSION_TTL_SEC = int(_TTL_HOURS * 3600)
 _SUBDIRS = ["dicom", "meshes", "reports", "exports", "screenshots"]
 
 
+# ── Identificadores ────────────────────────────────────────────────────────── #
+
+class InvalidSessionId(ValueError):
+    """El identificador no es un UUID: no se convierte en ruta."""
+
+
+def valid_session_id(session_id: object) -> bool:
+    """Solo el UUID canónico que genera `create_session`.
+
+    Un identificador llega de fuera (URL, cuerpo de la petición) y acaba
+    siendo una ruta. Sin esta comprobación, «..» ERA una sesión válida
+    (`data/sessions/..` es `data/`, que existe), y «Guardar progreso» con ese
+    id hacía `rmtree` de `data/session_saves/..`: la carpeta `data/` entera,
+    con la base de datos y la auditoría."""
+    if not isinstance(session_id, str):
+        return False
+    try:
+        return str(uuid.UUID(session_id)) == session_id
+    except ValueError:
+        return False
+
+
+def _live(sid: str) -> Path:
+    if not valid_session_id(sid):
+        raise InvalidSessionId(f"Identificador de sesión no válido: {sid!r}")
+    return SESSIONS_ROOT / sid
+
+
+def _saved(sid: str) -> Path:
+    if not valid_session_id(sid):
+        raise InvalidSessionId(f"Identificador de sesión no válido: {sid!r}")
+    return SAVES_ROOT / sid
+
+
+def saved_session_dir(session_id: str) -> Path:
+    """La carpeta del guardado duradero de una sesión (validando el id)."""
+    return _saved(session_id)
+
+
 # ── Session lifecycle ──────────────────────────────────────────────────────── #
 
 def create_session() -> str:
@@ -52,23 +91,23 @@ def create_session() -> str:
 
 def session_dir(session_id: str) -> Path:
     """Return the root Path for a session. Does NOT validate existence."""
-    return SESSIONS_ROOT / session_id
+    return _live(session_id)
 
 
 def session_subdir(session_id: str, sub: str) -> Path:
     """Return a specific sub-directory path, creating it if needed."""
-    p = SESSIONS_ROOT / session_id / sub
+    p = _live(session_id) / sub
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def session_exists(session_id: str) -> bool:
-    return (SESSIONS_ROOT / session_id).is_dir()
+    return valid_session_id(session_id) and (SESSIONS_ROOT / session_id).is_dir()
 
 
 def delete_session(session_id: str) -> None:
     """Permanently delete a session and all its files."""
-    d = SESSIONS_ROOT / session_id
+    d = _live(session_id)
     if d.is_dir():
         shutil.rmtree(d, ignore_errors=True)
 
@@ -114,10 +153,10 @@ def snapshot_session(session_id: str) -> float:
     Returns the snapshot size in KB. This is what makes a saved session survive
     the TTL purge: it lives under SAVES_ROOT, which the sweep never touches.
     """
-    src = SESSIONS_ROOT / session_id
+    src = _live(session_id)
     if not src.is_dir():
         raise FileNotFoundError(f"Session '{session_id}' has no live directory to save")
-    dst = SAVES_ROOT / session_id
+    dst = _saved(session_id)
     if dst.exists():
         shutil.rmtree(dst, ignore_errors=True)
     _clone_tree(src, dst)
@@ -130,7 +169,7 @@ def snapshot_session(session_id: str) -> float:
 
 
 def has_saved_session(session_id: str) -> bool:
-    return (SAVES_ROOT / session_id).is_dir()
+    return valid_session_id(session_id) and (SAVES_ROOT / session_id).is_dir()
 
 
 def rehydrate_session(saved_session_id: str) -> str:
@@ -140,7 +179,7 @@ def rehydrate_session(saved_session_id: str) -> str:
     restored session is functionally identical to the saved one — segmentation,
     detection and morphometry re-read/re-derive from the same inputs.
     """
-    src = SAVES_ROOT / saved_session_id
+    src = _saved(saved_session_id)
     if not src.is_dir():
         raise FileNotFoundError(f"No saved session '{saved_session_id}' found")
     new_sid = create_session()  # creates the sub-dirs + .created_at
@@ -157,7 +196,7 @@ def rehydrate_session(saved_session_id: str) -> str:
 
 def delete_saved_session(session_id: str) -> None:
     """Remove a session's durable snapshot (does not touch any live session)."""
-    d = SAVES_ROOT / session_id
+    d = _saved(session_id)
     if d.is_dir():
         shutil.rmtree(d, ignore_errors=True)
 
@@ -222,7 +261,7 @@ def write_states(session_id: str, values: dict[str, str]) -> None:
     """
     if not values:
         return
-    state_file = SESSIONS_ROOT / session_id / "state.txt"
+    state_file = _live(session_id) / "state.txt"
     with _STATE_LOCK:
         lines = _read_state_map(state_file)
         lines.update({k: str(v) for k, v in values.items()})
@@ -239,7 +278,7 @@ def _read_state_text(state_file: Path) -> str:
 
 def read_state(session_id: str, key: str, default: str = "") -> str:
     """Read a value from the session state file."""
-    state_file = SESSIONS_ROOT / session_id / "state.txt"
+    state_file = _live(session_id) / "state.txt"
     if not state_file.exists():
         return default
     for line in _read_state_text(state_file).splitlines():

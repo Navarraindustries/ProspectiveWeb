@@ -17,6 +17,8 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
+
+from services.sessions import InvalidSessionId
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -157,6 +159,12 @@ app.add_middleware(
 # /static is bundled sample geometry with no patient data and stays public.
 
 _PROTECTED_STATIC_PREFIXES = ("/data/",)
+
+
+@app.exception_handler(InvalidSessionId)
+async def invalid_session_id(_request: Request, exc: InvalidSessionId):
+    """Un id que no es un UUID no es una sesión: 404, nunca una ruta."""
+    return JSONResponse({"detail": str(exc)}, status_code=404)
 
 
 @app.middleware("http")

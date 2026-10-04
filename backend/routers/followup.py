@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from services.database import get_db
 from services.db_models import ImagingStudy, LesionConfirmation, PlanningSession
-from services.sessions import (SAVES_ROOT, _read_state_map, has_saved_session, mesh_url,
+from services.sessions import (_read_state_map, has_saved_session, mesh_url, saved_session_dir,
                                session_dir, session_exists, session_subdir)
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ def _study_dir(session_id: str) -> Path:
     if session_exists(session_id):
         return session_dir(session_id)
     if has_saved_session(session_id):
-        return SAVES_ROOT / session_id
+        return saved_session_dir(session_id)
     raise HTTPException(status_code=404, detail=f"No existe la sesión {session_id}.")
 
 
@@ -139,10 +139,10 @@ async def followup_studies(session_id: str, db: Annotated[Session, Depends(get_d
             continue
         sessions = sorted(img.sessions or [], key=lambda s: s.updated_at or s.created_at, reverse=True)
         sess = next((s for s in sessions if has_saved_session(s.session_id)
-                     and (SAVES_ROOT / s.session_id / "meshes" / "vessel_tree.vtp").exists()), None)
+                     and (saved_session_dir(s.session_id) / "meshes" / "vessel_tree.vtp").exists()), None)
         if sess is None:
             continue
-        d = SAVES_ROOT / sess.session_id
+        d = saved_session_dir(sess.session_id)
         lesion, _src = _lesion(db, sess.session_id, d, _state(d))
         out.append(FollowupStudy(
             imaging_study_id=img.id, session_id=sess.session_id,

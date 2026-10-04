@@ -49,7 +49,7 @@ const LIFE = [
   { value: "lt5", label: "< 5 años (+4 vigilar)" },
 ];
 
-function edadDesde(dob?: string): string {
+export function edadDesde(dob?: string): string {
   if (!dob) return "";
   const n = new Date(dob);
   if (Number.isNaN(n.getTime())) return "";

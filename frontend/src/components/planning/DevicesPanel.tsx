@@ -937,7 +937,7 @@ function ClStentTab() {
  *  (Ø stent / Ø vaso medio) no dice DÓNDE falla el ajuste; esto sí. */
 export function AppositionSummary({ a }: { a: ClStentApposition }) {
   const separado = a.gap_area_pct >= 10;
-  const extremo = Math.max(a.proximal_gap_mm, a.distal_gap_mm) > a.noise_mm;
+
   return (
     <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
       <SectionLabel>Aposición a la pared</SectionLabel>
@@ -948,10 +948,12 @@ export function AppositionSummary({ a }: { a: ClStentApposition }) {
       </div>
       <Metric label="Separado de la pared" value={a.gap_area_pct.toFixed(0)} unit=" %"
               badge={separado ? ["Revisar", "warning"] : ["Bien", "success"]} />
-      <Metric label="Comprimido (nominal mayor que el vaso)" value={a.compressed_area_pct.toFixed(0)} unit=" %" />
+      <Metric label="Comprimido" value={a.compressed_area_pct.toFixed(0)} unit=" %" />
       <Metric label="Separación máxima" value={a.max_gap_mm.toFixed(2)} unit=" mm" />
-      <Metric label="Extremo proximal · distal" value={`${a.proximal_gap_mm.toFixed(2)} · ${a.distal_gap_mm.toFixed(2)}`} unit=" mm"
-              badge={extremo ? ["Extremo separado", "warning"] : undefined} />
+      <Metric label="Extremo proximal" value={a.proximal_gap_mm.toFixed(2)} unit=" mm"
+              badge={a.proximal_gap_mm > a.noise_mm ? ["Separado", "warning"] : undefined} />
+      <Metric label="Extremo distal" value={a.distal_gap_mm.toFixed(2)} unit=" mm"
+              badge={a.distal_gap_mm > a.noise_mm ? ["Separado", "warning"] : undefined} />
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
         Geometría del tubo nominal contra la malla, no una simulación de la trenza.
         {a.neck_excluded ? " Sobre el cuello no hay pared: se deja en gris y no cuenta." : ""}

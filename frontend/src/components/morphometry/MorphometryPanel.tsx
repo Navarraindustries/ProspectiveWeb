@@ -301,7 +301,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
               <UiatsCalculator m={m} sessionId={sessionId} dob={planning.patient?.dob} />
             )}
             {tab === "ELAPSS" && (
-              <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId}
+              <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} dob={planning.patient?.dob}
                                 irregularHint={m.volume_valid && m.ui > 0.15} />
             )}
             {tab === "Seguimiento" && (

@@ -18,14 +18,14 @@ describe("aposición del stent", () => {
     render(<AppositionSummary a={base} />);
     expect(screen.getByText("Separado de la pared")).toBeInTheDocument();
     expect(screen.getByText("Bien")).toBeInTheDocument();
-    expect(screen.queryByText("Extremo separado")).not.toBeInTheDocument();
+    expect(screen.queryByText("Separado")).not.toBeInTheDocument();
     expect(screen.getByText(/Sobre el cuello no hay pared/)).toBeInTheDocument();
   });
 
   it("avisa cuando buena parte queda separada o un extremo no toca", () => {
     render(<AppositionSummary a={{ ...base, gap_area_pct: 37, distal_gap_mm: 0.8 }} />);
     expect(screen.getByText("Revisar")).toBeInTheDocument();
-    expect(screen.getByText("Extremo separado")).toBeInTheDocument();
+    expect(screen.getAllByText("Separado")).toHaveLength(1);
   });
 
   it("dice que no es una simulación y enseña las notas", () => {

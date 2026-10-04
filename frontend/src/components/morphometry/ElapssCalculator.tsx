@@ -3,6 +3,7 @@
    repetir la imagen. El tamaño se rellena desde la morfometría. */
 
 import { useState } from "react";
+import { edadDesde } from "./UiatsCalculator";
 import { api } from "../../api/client";
 import type { ElapssLocation, ElapssPopulation, ElapssResult } from "../../api/types";
 import { Button } from "../Button";
@@ -23,16 +24,18 @@ const LOCATIONS: { value: ElapssLocation; label: string }[] = [
 ];
 
 export function ElapssCalculator({
-  maxDiameterMm, sessionId, irregularHint,
+  maxDiameterMm, sessionId, irregularHint, dob,
 }: {
   maxDiameterMm: number;
   sessionId: string | null;
   /** La morfometría sugiere contorno irregular (UI alto): solo se avisa, no se marca. */
   irregularHint?: boolean;
+  /** Fecha de nacimiento del paciente: rellena la edad, como en UIATS. */
+  dob?: string;
 }) {
   const [population, setPopulation] = useState<ElapssPopulation>("other");
   const [location, setLocation] = useState<ElapssLocation>("ica_aca_acom");
-  const [age, setAge] = useState("60");
+  const [age, setAge] = useState(edadDesde(dob) || "60");
   const [size, setSize] = useState(maxDiameterMm > 0 ? maxDiameterMm.toFixed(1) : "");
   const [earlierSah, setEarlierSah] = useState(false);
   const [irregular, setIrregular] = useState(false);

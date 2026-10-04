@@ -238,8 +238,12 @@ class TestOpenDoesNotDuplicateData:
 
         out = dest / "IM_BIG"
         assert out.read_bytes() == b"x" * 4096
-        # Same inode ⇒ the bytes are shared, not duplicated.
-        if hasattr(os, "stat") and os.name == "nt":
+        # Same inode ⇒ the bytes are shared, not duplicated. Solo si el archivo
+        # y la sesión están en el MISMO disco: un enlace duro no cruza
+        # volúmenes, y ahí el backend copia, que es lo correcto (en la máquina
+        # de integración continua el temporal está en C: y el repositorio en D:).
+        mismo_disco = Path(storage.root).resolve().anchor.lower() == dest.resolve().anchor.lower()
+        if os.name == "nt" and mismo_disco:
             assert out.stat().st_nlink > 1, "debería ser un enlace duro, no una copia"
 
         storage.delete_prefix(f"studies/{study_id}")

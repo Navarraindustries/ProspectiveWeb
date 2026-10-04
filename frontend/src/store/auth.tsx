@@ -14,6 +14,8 @@ interface AuthState {
   expiredNotice: string | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Vuelve a pedir el usuario al servidor (tras cambiar la contraseña inicial). */
+  refreshUser: () => Promise<void>;
   clearExpiredNotice: () => void;
 }
 
@@ -23,6 +25,7 @@ const AuthContext = createContext<AuthState>({
   expiredNotice: null,
   login: async () => {},
   logout: () => {},
+  refreshUser: async () => {},
   clearExpiredNotice: () => {},
 });
 
@@ -64,6 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setExpiredNotice(null);
   }, []);
 
+  // Vuelve a pedir el usuario: tras cambiar la contraseña inicial, el
+  // servidor deja de marcarla como pendiente.
+  const refreshUser = useCallback(async () => {
+    setUser(await api.me());
+  }, []);
+
   const logout = useCallback(() => {
     // Clear the cookie server-side too; dropping the local token alone would
     // leave the browser able to fetch imaging from /data and /api/slice.
@@ -77,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, ready, expiredNotice, login, logout, clearExpiredNotice: () => setExpiredNotice(null) }}
+      value={{ user, ready, expiredNotice, login, logout, refreshUser, clearExpiredNotice: () => setExpiredNotice(null) }}
     >
       {children}
     </AuthContext.Provider>

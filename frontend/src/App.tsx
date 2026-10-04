@@ -1,5 +1,6 @@
 /* PROSPECTIVE Web — root: splash → Login/Signup → Pacientes → Sesión → Solicitudes. */
 
+import { ForcePasswordChange } from "./components/ForcePasswordChange";
 import { useCallback, useEffect, useState } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api/client";
@@ -77,6 +78,9 @@ function Router() {
   }, [ready, effective, location.pathname, navigate]);
 
   if (!ready) return null; // restoring stored token
+  // Con la contraseña inicial el servidor responde 403 a todo: una sola
+  // pantalla que lo dice, en vez de un error en cada panel.
+  if (user?.must_change_password) return <ForcePasswordChange />;
 
   const openPatient = (p: PatientSummary) => {
     planning.reset();

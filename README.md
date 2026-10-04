@@ -277,6 +277,7 @@ The server runs out of the box with sensible defaults.
 | `STORAGE_S3_BUCKET` | — | Required when `STORAGE_BACKEND=s3`; bucket must be private |
 | `STORAGE_S3_PREFIX` | — | Optional key prefix inside the bucket |
 | `COOKIE_SECURE` | off | Mark the auth cookie `Secure` (set it when serving over HTTPS) |
+| `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD` | off | `1` skips the forced change of `admin123` (tests, local dev only) |
 | `BACKEND_URL` | `http://127.0.0.1:8000` | Where the Vite dev server proxies `/api`, `/data`, `/static` |
 
 Token lifetime is currently a constant (`ACCESS_TOKEN_EXPIRE_MIN`, 24 h) in
@@ -2058,6 +2059,33 @@ alone** (no `Authorization` header) must also carry `X-CSRF-Token` equal to the
 (double submit, `services/csrf.py`); otherwise 403. Bearer requests are exempt:
 no other page can set that header without passing CORS. So are login, signup
 and logout, which a stale cookie must never block.
+
+**Session ids are validated.** A session id arrives from outside and becomes a
+path. Unvalidated, `..` WAS a valid session (`data/sessions/..` is `data/`), and
+`POST /api/sessions/save` with it ran `rmtree` on `data/session_saves/..` — the
+whole `data/` folder, database and audit chain included, for any signed-in
+user. `services/sessions.py` now accepts only the canonical UUID that
+`create_session` generates; anything else is a 404.
+
+**Who sees which patient.** A non-admin sees the patients they created; the
+rule lived only in the patients router. It is now one module
+(`services/access.py`) applied to the study gallery, captures, saved sessions,
+the longitudinal and follow-up endpoints, lesion confirmations and the files
+under `/data`. A session not yet attached to a patient has no owner to check:
+its random UUID is the key.
+
+**`/data` serves session files only.** It used to serve the whole `data/`
+folder, so `/data/prospective.db` was the entire database for any account. Only
+`/data/sessions/<uuid>/…` is served now, and only when that session does not
+belong to someone else's patient; everything else is a 404, for admins too.
+
+**First login and failed logins.** The default `admin` / `admin123` account must
+change its password before doing anything else (403 on every other endpoint;
+the app shows a single screen for it), and an existing installation still on
+`admin123` is flagged at startup. `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD=1`
+turns this off for tests and local development — never with patient data.
+Five failed logins for the same user from the same address within 15 minutes
+answer 429 until the oldest expires (`services/login_throttle.py`).
 
 ### Authentication & users
 

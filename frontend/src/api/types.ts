@@ -10,6 +10,8 @@ export interface UserInfo {
   institution: string;
   avatar_initials: string;
   has_photo?: boolean;
+  /** La cuenta lleva la contraseña inicial: hay que cambiarla antes de seguir. */
+  must_change_password?: boolean;
 }
 
 export interface LoginResponse {

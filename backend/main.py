@@ -186,11 +186,25 @@ async def guard_private_static(request: Request, call_next):
         token = auth[7:] if auth.lower().startswith("bearer ") else request.cookies.get("prospective_token")
         db = SessionLocal()
         try:
-            if user_for_token(db, token) is None:
+            user = user_for_token(db, token)
+            if user is None:
                 return JSONResponse(
                     {"detail": "Authentication required — patient data"},
                     status_code=401,
                 )
+            # `data/` no es solo sesiones: ahí viven la base de datos y la
+            # cadena de auditoría, y StaticFiles las servía enteras a cualquier
+            # usuario (`/data/prospective.db`). Solo se sirve lo que cuelga de
+            # `/data/sessions/<uuid>/`, y solo si esa sesión no es de un
+            # paciente ajeno.
+            from services.access import can_access_patient, session_patient_id
+            from services.sessions import valid_session_id
+            parts = path.split("/")          # ["", "data", "sessions", <uuid>, …]
+            if (len(parts) < 5 or parts[2] != "sessions" or ".." in parts
+                    or not valid_session_id(parts[3])):
+                return JSONResponse({"detail": "Not found"}, status_code=404)
+            if not can_access_patient(db, user, session_patient_id(db, parts[3])):
+                return JSONResponse({"detail": "No autorizado sobre este paciente."}, status_code=403)
         finally:
             db.close()
     return await call_next(request)

@@ -273,16 +273,28 @@ def get_current_user(
     return user
 
 
+#: Lo único que puede hacer una cuenta que aún lleva la contraseña inicial.
+_ALLOWED_BEFORE_PASSWORD_CHANGE = ("/api/auth/change-password", "/api/auth/logout", "/api/auth/me")
+MUST_CHANGE_DETAIL = "Debes cambiar la contraseña inicial antes de continuar."
+
+
 def require_user(
+    request: Request,
     user: Annotated[User | None, Depends(get_optional_user)],
 ) -> User:
-    """Dependency that enforces authentication.  Raises HTTP 401 if no valid token."""
+    """Dependency that enforces authentication.  Raises HTTP 401 if no valid token.
+
+    Y 403 mientras la cuenta lleve la contraseña inicial conocida: sin esto,
+    `admin` / `admin123` seguía valiendo indefinidamente en cualquier
+    instalación en la que nadie se acordara de cambiarla."""
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required — provide a valid Bearer token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if user.must_change_password and not request.url.path.startswith(_ALLOWED_BEFORE_PASSWORD_CHANGE):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=MUST_CHANGE_DETAIL)
     return user
 
 
@@ -307,6 +319,7 @@ def seed_default_user(db: Session) -> None:
     Change via POST /api/auth/change-password after first login.
     """
     if db.query(User).count() > 0:
+        flag_default_password(db)
         return
     admin = User(
         username        = "admin",
@@ -314,10 +327,35 @@ def seed_default_user(db: Session) -> None:
         full_name       = "Administrador",
         role            = "admin",
         institution     = "SkullApp",
+        must_change_password = not _default_password_allowed(),
     )
     db.add(admin)
     db.commit()
     logger.warning(
         "Default admin account created (username=admin password=admin123). "
-        "Change it immediately in production."
+        "It must be changed at first login."
     )
+
+
+def _default_password_allowed() -> bool:
+    """`PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD=1`: para los tests y para
+    desarrollo local, donde obligar a cambiar `admin123` en cada base nueva
+    solo estorba. Nunca en una instalación con datos de pacientes."""
+    return os.environ.get("PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD", "") == "1"
+
+
+def flag_default_password(db: Session) -> None:
+    """Marca al `admin` de una instalación ANTERIOR que sigue con `admin123`.
+
+    La columna nace a False en las bases que ya existían; sin esto, justo las
+    instalaciones que nunca cambiaron la contraseña se quedarían sin obligación
+    de hacerlo. Una verificación de hash por arranque."""
+    if _default_password_allowed():
+        return
+    admin = db.query(User).filter(User.username == "admin").first()
+    if admin is None or admin.must_change_password:
+        return
+    if verify_password("admin123", admin.hashed_password):
+        admin.must_change_password = True
+        db.commit()
+        logger.warning("The admin account still uses the default password: it must be changed at next login.")

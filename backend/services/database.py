@@ -95,6 +95,7 @@ def _migrate_user_columns() -> None:
 
     new_cols = {
         "status":          "VARCHAR(16) NOT NULL DEFAULT 'active'",
+        "must_change_password": "BOOLEAN NOT NULL DEFAULT 0",
         "national_id":     "VARCHAR(64) NOT NULL DEFAULT ''",
         "professional_id": "VARCHAR(64) NOT NULL DEFAULT ''",
         "specialty":       "VARCHAR(100) NOT NULL DEFAULT ''",

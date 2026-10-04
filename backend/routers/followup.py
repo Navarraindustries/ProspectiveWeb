@@ -20,8 +20,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from services.access import require_patient, require_session
+from services.auth_service import get_current_user
 from services.database import get_db
-from services.db_models import ImagingStudy, LesionConfirmation, PlanningSession
+from services.db_models import ImagingStudy, LesionConfirmation, PlanningSession, User
 from services.sessions import (_read_state_map, has_saved_session, mesh_url, saved_session_dir,
                                session_dir, session_exists, session_subdir)
 
@@ -127,10 +129,15 @@ def _geometry(d: Path, st: dict) -> np.ndarray:
     response_model=list[FollowupStudy],
     summary="Estudios del mismo paciente que se pueden superponer al actual",
 )
-async def followup_studies(session_id: str, db: Annotated[Session, Depends(get_db)]) -> list[FollowupStudy]:
+async def followup_studies(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> list[FollowupStudy]:
     ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
     if ps is None or not ps.patient_id:
         return []      # sesión sin paciente: no hay con qué compararla
+    require_patient(db, current_user, ps.patient_id)
     out: list[FollowupStudy] = []
     imgs = (db.query(ImagingStudy).filter(ImagingStudy.patient_id == ps.patient_id)
             .order_by(ImagingStudy.acquired_at.desc(), ImagingStudy.id.desc()).all())
@@ -165,8 +172,12 @@ async def followup_studies(session_id: str, db: Annotated[Session, Depends(get_d
         "el saco anterior ya colocado y el ruido de la comparación."
     ),
 )
-async def followup(session_id: str, req: FollowupRequest,
-                   db: Annotated[Session, Depends(get_db)]) -> FollowupResultOut:
+async def followup(
+    session_id: str,
+    req: FollowupRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> FollowupResultOut:
     from services.followup import compare
     from services.segmentation import read_vtp
 
@@ -174,6 +185,9 @@ async def followup(session_id: str, req: FollowupRequest,
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     if req.previous_session_id == session_id:
         raise HTTPException(status_code=422, detail="Elige otro estudio, no el mismo.")
+    # Los dos estudios tienen que ser de pacientes que este usuario puede ver.
+    require_session(db, current_user, session_id)
+    require_session(db, current_user, req.previous_session_id)
     dc, dp = session_dir(session_id), _study_dir(req.previous_session_id)
     sc, sp = _state(dc), _state(dp)
     for d, nombre in ((dc, "actual"), (dp, "anterior")):

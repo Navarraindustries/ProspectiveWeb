@@ -32,7 +32,8 @@ export type CaptureFn = (() => Promise<string | null>) & {
 /** Lo mínimo que se le pide a una ventana de vtk.js para capturarla. */
 export interface CapturableWindow {
   getApiSpecificRenderWindow?: () => {
-    captureNextImage?: (fmt: string) => Promise<string>;
+    // vtk.js la declara anulable: sin vista activa devuelve null, y la captura lo trata como «sin imagen».
+    captureNextImage?: (fmt: string) => Promise<string> | null;
     getCanvas?: () => HTMLCanvasElement | null;
   } | null;
   /** La ventana de render del núcleo: la que sabe dibujar sin pasar por el

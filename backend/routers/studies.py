@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from models.dicom import UploadResult
 from models.patient import StudyCard
+from services.access import own_patient_ids, require_patient
 from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import ImagingStudy, PlanningSession, Patient, Study, User
@@ -75,12 +76,16 @@ def _to_card(img: ImagingStudy, latest: PlanningSession | None) -> StudyCard:
 )
 async def list_studies(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
     q: str = Query("", description="Filtro por nombre de paciente o cédula/HC"),
     patient_id: int | None = Query(None, description="Solo los estudios de este paciente"),
     case_id: int | None = Query(None, description="Solo los estudios de este caso clínico"),
     limit: int = Query(200, ge=1, le=1000),
 ) -> list[StudyCard]:
     query = db.query(ImagingStudy)
+    visibles = own_patient_ids(db, current_user)
+    if visibles is not None:
+        query = query.filter(ImagingStudy.patient_id.in_(visibles))
     if patient_id is not None:
         query = query.filter(ImagingStudy.patient_id == patient_id)
     if case_id is not None:
@@ -129,6 +134,7 @@ async def get_thumbnail(
     img = db.query(ImagingStudy).filter_by(id=study_id).first()
     if img is None:
         raise HTTPException(status_code=404, detail=f"Estudio {study_id} no encontrado")
+    require_patient(db, _user, img.patient_id)
     if not img.thumb_key:
         raise HTTPException(status_code=404, detail="Este estudio no tiene vista previa")
     try:
@@ -214,6 +220,7 @@ async def archive_study(
     case = db.query(Study).filter_by(id=case_id).first()
     if case is None:
         raise HTTPException(status_code=404, detail=f"Caso {case_id} no encontrado")
+    require_patient(db, _user, case.patient_id)
     try:
         img = archive_into_case(db, case, session_id)
     except ValueError as exc:
@@ -245,6 +252,7 @@ async def open_study(
     img = db.query(ImagingStudy).filter_by(id=study_id).first()
     if img is None:
         raise HTTPException(status_code=404, detail=f"Estudio {study_id} no encontrado")
+    require_patient(db, _user, img.patient_id)
     if not img.storage_prefix:
         raise HTTPException(
             status_code=409,

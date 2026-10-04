@@ -30,6 +30,7 @@ from models.ground_truth import LesionConfirmIn, LesionConfirmOut, LesionSummary
 from services import mesh_backup
 from services.audit import (ACT_LESION_CONFIRMED, ACT_LESION_RETRACTED,
                             audit_append, audit_patient)
+from services.access import require_patient
 from services.auth_service import get_current_user, require_admin
 from services.database import get_db
 from services.db_models import ImagingStudy, LesionConfirmation, Patient, User
@@ -148,6 +149,7 @@ async def confirm_lesion(
         if img is None:
             raise HTTPException(status_code=404,
                                 detail=f"No existe el estudio de imagen {req.imaging_study_id}.")
+        require_patient(db, current_user, img.patient_id)
 
     cands = _candidates(req.session_id)
     point = None
@@ -207,11 +209,16 @@ async def confirm_lesion(
 )
 async def current_confirmation(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
     session_id: str = Query(""),
     imaging_study_id: Optional[int] = Query(None),
 ) -> Optional[LesionConfirmOut]:
     if not session_id and not imaging_study_id:
         raise HTTPException(status_code=422, detail="Hace falta la sesión o el estudio.")
+    if imaging_study_id:
+        img = db.get(ImagingStudy, imaging_study_id)
+        if img is not None:
+            require_patient(db, current_user, img.patient_id)
     row = _active(db, session_id, imaging_study_id).first()
     return _out(row, db) if row else None
 
@@ -229,6 +236,7 @@ async def retract_confirmation(
     row = db.get(LesionConfirmation, confirmation_id)
     if row is None or row.retracted:
         raise HTTPException(status_code=404, detail="No hay esa confirmación vigente.")
+    require_patient(db, current_user, row.patient_id)
     row.retracted = True
     db.commit()
     _auditar(db, ACT_LESION_RETRACTED, row, current_user)

@@ -39,6 +39,9 @@ class User(Base):
     institution     = Column(String(128), nullable=False, default="")
     is_active       = Column(Boolean, nullable=False, default=True)
     status          = Column(String(16), nullable=False, default=STATUS_ACTIVE)
+    # La cuenta se creó con una contraseña conocida (admin/admin123): hasta que
+    # la cambie no puede hacer nada más. Ver auth_service.require_user.
+    must_change_password = Column(Boolean, nullable=False, default=False)
     created_at      = Column(DateTime, nullable=False, default=func.now())
 
     # Professional profile (filled during self-registration, reviewed by admin)

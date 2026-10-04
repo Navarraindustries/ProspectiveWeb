@@ -104,9 +104,12 @@ class LocalBackend:
         return self._root or study_files_root()
 
     def _path(self, key: str) -> Path:
-        p = (self.root / key).resolve()
-        # Guard against '..' in a key escaping the store.
-        if not str(p).startswith(str(self.root.resolve())):
+        root = self.root.resolve()
+        p = (root / key).resolve()
+        # Guard against '..' in a key escaping the store. Por componentes, no
+        # por prefijo de texto: «study_files_otro» empieza igual que
+        # «study_files» y no está dentro.
+        if p != root and root not in p.parents:
             raise ValueError(f"Invalid storage key: {key!r}")
         return p
 
@@ -130,8 +133,13 @@ class LocalBackend:
         base = self._path(prefix)
         if not base.is_dir():
             return []
+        # Contra la raíz RESUELTA, igual que `base`. Con la raíz tal cual, una
+        # carpeta escrita con el nombre corto de Windows (`RUNNER~1`) no
+        # «contenía» los ficheros que `resolve()` devuelve con el nombre largo,
+        # y archivar un estudio fallaba (visto en la integración continua).
+        root = self.root.resolve()
         return sorted(
-            str(p.relative_to(self.root)).replace("\\", "/")
+            str(p.relative_to(root)).replace("\\", "/")
             for p in base.rglob("*") if p.is_file()
         )
 

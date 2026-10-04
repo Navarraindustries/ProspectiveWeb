@@ -275,3 +275,27 @@ class TestStorageIsolation:
         b = LocalBackend()
         with pytest.raises(ValueError):
             b.exists("../../etc/passwd")
+
+
+class TestRaizConOtroNombre:
+    """La raíz del archivo puede llegar escrita de una forma y resolverse a otra
+    (nombre corto de Windows `RUNNER~1`, un enlace, una ruta relativa). Listar
+    comparaba los ficheros resueltos con la raíz sin resolver y fallaba."""
+
+    def test_listar_funciona_con_una_raiz_sin_resolver(self, tmp_path, monkeypatch):
+        from services.storage import LocalBackend
+        real = tmp_path / "archivo"
+        real.mkdir()
+        # La misma carpeta, nombrada dando un rodeo: «archivo/../archivo».
+        rodeo = tmp_path / "archivo" / ".." / "archivo"
+        b = LocalBackend(rodeo)
+        b.put_bytes("studies/1/thumb.png", b"x")
+        assert b.list_prefix("studies/1") == ["studies/1/thumb.png"]
+
+    def test_una_carpeta_hermana_con_el_mismo_prefijo_no_esta_dentro(self, tmp_path):
+        import pytest
+        from services.storage import LocalBackend
+        (tmp_path / "archivo").mkdir(); (tmp_path / "archivo_otro").mkdir()
+        b = LocalBackend(tmp_path / "archivo")
+        with pytest.raises(ValueError):
+            b.put_bytes("../archivo_otro/x.bin", b"x")

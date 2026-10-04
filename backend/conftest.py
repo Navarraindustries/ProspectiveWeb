@@ -30,6 +30,12 @@ os.environ["PROSPECTIVE_ALLOW_MULTI_PROCESS"] = "1"
 # contraseña inicial que la app exige (test_auth_hardening lo comprueba aparte).
 os.environ["PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD"] = "1"
 
+# El archivo de estudios, a una carpeta temporal. Varios módulos lo fijan
+# también por su cuenta al importarse; en un solo proceso gana el último
+# import, así que aquí se garantiza que, gane quien gane, nunca sea el real.
+os.environ["STORAGE_BACKEND"] = "local"
+os.environ.setdefault("STUDY_FILES_ROOT", tempfile.mkdtemp(prefix="prospective_study_files_"))
+
 # The audit chain too. Without this the suite appended thousands of blocks to
 # the developer's real chain, and the endpoint test then asserted a property of
 # that file rather than of the code: one break anywhere in it — a crash, two

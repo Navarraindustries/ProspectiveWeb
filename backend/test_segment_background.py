@@ -97,7 +97,7 @@ class TestAuditoria:
     def test_la_segmentacion_queda_en_la_cadena(self):
         sid = create_session(); _tube_series(sid)
         assert client.post("/api/segment", json=_body(sid)).status_code == 200
-        b = [x for x in _bloques("SEGMENTATION_COMPLETE") if x["payload"]["session_id"] == sid]
+        b = [x for x in _bloques("SEGMENTATION_COMPLETE") if x["payload"].get("session_id") == sid]
         assert b, "la segmentación no dejó bloque"
         assert b[-1]["username"] == "admin"
         assert b[-1]["payload"]["method"] == "threshold" and b[-1]["payload"]["vertices"] > 0
@@ -106,7 +106,7 @@ class TestAuditoria:
         sid = create_session(); _tube_series(sid)
         client.post("/api/segment?background=true", json=_body(sid))
         assert _esperar(sid).status_code == 200
-        assert [x for x in _bloques("SEGMENTATION_COMPLETE") if x["payload"]["session_id"] == sid]
+        assert [x for x in _bloques("SEGMENTATION_COMPLETE") if x["payload"].get("session_id") == sid]
 
     def test_colocar_coils_queda_en_la_cadena(self):
         sid = create_session()
@@ -115,6 +115,6 @@ class TestAuditoria:
             {"coil_id": coil, "position": {"x": 0, "y": 0, "z": 0}, "packing_density": 0},
         ]})
         assert r.status_code == 200, r.text
-        b = [x for x in _bloques("DEVICE_PLACED") if x["payload"]["session_id"] == sid]
+        b = [x for x in _bloques("DEVICE_PLACED") if x["payload"].get("session_id") == sid]
         assert b and b[-1]["payload"]["kind"] == "coils"
         assert b[-1]["payload"]["coils"] == [coil] and b[-1]["username"] == "admin"

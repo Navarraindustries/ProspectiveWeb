@@ -257,11 +257,17 @@ class TestStorageIsolation:
         must be redirected by STUDY_FILES_ROOT while testing.
         """
         from services.storage import get_storage, study_files_root
-        assert str(study_files_root()).startswith(_tmp), (
+        # Bajo la carpeta temporal del sistema, no bajo la de ESTE módulo:
+        # cada módulo de tests fija la suya al importarse y en un solo proceso
+        # gana el último, así que comparar con `_tmp` hacía fallar la suite
+        # entera según el orden de los imports. Lo que importa es que no sea
+        # el archivo real.
+        temporal = str(Path(tempfile.gettempdir()).resolve())
+        assert str(study_files_root().resolve()).startswith(temporal), (
             f"los tests escribirían en el archivo real: {study_files_root()}"
         )
         # And the live backend must honour it too, not a path frozen at import.
-        assert str(get_storage().root).startswith(_tmp)
+        assert str(Path(get_storage().root).resolve()).startswith(temporal)
 
     def test_keys_cannot_escape_the_store(self):
         from services.storage import LocalBackend

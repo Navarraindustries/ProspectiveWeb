@@ -33,7 +33,21 @@ jobs:
       - name: Dependencias
         run: python -m pip install -r requirements-lock.txt
       - name: Tests
-        run: python -m pytest -q -p no:warnings
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          set -o pipefail
+          python -m pytest -q -p no:warnings -rfE 2>&1 | tee pytest.log
+      # El registro completo exige iniciar sesión; las anotaciones no. Así el
+      # motivo de un fallo se ve en la propia página de la ejecución.
+      - name: Resumen del fallo
+        if: failure()
+        shell: bash
+        run: |
+          grep -aE "^(FAILED|ERROR) |INTERNALERROR|Error:" pytest.log | head -8 | while IFS= read -r l; do echo "::error::${l}"; done
+          echo "::error::$(tail -n 4 pytest.log | tr '
+' ' ')"
 
   frontend:
     runs-on: ubuntu-latest

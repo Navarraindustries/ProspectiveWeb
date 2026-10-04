@@ -46,8 +46,7 @@ jobs:
         shell: bash
         run: |
           grep -aE "^(FAILED|ERROR) |INTERNALERROR|Error:" pytest.log | head -8 | while IFS= read -r l; do echo "::error::${l}"; done
-          echo "::error::$(tail -n 4 pytest.log | tr '
-' ' ')"
+          echo "::error::$(tail -n 4 pytest.log | paste -sd ' ' -)"
 
   frontend:
     runs-on: ubuntu-latest

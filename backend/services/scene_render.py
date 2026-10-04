@@ -32,6 +32,48 @@ import math
 
 logger = logging.getLogger(__name__)
 
+# ── ¿Se puede dibujar fuera de pantalla en esta máquina? ───────────────────── #
+#
+# En una máquina sin OpenGL utilizable (un servidor sin tarjeta gráfica, la
+# máquina de integración continua) `vtkRenderWindow.Render()` no lanza una
+# excepción: provoca una violación de acceso que mata el PROCESO. El
+# `except Exception` de quien llama no la ve, y pedir un informe tiraba el
+# servidor entero. Se averigua una vez, en un proceso aparte que sí puede
+# morir, y si no se puede el informe sale sin las vistas del plan.
+
+_PROBE = (
+    "import vtk\n"
+    "s = vtk.vtkSphereSource(); m = vtk.vtkPolyDataMapper(); m.SetInputConnection(s.GetOutputPort())\n"
+    "a = vtk.vtkActor(); a.SetMapper(m); r = vtk.vtkRenderer(); r.AddActor(a)\n"
+    "w = vtk.vtkRenderWindow(); w.SetOffScreenRendering(1); w.AddRenderer(r); w.SetSize(32, 32); w.Render()\n"
+    "f = vtk.vtkWindowToImageFilter(); f.SetInput(w); f.Update()\n"
+    "print('RENDER-OK')\n"
+)
+_offscreen: bool | None = None
+
+
+def offscreen_available() -> bool:
+    """True si esta máquina puede dibujar las vistas. Se comprueba una vez."""
+    global _offscreen
+    if _offscreen is None:
+        import os
+        import subprocess
+        import sys
+        forced = os.environ.get("PROSPECTIVE_PLAN_VIEWS", "")
+        if forced in ("0", "1"):
+            _offscreen = forced == "1"
+        else:
+            try:
+                p = subprocess.run([sys.executable, "-c", _PROBE], capture_output=True, timeout=120)
+                _offscreen = p.returncode == 0 and b"RENDER-OK" in p.stdout
+            except Exception as exc:  # noqa: BLE001 — sin sonda no se arriesga el proceso
+                logger.warning("Offscreen render probe could not run: %s", exc)
+                _offscreen = False
+        if not _offscreen:
+            logger.warning("No usable offscreen OpenGL on this machine: reports will carry no plan views.")
+    return _offscreen
+
+
 #: (direction the camera looks FROM, up vector). Six standard viewpoints plus an
 #: oblique one, which is the only view that shows depth in a single frame.
 VIEWS: dict[str, tuple[tuple[float, float, float], tuple[float, float, float]]] = {
@@ -148,6 +190,9 @@ def render_views(
     names = views or list(VIEWS)
     out: dict[str, bytes] = {}
     if not layers:
+        return out
+
+    if not offscreen_available():
         return out
 
     renderer = vtk.vtkRenderer()

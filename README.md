@@ -278,6 +278,7 @@ The server runs out of the box with sensible defaults.
 | `STORAGE_S3_PREFIX` | — | Optional key prefix inside the bucket |
 | `COOKIE_SECURE` | off | Mark the auth cookie `Secure` (set it when serving over HTTPS) |
 | `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD` | off | `1` skips the forced change of `admin123` (tests, local dev only) |
+| `PROSPECTIVE_PLAN_VIEWS` | probed | `0` / `1` forces the report's server-rendered plan views off / on. Unset, a child process probes once whether offscreen OpenGL works: on a machine without it VTK does not raise, it kills the process |
 | `BACKEND_URL` | `http://127.0.0.1:8000` | Where the Vite dev server proxies `/api`, `/data`, `/static` |
 
 Token lifetime is currently a constant (`ACCESS_TOKEN_EXPIRE_MIN`, 24 h) in

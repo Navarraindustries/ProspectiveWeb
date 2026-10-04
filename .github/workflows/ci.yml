@@ -38,15 +38,19 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           set -o pipefail
-          python -m pytest -q -p no:warnings -rfE 2>&1 | tee pytest.log
+          # -v: si el proceso se cae (fallo de segmento), la última línea dice
+          # en qué test estaba.
+          python -X faulthandler -m pytest -v -p no:warnings -rfE 2>&1 | tee pytest.log
       # El registro completo exige iniciar sesión; las anotaciones no. Así el
       # motivo de un fallo se ve en la propia página de la ejecución.
       - name: Resumen del fallo
         if: failure()
         shell: bash
         run: |
-          grep -aE "^(FAILED|ERROR) |INTERNALERROR|Error:" pytest.log | head -8 | while IFS= read -r l; do echo "::error::${l}"; done
-          echo "::error::$(tail -n 4 pytest.log | paste -sd ' ' -)"
+          set +e
+          grep -aE "^(FAILED|ERROR) |INTERNALERROR" pytest.log | head -6 | while IFS= read -r l; do echo "::error::${l}"; done
+          echo "::error::FINAL: $(tail -n 30 pytest.log | paste -sd '|' - | cut -c1-3500)"
+          exit 0
 
   frontend:
     runs-on: ubuntu-latest

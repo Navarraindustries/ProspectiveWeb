@@ -334,8 +334,8 @@ class SegmentationPipeline:
             sitk_mask.SetSpacing((float(sx), float(sy), float(sz)))
             closed = sitk.BinaryMorphologicalClosing(sitk_mask, [radius, radius, radius])
             return sitk.GetArrayFromImage(closed).astype(np.float32)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 — hay otro camino debajo
+            logger.warning("SimpleITK falló (closed); se prueba la alternativa: %s", exc)
         try:
             from scipy.ndimage import binary_closing, generate_binary_structure
             struct = generate_binary_structure(3, 1)
@@ -432,8 +432,8 @@ class SegmentationPipeline:
             img     = sitk.GetImageFromArray(volume.astype(np.float32))
             blurred = sitk.SmoothingRecursiveGaussian(img, sigma)
             return sitk.GetArrayFromImage(blurred)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 — hay otro camino debajo
+            logger.warning("SimpleITK falló (blurred); se prueba la alternativa: %s", exc)
         logger.warning("No Gaussian library — skipping pre-smooth")
         return volume.astype(np.float32)
 

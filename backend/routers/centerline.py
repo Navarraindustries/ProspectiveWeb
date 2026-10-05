@@ -6,11 +6,17 @@ import logging
 import time
 
 import numpy as np
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from services.auth_service import get_current_user
+from services.audit import audit_device
+from services.db_models import User
 
 from models.centerline import (
     CenterlineClearResult, CenterlineRequest, CenterlineResult,
-    CrossSectionRequest, CrossSectionResult, ClStentRequest, ClStentResult,
+    CrossSectionRequest, CrossSectionResult, ClStentApposition, ClStentCoverage, ClStentRequest, ClStentResult,
+    FdSizingResult,
 )
 from services.centerline import extract_centerline
 from services.cross_section import compute_cross_sections
@@ -198,7 +204,7 @@ async def compute_cross_section(session_id: str, req: CrossSectionRequest) -> Cr
     )
 
 
-def _run_cl_stent(points_path, req: ClStentRequest, out_path):
+def _run_cl_stent(points_path, req: ClStentRequest, out_path, session_id: str | None = None):
     data = np.load(points_path)
     result = deploy_stent_on_centerline(
         data["points"], data["radii"],
@@ -209,7 +215,78 @@ def _run_cl_stent(points_path, req: ClStentRequest, out_path):
         braid_count=req.braid_count,
     )
     write_vtp(result.stent_poly_data, out_path)
+    if session_id:
+        _measure_vessel_like_sizing(session_id, data["points"], req, result, out_path.parent)
+        result.apposition = _apposition(session_id, result, out_path)
+        result.coverage = _coverage(result, req, out_path) if result.apposition and req.braid else None
     return result
+
+
+def _coverage(result, req: ClStentRequest, out_path):
+    """Cobertura metálica de la trenza sobre el mapa de aposición. Igual que
+    él, si no sale el stent se queda como estaba."""
+    from dataclasses import asdict
+    from services.braid_coverage import annotate
+    try:
+        c = annotate(result.stent_poly_data, result.centerline_segment, req.stent_diameter_mm)
+        write_vtp(result.stent_poly_data, out_path)
+        return asdict(c)
+    except ValueError as exc:            # fuera de las medidas de la familia
+        logger.info("Coverage map not applicable: %s", exc)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Coverage map skipped: %s", exc)
+        return None
+
+
+def _apposition(session_id: str, result, out_path):
+    """Pinta en la malla del stent su distancia a la pared y la resume. Si
+    falla, el stent se queda como estaba: un mapa no vale un despliegue."""
+    from dataclasses import asdict
+    from routers.plan import _load_float
+    from services.apposition import annotate
+    vessel = out_path.parent / "vessel_tree.vtp"
+    if not vessel.exists():
+        return None
+    try:
+        neck = [_load_float(session_id, f"morpho.neck_origin_{k}", float("nan")) for k in "xyz"]
+        neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+        tiene_cuello = not any(v != v for v in neck) and neck_mm > 0
+        a = annotate(
+            result.stent_poly_data, read_vtp(vessel), result.centerline_segment,
+            neck_center=neck if tiene_cuello else None, neck_mm=neck_mm if tiene_cuello else 0.0,
+            voxel_mm=_load_float(session_id, "dicom.spacing_x", 0.0),
+        )
+        write_vtp(result.stent_poly_data, out_path)
+        return asdict(a)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Apposition map skipped for %s: %s", session_id, exc)
+        return None
+
+
+def _measure_vessel_like_sizing(session_id, points, req, result, meshes_dir) -> None:
+    """Sustituye el calibre de los radios de la línea central por el de los
+    cortes, el mismo que da el dimensionado (services/fd_sizing.py). Si no hay
+    cortes suficientes, se queda el de los radios."""
+    from routers.plan import _load_float
+    from services.fd_sizing import _arc, project_on_centerline, segment_diameter
+    vessel = meshes_dir / "vessel_tree.vtp"
+    if not vessel.exists():
+        return
+    pts = np.asarray(points, float)
+    arc = _arc(pts)
+    s0 = req.start_arc_mm if req.start_arc_mm is not None else 0.0
+    s1 = req.end_arc_mm if req.end_arc_mm is not None else float(arc[-1])
+    exclude = None
+    neck = [_load_float(session_id, f"morpho.neck_origin_{k}", float("nan")) for k in "xyz"]
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    if not any(v != v for v in neck) and neck_mm > 0:
+        sn, _d = project_on_centerline(pts, arc, neck)
+        exclude = (sn - neck_mm / 2, sn + neck_mm / 2)
+    d, _n = segment_diameter(read_vtp(vessel), pts, s0, s1, exclude)
+    if d > 0:
+        result.mean_vessel_diameter_mm = d
+        result.coverage_ratio = req.stent_diameter_mm / d
 
 
 @router.post(
@@ -224,7 +301,11 @@ def _run_cl_stent(points_path, req: ClStentRequest, out_path):
         "(POST /api/centerline/{session_id})."
     ),
 )
-async def deploy_cl_stent(session_id: str, req: ClStentRequest) -> ClStentResult:
+async def deploy_cl_stent(
+    session_id: str,
+    req: ClStentRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> ClStentResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
@@ -235,7 +316,7 @@ async def deploy_cl_stent(session_id: str, req: ClStentRequest) -> ClStentResult
 
     out_path = meshes_dir / "cl_stent.vtp"
     try:
-        result = await asyncio.to_thread(_run_cl_stent, points_path, req, out_path)
+        result = await asyncio.to_thread(_run_cl_stent, points_path, req, out_path, session_id)
         from services.device_state import save_stent
         save_stent(session_id, {
             "name": "Stent guiado por centerline",
@@ -272,6 +353,10 @@ async def deploy_cl_stent(session_id: str, req: ClStentRequest) -> ClStentResult
         )
 
     url = f"{mesh_url(session_id, 'cl_stent.vtp')}?v={int(time.time() * 1000)}"
+    audit_device("stent_cl", session_id, current_user, {
+        "length_mm": round(result.length_mm, 1),
+        "nominal_diameter_mm": round(result.nominal_diameter_mm, 2),
+    })
     return ClStentResult(
         stent_mesh_url=url,
         length_mm=round(result.length_mm, 1),
@@ -280,7 +365,80 @@ async def deploy_cl_stent(session_id: str, req: ClStentRequest) -> ClStentResult
         coverage_ratio=round(result.coverage_ratio, 2),
         total_arc_mm=round(result.total_arc_mm, 1),
         warning=warning,
+        apposition=ClStentApposition(**ap) if (ap := getattr(result, "apposition", None)) else None,
+        coverage=ClStentCoverage(**cv) if (cv := getattr(result, "coverage", None)) else None,
     )
+
+
+# ── POST /centerline/{session_id}/fd-sizing ───────────────────────────────── #
+
+def _run_fd_sizing(session_id: str, vessel_path, points_path):
+    from routers.detect import _read_rim_points
+    from routers.plan import _STENT_LIBRARY, _load_float
+    from services.fd_sizing import size_flow_diverter
+
+    neck = [_load_float(session_id, f"morpho.neck_origin_{k}", float("nan")) for k in "xyz"]
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    if any(v != v for v in neck) or neck_mm <= 0:
+        raise ValueError("Falta la morfometría: hace falta el cuello medido para "
+                         "saber dónde caen los anclajes.")
+    rim = [(p.x, p.y, p.z) for p in _read_rim_points(session_id)]
+    r = size_flow_diverter(
+        read_vtp(vessel_path), np.load(points_path)["points"], neck, neck_mm,
+        [s.model_dump() for s in _STENT_LIBRARY], rim_points=rim,
+    )
+    # Dos medidas de la misma arteria que no casan: la pestaña «Stents»
+    # dimensiona con la de la morfometría. En un caso real dio 1,67 mm donde
+    # los cortes sobre la línea central miden 4–5 mm.
+    parent = _load_float(session_id, "morpho.parent_artery_mm", 0.0)
+    medidos = [z.diameter_mm for z in (r.proximal, r.distal) if z.diameter_mm > 0]
+    if parent > 0 and medidos:
+        aqui = sum(medidos) / len(medidos)
+        if abs(parent - aqui) > 1.0:
+            from services.sessions import read_state
+            vieja = read_state(session_id, "morpho.parent_artery_method", "") != "p25"
+            r.warnings.append(
+                f"La arteria madre de la morfometría ({parent:.2f} mm) no coincide con "
+                f"el calibre medido aquí sobre la línea central ({aqui:.2f} mm). La "
+                f"pestaña «Stents» dimensiona con la de la morfometría: "
+                + ("es de una versión anterior del cálculo; vuelve a ejecutar la morfometría."
+                   if vieja else "compruébala."))
+    return r
+
+
+@router.post(
+    "/centerline/{session_id}/fd-sizing",
+    response_model=FdSizingResult,
+    summary="Dimensionar un flow-diverter sobre la línea central",
+    description=(
+        "Mide el calibre del vaso en el anclaje proximal y en el distal del "
+        "cuello con cortes perpendiculares a la línea central, y propone el "
+        "diámetro y la longitud etiquetada de cada flow-diverter del catálogo. "
+        "Necesita la línea central y la morfometría. No simula el despliegue "
+        "de la trenza: ver services/fd_sizing.py."
+    ),
+)
+async def fd_sizing(session_id: str) -> FdSizingResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    meshes_dir = session_subdir(session_id, "meshes")
+    points_path = meshes_dir / "centerline_points.npz"
+    vessel_path = meshes_dir / "vessel_tree.vtp"
+    if not points_path.exists():
+        raise HTTPException(status_code=422, detail="Extrae primero la línea central.")
+    if not vessel_path.exists():
+        raise HTTPException(status_code=422, detail="No hay malla segmentada.")
+    try:
+        r = await asyncio.to_thread(_run_fd_sizing, session_id, vessel_path, points_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    from dataclasses import asdict
+    d = asdict(r)
+    d["neck_arc_mm"] = list(r.neck_arc_mm)
+    for o in d["options"]:
+        o["deploy_arc_mm"] = list(o["deploy_arc_mm"])
+    return FdSizingResult(**d)
 
 
 # ── DELETE /centerline/{session_id} ───────────────────────────────────────── #

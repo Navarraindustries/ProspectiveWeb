@@ -7,6 +7,9 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
+import { LesionConfirm } from "./LesionConfirm";
+import { SegmentProgress } from "../segmentation/SegmentProgress";
+import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
 import { ALL_REJECTED, MORPHO_INVALIDATED, rankLabel, rejectedSummary, vetoHint } from "./detectCopy";
@@ -67,6 +70,9 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     morphoInvalidatedNotice,
   } = planning;
   const [busy, setBusy] = useState(false);
+  // Medio minuto en una malla real: la fase que va (curvatura, calibre y
+  // cociente, regiones) en vez de una barra muda.
+  const progress = useProgress(sessionId, busy);
   const [error, setError] = useState<string | null>(null);
   // Con solo descartados también hubo detección: no se repite al volver.
   const [ran, setRan] = useState(allCandidates.length > 0);
@@ -150,29 +156,45 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     <div className="fade-rise">
       <PanelHead
         title="Candidatos detectados"
-        desc="Tres criterios buscan por separado —curvatura, calibre y calibre relativo al vaso vecino— y se fusionan en una lista corta para recorrer."
+        desc="Zonas de la vasculatura que merece la pena mirar, en una lista corta para recorrer."
         right={ran && <Badge variant="subtle">{candidates.length} encontrados</Badge>}
       />
 
       {busy && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 6 }}>
-            Analizando curvatura de la malla…
-          </div>
-          <ProgressBar />
+          {progress === CONNECTION_LOST
+            ? <ProgressBar />
+            : <SegmentProgress state={progress} slowNote="El servidor tarda: en una malla grande la detección pasa del minuto." />}
+        </div>
+      )}
+
+      {/* A media resolución el orden de la lista empeora de forma medida: en
+          Case 3 la lesión pasa del 1.º-3.º puesto al 5.º. Lo decía el README,
+          que nadie lee delante del caso; aquí se ve donde importa. */}
+      {(planning.segmentation?.downsample_factor ?? 1) > 1 && (
+        <div role="note" style={{
+          fontSize: 11, lineHeight: 1.5, marginBottom: 10, padding: "8px 10px",
+          borderRadius: "var(--radius-md)",
+          background: "color-mix(in srgb, var(--warning) 12%, transparent)", color: "var(--warning)",
+        }}>
+          <b>La malla está a media resolución</b>
+          {planning.segmentation?.fallback_note ? ` (${planning.segmentation.fallback_note.replace(/\.$/, "")})` : ""}.
+          Así el orden de candidatos es menos fiable: en un caso con diagnóstico, la
+          lesión bajó al 5.º puesto. Recorre la lista entera, o segmenta a resolución
+          completa en un equipo con más memoria.
         </div>
       )}
 
       {ran && candidates.length > 1 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
-          Tres criterios buscan por separado: <b>curvatura</b> (la superficie se abomba),
+          Tres criterios buscan por separado: <b>curvatura</b> (la superficie se abomba),{" "}
           <b>calibre</b> (más gruesa que el resto de la vasculatura) y <b>cociente</b> (más gruesa
           que el vaso de al lado). Cada candidato dice cuáles lo encontraron.
           <br />
           Es una <b>lista para recorrer, no un veredicto</b>: el orden no está validado
-          contra casos anotados. En el único caso con diagnóstico que tenemos, la lesión
-          la encuentra el canal de curvatura a resolución nativa y solo el de cociente a
-          media resolución: que la vea un solo canal no la descarta.
+          contra casos anotados. En los dos casos con diagnóstico que tenemos la lesión
+          la encontró un criterio distinto en cada uno —en uno la curvatura, en el otro
+          el cociente—, así que ningún criterio basta por sí solo.
           <br />
           <b>Lo que se pinta de azul no es el saco.</b> Cuando lo encontró la curvatura
           es la región detectada; cuando lo encontró el calibre es una bola alrededor del
@@ -202,7 +224,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{c.id}</span>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}
                 {(c.channels ?? []).map((ch) => (
@@ -338,6 +360,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           {ALL_REJECTED}
         </div>
       )}
+
+      {ran && !busy && <LesionConfirm />}
 
       {/* An empty result is a finding, not a failure — but only if it says why. */}
       {ran && !busy && allCandidates.length === 0 && diag && (() => {

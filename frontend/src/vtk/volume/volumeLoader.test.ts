@@ -76,16 +76,16 @@ describe("loadCoarse dims check", () => {
 describe("fetchChunk 401", () => {
   afterEach(() => { vi.unstubAllGlobals(); setUnauthorizedHandler(null); });
 
-  it("drops the token and notifies the app like request() does", async () => {
+  it("ends the session and notifies the app like request() does", async () => {
     vi.stubGlobal("caches", undefined);
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 401 })));
-    localStorage.setItem("prospective.token", "caducado");
+    localStorage.setItem("prospective.session", "1");
     const onUnauthorized = vi.fn();
     setUnauthorizedHandler(onUnauthorized);
     await expect(fetchChunk("/api/volume/s/chunk/full/0-32", chunkCacheKey("k", "full", 0, 32), new AbortController().signal))
       .rejects.toThrow(/401/);
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem("prospective.token")).toBeNull();
+    expect(localStorage.getItem("prospective.session")).toBeNull();
   });
 });
 

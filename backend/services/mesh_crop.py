@@ -449,13 +449,20 @@ def scissors_preview(
     lado_b = _append(resto) if len(resto) > 1 else resto[0]
 
     kept, doomed = (lado_a, lado_b) if keep_side == 0 else (lado_b, lado_a)
+    # Lo que pierde la malla: antes menos lo que queda. Pero seccionar añade
+    # vértices a lo largo del corte, y con una pieza pequeña lo que queda
+    # puede tener MÁS que el original («se van −42 vértices», visto en
+    # pantalla). Entonces se cuenta la propia pieza que se va.
+    se_van = poly.GetNumberOfPoints() - kept.GetNumberOfPoints()
+    if se_van <= 0:
+        se_van = doomed.GetNumberOfPoints()
     # El tajo también se va: si no se pinta, el rojo empieza por debajo del
     # anillo y parece que corta donde no se marcó.
     doomed = _append([doomed, tajo])
     return ScissorsResult(
         kept=kept,
         doomed=doomed,
-        removed_vertices=poly.GetNumberOfPoints() - kept.GetNumberOfPoints(),
+        removed_vertices=se_van,
         origin=tuple(float(x) for x in centro),
         normal=tuple(float(x) for x in normal),
         radius_mm=radio,

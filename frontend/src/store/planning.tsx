@@ -39,6 +39,7 @@ import type {
   PerforatorCandidate,
   SegmentResult,
   SeriesInfo,
+  TreatmentDecisionRequest,
   TreatmentDecisionResult,
   VolumeMeta,
 } from "../api/types";
@@ -53,6 +54,11 @@ interface PlanningState {
   imagingStudyId: number | null;
   sessionId: string | null;
   series: SeriesInfo | null;
+  /** Todas las series del estudio cargado, para poder cambiar de una a otra.
+   *  Vivía en el estado local del panel de carga, que solo lo rellenaba al
+   *  SUBIR: un estudio abierto desde el archivo llegaba sin selector, y con
+   *  cuatro 3D-RA en el mismo estudio solo se podía trabajar la primera. */
+  seriesList: SeriesInfo[];
   /** Live threshold-preview band [lower, upper] HU set from the segmentation
    *  sliders; the MPR views tint the captured voxels in near-real-time. */
   previewBand: [number, number] | null;
@@ -82,6 +88,9 @@ interface PlanningState {
   centerlineMesh: string | null;
   /** Total arc length (mm) of the extracted centreline — feeds the cl-stent range sliders. */
   centerlineArcMm: number | null;
+  /** Qué se pinta sobre el stent de la línea central: a qué distancia queda
+   *  de la pared, o cuánto metal tiene la trenza respecto al catálogo. */
+  stentMap: StentMap;
   /** Window/level shared by every MPR view (strip, main preview and oblique).
       Null until the volume metadata arrives, then seeded from the DICOM. */
   mprWl: { wc: number; ww: number } | null;
@@ -156,6 +165,12 @@ interface PlanningState {
   perforatorZones: [number, number, number] | null;
   /** Picked centre of the mesh-crop ROI (box/sphere). */
   cropCenter: Vec3 | null;
+  /** Punto marcado a mano como la lesión, pendiente de confirmar (Detección). */
+  lesionMark: Vec3 | null;
+  /** Superposición de un estudio anterior (Morfometría → Seguimiento): el mapa
+   *  de cambio y el saco anterior ya colocado. Es de la malla actual, así que
+   *  se olvida al resegmentar. */
+  followup: FollowupOverlay | null;
   /** Previa del corte por plano: el eje, la altura y qué lado se conserva.
    *  El visor la usa para recortar el render en vivo, de modo que al arrastrar
    *  el deslizador se vea desaparecer justo lo que el corte se llevaría. */
@@ -182,8 +197,8 @@ interface PlanningState {
   /** Guarda la vista actual del visor como captura del caso. La publica el
    *  visor —es el único que sabe componer sus cinco paneles— y la llama el
    *  botón del topbar, que es donde el profesional la busca. Lanza si falla. */
-  captureCase: (() => Promise<void>) | null;
-  setCaptureCase: (fn: (() => Promise<void>) | null) => void;
+  captureCase: (() => Promise<"saved" | "downloaded">) | null;
+  setCaptureCase: (fn: (() => Promise<"saved" | "downloaded">) | null) => void;
   /** Lo que el grabador del topbar necesita del visor: cómo leer cada
    *  fotograma y el estado que acompaña al vídeo. Lo publica el visor. */
   viewerRecording: ViewerRecordingSource | null;
@@ -258,6 +273,7 @@ interface PlanningState {
   setImagingStudyId: (id: number | null) => void;
   setSession: (id: string | null) => void;
   setSeries: (s: SeriesInfo | null) => void;
+  setSeriesList: (s: SeriesInfo[]) => void;
   setPreviewBand: (b: [number, number] | null) => void;
   setPreviewMeshUrl: (u: string | null) => void;
   setSegmentation: (s: SegmentResult | null) => void;
@@ -270,11 +286,18 @@ interface PlanningState {
   /** Olvida la medida y todo lo que cuelga de ella: cifras, recomendación y
    *  las marcas del cuello que se pusieron para ese sitio. */
   clearMorphometry: () => void;
+  /** Con qué datos se pidió la última decisión. El formulario los tenía en
+   *  su estado local: al salir del paso y volver salía en blanco
+   *  («Desconocida») junto a un resultado calculado con otra localización,
+   *  y «Re-evaluar» recalculaba en silencio con los datos en blanco. */
+  treatmentInputs: TreatmentDecisionRequest | null;
+  setTreatmentInputs: (r: TreatmentDecisionRequest | null) => void;
   setDeviceMesh: (kind: DeviceKind, url: string | null) => void;
   /** Forget placed devices locally (the API call is the panel's job). */
   clearDeviceMeshes: (kind?: DeviceKind) => void;
   setCenterlineMesh: (url: string | null) => void;
   setCenterlineArcMm: (v: number | null) => void;
+  setStentMap: (m: StentMap) => void;
   setMprWl: (w: { wc: number; ww: number } | null) => void;
   setMprVoxel: (v: { x: number; y: number; z: number }) => void;
   setPickMode: (m: PickMode) => void;
@@ -306,6 +329,8 @@ interface PlanningState {
   /** Show every perforator, or none. */
   setVisiblePerforators: (ids: string[]) => void;
   setCropCenter: (p: Vec3 | null) => void;
+  setLesionMark: (p: Vec3 | null) => void;
+  setFollowup: (f: FollowupOverlay | null) => void;
   setErasePick: (p: Vec3 | null) => void;
   setCropRadius: (r: number) => void;
   setCropShape: (s: "sphere" | "box") => void;
@@ -322,11 +347,19 @@ interface PlanningState {
 }
 
 export type Vec3 = [number, number, number];
+export interface FollowupOverlay {
+  mapUrl: string;
+  ghostUrl: string | null;
+  /** Saturación del color (mm) y franja gris de ruido (mm). */
+  range: number;
+  noise: number;
+}
 export type PickMode =
   | "cl_source" | "cl_target" | "measure" | "neck_origin" | "neck_dome"
   | "neck_rim"
   | "scissors"
-  | "crop_center" | "erase_piece" | "traj_entry" | "traj_target" | null;
+  | "crop_center" | "erase_piece" | "traj_entry" | "traj_target"
+  | "lesion_mark" | null;
 
 export interface Measurement {
   id: number;
@@ -336,6 +369,8 @@ export interface Measurement {
   label: string;
   visible: boolean;
 }
+
+export type StentMap = "apposition" | "coverage";
 
 const PlanningContext = createContext<PlanningState | null>(null);
 
@@ -347,6 +382,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const setCase = (id: number | null, label = "") => { setCaseId(id); setCaseLabel(label); };
   const [sessionId, setSession] = useState<string | null>(null);
   const [series, setSeries] = useState<SeriesInfo | null>(null);
+  const [seriesList, setSeriesList] = useState<SeriesInfo[]>([]);
   const [previewBand, setPreviewBand] = useState<[number, number] | null>(null);
   const [previewMeshUrl, setPreviewMeshUrl] = useState<string | null>(null);
   const [segmentation, _setSegmentation] = useState<SegmentResult | null>(null);
@@ -361,11 +397,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [morphometry, _setMorphometry] = useState<MorphometryResult | null>(null);
   const [morphoInvalidatedNotice, setMorphoInvalidatedNotice] = useState(false);
   const [treatment, _setTreatment] = useState<TreatmentDecisionResult | null>(null);
+  const [treatmentInputs, setTreatmentInputs] = useState<TreatmentDecisionRequest | null>(null);
   const [deviceMeshes, _setDeviceMeshes] = useState<Record<DeviceKind, string | null>>(
     { clips: null, coils: null, stent: null },
   );
   const [centerlineMesh, _setCenterlineMesh] = useState<string | null>(null);
   const [centerlineArcMm, setCenterlineArcMm] = useState<number | null>(null);
+  const [stentMap, setStentMap] = useState<StentMap>("apposition");
   const [mprWl, setMprWl] = useState<{ wc: number; ww: number } | null>(null);
   const [mprVoxel, setMprVoxel] = useState({ x: 0, y: 0, z: 0 });
   const [pickMode, setPickMode] = useState<PickMode>(null);
@@ -416,6 +454,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setVisiblePerforators((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
   }, []);
   const [cropCenter, setCropCenter] = useState<Vec3 | null>(null);
+  const [lesionMark, setLesionMark] = useState<Vec3 | null>(null);
+  const [followup, setFollowup] = useState<FollowupOverlay | null>(null);
   const [erasePick, setErasePick] = useState<Vec3 | null>(null);
   const [boxCut, setBoxCut] = useState<{ min: [number, number, number]; max: [number, number, number] } | null>(null);
   const [cropRadius, setCropRadius] = useState(10);
@@ -425,9 +465,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [trajTarget, setTrajTarget] = useState<Vec3 | null>(null);
   const [morphoOverlay, setMorphoOverlay] = useState(false);
   const [captureViewport, _setCaptureViewport] = useState<(() => Promise<string | null>) | null>(null);
-  const [captureCase, _setCaptureCase] = useState<(() => Promise<void>) | null>(null);
+  const [captureCase, _setCaptureCase] = useState<(() => Promise<"saved" | "downloaded">) | null>(null);
   // Guardar una función en useState la INVOCA si se pasa directa; va envuelta.
-  const setCaptureCase = useCallback((fn: (() => Promise<void>) | null) => _setCaptureCase(() => fn), []);
+  const setCaptureCase = useCallback((fn: (() => Promise<"saved" | "downloaded">) | null) => _setCaptureCase(() => fn), []);
   const [viewerRecording, setViewerRecording] = useState<ViewerRecordingSource | null>(null);
   // Guardar una función en useState exige envolverla: pasada tal cual, React
   // la toma por actualizador, la llama y guarda lo que devuelve (aquí, una
@@ -528,6 +568,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     _setMorphometry(null);
     _setTreatment(null);
     setMorphoInvalidatedNotice(false);
+    setTreatmentInputs(null);
     _setDeviceMeshes({ clips: null, coils: null, stent: null });
     _setCenterlineMesh(null);
     setCenterlineArcMm(null);
@@ -549,6 +590,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     _setMeasurements([]);
     setMeasurePending(null);
     setCropCenter(null);
+    setLesionMark(null);
+    setFollowup(null);
     setErasePick(null);
     setTrajEntry(null);
     setTrajTarget(null);
@@ -566,6 +609,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setImagingStudyId(null);
     setSession(null);
     setSeries(null);
+    setSeriesList([]);
     setOrientationManual(null);
     // El eje del MIP se eligió para el estudio anterior: el nuevo vuelve a
     // seguir a la vista principal.
@@ -595,12 +639,12 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
-        centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
+        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, cine, focusedPane,
-        setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
-        setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment,
+        setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
+        setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,
         setMorphoInvalidatedNotice, clearMorphometry,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,

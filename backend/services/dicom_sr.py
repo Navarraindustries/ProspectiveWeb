@@ -175,6 +175,11 @@ class DicomSRGenerator:
 
         ds = FileDataset(filename_or_obj=None, dataset={}, file_meta=file_meta, preamble=b"\x00" * 128)
 
+        # UTF-8 declarado. Sin esta etiqueta el fichero se escribe en el juego
+        # por defecto y lo que no cabe en él (™, ≥, —, ·) se sustituía por «?»
+        # con un aviso que nadie veía.
+        ds.SpecificCharacterSet = "ISO_IR 192"
+
         ds.PatientName = self._meta.get("patient_name", "ANONIMO")
         ds.PatientID = self._meta.get("patient_id", "")
         ds.PatientBirthDate = ""

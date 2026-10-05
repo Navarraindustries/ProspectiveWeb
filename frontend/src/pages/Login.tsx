@@ -91,8 +91,6 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
           </div>
         </div>
         <div style={{ position: "relative", display: "flex", gap: 26, color: "rgba(168,184,198,0.8)", fontSize: 12, fontFamily: "var(--font-mono)" }}>
-          <span>26 endpoints REST</span>
-          <span>·</span>
           <span>VTK · SimpleITK</span>
           <span>·</span>
           <span>SKULLAPP</span>
@@ -159,9 +157,6 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
             >
               Crear cuenta profesional
             </button>
-          </div>
-          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--muted)", fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-            Demo: admin / admin123
           </div>
         </div>
         <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 11, color: "var(--muted-foreground)" }}>

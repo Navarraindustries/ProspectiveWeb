@@ -1,8 +1,8 @@
-/* Paso 7 — Informe y exportación. POST /api/report · /api/export/stl · /api/sessions/save. */
+/* Paso 7 — Informe y exportación. POST /api/report · /api/export/stl · /api/export/glb · /api/sessions/save. */
 
 import { useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
-import type { ReportResult } from "../../api/types";
+import type { DicomSegResult, GlbExportResult, ReportResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
@@ -23,8 +23,8 @@ const REPORT_STEP = 6;
  *  Handing someone a link to a PDF describing a mesh they have since recropped
  *  is worse than offering nothing: the file opens, looks right, and is wrong. */
 function OutputLink({
-  href, stale, children,
-}: { href: string; stale: boolean; children: React.ReactNode }) {
+  href, stale, children, download,
+}: { href: string; stale: boolean; children: React.ReactNode; download?: string }) {
   if (stale) {
     return (
       <div style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12, color: "var(--warning)", lineHeight: 1.5 }}>
@@ -34,7 +34,7 @@ function OutputLink({
     );
   }
   return (
-    <a href={href} target="_blank" rel="noreferrer" style={{ fontSize: 12, textAlign: "center" }}>
+    <a href={href} target="_blank" rel="noreferrer" download={download} style={{ fontSize: 12, textAlign: "center" }}>
       {children}
     </a>
   );
@@ -54,8 +54,10 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const [notes, setNotes] = useState("");
   const [report, setReport] = useState<ReportResult | null>(null);
   const [stl, setStl] = useState<ReportResult | null>(null);
+  const [glb, setGlb] = useState<GlbExportResult | null>(null);
+  const [seg, setSeg] = useState<DicomSegResult | null>(null);
   const [sr, setSr] = useState<ReportResult | null>(null);
-  const [busy, setBusy] = useState<"pdf" | "stl" | "sr" | "save" | null>(null);
+  const [busy, setBusy] = useState<"pdf" | "stl" | "glb" | "seg" | "sr" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // What the outputs describe. A PDF is a snapshot of the mesh, the measurements
@@ -70,7 +72,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   }), [planning.segmentation?.mesh_url, morphometry, treatment, planning.deviceMeshes]);
 
   const generatedFrom = useRef<Record<string, string>>({});
-  const stale = (kind: "pdf" | "stl" | "sr") =>
+  const stale = (kind: "pdf" | "stl" | "glb" | "seg" | "sr") =>
     generatedFrom.current[kind] !== undefined && generatedFrom.current[kind] !== planSignature;
 
   const genPdf = async () => {
@@ -118,6 +120,34 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
       generatedFrom.current.stl = planSignature;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error exportando STL");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const genGlb = async () => {
+    if (!sessionId) return;
+    setBusy("glb");
+    setError(null);
+    try {
+      setGlb(await api.exportGlb(sessionId));
+      generatedFrom.current.glb = planSignature;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error exportando la escena");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const genSeg = async () => {
+    if (!sessionId) return;
+    setBusy("seg");
+    setError(null);
+    try {
+      setSeg(await api.exportDicomSeg(sessionId));
+      generatedFrom.current.seg = planSignature;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error generando el DICOM SEG");
     } finally {
       setBusy(null);
     }
@@ -183,7 +213,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
             <Metric label="Ø máximo" value={morphometry.max_diameter_mm.toFixed(1)} unit=" mm" />
             <Metric
               label="Riesgo (morfometría)"
-              value={morphometry.rupture_risk_label}
+              value=""
               badge={[morphometry.rupture_risk_label, riskVariant(morphometry.rupture_risk_label)]}
             />
           </>
@@ -229,12 +259,35 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         {stl?.stl_url && (
           <OutputLink href={stl.stl_url} stale={stale("stl")}>Descargar STL →</OutputLink>
         )}
+        {/* El STL es para imprimir: una sola malla sin color. El GLB, para
+            enseñar el caso: cada objeto por separado, con su color. */}
+        <Button variant="outline" leadingIcon={<Icon name="SAVE" />} onClick={() => void genGlb()} disabled={busy !== null}>
+          {busy === "glb" ? "Exportando…" : stale("glb") ? "Volver a exportar escena 3D" : "Exportar escena 3D (GLB)"}
+        </Button>
+        {glb?.glb_url && (
+          <OutputLink href={glb.glb_url} stale={stale("glb")} download="prospective-escena.glb">
+            Descargar escena ({glb.parts.join(", ")} · {Math.round(glb.size_kb)} KB) →
+          </OutputLink>
+        )}
         <Button variant="outline" leadingIcon={<Icon name="DATABASE" />} onClick={() => void genSr()} disabled={busy !== null}>
           {busy === "sr" ? "Generando…" : stale("sr") ? "Regenerar DICOM SR" : "Generar DICOM SR"}
         </Button>
         {sr?.dicom_sr_url && (
           <OutputLink href={sr.dicom_sr_url} stale={stale("sr")}>
             Descargar informe estructurado DICOM (.dcm) →
+          </OutputLink>
+        )}
+        {/* El SR lleva las medidas; el SEG, las regiones, para que el PACS o
+            3D Slicer las pinten sobre la serie original. */}
+        <Button variant="outline" leadingIcon={<Icon name="DATABASE" />} onClick={() => void genSeg()} disabled={busy !== null}>
+          {busy === "seg" ? "Generando…" : stale("seg") ? "Regenerar DICOM SEG" : "Generar DICOM SEG (segmentación)"}
+        </Button>
+        {seg?.warnings.map((w) => (
+          <div key={w} style={{ fontSize: 11.5, color: "var(--warning)", lineHeight: 1.5 }}>{w}</div>
+        ))}
+        {seg?.seg_url && (
+          <OutputLink href={seg.seg_url} stale={stale("seg")} download="prospective-segmentacion.dcm">
+            Descargar segmentación DICOM ({seg.segments.join(" + ")}) →
           </OutputLink>
         )}
         <Separator style={{ margin: "6px 0" }} />

@@ -10,6 +10,9 @@ vi.mock("../../api/client", () => ({
   api: {
     detect: (...a: unknown[]) => detect(...a),
     clearDetection: vi.fn().mockResolvedValue({}),
+    // «¿Cuál es la lesión?» va debajo de la lista: sin confirmación previa ni estadística.
+    currentLesion: vi.fn().mockResolvedValue(null),
+    lesionSummary: vi.fn().mockResolvedValue({ confirmed: 0, first: 0, top3: 0, missed: 0 }),
   },
 }));
 

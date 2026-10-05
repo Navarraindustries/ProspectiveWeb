@@ -142,6 +142,23 @@ class TestTheChosenClipTravels:
         assert b["source"] == "navarro"
         assert "T3" in b["piece_label"] and "90" in b["piece_label"], b["piece_label"]
 
+    def test_la_ficha_describe_la_pieza_colocada_en_todas_sus_filas(self):
+        # En la sesión de Hernandez el título decía «T2 Curvo, mordaza 7 mm» y
+        # las filas —forma, hoja, número de pieza— eran del recto de 8 mm que
+        # habría propuesto el selector.
+        sid = _session(region="ACM bifurcacion")
+        self._place(sid, "navarro:t2:0:13.0")
+        b = client.post(f"/api/clips/manufacture/{sid}").json()
+        assert b["blade_length_mm"] == pytest.approx(13.0)
+        assert b["part_no"].endswith("-0130"), b["part_no"]
+        assert "13.0 mm" in b["label"], b["label"]
+
+    def test_el_prefill_dice_que_la_pieza_es_la_colocada(self):
+        sid = _session()
+        assert client.get(f"/api/clip-orders/prefill/{sid}").json()["placed_in_plan"] is False
+        self._place(sid, "navarro:t2:0:13.0")
+        assert client.get(f"/api/clip-orders/prefill/{sid}").json()["placed_in_plan"] is True
+
     def test_a_placed_clip_can_always_be_personalised(self):
         # "No dejaba personalizar porque no era navarro" — that state is gone:
         # everything placeable is a family design, so the STL always exists.

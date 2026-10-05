@@ -1,8 +1,9 @@
-/* AuthContext — JWT + current user, persisted in localStorage. */
+/* AuthContext — el usuario actual. La sesión vive en una cookie httpOnly;
+   aquí no se guarda ningún token (ver api/client.ts). */
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { api, getToken, setToken, setUnauthorizedHandler } from "../api/client";
+import { api, hasSession, markSession, setUnauthorizedHandler } from "../api/client";
 import type { UserInfo } from "../api/types";
 import { clearVolumeCache } from "../vtk/volume/volumeCache";
 
@@ -14,6 +15,8 @@ interface AuthState {
   expiredNotice: string | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Vuelve a pedir el usuario al servidor (tras cambiar la contraseña inicial). */
+  refreshUser: () => Promise<void>;
   clearExpiredNotice: () => void;
 }
 
@@ -23,6 +26,7 @@ const AuthContext = createContext<AuthState>({
   expiredNotice: null,
   login: async () => {},
   logout: () => {},
+  refreshUser: async () => {},
   clearExpiredNotice: () => {},
 });
 
@@ -44,31 +48,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, []);
 
-  // Restore session from a stored token on first load.
+  // Restore the session from the cookie on first load.
   useEffect(() => {
-    if (!getToken()) {
+    if (!hasSession()) {
       setReady(true);
       return;
     }
     api
       .me()
       .then(setUser)
-      .catch(() => setToken(null))
+      .catch(() => markSession(false))
       .finally(() => setReady(true));
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await api.login(username, password);
-    setToken(res.access_token);
+    markSession(true);
     setUser(res.user);
     setExpiredNotice(null);
+  }, []);
+
+  // Vuelve a pedir el usuario: tras cambiar la contraseña inicial, el
+  // servidor deja de marcarla como pendiente.
+  const refreshUser = useCallback(async () => {
+    setUser(await api.me());
   }, []);
 
   const logout = useCallback(() => {
     // Clear the cookie server-side too; dropping the local token alone would
     // leave the browser able to fetch imaging from /data and /api/slice.
     void api.logout().catch(() => { /* best effort: the token may already be dead */ });
-    setToken(null);
+    markSession(false);
     // Los volúmenes del paciente no se quedan en el navegador tras salir.
     void clearVolumeCache();
     setUser(null);
@@ -77,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, ready, expiredNotice, login, logout, clearExpiredNotice: () => setExpiredNotice(null) }}
+      value={{ user, ready, expiredNotice, login, logout, refreshUser, clearExpiredNotice: () => setExpiredNotice(null) }}
     >
       {children}
     </AuthContext.Provider>

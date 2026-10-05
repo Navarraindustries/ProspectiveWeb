@@ -11,11 +11,13 @@ numpy>=1.26
 SimpleITK>=2.3                  # DICOM loading, morphological operations
 vtk>=9.3                        # Marching Cubes, mesh smoothing, decimation
 pydicom>=2.4                    # DICOM tag extraction
+highdicom>=0.28                 # DICOM SEG (segmentación sobre las imágenes originales)
 scipy>=1.12                     # connected-component filtering, gaussian smoothing
 Pillow>=10.0                    # PNG encoding for MPR slices and study thumbnails
 
 # ── Auth & database (Session D) ───────────────────────────────────────────── #
 sqlalchemy>=2.0
+alembic>=1.13                   # migraciones del esquema (backend/migrations)
 python-jose[cryptography]>=3.3  # JWT tokens
 passlib[bcrypt]>=1.7            # password hashing
 bcrypt>=4.0.0,<5.0.0            # passlib 1.7.x is incompatible with bcrypt 5.x

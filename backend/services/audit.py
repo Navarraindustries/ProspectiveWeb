@@ -34,6 +34,10 @@ ACT_CASE_DELETED       = "CASE_DELETED"
 ACT_CAPTURE_SAVED      = "CAPTURE_SAVED"
 ACT_RECORDING_SAVED    = "RECORDING_SAVED"
 ACT_CAPTURE_DELETED    = "CAPTURE_DELETED"
+ACT_LESION_CONFIRMED   = "LESION_CONFIRMED"
+ACT_LESION_RETRACTED   = "LESION_RETRACTED"
+ACT_SESSION_ATTACHED   = "SESSION_ATTACHED"
+ACT_SEG_GENERATED      = "DICOM_SEG_GENERATED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a
@@ -225,3 +229,13 @@ def audit_append(action: str, payload: dict, username: str = "",
         SkullChain.instance().append(action, payload, username, patient_id, patient_dob)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Audit append failed (%s): %s", action, exc)
+
+
+def audit_device(kind: str, session_id: str, user, detail: dict) -> None:
+    """Un dispositivo colocado en el plan: qué familia, qué modelo y quién.
+
+    La sesión de trabajo no está ligada a un paciente en el servidor (lo está
+    el caso, al guardar), así que aquí no va hash de paciente: la cadena
+    enlaza por `session_id` con el guardado del caso."""
+    audit_append(ACT_DEVICE_PLACED, {"kind": kind, "session_id": session_id, **detail},
+                 username=getattr(user, "username", "") or "")

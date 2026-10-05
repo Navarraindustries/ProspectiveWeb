@@ -238,8 +238,12 @@ class TestOpenDoesNotDuplicateData:
 
         out = dest / "IM_BIG"
         assert out.read_bytes() == b"x" * 4096
-        # Same inode ⇒ the bytes are shared, not duplicated.
-        if hasattr(os, "stat") and os.name == "nt":
+        # Same inode ⇒ the bytes are shared, not duplicated. Solo si el archivo
+        # y la sesión están en el MISMO disco: un enlace duro no cruza
+        # volúmenes, y ahí el backend copia, que es lo correcto (en la máquina
+        # de integración continua el temporal está en C: y el repositorio en D:).
+        mismo_disco = Path(storage.root).resolve().anchor.lower() == dest.resolve().anchor.lower()
+        if os.name == "nt" and mismo_disco:
             assert out.stat().st_nlink > 1, "debería ser un enlace duro, no una copia"
 
         storage.delete_prefix(f"studies/{study_id}")
@@ -257,11 +261,17 @@ class TestStorageIsolation:
         must be redirected by STUDY_FILES_ROOT while testing.
         """
         from services.storage import get_storage, study_files_root
-        assert str(study_files_root()).startswith(_tmp), (
+        # Bajo la carpeta temporal del sistema, no bajo la de ESTE módulo:
+        # cada módulo de tests fija la suya al importarse y en un solo proceso
+        # gana el último, así que comparar con `_tmp` hacía fallar la suite
+        # entera según el orden de los imports. Lo que importa es que no sea
+        # el archivo real.
+        temporal = str(Path(tempfile.gettempdir()).resolve())
+        assert str(study_files_root().resolve()).startswith(temporal), (
             f"los tests escribirían en el archivo real: {study_files_root()}"
         )
         # And the live backend must honour it too, not a path frozen at import.
-        assert str(get_storage().root).startswith(_tmp)
+        assert str(Path(get_storage().root).resolve()).startswith(temporal)
 
     def test_keys_cannot_escape_the_store(self):
         from services.storage import LocalBackend
@@ -269,3 +279,27 @@ class TestStorageIsolation:
         b = LocalBackend()
         with pytest.raises(ValueError):
             b.exists("../../etc/passwd")
+
+
+class TestRaizConOtroNombre:
+    """La raíz del archivo puede llegar escrita de una forma y resolverse a otra
+    (nombre corto de Windows `RUNNER~1`, un enlace, una ruta relativa). Listar
+    comparaba los ficheros resueltos con la raíz sin resolver y fallaba."""
+
+    def test_listar_funciona_con_una_raiz_sin_resolver(self, tmp_path, monkeypatch):
+        from services.storage import LocalBackend
+        real = tmp_path / "archivo"
+        real.mkdir()
+        # La misma carpeta, nombrada dando un rodeo: «archivo/../archivo».
+        rodeo = tmp_path / "archivo" / ".." / "archivo"
+        b = LocalBackend(rodeo)
+        b.put_bytes("studies/1/thumb.png", b"x")
+        assert b.list_prefix("studies/1") == ["studies/1/thumb.png"]
+
+    def test_una_carpeta_hermana_con_el_mismo_prefijo_no_esta_dentro(self, tmp_path):
+        import pytest
+        from services.storage import LocalBackend
+        (tmp_path / "archivo").mkdir(); (tmp_path / "archivo_otro").mkdir()
+        b = LocalBackend(tmp_path / "archivo")
+        with pytest.raises(ValueError):
+            b.put_bytes("../archivo_otro/x.bin", b"x")

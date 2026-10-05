@@ -1,0 +1,108 @@
+# Integración continua: lo que antes solo se comprobaba a mano en un equipo.
+#
+# - backend: la suite entera en UN proceso (como aquí; en local se partía en
+#   bloques por falta de memoria, y eso escondía un choque entre dos módulos).
+#   En Windows y con las versiones fijadas de requirements-lock.txt, que es
+#   donde se desarrolla y donde se sabe que pasa.
+# - frontend: tipos, tests y vulnerabilidades de las dependencias de producción.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements-lock.txt
+      - name: Dependencias
+        run: python -m pip install -r requirements-lock.txt
+      - name: Tests
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          set -o pipefail
+          # -v: si el proceso se cae (fallo de segmento), la última línea dice
+          # en qué test estaba.
+          python -X faulthandler -m pytest -v -p no:warnings -rfE 2>&1 | tee pytest.log
+      # El registro completo exige iniciar sesión; las anotaciones no. Así el
+      # motivo de un fallo se ve en la propia página de la ejecución.
+      - name: Resumen del fallo
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          grep -aE "^(FAILED|ERROR) |INTERNALERROR" pytest.log | head -6 | while IFS= read -r l; do echo "::error::${l}"; done
+          n=$(grep -anE "Fatal Python error|Windows fatal exception" pytest.log | head -1 | cut -d: -f1)
+          if [ -n "$n" ]; then echo "::error::CAIDA: $(sed -n "${n},$((n+16))p" pytest.log | paste -sd '|' - | cut -c1-3500)"; fi
+          echo "::error::ULTIMOS TESTS: $(grep -aE '^test_[a-z0-9_]+\.py::' pytest.log | tail -n 3 | paste -sd '|' - | cut -c1-1500)"
+          echo "::error::FINAL: $(tail -n 5 pytest.log | paste -sd '|' - | cut -c1-1500)"
+          exit 0
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Dependencias
+        run: npm ci
+      # schema.gen.ts sale de openapi.json; si alguien regenera uno y no el
+      # otro, el contrato que comprueba `tsc` sería el de otra versión.
+      - name: Tipos generados al día
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/api/schema.gen.ts
+      - name: Tipos
+        run: npx tsc --noEmit -p .
+      - name: Tests
+        run: npm test
+      - name: Vulnerabilidades (producción)
+        run: npm audit --omit=dev
+
+  # Las dos imágenes se construyen y arrancan de verdad: nginx sirve la
+  # aplicación y llega a la API, que crea su base y pasa las migraciones.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir y arrancar
+        run: docker compose up --build -d
+      - name: Comprobar que responde
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
+          curl -fsS http://localhost:8080/health
+          curl -fsS http://localhost:8080/ | grep -qi "<div id=\"root\""
+          curl -fsS http://localhost:8080/app/pacientes | grep -qi "<div id=\"root\""
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/patients)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/data/prospective.db)" != "200"
+      - name: Registro si falla
+        if: failure()
+        run: docker compose logs --tail 80

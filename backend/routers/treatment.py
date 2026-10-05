@@ -101,8 +101,10 @@ async def compute_treatment_decision(
     #
     # Los factores sí viajan —son la justificación— pero sin su peso.
     factors_for_json = [
+        # `votes` también: sin él el informe ponía «Clipping» junto a un
+        # índice que se enseña pero no influye en la recomendación.
         {"name": f["name"], "direction": f["direction"],
-         "source": f.get("source", "")}
+         "source": f.get("source", ""), "votes": bool(f.get("votes", True))}
         for f in result.get("factors", [])
     ]
     write_state(req.session_id, "treatment.factors_json", json.dumps(factors_for_json))

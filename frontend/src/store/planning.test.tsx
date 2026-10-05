@@ -250,7 +250,7 @@ describe("funciones que registra el visor", () => {
     // en el caso sin que nadie la haya pedido.
     const { result } = renderHook(() => usePlanning(), { wrapper });
     let veces = 0;
-    const capturar = async () => { veces++; };
+    const capturar = async () => { veces++; return "saved" as const; };
     act(() => result.current.setCaptureCase(capturar));
     expect(result.current.captureCase).toBe(capturar);
     expect(veces).toBe(0);
@@ -380,5 +380,15 @@ describe("candidatos descartados", () => {
     act(() => result.current.reset());
     expect(result.current.cine).toBeNull();
     expect(result.current.focusedPane).toBeNull();
+  });
+});
+
+describe("superposición de seguimiento", () => {
+  it("se olvida al resegmentar: el mapa es de la malla que había", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setFollowup({ mapUrl: "/data/m.vtp", ghostUrl: null, range: 1, noise: 0.3 }));
+    expect(result.current.followup).not.toBeNull();
+    act(() => result.current.resetDownstream());
+    expect(result.current.followup).toBeNull();
   });
 });

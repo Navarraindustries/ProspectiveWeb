@@ -35,6 +35,8 @@ class UserInfo(BaseModel):
         ..., description="Two-letter initials for the avatar widget (e.g. 'JN')"
     )
     has_photo: bool = Field(False, description="A profile photo is available at /api/auth/me/photo")
+    must_change_password: bool = Field(
+        False, description="La cuenta lleva la contraseña inicial: hay que cambiarla antes de seguir")
 
 
 class UserCreateRequest(BaseModel):

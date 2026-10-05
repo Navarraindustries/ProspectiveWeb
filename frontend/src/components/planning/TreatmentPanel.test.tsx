@@ -88,7 +88,7 @@ describe("cómo se lee la recomendación", () => {
 
   it("enseña la cobertura junto a la confianza", () => {
     render(<TreatmentPanel onNext={() => {}} />);
-    expect(screen.getByText("100 % del caso")).toBeInTheDocument();
+    expect(screen.getByText("100 % de los datos")).toBeInTheDocument();
     expect(screen.getByText(/Confianza moderada/)).toBeInTheDocument();
   });
 });

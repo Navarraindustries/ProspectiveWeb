@@ -3,9 +3,15 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from services.auth_service import get_current_user
+from services.audit import audit_device
+from services.db_models import User
 
 from models import PlanRequest, PlanResult, StentLibraryItem
+from models.plan import WebSizingResult
 from services.endovascular import stent_bridging
 from services.sessions import read_state, session_exists, session_subdir, mesh_url
 
@@ -29,6 +35,9 @@ _STENT_LIBRARY: list[StentLibraryItem] = [
         min_diameter_mm=2.5,
         max_diameter_mm=5.0,
         available_lengths_mm=[10, 14, 16, 18, 20, 25, 30, 35],
+        # De 2,50 a 5,00 en pasos de 0,25 (familia Pipeline, Medtronic). No
+        # todas las longitudes existen en todos los diámetros.
+        available_diameters_mm=[2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.0],
         type="flow_diverter",
     ),
     StentLibraryItem(
@@ -82,7 +91,10 @@ async def get_stent_library() -> list[StentLibraryItem]:
         "does not compute."
     ),
 )
-async def compute_plan(req: PlanRequest) -> PlanResult:
+async def compute_plan(
+    req: PlanRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> PlanResult:
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
@@ -199,6 +211,10 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
         "follows_centerline": follows_centerline,
     })
 
+    audit_device("stent", req.session_id, current_user, {
+        "stent": p.stent_id, "diameter_mm": p.diameter_mm, "length_mm": p.length_mm,
+        "deployed": bool(deployed),
+    })
     return PlanResult(
         stent_mesh_url=stent_url,
         coverage_pct=coverage,
@@ -212,3 +228,57 @@ async def compute_plan(req: PlanRequest) -> PlanResult:
         sources=fit.sources,
         warning=" ".join(warnings) if warnings else None,
     )
+
+
+# ── POST /web-sizing/{session_id} ─────────────────────────────────────────── #
+
+def _run_web_sizing(session_id: str):
+    from dataclasses import asdict
+    from routers.detect import _read_saved_neck_plane
+    from services.segmentation import read_vtp
+    from services.web_sizing import SacDims, measure_sac, size_web
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    max_d = _load_float(session_id, "morpho.max_diameter_mm", 0.0)
+    if max_d <= 0:
+        raise ValueError("Falta la morfometría.")
+    sac_name = read_state(session_id, "morpho.sac_vtp_name", "")
+    sac_path = session_subdir(session_id, "meshes") / sac_name if sac_name else None
+    plane = _read_saved_neck_plane(session_id)
+    if sac_path is not None and sac_path.exists() and plane is not None:
+        poly = read_vtp(sac_path)
+        pts = vtk_to_numpy(poly.GetPoints().GetData())
+        o = plane.origin
+        dims = measure_sac(pts, (o.x, o.y, o.z), plane.normal)
+    else:
+        # Sin cuello marcado no hay saco aislado: las cifras de la morfometría,
+        # y se dice que son orientativas.
+        h = _load_float(session_id, "morpho.dome_height_mm", 0.0)
+        dims = SacDims(width_mm=max_d, width_max_mm=max_d, width_min_mm=max_d,
+                       height_mm=h, source="morpho")
+    r = size_web(dims, neck_mm, _load_float(session_id, "morpho.volume_mm3", 0.0),
+                 dnr=_load_float(session_id, "morpho.dnr", 0.0))
+    return asdict(r)
+
+
+@router.post(
+    "/web-sizing/{session_id}",
+    response_model=WebSizingResult,
+    summary="Dimensionar un WEB (Woven EndoBridge) con el saco aislado",
+    description=(
+        "Anchura media y altura del saco respecto al plano del cuello, y las "
+        "medidas SL y SLS del catálogo que cumplen la regla +1/−1. Dice si el "
+        "aneurisma cae en la indicación aprobada y el cociente de volúmenes, "
+        "sin decidir con él. Ver services/web_sizing.py."
+    ),
+)
+async def web_sizing(session_id: str) -> WebSizingResult:
+    import asyncio
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    try:
+        d = await asyncio.to_thread(_run_web_sizing, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return WebSizingResult(**d)

@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Respon
 from sqlalchemy.orm import Session
 
 from models.captures import CaptureCreate, CaptureOut, CaptureRename
+from services.access import own_patient_ids, require_patient
 from services.auth_service import get_current_user
 from services.database import get_db
 from services.audit import (ACT_CAPTURE_DELETED, ACT_CAPTURE_SAVED, ACT_RECORDING_SAVED,
@@ -113,10 +114,12 @@ def _auditar(db: Session, accion: str, row: CaseCapture, user: User | None) -> N
     }, username=user.username if user else "", **paciente)
 
 
-def _get(db: Session, capture_id: int) -> CaseCapture:
+def _get(db: Session, capture_id: int, user: User | None) -> CaseCapture:
+    """La captura, si existe y es de un paciente que este usuario puede ver."""
     row = db.query(CaseCapture).filter(CaseCapture.id == capture_id).first()
     if row is None:
         raise HTTPException(status_code=404, detail=f"No existe la captura {capture_id}.")
+    require_patient(db, user, row.patient_id)
     return row
 
 
@@ -147,6 +150,7 @@ async def create_capture(
             status_code=404,
             detail=f"No existe el estudio de imagen {req.imaging_study_id}.",
         )
+    require_patient(db, current_user, img.patient_id)
 
     raw = _decode_png(req.png_b64)
     uid = uuid.uuid4().hex
@@ -232,6 +236,7 @@ async def create_video(
     img = db.query(ImagingStudy).filter(ImagingStudy.id == imaging_study_id).first()
     if img is None:
         raise HTTPException(status_code=404, detail=f"No existe el estudio de imagen {imaging_study_id}.")
+    require_patient(db, current_user, img.patient_id)
 
     # Por trozos y con tope: no se carga en memoria lo que ya se sabe que sobra.
     trozos: list[bytes] = []
@@ -309,6 +314,7 @@ async def create_video(
 )
 async def list_captures(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
     imaging_study_id: int | None = Query(None, description="Capturas de esta adquisición"),
     case_id:          int | None = Query(None, description="Capturas de todo el caso clínico"),
     patient_id:       int | None = Query(None, description="Capturas de todos los casos del paciente"),
@@ -326,6 +332,9 @@ async def list_captures(
         q = q.filter(CaseCapture.case_id == case_id)
     if patient_id is not None:
         q = q.filter(CaseCapture.patient_id == patient_id)
+    visibles = own_patient_ids(db, current_user)
+    if visibles is not None:
+        q = q.filter(CaseCapture.patient_id.in_(visibles))
     rows = q.order_by(CaseCapture.created_at.desc(), CaseCapture.id.desc()).limit(limit).all()
     return [_out(r) for r in rows]
 
@@ -344,8 +353,9 @@ async def list_captures(
 async def get_capture_image(
     capture_id: int,
     db:         Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> Response:
-    row = _get(db, capture_id)
+    row = _get(db, capture_id, current_user)
     if _is_video(row):
         raise HTTPException(status_code=404, detail="Es una grabación: su vídeo va por /video.")
     try:
@@ -373,8 +383,9 @@ async def get_capture_image(
 async def get_capture_video(
     capture_id: int,
     db:         Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> Response:
-    row = _get(db, capture_id)
+    row = _get(db, capture_id, current_user)
     if not _is_video(row):
         raise HTTPException(status_code=404, detail="Es una captura: su imagen va por /image.")
     try:
@@ -404,8 +415,9 @@ async def rename_capture(
     capture_id: int,
     req:        CaptureRename,
     db:         Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> CaptureOut:
-    row = _get(db, capture_id)
+    row = _get(db, capture_id, current_user)
     nuevo = req.label.strip()
     if not nuevo:
         raise HTTPException(status_code=422, detail="El rótulo no puede quedar vacío.")
@@ -428,7 +440,7 @@ async def delete_capture(
     db:           Annotated[Session, Depends(get_db)],
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> Response:
-    row = _get(db, capture_id)
+    row = _get(db, capture_id, current_user)
     # Antes de borrarla: después ya no hay fila de la que sacar el paciente.
     _auditar(db, ACT_CAPTURE_DELETED, row, current_user)
     key = row.storage_key

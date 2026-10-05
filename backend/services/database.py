@@ -69,17 +69,73 @@ def get_db() -> Generator[Session, None, None]:
 
 # ── Lifecycle ──────────────────────────────────────────────────────────────── #
 
+MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations"
+
+
+def _alembic_config(connection=None):
+    """Configuración de Alembic sin `alembic.ini`: la URL y la conexión salen de
+    aquí, que es el único sitio que las conoce."""
+    from alembic.config import Config
+    cfg = Config()
+    cfg.set_main_option("script_location", str(MIGRATIONS_DIR))
+    if connection is not None:
+        cfg.attributes["connection"] = connection
+    return cfg
+
+
+def run_migrations(bind=None, fresh: bool = False) -> None:
+    """Deja la base en la última revisión.
+
+    `fresh`: la base se acaba de crear con `create_all`, así que ya tiene el
+    esquema actual y solo se MARCA; aplicarle las revisiones intentaría añadir
+    columnas que ya nacieron puestas. Una base que existía las aplica.
+    """
+    from alembic import command
+    with (bind or engine).connect() as conn:
+        cfg = _alembic_config(conn)
+        if fresh:
+            command.stamp(cfg, "head")
+            conn.commit()
+            return
+        # Rehacer una tabla en SQLite (batch) es borrarla y crearla: con las
+        # claves foráneas activas, las filas que apuntan a ella lo impedirían o
+        # se irían detrás. Se apagan mientras dura, se comprueba que no ha
+        # quedado ninguna rota y se vuelven a encender. El PRAGMA no tiene
+        # efecto dentro de una transacción: por eso va antes y después.
+        sqlite = conn.dialect.name == "sqlite"
+        if sqlite:
+            conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            conn.commit()
+        try:
+            command.upgrade(cfg, "head")
+            conn.commit()
+            if sqlite:
+                rotas = conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+                if rotas:
+                    logger.error("Tras migrar quedan %d referencia(s) rotas: %s", len(rotas), rotas[:5])
+        finally:
+            if sqlite:
+                conn.rollback()
+                conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+                conn.commit()
+
+
 def init_db() -> None:
     """Create all tables (idempotent — safe to call on every startup)."""
     # Import models to register them with Base.metadata before create_all
     import services.db_models  # noqa: F401
+    from sqlalchemy import inspect
+    fresh = not inspect(engine).has_table("users")
     Base.metadata.create_all(bind=engine)
+    # Las migraciones a mano llevan una base antigua hasta la línea base de
+    # Alembic. No se añaden más: lo nuevo va en migrations/versions/.
     _migrate_user_columns()
     _migrate_study_columns()
     _migrate_session_columns()
     _migrate_capture_columns()
     _migrate_imaging_studies()
     _migrate_step_after_manufacture()
+    run_migrations(fresh=fresh)
     logger.info("Database initialised at %s", DATA_DIR / "prospective.db")
 
 
@@ -95,6 +151,7 @@ def _migrate_user_columns() -> None:
 
     new_cols = {
         "status":          "VARCHAR(16) NOT NULL DEFAULT 'active'",
+        "must_change_password": "BOOLEAN NOT NULL DEFAULT 0",
         "national_id":     "VARCHAR(64) NOT NULL DEFAULT ''",
         "professional_id": "VARCHAR(64) NOT NULL DEFAULT ''",
         "specialty":       "VARCHAR(100) NOT NULL DEFAULT ''",
@@ -274,3 +331,13 @@ def _migrate_imaging_studies() -> None:
                 "WHERE study_id = :cid AND imaging_study_id IS NULL"
             ), {"iid": new_id, "cid": r[0]})
             logger.info("Migrated case %s archive into imaging study %s", r[0], new_id)
+
+
+if __name__ == "__main__":      # python -m services.database revision "mensaje"
+    import sys
+    from alembic import command
+    if len(sys.argv) == 3 and sys.argv[1] == "revision":
+        init_db()
+        command.revision(_alembic_config(), message=sys.argv[2], autogenerate=True)
+    else:
+        raise SystemExit('Uso: python -m services.database revision "mensaje"')

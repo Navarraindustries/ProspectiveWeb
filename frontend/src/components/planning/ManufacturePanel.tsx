@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
-import type { ClipSelectionResult, ManufactureSpecOut } from "../../api/types";
+import type { ClipOrderPrefill, ClipSelectionResult, ManufactureSpecOut } from "../../api/types";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
@@ -21,17 +21,39 @@ import { useNav } from "../../store/nav";
 import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
 
 
+/** La ficha del selector, con la pieza COLOCADA en Dispositivos encima.
+ *
+ *  Es la misma sustitución que hace el backend (`perfect_from_id`): forma,
+ *  mordaza, ángulo y ventana de la pieza colocada; anchura, altura, muelle,
+ *  fuerza y los avisos, del caso. Sin esto la ficha describía el recto de 8 mm
+ *  del selector y el botón de debajo generaba el T2 curvo de 7 que se había
+ *  colocado: se leía una pieza y se fabricaba otra. */
+export function pinToPlaced(spec: ManufactureSpecOut, pre: ClipOrderPrefill | null): ManufactureSpecOut {
+  if (!pre?.placed_in_plan) return spec;
+  return {
+    ...spec,
+    shape: pre.advised_shape || spec.shape,
+    blade_length_mm: pre.advised_jaw_mm || spec.blade_length_mm,
+    angle_deg: pre.advised_angle_deg,
+    fenestration_mm: pre.advised_window_mm,
+    label: pre.advised_label || spec.label,
+    piece_label: pre.advised_label || spec.piece_label,
+  };
+}
+
 function ManufactureSheet({
-  spec, sessionId, caseId,
+  spec, sessionId, caseId, placed,
 }: {
   spec: ManufactureSpecOut;
   sessionId: string;
   caseId?: number | null;
+  /** El prefill del pedido: dice si hay una pieza colocada en el plan. */
+  placed: ClipOrderPrefill | null;
 }) {
   const [built, setBuilt] = useState<ManufactureSpecOut | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const shown = built ?? spec;
+  const shown = built ?? pinToPlaced(spec, placed);
 
   const rows: [string, string][] = [
     ["Forma", `${shown.shape}${shown.angle_deg ? ` · ${shown.angle_deg.toFixed(0)}°` : ""}`],
@@ -84,6 +106,13 @@ function ManufactureSheet({
           </span>
         )}
       </div>
+
+      {placed?.placed_in_plan && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+          Es el clip que colocaste en Dispositivos: el STL, los dossiers y el
+          pedido son de esta pieza, no de la que propondría el selector.
+        </div>
+      )}
 
       {/* De dónde sale la pieza. Un clip de catálogo se compra y no lleva STL:
           ofrecer uno sería decir que se fabrica algo que no se fabrica. */}
@@ -186,6 +215,18 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ordersKey, setOrdersKey] = useState(0);
+  const [placed, setPlaced] = useState<ClipOrderPrefill | null>(null);
+
+  // Lo mismo que lee el formulario de pedido: si hay un NAVARRO colocado, la
+  // ficha tiene que describir ESA pieza desde el principio.
+  useEffect(() => {
+    if (!sessionId) return;
+    let vivo = true;
+    api.clipOrderPrefill(sessionId, caseId)
+      .then((p) => { if (vivo) setPlaced(p); })
+      .catch(() => { /* sin prefill, la ficha es la del selector, como antes */ });
+    return () => { vivo = false; };
+  }, [sessionId, caseId, ordersKey]);
 
   useEffect(() => {
     if (!sessionId) { setLoading(false); return; }
@@ -251,7 +292,7 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
               mandarla a fabricar.
             </div>
           )}
-          <ManufactureSheet spec={sel.manufacture} sessionId={sessionId} caseId={caseId} />
+          <ManufactureSheet spec={sel.manufacture} sessionId={sessionId} caseId={caseId} placed={placed} />
         </div>
       )}
 

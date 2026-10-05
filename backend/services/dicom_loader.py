@@ -53,7 +53,42 @@ class DicomLoadResult:
 
 # ── Public API ─────────────────────────────────────────────────────────────── #
 
+#: Resultado del último escaneo de cada carpeta, con la huella de sus ficheros.
+#: Cambiar de serie volvía a leer las cabeceras del estudio entero —medio
+#: minuto con 1,3 GB— para contestar lo mismo que al abrirlo.
+_SCAN_CACHE: dict[str, tuple[tuple, list[dict]]] = {}
+_SCAN_CACHE_MAX = 8
+
+
+def _dir_fingerprint(dicom_dir: Path) -> tuple:
+    """Cuántos ficheros, cuánto pesan y el más reciente: si no cambia, el
+    escaneo tampoco."""
+    n = size = newest = 0
+    for f in dicom_dir.rglob("*"):
+        if f.is_file():
+            st = f.stat()
+            n += 1
+            size += st.st_size
+            newest = max(newest, st.st_mtime_ns)
+    return n, size, newest
+
+
 def scan_series(dicom_dir: Path) -> list[dict]:
+    """`_scan_series` con memoria: la misma carpeta sin tocar no se relee."""
+    import copy
+    key = str(Path(dicom_dir).resolve())
+    huella = _dir_fingerprint(Path(dicom_dir))
+    hit = _SCAN_CACHE.get(key)
+    if hit is not None and hit[0] == huella:
+        return copy.deepcopy(hit[1])
+    result = _scan_series(dicom_dir)
+    if len(_SCAN_CACHE) >= _SCAN_CACHE_MAX:
+        _SCAN_CACHE.pop(next(iter(_SCAN_CACHE)))
+    _SCAN_CACHE[key] = (huella, copy.deepcopy(result))
+    return result
+
+
+def _scan_series(dicom_dir: Path) -> list[dict]:
     """Scan *dicom_dir* and return lightweight metadata for every series found.
 
     No volume is loaded — only DICOM headers are read.
@@ -457,14 +492,14 @@ def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
     if raw_ps is not None:
         try:
             sy, sx = float(raw_ps[0]), float(raw_ps[1])
-        except Exception:
-            pass
+        except (TypeError, ValueError, IndexError):
+            pass          # etiqueta ausente o mal formada: se queda el valor por defecto
 
     if raw_st is not None:
         try:
             sz = float(raw_st)
-        except Exception:
-            pass
+        except (TypeError, ValueError, IndexError):
+            pass          # etiqueta ausente o mal formada: se queda el valor por defecto
 
     # SpacingBetweenSlices is the inter-slice *distance* (what we want for z),
     # whereas SliceThickness is the slice *thickness* — they differ on overlapped
@@ -475,8 +510,8 @@ def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
     if raw_sbs is not None:
         try:
             sz = float(raw_sbs)
-        except Exception:
-            pass
+        except (TypeError, ValueError, IndexError):
+            pass          # etiqueta ausente o mal formada: se queda el valor por defecto
 
     # Enhanced multi-frame fallback (Enhanced XA, Enhanced CT/MR)
     if raw_ps is None or raw_st is None or raw_sbs is None:
@@ -494,8 +529,8 @@ def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
                 sz = float(sbs2)
             elif raw_st is None and st2 is not None:
                 sz = float(st2)
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — pydicom falla de muchas formas con secuencias rotas
+            pass          # se queda el espaciado ya leído de las etiquetas raíz
 
     # Multi-frame files (Enhanced XA/CT/MR): one .dcm holds the whole volume.
     # The real slice count is NumberOfFrames, not the file count — the desktop

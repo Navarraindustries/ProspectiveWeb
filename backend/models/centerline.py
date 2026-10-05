@@ -68,6 +68,35 @@ class ClStentRequest(BaseModel):
     braid_count: int = Field(6, ge=0, le=16, description="Braid wires per wind direction")
 
 
+class ClStentApposition(BaseModel):
+    """Aposición del stent a la pared, punto a punto (services/apposition.py)."""
+
+    noise_mm: float = Field(..., description="Por debajo de esto una separación no se distingue")
+    gap_area_pct: float = Field(..., description="% del stent (fuera del cuello) separado de la pared")
+    compressed_area_pct: float = Field(..., description="% donde el nominal es mayor que el vaso")
+    max_gap_mm: float
+    proximal_gap_mm: float = Field(..., description="Separación (p90) en los primeros 3 mm")
+    distal_gap_mm: float = Field(..., description="Separación (p90) en los últimos 3 mm")
+    neck_excluded: bool
+    notes: list[str] = Field(default_factory=list)
+
+
+class ClStentCoverage(BaseModel):
+    """Cobertura metálica de la trenza, punto a punto (services/braid_coverage.py)."""
+
+    device: str = Field(..., description="Familia cuya construcción se ha usado")
+    nominal_coverage_pct: float = Field(..., description="Cobertura al diámetro nominal (catálogo)")
+    nominal_angle_deg: float = Field(..., description="Ángulo de los hilos con el eje al nominal")
+    neck_coverage_pct: float | None = Field(None, description="Cobertura estimada delante del cuello")
+    min_coverage_pct: float = Field(..., description="p5 sobre el tramo en contacto con el vaso")
+    max_coverage_pct: float = Field(..., description="p95 sobre el tramo en contacto con el vaso")
+    min_local_diameter_mm: float = Field(..., description="Diámetro más estrecho al que queda abierto")
+    deployed_length_mm: float = Field(..., description="Longitud del tramo dibujado")
+    labelled_length_mm: float = Field(..., description="Longitud de catálogo que, alargada, lo cubre")
+    notes: list[str] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+
+
 class ClStentResult(BaseModel):
     """Deployed centreline-guided stent mesh + fit metrics."""
 
@@ -78,6 +107,12 @@ class ClStentResult(BaseModel):
     coverage_ratio: float = Field(..., description="stent_r / vessel_r (1.0 = perfect fit; <1 undersized)")
     total_arc_mm: float = Field(..., description="Total centreline arc length (for range sliders)")
     warning: str | None = Field(None, description="Fit warning (over/undersized)")
+    apposition: ClStentApposition | None = Field(
+        None, description="El mapa va en la malla, en el campo `aposicion_mm`")
+    coverage: ClStentCoverage | None = Field(
+        None, description="Cobertura metálica; el mapa va en la malla (`cobertura_delta_pct`). "
+                          "Solo con trenza y dentro de las medidas de la familia.",
+    )
 
 
 class CrossSectionResult(BaseModel):
@@ -106,3 +141,47 @@ class CenterlineClearResult(BaseModel):
     had_centerline: bool = Field(
         ..., description="False when there was no centreline to discard"
     )
+
+
+# ── Dimensionado de flow-diverter (services/fd_sizing.py) ─────────────────── #
+
+class FdLandingZone(BaseModel):
+    """Calibre del vaso en un anclaje, medido con cortes perpendiculares."""
+
+    arc_from_mm: float
+    arc_to_mm: float
+    diameter_mm: float = Field(..., description="Mediana de los cortes redondos; 0 = sin medir")
+    min_mm: float
+    max_mm: float
+    n_sections: int
+    truncated: bool = Field(..., description="La línea central se acaba antes del anclaje entero")
+
+
+class FdOption(BaseModel):
+    device_id: str
+    name: str
+    manufacturer: str
+    diameter_mm: float = Field(..., description="Medida elegida; 0 = ninguna encaja")
+    length_mm: float = Field(..., description="Longitud ETIQUETADA elegida; 0 = ninguna basta")
+    fits: bool
+    reason: str
+    neck_note: str = Field("", description="Cobertura metálica a la altura del cuello")
+    narrow_end_note: str = Field("", description="Cobertura en el anclaje más estrecho")
+    deploy_arc_mm: list[float] = Field(..., description="[inicio, fin] centrado en el cuello")
+    elongated_length_mm: float = Field(..., description="La etiqueta + 32,6 % (alargamiento medio medido)")
+
+
+class FdSizingResult(BaseModel):
+    neck_arc_mm: list[float]
+    neck_from_rim: bool
+    total_arc_mm: float
+    proximal: FdLandingZone
+    distal: FdLandingZone
+    mismatch_mm: float
+    target_diameter_mm: float
+    required_length_mm: float
+    multiple_devices: bool
+    options: list[FdOption]
+    warnings: list[str]
+    notes: list[str]
+    sources: list[str]

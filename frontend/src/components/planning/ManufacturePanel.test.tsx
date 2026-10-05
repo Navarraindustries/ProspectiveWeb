@@ -176,3 +176,34 @@ describe("the ideal clip is reachable whatever the outcome", () => {
     expect(await screen.findByText("Especificación de fabricación")).toBeInTheDocument();
   });
 });
+
+describe("la pieza colocada en Dispositivos manda", () => {
+  // En la sesión de Hernandez la ficha describía el recto de 8 mm del selector y
+  // «Generar STL y dossiers» fabricaba el T2 curvo de 7 mm que se había colocado.
+  const selector = { ...spec, shape: "Recto", blade_length_mm: 8, angle_deg: 0, label: "Recto de 8.0 mm · 125 g",
+                     piece_label: "", part_no: "" };
+  const colocado = {
+    can_order: false, reason: "", placed_in_plan: true,
+    advised_label: "NAVARRO™ T2 Curvo, mordaza 7.0 mm", advised_shape: "Curvo",
+    advised_jaw_mm: 7, advised_angle_deg: 0, advised_window_mm: 0,
+  };
+
+  it("antes de generar, la ficha ya describe la pieza colocada", async () => {
+    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: selector }));
+    clipOrderPrefill.mockResolvedValue(colocado as never);
+    draw();
+    expect(await screen.findByText("NAVARRO™ T2 Curvo, mordaza 7.0 mm")).toBeInTheDocument();
+    expect(screen.getByText("7.0 mm")).toBeInTheDocument();
+    expect(screen.getByText("Curvo")).toBeInTheDocument();
+    expect(screen.queryByText("8.0 mm")).toBeNull();
+    expect(screen.getByText(/Es el clip que colocaste en Dispositivos/)).toBeInTheDocument();
+  });
+
+  it("sin pieza colocada, la ficha es la del selector", async () => {
+    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: selector }));
+    clipOrderPrefill.mockResolvedValue({ can_order: false, reason: "", placed_in_plan: false } as never);
+    draw();
+    expect(await screen.findByText("8.0 mm")).toBeInTheDocument();
+    expect(screen.queryByText(/Es el clip que colocaste/)).toBeNull();
+  });
+});

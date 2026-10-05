@@ -1,5 +1,6 @@
 /* PROSPECTIVE Web — root: splash → Login/Signup → Pacientes → Sesión → Solicitudes. */
 
+import { ForcePasswordChange } from "./components/ForcePasswordChange";
 import { useCallback, useEffect, useState } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api/client";
@@ -78,11 +79,23 @@ function Router() {
   }, [ready, effective, location.pathname, navigate]);
 
   if (!ready) return null; // restoring stored token
+  // Con la contraseña inicial el servidor responde 403 a todo: una sola
+  // pantalla que lo dice, en vez de un error en cada panel.
+  if (user?.must_change_password) return <ForcePasswordChange />;
 
   const openPatient = (p: PatientSummary) => {
     planning.reset();
     planning.setPatient(p);
     setPatient(p);
+    setResumeStep(0);
+    setScreen("workspace");
+  };
+
+  // Empezar sin paciente: subir el DICOM y usar el pipeline ya, y decidir
+  // después si se guarda («Adjuntar a un caso», en la barra del pipeline).
+  const startWithoutPatient = () => {
+    planning.reset();
+    setPatient(null);
     setResumeStep(0);
     setScreen("workspace");
   };
@@ -115,6 +128,7 @@ function Router() {
       // The backend already activated the best series; mirror it so step 1 shows
       // the study (without this the panel looks empty and "Continuar" is off).
       planning.setSeries(r.series[0] ?? null);
+      planning.setSeriesList(r.series);
       setResumeStep(0);
       setToast(null);
       setScreen("workspace");
@@ -276,6 +290,7 @@ function Router() {
         onOpenPatient={openPatient}
         onResume={resumeSession}
         onPlanCase={planCase}
+        onStartWithoutPatient={startWithoutPatient}
         onOpenStudy={(s) => void openStudy(s)}
         onOpenPending={() => setScreen("pending")}
         onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}
@@ -328,6 +343,10 @@ function Router() {
         Esta sesión tiene resultados que no se han guardado. Si sales ahora se
         perderán: usa <b style={{ color: "var(--foreground)" }}>Guardar progreso</b> en
         la barra superior para poder reanudarla después.
+        {!planning.imagingStudyId && (
+          <> Además no está adjunta a ningún caso: con <b style={{ color: "var(--foreground)" }}>Adjuntar
+          a un caso</b> queda ligada a un paciente y su DICOM archivado.</>
+        )}
       </ConfirmDialog>
       {toast && (
         <div

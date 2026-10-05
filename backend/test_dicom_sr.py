@@ -57,6 +57,8 @@ class TestDicomSR:
         assert path.exists()
         ds = pydicom.dcmread(str(path))
         assert ds.Modality == "SR"
+        # UTF-8 declarado: sin ello «™», «≥» o «—» se escribían como «?».
+        assert ds.SpecificCharacterSet == "ISO_IR 192"
         assert str(ds.SOPClassUID) == _SR_SOP
         assert ds.CompletionFlag == "COMPLETE"
         # Root → morphometry container with NUM items.

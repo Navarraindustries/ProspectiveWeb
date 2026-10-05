@@ -9,6 +9,7 @@ endpoints. They are never placed under `data/`, which is public StaticFiles.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Annotated
 
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from models.dicom import UploadResult
 from models.patient import StudyCard
+from services.access import own_patient_ids, require_patient
 from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import ImagingStudy, PlanningSession, Patient, Study, User
@@ -75,12 +77,16 @@ def _to_card(img: ImagingStudy, latest: PlanningSession | None) -> StudyCard:
 )
 async def list_studies(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
     q: str = Query("", description="Filtro por nombre de paciente o cédula/HC"),
     patient_id: int | None = Query(None, description="Solo los estudios de este paciente"),
     case_id: int | None = Query(None, description="Solo los estudios de este caso clínico"),
     limit: int = Query(200, ge=1, le=1000),
 ) -> list[StudyCard]:
     query = db.query(ImagingStudy)
+    visibles = own_patient_ids(db, current_user)
+    if visibles is not None:
+        query = query.filter(ImagingStudy.patient_id.in_(visibles))
     if patient_id is not None:
         query = query.filter(ImagingStudy.patient_id == patient_id)
     if case_id is not None:
@@ -129,6 +135,7 @@ async def get_thumbnail(
     img = db.query(ImagingStudy).filter_by(id=study_id).first()
     if img is None:
         raise HTTPException(status_code=404, detail=f"Estudio {study_id} no encontrado")
+    require_patient(db, _user, img.patient_id)
     if not img.thumb_key:
         raise HTTPException(status_code=404, detail="Este estudio no tiene vista previa")
     try:
@@ -140,28 +147,12 @@ async def get_thumbnail(
                     headers={"Cache-Control": "private, max-age=300"})
 
 
-@router.post(
-    "/cases/{case_id}/archive",
-    response_model=StudyCard,
-    summary="Archive a session's DICOM as a new imaging study of a case",
-    description=(
-        "Copies the DICOM of `session_id` into durable storage as a NEW imaging "
-        "study of this clinical case and renders its preview, so it survives the "
-        "session TTL and appears in the gallery. A case can hold several imaging "
-        "studies (CT + angiography + follow-up), so archiving never overwrites a "
-        "previous one."
-    ),
-)
-async def archive_study(
-    case_id: int,
-    session_id: str,
-    db: Annotated[Session, Depends(get_db)],
-    _user: Annotated[User | None, Depends(get_current_user)] = None,
-) -> StudyCard:
-    case = db.query(Study).filter_by(id=case_id).first()
-    if case is None:
-        raise HTTPException(status_code=404, detail=f"Caso {case_id} no encontrado")
+def archive_into_case(db: Session, case: Study, session_id: str) -> ImagingStudy:
+    """Archiva el DICOM de la sesión como un estudio de imagen NUEVO del caso y
+    liga la sesión. Lo usan «archivar» y «Adjuntar a un caso».
 
+    Lanza ValueError si la sesión no tiene DICOM; si el archivo falla, la fila
+    del estudio se borra antes de propagar el error."""
     from services.sessions import read_state
     modality = read_state(session_id, "dicom.modality", "") or ""
     try:
@@ -185,13 +176,9 @@ async def archive_study(
 
     try:
         info = archive_session_dicom(session_id, img.id)
-    except ValueError as exc:
+    except BaseException:
         db.delete(img); db.commit()
-        raise HTTPException(status_code=422, detail=str(exc))
-    except Exception as exc:  # noqa: BLE001
-        db.delete(img); db.commit()
-        logger.exception("Archive failed")
-        raise HTTPException(status_code=500, detail=f"No se pudo archivar el estudio: {exc}")
+        raise
 
     img.storage_prefix = info["storage_prefix"]
     img.thumb_key      = info["thumb_key"]
@@ -210,6 +197,38 @@ async def archive_study(
 
     db.commit()
     db.refresh(img)
+    return img
+
+
+@router.post(
+    "/cases/{case_id}/archive",
+    response_model=StudyCard,
+    summary="Archive a session's DICOM as a new imaging study of a case",
+    description=(
+        "Copies the DICOM of `session_id` into durable storage as a NEW imaging "
+        "study of this clinical case and renders its preview, so it survives the "
+        "session TTL and appears in the gallery. A case can hold several imaging "
+        "studies (CT + angiography + follow-up), so archiving never overwrites a "
+        "previous one."
+    ),
+)
+async def archive_study(
+    case_id: int,
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    _user: Annotated[User | None, Depends(get_current_user)] = None,
+) -> StudyCard:
+    case = db.query(Study).filter_by(id=case_id).first()
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Caso {case_id} no encontrado")
+    require_patient(db, _user, case.patient_id)
+    try:
+        img = archive_into_case(db, case, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Archive failed")
+        raise HTTPException(status_code=500, detail=f"No se pudo archivar el estudio: {exc}")
 
     latest = max(img.sessions, key=lambda x: x.updated_at or x.created_at) if img.sessions else None
     return _to_card(img, latest)
@@ -234,6 +253,7 @@ async def open_study(
     img = db.query(ImagingStudy).filter_by(id=study_id).first()
     if img is None:
         raise HTTPException(status_code=404, detail=f"Estudio {study_id} no encontrado")
+    require_patient(db, _user, img.patient_id)
     if not img.storage_prefix:
         raise HTTPException(
             status_code=409,
@@ -242,7 +262,7 @@ async def open_study(
 
     sid = create_session()
     try:
-        n = restore_study_to_session(study_id, sid)
+        n = await asyncio.to_thread(restore_study_to_session, study_id, sid)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except OSError as exc:
@@ -259,7 +279,7 @@ async def open_study(
     from services.dicom_loader import scan_series
 
     try:
-        raw = scan_series(session_subdir(sid, "dicom"))
+        raw = await asyncio.to_thread(scan_series, session_subdir(sid, "dicom"))   # ver routers/upload.py
     except Exception as exc:  # noqa: BLE001
         logger.exception("Series scan failed on open")
         raise HTTPException(status_code=500, detail=f"No se pudieron leer las series: {exc}")

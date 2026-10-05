@@ -28,6 +28,14 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
+from services.scene_render import offscreen_available
+
+# Estos tests DIBUJAN. En una máquina sin OpenGL utilizable (la de integración
+# continua) dibujar no falla: mata el proceso. Lo que pasa ahí lo cubre
+# test_scene_render_sin_opengl.py.
+pytestmark = pytest.mark.skipif(
+    not offscreen_available(), reason="esta máquina no puede dibujar fuera de pantalla")
 import vtk
 
 from services.clip_dossier import render_dossier

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { isRecording, type CaptureOut } from "../../api/types";
 import { SectionLabel } from "../PanelHead";
+import { STEPS } from "../../pipeline/steps";
 
 export function CapturePicker({
   imagingStudyId, caseId, value, onChange,
@@ -115,7 +116,7 @@ export function CapturePicker({
                   {c.label}
                 </span>
                 <span style={{ display: "block", fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
-                  {c.step} · {new Date(c.created_at).toLocaleDateString()}
+                  {STEPS.find((p) => p.key === c.step)?.label ?? c.step} · {new Date(c.created_at).toLocaleDateString()}
                 </span>
               </span>
             </label>

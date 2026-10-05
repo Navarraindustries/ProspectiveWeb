@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
+
+from services.sessions import InvalidSessionId
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -27,7 +30,7 @@ from routers import (
     auth, patients, treatment, clips, coils, longitudinal,
     report, session_state, mpr, phases, centerline, audit,
     mesh_edit, print_prep, preprocess, studies, devices, clip_library,
-    clip_orders, progress, captures,
+    clip_orders, progress, captures, ground_truth, attach, followup,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,13 +138,32 @@ app = FastAPI(
 
 # ── CORS — allow React dev server (Vite default port) ─────────────────────── #
 
+_DEV_ORIGINS = (
+    "http://localhost:5173",   # Vite dev server
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",   # CRA / alternative
+)
+
+
+def cors_origins() -> list[str]:
+    """Orígenes que pueden llamar a la API con credenciales.
+
+    `CORS_ORIGINS` (separados por comas) los fija en un despliegue; sin ella,
+    los del servidor de desarrollo. `*` no se admite: con credenciales el
+    navegador lo rechaza, y aceptarlo en silencio dejaría la API sin CORS.
+    """
+    raw = os.environ.get("CORS_ORIGINS", "").strip()
+    if not raw:
+        return list(_DEV_ORIGINS)
+    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    if "*" in origins:
+        raise RuntimeError("CORS_ORIGINS no admite '*': la API usa credenciales. Lista los orígenes.")
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",   # CRA / alternative
-    ],
+    allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -159,6 +181,22 @@ app.add_middleware(
 _PROTECTED_STATIC_PREFIXES = ("/data/",)
 
 
+@app.exception_handler(InvalidSessionId)
+async def invalid_session_id(_request: Request, exc: InvalidSessionId):
+    """Un id que no es un UUID no es una sesión: 404, nunca una ruta."""
+    return JSONResponse({"detail": str(exc)}, status_code=404)
+
+
+@app.middleware("http")
+async def guard_csrf(request: Request, call_next):
+    """Doble envío para lo que se autentica por cookie (services/csrf.py)."""
+    from services.csrf import violation
+    motivo = violation(request.method, request.url.path, request.headers, request.cookies)
+    if motivo:
+        return JSONResponse({"detail": motivo}, status_code=403)
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def guard_private_static(request: Request, call_next):
     path = request.url.path
@@ -168,11 +206,25 @@ async def guard_private_static(request: Request, call_next):
         token = auth[7:] if auth.lower().startswith("bearer ") else request.cookies.get("prospective_token")
         db = SessionLocal()
         try:
-            if user_for_token(db, token) is None:
+            user = user_for_token(db, token)
+            if user is None:
                 return JSONResponse(
                     {"detail": "Authentication required — patient data"},
                     status_code=401,
                 )
+            # `data/` no es solo sesiones: ahí viven la base de datos y la
+            # cadena de auditoría, y StaticFiles las servía enteras a cualquier
+            # usuario (`/data/prospective.db`). Solo se sirve lo que cuelga de
+            # `/data/sessions/<uuid>/`, y solo si esa sesión no es de un
+            # paciente ajeno.
+            from services.access import can_access_patient, session_patient_id
+            from services.sessions import valid_session_id
+            parts = path.split("/")          # ["", "data", "sessions", <uuid>, …]
+            if (len(parts) < 5 or parts[2] != "sessions" or ".." in parts
+                    or not valid_session_id(parts[3])):
+                return JSONResponse({"detail": "Not found"}, status_code=404)
+            if not can_access_patient(db, user, session_patient_id(db, parts[3])):
+                return JSONResponse({"detail": "No autorizado sobre este paciente."}, status_code=403)
         finally:
             db.close()
     return await call_next(request)
@@ -236,6 +288,9 @@ app.include_router(devices.router,        dependencies=_private)
 app.include_router(clip_library.router,  dependencies=_private)
 app.include_router(clip_orders.router,   dependencies=_private)
 app.include_router(progress.router,      dependencies=_private)
+app.include_router(ground_truth.router,  dependencies=_private)
+app.include_router(attach.router,        dependencies=_private)
+app.include_router(followup.router,      dependencies=_private)
 # El WebSocket no lleva la dependencia de arriba: un navegador no puede mandar
 # la cabecera Authorization en el handshake de un WS, así que el token viaja
 # en la query y `ws_progress` lo valida él mismo con `user_for_token`.

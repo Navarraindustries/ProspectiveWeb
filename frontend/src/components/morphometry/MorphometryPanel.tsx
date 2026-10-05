@@ -11,11 +11,14 @@ import { Metric } from "../Metric";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { Tabs } from "../Tabs";
+import { FollowupOverlay } from "./FollowupOverlay";
+import { UiatsCalculator } from "./UiatsCalculator";
+import { ElapssCalculator } from "./ElapssCalculator";
 import { PhasesCalculator } from "./PhasesCalculator";
 import { LongitudinalChart } from "./LongitudinalChart";
 import { usePlanning } from "../../store/planning";
 
-const TABS = ["Métricas", "Índices", "PHASES", "Seguimiento"] as const;
+const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "UIATS", "Seguimiento"] as const;
 
 export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
@@ -128,7 +131,10 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
 
       {m && (
         <>
-          {!m.neck_valid && m.warning && (
+          {/* Cualquier aviso, no solo el de cuello inválido: el de «cuello mayor
+              que el saco», el del recorte y el de las partes finas que inflan el
+              Ø máximo llegaban con un cuello válido y no se veían. */}
+          {m.warning && (
             <div style={{ background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 12, display: "flex", gap: 10 }}>
               <Icon name="STATUS_WARN" color="var(--warning)" size={18} />
               <div style={{ fontSize: 12, color: "var(--warning)" }}>{m.warning}</div>
@@ -233,6 +239,11 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                     medido se ocultaba en cuanto fallaba el volumen — mientras el
                     visor, que no consulta la bandera, seguía anotándolo en 3D. */}
                 <Metric label="Ø máximo" value={m.max_diameter_mm.toFixed(1)} unit=" mm" />
+                {/* El mismo Ø sin ramas finas pegadas al saco: si se separa del de
+                    arriba, el aviso explica por qué (services/sac_body.py). */}
+                {m.body_max_diameter_mm != null && (
+                  <Metric label="Ø máximo del cuerpo (sin ramas finas)" value={m.body_max_diameter_mm.toFixed(1)} unit=" mm" />
+                )}
                 <Metric label="Cuello" value={neckOk ? m.neck_mm.toFixed(1) : "—"} unit={neckOk ? " mm" : ""} />
                 <Metric label="Altura de domo" value={neckOk ? m.dome_height_mm.toFixed(1) : "—"} unit={neckOk ? " mm" : ""} />
                 <Metric label="Volumen" value={volOk ? m.volume_mm3.toFixed(1) : "—"} unit={volOk ? " mm³" : ""} />
@@ -263,11 +274,22 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 <Metric label="UI · Undulación" value={volOk ? m.ui.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : m.ui > 0.15 ? ["Irregular", "warning"] : ["Bajo", "success"]} />
                 <Metric label="EI · Elipticidad" value={volOk ? m.ei.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : m.ei > 0.35 ? ["Alto", "warning"] : ["Bajo", "success"]} />
                 <Metric label="NSI · No-esfericidad" value={volOk ? m.nsi.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
+                {/* El SR depende de la arteria madre, que se mide justo por debajo
+                    del cuello: con un cuello estimado automáticamente esa referencia
+                    es frágil, y la cifra se presenta como orientativa. */}
                 <Metric
                   label="SR · Size Ratio"
                   value={m.sr > 0 ? m.sr.toFixed(2) : "—"}
-                  badge={m.sr > 3.0 ? ["Alto", "destructive"] : undefined}
+                  badge={m.sr <= 0 ? ["sin medir", "outline"]
+                    : m.neck_source === "auto" ? ["orientativo", "outline"]
+                    : m.sr > 3.0 ? ["Alto", "destructive"] : undefined}
                 />
+                {m.sr > 0 && m.neck_source === "auto" && (
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "-2px 0 8px" }}>
+                    SR orientativo: el cuello está estimado, no marcado. La arteria madre se
+                    mide justo bajo el cuello, así que marca el borde para fiarte de esta cifra.
+                  </div>
+                )}
                 <Metric label="Compacidad (Wadell)" value={volOk ? m.compactness.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
                 <Metric label="Ø esfera equivalente" value={volOk ? m.eq_sphere_diam_mm.toFixed(1) : "—"} unit={volOk ? " mm" : ""} />
               </div>
@@ -275,8 +297,16 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             {tab === "PHASES" && (
               <PhasesCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} />
             )}
+            {tab === "UIATS" && (
+              <UiatsCalculator m={m} sessionId={sessionId} dob={planning.patient?.dob} />
+            )}
+            {tab === "ELAPSS" && (
+              <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} dob={planning.patient?.dob}
+                                irregularHint={m.volume_valid && m.ui > 0.15} />
+            )}
             {tab === "Seguimiento" && (
               <div>
+                {sessionId && <FollowupOverlay sessionId={sessionId} />}
                 {longi?.growth_alert && (
                   <div style={{ background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 12, display: "flex", gap: 10 }}>
                     <Icon name="GROWTH" color="var(--warning)" size={18} />

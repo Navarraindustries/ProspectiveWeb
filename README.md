@@ -186,7 +186,7 @@ La detección busca la curvatura sobre una copia de 80 000 vértices cuando la m
 
 - **Memoria y resolución.** Case 3 (56,6 M vóxeles) necesita unos 2,1 GiB para el método tubular a resolución nativa. En una instancia de 2 GB el presupuesto automático (70 % de la RAM disponible) no llega, así que los estudios de ese tamaño se segmentan siempre a media resolución: la tarjeta lo dice («1/2 · Submuestreada») y la lesión de Case 3 cae al 5.º puesto. Recomendado: una instancia de 4 GB, que pasa justo, o fijar `PROSPECTIVE_MEM_BUDGET_MB` a lo que la máquina aguante de verdad.
 - **Tiempo.** A media resolución, máscara más superficie de Case 3 tardan unos 27 s en un solo núcleo del equipo de desarrollo, casi todo en los dos pases de Frangi. En una vCPU compartida hay que contar con 40–80 s.
-- **Proxy inverso.** `POST /api/segment` es síncrono: la respuesta llega cuando termina la segmentación. El proxy tiene que dejar al menos 180 s de tiempo de lectura (nginx: `proxy_read_timeout 180s;`); con el típico límite de 30 s el navegador recibe un 504 mientras el servidor termina y sustituye la malla igualmente. El progreso va por `/ws/progress/…`, así que el proxy también tiene que reenviar `/ws/` con las cabeceras de actualización:
+- **Proxy inverso.** La interfaz lanza la segmentación con `POST /api/segment?background=true`, que responde 202 al instante, y recoge el resultado en `GET /api/segment/result/{sid}` (409 mientras sigue en curso), así que ninguna petición dura minutos y el límite típico de 30 s del proxy basta. Sin `background` el endpoint sigue siendo síncrono, para scripts. El progreso va por `/ws/progress/…`, así que el proxy también tiene que reenviar `/ws/` con las cabeceras de actualización:
 
   ```nginx
   location /ws/ {
@@ -265,6 +265,22 @@ can also reset another user's password from the Usuarios page.
 > modules, and a stale process on :8000 will silently serve old code. Restart the
 > backend for real when verifying a change end to end.
 
+### With Docker
+
+```bash
+docker compose up --build -d      # → http://localhost:8080
+```
+
+Two containers: the API (`backend/Dockerfile`, one uvicorn process — progress
+and background results live in memory) and nginx (`frontend/Dockerfile`) with
+the built app, which also forwards `/api`, `/data` and `/ws`. Browser and API
+share one origin, so the session cookie stays `SameSite` and no CORS is needed.
+The database, the study archive, user files, the JWT key and the clip folders
+live in named volumes; none of them is copied into the image
+(`backend/.dockerignore`). `PROSPECTIVE_PORT` changes the port. Before real
+patient data: put HTTPS in front and set `COOKIE_SECURE=1`. CI builds both
+images and checks they answer.
+
 ---
 
 ## Atajos de teclado
@@ -303,6 +319,9 @@ The server runs out of the box with sensible defaults.
 | `STORAGE_S3_BUCKET` | — | Required when `STORAGE_BACKEND=s3`; bucket must be private |
 | `STORAGE_S3_PREFIX` | — | Optional key prefix inside the bucket |
 | `COOKIE_SECURE` | off | Mark the auth cookie `Secure` (set it when serving over HTTPS) |
+| `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD` | off | `1` skips the forced change of `admin123` (tests, local dev only) |
+| `CORS_ORIGINS` | Vite dev server | Comma-separated origins allowed to call the API with credentials. `*` is refused |
+| `PROSPECTIVE_PLAN_VIEWS` | probed | `0` / `1` forces the report's server-rendered plan views off / on. Unset, a child process probes once whether offscreen OpenGL works: on a machine without it VTK does not raise, it kills the process |
 | `BACKEND_URL` | `http://127.0.0.1:8000` | Where the Vite dev server proxies `/api`, `/data`, `/static` |
 
 Token lifetime is currently a constant (`ACCESS_TOKEN_EXPIRE_MIN`, 24 h) in
@@ -2230,6 +2249,40 @@ cookie that login also sets — the browser cannot attach a header to an `<img
 src>` or to the requests vtk.js makes for `.vtp` meshes, and those URLs serve
 patient imaging.
 
+A `POST`/`PUT`/`PATCH`/`DELETE` under `/api/` that is authenticated **by cookie
+alone** (no `Authorization` header) must also carry `X-CSRF-Token` equal to the
+`prospective_csrf` cookie, which login sets readable by the page's JavaScript
+(double submit, `services/csrf.py`); otherwise 403. Bearer requests are exempt:
+no other page can set that header without passing CORS. So are login, signup
+and logout, which a stale cookie must never block.
+
+**Session ids are validated.** A session id arrives from outside and becomes a
+path. Unvalidated, `..` WAS a valid session (`data/sessions/..` is `data/`), and
+`POST /api/sessions/save` with it ran `rmtree` on `data/session_saves/..` — the
+whole `data/` folder, database and audit chain included, for any signed-in
+user. `services/sessions.py` now accepts only the canonical UUID that
+`create_session` generates; anything else is a 404.
+
+**Who sees which patient.** A non-admin sees the patients they created; the
+rule lived only in the patients router. It is now one module
+(`services/access.py`) applied to the study gallery, captures, saved sessions,
+the longitudinal and follow-up endpoints, lesion confirmations and the files
+under `/data`. A session not yet attached to a patient has no owner to check:
+its random UUID is the key.
+
+**`/data` serves session files only.** It used to serve the whole `data/`
+folder, so `/data/prospective.db` was the entire database for any account. Only
+`/data/sessions/<uuid>/…` is served now, and only when that session does not
+belong to someone else's patient; everything else is a 404, for admins too.
+
+**First login and failed logins.** The default `admin` / `admin123` account must
+change its password before doing anything else (403 on every other endpoint;
+the app shows a single screen for it), and an existing installation still on
+`admin123` is flagged at startup. `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD=1`
+turns this off for tests and local development — never with patient data.
+Five failed logins for the same user from the same address within 15 minutes
+answer 429 until the oldest expires (`services/login_throttle.py`).
+
 ### Authentication & users
 
 | Method | Endpoint | Description |
@@ -2279,7 +2332,8 @@ patient imaging.
 |---|---|---|
 | `GET` | `/api/segment/suggested-band/{sid}` | Auto HU band + strategy used |
 | `POST` | `/api/segment/preview/{sid}` | Coarse live preview mesh while tuning sliders |
-| `POST` | `/api/segment` | Full Marching Cubes segmentation |
+| `POST` | `/api/segment` | Full Marching Cubes segmentation (`?background=true` → 202) |
+| `GET` | `/api/segment/result/{sid}` | Result of a background segmentation (409 while running) |
 | `POST` | `/api/segment/compare-ceiling/{sid}` | Detect with and without the band's ceiling, and contrast both lists |
 | `POST` | `/api/mesh-crop/{sid}` | Box / sphere ROI crop of the mesh |
 | `GET` | `/api/mesh-bounds/{sid}` | Bounding box, so the plane-cut slider has a real range |
@@ -2303,6 +2357,8 @@ patient imaging.
 | `POST` | `/api/treatment-decision` | Heuristic CLIP vs ENDOVASCULAR scoring + the JSDB per-route risk on ruptured cases |
 | `DELETE` | `/api/treatment-decision/{sid}` | Drop the recommendation, its context and the PHASES score |
 | `POST` | `/api/phases` | PHASES 5-year rupture risk |
+| `POST` | `/api/elapss` | ELAPSS 3- and 5-year GROWTH risk (follow-up planning) |
+| `POST` | `/api/uiats` | UIATS: points for repair vs conservative management |
 | `GET` `DELETE` | `/api/devices/{sid}` | What the plan has placed · remove one family (`kind=clips\|coils\|stent`) |
 | `GET` | `/api/clips` · `/api/coils` · `/api/stents` | Device catalogues |
 | `GET` | `/api/clips/recommendations/{sid}` | Ranked clip recommendations (legacy score) |
@@ -2326,7 +2382,58 @@ patient imaging.
 | `GET` `POST` `DELETE` | `/api/clips/custom/{sid}` | Imported clip library: list · upload · remove one |
 | `POST` | `/api/coils/plan` · `/api/plan` | Coil packing · stent deployment |
 | `POST` | `/api/cl-stent/{sid}` | Centerline-guided stent along vessel curvature |
+| `POST` | `/api/centerline/{sid}/fd-sizing` | Flow-diverter sizing: landing-zone calibres, catalogue diameter and labelled length |
+| `POST` | `/api/web-sizing/{sid}` | WEB sizing: sac width and height on the neck plane, catalogue SL/SLS sizes by the +1/−1 rule |
 | `POST` `DELETE` | `/api/trajectory/{sid}` | Surgical trajectory |
+
+**WEB sizing** («WEB» tab). From the isolated sac and the neck plane it
+measures the average width (mean of the widest and narrowest caliper in the
+plane of the neck) and the height (neck plane to the top of the sac). It
+proposes the WEB SL and SLS sizes that actually exist (MicroVention WEB 17
+selection tables) by the +1/−1 rule: device width = aneurysm width + 1–2 mm,
+device height no more than the aneurysm height minus the same amount (Ansari,
+Brain Sci 2021). It says whether the aneurysm is inside the FDA indication (dome
+3–10 mm; neck ≥ 4 mm or dome/neck between 1 and 2) and warns when a device is
+not wider than the neck. The device/aneurysm volume ratio (DAV) is shown as a
+figure, not a criterion: the published ranges disagree (0.6–0.8, 0.90–1.16,
+0.76–1.24) and a 133-case multicentre study found none better than the classic
+rule. When the sac encloses less than half the volume of a half-ellipsoid with
+the same measurements it is not a filled dome — Hernández's closed sac measures
+9.5 × 6.2 × 4.8 mm and encloses 56 mm³ against ~150 — so the panel says the width
+may include space the device cannot occupy and gives no DAV. Without a marked
+neck there is no isolated sac and the figures come from the morphometry, flagged
+as approximate. Whether the artery is a bifurcation is for the reader to say.
+
+**Flow-diverter sizing** («Stent CL» tab → «Dimensionar»). On the extracted
+centreline it finds the stretch of vessel the neck occupies (from the marked
+rim when there is one, else the neck width), then measures the vessel with
+perpendicular cuts in a 5 mm landing zone on each side, leaving 1 mm clear of
+the neck. A cut only counts if it is round and the centreline runs through its
+centre: on a real case the nearest contour at one point was a 1.7 mm branch
+touching a 4–5 mm vessel, and without that check the landing zone of a
+synthetic test came out at 1.59 mm instead of 4. For each flow diverter in the
+catalogue it proposes the marketed diameter closest to the LARGER landing zone
+(never more than 0.25 mm below it) and the shortest labelled length that covers
+neck plus landing zones, with what that diameter does to metal coverage at the
+neck and at the narrow end. A proximal–distal difference above 1 mm is flagged
+as calling for several devices, each sized to its segment. The length is the
+LABELLED one: deployed Pipelines measured 32.6 % longer on average (26–109 %,
+101 patients, JNIS 2023), so the panel says how far that could reach. It does
+not simulate the braid (Sim&Size, AneuGuide do, per device design). Proximal is
+the centreline's ORIGIN. «Usar en el despliegue» fills the centreline stent
+with that diameter and span. When `morpho.parent_artery_mm` disagrees with
+these calibres by more than 1 mm it says so: the «Stents» tab sizes with that
+figure.
+
+**Parent artery: 25th percentile, not median.** A spoiled cut almost always
+WIDENS: a slightly oblique plane gives an ellipse longer than the vessel, and
+next to the neck the contour drags part of the sac in. Against the calibre
+measured on a centreline of the same vessel (≈ 4.2 mm), the median gave
+4.94/4.78 (Cerón) and 5.00 (Hernández); the 25th percentile gives 4.48/4.49 and
+4.32. Values stored before this change are marked as such
+(`morpho.parent_artery_method`) and the sizing panels ask to re-run the
+morphometry; a re-run that cannot measure it now clears the old figure instead
+of leaving it in the state.
 
 ### Report, export & audit
 
@@ -2335,11 +2442,139 @@ patient imaging.
 | `POST` | `/api/report` | PDF surgical planning report |
 | `POST` | `/api/report/dicom-sr` | DICOM Structured Report (TID 1500) |
 | `POST` | `/api/export/stl` | Binary STL export |
+| `POST` | `/api/export/glb/{sid}` | Scene as glTF 2.0 binary: one coloured object per mesh, metres, centred |
+| `POST` | `/api/export/dicom-seg/{sid}` | Vessel and aneurysm as DICOM SEG on the original series, for the PACS |
+| `GET` `POST` | `/api/followup/{sid}/studies` · `/api/followup/{sid}` | Other studies of the patient · overlay one and map where the aneurysm changed |
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
 | `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
 | `POST` `GET` | `/api/captures` · `/api/captures/{id}/image` | Viewer capture (PNG) attached to the imaging study · list · serve |
 | `POST` `GET` | `/api/captures/video` · `/api/captures/{id}/video` | Viewer recording (MP4/WebM, ≤ 80 MB, checked by its bytes) · serve |
 | `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |
+| `POST` `GET` `DELETE` | `/api/ground-truth` · `/current` · `/{id}` | Confirm where the lesion is (or that there is none) · current one · retract |
+| `GET` | `/api/ground-truth/summary` · `/export` | How the detector ranks against what was confirmed · full export (admin) |
+
+**Follow-up overlay** (Morfometría → Seguimiento). The longitudinal chart says
+how much the aneurysm changed; this says where. Each mesh is in mm from the
+first voxel of its own volume, so both are first taken to patient space with
+their own DICOM geometry (anatomical axes match between studies, the table
+origin does not), the lesion centres are overlaid, and a rigid ICP of the
+vessels around the lesion — the lesion itself excluded, so the growth being
+measured is not «corrected» away — refines it. The current vessels near the
+lesion are then coloured by their distance to the previous study (red grew,
+blue shrank, grey within the noise). The noise is the 90th percentile of the
+residual on those surrounding vessels, or the larger voxel; nothing below it is
+called growth. The sign does not come from face normals: a synthetic surface
+with inward faces read growth as shrinkage, and VTK's `InsideOrOutside` also
+reads the first face's normal, so inside/outside is decided by counting ray
+crossings (three rays, majority). Validated on the real case 3 tree moved by a
+6° head turn and 12 mm of table: the turn is recovered exactly and bumps of 1.5,
+0.8 and 0.3 mm read 1.37, 0.71 and 0.27 mm — a narrow peak comes out at ~90 %,
+and the 0.3 mm one stays under the noise. Different modalities draw the wall
+differently and that shows as a uniform offset, which the panel warns about.
+
+**Stent apposition map** (Dispositivos → stent sobre la línea central). The
+single figure Ø stent / mean Ø vessel does not say where the fit fails. Each
+point of the deployed tube now carries its signed distance to the wall
+(`aposicion_mm` in `cl_stent.vtp`): positive, inside the lumen and short of the
+wall at nominal diameter (red); negative, the nominal is larger than the vessel
+there, so the real device would sit compressed (blue); grey within one voxel.
+Points over the neck have no wall to touch and do not count. The panel gives
+the separated and compressed share of the surface, the largest gap and the gap
+at each 3 mm end, where the device has to anchor. It is the nominal tube
+against the mesh, not a braid simulation: a real device narrows and lengthens
+when compressed. On a real case, Ø 3.5 / 4.25 / 5.0 mm read 37 / 16 / 8 %
+separated and 12 / 30 / 58 % compressed.
+
+**Metal coverage map** (same tab, with the braid option on). What diverts flow
+is how much metal sits across the neck, and that is not the catalogue figure:
+it depends on the diameter the braid is held at. The model is the geometry of a
+braid and nothing is fitted: wires do not stretch, so sin α = sin α₀ · D / D₀;
+where the vessel is narrower than the device the wires lie down, the device
+lengthens by cos α / cos α₀ and coverage, proportional to 1 / (D · cos α),
+drops until the cells are square at 45°. On a curve the same metal spreads over
+more surface on the outside. It needs two facts about the device: nominal
+coverage (30–35 % for the Pipeline family) and the nominal wire angle, taken
+from the device being about 2.5 times longer inside the microcatheter. With
+those it reproduces the two independent measurements the project already cited
+— 25.5 % coverage at 1.0 mm oversizing (24–26 % here) and about a third longer
+once deployed. The local diameter comes from the apposition map. The panel
+gives the estimated coverage across the neck, the range along the vessel and
+the labelled length that, once lengthened, covers the drawn segment; a switch
+paints the stent by apposition or by coverage (red, pores more open than the
+catalogue). Not modelled: pushing the braid to pack it over the neck, which is
+what operators do to raise coverage; and only Pipeline is calibrated.
+
+**ELAPSS.** Next to PHASES in Morfometría: the 3- and 5-year risk of GROWTH
+(not rupture) of an unruptured aneurysm, for deciding how often to repeat the
+imaging (Backes et al., Neurology 2017). Points as reproduced by the external
+validation (J Stroke 2019) and the Stroke Manual, which agree item by item —
+including the counter-intuitive earlier-SAH item (yes 0, no 1). Size fills from
+the morphometry; irregular shape is never set automatically, the panel only
+hints when the undulation index is high. Recorded in the session it reaches the
+PDF report with each input next to its points, and the same caveat as PHASES:
+it discriminates poorly outside its derivation cohorts, and populations outside
+them (Latin America, for instance) were not studied.
+
+**UIATS** (Morfometría → UIATS). Two independent sums, in favour of repair and
+in favour of conservative management, transcribed item by item from figure 2
+of Etminan et al., Neurology 2015 (each value has its test). A difference of 3
+or more suggests the larger column; 2 or less is «not definitive». Age fills
+from the date of birth and the diameter from the morphometry; SR/AR and a neck
+wider than the parent artery are shown as hints, never ticked. The figure skips
+age 40 in the conservative column («< 40», «41-60»): it is counted with 41-60
+and the result says so. A Delphi consensus, not a model fitted to outcomes, and
+it did not discriminate reliably in external series; it reaches the PDF with
+both columns item by item.
+
+**DICOM SEG.** The SR carries the measurements; the SEG carries the regions, so
+the hospital PACS, 3D Slicer or OsiriX/Horos paint them over the original series.
+Two segments: «Vaso» (the working mesh, with its crops and erasures) and
+«Aneurisma» (the sac isolated in Morfometría; the detection candidate is an open
+surface patch and is not exported). The meshes are in mm from the first voxel
+of the loaded volume; isotropic resampling and half resolution both keep that
+voxel at the origin, so mesh mm / ORIGINAL spacing is the index in the original
+grid whatever resolution the segmentation ran at. Slice order is the loader's
+(`_series_file_names`); in a single-file multi-frame, frame i is slice i.
+Written with highdicom. Checked on case 3 by reading the SEG back with pydicom
+alone and placing each voxel in patient space from the positions the SEG itself
+declares, against the mesh taken to patient space through the original frames:
+aneurysm centroid 0.28 mm apart (voxel 0.32 mm) and every mesh point within
+0.17 mm of a SEG voxel; the test does the same on an oblique, offset classic
+series. Two things the source must have: the orientation shared by its frames
+(case 3 repeats it per frame, so it is moved to the shared group in an in-memory
+copy) and a Frame of Reference UID, which is never invented — a new one would not
+match the images. Empty type-2 patient/study attributes are added when an
+anonymised source lacks them. The SEG carries the series' patient module, like
+any SEG, and is served only through the authenticated `/data` route.
+
+**3D scene export (GLB).** The STL is for printing: one merged mesh, no colour.
+«Exportar escena 3D (GLB)» writes glTF 2.0 for showing the case — any 3D
+viewer, PowerPoint, phone AR — with the vessel (semi-transparent), the isolated
+sac (or the chosen candidate when there is none) and every placed device as
+separate named objects in the viewer's colours. glTF's unit is the metre, so the
+scene is exported at real size in metres and centred; in millimetres an AR
+viewer would place a six-metre aneurysm. It is not reoriented to Y-up: the
+anatomical frame is not always known and a blind rotation would be worse. Node
+names say what each object is and nothing about the patient; the download is
+named `prospective-escena.glb`. Written without a new dependency
+(`services/glb_export.py`); a real scene (vessel, sac, clip; 1.3 MB) passes the
+Khronos glTF validator with no errors or warnings.
+
+**Attach to a case later («Adjuntar a un caso»).** A session can start with no
+patient: upload the DICOM and use the pipeline. While it has no archived study
+the top bar offers «Adjuntar a un caso», one sheet that picks an existing
+patient or creates one, then an existing case of that patient or a new one
+(just the reason). `POST /api/sessions/{sid}/attach` then archives the DICOM
+already in the session as an imaging study of that case (no re-upload), links
+the session, moves any lesion confirmation made before attaching onto the study,
+and logs `SESSION_ATTACHED` with the patient as a hash. If anything fails no
+half-created patient or case is left behind. The DICOM header only PROPOSES the
+patient (`GET /api/sessions/{sid}/identity`): nothing is written until the
+professional presses «Rellenar con la cabecera DICOM» and confirms, and a patient
+whose record number matches the header is selected instead of creating a
+duplicate (the server refuses a duplicate record number with 409). Captures
+already downloaded are not recovered; from then on they go to the case. Leaving
+an unattached session with unsaved work says so.
 
 **Captures and recordings.** «Captura» and «● Grabar», in the top bar, save what
 the *viewer* shows — every visible pane in place plus the HUD readouts
@@ -2453,10 +2688,28 @@ captures and recordings follow what is on screen; their saved state includes
 elevation and offset), `clip_mode`, `cut_face_visible` and `volume_window` (the
 current preset's window, or null while it is the default).
 
+**Confirming the lesion («¿Cuál es la lesión?»).** The detector was tuned on
+two diagnosed cases and its ranking is unstable, so without more cases with a
+known answer nobody can tell whether a change improves it. In the detection step
+the professional can say *this candidate is the lesion*, mark it by hand on the
+mesh when no candidate is, or record that the study has no aneurysm. It does not
+change the plan. Each answer is stored against the **archived imaging study**
+(the session is purged after 24 h; the study keeps the DICOM) with the list of
+candidates as it came out and the parameters that made the mesh (`seg.params`,
+preprocessing, number of mesh edits), so a new detector can be re-run on the
+same study and compared. A hand-marked point counts as a candidate when it falls
+within that candidate's diameter of its centre, never less than 5 mm. A new
+answer for the same study retracts the previous one, which stays in the table
+and in the audit chain. `GET /api/ground-truth/summary` gives how often the
+lesion came first, in the top 3 and top 5, or was missed; the panel shows it.
+No free text is stored; the export carries internal ids only.
+
 **What the audit chain records.** Login, password changes and resets, PDF and
 DICOM-SR generation, clip workshops and every order transition, the treatment
-recommendation, saving or deleting a capture or recording, and deleting a
-patient or a case. The signer is the logged-in user — not the surgeon name
+recommendation, saving or deleting a capture or recording, deleting a
+patient or a case, every segmentation (method, vertices, resolution) and every
+device placed in the plan (clips, coils, stent, centreline stent — family,
+models and the session), and every lesion confirmation or retraction. The signer is the logged-in user — not the surgeon name
 typed into the report form. Patients enter as a hash of their record number
 and date of birth; no name and no free text written by the professional (a
 capture's label, for instance) goes into the chain.
@@ -2641,6 +2894,25 @@ make dev:frontend        # vite on :5173
 make openapi:export      # curl /openapi.json → openapi.json (server must be up)
 ```
 
+**Database migrations.** The schema is versioned with Alembic
+(`backend/migrations`, applied by `init_db()` at startup; no `alembic.ini`). A
+new table needs nothing; a change to an existing one is a revision:
+`python -m services.database revision "message"`. See
+`backend/migrations/README.md`.
+
+**API ↔ UI contract.** `frontend/openapi.json` is the API schema as exported
+without a running server, and `src/api/schema.gen.ts` the types generated from
+it. `src/api/contract.check.ts` makes `tsc` fail when what the server sends no
+longer fits the hand-written `types.ts`. After changing a response model:
+
+```bash
+cd backend && .venv/Scripts/python scripts/export_openapi.py ../frontend/openapi.json
+cd ../frontend && npm run gen:api
+```
+
+A backend test fails if the saved schema is stale, and CI fails if the
+generated types are.
+
 ---
 
 ## Relationship to the Desktop App
@@ -2686,12 +2958,12 @@ clinician.
   the strategy key and a clinical hint; the UI reads the slider range from
   `GET /api/segment/suggested-band/{sid}` instead. Both share the same
   `compute_auto_thresholds` core, so they cannot drift apart.
-- **Progress is reported for segmentation only.** `/ws/progress/{sid}` (cookie
-  auth) and its `GET /api/progress/{sid}` fallback carry the real phase and
-  percentage of a segmentation; detection, morphometry and the rest still show
-  an indeterminate bar. `POST /api/segment` itself stays synchronous, so behind
-  a proxy with a short timeout the browser can get a 504 while the server
-  finishes and replaces the mesh anyway.
+- **Progress is reported for segmentation and detection only.**
+  `/ws/progress/{sid}` (cookie auth) and its `GET /api/progress/{sid}` fallback
+  carry the real phase and percentage of a segmentation and of a detection
+  (lectura, curvatura, calibre y cociente, regiones); morphometry and the rest
+  still show an indeterminate bar. Detection's phases are coarse: inside
+  «curvatura» the bar does not move.
 - **Recordings run at up to 30 fps only while the tab is visible.** In a
   background tab the browser throttles timers to about once a second, so the
   video keeps going but with few frames.

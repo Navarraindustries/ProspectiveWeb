@@ -114,6 +114,10 @@ class StentLibraryItem(BaseModel):
     min_diameter_mm: float
     max_diameter_mm: float
     available_lengths_mm: list[float]
+    available_diameters_mm: list[float] = Field(
+        default_factory=list,
+        description="Medidas comercializadas, cuando se conocen. Vacío = solo el rango.",
+    )
     type: str = Field(
         ..., description="Stent type: 'flow_diverter' | 'coil_assist' | 'neck_bridge'"
     )
@@ -141,3 +145,38 @@ class DeviceClearResult(BaseModel):
             "scene while the report still listed them."
         ),
     )
+
+
+# ── Dimensionado de WEB (services/web_sizing.py) ──────────────────────────── #
+
+class WebSacDims(BaseModel):
+    width_mm: float = Field(..., description="Anchura media en el plano del cuello")
+    width_max_mm: float
+    width_min_mm: float
+    height_mm: float = Field(..., description="Del plano del cuello al punto más alto del saco")
+    source: str = Field(..., description="'sac' (malla aislada) | 'morpho' (orientativo)")
+
+
+class WebOption(BaseModel):
+    shape: str = Field(..., description="'SL' | 'SLS'")
+    width_mm: float
+    height_mm: float
+    added_mm: float = Field(..., description="Anchura del dispositivo − anchura del aneurisma")
+    target_height_mm: float = Field(..., description="Altura del aneurisma − lo sumado")
+    dav: float | None = Field(None, description="Volumen de la envolvente / volumen del aneurisma")
+    label: str
+    note: str = Field("", description="Por qué no cumple la regla al pie de la letra")
+
+
+class WebSizingResult(BaseModel):
+    dims: WebSacDims
+    neck_mm: float
+    dnr: float
+    volume_mm3: float
+    within_indication: bool
+    fill_ratio: float | None = Field(
+        None, description="Volumen del saco / semielipsoide de las mismas medidas; < 0,5 = irregular")
+    options: list[WebOption]
+    warnings: list[str]
+    notes: list[str]
+    sources: list[str]

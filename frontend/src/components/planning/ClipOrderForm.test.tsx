@@ -113,7 +113,7 @@ describe("what the form already knows", () => {
   it("says where the neck measurement came from, because everything derives from it", async () => {
     clipOrderPrefill.mockResolvedValue(prefill({ neck_source: "auto" }));
     draw();
-    expect(await screen.findByText(/estimado automáticamente/)).toBeTruthy();
+    expect(await screen.findByText(/automáticamente, sin marcarlo/)).toBeTruthy();
   });
 
   it("pre-ticks the spare sizes only when the neck was estimated", async () => {

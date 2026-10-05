@@ -29,25 +29,34 @@ function ageFromDob(dob?: string | null): string {
   return years >= 0 && years <= 120 ? String(years) : "";
 }
 
+/** La primera letra en minúscula, para una frase que sigue a dos puntos. */
+function minuscula(s: string): string {
+  return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
 export function TreatmentPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const { sessionId, treatment, patient } = planning;
 
-  const [location, setLocation] = useState<AneurysmLocation>(ANEURYSM_LOCATIONS[0]);
-  const [ruptured, setRuptured] = useState(false);
+  // El formulario arranca con lo último que se evaluó en esta sesión, no en
+  // blanco: ver `treatmentInputs` en el store.
+  const prev = planning.treatmentInputs;
+  const txt = (n: number | null | undefined) => (n === null || n === undefined ? "" : String(n));
+  const [location, setLocation] = useState<AneurysmLocation>(prev?.location ?? ANEURYSM_LOCATIONS[0]);
+  const [ruptured, setRuptured] = useState(prev?.is_ruptured ?? false);
   // Pre-filled from the patient record — no reason to re-type what we know.
-  const [age, setAge] = useState<string>(() => ageFromDob(patient?.dob));
-  const [comorbid, setComorbid] = useState(false);
+  const [age, setAge] = useState<string>(() => (prev ? txt(prev.patient_age) : ageFromDob(patient?.dob)));
+  const [comorbid, setComorbid] = useState(prev?.has_comorbidities ?? false);
   // WFNS gradúa una hemorragia subaracnoidea y Fisher la sangre del TC: en un
   // aneurisma incidental no hay nada que graduar, así que sólo se piden cuando
   // el caso está roto. Vacío significa «no lo sé», no «grado 1».
   // La procedencia importa y no es lo que se lee a diario: doce líneas de
   // fuentes bajo siete factores tapan los factores. Plegada por defecto.
   const [showSources, setShowSources] = useState(false);
-  const [wfns, setWfns] = useState<string>("");
-  const [fisher, setFisher] = useState<string>("");
+  const [wfns, setWfns] = useState<string>(txt(prev?.wfns_grade));
+  const [fisher, setFisher] = useState<string>(txt(prev?.fisher_grade));
   // La única variable del JSDB que la aplicación no recogía en ninguna parte.
-  const [priorStroke, setPriorStroke] = useState<string>("");
+  const [priorStroke, setPriorStroke] = useState<string>(txt(prev?.prior_stroke));
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +66,7 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.treatmentDecision({
+      const pedido = {
         session_id: sessionId,
         location,
         is_ruptured: ruptured,
@@ -66,7 +75,9 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
         wfns_grade: ruptured && wfns ? Number(wfns) : null,
         fisher_grade: ruptured && fisher ? Number(fisher) : null,
         prior_stroke: ruptured && priorStroke !== "" ? Number(priorStroke) : null,
-      });
+      };
+      const res = await api.treatmentDecision(pedido);
+      planning.setTreatmentInputs(pedido);
       planning.setTreatment(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en la decisión terapéutica");
@@ -217,7 +228,7 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                   limita: antes la confianza medía cuántos factores había, y un
                   caso con un solo dato salía como «Moderada». */}
               <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}>
-                {t.coverage_pct} % del caso
+                {t.coverage_pct} % de los datos
               </Badge>
               <Badge variant="subtle">Confianza {t.confidence.toLowerCase()}</Badge>
             </div>
@@ -367,7 +378,7 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                   {t.perforators.arteries}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
-                  Irrigan {t.perforators.supplies}. Lesionarlas: {t.perforators.consequence}.
+                  Irrigan: {minuscula(t.perforators.supplies)}. Lesionarlas: {minuscula(t.perforators.consequence)}.
                 </div>
                 {t.perforators.surgical_note && (
                   <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 8, lineHeight: 1.5 }}>

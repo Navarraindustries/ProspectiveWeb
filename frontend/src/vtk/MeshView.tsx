@@ -4,6 +4,7 @@
    on the black clinical surface. Optionally supports point picking on the mesh
    surface (for centreline endpoints) and small sphere markers. */
 
+import { followContainer } from "./followContainer";
 import { useEffect, useRef, useState } from "react";
 import { geometryKey, sceneKey } from "./sceneKeys";
 import type { PlaneOutline } from "./planeOutlines";
@@ -18,6 +19,7 @@ import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkPolyData from "@kitware/vtk.js/Common/DataModel/PolyData";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
@@ -93,9 +95,22 @@ export interface MeshLayer {
    *  invertido, ver el efecto de escena). Lo pide el saco: translúcido sobre
    *  el árbol, su borde se perdía y no se sabía dónde acababa el aneurisma. */
   silhouette?: boolean;
-  /** Color directo RGB por vértice desde ese array del .vtp (uint8×3), en vez
-   *  del color sólido de la capa. Lo pide el mapa de calor del clip. */
-  scalars?: { array: string };
+  /** La cámara encuadra esta capa al montar la escena, sin cambiarle el
+   *  aspecto. Sin esto, al medir el saco la vista saltaba al árbol entero
+   *  justo cuando hay que mirar lo que se acaba de medir. */
+  frame?: boolean;
+  /** Color por vértice en vez del color sólido de la capa, de dos maneras:
+   *  - `{ array }`: color directo RGB (uint8×3) que ya trae el .vtp. Lo pide
+   *    el mapa de calor del clip: el servidor decide el color de cada punto.
+   *  - `{ name, range }`: un campo de puntos pasado por una escala azul
+   *    (negativo) · gris (0) · rojo (positivo) que satura en ±`range`. Lo usan
+   *    los mapas de cambio del seguimiento, aposición y cobertura. Por debajo
+   *    de `deadband` en valor absoluto se pinta gris: es ruido de la
+   *    comparación, no cambio. */
+  scalars?: { array: string } | {
+    name: string; range: number; deadband?: number;
+    /** Rojo para lo negativo y azul para lo positivo. */
+    invert?: boolean };
   /** Matriz de usuario 4×4 (16 números, la convención de vtk.js) que mueve el
    *  actor sin recargar la malla: el clip colocado sigue al arrastre así.
    *  undefined = identidad. Solo la admiten las capas con `id`, que son las
@@ -451,12 +466,10 @@ export function MeshView({
       fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map(),
       overlay, focusActor, focusSphere, syncOverlay,
     };
-    // vtk.js solo se redimensiona con la VENTANA. La rejilla del visor mueve
-    // la escena entre la principal y una celda lateral sin remontarla, así que
-    // el lienzo tiene que seguir a su celda: si no, se queda con el tamaño con
-    // que nació (y la captura del informe tras subirla saldría de ese tamaño).
-    const ro = new ResizeObserver(() => fsrw.resize());
-    ro.observe(container);
+    // La rejilla del visor mueve la escena entre la principal y una celda
+    // lateral sin remontarla, así que el lienzo tiene que seguir a su celda
+    // (y no tocarse con el recuadro a 0: ver followContainer).
+    const stopFollowing = followContainer(container, fsrw);
 
     // Dos luces que siguen la cámara: una principal y un relleno opuesto al 35 %.
     // Con la única luz de cabeza de vtk.js el lado en sombra del vaso era negro y
@@ -577,12 +590,19 @@ export function MeshView({
 
           const mapper = vtkMapper.newInstance();
           mapper.setInputData(poly);
-          if (layer.scalars) {
+          if (layer.scalars && "array" in layer.scalars) {
             // Color directo por vértice: el servidor ya decidió el color de cada punto
             // (categoría y presión), así la leyenda y la malla no pueden discrepar.
             poly.getPointData().setActiveScalars(layer.scalars.array);
             mapper.setScalarVisibility(true);
             mapper.setColorModeToDirectScalars();
+          } else if (layer.scalars && poly.getPointData().getArrayByName(layer.scalars.name)) {
+            mapper.setLookupTable(divergingLut(layer.scalars.range, layer.scalars.deadband ?? 0, layer.scalars.invert));
+            mapper.setUseLookupTableScalarRange(true);
+            mapper.setScalarModeToUsePointFieldData();
+            mapper.setColorByArrayName(layer.scalars.name);
+            mapper.setColorModeToMapScalars();
+            mapper.setScalarVisibility(true);
           } else {
             mapper.setScalarVisibility(false); // solid color, not scalar-mapped
           }
@@ -614,6 +634,8 @@ export function MeshView({
             prop.setSpecular(0.4);
             prop.setSpecularPower(30);
             prop.setOpacity(1);
+          } else if (layer.frame && !focusBounds) {
+            focusBounds = poly.getBounds();
           }
 
           renderer.addActor(actor);
@@ -718,7 +740,7 @@ export function MeshView({
 
     return () => {
       cancelled = true;
-      ro.disconnect();
+      stopFollowing();
       pickSub.unsubscribe();
       camSub.unsubscribe();
       overlaySub.unsubscribe();
@@ -846,7 +868,7 @@ export function MeshView({
           if (!poly || poly.getNumberOfPoints() === 0) continue;
           // Un campo del clip recalculado llega como fichero nuevo de la misma
           // capa: su array de color tiene que volver a ser el escalar activo.
-          if (l.scalars) poly.getPointData().setActiveScalars(l.scalars.array);
+          if (l.scalars && "array" in l.scalars) poly.getPointData().setActiveScalars(l.scalars.array);
           (actor.getMapper() as vtkMapper).setInputData(poly);
           // La matriz va con la geometría: el efecto de la matriz dejó de
           // tocar este actor mientras se descargaba el fichero (conservaba el
@@ -1469,4 +1491,22 @@ export function MeshView({
   }, [key, boxKey]);
 
   return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
+}
+
+
+/** Azul → gris → rojo, con una franja gris de ±`deadband` alrededor de 0. */
+export function divergingLut(range: number, deadband: number, invert = false) {
+  const r = Math.max(range, 1e-3);
+  const d = Math.min(Math.max(deadband, 0), r * 0.9);
+  const lut = vtkColorTransferFunction.newInstance();
+  const grey: [number, number, number] = [0.78, 0.8, 0.82];
+  const blue: [number, number, number] = [0.15, 0.35, 0.85];
+  const red: [number, number, number] = [0.88, 0.2, 0.15];
+  lut.addRGBPoint(-r, ...(invert ? red : blue));
+  lut.addRGBPoint(-d, ...grey);
+  lut.addRGBPoint(d, ...grey);
+  lut.addRGBPoint(r, ...(invert ? blue : red));
+  lut.setMappingRange(-r, r);
+  lut.updateRange();
+  return lut;
 }

@@ -15,6 +15,7 @@ from models import (
     SeriesInfo, SpacingXYZ,
 )
 from services.database import get_db
+from services.access import own_patient_ids, require_patient
 from services.auth_service import get_current_user
 from services.db_models import PlanningSession, Patient, User
 from services.sessions import (
@@ -145,6 +146,7 @@ async def save_session(
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
+    require_patient(db, current_user, req.patient_id)
     morpho      = _read_morpho(req.session_id)
     # Snapshot the whole session dir (volume + meshes + state) into the durable
     # store so it survives the TTL purge and can be rehydrated on resume.
@@ -206,12 +208,16 @@ async def save_session(
 )
 async def list_sessions(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> list[SessionListItem]:
-    records = (
-        db.query(PlanningSession)
-        .order_by(PlanningSession.updated_at.desc())
-        .all()
-    )
+    query = db.query(PlanningSession)
+    # Quien no es administrador ve las sesiones de SUS pacientes. Las que no
+    # están ligadas a ninguno no tienen dueño conocido y solo las lista el
+    # administrador (siguen abriéndose por su identificador).
+    visibles = own_patient_ids(db, current_user)
+    if visibles is not None:
+        query = query.filter(PlanningSession.patient_id.in_(visibles))
+    records = query.order_by(PlanningSession.updated_at.desc()).all()
 
     items: list[SessionListItem] = []
     for ps in records:
@@ -249,8 +255,11 @@ async def list_sessions(
 async def restore_session(
     session_id: str,
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> SessionRestoreResult:
     ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
+    if ps is not None:
+        require_patient(db, current_user, ps.patient_id)
     if ps is None:
         raise HTTPException(
             status_code=404,
@@ -272,6 +281,11 @@ async def restore_session(
     except Exception as exc:  # noqa: BLE001
         logger.exception("Session rehydration failed")
         raise HTTPException(status_code=500, detail=f"No se pudo restaurar la sesión: {exc}")
+
+    # La sesión viva recuerda de cuál salió: así sigue siendo del mismo
+    # paciente antes de volver a guardarse (services/access.session_row).
+    from services.access import ORIGIN_KEY
+    write_state(new_sid, ORIGIN_KEY, session_id)
 
     # Inspect the rehydrated dir to build a payload the frontend can hydrate from.
     meshes = session_subdir(new_sid, "meshes")

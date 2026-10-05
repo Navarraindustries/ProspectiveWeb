@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -72,6 +72,7 @@ def _user_to_info(user: User) -> UserInfo:
         role=user.role,
         institution=user.institution,
         avatar_initials=initials,
+        must_change_password=bool(user.must_change_password),
         has_photo=bool(user.photo_path and Path(user.photo_path).exists()),
     )
 
@@ -89,20 +90,32 @@ def _user_to_info(user: User) -> UserInfo:
 )
 async def login(
     req: LoginRequest,
+    request: Request,
     response: Response,
     db: Annotated[Session, Depends(get_db)],
 ) -> LoginResponse:
+    from services import login_throttle
+    clave = login_throttle.key(req.username, request.client.host if request.client else "")
+    espera = login_throttle.blocked_for(clave)
+    if espera > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Demasiados intentos fallidos. Vuelve a probar en {int(espera // 60) + 1} min.",
+            headers={"Retry-After": str(int(espera) + 1)},
+        )
     try:
         user = authenticate_user(db, req.username, req.password)
     except AuthError as exc:
         # Account exists but is blocked (pending approval / rejected / disabled)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     if user is None:
+        login_throttle.record_failure(clave)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    login_throttle.clear(clave)
 
     token = create_access_token(subject=user.username)
 
@@ -117,6 +130,16 @@ async def login(
         COOKIE_NAME, token,
         max_age=ACCESS_TOKEN_EXPIRE_MIN * 60,
         httponly=True, samesite="lax",
+        secure=os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes"),
+        path="/",
+    )
+    # La pareja del doble envío (services/csrf.py): legible por el JavaScript
+    # del propio origen, que la devuelve en X-CSRF-Token.
+    from services.csrf import CSRF_COOKIE, new_token
+    response.set_cookie(
+        CSRF_COOKIE, new_token(),
+        max_age=ACCESS_TOKEN_EXPIRE_MIN * 60,
+        httponly=False, samesite="lax",
         secure=os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes"),
         path="/",
     )
@@ -135,7 +158,9 @@ async def login(
     description="Drops the auth cookie. The bearer token stays valid until it expires.",
 )
 async def logout(response: Response) -> dict:
+    from services.csrf import CSRF_COOKIE
     response.delete_cookie(COOKIE_NAME, path="/")
+    response.delete_cookie(CSRF_COOKIE, path="/")
     return {"status": "ok"}
 
 
@@ -494,6 +519,7 @@ async def change_password(
             detail="La nueva contraseña debe ser distinta de la actual.",
         )
     current_user.hashed_password = get_password_hash(req.new_password)
+    current_user.must_change_password = False
     db.commit()
     logger.info("Password changed — user=%s", current_user.username)
 

@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from models import ReportRequest, ReportResult, ExportRequest
+from models.report import DicomSegResult, GlbExportResult
 from models.detection import Position3D
 from models.trajectory import (CorridorAssessmentOut, ProposedCorridorOut,
                                SuggestCorridorsRequest, SuggestCorridorsResult,
@@ -153,8 +154,8 @@ def _pdf_page_count(path: Path) -> int | None:
         matches = re.findall(rb"/Count\s+(\d+)", data)
         if matches:
             return int(matches[-1])
-    except Exception:
-        pass
+    except (OSError, ValueError) as exc:
+        logger.warning("No se pudo contar las páginas de %s: %s", path.name, exc)
     return None
 
 
@@ -349,6 +350,109 @@ async def export_stl_endpoint(
         stl_url      = stl_url,
         generated_at = datetime.now(timezone.utc).isoformat(),
         page_count   = None,
+    )
+
+
+# ── POST /export/glb/{session_id} ──────────────────────────────────────────── #
+
+#: Lo que entra en la escena, en este orden, con el color del visor
+#: (frontend/src/vtk/Viewer.tsx). El vaso semitransparente para que se vea lo
+#: que hay dentro (coils, el stent).
+_GLB_PARTS = (
+    ("Vaso", "vessel_tree.vtp", (0.65, 0.70, 0.76), 0.55),
+    ("Saco", "aneurysm_sac.vtp", (0.25, 0.80, 0.45), 1.0),
+    ("Clip", "clips_placed.vtp", (0.92, 0.82, 0.45), 1.0),
+    ("Coils", "coils_placed.vtp", (0.85, 0.55, 0.85), 1.0),
+    ("Stent", "stent_deployed.vtp", (0.55, 0.80, 0.95), 1.0),
+    ("Stent (línea central)", "cl_stent.vtp", (0.55, 0.80, 0.95), 1.0),
+)
+_DOME_COLOR = (0.32, 0.55, 0.75)
+
+
+@router.post(
+    "/export/glb/{session_id}",
+    response_model=GlbExportResult,
+    summary="Exportar la escena a GLB (glTF 2.0) para verla o compartirla",
+    description=(
+        "Un objeto por malla —vaso, saco (o el candidato elegido si no hay "
+        "saco aislado) y cada dispositivo colocado— con los colores del visor, "
+        "en metros a tamaño real y centrado. Sin datos del paciente en el "
+        "fichero. Para imprimir, el STL."
+    ),
+)
+async def export_glb_endpoint(session_id: str) -> GlbExportResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    meshes_dir = session_subdir(session_id, "meshes")
+
+    def _sync():
+        from services.glb_export import GlbPart, write_glb
+        from services.sessions import measured_candidate_vtp_name
+        parts: list[GlbPart] = []
+        for name, fname, color, alpha in _GLB_PARTS:
+            path = meshes_dir / fname
+            if path.exists():
+                parts.append(GlbPart(name, read_vtp(path), color, alpha))
+        if not (meshes_dir / "aneurysm_sac.vtp").exists():
+            cand = measured_candidate_vtp_name(session_id)
+            if cand and (meshes_dir / cand).exists():
+                parts.insert(1, GlbPart("Candidato", read_vtp(meshes_dir / cand), _DOME_COLOR, 1.0))
+        if not parts:
+            raise ValueError("No hay mallas que exportar: segmenta primero.")
+        out = session_subdir(session_id, "exports") / "escena.glb"
+        write_glb(parts, out)
+        return out, [p.name for p in parts]
+
+    try:
+        out, names = await asyncio.to_thread(_sync)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return GlbExportResult(
+        glb_url=_versioned(f"/data/sessions/{session_id}/exports/escena.glb"),
+        parts=names,
+        size_kb=round(out.stat().st_size / 1024, 1),
+    )
+
+
+# ── POST /export/dicom-seg/{session_id} ────────────────────────────────────── #
+
+@router.post(
+    "/export/dicom-seg/{session_id}",
+    response_model=DicomSegResult,
+    summary="Exportar la segmentación como DICOM SEG sobre la serie original",
+    description=(
+        "Segmentos «Vaso» (la malla de trabajo) y «Aneurisma» (el saco aislado, "
+        "si existe), rasterizados en la rejilla ORIGINAL de la serie y con sus "
+        "referencias, para que el PACS o 3D Slicer los superpongan a las "
+        "imágenes. Lleva los datos del paciente de la serie, como cualquier SEG. "
+        "Ver services/dicom_seg.py."
+    ),
+)
+async def export_dicom_seg(
+    session_id: str,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> DicomSegResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    from services.dicom_seg import build_dicom_seg
+    out = session_subdir(session_id, "exports") / "segmentacion.dcm"
+    try:
+        r = await asyncio.to_thread(build_dicom_seg, session_id, out)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("DICOM SEG failed for session %s", session_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo generar el DICOM SEG: {exc}") from exc
+
+    from services.audit import ACT_SEG_GENERATED, audit_append
+    audit_append(ACT_SEG_GENERATED, {
+        "session_id": session_id, "segments": r.segments, "frames": r.n_frames,
+    }, username=current_user.username if current_user else "")
+    return DicomSegResult(
+        seg_url=_versioned(f"/data/sessions/{session_id}/exports/segmentacion.dcm"),
+        segments=r.segments, n_frames=r.n_frames,
+        voxel_volumes_mm3=r.voxel_volumes_mm3, mesh_volumes_mm3=r.mesh_volumes_mm3,
+        warnings=r.warnings,
     )
 
 

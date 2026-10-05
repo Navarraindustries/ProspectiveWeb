@@ -9,8 +9,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from models import LongitudinalDelta, LongitudinalEntry, LongitudinalResult
+from services.access import require_patient, session_row
+from services.auth_service import get_current_user
 from services.database import get_db
-from services.db_models import PlanningSession
+from services.db_models import PlanningSession, User
 from services.sessions import session_exists, read_state
 
 logger = logging.getLogger(__name__)
@@ -111,9 +113,13 @@ def _growth_message(deltas: list[LongitudinalDelta]) -> str | None:
 async def get_longitudinal(
     session_id: str,
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> LongitudinalResult:
     # ── 1. Find DB record for this session ─────────────────────────────── #
-    ps_current = db.query(PlanningSession).filter_by(session_id=session_id).first()
+    # Con una sesión reanudada, la fila es la de la sesión guardada de origen.
+    ps_current = session_row(db, session_id)
+    if ps_current is not None:
+        require_patient(db, current_user, ps_current.patient_id)
 
     # ── 2. No saved record → return single-entry snapshot from session state ─ #
     if ps_current is None or ps_current.patient_id is None:
@@ -200,7 +206,7 @@ async def get_longitudinal(
         when = _acquired_on(img_id) or (
             latest.created_at.date() if latest.created_at else date.today()
         )
-        is_this = any(p.session_id == session_id for p in sessions)
+        is_this = any(p.session_id in (session_id, ps_current.session_id) for p in sessions)
         label = "Estudio actual" if is_this else (latest.label or f"Estudio {when.isoformat()}")
         points.append((when, _ps_to_entry(latest, label=label, when=when,
                                           n_sessions=len(sessions))))

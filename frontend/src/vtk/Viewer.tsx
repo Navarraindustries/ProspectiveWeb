@@ -8,7 +8,7 @@
    axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
-import { usePlanning, type PickMode, type PlacedClip } from "../store/planning";
+import { usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
@@ -41,6 +41,7 @@ import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
 import { clampOffsetToBox, sliceSegment, type FreePlane } from "./freePlane";
 import { HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
+import { captureFileName } from "./viewerRecorder";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
@@ -94,6 +95,13 @@ const DOME_COLOR: Vector3 = [0.32, 0.55, 0.75];
 /* El saco cerrado, en verde para no confundirlo con el localizador azul del
    candidato: aquel señala dónde mirar, este ES el cuerpo del aneurisma. */
 const SAC_COLOR: Vector3 = [0.25, 0.80, 0.45];
+/** Mapa de aposición del stent: satura a ±1 mm; por debajo de 0,3 mm (un vóxel) es ruido. */
+export const APPOSITION_RANGE_MM = 1.0;
+export const APPOSITION_NOISE_MM = 0.3;
+/** Mapa de cobertura metálica: satura a ±10 puntos; ±2 es el margen del propio catálogo (30–35 %). */
+export const COVERAGE_RANGE_PP = 10;
+export const COVERAGE_NOISE_PP = 2;
+const FOLLOWUP_GHOST_COLOR: Vector3 = [0.98, 0.62, 0.20]; // naranja — saco del estudio anterior
 const DEVICE_COLOR: Vector3 = [0.92, 0.82, 0.45];     // warm gold — placed clip
 const COIL_COLOR: Vector3 = [0.85, 0.55, 0.85];       // orchid — packed coils
 const STENT_COLOR: Vector3 = [0.55, 0.80, 0.95];      // steel blue — deployed stent
@@ -120,6 +128,7 @@ const NECK_RIM_COLOR: Vector3 = [0.90, 0.45, 0.95];    // violet — marked neck
 const SCISSORS_COLOR: Vector3 = [1.00, 0.75, 0.10];    // amber — el anillo de la tijera
 const DOOMED_COLOR: Vector3 = [1.00, 0.25, 0.25];      // rojo — lo que se llevaría el corte
 const CROP_CENTER_COLOR: Vector3 = [0.98, 0.60, 0.20]; // orange — crop ROI centre
+const LESION_MARK_COLOR: Vector3 = [0.95, 0.25, 0.55]; // magenta — lesión marcada a mano
 const TRAJ_ENTRY_COLOR: Vector3 = [0.40, 0.80, 1.00];  // sky blue — approach entry
 const TRAJ_TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29]; // red — approach target
 const TRAJ_LINE_COLOR: Vector3 = [0.55, 0.85, 1.00];   // light blue — approach corridor
@@ -197,12 +206,12 @@ function ViewerLoading({ label }: { label: string }) {
 
 export function ViewerWorkspace({ step }: { step: string }) {
   const {
-    sessionId, segmentation, allCandidates, selectedCandidate, series, deviceMeshes,
+    sessionId, segmentation, allCandidates, selectedCandidate, series, deviceMeshes, stentMap,
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
     measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
-    cropCenter, setCropCenter, setErasePick,
+    cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
@@ -568,11 +577,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
     };
   }, []);
 
-  const capturarVisor = useCallback(async () => {
+  // Devuelve "saved" si quedó en el estudio y "downloaded" si solo se descargó
+  // porque no hay estudio archivado. Antes, sin estudio, el botón quedaba
+  // desactivado mientras «Grabar» sí descargaba su vídeo: misma situación, dos
+  // respuestas. Ahora la captura también se descarga, y el topbar dice que no
+  // quedó en el caso.
+  const capturarVisor = useCallback(async (): Promise<"saved" | "downloaded"> => {
     const vista = leerVisor();
-    if (!vista || !imagingStudyId) {
-      throw new Error("No hay ningún estudio archivado al que adjuntar la captura.");
-    }
+    if (!vista) throw new Error("No hay visor que capturar.");
     {
       const root = viewerRef.current!;
       const { width, height } = vista;
@@ -580,6 +592,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (!png) throw new Error("No hay ningún panel que capturar.");
 
       const ahora = new Date();
+      if (!imagingStudyId) {
+        const a = document.createElement("a");
+        a.href = png;
+        a.download = captureFileName(ahora);
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return "downloaded";
+      }
       await api.saveCapture({
         imaging_study_id: imagingStudyId,
         session_id: sessionId ?? "",
@@ -591,6 +612,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         // no contesta qué candidato era ni desde dónde se estaba mirando.
         state: estadoVisor(root),
       });
+      return "saved";
     }
   }, [imagingStudyId, sessionId, step, leerVisor, estadoVisor]);
   // Se publica UNA VEZ una envoltura estable que lee la versión vigente de una
@@ -648,7 +670,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       !!d.url && d.url.startsWith("/data/")),
     [deviceMeshes],
   );
-  const showDevice = step === "devices" && devices.length > 0;
+  // También en el informe: su visor se titula «Escena final» y enseñaba el
+  // árbol sin el clip, los coils ni el stent que el plan lleva.
+  const showDevice = (step === "devices" || step === "report") && devices.length > 0;
   // El mapa de calor del clip ocupa el sitio del saco: es el mismo saco,
   // pintado según el clip colocado. Los dos a la vez se pisarían.
   // Durante el ensayo de cierre manda el saco que se deforma: el campo se
@@ -656,7 +680,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // clip ya apretaba mientras entraba por el corredor. Basta mirar el ensayo:
   // los fotogramas del saco viven dentro de él, y `sacFrame` se queda con su
   // último valor al salir, así que mirarlo dejaría el campo apagado para siempre.
-  const showField = showDevice && !!clipField && showClipField && !clipRehearsal;
+  // Solo en Dispositivos: en el informe la escena final enseña el saco tal cual.
+  const showField = step === "devices" && showDevice && !!clipField && showClipField && !clipRehearsal;
 
   // ── El manipulador del clip ─────────────────────────────────────────── #
   //
@@ -784,7 +809,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: clipField.field_mesh_url, color: SAC_COLOR, opacity: fieldStale ? 0.35 : 1, id: "clip-field", scalars: { array: "colors" }, silhouette: true });
     } else if (sacUrl && step !== "segment" && step !== "upload") {
       // Con contorno: translúcido sobre el árbol, su borde se perdía.
-      out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true });
+      out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true, frame: step === "morpho" });
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
       out.push({ url: candidate.dome_mesh_url, color: DOME_COLOR, opacity: resalte });
     }
@@ -794,7 +819,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: clipRehearsal.body_url,    color: DEVICE_COLOR, opacity: 1, id: "clip-body" });
       out.push({ url: clipRehearsal.blade_a_url, color: DEVICE_COLOR, opacity: 1, id: "clip-blade-a" });
       out.push({ url: clipRehearsal.blade_b_url, color: DEVICE_COLOR, opacity: 1, id: "clip-blade-b" });
-      for (const d of devices) if (d.kind !== "clips") out.push({ url: d.url, color: d.color, opacity: 1, id: `device-${d.kind}` });
+      for (const d of devices) if (d.kind !== "clips") out.push(namedDeviceLayer(d, stentMap));
     } else if (showDevice) {
       // Con nombre: cada recolocación (una por edición asentada) trae un fichero
       // nuevo, y sin nombre la escena entera se rehacía, recargaba el árbol y
@@ -804,7 +829,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // que cambia la capa «sac» por «clip-field», y el conmutador CALOR) conserva
       // la cámara: MeshView recibe `preserveCamera` mientras se está en Dispositivos.
       for (const d of devices) {
-        out.push({ url: d.url, color: d.color, opacity: 1, id: `device-${d.kind}`, ...(d.kind === "clips" && clipsMatrix ? { userMatrix: clipsMatrix } : null) });
+        out.push({ ...namedDeviceLayer(d, stentMap), ...(d.kind === "clips" && clipsMatrix ? { userMatrix: clipsMatrix } : null) });
       }
     }
     if (showCenterline && centerlineMesh) {
@@ -815,8 +840,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (scissorsPreview && step === "segment") {
       out.push({ url: scissorsPreview, color: DOOMED_COLOR, opacity: 1, id: "tijera" });
     }
+    // Seguimiento: el mapa de cambio pintado sobre los vasos cerca de la
+    // lesión (rojo = creció, azul = encogió, gris = dentro del ruido) y el
+    // saco del estudio anterior, translúcido, para ver de dónde venía.
+    if (followup && step === "morpho") {
+      out.push({ url: followup.mapUrl, color: VESSEL_COLOR, opacity: 1, id: "seguimiento",
+                 scalars: { name: "cambio_mm", range: followup.range, deadband: followup.noise } });
+      if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
+    }
     return out;
-  }, [displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
+  }, [followup, stentMap, displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
 
   // Los tres cortes de Cortes 3D sobre el volumen del cliente, con la ventana
   // de los cortes. Sin volumen en el cliente (sin WebGL2 o aún cargando) no
@@ -1043,6 +1076,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     for (const r of neckRim) out.push({ pos: r, color: NECK_RIM_COLOR });
     for (const r of scissorsPoints) out.push({ pos: r, color: SCISSORS_COLOR });
     if (cropCenter) out.push({ pos: cropCenter, color: CROP_CENTER_COLOR });
+    if (lesionMark) out.push({ pos: lesionMark, color: LESION_MARK_COLOR });
     if (trajEntry) out.push({ pos: trajEntry, color: TRAJ_ENTRY_COLOR });
     if (trajTarget) out.push({ pos: trajTarget, color: TRAJ_TARGET_COLOR });
     if (overlay) out.push(...overlay.markers);
@@ -1058,7 +1092,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
 
   // El punto compartido de los cortes, con radio fijo en mm (no depende de la
   // escena). Va aparte de `markers`: MeshView lo dibuja encima de la malla.
@@ -1112,12 +1146,19 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // una escena nueva (cambio de paso, subir la escena al principal). El MIP no
   // mueve su cámara: su corte ya sale de mprVoxel.
   //
-  // Salvo una escena rehecha dentro de Dispositivos con el mismo foco (primera
+  // Salvo cuando el foco viene de un clic sobre el propio 3D: ahí la cámara se
+  // queda quieta. Recentrarla tras cada punto movía la malla bajo el cursor,
+  // y al marcar varios seguidos (el borde del cuello, el anillo de la tijera)
+  // el siguiente clic caía en otro sitio, o fuera de la malla.
+  //
+  // Y salvo una escena rehecha dentro de Dispositivos con el mismo foco (primera
   // llegada del mapa de calor, CALOR): ahí MeshView ya ha devuelto la cámara del
   // usuario, y volver a centrar la desplazaría también en profundidad, que se ve
   // como un zoom. Al entrar en el paso el foco se aplica con normalidad.
+  const focusFromPick = useRef(false);
   const lastFocus = useRef<{ point: Vec3 | null; inDevices: boolean }>({ point: null, inDevices: false });
   useEffect(() => {
+    if (focusFromPick.current) { focusFromPick.current = false; return; }
     if (!focusPoint || !syncViews || !camera) return;
     const inDevices = devicesCameras.current.has(camera);
     if (inDevices && lastFocus.current.inDevices && lastFocus.current.point === focusPoint) return;
@@ -1159,7 +1200,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const centerOnLesion = () => {
     if (!lesion || !meta) return;
     setFocusMm(lesion, meta);
-    camera?.frame(lesion, 30);
+    camera?.frame(lesion, lesionFrameRadiusMm(morphometry?.max_diameter_mm ?? candidate?.max_diameter_mm ?? 0));
   };
   // Los paneles lo llaman a través del store. Se registra una envoltura
   // estable que lee la versión vigente: registrar la función de cada render
@@ -1174,13 +1215,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   const onPick = useCallback(
     (xyz: [number, number, number]) => {
-      // Cualquier punto marcado en el 3D es también el nuevo foco común.
+      // Cualquier punto marcado en el 3D es también el nuevo foco común: los
+      // cortes van a él; la cámara 3D no se mueve (ver focusFromPick).
+      focusFromPick.current = syncViews && !!meta;
       focusFromMm(xyz);
       if (pickMode === "cl_source") { setClSource(xyz); setPickMode(null); }
       else if (pickMode === "cl_target") { setClTarget(xyz); setPickMode(null); }
       else if (pickMode === "neck_origin") { setNeckOrigin(xyz); setPickMode(null); }
       else if (pickMode === "neck_dome") { setNeckDome(xyz); setPickMode(null); }
       else if (pickMode === "crop_center") { setCropCenter(xyz); setPickMode(null); }
+      else if (pickMode === "lesion_mark") { setLesionMark(xyz); setPickMode(null); }
       // Sigue armado: borrar una pieza y tener que rearmar para la siguiente
       // convierte una limpieza de diez clics en veinte.
       else if (pickMode === "erase_piece") { setErasePick(xyz); }
@@ -1201,7 +1245,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         }
       }
     },
-    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm],
+    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm, syncViews, meta],
   );
 
   // Un marcado se hace sobre la malla: si la escena es una vista lateral, sube
@@ -1347,7 +1391,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           llevan fondo propio porque el desplegable hereda el del select. */}
       <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
       {wlPresets.map((p) => (
-        <option key={p.name} value={p.name} style={{ background: "#000", color: "var(--hud)" }}>{p.name} · {p.wc}/{p.ww}</option>
+        <option key={p.name} value={p.name} style={{ background: "#000", color: "var(--hud)" }}>{p.name} · {Math.round(p.wc)}/{Math.round(p.ww)}</option>
       ))}
     </select>
   );
@@ -1573,7 +1617,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
               <HudToggleGroup
                 options={[
                   ...CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title })),
-                  ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Centrar en la lesión (encuadre de 30 mm)" }] : []),
+                  ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Acercar la cámara a la lesión" }] : []),
                 ]}
                 value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : camera.setView(k as CameraView))} />
             )}
@@ -1677,6 +1721,47 @@ export function ViewerWorkspace({ step }: { step: string }) {
   );
 }
 
+/** La capa de un dispositivo. El stent sobre la línea central trae en su malla
+ *  la distancia a la pared (`aposicion_mm`): rojo, separado; azul, comprimido;
+ *  gris, dentro del ruido. Si la malla no lo trae (el stent recto), MeshView
+ *  usa el color liso. */
+/** La capa de un dispositivo con nombre, para que una recolocación sustituya
+ *  solo su geometría (ver el comentario de los clips). El stent con mapa va sin
+ *  nombre: su color sale de una escala que solo se monta al rehacer la escena,
+ *  y cambiar de mapa (aposición ↔ cobertura) tiene que rehacerla. */
+function namedDeviceLayer(d: { kind: "clips" | "coils" | "stent"; url: string; color: Vector3 }, map: StentMap): MeshLayer {
+  const layer = deviceLayer(d, map);
+  return layer.scalars ? layer : { ...layer, id: `device-${d.kind}` };
+}
+
+function deviceLayer(d: { kind: "clips" | "coils" | "stent"; url: string; color: Vector3 }, map: StentMap): MeshLayer {
+  const layer: MeshLayer = { url: d.url, color: d.color, opacity: 1 };
+  if (d.kind === "stent") {
+    // La cobertura va cambiada de signo: el rojo es siempre «lo que hay que
+    // mirar», y ahí es MENOS metal que en el catálogo (poros más abiertos).
+    if (map === "coverage") {
+      // El fragmento no viaja al servidor: solo hace que la escena vea otra
+      // capa y la vuelva a pintar (se identifica por su URL).
+      layer.url = `${d.url}#cobertura`;
+      layer.scalars = { name: "cobertura_delta_pct", range: COVERAGE_RANGE_PP, deadband: COVERAGE_NOISE_PP, invert: true };
+    } else {
+      layer.scalars = { name: "aposicion_mm", range: APPOSITION_RANGE_MM, deadband: APPOSITION_NOISE_MM };
+    }
+  }
+  return layer;
+}
+
+/** Medio lado del cubo que encuadra «Centrar en la lesión».
+ *
+ *  Eran 30 mm fijos, o sea un cubo de 60: en una 3D-RA eso es el árbol entero,
+ *  y un aneurisma de 4 mm quedaba en un punto de seis píxeles sobre el que
+ *  había que marcar cuello y ápice. Ahora es la lesión y lo que la rodea: dos
+ *  veces y media su diámetro, entre 6 y 15 mm. */
+export function lesionFrameRadiusMm(diameterMm: number): number {
+  if (!(diameterMm > 0)) return 10;
+  return Math.min(15, Math.max(6, 2.5 * diameterMm));
+}
+
 /** Texto del aviso de marcado para cada modo. */
 function pickText(mode: NonNullable<PickMode>, measurePending: boolean, rimCount: number): string {
   switch (mode) {
@@ -1687,7 +1772,8 @@ function pickText(mode: NonNullable<PickMode>, measurePending: boolean, rimCount
     case "neck_rim": return `Clic alrededor del borde del cuello (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;
     case "scissors": return `Clic alrededor de la arteria, rodeándola (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;
     case "crop_center": return "Clic sobre la malla para el centro del recorte";
-    case "erase_piece": return "Clic sobre la pieza que quieres borrar";
+    case "lesion_mark": return "Clic sobre la lesión";
+    case "erase_piece": return "Clic sobre lo que quieres borrar";
     case "traj_entry": return "Clic para el punto de entrada del abordaje";
     case "traj_target": return "Clic sobre el aneurisma (punto diana)";
     case "measure": return measurePending ? "Clic en el segundo punto" : "Clic en el primer punto";

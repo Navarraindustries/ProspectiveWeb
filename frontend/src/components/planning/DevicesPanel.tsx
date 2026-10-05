@@ -13,6 +13,8 @@ import type {
   CustomClipInfo,
   DeviceKind,
   ClipRecommendation,
+  ClStentApposition,
+  ClStentCoverage,
   ClStentResult,
   CoilConstructResult,
   CoilLibraryItem,
@@ -30,6 +32,8 @@ import { CenterOnLesionButton } from "../CenterOnLesionButton";
 import { ClipFieldCard } from "./ClipFieldCard";
 import { ClipRehearsal } from "./ClipRehearsal";
 import { ClipSelectionPanel } from "./ClipSelection";
+import { FdSizing } from "./FdSizing";
+import { WebSizing } from "./WebSizing";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -43,7 +47,7 @@ import { neckPlacement, toPlacement, poseKey, isStale, fieldColoursOnScreen } fr
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
 export { neckPlacement };
 
-const TABS = ["Clips", "Coils", "Stents", "Stent CL"] as const;
+const TABS = ["Clips", "Coils", "Stents", "Stent CL", "WEB"] as const;
 const ORIGIN: Position3D = { x: 0, y: 0, z: 0 };
 
 /** Take a placed device family off the plan: its mesh AND the record the report
@@ -159,6 +163,11 @@ function ClipsTab() {
   const activeKey = placed.some((c) => c.key === selectedClipKey) ? selectedClipKey : placed.at(-1)?.key ?? null;
   const clearer = useClearDevice("clips");
   const [recs, setRecs] = useState<ClipRecommendation[]>([]);
+  // Hasta que la petición vuelve no se sabe si hay recomendación: decir «sin
+  // recomendación para esta geometría» mientras el catálogo aún se evalúa
+  // (medio minuto en una malla real) era afirmar lo contrario de lo que iba
+  // a salir.
+  const [recsLoaded, setRecsLoaded] = useState(false);
   const [customs, setCustoms] = useState<CustomClipInfo[]>([]);
   // El catálogo completo. El selector solo ofrecía la lista corta del
   // recomendador y los personalizados, así que si el cirujano quería un modelo
@@ -232,7 +241,8 @@ function ClipsTab() {
       // ranking. Reading the current value instead makes the preselection what
       // it was meant to be: a default for an empty box, never a correction.
       .then((r) => { setRecs(r); if (r.length > 0) setSel((cur) => cur || r[0].clip_id); })
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando recomendaciones"));
+      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando recomendaciones"))
+      .finally(() => setRecsLoaded(true));
     // Imported clips live in the session directory, but the browser forgets them
     // on resume — the dropdown lost geometry that was still on disk.
     api.listCustomClips(sessionId).then(setCustoms).catch(() => { /* none imported */ });
@@ -507,7 +517,7 @@ function ClipsTab() {
           )}
 
           <SectionLabel>Modelo de clip</SectionLabel>
-          {recs.length === 0 && customs.length === 0 && (
+          {recsLoaded && recs.length === 0 && customs.length === 0 && (
             <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "8px 0" }}>
               {morphometry?.reliable
                 ? "Sin recomendación automática de clip para esta geometría. Elige un modelo del catálogo o importa un clip."
@@ -517,7 +527,7 @@ function ClipsTab() {
           <Select
             label={verTodo
               ? `Todo el catálogo (${options.length})`
-              : `Recomendados + personalizados (${options.length})`}
+              : recsLoaded ? `Recomendados + personalizados (${options.length})` : "Recomendados + personalizados (evaluando…)"}
             options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
           {/* Sin esto, un modelo que el recomendador no propone es inalcanzable
               desde la interfaz, aunque la institución lo tenga. */}
@@ -969,7 +979,7 @@ function StentsTab() {
     <div style={{ marginTop: 12 }}>
       <Select
         label={`Stent / desviador de flujo (${stents.length} modelos)`}
-        options={stents.map((s) => ({ value: s.id, label: `${s.name} — ${s.manufacturer} (${s.type})` }))}
+        options={stents.map((s) => ({ value: s.id, label: `${s.name} — ${s.manufacturer} (${STENT_TYPE_LABEL[s.type] ?? s.type})` }))}
         value={sel}
         onChange={(e) => {
           setSel(e.target.value);
@@ -1113,6 +1123,16 @@ function ClStentTab() {
 
   return (
     <div style={{ marginTop: 12 }}>
+      {sessionId && (
+        <FdSizing
+          sessionId={sessionId}
+          onApply={(d, a, b) => {
+            setDiameter(d);
+            setStartArc(Math.floor(a));
+            setEndArc(Math.ceil(b));
+          }}
+        />
+      )}
       <SectionLabel>Segmento de la línea central</SectionLabel>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "6px 0 12px" }}>
         Arco total: <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{total.toFixed(1)} mm</b>.
@@ -1140,6 +1160,9 @@ function ClStentTab() {
             badge={plan.coverage_ratio >= 0.9 && plan.coverage_ratio <= 1.15 ? ["Buen ajuste", "success"] : ["Revisar", "warning"]}
           />
           {plan.warning && <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>}
+          {plan.apposition && <AppositionSummary a={plan.apposition} />}
+          {plan.coverage && <CoverageSummary c={plan.coverage} />}
+          {plan.apposition && plan.coverage && <StentMapSwitch />}
         </Card>
       )}
       <ErrorNote>{error}</ErrorNote>
@@ -1154,6 +1177,102 @@ function ClStentTab() {
         onClick={() => void clearer.clear(() => setPlan(null))}
       />
       <ErrorNote>{clearer.error}</ErrorNote>
+    </div>
+  );
+}
+
+/** El tipo de stent tal como lo lee una persona; el catálogo lo guarda como
+ *  identificador («flow_diverter») y así salía en el desplegable. */
+export const STENT_TYPE_LABEL: Record<string, string> = {
+  flow_diverter: "desviador de flujo",
+  coil_assist: "asistencia a coils",
+  neck_bridge: "puente de cuello",
+};
+
+/* ── Aposición del stent a la pared ─────────────────────────────────────── */
+
+/** El resumen del mapa que se ve sobre el stent en el visor. La cifra única
+ *  (Ø stent / Ø vaso medio) no dice DÓNDE falla el ajuste; esto sí. */
+export function AppositionSummary({ a }: { a: ClStentApposition }) {
+  const separado = a.gap_area_pct >= 10;
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+      <SectionLabel>Aposición a la pared</SectionLabel>
+      <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
+                                background: "linear-gradient(90deg, #2659d9, #c7ccd1 35%, #c7ccd1 65%, #e0331f)" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
+        <span>comprimido</span><span>± {a.noise_mm.toFixed(2)} mm = contacto</span><span>separado</span>
+      </div>
+      <Metric label="Separado de la pared" value={a.gap_area_pct.toFixed(0)} unit=" %"
+              badge={separado ? ["Revisar", "warning"] : ["Bien", "success"]} />
+      <Metric label="Comprimido" value={a.compressed_area_pct.toFixed(0)} unit=" %" />
+      <Metric label="Separación máxima" value={a.max_gap_mm.toFixed(2)} unit=" mm" />
+      <Metric label="Extremo proximal" value={a.proximal_gap_mm.toFixed(2)} unit=" mm"
+              badge={a.proximal_gap_mm > a.noise_mm ? ["Separado", "warning"] : undefined} />
+      <Metric label="Extremo distal" value={a.distal_gap_mm.toFixed(2)} unit=" mm"
+              badge={a.distal_gap_mm > a.noise_mm ? ["Separado", "warning"] : undefined} />
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
+        Geometría del tubo nominal contra la malla, no una simulación de la trenza.
+        {a.neck_excluded ? " Sobre el cuello no hay pared: se deja en gris y no cuenta." : ""}
+        {a.notes.map((n) => ` ${n}`)}
+      </div>
+    </div>
+  );
+}
+
+/* ── Cobertura metálica de la trenza ────────────────────────────────────── */
+
+/** Cuánto metal queda delante del cuello. El catálogo da la cobertura al
+ *  diámetro nominal; en el vaso real la trenza se abre o se cierra. */
+export function CoverageSummary({ c }: { c: ClStentCoverage }) {
+  const cuello = c.neck_coverage_pct;
+  const baja = cuello !== null && cuello < c.nominal_coverage_pct - 5;
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+      <SectionLabel>Cobertura metálica · {c.device}</SectionLabel>
+      <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
+                                background: "linear-gradient(90deg, #2659d9, #c7ccd1 35%, #c7ccd1 65%, #e0331f)" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
+        <span>más metal</span><span>≈ catálogo ({c.nominal_coverage_pct.toFixed(0)} %)</span><span>poros abiertos</span>
+      </div>
+      {cuello !== null && (
+        <Metric label="Delante del cuello" value={`≈ ${cuello.toFixed(0)}`} unit=" %"
+                badge={baja ? ["Baja", "warning"] : ["Como el catálogo", "success"]} />
+      )}
+      <Metric label="A lo largo del vaso" value={`${c.min_coverage_pct.toFixed(0)}–${c.max_coverage_pct.toFixed(0)}`} unit=" %" />
+      <Metric label="Longitud de catálogo" value={c.labelled_length_mm.toFixed(0)} unit=" mm" />
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
+        El tramo dibujado mide {c.deployed_length_mm.toFixed(0)} mm: donde el vaso es más estrecho que el
+        dispositivo, la trenza se alarga y sus poros se abren.
+        {c.notes.map((n) => ` ${n}`)}
+      </div>
+    </div>
+  );
+}
+
+/** Qué se pinta sobre el stent en el visor. */
+export function StentMapSwitch() {
+  const { stentMap, setStentMap } = usePlanning();
+  const opcion = (id: "apposition" | "coverage", texto: string) => (
+    <button
+      type="button" aria-pressed={stentMap === id} onClick={() => setStentMap(id)}
+      style={{
+        flex: 1, padding: "6px 8px", fontSize: 12, cursor: "pointer", borderRadius: "var(--radius-md)",
+        border: "1px solid var(--border)", fontWeight: stentMap === id ? 700 : 500,
+        background: stentMap === id ? "var(--muted)" : "transparent", color: "var(--foreground)",
+      }}
+    >
+      {texto}
+    </button>
+  );
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Pintar en el visor</div>
+      <div style={{ display: "flex", gap: 6 }}>
+        {opcion("apposition", "Aposición")}
+        {opcion("coverage", "Cobertura")}
+      </div>
     </div>
   );
 }
@@ -1588,6 +1707,7 @@ function PlacedDevicesBar() {
 /* ── Panel ─────────────────────────────────────────────────────────────── */
 export function DevicesPanel({ onNext }: { onNext: () => void }) {
   const [tab, setTab] = useState<string>("Clips");
+  const { sessionId } = usePlanning();
   return (
     <div className="fade-rise">
       <PanelHead title="Planificación de dispositivos" desc="Elige clip, coils o stent del catálogo y verifica su colocación." />
@@ -1599,6 +1719,7 @@ export function DevicesPanel({ onNext }: { onNext: () => void }) {
       {tab === "Coils" && <CoilsTab />}
       {tab === "Stents" && <StentsTab />}
       {tab === "Stent CL" && <ClStentTab />}
+      {tab === "WEB" && sessionId && <WebSizing sessionId={sessionId} />}
       <Button variant="outline" style={{ marginTop: 18, width: "100%" }} onClick={onNext} trailingIcon={<Icon name="SETTINGS" />}>
         Continuar a fabricación
       </Button>

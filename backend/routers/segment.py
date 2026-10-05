@@ -12,9 +12,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
+from typing import Annotated
 
 import numpy as np
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from models import AutoThresholdResult, SegmentRequest, SegmentResult
 from models.detection import Position3D
@@ -22,7 +24,9 @@ from models.segmentation import (CeilingCompareRequest, CeilingCompareResult,
                                  ComparedCandidate, PreviewRequest,
                                  PreviewResult, SuggestedBand)
 from services              import mesh_backup, progress
-from services.sessions     import read_state, session_exists, session_subdir, write_state, mesh_url
+from services.auth_service import get_current_user
+from services.db_models    import User
+from services.sessions     import read_state, session_exists, session_subdir, write_state, write_states, mesh_url
 from services.thresholds   import compute_auto_thresholds, strategy_hint
 from services.dicom_loader import DicomLoadResult, load_series
 from services.segmentation import (
@@ -300,7 +304,20 @@ async def get_thresholds(session_id: str) -> AutoThresholdResult:
         "Use the WebSocket `/ws/progress/{session_id}` endpoint to stream progress updates."
     ),
 )
-async def segment(req: SegmentRequest) -> SegmentResult:
+async def segment(
+    req: SegmentRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+    background: bool = Query(
+        False,
+        description=(
+            "Si es true, responde 202 al instante y el trabajo sigue en el servidor; "
+            "el resultado se recoge en GET /api/segment/result/{session_id}. Sin "
+            "esto la petición dura minutos y, detrás de un proxy con un tiempo "
+            "límite corto, el navegador recibía un 504 mientras el servidor "
+            "terminaba y sustituía la malla igualmente."
+        ),
+    ),
+):
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
@@ -368,10 +385,32 @@ async def segment(req: SegmentRequest) -> SegmentResult:
             if tubular:
                 _TUBULAR_SLOT.release()
 
+    usuario = current_user.username if current_user else ""
+
     # Run heavy CPU work off the event loop. El progreso se abre aquí y se cierra
     # en TODAS las salidas: el WebSocket sólo se cierra cuando ve running=False.
-    progress.start(req.session_id)
+    progress.start(req.session_id, job="segment")
+    _RESULTS.pop(req.session_id, None)
+    _drop_followup_maps(req.session_id)
     loop = asyncio.get_event_loop()
+
+    if background:
+        try:
+            # El futuro del propio pool, no el de asyncio: su callback corre en
+            # el hilo del trabajo y no depende de que siga vivo el bucle que
+            # atendió la petición.
+            fut = _executor.submit(job)
+        except BaseException:
+            if tubular:
+                _TUBULAR_SLOT.release()
+            progress.finish(req.session_id, ok=False, message="no se pudo lanzar")
+            raise
+        fut.add_done_callback(lambda f: _store_result(req.session_id, f, req.method, usuario))
+        return JSONResponse(status_code=202, content={
+            "status": "accepted",
+            "result_url": f"/api/segment/result/{req.session_id}",
+        })
+
     try:
         try:
             fut = loop.run_in_executor(_executor, job)
@@ -399,7 +438,97 @@ async def segment(req: SegmentRequest) -> SegmentResult:
         raise HTTPException(status_code=500, detail=f"Segmentation error: {exc}") from exc
 
     progress.finish(req.session_id, ok=True)
+    _audit_segmentation(req.session_id, result, req.method, usuario)
     return result
+
+
+# ── Segmentación en segundo plano ──────────────────────────────────────────── #
+#
+# El resultado de cada sesión mientras nadie lo recoge. En memoria del proceso,
+# como el progreso: hay un solo proceso (services/single_process.py), y si se
+# reinicia el trabajo muere con él.
+_RESULTS: dict[str, dict] = {}
+
+#: Cuánto se guarda un resultado que nadie recoge. El cliente lo pide en cuanto
+#: el progreso termina; pasado esto, o purgada la sesión, sobra. Sin límite el
+#: dict crecía una entrada por sesión mientras viviera el proceso.
+RESULT_TTL_S: float = 60 * 60
+
+
+def _keep_result(session_id: str, entry: dict) -> None:
+    """Guarda el resultado y tira los caducados o de sesiones que ya no existen."""
+    now = time.time()
+    for sid in [s for s, r in list(_RESULTS.items())
+                if now - r.get("at", now) > RESULT_TTL_S or not session_exists(s)]:
+        _RESULTS.pop(sid, None)
+    _RESULTS[session_id] = {**entry, "at": now}
+
+
+def _drop_followup_maps(session_id: str) -> None:
+    """El mapa de seguimiento compara la malla ANTERIOR de esta sesión con otro
+    estudio: al volver a segmentar ya no corresponde a lo que se ve."""
+    for f in session_subdir(session_id, "meshes").glob("seguimiento_*.vtp"):
+        try:
+            f.unlink()
+        except OSError as exc:
+            logger.warning("No se pudo borrar %s: %s", f.name, exc)
+
+
+def _store_result(session_id: str, fut, method: str, usuario: str) -> None:
+    """Callback del hilo: guarda el resultado o el error con su código HTTP."""
+    try:
+        result = fut.result()
+    except ValueError as exc:
+        _keep_result(session_id, {"status": 422, "detail": str(exc)})
+        progress.finish(session_id, ok=False, message=str(exc))
+        return
+    except FileNotFoundError as exc:
+        _keep_result(session_id, {"status": 404, "detail": str(exc)})
+        progress.finish(session_id, ok=False, message=str(exc))
+        return
+    except BaseException as exc:  # noqa: BLE001 — se informa, no se propaga a un hilo
+        logger.error("Segmentation failed for session %s: %s", session_id, exc, exc_info=exc)
+        _keep_result(session_id, {"status": 500, "detail": f"Segmentation error: {exc}"})
+        progress.finish(session_id, ok=False, message=str(exc) or type(exc).__name__)
+        return
+    _keep_result(session_id, {"status": 200, "result": result})
+    progress.finish(session_id, ok=True)
+    _audit_segmentation(session_id, result, method, usuario)
+
+
+def _audit_segmentation(session_id: str, result: SegmentResult, method: str, usuario: str) -> None:
+    """La malla sobre la que se mide todo lo demás: queda quién la hizo y cómo."""
+    from services.audit import ACT_SEGMENTATION, audit_append
+    audit_append(ACT_SEGMENTATION, {
+        "session_id": session_id, "method": method,
+        "vertices": result.vertices,
+        "downsample_factor": getattr(result, "downsample_factor", 1),
+    }, username=usuario)
+
+
+@router.get(
+    "/segment/result/{session_id}",
+    response_model=SegmentResult,
+    summary="Resultado de una segmentación lanzada en segundo plano",
+    description=(
+        "200 con el resultado cuando terminó; 409 mientras sigue en curso; el "
+        "mismo código de error que habría dado la petición síncrona (422, 404, "
+        "500) si falló; 404 si no hay ninguna lanzada. El resultado se queda "
+        "disponible hasta la siguiente segmentación de la sesión."
+    ),
+)
+async def segment_result(session_id: str):
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    r = _RESULTS.get(session_id)
+    if r is None:
+        p = progress.get(session_id)
+        if p and p.get("running"):
+            raise HTTPException(status_code=409, detail="La segmentación sigue en curso.")
+        raise HTTPException(status_code=404, detail="No hay ninguna segmentación lanzada en esta sesión.")
+    if r["status"] != 200:
+        raise HTTPException(status_code=r["status"], detail=r["detail"])
+    return r["result"]
 
 
 # ── GET /segment/suggested-band/{session_id} ───────────────────────────────── #
@@ -845,29 +974,43 @@ def _run_segmentation_sync(
     _clear_detection_state(session_id, meshes_dir, morphometry=True)
 
     # ── Persist metadata to session state ─────────────────────────────────── #
-    write_state(session_id, "seg.mesh_url",       url)
-    write_state(session_id, "seg.n_vertices",     str(seg_result.n_vertices))
-    write_state(session_id, "seg.n_faces",        str(seg_result.n_triangles))
-    write_state(session_id, "seg.voxel_fraction", f"{vf:.6f}")
-    write_state(session_id, "seg.threshold_lower",str(lower))
+    # De una vez: diecisiete escrituras sueltas reescribían el fichero
+    # diecisiete veces, y una lectura a mitad veía la malla nueva con la
+    # geometría del volumen anterior.
+    estado: dict[str, str] = {}
+    estado["seg.mesh_url"] = url
+    estado["seg.n_vertices"] = str(seg_result.n_vertices)
+    estado["seg.n_faces"] = str(seg_result.n_triangles)
+    estado["seg.voxel_fraction"] = f"{vf:.6f}"
+    estado["seg.threshold_lower"] = str(lower)
     # El techo EFECTIVO (0 = sin techo en el método tubular): la detección
     # rehace el saco con esta banda, y tiene que ser la misma que hizo la malla.
-    write_state(session_id, "seg.threshold_upper",str(upper))
-    write_state(session_id, "seg.method",         method)
+    estado["seg.threshold_upper"] = str(upper)
+    estado["seg.method"] = method
     # Para «Reanudar»: sin esto la malla a media resolución volvía etiquetada
     # «Nativa», y en un equipo de 2 GB Case 3 siempre va a media resolución.
-    write_state(session_id, "seg.downsample_factor", str(ds_factor))
-    write_state(session_id, "seg.fallback_note",  fallback_note)
-    write_state(session_id, "seg.strategy",       strategy)
+    estado["seg.downsample_factor"] = str(ds_factor)
+    estado["seg.fallback_note"] = fallback_note
+    estado["seg.strategy"] = strategy
+    # Todo lo que hizo esta malla, junto: una lesión confirmada sobre ella solo
+    # sirve para medir un detector nuevo si la malla se puede rehacer igual
+    # desde el estudio archivado (routers/ground_truth.py).
+    estado["seg.params"] = json.dumps({
+        "series_id": series_id, "lower": lower, "upper": upper,
+        "smooth_iters": smooth_iters, "min_mm3": min_mm3, "top_n": top_n,
+        "closing_mm": closing_mm, "main_tree_only": main_tree_only,
+        "method": method, "reclaim_mm": reclaim_mm, "half_resolution": half_resolution,
+    })
     # Volume geometry — needed by Session C (morphometry + aneurysm detection)
     # Geometría del volumen SEGMENTADO: el preprocesado (remuestreado) cuando lo
     # está, no la del DICOM original, aunque las claves digan «dicom.».
-    write_state(session_id, "dicom.volume_z",     str(dcm.volume.shape[0]))
-    write_state(session_id, "dicom.volume_y",     str(dcm.volume.shape[1]))
-    write_state(session_id, "dicom.volume_x",     str(dcm.volume.shape[2]))
-    write_state(session_id, "dicom.spacing_z",    str(dcm.spacing[0]))
-    write_state(session_id, "dicom.spacing_y",    str(dcm.spacing[1]))
-    write_state(session_id, "dicom.spacing_x",    str(dcm.spacing[2]))
+    estado["dicom.volume_z"] = str(dcm.volume.shape[0])
+    estado["dicom.volume_y"] = str(dcm.volume.shape[1])
+    estado["dicom.volume_x"] = str(dcm.volume.shape[2])
+    estado["dicom.spacing_z"] = str(dcm.spacing[0])
+    estado["dicom.spacing_y"] = str(dcm.spacing[1])
+    estado["dicom.spacing_x"] = str(dcm.spacing[2])
+    write_states(session_id, estado)
 
     logger.info(
         "Segmentation complete — session=%s  verts=%d  tris=%d  vf=%.3f  url=%s",

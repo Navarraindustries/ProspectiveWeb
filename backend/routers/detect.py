@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 
+import json
 import re
 
 from fastapi import APIRouter, HTTPException, Query
@@ -32,6 +33,7 @@ from services.morphometrics import MorphometricAnalyzer
 from services.sac_isolation import isolate_closed_sac, isolate_sac_volumetric
 from services.perforator_risk import neck_origin_from_morpho
 from services.segmentation import read_vtp, write_vtp
+from services import progress
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["detection"])
@@ -184,8 +186,9 @@ _MORPHO_STATE_KEYS = (
     "morpho.dome_height_mm",
     "morpho.volume_mm3", "morpho.surface_area_mm2",
     "morpho.ar", "morpho.dnr", "morpho.bf", "morpho.ui",
-    "morpho.compactness", "morpho.rupture_risk",
+    "morpho.compactness", "morpho.rupture_risk", "morpho.rupture_risk_reasons",
     "morpho.neck_source", "morpho.neck_tilt_deg", "morpho.parent_artery_mm",
+    "morpho.parent_artery_method",
     # El saco aislado y los puntos del borde. Sin esto, «Limpiar candidatos y
     # morfometría» dejaba el saco verde pintado en el visor y los puntos del
     # cuello listos para reaparecer al reanudar: una medida borrada que seguía
@@ -312,6 +315,13 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
             detail="No segmented mesh found. Run POST /segment first.",
         )
 
+    # Lleva medio minuto en una malla real; el mismo registro de progreso que
+    # la segmentación, con sus fases, para que el panel no sea una barra muda.
+    # Con la segmentación en marcha la malla se está reescribiendo, y abrir aquí
+    # el progreso pisaría el suyo: comparten la clave de la sesión.
+    if progress.running_job(session_id) == "segment":
+        raise HTTPException(status_code=409, detail="La segmentación sigue en curso; espera a que termine.")
+    progress.start(session_id, job="detect")
     loop = asyncio.get_event_loop()
     try:
         result = await loop.run_in_executor(
@@ -324,16 +334,20 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
             ),
         )
     except ValueError as exc:
+        progress.finish(session_id, ok=False, message=str(exc))
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Detection failed for session %s: %s", session_id, exc, exc_info=True)
+        progress.finish(session_id, ok=False, message=str(exc) or type(exc).__name__)
         raise HTTPException(status_code=500, detail=f"Detection error: {exc}") from exc
 
+    progress.finish(session_id, ok=True)
     return result
 
 
 def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
                  detector: AneurysmDetector | None = None,
+                 session_id: str | None = None,
                  top: int = _MAX_CANDIDATES):
     """Los candidatos: curvatura sobre ≤ 80 000 vértices, calibre sobre ≤ 40 000.
 
@@ -376,7 +390,11 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     curv = decimate_to(poly, _CURVATURE_MAX_VERTS)
     logger.info("Detection mesh: %d vertices for curvature, %d for calibre/ratio",
                 curv.GetNumberOfPoints(), small.GetNumberOfPoints())
+    if session_id:
+        progress.update(session_id, "curvatura", 15)
     det_result = detector.detect(curv)
+    if session_id:
+        progress.update(session_id, "calibre y cociente", 45)
     hits = consensus(curv, detector, top=top,
                      geometric_poly=small, curvature_result=det_result)
     return hits, det_result
@@ -441,10 +459,12 @@ def _run_detection_sync(
     # one must not leave the extra domes on disk and in the report's state.
     _clear_detection_state(session_id, meshes_dir, morphometry=False)
 
+    progress.update(session_id, "lectura", 2)
     poly = read_vtp(vtp_path)
 
     if poly.GetNumberOfPoints() == 0:
         raise ValueError("Segmented mesh has no geometry. Re-run segmentation.")
+    progress.update(session_id, "decimación", 5)
 
     modality   = read_state(session_id, "dicom.modality") or "CT"
     detector   = _detector_for_modality(modality)
@@ -467,7 +487,7 @@ def _run_detection_sync(
     # localizador de un canal geométrico es una bola recortada de ella —su
     # posición es de mundo y vale igual en todas las copias—; la región de
     # curvatura es la que el detector encontró en su copia.
-    hits, det_result = _detect_hits(poly, modality, detector, top=_DETECT_TOP)
+    hits, det_result = _detect_hits(poly, modality, detector, session_id, top=_DETECT_TOP)
 
     # ── Vetos antes del tope ──────────────────────────────────────────── #
     # Cada sitio se juzga (borde, isla, bifurcación, forma). Los aceptados
@@ -494,6 +514,7 @@ def _run_detection_sync(
     groups = ([(item, False, k) for k, item in enumerate(accepted, start=1)]
               + [(item, True, k) for k, item in enumerate(rejected, start=1)])
     for idx, ((hit, patch, patch_kind, veto), is_rejected, rank) in enumerate(groups, start=1):
+        progress.update(session_id, "regiones", 85 + 14 * (idx - 1) / max(1, len(groups)))
         cand_name = f"aneurysm_cand_{idx:03d}.vtp"
         # La malla también para los descartados: sin ella no se pueden medir.
         write_vtp(patch, meshes_dir / cand_name)
@@ -1234,9 +1255,17 @@ def _run_morphometry_sync(
             parent_dia = estimate_parent_artery_diameter(
                 vessel, neck_pt, mr.principal_axis, mr.neck_diameter_mm,
             )
+            # Lo de la medida anterior no describe esta: si ahora no sale
+            # cifra, no puede quedarse la de antes en el estado.
+            write_state(session_id, "morpho.parent_artery_mm", "")
+            write_state(session_id, "morpho.parent_artery_method", "")
             if parent_dia > 0.1:
                 mr.size_ratio = mr.max_diameter_mm / parent_dia
                 write_state(session_id, "morpho.parent_artery_mm", str(round(parent_dia, 3)))
+                # Con qué versión del cálculo: las anteriores al percentil 25
+                # (services/parent_artery.py) se quedaban en el estado de las
+                # sesiones guardadas, y el dimensionado tiene que poder decirlo.
+                write_state(session_id, "morpho.parent_artery_method", "p25")
                 logger.info("SR = %.2f (parent Ø %.2f mm)", mr.size_ratio, parent_dia)
         except Exception as exc:
             logger.warning("Parent-artery / SR estimation skipped: %s", exc)
@@ -1270,7 +1299,10 @@ def _run_morphometry_sync(
     # Clamped like the API response: an open mesh can yield sphericity > 1, and
     # the report prints this against a "1.0 = esfera perfecta" reference.
     write_state(session_id, "morpho.compactness",      str(_clamp01(mr.compactness)))
-    write_state(session_id, "morpho.rupture_risk",     mr.rupture_risk_label)
+    _riesgo, _motivos = mr.rupture_risk()
+    write_state(session_id, "morpho.rupture_risk",     _riesgo)
+    # Por qué sale ese nivel, con sus cifras: el informe lo dice tal cual.
+    write_state(session_id, "morpho.rupture_risk_reasons", json.dumps(_motivos, ensure_ascii=False))
     write_state(session_id, "morpho.neck_source",      neck_source)
     write_state(session_id, "morpho.neck_tilt_deg",     str(round(neck_tilt_deg, 2)))
 
@@ -1335,6 +1367,30 @@ def _run_morphometry_sync(
         warning = f"{warning} {note}" if warning else note
         logger.warning("Sac isolation reached the crop bound — session=%s", session_id)
 
+    # ── ¿Inflan el Ø máximo partes finas pegadas al saco? ─────────────── #
+    # Ramas o ruido que quedan unidos al aislar el saco: el Ø máximo se mide
+    # hasta su punta. No se cambia la cifra; se enseña la del cuerpo y se
+    # avisa cuando se separan de verdad (services/sac_body.py).
+    body_max = None
+    sac_file = read_state(session_id, "morpho.sac_vtp_name", "")
+    if sac_file and (vtp_path.parent / sac_file).exists():
+        try:
+            from services.sac_body import sac_body
+            body = sac_body(read_vtp(vtp_path.parent / sac_file))
+        except Exception as exc:  # noqa: BLE001 — un aviso no hunde la medida
+            logger.warning("Sac body check skipped: %s", exc)
+            body = None
+        if body is not None:
+            body_max = body.body_max_mm
+            if body.inflated:
+                note = (
+                    f"El saco aislado incluye partes finas (ramas o ruido) que inflan el "
+                    f"Ø máximo: {mr.max_diameter_mm:.1f} mm frente a {body.body_max_mm:.1f} mm "
+                    f"del cuerpo del aneurisma. Revisa el borde marcado: cortando en la unión "
+                    f"del saco con el vaso, esas partes quedan fuera."
+                )
+                warning = f"{warning} {note}" if warning else note
+
     if indices_out_of_range:
         note = (
             "Índices de forma fuera de rango físico (malla de domo abierta) — "
@@ -1353,6 +1409,7 @@ def _run_morphometry_sync(
 
     return MorphometryResult(
         sac_mesh_url      = sac_url,
+        body_max_diameter_mm = body_max,
         volume_mm3        = round(mr.volume_mm3,        2),
         surface_area_mm2  = round(mr.surface_area_mm2,  2),
         eq_sphere_diam_mm = round(mr.eq_sphere_diam_mm, 3),

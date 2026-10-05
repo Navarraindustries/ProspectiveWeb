@@ -130,3 +130,13 @@ backend/clip_orders/
 
 # Estudios DICOM de prueba (109 MB): quedan en local
 frontend/Estudios/
+
+# Artículos de referencia descargados (derechos de autor): no van al repositorio público
+NEUROLOGY*.pdf
+*.article.pdf
+
+# El esquema de la API del que salen los tipos del frontend sí se versiona.
+!frontend/openapi.json
+
+# Copias de la base de datos: datos de pacientes.
+backend/db_backups/

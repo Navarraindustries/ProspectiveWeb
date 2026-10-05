@@ -13,7 +13,7 @@ from services.sessions import session_exists
 router = APIRouter(prefix="/api", tags=["progress"])
 ws_router = APIRouter(tags=["progress"])
 
-_IDLE = {"phase": "", "pct": 0.0, "running": False, "ok": None, "message": "", "updated_at": 0.0}
+_IDLE = {"phase": "", "pct": 0.0, "running": False, "ok": None, "message": "", "updated_at": 0.0, "job": ""}
 
 
 @router.get("/progress/{session_id}", summary="Fase y porcentaje del trabajo en curso")

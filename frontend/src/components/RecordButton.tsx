@@ -75,7 +75,7 @@ export function RecordButton({ step, onMessage }: {
     const aviso = r.hitLimit ? " Se paró sola al llegar a los 3 minutos." : "";
     if (!estudio) {
       setEstado("idle");
-      onMessage({ tone: "err", text: `Vídeo descargado, pero no guardado en el caso: archiva el estudio para poder adjuntarle grabaciones.${aviso}` });
+      onMessage({ tone: "err", text: `Vídeo descargado, pero no guardado en el caso: usa «Adjuntar a un caso» para que las siguientes se guarden en él.${aviso}` });
       return;
     }
     try {

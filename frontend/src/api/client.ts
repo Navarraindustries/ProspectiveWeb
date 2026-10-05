@@ -2,6 +2,15 @@
    All routes are same-origin in dev thanks to the Vite proxy. */
 
 import type {
+  UiatsRequest, UiatsResult,
+  FollowupResult, FollowupStudy,
+  ElapssRequest, ElapssResult,
+  DicomSegResult,
+  AttachRequest, AttachResult, SessionIdentity,
+  GlbExportResult,
+  WebSizingResult,
+  FdSizingResult,
+  LesionConfirmIn, LesionConfirmation, LesionSummary,
   AneurysmDetectionResult,
   AuditBlock,
   AuditVerifyResult,
@@ -110,14 +119,32 @@ import type {
 } from "./types";
 import { clearVolumeCache } from "../vtk/volume/volumeCache";
 
-const TOKEN_KEY = "prospective.token";
+/* La sesión va SOLO en la cookie `prospective_token`, que es httpOnly: el
+   JavaScript de la página no puede leerla. Antes el JWT se guardaba además en
+   localStorage, donde cualquier script inyectado (una dependencia
+   comprometida, un XSS) podía copiarlo y suplantar al usuario desde fuera.
+   Aquí solo queda una marca sin valor: «hubo login», para no preguntar al
+   servidor en cada visita a la portada. */
+const SESSION_KEY = "prospective.session";
+const LEGACY_TOKEN_KEY = "prospective.token";
 
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+// Quien tenía la sesión abierta con el token viejo sigue dentro (la cookie es
+// la misma); el token se borra del almacenamiento en cuanto carga la página.
+try {
+  if (localStorage.getItem(LEGACY_TOKEN_KEY) !== null) {
+    localStorage.setItem(SESSION_KEY, "1");
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+  }
+} catch { /* almacenamiento bloqueado */ }
+
+export function hasSession(): boolean {
+  try { return localStorage.getItem(SESSION_KEY) === "1"; } catch { return false; }
 }
-export function setToken(token: string | null) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+export function markSession(open: boolean) {
+  try {
+    if (open) localStorage.setItem(SESSION_KEY, "1");
+    else localStorage.removeItem(SESSION_KEY);
+  } catch { /* se queda en memoria: al recargar se pedirá login */ }
 }
 
 /** Notified when the server rejects our credentials, so the app can return to
@@ -132,7 +159,7 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
  *  del paciente guardados en el navegador y se avisa a la app para volver al
  *  login. La usan request(), getBlob() y la descarga de bloques. */
 export function handleUnauthorized() {
-  setToken(null);
+  markSession(false);
   void clearVolumeCache();
   onUnauthorized?.();
 }
@@ -150,22 +177,24 @@ export class ApiError extends Error {
   }
 }
 
-/** Cabeceras con el JWT para fetch() fuera del cliente (bloques del volumen). */
-export function authHeaders(): Headers {
-  const headers = new Headers();
-  const token = getToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  return headers;
+/** La pareja del doble envío contra CSRF (backend/services/csrf.py): la cookie
+ *  que puso el login, devuelta en una cabecera. El servidor la exige en todo
+ *  lo que cambia algo, porque la sesión va por cookie. */
+function csrfToken(): string | null {
+  const m = document.cookie.match(/(?:^|;\s*)prospective_csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]!) : null;
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  for (const [k, v] of authHeaders()) headers.set(k, v);
+  const method = (init.method ?? "GET").toUpperCase();
+  const csrf = method === "GET" || method === "HEAD" ? null : csrfToken();
+  if (csrf) headers.set("X-CSRF-Token", csrf);
   if (init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(path, { ...init, headers });
+  const res = await fetch(path, { ...init, headers, credentials: "same-origin" });
   if (res.status === 401 && !isAuthAttempt(path)) {
     // The token is gone or expired: drop it and let the app show the login
     // screen once, rather than surfacing an error in whichever panel asked.
@@ -192,7 +221,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 /** Authenticated fetch returning the raw Blob (for images / documents that an
  *  <img src> or download link can't carry the JWT header for). */
 async function getBlob(path: string): Promise<Blob> {
-  const res = await fetch(path, { headers: authHeaders() });
+  const res = await fetch(path, { credentials: "same-origin" });
   if (res.status === 401) handleUnauthorized();
   if (!res.ok) throw new ApiError(res.status, `Error ${res.status}`);
   return res.blob();
@@ -251,6 +280,11 @@ export const api = {
 
   /* patients */
   listPatients: () => get<PatientSummary[]>("/api/patients"),
+  /** Lo que propone la cabecera DICOM de la sesión y si ese paciente ya existe. */
+  sessionIdentity: (sessionId: string) => get<SessionIdentity>(`/api/sessions/${sessionId}/identity`),
+  /** Liga la sesión a un paciente y un caso (nuevos o existentes) y archiva su DICOM. */
+  attachSession: (sessionId: string, req: AttachRequest) =>
+    post<AttachResult>(`/api/sessions/${sessionId}/attach`, req),
   createPatient: (p: PatientCreate) => post<PatientSummary>("/api/patients", p),
   patientStudies: (id: number) => get<StudySummary[]>(`/api/patients/${id}/studies`),
   createStudy: (patientId: number, s: StudyCreate) =>
@@ -273,12 +307,35 @@ export const api = {
     for (const f of files) form.append("files", f, f.name);
     return post<UploadResult>("/api/upload", form);
   },
-  segment: (req: SegmentRequest) => post<SegmentResult>("/api/segment", req),
+  /** Lanza la segmentación en segundo plano y espera su resultado preguntando
+   *  cada poco. Antes era una sola petición de minutos, y detrás de un proxy
+   *  con tiempo límite corto el navegador recibía un 504 mientras el servidor
+   *  terminaba igualmente y sustituía la malla. */
+  segment: async (req: SegmentRequest, pollMs = 1500): Promise<SegmentResult> => {
+    await post<unknown>("/api/segment?background=true", req);
+    for (;;) {
+      try {
+        return await get<SegmentResult>(`/api/segment/result/${req.session_id}`);
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 409) throw e;
+      }
+      await new Promise((r) => setTimeout(r, pollMs));
+    }
+  },
   suggestedBand: (sessionId: string) =>
     get<SuggestedBand>(`/api/segment/suggested-band/${sessionId}`),
   /** Progreso de un trabajo largo (segmentación, morfometría…); respaldo por
    *  GET cuando watchProgress no consigue abrir el WebSocket. */
   progress: (sessionId: string) => get<ProgressState>(`/api/progress/${sessionId}`),
+  /* confirmación de la lesión */
+  confirmLesion: (req: LesionConfirmIn) => post<LesionConfirmation>("/api/ground-truth", req),
+  currentLesion: (sessionId: string, imagingStudyId: number | null) =>
+    get<LesionConfirmation | null>(
+      `/api/ground-truth/current?session_id=${encodeURIComponent(sessionId)}`
+      + (imagingStudyId != null ? `&imaging_study_id=${imagingStudyId}` : ""),
+    ),
+  retractLesion: (id: number) => request<void>(`/api/ground-truth/${id}`, { method: "DELETE" }),
+  lesionSummary: () => get<LesionSummary>("/api/ground-truth/summary"),
   /** Segmenta y detecta CON y SIN techo del umbral y devuelve ambas listas.
    *  Cuesta dos segmentaciones y dos detecciones; no toca la malla de la
    *  sesión, así que elegir configuración es un paso aparte. */
@@ -329,6 +386,15 @@ export const api = {
   longitudinal: (sessionId: string) =>
     get<LongitudinalResult>(`/api/longitudinal/${sessionId}`),
   phases: (req: PhasesRequest) => post<PhasesResult>("/api/phases", req),
+  /** Riesgo de crecimiento a 3 y 5 años (no de rotura). */
+  elapss: (req: ElapssRequest) => post<ElapssResult>("/api/elapss", req),
+  /** Suma a favor de tratar y a favor de vigilar (consenso, no decide). */
+  uiats: (req: UiatsRequest) => post<UiatsResult>("/api/uiats", req),
+  /** Otros estudios del paciente con una sesión guardada que se pueda superponer. */
+  followupStudies: (sessionId: string) => get<FollowupStudy[]>(`/api/followup/${sessionId}/studies`),
+  /** Superpone un estudio anterior y devuelve el mapa de cambio. */
+  followup: (sessionId: string, previousSessionId: string) =>
+    post<FollowupResult>(`/api/followup/${sessionId}`, { previous_session_id: previousSessionId }),
   /** Drop the candidate domes and the morphometry derived from them (including a
       manually marked neck plane, which is otherwise reused by every later run). */
   clearDetection: (sessionId: string) =>
@@ -347,6 +413,11 @@ export const api = {
     post<CrossSectionResult>(`/api/cross-section/${sessionId}`, req),
   deployClStent: (sessionId: string, req: ClStentRequest) =>
     post<ClStentResult>(`/api/cl-stent/${sessionId}`, req),
+  /** Anchura y altura del saco y las medidas WEB SL/SLS que cumplen +1/−1. */
+  webSizing: (sessionId: string) => post<WebSizingResult>(`/api/web-sizing/${sessionId}`),
+  /** Calibre de los anclajes y medida de cada flow-diverter del catálogo. */
+  fdSizing: (sessionId: string) =>
+    post<FdSizingResult>(`/api/centerline/${sessionId}/fd-sizing`),
   /** Cuánto aneurisma queda con el clip colocado: oclusión completa, resto de
    *  cuello o residual. Geometría, no mecánica. */
   clipOcclusion: (sessionId: string) =>
@@ -560,6 +631,11 @@ export const api = {
   report: (req: ReportRequest) => post<ReportResult>("/api/report", req),
   dicomSr: (req: ReportRequest) => post<ReportResult>("/api/report/dicom-sr", req),
   exportStl: (req: ExportRequest) => post<ReportResult>("/api/export/stl", req),
+  /** La escena con un objeto por malla y su color, en metros: para verla o
+   *  compartirla (visores 3D, PowerPoint, realidad aumentada). */
+  exportGlb: (sessionId: string) => post<GlbExportResult>(`/api/export/glb/${sessionId}`),
+  /** Vaso y aneurisma como DICOM SEG, para superponerlos a la serie en el PACS. */
+  exportDicomSeg: (sessionId: string) => post<DicomSegResult>(`/api/export/dicom-seg/${sessionId}`),
 
   /* sessions */
   saveSession: (req: SessionSaveRequest) =>

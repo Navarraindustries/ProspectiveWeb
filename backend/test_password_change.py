@@ -32,6 +32,11 @@ def _make_user(username: str, password: str, role: str = "medico") -> int:
 def _login(username: str, password: str):
     c = anonymous_client(app)
     r = c.post("/api/auth/login", json={"username": username, "password": password})
+    # Autenticado solo por cookie, como el navegador: devuelve el token CSRF
+    # en la cabecera igual que hace el cliente (services/csrf.py).
+    csrf = c.cookies.get("prospective_csrf")
+    if csrf:
+        c.headers["X-CSRF-Token"] = csrf
     return c, r
 
 

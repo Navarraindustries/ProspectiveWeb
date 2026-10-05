@@ -10,6 +10,8 @@ export interface UserInfo {
   institution: string;
   avatar_initials: string;
   has_photo?: boolean;
+  /** La cuenta lleva la contraseña inicial: hay que cambiarla antes de seguir. */
+  must_change_password?: boolean;
 }
 
 export interface LoginResponse {
@@ -596,6 +598,38 @@ export interface ClStentResult {
   coverage_ratio: number;
   total_arc_mm: number;
   warning: string | null;
+  /** Aposición a la pared; el mapa va en la malla (`aposicion_mm`). */
+  apposition?: ClStentApposition | null;
+  /** Cobertura metálica de la trenza; el mapa va en la malla (`cobertura_delta_pct`). */
+  coverage?: ClStentCoverage | null;
+}
+
+export interface ClStentCoverage {
+  device: string;
+  nominal_coverage_pct: number;
+  nominal_angle_deg: number;
+  /** Delante del cuello; null si no hay cuello medido. */
+  neck_coverage_pct: number | null;
+  min_coverage_pct: number;
+  max_coverage_pct: number;
+  min_local_diameter_mm: number;
+  deployed_length_mm: number;
+  /** Longitud de catálogo que, ya alargada por el vaso, cubre el tramo. */
+  labelled_length_mm: number;
+  notes: string[];
+  sources: string[];
+}
+
+export interface ClStentApposition {
+  /** Por debajo de esto una separación no se distingue. */
+  noise_mm: number;
+  gap_area_pct: number;
+  compressed_area_pct: number;
+  max_gap_mm: number;
+  proximal_gap_mm: number;
+  distal_gap_mm: number;
+  neck_excluded: boolean;
+  notes: string[];
 }
 
 /* ── detection / morphometry ───────────────────────────────────────────── */
@@ -697,6 +731,8 @@ export interface MorphometryResult {
       —comprobado con sacos sintéticos de 4, 6 y 8 mm, que devolvían los tres
       la misma región de 27,5 mm—. Lo que lo delimita es el cuello. */
   sac_mesh_url: string;
+  /** Ø máximo del cuerpo del saco sin ramas finas pegadas; null sin saco aislado. */
+  body_max_diameter_mm?: number | null;
   neck_source: "auto" | "manual" | "rim";
   /** Angle between the neck plane and the neck→dome axis (degrees). Only
    *  meaningful for neck_source "rim": near 0° the two-click method would have
@@ -1483,6 +1519,9 @@ export interface ClipOrderPrefill {
   advised_shape: string;
   advised_navarro_shape: NavarroShape;
   advised_window_mm: number;
+  /** La pieza es la colocada en Dispositivos, no la propuesta del selector.
+   *  Opcional: un backend anterior no lo manda. */
+  placed_in_plan?: boolean;
   jaw_is_free: boolean;
   stock_window_mm: number[];
   drawn_angles_deg: number[];
@@ -1706,6 +1745,8 @@ export interface ProgressState {
   running: boolean;
   ok: boolean | null;
   message: string;
+  /** De qué trabajo es: «segment», «detect». */
+  job?: string;
 }
 
 /* ── Capturas del visor adjuntas al caso ─────────────────────────────────── */
@@ -1794,3 +1835,263 @@ export interface ScissorsResult {
   undo_depth: number;
 }
 
+
+/* ── Confirmación de la lesión (verdad de referencia del detector) ─────────── */
+
+export type LesionSource = "candidate" | "marked" | "no_lesion";
+
+export interface LesionConfirmIn {
+  session_id: string;
+  imaging_study_id: number | null;
+  source: LesionSource;
+  candidate_id?: string;
+  position?: Position3D;
+}
+
+export interface LesionConfirmation {
+  id: number;
+  session_id: string;
+  imaging_study_id: number | null;
+  source: LesionSource;
+  position: Position3D | null;
+  /** Puesto del candidato que ES la lesión; null si ninguno lo era. */
+  candidate_rank: number | null;
+  n_candidates: number;
+  channels: string;
+  modality: string;
+  /** Hay estudio archivado: se puede volver a pasar el detector. */
+  reproducible: boolean;
+  created_at: string;
+  created_by: string;
+}
+
+export interface LesionSummary {
+  confirmed: number;
+  no_lesion: number;
+  first: number;
+  top3: number;
+  top5: number;
+  missed: number;
+  by_modality: Record<string, number>;
+  reproducible: number;
+}
+
+/* ── Dimensionado de flow-diverter (backend/services/fd_sizing.py) ─────────── */
+
+export interface FdLandingZone {
+  arc_from_mm: number;
+  arc_to_mm: number;
+  /** Mediana de los cortes redondos; 0 = sin medir. */
+  diameter_mm: number;
+  min_mm: number;
+  max_mm: number;
+  n_sections: number;
+  truncated: boolean;
+}
+
+export interface FdOption {
+  device_id: string;
+  name: string;
+  manufacturer: string;
+  diameter_mm: number;
+  /** Longitud ETIQUETADA. */
+  length_mm: number;
+  fits: boolean;
+  reason: string;
+  neck_note: string;
+  narrow_end_note: string;
+  deploy_arc_mm: [number, number];
+  elongated_length_mm: number;
+}
+
+export interface FdSizingResult {
+  neck_arc_mm: [number, number];
+  neck_from_rim: boolean;
+  total_arc_mm: number;
+  proximal: FdLandingZone;
+  distal: FdLandingZone;
+  mismatch_mm: number;
+  target_diameter_mm: number;
+  required_length_mm: number;
+  multiple_devices: boolean;
+  options: FdOption[];
+  warnings: string[];
+  notes: string[];
+  sources: string[];
+}
+
+/* ── Dimensionado de WEB (backend/services/web_sizing.py) ──────────────────── */
+
+export interface WebSacDims {
+  width_mm: number;
+  width_max_mm: number;
+  width_min_mm: number;
+  height_mm: number;
+  /** "sac" = saco aislado; "morpho" = cifras de la morfometría (orientativo). */
+  source: "sac" | "morpho";
+}
+
+export interface WebOption {
+  shape: "SL" | "SLS";
+  width_mm: number;
+  height_mm: number;
+  added_mm: number;
+  target_height_mm: number;
+  dav: number | null;
+  label: string;
+  /** Por qué no cumple la regla al pie de la letra (vacío si la cumple). */
+  note: string;
+}
+
+export interface WebSizingResult {
+  dims: WebSacDims;
+  neck_mm: number;
+  dnr: number;
+  volume_mm3: number;
+  within_indication: boolean;
+  fill_ratio: number | null;
+  options: WebOption[];
+  warnings: string[];
+  notes: string[];
+  sources: string[];
+}
+
+/** La escena en glTF binario (backend/services/glb_export.py). */
+export interface GlbExportResult {
+  glb_url: string;
+  /** Objetos incluidos, en orden: «Vaso», «Saco», «Clip»… */
+  parts: string[];
+  size_kb: number;
+}
+
+/* ── Adjuntar una sesión a un caso (backend/routers/attach.py) ─────────────── */
+
+export interface PatientSuggestion {
+  surname: string;
+  given_name: string;
+  hospital_id: string;
+  dob: string;
+  sex: string;
+}
+
+export interface SessionIdentity {
+  /** Lo que propone la cabecera DICOM. Nunca se escribe solo. */
+  suggestion: PatientSuggestion;
+  study_date: string;
+  modality: string;
+  matches: { id: number; full_name: string; hospital_id: string; dob: string; reason: "hospital_id" | "name" }[];
+  attached: boolean;
+}
+
+export interface AttachRequest {
+  patient_id?: number;
+  new_patient?: PatientSuggestion;
+  case_id?: number;
+  new_case?: { dx_principal: string; study_date: string };
+}
+
+export interface AttachResult {
+  patient: PatientSummary;
+  case_id: number;
+  case_label: string;
+  imaging_study_id: number;
+  relinked_confirmations: number;
+}
+
+/** La segmentación en DICOM SEG, sobre la serie original (backend/services/dicom_seg.py). */
+export interface DicomSegResult {
+  seg_url: string;
+  /** «Vaso» y, si hay saco aislado, «Aneurisma». */
+  segments: string[];
+  n_frames: number;
+  voxel_volumes_mm3: Record<string, number>;
+  mesh_volumes_mm3: Record<string, number>;
+  warnings: string[];
+}
+
+/* ── ELAPSS: riesgo de crecimiento (backend/services/elapss.py) ──────────────── */
+
+export type ElapssPopulation = "other" | "japan" | "finland";
+export type ElapssLocation = "ica_aca_acom" | "mca" | "pcom_posterior";
+
+export interface ElapssRequest {
+  session_id: string | null;
+  earlier_sah: boolean;
+  location: ElapssLocation;
+  age_years: number;
+  population: ElapssPopulation;
+  size_mm: number;
+  irregular: boolean;
+}
+
+export interface ElapssResult {
+  earlier_sah_pts: number;
+  location_pts: number;
+  age_pts: number;
+  population_pts: number;
+  size_pts: number;
+  shape_pts: number;
+  total_score: number;
+  score_band: string;
+  growth_3yr_pct: number;
+  growth_5yr_pct: number;
+  notes: string[];
+  sources: string[];
+}
+
+/* ── Superposición de seguimiento (backend/routers/followup.py) ─────────────── */
+
+export interface FollowupStudy {
+  imaging_study_id: number;
+  session_id: string;
+  acquired_at: string;
+  modality: string;
+  description: string;
+  has_sac: boolean;
+  has_lesion: boolean;
+}
+
+export interface FollowupResult {
+  map_url: string;
+  ghost_url: string | null;
+  /** Por debajo de esto un cambio no se distingue. */
+  noise_mm: number;
+  residual_median_mm: number;
+  max_growth_mm: number;
+  max_shrink_mm: number;
+  grew_area_pct: number;
+  volume_prev_mm3: number | null;
+  volume_curr_mm3: number | null;
+  rotation_deg: number;
+  lesion_source_prev: string;
+  lesion_source_curr: string;
+  warnings: string[];
+}
+
+/* ── UIATS: tratar frente a vigilar (backend/services/uiats.py) ─────────────── */
+
+export interface UiatsRequest {
+  session_id: string | null;
+  age_years: number;
+  risk_factors: string[];
+  symptoms: string[];
+  patient_other: string[];
+  diameter_mm: number;
+  morphology: string[];
+  location: "basilar_bifurcation" | "vertebrobasilar" | "acom_pcom" | "other";
+  aneurysm_other: string[];
+  life_expectancy: "lt5" | "5to10" | "gt10" | null;
+  comorbid: string[];
+  complexity: "high" | "low";
+}
+
+export interface UiatsResult {
+  repair: number;
+  conservative: number;
+  difference: number;
+  recommendation: "repair" | "conservative" | "not_definitive";
+  repair_items: { label: string; points: number }[];
+  conservative_items: { label: string; points: number }[];
+  notes: string[];
+  sources: string[];
+}

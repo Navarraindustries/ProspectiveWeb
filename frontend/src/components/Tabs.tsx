@@ -15,7 +15,9 @@ export function Tabs({
 }) {
   const sm = size === "sm";
   return (
-    <div style={{ display: "flex", gap: 2, borderBottom: "1px solid var(--border)" }}>
+    // Con `wrap`: seis pestañas no caben en el panel estrecho, y sin partirse
+    // ensanchaban todo el panel y le sacaban una barra horizontal.
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 2, borderBottom: "1px solid var(--border)" }}>
       {tabs.map((t) => {
         const active = t === value;
         return (

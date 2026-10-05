@@ -53,7 +53,42 @@ class DicomLoadResult:
 
 # ── Public API ─────────────────────────────────────────────────────────────── #
 
+#: Resultado del último escaneo de cada carpeta, con la huella de sus ficheros.
+#: Cambiar de serie volvía a leer las cabeceras del estudio entero —medio
+#: minuto con 1,3 GB— para contestar lo mismo que al abrirlo.
+_SCAN_CACHE: dict[str, tuple[tuple, list[dict]]] = {}
+_SCAN_CACHE_MAX = 8
+
+
+def _dir_fingerprint(dicom_dir: Path) -> tuple:
+    """Cuántos ficheros, cuánto pesan y el más reciente: si no cambia, el
+    escaneo tampoco."""
+    n = size = newest = 0
+    for f in dicom_dir.rglob("*"):
+        if f.is_file():
+            st = f.stat()
+            n += 1
+            size += st.st_size
+            newest = max(newest, st.st_mtime_ns)
+    return n, size, newest
+
+
 def scan_series(dicom_dir: Path) -> list[dict]:
+    """`_scan_series` con memoria: la misma carpeta sin tocar no se relee."""
+    import copy
+    key = str(Path(dicom_dir).resolve())
+    huella = _dir_fingerprint(Path(dicom_dir))
+    hit = _SCAN_CACHE.get(key)
+    if hit is not None and hit[0] == huella:
+        return copy.deepcopy(hit[1])
+    result = _scan_series(dicom_dir)
+    if len(_SCAN_CACHE) >= _SCAN_CACHE_MAX:
+        _SCAN_CACHE.pop(next(iter(_SCAN_CACHE)))
+    _SCAN_CACHE[key] = (huella, copy.deepcopy(result))
+    return result
+
+
+def _scan_series(dicom_dir: Path) -> list[dict]:
     """Scan *dicom_dir* and return lightweight metadata for every series found.
 
     No volume is loaded — only DICOM headers are read.

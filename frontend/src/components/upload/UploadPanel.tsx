@@ -90,6 +90,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       // activates series[0]; mirror that choice here.
       const primary = res.series[0] ?? null;
       planning.setSeries(primary);
+      planning.setSeriesList(res.series);
       if (!primary) {
         setError("No se detectó ninguna serie DICOM en los archivos subidos.");
       }
@@ -249,12 +250,12 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       {series && (
         <Card style={{ marginTop: 16 }}>
           <SectionLabel>
-            Serie del estudio{result && result.series.length > 1 ? ` (${result.series.length} disponibles)` : ""}
+            Serie del estudio{planning.seriesList.length > 1 ? ` (${planning.seriesList.length} disponibles)` : ""}
           </SectionLabel>
           {/* A study usually carries several series (localisers, 2-D cines and
               more than one 3-D acquisition). We activate the best 3-D volume,
               but the clinician must be able to pick a different acquisition. */}
-          {result && result.series.length > 1 && (
+          {planning.seriesList.length > 1 && (
             <div style={{ marginBottom: 12 }}>
               <select
                 value={series.series_id}
@@ -269,7 +270,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
               >
                 {/* A study often repeats the same protocol (e.g. four 3D-RA
                     acquisitions): label each one so they can be told apart. */}
-                {result.series.map((s, i) => (
+                {planning.seriesList.map((s, i) => (
                   <option key={s.series_id} value={s.series_id}>
                     {i + 1}. {s.description} · {s.slices} cortes · {s.spacing.z.toFixed(2)} mm
                     {s.is_projection ? " · ⚠ proyección 2D" : ""}

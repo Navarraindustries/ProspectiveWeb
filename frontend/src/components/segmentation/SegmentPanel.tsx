@@ -110,14 +110,19 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
   /** Lo que se manda al backend: 0 desactiva el techo. */
   const upperEfectivo = sinTecho ? 0 : upper;
+  /** El método tubular no usa el techo. La vista previa tampoco puede usarlo:
+   *  con él enseñaba la banda intermedia —hueso y bordes— y dejaba fuera los
+   *  vasos, que son lo más brillante y justo lo que la segmentación va a
+   *  sacar. Visto en una 3D-RA: la previa eran cuatro trozos sueltos. */
+  const previaSinTecho = sinTecho || method === "tubular";
 
   // Live 2D tint on the MPR slices (fast, debounced). Only while tuning the
   // initial threshold — after segmenting, the grow panel drives the tint.
   useEffect(() => {
     if (segmentation) return;
-    const t = setTimeout(() => setPreviewBand([lower, sinTecho ? Number.MAX_SAFE_INTEGER : upper]), 140);
+    const t = setTimeout(() => setPreviewBand([lower, previaSinTecho ? Number.MAX_SAFE_INTEGER : upper]), 140);
     return () => clearTimeout(t);
-  }, [lower, upper, sinTecho, segmentation, setPreviewBand]);
+  }, [lower, upper, previaSinTecho, segmentation, setPreviewBand]);
 
   // Vista previa 3D en dos etapas.
   //
@@ -149,7 +154,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       setPreviewing(true);
       try {
         const res = await api.segmentPreview(sessionId, {
-          lower, upper: upperEfectivo, cleanup, downsample,
+          lower, upper: previaSinTecho ? 0 : upper, cleanup, downsample,
         });
         if (!cancelled && mio === previaPedida.current) setPreviewMeshUrl(res.mesh_url);
       } catch {
@@ -162,7 +167,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     const borrador = setTimeout(() => void pedir(PREVIA_BORRADOR_DS), PREVIA_BORRADOR_MS);
     const afinado = setTimeout(() => void pedir(PREVIA_AFINADO_DS), PREVIA_AFINADO_MS);
     return () => { cancelled = true; clearTimeout(borrador); clearTimeout(afinado); };
-  }, [lower, upper, upperEfectivo, cleanup, sessionId, segmentation, setPreviewMeshUrl]);
+  }, [lower, upper, previaSinTecho, cleanup, sessionId, segmentation, setPreviewMeshUrl]);
 
   // Clear the previews when leaving the segmentation step.
   useEffect(() => () => { setPreviewBand(null); setPreviewMeshUrl(null); }, [setPreviewBand, setPreviewMeshUrl]);
@@ -305,7 +310,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           value={upper}
           onChange={setUpper}
           unit=""
-          disabled={sinTecho}
+          disabled={sinTecho || method === "tubular"}
         />
         {/* El tope del slider sale de `vmax`, que es el percentil 99.9 del
             volumen, así que subirlo «al máximo» NO quita el techo: lo deja
@@ -313,10 +318,16 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             y el techo corta el vaso donde más denso está. El backend ya sabe
             desactivarlo (`upper <= lower` → sin límite); faltaba poder pedirlo. */}
         <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
-          <input type="checkbox" checked={sinTecho} onChange={(e) => setSinTecho(e.target.checked)} />
+          <input type="checkbox" checked={previaSinTecho} disabled={method === "tubular"}
+                 onChange={(e) => setSinTecho(e.target.checked)} />
           Sin límite superior — conserva todo lo más brillante que el umbral inferior
         </label>
-        {sinTecho && (
+        {method === "tubular" && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
+            El método tubular nunca usa el límite superior; la vista previa tampoco.
+          </div>
+        )}
+        {sinTecho && method !== "tubular" && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
             En angiografía con contraste suele ser lo correcto: el techo recorta
             justo los vasos más llenos y puede partir la vasculatura en trozos que

@@ -9,6 +9,7 @@ endpoints. They are never placed under `data/`, which is public StaticFiles.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Annotated
 
@@ -261,7 +262,7 @@ async def open_study(
 
     sid = create_session()
     try:
-        n = restore_study_to_session(study_id, sid)
+        n = await asyncio.to_thread(restore_study_to_session, study_id, sid)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except OSError as exc:
@@ -278,7 +279,7 @@ async def open_study(
     from services.dicom_loader import scan_series
 
     try:
-        raw = scan_series(session_subdir(sid, "dicom"))
+        raw = await asyncio.to_thread(scan_series, session_subdir(sid, "dicom"))   # ver routers/upload.py
     except Exception as exc:  # noqa: BLE001
         logger.exception("Series scan failed on open")
         raise HTTPException(status_code=500, detail=f"No se pudieron leer las series: {exc}")

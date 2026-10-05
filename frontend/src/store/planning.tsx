@@ -36,6 +36,11 @@ interface PlanningState {
   imagingStudyId: number | null;
   sessionId: string | null;
   series: SeriesInfo | null;
+  /** Todas las series del estudio cargado, para poder cambiar de una a otra.
+   *  Vivía en el estado local del panel de carga, que solo lo rellenaba al
+   *  SUBIR: un estudio abierto desde el archivo llegaba sin selector, y con
+   *  cuatro 3D-RA en el mismo estudio solo se podía trabajar la primera. */
+  seriesList: SeriesInfo[];
   /** Live threshold-preview band [lower, upper] HU set from the segmentation
    *  sliders; the MPR views tint the captured voxels in near-real-time. */
   previewBand: [number, number] | null;
@@ -180,6 +185,7 @@ interface PlanningState {
   setImagingStudyId: (id: number | null) => void;
   setSession: (id: string | null) => void;
   setSeries: (s: SeriesInfo | null) => void;
+  setSeriesList: (s: SeriesInfo[]) => void;
   setPreviewBand: (b: [number, number] | null) => void;
   setPreviewMeshUrl: (u: string | null) => void;
   setSegmentation: (s: SegmentResult | null) => void;
@@ -271,6 +277,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const setCase = (id: number | null, label = "") => { setCaseId(id); setCaseLabel(label); };
   const [sessionId, setSession] = useState<string | null>(null);
   const [series, setSeries] = useState<SeriesInfo | null>(null);
+  const [seriesList, setSeriesList] = useState<SeriesInfo[]>([]);
   const [previewBand, setPreviewBand] = useState<[number, number] | null>(null);
   const [previewMeshUrl, setPreviewMeshUrl] = useState<string | null>(null);
   const [segmentation, _setSegmentation] = useState<SegmentResult | null>(null);
@@ -430,6 +437,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setImagingStudyId(null);
     setSession(null);
     setSeries(null);
+    setSeriesList([]);
     setOrientationManual(null);
     resetDownstream();
   };
@@ -442,7 +450,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
-        setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,
+        setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,

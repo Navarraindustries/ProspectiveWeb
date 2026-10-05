@@ -583,7 +583,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       : morphometry?.sac_mesh_url;
     if (sacUrl && step !== "segment" && step !== "upload") {
       // Con contorno: translúcido sobre el árbol, su borde se perdía.
-      out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true });
+      out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true, frame: step === "morpho" });
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
       out.push({ url: candidate.dome_mesh_url, color: DOME_COLOR, opacity: resalte });
     }
@@ -724,7 +724,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const centerOnLesion = () => {
     if (!lesion || !meta) return;
     setFocusMm(lesion, meta);
-    camera?.frame(lesion, 30);
+    camera?.frame(lesion, lesionFrameRadiusMm(morphometry?.max_diameter_mm ?? candidate?.max_diameter_mm ?? 0));
   };
   // Los paneles lo llaman a través del store. Se registra una envoltura
   // estable que lee la versión vigente: registrar la función de cada render
@@ -876,7 +876,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           llevan fondo propio porque el desplegable hereda el del select. */}
       <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
       {wlPresets.map((p) => (
-        <option key={p.name} value={p.name} style={{ background: "#000", color: "var(--hud)" }}>{p.name} · {p.wc}/{p.ww}</option>
+        <option key={p.name} value={p.name} style={{ background: "#000", color: "var(--hud)" }}>{p.name} · {Math.round(p.wc)}/{Math.round(p.ww)}</option>
       ))}
     </select>
   );
@@ -1075,7 +1075,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
               <HudToggleGroup
                 options={[
                   ...CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title })),
-                  ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Centrar en la lesión (encuadre de 30 mm)" }] : []),
+                  ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Acercar la cámara a la lesión" }] : []),
                 ]}
                 value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : camera.setView(k as CameraView))} />
             )}
@@ -1165,6 +1165,17 @@ function deviceLayer(d: { kind: "clips" | "coils" | "stent"; url: string; color:
     }
   }
   return layer;
+}
+
+/** Medio lado del cubo que encuadra «Centrar en la lesión».
+ *
+ *  Eran 30 mm fijos, o sea un cubo de 60: en una 3D-RA eso es el árbol entero,
+ *  y un aneurisma de 4 mm quedaba en un punto de seis píxeles sobre el que
+ *  había que marcar cuello y ápice. Ahora es la lesión y lo que la rodea: dos
+ *  veces y media su diámetro, entre 6 y 15 mm. */
+export function lesionFrameRadiusMm(diameterMm: number): number {
+  if (!(diameterMm > 0)) return 10;
+  return Math.min(15, Math.max(6, 2.5 * diameterMm));
 }
 
 /** Texto del aviso de marcado para cada modo. */

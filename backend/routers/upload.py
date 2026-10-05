@@ -1,6 +1,7 @@
 """Upload router — receives DICOM files, creates a session, extracts series metadata."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -110,7 +111,10 @@ async def upload_dicom(request: Request) -> UploadResult:
 
     # ── 3. Scan for DICOM series ──────────────────────────────────────────── #
     try:
-        raw_series = scan_series(dicom_dir)
+        # En un hilo: leer las cabeceras de un estudio de más de 1 GB tarda
+        # medio minuto, y dentro del bucle el servidor entero dejaba de
+        # responder (ni /health) mientras tanto.
+        raw_series = await asyncio.to_thread(scan_series, dicom_dir)
     except Exception as exc:
         logger.error("Series scan failed: %s", exc)
         raw_series = []
@@ -226,7 +230,10 @@ async def set_active_series(session_id: str, series_id: str) -> SeriesInfo:
 
     dicom_dir = session_subdir(session_id, "dicom")
     try:
-        raw_series = scan_series(dicom_dir)
+        # En un hilo: leer las cabeceras de un estudio de más de 1 GB tarda
+        # medio minuto, y dentro del bucle el servidor entero dejaba de
+        # responder (ni /health) mientras tanto.
+        raw_series = await asyncio.to_thread(scan_series, dicom_dir)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"No se pudieron leer las series: {exc}")
 

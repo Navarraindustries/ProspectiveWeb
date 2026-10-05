@@ -39,6 +39,10 @@ export interface MeshLayer {
    *  invertido, ver el efecto de escena). Lo pide el saco: translúcido sobre
    *  el árbol, su borde se perdía y no se sabía dónde acababa el aneurisma. */
   silhouette?: boolean;
+  /** La cámara encuadra esta capa al montar la escena, sin cambiarle el
+   *  aspecto. Sin esto, al medir el saco la vista saltaba al árbol entero
+   *  justo cuando hay que mirar lo que se acaba de medir. */
+  frame?: boolean;
   /** Colorea por un campo de puntos en vez de un color liso: azul (negativo),
    *  gris (0) y rojo (positivo), saturando en ±`range`. Lo usa el mapa de
    *  cambio del seguimiento. Por debajo de `deadband` en valor absoluto se
@@ -417,6 +421,8 @@ export function MeshView({
             prop.setSpecular(0.4);
             prop.setSpecularPower(30);
             prop.setOpacity(1);
+          } else if (layer.frame && !focusBounds) {
+            focusBounds = poly.getBounds();
           }
 
           renderer.addActor(actor);

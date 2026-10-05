@@ -118,7 +118,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     <div className="fade-rise">
       <PanelHead
         title="Candidatos detectados"
-        desc="Tres criterios buscan por separado —curvatura, calibre y calibre relativo al vaso vecino— y se fusionan en una lista corta para recorrer."
+        desc="Zonas de la vasculatura que merece la pena mirar, en una lista corta para recorrer."
         right={ran && <Badge variant="subtle">{candidates.length} encontrados</Badge>}
       />
 
@@ -149,7 +149,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
 
       {ran && candidates.length > 1 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
-          Tres criterios buscan por separado: <b>curvatura</b> (la superficie se abomba),
+          Tres criterios buscan por separado: <b>curvatura</b> (la superficie se abomba),{" "}
           <b>calibre</b> (más gruesa que el resto de la vasculatura) y <b>cociente</b> (más gruesa
           que el vaso de al lado). Cada candidato dice cuáles lo encontraron.
           <br />
@@ -184,7 +184,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{c.id}</span>
                 {/* Antes decía «Principal» en verde. Con 38 % de confianza eso
                     afirma más de lo que el dato sostiene, y en el único caso con
                     diagnóstico médico el primero era el equivocado. Un número de

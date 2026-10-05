@@ -13,6 +13,7 @@ import type {
   DeviceKind,
   ClipRecommendation,
   ClStentApposition,
+  ClStentCoverage,
   ClStentResult,
   CoilConstructResult,
   CoilLibraryItem,
@@ -913,6 +914,8 @@ function ClStentTab() {
           />
           {plan.warning && <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>}
           {plan.apposition && <AppositionSummary a={plan.apposition} />}
+          {plan.coverage && <CoverageSummary c={plan.coverage} />}
+          {plan.apposition && plan.coverage && <StentMapSwitch />}
         </Card>
       )}
       <ErrorNote>{error}</ErrorNote>
@@ -958,6 +961,62 @@ export function AppositionSummary({ a }: { a: ClStentApposition }) {
         Geometría del tubo nominal contra la malla, no una simulación de la trenza.
         {a.neck_excluded ? " Sobre el cuello no hay pared: se deja en gris y no cuenta." : ""}
         {a.notes.map((n) => ` ${n}`)}
+      </div>
+    </div>
+  );
+}
+
+/* ── Cobertura metálica de la trenza ────────────────────────────────────── */
+
+/** Cuánto metal queda delante del cuello. El catálogo da la cobertura al
+ *  diámetro nominal; en el vaso real la trenza se abre o se cierra. */
+export function CoverageSummary({ c }: { c: ClStentCoverage }) {
+  const cuello = c.neck_coverage_pct;
+  const baja = cuello !== null && cuello < c.nominal_coverage_pct - 5;
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+      <SectionLabel>Cobertura metálica · {c.device}</SectionLabel>
+      <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
+                                background: "linear-gradient(90deg, #2659d9, #c7ccd1 35%, #c7ccd1 65%, #e0331f)" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
+        <span>más metal</span><span>≈ catálogo ({c.nominal_coverage_pct.toFixed(0)} %)</span><span>poros abiertos</span>
+      </div>
+      {cuello !== null && (
+        <Metric label="Delante del cuello" value={`≈ ${cuello.toFixed(0)}`} unit=" %"
+                badge={baja ? ["Baja", "warning"] : ["Como el catálogo", "success"]} />
+      )}
+      <Metric label="A lo largo del vaso" value={`${c.min_coverage_pct.toFixed(0)}–${c.max_coverage_pct.toFixed(0)}`} unit=" %" />
+      <Metric label="Longitud de catálogo" value={c.labelled_length_mm.toFixed(0)} unit=" mm" />
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
+        El tramo dibujado mide {c.deployed_length_mm.toFixed(0)} mm: donde el vaso es más estrecho que el
+        dispositivo, la trenza se alarga y sus poros se abren.
+        {c.notes.map((n) => ` ${n}`)}
+      </div>
+    </div>
+  );
+}
+
+/** Qué se pinta sobre el stent en el visor. */
+export function StentMapSwitch() {
+  const { stentMap, setStentMap } = usePlanning();
+  const opcion = (id: "apposition" | "coverage", texto: string) => (
+    <button
+      type="button" aria-pressed={stentMap === id} onClick={() => setStentMap(id)}
+      style={{
+        flex: 1, padding: "6px 8px", fontSize: 12, cursor: "pointer", borderRadius: "var(--radius-md)",
+        border: "1px solid var(--border)", fontWeight: stentMap === id ? 700 : 500,
+        background: stentMap === id ? "var(--muted)" : "transparent", color: "var(--foreground)",
+      }}
+    >
+      {texto}
+    </button>
+  );
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Pintar en el visor</div>
+      <div style={{ display: "flex", gap: 6 }}>
+        {opcion("apposition", "Aposición")}
+        {opcion("coverage", "Cobertura")}
       </div>
     </div>
   );

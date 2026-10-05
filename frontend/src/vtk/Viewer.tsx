@@ -7,7 +7,7 @@
    Todas las celdas leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { usePlanning, type PickMode } from "../store/planning";
+import { usePlanning, type PickMode, type StentMap } from "../store/planning";
 import type { CameraController, CameraView, MeshLayer, MeshMarker, MeshLine } from "./MeshView";
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
@@ -67,6 +67,9 @@ const SAC_COLOR: Vector3 = [0.25, 0.80, 0.45];
 /** Mapa de aposición del stent: satura a ±1 mm; por debajo de 0,3 mm (un vóxel) es ruido. */
 export const APPOSITION_RANGE_MM = 1.0;
 export const APPOSITION_NOISE_MM = 0.3;
+/** Mapa de cobertura metálica: satura a ±10 puntos; ±2 es el margen del propio catálogo (30–35 %). */
+export const COVERAGE_RANGE_PP = 10;
+export const COVERAGE_NOISE_PP = 2;
 const FOLLOWUP_GHOST_COLOR: Vector3 = [0.98, 0.62, 0.20]; // naranja — saco del estudio anterior
 const DEVICE_COLOR: Vector3 = [0.92, 0.82, 0.45];     // warm gold — placed clip
 const COIL_COLOR: Vector3 = [0.85, 0.55, 0.85];       // orchid — packed coils
@@ -169,7 +172,7 @@ function ViewerLoading({ label }: { label: string }) {
 
 export function ViewerWorkspace({ step }: { step: string }) {
   const {
-    sessionId, segmentation, candidates, selectedCandidate, series, deviceMeshes,
+    sessionId, segmentation, candidates, selectedCandidate, series, deviceMeshes, stentMap,
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
@@ -590,9 +593,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: clipRehearsal.body_url,    color: DEVICE_COLOR, opacity: 1, id: "clip-body" });
       out.push({ url: clipRehearsal.blade_a_url, color: DEVICE_COLOR, opacity: 1, id: "clip-blade-a" });
       out.push({ url: clipRehearsal.blade_b_url, color: DEVICE_COLOR, opacity: 1, id: "clip-blade-b" });
-      for (const d of devices) if (d.kind !== "clips") out.push(deviceLayer(d));
+      for (const d of devices) if (d.kind !== "clips") out.push(deviceLayer(d, stentMap));
     } else if (showDevice) {
-      for (const d of devices) out.push(deviceLayer(d));
+      for (const d of devices) out.push(deviceLayer(d, stentMap));
     }
     if (showCenterline && centerlineMesh) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
@@ -611,7 +614,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
     }
     return out;
-  }, [followup, displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview]);
+  }, [followup, displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, stentMap, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview]);
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
@@ -1147,9 +1150,20 @@ export function ViewerWorkspace({ step }: { step: string }) {
  *  la distancia a la pared (`aposicion_mm`): rojo, separado; azul, comprimido;
  *  gris, dentro del ruido. Si la malla no lo trae (el stent recto), MeshView
  *  usa el color liso. */
-function deviceLayer(d: { kind: "clips" | "coils" | "stent"; url: string; color: Vector3 }): MeshLayer {
+function deviceLayer(d: { kind: "clips" | "coils" | "stent"; url: string; color: Vector3 }, map: StentMap): MeshLayer {
   const layer: MeshLayer = { url: d.url, color: d.color, opacity: 1 };
-  if (d.kind === "stent") layer.scalars = { name: "aposicion_mm", range: APPOSITION_RANGE_MM, deadband: APPOSITION_NOISE_MM };
+  if (d.kind === "stent") {
+    // La cobertura va cambiada de signo: el rojo es siempre «lo que hay que
+    // mirar», y ahí es MENOS metal que en el catálogo (poros más abiertos).
+    if (map === "coverage") {
+      // El fragmento no viaja al servidor: solo hace que la escena vea otra
+      // capa y la vuelva a pintar (se identifica por su URL).
+      layer.url = `${d.url}#cobertura`;
+      layer.scalars = { name: "cobertura_delta_pct", range: COVERAGE_RANGE_PP, deadband: COVERAGE_NOISE_PP, invert: true };
+    } else {
+      layer.scalars = { name: "aposicion_mm", range: APPOSITION_RANGE_MM, deadband: APPOSITION_NOISE_MM };
+    }
+  }
   return layer;
 }
 

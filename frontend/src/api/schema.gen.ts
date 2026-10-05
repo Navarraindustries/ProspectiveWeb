@@ -3584,6 +3584,61 @@ export interface components {
             proximal_gap_mm: number;
         };
         /**
+         * ClStentCoverage
+         * @description Cobertura metálica de la trenza, punto a punto (services/braid_coverage.py).
+         */
+        ClStentCoverage: {
+            /**
+             * Deployed Length Mm
+             * @description Longitud del tramo dibujado
+             */
+            deployed_length_mm: number;
+            /**
+             * Device
+             * @description Familia cuya construcción se ha usado
+             */
+            device: string;
+            /**
+             * Labelled Length Mm
+             * @description Longitud de catálogo que, alargada, lo cubre
+             */
+            labelled_length_mm: number;
+            /**
+             * Max Coverage Pct
+             * @description p95 sobre el tramo en contacto con el vaso
+             */
+            max_coverage_pct: number;
+            /**
+             * Min Coverage Pct
+             * @description p5 sobre el tramo en contacto con el vaso
+             */
+            min_coverage_pct: number;
+            /**
+             * Min Local Diameter Mm
+             * @description Diámetro más estrecho al que queda abierto
+             */
+            min_local_diameter_mm: number;
+            /**
+             * Neck Coverage Pct
+             * @description Cobertura estimada delante del cuello
+             */
+            neck_coverage_pct?: number | null;
+            /**
+             * Nominal Angle Deg
+             * @description Ángulo de los hilos con el eje al nominal
+             */
+            nominal_angle_deg: number;
+            /**
+             * Nominal Coverage Pct
+             * @description Cobertura al diámetro nominal (catálogo)
+             */
+            nominal_coverage_pct: number;
+            /** Notes */
+            notes?: string[];
+            /** Sources */
+            sources?: string[];
+        };
+        /**
          * ClStentRequest
          * @description Deploy a virtual stent along the extracted centreline.
          */
@@ -3626,6 +3681,8 @@ export interface components {
         ClStentResult: {
             /** @description El mapa va en la malla, en el campo `aposicion_mm` */
             apposition?: components["schemas"]["ClStentApposition"] | null;
+            /** @description Cobertura metálica; el mapa va en la malla (`cobertura_delta_pct`). Solo con trenza y dentro de las medidas de la familia. */
+            coverage?: components["schemas"]["ClStentCoverage"] | null;
             /**
              * Coverage Ratio
              * @description stent_r / vessel_r (1.0 = perfect fit; <1 undersized)

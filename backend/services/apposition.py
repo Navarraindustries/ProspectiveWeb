@@ -36,6 +36,9 @@ from services.followup import _closed_box, _inside_parity, _pts, _unsigned_dista
 
 #: Nombre del campo, en mm (+ separado de la pared, − comprimido).
 SCALAR = "aposicion_mm"
+#: Qué es cada punto del stent: lo usa la cobertura metálica (braid_coverage.py).
+ZONE = "zona_stent"
+ZONE_WALL, ZONE_NECK, ZONE_AXIS = 0, 1, 2
 #: Tramo de cada extremo que se resume por separado: es donde el dispositivo
 #: tiene que anclar.
 END_MM = 3.0
@@ -101,6 +104,10 @@ def annotate(
     arr.SetName(SCALAR)
     stent.GetPointData().AddArray(arr)
     stent.GetPointData().SetActiveScalars(SCALAR)
+    zona = np.where(en_el_eje, ZONE_AXIS, np.where(en_cuello, ZONE_NECK, ZONE_WALL)).astype(np.uint8)
+    z_arr = numpy_to_vtk(zona, deep=True)
+    z_arr.SetName(ZONE)
+    stent.GetPointData().AddArray(z_arr)
 
     cuenta = ~en_cuello & ~en_el_eje
     val = gap[cuenta]

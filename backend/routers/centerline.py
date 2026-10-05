@@ -15,7 +15,7 @@ from services.db_models import User
 
 from models.centerline import (
     CenterlineClearResult, CenterlineRequest, CenterlineResult,
-    CrossSectionRequest, CrossSectionResult, ClStentApposition, ClStentRequest, ClStentResult,
+    CrossSectionRequest, CrossSectionResult, ClStentApposition, ClStentCoverage, ClStentRequest, ClStentResult,
     FdSizingResult,
 )
 from services.centerline import extract_centerline
@@ -218,7 +218,25 @@ def _run_cl_stent(points_path, req: ClStentRequest, out_path, session_id: str | 
     if session_id:
         _measure_vessel_like_sizing(session_id, data["points"], req, result, out_path.parent)
         result.apposition = _apposition(session_id, result, out_path)
+        result.coverage = _coverage(result, req, out_path) if result.apposition and req.braid else None
     return result
+
+
+def _coverage(result, req: ClStentRequest, out_path):
+    """Cobertura metálica de la trenza sobre el mapa de aposición. Igual que
+    él, si no sale el stent se queda como estaba."""
+    from dataclasses import asdict
+    from services.braid_coverage import annotate
+    try:
+        c = annotate(result.stent_poly_data, result.centerline_segment, req.stent_diameter_mm)
+        write_vtp(result.stent_poly_data, out_path)
+        return asdict(c)
+    except ValueError as exc:            # fuera de las medidas de la familia
+        logger.info("Coverage map not applicable: %s", exc)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Coverage map skipped: %s", exc)
+        return None
 
 
 def _apposition(session_id: str, result, out_path):
@@ -348,6 +366,7 @@ async def deploy_cl_stent(
         total_arc_mm=round(result.total_arc_mm, 1),
         warning=warning,
         apposition=ClStentApposition(**ap) if (ap := getattr(result, "apposition", None)) else None,
+        coverage=ClStentCoverage(**cv) if (cv := getattr(result, "coverage", None)) else None,
     )
 
 

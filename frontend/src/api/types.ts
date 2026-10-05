@@ -600,6 +600,24 @@ export interface ClStentResult {
   warning: string | null;
   /** Aposición a la pared; el mapa va en la malla (`aposicion_mm`). */
   apposition?: ClStentApposition | null;
+  /** Cobertura metálica de la trenza; el mapa va en la malla (`cobertura_delta_pct`). */
+  coverage?: ClStentCoverage | null;
+}
+
+export interface ClStentCoverage {
+  device: string;
+  nominal_coverage_pct: number;
+  nominal_angle_deg: number;
+  /** Delante del cuello; null si no hay cuello medido. */
+  neck_coverage_pct: number | null;
+  min_coverage_pct: number;
+  max_coverage_pct: number;
+  min_local_diameter_mm: number;
+  deployed_length_mm: number;
+  /** Longitud de catálogo que, ya alargada por el vaso, cubre el tramo. */
+  labelled_length_mm: number;
+  notes: string[];
+  sources: string[];
 }
 
 export interface ClStentApposition {

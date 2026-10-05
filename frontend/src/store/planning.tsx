@@ -57,6 +57,9 @@ interface PlanningState {
   centerlineMesh: string | null;
   /** Total arc length (mm) of the extracted centreline — feeds the cl-stent range sliders. */
   centerlineArcMm: number | null;
+  /** Qué se pinta sobre el stent de la línea central: a qué distancia queda
+   *  de la pared, o cuánto metal tiene la trenza respecto al catálogo. */
+  stentMap: StentMap;
   /** Window/level shared by every MPR view (strip, main preview and oblique).
       Null until the volume metadata arrives, then seeded from the DICOM. */
   mprWl: { wc: number; ww: number } | null;
@@ -189,6 +192,7 @@ interface PlanningState {
   clearDeviceMeshes: (kind?: DeviceKind) => void;
   setCenterlineMesh: (url: string | null) => void;
   setCenterlineArcMm: (v: number | null) => void;
+  setStentMap: (m: StentMap) => void;
   setMprWl: (w: { wc: number; ww: number } | null) => void;
   setMprVoxel: (v: { x: number; y: number; z: number }) => void;
   setPickMode: (m: PickMode) => void;
@@ -255,6 +259,8 @@ export interface Measurement {
   visible: boolean;
 }
 
+export type StentMap = "apposition" | "coverage";
+
 const PlanningContext = createContext<PlanningState | null>(null);
 
 export function PlanningProvider({ children }: { children: ReactNode }) {
@@ -278,6 +284,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   );
   const [centerlineMesh, _setCenterlineMesh] = useState<string | null>(null);
   const [centerlineArcMm, setCenterlineArcMm] = useState<number | null>(null);
+  const [stentMap, setStentMap] = useState<StentMap>("apposition");
   const [mprWl, setMprWl] = useState<{ wc: number; ww: number } | null>(null);
   const [mprVoxel, setMprVoxel] = useState({ x: 0, y: 0, z: 0 });
   const [pickMode, setPickMode] = useState<PickMode>(null);
@@ -432,7 +439,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
         selectedCandidate, morphometry, treatment, deviceMeshes,
-        centerlineMesh, centerlineArcMm, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
+        centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, setPreviewBand, setPreviewMeshUrl, setSegmentation,

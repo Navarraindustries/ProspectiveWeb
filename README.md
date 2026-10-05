@@ -2306,6 +2306,25 @@ against the mesh, not a braid simulation: a real device narrows and lengthens
 when compressed. On a real case, Ø 3.5 / 4.25 / 5.0 mm read 37 / 16 / 8 %
 separated and 12 / 30 / 58 % compressed.
 
+**Metal coverage map** (same tab, with the braid option on). What diverts flow
+is how much metal sits across the neck, and that is not the catalogue figure:
+it depends on the diameter the braid is held at. The model is the geometry of a
+braid and nothing is fitted: wires do not stretch, so sin α = sin α₀ · D / D₀;
+where the vessel is narrower than the device the wires lie down, the device
+lengthens by cos α / cos α₀ and coverage, proportional to 1 / (D · cos α),
+drops until the cells are square at 45°. On a curve the same metal spreads over
+more surface on the outside. It needs two facts about the device: nominal
+coverage (30–35 % for the Pipeline family) and the nominal wire angle, taken
+from the device being about 2.5 times longer inside the microcatheter. With
+those it reproduces the two independent measurements the project already cited
+— 25.5 % coverage at 1.0 mm oversizing (24–26 % here) and about a third longer
+once deployed. The local diameter comes from the apposition map. The panel
+gives the estimated coverage across the neck, the range along the vessel and
+the labelled length that, once lengthened, covers the drawn segment; a switch
+paints the stent by apposition or by coverage (red, pores more open than the
+catalogue). Not modelled: pushing the braid to pack it over the neck, which is
+what operators do to raise coverage; and only Pipeline is calibrated.
+
 **ELAPSS.** Next to PHASES in Morfometría: the 3- and 5-year risk of GROWTH
 (not rupture) of an unruptured aneurysm, for deciding how often to repeat the
 imaging (Backes et al., Neurology 2017). Points as reproduced by the external

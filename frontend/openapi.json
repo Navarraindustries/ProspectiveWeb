@@ -1330,6 +1330,89 @@
     "title": "ClStentApposition",
     "type": "object"
    },
+   "ClStentCoverage": {
+    "description": "Cobertura metálica de la trenza, punto a punto (services/braid_coverage.py).",
+    "properties": {
+     "deployed_length_mm": {
+      "description": "Longitud del tramo dibujado",
+      "title": "Deployed Length Mm",
+      "type": "number"
+     },
+     "device": {
+      "description": "Familia cuya construcción se ha usado",
+      "title": "Device",
+      "type": "string"
+     },
+     "labelled_length_mm": {
+      "description": "Longitud de catálogo que, alargada, lo cubre",
+      "title": "Labelled Length Mm",
+      "type": "number"
+     },
+     "max_coverage_pct": {
+      "description": "p95 sobre el tramo en contacto con el vaso",
+      "title": "Max Coverage Pct",
+      "type": "number"
+     },
+     "min_coverage_pct": {
+      "description": "p5 sobre el tramo en contacto con el vaso",
+      "title": "Min Coverage Pct",
+      "type": "number"
+     },
+     "min_local_diameter_mm": {
+      "description": "Diámetro más estrecho al que queda abierto",
+      "title": "Min Local Diameter Mm",
+      "type": "number"
+     },
+     "neck_coverage_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Cobertura estimada delante del cuello",
+      "title": "Neck Coverage Pct"
+     },
+     "nominal_angle_deg": {
+      "description": "Ángulo de los hilos con el eje al nominal",
+      "title": "Nominal Angle Deg",
+      "type": "number"
+     },
+     "nominal_coverage_pct": {
+      "description": "Cobertura al diámetro nominal (catálogo)",
+      "title": "Nominal Coverage Pct",
+      "type": "number"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+     },
+     "sources": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Sources",
+      "type": "array"
+     }
+    },
+    "required": [
+     "device",
+     "nominal_coverage_pct",
+     "nominal_angle_deg",
+     "min_coverage_pct",
+     "max_coverage_pct",
+     "min_local_diameter_mm",
+     "deployed_length_mm",
+     "labelled_length_mm"
+    ],
+    "title": "ClStentCoverage",
+    "type": "object"
+   },
    "ClStentRequest": {
     "description": "Deploy a virtual stent along the extracted centreline.",
     "properties": {
@@ -1405,6 +1488,17 @@
        }
       ],
       "description": "El mapa va en la malla, en el campo `aposicion_mm`"
+     },
+     "coverage": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ClStentCoverage"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Cobertura metálica; el mapa va en la malla (`cobertura_delta_pct`). Solo con trenza y dentro de las medidas de la familia."
      },
      "coverage_ratio": {
       "description": "stent_r / vessel_r (1.0 = perfect fit; <1 undersized)",

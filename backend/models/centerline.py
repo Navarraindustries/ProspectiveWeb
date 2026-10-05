@@ -81,6 +81,22 @@ class ClStentApposition(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ClStentCoverage(BaseModel):
+    """Cobertura metálica de la trenza, punto a punto (services/braid_coverage.py)."""
+
+    device: str = Field(..., description="Familia cuya construcción se ha usado")
+    nominal_coverage_pct: float = Field(..., description="Cobertura al diámetro nominal (catálogo)")
+    nominal_angle_deg: float = Field(..., description="Ángulo de los hilos con el eje al nominal")
+    neck_coverage_pct: float | None = Field(None, description="Cobertura estimada delante del cuello")
+    min_coverage_pct: float = Field(..., description="p5 sobre el tramo en contacto con el vaso")
+    max_coverage_pct: float = Field(..., description="p95 sobre el tramo en contacto con el vaso")
+    min_local_diameter_mm: float = Field(..., description="Diámetro más estrecho al que queda abierto")
+    deployed_length_mm: float = Field(..., description="Longitud del tramo dibujado")
+    labelled_length_mm: float = Field(..., description="Longitud de catálogo que, alargada, lo cubre")
+    notes: list[str] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+
+
 class ClStentResult(BaseModel):
     """Deployed centreline-guided stent mesh + fit metrics."""
 
@@ -93,6 +109,10 @@ class ClStentResult(BaseModel):
     warning: str | None = Field(None, description="Fit warning (over/undersized)")
     apposition: ClStentApposition | None = Field(
         None, description="El mapa va en la malla, en el campo `aposicion_mm`")
+    coverage: ClStentCoverage | None = Field(
+        None, description="Cobertura metálica; el mapa va en la malla (`cobertura_delta_pct`). "
+                          "Solo con trenza y dentro de las medidas de la familia.",
+    )
 
 
 class CrossSectionResult(BaseModel):

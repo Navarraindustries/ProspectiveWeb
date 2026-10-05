@@ -43,7 +43,9 @@ export interface MeshLayer {
    *  gris (0) y rojo (positivo), saturando en ±`range`. Lo usa el mapa de
    *  cambio del seguimiento. Por debajo de `deadband` en valor absoluto se
    *  pinta gris: es ruido de la comparación, no cambio. */
-  scalars?: { name: string; range: number; deadband?: number };
+  scalars?: { name: string; range: number; deadband?: number;
+              /** Rojo para lo negativo y azul para lo positivo. */
+              invert?: boolean };
 }
 
 /** Imperative handle for moving named layers, published while the scene lives.
@@ -381,7 +383,7 @@ export function MeshView({
           const mapper = vtkMapper.newInstance();
           mapper.setInputData(poly);
           if (layer.scalars && poly.getPointData().getArrayByName(layer.scalars.name)) {
-            mapper.setLookupTable(divergingLut(layer.scalars.range, layer.scalars.deadband ?? 0));
+            mapper.setLookupTable(divergingLut(layer.scalars.range, layer.scalars.deadband ?? 0, layer.scalars.invert));
             mapper.setUseLookupTableScalarRange(true);
             mapper.setScalarModeToUsePointFieldData();
             mapper.setColorByArrayName(layer.scalars.name);
@@ -823,15 +825,17 @@ export function MeshView({
 
 
 /** Azul → gris → rojo, con una franja gris de ±`deadband` alrededor de 0. */
-export function divergingLut(range: number, deadband: number) {
+export function divergingLut(range: number, deadband: number, invert = false) {
   const r = Math.max(range, 1e-3);
   const d = Math.min(Math.max(deadband, 0), r * 0.9);
   const lut = vtkColorTransferFunction.newInstance();
   const grey: [number, number, number] = [0.78, 0.8, 0.82];
-  lut.addRGBPoint(-r, 0.15, 0.35, 0.85);
+  const blue: [number, number, number] = [0.15, 0.35, 0.85];
+  const red: [number, number, number] = [0.88, 0.2, 0.15];
+  lut.addRGBPoint(-r, ...(invert ? red : blue));
   lut.addRGBPoint(-d, ...grey);
   lut.addRGBPoint(d, ...grey);
-  lut.addRGBPoint(r, 0.88, 0.2, 0.15);
+  lut.addRGBPoint(r, ...(invert ? blue : red));
   lut.setMappingRange(-r, r);
   lut.updateRange();
   return lut;

@@ -137,3 +137,6 @@ NEUROLOGY*.pdf
 
 # El esquema de la API del que salen los tipos del frontend sí se versiona.
 !frontend/openapi.json
+
+# Copias de la base de datos: datos de pacientes.
+backend/db_backups/

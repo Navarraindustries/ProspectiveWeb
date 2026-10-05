@@ -15,3 +15,5 @@ conftest.py
 *_report*.json
 openapi_check.json
 start.bat
+db_backups/
+clip_orders/

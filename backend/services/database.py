@@ -95,9 +95,29 @@ def run_migrations(bind=None, fresh: bool = False) -> None:
         cfg = _alembic_config(conn)
         if fresh:
             command.stamp(cfg, "head")
-        else:
+            conn.commit()
+            return
+        # Rehacer una tabla en SQLite (batch) es borrarla y crearla: con las
+        # claves foráneas activas, las filas que apuntan a ella lo impedirían o
+        # se irían detrás. Se apagan mientras dura, se comprueba que no ha
+        # quedado ninguna rota y se vuelven a encender. El PRAGMA no tiene
+        # efecto dentro de una transacción: por eso va antes y después.
+        sqlite = conn.dialect.name == "sqlite"
+        if sqlite:
+            conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            conn.commit()
+        try:
             command.upgrade(cfg, "head")
-        conn.commit()
+            conn.commit()
+            if sqlite:
+                rotas = conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+                if rotas:
+                    logger.error("Tras migrar quedan %d referencia(s) rotas: %s", len(rotas), rotas[:5])
+        finally:
+            if sqlite:
+                conn.rollback()
+                conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+                conn.commit()
 
 
 def init_db() -> None:

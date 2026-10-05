@@ -26,7 +26,7 @@ from models.segmentation import (CeilingCompareRequest, CeilingCompareResult,
 from services              import mesh_backup, progress
 from services.auth_service import get_current_user
 from services.db_models    import User
-from services.sessions     import read_state, session_exists, session_subdir, write_state, mesh_url
+from services.sessions     import read_state, session_exists, session_subdir, write_state, write_states, mesh_url
 from services.thresholds   import compute_auto_thresholds, strategy_hint
 from services.dicom_loader import DicomLoadResult, load_series
 from services.segmentation import (
@@ -389,7 +389,7 @@ async def segment(
 
     # Run heavy CPU work off the event loop. El progreso se abre aquí y se cierra
     # en TODAS las salidas: el WebSocket sólo se cierra cuando ve running=False.
-    progress.start(req.session_id)
+    progress.start(req.session_id, job="segment")
     _RESULTS.pop(req.session_id, None)
     _drop_followup_maps(req.session_id)
     loop = asyncio.get_event_loop()
@@ -974,38 +974,43 @@ def _run_segmentation_sync(
     _clear_detection_state(session_id, meshes_dir, morphometry=True)
 
     # ── Persist metadata to session state ─────────────────────────────────── #
-    write_state(session_id, "seg.mesh_url",       url)
-    write_state(session_id, "seg.n_vertices",     str(seg_result.n_vertices))
-    write_state(session_id, "seg.n_faces",        str(seg_result.n_triangles))
-    write_state(session_id, "seg.voxel_fraction", f"{vf:.6f}")
-    write_state(session_id, "seg.threshold_lower",str(lower))
+    # De una vez: diecisiete escrituras sueltas reescribían el fichero
+    # diecisiete veces, y una lectura a mitad veía la malla nueva con la
+    # geometría del volumen anterior.
+    estado: dict[str, str] = {}
+    estado["seg.mesh_url"] = url
+    estado["seg.n_vertices"] = str(seg_result.n_vertices)
+    estado["seg.n_faces"] = str(seg_result.n_triangles)
+    estado["seg.voxel_fraction"] = f"{vf:.6f}"
+    estado["seg.threshold_lower"] = str(lower)
     # El techo EFECTIVO (0 = sin techo en el método tubular): la detección
     # rehace el saco con esta banda, y tiene que ser la misma que hizo la malla.
-    write_state(session_id, "seg.threshold_upper",str(upper))
-    write_state(session_id, "seg.method",         method)
+    estado["seg.threshold_upper"] = str(upper)
+    estado["seg.method"] = method
     # Para «Reanudar»: sin esto la malla a media resolución volvía etiquetada
     # «Nativa», y en un equipo de 2 GB Case 3 siempre va a media resolución.
-    write_state(session_id, "seg.downsample_factor", str(ds_factor))
-    write_state(session_id, "seg.fallback_note",  fallback_note)
-    write_state(session_id, "seg.strategy",       strategy)
+    estado["seg.downsample_factor"] = str(ds_factor)
+    estado["seg.fallback_note"] = fallback_note
+    estado["seg.strategy"] = strategy
     # Todo lo que hizo esta malla, junto: una lesión confirmada sobre ella solo
     # sirve para medir un detector nuevo si la malla se puede rehacer igual
     # desde el estudio archivado (routers/ground_truth.py).
-    write_state(session_id, "seg.params", json.dumps({
+    estado["seg.params"] = json.dumps({
         "series_id": series_id, "lower": lower, "upper": upper,
         "smooth_iters": smooth_iters, "min_mm3": min_mm3, "top_n": top_n,
         "closing_mm": closing_mm, "main_tree_only": main_tree_only,
         "method": method, "reclaim_mm": reclaim_mm, "half_resolution": half_resolution,
-    }))
+    })
     # Volume geometry — needed by Session C (morphometry + aneurysm detection)
     # Geometría del volumen SEGMENTADO: el preprocesado (remuestreado) cuando lo
     # está, no la del DICOM original, aunque las claves digan «dicom.».
-    write_state(session_id, "dicom.volume_z",     str(dcm.volume.shape[0]))
-    write_state(session_id, "dicom.volume_y",     str(dcm.volume.shape[1]))
-    write_state(session_id, "dicom.volume_x",     str(dcm.volume.shape[2]))
-    write_state(session_id, "dicom.spacing_z",    str(dcm.spacing[0]))
-    write_state(session_id, "dicom.spacing_y",    str(dcm.spacing[1]))
-    write_state(session_id, "dicom.spacing_x",    str(dcm.spacing[2]))
+    estado["dicom.volume_z"] = str(dcm.volume.shape[0])
+    estado["dicom.volume_y"] = str(dcm.volume.shape[1])
+    estado["dicom.volume_x"] = str(dcm.volume.shape[2])
+    estado["dicom.spacing_z"] = str(dcm.spacing[0])
+    estado["dicom.spacing_y"] = str(dcm.spacing[1])
+    estado["dicom.spacing_x"] = str(dcm.spacing[2])
+    write_states(session_id, estado)
 
     logger.info(
         "Segmentation complete — session=%s  verts=%d  tris=%d  vf=%.3f  url=%s",

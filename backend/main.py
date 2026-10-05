@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -137,13 +138,32 @@ app = FastAPI(
 
 # ── CORS — allow React dev server (Vite default port) ─────────────────────── #
 
+_DEV_ORIGINS = (
+    "http://localhost:5173",   # Vite dev server
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",   # CRA / alternative
+)
+
+
+def cors_origins() -> list[str]:
+    """Orígenes que pueden llamar a la API con credenciales.
+
+    `CORS_ORIGINS` (separados por comas) los fija en un despliegue; sin ella,
+    los del servidor de desarrollo. `*` no se admite: con credenciales el
+    navegador lo rechaza, y aceptarlo en silencio dejaría la API sin CORS.
+    """
+    raw = os.environ.get("CORS_ORIGINS", "").strip()
+    if not raw:
+        return list(_DEV_ORIGINS)
+    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    if "*" in origins:
+        raise RuntimeError("CORS_ORIGINS no admite '*': la API usa credenciales. Lista los orígenes.")
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",   # CRA / alternative
-    ],
+    allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

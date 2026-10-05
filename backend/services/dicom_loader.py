@@ -457,14 +457,14 @@ def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
     if raw_ps is not None:
         try:
             sy, sx = float(raw_ps[0]), float(raw_ps[1])
-        except Exception:
-            pass
+        except (TypeError, ValueError, IndexError):
+            pass          # etiqueta ausente o mal formada: se queda el valor por defecto
 
     if raw_st is not None:
         try:
             sz = float(raw_st)
-        except Exception:
-            pass
+        except (TypeError, ValueError, IndexError):
+            pass          # etiqueta ausente o mal formada: se queda el valor por defecto
 
     # SpacingBetweenSlices is the inter-slice *distance* (what we want for z),
     # whereas SliceThickness is the slice *thickness* — they differ on overlapped
@@ -475,8 +475,8 @@ def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
     if raw_sbs is not None:
         try:
             sz = float(raw_sbs)
-        except Exception:
-            pass
+        except (TypeError, ValueError, IndexError):
+            pass          # etiqueta ausente o mal formada: se queda el valor por defecto
 
     # Enhanced multi-frame fallback (Enhanced XA, Enhanced CT/MR)
     if raw_ps is None or raw_st is None or raw_sbs is None:
@@ -494,8 +494,8 @@ def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
                 sz = float(sbs2)
             elif raw_st is None and st2 is not None:
                 sz = float(st2)
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — pydicom falla de muchas formas con secuencias rotas
+            pass          # se queda el espaciado ya leído de las etiquetas raíz
 
     # Multi-frame files (Enhanced XA/CT/MR): one .dcm holds the whole volume.
     # The real slice count is NumberOfFrames, not the file count — the desktop

@@ -257,36 +257,36 @@ def build_report_data_from_session(
         if factors_raw:
             try:
                 treatment["factors"] = json.loads(factors_raw)
-            except Exception:
-                pass
+            except ValueError as exc:
+                logger.warning("Informe: treatment.factors_json ilegible, la sección sale sin ello: %s", exc)
         # The engine's notes. The section has always been ready to print these;
         # nothing ever wrote them, so it always printed none.
         notes_raw = _rs("treatment.notes_json", "")
         if notes_raw:
             try:
                 treatment["notes"] = json.loads(notes_raw)
-            except Exception:
-                pass
+            except ValueError as exc:
+                logger.warning("Informe: treatment.notes_json ilegible, la sección sale sin ello: %s", exc)
         perf_raw = _rs("treatment.perforators_json", "")
         if perf_raw:
             try:
                 treatment["perforators"] = json.loads(perf_raw) or {}
-            except Exception:
-                pass
+            except ValueError as exc:
+                logger.warning("Informe: treatment.perforators_json ilegible, la sección sale sin ello: %s", exc)
         endo_raw = _rs("treatment.endovascular_json", "")
         if endo_raw:
             try:
                 treatment["endovascular"] = json.loads(endo_raw) or {}
-            except Exception:
-                pass
+            except ValueError as exc:
+                logger.warning("Informe: treatment.endovascular_json ilegible, la sección sale sin ello: %s", exc)
         # El JSDB. Es lo único de este paso con un modelo ajustado detrás, así
         # que dejarlo fuera del PDF sería imprimir sólo la parte heurística.
         jsdb_raw = _rs("treatment.jsdb_json", "")
         if jsdb_raw:
             try:
                 treatment["jsdb"] = json.loads(jsdb_raw) or {}
-            except Exception:
-                pass
+            except ValueError as exc:
+                logger.warning("Informe: treatment.jsdb_json ilegible, la sección sale sin ello: %s", exc)
 
     # ── 3. Patient info — request params > DB > defaults ─────────────── #
     db_patient_name  = ""

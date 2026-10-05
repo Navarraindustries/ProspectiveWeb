@@ -154,8 +154,8 @@ def _pdf_page_count(path: Path) -> int | None:
         matches = re.findall(rb"/Count\s+(\d+)", data)
         if matches:
             return int(matches[-1])
-    except Exception:
-        pass
+    except (OSError, ValueError) as exc:
+        logger.warning("No se pudo contar las páginas de %s: %s", path.name, exc)
     return None
 
 

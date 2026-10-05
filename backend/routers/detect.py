@@ -282,7 +282,11 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
 
     # Lleva medio minuto en una malla real; el mismo registro de progreso que
     # la segmentación, con sus fases, para que el panel no sea una barra muda.
-    progress.start(session_id)
+    # Con la segmentación en marcha la malla se está reescribiendo, y abrir aquí
+    # el progreso pisaría el suyo: comparten la clave de la sesión.
+    if progress.running_job(session_id) == "segment":
+        raise HTTPException(status_code=409, detail="La segmentación sigue en curso; espera a que termine.")
+    progress.start(session_id, job="detect")
     loop = asyncio.get_event_loop()
     try:
         result = await loop.run_in_executor(

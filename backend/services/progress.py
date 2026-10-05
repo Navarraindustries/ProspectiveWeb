@@ -28,13 +28,22 @@ def _prune(now: float) -> None:
         del _state[k]
 
 
-def start(session_id: str) -> None:
+def start(session_id: str, job: str = "") -> None:
+    """`job` dice de qué trabajo es el progreso («segment», «detect»): los dos
+    comparten la clave de la sesión, y sin esto no se distinguían."""
     with _lock:
         _prune(time.time())
         _state[session_id] = {
             "phase": "", "pct": 0.0, "running": True, "ok": None,
-            "message": "", "updated_at": time.time(),
+            "message": "", "updated_at": time.time(), "job": job,
         }
+
+
+def running_job(session_id: str) -> str | None:
+    """El trabajo en curso de la sesión, o None si no hay ninguno."""
+    with _lock:
+        s = _state.get(session_id)
+        return (s.get("job") or "") if s is not None and s["running"] else None
 
 
 def update(session_id: str, phase: str, pct: float) -> None:

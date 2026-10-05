@@ -1682,6 +1682,8 @@ export interface ProgressState {
   running: boolean;
   ok: boolean | null;
   message: string;
+  /** De qué trabajo es: «segment», «detect». */
+  job?: string;
 }
 
 /* ── Capturas del visor adjuntas al caso ─────────────────────────────────── */

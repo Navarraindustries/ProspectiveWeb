@@ -732,7 +732,12 @@ async def list_orders(
     q: str = Query("", description="Free text over part number, patient, case, surgeon, workshop"),
     open_only: bool = Query(False, description="Hide verified and rejected orders"),
 ) -> list[OrderOut]:
+    # Con su linaje: una sesión reanudada tiene id nuevo, y los pedidos del
+    # caso se quedaban colgados de la anterior — al volver no salía ninguno.
+    from services.sessions import session_lineage
+    linaje = session_lineage(session_id) if session_id else None
     return [_out(o) for o in store.list_orders(status=status, session_id=session_id,
+                                               session_ids=linaje or None,
                                                patient_id=patient_id, q=q,
                                                open_only=open_only)]
 

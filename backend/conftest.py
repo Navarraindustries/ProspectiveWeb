@@ -36,6 +36,14 @@ os.environ["PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD"] = "1"
 os.environ["STORAGE_BACKEND"] = "local"
 os.environ.setdefault("STUDY_FILES_ROOT", tempfile.mkdtemp(prefix="prospective_study_files_"))
 
+# Los pedidos de clips y la biblioteca de clips, igual. Sus módulos fijan la
+# carpeta AL IMPORTARSE, y sus tests la vacían entre caso y caso: si otro test
+# importaba la app antes de que el de pedidos pusiera su carpeta temporal, el
+# vaciado caía sobre los pedidos reales. Aquí se fija antes que nadie; con
+# `setdefault` para que quien la pida por su cuenta siga mandando.
+os.environ.setdefault("CLIP_ORDERS_ROOT", tempfile.mkdtemp(prefix="prospective_clip_orders_"))
+os.environ.setdefault("CLIP_LIBRARY_ROOT", tempfile.mkdtemp(prefix="prospective_clip_library_"))
+
 # The audit chain too. Without this the suite appended thousands of blocks to
 # the developer's real chain, and the endpoint test then asserted a property of
 # that file rather than of the code: one break anywhere in it — a crash, two

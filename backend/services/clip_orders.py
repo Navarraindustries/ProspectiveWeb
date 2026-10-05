@@ -336,7 +336,7 @@ def next_part_no(now: float | None = None) -> str:
 
 def list_orders(status: str | None = None, session_id: str = "",
                 open_only: bool = False, patient_id: int | None = None,
-                q: str = "") -> list[ClipOrder]:
+                q: str = "", session_ids: set[str] | None = None) -> list[ClipOrder]:
     """Orders newest first, optionally filtered.
 
     `q` searches the fields someone actually has in hand when they come looking:
@@ -345,7 +345,9 @@ def list_orders(status: str | None = None, session_id: str = "",
     out = [_from_dict(e) for e in _read(_ORDERS_FILE) if isinstance(e, dict)]
     if status:
         out = [o for o in out if o.status == status]
-    if session_id:
+    if session_ids:
+        out = [o for o in out if o.session_id in session_ids]
+    elif session_id:
         out = [o for o in out if o.session_id == session_id]
     if patient_id is not None:
         out = [o for o in out if o.patient_id == patient_id]
@@ -678,8 +680,22 @@ def delete_order(part_no: str) -> bool:
     return True
 
 
+#: La carpeta real, la de una instalación sin `CLIP_ORDERS_ROOT`.
+_REAL_ROOT = Path(__file__).resolve().parents[1] / "clip_orders"
+
+
 def clear_store() -> None:
-    """Wipe both stores. Tests only."""
+    """Wipe both stores. Tests only.
+
+    Se niega a tocar la carpeta real. La raíz se fija al importar el módulo: si
+    otro test lo importa antes de que el de pedidos ponga su carpeta temporal,
+    este borrado caía sobre los pedidos de verdad. Pasó: una pasada de varios
+    ficheros de test juntos vació la carpeta real.
+    """
+    if ORDERS_ROOT.resolve() == _REAL_ROOT.resolve():
+        raise RuntimeError(
+            "clear_store() no borra la carpeta real de pedidos. Define CLIP_ORDERS_ROOT "
+            "antes de importar services.clip_orders (lo hace conftest.py).")
     if ORDERS_ROOT.exists():
         shutil.rmtree(ORDERS_ROOT, ignore_errors=True)
 

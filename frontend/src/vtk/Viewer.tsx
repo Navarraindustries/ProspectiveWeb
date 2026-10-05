@@ -558,7 +558,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       !!d.url && d.url.startsWith("/data/")),
     [deviceMeshes],
   );
-  const showDevice = step === "devices" && devices.length > 0;
+  // También en el informe: su visor se titula «Escena final» y enseñaba el
+  // árbol sin el clip, los coils ni el stent que el plan lleva.
+  const showDevice = (step === "devices" || step === "report") && devices.length > 0;
   const showCenterline = !!centerlineMesh && centerlineMesh.startsWith("/data/");
 
   const layers = useMemo<MeshLayer[]>(() => {

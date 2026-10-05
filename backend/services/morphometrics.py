@@ -79,16 +79,36 @@ class MorphometricResult:
 
         Thresholds: Dhar 2008, Raghavan 2005, Greving 2014.
         """
-        sr_alto     = self.size_ratio > 0 and self.size_ratio >= 3.0
-        sr_moderado = self.size_ratio > 0 and self.size_ratio >= 2.0
-        if (self.aspect_ratio >= 1.6 or self.dome_to_neck_ratio >= 2.0
-                or self.undulation_index >= 0.25 or sr_alto):
-            return "Alto"
-        if (self.aspect_ratio >= 1.3 or self.dome_to_neck_ratio >= 1.6
-                or self.ellipticity_index >= 0.35
-                or self.undulation_index >= 0.10 or sr_moderado):
-            return "Moderado"
-        return "Bajo"
+        return self.rupture_risk()[0]
+
+    def rupture_risk(self) -> tuple[str, list[str]]:
+        """(etiqueta, criterios que la sostienen), con la cifra de cada uno.
+
+        El informe explicaba el nivel con una frase fija —«DNR ≥ 1.6 o AR ≥
+        1.3»— aunque lo hubiera decidido otro índice: un caso con AR 0,85 y
+        DNR 1,17 salía «Moderado» por su cociente de tamaño, y el texto decía
+        que era por dos índices que no cumplía.
+        """
+        alto = [
+            (self.aspect_ratio >= 1.6, f"AR {self.aspect_ratio:.2f} ≥ 1.6"),
+            (self.dome_to_neck_ratio >= 2.0, f"DNR {self.dome_to_neck_ratio:.2f} ≥ 2.0"),
+            (self.undulation_index >= 0.25, f"ondulación (UI) {self.undulation_index:.2f} ≥ 0.25"),
+            (self.size_ratio >= 3.0, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ 3.0"),
+        ]
+        moderado = [
+            (self.aspect_ratio >= 1.3, f"AR {self.aspect_ratio:.2f} ≥ 1.3"),
+            (self.dome_to_neck_ratio >= 1.6, f"DNR {self.dome_to_neck_ratio:.2f} ≥ 1.6"),
+            (self.ellipticity_index >= 0.35, f"elipticidad (EI) {self.ellipticity_index:.2f} ≥ 0.35"),
+            (self.undulation_index >= 0.10, f"ondulación (UI) {self.undulation_index:.2f} ≥ 0.10"),
+            (self.size_ratio >= 2.0, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ 2.0"),
+        ]
+        por_alto = [texto for cumple, texto in alto if cumple]
+        if por_alto:
+            return "Alto", por_alto
+        por_moderado = [texto for cumple, texto in moderado if cumple]
+        if por_moderado:
+            return "Moderado", por_moderado
+        return "Bajo", []
 
 
 class MorphometricAnalyzer:

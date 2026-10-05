@@ -146,6 +146,11 @@ function ClipsTab() {
   const { sessionId, caseId, morphometry, setDeviceMesh } = usePlanning();
   const clearer = useClearDevice("clips");
   const [recs, setRecs] = useState<ClipRecommendation[]>([]);
+  // Hasta que la petición vuelve no se sabe si hay recomendación: decir «sin
+  // recomendación para esta geometría» mientras el catálogo aún se evalúa
+  // (medio minuto en una malla real) era afirmar lo contrario de lo que iba
+  // a salir.
+  const [recsLoaded, setRecsLoaded] = useState(false);
   const [customs, setCustoms] = useState<CustomClipInfo[]>([]);
   // El catálogo completo. El selector solo ofrecía la lista corta del
   // recomendador y los personalizados, así que si el cirujano quería un modelo
@@ -180,7 +185,8 @@ function ClipsTab() {
       // ranking. Reading the current value instead makes the preselection what
       // it was meant to be: a default for an empty box, never a correction.
       .then((r) => { setRecs(r); if (r.length > 0) setSel((cur) => cur || r[0].clip_id); })
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando recomendaciones"));
+      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando recomendaciones"))
+      .finally(() => setRecsLoaded(true));
     // Imported clips live in the session directory, but the browser forgets them
     // on resume — the dropdown lost geometry that was still on disk.
     api.listCustomClips(sessionId).then(setCustoms).catch(() => { /* none imported */ });
@@ -312,7 +318,7 @@ function ClipsTab() {
           )}
 
           <SectionLabel>Modelo de clip</SectionLabel>
-          {recs.length === 0 && customs.length === 0 && (
+          {recsLoaded && recs.length === 0 && customs.length === 0 && (
             <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "8px 0" }}>
               {morphometry?.reliable
                 ? "Sin recomendación automática de clip para esta geometría. Elige un modelo del catálogo o importa un clip."
@@ -322,7 +328,7 @@ function ClipsTab() {
           <Select
             label={verTodo
               ? `Todo el catálogo (${options.length})`
-              : `Recomendados + personalizados (${options.length})`}
+              : recsLoaded ? `Recomendados + personalizados (${options.length})` : "Recomendados + personalizados (evaluando…)"}
             options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
           {/* Sin esto, un modelo que el recomendador no propone es inalcanzable
               desde la interfaz, aunque la institución lo tenga. */}
@@ -732,7 +738,7 @@ function StentsTab() {
     <div style={{ marginTop: 12 }}>
       <Select
         label={`Stent / desviador de flujo (${stents.length} modelos)`}
-        options={stents.map((s) => ({ value: s.id, label: `${s.name} — ${s.manufacturer} (${s.type})` }))}
+        options={stents.map((s) => ({ value: s.id, label: `${s.name} — ${s.manufacturer} (${STENT_TYPE_LABEL[s.type] ?? s.type})` }))}
         value={sel}
         onChange={(e) => {
           setSel(e.target.value);
@@ -933,6 +939,14 @@ function ClStentTab() {
     </div>
   );
 }
+
+/** El tipo de stent tal como lo lee una persona; el catálogo lo guarda como
+ *  identificador («flow_diverter») y así salía en el desplegable. */
+export const STENT_TYPE_LABEL: Record<string, string> = {
+  flow_diverter: "desviador de flujo",
+  coil_assist: "asistencia a coils",
+  neck_bridge: "puente de cuello",
+};
 
 /* ── Aposición del stent a la pared ─────────────────────────────────────── */
 

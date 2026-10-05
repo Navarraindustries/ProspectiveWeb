@@ -16,6 +16,32 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+          "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+
+
+def _fecha_larga(d: datetime) -> str:
+    """«05 de octubre de 2026 a las 09:07». `strftime("%B")` da el mes en el
+    idioma del sistema, y en un servidor en inglés el informe decía «October»."""
+    return f"{d.day:02d} de {_MESES[d.month - 1]} de {d.year} a las {d:%H:%M}"
+
+
+def _hora_local(d: datetime) -> datetime:
+    """La base guarda las fechas en UTC sin zona. En el informe van en la hora
+    del servidor, que es la que lleva la cabecera: una captura hecha a la 01:04
+    salía fechada a las 06:04."""
+    from datetime import timezone
+    return d.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+
+
+_TIPO_COIL = {"framing": "Enmarcado", "filling": "Relleno", "finishing": "Acabado"}
+
+
+def _minuscula(texto: str) -> str:
+    """La primera letra en minúscula, para una frase que sigue a dos puntos."""
+    return texto[:1].lower() + texto[1:] if texto else texto
+
+
 # ── reportlab imports ─────────────────────────────────────────────────────── #
 try:
     from reportlab.lib import colors
@@ -162,6 +188,7 @@ class ReportData:
     #: comparable and a report generated with no viewer open still has pictures.
     plan_views: dict[str, bytes] = field(default_factory=dict)
     risk_label: str = ""
+    risk_reasons: list = field(default_factory=list)
     treatment: dict[str, Any] = field(default_factory=dict)
     # Clinical context recorded on the decision step but deliberately not
     # scored: {"patient_age": int | None, "has_comorbidities": bool | None}
@@ -239,7 +266,14 @@ def build_report_data_from_session(
         "compactness":        _rf("morpho.compactness", 0.0),
         "bottleneck_factor":  _rf("morpho.bf"),
         "undulation_index":   _rf("morpho.ui"),
+        # El cuello lo marcó el profesional (uno o varios puntos) o lo estimó
+        # el programa: el informe no puede llamar «estimado» a lo primero.
+        "neck_marked":        _rs("morpho.neck_source") in ("manual", "rim"),
     }
+    try:
+        risk_reasons = [str(x) for x in json.loads(_rs("morpho.rupture_risk_reasons") or "[]")]
+    except ValueError:
+        risk_reasons = []
     risk_label = _rs("morpho.rupture_risk", "")
 
     # ── 2. Treatment decision from session state ───────────────────────── #
@@ -496,6 +530,7 @@ def build_report_data_from_session(
         captures     = capturas,
         plan_views   = _render_plan_views(session_id),
         risk_label   = risk_label,
+        risk_reasons = risk_reasons,
         treatment    = treatment,
     )
 
@@ -580,7 +615,7 @@ def _load_captures(capture_ids, db) -> list[ReportCapture]:
             png=png,
             label=fila.label or f"Captura {cid}",
             step=fila.step or "",
-            taken_at=fila.created_at.strftime("%d/%m/%Y %H:%M") if fila.created_at else "",
+            taken_at=_hora_local(fila.created_at).strftime("%d/%m/%Y %H:%M") if fila.created_at else "",
             caption=_caption_captura(fila),
         ))
     return out
@@ -1041,7 +1076,7 @@ class ReportGenerator:
             ["Diámetro máximo",
              f"{m.get('max_diameter_mm', 0):.2f} mm",
              "< 7 mm bajo riesgo"],
-            ["Diámetro cuello (estimado)",
+            ["Diámetro del cuello (borde marcado)" if m.get("neck_marked") else "Diámetro cuello (estimado)",
              f"{m.get('neck_diameter_mm', 0):.2f} mm",
              "Guía selección clip"],
             ["Altura del domo",
@@ -1133,6 +1168,10 @@ class ReportGenerator:
                 dir_label = {"clip": "Clipping", "endo": "Endovascular"}.get(
                     direction, "Neutro"
                 )
+                # Un factor que se enseña pero no vota no puede llevar
+                # «Clipping» al lado: se leía como un apoyo que no es.
+                if f.get("votes") is False:
+                    dir_label = "No influye"
                 # El nombre y su origen en la misma celda: un peso sin su
                 # procedencia se lee como si estuviera derivado de algo.
                 name = f.get("name", "")
@@ -1407,8 +1446,8 @@ class ReportGenerator:
         out = [Paragraph("Perforantes esperadas por la localización",
                          self._style_h2 if standalone else self._style_h3)]
         out.append(Paragraph(
-            f"<b>{t['arteries']}.</b> Irrigan {t.get('supplies', '')}. "
-            f"Lesionarlas: {t.get('consequence', '')}.", self._style_body))
+            f"<b>{t['arteries']}.</b> Irrigan: {_minuscula(t.get('supplies', ''))}. "
+            f"Lesionarlas: {_minuscula(t.get('consequence', ''))}.", self._style_body))
         if t.get("surgical_note"):
             out.append(Paragraph(t["surgical_note"], self._style_body))
         out.append(Paragraph(
@@ -1518,7 +1557,7 @@ class ReportGenerator:
             pos = f"({c.position_mm[0]:.1f}, {c.position_mm[1]:.1f}, {c.position_mm[2]:.1f})"
             rows.append([
                 str(c.index), c.name,
-                c.coil_type if c.coil_type else ("Custom" if c.is_custom else "—"),
+                _TIPO_COIL.get(c.coil_type, c.coil_type) if c.coil_type else ("A medida" if c.is_custom else "—"),
                 f"{c.diameter_mm:.0f}" if c.diameter_mm else "—",
                 f"{c.length_cm:.0f}"   if c.length_cm   else "—",
                 c.manufacturer if c.manufacturer else "—",
@@ -1669,14 +1708,21 @@ class ReportGenerator:
 
         elems = [Paragraph("Evaluación de riesgo de ruptura", self._style_h2)]
 
+        # El porqué son los índices que de verdad cruzaron su umbral en este
+        # caso, con su cifra. Si la sesión es anterior a que se guardaran, se
+        # dice de qué índices sale la etiqueta, sin atribuírsela a ninguno.
+        motivos = getattr(self._data, "risk_reasons", None) or []
+        porque = ("; ".join(motivos) + ". " if motivos else
+                  "Etiqueta heurística a partir de los índices de forma (AR, DNR, "
+                  "ondulación, elipticidad y cociente de tamaño). ")
         if "Alto" in risk:
             style  = self._style_risk_high
-            detail = ("DNR ≥ 2.0 o AR ≥ 1.6 — Riesgo ALTO de ruptura espontánea. "
-                      "Se recomienda tratamiento urgente.")
+            detail = (porque + "Riesgo ALTO: es un índice de forma, no una "
+                      "probabilidad; la indicación la pone el equipo tratante.")
         elif "Moderado" in risk:
             style  = self._style_risk_mod
-            detail = ("DNR ≥ 1.6 o AR ≥ 1.3 — Riesgo MODERADO. "
-                      "Valorar tratamiento en función de clínica y preferencias del paciente.")
+            detail = (porque + "Riesgo MODERADO. Valorar tratamiento en función de "
+                      "clínica y preferencias del paciente.")
         else:
             style  = self._style_risk_low
             detail = ("Índices morfométricos dentro de rangos de bajo riesgo. "
@@ -1880,7 +1926,7 @@ class ReportGenerator:
                 "Este documento ha sido generado automáticamente por PROSPECTIVE y es de uso "
                 "exclusivo para planificación quirúrgica preoperatoria. No sustituye al juicio "
                 "clínico del especialista. Generado el "
-                + datetime.now().strftime("%d de %B de %Y a las %H:%M") + ".",
+                + _fecha_larga(datetime.now()) + ".",
                 self._style_small,
             ),
         ]

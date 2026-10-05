@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 
+import json
 import re
 
 from fastapi import APIRouter, HTTPException, Query
@@ -163,7 +164,7 @@ _MORPHO_STATE_KEYS = (
     "morpho.dome_height_mm",
     "morpho.volume_mm3", "morpho.surface_area_mm2",
     "morpho.ar", "morpho.dnr", "morpho.bf", "morpho.ui",
-    "morpho.compactness", "morpho.rupture_risk",
+    "morpho.compactness", "morpho.rupture_risk", "morpho.rupture_risk_reasons",
     "morpho.neck_source", "morpho.neck_tilt_deg", "morpho.parent_artery_mm",
     "morpho.parent_artery_method",
     # El saco aislado y los puntos del borde. Sin esto, «Limpiar candidatos y
@@ -1136,7 +1137,10 @@ def _run_morphometry_sync(
     # Clamped like the API response: an open mesh can yield sphericity > 1, and
     # the report prints this against a "1.0 = esfera perfecta" reference.
     write_state(session_id, "morpho.compactness",      str(_clamp01(mr.compactness)))
-    write_state(session_id, "morpho.rupture_risk",     mr.rupture_risk_label)
+    _riesgo, _motivos = mr.rupture_risk()
+    write_state(session_id, "morpho.rupture_risk",     _riesgo)
+    # Por qué sale ese nivel, con sus cifras: el informe lo dice tal cual.
+    write_state(session_id, "morpho.rupture_risk_reasons", json.dumps(_motivos, ensure_ascii=False))
     write_state(session_id, "morpho.neck_source",      neck_source)
     write_state(session_id, "morpho.neck_tilt_deg",     str(round(neck_tilt_deg, 2)))
 

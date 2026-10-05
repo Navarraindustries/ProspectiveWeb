@@ -213,7 +213,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
             <Metric label="Ø máximo" value={morphometry.max_diameter_mm.toFixed(1)} unit=" mm" />
             <Metric
               label="Riesgo (morfometría)"
-              value={morphometry.rupture_risk_label}
+              value=""
               badge={[morphometry.rupture_risk_label, riskVariant(morphometry.rupture_risk_label)]}
             />
           </>

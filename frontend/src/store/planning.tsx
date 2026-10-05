@@ -22,6 +22,7 @@ import type {
   PerforatorCandidate,
   SegmentResult,
   SeriesInfo,
+  TreatmentDecisionRequest,
   TreatmentDecisionResult,
   VolumeMeta,
 } from "../api/types";
@@ -193,6 +194,12 @@ interface PlanningState {
   setSelectedCandidate: (i: number) => void;
   setMorphometry: (m: MorphometryResult | null) => void;
   setTreatment: (t: TreatmentDecisionResult | null) => void;
+  /** Con qué datos se pidió la última decisión. El formulario los tenía en
+   *  su estado local: al salir del paso y volver salía en blanco
+   *  («Desconocida») junto a un resultado calculado con otra localización,
+   *  y «Re-evaluar» recalculaba en silencio con los datos en blanco. */
+  treatmentInputs: TreatmentDecisionRequest | null;
+  setTreatmentInputs: (r: TreatmentDecisionRequest | null) => void;
   setDeviceMesh: (kind: DeviceKind, url: string | null) => void;
   /** Forget placed devices locally (the API call is the panel's job). */
   clearDeviceMeshes: (kind?: DeviceKind) => void;
@@ -286,6 +293,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const selectedRef = useRef(0);
   const [morphometry, _setMorphometry] = useState<MorphometryResult | null>(null);
   const [treatment, _setTreatment] = useState<TreatmentDecisionResult | null>(null);
+  const [treatmentInputs, setTreatmentInputs] = useState<TreatmentDecisionRequest | null>(null);
   const [deviceMeshes, _setDeviceMeshes] = useState<Record<DeviceKind, string | null>>(
     { clips: null, coils: null, stent: null },
   );
@@ -402,6 +410,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     _setSelectedCandidate(0);
     _setMorphometry(null);
     _setTreatment(null);
+    setTreatmentInputs(null);
     _setDeviceMeshes({ clips: null, coils: null, stent: null });
     _setCenterlineMesh(null);
     setCenterlineArcMm(null);
@@ -451,7 +460,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
-        setCandidates, setSelectedCandidate, setMorphometry, setTreatment,
+        setCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
         setNeckOrigin, setNeckDome,

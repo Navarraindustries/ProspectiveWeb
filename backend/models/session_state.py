@@ -12,6 +12,10 @@ from pydantic import BaseModel, Field
 from .dicom import SeriesInfo
 
 
+#: Índice del último paso del flujo (el Informe). Va a la par de
+#: `frontend/src/pipeline/steps.ts`.
+LAST_STEP = 7
+
 class SessionSaveRequest(BaseModel):
     """Request to persist the current session state."""
 
@@ -26,9 +30,13 @@ class SessionSaveRequest(BaseModel):
     imaging_study_id: int | None = Field(
         None, description="Imaging study (acquisition) this session analysed"
     )
+    # Ocho pasos desde que «Fabricación» entró antes del informe (índices 0–7).
+    # El tope seguía en 6: guardar el progreso estando en el Informe se
+    # rechazaba, y el botón del propio informe guardaba un 6, que ya es
+    # Fabricación, así que «Reanudar» dejaba un paso antes de donde se guardó.
     current_step: int = Field(
-        0, ge=0, le=6,
-        description="Current workflow step index (0-based: 0=Carga … 6=Informe)"
+        0, ge=0, le=LAST_STEP,
+        description="Current workflow step index (0-based: 0=Carga … 6=Fabricación, 7=Informe)"
     )
 
 

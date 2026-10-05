@@ -5923,6 +5923,8 @@ export interface components {
              * @description Distance from neck plane to dome apex (mm)
              */
             dome_height_mm: number;
+            /** @description El ápice del domo que marcó el usuario, devuelto para que una sesión reanudada lo recupere. Volvían los puntos del borde pero no este, y sin él no se puede volver a medir: había que marcarlo otra vez. Null en el camino automático. */
+            dome_seed?: components["schemas"]["Position3D"] | null;
             /**
              * Ei
              * @description Ellipticity Index  (> 0.35 → non-spherical, higher rupture risk)
@@ -8284,7 +8286,7 @@ export interface components {
         SessionSaveRequest: {
             /**
              * Current Step
-             * @description Current workflow step index (0-based: 0=Carga … 6=Informe)
+             * @description Current workflow step index (0-based: 0=Carga … 6=Fabricación, 7=Informe)
              * @default 0
              */
             current_step: number;
@@ -8384,6 +8386,21 @@ export interface components {
         };
         /** StatusIn */
         StatusIn: {
+            /**
+             * Accepts Force Is Target
+             * @default false
+             */
+            accepts_force_is_target: boolean;
+            /**
+             * Accepts Measurements
+             * @default false
+             */
+            accepts_measurements: boolean;
+            /**
+             * Accepts Not Approved Device
+             * @default false
+             */
+            accepts_not_approved_device: boolean;
             /**
              * Status
              * @description borrador | firmado | enviado | en_fabricacion | recibida

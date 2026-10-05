@@ -536,8 +536,15 @@ def create_order(*, session_id: str, case_id: int | None, patient: str, case_lab
     return order
 
 
-def set_status(part_no: str, status: str, *, by: str = "") -> ClipOrder:
-    """Advance an order, refusing a jump the workflow does not allow."""
+def set_status(part_no: str, status: str, *, by: str = "",
+               declarations: tuple[bool, bool, bool] | None = None) -> ClipOrder:
+    """Advance an order, refusing a jump the workflow does not allow.
+
+    `declarations`: las tres declaraciones del cirujano, cuando se firma un
+    borrador. Sin ellas el borrador no se firma: un pedido guardado como
+    borrador las lleva a falso, y este camino lo firmaba igual — el formulario
+    las exigía y el botón «Firmar» de la lista se las saltaba.
+    """
     order = get_order(part_no)
     if order is None:
         raise OrderError(f"No existe el pedido {part_no}.")
@@ -554,6 +561,15 @@ def set_status(part_no: str, status: str, *, by: str = "") -> ClipOrder:
             raise OrderError("Falta el cirujano responsable que firma el pedido.")
         if not order.workshop:
             raise OrderError("Un pedido firmado necesita un taller destinatario.")
+        if declarations is not None and all(declarations):
+            (order.accepts_measurements, order.accepts_force_is_target,
+             order.accepts_not_approved_device) = True, True, True
+        if not (order.accepts_measurements and order.accepts_force_is_target
+                and order.accepts_not_approved_device):
+            raise OrderError(
+                "Hay que aceptar las tres declaraciones antes de firmar: las medidas, "
+                "la fuerza como objetivo a medir, y que el STL es geometría y no un "
+                "dispositivo autorizado.")
     order.status = status
     if status == SIGNED and not order.signed_at:
         order.signed_by = by

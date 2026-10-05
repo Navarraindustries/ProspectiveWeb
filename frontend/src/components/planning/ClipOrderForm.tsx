@@ -187,7 +187,11 @@ export function ClipOrderForm({
         setWindow(p.advised_window_mm);
         setExtras(p.suggest_extra_sizes);
         setSurgeon((s) => s || (p.can_sign ? p.requester_name : ""));
-        setWorkshopId(p.workshops[0]?.id ?? "");
+        // Sin talleres registrados, la única opción del desplegable es «registrar
+        // uno nuevo». Con el estado vacío el navegador la enseñaba elegida pero
+        // el formulario no se abría, y al ser la única no había forma de
+        // «cambiar» a ella: no se podía registrar el primer taller desde aquí.
+        setWorkshopId(p.workshops[0]?.id ?? "__nuevo__");
         setProblems([]);
       })
       .catch((e) => setProblems(problemsFrom(e)))
@@ -654,6 +658,9 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
   const [receiving, setReceiving] = useState(false);
   const [error, setError] = useState("");
   const [deviation, setDeviation] = useState("");
+  // Firmar un borrador exige las mismas tres declaraciones que firmar desde el
+  // formulario: aquí no estaban, y el borrador se firmaba sin ellas.
+  const [declara, setDeclara] = useState(false);
   const r = order.reception;
   const outOfSpec = order.status === "recibida"
     && (r.jaw_within_tolerance === false || r.force_within_band === false);
@@ -728,6 +735,16 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
         </div>
       )}
 
+      {order.status === "borrador" && order.next_states.includes("firmado") && (
+        <div style={{ marginTop: 10 }}>
+          <Check checked={declara} onChange={setDeclara}>
+            Para firmar: he revisado las medidas y las asumo; sé que la fuerza de cierre es un
+            objetivo que hay que medir en la pieza terminada; y sé que el STL es geometría, no un
+            dispositivo autorizado.
+          </Check>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         {order.next_states.filter((s) => NEXT_LABEL[s]).map((s) => (
           s === "recibida" ? (
@@ -736,7 +753,8 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
             </Button>
           ) : (
             <Button key={s} size="sm" variant="outline"
-                    onClick={() => act(api.advanceClipOrder(order.part_no, s))}>
+                    disabled={s === "firmado" && !declara}
+                    onClick={() => act(api.advanceClipOrder(order.part_no, s, s === "firmado" && declara))}>
               {NEXT_LABEL[s]}
             </Button>
           )

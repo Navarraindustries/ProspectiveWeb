@@ -15,15 +15,21 @@ import type { VolumeMeta } from "../api/types";
    (otra serie, preproceso, reversión): se vuelve a pedir la meta y su
    cache_key nuevo recarga el volumen del navegador. */
 export function useVolumeMeta(sessionId: string | null, volumeVersion = 0): { meta: VolumeMeta | null; forSession: string | null } {
-  const [state, setState] = useState<{ meta: VolumeMeta | null; forSession: string | null }>({ meta: null, forSession: null });
+  const [state, setState] = useState<{ meta: VolumeMeta | null; forSession: string | null; forVersion: number }>({ meta: null, forSession: null, forVersion: -1 });
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
     api
       .volumeMeta(sessionId)
-      .then((m) => { if (!cancelled) setState({ meta: m, forSession: sessionId }); })
-      .catch(() => { if (!cancelled) setState({ meta: null, forSession: sessionId }); });
+      .then((m) => { if (!cancelled) setState({ meta: m, forSession: sessionId, forVersion: volumeVersion }); })
+      .catch(() => { if (!cancelled) setState({ meta: null, forSession: sessionId, forVersion: volumeVersion }); });
     return () => { cancelled = true; };
   }, [sessionId, volumeVersion]);
-  return sessionId && state.forSession === sessionId ? state : { meta: null, forSession: null };
+  // La versión también cuenta: al cambiar de serie (o reescribir el volumen)
+  // la meta vieja describe un volumen que ya no es el de la sesión. Seguir
+  // devolviéndola dejaba el visor pintando la serie anterior, con el rótulo
+  // de la nueva, los veinte segundos que tarda el servidor en cargarla.
+  return sessionId && state.forSession === sessionId && state.forVersion === volumeVersion
+    ? { meta: state.meta, forSession: state.forSession }
+    : { meta: null, forSession: null };
 }

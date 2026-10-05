@@ -297,8 +297,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         )}
       </SectionLabel>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 12 }}>
-        Mueve los umbrales y observa la vista previa; el método tubular decide
-        luego qué es vaso por su forma, no solo por su brillo.
+        {method === "tubular"
+          ? "Mueve el umbral y observa la vista previa; el método tubular decide luego qué es vaso por su forma, no solo por su brillo."
+          : "Mueve los umbrales y observa la vista previa: la malla será lo que quede dentro de la banda."}
       </div>
       <div>
         <Slider label="Umbral inferior" min={range.min} max={range.max} value={lower} onChange={setLower} unit="" />

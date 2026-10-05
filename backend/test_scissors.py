@@ -178,6 +178,18 @@ class TestLaVistaPreviaNoPuedeMentir:
         assert r.removed_vertices == arbol.GetNumberOfPoints() - r.kept.GetNumberOfPoints()
         assert r.removed_vertices > 0
 
+    def test_nunca_dice_que_se_van_vertices_negativos(self):
+        # Cortando lo grande y quedándose con lo pequeño, o al revés, el
+        # recuento es siempre de algo que se va.
+        arbol = _arbol_con_rama()
+        for lado in (0, 1):
+            for x in (4.0, 20.0, 36.0):
+                try:
+                    r = scissors_preview(arbol, _anillo(x), keep_side=lado)
+                except ValueError:
+                    continue            # anillo fuera del vaso en esta malla de prueba
+                assert r.removed_vertices > 0, (lado, x, r.removed_vertices)
+
 
 # ── Lo que se rechaza ──────────────────────────────────────────────────── #
 

@@ -688,7 +688,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // La cámara 3D sigue al foco sin cambiar el zoom. También al registrarse
   // una escena nueva (cambio de paso, subir la escena al principal). El MIP no
   // mueve su cámara: su corte ya sale de mprVoxel.
-  useEffect(() => { if (focusPoint && syncViews) camera?.focus(focusPoint); }, [focusPoint, syncViews, camera]);
+  //
+  // Salvo cuando el foco viene de un clic sobre el propio 3D: ahí la cámara se
+  // queda quieta. Recentrarla tras cada punto movía la malla bajo el cursor,
+  // y al marcar varios seguidos (el borde del cuello, el anillo de la tijera)
+  // el siguiente clic caía en otro sitio, o fuera de la malla.
+  const focusFromPick = useRef(false);
+  useEffect(() => {
+    if (focusFromPick.current) { focusFromPick.current = false; return; }
+    if (focusPoint && syncViews) camera?.focus(focusPoint);
+  }, [focusPoint, syncViews, camera]);
 
   // Al volver a activar SINCRO, el 3D y los cortes pueden estar en puntos
   // distintos (los cortes siguieron moviéndose solos). Se parte del crosshair:
@@ -739,7 +748,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   const onPick = useCallback(
     (xyz: [number, number, number]) => {
-      // Cualquier punto marcado en el 3D es también el nuevo foco común.
+      // Cualquier punto marcado en el 3D es también el nuevo foco común: los
+      // cortes van a él; la cámara 3D no se mueve (ver focusFromPick).
+      focusFromPick.current = syncViews && !!meta;
       focusFromMm(xyz);
       if (pickMode === "cl_source") { setClSource(xyz); setPickMode(null); }
       else if (pickMode === "cl_target") { setClTarget(xyz); setPickMode(null); }
@@ -767,7 +778,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         }
       }
     },
-    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm],
+    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm, syncViews, meta],
   );
 
   // Un marcado se hace sobre la malla: si la escena está en la franja, sube al
@@ -1189,7 +1200,7 @@ function pickText(mode: NonNullable<PickMode>, measurePending: boolean, rimCount
     case "scissors": return `Clic alrededor de la arteria, rodeándola (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;
     case "crop_center": return "Clic sobre la malla para el centro del recorte";
     case "lesion_mark": return "Clic sobre la lesión";
-    case "erase_piece": return "Clic sobre la pieza que quieres borrar";
+    case "erase_piece": return "Clic sobre lo que quieres borrar";
     case "traj_entry": return "Clic para el punto de entrada del abordaje";
     case "traj_target": return "Clic sobre el aneurisma (punto diana)";
     case "measure": return measurePending ? "Clic en el segundo punto" : "Clic en el primer punto";

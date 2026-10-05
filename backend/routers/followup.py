@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from services.access import require_patient, require_session
+from services.access import require_patient, require_session, session_row
 from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import ImagingStudy, LesionConfirmation, PlanningSession, User
@@ -80,7 +80,7 @@ def _lesion(db: Session, session_id: str, d: Path, st: dict) -> tuple[np.ndarray
     """Centro de la lesión, de lo más fiable a lo menos."""
     from services.followup import _pts
     from services.segmentation import read_vtp
-    ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
+    ps = session_row(db, session_id)
     q = db.query(LesionConfirmation).filter(LesionConfirmation.retracted.is_(False),
                                             LesionConfirmation.source != "no_lesion")
     if ps is not None and ps.imaging_study_id:
@@ -134,7 +134,7 @@ async def followup_studies(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> list[FollowupStudy]:
-    ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
+    ps = session_row(db, session_id)
     if ps is None or not ps.patient_id:
         return []      # sesión sin paciente: no hay con qué compararla
     require_patient(db, current_user, ps.patient_id)

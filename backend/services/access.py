@@ -51,10 +51,32 @@ def require_imaging_study(db: Session, user: Optional[User], img: Optional[Imagi
         require_patient(db, user, img.patient_id)
 
 
+#: Clave del estado de una sesión viva: la sesión guardada de la que salió.
+ORIGIN_KEY = "origin.saved_session_id"
+
+
+def session_row(db: Session, session_id: str) -> Optional[PlanningSession]:
+    """La fila que dice de quién es una sesión.
+
+    «Reanudar» copia la sesión guardada a una sesión viva con un id NUEVO, que
+    no tiene fila hasta que se vuelve a guardar. Sin seguirle el rastro, una
+    sesión reanudada no era de ningún paciente: el seguimiento no encontraba
+    sus otros estudios y la regla de acceso no tenía a quién aplicarse.
+    """
+    ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
+    if ps is not None:
+        return ps
+    from services.sessions import read_state, session_exists
+    if not session_exists(session_id):
+        return None
+    origen = read_state(session_id, ORIGIN_KEY, "")
+    return db.query(PlanningSession).filter_by(session_id=origen).first() if origen else None
+
+
 def session_patient_id(db: Session, session_id: str) -> Optional[int]:
     """El paciente al que está ligada una sesión, o None si no lo está."""
-    return (db.query(PlanningSession.patient_id)
-            .filter(PlanningSession.session_id == session_id).scalar())
+    ps = session_row(db, session_id)
+    return ps.patient_id if ps is not None else None
 
 
 def require_session(db: Session, user: Optional[User], session_id: str) -> None:

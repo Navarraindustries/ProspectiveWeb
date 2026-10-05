@@ -149,6 +149,37 @@ class TestEndpoint:
         assert j["lesion_source_curr"] == "saco aislado" and j["ghost_url"]
         assert j["map_url"].startswith(f"/data/sessions/{ahora}/meshes/seguimiento_mapa.vtp")
 
+    def test_una_sesion_reanudada_sigue_siendo_de_su_paciente(self):
+        # «Reanudar» da a la sesión un id nuevo, sin fila en la base. Visto en
+        # el navegador: el seguimiento decía «no hay otro estudio» teniendo dos.
+        db = SessionLocal()
+        p = Patient(surname="Reanudado"); db.add(p); db.commit()
+        c = Study(patient_id=p.id, dx_principal="Control"); db.add(c); db.commit()
+        pid, cid = p.id, c.id; db.close()
+        antes = _estudio(pid, cid, np.array([0.0, 0.0, 0.0]), 2.0, "2025-01-10")
+        ahora = _estudio(pid, cid, np.array([40.0, -15.0, 8.0]), 2.5, "2026-01-10")
+
+        r = client.post(f"/api/sessions/{ahora}/restore")
+        assert r.status_code == 200, r.text
+        viva = r.json()["session_id"]
+        assert viva != ahora
+
+        estudios = client.get(f"/api/followup/{viva}/studies").json()
+        assert [e["session_id"] for e in estudios] == [antes]
+        r = client.post(f"/api/followup/{viva}", json={"previous_session_id": antes})
+        assert r.status_code == 200, r.text
+        assert r.json()["max_growth_mm"] == pytest.approx(0.5, abs=0.15)
+        # Y la gráfica longitudinal ve los dos estudios, no una sesión suelta.
+        lon = client.get(f"/api/longitudinal/{viva}").json()
+        assert lon["patient_id"] == pid and len(lon["entries"]) == 2
+
+        from services.access import session_patient_id
+        db = SessionLocal()
+        try:
+            assert session_patient_id(db, viva) == pid       # la regla de acceso la alcanza
+        finally:
+            db.close()
+
     def test_sin_paciente_no_hay_estudios(self):
         assert client.get(f"/api/followup/{create_session()}/studies").json() == []
 

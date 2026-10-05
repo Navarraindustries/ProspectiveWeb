@@ -282,6 +282,11 @@ async def restore_session(
         logger.exception("Session rehydration failed")
         raise HTTPException(status_code=500, detail=f"No se pudo restaurar la sesión: {exc}")
 
+    # La sesión viva recuerda de cuál salió: así sigue siendo del mismo
+    # paciente antes de volver a guardarse (services/access.session_row).
+    from services.access import ORIGIN_KEY
+    write_state(new_sid, ORIGIN_KEY, session_id)
+
     # Inspect the rehydrated dir to build a payload the frontend can hydrate from.
     meshes = session_subdir(new_sid, "meshes")
     vessel = meshes / "vessel_tree.vtp"

@@ -134,3 +134,6 @@ frontend/Estudios/
 # Artículos de referencia descargados (derechos de autor): no van al repositorio público
 NEUROLOGY*.pdf
 *.article.pdf
+
+# El esquema de la API del que salen los tipos del frontend sí se versiona.
+!frontend/openapi.json

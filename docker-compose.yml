@@ -1,0 +1,42 @@
+# PROSPECTIVE Web en dos contenedores: la API y nginx con la aplicación.
+#
+#   docker compose up --build -d      →  http://localhost:8080
+#
+# Antes de poner datos de pacientes de verdad:
+#   - sírvelo por HTTPS (un proxy delante) y pon COOKIE_SECURE=1;
+#   - cambia la contraseña inicial del administrador (la app obliga al entrar);
+#   - haz copia de los volúmenes: ahí están la base, los estudios y la clave
+#     que firma las sesiones.
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-24}
+      NAVARRO_ROOT: /navarro
+    volumes:
+      - prospective_data:/app/data
+      - prospective_secrets:/app/secrets
+      - prospective_studies:/app/study_files
+      - prospective_users:/app/user_files
+      - prospective_clip_library:/app/clip_library
+      - prospective_clip_orders:/app/clip_orders
+      # Los diseños de los clips NAVARRO™ se leen de la carpeta del repositorio.
+      - "./NAVARRO™ - Variantes:/navarro:ro"
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${PROSPECTIVE_PORT:-8080}:80"
+
+volumes:
+  prospective_data:
+  prospective_secrets:
+  prospective_studies:
+  prospective_users:
+  prospective_clip_library:
+  prospective_clip_orders:

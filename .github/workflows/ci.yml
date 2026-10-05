@@ -70,9 +70,39 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Dependencias
         run: npm ci
+      # schema.gen.ts sale de openapi.json; si alguien regenera uno y no el
+      # otro, el contrato que comprueba `tsc` sería el de otra versión.
+      - name: Tipos generados al día
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/api/schema.gen.ts
       - name: Tipos
         run: npx tsc --noEmit -p .
       - name: Tests
         run: npm test
       - name: Vulnerabilidades (producción)
         run: npm audit --omit=dev
+
+  # Las dos imágenes se construyen y arrancan de verdad: nginx sirve la
+  # aplicación y llega a la API, que crea su base y pasa las migraciones.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir y arrancar
+        run: docker compose up --build -d
+      - name: Comprobar que responde
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
+          curl -fsS http://localhost:8080/health
+          curl -fsS http://localhost:8080/ | grep -qi "<div id=\"root\""
+          curl -fsS http://localhost:8080/app/pacientes | grep -qi "<div id=\"root\""
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/patients)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/data/prospective.db)" != "200"
+      - name: Registro si falla
+        if: failure()
+        run: docker compose logs --tail 80

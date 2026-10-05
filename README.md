@@ -261,6 +261,22 @@ can also reset another user's password from the Usuarios page.
 > modules, and a stale process on :8000 will silently serve old code. Restart the
 > backend for real when verifying a change end to end.
 
+### With Docker
+
+```bash
+docker compose up --build -d      # → http://localhost:8080
+```
+
+Two containers: the API (`backend/Dockerfile`, one uvicorn process — progress
+and background results live in memory) and nginx (`frontend/Dockerfile`) with
+the built app, which also forwards `/api`, `/data` and `/ws`. Browser and API
+share one origin, so the session cookie stays `SameSite` and no CORS is needed.
+The database, the study archive, user files, the JWT key and the clip folders
+live in named volumes; none of them is copied into the image
+(`backend/.dockerignore`). `PROSPECTIVE_PORT` changes the port. Before real
+patient data: put HTTPS in front and set `COOKIE_SECURE=1`. CI builds both
+images and checks they answer.
+
 ---
 
 ## Environment Variables
@@ -2488,6 +2504,25 @@ make dev:backend         # uvicorn --reload on :8000
 make dev:frontend        # vite on :5173
 make openapi:export      # curl /openapi.json → openapi.json (server must be up)
 ```
+
+**Database migrations.** The schema is versioned with Alembic
+(`backend/migrations`, applied by `init_db()` at startup; no `alembic.ini`). A
+new table needs nothing; a change to an existing one is a revision:
+`python -m services.database revision "message"`. See
+`backend/migrations/README.md`.
+
+**API ↔ UI contract.** `frontend/openapi.json` is the API schema as exported
+without a running server, and `src/api/schema.gen.ts` the types generated from
+it. `src/api/contract.check.ts` makes `tsc` fail when what the server sends no
+longer fits the hand-written `types.ts`. After changing a response model:
+
+```bash
+cd backend && .venv/Scripts/python scripts/export_openapi.py ../frontend/openapi.json
+cd ../frontend && npm run gen:api
+```
+
+A backend test fails if the saved schema is stale, and CI fails if the
+generated types are.
 
 ---
 

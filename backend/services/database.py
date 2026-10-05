@@ -69,17 +69,53 @@ def get_db() -> Generator[Session, None, None]:
 
 # ── Lifecycle ──────────────────────────────────────────────────────────────── #
 
+MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations"
+
+
+def _alembic_config(connection=None):
+    """Configuración de Alembic sin `alembic.ini`: la URL y la conexión salen de
+    aquí, que es el único sitio que las conoce."""
+    from alembic.config import Config
+    cfg = Config()
+    cfg.set_main_option("script_location", str(MIGRATIONS_DIR))
+    if connection is not None:
+        cfg.attributes["connection"] = connection
+    return cfg
+
+
+def run_migrations(bind=None, fresh: bool = False) -> None:
+    """Deja la base en la última revisión.
+
+    `fresh`: la base se acaba de crear con `create_all`, así que ya tiene el
+    esquema actual y solo se MARCA; aplicarle las revisiones intentaría añadir
+    columnas que ya nacieron puestas. Una base que existía las aplica.
+    """
+    from alembic import command
+    with (bind or engine).connect() as conn:
+        cfg = _alembic_config(conn)
+        if fresh:
+            command.stamp(cfg, "head")
+        else:
+            command.upgrade(cfg, "head")
+        conn.commit()
+
+
 def init_db() -> None:
     """Create all tables (idempotent — safe to call on every startup)."""
     # Import models to register them with Base.metadata before create_all
     import services.db_models  # noqa: F401
+    from sqlalchemy import inspect
+    fresh = not inspect(engine).has_table("users")
     Base.metadata.create_all(bind=engine)
+    # Las migraciones a mano llevan una base antigua hasta la línea base de
+    # Alembic. No se añaden más: lo nuevo va en migrations/versions/.
     _migrate_user_columns()
     _migrate_study_columns()
     _migrate_session_columns()
     _migrate_capture_columns()
     _migrate_imaging_studies()
     _migrate_step_after_manufacture()
+    run_migrations(fresh=fresh)
     logger.info("Database initialised at %s", DATA_DIR / "prospective.db")
 
 
@@ -275,3 +311,13 @@ def _migrate_imaging_studies() -> None:
                 "WHERE study_id = :cid AND imaging_study_id IS NULL"
             ), {"iid": new_id, "cid": r[0]})
             logger.info("Migrated case %s archive into imaging study %s", r[0], new_id)
+
+
+if __name__ == "__main__":      # python -m services.database revision "mensaje"
+    import sys
+    from alembic import command
+    if len(sys.argv) == 3 and sys.argv[1] == "revision":
+        init_db()
+        command.revision(_alembic_config(), message=sys.argv[2], autogenerate=True)
+    else:
+        raise SystemExit('Uso: python -m services.database revision "mensaje"')

@@ -1,0 +1,17 @@
+# Nada de esto entra en la imagen. Las cuatro primeras líneas son datos de
+# pacientes, cuentas y la clave que firma las sesiones.
+data/
+study_files/
+user_files/
+secrets/
+
+.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+*.pyc
+test_*.py
+conftest.py
+*_report*.json
+openapi_check.json
+start.bat

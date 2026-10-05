@@ -391,6 +391,7 @@ async def segment(
     # en TODAS las salidas: el WebSocket sólo se cierra cuando ve running=False.
     progress.start(req.session_id)
     _RESULTS.pop(req.session_id, None)
+    _drop_followup_maps(req.session_id)
     loop = asyncio.get_event_loop()
 
     if background:
@@ -448,25 +449,49 @@ async def segment(
 # reinicia el trabajo muere con él.
 _RESULTS: dict[str, dict] = {}
 
+#: Cuánto se guarda un resultado que nadie recoge. El cliente lo pide en cuanto
+#: el progreso termina; pasado esto, o purgada la sesión, sobra. Sin límite el
+#: dict crecía una entrada por sesión mientras viviera el proceso.
+RESULT_TTL_S: float = 60 * 60
+
+
+def _keep_result(session_id: str, entry: dict) -> None:
+    """Guarda el resultado y tira los caducados o de sesiones que ya no existen."""
+    now = time.time()
+    for sid in [s for s, r in list(_RESULTS.items())
+                if now - r.get("at", now) > RESULT_TTL_S or not session_exists(s)]:
+        _RESULTS.pop(sid, None)
+    _RESULTS[session_id] = {**entry, "at": now}
+
+
+def _drop_followup_maps(session_id: str) -> None:
+    """El mapa de seguimiento compara la malla ANTERIOR de esta sesión con otro
+    estudio: al volver a segmentar ya no corresponde a lo que se ve."""
+    for f in session_subdir(session_id, "meshes").glob("seguimiento_*.vtp"):
+        try:
+            f.unlink()
+        except OSError as exc:
+            logger.warning("No se pudo borrar %s: %s", f.name, exc)
+
 
 def _store_result(session_id: str, fut, method: str, usuario: str) -> None:
     """Callback del hilo: guarda el resultado o el error con su código HTTP."""
     try:
         result = fut.result()
     except ValueError as exc:
-        _RESULTS[session_id] = {"status": 422, "detail": str(exc)}
+        _keep_result(session_id, {"status": 422, "detail": str(exc)})
         progress.finish(session_id, ok=False, message=str(exc))
         return
     except FileNotFoundError as exc:
-        _RESULTS[session_id] = {"status": 404, "detail": str(exc)}
+        _keep_result(session_id, {"status": 404, "detail": str(exc)})
         progress.finish(session_id, ok=False, message=str(exc))
         return
     except BaseException as exc:  # noqa: BLE001 — se informa, no se propaga a un hilo
         logger.error("Segmentation failed for session %s: %s", session_id, exc, exc_info=exc)
-        _RESULTS[session_id] = {"status": 500, "detail": f"Segmentation error: {exc}"}
+        _keep_result(session_id, {"status": 500, "detail": f"Segmentation error: {exc}"})
         progress.finish(session_id, ok=False, message=str(exc) or type(exc).__name__)
         return
-    _RESULTS[session_id] = {"status": 200, "result": result}
+    _keep_result(session_id, {"status": 200, "result": result})
     progress.finish(session_id, ok=True)
     _audit_segmentation(session_id, result, method, usuario)
 

@@ -118,14 +118,32 @@ import type {
 } from "./types";
 import { clearVolumeCache } from "../vtk/volume/volumeCache";
 
-const TOKEN_KEY = "prospective.token";
+/* La sesión va SOLO en la cookie `prospective_token`, que es httpOnly: el
+   JavaScript de la página no puede leerla. Antes el JWT se guardaba además en
+   localStorage, donde cualquier script inyectado (una dependencia
+   comprometida, un XSS) podía copiarlo y suplantar al usuario desde fuera.
+   Aquí solo queda una marca sin valor: «hubo login», para no preguntar al
+   servidor en cada visita a la portada. */
+const SESSION_KEY = "prospective.session";
+const LEGACY_TOKEN_KEY = "prospective.token";
 
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+// Quien tenía la sesión abierta con el token viejo sigue dentro (la cookie es
+// la misma); el token se borra del almacenamiento en cuanto carga la página.
+try {
+  if (localStorage.getItem(LEGACY_TOKEN_KEY) !== null) {
+    localStorage.setItem(SESSION_KEY, "1");
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+  }
+} catch { /* almacenamiento bloqueado */ }
+
+export function hasSession(): boolean {
+  try { return localStorage.getItem(SESSION_KEY) === "1"; } catch { return false; }
 }
-export function setToken(token: string | null) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+export function markSession(open: boolean) {
+  try {
+    if (open) localStorage.setItem(SESSION_KEY, "1");
+    else localStorage.removeItem(SESSION_KEY);
+  } catch { /* se queda en memoria: al recargar se pedirá login */ }
 }
 
 /** Notified when the server rejects our credentials, so the app can return to
@@ -140,7 +158,7 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
  *  del paciente guardados en el navegador y se avisa a la app para volver al
  *  login. La usan request(), getBlob() y la descarga de bloques. */
 export function handleUnauthorized() {
-  setToken(null);
+  markSession(false);
   void clearVolumeCache();
   onUnauthorized?.();
 }
@@ -158,17 +176,9 @@ export class ApiError extends Error {
   }
 }
 
-/** Cabeceras con el JWT para fetch() fuera del cliente (bloques del volumen). */
-export function authHeaders(): Headers {
-  const headers = new Headers();
-  const token = getToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  return headers;
-}
-
 /** La pareja del doble envío contra CSRF (backend/services/csrf.py): la cookie
- *  que puso el login, devuelta en una cabecera. Solo la exige el servidor
- *  cuando la petición va autenticada por cookie y sin Bearer. */
+ *  que puso el login, devuelta en una cabecera. El servidor la exige en todo
+ *  lo que cambia algo, porque la sesión va por cookie. */
 function csrfToken(): string | null {
   const m = document.cookie.match(/(?:^|;\s*)prospective_csrf=([^;]+)/);
   return m ? decodeURIComponent(m[1]!) : null;
@@ -176,7 +186,6 @@ function csrfToken(): string | null {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  for (const [k, v] of authHeaders()) headers.set(k, v);
   const method = (init.method ?? "GET").toUpperCase();
   const csrf = method === "GET" || method === "HEAD" ? null : csrfToken();
   if (csrf) headers.set("X-CSRF-Token", csrf);
@@ -184,7 +193,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(path, { ...init, headers });
+  const res = await fetch(path, { ...init, headers, credentials: "same-origin" });
   if (res.status === 401 && !isAuthAttempt(path)) {
     // The token is gone or expired: drop it and let the app show the login
     // screen once, rather than surfacing an error in whichever panel asked.
@@ -211,7 +220,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 /** Authenticated fetch returning the raw Blob (for images / documents that an
  *  <img src> or download link can't carry the JWT header for). */
 async function getBlob(path: string): Promise<Blob> {
-  const res = await fetch(path, { headers: authHeaders() });
+  const res = await fetch(path, { credentials: "same-origin" });
   if (res.status === 401) handleUnauthorized();
   if (!res.ok) throw new ApiError(res.status, `Error ${res.status}`);
   return res.blob();

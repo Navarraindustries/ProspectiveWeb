@@ -2,7 +2,7 @@
    stays usable when a token dies mid-study. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, getToken, setToken, setUnauthorizedHandler } from "./client";
+import { api, hasSession, markSession, setUnauthorizedHandler } from "./client";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -14,7 +14,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe("expired credentials", () => {
   beforeEach(() => {
     localStorage.clear();
-    setToken("un-token-valido");
+    markSession(true);
   });
   afterEach(() => {
     setUnauthorizedHandler(null);
@@ -34,7 +34,7 @@ describe("expired credentials", () => {
     await expect(api.listPatients()).rejects.toThrow();
 
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
-    expect(getToken()).toBeNull();
+    expect(hasSession()).toBe(false);
   });
 
   it("does not end the session when the login itself is rejected", async () => {
@@ -49,7 +49,7 @@ describe("expired credentials", () => {
     await expect(api.login("admin", "mal")).rejects.toThrow("Credenciales incorrectas");
 
     expect(onUnauthorized).not.toHaveBeenCalled();
-    expect(getToken()).toBe("un-token-valido");
+    expect(hasSession()).toBe(true);
   });
 
   it("surfaces the server's message rather than a bare status code", async () => {
@@ -61,13 +61,25 @@ describe("expired credentials", () => {
     );
   });
 
-  it("sends the bearer token on authenticated calls", async () => {
+  it("no manda ningún token: la sesión va en la cookie httpOnly", async () => {
+    // El JWT en localStorage lo podía leer cualquier script de la página.
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse([]));
     await api.listPatients();
+    const init = fetchSpy.mock.calls[0]![1] as RequestInit;
+    expect(new Headers(init.headers).get("Authorization")).toBeNull();
+    expect(init.credentials).toBe("same-origin");
+    expect(Object.keys(localStorage).some((k) => /token/i.test(k))).toBe(false);
+  });
+
+  it("lo que cambia algo lleva el token CSRF de la cookie", async () => {
+    document.cookie = "prospective_csrf=abc123";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    await api.deletePatient(1);
     const headers = new Headers((fetchSpy.mock.calls[0]![1] as RequestInit).headers);
-    expect(headers.get("Authorization")).toBe("Bearer un-token-valido");
+    expect(headers.get("X-CSRF-Token")).toBe("abc123");
+    document.cookie = "prospective_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   });
 
   it("handles a 204 with no body instead of failing to parse it", async () => {

@@ -7,7 +7,7 @@
    con el AbortSignal de la sesión: un bloque de la sesión anterior nunca
    entra en el buffer de la nueva. */
 
-import { api, authHeaders, handleUnauthorized } from "../../api/client";
+import { api, handleUnauthorized } from "../../api/client";
 import type { VolumeMeta } from "../../api/types";
 import { CACHE_NAME, chunkCacheKey, touchVolume } from "./volumeCache";
 
@@ -54,7 +54,7 @@ export async function fetchChunk(url: string, cacheKeyUrl: string, signal: Abort
   const cache = await cacheStorage();
   let res = cache ? await cache.match(cacheKeyUrl) : undefined;
   if (!res) {
-    res = await fetch(url, { headers: authHeaders(), signal });
+    res = await fetch(url, { credentials: "same-origin", signal });
     // Token caducado a media descarga: lo mismo que request(), volver al login
     // en vez de dejar un «SIN VOLUMEN COMPLETO» sin explicación.
     if (res.status === 401) handleUnauthorized();

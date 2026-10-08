@@ -55,7 +55,6 @@ export interface SliceViewProps {
   freeSegment?: [[number, number], [number, number]] | null;
   band?: [number, number] | null;
   orientation: Orientation;
-  levelNote?: string | null;
   active?: boolean;
   compact?: boolean;
   /** Publica la captura de este panel en PNG mientras su escena viva.
@@ -458,7 +457,6 @@ export function SliceView(p: SliceViewProps) {
             ))}
           </select>
         )}
-        {p.levelNote && <HudReadout at="tr" lines={[p.levelNote]} tone="warn" />}
         {!p.compact && box && box.mmPerPx > 0 && (
           <div className="hud-scale" style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
             <span style={{ position: "absolute", right: 0, top: -12, fontSize: fs - 1, color: "var(--hud-dim)" }}>10 mm</span>

@@ -6,7 +6,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ALL_PANES, defaultFraction, promote, setMainFraction, swapPanes, type PaneId, type ViewerLayout } from "./layout";
 import { fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
-import { MAIN_LABELS } from "./mainOptions";
 import { beginDrag, cancelDrag, endDrag, moveDrag, type DragState } from "./paneDrag";
 
 export interface PaneContext { compact: boolean; isMain: boolean }
@@ -179,33 +178,26 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
                // En captura: los lienzos de vtk.js y la barra del cine cortan la
                // propagación del puntero, y la celda tiene que enterarse igual.
                onPointerDownCapture={() => onPaneFocus?.(id)} onFocusCapture={() => onPaneFocus?.(id)}
-               onDoubleClick={() => { if (!isMain) onLayoutChange(promote(layout, id)); }}>
+               // Doble clic = hacer principal (ya no hay botón «⤢»). Al subir, la
+               // vista pierde el foco si lo tenía y caería al cuerpo, dejando
+               // muertas Alt+1…4 y las teclas de corte. La celda nunca se remonta
+               // (clave = id), así que el foco vuelve a su envoltorio enfocable;
+               // la escena 3D no tiene, y va a la rejilla, que sigue dentro del
+               // contenedor del visor.
+               onDoubleClick={() => {
+                 if (isMain) return;
+                 onLayoutChange(promote(layout, id));
+                 requestAnimationFrame(() => {
+                   const target = cellEls.current.get(id)?.querySelector<HTMLElement>('[tabindex="0"]') ?? rootRef.current;
+                   target?.focus({ preventScroll: true });
+                 });
+               }}>
             {renderPane(id, { compact, isMain })}
             {isMain && mainOverlay}
             {!hidden && (
               <div className="viewer-handle" title="Arrastrar para intercambiar · Doble clic para maximizar"
                    onPointerDown={onHandleDown(id)} onPointerMove={onHandleMove}
                    onPointerUp={onHandleUp} onPointerCancel={onHandleCancel} />
-            )}
-            {!hidden && !isMain && (
-              <button type="button" className="viewer-maximize" title="Hacer principal" aria-label={`Hacer principal: ${MAIN_LABELS[id]}`}
-                      // El asa de arrastre ocupa el borde superior: el botón va encima (z 8) y
-                      // detiene el puntero para que pulsarlo no empiece un arrastre.
-                      onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}
-                      // El botón solo existe en las secundarias: al subir la vista
-                      // desaparece y el foco caería al cuerpo, dejando muertas
-                      // Alt+1…4 y las teclas de corte. La celda nunca se remonta
-                      // (clave = id), así que tras el cambio el foco vuelve a su
-                      // envoltorio enfocable; la escena 3D no tiene, y va a la
-                      // rejilla, que sigue dentro del contenedor del visor.
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onLayoutChange(promote(layout, id));
-                        requestAnimationFrame(() => {
-                          const target = cellEls.current.get(id)?.querySelector<HTMLElement>('[tabindex="0"]') ?? rootRef.current;
-                          target?.focus({ preventScroll: true });
-                        });
-                      }}>⤢</button>
             )}
           </div>
         );

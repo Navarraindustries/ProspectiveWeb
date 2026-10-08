@@ -1613,7 +1613,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           onPreset={(preset) => setMprWl(preset.reset ? null : { wc: preset.wc, ww: preset.ww })}
           crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
           freeSegment={showFreePlane ? sliceSegment(freePlane, mprVoxel, meta, id, c.index) : null}
-          band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
+          band={band} orientation={orientation}
           active={active} compact={compact} registerCapture={regPane(captureAs)} registerFit={regFit(captureAs)}
           annotationMode={c.annotationMode} annotationKind={c.annotationKind} annotationDraft={c.annotationDraft}
           onPlaneClickMm={c.onPlaneClickMm} onAnnotationKey={c.onAnnotationKey}
@@ -1738,17 +1738,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
           !compact && (
             <div className="hud">
               <HudReadout at="tl" lines={tl} />
-              {!sceneIsSlice && levelNote && <HudReadout at="tr" lines={[levelNote]} tone="warn" />}
             </div>
           )
         ) : (
           <HudFrame active={isMain} label={compact ? (mode ?? "ESCENA") : undefined}>
             {!compact && <HudReadout at="tl" lines={tl} />}
             {!compact && mode && <HudReadout at="tr" lines={[mode]} />}
-            {/* El nivel del volumen, una línea más abajo y en ámbar. */}
-            {!compact && levelNote && (
-              <div style={{ position: "absolute", inset: 0, top: 16 }}><HudReadout at="tr" lines={[levelNote]} tone="warn" /></div>
-            )}
             {!compact && bl.length > 0 && <HudReadout at="bl" lines={bl} />}
             {!compact && br.length > 0 && <HudReadout at="br" lines={br} />}
             {/* En la celda pequeña no cabe (el rumbo pisa las marcas): se lee al maximizar. */}
@@ -1847,7 +1842,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
         hudLevel={hudLevel} onHudLevelChange={changeHudLevel}
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
         hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
-        onShowClipFieldChange={setShowClipField} onHelp={openSheet} />
+        onShowClipFieldChange={setShowClipField} onHelp={openSheet}
+        levelNote={levelNote} levelNoteShort={levelNoteShort} />
       <ShortcutsSheet open={sheetOpen} onClose={closeSheet} />
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;
           nunca desde un campo de texto (presetForKey). Los dígitos solos son

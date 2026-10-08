@@ -34,6 +34,11 @@ export interface ViewerHeaderProps {
   onShowClipFieldChange: (on: boolean) => void;
   /** «?» al final de la banda: abre la hoja de atajos (la misma que la tecla). */
   onHelp?: () => void;
+  /** Aviso de nivel del volumen («RESOLUCIÓN REDUCIDA · 4/12»): una sola vez,
+   *  aquí, en vez de repetido en cada celda. `levelNoteShort` es la forma que
+   *  cabe en una banda estrecha. */
+  levelNote?: string | null;
+  levelNoteShort?: string | null;
 }
 
 export function ViewerHeader({
@@ -42,6 +47,7 @@ export function ViewerHeader({
   hudLevel, onHudLevelChange,
   syncViews, onSyncViewsChange,
   hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
+  levelNote, levelNoteShort,
 }: ViewerHeaderProps) {
   // Ancho de la banda para abreviar sus rótulos (headerLabels).
   const [bandWidth, setBandWidth] = useState(Number.POSITIVE_INFINITY);
@@ -92,6 +98,12 @@ export function ViewerHeader({
                                         ? "Durante el ensayo de cierre se ve el saco que se deforma; el mapa de calor vuelve al terminar"
                                         : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
             value={calorOn ? "calor" : ""} onChange={() => onShowClipFieldChange(!showClipField)} />
+        )}
+        {levelNote && (
+          <span data-testid="header-level-note" title={levelNote}
+                style={{ color: "var(--hud-amber)", fontSize: 11, letterSpacing: ".08em" }}>
+            {bandWidth < NARROW_HEADER_PX ? (levelNoteShort ?? levelNote) : levelNote}
+          </span>
         )}
         {/* Al final, donde se busca la ayuda: las teclas no se ven en ningún
             otro sitio de la pantalla. */}

@@ -140,3 +140,25 @@ describe("ViewerHeader — conmutadores y teclas", () => {
     expect(onHelp).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("ViewerHeader — aviso de nivel", () => {
+  it("enseña el aviso ámbar con su texto completo cuando se le pasa", () => {
+    stubBandWidth(1200);
+    setup({ levelNote: "RESOLUCIÓN REDUCIDA · 4/12", levelNoteShort: "REDUCIDA 4/12" });
+    const note = screen.getByTitle("RESOLUCIÓN REDUCIDA · 4/12");
+    expect(note.textContent).toBe("RESOLUCIÓN REDUCIDA · 4/12");
+    expect(note.style.color).toBe("var(--hud-amber)");
+  });
+
+  it("estrecha (< 800 px) usa la forma abreviada", () => {
+    stubBandWidth(700);
+    setup({ levelNote: "RESOLUCIÓN REDUCIDA · 4/12", levelNoteShort: "REDUCIDA 4/12" });
+    expect(screen.getByTitle("RESOLUCIÓN REDUCIDA · 4/12").textContent).toBe("REDUCIDA 4/12");
+  });
+
+  it("sin aviso no pinta nada", () => {
+    setup({ levelNote: null });
+    expect(screen.queryByTestId("header-level-note")).toBeNull();
+    expect(screen.queryByText(/REDUCIDA/)).toBeNull();
+  });
+});

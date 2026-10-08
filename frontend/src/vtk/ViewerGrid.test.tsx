@@ -46,28 +46,24 @@ describe("ViewerGrid", () => {
     expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["axial", "scene", "sagital", "mip"] });
   });
 
-  it("cada celda secundaria tiene el botón de maximizar y la principal no", () => {
-    const { cell, onLayoutChange } = setup();
-    expect(cell("scene").querySelector(".viewer-maximize")).toBeNull();
-    const btn = cell("coronal").querySelector<HTMLButtonElement>(".viewer-maximize")!;
-    expect(btn.getAttribute("aria-label")).toBe("Hacer principal: COR");
-    fireEvent.click(btn);
-    expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["axial", "scene", "sagital", "mip"] });
+  it("ninguna celda lleva botón «⤢»: se maximiza con doble clic", () => {
+    const { container } = setup();
+    expect(container.querySelector(".viewer-maximize")).toBeNull();
   });
 
-  it("tras «⤢» el foco queda en la celda subida (su envoltorio) o en la rejilla", async () => {
+  it("tras el doble clic el foco queda en la celda subida (su envoltorio) o en la rejilla", async () => {
     // Una celda con envoltorio enfocable, como las de corte; la escena 3D no lo tiene.
     const withWrapper = (id: PaneId) => (id === "scene" ? <span>3d</span> : <div tabIndex={0} data-testid={`wrap-${id}`}>{id}</div>);
     const onLayoutChange = vi.fn();
     const { container } = render(<ViewerGrid layout={{ ...DEFAULT_LAYOUT, main: "axial", side: ["scene", "coronal", "sagital", "mip"] }}
                                              onLayoutChange={onLayoutChange} renderPane={withWrapper} />);
-    const btn = (id: PaneId) => container.querySelector<HTMLButtonElement>(`[data-pane="${id}"] .viewer-maximize`)!;
-    btn("coronal").focus();
-    fireEvent.click(btn("coronal"));
+    const cellOf = (id: PaneId) => container.querySelector<HTMLElement>(`[data-pane="${id}"]`)!;
+    fireEvent.doubleClick(cellOf("coronal"));
+    expect(onLayoutChange).toHaveBeenCalledTimes(1);
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     expect(document.activeElement).toBe(screen.getByTestId("wrap-coronal"));
     // Sin envoltorio (3D): la rejilla, para que Alt+N siga llegando al visor.
-    fireEvent.click(btn("scene"));
+    fireEvent.doubleClick(cellOf("scene"));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     expect(document.activeElement).toBe(container.firstChild);
   });
@@ -77,17 +73,6 @@ describe("ViewerGrid", () => {
     // jsdom no implementa la propiedad `inert`: se mira el atributo que pone React.
     expect(cell("axial").hasAttribute("inert")).toBe(true);
     expect(cell("scene").hasAttribute("inert")).toBe(false);
-  });
-
-  it("el botón de maximizar no inicia un arrastre ni cuenta como doble clic del asa", () => {
-    const { cell, onLayoutChange } = setup();
-    const btn = cell("mip").querySelector<HTMLButtonElement>(".viewer-maximize")!;
-    fireEvent.pointerDown(btn, { button: 0, clientX: 5, clientY: 5, pointerId: 9 });
-    fireEvent.pointerMove(btn, { clientX: 60, clientY: 5, pointerId: 9 });
-    fireEvent.pointerUp(btn, { clientX: 60, clientY: 5, pointerId: 9 });
-    expect(onLayoutChange).not.toHaveBeenCalled();
-    fireEvent.click(btn);
-    expect(onLayoutChange).toHaveBeenCalledTimes(1);
   });
 
   it("arrastrar el asa de una vista sobre otra las intercambia; un arrastre corto no", () => {

@@ -114,6 +114,9 @@ interface PlanningState {
   annotationsSync: "guardado" | "guardando" | "error";
   /** El hook de guardado deja aquí su «guarda ya»; saveProgress lo espera antes de guardar. */
   annotationsFlushRef: RefObject<(() => Promise<void>) | null>;
+  /** La última lista que llegó del servidor (setAnnotationsLoaded). El hook de
+   *  guardado la compara por referencia: no hace PUT de lo que acaba de leer. */
+  annotationsLoadedRef: RefObject<Annotation[] | null>;
   /** Seed points placed on the volume for grow-from-seeds segmentation. */
   /** Points marked around the neck rim. With three or more the neck plane is
    *  fitted to them instead of assuming it is perpendicular to the dome axis. */
@@ -439,6 +442,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
   const [annotationsSync, setAnnotationsSync] = useState<"guardado" | "guardando" | "error">("guardado");
   const annotationsFlushRef = useRef<(() => Promise<void>) | null>(null);
+  const annotationsLoadedRef = useRef<Annotation[] | null>(null);
   const [neckRim, setNeckRim] = useState<Vec3[]>([]);
   const [scissorsPoints, setScissorsPoints] = useState<Vec3[]>([]);
   const [scissorsPreview, setScissorsPreview] = useState<string | null>(null);
@@ -567,7 +571,10 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     _setAnnotations((prev) => (typeof a === "function" ? a(prev) : a));
     setDirty(true);
   }, []);
-  const setAnnotationsLoaded = useCallback((a: Annotation[]) => _setAnnotations(a), []);
+  const setAnnotationsLoaded = useCallback((a: Annotation[]) => {
+    annotationsLoadedRef.current = a;
+    _setAnnotations(a);
+  }, []);
   const setDeviceMesh = (kind: DeviceKind, url: string | null) => {
     _setDeviceMeshes((d) => ({ ...d, [kind]: url }));
     setDirty(true);
@@ -672,7 +679,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,

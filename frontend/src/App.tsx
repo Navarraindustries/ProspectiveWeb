@@ -226,6 +226,11 @@ function Router() {
           planning.setTrajTarget([tr.target[0], tr.target[1], tr.target[2]]);
         }
       } catch { /* sin trayectoria guardada, se sigue igual */ }
+      // Las anotaciones vuelven por el setter «cargado»: no ensucian la sesión
+      // ni disparan el guardado automático (ya están en disco).
+      try {
+        planning.setAnnotationsLoaded(await api.getAnnotations(r.session_id));
+      } catch { /* sin anotaciones */ }
       setResumeStep(clampStep(invalidated
         ? Math.min(r.current_step, STEPS.findIndex((s) => s.key === "detect"))
         : r.current_step));

@@ -21,6 +21,8 @@ import { TreatmentPanel } from "../components/planning/TreatmentPanel";
 import { DevicesPanel } from "../components/planning/DevicesPanel";
 import { ManufacturePanel } from "../components/planning/ManufacturePanel";
 import { ReportPanel } from "../components/planning/ReportPanel";
+import { AnnotationsPanel } from "../components/annotations/AnnotationsPanel";
+import { useAnnotationsSync } from "../components/annotations/useAnnotationsSync";
 import { ViewerWorkspace } from "../vtk/Viewer";
 import { matchShortcut } from "../vtk/shortcuts";
 import { RecordButton } from "../components/RecordButton";
@@ -69,7 +71,17 @@ export function Workspace({
   const {
     morphometry, sessionId, caseId, caseLabel, imagingStudyId,
     centerlineMesh, setPickMode, markSaved, captureCase,
+    annotations, annotationsSync, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded, annotationsFlushRef,
   } = planning;
+  // Las anotaciones se guardan solas en la sesión viva; «Guardar progreso»
+  // espera a que termine el PUT pendiente para no archivar una lista vieja.
+  const { flush: flushAnnotations } = useAnnotationsSync(
+    sessionId, annotations, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded,
+  );
+  useEffect(() => {
+    annotationsFlushRef.current = flushAnnotations;
+    return () => { annotationsFlushRef.current = null; };
+  }, [flushAnnotations, annotationsFlushRef]);
   const [stepIdx, setStepIdx] = useState(initialStep);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   // La captura vive aquí arriba, al lado de «Guardar progreso», porque es
@@ -131,6 +143,7 @@ export function Workspace({
     setSaving("saving");
     setSaveError(null);
     try {
+      await annotationsFlushRef.current?.();
       await api.saveSession({
         session_id: sessionId,
         patient_id: patient?.id ?? null,
@@ -496,6 +509,22 @@ export function Workspace({
         {/* Panel del paso — ancho fluido con mínimo legible */}
         <div style={{ width: "clamp(300px, 27vw, 384px)", flexShrink: 0, background: "var(--background)", borderLeft: "1px solid var(--border)", overflowY: "auto", padding: "20px 18px 40px" }}>
           {panel}
+          {/* En todos los pasos con sesión: una medida se toma cuando hace falta,
+              no en un paso concreto del flujo. */}
+          {sessionId && (
+            <div style={{ marginTop: 16 }}>
+              <Collapsible
+                title="Anotaciones"
+                subtitle={annotationsSync === "guardando" ? "guardando…"
+                  : annotationsSync === "error" ? "sin guardar"
+                  : "Reglas, ángulos, regiones y notas"}
+                storageKey="ws.annotations"
+                badge={annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
+              >
+                <AnnotationsPanel />
+              </Collapsible>
+            </div>
+          )}
         </div>
       </div>
     </div>

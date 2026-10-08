@@ -9,7 +9,7 @@
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
-import { newId, nextLabel, type Annotation } from "./annotations";
+import { centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import type { AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
@@ -24,7 +24,7 @@ import { useVolumeMeta } from "./useVolumeMeta";
 import { levelNoteFor } from "./levelNote";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
-import { cameraHeading, effectiveDirection, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
+import { cameraHeading, effectiveDirection, mmToVoxel, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
 import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
 import { ViewerGrid, type PaneContext } from "./ViewerGrid";
 import { presetForKey } from "./layoutShortcuts";
@@ -1439,6 +1439,27 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const on = (e: Event) => onShortcutRef.current(String((e as CustomEvent).detail));
     window.addEventListener("viewer:shortcut", on);
     return () => window.removeEventListener("viewer:shortcut", on);
+  }, []);
+
+  // «Ir» del panel de anotaciones. Llega por evento porque la meta del volumen
+  // (mm → vóxel) solo la tiene el visor. El foco va al centroide; con corte
+  // propio, ese corte se fija a su índice exacto: el centroide de una regla
+  // trazada en AX 152 podría redondear a 151 y la regla no se vería.
+  const focusAnnotation = (id: string) => {
+    const a = annotations.find((x) => x.id === id);
+    if (!a || !meta || a.points.length === 0) return;
+    const c = centroid(a.points);
+    setFocusMm(c, meta);
+    if (a.plane) setMprVoxel({ ...mmToVoxel(c, meta), [PLANE_AXIS[a.plane.plane]]: a.plane.index });
+    // Sin SINCRO la cámara 3D no sigue al foco; «Ir» es una petición explícita.
+    if (!syncViews) camera?.focus(c);
+  };
+  const focusAnnotationRef = useRef(focusAnnotation);
+  focusAnnotationRef.current = focusAnnotation;
+  useEffect(() => {
+    const on = (e: Event) => focusAnnotationRef.current(String((e as CustomEvent).detail));
+    window.addEventListener("viewer:focus-annotation", on);
+    return () => window.removeEventListener("viewer:focus-annotation", on);
   }, []);
 
   // Los preajustes de ventana van junto a la lectura W/L del corte que ocupa

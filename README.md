@@ -23,6 +23,7 @@
 - [Choosing a Clip](#choosing-a-clip)
 - [Navegación y orientación del visor](#navegación-y-orientación-del-visor)
 - [Anotaciones del visor](#anotaciones-del-visor)
+- [Pantalla limpia y controles](#pantalla-limpia-y-controles)
 - [Navigation & Unsaved Work](#navigation--unsaved-work)
 - [API Reference](#api-reference)
 - [Candidatos descartados y puesto](#candidatos-descartados-y-puesto)
@@ -287,13 +288,14 @@ images and checks they answer.
 
 Una sola tabla (`frontend/src/vtk/shortcuts.ts`) decide qué hace cada tecla y
 alimenta la hoja «Atajos» del visor (tecla **?** o el botón «?» de la banda).
-Ningún atajo actúa con el cursor en un campo de texto. H y P quedan sin asignar.
+Ningún atajo actúa con el cursor en un campo de texto.
 
 | Tecla | Acción | Ámbito |
 |---|---|---|
 | ? | Abrir o cerrar la hoja de atajos | Visor |
 | Alt+1 · Alt+2 · Alt+3 · Alt+4 | Distribución SOLA · DERECHA · ABAJO · CUATRO | Visor |
 | S | Encender o apagar SINCRO | Visor |
+| H | Nivel del HUD: completo · esencial · limpio | Visor |
 | R · A · G · T | Armar o desarmar la herramienta Regla · Ángulo · Región · Marcador | Visor |
 | Supr | Borrar la anotación seleccionada | Visor |
 | Retroceso | Quitar el último punto de la anotación en curso | Visor |
@@ -304,6 +306,7 @@ Ningún atajo actúa con el cursor en un campo de texto. H y P quedan sin asigna
 | Re Pág · Av Pág | Diez cortes adelante · atrás | Celda |
 | Inicio · Fin | Primer · último corte | Celda |
 | Esc | Cancelar el marcado, parar el cine o cerrar la hoja | Flujo |
+| P | Ocultar o mostrar el panel del paso | Flujo |
 | 1 … 8 | Ir a ese paso del flujo (si ya está disponible) | Flujo |
 
 ---
@@ -2273,6 +2276,67 @@ tabla Nombre · Tipo · Valor · Corte · Nota, o «Sin anotaciones.».
 borra y se rehace), coordenadas LPS del paciente, compartir anotaciones entre
 sesiones o usuarios, dibujarlas en la escena 3D que renderiza el servidor para
 el informe y medir sobre el volumen (densidad, perfiles).
+
+---
+
+## Pantalla limpia y controles
+
+**Tres niveles de HUD.** La tecla **H** (o el grupo «HUD ▸ COMPLETO · ESENCIAL ·
+LIMPIO» de la cabecera, «C · E · L» en pantallas estrechas) recorre completo →
+esencial → limpio. Al cambiar, una pista de poco más de un segundo arriba dice
+«HUD esencial». El nivel se guarda en el navegador (`viewer.hudLevel`); quien ya
+había ocultado las esquinas parte de esencial.
+
+| Elemento | Completo | Esencial | Limpio |
+|---|---|---|---|
+| Esquinas, retícula, líneas de referencia, rumbo, traza del recorte | sí | no | no |
+| Grupos de botones del HUD y pista de gestos | sí | no | no |
+| Rótulo, lecturas, letras de borde, barra de escala | sí | sí | no |
+| Escalera de cortes, maniquí 3D, recuadro de orientación | sí | sí | no |
+| Barra de cine | enfocada o reproduciendo | igual | solo reproduciendo |
+| Anotaciones y asas de los planos | sí | sí | sí |
+
+Los botones ocultos siguen funcionando por teclado (S, C, espacio, R/A/G/T…).
+PLANOS es independiente: ya no depende de REGLAS, que desaparece de la cabecera.
+Las capturas y grabaciones siguen el nivel: en limpio salen sin rótulo, lecturas
+ni banda superior, pero con las anotaciones pintadas.
+
+**Panel del paso plegable.** **P**, o el botón «◧ Panel» de la barra superior
+(a la izquierda de «Guardar progreso»), pliega la columna derecha a una tira de
+28 px que dice «PANEL ▸ Morfometría» (el paso vigente) con la insignia de
+anotaciones; un clic en la tira, P o el botón la despliegan. El visor ocupa el
+ancho liberado. Plegar solo oculta: un formulario a medias o una nota de
+anotación sin terminar siguen escritos al desplegar. El estado se guarda en el
+navegador (`ws.panelCollapsed`).
+
+**Nombres y grupos.** Cada grupo de botones lleva su prefijo: «EJE ▸ AX · COR ·
+SAG» y «DESDE ▸ INICIO · FINAL» en VOLUMEN, «VISTA ▸ ENCUADRAR · AX · COR · SAG ·
+LESIÓN» en el 3D. «CENTRAR» y «AJUSTAR» pasan a **ENCUADRAR** (lo que hace C), y
+en Oblicuo el desplazamiento a cero se llama **AL PUNTO**.
+
+**Pista de gestos.** Ahora va arriba, bajo el rótulo, sin fondo, y se enseña una
+vez por tipo de celda (corte, 3D, VOLUMEN…) y sesión del navegador, no cada vez
+que cambia la principal. Todos los gestos siguen en la hoja «?». En limpio no
+hay pista.
+
+**Ventana y nivel.** La lectura «W n · L n» es un botón: el doble clic
+restablece la ventana. El menú de preajustes está en toda celda de corte, no
+solo en la principal, con «Auto» en TC y «Restablecer» al final. Las lecturas
+llevan «HU» en TC, CTA y CTPA, y nada en el resto (la intensidad de una angio
+rotacional no es una unidad física).
+
+**UMBRAL con unidad.** El HUD dice «UMBRAL 220 HU» en TC y «UMBRAL 220» en el
+resto; lo mismo la vista previa de la captura. En el panel de segmentación los
+deslizadores muestran HU en TC y, en el resto, la ayuda «Intensidad del volumen,
+sin unidad física».
+
+**Lo que se quitó.** El botón «⤢» de cada celda: la principal se elige desde la
+cabecera o con doble clic en la celda. Y el aviso de nivel reducido repetido en
+cada corte y en el 3D: ahora es una sola lectura en la banda de cabecera, a la
+derecha de los grupos (la captura lo sigue llevando arriba).
+
+**Fuera de alcance.** Plegar el carril izquierdo (ya responde al ancho),
+herramientas nuevas, cambios de servidor y ocultar el HUD por celda.
 
 ---
 

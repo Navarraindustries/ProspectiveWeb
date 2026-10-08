@@ -2178,8 +2178,8 @@ siendo alrededor del punto. La escena 3D ya giraba alrededor de su foco, y
 **CUATRO** es una rejilla 2×2 de celdas iguales: la principal arriba a la
 izquierda y después las secundarias en orden de lectura. Caben cuatro vistas,
 así que VOLUMEN (la menos usada) se aparta, salvo que sea la principal; «VOL» en
-la banda (con «▸ VOL» en una banda estrecha) o «⤢» la traen, intercambiándola
-como en los demás presets. Atajo Alt+4; bajo 800 px el rótulo es «4». El reparto
+la banda (con «▸ VOL» en una banda estrecha) la trae, intercambiándola como en
+los demás presets. Atajo Alt+4; bajo 800 px el rótulo es «4». El reparto
 del separador no aplica aquí y se conserva para volver a DERECHA o ABAJO.
 
 **Cortes 3D** es el tercer modo de la escena («3D · Cortes 3D · Oblicuo»). Pone
@@ -2192,8 +2192,8 @@ cuadradas de cada plano mueven su corte (el 2D lo sigue) y la rueda en un corte
 memoria: en Case 3 un fotograma cuesta menos de un milisegundo.
 
 **Recorrer cortes.** La escalera del borde derecho de cada celda se pulsa
-(salta a ese corte) o se arrastra (recorre los cortes bajo el puntero); solo
-está con REGLAS ●. Con la celda enfocada, las flechas avanzan uno, Re Pág y
+(salta a ese corte) o se arrastra (recorre los cortes bajo el puntero); se ve
+con el HUD en completo y en esencial, no en limpio. Con la celda enfocada, las flechas avanzan uno, Re Pág y
 Av Pág diez, Inicio y Fin van a los extremos. En VOLUMEN mueven el eje activo,
 o el plano libre en LIBRE; en Oblicuo, que no tiene escalera, desplazan el
 plano. Pinchar una celda le da el foco, así que las teclas funcionan tras un
@@ -2244,7 +2244,8 @@ En un corte 2D se dibuja la que tenga algún punto a medio vóxel o menos de ese
 corte: una regla hecha en el 3D aparece en los cortes que pasan por sus
 extremos, y dos cortes más allá ya no está. La región solo se ve en su plano y
 su índice exactos. El rótulo lleva el valor («R1 · 12,4 mm», «A1 · 63°»,
-«G1 · 48 mm²»); en celdas pequeñas solo el nombre. REGLAS ○ no las oculta.
+«G1 · 48 mm²»); en celdas pequeñas solo el nombre. Ningún nivel del HUD las
+oculta, tampoco limpio.
 
 **El panel «Anotaciones»** está en la columna derecha, plegado, con el número en
 el título y el estado del guardado («guardando…» o «sin guardar» si falla).
@@ -2722,9 +2723,8 @@ four) and «CUATRO» (a 2×2 grid of equal cells with four views; VOLUMEN is lef
 out unless it is the main view). When the header band is narrower than 800 px the presets read
 «DER · ABA · 4 · SOLA» and «PRINCIPAL» shrinks to «▸». Plain digits keep jumping between pipeline steps, and no shortcut fires
 while typing in a field. The header selector «PRINCIPAL ▸ 3D · AX · COR · SAG · VOL»
-chooses the main view directly; every secondary view also has a «⤢» button in
-its top-right corner that promotes it (the main view has none), and a double
-click does the same. Dragging the thin handle along the top edge of a view
+chooses the main view directly, and a double click on a secondary view promotes
+it (the «⤢» button each secondary view used to carry is gone). Dragging the thin handle along the top edge of a view
 onto another swaps them. The views are
 never remounted, so the 3D camera, slice positions and window/level survive
 every swap. The splitter between the main view and the others sets the share
@@ -2775,7 +2775,7 @@ line and a coronal line) and the MIP trace. The 3D scene draws the three planes
 as rectangles in the same colours, plus a point where they meet; scrolling a
 slice moves its rectangle. The rectangles do not count for framing or for the
 scale of markers, so «ENCUADRAR» still frames the vessel tree. «PLANOS» in the
-header hides them without moving the camera, «REGLAS» hides them too, and the
+header hides them without moving the camera (no HUD level hides them), and the
 choice is remembered per browser. The scene toggle offers «3D · Oblicuo».
 The shared free plane has its own colour, lavender: a polygon (the plane cut by
 the volume box) in the 3D scene and a segment on each slice. Both appear only
@@ -2806,10 +2806,15 @@ the client copy of the volume is in, the scene falls back to the server-side
 oblique (a PNG with its own tilt, position and axis); that degraded mode does not read or
 move the shared plane.
 
-The «REGLAS» toggle hides the HUD decoration (corners, heading tape, slice
-ladder, reticle); orientation letters, slice number, measurements and safety
-warnings stay. Layout, «REGLAS» and «PLANOS» are per-browser view preferences, and
-captures and recordings follow what is on screen; their saved state includes
+The header group «HUD ▸ COMPLETO · ESENCIAL · LIMPIO» (or the H key) sets how
+much HUD is drawn. Completo shows everything. Esencial drops the decoration
+(corners, heading tape, reticle), the button groups and the gesture hint; the
+view label, readouts, edge letters, scale bar and slice ladder stay. Limpio
+leaves only the image and the annotations, plus the cine bar while it plays,
+safety notices and the prompt of an armed tool. Hidden buttons still work from
+the keyboard. Layout, HUD level, «PLANOS» and the folded step panel (P) are
+per-browser view preferences, and captures and recordings follow what is on
+screen; their saved state includes `hud_level`, `panel_collapsed`,
 `planes_hidden`, `volume_mode`, `volume_preset`, `free_plane` (azimuth,
 elevation and offset), `clip_mode`, `cut_face_visible` and `volume_window` (the
 current preset's window, or null while it is the default).

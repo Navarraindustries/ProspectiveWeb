@@ -26,6 +26,8 @@ import { useAnnotationsSync } from "../components/annotations/useAnnotationsSync
 import { ViewerWorkspace } from "../vtk/Viewer";
 import { matchShortcut } from "../vtk/shortcuts";
 import { RecordButton } from "../components/RecordButton";
+import { PREF_PANEL_COLLAPSED, RightPanelColumn } from "../components/RightPanelColumn";
+import { useStoredFlag } from "../vtk/viewerPrefs";
 import { usePlanning } from "../store/planning";
 import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
@@ -85,6 +87,9 @@ export function Workspace({
     return () => { annotationsFlushRef.current = null; };
   }, [flushAnnotations, annotationsFlushRef]);
   const [stepIdx, setStepIdx] = useState(initialStep);
+  // P pliega el panel del paso a una tira y el visor gana su ancho; se
+  // recuerda en este navegador, como el nivel del HUD.
+  const [panelCollapsed, setPanelCollapsed] = useStoredFlag(PREF_PANEL_COLLAPSED);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   // La captura vive aquí arriba, al lado de «Guardar progreso», porque es
   // donde uno busca «guardar algo de este caso» — y porque está en todos los
@@ -216,6 +221,11 @@ export function Workspace({
         window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: id }));
         return;
       }
+      if (id === "panel-toggle") {
+        e.preventDefault();
+        setPanelCollapsed(!panelCollapsed);
+        return;
+      }
       if (id.startsWith("step-")) {
         const i = Number(id.slice(5)) - 1;
         if (i < STEPS.length && (i === stepIdx || !missingFor(i, planning))) { e.preventDefault(); go(i); }
@@ -224,7 +234,7 @@ export function Workspace({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIdx, planning.series, planning.segmentation, planning.candidates, planning.rejectedCandidates, planning.morphometry]);
+  }, [stepIdx, panelCollapsed, planning.series, planning.segmentation, planning.candidates, planning.rejectedCandidates, planning.morphometry]);
 
   const panel = {
     upload: <UploadPanel onNext={next} />,
@@ -256,7 +266,10 @@ export function Workspace({
   }[step];
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
+    // `data-panel-collapsed`: el visor lo lee para su `estadoVisor` sin que
+    // el estado del panel tenga que pasar por el store.
+    <div data-panel-collapsed={panelCollapsed ? "true" : "false"}
+         style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
       <Topbar
         crumbs={[
           { label: "Pacientes", onClick: onBack },
@@ -302,6 +315,16 @@ export function Workspace({
             Adjuntar a un caso
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setPanelCollapsed(!panelCollapsed)}
+          aria-pressed={!panelCollapsed}
+          title="Ocultar o mostrar el panel del paso (P)"
+          style={{ marginRight: 8 }}
+        >
+          ◧ Panel
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -523,8 +546,13 @@ export function Workspace({
           <ViewerWorkspace step={step} />
         </div>
 
-        {/* Panel del paso — ancho fluido con mínimo legible */}
-        <div style={{ width: "clamp(300px, 27vw, 384px)", flexShrink: 0, background: "var(--background)", borderLeft: "1px solid var(--border)", overflowY: "auto", padding: "20px 18px 40px" }}>
+        {/* Panel del paso — ancho fluido con mínimo legible; plegable con P. */}
+        <RightPanelColumn
+          collapsed={panelCollapsed}
+          onToggle={() => setPanelCollapsed(false)}
+          stepLabel={STEPS[stepIdx].label}
+          badge={sessionId && annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
+        >
           {panel}
           {/* En todos los pasos con sesión: una medida se toma cuando hace falta,
               no en un paso concreto del flujo. */}
@@ -546,7 +574,7 @@ export function Workspace({
               </Collapsible>
             </div>
           )}
-        </div>
+        </RightPanelColumn>
       </div>
     </div>
   );

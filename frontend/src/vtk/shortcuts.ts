@@ -3,7 +3,7 @@
    en los dos sitios a la vez y la ayuda no puede mentir.
 
    Quién ejecuta cada cosa:
-   - Workspace (manejador global): Esc, «?», los dígitos de paso, y reenvía al
+   - Workspace (manejador global): Esc, «?», P (el panel del paso), los dígitos de paso, y reenvía al
      visor S, H, C, espacio y +/− por el evento `viewer:shortcut`.
    - Alt+1…4 siguen en su único camino, `presetForKey` (layoutShortcuts): aquí
      solo se listan; si Workspace también los atendiera, se dispararían dos veces.
@@ -15,9 +15,9 @@ import { PAGE_STEP } from "./cine";
 export type ShortcutScope = "visor" | "celda" | "flujo";
 export interface Shortcut { id: string; keys: string; action: string; scope: ShortcutScope }
 
-/** P no se asigna todavía: queda libre a propósito (spec E1) para lo que
- *  venga después, y la prueba de la tabla lo vigila. H ya es el nivel del HUD. */
-export const RESERVED_KEYS = ["P"];
+/** Teclas apartadas para más adelante; la prueba de la tabla vigila que no se
+ *  asignen. H (nivel del HUD) y P (panel del paso) ya tienen dueño. */
+export const RESERVED_KEYS: string[] = [];
 
 const STEP_COUNT = 8;
 
@@ -46,6 +46,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "home", keys: "Inicio", action: "Primer corte", scope: "celda" },
   { id: "end", keys: "Fin", action: "Último corte", scope: "celda" },
   { id: "escape", keys: "Esc", action: "Cancelar el marcado, parar el cine o cerrar esta hoja", scope: "flujo" },
+  { id: "panel-toggle", keys: "P", action: "Ocultar o mostrar el panel del paso", scope: "flujo" },
   // Un id por paso (Workspace necesita saber cuál), pero la hoja los junta en
   // una fila «1 … 8».
   ...Array.from({ length: STEP_COUNT }, (_, i): Shortcut => ({
@@ -88,6 +89,7 @@ export function matchShortcut(
   if (e.code === "KeyS") return "sync";
   if (e.code === "KeyH") return "hud-cycle";
   if (e.code === "KeyC") return "center";
+  if (e.code === "KeyP") return "panel-toggle";
   // Anotaciones: R/A/G/T arman la herramienta; Supr borra la seleccionada y
   // Retroceso quita el último punto. Si hay algo que hacer lo decide el visor.
   if (e.code === "KeyR") return "anot-regla";

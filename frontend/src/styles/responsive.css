@@ -47,6 +47,38 @@ html, body, #root {
   .ws-steps-compact { display: flex !important; }
 }
 
+/* ── Workspace: panel del paso plegado a una tira (tecla P) ───────────── */
+/* La tira se queda con 28 px y el visor con el resto. El texto va en vertical
+   para que el nombre del paso quepa sin ensanchar la tira. */
+.ws-panel-strip {
+  width: 28px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  background: var(--background);
+  border-left: 1px solid var(--border);
+}
+.ws-panel-strip-btn {
+  writing-mode: vertical-rl;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  padding: 6px 0;
+  border-radius: var(--radius-md);
+}
+.ws-panel-strip-btn:hover,
+.ws-panel-strip-btn:focus-visible { color: var(--foreground); background: var(--muted); }
+.ws-panel-strip-badge { font-size: 10px; }
+
 /* ── Tablas anchas: scroll propio en vez de romper la página ───────────── */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 

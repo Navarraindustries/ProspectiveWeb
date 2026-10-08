@@ -60,11 +60,12 @@ describe("matchShortcut — bordes", () => {
     expect(matchShortcut(ev({ key: "ArrowUp", code: "Numpad8" }), null)).toBe("slice-up");
     expect(matchShortcut(ev({ key: "End", code: "Numpad1" }), null)).toBe("end");
   });
-  it("H cambia el nivel del HUD; P sigue reservada", () => {
+  it("H y P están asignadas", () => {
     expect(matchShortcut(ev({ key: "h", code: "KeyH" }), null)).toBe("hud-cycle");
-    expect(RESERVED_KEYS).not.toContain("H");
     expect(SHORTCUTS.find((s) => s.id === "hud-cycle")?.keys).toBe("H");
-    expect(matchShortcut(ev({ key: "p", code: "KeyP" }), null)).toBeNull();
+    expect(matchShortcut(ev({ key: "p", code: "KeyP" }), null)).toBe("panel-toggle");
+    expect(SHORTCUTS.find((s) => s.id === "panel-toggle")).toMatchObject({ keys: "P", scope: "flujo" });
+    expect(RESERVED_KEYS).toEqual([]);
   });
   it("los atajos actúan en limpio: matchShortcut no depende del nivel del HUD", () => {
     // La tecla se resuelve sin mirar el DOM del visor: el mismo id con

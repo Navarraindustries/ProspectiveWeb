@@ -513,6 +513,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     layout: layoutRef.current,
     hud_level: hudLevelRef.current,
     planes_hidden: planesHiddenRef.current,
+    // El panel del paso es de Workspace; lo publica en su contenedor.
+    panel_collapsed: document.querySelector("[data-panel-collapsed]")?.getAttribute("data-panel-collapsed") === "true",
     volume_mode: volumeModeRef.current,
     volume_preset: volumePresetRef.current,
     free_plane: {

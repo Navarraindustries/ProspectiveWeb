@@ -99,6 +99,16 @@ describe("SliceView · ventana y nivel", () => {
     expect(onGrid).not.toHaveBeenCalled();
   });
 
+  it("un arrastre de W/L soltado sobre la lectura acaba ahí", () => {
+    const { props, container, readout } = mount();
+    const cell = container.querySelector("[tabindex='0']") as HTMLElement;
+    fireEvent.mouseDown(cell, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.mouseUp(readout, { button: 0, clientX: 180, clientY: 180 });
+    fireEvent.mouseMove(cell, { clientX: 140, clientY: 60 });
+    expect(props.onWindowLevel).not.toHaveBeenCalled();
+    expect(props.onPlaneClick).not.toHaveBeenCalled();
+  });
+
   it("en la celda compacta la lectura sigue, en forma corta y sin selector", () => {
     const { readout, container } = mount({ compact: true, presets: windowPresets(metaOf("CT"), null), onPreset: vi.fn() });
     expect(readout.textContent).toBe("W 400 L 40");

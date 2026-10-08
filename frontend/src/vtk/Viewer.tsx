@@ -1597,6 +1597,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (legacy) {
       return (
         <div style={{ position: "relative", width: "100%", height: "100%" }}>
+          {/* Ruta sin WebGL2: MprView no tiene selector de preajustes. */}
           <MprView sessionId={sessionId} meta={meta} plane={id} compact={compact} showSlider={!compact} wc={mprWl?.wc} ww={mprWl?.ww} band={band}
             index={c.index} onIndexChange={c.onIndexChange} crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} />
           {!hasWebGL2() && <HudFrame><HudReadout at="tr" lines={["SIN WEBGL2 · VISOR REDUCIDO"]} tone="warn" /></HudFrame>}

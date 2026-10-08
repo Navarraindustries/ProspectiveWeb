@@ -360,6 +360,9 @@ export function SliceView(p: SliceViewProps) {
   };
   const onMouseUp = (e: React.MouseEvent) => {
     const d = drag.current; drag.current = null;
+    // Soltar sobre la lectura W/L o el selector acaba el arrastre pero no es
+    // un clic en la imagen: ni crosshair ni punto de anotación.
+    if ((e.target as Element).closest(".hud-wl, .hud-wl-presets")) return;
     if (!d || d.moved) return;
     const f = frac(e); if (!f) return;
     if (annotating) annotationClick(e, f);
@@ -425,10 +428,11 @@ export function SliceView(p: SliceViewProps) {
         {/* Botón y no lectura muda: dice que arrastrar cambia W/L y el doble
             clic vuelve a la ventana del estudio. En la celda estrecha va en
             forma corta (la larga se pisaba con el índice). Los gestos se
-            paran aquí: llegar al contenedor centraría el crosshair o
-            empezaría un arrastre, y a la rejilla, maximizaría la celda. */}
+            paran aquí: llegar al contenedor empezaría un arrastre, y a la
+            rejilla, maximizaría la celda. El mouseup sí sube: un arrastre
+            empezado en la imagen y soltado aquí tiene que acabar. */}
         <button type="button" className="hud-readout br hud-wl" title={WL_TITLE}
-          onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onDoubleClick={(e) => { e.stopPropagation(); p.onWindowLevelReset?.(); }}>
           {p.compact
             ? `W ${Math.round(p.ww)} L ${Math.round(p.wc)}`
@@ -444,7 +448,7 @@ export function SliceView(p: SliceViewProps) {
               const preset = p.presets!.find((x) => x.name === e.target.value);
               if (preset) p.onPreset?.(preset);
             }}
-            onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}>
             <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
             {p.presets.map((x) => (

@@ -2165,7 +2165,7 @@ almost the whole catalogue stops carrying information.
 centro del volumen quedaba a 124 mm del foco y fuera de la celda. Ahora el
 centro de giro es el punto del crosshair, en MIP y en COMPUESTO, recortando por
 EJE o LIBRE: al girar, ese punto se queda en el mismo píxel. Pasar cortes no
-mueve la cámara; el punto avanza con el corte. CENTRAR encuadra **lo que se ve**,
+mueve la cámara; el punto avanza con el corte. ENCUADRAR encuadra **lo que se ve**,
 no la caja entera: en acumulado, desde el principio (o el final) hasta el corte;
 en lámina, el corte ± el grosor; en LIBRE, la mitad que conserva el plano. Lo
 visible queda centrado y su lado mayor ocupa la celda; el giro posterior sigue
@@ -2205,7 +2205,7 @@ recuerda en este navegador (`viewer.cineFps`). Es un cine por celda: no hay un
 cine global sincronizado.
 
 **Atajos.** S enciende o apaga SINCRO y C reencuadra la celda enfocada (en el
-3D, AJUSTAR). La lista completa está en [Atajos de teclado](#atajos-de-teclado)
+3D, ENCUADRAR). La lista completa está en [Atajos de teclado](#atajos-de-teclado)
 y en la hoja que abre «?». Los presets (Alt+1…4) actúan con el foco dentro del
 visor, y ningún atajo actúa con el cursor en un campo de texto.
 
@@ -2674,7 +2674,7 @@ layout is remembered per browser; the older «CORTES» setting is migrated once.
 slice views follow it), Ctrl+wheel zooms, dragging rotates, Shift+drag or the
 middle button pans. «AX · COR · SAG» chooses the voxel axis it accumulates
 along, the same axes the slice views use, and an outline in that plane's colour
-traces the current plane. «CENTRAR» recentres pan and zoom without undoing the rotation.
+traces the current plane. «ENCUADRAR» recentres pan and zoom without undoing the rotation.
 With «RECORTE ▸ LIBRE» (below) the wheel moves the free plane instead of the
 slice.
 
@@ -2697,10 +2697,10 @@ longer has a «Volumen» mode, and `GET /api/volume/{sid}/raw` was retired in D2
 above. «LIBRE» clips by the shared free plane of the «Oblicuo» view instead
 (the axis selector dims): the wheel in VOLUMEN moves that plane and the
 «Oblicuo» view follows, and the other way round. «ACUMULADO» keeps one side of
-the plane, «DESDE EL FINAL» keeps the other, and «LÁMINA» keeps a slab of ±N mm
+the plane, «DESDE ▸ INICIO · FINAL» keeps the other, and «LÁMINA» keeps a slab of ±N mm
 around it (2–40 mm). The cut face is painted in grey with the slices'
 window/level, so changing the window in a slice changes the face; vessels in
-front of it still cover it. «CARA ● / ○» shows or hides the face. «CENTRAR» in
+front of it still cover it. «CARA ● / ○» shows or hides the face. «ENCUADRAR» in
 LIBRE also puts the plane back through the crosshair. Going back to «EJE»
 restores the axis clip and removes the face. The trace is lavender in LIBRE.
 
@@ -2710,7 +2710,7 @@ reference lines that other slices draw for it (the axial view shows a sagittal
 line and a coronal line) and the MIP trace. The 3D scene draws the three planes
 as rectangles in the same colours, plus a point where they meet; scrolling a
 slice moves its rectangle. The rectangles do not count for framing or for the
-scale of markers, so «AJUSTAR» still frames the vessel tree. «PLANOS» in the
+scale of markers, so «ENCUADRAR» still frames the vessel tree. «PLANOS» in the
 header hides them without moving the camera, «REGLAS» hides them too, and the
 choice is remembered per browser. The scene toggle offers «3D · Oblicuo».
 The shared free plane has its own colour, lavender: a polygon (the plane cut by
@@ -2735,8 +2735,8 @@ offset along its normal from the crosshair. «AZIMUT» (−180° to 180°) and
 slice does the same: half a degree per pixel, right turns the azimuth, up
 raises the elevation. The wheel moves the plane one step of the finest voxel
 spacing per notch and stops where the plane would leave the volume box.
-Ctrl+wheel zooms, and a left-button drag still sets window/level. «CENTRAR»
-puts the plane back through the crosshair and reframes, «AJUSTAR» only reframes.
+Ctrl+wheel zooms, and a left-button drag still sets window/level. «AL PUNTO»
+puts the plane back through the crosshair and reframes, «ENCUADRAR» only reframes.
 The readout reads like `AZ 20° · EL −10° · +3,3 mm`. Without WebGL2, or before
 the client copy of the volume is in, the scene falls back to the server-side
 oblique (a PNG with its own tilt, position and axis); that degraded mode does not read or

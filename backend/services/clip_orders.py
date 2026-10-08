@@ -336,7 +336,7 @@ def next_part_no(now: float | None = None) -> str:
 
 def list_orders(status: str | None = None, session_id: str = "",
                 open_only: bool = False, patient_id: int | None = None,
-                q: str = "") -> list[ClipOrder]:
+                q: str = "", session_ids: set[str] | None = None) -> list[ClipOrder]:
     """Orders newest first, optionally filtered.
 
     `q` searches the fields someone actually has in hand when they come looking:
@@ -345,7 +345,9 @@ def list_orders(status: str | None = None, session_id: str = "",
     out = [_from_dict(e) for e in _read(_ORDERS_FILE) if isinstance(e, dict)]
     if status:
         out = [o for o in out if o.status == status]
-    if session_id:
+    if session_ids:
+        out = [o for o in out if o.session_id in session_ids]
+    elif session_id:
         out = [o for o in out if o.session_id == session_id]
     if patient_id is not None:
         out = [o for o in out if o.patient_id == patient_id]
@@ -536,8 +538,15 @@ def create_order(*, session_id: str, case_id: int | None, patient: str, case_lab
     return order
 
 
-def set_status(part_no: str, status: str, *, by: str = "") -> ClipOrder:
-    """Advance an order, refusing a jump the workflow does not allow."""
+def set_status(part_no: str, status: str, *, by: str = "",
+               declarations: tuple[bool, bool, bool] | None = None) -> ClipOrder:
+    """Advance an order, refusing a jump the workflow does not allow.
+
+    `declarations`: las tres declaraciones del cirujano, cuando se firma un
+    borrador. Sin ellas el borrador no se firma: un pedido guardado como
+    borrador las lleva a falso, y este camino lo firmaba igual — el formulario
+    las exigía y el botón «Firmar» de la lista se las saltaba.
+    """
     order = get_order(part_no)
     if order is None:
         raise OrderError(f"No existe el pedido {part_no}.")
@@ -554,6 +563,15 @@ def set_status(part_no: str, status: str, *, by: str = "") -> ClipOrder:
             raise OrderError("Falta el cirujano responsable que firma el pedido.")
         if not order.workshop:
             raise OrderError("Un pedido firmado necesita un taller destinatario.")
+        if declarations is not None and all(declarations):
+            (order.accepts_measurements, order.accepts_force_is_target,
+             order.accepts_not_approved_device) = True, True, True
+        if not (order.accepts_measurements and order.accepts_force_is_target
+                and order.accepts_not_approved_device):
+            raise OrderError(
+                "Hay que aceptar las tres declaraciones antes de firmar: las medidas, "
+                "la fuerza como objetivo a medir, y que el STL es geometría y no un "
+                "dispositivo autorizado.")
     order.status = status
     if status == SIGNED and not order.signed_at:
         order.signed_by = by
@@ -662,8 +680,22 @@ def delete_order(part_no: str) -> bool:
     return True
 
 
+#: La carpeta real, la de una instalación sin `CLIP_ORDERS_ROOT`.
+_REAL_ROOT = Path(__file__).resolve().parents[1] / "clip_orders"
+
+
 def clear_store() -> None:
-    """Wipe both stores. Tests only."""
+    """Wipe both stores. Tests only.
+
+    Se niega a tocar la carpeta real. La raíz se fija al importar el módulo: si
+    otro test lo importa antes de que el de pedidos ponga su carpeta temporal,
+    este borrado caía sobre los pedidos de verdad. Pasó: una pasada de varios
+    ficheros de test juntos vació la carpeta real.
+    """
+    if ORDERS_ROOT.resolve() == _REAL_ROOT.resolve():
+        raise RuntimeError(
+            "clear_store() no borra la carpeta real de pedidos. Define CLIP_ORDERS_ROOT "
+            "antes de importar services.clip_orders (lo hace conftest.py).")
     if ORDERS_ROOT.exists():
         shutil.rmtree(ORDERS_ROOT, ignore_errors=True)
 

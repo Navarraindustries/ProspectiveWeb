@@ -67,9 +67,9 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **836 passing** (`pytest`, 48 files) |
-| Frontend tests | **162 passing** (`vitest`, 18 files) · `tsc -b` clean · production build clean |
-| REST endpoints | **97** operations across 81 paths (23 routers), all authenticated except login/signup/logout |
+| Backend tests | **1594 passing** (`pytest`, 105 files) |
+| Frontend tests | **459 passing** (`vitest`, 65 files) · `tsc -b` clean · production build clean |
+| REST endpoints | **149** operations (28 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
 | Feature parity with desktop | **Complete** |
 
 ---
@@ -96,7 +96,6 @@ approval, and a tamper-evident audit chain.
 
 ```
 ProspectiveWeb/
-├── openapi.json            # OpenAPI 3.1 spec (regenerate: make openapi:export)
 ├── Makefile                # Dev shortcuts
 ├── start-all.bat           # Windows: launches backend + frontend in two windows
 │
@@ -2241,7 +2240,7 @@ so a panel added later cannot forget to do it.
 
 ## API Reference
 
-118 operations under `/api`. Full spec in `openapi.json` or at `/docs`.
+149 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
 
 **Everything except `POST /api/auth/login`, `/signup` and `/logout` requires a
 token.** It travels as `Authorization: Bearer …` or as the `prospective_token`
@@ -2891,7 +2890,7 @@ make install:backend     # create .venv + pip install
 make install:frontend    # npm install
 make dev:backend         # uvicorn --reload on :8000
 make dev:frontend        # vite on :5173
-make openapi:export      # curl /openapi.json → openapi.json (server must be up)
+make openapi:export      # export frontend/openapi.json + regenerate schema.gen.ts (no server needed)
 ```
 
 **Database migrations.** The schema is versioned with Alembic

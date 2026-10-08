@@ -257,6 +257,15 @@ class TestSessionState:
         assert "saved_at" in data
         assert "file_path" in data
 
+    def test_se_puede_guardar_estando_en_el_informe(self):
+        # El Informe es el paso 7 desde que «Fabricación» entró antes. El tope
+        # seguía en 6: guardar ahí se rechazaba, o se guardaba como Fabricación.
+        sid = _make_session()
+        ok = client.post("/api/sessions/save", json={"session_id": sid, "current_step": 7})
+        assert ok.status_code == 200, ok.text
+        fuera = client.post("/api/sessions/save", json={"session_id": sid, "current_step": 8})
+        assert fuera.status_code == 422
+
     def test_save_session_not_found(self):
         resp = client.post(
             "/api/sessions/save",

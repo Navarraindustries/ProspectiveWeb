@@ -293,8 +293,19 @@ def delete_clip(clip_id: str) -> bool:
     return True
 
 
+#: La carpeta real, la de una instalación sin `CLIP_LIBRARY_ROOT`.
+_REAL_ROOT = Path(__file__).resolve().parents[1] / "clip_library"
+
+
 def clear_library() -> None:
-    """Remove every entry. Used by tests; never wired to a route."""
+    """Remove every entry. Used by tests; never wired to a route.
+
+    Se niega a tocar la carpeta real: ver `clip_orders.clear_store`.
+    """
+    if LIBRARY_ROOT.resolve() == _REAL_ROOT.resolve():
+        raise RuntimeError(
+            "clear_library() no borra la biblioteca real de clips. Define CLIP_LIBRARY_ROOT "
+            "antes de importar services.clip_library (lo hace conftest.py).")
     if LIBRARY_ROOT.exists():
         shutil.rmtree(LIBRARY_ROOT, ignore_errors=True)
 

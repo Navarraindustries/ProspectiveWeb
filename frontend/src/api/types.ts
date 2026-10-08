@@ -753,6 +753,8 @@ export interface MorphometryResult {
   /** The points marked around the neck rim, echoed back so a resumed session
    *  can restore the marks instead of showing a plane with nothing behind it. */
   rim_points: Position3D[];
+  /** El ápice que marcó el usuario; null en la medida automática. */
+  dome_seed?: Position3D | null;
   plane_origin: Position3D | null;
   /** Its unit normal, pointing at the dome. The 3D ring used to be rebuilt from
    *  the PCA axis instead, so on an oblique neck it drew a plane that was not

@@ -323,6 +323,15 @@ class MorphometryResult(BaseModel):
             "resumed session can restore the marks. Empty on the automatic path."
         ),
     )
+    dome_seed: Position3D | None = Field(
+        None,
+        description=(
+            "El ápice del domo que marcó el usuario, devuelto para que una "
+            "sesión reanudada lo recupere. Volvían los puntos del borde pero no "
+            "este, y sin él no se puede volver a medir: había que marcarlo otra "
+            "vez. Null en el camino automático."
+        ),
+    )
     plane_origin: Position3D | None = Field(
         None,
         description=(

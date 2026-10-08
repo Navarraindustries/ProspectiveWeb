@@ -129,6 +129,11 @@ app = FastAPI(
         "email": "ingprospective@skullapp.tech",
     },
     license_info={"name": "Proprietary"},
+    # La documentación se sirve más abajo, tras sesión: no enseña datos, pero
+    # sí la superficie entera de una API que guarda imágenes de pacientes.
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 # ── Sin GZipMiddleware: comprimía cada respuesta a nivel 9 dentro del event
@@ -295,6 +300,32 @@ app.include_router(followup.router,      dependencies=_private)
 # la cabecera Authorization en el handshake de un WS, así que el token viaja
 # en la query y `ws_progress` lo valida él mismo con `user_for_token`.
 app.include_router(progress.ws_router)
+# ── Documentación de la API, solo con sesión ──────────────────────────────── #
+#
+# Swagger pide /openapi.json desde el navegador con la cookie de sesión, así
+# que a quien ya entró le funciona igual que antes. Para exportar el esquema
+# sin servidor: scripts/export_openapi.py.
+
+_docs_private = [Depends(require_user)]
+
+
+@app.get("/openapi.json", include_in_schema=False, dependencies=_docs_private)
+async def openapi_schema() -> JSONResponse:
+    return JSONResponse(app.openapi())
+
+
+@app.get("/docs", include_in_schema=False, dependencies=_docs_private)
+async def swagger_ui():
+    from fastapi.openapi.docs import get_swagger_ui_html
+    return get_swagger_ui_html(openapi_url="/openapi.json", title=f"{app.title} — Swagger UI")
+
+
+@app.get("/redoc", include_in_schema=False, dependencies=_docs_private)
+async def redoc_ui():
+    from fastapi.openapi.docs import get_redoc_html
+    return get_redoc_html(openapi_url="/openapi.json", title=f"{app.title} — ReDoc")
+
+
 # ── Health check ──────────────────────────────────────────────────────────── #
 
 @app.get("/health", tags=["system"], summary="Health check")

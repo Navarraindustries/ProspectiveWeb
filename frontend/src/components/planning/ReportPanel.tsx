@@ -14,9 +14,12 @@ import { Separator } from "../Separator";
 import { PrintPrepPanel } from "./PrintPrepPanel";
 import { useAuth } from "../../store/auth";
 import { usePlanning } from "../../store/planning";
+import { STEPS } from "../../pipeline/steps";
 
 /** Index of this step in the workspace rail — what a session saved here resumes at. */
-const REPORT_STEP = 6;
+// Por su clave, no por un número: era un 6 fijo, y desde que «Fabricación»
+// entró antes del informe el 6 es Fabricación.
+const REPORT_STEP = STEPS.findIndex((s) => s.key === "report");
 
 /** A download link that stops offering a file once the plan has moved on.
  *

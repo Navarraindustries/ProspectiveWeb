@@ -206,6 +206,13 @@ function Router() {
           if (m.rim_points?.length) {
             planning.setNeckRim(m.rim_points.map((p) => [p.x, p.y, p.z] as [number, number, number]));
           }
+          // El ápice también, y el punto de cuello cuando se marcó uno solo:
+          // sin ellos «Medir saco cerrado» quedaba apagado tras reanudar y
+          // había que volver a marcar para corregir una medida.
+          if (m.dome_seed) planning.setNeckDome([m.dome_seed.x, m.dome_seed.y, m.dome_seed.z]);
+          if (m.neck_source === "manual" && m.plane_origin) {
+            planning.setNeckOrigin([m.plane_origin.x, m.plane_origin.y, m.plane_origin.z]);
+          }
         } catch { /* leave morphometry empty */ }
       }
       // El abordaje establecido. Sin esto volvía la sesión sin él: los puntos

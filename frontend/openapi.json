@@ -5227,6 +5227,17 @@
       "title": "Dome Height Mm",
       "type": "number"
      },
+     "dome_seed": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Position3D"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "El ápice del domo que marcó el usuario, devuelto para que una sesión reanudada lo recupere. Volvían los puntos del borde pero no este, y sin él no se puede volver a medir: había que marcarlo otra vez. Null en el camino automático."
+     },
      "ei": {
       "default": 0.0,
       "description": "Ellipticity Index  (> 0.35 → non-spherical, higher rupture risk)",
@@ -8448,8 +8459,8 @@
     "properties": {
      "current_step": {
       "default": 0,
-      "description": "Current workflow step index (0-based: 0=Carga … 6=Informe)",
-      "maximum": 6.0,
+      "description": "Current workflow step index (0-based: 0=Carga … 6=Fabricación, 7=Informe)",
+      "maximum": 7.0,
       "minimum": 0.0,
       "title": "Current Step",
       "type": "integer"
@@ -8621,6 +8632,21 @@
    },
    "StatusIn": {
     "properties": {
+     "accepts_force_is_target": {
+      "default": false,
+      "title": "Accepts Force Is Target",
+      "type": "boolean"
+     },
+     "accepts_measurements": {
+      "default": false,
+      "title": "Accepts Measurements",
+      "type": "boolean"
+     },
+     "accepts_not_approved_device": {
+      "default": false,
+      "title": "Accepts Not Approved Device",
+      "type": "boolean"
+     },
      "status": {
       "description": "borrador | firmado | enviado | en_fabricacion | recibida",
       "title": "Status",

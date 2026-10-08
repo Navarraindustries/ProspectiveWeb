@@ -27,6 +27,11 @@ _MAX_FILE_BYTES = _MAX_FILE_MB * 1_000_000
 # does not grow in-memory usage linearly with file count.
 _MAX_FILES = 20_000
 
+# Y el total: con solo los dos topes de arriba una subida podía ocupar
+# 20 000 × 500 MB de disco. 4 GB es lo que nginx deja pasar por petición
+# (frontend/nginx.conf, client_max_body_size) y cubre un estudio multiserie.
+_MAX_UPLOAD_TOTAL_BYTES = 4_000_000_000
+
 
 @router.post(
     "/upload",
@@ -78,6 +83,7 @@ async def upload_dicom(request: Request) -> UploadResult:
 
     # ── 2. Save uploaded bytes to disk ────────────────────────────────────── #
     saved: list[Path] = []
+    total_bytes = 0
     for uf in files:
         # Use the original filename; sanitise it to avoid path traversal
         safe_name = Path(uf.filename or "unnamed.dcm").name
@@ -95,6 +101,13 @@ async def upload_dicom(request: Request) -> UploadResult:
                 raise HTTPException(
                     status_code=413,
                     detail=f"File '{uf.filename}' exceeds {_MAX_FILE_MB} MB limit",
+                )
+            total_bytes += len(content)
+            if total_bytes > _MAX_UPLOAD_TOTAL_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=(f"La subida supera el total permitido de "
+                            f"{_MAX_UPLOAD_TOTAL_BYTES / 1e9:.0f} GB por estudio."),
                 )
             dest.write_bytes(content)
             saved.append(dest)

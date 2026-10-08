@@ -101,6 +101,30 @@ def session_subdir(session_id: str, sub: str) -> Path:
     return p
 
 
+def session_lineage(session_id: str) -> set[str]:
+    """La sesión y las guardadas de las que viene, hacia atrás.
+
+    «Reanudar» da a la sesión viva un id nuevo y apunta en su estado de cuál
+    salió (`origin.saved_session_id`). Lo que se colgó de una sesión —un pedido
+    de clip— tiene que seguir viéndose desde las que la continúan.
+    """
+    ids: set[str] = set()
+    actual = session_id
+    for _ in range(20):                       # una cadena de reanudaciones, sin bucles
+        if not valid_session_id(actual) or actual in ids:
+            break
+        ids.add(actual)
+        for raiz in (SESSIONS_ROOT, SAVES_ROOT):
+            estado = raiz / actual / "state.txt"
+            if estado.exists():
+                origen = _read_state_map(estado).get("origin.saved_session_id", "")
+                break
+        else:
+            origen = ""
+        actual = origen
+    return ids
+
+
 def session_exists(session_id: str) -> bool:
     return valid_session_id(session_id) and (SESSIONS_ROOT / session_id).is_dir()
 

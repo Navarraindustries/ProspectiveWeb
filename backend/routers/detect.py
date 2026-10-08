@@ -10,6 +10,7 @@ from functools import partial
 from pathlib import Path
 
 import json
+import math
 import re
 
 from fastapi import APIRouter, HTTPException, Query
@@ -804,6 +805,20 @@ def _read_saved_neck_plane(session_id: str) -> NeckPlaneRequest | None:
     )
 
 
+def _read_dome_seed(session_id: str) -> Position3D | None:
+    """El ápice marcado a mano (`morpho.plane_seed_*`), o None si la medida es
+    la automática o no se guardó."""
+    if read_state(session_id, "morpho.neck_source", "") not in ("manual", "rim"):
+        return None
+    try:
+        v = [float(read_state(session_id, f"morpho.plane_seed_{k}", "")) for k in "xyz"]
+    except ValueError:
+        return None
+    if not all(math.isfinite(x) for x in v):
+        return None
+    return Position3D(x=v[0], y=v[1], z=v[2])
+
+
 def _read_rim_points(session_id: str) -> list[Position3D]:
     """The points the user marked around the rim, as stored.
 
@@ -1441,6 +1456,7 @@ def _run_morphometry_sync(
             x=neck_origin[0], y=neck_origin[1], z=neck_origin[2]
         ),
         rim_points        = _read_rim_points(session_id),
+        dome_seed         = _read_dome_seed(session_id),
         neck_shift_mm     = neck_shift_mm,
         plane_origin      = None if used_plane is None else Position3D(
             x=used_plane[0][0], y=used_plane[0][1], z=used_plane[0][2]

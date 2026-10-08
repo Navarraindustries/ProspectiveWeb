@@ -579,8 +579,14 @@ export const api = {
   },
   /** Cuántos pedidos hay en cada estado. */
   clipOrdersSummary: () => get<ClipOrderSummary>("/api/clip-orders/summary"),
-  advanceClipOrder: (partNo: string, status: OrderStatus) =>
-    post<ClipOrder>(`/api/clip-orders/${partNo}/status`, { status }),
+  /** `declaraciones`: las tres del cirujano; el servidor las exige al firmar. */
+  advanceClipOrder: (partNo: string, status: OrderStatus, declaraciones = false) =>
+    post<ClipOrder>(`/api/clip-orders/${partNo}/status`, {
+      status,
+      accepts_measurements: declaraciones,
+      accepts_force_is_target: declaraciones,
+      accepts_not_approved_device: declaraciones,
+    }),
   receiveClipOrder: (
     partNo: string, measured_jaw_mm: number, measured_force_g: number, notes = "",
   ) =>

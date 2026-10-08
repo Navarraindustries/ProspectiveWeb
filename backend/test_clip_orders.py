@@ -213,6 +213,25 @@ class TestSigning:
         assert r.status_code == 422
         assert any("declaraciones" in d for d in r.json()["detail"])
 
+    def test_un_borrador_no_se_firma_sin_las_declaraciones(self, medico):
+        # Visto en el navegador: el formulario las exigía, pero el botón
+        # «Firmar» de un borrador ya guardado lo firmaba sin ninguna marcada.
+        _sid, _pre, r = _place(medico, sign=False, accepts_measurements=False,
+                               accepts_force_is_target=False, accepts_not_approved_device=False)
+        assert r.status_code == 201 and r.json()["status"] == "borrador"
+        url = f"/api/clip-orders/{r.json()['part_no']}/status"
+
+        sin = client.post(url, headers=medico, json={"status": "firmado"})
+        assert sin.status_code == 409 and "declaraciones" in sin.json()["detail"]
+        a_medias = client.post(url, headers=medico, json={
+            "status": "firmado", "accepts_measurements": True, "accepts_force_is_target": True})
+        assert a_medias.status_code == 409
+
+        con = client.post(url, headers=medico, json={
+            "status": "firmado", "accepts_measurements": True,
+            "accepts_force_is_target": True, "accepts_not_approved_device": True})
+        assert con.status_code == 200 and con.json()["status"] == "firmado"
+
     def test_signing_without_a_surgeon_is_refused(self, medico):
         _sid, _pre, r = _place(medico, surgeon="   ")
         assert r.status_code == 422

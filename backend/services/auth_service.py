@@ -97,13 +97,17 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
     """Return User on success, None on bad credentials.
 
     Raises AuthError with a user-facing message when the account exists but its
-    status blocks login (pending approval / rejected).
+    status blocks login (pending approval / rejected / disabled).
+
+    El estado se mira ANTES que la contraseña. Al revés, una cuenta bloqueada
+    contestaba 401 con la contraseña mal y 403 con la buena: quien probara
+    contraseñas contra una cuenta desactivada sabía en qué momento acertaba.
+    Ahora una cuenta bloqueada contesta lo mismo diga lo que diga la
+    contraseña. Lo que se revela es que la cuenta existe y está bloqueada, y
+    eso vale menos que una contraseña, que suele repetirse en otros sitios.
     """
-    # Look up regardless of is_active so we can explain *why* login is blocked.
     user = db.query(User).filter(User.username == username.strip()).first()
     if user is None:
-        return None
-    if not verify_password(password, user.hashed_password):
         return None
 
     status_val = getattr(user, "status", User.STATUS_ACTIVE)
@@ -116,6 +120,9 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
         raise AuthError("Tu solicitud de registro fue rechazada. Contacta al administrador.")
     if not user.is_active:
         raise AuthError("Cuenta desactivada. Contacta al administrador.")
+
+    if not verify_password(password, user.hashed_password):
+        return None
     return user
 
 

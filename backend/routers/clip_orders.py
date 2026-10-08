@@ -116,6 +116,10 @@ class ReceptionIn(BaseModel):
 
 class StatusIn(BaseModel):
     status: str = Field(..., description="borrador | firmado | enviado | en_fabricacion | recibida")
+    # Solo cuentan al firmar un borrador: las tres declaraciones del cirujano.
+    accepts_measurements: bool = False
+    accepts_force_is_target: bool = False
+    accepts_not_approved_device: bool = False
 
 
 class VerifyIn(BaseModel):
@@ -728,7 +732,12 @@ async def list_orders(
     q: str = Query("", description="Free text over part number, patient, case, surgeon, workshop"),
     open_only: bool = Query(False, description="Hide verified and rejected orders"),
 ) -> list[OrderOut]:
+    # Con su linaje: una sesión reanudada tiene id nuevo, y los pedidos del
+    # caso se quedaban colgados de la anterior — al volver no salía ninguno.
+    from services.sessions import session_lineage
+    linaje = session_lineage(session_id) if session_id else None
     return [_out(o) for o in store.list_orders(status=status, session_id=session_id,
+                                               session_ids=linaje or None,
                                                patient_id=patient_id, q=q,
                                                open_only=open_only)]
 
@@ -753,7 +762,10 @@ async def advance(part_no: str, req: StatusIn, user: CurrentUser) -> OrderOut:
         raise HTTPException(status_code=403,
                             detail="Solo un médico responsable puede firmar un pedido.")
     try:
-        order = store.set_status(part_no, req.status, by=user.username)
+        order = store.set_status(
+            part_no, req.status, by=user.username,
+            declarations=(req.accepts_measurements, req.accepts_force_is_target,
+                          req.accepts_not_approved_device))
     except store.OrderError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     if req.status == store.SIGNED and not order.files:

@@ -11,6 +11,26 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../store/auth";
 import { ApiError } from "../api/client";
 
+/** Qué decirle a quien no pudo entrar.
+ *
+ *  Si el servidor contestó, se repite lo que dijo: un 403 explica por qué la
+ *  cuenta no puede entrar, un 429 cuánto queda de bloqueo, un 422 qué campo
+ *  no vale. El aviso de conexión queda para cuando NO hubo respuesta (fetch
+ *  falló): antes se enseñaba para cualquier código que no fuera 401 o 403, y
+ *  decía «¿está el backend en marcha?» de un backend que acababa de contestar.
+ *  Cuando el cuerpo no traía detalle, `ApiError.message` es «Error NNN»; eso
+ *  no le dice nada a un médico, así que se reescribe. */
+export function loginErrorMessage(err: unknown): string {
+  if (!(err instanceof ApiError)) {
+    return "No se pudo conectar con el servidor. ¿Está el backend en marcha?";
+  }
+  if (err.status === 401) return "Credenciales incorrectas";
+  if (/^Error \d+$/.test(err.message)) {
+    return `El servidor respondió con el error ${err.status} y sin más detalle. Inténtalo de nuevo en unos minutos.`;
+  }
+  return err.message;
+}
+
 export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSignup: () => void; notice?: string | null }) {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -28,14 +48,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
       await login(user, pass);
       onLogin();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setError("Credenciales incorrectas");
-      } else if (err instanceof ApiError && err.status === 403) {
-        // Account pending approval / rejected / disabled — show server message.
-        setError(err.message);
-      } else {
-        setError("No se pudo conectar con el servidor. ¿Está el backend en marcha?");
-      }
+      setError(loginErrorMessage(err));
       setShake(true);
       setTimeout(() => setShake(false), 500);
     } finally {

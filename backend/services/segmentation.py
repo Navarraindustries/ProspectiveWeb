@@ -698,10 +698,10 @@ def mask_to_surface(
     # costaría 230 MB más— y el origen se corre un espaciado hacia atrás para
     # que las coordenadas sigan en el marco del volumen.
     padded = np.pad(np.asarray(mask, dtype=bool), 1)
-    field = ndimage.gaussian_filter(padded.astype(np.float32), gauss_sigma_vox)
+    suavizado = ndimage.gaussian_filter(padded.astype(np.float32), gauss_sigma_vox)
     del padded
-    img = SegmentationPipeline._to_vtk_image(field, spacing)
-    del field
+    img = SegmentationPipeline._to_vtk_image(suavizado, spacing)
+    del suavizado
     img.SetOrigin(-float(spacing[2]), -float(spacing[1]), -float(spacing[0]))
     mc = vtk.vtkMarchingCubes()
     mc.SetInputData(img); mc.SetValue(0, 0.5)

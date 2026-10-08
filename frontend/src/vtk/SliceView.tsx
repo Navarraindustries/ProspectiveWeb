@@ -419,7 +419,7 @@ export function SliceView(p: SliceViewProps) {
         {!p.compact && <HudReadout at="br" lines={[`W ${Math.round(p.ww)}  L ${Math.round(p.wc)}`]} />}
         {p.levelNote && <HudReadout at="tr" lines={[p.levelNote]} tone="warn" />}
         {!p.compact && box && box.mmPerPx > 0 && (
-          <div style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
+          <div className="hud-scale" style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
             <span style={{ position: "absolute", right: 0, top: -12, fontSize: fs - 1, color: "var(--hud-dim)" }}>10 mm</span>
           </div>
         )}

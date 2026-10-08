@@ -1,5 +1,5 @@
 /* Banda de cabecera del visor: selector de la vista PRINCIPAL, presets de
-   distribución, los conmutadores PLANOS · REGLAS · SINCRO · CALOR y «?».
+   distribución, el nivel del HUD, los conmutadores PLANOS · SINCRO · CALOR y «?».
 
    Separada de Viewer para poder probarla sola (spec §6: el selector refleja
    `layout.main` y cambia la distribución). Es presentacional: el estado vive
@@ -9,7 +9,8 @@
 import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
-import { headerLabels, mainOptions, presetOptions } from "./mainOptions";
+import { headerLabels, mainOptions, NARROW_HEADER_PX, presetOptions } from "./mainOptions";
+import { HUD_LEVELS, type HudLevel } from "./viewerPrefs";
 
 export interface ViewerHeaderProps {
   layout: ViewerLayout;
@@ -19,8 +20,10 @@ export interface ViewerHeaderProps {
   onKeyDown?: (e: ReactKeyboardEvent) => void;
   planesHidden: boolean;
   onPlanesHiddenChange: (hidden: boolean) => void;
-  decorHidden: boolean;
-  onDecorHiddenChange: (hidden: boolean) => void;
+  /** Cuánto HUD se ve en la rejilla (la tecla H lo recorre). PLANOS va aparte:
+   *  son geometría de la escena, no HUD, y se pueden querer en cualquier nivel. */
+  hudLevel: HudLevel;
+  onHudLevelChange: (level: HudLevel) => void;
   syncViews: boolean;
   onSyncViewsChange: (on: boolean) => void;
   /** CALOR solo existe cuando hay un campo del clip calculado: sin él no
@@ -36,7 +39,7 @@ export interface ViewerHeaderProps {
 export function ViewerHeader({
   layout, onLayoutChange, onKeyDown,
   planesHidden, onPlanesHiddenChange,
-  decorHidden, onDecorHiddenChange,
+  hudLevel, onHudLevelChange,
   syncViews, onSyncViewsChange,
   hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
 }: ViewerHeaderProps) {
@@ -63,7 +66,7 @@ export function ViewerHeader({
          style={{ flex: "none", height: 22, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "0 12px", lineHeight: 1.2, fontFamily: "var(--font-mono)", background: "#000", borderBottom: "1px solid var(--hud-dim)", overflow: "hidden", whiteSpace: "nowrap" }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
         {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
-            REGLAS y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
+            HUD y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
         <span style={{ color: "var(--hud-dim)" }} title="Vista principal">{header.mainCaption}</span>
         <HudToggleGroup options={mainOptions()} value={layout.main}
           onChange={(k) => onLayoutChange(promote(layout, k as PaneId))} />
@@ -76,10 +79,14 @@ export function ViewerHeader({
         <HudToggleGroup
           options={[{ key: "planes", label: planesHidden ? "PLANOS ○" : "PLANOS ●", title: "Mostrar/ocultar los planos de corte en el 3D" }]}
           value={planesHidden ? "" : "planes"} onChange={() => onPlanesHiddenChange(!planesHidden)} />
-        <HudToggleGroup
-          options={[{ key: "decor", label: decorHidden ? "REGLAS ○" : "REGLAS ●",
-                      title: decorHidden ? "Mostrar reglas, retícula y marcos" : "Ocultar reglas, retícula y marcos (la orientación y las medidas se quedan)" }]}
-          value={decorHidden ? "" : "decor"} onChange={() => onDecorHiddenChange(!decorHidden)} />
+        {/* La banda queda fuera de `data-hud`: en limpio estos botones siguen
+            ahí para volver (además de la H). En banda estrecha, C · E · L. */}
+        <div className="hud-toggle" title="Nivel del HUD (H)" style={{ gap: 6, alignItems: "center" }}>
+          <span style={{ color: "var(--hud-dim)", fontSize: 11, letterSpacing: ".08em" }}>HUD ▸</span>
+          <HudToggleGroup
+            options={HUD_LEVELS.map((l) => ({ key: l, label: bandWidth < NARROW_HEADER_PX ? l[0].toUpperCase() : l.toUpperCase(), title: `HUD ${l} (H)` }))}
+            value={hudLevel} onChange={(k) => onHudLevelChange(k as HudLevel)} />
+        </div>
         <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
           value={syncViews ? "sync" : ""} onChange={() => onSyncViewsChange(!syncViews)} />
         {hasClipField && (

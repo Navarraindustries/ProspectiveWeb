@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { matchShortcut, RESERVED_KEYS, SHORTCUTS, shortcutsByScope } from "./shortcuts";
 const ev = (p: Partial<{ key: string; code: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }>) => ({ key: "", code: "", altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...p });
 describe("tabla de atajos", () => {
-  it("no hay teclas duplicadas en el mismo ámbito y H/P no se asignan", () => {
+  it("no hay teclas duplicadas en el mismo ámbito y las reservadas no se asignan", () => {
     for (const scope of ["visor", "celda", "flujo"] as const) {
       const keys = SHORTCUTS.filter((s) => s.scope === scope).map((s) => s.keys);
       expect(new Set(keys).size).toBe(keys.length);
@@ -60,19 +60,33 @@ describe("matchShortcut — bordes", () => {
     expect(matchShortcut(ev({ key: "ArrowUp", code: "Numpad8" }), null)).toBe("slice-up");
     expect(matchShortcut(ev({ key: "End", code: "Numpad1" }), null)).toBe("end");
   });
-  it("H y P no hacen nada", () => {
-    expect(matchShortcut(ev({ key: "h", code: "KeyH" }), null)).toBeNull();
+  it("H cambia el nivel del HUD; P sigue reservada", () => {
+    expect(matchShortcut(ev({ key: "h", code: "KeyH" }), null)).toBe("hud-cycle");
+    expect(RESERVED_KEYS).not.toContain("H");
+    expect(SHORTCUTS.find((s) => s.id === "hud-cycle")?.keys).toBe("H");
     expect(matchShortcut(ev({ key: "p", code: "KeyP" }), null)).toBeNull();
   });
+  it("los atajos actúan en limpio: matchShortcut no depende del nivel del HUD", () => {
+    // La tecla se resuelve sin mirar el DOM del visor: el mismo id con
+    // cualquier `data-hud` en la página.
+    for (const level of ["completo", "esencial", "limpio"]) {
+      document.body.setAttribute("data-hud", level);
+      expect(matchShortcut(ev({ key: "h", code: "KeyH" }), null)).toBe("hud-cycle");
+      expect(matchShortcut(ev({ key: "s", code: "KeyS" }), null)).toBe("sync");
+      expect(matchShortcut(ev({ key: "c", code: "KeyC" }), null)).toBe("center");
+      expect(matchShortcut(ev({ key: " ", code: "Space" }), null)).toBe("cine-toggle");
+      expect(matchShortcut(ev({ key: "r", code: "KeyR" }), null)).toBe("anot-regla");
+    }
+    document.body.removeAttribute("data-hud");
+  });
 });
-it("resuelve R, A, G, T, Supr y Retroceso, y respeta H/P", () => {
+it("resuelve R, A, G, T, Supr y Retroceso", () => {
   expect(matchShortcut(ev({ key: "r", code: "KeyR" }), null)).toBe("anot-regla");
   expect(matchShortcut(ev({ key: "a", code: "KeyA" }), null)).toBe("anot-angulo");
   expect(matchShortcut(ev({ key: "g", code: "KeyG" }), null)).toBe("anot-region");
   expect(matchShortcut(ev({ key: "t", code: "KeyT" }), null)).toBe("anot-marcador");
   expect(matchShortcut(ev({ key: "Delete", code: "Delete" }), null)).toBe("anot-borrar");
   expect(matchShortcut(ev({ key: "Backspace", code: "Backspace" }), null)).toBe("anot-deshacer-punto");
-  expect(matchShortcut(ev({ key: "h", code: "KeyH" }), null)).toBeNull();
   const input = document.createElement("input");
   expect(matchShortcut(ev({ key: "r", code: "KeyR" }), input)).toBeNull();
   expect(matchShortcut(ev({ key: "Backspace", code: "Backspace" }), input)).toBeNull();

@@ -4,7 +4,7 @@
 
    Quién ejecuta cada cosa:
    - Workspace (manejador global): Esc, «?», los dígitos de paso, y reenvía al
-     visor S, C, espacio y +/− por el evento `viewer:shortcut`.
+     visor S, H, C, espacio y +/− por el evento `viewer:shortcut`.
    - Alt+1…4 siguen en su único camino, `presetForKey` (layoutShortcuts): aquí
      solo se listan; si Workspace también los atendiera, se dispararían dos veces.
    - Flechas, Re Pág/Av Pág, Inicio/Fin las atiende cada celda en su onKeyDown
@@ -15,9 +15,9 @@ import { PAGE_STEP } from "./cine";
 export type ShortcutScope = "visor" | "celda" | "flujo";
 export interface Shortcut { id: string; keys: string; action: string; scope: ShortcutScope }
 
-/** H y P no se asignan: se dejan libres a propósito (spec E1) para lo que
- *  venga después, y la prueba de la tabla lo vigila. */
-export const RESERVED_KEYS = ["H", "P"];
+/** P no se asigna todavía: queda libre a propósito (spec E1) para lo que
+ *  venga después, y la prueba de la tabla lo vigila. H ya es el nivel del HUD. */
+export const RESERVED_KEYS = ["P"];
 
 const STEP_COUNT = 8;
 
@@ -28,6 +28,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "preset-abajo", keys: "Alt+3", action: "Distribución ABAJO", scope: "visor" },
   { id: "preset-cuatro", keys: "Alt+4", action: "Distribución CUATRO", scope: "visor" },
   { id: "sync", keys: "S", action: "Encender o apagar SINCRO", scope: "visor" },
+  { id: "hud-cycle", keys: "H", action: "Nivel del HUD: completo · esencial · limpio", scope: "visor" },
   { id: "anot-regla", keys: "R", action: "Regla: dos puntos", scope: "visor" },
   { id: "anot-angulo", keys: "A", action: "Ángulo: tres puntos", scope: "visor" },
   { id: "anot-region", keys: "G", action: "Región: contorno en un corte", scope: "visor" },
@@ -85,6 +86,7 @@ export function matchShortcut(
     return tag === "BUTTON" || tag === "A" ? null : "cine-toggle";
   }
   if (e.code === "KeyS") return "sync";
+  if (e.code === "KeyH") return "hud-cycle";
   if (e.code === "KeyC") return "center";
   // Anotaciones: R/A/G/T arman la herramienta; Supr borra la seleccionada y
   // Retroceso quita el último punto. Si hay algo que hacer lo decide el visor.

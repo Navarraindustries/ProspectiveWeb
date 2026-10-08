@@ -235,6 +235,7 @@ export function MeshView({
   orientation,
   onCameraChange,
   insetRaised = false,
+  showInset = true,
   handles: handleList = NO_HANDLES,
   onHandleDrag,
   onHandleDoubleClick,
@@ -291,6 +292,8 @@ export function MeshView({
   /** Sube el recuadro del maniquí por encima de la leyenda de abajo a la
    *  derecha (dispositivos, bandas de perforantes) para no taparla. */
   insetRaised?: boolean;
+  /** El recuadro del maniquí; false con el HUD limpio (el CSS no llega a vtk). */
+  showInset?: boolean;
   /** Asas agarrables en la capa superior. Con la lista vacía el ratón es todo
    *  de la cámara, igual que antes de que existieran. */
   handles?: Handle[];
@@ -858,6 +861,9 @@ export function MeshView({
   useEffect(() => {
     insetRef.current?.setRaised(insetRaised);
   }, [key, insetRaised]);
+  useEffect(() => {
+    insetRef.current?.setVisible(showInset);
+  }, [key, showInset]);
 
   // ── Appearance (opacity/color): update actors in place, never rebuild the ──
   //    scene — so dimming a heavy mesh (e.g. entering a pick mode) is instant. ─ #

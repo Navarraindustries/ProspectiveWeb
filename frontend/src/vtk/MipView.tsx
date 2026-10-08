@@ -94,7 +94,7 @@ function cameraToPlane(grw: vtkGenericRenderWindow, image: vtkImageData, plane: 
   renderer.resetCamera();
 }
 
-export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit, overlay }: {
+export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit, overlay, showInset = true }: {
   image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean;
   /** Eje en el que acumula y que recorre la rueda. */
   plane: Plane;
@@ -110,6 +110,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
    *  compacta se apila con la fila de preajustes de COMPUESTO: si la fila se
    *  parte en dos líneas, empuja la barra hacia arriba en vez de pisarla. */
   overlay?: ReactNode;
+  /** El recuadro del maniquí; false con el HUD limpio (el CSS no llega a vtk). */
+  showInset?: boolean;
 }) {
   const {
     mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
@@ -354,6 +356,10 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     placeInset();
     scene.current?.grw.getRenderWindow().render();
   }, [compact, image, volumeMode]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // Con `image` también: un volumen nuevo estrena recuadro, encendido.
+  useEffect(() => {
+    insetRef.current?.setVisible(showInset);
+  }, [image, showInset]);
 
   // Modo de mezcla y función de transferencia van juntos: cada modo tiene la
   // suya. MIP: «Vasos» gris, opaca desde el umbral inferior. COMPUESTO: el
@@ -593,7 +599,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
         {trace && (
           // Dónde está el corte dentro de lo que se ve: en el color de su
           // plano (PLANE_HEX) al 60 %, sin capturar el ratón, y oculta con
-          // REGLAS ○ como el resto de líneas.
+          // el HUD esencial o limpio como el resto de líneas.
           <svg className="hud-decor" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
             {trace.split("|").map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={libre ? PLANE_HEX.libre : PLANE_HEX[plane]} strokeOpacity={0.6} strokeWidth={1} />)}
           </svg>

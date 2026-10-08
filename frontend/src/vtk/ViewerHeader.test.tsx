@@ -10,7 +10,7 @@ function setup(over: Partial<ViewerHeaderProps> = {}) {
     onLayoutChange: vi.fn(),
     onKeyDown: vi.fn(),
     planesHidden: false, onPlanesHiddenChange: vi.fn(),
-    decorHidden: false, onDecorHiddenChange: vi.fn(),
+    hudLevel: "completo", onHudLevelChange: vi.fn(),
     syncViews: true, onSyncViewsChange: vi.fn(),
     hasClipField: false, showClipField: false, clipRehearsal: false, onShowClipFieldChange: vi.fn(),
     ...over,
@@ -80,14 +80,41 @@ describe("ViewerHeader — ancho de la banda", () => {
 });
 
 describe("ViewerHeader — conmutadores y teclas", () => {
-  it("PLANOS, REGLAS y SINCRO avisan con el valor contrario", () => {
-    const { props } = setup({ planesHidden: true, decorHidden: false, syncViews: true });
+  it("PLANOS y SINCRO avisan con el valor contrario", () => {
+    const { props } = setup({ planesHidden: true, syncViews: true });
     fireEvent.click(screen.getByRole("button", { name: /PLANOS ○/ }));
-    fireEvent.click(screen.getByRole("button", { name: /REGLAS ●/ }));
     fireEvent.click(screen.getByRole("button", { name: /SINCRO ●/ }));
     expect(props.onPlanesHiddenChange).toHaveBeenCalledWith(false);
-    expect(props.onDecorHiddenChange).toHaveBeenCalledWith(true);
     expect(props.onSyncViewsChange).toHaveBeenCalledWith(false);
+  });
+
+  it("el grupo HUD ▸ tiene los tres niveles, marca el actual y avisa del elegido", () => {
+    stubBandWidth(1200);
+    const { props } = setup({ hudLevel: "esencial" });
+    expect(screen.getByTitle("Nivel del HUD (H)")).toHaveTextContent(/^HUD ▸/);
+    expect(screen.getByRole("button", { name: /^\[ ESENCIAL \]$/ })).toHaveAttribute("aria-pressed", "true");
+    for (const [label, level] of [["COMPLETO", "completo"], ["ESENCIAL", "esencial"], ["LIMPIO", "limpio"]] as const) {
+      expect(screen.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("title", `HUD ${level} (H)`);
+    }
+    fireEvent.click(screen.getByRole("button", { name: /^LIMPIO$/ }));
+    expect(props.onHudLevelChange).toHaveBeenCalledWith("limpio");
+  });
+
+  it("estrecha (< 800 px) abrevia el grupo a HUD ▸ C · E · L", () => {
+    stubBandWidth(700);
+    setup({ hudLevel: "completo" });
+    expect(screen.getByRole("button", { name: /^\[ C \]$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^E$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^L$/ })).toBeInTheDocument();
+  });
+
+  it("PLANOS emite con cualquier nivel del HUD", () => {
+    for (const hudLevel of ["completo", "esencial", "limpio"] as const) {
+      const { props, unmount } = setup({ hudLevel, planesHidden: false });
+      fireEvent.click(screen.getByRole("button", { name: /PLANOS ●/ }));
+      expect(props.onPlanesHiddenChange).toHaveBeenCalledWith(true);
+      unmount();
+    }
   });
 
   it("CALOR solo aparece con campo del clip y se apaga durante el ensayo", () => {

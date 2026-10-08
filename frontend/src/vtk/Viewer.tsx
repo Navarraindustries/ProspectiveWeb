@@ -34,7 +34,10 @@ import { api } from "../api/client";
 import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
-import { PREF_DECOR_HIDDEN, PREF_PLANES_HIDDEN, readCineFps, useStoredFlag, writeCineFps } from "./viewerPrefs";
+import {
+  HUD_LEVELS, nextHudLevel, PREF_HUD_LEVEL, PREF_PLANES_HIDDEN, readCineFps, readHudLevel, useStoredChoice, useStoredFlag, writeCineFps,
+  type HudLevel,
+} from "./viewerPrefs";
 import { applyStep, cineShouldStop, clampFps, nextIndex } from "./cine";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
@@ -231,15 +234,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
   } = usePlanning();
 
-  // La vista sin su decoración: preferencia del profesional, en su navegador
-  // (ver solo la principal es ahora el preset «sola» de la distribución). La
-  // ref la leen la captura y la grabación, que se publican una vez y no
-  // pueden depender del render.
-  const [decorHidden, setDecorHidden] = useStoredFlag(PREF_DECOR_HIDDEN);
-  const decorHiddenRef = useRef(decorHidden);
-  decorHiddenRef.current = decorHidden;
-  // Los planos de corte en el 3D también son decoración de la vista: se quitan
-  // con PLANOS o con REGLAS, y es una preferencia de quien mira, no del caso.
+  // Cuánto HUD se ve (completo · esencial · limpio, tecla H): preferencia del
+  // profesional, en su navegador; la rejilla lo publica como `data-hud` y lo
+  // aplica hud.css. La ref la lee el estado del visor, que se publica una vez
+  // y no puede depender del render.
+  const [hudLevel, setHudLevel] = useStoredChoice(PREF_HUD_LEVEL, HUD_LEVELS, "completo", readHudLevel);
+  const hudLevelRef = useRef(hudLevel);
+  hudLevelRef.current = hudLevel;
+  // Los planos de corte en el 3D van solo con PLANOS, en cualquier nivel del
+  // HUD: son geometría de la escena que se quiere ver o no, no HUD. Es una
+  // preferencia de quien mira, no del caso.
   const [planesHidden, setPlanesHidden] = useStoredFlag(PREF_PLANES_HIDDEN);
   const planesHiddenRef = useRef(planesHidden);
   planesHiddenRef.current = planesHidden;
@@ -507,7 +511,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   annotationsRef.current = annotations;
   const estadoVisor = useCallback((root: HTMLElement): Record<string, unknown> => ({
     layout: layoutRef.current,
-    hud_decor_hidden: decorHiddenRef.current,
+    hud_level: hudLevelRef.current,
     planes_hidden: planesHiddenRef.current,
     volume_mode: volumeModeRef.current,
     volume_preset: volumePresetRef.current,
@@ -872,7 +876,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     };
   }, [viewMode, meta, clientVol.image, mprVoxel, mprWl]);
 
-  const showPlanes = !planesHidden && !decorHidden && !!meta;
+  const showPlanes = !planesHidden && !!meta;
   // El plano libre se enseña donde significa algo: en la vista Oblicuo, que lo
   // corta, o cuando VOLUMEN recorta por él. Con el recorte por eje sería ruido.
   const showFreePlane = showPlanes && (viewMode === "oblique" || clipMode === "libre");
@@ -880,7 +884,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     () => (showPlanes ? planeOutlines(mprVoxel, meta, showFreePlane ? freePlane : null) : []),
     [showPlanes, showFreePlane, freePlane, meta, mprVoxel],
   );
-  // Las asas de los planos salen con sus contornos (PLANOS/REGLAS, y el libre
+  // Las asas de los planos salen con sus contornos (PLANOS, y el libre
   // solo en Oblicuo o con VOLUMEN en LIBRE); el clip conserva su propia puerta.
   const sceneHandles = useMemo(() => [...clipGizmoHandles, ...planeHandles(planes)], [clipGizmoHandles, planes]);
   const planesRef = useRef(planes);
@@ -1258,6 +1262,27 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, []);
   const showHint = useCallback((kind: HintKind) => showHintText(HINT_TEXT[kind]), [showHintText]);
 
+  // Pista del nivel del HUD («HUD esencial»), arriba y 1,2 s. Aparte de la de
+  // la vista: esa la esconden los niveles y, al cargar, el cambio de pista de
+  // la principal (llega la sesión) la pisaría antes de leerse.
+  const [levelHint, setLevelHint] = useState<{ text: string; seq: number } | null>(null);
+  const levelHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showLevelHint = useCallback((level: HudLevel) => {
+    setLevelHint((p) => ({ text: `HUD ${level}`, seq: (p?.seq ?? 0) + 1 }));
+    if (levelHintTimer.current) clearTimeout(levelHintTimer.current);
+    levelHintTimer.current = setTimeout(() => setLevelHint(null), 1200);
+  }, []);
+  const changeHudLevel = useCallback((level: HudLevel) => {
+    setHudLevel(level);
+    showLevelHint(level);
+  }, [setHudLevel, showLevelHint]);
+  // Al abrir el visor fuera de completo se dice una vez: si no, un HUD
+  // esencial heredado de la última sesión parecería un visor roto.
+  useEffect(() => {
+    if (hudLevelRef.current !== "completo") showLevelHint(hudLevelRef.current);
+    return () => { if (levelHintTimer.current) clearTimeout(levelHintTimer.current); };
+  }, [showLevelHint]);
+
   // Cierra el borrador como anotación nueva: queda elegida y el modo se desarma.
   const finishAnnotation = useCallback((points: Vec3[], plane: AnnotationPlane | null) => {
     const kind = kindOfMode(pickMode);
@@ -1409,7 +1434,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // hay nada que enseñar. «?» ya no la repite: abre la hoja de atajos, que
   // tiene todas las teclas y no se desvanece.
   const mainRotatable = viewerLayout.main === "scene" && sceneHasMesh;
-  const hintKind: HintKind | null = viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
+  // En limpio no hay pista: es pantalla para la imagen.
+  const hintKind: HintKind | null = hudLevel === "limpio" ? null
+    : viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
   useEffect(() => {
     if (hintKind) showHint(hintKind);
     else setHint(null);
@@ -1435,6 +1462,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const pane = focusedPane ?? viewerLayout.main;
     switch (id) {
       case "sync": setSyncViews(!syncViews); return;
+      // Ningún atajo mira el nivel: en limpio todos siguen actuando.
+      case "hud-cycle": changeHudLevel(nextHudLevel(hudLevel)); return;
       case "help": openSheet(); return;
       case "anot-regla": case "anot-angulo": case "anot-region": case "anot-marcador": {
         // Misma tecla otra vez desarma; setPickMode ya vacía el borrador al cambiar.
@@ -1556,7 +1585,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       return (
         <Suspense fallback={<ViewerLoading label="Cargando VOLUMEN…" />}>
           <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} registerFit={regFit("mip")}
-            overlay={cineBarFor("mip", compact)} />
+            overlay={cineBarFor("mip", compact)} showInset={hudLevel !== "limpio"} />
         </Suspense>
       );
     }
@@ -1644,7 +1673,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             preserveCamera={step === "devices"}
             handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}
-            orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} />
+            orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio"} />
         </Suspense>
       );
       mode = viewMode === "slices3d"
@@ -1787,7 +1816,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   };
 
   return (
-    <div ref={viewerRef} className={decorHidden ? "hud-nodecor" : undefined}
+    <div ref={viewerRef}
          style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
       {sessionId && (
         <OrientationSheet open={orientationOpen} onClose={() => setOrientationOpen(false)} sessionId={sessionId}
@@ -1806,7 +1835,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       <ViewerHeader
         layout={viewerLayout} onLayoutChange={setViewerLayout} onKeyDown={onLayoutKey}
         planesHidden={planesHidden} onPlanesHiddenChange={setPlanesHidden}
-        decorHidden={decorHidden} onDecorHiddenChange={setDecorHidden}
+        hudLevel={hudLevel} onHudLevelChange={changeHudLevel}
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
         hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
         onShowClipFieldChange={setShowClipField} onHelp={openSheet} />
@@ -1814,7 +1843,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;
           nunca desde un campo de texto (presetForKey). Los dígitos solos son
           del salto de paso de Workspace, que ignora Alt. */}
-      <div ref={gridHostRef} style={{ flex: "1 1 0", position: "relative", minHeight: 0, overflow: "hidden" }}
+      {/* `data-hud` en la rejilla y no en la raíz: la banda de cabecera queda
+          fuera, y sus botones (HUD ▸ incluido) se ven en cualquier nivel. */}
+      <div ref={gridHostRef} data-hud={hudLevel} style={{ flex: "1 1 0", position: "relative", minHeight: 0, overflow: "hidden" }}
            tabIndex={0}
            // Los lienzos de vtk.js y los cortes anulan la acción por defecto del
            // puntero, y con ella el foco: sin esto, pinchar en el visor dejaba
@@ -1851,6 +1882,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
               {/* Pista de la principal: fuera de renderPane/renderScene porque
                   aplica igual a la escena 3D, el MIP o un corte. */}
               {hint && <div key={hintSeq} className="hud-hint">{hint}</div>}
+              {levelHint && <div key={`nivel-${levelHint.seq}`} className="hud-hint hud-hint-level">{levelHint.text}</div>}
             </>
           }
         />

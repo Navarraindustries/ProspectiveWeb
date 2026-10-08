@@ -36,8 +36,8 @@ describe("preferencias de vista", () => {
 });
 
 describe("qué es decoración", () => {
-  // `.hud-nodecor` oculta `.hud-decor` y `.hud-corner` (hud.css). jsdom no
-  // aplica el CSS, así que se comprueba quién lleva la marca y quién no.
+  // Los niveles esencial y limpio ocultan `.hud-decor` y `.hud-corner`
+  // (hud.css, probado en hudLevel.test); aquí, quién lleva la marca y quién no.
   it("reglas, retícula, cinta de rumbo y esquinas llevan la marca", () => {
     const { container } = render(
       <div>

@@ -19,7 +19,7 @@
 .hud-toggle button[aria-pressed="true"] { color: var(--hud); border-bottom: var(--hud-line) solid var(--hud); }
 .hud-toggle button:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
 /* Cine de la celda: encima de la lectura de abajo a la izquierda. Sin
-   `hud-decor`: es un control y se ve también con REGLAS ○. */
+   `hud-decor`: es un control y se ve en esencial; en limpio, solo reproduciendo. */
 .hud-cine { position: absolute; left: 14px; bottom: 40px; z-index: 6; display: inline-flex; align-items: center; gap: 8px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-dim); white-space: nowrap; }
 .hud-cine button { background: none; border: none; padding: 1px 2px; font: inherit; font-size: 11px; color: var(--hud-dim); cursor: pointer; }
 .hud-cine button:hover:not(:disabled), .hud-cine .hud-cine-play { color: var(--hud); }
@@ -38,15 +38,29 @@
 .hud-warn { color: var(--hud-amber); } .hud-err { color: var(--hud-red); }
 .hud-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 10.5px; letter-spacing: .06em; color: var(--hud-dim); animation: hud-hint-fade 3s forwards; }
 @keyframes hud-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
-/* «REGLAS ○»: fuera la decoración —esquinas, cinta de rumbo, escalera de
-   cortes, retícula y líneas de referencia—. Se quedan el texto que sitúa la
-   imagen (letras de orientación, número de corte, medidas) y los avisos. */
-.hud-nodecor .hud-decor, .hud-nodecor .hud-corner { display: none !important; }
-/* Con la escalera oculta, la letra derecha vuelve a su sitio. */
-.hud-nodecor .hud-edge.right.beside-ladder { right: 8px; }
+/* La pista del cambio de nivel («HUD esencial»): arriba y breve. No es la
+   pista de la vista, así que los niveles no la esconden (si no, al pulsar H
+   no se vería a qué nivel se ha ido). */
+.hud-hint.hud-hint-level { top: 38px; bottom: auto; animation-duration: 1.2s; }
+
+/* Niveles del HUD (`data-hud` en la rejilla del visor; la banda de cabecera
+   queda fuera y sus botones siguen a la vista). Los maniquíes 3D/MIP son
+   viewports de vtk: los apaga `showInset`, no esta hoja.
+   Esencial: fuera la decoración y los botones; quedan rótulo, lecturas,
+   escalera, escala y barra de cine. `.hud-stack` no se esconde entero: es
+   solo la columna que apila los botones de VOLUMEN (ya `.hud-toggle`) con
+   la barra del cine, que tiene que seguir viéndose. */
+[data-hud="esencial"] .hud-decor:not(.hud-ladder), [data-hud="esencial"] .hud-corner,
+[data-hud="esencial"] .hud-toggle, [data-hud="esencial"] .hud-hint:not(.hud-hint-level) { display: none !important; }
+[data-hud="esencial"] .hud-edge.right.beside-ladder { right: 48px; }   /* la escalera se queda */
+/* Limpio: solo la imagen y las anotaciones; el cine solo mientras reproduce,
+   para poder pararlo con el ratón. */
+[data-hud="limpio"] .hud-decor, [data-hud="limpio"] .hud-corner, [data-hud="limpio"] .hud-toggle,
+[data-hud="limpio"] .hud-hint:not(.hud-hint-level), [data-hud="limpio"] .hud-label, [data-hud="limpio"] .hud-readout, [data-hud="limpio"] .hud-edge,
+[data-hud="limpio"] .hud-scale, [data-hud="limpio"] .hud-cine:not(.playing) { display: none !important; }
 
 /* Anotaciones (cortes y 3D). Sin `hud-decor`: son datos del caso y se ven
-   también con REGLAS ○. Ancho y alto explícitos: un <svg> absoluto no se
+   en cualquier nivel del HUD. Ancho y alto explícitos: un <svg> absoluto no se
    estira con inset como un div, se queda en 300×150. */
 .hud-anot { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .hud-anot text { font: 10.5px var(--font-mono); paint-order: stroke; stroke: #000; stroke-width: 3px; stroke-linejoin: round; }

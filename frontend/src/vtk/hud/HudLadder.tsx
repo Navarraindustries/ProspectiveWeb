@@ -23,7 +23,7 @@ export function HudLadder({ count, index, onIndexChange }: { count: number; inde
     onIndexChange?.(indexAtY(e.clientY - r.top, count, index, h));
   };
   return (
-    <div ref={ref} className="hud-decor"
+    <div ref={ref} className="hud-decor hud-ladder"
       onPointerDown={onIndexChange ? (e) => {
         if (e.button !== 0 || h <= 0) return;
         // La escalera es suya: que la celda no lo tome como arrastre de ventana/nivel.

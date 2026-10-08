@@ -2,7 +2,7 @@
    session id, DICOM series, thresholds, segmentation, detection, morphometry… */
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import type { PartsHandle } from "../vtk/MeshView";
 import type { FrameSource } from "../vtk/viewerRecorder";
 
@@ -29,8 +29,10 @@ import { mmToVoxel, type ManualOrientation, type Plane } from "../vtk/geometry";
 import type { VolumePreset } from "../vtk/volumePresets";
 import { clampPlane, DEFAULT_FREE_PLANE, type FreePlane } from "../vtk/freePlane";
 import { clampTilt } from "../vtk/clipPose";
+import type { Annotation } from "../vtk/annotations";
 import type {
   AneurysmCandidate,
+  AnnotationKind,
   DeviceKind,
   MorphometryResult,
   PatientSummary,
@@ -96,17 +98,22 @@ interface PlanningState {
   mprWl: { wc: number; ww: number } | null;
   /** Crosshair voxel shared by every MPR view, so navigating in one moves all. */
   mprVoxel: { x: number; y: number; z: number };
-  /** Active 3D-pick mode: centreline endpoints, a measurement, or the neck plane. */
+  /** Active pick mode: centreline endpoints, the neck plane, an annotation… */
   pickMode: PickMode;
   clSource: Vec3 | null;
   clTarget: Vec3 | null;
   /** Semi-automatic neck plane: a point on the neck and the dome apex (click on the mesh). */
   neckOrigin: Vec3 | null;
   neckDome: Vec3 | null;
-  /** 3D caliper measurements (distance between two picked points). */
-  measurements: Measurement[];
-  /** First endpoint of an in-progress measurement (waiting for the second click). */
-  measurePending: Vec3 | null;
+  /** Anotaciones del estudio (reglas, ángulos, regiones, marcadores); se guardan con la sesión. */
+  annotations: Annotation[];
+  /** Puntos ya pinchados de la anotación en curso, a la espera de los que faltan. */
+  annotationDraft: Vec3[];
+  selectedAnnotation: string | null;
+  /** Estado del guardado de anotaciones en el servidor (lo escribe el hook de guardado). */
+  annotationsSync: "guardado" | "guardando" | "error";
+  /** El hook de guardado deja aquí su «guarda ya»; saveProgress lo espera antes de guardar. */
+  annotationsFlushRef: RefObject<(() => Promise<void>) | null>;
   /** Seed points placed on the volume for grow-from-seeds segmentation. */
   /** Points marked around the neck rim. With three or more the neck plane is
    *  fitted to them instead of assuming it is perpendicular to the dome axis. */
@@ -305,8 +312,12 @@ interface PlanningState {
   setClTarget: (p: Vec3 | null) => void;
   setNeckOrigin: (p: Vec3 | null) => void;
   setNeckDome: (p: Vec3 | null) => void;
-  setMeasurements: (m: Measurement[]) => void;
-  setMeasurePending: (p: Vec3 | null) => void;
+  setAnnotations: (a: Annotation[] | ((prev: Annotation[]) => Annotation[])) => void;
+  setAnnotationDraft: (p: Vec3[]) => void;
+  setSelectedAnnotation: (id: string | null) => void;
+  setAnnotationsSync: (s: "guardado" | "guardando" | "error") => void;
+  /** Lo que llega del servidor al reanudar: no es un cambio del usuario, no ensucia. */
+  setAnnotationsLoaded: (a: Annotation[]) => void;
   setNeckRim: (s: Vec3[]) => void;
   setScissorsPoints: (p: Vec3[]) => void;
   setScissorsPreview: (url: string | null) => void;
@@ -355,19 +366,21 @@ export interface FollowupOverlay {
   noise: number;
 }
 export type PickMode =
-  | "cl_source" | "cl_target" | "measure" | "neck_origin" | "neck_dome"
+  | "cl_source" | "cl_target" | "neck_origin" | "neck_dome"
   | "neck_rim"
   | "scissors"
   | "crop_center" | "erase_piece" | "traj_entry" | "traj_target"
-  | "lesion_mark" | null;
+  | "lesion_mark"
+  | "anot_regla" | "anot_angulo" | "anot_region" | "anot_marcador" | null;
 
-export interface Measurement {
-  id: number;
-  a: Vec3;
-  b: Vec3;
-  distance: number; // mm
-  label: string;
-  visible: boolean;
+export const ANNOTATION_MODES: Record<AnnotationKind, PickMode> = {
+  regla: "anot_regla", angulo: "anot_angulo", region: "anot_region", marcador: "anot_marcador",
+};
+
+/** El tipo de anotación que arma un modo de pinchado, o null si no es de anotación. */
+export function kindOfMode(m: PickMode): AnnotationKind | null {
+  const hit = (Object.keys(ANNOTATION_MODES) as AnnotationKind[]).find((k) => ANNOTATION_MODES[k] === m);
+  return hit ?? null;
 }
 
 export type StentMap = "apposition" | "coverage";
@@ -406,13 +419,26 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [stentMap, setStentMap] = useState<StentMap>("apposition");
   const [mprWl, setMprWl] = useState<{ wc: number; ww: number } | null>(null);
   const [mprVoxel, setMprVoxel] = useState({ x: 0, y: 0, z: 0 });
-  const [pickMode, setPickMode] = useState<PickMode>(null);
+  const [pickMode, _setPickMode] = useState<PickMode>(null);
+  const [annotationDraft, setAnnotationDraft] = useState<Vec3[]>([]);
+  // WHY: un borrador a medias pertenece al modo que lo empezó; si el modo
+  // cambia (otro tipo, otra herramienta o ninguno), sus puntos ya no cierran
+  // nada y se quedarían pintados en el visor. Con ref para comparar con el
+  // modo vigente aunque haya dos llamadas en el mismo tick.
+  const pickModeRef = useRef<PickMode>(null);
+  const setPickMode = useCallback((m: PickMode) => {
+    if (m !== pickModeRef.current) setAnnotationDraft([]);
+    pickModeRef.current = m;
+    _setPickMode(m);
+  }, []);
   const [clSource, setClSource] = useState<Vec3 | null>(null);
   const [clTarget, setClTarget] = useState<Vec3 | null>(null);
   const [neckOrigin, setNeckOrigin] = useState<Vec3 | null>(null);
   const [neckDome, setNeckDome] = useState<Vec3 | null>(null);
-  const [measurements, _setMeasurements] = useState<Measurement[]>([]);
-  const [measurePending, setMeasurePending] = useState<Vec3 | null>(null);
+  const [annotations, _setAnnotations] = useState<Annotation[]>([]);
+  const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
+  const [annotationsSync, setAnnotationsSync] = useState<"guardado" | "guardando" | "error">("guardado");
+  const annotationsFlushRef = useRef<(() => Promise<void>) | null>(null);
   const [neckRim, setNeckRim] = useState<Vec3[]>([]);
   const [scissorsPoints, setScissorsPoints] = useState<Vec3[]>([]);
   const [scissorsPreview, setScissorsPreview] = useState<string | null>(null);
@@ -537,7 +563,11 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setNeckRim([]);
   };
   const setCenterlineMesh = touch(_setCenterlineMesh);
-  const setMeasurements = touch(_setMeasurements);
+  const setAnnotations = useCallback((a: Annotation[] | ((prev: Annotation[]) => Annotation[])) => {
+    _setAnnotations((prev) => (typeof a === "function" ? a(prev) : a));
+    setDirty(true);
+  }, []);
+  const setAnnotationsLoaded = useCallback((a: Annotation[]) => _setAnnotations(a), []);
   const setDeviceMesh = (kind: DeviceKind, url: string | null) => {
     _setDeviceMeshes((d) => ({ ...d, [kind]: url }));
     setDirty(true);
@@ -587,8 +617,10 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     _setPerforators([]);
     setPerforatorZones(null);
     setVisiblePerforators([]);
-    _setMeasurements([]);
-    setMeasurePending(null);
+    // Las anotaciones señalan sitios de la malla y los cortes de este estudio.
+    _setAnnotations([]);
+    setAnnotationDraft([]);
+    setSelectedAnnotation(null);
     setCropCenter(null);
     setLesionMark(null);
     setFollowup(null);
@@ -640,7 +672,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
@@ -649,7 +681,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setCine, setFocusedPane,

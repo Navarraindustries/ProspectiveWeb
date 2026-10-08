@@ -8,7 +8,8 @@
    axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
-import { usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
+import { kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
+import { nextLabel, POINTS_NEEDED, type Annotation } from "./annotations";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
@@ -120,8 +121,8 @@ const CAMERA_BUTTONS: [CameraView, string, string][] = [
 const CENTERLINE_COLOR: Vector3 = [0.36, 0.85, 0.86]; // cyan — vessel centreline tube
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
 const TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29];     // red — picked target endpoint
-const MEASURE_COLOR: Vector3 = [0.98, 0.75, 0.18];    // amber — caliper rulers
-const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — first measurement point
+const MEASURE_COLOR: Vector3 = [0.98, 0.75, 0.18];    // amber — annotation in progress
+const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — draft annotation points
 const NECK_ORIGIN_COLOR: Vector3 = [0.85, 0.35, 0.85]; // magenta — neck-plane point
 const NECK_DOME_COLOR: Vector3 = [0.36, 0.85, 0.86];   // cyan — dome apex
 const NECK_RIM_COLOR: Vector3 = [0.90, 0.45, 0.95];    // violet — marked neck rim
@@ -210,7 +211,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
-    measurements, measurePending, setMeasurements, setMeasurePending, previewBand, previewMeshUrl,
+    annotations, setAnnotations, annotationDraft, setAnnotationDraft, setSelectedAnnotation, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
@@ -1070,7 +1071,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const out: MeshMarker[] = [];
     if (clSource) out.push({ pos: clSource, color: SOURCE_COLOR });
     if (clTarget) out.push({ pos: clTarget, color: TARGET_COLOR });
-    if (measurePending) out.push({ pos: measurePending, color: PENDING_COLOR });
+    for (const p of annotationDraft) out.push({ pos: p, color: PENDING_COLOR });
     if (neckOrigin) out.push({ pos: neckOrigin, color: NECK_ORIGIN_COLOR });
     if (neckDome) out.push({ pos: neckDome, color: NECK_DOME_COLOR });
     for (const r of neckRim) out.push({ pos: r, color: NECK_RIM_COLOR });
@@ -1092,7 +1093,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, measurePending, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, annotationDraft, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
 
   // El punto compartido de los cortes, con radio fijo en mm (no depende de la
   // escena). Va aparte de `markers`: MeshView lo dibuja encima de la malla.
@@ -1114,9 +1115,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [perforatorZones]);
 
   const lines = useMemo<MeshLine[]>(() => {
-    const out: MeshLine[] = measurements
-      .filter((m) => m.visible)
-      .map((m) => ({ a: m.a, b: m.b, color: MEASURE_COLOR }));
+    // WHY: los tramos ya pinchados del borrador; un ángulo a medias enseña su
+    // primer brazo y se ve dónde caerá el vértice.
+    const out: MeshLine[] = annotationDraft.slice(1)
+      .map((b, i) => ({ a: annotationDraft[i], b, color: MEASURE_COLOR }));
     // El abordaje no es una regla: es el CORREDOR por el que tiene que caber el
     // clip con su aplicador. Dibujarlo con su radio real y translúcido es lo
     // que hace que el ensayo de colocación enseñe la maniobra y no una flecha.
@@ -1126,7 +1128,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     if (overlay) out.push(...overlay.lines);
     return out;
-  }, [measurements, trajEntry, trajTarget, overlay]);
+  }, [annotationDraft, trajEntry, trajTarget, overlay]);
 
   // Translucent preview of the crop ROI so the user SEES what will be kept
   // (cyan) or removed (red) before applying — the crop is otherwise blind.
@@ -1213,6 +1215,30 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [canCenter, setCenterOnLesion]);
   useEffect(() => () => setCenterOnLesion(null), [setCenterOnLesion]);
 
+  // Cierra el borrador como anotación nueva: queda elegida y el modo se desarma.
+  const finishAnnotation = useCallback((points: Vec3[], plane: null) => {
+    const kind = kindOfMode(pickMode);
+    if (!kind) return;
+    const a: Annotation = {
+      id: crypto.randomUUID(), kind, points, plane, label: nextLabel(kind, annotations), note: "",
+      visible: true, created_at: new Date().toISOString(), created_by: "",
+    };
+    setAnnotations((p) => [...p, a]);
+    setSelectedAnnotation(a.id);
+    setAnnotationDraft([]);
+    setPickMode(null);
+  }, [pickMode, annotations, setAnnotations, setSelectedAnnotation, setAnnotationDraft, setPickMode]);
+
+  const addAnnotationPoint = useCallback((xyz: Vec3, plane: null) => {
+    const kind = kindOfMode(pickMode);
+    // WHY: una región es un contorno sobre un corte; en la malla 3D sus puntos
+    // no caen en un plano y el área no significaría nada. El aviso lo dice.
+    if (!kind || kind === "region") return;
+    const draft = [...annotationDraft, xyz];
+    if (draft.length === POINTS_NEEDED[kind]) finishAnnotation(draft, plane);
+    else setAnnotationDraft(draft);
+  }, [pickMode, annotationDraft, finishAnnotation, setAnnotationDraft]);
+
   const onPick = useCallback(
     (xyz: [number, number, number]) => {
       // Cualquier punto marcado en el 3D es también el nuevo foco común: los
@@ -1233,19 +1259,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // Also stays armed: the rim needs at least three points to define a plane.
       else if (pickMode === "neck_rim") { setNeckRim([...neckRim, xyz]); }
       else if (pickMode === "scissors") { setScissorsPoints([...scissorsPoints, xyz]); }
-      else if (pickMode === "measure") {
-        if (!measurePending) {
-          setMeasurePending(xyz);           // first click — wait for the second
-        } else {
-          const d = Math.hypot(xyz[0] - measurePending[0], xyz[1] - measurePending[1], xyz[2] - measurePending[2]);
-          const nextId = (measurements.reduce((mx, m) => Math.max(mx, m.id), 0)) + 1;
-          setMeasurements([...measurements, { id: nextId, a: measurePending, b: xyz, distance: d, label: `M${nextId}`, visible: true }]);
-          setMeasurePending(null);
-          setPickMode(null);
-        }
-      }
+      else if (kindOfMode(pickMode)) addAnnotationPoint(xyz, null);
     },
-    [pickMode, measurePending, measurements, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, setMeasurePending, setMeasurements, focusFromMm, syncViews, meta],
+    [pickMode, addAnnotationPoint, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, focusFromMm, syncViews, meta],
   );
 
   // Un marcado se hace sobre la malla: si la escena es una vista lateral, sube
@@ -1634,7 +1650,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         {pickMode && meshUrl && (
           <div className={`hud-readout${pickMiss ? " hud-err" : ""}`}
                style={{ top: 40, left: "50%", transform: "translateX(-50%)", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: pickMiss ? undefined : "var(--hud)", pointerEvents: "none", zIndex: 5 }}>
-            {(pickMiss ? "Clic fuera de la malla — haz clic sobre la superficie 3D" : pickText(pickMode, measurePending !== null, pickMode === "scissors" ? scissorsPoints.length : neckRim.length)).toUpperCase()}
+            {(pickMiss ? "Clic fuera de la malla — haz clic sobre la superficie 3D" : pickText(pickMode, annotationDraft.length, pickMode === "scissors" ? scissorsPoints.length : neckRim.length)).toUpperCase()}
             {"\nESC · CANCELAR"}
           </div>
         )}
@@ -1763,7 +1779,7 @@ export function lesionFrameRadiusMm(diameterMm: number): number {
 }
 
 /** Texto del aviso de marcado para cada modo. */
-function pickText(mode: NonNullable<PickMode>, measurePending: boolean, rimCount: number): string {
+function pickText(mode: NonNullable<PickMode>, draftCount: number, rimCount: number): string {
   switch (mode) {
     case "cl_source": return "Clic sobre el vaso para marcar el origen";
     case "cl_target": return "Clic sobre el vaso para marcar el destino";
@@ -1776,7 +1792,10 @@ function pickText(mode: NonNullable<PickMode>, measurePending: boolean, rimCount
     case "erase_piece": return "Clic sobre lo que quieres borrar";
     case "traj_entry": return "Clic para el punto de entrada del abordaje";
     case "traj_target": return "Clic sobre el aneurisma (punto diana)";
-    case "measure": return measurePending ? "Clic en el segundo punto" : "Clic en el primer punto";
+    case "anot_regla": return draftCount === 0 ? "Regla: clic en el primer punto" : "Regla: clic en el segundo punto";
+    case "anot_angulo": return `Ángulo: clic en el ${["primer punto", "vértice", "tercer punto"][Math.min(draftCount, 2)]}`;
+    case "anot_region": return `Región: clic en un corte alrededor del hallazgo (${draftCount} puntos) · Intro o el primer punto cierra`;
+    case "anot_marcador": return "Marcador: clic donde quieras la nota";
   }
 }
 

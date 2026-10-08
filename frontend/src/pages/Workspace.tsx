@@ -17,7 +17,6 @@ import { DetectPanel } from "../components/planning/DetectPanel";
 import { MorphometryPanel } from "../components/morphometry/MorphometryPanel";
 import { PerforatorsPanel } from "../components/perforators/PerforatorsPanel";
 import { CenterlinePanel } from "../components/vessels/CenterlinePanel";
-import { MeasurementPanel } from "../components/vessels/MeasurementPanel";
 import { TreatmentPanel } from "../components/planning/TreatmentPanel";
 import { DevicesPanel } from "../components/planning/DevicesPanel";
 import { ManufacturePanel } from "../components/planning/ManufacturePanel";
@@ -69,7 +68,7 @@ export function Workspace({
   const planning = usePlanning();
   const {
     morphometry, sessionId, caseId, caseLabel, imagingStudyId,
-    centerlineMesh, measurements, setPickMode, markSaved, captureCase,
+    centerlineMesh, setPickMode, markSaved, captureCase,
   } = planning;
   const [stepIdx, setStepIdx] = useState(initialStep);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
@@ -217,14 +216,6 @@ export function Workspace({
           badge={centerlineMesh ? <Badge variant="success">Extraída</Badge> : undefined}
         >
           <CenterlinePanel />
-        </Collapsible>
-        <Collapsible
-          title="Mediciones 3D"
-          subtitle="Distancia entre dos puntos del modelo"
-          storageKey="ws.morpho.measurements"
-          badge={measurements.length > 0 ? <Badge variant="subtle">{measurements.length}</Badge> : undefined}
-        >
-          <MeasurementPanel />
         </Collapsible>
       </div>
     ),

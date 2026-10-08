@@ -4,7 +4,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
-import { PlanningProvider, usePlanning } from "./planning";
+import { PlanningProvider, usePlanning, type Vec3 } from "./planning";
 import type { MorphometryResult, SegmentResult, VolumeMeta } from "../api/types";
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -390,5 +390,25 @@ describe("superposición de seguimiento", () => {
     expect(result.current.followup).not.toBeNull();
     act(() => result.current.resetDownstream());
     expect(result.current.followup).toBeNull();
+  });
+});
+
+describe("anotaciones", () => {
+  it("arrancan vacías, setAnnotations marca la sesión sucia y acepta función", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.annotations).toEqual([]); expect(result.current.annotationDraft).toEqual([]); expect(result.current.dirty).toBe(false);
+    const a = { id: "1", kind: "regla" as const, points: [[0, 0, 0], [1, 0, 0]] as Vec3[], plane: null, label: "R1", note: "", visible: true, created_at: "", created_by: "" };
+    act(() => result.current.setAnnotations([a]));
+    act(() => result.current.setAnnotations((p) => p.map((x) => ({ ...x, label: "cuello" }))));
+    expect(result.current.annotations[0].label).toBe("cuello"); expect(result.current.dirty).toBe(true);
+  });
+  it("resegmentar las vacía; cambiar de modo de pinchado vacía el borrador", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => { result.current.setPickMode("anot_regla"); result.current.setAnnotationDraft([[1, 1, 1]]); result.current.setSelectedAnnotation("x"); });
+    act(() => result.current.setPickMode("neck_rim"));
+    expect(result.current.annotationDraft).toEqual([]);
+    act(() => result.current.setAnnotations([{ id: "1", kind: "marcador", points: [[0, 0, 0]], plane: null, label: "M1", note: "", visible: true, created_at: "", created_by: "" }]));
+    act(() => result.current.resetDownstream());
+    expect(result.current.annotations).toEqual([]); expect(result.current.selectedAnnotation).toBeNull();
   });
 });

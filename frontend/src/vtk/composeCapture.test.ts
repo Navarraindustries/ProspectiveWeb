@@ -177,6 +177,34 @@ describe("el HUD viaja dentro de la imagen", () => {
   });
 });
 
+describe("la captura respeta el nivel del HUD", () => {
+  const conHud = () => {
+    const panes = visor();
+    panes[1] = panel("axial", 0, 401, 199, 199, {
+      label: "axial",
+      readouts: [{ at: "bl", lines: ["193 / 384"] }],
+      shapes: [{ kind: "line", x1: 1, y1: 2, x2: 30, y2: 40, color: "#f5c02e", width: 3 }],
+    });
+    return panes;
+  };
+  const extra = { heading: "AZ 12° · EL -20°", note: "RESOLUCIÓN REDUCIDA · 1:2" };
+
+  it("en limpio no lleva rótulo, lecturas ni banda superior, pero sí las formas", async () => {
+    const { deps: d, rec } = deps();
+    await composeCapture(base(conHud(), d, { ...extra, hudLevel: "limpio" }));
+    expect(rec.textos.map((t) => t.text)).toEqual([]);
+    expect(rec.ops.some((o) => o[0] === "stroke")).toBe(true);
+  });
+
+  it.each([["completo"], [undefined]])("con %s todo sigue como siempre", async (hudLevel) => {
+    const { deps: d, rec } = deps();
+    await composeCapture(base(conHud(), d, { ...extra, hudLevel }));
+    const dichos = rec.textos.map((t) => t.text);
+    expect(dichos).toEqual(expect.arrayContaining(["AXIAL", "193 / 384", extra.heading, extra.note]));
+    expect(rec.ops.some((o) => o[0] === "stroke")).toBe(true);
+  });
+});
+
 describe("las anotaciones salen en la imagen", () => {
   const RECT = { x: 100, y: 50, w: 200, h: 200 };
 

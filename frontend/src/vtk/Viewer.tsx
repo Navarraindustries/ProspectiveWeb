@@ -588,6 +588,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       note: levelNoteRef.current ?? undefined,
       colors: { hud: color("--hud", "#cfe3f0"), dim: color("--hud-dim", "#5b6b77"), gap: color("--hud-dim", "#5b6b77") },
       fontFamily: color("--font-mono", "monospace"),
+      hudLevel: hudLevelRef.current,
     };
   }, []);
 

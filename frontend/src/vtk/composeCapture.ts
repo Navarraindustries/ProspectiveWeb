@@ -29,6 +29,7 @@
 
 import type { Shape } from "./annotationOverlay";
 import type { CaptureFn } from "./captureRenderWindow";
+import type { HudLevel } from "./viewerPrefs";
 
 export type Corner = "tl" | "tr" | "bl" | "br";
 
@@ -100,6 +101,9 @@ export interface ComposeInput {
   colors: HudColors;
   /** Familia mono ya resuelta, p. ej. el valor de --font-mono. */
   fontFamily: string;
+  /** Nivel del HUD que se ve; en «limpio» la imagen no lleva rótulos, lecturas
+   *  ni banda superior. Sin él, «completo». */
+  hudLevel?: HudLevel;
   deps: ComposeDeps;
 }
 
@@ -140,7 +144,7 @@ export async function composeCapture(input: ComposeInput): Promise<string | null
 }
 
 /** Lo que hace falta para pintar un fotograma, sin las capturas. */
-export type FrameLayout = Pick<ComposeInput, "width" | "height" | "heading" | "note" | "colors" | "fontFamily"> & {
+export type FrameLayout = Pick<ComposeInput, "width" | "height" | "heading" | "note" | "colors" | "fontFamily" | "hudLevel"> & {
   panes: Omit<PaneShot, "capture">[];
 };
 
@@ -155,6 +159,7 @@ export function paintFrame(
   draw: (index: number, rect: PaneRect) => boolean,
 ): void {
   const { width, height, panes, colors, fontFamily } = frame;
+  const limpio = frame.hudLevel === "limpio";
   // El fondo es el color de las separaciones: los huecos de 1 px entre paneles
   // salen solos, igual que en la franja del visor.
   ctx.fillStyle = colors.gap;
@@ -174,11 +179,14 @@ export function paintFrame(
       ctx.textBaseline = "middle";
       ctx.fillText("SIN IMAGEN", x + w / 2, y + h / 2);
     }
-    drawPaneHud(ctx, p, colors, fontFamily);
+    // En «limpio» la pantalla no muestra rótulos ni lecturas, y la imagen
+    // sale como se ve. Las formas son contenido del profesional (sus medidas),
+    // no marco del visor: van siempre.
+    if (!limpio) drawPaneHud(ctx, p, colors, fontFamily);
     if (p.shapes?.length) drawShapes(ctx, p.rect, p.shapes, fontFamily);
   });
 
-  drawTopBand(ctx, frame);
+  if (!limpio) drawTopBand(ctx, frame);
 }
 
 /** Rótulo del panel y sus lecturas, en las esquinas de siempre. */

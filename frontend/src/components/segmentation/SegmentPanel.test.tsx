@@ -716,3 +716,49 @@ describe("método tubular", () => {
     expect(await screen.findByText(/Ya hay una segmentación tubular en curso/)).toBeInTheDocument();
   });
 });
+
+/* La unidad del umbral depende de la modalidad: HU solo en TC; en el resto es
+ * intensidad cruda y el panel lo aclara una vez. */
+describe("unidad de los sliders de umbral", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function conModalidad(modality: string) {
+    const serie = {
+      session_id: "sesion-u", series_id: "1.2.3", description: "x",
+      modality, slices: 384, spacing: { x: 0.4, y: 0.4, z: 0.4 },
+      window_center: 40, window_width: 400,
+      is_projection: false, projection_warning: null, size_mb: 120,
+    };
+    function Sonda({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        p.setSession("sesion-u");
+        p.setSeries(serie as never);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      return <>{p.sessionId && p.series ? children : null}</>;
+    }
+    return render(
+      <PlanningProvider>
+        <Sonda><SegmentPanel onNext={() => {}} /></Sonda>
+      </PlanningProvider>,
+    );
+  }
+
+  const unidades = () =>
+    ["Umbral inferior", "Umbral superior"].map((n) => screen.getByLabelText(n).closest("div")!.parentElement!.textContent);
+
+  it("en TC los dos sliders dicen HU y no hay ayuda", async () => {
+    conModalidad("CT");
+    await screen.findByLabelText("Umbral inferior");
+    for (const t of unidades()) expect(t).toMatch(/ HU/);
+    expect(screen.queryByText("Intensidad del volumen, sin unidad física")).toBeNull();
+  });
+
+  it("en XA los sliders no llevan unidad y la ayuda sale una vez", async () => {
+    conModalidad("XA");
+    await screen.findByLabelText("Umbral inferior");
+    for (const t of unidades()) expect(t).not.toMatch(/HU/);
+    expect(screen.getAllByText("Intensidad del volumen, sin unidad física")).toHaveLength(1);
+  });
+});

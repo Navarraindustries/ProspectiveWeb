@@ -322,6 +322,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           unit={isHu ? " HU" : ""}
           disabled={sinTecho || method === "tubular"}
         />
+        {/* Sin HU el número no es una magnitud física: se dice para que no se compare entre estudios. */}
         {!isHu && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
             Intensidad del volumen, sin unidad física

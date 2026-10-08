@@ -1699,7 +1699,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (candidate && (step === "detect" || (isMesh && focusUrl))) {
       tl.push(`${candidate.id} · Ø ${candidate.max_diameter_mm.toFixed(1)} mm`);
     }
-    if (previewActive && previewBand) tl.push(`VISTA PREVIA · CAPTURA [${Math.round(previewBand[0])}${unitFor(meta?.modality)}, ${Math.round(previewBand[1])}${unitFor(meta?.modality)}]`);
+    if (previewActive && previewBand) {
+      const u = unitFor(meta?.modality);
+      tl.push(`VISTA PREVIA · CAPTURA [${Math.round(previewBand[0])}${u}, ${Math.round(previewBand[1])}${u}]`);
+    }
     if (meshScene && segPreview) tl.push("PULSA «SEGMENTAR» PARA LA MALLA FINAL");
     if (isMesh && gizmoOn && selectedClip) tl.push(gizmoReadout(selectedClip));
 

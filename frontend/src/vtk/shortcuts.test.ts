@@ -65,3 +65,15 @@ describe("matchShortcut — bordes", () => {
     expect(matchShortcut(ev({ key: "p", code: "KeyP" }), null)).toBeNull();
   });
 });
+it("resuelve R, A, G, T, Supr y Retroceso, y respeta H/P", () => {
+  expect(matchShortcut(ev({ key: "r", code: "KeyR" }), null)).toBe("anot-regla");
+  expect(matchShortcut(ev({ key: "a", code: "KeyA" }), null)).toBe("anot-angulo");
+  expect(matchShortcut(ev({ key: "g", code: "KeyG" }), null)).toBe("anot-region");
+  expect(matchShortcut(ev({ key: "t", code: "KeyT" }), null)).toBe("anot-marcador");
+  expect(matchShortcut(ev({ key: "Delete", code: "Delete" }), null)).toBe("anot-borrar");
+  expect(matchShortcut(ev({ key: "Backspace", code: "Backspace" }), null)).toBe("anot-deshacer-punto");
+  expect(matchShortcut(ev({ key: "h", code: "KeyH" }), null)).toBeNull();
+  const input = document.createElement("input");
+  expect(matchShortcut(ev({ key: "r", code: "KeyR" }), input)).toBeNull();
+  expect(matchShortcut(ev({ key: "Backspace", code: "Backspace" }), input)).toBeNull();
+});

@@ -31,7 +31,8 @@ import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
 /** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
-const VIEWER_SHORTCUTS = new Set(["sync", "center", "cine-toggle", "cine-faster", "cine-slower", "help"]);
+const VIEWER_SHORTCUTS = new Set(["sync", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
+  "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
 
 /** What each step needs before it can say anything true, or null when it's ready.
  *
@@ -191,6 +192,13 @@ export function Workspace({
         // se queda la tecla (fase de captura) y solo se cierra ella.
         setPickMode(null);
         window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: "escape" }));
+        return;
+      }
+      if (id === "anot-borrar" || id === "anot-deshacer-punto") {
+        // Supr y Retroceso valen en muchos sitios (la celda ya atiende Retroceso
+        // en modo anotación y lo marca con preventDefault): sin preventDefault
+        // aquí y sin repetir lo que ya se atendió.
+        if (!e.defaultPrevented) window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: id }));
         return;
       }
       if (VIEWER_SHORTCUTS.has(id)) {

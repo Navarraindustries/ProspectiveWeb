@@ -293,6 +293,9 @@ Ningún atajo actúa con el cursor en un campo de texto. H y P quedan sin asigna
 | ? | Abrir o cerrar la hoja de atajos | Visor |
 | Alt+1 · Alt+2 · Alt+3 · Alt+4 | Distribución SOLA · DERECHA · ABAJO · CUATRO | Visor |
 | S | Encender o apagar SINCRO | Visor |
+| R · A · G · T | Armar o desarmar la herramienta Regla · Ángulo · Región · Marcador | Visor |
+| Supr | Borrar la anotación seleccionada | Visor |
+| Retroceso | Quitar el último punto de la anotación en curso | Visor |
 | C | Volver a encuadrar la celda enfocada | Celda |
 | Espacio | Reproducir o parar el cine de la celda | Celda |
 | + / − | Cine un fotograma por segundo más rápido / lento | Celda |

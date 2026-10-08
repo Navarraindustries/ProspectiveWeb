@@ -8,7 +8,7 @@
    axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
-import { kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
+import { ANNOTATION_MODES, kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
 import { centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import type { AnnotationPlane } from "../api/types";
@@ -1418,6 +1418,22 @@ export function ViewerWorkspace({ step }: { step: string }) {
     switch (id) {
       case "sync": setSyncViews(!syncViews); return;
       case "help": openSheet(); return;
+      case "anot-regla": case "anot-angulo": case "anot-region": case "anot-marcador": {
+        // Misma tecla otra vez desarma; setPickMode ya vacía el borrador al cambiar.
+        const m = ANNOTATION_MODES[id.slice(5) as keyof typeof ANNOTATION_MODES];
+        setPickMode(pickMode === m ? null : m);
+        return;
+      }
+      case "anot-borrar":
+        if (selectedAnnotation) {
+          const gone = selectedAnnotation;
+          setAnnotations((p) => p.filter((a) => a.id !== gone));
+          setSelectedAnnotation(null);
+        }
+        return;
+      case "anot-deshacer-punto":
+        if (annotationDraft.length > 0) onAnnotationKey("Backspace");
+        return;
       case "cine-toggle": toggleCine(pane); return;   // sin recorrido (3D) no hace nada
       case "cine-faster": bumpFps(1); return;
       case "cine-slower": bumpFps(-1); return;

@@ -28,6 +28,12 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "preset-abajo", keys: "Alt+3", action: "Distribución ABAJO", scope: "visor" },
   { id: "preset-cuatro", keys: "Alt+4", action: "Distribución CUATRO", scope: "visor" },
   { id: "sync", keys: "S", action: "Encender o apagar SINCRO", scope: "visor" },
+  { id: "anot-regla", keys: "R", action: "Regla: dos puntos", scope: "visor" },
+  { id: "anot-angulo", keys: "A", action: "Ángulo: tres puntos", scope: "visor" },
+  { id: "anot-region", keys: "G", action: "Región: contorno en un corte", scope: "visor" },
+  { id: "anot-marcador", keys: "T", action: "Marcador con nota", scope: "visor" },
+  { id: "anot-borrar", keys: "Supr", action: "Borrar la anotación seleccionada", scope: "visor" },
+  { id: "anot-deshacer-punto", keys: "Retroceso", action: "Quitar el último punto de la anotación en curso", scope: "visor" },
   { id: "center", keys: "C", action: "Volver a encuadrar la celda enfocada", scope: "celda" },
   { id: "cine-toggle", keys: "Espacio", action: "Reproducir o parar el cine de la celda", scope: "celda" },
   { id: "cine-faster", keys: "+", action: "Cine un fotograma por segundo más rápido", scope: "celda" },
@@ -80,6 +86,14 @@ export function matchShortcut(
   }
   if (e.code === "KeyS") return "sync";
   if (e.code === "KeyC") return "center";
+  // Anotaciones: R/A/G/T arman la herramienta; Supr borra la seleccionada y
+  // Retroceso quita el último punto. Si hay algo que hacer lo decide el visor.
+  if (e.code === "KeyR") return "anot-regla";
+  if (e.code === "KeyA") return "anot-angulo";
+  if (e.code === "KeyG") return "anot-region";
+  if (e.code === "KeyT") return "anot-marcador";
+  if (e.key === "Delete") return "anot-borrar";
+  if (e.key === "Backspace") return "anot-deshacer-punto";
   // En el teclado numérico la tecla física no basta: con Bloq Num apagado,
   // Numpad8 manda ArrowUp y Numpad1 End. Sin mirar `key`, la misma pulsación
   // movería el corte en la celda y saltaría de paso a la vez.

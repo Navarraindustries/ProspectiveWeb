@@ -21,3 +21,7 @@ def test_formato_con_coma_decimal():
     assert format_measure(("°", 63.4)) == "63°"
     assert format_measure(("mm²", 47.9)) == "48 mm²"
     assert format_measure(None) == ""
+
+def test_empate_se_redondea_hacia_arriba_como_el_visor():
+    assert format_measure(("mm²", 12.5)) == "13 mm²"
+    assert format_measure(("mm", 2.25)) == "2,3 mm"

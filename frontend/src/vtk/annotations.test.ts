@@ -26,6 +26,12 @@ describe("measure", () => {
     expect(formatMeasure({ kind: "area", mm2: 47.9, perimetroMm: 1 })).toBe("48 mm²");
   });
 });
+describe("formatMeasure empates", () => {
+  it("el empate sube, igual que en el informe del servidor", () => {
+    expect(formatMeasure({ kind: "area", mm2: 12.5, perimetroMm: 1 })).toBe("13 mm²");
+    expect(formatMeasure({ kind: "distancia", mm: 2.25 })).toBe("2,3 mm");
+  });
+});
 describe("nextLabel", () => {
   it("prefijo por tipo y máximo + 1, aunque falten números", () => {
     expect(nextLabel("regla", [])).toBe("R1");
@@ -40,6 +46,9 @@ describe("onSlice", () => {
     expect(onSlice(regla, "axial", 20, meta)).toBe(true);
     expect(onSlice(regla, "axial", 22, meta)).toBe(false);          // 1,7 mm > 0,5 × 1 mm
     expect(onSlice(regla, "coronal", 10, meta)).toBe(true);
+  });
+  it("una región sin plano no se dibuja en ningún corte", () => {
+    expect(onSlice({ ...region, plane: null }, "coronal", 56, meta)).toBe(false);
   });
   it("la región solo en su plano e índice", () => {
     expect(onSlice(region, "coronal", 56, meta)).toBe(true);

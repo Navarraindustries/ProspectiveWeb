@@ -7,6 +7,7 @@ al formatear, para que el número siga siendo comparable entre ambos lados.
 from __future__ import annotations
 
 import math
+from decimal import ROUND_HALF_UP, Decimal
 
 _NEEDED = {"regla": 2, "angulo": 3, "region": 3, "marcador": 1}
 
@@ -53,13 +54,19 @@ def measure(kind: str, points) -> tuple[str, float] | None:
     return None
 
 
+def _round_half_up(value: float, step: str) -> str:
+    # f"{v:.0f}" redondea el empate al par (2,5 -> 2) y toFixed del visor hacia arriba (-> 3):
+    # un área de 12,5 mm² saldría distinta en el informe y en el visor.
+    return str(Decimal(repr(value)).quantize(Decimal(step), rounding=ROUND_HALF_UP))
+
+
 def format_measure(m: tuple[str, float] | None) -> str:
     """«12,4 mm», «63°», «48 mm²»: igual que formatMeasure en el visor."""
     if m is None:
         return ""
     unit, value = m
     if unit == "mm":
-        return f"{value:.1f}".replace(".", ",") + " mm"
+        return _round_half_up(value, "0.1").replace(".", ",") + " mm"
     if unit == "°":
-        return f"{value:.0f}°"
-    return f"{value:.0f} mm²"
+        return _round_half_up(value, "1") + "°"
+    return _round_half_up(value, "1") + " mm²"

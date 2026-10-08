@@ -60,7 +60,7 @@ describe("toCsv", () => {
   it("una fila por anotación con valor y puntos", () => {
     const csv = toCsv([{ ...base, id: "1", kind: "regla", label: "R1", points: [[0, 0, 0], [3, 4, 0]], plane: { plane: "axial", index: 3 } }]);
     expect(csv.split("\n")[0]).toBe("nombre;tipo;valor;unidad;corte;nota;puntos_mm");
-    expect(csv.split("\n")[1]).toBe("R1;regla;5,0;mm;AX 3;;0 0 0 | 3 4 0");
+    expect(csv.split("\n")[1]).toBe("R1;regla;5,0;mm;AX 4;;0 0 0 | 3 4 0");
   });
 });
 

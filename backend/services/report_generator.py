@@ -178,6 +178,8 @@ class ReportData:
     coils: list[CoilEntry] = field(default_factory=list)
     stent: StentEntry | None = None
     trajectory: dict[str, Any] = field(default_factory=dict)
+    #: Las anotaciones tal como las guarda el servidor (annotations.json).
+    annotations: list[dict] = field(default_factory=list)
     screenshot_png: bytes | None = None
     #: Las capturas guardadas que el profesional eligió, en su orden. Son
     #: otra cosa que `screenshot_png`: esa es la vista que hubiera en
@@ -360,6 +362,7 @@ def build_report_data_from_session(
 
     # ── 5. Surgical approach trajectory (persisted in session state) ──── #
     trajectory = read_trajectory_state(session_id)
+    annotations = read_annotations(session_id)
 
     # ── 6. Placed devices (persisted by the clip/coil/stent planners) ─── #
     from services.device_state import read_clips, read_coils, read_stent
@@ -526,6 +529,7 @@ def build_report_data_from_session(
         elapss       = elapss,
         uiats        = uiats,
         trajectory   = trajectory,
+        annotations  = annotations,
         screenshot_png = screenshot_bytes,
         captures     = capturas,
         plan_views   = _render_plan_views(session_id),
@@ -643,6 +647,21 @@ def _caption_captura(fila) -> str:
     if nota:
         partes.append(str(nota))
     return " · ".join(partes)
+
+
+def read_annotations(session_id: str) -> list[dict]:
+    """Las anotaciones de la sesión, o [] si no hay fichero o está corrupto.
+
+    Un annotations.json ilegible no debe costarle al cirujano su informe.
+    """
+    from services.sessions import session_dir
+
+    try:
+        raw = json.loads((session_dir(session_id) / "annotations.json").read_text(encoding="utf-8"))
+        items = raw.get("annotations", [])
+        return [a for a in items if isinstance(a, dict)]
+    except Exception:
+        return []
 
 
 def read_trajectory_state(session_id: str) -> dict:
@@ -764,6 +783,7 @@ class ReportGenerator:
         story += self._section_coils()
         story += self._section_stent()
         story += self._section_trajectory()
+        story += self._section_annotations()
         story += self._section_risk()
         story += self._section_phases()
         story += self._section_elapss()
@@ -1698,6 +1718,53 @@ class ReportGenerator:
                 "Medido sobre la malla del paciente. Una perforante de 0,1–0,5 mm "
                 "no llega a la malla, así que un corredor limpio aquí no es un "
                 "corredor sin perforantes.", self._style_td_disclaimer))
+        return elems
+
+    def _section_annotations(self) -> list:
+        from services.annotations import format_measure, measure
+
+        elems = [Paragraph("Anotaciones", self._style_h2)]
+        anns = self._data.annotations
+        if not anns:
+            elems.append(Paragraph("Sin anotaciones.", self._style_body))
+            return elems
+
+        tipos = {"regla": "Regla", "angulo": "Ángulo", "region": "Región", "marcador": "Marcador"}
+        etiqueta_corte = {"axial": "AX", "coronal": "COR", "sagital": "SAG"}
+
+        def _xyz(p):
+            # El servidor guarda {x,y,z}; measure() trabaja con [x,y,z].
+            return [p["x"], p["y"], p["z"]] if isinstance(p, dict) else list(p)
+
+        rows = [["Nombre", "Tipo", "Valor", "Corte", "Nota"]]
+        for a in anns:
+            kind = str(a.get("kind", ""))
+            try:
+                valor = format_measure(measure(kind, [_xyz(p) for p in a.get("points", [])]))
+            except Exception:
+                valor = ""
+            plano = a.get("plane")
+            # Se numera desde 1, como el HUD y el panel del visor.
+            corte = (f"{etiqueta_corte.get(plano.get('plane'), '?')} {int(plano.get('index', 0)) + 1}"
+                     if plano else "3D")
+            rows.append([
+                Paragraph(str(a.get("label", "")), self._style_td_note),
+                tipos.get(kind, kind),
+                valor or "—",
+                corte,
+                Paragraph(str(a.get("note", "")), self._style_td_note),
+            ])
+        tbl = Table(rows, colWidths=[2.8*cm, 2.6*cm, 2.8*cm, 2.2*cm, 7.5*cm], repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), self._GREY_LIGHT),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 8.5),
+            ("GRID",          (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elems.append(tbl)
         return elems
 
     def _section_risk(self) -> list:

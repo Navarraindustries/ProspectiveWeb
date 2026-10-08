@@ -116,7 +116,9 @@ export function toCsv(list: Annotation[]): string {
     if (m?.kind === "distancia") { valor = es(m.mm, 1); unidad = "mm"; }
     else if (m?.kind === "angulo") { valor = es(m.deg, 0); unidad = "°"; }
     else if (m?.kind === "area") { valor = es(m.mm2, 0); unidad = "mm²"; }
-    const corte = a.plane ? `${SLICE_TAG[a.plane.plane]} ${a.plane.index}` : "3D";
+    // El índice interno cuenta desde 0, pero lo que la gente ve (HUD, panel) cuenta
+    // desde 1: el CSV y el informe numeran igual que la pantalla.
+    const corte = a.plane ? `${SLICE_TAG[a.plane.plane]} ${a.plane.index + 1}` : "3D";
     const puntos = a.points.map((p) => p.map(num).join(" ")).join(" | ");
     return [cell(a.label), a.kind, valor, unidad, corte, cell(a.note), puntos].join(";");
   });

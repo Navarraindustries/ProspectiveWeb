@@ -31,8 +31,8 @@ class Annotation(BaseModel):
     label: str = Field(..., max_length=40)
     note: str = Field(default="", max_length=500)
     visible: bool = True
-    created_at: str = Field(default="", description="ISO 8601; lo pone el servidor si llega vacío")
-    created_by: str = Field(default="", description="Usuario; lo pone el servidor si llega vacío")
+    created_at: str = Field(default="", description="ISO 8601; lo pone el servidor")
+    created_by: str = Field(default="", description="Usuario; lo pone el servidor")
 
     @model_validator(mode="after")
     def _forma_por_tipo(self) -> "Annotation":
@@ -52,6 +52,14 @@ class AnnotationsIn(BaseModel):
     # Se manda la lista entera en cada cambio; el tope evita que una sesión
     # se convierta en un vertedero de miles de marcas.
     annotations: list[Annotation] = Field(..., max_length=200)
+
+    @model_validator(mode="after")
+    def _ids_unicos(self) -> "AnnotationsIn":
+        # El id es lo que distingue una anotación borrada de una editada (y
+        # lo que conserva su autoría): repetido, ambas cosas serían ambiguas.
+        if len({a.id for a in self.annotations}) != len(self.annotations):
+            raise ValueError("Hay anotaciones con el mismo id.")
+        return self
 
 
 class AnnotationsResult(BaseModel):

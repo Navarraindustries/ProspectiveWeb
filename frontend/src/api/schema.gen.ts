@@ -15,7 +15,7 @@ export interface paths {
         get: operations["get_annotations_api_annotations__session_id__get"];
         /**
          * Sustituir las anotaciones de la sesión
-         * @description Guarda la lista entera. `created_by` y `created_at` los pone el servidor cuando llegan vacíos. Las anotaciones que desaparecen respecto a la lista anterior quedan registradas en la auditoría (ANNOTATIONS_DELETED).
+         * @description Guarda la lista entera. `created_by` y `created_at` los pone el servidor: los guardados si la anotación ya existía, el usuario y la hora actuales si es nueva; lo que mande el cliente se ignora. Las anotaciones que desaparecen respecto a la lista anterior quedan registradas en la auditoría (ANNOTATIONS_DELETED).
          */
         put: operations["put_annotations_api_annotations__session_id__put"];
         post?: never;
@@ -2778,13 +2778,13 @@ export interface components {
         Annotation: {
             /**
              * Created At
-             * @description ISO 8601; lo pone el servidor si llega vacío
+             * @description ISO 8601; lo pone el servidor
              * @default
              */
             created_at: string;
             /**
              * Created By
-             * @description Usuario; lo pone el servidor si llega vacío
+             * @description Usuario; lo pone el servidor
              * @default
              */
             created_by: string;

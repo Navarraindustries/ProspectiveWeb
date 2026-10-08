@@ -15,6 +15,7 @@ import logging
 import os
 from datetime import UTC, datetime
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
@@ -72,8 +73,9 @@ async def get_annotations(
     response_model=AnnotationsResult,
     summary="Sustituir las anotaciones de la sesión",
     description=(
-        "Guarda la lista entera. `created_by` y `created_at` los pone el servidor "
-        "cuando llegan vacíos. Las anotaciones que desaparecen respecto a la lista "
+        "Guarda la lista entera. `created_by` y `created_at` los pone el servidor: "
+        "los guardados si la anotación ya existía, el usuario y la hora actuales si "
+        "es nueva; lo que mande el cliente se ignora. Las anotaciones que desaparecen respecto a la lista "
         "anterior quedan registradas en la auditoría (ANNOTATIONS_DELETED)."
     ),
 )
@@ -86,18 +88,24 @@ async def put_annotations(
     _check(db, current_user, session_id)
     username = getattr(current_user, "username", "") or ""
     ahora = datetime.now(UTC).isoformat()
-    lista = [a.model_copy(update={"created_by": a.created_by or username,
-                                  "created_at": a.created_at or ahora})
-             for a in body.annotations]
+    antes = _read(session_id).annotations
+    # El autor y la fecha los decide el servidor, no el cliente: una anotación
+    # que ya existía conserva los suyos y una nueva lleva el usuario y la hora
+    # de esta petición, mande lo que mande el cuerpo.
+    autoria = {a.id: (a.created_by, a.created_at) for a in antes}
+    lista = []
+    for a in body.annotations:
+        por, cuando = autoria.get(a.id, (username, ahora))
+        lista.append(a.model_copy(update={"created_by": por, "created_at": cuando}))
     out = AnnotationsResult(annotations=lista)
 
-    antes = [a.id for a in _read(session_id).annotations]
     nuevos = {a.id for a in lista}
-    borradas = [i for i in antes if i not in nuevos]
+    borradas = [a.id for a in antes if a.id not in nuevos]
 
-    # Escritura atómica: un corte a mitad no puede dejar un JSON a medias.
+    # Escritura atómica: un corte a mitad no puede dejar un JSON a medias. El
+    # temporal lleva nombre propio para que dos guardados a la vez no se pisen.
     f = session_dir(session_id) / FILE
-    tmp = f.with_suffix(".json.tmp")
+    tmp = f.with_name(f"{FILE}.{uuid4().hex}.tmp")
     tmp.write_text(out.model_dump_json(), encoding="utf-8")
     os.replace(tmp, f)
 

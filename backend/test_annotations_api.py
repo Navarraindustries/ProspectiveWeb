@@ -79,9 +79,29 @@ def test_ida_y_vuelta_y_created_by():
     assert admin.get(f"/api/annotations/{sid}").json()["annotations"][0]["label"] == "R1"
     f = session_dir(sid) / "annotations.json"
     assert json.loads(f.read_text(encoding="utf-8")) == r.json()
-    # Lo que ya traía autor y fecha no se reescribe.
-    r2 = admin.put(f"/api/annotations/{sid}", json={"annotations": [a]})
-    assert r2.json()["annotations"][0]["created_at"] == a["created_at"]
+
+
+def test_la_autoria_la_decide_el_servidor(sesion_de_a):
+    medica, _b, _sid = sesion_de_a
+    sid = create_session()
+    # Una nueva lleva el usuario de la petición aunque el cliente diga otro.
+    r = medica.put(f"/api/annotations/{sid}", json={"annotations": [
+        {**REGLA, "created_by": "otro", "created_at": "1999-01-01T00:00:00+00:00"}]})
+    a = r.json()["annotations"][0]
+    assert a["created_by"] != "otro" and a["created_by"].startswith("med-")
+    assert a["created_at"] != "1999-01-01T00:00:00+00:00"
+    # Una que ya existía conserva los suyos, venga lo que venga.
+    for falso in ({"created_by": "otro", "created_at": "2000-01-01"}, {"created_by": "", "created_at": ""}):
+        admin.put(f"/api/annotations/{sid}", json={"annotations": [{**REGLA, **falso}]})
+        g = admin.get(f"/api/annotations/{sid}").json()["annotations"][0]
+        assert (g["created_by"], g["created_at"]) == (a["created_by"], a["created_at"])
+
+
+def test_ids_repetidos_422():
+    sid = create_session()
+    r = admin.put(f"/api/annotations/{sid}", json={"annotations": [REGLA, {**REGLA, "label": "R2"}]})
+    assert r.status_code == 422
+    assert not (session_dir(sid) / "annotations.json").exists()
 
 
 def test_fichero_corrupto_lista_vacia():
@@ -129,6 +149,14 @@ def test_auditoria_solo_al_borrar():
     assert len(ev) == 1
     assert ev[0]["payload"] == {"session_id": sid, "deleted": ["a2"], "remaining": 1}
     assert ev[0]["username"] == "admin"
+
+
+def test_sustituir_por_otra_del_mismo_numero_es_borrar():
+    sid = create_session()
+    admin.put(f"/api/annotations/{sid}", json={"annotations": [REGLA]})
+    admin.put(f"/api/annotations/{sid}", json={"annotations": [{**REGLA, "id": "a3"}]})
+    ev = [e for e in _eventos("ANNOTATIONS_DELETED") if e["payload"]["session_id"] == sid]
+    assert len(ev) == 1 and ev[0]["payload"]["deleted"] == ["a1"] and ev[0]["payload"]["remaining"] == 1
 
 
 def test_auditoria_lleva_el_paciente(sesion_de_a):

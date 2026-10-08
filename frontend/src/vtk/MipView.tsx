@@ -49,6 +49,7 @@ import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from "./OrientationInset";
 import { mipReadoutLines } from "./mipReadout";
+import { unitFor } from "./modality";
 import { defaultWindow, presetToWindow, VOLUME_PRESETS, type VolumePreset, type VolumeWindow } from "./volumePresets";
 import { windowFromDrag } from "./windowDrag";
 import { AXIS_OF, indexOf, wheelAction, withIndex } from "./mipGestures";
@@ -636,7 +637,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             <HudToggleGroup options={RENDER_OPTIONS} value={volumeMode} onChange={(k) => setVolumeMode(k as "mip" | "compuesto")} />
           </div>
         )}
-        <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact, render: volumeMode, preset: volumePreset, clip: clipMode, offsetMm: freePlane.offsetMm, window: win })} />
+        <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact, render: volumeMode, preset: volumePreset, clip: clipMode, offsetMm: freePlane.offsetMm, window: win, unit: unitFor(meta.modality) })} />
         {compact ? overlay : (
           // Una sola columna abajo a la izquierda, de abajo arriba: la fila de
           // preajustes (solo en COMPUESTO) y encima la barra del cine. Así,

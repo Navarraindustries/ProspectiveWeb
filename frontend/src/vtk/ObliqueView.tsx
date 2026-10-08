@@ -23,13 +23,17 @@ import { HudFrame } from "./hud/HudFrame";
 import { HudReadout } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
+import { unitFor } from "./modality";
+import { WL_TITLE } from "./windowPresets";
 
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 type Voxel = { x: number; y: number; z: number };
 const degLabel = (d: number) => { const r = Math.round(d); return `${r < 0 ? "−" : ""}${Math.abs(r)}°`; };
 
-export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false, registerCapture, registerFit, overlay }: {
+export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelReset, active = false, registerCapture, registerFit, overlay }: {
   image: vtkImageData; meta: VolumeMeta; wc: number; ww: number; onWindowLevel: (wc: number, ww: number) => void; active?: boolean;
+  /** Doble clic en la lectura W/L: vuelve a la ventana del estudio. */
+  onWindowLevelReset?: () => void;
   /** Algo que va sobre la imagen (la barra del cine): dentro del área del
    *  corte, para que quede encima de su lectura y no de la fila de deslizadores. */
   overlay?: ReactNode;
@@ -218,6 +222,7 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
     const p = geom.current.p;
     commitPlane({ ...p, offsetMm: p.offsetMm + step * Math.min(...meta.spacing) });
   };
+  const unit = unitFor(meta.modality);
   return (
     <div tabIndex={0} onKeyDown={onKey} style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "#000", outline: "none" }}>
       <div ref={ref} style={{ flex: 1, position: "relative", minHeight: 0, cursor: "crosshair", touchAction: "none" }}
@@ -247,7 +252,13 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
         onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag}>
         <HudFrame active={active} label="OBLICUO">
           <HudReadout at="bl" lines={[obliqueReadout(freePlane)]} />
-          <HudReadout at="br" lines={[`W ${Math.round(ww)}  L ${Math.round(wc)}`]} />
+          {/* Como en los cortes: botón que explica el gesto y restablece. El
+              pointerdown no llega al lienzo, que empezaría un arrastre de W/L. */}
+          <button type="button" className="hud-readout br hud-wl" title={WL_TITLE}
+            onPointerDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => { e.stopPropagation(); onWindowLevelReset?.(); }}>
+            {`W ${Math.round(ww)}${unit}  L ${Math.round(wc)}${unit}`}
+          </button>
         </HudFrame>
         {overlay}
       </div>

@@ -1547,38 +1547,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return () => window.removeEventListener("viewer:focus-annotation", on);
   }, []);
 
-  // Los preajustes de ventana van junto a la lectura W/L del corte que ocupa
-  // el panel principal, nunca en una vista lateral: allí no hay lectura
-  // W/L y el desplegable tapaba la etiqueta inferior. Qué preajustes hay lo
-  // decide Task 14.
-  const wlHost: PaneId | null = !sessionId || !meta || !mainIsSlice ? null : viewerLayout.main;
-  // Fuera de TC no hay presets HU con sentido clínico: se derivan de la meta
-  // y de la banda activa (vista previa de segmentación, o el umbral guardado
-  // si ya no hay vista previa) para que «Vasos» siga el umbral real.
+  // Los preajustes de ventana viven en cada celda de corte no compacta, bajo
+  // su lectura W/L (los monta SliceView): antes solo en la principal, y una
+  // lateral no tenía cómo elegir uno. Fuera de TC no hay presets HU con
+  // sentido clínico: se derivan de la meta y de la banda activa (vista previa
+  // de segmentación, o el umbral guardado si ya no hay vista previa) para que
+  // «Vasos» siga el umbral real.
   const wlPresets = meta
     ? windowPresets(meta, previewBand ?? (segmentation?.threshold_lower != null ? [segmentation.threshold_lower, NaN] : null))
     : [];
-  const wlSelect = (
-    <select
-      className="hud-toggle"
-      title="Preajuste de ventana/nivel"
-      value=""
-      onChange={(e) => {
-        const p = wlPresets.find((x) => x.name === e.target.value);
-        if (p) setMprWl({ wc: p.wc, ww: p.ww });
-      }}
-      // Abrir el desplegable no debe maximizar la celda.
-      onDoubleClick={(e) => e.stopPropagation()}
-      style={{ position: "absolute", bottom: 3, right: 24, zIndex: 6, width: 96, background: "transparent", border: "none", color: "var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: ".08em", textTransform: "uppercase", cursor: "pointer" }}
-    >
-      {/* El select es transparente para no tapar la imagen; las opciones
-          llevan fondo propio porque el desplegable hereda el del select. */}
-      <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
-      {wlPresets.map((p) => (
-        <option key={p.name} value={p.name} style={{ background: "#000", color: "var(--hud)" }}>{p.name} · {Math.round(p.wc)}/{Math.round(p.ww)}</option>
-      ))}
-    </select>
-  );
 
   // `captureAs`: con qué nombre registra su captura. Casi siempre el propio
   // panel; pero sin malla la escena ES un corte axial, y registrándose como
@@ -1630,6 +1607,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       <Suspense fallback={<ViewerLoading label="Cargando visor de cortes…" />}>
         <SliceView image={clientVol.image!} meta={meta} plane={id} index={c.index} onIndexChange={c.onIndexChange}
           wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
+          onWindowLevelReset={() => setMprWl(null)} presets={wlPresets}
+          onPreset={(preset) => setMprWl(preset.reset ? null : { wc: preset.wc, ww: preset.ww })}
           crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
           freeSegment={showFreePlane ? sliceSegment(freePlane, mprVoxel, meta, id, c.index) : null}
           band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
@@ -1681,7 +1660,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         body = (
           <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
-              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} active={isMain}
+              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} onWindowLevelReset={() => setMprWl(null)} active={isMain}
               registerCapture={registerMeshCapture} registerFit={regFit("scene")} overlay={cineBarFor("scene", compact)} />
           </Suspense>
         );
@@ -1903,7 +1882,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
           )}
           mainOverlay={
             <>
-              {wlHost === viewerLayout.main && wlSelect}
               {/* Pista de la principal: fuera de renderPane/renderScene porque
                   aplica igual a la escena 3D, el MIP o un corte. */}
               {hint && <div key={hintSeq} className={hint.aviso ? "hud-hint hud-hint-aviso" : "hud-hint"}>{hint.text}</div>}

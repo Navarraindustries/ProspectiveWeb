@@ -27,6 +27,8 @@ import { applyStep, isNativeKeyTarget, stepFromKey } from "./cine";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudReticle } from "./hud/HudReticle";
+import { unitFor } from "./modality";
+import { WL_TITLE, type WindowPreset } from "./windowPresets";
 
 const MODE: Record<Plane, SlicingMode> = { axial: SlicingMode.K, coronal: SlicingMode.J, sagital: SlicingMode.I };
 const LABEL: Record<Plane, string> = { axial: "AXIAL", coronal: "CORONAL", sagital: "SAGITAL" };
@@ -78,6 +80,11 @@ export interface SliceViewProps {
   /** Formas de las anotaciones en este corte. Función y no lista: el
    *  rectángulo de la imagen (`box`) solo lo conoce esta vista. */
   annotationShapes?: (box: Box) => Shape[];
+  /** Doble clic en la lectura W/L: vuelve a la ventana del estudio. */
+  onWindowLevelReset?: () => void;
+  /** Preajustes de ventana; el selector solo se monta en la celda no compacta. */
+  presets?: WindowPreset[];
+  onPreset?: (preset: WindowPreset) => void;
 }
 
 const ANNOTATION_KEYS = new Set(["Enter", "Backspace", "Escape"]);
@@ -379,6 +386,7 @@ export function SliceView(p: SliceViewProps) {
 
   const labels = edgeLabels(p.plane, p.orientation);
   const fs = p.compact ? 9.5 : 10.5;
+  const unit = unitFor(p.meta.modality);
   return (
     <div
       ref={containerRef}
@@ -414,9 +422,38 @@ export function SliceView(p: SliceViewProps) {
         {box && p.annotationShapes && <HudAnnotations shapes={p.annotationShapes(box)} />}
         <HudLadder count={count} index={p.index} onIndexChange={p.onIndexChange} />
         <HudReadout at="bl" lines={[`${String(p.index + 1).padStart(3, " ")}/${count}`]} />
-        {/* En la celda estrecha de la franja solo cabe el índice: W/L y la
-            barra de 10 mm se pisaban con él. Se leen al maximizar la celda. */}
-        {!p.compact && <HudReadout at="br" lines={[`W ${Math.round(p.ww)}  L ${Math.round(p.wc)}`]} />}
+        {/* Botón y no lectura muda: dice que arrastrar cambia W/L y el doble
+            clic vuelve a la ventana del estudio. En la celda estrecha va en
+            forma corta (la larga se pisaba con el índice). Los gestos se
+            paran aquí: llegar al contenedor centraría el crosshair o
+            empezaría un arrastre, y a la rejilla, maximizaría la celda. */}
+        <button type="button" className="hud-readout br hud-wl" title={WL_TITLE}
+          onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => { e.stopPropagation(); p.onWindowLevelReset?.(); }}>
+          {p.compact
+            ? `W ${Math.round(p.ww)} L ${Math.round(p.wc)}`
+            : `W ${Math.round(p.ww)}${unit}  L ${Math.round(p.wc)}${unit}`}
+        </button>
+        {/* Preajustes en toda celda no compacta, bajo su lectura: antes solo
+            en la principal, y una lateral no tenía cómo cambiar la ventana
+            salvo arrastrando. El select es transparente para no tapar la
+            imagen; las opciones llevan fondo propio porque lo heredan. */}
+        {!p.compact && !!p.presets?.length && (
+          <select className="hud-toggle hud-wl-presets" title="Preajuste de ventana/nivel" value=""
+            onChange={(e) => {
+              const preset = p.presets!.find((x) => x.name === e.target.value);
+              if (preset) p.onPreset?.(preset);
+            }}
+            onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}>
+            <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
+            {p.presets.map((x) => (
+              <option key={x.name} value={x.name} style={{ background: "#000", color: "var(--hud)" }}>
+                {x.reset ? x.name : `${x.name} · ${Math.round(x.wc)}/${Math.round(x.ww)}`}
+              </option>
+            ))}
+          </select>
+        )}
         {p.levelNote && <HudReadout at="tr" lines={[p.levelNote]} tone="warn" />}
         {!p.compact && box && box.mmPerPx > 0 && (
           <div className="hud-scale" style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>

@@ -14,6 +14,13 @@
 .hud-readout { position: absolute; font-size: 10.5px; line-height: 1.5; letter-spacing: .04em; white-space: pre; }
 .hud-readout.tl { top: 22px; left: 14px; } .hud-readout.tr { top: 22px; right: 14px; text-align: right; }
 .hud-readout.bl { bottom: 22px; left: 14px; } .hud-readout.br { bottom: 22px; right: 14px; text-align: right; }
+/* Lectura W/L: botón (doble clic restablece) que se ve como las demás
+   lecturas; los niveles del HUD la tratan como `.hud-readout`. */
+.hud-wl { pointer-events: auto; background: none; border: none; padding: 0; margin: 0; font: inherit; font-size: 10.5px; color: inherit; cursor: pointer; }
+.hud-wl:hover { color: var(--hud); text-decoration: underline dotted; }
+.hud-wl:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
+/* Preajustes bajo la lectura W/L de cada celda; transparente para no tapar la imagen. */
+.hud-wl-presets { position: absolute; bottom: 36px; right: 14px; z-index: 6; width: 96px; background: transparent; border: none; color: var(--hud-dim); font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; text-align: right; cursor: pointer; }
 .hud-toggle { display: inline-flex; gap: 10px; pointer-events: auto; }
 .hud-toggle button { background: none; border: none; padding: 2px 0; font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-dim); cursor: pointer; }
 .hud-toggle button[aria-pressed="true"] { color: var(--hud); border-bottom: var(--hud-line) solid var(--hud); }

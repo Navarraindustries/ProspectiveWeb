@@ -26,5 +26,8 @@ describe("mipReadoutLines", () => {
   it("en compuesto la lectura añade nivel y ventana", () => {
     expect(mipReadoutLines({ mode: "acumulado", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: false, render: "compuesto", preset: "Hueso", window: { wc: 2200.4, ww: 1799.6 } }))
       .toEqual(["COMPUESTO · HUESO", "ACUMULADO HASTA 5/10", "NIV 2200 · VENT 1800"]);
+    // En TC la ventana va en HU y se dice.
+    expect(mipReadoutLines({ mode: "acumulado", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: false, render: "compuesto", preset: "Hueso", window: { wc: 400, ww: 1000 }, unit: " HU" })[2])
+      .toBe("NIV 400 HU · VENT 1000 HU");
   });
 });

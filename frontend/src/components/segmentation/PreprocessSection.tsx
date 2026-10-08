@@ -10,13 +10,11 @@ import { Icon } from "../Icon";
 import { SectionLabel, ErrorNote } from "../PanelHead";
 import { Slider } from "../Slider";
 import { usePlanning } from "../../store/planning";
-
-/** Modalities whose voxels are true Hounsfield units (mirrors the backend). */
-const HU_MODALITIES = ["CT", "CTA", "CTPA"];
+import { isHuModality } from "../../vtk/modality";
 
 export function PreprocessSection() {
   const { sessionId, series, resetDownstream, clearAnnotations, bumpVolumeVersion } = usePlanning();
-  const isHu = HU_MODALITIES.includes((series?.modality ?? "").trim().toUpperCase());
+  const isHu = isHuModality(series?.modality);
   const [open, setOpen] = useState(false);
   // Only offered pre-ticked where it means something: on a 3DRA/XA volume the
   // HU clamp flattens everything above 3000, which is where the contrast is.

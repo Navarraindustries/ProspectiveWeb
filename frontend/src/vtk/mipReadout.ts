@@ -7,19 +7,20 @@ import type { VolumeWindow } from "./volumePresets";
     recorte libre la línea del corte dice el desplazamiento del plano (o el
     grosor de la lámina): el índice de un eje no describe un plano oblicuo.
     En compuesto ampliado se añade el nivel y la ventana del preajuste, que
-    el botón derecho cambia; en la celda compacta no cabe. */
+    el botón derecho cambia; en la celda compacta no cabe. `unit` es « HU»
+    en TC y vacío fuera (ver `unitFor`). */
 export function mipReadoutLines(o: {
   mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number;
   slabMm: number; threshold: number; compact: boolean;
   render?: "mip" | "compuesto"; preset?: string;
   clip?: "eje" | "libre"; offsetMm?: number;
-  window?: VolumeWindow;
+  window?: VolumeWindow; unit?: string;
 }): string[] {
   if (o.clip === "libre" && o.compact) return [o.mode === "acumulado" ? `LIB ${signedMm(o.offsetMm ?? 0)}` : `LIB ±${o.slabMm}`];
   if (o.render === "compuesto") {
     if (o.compact) return [o.mode === "acumulado" ? `COMP ${o.index + 1}/${o.count}` : `COMP ±${o.slabMm}`];
     const lines = [`COMPUESTO · ${(o.preset ?? "").toUpperCase()}`, cutLine(o)];
-    if (o.window) lines.push(`NIV ${Math.round(o.window.wc)} · VENT ${Math.round(o.window.ww)}`);
+    if (o.window) lines.push(`NIV ${Math.round(o.window.wc)}${o.unit ?? ""} · VENT ${Math.round(o.window.ww)}${o.unit ?? ""}`);
     return lines;
   }
   if (o.compact) return [o.mode === "acumulado" ? `ACUM ${o.index + 1}/${o.count}` : `LÁMINA ±${o.slabMm}`];

@@ -4,10 +4,28 @@
    desplegable abierto o el scroll del panel siguen donde estaban al volver;
    desmontarla los perdería sin aviso. */
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 /** Plegado o no es una manera de trabajar de quien mira, como el nivel del HUD. */
 export const PREF_PANEL_COLLAPSED = "ws.panelCollapsed";
+
+/** Plegado efectivo de la columna: una nota que espera el foco la despliega.
+
+    WHY: un marcador recién puesto pide el foco para su nota (spec E2 §3); con
+    la columna en display:none el campo no puede recibirlo y lo tecleado iría a
+    los atajos del visor. En el mismo render en que llega la petición la
+    columna ya se pinta visible (así el efecto del panel encuentra el campo
+    enfocable), y el efecto deja el panel desplegado de forma duradera. */
+export function useUnfoldForNote(
+  collapsed: boolean,
+  setCollapsed: (v: boolean) => void,
+  noteFocusRequest: string | null,
+): boolean {
+  useEffect(() => {
+    if (noteFocusRequest !== null) setCollapsed(false);
+  }, [noteFocusRequest, setCollapsed]);
+  return collapsed && noteFocusRequest === null;
+}
 
 export function RightPanelColumn({
   collapsed,

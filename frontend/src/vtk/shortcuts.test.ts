@@ -1,4 +1,6 @@
 // frontend/src/vtk/shortcuts.test.ts
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { matchShortcut, RESERVED_KEYS, SHORTCUTS, shortcutsByScope } from "./shortcuts";
 const ev = (p: Partial<{ key: string; code: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }>) => ({ key: "", code: "", altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...p });
@@ -67,18 +69,41 @@ describe("matchShortcut — bordes", () => {
     expect(SHORTCUTS.find((s) => s.id === "panel-toggle")).toMatchObject({ keys: "P", scope: "flujo" });
     expect(RESERVED_KEYS).toEqual([]);
   });
-  it("los atajos actúan en limpio: matchShortcut no depende del nivel del HUD", () => {
-    // La tecla se resuelve sin mirar el DOM del visor: el mismo id con
-    // cualquier `data-hud` en la página.
-    for (const level of ["completo", "esencial", "limpio"]) {
-      document.body.setAttribute("data-hud", level);
-      expect(matchShortcut(ev({ key: "h", code: "KeyH" }), null)).toBe("hud-cycle");
-      expect(matchShortcut(ev({ key: "s", code: "KeyS" }), null)).toBe("sync");
-      expect(matchShortcut(ev({ key: "c", code: "KeyC" }), null)).toBe("center");
-      expect(matchShortcut(ev({ key: " ", code: "Space" }), null)).toBe("cine-toggle");
-      expect(matchShortcut(ev({ key: "r", code: "KeyR" }), null)).toBe("anot-regla");
+  it("los atajos actúan en limpio: matchShortcut resuelve igual con el foco dentro de data-hud=limpio", () => {
+    // El destino es lo único del DOM que mira el emparejador: un nodo dentro
+    // de la rejilla en limpio tiene que dar el mismo id que uno fuera.
+    const host = document.createElement("div");
+    host.setAttribute("data-hud", "limpio");
+    const inside = document.createElement("div");
+    inside.tabIndex = 0;
+    host.appendChild(inside);
+    const outside = document.createElement("div");
+    outside.tabIndex = 0;
+    document.body.append(host, outside);
+    const keys = [
+      { key: "s", code: "KeyS", id: "sync" }, { key: "c", code: "KeyC", id: "center" },
+      { key: " ", code: "Space", id: "cine-toggle" }, { key: "r", code: "KeyR", id: "anot-regla" },
+      { key: "h", code: "KeyH", id: "hud-cycle" },
+    ];
+    for (const k of keys) {
+      const e = ev({ key: k.key, code: k.code });
+      expect(matchShortcut(e, inside), k.code).toBe(k.id);
+      expect(matchShortcut(e, inside), k.code).toBe(matchShortcut(e, outside));
     }
-    document.body.removeAttribute("data-hud");
+    host.remove(); outside.remove();
+  });
+  it("Viewer.onShortcut no consulta el nivel del HUD salvo para H", () => {
+    // El otro extremo del atajo: el visor no puede callarse en limpio. Fuera
+    // del caso hud-cycle, el cuerpo de onShortcut no nombra hudLevel.
+    const src = readFileSync(resolve(__dirname, "Viewer.tsx"), "utf8");
+    const a = src.indexOf("const onShortcut = (id: string) => {");
+    const b = src.indexOf("const onShortcutRef", a);
+    expect(a).toBeGreaterThan(0);
+    expect(b).toBeGreaterThan(a);
+    const body = src.slice(a, b);
+    const cycle = body.match(/case "hud-cycle": \{[\s\S]*?\r?\n {6}\}/);
+    expect(cycle?.[0]).toMatch(/hudLevel/);
+    expect(body.replace(cycle![0], "")).not.toMatch(/hudLevel|HudLevel/);
   });
 });
 it("resuelve R, A, G, T, Supr y Retroceso", () => {

@@ -169,6 +169,18 @@ describe("AnnotationsPanel", () => {
     expect(visto?.noteFocusRequest).toBeNull();
   });
 
+  it("si el foco no llega a la nota, la petición sigue pendiente", async () => {
+    montar([regla]);
+    await screen.findByText("R1");
+    // Como un campo dentro de una columna con display:none: focus() no hace nada.
+    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {});
+    const nuevo = { ...marcador, id: "m2", label: "M2", note: "" };
+    act(() => { visto?.setAnnotations((p) => [...p, nuevo]); visto?.setNoteFocusRequest("m2"); });
+    await screen.findByLabelText("Nota de M2");
+    expect(screen.getByLabelText("Nota de M2")).not.toHaveFocus();
+    expect(visto?.noteFocusRequest).toBe("m2");
+  });
+
   it("Supr sobre un botón de la fila no borra la anotación", async () => {
     montar([regla]);
     fireEvent.keyDown(await screen.findByText("Ir"), { key: "Delete" });

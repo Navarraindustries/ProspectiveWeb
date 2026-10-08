@@ -26,7 +26,7 @@ import { useAnnotationsSync } from "../components/annotations/useAnnotationsSync
 import { ViewerWorkspace } from "../vtk/Viewer";
 import { matchShortcut } from "../vtk/shortcuts";
 import { RecordButton } from "../components/RecordButton";
-import { PREF_PANEL_COLLAPSED, RightPanelColumn } from "../components/RightPanelColumn";
+import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { usePlanning } from "../store/planning";
 import { canAdvanceFromDetect } from "../components/planning/detectGate";
@@ -90,6 +90,9 @@ export function Workspace({
   // P pliega el panel del paso a una tira y el visor gana su ancho; se
   // recuerda en este navegador, como el nivel del HUD.
   const [panelCollapsed, setPanelCollapsed] = useStoredFlag(PREF_PANEL_COLLAPSED);
+  // Una nota de marcador pendiente despliega la columna (si no, su campo no
+  // puede tener el foco y lo tecleado dispararía atajos).
+  const columnCollapsed = useUnfoldForNote(panelCollapsed, setPanelCollapsed, noteFocusRequest);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   // La captura vive aquí arriba, al lado de «Guardar progreso», porque es
   // donde uno busca «guardar algo de este caso» — y porque está en todos los
@@ -268,7 +271,7 @@ export function Workspace({
   return (
     // `data-panel-collapsed`: el visor lo lee para su `estadoVisor` sin que
     // el estado del panel tenga que pasar por el store.
-    <div data-panel-collapsed={panelCollapsed ? "true" : "false"}
+    <div data-panel-collapsed={columnCollapsed ? "true" : "false"}
          style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
       <Topbar
         crumbs={[
@@ -548,7 +551,7 @@ export function Workspace({
 
         {/* Panel del paso — ancho fluido con mínimo legible; plegable con P. */}
         <RightPanelColumn
-          collapsed={panelCollapsed}
+          collapsed={columnCollapsed}
           onToggle={() => setPanelCollapsed(false)}
           stepLabel={STEPS[stepIdx].label}
           badge={sessionId && annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}

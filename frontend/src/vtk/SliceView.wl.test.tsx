@@ -80,8 +80,12 @@ describe("SliceView · ventana y nivel", () => {
     expect(mount({}, "XA").readout.textContent).toBe("W 400  L 40");
   });
 
-  it("es un botón que explica el gesto y restablece con doble clic sin tocar corte ni crosshair", () => {
-    const { props, onGrid, readout } = mount();
+  // Review Focus 5 habla de la celda lateral compacta: el mismo gesto en las dos.
+  it.each([
+    ["principal", {}],
+    ["compacta", { compact: true }],
+  ])("celda %s: la lectura es un botón que explica el gesto y restablece con doble clic sin tocar corte ni crosshair", (_n, extra) => {
+    const { props, onGrid, readout } = mount(extra);
     expect(readout.tagName).toBe("BUTTON");
     expect(readout.title).toBe("Ventana y nivel · arrastrar en la imagen los cambia · doble clic restablece");
     // Un doble clic real llega precedido de dos pulsaciones: ninguna puede

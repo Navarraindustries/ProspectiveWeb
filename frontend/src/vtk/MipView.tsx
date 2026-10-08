@@ -625,10 +625,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           <div style={{ position: "absolute", top: 52, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
             {/* En LIBRE el eje solo orienta la cámara: se atenúa sin apagarse. */}
             <HudToggleGroup label="EJE ▸" options={PLANE_OPTIONS} value={plane} onChange={(k) => onPlaneChange(k as Plane)} style={libre ? { opacity: 0.45 } : undefined} />
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <span style={{ color: "var(--hud-dim)", fontSize: 11, letterSpacing: ".08em", whiteSpace: "nowrap" }}>RECORTE ▸</span>
-              <HudToggleGroup options={CLIP_OPTIONS} value={clipMode} onChange={(k) => setClipMode(k as "eje" | "libre")} />
-            </div>
+            {/* El prefijo va dentro del grupo: un <span> suelto no lleva clase
+                del HUD y se quedaba flotando en esencial y limpio. */}
+            <HudToggleGroup label="RECORTE ▸" options={CLIP_OPTIONS} value={clipMode} onChange={(k) => setClipMode(k as "eje" | "libre")} />
             {libre && (
               <HudToggleGroup options={[{ key: "cara", label: cutFaceVisible ? "CARA ●" : "CARA ○",
                                           title: cutFaceVisible ? "Ocultar el corte en gris sobre la cara" : "Pintar el corte en gris sobre la cara" }]}
@@ -672,7 +671,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
               ? <HudToggleGroup label="DESDE ▸"
                   options={[{ key: "inicio", label: "INICIO", title: "Acumular desde el primer corte" }, { key: "final", label: "FINAL", title: "Acumular desde el último corte" }]}
                   value={reverse ? "final" : "inicio"} onChange={(k) => setReverse(k === "final")} />
-              : <input type="range" min={2} max={40} value={mipSlabMm} onChange={(e) => setMipSlabMm(Number(e.target.value))} style={{ width: 90, accentColor: "var(--hud)" }} title="Grosor de la lámina" />}
+              // `.hud-toggle`: el deslizador es un control como los botones y
+              // se oculta con ellos en esencial y limpio.
+              : <span className="hud-toggle"><input type="range" min={2} max={40} value={mipSlabMm} onChange={(e) => setMipSlabMm(Number(e.target.value))} style={{ width: 90, accentColor: "var(--hud)" }} title="Grosor de la lámina" /></span>}
             <HudToggleGroup options={[{ key: "fit", label: "ENCUADRAR", title: "Encuadrar lo visible (C)" }]} value="" onChange={fit} />
           </div>
         )}

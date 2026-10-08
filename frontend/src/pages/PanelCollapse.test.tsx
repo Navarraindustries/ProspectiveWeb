@@ -1,8 +1,11 @@
 /* El panel del paso se pliega con P sin desmontarse: lo escrito sigue ahí. */
 import { useEffect } from "react";
-import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
-import { RightPanelColumn, PREF_PANEL_COLLAPSED } from "../components/RightPanelColumn";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { RightPanelColumn, PREF_PANEL_COLLAPSED, useUnfoldForNote } from "../components/RightPanelColumn";
+import { AnnotationsPanel } from "../components/annotations/AnnotationsPanel";
+import { PlanningProvider, usePlanning } from "../store/planning";
+import type { Annotation } from "../vtk/annotations";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { matchShortcut } from "../vtk/shortcuts";
 
@@ -73,5 +76,51 @@ describe("panel del paso plegable", () => {
     pressP(input);
     expect(screen.queryByRole("button", { name: /PANEL ▸/ })).toBeNull();
     expect(window.localStorage.getItem(PREF_PANEL_COLLAPSED)).toBeNull();
+  });
+});
+
+/* El cableado de Workspace para la nota de un marcador: el mismo hook, la
+   columna real y el panel real de anotaciones. */
+let planning: ReturnType<typeof usePlanning> | null = null;
+function NoteHarness() {
+  const p = usePlanning();
+  useEffect(() => { planning = p; });
+  useEffect(() => { p.setSession("s1"); p.setAnnotationsLoaded([]); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [collapsed, setCollapsed] = useStoredFlag(PREF_PANEL_COLLAPSED);
+  const columnCollapsed = useUnfoldForNote(collapsed, setCollapsed, p.noteFocusRequest);
+  return (
+    <RightPanelColumn collapsed={columnCollapsed} onToggle={() => setCollapsed(false)} stepLabel="Detección">
+      <AnnotationsPanel />
+    </RightPanelColumn>
+  );
+}
+
+describe("nota de un marcador con el panel plegado", () => {
+  beforeEach(() => { window.localStorage.clear(); planning = null; });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("la petición de nota despliega la columna y el campo recibe el foco", async () => {
+    window.localStorage.setItem(PREF_PANEL_COLLAPSED, "1");
+    // jsdom no modela display: aquí focus() falla, como en el navegador, si
+    // algún antepasado está en display:none.
+    const real = HTMLElement.prototype.focus;
+    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (this: HTMLElement) {
+      for (let n: HTMLElement | null = this; n; n = n.parentElement) if (n.style.display === "none") return;
+      real.call(this);
+    });
+    render(<PlanningProvider><NoteHarness /></PlanningProvider>);
+    expect(screen.getByRole("button", { name: /PANEL ▸ Detección/ })).toBeTruthy();
+    const m: Annotation = {
+      id: "m9", kind: "marcador", points: [[1, 2, 3]], plane: null,
+      label: "M9", note: "", visible: true, created_at: "2026-10-08T10:00:00Z", created_by: "",
+    };
+    act(() => { planning?.setAnnotations((l) => [...l, m]); planning?.setNoteFocusRequest("m9"); });
+    const nota = await screen.findByLabelText("Nota de M9");
+    expect((nota.closest("[data-panel-column]") as HTMLElement).style.display).not.toBe("none");
+    await waitFor(() => expect(nota).toHaveFocus());
+    expect(planning?.noteFocusRequest).toBeNull();
+    // Desplegado de verdad, no solo mientras la nota esperaba.
+    expect(screen.queryByRole("button", { name: /PANEL ▸/ })).toBeNull();
+    expect(window.localStorage.getItem(PREF_PANEL_COLLAPSED)).toBe("0");
   });
 });

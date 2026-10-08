@@ -47,7 +47,13 @@ export function AnnotationsPanel() {
   useEffect(() => {
     if (!noteFocusRequest) return;
     const el = document.querySelector<HTMLInputElement>(`[data-note-for="${noteFocusRequest}"]`);
-    if (el) { el.focus(); setNoteFocusRequest(null); }
+    if (!el) return;
+    el.focus();
+    // WHY: focus() falla en silencio sobre un nodo oculto (columna plegada con
+    // display:none). Si la petición se borrase igual, la columna seguiría
+    // plegada y la nota tecleada dispararía los atajos del visor. Solo se da
+    // por cumplida cuando el campo tiene de verdad el foco.
+    if (document.activeElement === el) setNoteFocusRequest(null);
   }, [noteFocusRequest, annotations, setNoteFocusRequest]);
 
   const patch = (id: string, p: Partial<Annotation>) =>

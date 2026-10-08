@@ -59,15 +59,17 @@
    Esencial: fuera la decoración y los botones; quedan rótulo, lecturas,
    escalera, escala y barra de cine. `.hud-stack` no se esconde entero: es
    solo la columna que apila los botones de VOLUMEN (ya `.hud-toggle`) con
-   la barra del cine, que tiene que seguir viéndose. */
+   la barra del cine, que tiene que seguir viéndose. `.hud-controls` es una
+   fila entera de controles fuera de la imagen (los deslizadores del Oblicuo):
+   se va con los botones; la lectura AZ · EL del marco sigue diciéndolo. */
 [data-hud="esencial"] .hud-decor:not(.hud-ladder), [data-hud="esencial"] .hud-corner,
-[data-hud="esencial"] .hud-toggle, [data-hud="esencial"] .hud-hint:not(.hud-hint-level):not(.hud-hint-aviso) { display: none !important; }
+[data-hud="esencial"] .hud-toggle, [data-hud="esencial"] .hud-controls, [data-hud="esencial"] .hud-hint:not(.hud-hint-level):not(.hud-hint-aviso) { display: none !important; }
 [data-hud="esencial"] .hud-edge.right.beside-ladder { right: 48px; }   /* la escalera se queda */
 /* Limpio: solo la imagen y las anotaciones; el cine solo mientras reproduce,
    para poder pararlo con el ratón. Los avisos (`.hud-hint-aviso`) y la
    instrucción de la herramienta armada (`.hud-prompt`) se quedan: las
    teclas siguen actuando y hay que ver qué piden. */
-[data-hud="limpio"] .hud-decor, [data-hud="limpio"] .hud-corner, [data-hud="limpio"] .hud-toggle,
+[data-hud="limpio"] .hud-decor, [data-hud="limpio"] .hud-corner, [data-hud="limpio"] .hud-toggle, [data-hud="limpio"] .hud-controls,
 [data-hud="limpio"] .hud-hint:not(.hud-hint-level):not(.hud-hint-aviso), [data-hud="limpio"] .hud-label,
 [data-hud="limpio"] .hud-readout:not(.hud-prompt), [data-hud="limpio"] .hud-edge,
 [data-hud="limpio"] .hud-scale, [data-hud="limpio"] .hud-cine:not(.playing) { display: none !important; }

@@ -35,30 +35,41 @@ function fixture(level: HudLevel) {
       <div className="hud-cine" data-t="cine" />
       <div className="hud-cine playing" data-t="cine-playing" />
       <button className="hud-toggle" data-t="toggle" />
+      {/* Como el deslizador de LÁMINA en MIP: un control envuelto en .hud-toggle. */}
+      <span className="hud-toggle"><input type="range" data-t="wrapped-range" /></span>
+      {/* La fila de deslizadores del Oblicuo. */}
+      <div className="hud-controls" data-t="controls"><input type="range" data-t="controls-range" /></div>
       <svg className="hud-anot" data-t="anot" />
     </div>,
   );
-  const shown = (t: string) => getComputedStyle(container.querySelector(`[data-t="${t}"]`)!).display !== "none";
+  // Visible solo si ni el nodo ni ningún antepasado está en display:none
+  // (un control envuelto se oculta por su envoltorio).
+  const shown = (t: string) => {
+    for (let n: Element | null = container.querySelector(`[data-t="${t}"]`); n; n = n.parentElement) {
+      if (getComputedStyle(n).display === "none") return false;
+    }
+    return true;
+  };
   return shown;
 }
 
 describe("nivel del HUD (hud.css)", () => {
   it("completo: se ve todo", () => {
     const shown = fixture("completo");
-    for (const t of ["decor", "ladder", "corner", "label", "readout", "edge", "scale", "hint", "cine", "toggle", "anot"]) {
+    for (const t of ["decor", "ladder", "corner", "label", "readout", "edge", "scale", "hint", "cine", "toggle", "wrapped-range", "controls-range", "anot"]) {
       expect(shown(t), t).toBe(true);
     }
   });
 
   it("esencial: fuera decoración, esquinas, botones y pista; quedan escalera, lecturas, escala, cine y anotaciones", () => {
     const shown = fixture("esencial");
-    for (const t of ["decor", "corner", "toggle", "hint"]) expect(shown(t), t).toBe(false);
+    for (const t of ["decor", "corner", "toggle", "hint", "wrapped-range", "controls", "controls-range"]) expect(shown(t), t).toBe(false);
     for (const t of ["ladder", "label", "readout", "edge", "scale", "cine", "anot", "level-hint", "aviso", "prompt"]) expect(shown(t), t).toBe(true);
   });
 
   it("limpio: solo la imagen y las anotaciones (y el cine mientras reproduce)", () => {
     const shown = fixture("limpio");
-    for (const t of ["decor", "ladder", "corner", "label", "readout", "edge", "scale", "hint", "cine", "toggle"]) {
+    for (const t of ["decor", "ladder", "corner", "label", "readout", "edge", "scale", "hint", "cine", "toggle", "wrapped-range", "controls", "controls-range"]) {
       expect(shown(t), t).toBe(false);
     }
     // Los avisos y la instrucción de la herramienta armada se leen también en limpio.

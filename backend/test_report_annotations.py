@@ -38,3 +38,20 @@ def test_la_seccion_entra_en_el_pdf_con_valores_del_servidor():
 
 def test_sin_anotaciones_lo_dice():
     assert "Sin anotaciones" in _texts(ReportGenerator(ReportData())._build_story())
+
+
+def test_texto_con_caracteres_de_marcado_no_rompe_el_informe():
+    data = ReportData()
+    data.annotations = [{"id": "1", "kind": "marcador", "label": "a & b <c", "points": [_pt(1, 1, 1)], "plane": None, "note": "x <y & z", "visible": True}]
+    t = _texts(ReportGenerator(data)._build_story())
+    assert "a & b <c" in t and "x <y & z" in t
+
+
+def test_plano_mal_formado_sale_como_interrogante():
+    data = ReportData()
+    data.annotations = [
+        {"id": "1", "kind": "marcador", "label": "M1", "points": [_pt(1, 1, 1)], "plane": {"index": "x"}, "note": "", "visible": True},
+        {"id": "2", "kind": "marcador", "label": "M2", "points": [_pt(1, 1, 1)], "plane": "axial", "note": "", "visible": True},
+    ]
+    t = _texts(ReportGenerator(data)._build_story())
+    assert t.count("?") >= 2

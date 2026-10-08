@@ -660,7 +660,10 @@ def read_annotations(session_id: str) -> list[dict]:
         raw = json.loads((session_dir(session_id) / "annotations.json").read_text(encoding="utf-8"))
         items = raw.get("annotations", [])
         return [a for a in items if isinstance(a, dict)]
+    except FileNotFoundError:
+        return []
     except Exception:
+        logger.warning("annotations.json de %s ilegible: el informe sale sin anotaciones", session_id)
         return []
 
 
@@ -1721,6 +1724,8 @@ class ReportGenerator:
         return elems
 
     def _section_annotations(self) -> list:
+        from xml.sax.saxutils import escape
+
         from services.annotations import format_measure, measure
 
         elems = [Paragraph("Anotaciones", self._style_h2)]
@@ -1731,6 +1736,16 @@ class ReportGenerator:
 
         tipos = {"regla": "Regla", "angulo": "Ángulo", "region": "Región", "marcador": "Marcador"}
         etiqueta_corte = {"axial": "AX", "coronal": "COR", "sagital": "SAG"}
+
+        def _corte(plano) -> str:
+            # Nunca lanza: un plano mal formado no puede tumbar el informe.
+            if plano is None:
+                return "3D"
+            try:
+                # Se numera desde 1, como el HUD y el panel del visor.
+                return f"{etiqueta_corte[plano['plane']]} {int(plano['index']) + 1}"
+            except Exception:
+                return "?"
 
         def _xyz(p):
             # El servidor guarda {x,y,z}; measure() trabaja con [x,y,z].
@@ -1743,16 +1758,12 @@ class ReportGenerator:
                 valor = format_measure(measure(kind, [_xyz(p) for p in a.get("points", [])]))
             except Exception:
                 valor = ""
-            plano = a.get("plane")
-            # Se numera desde 1, como el HUD y el panel del visor.
-            corte = (f"{etiqueta_corte.get(plano.get('plane'), '?')} {int(plano.get('index', 0)) + 1}"
-                     if plano else "3D")
             rows.append([
-                Paragraph(str(a.get("label", "")), self._style_td_note),
-                tipos.get(kind, kind),
+                Paragraph(escape(str(a.get("label", ""))), self._style_td_note),
+                escape(tipos.get(kind, kind)),
                 valor or "—",
-                corte,
-                Paragraph(str(a.get("note", "")), self._style_td_note),
+                _corte(a.get("plane")),
+                Paragraph(escape(str(a.get("note", ""))), self._style_td_note),
             ])
         tbl = Table(rows, colWidths=[2.8*cm, 2.6*cm, 2.8*cm, 2.2*cm, 7.5*cm], repeatRows=1)
         tbl.setStyle(TableStyle([

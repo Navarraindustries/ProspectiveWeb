@@ -106,7 +106,10 @@ async def login(
     try:
         user = authenticate_user(db, req.username, req.password)
     except AuthError as exc:
-        # Account exists but is blocked (pending approval / rejected / disabled)
+        # Account exists but is blocked (pending approval / rejected / disabled).
+        # Cuenta como intento fallido: si no, una cuenta bloqueada se podía
+        # sondear sin límite.
+        login_throttle.record_failure(clave)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     if user is None:
         login_throttle.record_failure(clave)

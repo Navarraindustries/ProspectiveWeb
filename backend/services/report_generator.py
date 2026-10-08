@@ -1384,7 +1384,6 @@ class ReportGenerator:
         """
         floor = self._data.branch_floor_mm
         branches = self._data.branches
-        territory = self._perforator_territory()
         if not branches and floor <= 0:
             # Sin barrido no hay nada medido que contar, pero la anatomía de la
             # localización sigue valiendo: es independiente de la imagen.

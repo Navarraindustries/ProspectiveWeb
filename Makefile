@@ -19,6 +19,9 @@ install\:backend:
 install\:frontend:
 	cd $(FRONTEND_DIR) && npm install
 
+# El esquema del que salen los tipos del frontend. Sin servidor: /openapi.json
+# exige sesión desde octubre de 2026.
 openapi\:export:
-	curl -s http://127.0.0.1:8000/openapi.json -o openapi.json
-	@echo openapi.json actualizado
+	cd $(BACKEND_DIR) && $(VENV)\python scripts\export_openapi.py ..\frontend\openapi.json
+	cd $(FRONTEND_DIR) && npm run gen:api
+	@echo frontend/openapi.json y src/api/schema.gen.ts actualizados

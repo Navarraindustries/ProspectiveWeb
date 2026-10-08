@@ -30,6 +30,8 @@ function fixture(level: HudLevel) {
       <div className="hud-scale" data-t="scale" />
       <div className="hud-hint" data-t="hint" />
       <div className="hud-hint hud-hint-level" data-t="level-hint" />
+      <div className="hud-hint hud-hint-aviso" data-t="aviso" />
+      <div className="hud-readout hud-prompt" data-t="prompt" />
       <div className="hud-cine" data-t="cine" />
       <div className="hud-cine playing" data-t="cine-playing" />
       <button className="hud-toggle" data-t="toggle" />
@@ -51,7 +53,7 @@ describe("nivel del HUD (hud.css)", () => {
   it("esencial: fuera decoración, esquinas, botones y pista; quedan escalera, lecturas, escala, cine y anotaciones", () => {
     const shown = fixture("esencial");
     for (const t of ["decor", "corner", "toggle", "hint"]) expect(shown(t), t).toBe(false);
-    for (const t of ["ladder", "label", "readout", "edge", "scale", "cine", "anot", "level-hint"]) expect(shown(t), t).toBe(true);
+    for (const t of ["ladder", "label", "readout", "edge", "scale", "cine", "anot", "level-hint", "aviso", "prompt"]) expect(shown(t), t).toBe(true);
   });
 
   it("limpio: solo la imagen y las anotaciones (y el cine mientras reproduce)", () => {
@@ -59,6 +61,7 @@ describe("nivel del HUD (hud.css)", () => {
     for (const t of ["decor", "ladder", "corner", "label", "readout", "edge", "scale", "hint", "cine", "toggle"]) {
       expect(shown(t), t).toBe(false);
     }
-    for (const t of ["anot", "cine-playing", "level-hint"]) expect(shown(t), t).toBe(true);
+    // Los avisos y la instrucción de la herramienta armada se leen también en limpio.
+    for (const t of ["anot", "cine-playing", "level-hint", "aviso", "prompt"]) expect(shown(t), t).toBe(true);
   });
 });

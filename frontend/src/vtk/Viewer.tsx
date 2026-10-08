@@ -1248,19 +1248,22 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [canCenter, setCenterOnLesion]);
   useEffect(() => () => setCenterOnLesion(null), [setCenterOnLesion]);
 
-  const [hint, setHint] = useState<string | null>(null);
+  // `aviso`: un mensaje (tope de anotaciones, cine…) que hay que leer en
+  // cualquier nivel del HUD; sin él es la pista del gesto, que esencial y
+  // limpio esconden (hud.css).
+  const [hint, setHint] = useState<{ text: string; aviso: boolean } | null>(null);
   // La animación de desvanecido corre una vez, al montar el div: reaparecer al
   // cambiar la principal necesita un nodo nuevo (de ahí `key`) o se vería ya apagada.
   const [hintSeq, setHintSeq] = useState(0);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Antes que finishAnnotation, que la usa para el aviso del tope.
-  const showHintText = useCallback((text: string) => {
-    setHint(text);
+  const showHintText = useCallback((text: string, aviso = true) => {
+    setHint({ text, aviso });
     setHintSeq((n) => n + 1);
     if (hintTimer.current) clearTimeout(hintTimer.current);
     hintTimer.current = setTimeout(() => setHint(null), 3000);
   }, []);
-  const showHint = useCallback((kind: HintKind) => showHintText(HINT_TEXT[kind]), [showHintText]);
+  const showHint = useCallback((kind: HintKind) => showHintText(HINT_TEXT[kind], false), [showHintText]);
 
   // Pista del nivel del HUD («HUD esencial»), arriba y 1,2 s. Aparte de la de
   // la vista: esa la esconden los niveles y, al cargar, el cambio de pista de
@@ -1463,7 +1466,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     switch (id) {
       case "sync": setSyncViews(!syncViews); return;
       // Ningún atajo mira el nivel: en limpio todos siguen actuando.
-      case "hud-cycle": changeHudLevel(nextHudLevel(hudLevel)); return;
+      case "hud-cycle": {
+        // De la ref, adelantada aquí: dos H antes del siguiente render avanzan dos.
+        const next = nextHudLevel(hudLevelRef.current);
+        hudLevelRef.current = next;
+        changeHudLevel(next);
+        return;
+      }
       case "help": openSheet(); return;
       case "anot-regla": case "anot-angulo": case "anot-region": case "anot-marcador": {
         // Misma tecla otra vez desarma; setPickMode ya vacía el borrador al cambiar.
@@ -1797,9 +1806,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
           </div>
         )}
 
-        {/* Aviso de marcado: pasa a «clic fuera» un momento si se falla la malla. */}
+        {/* Aviso de marcado: pasa a «clic fuera» un momento si se falla la malla.
+            `hud-prompt`: es la instrucción de una herramienta armada, no una
+            lectura de esquina; se ve también en limpio. */}
         {pickMode && meshUrl && (
-          <div className={`hud-readout${pickMiss ? " hud-err" : ""}`}
+          <div className={`hud-readout hud-prompt${pickMiss ? " hud-err" : ""}`}
                style={{ top: 40, left: "50%", transform: "translateX(-50%)", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: pickMiss ? undefined : "var(--hud)", pointerEvents: "none", zIndex: 5 }}>
             {(pickMiss ? "Clic fuera de la malla — haz clic sobre la superficie 3D" : pickText(pickMode, annotationDraft.length, pickMode === "scissors" ? scissorsPoints.length : neckRim.length)).toUpperCase()}
             {"\nESC · CANCELAR"}
@@ -1881,7 +1892,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
               {wlHost === viewerLayout.main && wlSelect}
               {/* Pista de la principal: fuera de renderPane/renderScene porque
                   aplica igual a la escena 3D, el MIP o un corte. */}
-              {hint && <div key={hintSeq} className="hud-hint">{hint}</div>}
+              {hint && <div key={hintSeq} className={hint.aviso ? "hud-hint hud-hint-aviso" : "hud-hint"}>{hint.text}</div>}
               {levelHint && <div key={`nivel-${levelHint.seq}`} className="hud-hint hud-hint-level">{levelHint.text}</div>}
             </>
           }

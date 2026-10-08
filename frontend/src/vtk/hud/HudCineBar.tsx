@@ -1,7 +1,8 @@
 /* La barra mínima del cine de una celda: reproducir/parar, un corte atrás o
    adelante y la cadencia. Es un control, no decoración: sigue a la vista en
    el HUD esencial (no lleva `hud-decor`) y, en limpio, mientras reproduce
-   (clase `playing`), porque sin ella no habría cómo parar con el ratón. En la celda compacta solo caben el botón y la posición. */
+   (clase `playing`), porque sin ella no habría cómo parar con el ratón.
+   En la celda compacta solo caben el botón y la posición. */
 import type { CSSProperties, SyntheticEvent } from "react";
 import { CINE_FPS_MAX, CINE_FPS_MIN, clampFps } from "../cine";
 

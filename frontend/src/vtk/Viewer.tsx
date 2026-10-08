@@ -9,7 +9,9 @@
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
-import { newId, nextLabel, POINTS_NEEDED, type Annotation } from "./annotations";
+import { newId, nextLabel, type Annotation } from "./annotations";
+import { addPoint, closeRegion, removeLast } from "./annotationDraft";
+import type { AnnotationPlane } from "../api/types";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
@@ -1216,7 +1218,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   useEffect(() => () => setCenterOnLesion(null), [setCenterOnLesion]);
 
   // Cierra el borrador como anotación nueva: queda elegida y el modo se desarma.
-  const finishAnnotation = useCallback((points: Vec3[], plane: null) => {
+  const finishAnnotation = useCallback((points: Vec3[], plane: AnnotationPlane | null) => {
     const kind = kindOfMode(pickMode);
     if (!kind) return;
     const a: Annotation = {
@@ -1231,15 +1233,35 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setPickMode(null);
   }, [pickMode, setAnnotations, setSelectedAnnotation, setAnnotationDraft, setPickMode]);
 
-  const addAnnotationPoint = useCallback((xyz: Vec3, plane: null) => {
+  // Corte de la región en curso: se fija con su primer punto.
+  const draftPlaneRef = useRef<AnnotationPlane | null>(null);
+  // `plane` es el corte del clic (null en el 3D); una regla o un ángulo pueden
+  // mezclar cortes y 3D, y se quedan con el corte del último clic.
+  const addAnnotationPoint = useCallback((xyz: Vec3, plane: AnnotationPlane | null) => {
     const kind = kindOfMode(pickMode);
-    // WHY: una región es un contorno sobre un corte; en la malla 3D sus puntos
-    // no caen en un plano y el área no significaría nada. El aviso lo dice.
-    if (!kind || kind === "region") return;
-    const draft = [...annotationDraft, xyz];
-    if (draft.length === POINTS_NEEDED[kind]) finishAnnotation(draft, plane);
-    else setAnnotationDraft((d) => [...d, xyz]);
+    if (!kind) return;
+    if (kind === "region") {
+      // WHY: una región es un contorno sobre un corte; en la malla 3D sus puntos
+      // no caen en un plano y el área no significaría nada. El aviso lo dice.
+      if (!plane) return;
+      // Y un solo corte: un punto en otra celda, o tras mover la rueda, haría
+      // un contorno alabeado que no se enseña entero en ningún corte.
+      const first = draftPlaneRef.current;
+      if (annotationDraft.length === 0) draftPlaneRef.current = plane;
+      else if (!first || first.plane !== plane.plane || first.index !== plane.index) return;
+    }
+    const step = addPoint(kind, annotationDraft, xyz);
+    if (step.done) finishAnnotation(step.done, plane);
+    else setAnnotationDraft(step.draft);
   }, [pickMode, annotationDraft, finishAnnotation, setAnnotationDraft]);
+
+  const onAnnotationKey = useCallback((key: "Enter" | "Backspace" | "Escape") => {
+    if (key === "Escape") { setAnnotationDraft([]); setPickMode(null); return; }
+    if (key === "Backspace") { setAnnotationDraft(removeLast); return; }
+    if (pickMode !== "anot_region") return;
+    const points = closeRegion(annotationDraft);
+    if (points && draftPlaneRef.current) finishAnnotation(points, draftPlaneRef.current);
+  }, [pickMode, annotationDraft, finishAnnotation, setAnnotationDraft, setPickMode]);
 
   const onPick = useCallback(
     (xyz: [number, number, number]) => {
@@ -1268,8 +1290,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   // Un marcado se hace sobre la malla: si la escena es una vista lateral, sube
   // a principal, porque en una celda pequeña ni se apunta ni se lee el aviso.
+  // Las anotaciones no: se marcan también en los cortes, y la región solo en ellos.
   useEffect(() => {
-    if (pickMode !== null && viewerLayout.main !== "scene") setViewerLayout(promote(viewerLayout, "scene"));
+    if (pickMode !== null && kindOfMode(pickMode) === null && viewerLayout.main !== "scene") setViewerLayout(promote(viewerLayout, "scene"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickMode]);
 
@@ -1278,7 +1301,22 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // líneas de referencia van en las mismas coordenadas que el crosshair: en
   // cada plano marcan dónde lo cortan los otros dos.
   const f = (n: number, i: number) => (n > 1 ? i / (n - 1) : 0.5);
-  const planeCfg = (plane: Plane) => {
+  const annotationKind = kindOfMode(pickMode);
+  const planeCfg = (plane: Plane) => ({ ...planeNav(plane), ...planeAnnotation(plane) });
+  // Lo que cada corte necesita para marcar anotaciones con el índice que enseña.
+  const planeAnnotation = (plane: Plane) => {
+    const index = plane === "axial" ? mprVoxel.z : plane === "coronal" ? mprVoxel.y : mprVoxel.x;
+    const dp = draftPlaneRef.current;
+    return {
+      annotationMode: annotationKind !== null,
+      annotationKind,
+      // La región se proyecta solo en su propio corte: en otro sus px no significan nada.
+      annotationDraft: annotationKind !== "region" || (dp?.plane === plane && dp.index === index) ? annotationDraft : [],
+      onPlaneClickMm: (p: Vec3) => addAnnotationPoint(p, { plane, index }),
+      onAnnotationKey,
+    };
+  };
+  const planeNav = (plane: Plane) => {
     const vox = mprVoxel;
     const set = (v: Partial<typeof vox>) => setMprVoxel({ ...vox, ...v });
     // Un clic en un corte, con SINCRO, es el nuevo foco de todo (el 3D
@@ -1467,7 +1505,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
           crosshair={c.crosshair} onPlaneClick={c.onPlaneClick} referenceLines={c.referenceLines}
           freeSegment={showFreePlane ? sliceSegment(freePlane, mprVoxel, meta, id, c.index) : null}
           band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
-          active={active} compact={compact} registerCapture={regPane(captureAs)} registerFit={regFit(captureAs)} />
+          active={active} compact={compact} registerCapture={regPane(captureAs)} registerFit={regFit(captureAs)}
+          annotationMode={c.annotationMode} annotationKind={c.annotationKind} annotationDraft={c.annotationDraft}
+          onPlaneClickMm={c.onPlaneClickMm} onAnnotationKey={c.onAnnotationKey} />
       </Suspense>
     );
   };

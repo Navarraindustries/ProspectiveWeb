@@ -14,9 +14,11 @@ import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import { SlicingMode } from "@kitware/vtk.js/Rendering/Core/ImageMapper/Constants";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
-import type { VolumeMeta } from "../api/types";
+import type { AnnotationKind, VolumeMeta } from "../api/types";
 import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
-import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane } from "./geometry";
+import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane, type Vec3 } from "./geometry";
+import { mmToUv, uvToMm } from "./sliceCoords";
+import { closesRegion } from "./annotationDraft";
 import { PLANE_CSS_VAR, referencePlanes } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
 import { applyStep, isNativeKeyTarget, stepFromKey } from "./cine";
@@ -59,7 +61,21 @@ export interface SliceViewProps {
   /** Publica el reencuadre de esta celda (la tecla C) mientras su escena viva,
    *  como `registerCapture`: el visor no ve la cámara de cada celda. */
   registerFit?: (fn: (() => void) | null) => void;
+  /** true: hay un modo de anotación armado y el clic marca un punto en vez de
+   *  mover el crosshair. */
+  annotationMode?: boolean;
+  /** Tipo que se está marcando: la región se cierra aquí, que es donde se sabe
+   *  a cuántos px queda el primer punto. */
+  annotationKind?: AnnotationKind | null;
+  /** Borrador en mm del marco del volumen, para proyectarlo a px de la celda. */
+  annotationDraft?: Vec3[];
+  /** En modo anotación sustituye a onPlaneClick: el punto exacto en mm, sin
+   *  redondear a vóxel, y el clic en px de la celda. */
+  onPlaneClickMm?: (p: Vec3, px: { x: number; y: number }) => void;
+  onAnnotationKey?: (key: "Enter" | "Backspace" | "Escape") => void;
 }
+
+const ANNOTATION_KEYS = new Set(["Enter", "Backspace", "Escape"]);
 
 interface Scene {
   grw: vtkGenericRenderWindow;
@@ -312,12 +328,39 @@ export function SliceView(p: SliceViewProps) {
     const k = span / 400;   // arrastrar 400 px recorre todo el rango
     p.onWindowLevel(d.wc - dy * k, Math.max(1, d.ww + dx * k));
   };
+  const annotating = !!p.annotationMode && !!p.onPlaneClickMm;
+  const isRegion = annotating && p.annotationKind === "region";
+  const annotationClick = (e: React.MouseEvent, f: { u: number; v: number }) => {
+    const r = containerRef.current!.getBoundingClientRect();
+    const px = { x: e.clientX - r.left, y: e.clientY - r.top };
+    if (isRegion && box) {
+      const draftPx = (p.annotationDraft ?? []).map((m) => {
+        const uv = mmToUv(p.plane, m, p.meta);
+        return { x: box.left + uv.u * box.w, y: box.top + uv.v * box.h };
+      });
+      if (closesRegion(draftPx, px)) { p.onAnnotationKey?.("Enter"); return; }
+      // WHY: el segundo clic de un doble clic (o un temblor) cae sobre el último
+      // punto; añadirlo dejaría un vértice repetido en el contorno.
+      const last = draftPx[draftPx.length - 1];
+      if (last && Math.hypot(px.x - last.x, px.y - last.y) <= 8) return;
+    }
+    p.onPlaneClickMm!(uvToMm(p.plane, p.index, f.u, f.v, p.meta), px);
+  };
   const onMouseUp = (e: React.MouseEvent) => {
     const d = drag.current; drag.current = null;
-    if (d && !d.moved) { const f = frac(e); if (f) p.onPlaneClick(f.u, f.v); }
+    if (!d || d.moved) return;
+    const f = frac(e); if (!f) return;
+    if (annotating) annotationClick(e, f);
+    else p.onPlaneClick(f.u, f.v);
   };
+  const onDoubleClick = () => { if (isRegion) p.onAnnotationKey?.("Enter"); };
   const onKey = (e: React.KeyboardEvent) => {
     if (isNativeKeyTarget(e.target)) return;
+    if (p.annotationMode && ANNOTATION_KEYS.has(e.key)) {
+      e.preventDefault();
+      p.onAnnotationKey?.(e.key as "Enter" | "Backspace" | "Escape");
+      return;
+    }
     const step = stepFromKey(e.key); if (step === null) return;
     e.preventDefault();
     p.onIndexChange(applyStep(p.index, step, count));
@@ -330,7 +373,7 @@ export function SliceView(p: SliceViewProps) {
       ref={containerRef}
       tabIndex={0}
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
-      onMouseLeave={() => { drag.current = null; }} onKeyDown={onKey}
+      onMouseLeave={() => { drag.current = null; }} onKeyDown={onKey} onDoubleClick={onDoubleClick}
       style={{ position: "relative", width: "100%", height: "100%", background: "#000", overflow: "hidden", cursor: "crosshair", outline: "none" }}
       title="Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · Clic: centrar"
     >

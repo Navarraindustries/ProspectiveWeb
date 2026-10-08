@@ -57,7 +57,7 @@ def measure(kind: str, points) -> tuple[str, float] | None:
 def _round_half_up(value: float, step: str) -> str:
     # f"{v:.0f}" redondea el empate al par (2,5 -> 2) y toFixed del visor hacia arriba (-> 3):
     # un área de 12,5 mm² saldría distinta en el informe y en el visor.
-    return str(Decimal(repr(value)).quantize(Decimal(step), rounding=ROUND_HALF_UP))
+    return str(Decimal(value).quantize(Decimal(step), rounding=ROUND_HALF_UP))
 
 
 def format_measure(m: tuple[str, float] | None) -> str:

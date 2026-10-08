@@ -31,6 +31,10 @@ function recorder() {
     arc: vi.fn((x: number, y: number, r: number) => { ops.push(["arc", x, y, r]); }),
     setLineDash: vi.fn((d: number[]) => { ops.push(["setLineDash", d]); }),
     measureText: vi.fn((t: string) => ({ width: t.length * 6 })),
+    save: vi.fn(() => { ops.push(["save"]); }),
+    restore: vi.fn(() => { ops.push(["restore"]); }),
+    rect: vi.fn((x: number, y: number, w: number, h: number) => { ops.push(["rect", x, y, w, h]); }),
+    clip: vi.fn(() => { ops.push(["clip"]); }),
   };
   return { ctx, textos, imagenes, rects, ops };
 }
@@ -180,14 +184,32 @@ describe("las anotaciones salen en la imagen", () => {
     const rec = recorder();
     drawShapes(rec.ctx, RECT, [{ kind: "line", x1: 1, y1: 2, x2: 30, y2: 40, color: "#f5c02e", width: 3, dashed: true }], "mono");
     expect(rec.ops).toEqual([
+      ["save"], ["beginPath"], ["rect", 100, 50, 200, 200], ["clip"],
       ["setLineDash", [6, 4]], ["beginPath"], ["moveTo", 101, 52], ["lineTo", 130, 90], ["stroke", "#f5c02e", 3],
-      ["setLineDash", []],
+      ["restore"],
     ]);
   });
 
-  it("el polígono se rellena y luego se perfila", () => {
+  it("todo va recortado al panel: un tramo del 3D que se sale no invade al vecino", () => {
     const rec = recorder();
-    drawShapes(rec.ctx, RECT, [{ kind: "polygon", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], color: "#3ad", fill: "#3ad33", closed: true }], "mono");
+    drawShapes(rec.ctx, RECT, [
+      { kind: "line", x1: 10, y1: 10, x2: 500, y2: -300, color: "#f5c02e", width: 1.5 },
+      { kind: "circle", x: 7, y: 8, r: 2.5, color: "#f5c02e" },
+    ], "mono");
+    const at = (n: string) => rec.ops.findIndex((o) => o[0] === n);
+    const last = (n: string) => rec.ops.map((o) => o[0]).lastIndexOf(n);
+    expect(rec.ops[at("rect")]).toEqual(["rect", 100, 50, 200, 200]);
+    expect(at("save")).toBeLessThan(at("rect"));
+    expect(at("clip")).toBeGreaterThan(at("rect"));
+    expect(at("clip")).toBeLessThan(at("moveTo"));
+    expect(last("restore")).toBe(rec.ops.length - 1);
+    expect(last("restore")).toBeGreaterThan(last("fill"));
+  });
+
+  it("el polígono se rellena y luego se perfila, con su grosor", () => {
+    const rec = recorder();
+    drawShapes(rec.ctx, RECT, [{ kind: "polygon", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], color: "#3ad", fill: "#3ad33", closed: true, width: 3 }], "mono");
+    expect(rec.ops).toContainEqual(["stroke", "#3ad", 3]);
     const nombres = rec.ops.map((o) => o[0]);
     expect(rec.ops).toContainEqual(["moveTo", 100, 50]);
     expect(rec.ops).toContainEqual(["lineTo", 110, 60]);

@@ -75,6 +75,10 @@ export interface Ctx2D {
   arc(x: number, y: number, r: number, a0: number, a1: number): void;
   setLineDash(d: number[]): void;
   measureText(t: string): { width: number };
+  save(): void;
+  restore(): void;
+  rect(x: number, y: number, w: number, h: number): void;
+  clip(): void;
 }
 
 export interface ComposeDeps {
@@ -208,6 +212,13 @@ function drawPaneHud(ctx: Ctx2D, p: Omit<PaneShot, "capture">, colors: HudColors
  *  rótulo tiene que leerse sobre hueso blanco igual que sobre fondo negro. */
 export function drawShapes(ctx: Ctx2D, rect: PaneRect, shapes: Shape[], fontFamily: string): void {
   const { x: ox, y: oy } = rect;
+  // En pantalla la celda recorta lo que su svg pinte fuera (un tramo del 3D
+  // que se sale); aquí lo hace el recorte, o invadiría el panel vecino. El
+  // restore() deja además el trazo discontinuo y los estilos como estaban.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
+  ctx.clip();
   for (const s of shapes) {
     if (s.kind === "line") {
       ctx.setLineDash(s.dashed ? [6, 4] : []);
@@ -229,7 +240,7 @@ export function drawShapes(ctx: Ctx2D, rect: PaneRect, shapes: Shape[], fontFami
         ctx.fill();
       }
       ctx.strokeStyle = s.color;
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = s.width ?? 1.5;
       ctx.stroke();
     } else if (s.kind === "circle") {
       ctx.fillStyle = s.color;
@@ -237,8 +248,8 @@ export function drawShapes(ctx: Ctx2D, rect: PaneRect, shapes: Shape[], fontFami
       ctx.arc(ox + s.x, oy + s.y, s.r, 0, 2 * Math.PI);
       ctx.fill();
     } else {
-      // Un rótulo del 3D proyectado fuera de la celda: en pantalla la celda lo
-      // recorta, aquí caería encima del panel vecino.
+      // Un rótulo del 3D anclado fuera de la celda: el recorte dejaría solo un
+      // trozo de su fondo asomando por el borde, que es ruido.
       if (s.x < 0 || s.y < 0 || s.x > rect.w || s.y > rect.h) continue;
       // Línea base alfabética y a la izquierda: lo que hace <text> por defecto,
       // así el rótulo cae donde caía en pantalla.
@@ -252,8 +263,7 @@ export function drawShapes(ctx: Ctx2D, rect: PaneRect, shapes: Shape[], fontFami
       ctx.fillText(s.text, x, y);
     }
   }
-  // El trazo discontinuo se queda en el contexto: que no herede lo siguiente.
-  ctx.setLineDash([]);
+  ctx.restore();
 }
 
 /** Cinta de rumbo y aviso, arriba del todo. */

@@ -27,7 +27,7 @@ describe("readPaneShapes", () => {
     const shapes = readPaneShapes(celda(ANOT));
     expect(shapes).toEqual([
       { kind: "line", x1: 11, y1: 7, x2: 40, y2: 45, color: "#f5c02e", width: 3, dashed: false },
-      { kind: "polygon", points: [{ x: 10, y: 5 }, { x: 20, y: 5 }, { x: 20, y: 15 }], color: "#3ad", fill: "#3ad33", closed: true },
+      { kind: "polygon", points: [{ x: 10, y: 5 }, { x: 20, y: 5 }, { x: 20, y: 15 }], color: "#3ad", fill: "#3ad33", closed: true, width: 1.5 },
       { kind: "circle", x: 17, y: 13, r: 2.5, color: "#f5c02e" },
       { kind: "text", x: 30, y: 35, text: "R1 · 5,0 mm", color: "#f5c02e" },
     ]);

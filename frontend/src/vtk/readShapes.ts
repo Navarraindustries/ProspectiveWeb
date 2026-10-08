@@ -46,7 +46,7 @@ export function readPaneShapes(cell: HTMLElement | null | undefined): Shape[] {
         const nums = (el.getAttribute("points") ?? "").trim().split(/[\s,]+/).map(Number).filter(Number.isFinite);
         const points: { x: number; y: number }[] = [];
         for (let k = 0; k + 1 < nums.length; k += 2) points.push({ x: nums[k] + dx, y: nums[k + 1] + dy });
-        out.push({ kind: "polygon", points, color: el.getAttribute("stroke") ?? "#fff", fill: el.getAttribute("fill") ?? "none", closed: true });
+        out.push({ kind: "polygon", points, color: el.getAttribute("stroke") ?? "#fff", fill: el.getAttribute("fill") ?? "none", closed: true, width: num(el, "stroke-width", 1.5) });
       } else if (tag === "circle") {
         out.push({ kind: "circle", x: num(el, "cx") + dx, y: num(el, "cy") + dy, r: num(el, "r"), color: el.getAttribute("fill") ?? el.getAttribute("stroke") ?? "#fff" });
       } else if (tag === "text") {

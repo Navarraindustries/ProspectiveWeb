@@ -9,7 +9,7 @@ import { mmToUv, PLANE_AXIS } from "./sliceCoords";
 
 export type Shape =
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; color: string; width: number; dashed?: boolean }
-  | { kind: "polygon"; points: { x: number; y: number }[]; color: string; fill: string; closed: boolean }
+  | { kind: "polygon"; points: { x: number; y: number }[]; color: string; fill: string; closed: boolean; width?: number }
   | { kind: "circle"; x: number; y: number; r: number; color: string }
   | { kind: "text"; x: number; y: number; text: string; color: string };
 

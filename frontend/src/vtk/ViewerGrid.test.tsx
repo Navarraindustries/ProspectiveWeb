@@ -46,6 +46,12 @@ describe("ViewerGrid", () => {
     expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["axial", "scene", "sagital", "mip"] });
   });
 
+  it("doble clic en la celda principal no cambia nada", () => {
+    const { cell, onLayoutChange } = setup();
+    fireEvent.doubleClick(cell("scene"));
+    expect(onLayoutChange).not.toHaveBeenCalled();
+  });
+
   it("ninguna celda lleva botón «⤢»: se maximiza con doble clic", () => {
     const { container } = setup();
     expect(container.querySelector(".viewer-maximize")).toBeNull();

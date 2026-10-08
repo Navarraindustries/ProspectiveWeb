@@ -101,7 +101,7 @@ export function ViewerHeader({
         )}
         {levelNote && (
           <span data-testid="header-level-note" title={levelNote}
-                style={{ color: "var(--hud-amber)", fontSize: 11, letterSpacing: ".08em" }}>
+                style={{ color: "var(--hud-amber)", fontSize: 11, letterSpacing: ".08em", flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {bandWidth < NARROW_HEADER_PX ? (levelNoteShort ?? levelNote) : levelNote}
           </span>
         )}

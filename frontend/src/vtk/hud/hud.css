@@ -45,6 +45,12 @@
 /* Con la escalera oculta, la letra derecha vuelve a su sitio. */
 .hud-nodecor .hud-edge.right.beside-ladder { right: 8px; }
 
+/* Anotaciones (cortes y 3D). Sin `hud-decor`: son datos del caso y se ven
+   también con REGLAS ○. Ancho y alto explícitos: un <svg> absoluto no se
+   estira con inset como un div, se queda en 300×150. */
+.hud-anot { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.hud-anot text { font: 10.5px var(--font-mono); paint-order: stroke; stroke: #000; stroke-width: 3px; stroke-linejoin: round; }
+
 /* Rejilla del visor (ViewerGrid). Una vista oculta en «sola» sigue montada a
    1×1 px: vtk se queja de un lienzo de 0 px y remontarla perdería la cámara. */
 .viewer-cell--hidden { width: 1px !important; height: 1px !important; opacity: 0; pointer-events: none; left: 0; top: 0; }

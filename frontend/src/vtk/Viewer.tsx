@@ -12,7 +12,8 @@ import { kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap 
 import { newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import type { AnnotationPlane } from "../api/types";
-import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
+import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
+import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
 import { poseDelta } from "./clipPose";
@@ -43,7 +44,7 @@ import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
 import { clampOffsetToBox, sliceSegment, type FreePlane } from "./freePlane";
-import { HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
+import { ANNOTATION_HEX, HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
 import { captureFileName } from "./viewerRecorder";
 import { readHeading, readPaneHud } from "./readHud";
 import { HudFrame } from "./hud/HudFrame";
@@ -123,8 +124,9 @@ const CAMERA_BUTTONS: [CameraView, string, string][] = [
 const CENTERLINE_COLOR: Vector3 = [0.36, 0.85, 0.86]; // cyan — vessel centreline tube
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
 const TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29];     // red — picked target endpoint
-const MEASURE_COLOR: Vector3 = [0.98, 0.75, 0.18];    // amber — annotation in progress
-const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — draft annotation points
+const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — borrador de anotación (DRAFT_HEX en los cortes)
+/** La anotación seleccionada, más gruesa en el 3D (en los cortes, trazo 3). */
+const ANNOTATION_SELECTED_SCALE = 1.6;
 const NECK_ORIGIN_COLOR: Vector3 = [0.85, 0.35, 0.85]; // magenta — neck-plane point
 const NECK_DOME_COLOR: Vector3 = [0.36, 0.85, 0.86];   // cyan — dome apex
 const NECK_RIM_COLOR: Vector3 = [0.90, 0.45, 0.95];    // violet — marked neck rim
@@ -213,7 +215,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
-    setAnnotations, annotationDraft, setAnnotationDraft, setSelectedAnnotation, previewBand, previewMeshUrl,
+    annotations, setAnnotations, annotationDraft, setAnnotationDraft, selectedAnnotation, setSelectedAnnotation, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
@@ -1074,6 +1076,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (clSource) out.push({ pos: clSource, color: SOURCE_COLOR });
     if (clTarget) out.push({ pos: clTarget, color: TARGET_COLOR });
     for (const p of annotationDraft) out.push({ pos: p, color: PENDING_COLOR });
+    for (const a of annotations) {
+      if (!a.visible || a.kind !== "marcador" || a.points.length === 0) continue;
+      out.push({ pos: a.points[0], color: hexToRgb01(ANNOTATION_HEX.marcador), scale: a.id === selectedAnnotation ? ANNOTATION_SELECTED_SCALE : 1 });
+    }
     if (neckOrigin) out.push({ pos: neckOrigin, color: NECK_ORIGIN_COLOR });
     if (neckDome) out.push({ pos: neckDome, color: NECK_DOME_COLOR });
     for (const r of neckRim) out.push({ pos: r, color: NECK_RIM_COLOR });
@@ -1095,7 +1101,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, annotationDraft, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
 
   // El punto compartido de los cortes, con radio fijo en mm (no depende de la
   // escena). Va aparte de `markers`: MeshView lo dibuja encima de la malla.
@@ -1120,7 +1126,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // WHY: los tramos ya pinchados del borrador; un ángulo a medias enseña su
     // primer brazo y se ve dónde caerá el vértice.
     const out: MeshLine[] = annotationDraft.slice(1)
-      .map((b, i) => ({ a: annotationDraft[i], b, color: MEASURE_COLOR }));
+      .map((b, i) => ({ a: annotationDraft[i], b, color: PENDING_COLOR }));
+    // Las anotaciones hechas: un tubo por tramo; la región, cerrada.
+    for (const a of annotations) {
+      if (!a.visible || a.kind === "marcador") continue;
+      const color = hexToRgb01(ANNOTATION_HEX[a.kind]);
+      const scale = a.id === selectedAnnotation ? ANNOTATION_SELECTED_SCALE : 1;
+      const pts = a.points;
+      const n = a.kind === "region" ? pts.length : pts.length - 1;
+      for (let k = 0; k < n; k++) out.push({ a: pts[k], b: pts[(k + 1) % pts.length], color, scale });
+    }
     // El abordaje no es una regla: es el CORREDOR por el que tiene que caber el
     // clip con su aplicador. Dibujarlo con su radio real y translúcido es lo
     // que hace que el ensayo de colocación enseñe la maniobra y no una flecha.
@@ -1130,7 +1145,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     if (overlay) out.push(...overlay.lines);
     return out;
-  }, [annotationDraft, trajEntry, trajTarget, overlay]);
+  }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay]);
+
+  // Rótulos del 3D: nombre y valor siempre, que en la escena no hay celda estrecha.
+  const meshLabels = useMemo<MeshLabel[]>(
+    () => annotations.filter((a) => a.visible && a.points.length > 0)
+      .map((a) => ({ pos: labelAnchor(a), text: labelFor(a, false), color: ANNOTATION_HEX[a.kind] })),
+    [annotations],
+  );
 
   // Translucent preview of the crop ROI so the user SEES what will be kept
   // (cyan) or removed (red) before applying — the crop is otherwise blind.
@@ -1507,7 +1529,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
           band={band} orientation={orientation} levelNote={compact ? levelNoteShort : levelNote}
           active={active} compact={compact} registerCapture={regPane(captureAs)} registerFit={regFit(captureAs)}
           annotationMode={c.annotationMode} annotationKind={c.annotationKind} annotationDraft={c.annotationDraft}
-          onPlaneClickMm={c.onPlaneClickMm} onAnnotationKey={c.onAnnotationKey} />
+          onPlaneClickMm={c.onPlaneClickMm} onAnnotationKey={c.onAnnotationKey}
+          annotationShapes={(box: Box) => shapesForSlice(annotations,
+            c.annotationKind && c.annotationDraft.length > 0 ? { kind: c.annotationKind, points: c.annotationDraft } : null,
+            id, c.index, meta, box, { compact, selected: selectedAnnotation })} />
       </Suspense>
     );
   };
@@ -1559,7 +1584,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     } else if (isMesh) {
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
-          <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} cropPreview={cropPreview}
+          <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} labels={meshLabels} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices"}
             handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}

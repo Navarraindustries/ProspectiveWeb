@@ -19,6 +19,8 @@ import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane, type Vec3 } from "./geometry";
 import { mmToUv, uvToMm } from "./sliceCoords";
 import { closesRegion } from "./annotationDraft";
+import type { Box, Shape } from "./annotationOverlay";
+import { HudAnnotations } from "./hud/HudAnnotations";
 import { PLANE_CSS_VAR, referencePlanes } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
 import { applyStep, isNativeKeyTarget, stepFromKey } from "./cine";
@@ -73,6 +75,9 @@ export interface SliceViewProps {
    *  redondear a vóxel, y el clic en px de la celda. */
   onPlaneClickMm?: (p: Vec3, px: { x: number; y: number }) => void;
   onAnnotationKey?: (key: "Enter" | "Backspace" | "Escape") => void;
+  /** Formas de las anotaciones en este corte. Función y no lista: el
+   *  rectángulo de la imagen (`box`) solo lo conoce esta vista. */
+  annotationShapes?: (box: Box) => Shape[];
 }
 
 const ANNOTATION_KEYS = new Set(["Enter", "Backspace", "Escape"]);
@@ -406,6 +411,7 @@ export function SliceView(p: SliceViewProps) {
               stroke={PLANE_CSS_VAR.libre} strokeWidth={1} strokeOpacity={0.85} />
           </svg>
         )}
+        {box && p.annotationShapes && <HudAnnotations shapes={p.annotationShapes(box)} />}
         <HudLadder count={count} index={p.index} onIndexChange={p.onIndexChange} />
         <HudReadout at="bl" lines={[`${String(p.index + 1).padStart(3, " ")}/${count}`]} />
         {/* En la celda estrecha de la franja solo cabe el índice: W/L y la

@@ -5,7 +5,8 @@
    surface (for centreline endpoints) and small sphere markers. */
 
 import { followContainer } from "./followContainer";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { toPixels } from "./planeTrace";
 import { geometryKey, sceneKey } from "./sceneKeys";
 import type { PlaneOutline } from "./planeOutlines";
 import { markerRadiusMm, RULER_BEAD_RATIO, RULER_TUBE_RATIO } from "./markerSize";
@@ -67,6 +68,7 @@ export interface HandleDragEvent {
 }
 
 const NO_HANDLES: Handle[] = [];
+const NO_LABELS: MeshLabel[] = [];
 
 /** Los tres cortes de índice en gris dentro de la escena (modo «Cortes 3D»):
  *  dónde va cada uno, el volumen que remuestrean y la ventana de los cortes. */
@@ -157,7 +159,13 @@ export interface MeshLine {
   radiusMm?: number;
   /** Translúcido para el corredor, que si no tapa la malla que hay detrás. */
   opacity?: number;
+  /** Multiplica el grosor de regla por defecto (sin `radiusMm`): la anotación
+   *  seleccionada destaca sin que el visor tenga que saber la escala de la escena. */
+  scale?: number;
 }
+
+/** Rótulo en pantalla anclado a un punto de la escena (mm). */
+export interface MeshLabel { pos: Vec3; text: string; color: string }
 
 /** Standard viewpoints, named for the MPR planes the rest of the app uses.
  *  They are defined in patient (LPS) terms and mapped into mesh coordinates
@@ -212,6 +220,7 @@ export function MeshView({
   focus = null,
   planes = [],
   lines = [],
+  labels = NO_LABELS,
   cropPreview = null,
   boxPreview = null,
   referenceDiameterMm = null,
@@ -237,6 +246,9 @@ export function MeshView({
   /** El punto compartido de los cortes, visible siempre encima de la malla. */
   focus?: MeshFocus | null;
   lines?: MeshLine[];
+  /** Rótulos de las anotaciones: texto HTML/SVG encima del lienzo, no actores,
+   *  para que se lean igual a cualquier zoom. Se recolocan con cada cambio de cámara. */
+  labels?: MeshLabel[];
   /** Los planos de corte como rectángulos sin iluminación y no seleccionables. */
   planes?: PlaneOutline[];
   /** Translucent sphere/box preview of the crop ROI (null to hide). */
@@ -361,6 +373,30 @@ export function MeshView({
   const onLayerLoadedRef = useRef(onLayerLoaded);
   onLayerLoadedRef.current = onLayerLoaded;
 
+  // Rótulos: se escriben en el DOM a mano en cada cambio de cámara. Con estado
+  // de React, girar la escena repintaría el componente entero en cada fotograma.
+  const labelSvg = useRef<SVGSVGElement>(null);
+  const labelsRef = useRef(labels);
+  labelsRef.current = labels;
+  const placeLabels = useRef(() => {
+    const svg = labelSvg.current, h = handles.current, el = containerRef.current;
+    if (!svg || !h || !el) return;
+    const w = el.clientWidth, ht = el.clientHeight;
+    const list = labelsRef.current;
+    svg.querySelectorAll("text").forEach((t, i) => {
+      const l = list[i];
+      if (!l || w < 1 || ht < 1) { t.setAttribute("display", "none"); return; }
+      const d = h.renderer.worldToNormalizedDisplay(l.pos[0], l.pos[1], l.pos[2], w / ht);
+      // Fuera de [0, 1] en profundidad: detrás de la cámara (o fuera de su recorte).
+      if (!(d[2] >= 0 && d[2] <= 1)) { t.setAttribute("display", "none"); return; }
+      const p = toPixels([d[0], d[1]], w, ht);
+      t.setAttribute("x", (p.x + 6).toFixed(1));
+      t.setAttribute("y", (p.y - 6).toFixed(1));
+      t.removeAttribute("display");
+    });
+  }).current;
+  const labelKey = labels.map((l) => `${l.pos.join(",")}|${l.text}|${l.color}`).join(";");
+
   // Latest pick config, read inside the vtk interactor callback without
   // forcing the scene to rebuild when the pick mode toggles.
   const pickModeRef = useRef(pickMode);
@@ -386,7 +422,7 @@ export function MeshView({
   const focusKey = focus ? `${focus.pos.join(",")}|${focus.color.join(",")}|${focus.radiusMm}` : "";
   const planeKey = planes.map((p) => p.corners.flat().join(",") + "|" + p.color.join(",")).join(";");
   const lineKey = lines
-    .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}`)
+    .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}|${l.scale ?? 1}`)
     .join(";");
   const handleKey = handleList
     .map((g) => `${g.id}|${g.kind}|${g.pos.join(",")}|${g.normal?.join(",") ?? ""}|${g.radiusMm}|${g.color.join(",")}|${g.lineTo?.join(",") ?? ""}`)
@@ -461,6 +497,7 @@ export function MeshView({
     };
     const overlaySub = renderer.getActiveCamera().onModified(syncOverlay);
     syncOverlay();
+    const labelSub = renderer.getActiveCamera().onModified(placeLabels);
 
     handles.current = {
       fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map(),
@@ -744,6 +781,7 @@ export function MeshView({
       pickSub.unsubscribe();
       camSub.unsubscribe();
       overlaySub.unsubscribe();
+      labelSub.unsubscribe();
       inset.dispose();
       insetRef.current = null;
       registerCaptureRef.current?.(null);
@@ -935,7 +973,7 @@ export function MeshView({
       if (Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1], l.b[2] - l.a[2]) < 1e-6) continue;
       const lineSrc = vtkLineSource.newInstance({ point1: l.a, point2: l.b, resolution: 1 });
       const tube = vtkTubeFilter.newInstance({
-        radius: l.radiusMm ?? rMarker * RULER_TUBE_RATIO,
+        radius: l.radiusMm ?? rMarker * RULER_TUBE_RATIO * (l.scale ?? 1),
         numberOfSides: l.radiusMm ? 24 : 10, capping: true,
       });
       tube.setInputConnection(lineSrc.getOutputPort());
@@ -965,6 +1003,17 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, markerKey, lineKey, sceneDiagonal, referenceDiameterMm]);
+
+  // ── Rótulos: al cambiar la lista (antes de pintar, para que un rótulo nuevo
+  //    no asome un fotograma en la esquina) y al cambiar el tamaño de la celda.
+  useLayoutEffect(() => { placeLabels(); }, [key, labelKey, placeLabels]);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => placeLabels());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [placeLabels]);
 
   // ── Punto compartido: solo se mueve su actor en la capa de encima ──────── #
   //
@@ -1490,7 +1539,18 @@ export function MeshView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, boxKey]);
 
-  return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
+  // El svg va al lado del contenedor y no dentro: vtk.js mete su lienzo en el
+  // contenedor y quedaría encima de los rótulos.
+  return (
+    <>
+      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+      {labels.length > 0 && (
+        <svg ref={labelSvg} className="hud-anot" aria-hidden="true">
+          {labels.map((l, i) => <text key={i} fill={l.color} display="none">{l.text}</text>)}
+        </svg>
+      )}
+    </>
+  );
 }
 
 

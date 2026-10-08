@@ -30,8 +30,10 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError("Credenciales incorrectas");
-      } else if (err instanceof ApiError && err.status === 403) {
-        // Account pending approval / rejected / disabled — show server message.
+      } else if (err instanceof ApiError && (err.status === 403 || err.status === 429)) {
+        // Account pending approval / rejected / disabled, or too many failed
+        // attempts — show server message. Sin el 429 aquí, el bloqueo por
+        // intentos se anunciaba como «el backend no está en marcha».
         setError(err.message);
       } else {
         setError("No se pudo conectar con el servidor. ¿Está el backend en marcha?");

@@ -353,10 +353,16 @@ export function SliceView(p: SliceViewProps) {
     if (annotating) annotationClick(e, f);
     else p.onPlaneClick(f.u, f.v);
   };
-  const onDoubleClick = () => { if (isRegion) p.onAnnotationKey?.("Enter"); };
+  // WHY: marcando, un doble clic (o dos clics rápidos de una regla) no puede
+  // llegar a la rejilla, que maximizaría la celda a mitad de la anotación.
+  const onDoubleClick = (e: React.MouseEvent) => {
+    if (!annotating) return;
+    e.stopPropagation();
+    if (isRegion) p.onAnnotationKey?.("Enter");
+  };
   const onKey = (e: React.KeyboardEvent) => {
     if (isNativeKeyTarget(e.target)) return;
-    if (p.annotationMode && ANNOTATION_KEYS.has(e.key)) {
+    if (annotating && ANNOTATION_KEYS.has(e.key)) {
       e.preventDefault();
       p.onAnnotationKey?.(e.key as "Enter" | "Backspace" | "Escape");
       return;
@@ -375,7 +381,7 @@ export function SliceView(p: SliceViewProps) {
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
       onMouseLeave={() => { drag.current = null; }} onKeyDown={onKey} onDoubleClick={onDoubleClick}
       style={{ position: "relative", width: "100%", height: "100%", background: "#000", overflow: "hidden", cursor: "crosshair", outline: "none" }}
-      title="Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · Clic: centrar"
+      title={"Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · " + (annotating ? "Clic: punto" : "Clic: centrar")}
     >
       <HudFrame active={p.active} label={LABEL[p.plane]} labelPlane={p.plane}>
         <span className="hud-edge top">{labels.top}</span>

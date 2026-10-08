@@ -132,6 +132,28 @@ describe("SliceView en modo anotación", () => {
     expect(props.onAnnotationKey).toHaveBeenCalledWith("Enter");
   });
 
+  it("en modo anotación el doble clic no llega a la rejilla (que maximizaría la celda)", () => {
+    const onGrid = vi.fn();
+    const base = {
+      image, meta, plane: "axial" as const, index: 10, onIndexChange: vi.fn(),
+      wc: 40, ww: 400, onWindowLevel: vi.fn(), crosshair: null, onPlaneClick: vi.fn(),
+      orientation: { direction: null, manual: null }, onPlaneClickMm: vi.fn(), onAnnotationKey: vi.fn(),
+    };
+    const { container, rerender } = render(
+      <div onDoubleClick={onGrid}><SliceView {...base} annotationMode annotationKind="regla" /></div>,
+    );
+    const view = container.firstElementChild!.firstElementChild as HTMLElement;
+    fireEvent.doubleClick(view, { clientX: 50, clientY: 50 });
+    expect(onGrid).not.toHaveBeenCalled();
+    expect(view.title).toContain("Clic: punto");
+
+    // Sin modo anotación sigue llegando, como siempre.
+    rerender(<div onDoubleClick={onGrid}><SliceView {...base} /></div>);
+    fireEvent.doubleClick(view, { clientX: 50, clientY: 50 });
+    expect(onGrid).toHaveBeenCalledTimes(1);
+    expect(view.title).toContain("Clic: centrar");
+  });
+
   it("una regla junto a su primer punto no se cierra como región", () => {
     const { props, el } = mount({ annotationMode: true, annotationKind: "regla", annotationDraft: [[7.5, 10, 10]] });
     click(el, 20, 20);

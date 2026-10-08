@@ -24,7 +24,7 @@ export function mipReadoutLines(o: {
     return lines;
   }
   if (o.compact) return [o.mode === "acumulado" ? `ACUM ${o.index + 1}/${o.count}` : `LÁMINA ±${o.slabMm}`];
-  return [cutLine(o), `UMBRAL ${Math.round(o.threshold)}`];
+  return [cutLine(o), `UMBRAL ${Math.round(o.threshold)}${o.unit ?? ""}`];
 }
 
 function cutLine(o: { mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number; slabMm: number; clip?: "eje" | "libre"; offsetMm?: number }): string {

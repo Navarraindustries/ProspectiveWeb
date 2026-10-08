@@ -23,6 +23,11 @@ describe("mipReadoutLines", () => {
     expect(mipReadoutLines({ mode: "acumulado", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: false, clip: "libre", offsetMm: 3.25 })).toEqual(["LIBRE +3,3 mm", "UMBRAL 1470"]);
     expect(mipReadoutLines({ mode: "lamina", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: true, clip: "libre", offsetMm: 0 })).toEqual(["LIB ±8"]);
   });
+  it("el umbral lleva la unidad solo en TC", () => {
+    const o = { mode: "acumulado" as const, reverse: false, index: 4, count: 10, slabMm: 8, threshold: 220, compact: false };
+    expect(mipReadoutLines({ ...o, unit: " HU" })[1]).toBe("UMBRAL 220 HU");
+    expect(mipReadoutLines({ ...o, unit: "" })[1]).toBe("UMBRAL 220");
+  });
   it("en compuesto la lectura añade nivel y ventana", () => {
     expect(mipReadoutLines({ mode: "acumulado", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: false, render: "compuesto", preset: "Hueso", window: { wc: 2200.4, ww: 1799.6 } }))
       .toEqual(["COMPUESTO · HUESO", "ACUMULADO HASTA 5/10", "NIV 2200 · VENT 1800"]);

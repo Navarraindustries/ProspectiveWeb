@@ -22,6 +22,7 @@ import { SegmentProgress } from "./SegmentProgress";
 import { TubularControls, type SegmentMethod } from "./TubularControls";
 import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
+import { isHuModality } from "../../vtk/modality";
 import type { CeilingCompareResult } from "../../api/types";
 
 /* Fallback si aún no hay volumen para calcular la banda adaptativa. */
@@ -39,6 +40,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const { sessionId, series, segmentation, setPreviewBand, setPreviewMeshUrl } = planning;
 
+  // La unidad solo existe en TC; en el resto el umbral es intensidad cruda.
+  const isHu = isHuModality(series?.modality);
   const [lower, setLower] = useState(SEG_LOWER_DEFAULT);
   const [upper, setUpper] = useState(SEG_UPPER_DEFAULT);
   // Sin techo: el backend lo desactiva cuando upper <= lower.
@@ -308,7 +311,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           : "Mueve los umbrales y observa la vista previa: la malla será lo que quede dentro de la banda."}
       </div>
       <div>
-        <Slider label="Umbral inferior" min={range.min} max={range.max} value={lower} onChange={setLower} unit="" />
+        <Slider label="Umbral inferior" min={range.min} max={range.max} value={lower} onChange={setLower} unit={isHu ? " HU" : ""} />
         <div style={{ height: 14 }} />
         <Slider
           label="Umbral superior"
@@ -316,9 +319,14 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           max={range.max}
           value={upper}
           onChange={setUpper}
-          unit=""
+          unit={isHu ? " HU" : ""}
           disabled={sinTecho || method === "tubular"}
         />
+        {!isHu && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+            Intensidad del volumen, sin unidad física
+          </div>
+        )}
         {/* El tope del slider sale de `vmax`, que es el percentil 99.9 del
             volumen, así que subirlo «al máximo» NO quita el techo: lo deja
             justo donde estaba. En una 3DRA lo más brillante ES el contraste,

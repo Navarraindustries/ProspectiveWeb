@@ -23,6 +23,9 @@ type Cabe<Servidor extends Interfaz, Interfaz> = [Servidor, Interfaz];
 export type Contrato = [
   Cabe<Completo<S["AneurysmCandidate"]>, ui.AneurysmCandidate>,
   Cabe<Completo<S["AneurysmDetectionResult"]>, ui.AneurysmDetectionResult>,
+  Cabe<Completo<S["Annotation"]>, ui.AnnotationWire>,
+  Cabe<Completo<S["AnnotationPlane"]>, ui.AnnotationPlane>,
+  Cabe<Completo<S["AnnotationsResult"]>, ui.AnnotationsResult>,
   Cabe<Completo<S["AttachResult"]>, ui.AttachResult>,
   Cabe<Completo<S["AuditBlock"]>, ui.AuditBlock>,
   Cabe<Completo<S["AuditVerifyResult"]>, ui.AuditVerifyResult>,
@@ -141,5 +144,5 @@ export type Contrato = [
 
    - Son cuerpos de PETICIÓN, donde la dirección es la contraria (lo que la
      interfaz envía tiene que caber en lo que el servidor acepta):
-       AttachRequest, LesionConfirmIn, SuggestCorridorsRequest, UserUpdate
+       AnnotationsIn, AttachRequest, LesionConfirmIn, SuggestCorridorsRequest, UserUpdate
 */

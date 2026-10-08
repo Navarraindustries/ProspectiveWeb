@@ -116,7 +116,10 @@ import type {
   UserUpdate,
   VolumeMeta,
   ManualOrientationBody,
+  AnnotationsResult,
 } from "./types";
+import type { Annotation } from "../vtk/annotations";
+import { fromWire, toWire } from "./annotationsWire";
 import { clearVolumeCache } from "../vtk/volume/volumeCache";
 
 /* La sesión va SOLO en la cookie `prospective_token`, que es httpOnly: el
@@ -435,6 +438,15 @@ export const api = {
     get<TrajectoryResult | null>(`/api/trajectory/${sessionId}`),
   clearTrajectory: (sessionId: string) =>
     request<void>(`/api/trajectory/${sessionId}`, { method: "DELETE" }),
+  /** Las anotaciones de la sesión, ya con los puntos como tuplas del visor. */
+  getAnnotations: async (sessionId: string): Promise<Annotation[]> =>
+    (await get<AnnotationsResult>(`/api/annotations/${sessionId}`)).annotations.map(fromWire),
+  /** Sustituye la lista entera; devuelve la guardada (con autor y fecha del servidor). */
+  putAnnotations: async (sessionId: string, list: Annotation[]): Promise<Annotation[]> =>
+    (await request<AnnotationsResult>(`/api/annotations/${sessionId}`, {
+      method: "PUT", body: JSON.stringify({ annotations: list.map(toWire) }),
+      headers: { "Content-Type": "application/json" },
+    })).annotations.map(fromWire),
   preprocess: (sessionId: string, req: PreprocessRequest) =>
     post<PreprocessResult>(`/api/preprocess/${sessionId}`, req),
   preprocessStatus: (sessionId: string) =>

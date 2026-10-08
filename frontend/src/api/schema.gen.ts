@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/annotations/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Anotaciones guardadas en la sesión */
+        get: operations["get_annotations_api_annotations__session_id__get"];
+        /**
+         * Sustituir las anotaciones de la sesión
+         * @description Guarda la lista entera. `created_by` y `created_at` los pone el servidor cuando llegan vacíos. Las anotaciones que desaparecen respecto a la lista anterior quedan registradas en la auditoría (ANNOTATIONS_DELETED).
+         */
+        put: operations["put_annotations_api_annotations__session_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/audit": {
         parameters: {
             query?: never;
@@ -2752,6 +2773,67 @@ export interface components {
              * @description Sitios que el consenso propuso y un veto apartó, cada uno con su `veto`. Sus ids siguen a los de `candidates` (cand-00N consecutivos) y su malla existe: GET /morphometry los mide igual.
              */
             rejected?: components["schemas"]["AneurysmCandidate"][];
+        };
+        /** Annotation */
+        Annotation: {
+            /**
+             * Created At
+             * @description ISO 8601; lo pone el servidor si llega vacío
+             * @default
+             */
+            created_at: string;
+            /**
+             * Created By
+             * @description Usuario; lo pone el servidor si llega vacío
+             * @default
+             */
+            created_by: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "regla" | "angulo" | "region" | "marcador";
+            /** Label */
+            label: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** @description Corte en el que se dibujó; obligatorio en una región */
+            plane?: components["schemas"]["AnnotationPlane"] | null;
+            /** Points */
+            points: components["schemas"]["Position3D"][];
+            /**
+             * Visible
+             * @default true
+             */
+            visible: boolean;
+        };
+        /** AnnotationPlane */
+        AnnotationPlane: {
+            /**
+             * Index
+             * @description Corte del plano en el que se dibujó
+             */
+            index: number;
+            /**
+             * Plane
+             * @enum {string}
+             */
+            plane: "axial" | "coronal" | "sagital";
+        };
+        /** AnnotationsIn */
+        AnnotationsIn: {
+            /** Annotations */
+            annotations: components["schemas"]["Annotation"][];
+        };
+        /** AnnotationsResult */
+        AnnotationsResult: {
+            /** Annotations */
+            annotations: components["schemas"]["Annotation"][];
         };
         /** AttachRequest */
         AttachRequest: {
@@ -9517,6 +9599,72 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_annotations_api_annotations__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_annotations_api_annotations__session_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     append_event_api_audit_post: {
         parameters: {
             query?: never;

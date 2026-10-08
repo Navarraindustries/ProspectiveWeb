@@ -123,6 +123,138 @@
     "title": "AneurysmDetectionResult",
     "type": "object"
    },
+   "Annotation": {
+    "properties": {
+     "created_at": {
+      "default": "",
+      "description": "ISO 8601; lo pone el servidor si llega vacío",
+      "title": "Created At",
+      "type": "string"
+     },
+     "created_by": {
+      "default": "",
+      "description": "Usuario; lo pone el servidor si llega vacío",
+      "title": "Created By",
+      "type": "string"
+     },
+     "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "regla",
+       "angulo",
+       "region",
+       "marcador"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "label": {
+      "maxLength": 40,
+      "title": "Label",
+      "type": "string"
+     },
+     "note": {
+      "default": "",
+      "maxLength": 500,
+      "title": "Note",
+      "type": "string"
+     },
+     "plane": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AnnotationPlane"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Corte en el que se dibujó; obligatorio en una región"
+     },
+     "points": {
+      "items": {
+       "$ref": "#/components/schemas/Position3D"
+      },
+      "title": "Points",
+      "type": "array"
+     },
+     "visible": {
+      "default": true,
+      "title": "Visible",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "id",
+     "kind",
+     "points",
+     "label"
+    ],
+    "title": "Annotation",
+    "type": "object"
+   },
+   "AnnotationPlane": {
+    "properties": {
+     "index": {
+      "description": "Corte del plano en el que se dibujó",
+      "minimum": 0.0,
+      "title": "Index",
+      "type": "integer"
+     },
+     "plane": {
+      "enum": [
+       "axial",
+       "coronal",
+       "sagital"
+      ],
+      "title": "Plane",
+      "type": "string"
+     }
+    },
+    "required": [
+     "plane",
+     "index"
+    ],
+    "title": "AnnotationPlane",
+    "type": "object"
+   },
+   "AnnotationsIn": {
+    "properties": {
+     "annotations": {
+      "items": {
+       "$ref": "#/components/schemas/Annotation"
+      },
+      "maxItems": 200,
+      "title": "Annotations",
+      "type": "array"
+     }
+    },
+    "required": [
+     "annotations"
+    ],
+    "title": "AnnotationsIn",
+    "type": "object"
+   },
+   "AnnotationsResult": {
+    "properties": {
+     "annotations": {
+      "items": {
+       "$ref": "#/components/schemas/Annotation"
+      },
+      "title": "Annotations",
+      "type": "array"
+     }
+    },
+    "required": [
+     "annotations"
+    ],
+    "title": "AnnotationsResult",
+    "type": "object"
+   },
    "AttachRequest": {
     "properties": {
      "case_id": {
@@ -10298,6 +10430,109 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/annotations/{session_id}": {
+   "get": {
+    "operationId": "get_annotations_api_annotations__session_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AnnotationsResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Anotaciones guardadas en la sesión",
+    "tags": [
+     "annotations"
+    ]
+   },
+   "put": {
+    "description": "Guarda la lista entera. `created_by` y `created_at` los pone el servidor cuando llegan vacíos. Las anotaciones que desaparecen respecto a la lista anterior quedan registradas en la auditoría (ANNOTATIONS_DELETED).",
+    "operationId": "put_annotations_api_annotations__session_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AnnotationsIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AnnotationsResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Sustituir las anotaciones de la sesión",
+    "tags": [
+     "annotations"
+    ]
+   }
+  },
   "/api/audit": {
    "post": {
     "operationId": "append_event_api_audit_post",

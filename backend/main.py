@@ -31,6 +31,7 @@ from routers import (
     report, session_state, mpr, phases, centerline, audit,
     mesh_edit, print_prep, preprocess, studies, devices, clip_library,
     clip_orders, progress, captures, ground_truth, attach, followup,
+    annotations,
 )
 
 logger = logging.getLogger(__name__)
@@ -296,6 +297,7 @@ app.include_router(progress.router,      dependencies=_private)
 app.include_router(ground_truth.router,  dependencies=_private)
 app.include_router(attach.router,        dependencies=_private)
 app.include_router(followup.router,      dependencies=_private)
+app.include_router(annotations.router,   dependencies=_private)
 # El WebSocket no lleva la dependencia de arriba: un navegador no puede mandar
 # la cabecera Authorization en el handshake de un WS, así que el token viaja
 # en la query y `ws_progress` lo valida él mismo con `user_for_token`.

@@ -57,8 +57,12 @@ export function readHudLevel(): HudLevel {
     const legacy = window.localStorage.getItem(PREF_DECOR_HIDDEN);
     const nivel = hudLevelFromStorage(raw, legacy);
     if (raw === null && legacy !== null) {
-      window.localStorage.setItem(PREF_HUD_LEVEL, nivel);
-      window.localStorage.removeItem(PREF_DECOR_HIDDEN);
+      // Si escribir falla (cuota, almacén bloqueado) el nivel migrado vale igual
+      // para esta visita: no se vuelve a «completo» por no poder guardarlo.
+      try {
+        window.localStorage.setItem(PREF_HUD_LEVEL, nivel);
+        window.localStorage.removeItem(PREF_DECOR_HIDDEN);
+      } catch { /* se queda en memoria */ }
     }
     return nivel;
   } catch {

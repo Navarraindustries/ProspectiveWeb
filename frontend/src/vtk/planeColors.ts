@@ -4,8 +4,14 @@
    ámbar (avisos), verde del HUD, magenta (cuello residual), gris (no alcanzado),
    verde del saco y dorado del clip. El plano libre de la vista Oblicuo tiene
    el suyo, lavanda, para no confundirse con ninguno de los tres. */
+import type { AnnotationKind } from "../api/types";
 import type { Plane } from "./geometry";
 export type { Plane };
+
+/** Un color por tipo de anotación, lejos de los de los planos y de los reservados. */
+export const ANNOTATION_HEX: Record<AnnotationKind, string> = {
+  regla: "#f5c02e", angulo: "#39c6e0", region: "#5fd38a", marcador: "#e06ad1",
+};
 
 /** Lo que puede dibujarse como contorno o traza: los tres cortes y el plano libre.
  *  `Plane` sigue siendo solo los tres cortes, que son los únicos con celda propia. */

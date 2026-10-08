@@ -2097,3 +2097,15 @@ export interface UiatsResult {
   notes: string[];
   sources: string[];
 }
+
+/** Anotaciones persistentes de la sesión (E2). Aquí va el formato del cable, con
+ *  los puntos como Position3D como el resto de la API; el tipo del almacén, con
+ *  tuplas, vive en vtk/annotations.ts y el cliente convierte entre ambos. */
+export type AnnotationKind = "regla" | "angulo" | "region" | "marcador";
+export interface AnnotationPlane { plane: "axial" | "coronal" | "sagital"; index: number }
+export interface AnnotationWire {
+  id: string; kind: AnnotationKind; points: Position3D[];
+  plane: AnnotationPlane | null; label: string; note: string; visible: boolean;
+  created_at: string; created_by: string;
+}
+export interface AnnotationsResult { annotations: AnnotationWire[] }

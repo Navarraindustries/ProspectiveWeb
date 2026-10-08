@@ -36,12 +36,13 @@
    opaco) la etiqueta derecha quedaba debajo del índice: va a su izquierda. */
 .hud-edge.right.beside-ladder { right: 48px; }
 .hud-warn { color: var(--hud-amber); } .hud-err { color: var(--hud-red); }
-.hud-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 10.5px; letter-spacing: .06em; color: var(--hud-dim); animation: hud-hint-fade 3s forwards; }
+/* Arriba y sin recibir clics: abajo tapaba la barra de cine y los botones. */
+.hud-hint { position: absolute; top: 24px; bottom: auto; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .06em; color: var(--hud-dim); pointer-events: none; animation: hud-hint-fade 3s forwards; }
 @keyframes hud-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 /* La pista del cambio de nivel («HUD esencial»): arriba y breve. No es la
    pista de la vista, así que los niveles no la esconden (si no, al pulsar H
    no se vería a qué nivel se ha ido). */
-/* Ojo (Task 6): si la pista del gesto sube a top: 24px, chocará con esta. */
+/* La del gesto está en top: 24px; rara vez coinciden, y esta queda debajo. */
 .hud-hint.hud-hint-level { top: 38px; bottom: auto; animation-duration: 1.2s; }
 
 /* Niveles del HUD (`data-hud` en la rejilla del visor; la banda de cabecera

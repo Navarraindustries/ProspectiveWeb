@@ -11,6 +11,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { ANNOTATION_MODES, kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
 import { ANNOTATIONS_MAX, centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
+import { shouldShowHint } from "./hint";
 import type { AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
@@ -1258,14 +1259,19 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // La animación de desvanecido corre una vez, al montar el div: reaparecer al
   // cambiar la principal necesita un nodo nuevo (de ahí `key`) o se vería ya apagada.
   const [hintSeq, setHintSeq] = useState(0);
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Antes que finishAnnotation, que la usa para el aviso del tope.
   const showHintText = useCallback((text: string, aviso = true) => {
     setHint({ text, aviso });
     setHintSeq((n) => n + 1);
-    if (hintTimer.current) clearTimeout(hintTimer.current);
-    hintTimer.current = setTimeout(() => setHint(null), 3000);
   }, []);
+  // El retiro va en un efecto y no en `showHintText`: el doble montaje de
+  // StrictMode limpia un temporizador armado a mano y, con la pista ya marcada
+  // como vista, nada lo rearmaba (la pista se quedaba en el estado).
+  useEffect(() => {
+    if (!hint) return;
+    const t = setTimeout(() => setHint(null), 3000);
+    return () => clearTimeout(t);
+  }, [hint, hintSeq]);
   const showHint = useCallback((kind: HintKind) => showHintText(HINT_TEXT[kind], false), [showHintText]);
 
   // Pista del nivel del HUD («HUD esencial»), arriba y 1,2 s. Aparte de la de
@@ -1444,11 +1450,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const hintKind: HintKind | null = hudLevel === "limpio" ? null
     : viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
   useEffect(() => {
-    if (hintKind) showHint(hintKind);
-    else setHint(null);
+    if (hintKind) {
+      if (shouldShowHint(hintKind, window.sessionStorage)) showHint(hintKind);
+    } else {
+      // Solo se retira la pista del gesto: un aviso en pantalla (p. ej. el tope
+      // de anotaciones) no es de este efecto.
+      setHint((h) => (h && !h.aviso ? null : h));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hintKind]);
-  useEffect(() => () => { if (hintTimer.current) clearTimeout(hintTimer.current); }, []);
 
   // Hoja «Atajos». Viewer solo la ABRE con «help»: el cierre (Esc, «?», clic
   // fuera) es de la hoja. Si los dos alternaran con el mismo «?», según el

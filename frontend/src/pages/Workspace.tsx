@@ -73,11 +73,12 @@ export function Workspace({
     morphometry, sessionId, caseId, caseLabel, imagingStudyId,
     centerlineMesh, setPickMode, markSaved, captureCase,
     annotations, annotationsSync, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded, annotationsFlushRef,
+    annotationsLoadState, noteFocusRequest,
   } = planning;
   // Las anotaciones se guardan solas en la sesión viva; «Guardar progreso»
   // espera a que termine el PUT pendiente para no archivar una lista vieja.
   const { flush: flushAnnotations } = useAnnotationsSync(
-    sessionId, annotations, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded,
+    sessionId, annotations, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded, annotationsLoadState,
   );
   useEffect(() => {
     annotationsFlushRef.current = flushAnnotations;
@@ -144,7 +145,7 @@ export function Workspace({
     setSaving("saving");
     setSaveError(null);
     try {
-      await annotationsFlushRef.current?.();
+      const annotationsOk = (await annotationsFlushRef.current?.()) ?? true;
       await api.saveSession({
         session_id: sessionId,
         patient_id: patient?.id ?? null,
@@ -155,6 +156,14 @@ export function Workspace({
         current_step: stepIdx,
         label: patient ? `${patient.full_name} · ${STEPS[stepIdx].label}` : STEPS[stepIdx].label,
       });
+      // WHY: la instantánea se guarda igual (el resto del trabajo sí está),
+      // pero sin las anotaciones en disco decir «guardado» y limpiar el aviso
+      // de cambios sin guardar sería mentir.
+      if (!annotationsOk) {
+        setSaving("idle");
+        setSaveError("Las anotaciones no se guardaron; vuelve a intentarlo");
+        return;
+      }
       markSaved();
       setSaving("saved");
       setTimeout(() => setSaving("idle"), 1800);
@@ -523,10 +532,14 @@ export function Workspace({
             <div style={{ marginTop: 16 }}>
               <Collapsible
                 title="Anotaciones"
-                subtitle={annotationsSync === "guardando" ? "guardando…"
+                subtitle={annotationsLoadState === "error" ? "no se pudieron cargar: sin guardado automático"
+                  : annotationsSync === "guardando" ? "guardando…"
                   : annotationsSync === "error" ? "sin guardar"
                   : "Reglas, ángulos, regiones y notas"}
                 storageKey="ws.annotations"
+                // Un marcador recién puesto espera su nota: el panel se abre
+                // para que el campo exista y reciba el foco.
+                forceOpen={noteFocusRequest !== null}
                 badge={annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
               >
                 <AnnotationsPanel />

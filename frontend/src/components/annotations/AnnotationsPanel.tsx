@@ -5,10 +5,10 @@
    aquí: la meta del volumen (mm → vóxel) solo la tiene el visor, así que se le
    pide por `viewer:focus-annotation`, como los atajos van por `viewer:shortcut`. */
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { AnnotationKind } from "../../api/types";
 import { ANNOTATION_MODES, usePlanning } from "../../store/planning";
-import { formatMeasure, measure, toCsv, type Annotation } from "../../vtk/annotations";
+import { ANNOTATIONS_MAX, formatMeasure, LABEL_MAX, measure, NOTE_MAX, toCsv, type Annotation } from "../../vtk/annotations";
 import { ANNOTATION_HEX } from "../../vtk/planeColors";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
@@ -26,6 +26,7 @@ const SLICE_TAG = { axial: "AX", coronal: "COR", sagital: "SAG" } as const;
 const origin = (a: Annotation) => (a.plane ? `${SLICE_TAG[a.plane.plane]} ${a.plane.index + 1}` : "3D");
 
 export const EMPTY_TEXT = "Sin anotaciones. Elige una herramienta y pincha en un corte o en la malla";
+export const FULL_TEXT = `Máximo ${ANNOTATIONS_MAX} anotaciones por sesión: borra alguna para añadir otra`;
 
 const smallBtn = {
   height: 26, padding: "0 8px", fontSize: 12, fontWeight: 600,
@@ -34,11 +35,20 @@ const smallBtn = {
 export function AnnotationsPanel() {
   const {
     sessionId, annotations, setAnnotations, selectedAnnotation, setSelectedAnnotation, pickMode, setPickMode,
+    noteFocusRequest, setNoteFocusRequest,
   } = usePlanning();
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
   // WHY: al cancelar con Escape el input desaparece y algunos navegadores aún
   // le mandan el blur; sin esta marca el blur guardaría lo que se canceló.
   const cancelled = useRef(false);
+
+  // Un marcador recién puesto lleva a su nota (spec §3): el panel ya se abrió
+  // (forceOpen), aquí se enfoca el campo en cuanto existe.
+  useEffect(() => {
+    if (!noteFocusRequest) return;
+    const el = document.querySelector<HTMLInputElement>(`[data-note-for="${noteFocusRequest}"]`);
+    if (el) { el.focus(); setNoteFocusRequest(null); }
+  }, [noteFocusRequest, annotations, setNoteFocusRequest]);
 
   const patch = (id: string, p: Partial<Annotation>) =>
     setAnnotations((list) => list.map((a) => (a.id === id ? { ...a, ...p } : a)));
@@ -52,7 +62,8 @@ export function AnnotationsPanel() {
   const startEdit = (a: Annotation) => { cancelled.current = false; setEditing({ id: a.id, value: a.label }); };
   const commitEdit = () => {
     if (cancelled.current || !editing) return;
-    const label = editing.value.trim();
+    // slice además de maxLength: pegar o un IME pueden saltarse el atributo.
+    const label = editing.value.trim().slice(0, LABEL_MAX);
     // Un nombre vacío dejaría la fila (y la etiqueta del visor) sin nada que leer.
     if (label) patch(editing.id, { label });
     setEditing(null);
@@ -72,12 +83,18 @@ export function AnnotationsPanel() {
     link.href = url;
     link.download = `anotaciones-${sessionId ?? "sesion"}.csv`;
     link.click();
-    URL.revokeObjectURL(url);
+    // WHY diferido: revocar en el mismo tick cancela la descarga en Safari.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+
+  // El visor también se niega a cerrar la 201 (atajos R/A/G/T); aquí se avisa
+  // antes de que alguien pinche puntos que no van a quedar.
+  const full = annotations.length >= ANNOTATIONS_MAX;
 
   const onRowKey = (e: KeyboardEvent<HTMLDivElement>, a: Annotation) => {
     // Supr dentro del nombre o de la nota borra texto, no la anotación.
-    if (e.target instanceof HTMLInputElement) return;
+    // Y sobre un botón de la fila (ojo, «Ir») tampoco: solo la fila enfocada.
+    if (e.target !== e.currentTarget) return;
     if (e.key === "Delete") { e.preventDefault(); remove(a.id); }
   };
 
@@ -95,6 +112,7 @@ export function AnnotationsPanel() {
               beam={false}
               title={`${t.label} (${t.key})`}
               aria-pressed={active}
+              disabled={full && !active}
               onClick={() => setPickMode(active ? null : mode)}
               style={{
                 padding: "0 4px", fontSize: 12,
@@ -106,6 +124,7 @@ export function AnnotationsPanel() {
           );
         })}
       </div>
+      {full && <div style={{ fontSize: 12, color: "var(--destructive)", lineHeight: 1.5 }}>{FULL_TEXT}</div>}
 
       {annotations.length === 0 ? (
         <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{EMPTY_TEXT}</div>
@@ -138,6 +157,7 @@ export function AnnotationsPanel() {
                       <input
                         autoFocus
                         aria-label="Nombre de la anotación"
+                        maxLength={LABEL_MAX}
                         value={editing.value}
                         onChange={(e) => setEditing({ id: a.id, value: e.target.value })}
                         onKeyDown={(e) => {
@@ -164,11 +184,16 @@ export function AnnotationsPanel() {
                     <input
                       key={a.note}
                       aria-label={`Nota de ${a.label}`}
+                      data-note-for={a.id}
                       placeholder="Nota"
+                      maxLength={NOTE_MAX}
                       defaultValue={a.note}
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                      onBlur={(e) => { if (e.target.value !== a.note) patch(a.id, { note: e.target.value }); }}
+                      onBlur={(e) => {
+                        const note = e.target.value.trim().slice(0, NOTE_MAX);
+                        if (note !== a.note) patch(a.id, { note });
+                      }}
                       style={{ width: "100%", marginTop: 6, fontSize: 12, padding: "3px 6px", boxSizing: "border-box" }}
                     />
                   )}

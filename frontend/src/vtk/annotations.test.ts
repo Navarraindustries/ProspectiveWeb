@@ -62,6 +62,17 @@ describe("toCsv", () => {
     expect(csv.split("\n")[0]).toBe("nombre;tipo;valor;unidad;corte;nota;puntos_mm");
     expect(csv.split("\n")[1]).toBe("R1;regla;5,0;mm;AX 4;;0 0 0 | 3 4 0");
   });
+  it("neutraliza fórmulas y escapa comillas", () => {
+    const fila = (label: string, note: string) =>
+      toCsv([{ ...base, id: "1", kind: "marcador", label, note, points: [[0, 0, 0]], plane: null }]).split("\n")[1].split(";");
+    for (const f of ["=1+1", "+3", "-2", "@SUMA(A1)", "\tx"]) expect(fila("M1", f)[5]).toBe("'" + f);
+    expect(fila("=HYPERLINK(1)", "")[0]).toBe("'=HYPERLINK(1)");
+    // El CR se cambia por espacio antes, así que ya no puede abrir una fórmula.
+    expect(fila("M1", "\r=1")[5]).toBe(" =1");
+    expect(fila("M1", 'dice "sí"')[5]).toBe('"dice ""sí"""');
+    expect(fila("M1", '"=1')[5]).toBe('"""=1"');
+    expect(fila("M1", "rama temporal")[5]).toBe("rama temporal");
+  });
 });
 
 describe("newId", () => {

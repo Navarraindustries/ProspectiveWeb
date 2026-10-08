@@ -146,6 +146,8 @@ function Router() {
     try {
       const r = await api.restoreSession(sessionId);
       planning.reset();
+      // Hasta que llegue su lista, el [] del store no es el de la sesión.
+      planning.setAnnotationsLoadState("pendiente");
       planning.setPatient(p);
       // A resumed session keeps planning the same case and acquisition, so the
       // breadcrumb and the next "Guardar progreso" don't lose that link.
@@ -230,7 +232,12 @@ function Router() {
       // ni disparan el guardado automático (ya están en disco).
       try {
         planning.setAnnotationsLoaded(await api.getAnnotations(r.session_id));
-      } catch { /* sin anotaciones */ }
+      } catch {
+        // WHY no «sin anotaciones»: un fallo pasajero dejaba [] y la primera
+        // anotación nueva se guardaba ENCIMA de todas las del disco. Con
+        // «error» el guardado automático no escribe y el panel lo dice.
+        planning.setAnnotationsLoadState("error");
+      }
       setResumeStep(clampStep(invalidated
         ? Math.min(r.current_step, STEPS.findIndex((s) => s.key === "detect"))
         : r.current_step));

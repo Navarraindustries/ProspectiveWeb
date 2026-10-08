@@ -402,13 +402,37 @@ describe("anotaciones", () => {
     act(() => result.current.setAnnotations((p) => p.map((x) => ({ ...x, label: "cuello" }))));
     expect(result.current.annotations[0].label).toBe("cuello"); expect(result.current.dirty).toBe(true);
   });
-  it("resegmentar las vacía; cambiar de modo de pinchado vacía el borrador", () => {
+  it("resetDownstream las conserva, clearAnnotations las vacía; cambiar de modo vacía el borrador", () => {
     const { result } = renderHook(() => usePlanning(), { wrapper });
     act(() => { result.current.setPickMode("anot_regla"); result.current.setAnnotationDraft([[1, 1, 1]]); result.current.setSelectedAnnotation("x"); });
     act(() => result.current.setPickMode("neck_rim"));
     expect(result.current.annotationDraft).toEqual([]);
-    act(() => result.current.setAnnotations([{ id: "1", kind: "marcador", points: [[0, 0, 0]], plane: null, label: "M1", note: "", visible: true, created_at: "", created_by: "" }]));
+    const m = { id: "1", kind: "marcador" as const, points: [[0, 0, 0]] as Vec3[], plane: null, label: "M1", note: "", visible: true, created_at: "", created_by: "" };
+    act(() => { result.current.setAnnotations([m]); result.current.setSelectedAnnotation("1"); });
+    // La primera segmentación, «Descartar»… pasan por aquí y no deben borrar
+    // lo medido sobre los cortes.
     act(() => result.current.resetDownstream());
+    expect(result.current.annotations).toEqual([m]); expect(result.current.selectedAnnotation).toBe("1");
+    act(() => { result.current.setNoteFocusRequest("1"); result.current.clearAnnotations(); });
     expect(result.current.annotations).toEqual([]); expect(result.current.selectedAnnotation).toBeNull();
+    expect(result.current.noteFocusRequest).toBeNull();
+  });
+  it("reset vacía la lista, el estado de guardado y la lectura fallida", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.annotationsLoadState).toBe("cargado");
+    act(() => {
+      result.current.setAnnotationsLoaded([{ id: "1", kind: "marcador", points: [[0, 0, 0]], plane: null, label: "M1", note: "", visible: true, created_at: "", created_by: "" }]);
+      result.current.setAnnotationsSync("error");
+      result.current.setAnnotationsLoadState("error");
+    });
+    act(() => result.current.reset());
+    expect(result.current.annotations).toEqual([]);
+    expect(result.current.annotationsSync).toBe("guardado");
+    expect(result.current.annotationsLoadedRef.current).toBeNull();
+    // Una sesión nueva no tiene archivo: vacía ES su lista.
+    expect(result.current.annotationsLoadState).toBe("cargado");
+    act(() => result.current.setAnnotationsLoadState("pendiente"));
+    act(() => result.current.setAnnotationsLoaded([]));
+    expect(result.current.annotationsLoadState).toBe("cargado");
   });
 });

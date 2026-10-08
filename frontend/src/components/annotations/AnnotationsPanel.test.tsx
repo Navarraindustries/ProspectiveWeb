@@ -132,6 +132,49 @@ describe("AnnotationsPanel", () => {
     await waitFor(() => expect(visto?.selectedAnnotation).toBe("a1"));
   });
 
+  it("el nombre se queda en 40 caracteres y sin espacios a los lados", async () => {
+    montar([regla]);
+    fireEvent.click(await screen.findByText("R1"));
+    const input = screen.getByDisplayValue("R1");
+    expect(input).toHaveAttribute("maxLength", "40");
+    // fireEvent.change se salta maxLength, como pegar o un IME: lo corta el commit.
+    fireEvent.change(input, { target: { value: "  " + "x".repeat(45) } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(visto?.annotations[0].label).toBe("x".repeat(40)));
+  });
+
+  it("la nota se queda en 500 caracteres", async () => {
+    montar([marcador]);
+    const nota = await screen.findByDisplayValue("rama");
+    expect(nota).toHaveAttribute("maxLength", "500");
+    fireEvent.change(nota, { target: { value: "n".repeat(520) + "  " } });
+    fireEvent.blur(nota);
+    await waitFor(() => expect(visto?.annotations[0].note).toBe("n".repeat(500)));
+  });
+
+  it("con 200 anotaciones las herramientas se apagan y lo dice", async () => {
+    const llena = Array.from({ length: 200 }, (_, i) => ({ ...regla, id: `a${i}`, label: `R${i + 1}` }));
+    montar(llena);
+    expect(await screen.findByText(/Máximo 200 anotaciones por sesión/)).toBeInTheDocument();
+    expect(screen.getByTitle("Regla (R)")).toBeDisabled();
+    expect(screen.getByTitle("Marcador (T)")).toBeDisabled();
+  });
+
+  it("un marcador recién puesto enfoca su nota", async () => {
+    montar([regla]);
+    await screen.findByText("R1");
+    const nuevo = { ...marcador, id: "m2", label: "M2", note: "" };
+    act(() => { visto?.setAnnotations((p) => [...p, nuevo]); visto?.setNoteFocusRequest("m2"); });
+    await waitFor(() => expect(screen.getByLabelText("Nota de M2")).toHaveFocus());
+    expect(visto?.noteFocusRequest).toBeNull();
+  });
+
+  it("Supr sobre un botón de la fila no borra la anotación", async () => {
+    montar([regla]);
+    fireEvent.keyDown(await screen.findByText("Ir"), { key: "Delete" });
+    expect(visto?.annotations.map((a) => a.id)).toEqual(["a1"]);
+  });
+
   it("«Exportar CSV» descarga un blob con la cabecera", async () => {
     let blob: Blob | null = null;
     const create = vi.fn((b: Blob) => { blob = b; return "blob:x"; });

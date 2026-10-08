@@ -15,14 +15,14 @@ const regla = (id: string, label = "R1", created_by = ""): Annotation => ({
   visible: true, created_at: "2026-10-08T10:00:00Z", created_by,
 });
 
-type Props = { sid: string | null; list: Annotation[] };
+type Props = { sid: string | null; list: Annotation[]; load?: "pendiente" | "cargado" | "error" };
 
 function montar(initial: Props) {
   const setSync = vi.fn();
   const loadedRef = { current: null as Annotation[] | null };
   const setLoaded = vi.fn((a: Annotation[]) => { loadedRef.current = a; });
   const hook = renderHook(
-    ({ sid, list }: Props) => useAnnotationsSync(sid, list, setSync, loadedRef, setLoaded),
+    ({ sid, list, load }: Props) => useAnnotationsSync(sid, list, setSync, loadedRef, setLoaded, load ?? "cargado"),
     { initialProps: initial },
   );
   return { ...hook, setSync, setLoaded, loadedRef };
@@ -100,6 +100,47 @@ describe("useAnnotationsSync", () => {
     rerender({ sid: "s2", list: [] });
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     expect(api.putAnnotations).not.toHaveBeenCalled();
+  });
+
+  it("si la lectura al reanudar falló, una edición no pisa el disco", async () => {
+    vi.mocked(api.putAnnotations).mockImplementation(async (_s, l) => l);
+    const { rerender, result, setSync } = montar({ sid: "s1", list: [], load: "error" });
+    const a = [regla("a")];
+    rerender({ sid: "s1", list: a, load: "error" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(api.putAnnotations).not.toHaveBeenCalled();
+    expect(setSync).toHaveBeenLastCalledWith("error");
+    // flush tampoco escribe, y dice que hay algo sin guardar.
+    let ok: boolean | undefined;
+    await act(async () => { ok = await result.current.flush(); });
+    expect(ok).toBe(false);
+    expect(api.putAnnotations).not.toHaveBeenCalled();
+  });
+
+  it("flush devuelve false si el último PUT falló y true cuando sale bien", async () => {
+    vi.mocked(api.putAnnotations).mockRejectedValueOnce(new Error("500"));
+    const { rerender, result } = montar({ sid: "s1", list: [] });
+    const a = [regla("a")];
+    rerender({ sid: "s1", list: a });
+    let ok: boolean | undefined;
+    await act(async () => { ok = await result.current.flush(); });
+    expect(ok).toBe(false);
+    // Reintento: la misma lista vuelve a salir y esta vez llega.
+    vi.mocked(api.putAnnotations).mockImplementation(async (_s, l) => l);
+    await act(async () => { ok = await result.current.flush(); });
+    expect(ok).toBe(true);
+    expect(api.putAnnotations).toHaveBeenCalledTimes(2);
+  });
+
+  it("vaciar la lista en la misma sesión guarda []", async () => {
+    vi.mocked(api.putAnnotations).mockImplementation(async (_s, l) => l);
+    const { rerender, loadedRef } = montar({ sid: null, list: [] });
+    const loaded = [regla("a", "R1", "admin")];
+    loadedRef.current = loaded;
+    rerender({ sid: "s1", list: loaded });
+    rerender({ sid: "s1", list: [] });
+    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+    expect(api.putAnnotations).toHaveBeenCalledWith("s1", []);
   });
 
   it("el autor que pone el servidor vuelve al store sin otro PUT", async () => {

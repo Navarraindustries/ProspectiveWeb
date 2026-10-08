@@ -191,6 +191,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       /* Best effort: the next detection run overwrites this state anyway. */
     } finally {
       planning.setSegmentation(null);
+      // Las anotaciones se quedan: lo dibujado sobre los cortes sigue valiendo
+      // para la próxima malla del mismo volumen.
       planning.resetDownstream();
       setDiscarding(false);
     }
@@ -220,6 +222,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     if (!sessionId || !series) return;
     setBusy(true);
     setError(null);
+    // Solo resegmentar (ya había malla) cambia aquello a lo que apuntan las
+    // anotaciones 3D; la primera segmentación conserva lo medido en los cortes.
+    const hadMesh = planning.segmentation !== null;
     try {
       const res = await api.segment({
         session_id: sessionId,
@@ -251,6 +256,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       // pintar— volvía a la vista del DICOM. Lo vio el usuario: «al darle
       // Segmentar no se muestra la malla».
       planning.resetDownstream();
+      if (hadMesh) planning.clearAnnotations();
       planning.setSegmentation(res);
       setPreviewBand(null);       // final mesh now shows
       setPreviewMeshUrl(null);

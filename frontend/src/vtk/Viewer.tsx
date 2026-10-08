@@ -9,7 +9,7 @@
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { ANNOTATION_MODES, kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
-import { centroid, newId, nextLabel, type Annotation } from "./annotations";
+import { ANNOTATIONS_MAX, centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import type { AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
@@ -216,7 +216,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
-    annotations, setAnnotations, annotationDraft, setAnnotationDraft, selectedAnnotation, setSelectedAnnotation, previewBand, previewMeshUrl,
+    annotations, setAnnotations, annotationDraft, setAnnotationDraft, selectedAnnotation, setSelectedAnnotation, setNoteFocusRequest, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
@@ -1244,10 +1244,32 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [canCenter, setCenterOnLesion]);
   useEffect(() => () => setCenterOnLesion(null), [setCenterOnLesion]);
 
+  const [hint, setHint] = useState<string | null>(null);
+  // La animación de desvanecido corre una vez, al montar el div: reaparecer al
+  // cambiar la principal necesita un nodo nuevo (de ahí `key`) o se vería ya apagada.
+  const [hintSeq, setHintSeq] = useState(0);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Antes que finishAnnotation, que la usa para el aviso del tope.
+  const showHintText = useCallback((text: string) => {
+    setHint(text);
+    setHintSeq((n) => n + 1);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setHint(null), 3000);
+  }, []);
+  const showHint = useCallback((kind: HintKind) => showHintText(HINT_TEXT[kind]), [showHintText]);
+
   // Cierra el borrador como anotación nueva: queda elegida y el modo se desarma.
   const finishAnnotation = useCallback((points: Vec3[], plane: AnnotationPlane | null) => {
     const kind = kindOfMode(pickMode);
     if (!kind) return;
+    // WHY: el servidor no acepta más de ANNOTATIONS_MAX y cada PUT lleva la
+    // lista entera; la 201 dejaría sin guardar todo lo que viniera después.
+    if (annotations.length >= ANNOTATIONS_MAX) {
+      setAnnotationDraft([]);
+      setPickMode(null);
+      showHintText(`Máximo ${ANNOTATIONS_MAX} anotaciones por sesión`);
+      return;
+    }
     const a: Annotation = {
       id: newId(), kind, points, plane, label: "", note: "",
       visible: true, created_at: new Date().toISOString(), created_by: "",
@@ -1256,9 +1278,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // render; dos cierres en el mismo tick darían la misma.
     setAnnotations((p) => [...p, { ...a, label: nextLabel(kind, p) }]);
     setSelectedAnnotation(a.id);
+    // El marcador existe para llevar una nota: el panel se abre con su campo enfocado.
+    if (kind === "marcador") setNoteFocusRequest(a.id);
     setAnnotationDraft([]);
     setPickMode(null);
-  }, [pickMode, setAnnotations, setSelectedAnnotation, setAnnotationDraft, setPickMode]);
+  }, [pickMode, annotations.length, setAnnotations, setSelectedAnnotation, setAnnotationDraft, setPickMode, setNoteFocusRequest, showHintText]);
 
   // Corte de la región en curso: se fija con su primer punto.
   const draftPlaneRef = useRef<AnnotationPlane | null>(null);
@@ -1386,17 +1410,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // tiene todas las teclas y no se desvanece.
   const mainRotatable = viewerLayout.main === "scene" && sceneHasMesh;
   const hintKind: HintKind | null = viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
-  const [hint, setHint] = useState<string | null>(null);
-  // La animación de desvanecido corre una vez, al montar el div: reaparecer al
-  // cambiar la principal necesita un nodo nuevo (de ahí `key`) o se vería ya apagada.
-  const [hintSeq, setHintSeq] = useState(0);
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showHint = useCallback((kind: HintKind) => {
-    setHint(HINT_TEXT[kind]);
-    setHintSeq((n) => n + 1);
-    if (hintTimer.current) clearTimeout(hintTimer.current);
-    hintTimer.current = setTimeout(() => setHint(null), 3000);
-  }, []);
   useEffect(() => {
     if (hintKind) showHint(hintKind);
     else setHint(null);
@@ -1903,7 +1916,7 @@ function pickText(mode: NonNullable<PickMode>, draftCount: number, rimCount: num
     case "traj_target": return "Clic sobre el aneurisma (punto diana)";
     case "anot_regla": return draftCount === 0 ? "Regla: clic en el primer punto" : "Regla: clic en el segundo punto";
     case "anot_angulo": return `Ángulo: clic en el ${["primer punto", "vértice", "tercer punto"][Math.min(draftCount, 2)]}`;
-    case "anot_region": return `Región: clic en un corte alrededor del hallazgo (${draftCount} puntos) · Intro o el primer punto cierra`;
+    case "anot_region": return `Región: clic en un corte alrededor del hallazgo (${draftCount} punto${draftCount === 1 ? "" : "s"}) · Intro o el primer punto cierra`;
     case "anot_marcador": return "Marcador: clic donde quieras la nota";
   }
 }

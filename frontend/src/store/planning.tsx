@@ -113,7 +113,14 @@ interface PlanningState {
   /** Estado del guardado de anotaciones en el servidor (lo escribe el hook de guardado). */
   annotationsSync: "guardado" | "guardando" | "error";
   /** El hook de guardado deja aquí su «guarda ya»; saveProgress lo espera antes de guardar. */
-  annotationsFlushRef: RefObject<(() => Promise<void>) | null>;
+  annotationsFlushRef: RefObject<(() => Promise<boolean>) | null>;
+  /** Si la lista del servidor ya está en el store. «error»: la lectura al
+   *  reanudar falló y lo que hay ([]) NO es la sesión; el guardado automático
+   *  no escribe hasta que una lectura salga bien, o pisaría el archivo. */
+  annotationsLoadState: "pendiente" | "cargado" | "error";
+  /** Id del marcador recién puesto cuya nota espera el foco; el panel se abre,
+   *  enfoca el campo y lo vuelve a null. */
+  noteFocusRequest: string | null;
   /** La última lista que llegó del servidor (setAnnotationsLoaded). El hook de
    *  guardado la compara por referencia: no hace PUT de lo que acaba de leer. */
   annotationsLoadedRef: RefObject<Annotation[] | null>;
@@ -321,6 +328,11 @@ interface PlanningState {
   setAnnotationsSync: (s: "guardado" | "guardando" | "error") => void;
   /** Lo que llega del servidor al reanudar: no es un cambio del usuario, no ensucia. */
   setAnnotationsLoaded: (a: Annotation[]) => void;
+  setAnnotationsLoadState: (s: "pendiente" | "cargado" | "error") => void;
+  /** Vacía las anotaciones (lista, borrador y elección). Solo cuando cambia
+   *  aquello a lo que apuntan: otra malla, otro volumen u otro estudio. */
+  clearAnnotations: () => void;
+  setNoteFocusRequest: (id: string | null) => void;
   setNeckRim: (s: Vec3[]) => void;
   setScissorsPoints: (p: Vec3[]) => void;
   setScissorsPreview: (url: string | null) => void;
@@ -441,7 +453,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [annotations, _setAnnotations] = useState<Annotation[]>([]);
   const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
   const [annotationsSync, setAnnotationsSync] = useState<"guardado" | "guardando" | "error">("guardado");
-  const annotationsFlushRef = useRef<(() => Promise<void>) | null>(null);
+  const annotationsFlushRef = useRef<(() => Promise<boolean>) | null>(null);
+  const [annotationsLoadState, setAnnotationsLoadState] = useState<"pendiente" | "cargado" | "error">("cargado");
+  const [noteFocusRequest, setNoteFocusRequest] = useState<string | null>(null);
   const annotationsLoadedRef = useRef<Annotation[] | null>(null);
   const [neckRim, setNeckRim] = useState<Vec3[]>([]);
   const [scissorsPoints, setScissorsPoints] = useState<Vec3[]>([]);
@@ -574,6 +588,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const setAnnotationsLoaded = useCallback((a: Annotation[]) => {
     annotationsLoadedRef.current = a;
     _setAnnotations(a);
+    setAnnotationsLoadState("cargado");
+  }, []);
+  const clearAnnotations = useCallback(() => {
+    _setAnnotations([]);
+    setAnnotationDraft([]);
+    setSelectedAnnotation(null);
+    setNoteFocusRequest(null);
   }, []);
   const setDeviceMesh = (kind: DeviceKind, url: string | null) => {
     _setDeviceMeshes((d) => ({ ...d, [kind]: url }));
@@ -624,10 +645,10 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     _setPerforators([]);
     setPerforatorZones(null);
     setVisiblePerforators([]);
-    // Las anotaciones señalan sitios de la malla y los cortes de este estudio.
-    _setAnnotations([]);
-    setAnnotationDraft([]);
-    setSelectedAnnotation(null);
+    // Las anotaciones NO van aquí: también se toman sobre los cortes antes de
+    // que haya malla, y la primera segmentación o «Descartar» las borraría (en
+    // el store y, por el guardado automático, en disco). Quien cambia aquello
+    // a lo que apuntan llama a clearAnnotations().
     setCropCenter(null);
     setLesionMark(null);
     setFollowup(null);
@@ -671,6 +692,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setCine(null);
     setFocusedPane(null);
     resetDownstream();
+    clearAnnotations();
+    // WHY: un «sin guardar» o una lectura fallida eran de la sesión anterior;
+    // la siguiente (nueva o reanudada) parte limpia. Una sesión nueva no tiene
+    // archivo: vacía ES su lista, así que cuenta como cargada.
+    setAnnotationsSync("guardado");
+    annotationsLoadedRef.current = null;
+    setAnnotationsLoadState("cargado");
   };
 
   return (
@@ -679,7 +707,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
@@ -688,7 +716,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setCine, setFocusedPane,

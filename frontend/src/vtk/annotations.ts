@@ -18,6 +18,12 @@ export type Measure = { kind: "distancia"; mm: number } | { kind: "angulo"; deg:
 
 export const POINTS_NEEDED: Record<AnnotationKind, number> = { regla: 2, angulo: 3, region: 3, marcador: 1 };
 export const KIND_PREFIX: Record<AnnotationKind, string> = { regla: "R", angulo: "A", region: "G", marcador: "M" };
+/** Los topes del servidor (backend/models/annotations.py). WHY aquí también:
+ *  cada PUT lleva la lista entera, así que una sola anotación que el servidor
+ *  rechace (422) dejaría sin guardar todas las que vengan detrás. */
+export const LABEL_MAX = 40;
+export const NOTE_MAX = 500;
+export const ANNOTATIONS_MAX = 200;
 
 const dist = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
@@ -107,7 +113,14 @@ const CSV_HEADER = "nombre;tipo;valor;unidad;corte;nota;puntos_mm";
 const SLICE_TAG: Record<Plane, string> = { axial: "AX", coronal: "COR", sagital: "SAG" };
 const num = (x: number) => String(Math.round(x * 10) / 10);
 // Un ';' o un salto de línea en la nota descuadrarían las columnas al abrirlo en Excel.
-const cell = (s: string) => s.replace(/[;\r\n]+/g, " ");
+// WHY el apóstrofo: Excel ejecuta como fórmula lo que empieza por = + - @ o
+// tabulador, y una nota es texto libre. Las comillas se escapan entre comillas
+// para que una «"» suelta no parta la columna.
+const cell = (s: string) => {
+  let t = s.replace(/[;\r\n]+/g, " ");
+  if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+  return t.includes('"') ? `"${t.replace(/"/g, '""')}"` : t;
+};
 
 export function toCsv(list: Annotation[]): string {
   const rows = list.map((a) => {

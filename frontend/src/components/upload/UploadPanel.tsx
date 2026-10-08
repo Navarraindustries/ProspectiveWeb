@@ -86,6 +86,11 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       const res = await api.upload(files);
       setResult(res);
       planning.setSession(res.session_id);
+      // Volumen nuevo, sesión nueva y sin archivo: su lista es la vacía. Va
+      // DESPUÉS de setSession, en el mismo render: vaciada antes, el guardado
+      // automático mandaba [] a la sesión anterior mientras se subía la nueva.
+      planning.clearAnnotations();
+      planning.setAnnotationsLoadState("cargado");
       // The backend ranks the series (real 3-D volume first, most slices) and
       // activates series[0]; mirror that choice here.
       const primary = res.series[0] ?? null;
@@ -151,6 +156,8 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       // anterior (la meta solo se pedía al cambiar de sesión).
       planning.bumpVolumeVersion();
       planning.resetDownstream();
+      // Otra serie, otro volumen: los cortes y mm de las anotaciones ya no caen ahí.
+      planning.clearAnnotations();
       planning.setSegmentation(null);
       planning.setSeries(s);
     } catch (err) {

@@ -500,6 +500,38 @@ describe("segmentar deja la malla y se lleva lo de la malla vieja", () => {
     await vi.waitFor(() => expect(visto.segmentation).not.toBeNull());
     expect(visto.candidates).toEqual([]);
   });
+
+  /* Las anotaciones se toman sobre los cortes desde el paso 1: la primera
+   * malla no las toca; resegmentar (otra malla) sí las vacía. */
+  it("la primera segmentación conserva las anotaciones y resegmentar las vacía", async () => {
+    const { api } = await import("../../api/client");
+    vi.mocked(api.segment).mockResolvedValue(base);
+    const regla = { id: "r1", kind: "regla" as const, points: [[0, 0, 3], [5, 0, 3]] as [number, number, number][],
+      plane: { plane: "axial" as const, index: 3 }, label: "R1", note: "", visible: true, created_at: "", created_by: "" };
+    const visto: { annotations: unknown[]; segmentation: unknown } = { annotations: [], segmentation: null };
+    function Sonda({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        p.setSession("sesion-run");
+        p.setSeries(serie as never);
+        p.setAnnotations([regla]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      visto.annotations = p.annotations;
+      visto.segmentation = p.segmentation;
+      return <>{p.sessionId && p.series ? children : null}</>;
+    }
+    render(<PlanningProvider><Sonda><SegmentPanel onNext={() => {}} /></Sonda></PlanningProvider>);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar/ }));
+    await vi.waitFor(() => expect(visto.segmentation).not.toBeNull());
+    expect(visto.annotations).toEqual([regla]);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Re-segmentar/ }));
+    await vi.waitFor(() => expect(api.segment).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(visto.annotations).toEqual([]));
+    expect(visto.segmentation).not.toBeNull();
+  });
 });
 
 /* Método tubular: el panel lo manda por defecto, enseña el progreso por fases

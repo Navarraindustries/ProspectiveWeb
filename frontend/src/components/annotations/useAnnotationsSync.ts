@@ -23,7 +23,10 @@ export function useAnnotationsSync(
   loadedRef: RefObject<Annotation[] | null>,
   /** Escribe en el store sin ensuciar ni disparar otro PUT (setAnnotationsLoaded). */
   setLoaded: (a: Annotation[]) => void,
-): { flush: () => Promise<void> } {
+  /** Solo con «cargado» se escribe: tras una lectura fallida la lista del store
+   *  no es la del disco, y un PUT de ella borraría todas las guardadas. */
+  loadState: "pendiente" | "cargado" | "error" = "cargado",
+): { flush: () => Promise<boolean> } {
   // La primera lista (la del montaje) ya es la de la sesión: no se guarda.
   const lastSaved = useRef<Annotation[] | null>(annotations);
   // Lo último entregado a un PUT, para que flush no repita uno que ya vuela.
@@ -36,6 +39,11 @@ export function useAnnotationsSync(
   // la lista vieja.
   const chain = useRef<Promise<void>>(Promise.resolve());
   const queued = useRef(0);
+  // Si el último PUT falló: flush lo cuenta para que «Guardar progreso» no
+  // diga «guardado» con las anotaciones fuera del disco.
+  const lastFailed = useRef(false);
+  const canWrite = useRef(loadState === "cargado");
+  canWrite.current = loadState === "cargado";
 
   const put = useCallback((session: string, list: Annotation[]) => {
     sent.current = list;
@@ -44,6 +52,7 @@ export function useAnnotationsSync(
       try {
         const saved = await api.putAnnotations(session, list);
         if (sid.current !== session) return;   // la sesión cambió mientras volaba
+        lastFailed.current = false;
         lastSaved.current = list;
         // El servidor pone el autor: vuelve al store, salvo que el usuario haya
         // seguido editando (pisaría su cambio; el próximo PUT lo traerá).
@@ -57,6 +66,7 @@ export function useAnnotationsSync(
         if (sid.current !== session) return;
         // Que flush lo reintente: el store sigue teniendo la lista del usuario.
         if (sent.current === list) sent.current = null;
+        lastFailed.current = true;
         queued.current -= 1;
         setSync("error");
         return;
@@ -82,27 +92,39 @@ export function useAnnotationsSync(
       sent.current = null;
       queued.current = 0;
       lastSaved.current = annotations;
+      lastFailed.current = false;
       setSync("guardado");
       return;
     }
     if (!sessionId) return;
     if (annotations === lastSaved.current || annotations === loadedRef.current) return;
+    if (!canWrite.current) {
+      // El cambio se queda en el store, pero no se manda: el subtítulo ya dice
+      // que la lista no se pudo leer.
+      setSync("error");
+      return;
+    }
     setSync("guardando");
     cancelTimer();
     timer.current = setTimeout(() => {
       timer.current = null;
-      void put(sessionId, latest.current);
+      if (canWrite.current) void put(sessionId, latest.current);
     }, DEBOUNCE_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, annotations]);
 
+  /** Manda lo pendiente y espera a la fila. `false`: hay anotaciones que no
+   *  llegaron al disco (PUT fallido, o lectura fallida con cambios locales). */
   const flush = useCallback(async () => {
     cancelTimer();
     const s = sid.current, list = latest.current;
-    if (s && list !== lastSaved.current && list !== loadedRef.current && list !== sent.current) {
+    const pending = list !== lastSaved.current && list !== loadedRef.current;
+    if (!canWrite.current) return !(s && pending);
+    if (s && pending && list !== sent.current) {
       void put(s, list);
     }
     await chain.current;
+    return !lastFailed.current;
   }, [put, loadedRef]);
 
   // Salir del espacio de trabajo antes de los 600 ms no puede perder el cambio.

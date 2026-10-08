@@ -15,7 +15,7 @@ import { usePlanning } from "../../store/planning";
 const HU_MODALITIES = ["CT", "CTA", "CTPA"];
 
 export function PreprocessSection() {
-  const { sessionId, series, resetDownstream, bumpVolumeVersion } = usePlanning();
+  const { sessionId, series, resetDownstream, clearAnnotations, bumpVolumeVersion } = usePlanning();
   const isHu = HU_MODALITIES.includes((series?.modality ?? "").trim().toUpperCase());
   const [open, setOpen] = useState(false);
   // Only offered pre-ticked where it means something: on a 3DRA/XA volume the
@@ -55,6 +55,9 @@ export function PreprocessSection() {
       setRes(r);
       bumpVolumeVersion();  // el visor recarga el volumen reescrito
       resetDownstream();  // volume changed → mesh/metrics stale
+      // WHY: remuestrear cambia los índices de corte; una región se quedaría
+      // en un corte que ya no es el suyo.
+      clearAnnotations();
       setApplied(await api.preprocessStatus(sessionId).then((st) => st.ops).catch(() => "aplicado"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en el preprocesamiento");
@@ -75,6 +78,7 @@ export function PreprocessSection() {
       setApplied("");
       bumpVolumeVersion();
       resetDownstream();
+      clearAnnotations();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo restaurar el volumen");
     } finally {

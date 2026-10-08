@@ -1,6 +1,6 @@
 /* PanelHead — step panel title + endpoint description + right slot. */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 export function PanelHead({ title, desc, right }: { title: string; desc?: string; right?: ReactNode }) {
@@ -48,6 +48,7 @@ export function Collapsible({
   storageKey,
   defaultOpen = false,
   badge,
+  forceOpen = false,
   children,
 }: {
   title: string;
@@ -56,6 +57,9 @@ export function Collapsible({
   storageKey: string;
   defaultOpen?: boolean;
   badge?: ReactNode;
+  /** Al pasar a true abre la sección (p. ej. para enfocar un campo de dentro).
+   *  No la cierra al volver a false ni toca lo recordado. */
+  forceOpen?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(() => {
@@ -68,6 +72,8 @@ export function Collapsible({
       return defaultOpen;
     }
   });
+
+  useEffect(() => { if (forceOpen) setOpen(true); }, [forceOpen]);
 
   const toggle = () => {
     const next = !open;

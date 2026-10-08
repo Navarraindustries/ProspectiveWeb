@@ -59,7 +59,7 @@ import { rotationCenterMm, visibleBounds, visiblePoints, type Bounds6, type Clip
 
 type Vec3 = [number, number, number];
 
-/** Fracción de la celda que ocupa lo visible tras CENTRAR (por el lado que manda). */
+/** Fracción de la celda que ocupa lo visible tras ENCUADRAR (por el lado que manda). */
 const FIT_FILL = 0.9;
 
 const PLANE_OPTIONS = [
@@ -69,7 +69,7 @@ const PLANE_OPTIONS = [
 ];
 
 const CLIP_OPTIONS = [
-  { key: "eje", label: "EJE", title: "Recortar por el eje elegido (AX · COR · SAG)" },
+  { key: "eje", label: "EJE", title: "Recortar por el eje elegido" },
   { key: "libre", label: "LIBRE", title: "Recortar por el plano libre de la vista Oblicuo" },
 ];
 
@@ -139,7 +139,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // Centro de giro = el punto compartido, en mm. WHY: sin él vtk giraba
   // alrededor de (0,0,0), una esquina del volumen (origen 0), y en Case 3 tras
   // un arrastre de 90° el centro del volumen quedaba a 124 mm del foco, fuera
-  // de la celda. Por ref para que la escena y CENTRAR usen el de este render.
+  // de la celda. Por ref para que la escena y ENCUADRAR usen el de este render.
   const centerRef = useRef(rotationCenterMm(mprVoxel, meta));
   centerRef.current = rotationCenterMm(mprVoxel, meta);
   /** Va en el estilo, no en el manipulador: el estilo copia su
@@ -334,12 +334,12 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     insetRef.current?.setOrientation(orientation);
   }, [orientation.direction, orientation.manual]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Maximizado, la fila de controles (AX · COR · SAG · ACUMULADO · CENTRAR) ocupa el pie de la
+  // Maximizado, la fila de controles (AX · COR · SAG · ACUMULADO · ENCUADRAR) ocupa el pie de la
   // esquina derecha: el recuadro sube por encima. En la celda estrecha la
   // escalera de cortes (44 px) ocupa todo el borde derecho y el recuadro caía
   // debajo de sus marcas: va a la esquina superior izquierda, libre porque en
   // la celda no hay cinta de rumbo.
-  // La subida se mide en píxeles: la fila ACUMULADO…CENTRAR está a 58–80 px
+  // La subida se mide en píxeles: la fila ACUMULADO…ENCUADRAR está a 58–80 px
   // del pie (72–94 en COMPUESTO), y una fracción fija del alto (0.09) se
   // quedaba corta en celdas de ~450 px y el cubo caía sobre la fila.
   const placeInset = () => {
@@ -451,7 +451,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
       const actor = vtkImageSlice.newInstance();
       actor.setMapper(mapper);
       actor.getProperty().setInterpolationTypeToLinear();
-      // Fuera del encuadre (CENTRAR encuadra el volumen) y del picking.
+      // Fuera del encuadre (ENCUADRAR encuadra el volumen) y del picking.
       actor.setPickable(false);
       actor.setUseBounds(false);
       face.current = { mapper, actor, plane };
@@ -505,7 +505,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // sigue sin mover la cámara (el siguiente arrastre gira alrededor del nuevo).
   useEffect(() => { applyCenter(); }, [mprVoxel, meta, image]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  // CENTRAR encuadra solo lo que el recorte deja ver, no la caja entera: en
+  // ENCUADRAR encuadra solo lo que el recorte deja ver, no la caja entera: en
   // acumulado al principio del recorrido o en una lámina fina, la caja entera
   // dejaba lo visible como una franja pequeña. En LIBRE además devuelve el
   // plano al crosshair (offset 0), así que el encuadre se calcula con ese plano.
@@ -560,7 +560,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     s.grw.getRenderWindow().render();
   };
 
-  // C hace lo mismo que «CENTRAR». `fit` cierra sobre el estado de este
+  // C hace lo mismo que «ENCUADRAR». `fit` cierra sobre el estado de este
   // render; por ref, la función publicada una vez usa siempre la última.
   const fitRef = useRef(fit);
   fitRef.current = fit;
@@ -614,7 +614,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           </div>
         )}
         {/* El eje va arriba a la izquierda, como AX · COR · SAG en el HUD del
-            3D: en la fila de abajo, junto a modo y CENTRAR, tapaba la lectura
+            3D: en la fila de abajo, junto a modo y ENCUADRAR, tapaba la lectura
             de la izquierda en ventanas de 1280 px. MIP · COMPUESTO va a su
             lado: es la otra pregunta de «cómo se ve» este volumen. */}
         {!compact && (
@@ -623,7 +623,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           // botones) y el ancho máximo deja libre la escalera de cortes.
           <div style={{ position: "absolute", top: 52, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
             {/* En LIBRE el eje solo orienta la cámara: se atenúa sin apagarse. */}
-            <HudToggleGroup options={PLANE_OPTIONS} value={plane} onChange={(k) => onPlaneChange(k as Plane)} style={libre ? { opacity: 0.45 } : undefined} />
+            <HudToggleGroup label="EJE ▸" options={PLANE_OPTIONS} value={plane} onChange={(k) => onPlaneChange(k as Plane)} style={libre ? { opacity: 0.45 } : undefined} />
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <span style={{ color: "var(--hud-dim)", fontSize: 11, letterSpacing: ".08em", whiteSpace: "nowrap" }}>RECORTE ▸</span>
               <HudToggleGroup options={CLIP_OPTIONS} value={clipMode} onChange={(k) => setClipMode(k as "eje" | "libre")} />
@@ -645,7 +645,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           // izquierda (dos líneas; tres en COMPUESTO, con NIV · VENT) y una
           // fila por encima de la de abajo a la derecha (en compuesto bottom:
           // 72): a la misma altura, en paneles estrechos, los seis nombres
-          // llegaban hasta ACUMULADO y CENTRAR. El ancho máximo deja libre la
+          // llegaban hasta ACUMULADO y ENCUADRAR. El ancho máximo deja libre la
           // escalera de cortes; la columna no recibe el puntero (sus hijos sí),
           // para no tapar el arrastre fuera de los nombres.
           <div className="hud-stack" style={{ position: "absolute", bottom: volumeMode === "compuesto" ? 100 : 84, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexDirection: "column-reverse", alignItems: "flex-start", gap: 6, pointerEvents: "none" }}>
@@ -661,16 +661,18 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           </div>
         )}
         {!compact && (
-          // right: 58 deja libre la escalera de cortes (44 px) para CENTRAR.
+          // right: 58 deja libre la escalera de cortes (44 px) para ENCUADRAR.
           // bottom: 58 la sube por encima de las dos líneas de la lectura de
           // la izquierda: a la misma altura se pisaban en paneles de ~530 px.
           // En compuesto la lectura tiene tres (NIV · VENT): una fila más arriba.
           <div style={{ position: "absolute", bottom: volumeMode === "compuesto" ? 72 : 58, right: 58, display: "flex", gap: 14, alignItems: "center", pointerEvents: "auto" }}>
             <HudToggleGroup options={[{ key: "acumulado", label: "ACUMULADO" }, { key: "lamina", label: "LÁMINA" }]} value={mipMode} onChange={(k) => setMipMode(k as "acumulado" | "lamina")} />
             {mipMode === "acumulado"
-              ? <HudToggleGroup options={[{ key: "rev", label: reverse ? "DESDE EL FINAL" : "DESDE EL INICIO" }]} value="rev" onChange={() => setReverse(!reverse)} />
+              ? <HudToggleGroup label="DESDE ▸"
+                  options={[{ key: "inicio", label: "INICIO", title: "Acumular desde el primer corte" }, { key: "final", label: "FINAL", title: "Acumular desde el último corte" }]}
+                  value={reverse ? "final" : "inicio"} onChange={(k) => setReverse(k === "final")} />
               : <input type="range" min={2} max={40} value={mipSlabMm} onChange={(e) => setMipSlabMm(Number(e.target.value))} style={{ width: 90, accentColor: "var(--hud)" }} title="Grosor de la lámina" />}
-            <HudToggleGroup options={[{ key: "fit", label: "CENTRAR" }]} value="" onChange={fit} />
+            <HudToggleGroup options={[{ key: "fit", label: "ENCUADRAR", title: "Encuadrar lo visible (C)" }]} value="" onChange={fit} />
           </div>
         )}
       </HudFrame>

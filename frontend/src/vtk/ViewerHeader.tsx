@@ -81,12 +81,9 @@ export function ViewerHeader({
           value={planesHidden ? "" : "planes"} onChange={() => onPlanesHiddenChange(!planesHidden)} />
         {/* La banda queda fuera de `data-hud`: en limpio estos botones siguen
             ahí para volver (además de la H). En banda estrecha, C · E · L. */}
-        <div className="hud-toggle" title="Nivel del HUD (H)" style={{ gap: 6, alignItems: "center" }}>
-          <span style={{ color: "var(--hud-dim)", fontSize: 11, letterSpacing: ".08em" }}>HUD ▸</span>
-          <HudToggleGroup
-            options={HUD_LEVELS.map((l) => ({ key: l, label: bandWidth < NARROW_HEADER_PX ? l[0].toUpperCase() : l.toUpperCase(), title: `HUD ${l} (H)` }))}
-            value={hudLevel} onChange={(k) => onHudLevelChange(k as HudLevel)} />
-        </div>
+        <HudToggleGroup label="HUD ▸" title="Nivel del HUD (H)" style={{ gap: 6, alignItems: "center" }}
+          options={HUD_LEVELS.map((l) => ({ key: l, label: bandWidth < NARROW_HEADER_PX ? l[0].toUpperCase() : l.toUpperCase(), title: `HUD ${l} (H)` }))}
+          value={hudLevel} onChange={(k) => onHudLevelChange(k as HudLevel)} />
         <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
           value={syncViews ? "sync" : ""} onChange={() => onSyncViewsChange(!syncViews)} />
         {hasClipField && (

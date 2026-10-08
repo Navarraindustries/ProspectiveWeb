@@ -453,7 +453,7 @@ export function MeshView({
     // que dibuja queda encima de la malla aunque el punto esté dentro del vaso.
     // No es interactivo, así que el interactor, la rotación y la selección de
     // puntos siguen yendo al renderer principal; y su actor no está en este,
-    // así que no cuenta para AJUSTAR ni para la escala de los marcadores.
+    // así que no cuenta para ENCUADRAR ni para la escala de los marcadores.
     // Cámara: una propia que copia la principal en cada cambio (como el
     // recuadro del maniquí) en vez de compartir la misma. Compartida, el
     // recorte cercano/lejano lo fijaría solo la malla, y un punto fuera de
@@ -789,7 +789,7 @@ export function MeshView({
       insetRef.current = null;
       registerCaptureRef.current?.(null);
       // La cámara NO se anula al rehacer la escena (otro candidato, un
-      // dispositivo, la vista previa del umbral): el grupo AJUSTAR·AX·…·LESIÓN
+      // dispositivo, la vista previa del umbral): el grupo ENCUADRAR·AX·…·LESIÓN
       // desaparecía y los conmutadores de debajo saltaban. Sus métodos ya
       // miran handles.current; se anula solo al desmontar (efecto de abajo).
       registerPartsRef.current?.(null);
@@ -1080,7 +1080,7 @@ export function MeshView({
         actor.setMapper(mapper);
         actor.getProperty().setInterpolationTypeToLinear();
         // Fuera del picking (el clic en la malla y las asas no deben chocar
-        // con un corte) y del encuadre: AJUSTAR sigue encuadrando la malla.
+        // con un corte) y del encuadre: ENCUADRAR sigue encuadrando la malla.
         actor.setPickable(false);
         actor.setUseBounds(false);
         h.renderer.addActor(actor);

@@ -47,7 +47,7 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
   registerCaptureRef.current = registerCapture;
   const ref = useRef<HTMLDivElement>(null);
   const scene = useRef<{ grw: vtkGenericRenderWindow; mapper: vtkImageResliceMapper; actor: vtkImageSlice; plane: vtkPlane; fit: () => boolean } | null>(null);
-  // «AJUSTAR»/«CENTRAR» piden un reencuadre; el contador lo convierte en un cambio.
+  // «ENCUADRAR»/«AL PUNTO» piden un reencuadre; el contador lo convierte en un cambio.
   const [fitRequest, setFitRequest] = useState(0);
   // Plano y crosshair vigentes, para que el encuadre (y el ResizeObserver y la
   // rueda, que viven fuera del ciclo de React) los lean sin rehacer la escena.
@@ -122,7 +122,7 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
     return () => { registerCaptureRef.current?.(null); ro.disconnect(); scene.current = null; grw.delete(); };
   }, [image]);
 
-  // C pide lo mismo que «AJUSTAR»: un reencuadre, sin tocar el plano.
+  // C pide lo mismo que «ENCUADRAR»: un reencuadre, sin tocar el plano.
   const registerFitRef = useRef(registerFit);
   registerFitRef.current = registerFit;
   useEffect(() => {
@@ -257,7 +257,7 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, active = false
         {slider("AZIMUT", "Azimut", AZIMUTH_RANGE, freePlane.azimuthDeg, (v) => commitPlane({ ...freePlane, azimuthDeg: v }))}
         {slider("ELEVACIÓN", "Elevación", ELEVATION_RANGE, freePlane.elevationDeg, (v) => commitPlane({ ...freePlane, elevationDeg: v }))}
         <HudToggleGroup
-          options={[{ key: "fit", label: "AJUSTAR", title: "Reencuadrar el corte" }, { key: "reset", label: "CENTRAR", title: "Devolver el plano al crosshair y reencuadrar" }]}
+          options={[{ key: "fit", label: "ENCUADRAR", title: "Reencuadrar el corte" }, { key: "reset", label: "AL PUNTO", title: "Devolver el plano al punto compartido" }]}
           value="" onChange={(key) => { if (key === "reset") commitPlane({ ...freePlane, offsetMm: 0 }); setFitRequest((r) => r + 1); }} />
       </div>
     </div>

@@ -38,7 +38,7 @@ describe("visibleBounds en libre", () => {
   it("lámina libre oblicua incluye las esquinas de la caja que caen entre los dos planos", () => {
     // Plano x + z = 20 (normal oblicua), lámina ±8 mm: la esquina (30,·,0) está a
     // d = (30 + 0 − 20)/√2 ≈ 7 mm, dentro de la lámina, pero ningún polígono pasa
-    // de x ≈ 25,7: sin la esquina, CENTRAR dejaría ese trozo fuera del encuadre.
+    // de x ≈ 25,7: sin la esquina, ENCUADRAR dejaría ese trozo fuera del encuadre.
     const s = Math.SQRT1_2, n: [number, number, number] = [s, 0, s], o: [number, number, number] = [15, 10, 5];
     const at = (k: number) => [[15 + k * s - 5, 0, 5 + k * s + 5], [15 + k * s + 5, 0, 5 + k * s - 5], [15 + k * s + 5, 20, 5 + k * s - 5], [15 + k * s - 5, 20, 5 + k * s + 5]] as [number, number, number][];
     const v = visibleBounds(B, { mode: "libre", normal: n, originMm: o, polygon: at(0), polygons: [at(-8), at(8)], acumulado: false, reverse: false, slabMm: 8 });

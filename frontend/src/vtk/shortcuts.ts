@@ -35,7 +35,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "anot-marcador", keys: "T", action: "Marcador con nota", scope: "visor" },
   { id: "anot-borrar", keys: "Supr", action: "Borrar la anotación seleccionada", scope: "visor" },
   { id: "anot-deshacer-punto", keys: "Retroceso", action: "Quitar el último punto de la anotación en curso", scope: "visor" },
-  { id: "center", keys: "C", action: "Volver a encuadrar la celda enfocada", scope: "celda" },
+  { id: "center", keys: "C", action: "Encuadrar la celda enfocada", scope: "celda" },
   { id: "cine-toggle", keys: "Espacio", action: "Reproducir o parar el cine de la celda", scope: "celda" },
   { id: "cine-faster", keys: "+", action: "Cine un fotograma por segundo más rápido", scope: "celda" },
   { id: "cine-slower", keys: "−", action: "Cine un fotograma por segundo más lento", scope: "celda" },

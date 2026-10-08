@@ -120,10 +120,10 @@ const DEVICE_LABEL: Record<"clips" | "coils" | "stent", string> = {
 /* Vistas del visor 3D, nombradas como los planos MPR del resto de la app.
    Un segundo clic en la misma vista la mira desde el lado opuesto. */
 const CAMERA_BUTTONS: [CameraView, string, string][] = [
-  ["fit", "Ajustar", "Reencuadrar la escena completa"],
-  ["axial", "Ax", "Vista axial (desde superior)"],
-  ["coronal", "Cor", "Vista coronal (desde anterior)"],
-  ["sagital", "Sag", "Vista sagital (lateral)"],
+  ["fit", "ENCUADRAR", "Reencuadrar la escena completa"],
+  ["axial", "AX", "Vista axial (desde superior)"],
+  ["coronal", "COR", "Vista coronal (desde anterior)"],
+  ["sagital", "SAG", "Vista sagital (lateral)"],
 ];
 const CENTERLINE_COLOR: Vector3 = [0.36, 0.85, 0.86]; // cyan — vessel centreline tube
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
@@ -1794,6 +1794,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
                 rotando no tenía vuelta atrás. */}
             {isMesh && camera && (
               <HudToggleGroup
+                label="VISTA ▸"
                 options={[
                   ...CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title })),
                   ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Acercar la cámara a la lesión" }] : []),

@@ -1,7 +1,7 @@
 /* Qué hay que encuadrar y alrededor de qué se gira en VOLUMEN. Medido en Case 3:
    el manipulador giraba alrededor de (0,0,0), una ESQUINA del volumen, y tras
    90° el centro quedaba 124 mm fuera de la celda. El centro de giro es el punto
-   compartido; CENTRAR encuadra solo lo que el recorte deja ver. */
+   compartido; ENCUADRAR encuadra solo lo que el recorte deja ver. */
 import type { VolumeMeta } from "../api/types";
 import { voxelToMm, type Vec3 } from "./geometry";
 
@@ -40,7 +40,7 @@ const cornersOf = (b: Bounds6): Vec3[] => {
   return out;
 };
 
-/** Vértices de lo que el recorte deja ver (un poliedro convexo). CENTRAR los
+/** Vértices de lo que el recorte deja ver (un poliedro convexo). ENCUADRAR los
  *  proyecta para encuadrar: con un plano libre oblicuo la caja alineada de
  *  `visibleBounds` incluye la esquina cortada, y encuadrarla dejaba lo visible
  *  descentrado (121 px de 632 en Case 3) y al 75 % del ancho. */

@@ -1,6 +1,6 @@
 # Anotaciones persistentes (E2) — plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Reglas, ángulos, regiones y marcadores que se crean en los cortes o en la malla, se ven en todas las vistas, se guardan con la sesión y salen en capturas e informe.
 
@@ -74,7 +74,7 @@ export function mmToUv(plane: Plane, p: Vec3, meta: VolumeMeta): { u: number; v:
 export const ANNOTATION_HEX: Record<AnnotationKind, string>;
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // frontend/src/vtk/sliceCoords.test.ts
@@ -177,9 +177,9 @@ def test_marcador_sin_medida_y_puntos_insuficientes():
     assert measure("regla", [[1, 1, 1]]) is None
 ```
 
-- [ ] **Step 2: Ver fallar** → `npx vitest run src/vtk/annotations.test.ts src/vtk/sliceCoords.test.ts` y `pytest test_annotations_measure.py`: FAIL (módulos inexistentes).
+- [x] **Step 2: Ver fallar** → `npx vitest run src/vtk/annotations.test.ts src/vtk/sliceCoords.test.ts` y `pytest test_annotations_measure.py`: FAIL (módulos inexistentes).
 
-- [ ] **Step 3: Implementación**
+- [x] **Step 3: Implementación**
 
 ```ts
 // frontend/src/vtk/sliceCoords.ts
@@ -209,8 +209,8 @@ export function mmToUv(plane: Plane, p: Vec3, meta: VolumeMeta): { u: number; v:
 
 `annotations.ts`: `measure` (regla `Math.hypot`; ángulo `acos` del producto escalar normalizado, acotado a [−1, 1]; región `polygonArea` + perímetro cerrado; `null` si faltan puntos), `formatMeasure` con `toLocaleString("es-ES", { maximumFractionDigits })` (1 decimal mm, 0 en grados y mm²), `nextLabel` (regex `^R(\d+)$`), `onSlice` (eje = `PLANE_AXIS[plane]`, centro del corte `index × spacing[2 − eje]`, tolerancia `0.5 × spacing`; región: `a.plane?.plane === plane && a.plane.index === index`), `centroid`, `toCsv` (separador `;`, valor con coma, `corte` = «AX 3» / «COR n» / «SAG n» / «3D», puntos `x y z | …` con 1 decimal). `planeColors.ts`: `ANNOTATION_HEX`. `backend/services/annotations.py`: `measure(kind, points) -> tuple[str, float] | None` y `polygon_area(points, normal_axis)` con las mismas reglas y redondeo a 1 decimal (mm) o entero (°, mm²) **solo al formatear** (`format_measure`), no en el número.
 
-- [ ] **Step 4: Verificar** → ambos en verde; `npx tsc --noEmit -p .`.
-- [ ] **Step 5: Commit** → `git add frontend/src/vtk/annotations.ts frontend/src/vtk/annotations.test.ts frontend/src/vtk/sliceCoords.ts frontend/src/vtk/sliceCoords.test.ts frontend/src/vtk/planeColors.ts frontend/src/api/types.ts backend/services/annotations.py backend/test_annotations_measure.py && git commit -m "Anotaciones: modelo puro, medidas y proyección a corte, con las mismas fórmulas en el servidor"`
+- [x] **Step 4: Verificar** → ambos en verde; `npx tsc --noEmit -p .`.
+- [x] **Step 5: Commit** → `git add frontend/src/vtk/annotations.ts frontend/src/vtk/annotations.test.ts frontend/src/vtk/sliceCoords.ts frontend/src/vtk/sliceCoords.test.ts frontend/src/vtk/planeColors.ts frontend/src/api/types.ts backend/services/annotations.py backend/test_annotations_measure.py && git commit -m "Anotaciones: modelo puro, medidas y proyección a corte, con las mismas fórmulas en el servidor"`
 
 ---
 
@@ -248,7 +248,7 @@ putAnnotations: (sessionId: string, annotations: Annotation[]) =>
   request<AnnotationsResult>(`/api/annotations/${sessionId}`, { method: "PUT", body: JSON.stringify({ annotations }), headers: { "Content-Type": "application/json" } }),
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```python
 # backend/test_annotations_api.py
@@ -308,10 +308,10 @@ def test_auditoria_solo_al_borrar(client_admin, audit_events):
 
 Los fixtures `client_anon`, `client_admin`, `client_otro_usuario`, `sesion_de_paciente_ajeno` y `audit_events` se construyen como en `test_access_control.py` y `test_auditoria_eventos.py` (mismos helpers; si allí son funciones y no fixtures, úsalas igual).
 
-- [ ] **Step 2: Ver fallar** → 404 en todas (router inexistente).
-- [ ] **Step 3: Implementación** → modelos con `@model_validator` por tipo; router: `if not session_exists(sid): 404`; `require_session(db, current_user, sid)`; GET lee el JSON (lista vacía si no existe o está corrupto → log + `[]`); PUT compara ids anteriores y nuevos, escribe con `tmp + os.replace`, rellena `created_by = current_user.username` y `created_at = datetime.now(UTC).isoformat()` cuando vengan vacíos, audita `ACT_ANNOTATIONS_DELETED` con `{"session_id", "deleted": [...], "remaining": n}` y `audit_patient(paciente)` si la sesión tiene paciente (`session_patient_id` → `db.get(Patient, …)`). `main.py`: `include_router(..., dependencies=_private)`. Cliente y `contract.check.ts` (`Cabe<Completo<S["Annotation"]>, ui.Annotation>`, `Cabe<Completo<S["AnnotationsResult"]>, ui.AnnotationsResult>`; `AnnotationsIn` en la lista de cuerpos de petición). Regenerar contrato.
-- [ ] **Step 4: Verificar** → `pytest test_annotations_api.py test_openapi_contract.py test_auth_coverage.py::test_every_route_is_either_public_by_design_or_authenticated` (este último: la ruta nueva debe responder 401 anónima); `npx tsc --noEmit -p .`.
-- [ ] **Step 5: Commit** → `git add backend/models/annotations.py backend/routers/annotations.py backend/test_annotations_api.py backend/main.py backend/services/audit.py frontend/src/api/client.ts frontend/src/api/contract.check.ts frontend/openapi.json frontend/src/api/schema.gen.ts && git commit -m "API de anotaciones: se guardan en la sesión, con permisos por paciente y auditoría al borrar"`
+- [x] **Step 2: Ver fallar** → 404 en todas (router inexistente).
+- [x] **Step 3: Implementación** → modelos con `@model_validator` por tipo; router: `if not session_exists(sid): 404`; `require_session(db, current_user, sid)`; GET lee el JSON (lista vacía si no existe o está corrupto → log + `[]`); PUT compara ids anteriores y nuevos, escribe con `tmp + os.replace`, rellena `created_by = current_user.username` y `created_at = datetime.now(UTC).isoformat()` cuando vengan vacíos, audita `ACT_ANNOTATIONS_DELETED` con `{"session_id", "deleted": [...], "remaining": n}` y `audit_patient(paciente)` si la sesión tiene paciente (`session_patient_id` → `db.get(Patient, …)`). `main.py`: `include_router(..., dependencies=_private)`. Cliente y `contract.check.ts` (`Cabe<Completo<S["Annotation"]>, ui.Annotation>`, `Cabe<Completo<S["AnnotationsResult"]>, ui.AnnotationsResult>`; `AnnotationsIn` en la lista de cuerpos de petición). Regenerar contrato.
+- [x] **Step 4: Verificar** → `pytest test_annotations_api.py test_openapi_contract.py test_auth_coverage.py::test_every_route_is_either_public_by_design_or_authenticated` (este último: la ruta nueva debe responder 401 anónima); `npx tsc --noEmit -p .`.
+- [x] **Step 5: Commit** → `git add backend/models/annotations.py backend/routers/annotations.py backend/test_annotations_api.py backend/main.py backend/services/audit.py frontend/src/api/client.ts frontend/src/api/contract.check.ts frontend/openapi.json frontend/src/api/schema.gen.ts && git commit -m "API de anotaciones: se guardan en la sesión, con permisos por paciente y auditoría al borrar"`
 
 ---
 
@@ -340,7 +340,7 @@ export function kindOfMode(m: PickMode): AnnotationKind | null;
 
 - `resetDownstream()` vacía `annotations`, `annotationDraft`, `selectedAnnotation`; `reset()` también. Cambiar `pickMode` a un modo que no sea de anotación vacía el borrador.
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // añadir a planning.test.tsx
@@ -365,10 +365,10 @@ describe("anotaciones", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar.**
-- [ ] **Step 3: Implementación** → store según las firmas (`setAnnotations = touch(...)` con soporte de función); quitar `Measurement`, `measurements`, `measurePending`, `setMeasurements`, `setMeasurePending` y el modo `measure` en store, Viewer (`onPick`, `markers`, `lines`, `pickText`, deps) y Workspace (import + Collapsible); borrar `MeasurementPanel.tsx`. En Viewer `onPick`: los modos `anot_*` llaman a `addAnnotationPoint(xyz, null)` que define Task 4 (de momento un `TODO` **no** vale: en esta tarea el 3D añade al borrador y cierra regla/ángulo/marcador con la lógica mínima `draft.length + 1 === POINTS_NEEDED[kind]` → crea la anotación con `nextLabel`, `plane: null`, `created_at: new Date().toISOString()`, `created_by: ""`, la selecciona y desarma; región en 3D: ignora el clic). `pickText`: `anot_regla` → «Regla: clic en el primer punto» / «…segundo punto»; `anot_angulo` → «Ángulo: primer punto · vértice · tercer punto» según `draft.length`; `anot_region` → «Región: clic en un corte alrededor del hallazgo (n puntos) · Intro o el primer punto cierra»; `anot_marcador` → «Marcador: clic donde quieras la nota».
-- [ ] **Step 4: Verificar** → `npx vitest run src/store src/vtk/Viewer* src/pages`, `npx tsc --noEmit -p .` (debe dejar de compilar cualquier resto de `measurements`), `npx vitest run` completo.
-- [ ] **Step 5: Commit** → `git add -A frontend/src/store frontend/src/vtk/Viewer.tsx frontend/src/pages/Workspace.tsx frontend/src/components/vessels && git commit -m "Anotaciones en el store; el calibrador 3D deja paso a las reglas"`
+- [x] **Step 2: Ver fallar.**
+- [x] **Step 3: Implementación** → store según las firmas (`setAnnotations = touch(...)` con soporte de función); quitar `Measurement`, `measurements`, `measurePending`, `setMeasurements`, `setMeasurePending` y el modo `measure` en store, Viewer (`onPick`, `markers`, `lines`, `pickText`, deps) y Workspace (import + Collapsible); borrar `MeasurementPanel.tsx`. En Viewer `onPick`: los modos `anot_*` llaman a `addAnnotationPoint(xyz, null)` que define Task 4 (de momento un `TODO` **no** vale: en esta tarea el 3D añade al borrador y cierra regla/ángulo/marcador con la lógica mínima `draft.length + 1 === POINTS_NEEDED[kind]` → crea la anotación con `nextLabel`, `plane: null`, `created_at: new Date().toISOString()`, `created_by: ""`, la selecciona y desarma; región en 3D: ignora el clic). `pickText`: `anot_regla` → «Regla: clic en el primer punto» / «…segundo punto»; `anot_angulo` → «Ángulo: primer punto · vértice · tercer punto» según `draft.length`; `anot_region` → «Región: clic en un corte alrededor del hallazgo (n puntos) · Intro o el primer punto cierra»; `anot_marcador` → «Marcador: clic donde quieras la nota».
+- [x] **Step 4: Verificar** → `npx vitest run src/store src/vtk/Viewer* src/pages`, `npx tsc --noEmit -p .` (debe dejar de compilar cualquier resto de `measurements`), `npx vitest run` completo.
+- [x] **Step 5: Commit** → `git add -A frontend/src/store frontend/src/vtk/Viewer.tsx frontend/src/pages/Workspace.tsx frontend/src/components/vessels && git commit -m "Anotaciones en el store; el calibrador 3D deja paso a las reglas"`
 
 ---
 
@@ -396,7 +396,7 @@ annotationMode?: boolean;                                            // true: el
 onAnnotationKey?: (key: "Enter" | "Backspace" | "Escape") => void;
 ```
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // annotationDraft.test.ts
@@ -437,10 +437,10 @@ it("en modo anotación el clic reporta mm subvóxel y no mueve el crosshair", ()
 it("Intro, Retroceso y Esc llegan a onAnnotationKey solo en modo anotación", () => { /* fireEvent.keyDown en el contenedor */ });
 ```
 
-- [ ] **Step 2: Ver fallar.**
-- [ ] **Step 3: Implementación** → `annotationDraft.ts` puro. `SliceView`: en el mouseup sin arrastre (`~317`), si `p.annotationMode` y `p.onPlaneClickMm`: `const f = frac(e); if (f) p.onPlaneClickMm(uvToMm(p.plane, p.index, f.u, f.v, p.meta), { x: e.clientX − rect.left, y: e.clientY − rect.top })`; si no, `onPlaneClick` como hoy. `onKey`: con `annotationMode`, Enter/Backspace/Escape → `onAnnotationKey` y `preventDefault`; el resto como hoy. Doble clic en modo región → `onAnnotationKey("Enter")`. `Viewer`: `addAnnotationPoint(p: Vec3, plane: AnnotationPlane | null, px?)` usa `addPoint`; para región en 2D comprueba `closesRegion` con los puntos del borrador proyectados a px (`mmToUv` × `box` — SliceView pasa en `px` las coordenadas del clic y Viewer recibe también `boxOf(plane)`; alternativa aceptada: SliceView calcula `closesRegion` él mismo con `annotationDraftPx` prop y emite `onAnnotationKey("Enter")`); `finish(points, plane)` crea la anotación (`nextLabel`, `created_at`, `created_by: ""`), la selecciona, vacía el borrador y desarma (`setPickMode(null)`); Enter → `closeRegion`; Backspace → `removeLast`; Escape → borrador vacío y desarmar. `planeCfg` pasa `annotationMode = kindOfMode(pickMode) !== null`, `onPlaneClickMm`, `onAnnotationKey`. La región en 3D sigue ignorándose (la pista lo dice).
-- [ ] **Step 4: Verificar** → vitest de los archivos, `tsc`, navegador: regla en axial (dos clics, valor en el panel de Task 6 aún no existe: comprobar en React DevTools o con `console` que el store tiene la anotación), región en coronal cerrada por el primer punto y por Intro, Esc cancela.
-- [ ] **Step 5: Commit** → `git add frontend/src/vtk/annotationDraft.ts frontend/src/vtk/annotationDraft.test.ts frontend/src/vtk/SliceView.tsx frontend/src/vtk/SliceView.test.tsx frontend/src/vtk/Viewer.tsx && git commit -m "Anotaciones en los cortes: clics subvóxel, región que se cierra por el primer punto o con Intro"`
+- [x] **Step 2: Ver fallar.**
+- [x] **Step 3: Implementación** → `annotationDraft.ts` puro. `SliceView`: en el mouseup sin arrastre (`~317`), si `p.annotationMode` y `p.onPlaneClickMm`: `const f = frac(e); if (f) p.onPlaneClickMm(uvToMm(p.plane, p.index, f.u, f.v, p.meta), { x: e.clientX − rect.left, y: e.clientY − rect.top })`; si no, `onPlaneClick` como hoy. `onKey`: con `annotationMode`, Enter/Backspace/Escape → `onAnnotationKey` y `preventDefault`; el resto como hoy. Doble clic en modo región → `onAnnotationKey("Enter")`. `Viewer`: `addAnnotationPoint(p: Vec3, plane: AnnotationPlane | null, px?)` usa `addPoint`; para región en 2D comprueba `closesRegion` con los puntos del borrador proyectados a px (`mmToUv` × `box` — SliceView pasa en `px` las coordenadas del clic y Viewer recibe también `boxOf(plane)`; alternativa aceptada: SliceView calcula `closesRegion` él mismo con `annotationDraftPx` prop y emite `onAnnotationKey("Enter")`); `finish(points, plane)` crea la anotación (`nextLabel`, `created_at`, `created_by: ""`), la selecciona, vacía el borrador y desarma (`setPickMode(null)`); Enter → `closeRegion`; Backspace → `removeLast`; Escape → borrador vacío y desarmar. `planeCfg` pasa `annotationMode = kindOfMode(pickMode) !== null`, `onPlaneClickMm`, `onAnnotationKey`. La región en 3D sigue ignorándose (la pista lo dice).
+- [x] **Step 4: Verificar** → vitest de los archivos, `tsc`, navegador: regla en axial (dos clics, valor en el panel de Task 6 aún no existe: comprobar en React DevTools o con `console` que el store tiene la anotación), región en coronal cerrada por el primer punto y por Intro, Esc cancela.
+- [x] **Step 5: Commit** → `git add frontend/src/vtk/annotationDraft.ts frontend/src/vtk/annotationDraft.test.ts frontend/src/vtk/SliceView.tsx frontend/src/vtk/SliceView.test.tsx frontend/src/vtk/Viewer.tsx && git commit -m "Anotaciones en los cortes: clics subvóxel, región que se cierra por el primer punto o con Intro"`
 
 ---
 
@@ -469,11 +469,11 @@ export interface MeshLabel { pos: Vec3; text: string; color: string }
 labels?: MeshLabel[];      // capa SVG .hud-anot sobre el lienzo, reposicionada en onModified de la cámara
 ```
 
-- [ ] **Step 1: Tests que fallan** → `annotationOverlay.test.ts`: una regla en el corte produce `line` + 2 `circle` + `text` con las px de `mmToUv × box`; un ángulo produce 2 `line` + `text` en el vértice; una región `polygon closed` con relleno; el borrador de región `polygon` abierto (`closed: false`) y sin texto; `compact` reduce el texto a «R1»; la seleccionada lleva `width` 3; una anotación `visible: false` no sale; `onSlice` falso no sale. `HudAnnotations.test.tsx`: renderiza un `<svg class="hud-anot">` con un `<line>`, un `<polygon>` y un `<text>` a partir de `Shape[]` y nada cuando la lista está vacía.
-- [ ] **Step 2: Ver fallar.**
-- [ ] **Step 3: Implementación** → `HudAnnotations({ shapes, w, h, left, top })` SVG absoluto con `pointer-events: none`; texto con `paint-order: stroke` y trazo oscuro para leerse sobre la imagen. `SliceView` recibe `annotationShapes?: Shape[]` (calculadas en Viewer con `shapesForSlice` y el `box`; como el `box` es estado interno de SliceView, SliceView llama a `p.shapesFor?.(box)` → prop función `annotationShapes?: (box: Box) => Shape[]`). `MeshView`: `labels` → `<svg className="hud-anot">` con `<text>` en `worldToNormalizedDisplay(pos)` × tamaño del lienzo, actualizado en `renderer.getActiveCamera().onModified` y en `ResizeObserver`; en `Viewer`: `lines` suma las reglas/ángulos/regiones visibles (tubo `MeshLine` por segmento, región cerrada), `markers` los puntos del borrador en `PENDING_COLOR` y los marcadores como bola; `labels` con `labelFor(a, false)` en el centroide (regla: punto medio; ángulo: vértice). `hud.css`: `.hud-anot { position:absolute; inset:0; pointer-events:none; } .hud-anot text { font: 10.5px var(--font-mono); paint-order: stroke; stroke: #000; stroke-width: 3px; }`.
-- [ ] **Step 4: Verificar** → vitest, `tsc`, navegador (Case 3): regla en axial se ve en axial con «R1 · n mm», no en axial ± 2, sí en el 3D con rótulo; región en coronal con relleno; ángulo; marcador con nota; borrador visible mientras se crea; fps del 3D sin caída apreciable con 10 anotaciones.
-- [ ] **Step 5: Commit** → `git add frontend/src/vtk/annotationOverlay.ts frontend/src/vtk/annotationOverlay.test.ts frontend/src/vtk/hud/HudAnnotations.tsx frontend/src/vtk/hud/HudAnnotations.test.tsx frontend/src/vtk/SliceView.tsx frontend/src/vtk/MeshView.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/hud/hud.css && git commit -m "Las anotaciones se dibujan en el corte que las contiene y en el 3D, con su valor"`
+- [x] **Step 1: Tests que fallan** → `annotationOverlay.test.ts`: una regla en el corte produce `line` + 2 `circle` + `text` con las px de `mmToUv × box`; un ángulo produce 2 `line` + `text` en el vértice; una región `polygon closed` con relleno; el borrador de región `polygon` abierto (`closed: false`) y sin texto; `compact` reduce el texto a «R1»; la seleccionada lleva `width` 3; una anotación `visible: false` no sale; `onSlice` falso no sale. `HudAnnotations.test.tsx`: renderiza un `<svg class="hud-anot">` con un `<line>`, un `<polygon>` y un `<text>` a partir de `Shape[]` y nada cuando la lista está vacía.
+- [x] **Step 2: Ver fallar.**
+- [x] **Step 3: Implementación** → `HudAnnotations({ shapes, w, h, left, top })` SVG absoluto con `pointer-events: none`; texto con `paint-order: stroke` y trazo oscuro para leerse sobre la imagen. `SliceView` recibe `annotationShapes?: Shape[]` (calculadas en Viewer con `shapesForSlice` y el `box`; como el `box` es estado interno de SliceView, SliceView llama a `p.shapesFor?.(box)` → prop función `annotationShapes?: (box: Box) => Shape[]`). `MeshView`: `labels` → `<svg className="hud-anot">` con `<text>` en `worldToNormalizedDisplay(pos)` × tamaño del lienzo, actualizado en `renderer.getActiveCamera().onModified` y en `ResizeObserver`; en `Viewer`: `lines` suma las reglas/ángulos/regiones visibles (tubo `MeshLine` por segmento, región cerrada), `markers` los puntos del borrador en `PENDING_COLOR` y los marcadores como bola; `labels` con `labelFor(a, false)` en el centroide (regla: punto medio; ángulo: vértice). `hud.css`: `.hud-anot { position:absolute; inset:0; pointer-events:none; } .hud-anot text { font: 10.5px var(--font-mono); paint-order: stroke; stroke: #000; stroke-width: 3px; }`.
+- [x] **Step 4: Verificar** → vitest, `tsc`, navegador (Case 3): regla en axial se ve en axial con «R1 · n mm», no en axial ± 2, sí en el 3D con rótulo; región en coronal con relleno; ángulo; marcador con nota; borrador visible mientras se crea; fps del 3D sin caída apreciable con 10 anotaciones.
+- [x] **Step 5: Commit** → `git add frontend/src/vtk/annotationOverlay.ts frontend/src/vtk/annotationOverlay.test.ts frontend/src/vtk/hud/HudAnnotations.tsx frontend/src/vtk/hud/HudAnnotations.test.tsx frontend/src/vtk/SliceView.tsx frontend/src/vtk/MeshView.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/hud/hud.css && git commit -m "Las anotaciones se dibujan en el corte que las contiene y en el 3D, con su valor"`
 
 ---
 
@@ -493,11 +493,11 @@ export function useAnnotationsSync(sessionId: string | null, annotations: Annota
 // AnnotationsPanel: sin props; lee el store. Botones title: «Regla (R)», «Ángulo (A)», «Región (G)», «Marcador (T)»; fila: nombre editable (click), valor, corte («AX 152» / «3D»), «Ocultar»/«Mostrar», «Ir», «Borrar (Supr)»; «Ocultar todas» / «Mostrar todas»; «Exportar CSV» (descarga `anotaciones-<sesión>.csv` con `toCsv`).
 ```
 
-- [ ] **Step 1: Tests que fallan** → `useAnnotationsSync.test.tsx` (temporizadores falsos, `api.putAnnotations` simulado): dos cambios en 300 ms → un solo PUT con la lista final y `setSync("guardado")`; PUT que rechaza → `setSync("error")` y la lista del store intacta; `flush()` resuelve tras el PUT en vuelo; sin `sessionId` no llama. `AnnotationsPanel.test.tsx`: pulsar «Regla (R)» arma `anot_regla` y queda `aria-pressed`; la lista enseña «R1», «5,0 mm», «AX 3»; renombrar por clic escribe en el store; el ojo alterna `visible`; Supr con la fila seleccionada borra; «Exportar CSV» produce un blob con la cabecera; vacío muestra «Sin anotaciones. Elige una herramienta y pincha en un corte o en la malla».
-- [ ] **Step 2: Ver fallar.**
-- [ ] **Step 3: Implementación** → hook con `useEffect` sobre `annotations` (omite la primera carga: se guarda solo cuando la lista cambia respecto a la cargada, por `useRef` con la última versión guardada; así reanudar no dispara un PUT); `Workspace`: `<Collapsible title="Anotaciones" subtitle="Reglas, ángulos, regiones y notas" storageKey="ws.annotations" badge={n>0 ? <Badge variant="subtle">{n}</Badge> : undefined}>` debajo de `{panel}`, con el estado de sincronía en el subtítulo («guardando…» / «sin guardar»); `saveProgress` hace `await annotationsFlushRef.current?.()` antes del POST; `App.tsx` `resumeSession`: tras la trayectoria, `const an = await api.getAnnotations(r.session_id); planning.setAnnotationsLoaded(an.annotations)` (setter sin `touch`, que además fija la «última versión guardada» del hook: expón `setAnnotationsLoaded` en el store). «Ir»: `setFocusMm(centroid(a.points), meta)` y, con `a.plane`, el índice de ese plano a `a.plane.index`; selecciona la fila.
-- [ ] **Step 4: Verificar** → vitest, `tsc`, navegador: crear tres anotaciones, ver «guardando…» → nada, recargar la página sin «Guardar progreso» (la sesión viva conserva el fichero) y reanudar desde Pacientes tras «Guardar progreso»: las tres vuelven; renombrar; «Ir»; CSV descargado.
-- [ ] **Step 5: Commit** → `git add frontend/src/components/annotations frontend/src/pages/Workspace.tsx frontend/src/App.tsx frontend/src/vtk/Viewer.tsx frontend/src/store/planning.tsx && git commit -m "Panel «Anotaciones»: lista editable, guardado automático en la sesión y recuperación al reanudar"`
+- [x] **Step 1: Tests que fallan** → `useAnnotationsSync.test.tsx` (temporizadores falsos, `api.putAnnotations` simulado): dos cambios en 300 ms → un solo PUT con la lista final y `setSync("guardado")`; PUT que rechaza → `setSync("error")` y la lista del store intacta; `flush()` resuelve tras el PUT en vuelo; sin `sessionId` no llama. `AnnotationsPanel.test.tsx`: pulsar «Regla (R)» arma `anot_regla` y queda `aria-pressed`; la lista enseña «R1», «5,0 mm», «AX 3»; renombrar por clic escribe en el store; el ojo alterna `visible`; Supr con la fila seleccionada borra; «Exportar CSV» produce un blob con la cabecera; vacío muestra «Sin anotaciones. Elige una herramienta y pincha en un corte o en la malla».
+- [x] **Step 2: Ver fallar.**
+- [x] **Step 3: Implementación** → hook con `useEffect` sobre `annotations` (omite la primera carga: se guarda solo cuando la lista cambia respecto a la cargada, por `useRef` con la última versión guardada; así reanudar no dispara un PUT); `Workspace`: `<Collapsible title="Anotaciones" subtitle="Reglas, ángulos, regiones y notas" storageKey="ws.annotations" badge={n>0 ? <Badge variant="subtle">{n}</Badge> : undefined}>` debajo de `{panel}`, con el estado de sincronía en el subtítulo («guardando…» / «sin guardar»); `saveProgress` hace `await annotationsFlushRef.current?.()` antes del POST; `App.tsx` `resumeSession`: tras la trayectoria, `const an = await api.getAnnotations(r.session_id); planning.setAnnotationsLoaded(an.annotations)` (setter sin `touch`, que además fija la «última versión guardada» del hook: expón `setAnnotationsLoaded` en el store). «Ir»: `setFocusMm(centroid(a.points), meta)` y, con `a.plane`, el índice de ese plano a `a.plane.index`; selecciona la fila.
+- [x] **Step 4: Verificar** → vitest, `tsc`, navegador: crear tres anotaciones, ver «guardando…» → nada, recargar la página sin «Guardar progreso» (la sesión viva conserva el fichero) y reanudar desde Pacientes tras «Guardar progreso»: las tres vuelven; renombrar; «Ir»; CSV descargado.
+- [x] **Step 5: Commit** → `git add frontend/src/components/annotations frontend/src/pages/Workspace.tsx frontend/src/App.tsx frontend/src/vtk/Viewer.tsx frontend/src/store/planning.tsx && git commit -m "Panel «Anotaciones»: lista editable, guardado automático en la sesión y recuperación al reanudar"`
 
 ---
 
@@ -506,7 +506,7 @@ export function useAnnotationsSync(sessionId: string | null, annotations: Annota
 **Files:**
 - Modify: `frontend/src/vtk/shortcuts.ts` (~24–47 tabla, ~81–95 `matchShortcut`), `frontend/src/vtk/shortcuts.test.ts`, `frontend/src/pages/Workspace.tsx` (~171–196 reenvío por `viewer:shortcut`), `frontend/src/vtk/Viewer.tsx` (`onShortcut` ~1341), `README.md` (tabla «Atajos de teclado»)
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```ts
 // añadir a shortcuts.test.ts
@@ -524,10 +524,10 @@ it("resuelve R, A, G, T, Supr y Retroceso, y respeta H/P", () => {
 });
 ```
 
-- [ ] **Step 2: Ver fallar.**
-- [ ] **Step 3: Implementación** → tabla: `anot-regla` «R» «Regla: dos puntos», `anot-angulo` «A» «Ángulo: tres puntos», `anot-region` «G» «Región: contorno en un corte», `anot-marcador` «T» «Marcador con nota», `anot-borrar` «Supr» «Borrar la anotación seleccionada», `anot-deshacer-punto` «Retroceso» «Quitar el último punto de la anotación en curso» (ámbito visor); `matchShortcut` por `code` KeyR/KeyA/KeyG/KeyT y por `key` Delete/Backspace (Backspace solo si hay borrador: eso lo decide Viewer; la tabla siempre lo devuelve). `Workspace` reenvía los ids `anot-*`. `Viewer.onShortcut`: `anot-<tipo>` → si `pickMode === ANNOTATION_MODES[tipo]` desarma, si no arma (vaciando el borrador); `anot-borrar` → quita `selectedAnnotation` del store; `anot-deshacer-punto` → `removeLast` si hay borrador, si no nada (sin `preventDefault` para no romper Retroceso en otros sitios: Workspace solo llama a `preventDefault` cuando Viewer confirma; simplifica: Workspace hace `preventDefault` para `anot-deshacer-punto` solo si `document.activeElement` está dentro del visor). README: seis filas nuevas.
-- [ ] **Step 4: Verificar** → `npx vitest run src/vtk/shortcuts.test.ts src/vtk/hud/ShortcutsSheet.test.tsx`, `tsc`, navegador: R arma y la pista aparece; R otra vez desarma; Supr borra la seleccionada; Retroceso quita el último punto; nada en un campo de texto.
-- [ ] **Step 5: Commit** → `git add frontend/src/vtk/shortcuts.ts frontend/src/vtk/shortcuts.test.ts frontend/src/pages/Workspace.tsx frontend/src/vtk/Viewer.tsx README.md && git commit -m "Atajos de anotación: R, A, G, T, Supr y Retroceso, en la hoja y en el README"`
+- [x] **Step 2: Ver fallar.**
+- [x] **Step 3: Implementación** → tabla: `anot-regla` «R» «Regla: dos puntos», `anot-angulo` «A» «Ángulo: tres puntos», `anot-region` «G» «Región: contorno en un corte», `anot-marcador` «T» «Marcador con nota», `anot-borrar` «Supr» «Borrar la anotación seleccionada», `anot-deshacer-punto` «Retroceso» «Quitar el último punto de la anotación en curso» (ámbito visor); `matchShortcut` por `code` KeyR/KeyA/KeyG/KeyT y por `key` Delete/Backspace (Backspace solo si hay borrador: eso lo decide Viewer; la tabla siempre lo devuelve). `Workspace` reenvía los ids `anot-*`. `Viewer.onShortcut`: `anot-<tipo>` → si `pickMode === ANNOTATION_MODES[tipo]` desarma, si no arma (vaciando el borrador); `anot-borrar` → quita `selectedAnnotation` del store; `anot-deshacer-punto` → `removeLast` si hay borrador, si no nada (sin `preventDefault` para no romper Retroceso en otros sitios: Workspace solo llama a `preventDefault` cuando Viewer confirma; simplifica: Workspace hace `preventDefault` para `anot-deshacer-punto` solo si `document.activeElement` está dentro del visor). README: seis filas nuevas.
+- [x] **Step 4: Verificar** → `npx vitest run src/vtk/shortcuts.test.ts src/vtk/hud/ShortcutsSheet.test.tsx`, `tsc`, navegador: R arma y la pista aparece; R otra vez desarma; Supr borra la seleccionada; Retroceso quita el último punto; nada en un campo de texto.
+- [x] **Step 5: Commit** → `git add frontend/src/vtk/shortcuts.ts frontend/src/vtk/shortcuts.test.ts frontend/src/pages/Workspace.tsx frontend/src/vtk/Viewer.tsx README.md && git commit -m "Atajos de anotación: R, A, G, T, Supr y Retroceso, en la hoja y en el README"`
 
 ---
 
@@ -548,11 +548,11 @@ export interface PaneShot { …; shapes?: Shape[] }
 export function drawShapes(ctx: Ctx2D, rect: PaneRect, shapes: Shape[], fontFamily: string): void;   // tras drawPaneHud
 ```
 
-- [ ] **Step 1: Tests que fallan** → `readShapes.test.ts`: un DOM con `<svg class="hud-anot" style="left:10px;top:5px"><line x1=…/><polygon points="…"/><circle…/><text x y>R1 · 5,0 mm</text></svg>` devuelve las cuatro formas con el desplazamiento del svg sumado; un svg `.hud-decor` se ignora. `composeCapture.test.ts`: `drawShapes` sobre un `Ctx2D` falso registra `moveTo/lineTo/stroke` para la línea, `fill` para el polígono, `arc` para el círculo y `fillText` con fondo (`fillRect` antes) para el texto, todo desplazado por `rect.x/y`.
-- [ ] **Step 2: Ver fallar.**
-- [ ] **Step 3: Implementación** → `drawShapes` después de `drawPaneHud` en `paintFrame`; texto con rectángulo de fondo `rgba(0,0,0,.6)` del ancho de `measureText`. Los lienzos reales (`CanvasRenderingContext2D`) ya cumplen `Ctx2D`; el `Ctx2D` falso de las pruebas existentes gana los métodos nuevos como `vi.fn()`. `estadoVisor.annotations_visible = annotations.filter(a => a.visible).length`.
-- [ ] **Step 4: Verificar** → vitest, `tsc`, navegador: «Captura» con una regla en axial y un marcador en 3D → la imagen (descargada o guardada) muestra las formas y los rótulos.
-- [ ] **Step 5: Commit** → `git add frontend/src/vtk/readShapes.ts frontend/src/vtk/readShapes.test.ts frontend/src/vtk/composeCapture.ts frontend/src/vtk/composeCapture.test.ts frontend/src/vtk/Viewer.tsx && git commit -m "Las capturas pintan las anotaciones que se ven en cada celda"`
+- [x] **Step 1: Tests que fallan** → `readShapes.test.ts`: un DOM con `<svg class="hud-anot" style="left:10px;top:5px"><line x1=…/><polygon points="…"/><circle…/><text x y>R1 · 5,0 mm</text></svg>` devuelve las cuatro formas con el desplazamiento del svg sumado; un svg `.hud-decor` se ignora. `composeCapture.test.ts`: `drawShapes` sobre un `Ctx2D` falso registra `moveTo/lineTo/stroke` para la línea, `fill` para el polígono, `arc` para el círculo y `fillText` con fondo (`fillRect` antes) para el texto, todo desplazado por `rect.x/y`.
+- [x] **Step 2: Ver fallar.**
+- [x] **Step 3: Implementación** → `drawShapes` después de `drawPaneHud` en `paintFrame`; texto con rectángulo de fondo `rgba(0,0,0,.6)` del ancho de `measureText`. Los lienzos reales (`CanvasRenderingContext2D`) ya cumplen `Ctx2D`; el `Ctx2D` falso de las pruebas existentes gana los métodos nuevos como `vi.fn()`. `estadoVisor.annotations_visible = annotations.filter(a => a.visible).length`.
+- [x] **Step 4: Verificar** → vitest, `tsc`, navegador: «Captura» con una regla en axial y un marcador en 3D → la imagen (descargada o guardada) muestra las formas y los rótulos.
+- [x] **Step 5: Commit** → `git add frontend/src/vtk/readShapes.ts frontend/src/vtk/readShapes.test.ts frontend/src/vtk/composeCapture.ts frontend/src/vtk/composeCapture.test.ts frontend/src/vtk/Viewer.tsx && git commit -m "Las capturas pintan las anotaciones que se ven en cada celda"`
 
 ---
 
@@ -562,7 +562,7 @@ export function drawShapes(ctx: Ctx2D, rect: PaneRect, shapes: Shape[], fontFami
 - Modify: `backend/services/report_generator.py` (`ReportData` ~174: `annotations: list[dict]`; `build_report_data_from_session` ~361: leer `annotations.json`; `_build_story` ~766: `_section_annotations` tras `_section_trajectory`; método nuevo con la tabla, patrón de `_section_trajectory` ~1651)
 - Create: `backend/test_report_annotations.py`
 
-- [ ] **Step 1: Tests que fallan**
+- [x] **Step 1: Tests que fallan**
 
 ```python
 # backend/test_report_annotations.py
@@ -587,10 +587,10 @@ def test_sin_anotaciones_lo_dice():
     assert "Sin anotaciones" in _texts(story)
 ```
 
-- [ ] **Step 2: Ver fallar.**
-- [ ] **Step 3: Implementación** → `read_annotations(session_id) -> list[dict]` (JSON o `[]`); `_section_annotations`: h2 «Anotaciones», tabla Nombre · Tipo · Valor · Corte · Nota con `services.annotations.measure`/`format_measure` (tipo en español: Regla, Ángulo, Región, Marcador; corte «AX 3»/«COR n»/«SAG n»/«3D»; las ocultas también salen: lo que se anotó, se anotó), y «Sin anotaciones» si la lista está vacía; estilos de `_section_trajectory`.
-- [ ] **Step 4: Verificar** → `pytest test_report_annotations.py test_report*.py` (los que existan) y, con el backend arrancado, generar el PDF de Case 3 con dos anotaciones y abrirlo.
-- [ ] **Step 5: Commit** → `git add backend/services/report_generator.py backend/test_report_annotations.py && git commit -m "El informe lista las anotaciones con su valor medido en el servidor"`
+- [x] **Step 2: Ver fallar.**
+- [x] **Step 3: Implementación** → `read_annotations(session_id) -> list[dict]` (JSON o `[]`); `_section_annotations`: h2 «Anotaciones», tabla Nombre · Tipo · Valor · Corte · Nota con `services.annotations.measure`/`format_measure` (tipo en español: Regla, Ángulo, Región, Marcador; corte «AX 3»/«COR n»/«SAG n»/«3D»; las ocultas también salen: lo que se anotó, se anotó), y «Sin anotaciones» si la lista está vacía; estilos de `_section_trajectory`.
+- [x] **Step 4: Verificar** → `pytest test_report_annotations.py test_report*.py` (los que existan) y, con el backend arrancado, generar el PDF de Case 3 con dos anotaciones y abrirlo.
+- [x] **Step 5: Commit** → `git add backend/services/report_generator.py backend/test_report_annotations.py && git commit -m "El informe lista las anotaciones con su valor medido en el servidor"`
 
 ---
 
@@ -599,8 +599,8 @@ def test_sin_anotaciones_lo_dice():
 **Files:**
 - Modify: `README.md` (sección «Navegación y orientación del visor» gana un apartado «Anotaciones», o sección propia justo después), este plan (casillas).
 
-- [ ] **Step 1: Comprobación completa** → `cd frontend && npx tsc --noEmit -p . && npx vitest run && npm run build`; backend por archivo: `test_annotations_measure.py test_annotations_api.py test_report_annotations.py test_openapi_contract.py test_auth_coverage.py test_auditoria_eventos.py test_session_d.py test_access_control.py` en verde (salvo el fallo de entorno conocido de `test_auth_coverage`); contrato regenerado sin diferencias.
-- [ ] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
+- [x] **Step 1: Comprobación completa** → `cd frontend && npx tsc --noEmit -p . && npx vitest run && npm run build`; backend por archivo: `test_annotations_measure.py test_annotations_api.py test_report_annotations.py test_openapi_contract.py test_auth_coverage.py test_auditoria_eventos.py test_session_d.py test_access_control.py` en verde (salvo el fallo de entorno conocido de `test_auth_coverage`); contrato regenerado sin diferencias.
+- [x] **Step 2: Lista manual con Case 3** (anótala en el commit de cierre)
   1. Regla en axial (dos clics): valor en el panel y en el corte; visible en el 3D con rótulo; no visible dos cortes más allá.
   2. Regla en 3D sobre la malla: visible en el 3D; aparece en el corte cuyo índice pasa por sus puntos.
   3. Ángulo en coronal; región en sagital cerrada por el primer punto y otra con Intro; marcador con nota en 3D.
@@ -608,4 +608,4 @@ def test_sin_anotaciones_lo_dice():
   5. «Guardar progreso», salir, «Reanudar»: todas vuelven con sus nombres; resegmentar las vacía.
   6. Captura con una regla y una región: la imagen las lleva. Informe PDF con la tabla.
   7. Otro usuario sin el paciente: GET 403 (con curl y su token).
-- [ ] **Step 3: README y commit de cierre** → `git add README.md docs/superpowers/plans/2026-10-08-anotaciones-persistentes.md && git commit -m "Cierre de las anotaciones persistentes (E2): lista manual y README"`
+- [x] **Step 3: README y commit de cierre** → `git add README.md docs/superpowers/plans/2026-10-08-anotaciones-persistentes.md && git commit -m "Cierre de las anotaciones persistentes (E2): lista manual y README"`

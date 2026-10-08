@@ -22,6 +22,7 @@
 - [Undoing Work](#undoing-work)
 - [Choosing a Clip](#choosing-a-clip)
 - [Navegación y orientación del visor](#navegación-y-orientación-del-visor)
+- [Anotaciones del visor](#anotaciones-del-visor)
 - [Navigation & Unsaved Work](#navigation--unsaved-work)
 - [API Reference](#api-reference)
 - [Candidatos descartados y puesto](#candidatos-descartados-y-puesto)
@@ -2213,6 +2214,65 @@ grabación añade `scene_mode` (`mesh`, `slices3d` u `oblique`),
 `slices3d_mesh_visible` y `cine` (`{pane, fps}` mientras reproduce, si no
 `null`); el preset `cuatro` va en `layout.preset`. La captura compuesta recorre
 las cuatro celdas del 2×2 en su sitio, como en los demás presets.
+
+---
+
+## Anotaciones del visor
+
+**Cuatro herramientas.** Regla (**R**, dos puntos, distancia en mm), Ángulo
+(**A**, tres puntos con el vértice en el segundo, grados entre 0 y 180), Región
+(**G**, un polígono de tres o más puntos, área en mm² y perímetro) y Marcador
+(**T**, un punto con una nota). La tecla o el botón del panel arma la
+herramienta y la misma tecla la desarma; armar una desarma los demás modos de
+pinchado (cuello, tijeras…). Ninguna tecla actúa con el cursor en un campo.
+
+**Dónde se crean.** Regla, ángulo y marcador se ponen en un corte (axial,
+coronal o sagital) o sobre la malla en el 3D; la región solo en un corte, porque
+su área necesita un plano. En los cortes el clic es subvóxel y no mueve el
+crosshair. La región se cierra pinchando de nuevo el primer punto, con doble
+clic o con Intro. Esc cancela el borrador, Retroceso quita su último punto y
+Supr borra la anotación seleccionada. Al cerrarse, la anotación recibe un nombre
+(R1, A1, G1, M1…), queda seleccionada y la herramienta se desarma. Oblicuo y
+VOLUMEN no crean ni muestran anotaciones.
+
+**Dónde se ven.** En el 3D, todas las visibles, con tubos y bolas del color de
+su tipo (regla ámbar, ángulo cian, región verde, marcador magenta) y su rótulo.
+En un corte 2D se dibuja la que tenga algún punto a medio vóxel o menos de ese
+corte: una regla hecha en el 3D aparece en los cortes que pasan por sus
+extremos, y dos cortes más allá ya no está. La región solo se ve en su plano y
+su índice exactos. El rótulo lleva el valor («R1 · 12,4 mm», «A1 · 63°»,
+«G1 · 48 mm²»); en celdas pequeñas solo el nombre. REGLAS ○ no las oculta.
+
+**El panel «Anotaciones»** está en la columna derecha, plegado, con el número en
+el título y el estado del guardado («guardando…» o «sin guardar» si falla).
+Cada fila tiene el nombre (editable al pinchar), el valor con su unidad, el
+corte de origen («AX 153» o «3D»), el ojo de visibilidad, «Ir» (lleva el punto
+compartido al centro de la anotación y el corte a su índice) y borrar. Las notas
+de los marcadores se escriben en su fila. Hay «Ocultar todas / Mostrar todas» y
+«Exportar CSV» con los puntos en mm. Sustituye a «Mediciones 3D» de
+Morfometría.
+
+**Números de corte.** El panel, el CSV y el informe numeran los cortes desde 1,
+como la escalera y la lectura de la celda; en el fichero se guarda el índice
+desde 0.
+
+**Guardado.** Cada cambio (crear, renombrar, ocultar, borrar, escribir una
+nota) se guarda solo a los 600 ms en `data/sessions/<id>/annotations.json`
+(`GET`/`PUT /api/annotations/{session_id}`, con los permisos del paciente).
+«Guardar progreso» espera a que termine y se las lleva; «Reanudar» las trae con
+sus nombres. Resegmentar (cambiar de malla) las vacía. Solo el borrado queda en
+la auditoría (`ACT_ANNOTATIONS_DELETE`, con los ids borrados). Las medidas no se
+guardan: se recalculan, y el servidor usa las mismas fórmulas que el visor.
+
+**Capturas e informe.** Una captura pinta en cada celda las anotaciones que se
+ven en ella, recortadas a su panel, y el estado que la acompaña añade
+`annotations_visible`. El informe PDF tiene una sección «Anotaciones» con la
+tabla Nombre · Tipo · Valor · Corte · Nota, o «Sin anotaciones.».
+
+**Fuera de alcance.** Mover puntos arrastrando (una anotación mal puesta se
+borra y se rehace), coordenadas LPS del paciente, compartir anotaciones entre
+sesiones o usuarios, dibujarlas en la escena 3D que renderiza el servidor para
+el informe y medir sobre el volumen (densidad, perfiles).
 
 ---
 

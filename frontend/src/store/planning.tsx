@@ -313,7 +313,7 @@ interface PlanningState {
   setNeckOrigin: (p: Vec3 | null) => void;
   setNeckDome: (p: Vec3 | null) => void;
   setAnnotations: (a: Annotation[] | ((prev: Annotation[]) => Annotation[])) => void;
-  setAnnotationDraft: (p: Vec3[]) => void;
+  setAnnotationDraft: (p: Vec3[] | ((prev: Vec3[]) => Vec3[])) => void;
   setSelectedAnnotation: (id: string | null) => void;
   setAnnotationsSync: (s: "guardado" | "guardando" | "error") => void;
   /** Lo que llega del servidor al reanudar: no es un cambio del usuario, no ensucia. */

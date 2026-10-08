@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { formatMeasure, measure, nextLabel, onSlice, polygonArea, toCsv } from "./annotations";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { formatMeasure, measure, newId, nextLabel, onSlice, polygonArea, toCsv } from "./annotations";
 import type { Annotation } from "./annotations";
 import type { VolumeMeta } from "../api/types";
 const meta = { shape: [100, 100, 100], spacing: [1, 1, 1] } as unknown as VolumeMeta;
@@ -61,5 +61,14 @@ describe("toCsv", () => {
     const csv = toCsv([{ ...base, id: "1", kind: "regla", label: "R1", points: [[0, 0, 0], [3, 4, 0]], plane: { plane: "axial", index: 3 } }]);
     expect(csv.split("\n")[0]).toBe("nombre;tipo;valor;unidad;corte;nota;puntos_mm");
     expect(csv.split("\n")[1]).toBe("R1;regla;5,0;mm;AX 3;;0 0 0 | 3 4 0");
+  });
+});
+
+describe("newId", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("sin randomUUID (http plano) sigue dando ids distintos", () => {
+    vi.stubGlobal("crypto", { getRandomValues: (a: Uint8Array) => { for (let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256); return a; } });
+    const a = newId(), b = newId();
+    expect(a.length).toBeGreaterThanOrEqual(32); expect(a).toMatch(/^[0-9a-f]+$/); expect(a).not.toBe(b);
   });
 });

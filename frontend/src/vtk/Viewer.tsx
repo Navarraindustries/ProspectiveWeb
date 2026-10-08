@@ -9,7 +9,7 @@
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
-import { nextLabel, POINTS_NEEDED, type Annotation } from "./annotations";
+import { newId, nextLabel, POINTS_NEEDED, type Annotation } from "./annotations";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
@@ -211,7 +211,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
-    annotations, setAnnotations, annotationDraft, setAnnotationDraft, setSelectedAnnotation, previewBand, previewMeshUrl,
+    setAnnotations, annotationDraft, setAnnotationDraft, setSelectedAnnotation, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
     cropRadius, cropShape, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
@@ -1220,14 +1220,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const kind = kindOfMode(pickMode);
     if (!kind) return;
     const a: Annotation = {
-      id: crypto.randomUUID(), kind, points, plane, label: nextLabel(kind, annotations), note: "",
+      id: newId(), kind, points, plane, label: "", note: "",
       visible: true, created_at: new Date().toISOString(), created_by: "",
     };
-    setAnnotations((p) => [...p, a]);
+    // WHY: la etiqueta se calcula sobre la lista vigente, no sobre la del
+    // render; dos cierres en el mismo tick darían la misma.
+    setAnnotations((p) => [...p, { ...a, label: nextLabel(kind, p) }]);
     setSelectedAnnotation(a.id);
     setAnnotationDraft([]);
     setPickMode(null);
-  }, [pickMode, annotations, setAnnotations, setSelectedAnnotation, setAnnotationDraft, setPickMode]);
+  }, [pickMode, setAnnotations, setSelectedAnnotation, setAnnotationDraft, setPickMode]);
 
   const addAnnotationPoint = useCallback((xyz: Vec3, plane: null) => {
     const kind = kindOfMode(pickMode);
@@ -1236,7 +1238,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (!kind || kind === "region") return;
     const draft = [...annotationDraft, xyz];
     if (draft.length === POINTS_NEEDED[kind]) finishAnnotation(draft, plane);
-    else setAnnotationDraft(draft);
+    else setAnnotationDraft((d) => [...d, xyz]);
   }, [pickMode, annotationDraft, finishAnnotation, setAnnotationDraft]);
 
   const onPick = useCallback(

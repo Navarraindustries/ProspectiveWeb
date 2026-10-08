@@ -1518,6 +1518,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
         return;
     }
   };
+  // Dónde va la pista de la principal (hud.css): bajo la cinta de rumbo en la
+  // escena 3D y, en VOLUMEN, bajo la fila de controles de arriba.
+  const hintPlace = viewerLayout.main === "mip" ? " hud-hint-vol" : viewerLayout.main === "scene" ? " hud-hint-cinta" : "";
   // Por ref: la escucha se pone una vez y siempre ve el estado del último render.
   const onShortcutRef = useRef(onShortcut);
   onShortcutRef.current = onShortcut;
@@ -1866,6 +1869,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
                  && t.closest?.("[data-pane]")?.getAttribute("data-pane") === c.pane) setCine(null);
              focusOnPointerDown(e.target, e.currentTarget, document.activeElement)?.focus({ preventScroll: true });
            }}
+           // Marcador en la malla 3D: vtk marca en el pointerdown y el panel
+           // enfoca la nota; el mousedown que sigue enfocaría por defecto el
+           // visor y se la quitaría (lo tecleado iría a los atajos). Solo en
+           // la escena y con ese modo: en los cortes el punto va en el
+           // mouseup y el foco ya lo pone onPointerDownCapture.
+           onMouseDownCapture={(e) => {
+             const t = e.target as Element;
+             if (pickMode === "anot_marcador" && e.button === 0
+                 && t.closest?.('[data-pane="scene"]') && !t.closest?.("input, select, textarea, button")) e.preventDefault();
+           }}
            onKeyDown={onLayoutKey}>
         <ViewerGrid
           layout={viewerLayout}
@@ -1885,8 +1898,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
             <>
               {/* Pista de la principal: fuera de renderPane/renderScene porque
                   aplica igual a la escena 3D, el MIP o un corte. */}
-              {hint && <div key={hintSeq} className={hint.aviso ? "hud-hint hud-hint-aviso" : "hud-hint"}>{hint.text}</div>}
-              {levelHint && <div key={`nivel-${levelHint.seq}`} className="hud-hint hud-hint-level">{levelHint.text}</div>}
+              {/* La escena y VOLUMEN llevan cinta de rumbo arriba: la pista
+                  baja para no cruzarla (`hud-hint-cinta`); en VOLUMEN además
+                  va por debajo de la fila EJE · RECORTE (`hud-hint-vol`). */}
+              {hint && <div key={hintSeq} className={`${hint.aviso ? "hud-hint hud-hint-aviso" : "hud-hint"}${hintPlace}`}>{hint.text}</div>}
+              {levelHint && <div key={`nivel-${levelHint.seq}`} className={`hud-hint hud-hint-level${hintPlace}`}>{levelHint.text}</div>}
             </>
           }
         />

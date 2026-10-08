@@ -25,6 +25,9 @@ const SLICE_TAG = { axial: "AX", coronal: "COR", sagital: "SAG" } as const;
 // decir el mismo número que el médico lee en el visor para ir a buscarla.
 const origin = (a: Annotation) => (a.plane ? `${SLICE_TAG[a.plane.plane]} ${a.plane.index + 1}` : "3D");
 
+/** Fotogramas que se reintenta enfocar la nota de un marcador nuevo. */
+export const NOTE_FOCUS_FRAMES = 5;
+
 export const EMPTY_TEXT = "Sin anotaciones. Elige una herramienta y pincha en un corte o en la malla";
 export const FULL_TEXT = `Máximo ${ANNOTATIONS_MAX} anotaciones por sesión: borra alguna para añadir otra`;
 
@@ -46,14 +49,26 @@ export function AnnotationsPanel() {
   // (forceOpen), aquí se enfoca el campo en cuanto existe.
   useEffect(() => {
     if (!noteFocusRequest) return;
-    const el = document.querySelector<HTMLInputElement>(`[data-note-for="${noteFocusRequest}"]`);
-    if (!el) return;
-    el.focus();
-    // WHY: focus() falla en silencio sobre un nodo oculto (columna plegada con
-    // display:none). Si la petición se borrase igual, la columna seguiría
-    // plegada y la nota tecleada dispararía los atajos del visor. Solo se da
-    // por cumplida cuando el campo tiene de verdad el foco.
-    if (document.activeElement === el) setNoteFocusRequest(null);
+    // WHY por fotogramas: en la malla 3D vtk marca en el pointerdown, y el
+    // mousedown que llega después en la misma pulsación devuelve el foco al
+    // visor; enfocar en el acto lo perdía y lo tecleado iba a los atajos.
+    // También falla en silencio sobre un nodo oculto (columna plegada). Se
+    // reintenta unos fotogramas y solo se da por cumplida cuando el campo
+    // tiene de verdad el foco; agotados los intentos se suelta la petición
+    // (la columna ya quedó desplegada) para no dejarla colgada.
+    let tries = 0;
+    let raf = 0;
+    const attempt = () => {
+      const el = document.querySelector<HTMLInputElement>(`[data-note-for="${noteFocusRequest}"]`);
+      if (el) {
+        el.focus();
+        if (document.activeElement === el) { setNoteFocusRequest(null); return; }
+      }
+      if (++tries < NOTE_FOCUS_FRAMES) raf = requestAnimationFrame(attempt);
+      else if (el) setNoteFocusRequest(null);
+    };
+    raf = requestAnimationFrame(attempt);
+    return () => cancelAnimationFrame(raf);
   }, [noteFocusRequest, annotations, setNoteFocusRequest]);
 
   const patch = (id: string, p: Partial<Annotation>) =>

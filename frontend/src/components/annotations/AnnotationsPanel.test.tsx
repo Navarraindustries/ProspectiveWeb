@@ -5,7 +5,7 @@ import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Annotation } from "../../vtk/annotations";
 import { PlanningProvider, usePlanning } from "../../store/planning";
-import { AnnotationsPanel } from "./AnnotationsPanel";
+import { AnnotationsPanel, NOTE_FOCUS_FRAMES } from "./AnnotationsPanel";
 
 const regla: Annotation = {
   id: "a1", kind: "regla", points: [[0, 0, 3], [5, 0, 3]], plane: { plane: "axial", index: 2 },
@@ -169,16 +169,51 @@ describe("AnnotationsPanel", () => {
     expect(visto?.noteFocusRequest).toBeNull();
   });
 
-  it("si el foco no llega a la nota, la petición sigue pendiente", async () => {
+  // Los fotogramas a mano: cada `frame()` corre lo que se pidió con
+  // requestAnimationFrame, como un repintado del navegador.
+  function fotogramas() {
+    let cola: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => { cola.push(cb); return cola.length; });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    return () => act(() => { const c = cola; cola = []; c.forEach((cb) => cb(0)); });
+  }
+  async function marcadorNuevo() {
     montar([regla]);
     await screen.findByText("R1");
-    // Como un campo dentro de una columna con display:none: focus() no hace nada.
-    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {});
     const nuevo = { ...marcador, id: "m2", label: "M2", note: "" };
     act(() => { visto?.setAnnotations((p) => [...p, nuevo]); visto?.setNoteFocusRequest("m2"); });
-    await screen.findByLabelText("Nota de M2");
-    expect(screen.getByLabelText("Nota de M2")).not.toHaveFocus();
+    return screen.findByLabelText("Nota de M2");
+  }
+
+  it("si el primer intento de foco falla (mousedown del 3D), reintenta en el siguiente fotograma", async () => {
+    const frame = fotogramas();
+    const real = HTMLElement.prototype.focus;
+    let fallos = 1;
+    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (this: HTMLElement) {
+      if (this.dataset.noteFor && fallos > 0) { fallos--; return; }
+      real.call(this);
+    });
+    const nota = await marcadorNuevo();
+    frame();
+    expect(nota).not.toHaveFocus();
     expect(visto?.noteFocusRequest).toBe("m2");
+    frame();
+    expect(nota).toHaveFocus();
+    await waitFor(() => expect(visto?.noteFocusRequest).toBeNull());
+  });
+
+  it("si el foco no llega nunca, la petición sigue pendiente hasta agotar los intentos", async () => {
+    const frame = fotogramas();
+    // Como un campo dentro de una columna con display:none: focus() no hace nada.
+    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {});
+    const nota = await marcadorNuevo();
+    for (let i = 1; i < NOTE_FOCUS_FRAMES; i++) {
+      frame();
+      expect(visto?.noteFocusRequest, `fotograma ${i}`).toBe("m2");
+    }
+    frame();
+    expect(nota).not.toHaveFocus();
+    await waitFor(() => expect(visto?.noteFocusRequest).toBeNull());
   });
 
   it("Supr sobre un botón de la fila no borra la anotación", async () => {

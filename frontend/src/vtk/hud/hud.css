@@ -44,14 +44,26 @@
    opaco) la etiqueta derecha quedaba debajo del índice: va a su izquierda. */
 .hud-edge.right.beside-ladder { right: 48px; }
 .hud-warn { color: var(--hud-amber); } .hud-err { color: var(--hud-red); }
-/* Arriba y sin recibir clics: abajo tapaba la barra de cine y los botones. */
-.hud-hint { position: absolute; top: 24px; bottom: auto; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .06em; color: var(--hud-dim); pointer-events: none; animation: hud-hint-fade 3s forwards; }
+/* Arriba y sin recibir clics: abajo tapaba la barra de cine y los botones.
+   top 36 y no 24: a 24 pisaba la cinta de rumbo de VOLUMEN (top 22) y la
+   letra de borde superior («INF»). */
+.hud-hint { position: absolute; top: 36px; bottom: auto; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .06em; color: var(--hud-dim); pointer-events: none; animation: hud-hint-fade 3s forwards; }
 @keyframes hud-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 /* La pista del cambio de nivel («HUD esencial»): arriba y breve. No es la
    pista de la vista, así que los niveles no la esconden (si no, al pulsar H
    no se vería a qué nivel se ha ido). */
-/* La del gesto está en top: 24px; rara vez coinciden, y esta queda debajo. */
-.hud-hint.hud-hint-level { top: 38px; bottom: auto; animation-duration: 1.2s; }
+/* La del gesto está en top: 36px; rara vez coinciden, y esta queda debajo. */
+.hud-hint.hud-hint-level { top: 50px; bottom: auto; animation-duration: 1.2s; }
+/* Escena 3D como principal: la cinta de rumbo ocupa 24–46 px; a 36 la pista
+   cruzaba su línea base. La columna de botones de la izquierda no llega al
+   centro, así que basta con bajarla bajo la cinta. */
+.hud-hint.hud-hint-cinta { top: 50px; }
+.hud-hint.hud-hint-level.hud-hint-cinta { top: 66px; }
+/* VOLUMEN como principal: la cinta acaba a 46 px y la fila EJE · RECORTE ·
+   MIP empieza a 52 (dos líneas en una celda estrecha): no hay franja libre
+   entre ellas, así que las pistas van debajo de la fila. */
+.hud-hint.hud-hint-vol { top: 104px; }
+.hud-hint.hud-hint-level.hud-hint-vol { top: 120px; }
 
 /* Niveles del HUD (`data-hud` en la rejilla del visor; la banda de cabecera
    queda fuera y sus botones siguen a la vista). Los maniquíes 3D/MIP son

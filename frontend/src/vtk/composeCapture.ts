@@ -27,6 +27,7 @@
    Sin vtk.js ni DOM: el visor pone las piezas y esto solo las ordena, así que
    la secuencia entera se puede probar con dobles. */
 
+import type { Shape } from "./annotationOverlay";
 import type { CaptureFn } from "./captureRenderWindow";
 
 export type Corner = "tl" | "tr" | "bl" | "br";
@@ -43,6 +44,8 @@ export interface PaneShot {
   label?: string;
   /** Lecturas por esquina, ya formateadas por quien las tiene. */
   readouts?: { at: Corner; lines: string[] }[];
+  /** Las anotaciones que se ven en el panel, en px del panel (`readPaneShapes`). */
+  shapes?: Shape[];
 }
 
 /** Los colores del HUD, ya resueltos: aquí no se leen variables CSS. */
@@ -59,9 +62,19 @@ export interface Ctx2D {
   font: string;
   textAlign: "left" | "right" | "center";
   textBaseline: "top" | "middle" | "bottom" | "alphabetic";
+  lineWidth: number;
   fillRect(x: number, y: number, w: number, h: number): void;
   fillText(text: string, x: number, y: number): void;
   drawImage(img: unknown, x: number, y: number, w: number, h: number): void;
+  beginPath(): void;
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  closePath(): void;
+  stroke(): void;
+  fill(): void;
+  arc(x: number, y: number, r: number, a0: number, a1: number): void;
+  setLineDash(d: number[]): void;
+  measureText(t: string): { width: number };
 }
 
 export interface ComposeDeps {
@@ -158,6 +171,7 @@ export function paintFrame(
       ctx.fillText("SIN IMAGEN", x + w / 2, y + h / 2);
     }
     drawPaneHud(ctx, p, colors, fontFamily);
+    if (p.shapes?.length) drawShapes(ctx, p.rect, p.shapes, fontFamily);
   });
 
   drawTopBand(ctx, frame);
@@ -186,6 +200,60 @@ function drawPaneHud(ctx: Ctx2D, p: Omit<PaneShot, "capture">, colors: HudColors
     const py0 = abajo ? y + h - PAD - LINE * r.lines.length : y + 22;
     r.lines.forEach((linea, k) => ctx.fillText(linea, px, py0 + k * LINE));
   }
+}
+
+/** Las anotaciones de un panel, espejo de `HudAnnotations` y de `.hud-anot` en
+ *  `hud.css`. El rótulo lleva un fondo oscuro en vez del contorno negro del
+ *  SVG: en el lienzo un `strokeText` grueso empasta la mono de 10,5 px, y el
+ *  rótulo tiene que leerse sobre hueso blanco igual que sobre fondo negro. */
+export function drawShapes(ctx: Ctx2D, rect: PaneRect, shapes: Shape[], fontFamily: string): void {
+  const { x: ox, y: oy } = rect;
+  for (const s of shapes) {
+    if (s.kind === "line") {
+      ctx.setLineDash(s.dashed ? [6, 4] : []);
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = s.width;
+      ctx.beginPath();
+      ctx.moveTo(ox + s.x1, oy + s.y1);
+      ctx.lineTo(ox + s.x2, oy + s.y2);
+      ctx.stroke();
+    } else if (s.kind === "polygon") {
+      if (s.points.length < 2) continue;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(ox + s.points[0].x, oy + s.points[0].y);
+      for (const p of s.points.slice(1)) ctx.lineTo(ox + p.x, oy + p.y);
+      if (s.closed) ctx.closePath();
+      if (s.fill && s.fill !== "none") {
+        ctx.fillStyle = s.fill;
+        ctx.fill();
+      }
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    } else if (s.kind === "circle") {
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(ox + s.x, oy + s.y, s.r, 0, 2 * Math.PI);
+      ctx.fill();
+    } else {
+      // Un rótulo del 3D proyectado fuera de la celda: en pantalla la celda lo
+      // recorta, aquí caería encima del panel vecino.
+      if (s.x < 0 || s.y < 0 || s.x > rect.w || s.y > rect.h) continue;
+      // Línea base alfabética y a la izquierda: lo que hace <text> por defecto,
+      // así el rótulo cae donde caía en pantalla.
+      ctx.font = `${SIZE}px ${fontFamily}`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      const x = ox + s.x, y = oy + s.y;
+      ctx.fillStyle = "rgba(0,0,0,.6)";
+      ctx.fillRect(x - 3, y - 11, ctx.measureText(s.text).width + 6, 14);
+      ctx.fillStyle = s.color;
+      ctx.fillText(s.text, x, y);
+    }
+  }
+  // El trazo discontinuo se queda en el contexto: que no herede lo siguiente.
+  ctx.setLineDash([]);
 }
 
 /** Cinta de rumbo y aviso, arriba del todo. */

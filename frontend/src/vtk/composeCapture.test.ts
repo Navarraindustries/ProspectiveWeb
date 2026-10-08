@@ -8,20 +8,31 @@
    - Que NO se cuela ningún dato del paciente en la imagen. */
 import { describe, expect, it, vi } from "vitest";
 
-import { composeCapture, type ComposeDeps, type Ctx2D, type PaneShot } from "./composeCapture";
+import { composeCapture, drawShapes, type ComposeDeps, type Ctx2D, type PaneShot } from "./composeCapture";
 
 /** Un contexto 2D que apunta lo que le mandan dibujar. */
 function recorder() {
   const textos: { text: string; x: number; y: number; align: string; color: string }[] = [];
   const imagenes: { src: unknown; x: number; y: number; w: number; h: number }[] = [];
   const rects: { x: number; y: number; w: number; h: number; color: string }[] = [];
+  // Todo en orden, para poder decir qué va antes de qué (el fondo del rótulo).
+  const ops: unknown[][] = [];
   const ctx: Ctx2D = {
-    fillStyle: "", strokeStyle: "", font: "", textAlign: "left", textBaseline: "top",
-    fillRect(x, y, w, h) { rects.push({ x, y, w, h, color: ctx.fillStyle }); },
-    fillText(text, x, y) { textos.push({ text, x, y, align: ctx.textAlign, color: ctx.fillStyle }); },
+    fillStyle: "", strokeStyle: "", font: "", textAlign: "left", textBaseline: "top", lineWidth: 1,
+    fillRect(x, y, w, h) { rects.push({ x, y, w, h, color: ctx.fillStyle }); ops.push(["fillRect", x, y, w, h, ctx.fillStyle]); },
+    fillText(text, x, y) { textos.push({ text, x, y, align: ctx.textAlign, color: ctx.fillStyle }); ops.push(["fillText", text, x, y, ctx.fillStyle]); },
     drawImage(src, x, y, w, h) { imagenes.push({ src, x, y, w, h }); },
+    beginPath: vi.fn(() => { ops.push(["beginPath"]); }),
+    moveTo: vi.fn((x: number, y: number) => { ops.push(["moveTo", x, y]); }),
+    lineTo: vi.fn((x: number, y: number) => { ops.push(["lineTo", x, y]); }),
+    closePath: vi.fn(() => { ops.push(["closePath"]); }),
+    stroke: vi.fn(() => { ops.push(["stroke", ctx.strokeStyle, ctx.lineWidth]); }),
+    fill: vi.fn(() => { ops.push(["fill", ctx.fillStyle]); }),
+    arc: vi.fn((x: number, y: number, r: number) => { ops.push(["arc", x, y, r]); }),
+    setLineDash: vi.fn((d: number[]) => { ops.push(["setLineDash", d]); }),
+    measureText: vi.fn((t: string) => ({ width: t.length * 6 })),
   };
-  return { ctx, textos, imagenes, rects };
+  return { ctx, textos, imagenes, rects, ops };
 }
 
 function deps(rec = recorder()): { deps: ComposeDeps; rec: ReturnType<typeof recorder> } {
@@ -159,6 +170,61 @@ describe("el HUD viaja dentro de la imagen", () => {
     expect(uno.y).toBeLessThan(dos.y);                 // «dos» queda más abajo
     expect(dos.y).toBeLessThan(200);                   // dentro del panel
     expect(uno.align).toBe("right");
+  });
+});
+
+describe("las anotaciones salen en la imagen", () => {
+  const RECT = { x: 100, y: 50, w: 200, h: 200 };
+
+  it("la línea es un trazo desplazado por el panel, y discontinua si es borrador", () => {
+    const rec = recorder();
+    drawShapes(rec.ctx, RECT, [{ kind: "line", x1: 1, y1: 2, x2: 30, y2: 40, color: "#f5c02e", width: 3, dashed: true }], "mono");
+    expect(rec.ops).toEqual([
+      ["setLineDash", [6, 4]], ["beginPath"], ["moveTo", 101, 52], ["lineTo", 130, 90], ["stroke", "#f5c02e", 3],
+      ["setLineDash", []],
+    ]);
+  });
+
+  it("el polígono se rellena y luego se perfila", () => {
+    const rec = recorder();
+    drawShapes(rec.ctx, RECT, [{ kind: "polygon", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], color: "#3ad", fill: "#3ad33", closed: true }], "mono");
+    const nombres = rec.ops.map((o) => o[0]);
+    expect(rec.ops).toContainEqual(["moveTo", 100, 50]);
+    expect(rec.ops).toContainEqual(["lineTo", 110, 60]);
+    expect(rec.ops).toContainEqual(["fill", "#3ad33"]);
+    expect(nombres.indexOf("closePath")).toBeGreaterThan(-1);
+    expect(nombres.indexOf("fill")).toBeLessThan(nombres.indexOf("stroke"));
+  });
+
+  it("el círculo es un arco relleno", () => {
+    const rec = recorder();
+    drawShapes(rec.ctx, RECT, [{ kind: "circle", x: 7, y: 8, r: 2.5, color: "#f5c02e" }], "mono");
+    expect(rec.ops).toContainEqual(["arc", 107, 58, 2.5]);
+    expect(rec.ops).toContainEqual(["fill", "#f5c02e"]);
+  });
+
+  it("el rótulo lleva un fondo oscuro debajo, del ancho del texto", () => {
+    const rec = recorder();
+    drawShapes(rec.ctx, RECT, [{ kind: "text", x: 20, y: 30, text: "R1 · 5,0 mm", color: "#f5c02e" }], "mono");
+    const fondo = rec.ops.findIndex((o) => o[0] === "fillRect");
+    const texto = rec.ops.findIndex((o) => o[0] === "fillText");
+    expect(rec.ops[fondo]).toEqual(["fillRect", 117, 69, "R1 · 5,0 mm".length * 6 + 6, 14, "rgba(0,0,0,.6)"]);
+    expect(rec.ops[texto]).toEqual(["fillText", "R1 · 5,0 mm", 120, 80, "#f5c02e"]);
+    expect(fondo).toBeLessThan(texto);
+  });
+
+  it("un rótulo fuera del panel (3D detrás del borde) no invade al vecino", () => {
+    const rec = recorder();
+    drawShapes(rec.ctx, RECT, [{ kind: "text", x: 50, y: -212, text: "R1 · 59,7 mm", color: "#f5c02e" }], "mono");
+    expect(rec.textos).toEqual([]);
+  });
+
+  it("paintFrame pinta las formas de cada panel encima de su imagen", async () => {
+    const { deps: d, rec } = deps();
+    const panes = visor();
+    panes[1] = panel("axial", 0, 401, 199, 199, { shapes: [{ kind: "text", x: 5, y: 15, text: "M1", color: "#fff" }] });
+    await composeCapture(base(panes, d));
+    expect(rec.textos).toContainEqual(expect.objectContaining({ text: "M1", x: 5, y: 416 }));
   });
 });
 

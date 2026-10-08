@@ -47,6 +47,7 @@ import { clampOffsetToBox, sliceSegment, type FreePlane } from "./freePlane";
 import { ANNOTATION_HEX, HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
 import { captureFileName } from "./viewerRecorder";
 import { readHeading, readPaneHud } from "./readHud";
+import { readPaneShapes } from "./readShapes";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
@@ -502,6 +503,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   placedClipsRef.current = placedClips;
   const selectedClipKeyRef = useRef(selectedClipKey);
   selectedClipKeyRef.current = selectedClipKey;
+  const annotationsRef = useRef(annotations);
+  annotationsRef.current = annotations;
   const estadoVisor = useCallback((root: HTMLElement): Record<string, unknown> => ({
     layout: layoutRef.current,
     hud_decor_hidden: decorHiddenRef.current,
@@ -537,6 +540,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       rotation_deg: c.rotation_deg, azimuth_deg: c.azimuthDeg, elevation_deg: c.elevationDeg,
     })),
     selected_clip: (placedClipsRef.current.find((c) => c.key === selectedClipKeyRef.current) ?? placedClipsRef.current.at(-1))?.key ?? null,
+    // Cuántas anotaciones podían salir en la imagen (las ocultas no se pintan).
+    annotations_visible: annotationsRef.current.filter((a) => a.visible).length,
   }), [levelNote, viewMode, selectedCandidate, allCandidates, morphometry, mprWl, orientation]);
 
   // Lo que se ve AHORA: cada panel visible con su sitio, su HUD y su captura.
@@ -561,7 +566,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       ? meshCapture.current ?? paneCaptures.current.get("scene") ?? null
       : paneCaptures.current.get(id) ?? null);
     const panes: PaneShot[] = [];
-    const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el) });
+    const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el), shapes: readPaneShapes(el) });
     // Qué celdas se ven no depende de la orientación del visor (vertical solo
     // cambia DERECHA por ABAJO, y ambas muestran las cinco): basta `false`.
     const spec = gridFor(layout, false);

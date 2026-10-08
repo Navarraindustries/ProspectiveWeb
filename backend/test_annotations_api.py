@@ -123,6 +123,37 @@ def test_validacion_por_tipo_no_toca_el_fichero():
     assert not (session_dir(sid) / "annotations.json").exists()
 
 
+def test_puntos_acotados_y_finitos():
+    sid = create_session()
+    enorme = {**REGLA, "kind": "region", "points": [{"x": i, "y": 0, "z": 0} for i in range(501)]}
+    assert admin.put(f"/api/annotations/{sid}", json={"annotations": [enorme]}).status_code == 422
+    justa = {**enorme, "points": enorme["points"][:500]}
+    assert admin.put(f"/api/annotations/{sid}", json={"annotations": [justa]}).status_code == 200
+    # NaN e Infinity a mano: el JSON de Python los acepta, el validador no.
+    for malo in ("NaN", "Infinity", "-Infinity"):
+        cuerpo = json.dumps({"annotations": [REGLA]}).replace('"x": 3', f'"x": {malo}')
+        assert malo in cuerpo
+        r = admin.put(f"/api/annotations/{sid}", content=cuerpo, headers={"Content-Type": "application/json"})
+        assert r.status_code == 422, malo
+    # Lo guardado antes sigue intacto.
+    assert len(admin.get(f"/api/annotations/{sid}").json()["annotations"][0]["points"]) == 500
+
+
+def test_informe_con_fecha_de_nacimiento_de_texto():
+    """dob es una columna de texto: el informe no puede tratarla como date."""
+    from services.report_generator import build_report_data_from_session
+    db = SessionLocal()
+    try:
+        p = Patient(surname="ConFecha", hospital_id=f"HC-{uuid.uuid4().hex[:6]}", dob="1970-01-01")
+        db.add(p); db.commit()
+        sid = create_session()
+        db.add(PlanningSession(session_id=sid, patient_id=p.id)); db.commit()
+        data = build_report_data_from_session(sid, db=db)
+        assert data.patient.dob == "1970-01-01"
+    finally:
+        db.close()
+
+
 def test_viaja_con_snapshot_y_restore():
     sid = create_session()
     admin.put(f"/api/annotations/{sid}", json={"annotations": [REGLA]})

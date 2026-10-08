@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from services.sessions import InvalidSessionId
@@ -191,6 +194,28 @@ _PROTECTED_STATIC_PREFIXES = ("/data/",)
 async def invalid_session_id(_request: Request, exc: InvalidSessionId):
     """Un id que no es un UUID no es una sesión: 404, nunca una ruta."""
     return JSONResponse({"detail": str(exc)}, status_code=404)
+
+
+def _finitos(x):
+    """Cambia NaN/Infinity por su texto, en cualquier profundidad."""
+    if isinstance(x, float) and not math.isfinite(x):
+        return str(x)
+    if isinstance(x, dict):
+        return {k: _finitos(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_finitos(v) for v in x]
+    return x
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request: Request, exc: RequestValidationError):
+    """El 422 de siempre, pero sin reventar con NaN.
+
+    WHY: el JSON de Python acepta NaN e Infinity en la entrada, y el 422 por
+    defecto repite la entrada en `detail`; al serializarlo (allow_nan=False)
+    lanzaba y el cliente recibía un 500 en lugar del error de validación.
+    """
+    return JSONResponse({"detail": _finitos(jsonable_encoder(exc.errors()))}, status_code=422)
 
 
 @app.middleware("http")

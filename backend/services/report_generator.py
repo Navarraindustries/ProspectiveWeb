@@ -337,7 +337,9 @@ def build_report_data_from_session(
             if pt is not None:
                 db_patient_name = pt.full_name
                 db_hospital_id  = pt.hospital_id or ""
-                db_dob          = pt.dob.isoformat() if pt.dob else ""
+                # WHY str(): la columna es texto (String(10)); .isoformat() daba 500
+                # en todo paciente con fecha. str() de un date también es ISO.
+                db_dob          = str(pt.dob) if pt.dob else ""
                 db_institution  = pt.institution or ""
 
     patient = PatientInfo(

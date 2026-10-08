@@ -15,7 +15,7 @@
 - Coordenadas: mm del marco del volumen (vóxel × espaciado, origen 0; `voxelToMm`/`mmToVoxel` en `frontend/src/vtk/geometry.ts`; `meta.shape = [nz, ny, nx]`, `meta.spacing = [sz, sy, sx]`). Nunca LPS.
 - Fracciones de corte: `u = x/(nx−1)`; axial `v = y/(ny−1)`; coronal y sagital `v = 1 − z/(nz−1)` (Viewer.tsx `planeCfg`, ~1263).
 - Tipos y puntos: regla 2, ángulo 3 (vértice en medio), región ≥ 3 con `plane` obligatorio, marcador 1. `label` ≤ 40, `note` ≤ 500, máximo 200 anotaciones por sesión.
-- Tolerancia para dibujar en un corte: todos los puntos a ≤ 0,5 × espaciado del eje del plano; la región solo en su plano e índice exactos.
+- Tolerancia para dibujar en un corte: algún punto a ≤ 0,5 × espaciado del eje del plano; la región solo en su plano e índice exactos.
 - Colores (nuevos en `vtk/planeColors.ts`): regla ámbar `#f5c02e`, ángulo cian `#39c6e0`, región verde `#5fd38a`, marcador magenta `#e06ad1`.
 - Guardado automático 600 ms tras cada cambio; `saveProgress` espera al guardado en vuelo. Auditoría solo al borrar (`ACT_ANNOTATIONS_DELETED`).
 - Seguridad: router incluido con `_private` (`backend/main.py` ~270), `session_exists` + `require_session(db, user, sid)` (`services/access.py:82`), ids con `valid_session_id` (ya lo hacen `session_dir`/`_live`).

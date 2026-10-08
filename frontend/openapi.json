@@ -179,6 +179,7 @@
       "items": {
        "$ref": "#/components/schemas/Position3D"
       },
+      "maxItems": 500,
       "title": "Points",
       "type": "array"
      },

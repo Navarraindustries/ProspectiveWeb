@@ -7,6 +7,7 @@ la forma, sin medidas, para que no haya dos cifras que puedan discrepar.
 """
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -15,6 +16,8 @@ from models.detection import Position3D
 
 # Cuántos puntos tiene cada tipo. Una región es un polígono: tres como mínimo.
 _PUNTOS = {"regla": 2, "angulo": 3, "marcador": 1}
+# Tope de vértices de una región: cada uno se dibuja como un tubo en el 3D.
+_PUNTOS_MAX = 500
 
 
 class AnnotationPlane(BaseModel):
@@ -25,7 +28,7 @@ class AnnotationPlane(BaseModel):
 class Annotation(BaseModel):
     id: str = Field(..., min_length=1, max_length=64)
     kind: Literal["regla", "angulo", "region", "marcador"]
-    points: list[Position3D]
+    points: list[Position3D] = Field(..., max_length=_PUNTOS_MAX)
     plane: AnnotationPlane | None = Field(
         default=None, description="Corte en el que se dibujó; obligatorio en una región")
     label: str = Field(..., max_length=40)
@@ -36,6 +39,11 @@ class Annotation(BaseModel):
 
     @model_validator(mode="after")
     def _forma_por_tipo(self) -> "Annotation":
+        # WHY: el JSON de Python acepta NaN e Infinity, y al volver a escribirlos
+        # salen como null: el archivo dejaría de leerse y la sesión volvería
+        # sin ninguna anotación.
+        if not all(math.isfinite(c) for p in self.points for c in (p.x, p.y, p.z)):
+            raise ValueError("Las coordenadas de los puntos deben ser números finitos.")
         n = len(self.points)
         if self.kind == "region":
             # El área de una región se mide en su corte: sin plano no hay área.

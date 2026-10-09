@@ -125,9 +125,9 @@ const DEVICE_LABEL: Record<"clips" | "coils" | "stent", string> = {
    Un segundo clic en la misma vista la mira desde el lado opuesto. */
 const CAMERA_BUTTONS: [CameraView, string, string][] = [
   ["fit", "ENCUADRAR", "Reencuadrar la escena completa"],
-  ["axial", "AX", "Vista axial (desde superior)"],
-  ["coronal", "COR", "Vista coronal (desde anterior)"],
-  ["sagital", "SAG", "Vista sagital (lateral)"],
+  ["axial", "AX", "Vista axial (desde superior; otro clic, desde inferior)"],
+  ["coronal", "COR", "Vista coronal (desde anterior; otro clic, desde posterior)"],
+  ["sagital", "SAG", "Vista sagital (desde la izquierda; otro clic, desde la derecha)"],
 ];
 const CENTERLINE_COLOR: Vector3 = [0.36, 0.85, 0.86]; // cyan — vessel centreline tube
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint

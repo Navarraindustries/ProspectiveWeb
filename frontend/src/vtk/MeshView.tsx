@@ -34,7 +34,7 @@ import vtkTubeFilter from "@kitware/vtk.js/Filters/General/TubeFilter";
 import type { Bounds, Vector3 } from "@kitware/vtk.js/types";
 import { createOrientationInset, type OrientationInset } from "./OrientationInset";
 import { captureRenderWindow, type CapturableWindow, type CaptureFn } from "./captureRenderWindow";
-import { standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
+import { lookAlongUp, resolveView, standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
 import { IDENTITY } from "./clipPose";
 import { matrixAfterSwap, shouldApplyMatrix, toColumnMajor } from "./layerMatrix";
 import { chooseHandle, nextDrag, type DragEvent, type DragState } from "./handleDrag";
@@ -181,6 +181,8 @@ export interface CameraController {
   focus(p: Vec3): void;
   /** Encuadra un cubo de lado 2·radiusMm centrado en `p`. */
   frame(p: Vec3, radiusMm: number): void;
+  /** Mira a lo largo de `dir` hacia `focal`, encuadrando un cubo de lado 2·radiusMm (spec §4.2). */
+  lookAlong(dir: Vec3, focal: Vec3, radiusMm: number): void;
 }
 
 export interface CropPreview {
@@ -577,8 +579,10 @@ export function MeshView({
       if (!h) return;
       const cam = h.renderer.getActiveCamera();
       if (view !== "fit") {
+        // Segundo clic en la misma vista: la cara contraria (spec §5).
+        const target = resolveView(view, cam.getDirectionOfProjection() as Vec3, orientationRef.current);
         // La cámara se pone del lado contrario a donde mira.
-        const { direction: dop, viewUp: up } = standardViewInVolume(view, orientationRef.current);
+        const { direction: dop, viewUp: up } = standardViewInVolume(target, orientationRef.current);
         const dir: Vec3 = [-dop[0], -dop[1], -dop[2]];
         cam.setFocalPoint(0, 0, 0);
         cam.setPosition(dir[0], dir[1], dir[2]);
@@ -609,6 +613,20 @@ export function MeshView({
         // resetCamera(bounds) ajusta también los planos de recorte al cubo:
         // al alejarse o girar, el resto del árbol quedaba cortado. Se
         // recalculan con lo que de verdad hay en escena.
+        h.renderer.resetCameraClippingRange();
+        h.renderer.updateLightsGeometryToFollowCamera();
+        h.renderWindow.render();
+      },
+      // Vista de abordaje: desde fuera, por el corredor, hacia la diana.
+      lookAlong: (dir: Vec3, focal: Vec3, r: number) => {
+        const h = handles.current; if (!h) return;
+        const cam = h.renderer.getActiveCamera();
+        const up = lookAlongUp(dir, orientationRef.current);
+        cam.setFocalPoint(focal[0], focal[1], focal[2]);
+        cam.setPosition(focal[0] - dir[0], focal[1] - dir[1], focal[2] - dir[2]);
+        cam.setViewUp(up[0], up[1], up[2]);
+        // resetCamera(bounds) conserva dirección y arriba: solo aleja la cámara hasta encuadrar el cubo.
+        h.renderer.resetCamera([focal[0] - r, focal[0] + r, focal[1] - r, focal[1] + r, focal[2] - r, focal[2] + r]);
         h.renderer.resetCameraClippingRange();
         h.renderer.updateLightsGeometryToFollowCamera();
         h.renderWindow.render();

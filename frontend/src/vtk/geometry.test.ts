@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cameraHeading, edgeLabels, fromLps, standardViewInVolume, lpsToVolumeUserMatrix, manualToDirection, mmToVoxel, screenAxes, sliceCamera, voxelToMm,
+  cameraHeading, edgeLabels, fromLps, lookAlongUp, oppositeView, resolveView, standardViewInVolume, lpsToVolumeUserMatrix, manualToDirection, mmToVoxel, screenAxes, sliceCamera, voxelToMm, type Orientation,
 } from "./geometry";
 import type { VolumeMeta } from "../api/types";
 
@@ -183,5 +183,40 @@ describe("vistas estándar de la cámara 3D", () => {
     const d = [0, 0, 1, 1, 0, 0, 0, 1, 0];
     const v: [number, number, number] = [0.2, -0.5, 0.7];
     toLpsVec(d, fromLps(d, v)).forEach((x, i) => expect(x).toBeCloseTo(v[i]));
+  });
+});
+
+describe("segundo clic en la misma vista (spec §5)", () => {
+  const o: Orientation = { direction: null, manual: null };   // orientación asumida: +z superior
+  it("oppositeView empareja las seis caras", () => {
+    expect(oppositeView("axial")).toBe("axial_inf"); expect(oppositeView("axial_inf")).toBe("axial");
+    expect(oppositeView("coronal")).toBe("coronal_post"); expect(oppositeView("sagital_izq")).toBe("sagital");
+  });
+  it("si la cámara ya mira como la vista pedida, resuelve la opuesta; si no, la pedida", () => {
+    const ax = standardViewInVolume("axial", o).direction;
+    expect(resolveView("axial", ax, o)).toBe("axial_inf");
+    expect(resolveView("axial", [-ax[0], -ax[1], -ax[2]], o)).toBe("axial");
+    expect(resolveView("axial", standardViewInVolume("coronal", o).direction, o)).toBe("axial");
+  });
+  it("una cámara rotada 10° ya no cuenta como «la misma vista»", () => {
+    const ax = standardViewInVolume("axial", o).direction;
+    const r = 10 * Math.PI / 180;
+    const girada: [number, number, number] = [ax[0] * Math.cos(r) + Math.sin(r), ax[1], ax[2] * Math.cos(r)];
+    expect(resolveView("axial", girada, o)).toBe("axial");
+  });
+});
+
+describe("lookAlongUp (spec §4.2)", () => {
+  const o: Orientation = { direction: null, manual: null };
+  const len = (v: number[]) => Math.hypot(v[0], v[1], v[2]);
+  const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  it("el arriba es el superior del paciente proyectado perpendicular a la dirección", () => {
+    const up = lookAlongUp([1, 0, 0], o);
+    expect(len(up)).toBeCloseTo(1, 6); expect(dot(up, [1, 0, 0])).toBeCloseTo(0, 6);
+    expect(Math.abs(up[2])).toBeCloseTo(1, 6);
+  });
+  it("mirando casi a lo largo del superior usa el anterior y no degenera", () => {
+    const up = lookAlongUp([0.01, 0, 0.99995], o);
+    expect(len(up)).toBeCloseTo(1, 6); expect(dot(up, [0.01, 0, 0.99995])).toBeCloseTo(0, 4);
   });
 });

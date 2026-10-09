@@ -32,6 +32,20 @@ export function normalOf(p: FreePlane): Vec3 {
   return norm([Math.sin(e) * Math.sin(a), Math.sin(e) * Math.cos(a), Math.cos(e)]);
 }
 
+/** El plano libre cuya normal es `n` (offset 0): la inversa de `normalOf`.
+ *  Una normal y su opuesta son el mismo plano, así que se toma la que mira a
+ *  +z, como todos los planos libres; una horizontal queda en ±89°, el límite
+ *  de ELEVATION_RANGE (el corte se inclina 1°, que no se aprecia). */
+export function planeFromNormal(n: Vec3): FreePlane {
+  const l = Math.hypot(n[0], n[1], n[2]);
+  if (l < EPS) return DEFAULT_FREE_PLANE;
+  let [x, y, z] = [n[0] / l, n[1] / l, n[2] / l];
+  if (z < 0) { x = -x; y = -y; z = -z; }
+  const elevationDeg = (Math.acos(Math.min(1, Math.max(-1, z))) * 180) / Math.PI;
+  const azimuthDeg = Math.hypot(x, y) < EPS ? 0 : (Math.atan2(x, y) * 180) / Math.PI;
+  return clampPlane({ azimuthDeg, elevationDeg, offsetMm: 0 });
+}
+
 /** «Arriba» del oblicuo: el −y del corte axial girado e alrededor del eje
  *  k = (−cos a, sin a, 0), el mismo giro que lleva +z a la normal. Así el
  *  oblicuo es el axial «inclinado» y su imagen gira poco al mover el azimut

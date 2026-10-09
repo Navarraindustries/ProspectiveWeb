@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FREE_PLANE, clampOffsetToBox, clampPlane, clipPolygon, normalOf, originOf, rightOf, sliceSegment, upOf } from "./freePlane";
+import { DEFAULT_FREE_PLANE, clampOffsetToBox, clampPlane, clipPolygon, normalOf, originOf, planeFromNormal, rightOf, sliceSegment, upOf } from "./freePlane";
 import type { VolumeMeta } from "../api/types";
 
 const meta = { shape: [11, 21, 31], spacing: [1, 1, 1] } as unknown as VolumeMeta;   // caja 30×20×10 mm (x,y,z)
@@ -114,5 +114,28 @@ describe("sliceSegment", () => {
     const p = { azimuthDeg: 0, elevationDeg: 45, offsetMm: 0 };
     expect(sliceSegment(p, centre, meta, "axial", -1)).toBeNull();
     expect(sliceSegment(p, centre, meta, "axial", 11)).toBeNull();
+  });
+});
+
+describe("planeFromNormal (spec §4.2)", () => {
+  it("es la inversa de normalOf para una rejilla de direcciones (salvo el signo, que es el mismo plano)", () => {
+    for (const a of [-150, -90, -30, 0, 45, 120, 180]) for (const e of [-80, -45, 0, 30, 60, 89]) {
+      const n = normalOf({ azimuthDeg: a, elevationDeg: e, offsetMm: 0 });
+      const m = normalOf(planeFromNormal(n));
+      expect(Math.abs(dot(n, m))).toBeCloseTo(1, 6);
+    }
+  });
+  it("una normal hacia −z se expresa con su opuesta (elevación en rango, offset 0)", () => {
+    const p = planeFromNormal([0, 0, -1]);
+    expect(p.elevationDeg).toBeCloseTo(0, 6); expect(p.offsetMm).toBe(0);
+    expect(normalOf(p).map((v) => +v.toFixed(6))).toEqual([0, 0, 1]);
+  });
+  it("una normal horizontal se acota a 89° sin NaN", () => {
+    const p = planeFromNormal([1, 0, 0]);
+    expect(p.elevationDeg).toBe(89); expect(Number.isFinite(p.azimuthDeg)).toBe(true);
+    expect(normalOf(p)[0]).toBeGreaterThan(0.99);
+  });
+  it("una normal nula da el plano por defecto", () => {
+    expect(planeFromNormal([0, 0, 0])).toEqual(DEFAULT_FREE_PLANE);
   });
 });

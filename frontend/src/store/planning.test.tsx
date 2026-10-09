@@ -270,6 +270,21 @@ describe("volume version", () => {
     act(() => result.current.bumpVolumeVersion());
     expect(result.current.volumeVersion).toBe(before + 2);
   });
+
+  it("bumpVolumeVersion deja mipWindow en null y mipLocal en false", () => {
+    // Cambiar de serie o preprocesar no pasa por reset(): la ventana del MIP y
+    // LOCAL eran del volumen anterior (spec §3.3, §6).
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => {
+      result.current.setMipWindow({ wc: 300, ww: 600 });
+      result.current.setMipLocal(true);
+    });
+    expect(result.current.mipWindow).toEqual({ wc: 300, ww: 600 });
+    expect(result.current.mipLocal).toBe(true);
+    act(() => result.current.bumpVolumeVersion());
+    expect(result.current.mipWindow).toBeNull();
+    expect(result.current.mipLocal).toBe(false);
+  });
 });
 
 describe("modo y preajuste de la vista VOLUMEN", () => {

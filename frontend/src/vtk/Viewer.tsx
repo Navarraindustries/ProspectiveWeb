@@ -942,16 +942,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
   cineTargetRef.current = cineTarget;
   // Sentido actual del recorrido; el rebote lo invierte en los extremos.
   const cineDirRef = useRef<1 | -1>(1);
-  /** Un paso del cine en la celda. Con `bounce` (el reloj) da la vuelta en los
-   *  extremos; sin él (◀ ▶ de la barra) se queda en el borde. false = la
-   *  celda ya no tiene qué recorrer (cambió de modo) y el reloj debe pararse.
-   *  El plano libre avanza por el espaciado más fino, como la rueda. */
   /** Lleva el punto compartido al punto i de la línea central y pone el plano
    *  libre perpendicular al vaso allí. Adelantado al render, como el eje. */
   const goToTrackIndex = (i: number) => {
     const t = centerlineRef.current, m = metaRef.current; if (!t || !m) return;
-    const v = mmToVoxel(t.points[i], m);
-    mprVoxelRef.current = v; setMprVoxel(v);
+    mprVoxelRef.current = mmToVoxel(t.points[i], m);
+    // setFocusMm mueve el vóxel y también focusPoint: el cursor de la gráfica
+    // de calibre lee focusPoint y tiene que seguir al recorrido.
+    setFocusMm(t.points[i], m);
     const fp = planeFromNormal(tangentAt(t.points, i));
     freePlaneRef.current = fp; setFreePlane(fp);
     trackIndexRef.current = i;
@@ -960,6 +958,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const t = centerlineRef.current, m = metaRef.current; if (!t || !m) return null;
     return stepTrackIndex(t, voxelToMm(mprVoxelRef.current, m), trackIndexRef.current, Math.max(1, ...m.spacing));
   };
+  /** Un paso del cine en la celda. Con `bounce` (el reloj) da la vuelta en los
+   *  extremos; sin él (◀ ▶ de la barra) se queda en el borde. false = la
+   *  celda ya no tiene qué recorrer (cambió de modo) y el reloj debe pararse.
+   *  El plano libre avanza por el espaciado más fino, como la rueda. */
   const cineMove = (pane: PaneId, dir: 1 | -1, bounce: boolean): boolean => {
     const t = cineTargetRef.current(pane), m = metaRef.current;
     if (!t || !m) return false;
@@ -1295,7 +1297,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const centerOnLesion = () => {
     if (!lesion || !meta) return;
     setFocusMm(lesion, meta);
-    camera?.frame(lesion, lesionFrameRadiusMm(morphometry?.max_diameter_mm ?? candidate?.max_diameter_mm ?? 0));
+    camera?.frame(lesion, lesionFrameRadiusMm(lesionDiam));
   };
   // «ABORDAJE»: la cámara mira por el corredor hacia la diana y el plano
   // libre queda perpendicular a él en la diana (spec §4.2). Oblicuo y VOLUMEN
@@ -1304,7 +1306,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (!trajEntry || !trajTarget || !meta) return;
     const dir = approachDirection(trajEntry, trajTarget);
     if (!dir) return;
-    camera?.lookAlong(dir, trajTarget, lesionFrameRadiusMm(morphometry?.max_diameter_mm ?? candidate?.max_diameter_mm ?? 0));
+    camera?.lookAlong(dir, trajTarget, lesionFrameRadiusMm(lesionDiam));
     setFocusMm(trajTarget, meta);
     setFreePlane(planeFromNormal(dir));
   };
@@ -1738,7 +1740,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
               registerCapture={registerMeshCapture} registerFit={regFit("scene")} overlay={cineBarFor("scene", compact)}
               walk={centerline ? { mode: obliqueWalk, index: walkIndex, count: centerline.points.length,
                                    diameterMm: 2 * (centerline.radiiMm[walkIndex] ?? 0) } : null}
-              onWalkChange={setObliqueWalk}
+              onWalkChange={(w) => {
+                setObliqueWalk(w);
+                // Al pasar a VASO el Oblicuo se pone ya sobre el vaso, sin esperar al primer paso.
+                if (w === "vaso" && centerline) goToTrackIndex(currentTrackIndex() ?? 0);
+              }}
               onStep={obliqueWalk === "vaso" && centerline ? (step) => { const i = currentTrackIndex() ?? 0; goToTrackIndex(applyStep(i, step, centerline.points.length)); } : undefined} />
           </Suspense>
         );

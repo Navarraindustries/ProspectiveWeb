@@ -330,7 +330,7 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 | Herramienta | Qué hace | Cuándo |
 |---|---|---|
 | VISTA ▸ ENCUADRAR · AX · COR · SAG | Cámara estándar; un segundo clic mira la cara opuesta | Perder la orientación al rotar |
-| VISTA ▸ LESIÓN (L) | Acerca la cámara a la lesión; L centra también los cortes | Al medir cuello y ápice, al colocar un dispositivo |
+| VISTA ▸ LESIÓN (L) | El botón y L hacen lo mismo: acercan la cámara a la lesión y centran en ella los cortes | Al medir cuello y ápice, al colocar un dispositivo |
 | VISTA ▸ ABORDAJE | Mira a lo largo del corredor y pone el Oblicuo perpendicular a él | Con entrada y diana de la trayectoria marcadas |
 | CORTES 3D · MALLA ●/○ | Los tres cortes dentro del 3D, con o sin malla translúcida | Relacionar imagen y segmentación |
 | Marcado (clic) | Puntos de línea central, cuello, ápice, borde, tijera, recorte, lesión, trayectoria, anotaciones | Según el paso |
@@ -355,7 +355,7 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 | Herramienta | Qué hace | Cuándo |
 |---|---|---|
 | Arrastrar · Shift o botón central · rueda · Ctrl+rueda | Rota; desplaza; recorre el corte; zoom | Mover la proyección |
-| Botón derecho (MIP y COMPUESTO) · doble clic en la lectura | Arrastrar cambia nivel y ventana; el doble clic en la lectura restablece | Contraste de la proyección |
+| Botón derecho (MIP y COMPUESTO) · doble clic en la lectura | Arrastrar cambia nivel y ventana; con la celda ampliada, el doble clic en la lectura restablece (en la celda compacta el doble clic la amplía) | Contraste de la proyección |
 | EJE ▸ AX · COR · SAG | Eje de acumulación | — |
 | RECORTE ▸ EJE · LIBRE · CARA ●/○ | Recorta por el eje o por el plano libre del Oblicuo; pinta la cara del corte | Ver el interior del árbol |
 | LOCAL ●/○ | Acota la proyección a la caja de la lesión; solo con RECORTE EJE (con LIBRE se atenúa) | Ver el cuello sin que lo tape el resto |

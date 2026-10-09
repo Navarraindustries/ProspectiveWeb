@@ -57,3 +57,18 @@ def test_eje_nulo_cuenta_como_sin_eje():
     sid = _session(("0", "0", "0"))
     assert read_trajectory_state(sid)["angle_ref"] == "vertical"
     assert _label_row(sid) == [VERTICAL]
+
+
+def test_pca_fallido_cuenta_como_sin_eje():
+    # Lo que escribe detect.py cuando principal_axis es None: el (0,0,1) de
+    # reserva (lo leen clips, coils y plan) con la marca de no medido.
+    sid = _session(("0.0", "0.0", "1.0"))
+    write_state(sid, "morpho.axis_measured", "0")
+    assert read_trajectory_state(sid)["angle_ref"] == "vertical"
+    assert _label_row(sid) == [VERTICAL]
+
+
+def test_eje_medido_con_marca_es_el_aneurisma():
+    sid = _session(("1", "0", "0"))
+    write_state(sid, "morpho.axis_measured", "1")
+    assert read_trajectory_state(sid)["angle_ref"] == "aneurisma"

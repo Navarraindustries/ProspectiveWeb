@@ -161,8 +161,13 @@ async def get_centerline_points(session_id: str) -> CenterlinePoints:
             pts = data["points"].astype(float)
             radii = data["radii"].astype(float)
     except Exception as exc:  # noqa: BLE001 — un fichero dañado no es un 500
-        raise HTTPException(status_code=409, detail=f"centerline_points.npz ilegible: {exc}")
-    if len(pts) < 2 or len(radii) != len(pts):
+        # El detalle va al usuario: la excepción (rutas, internos de numpy) se
+        # queda en el log.
+        logger.warning("centerline_points.npz ilegible en %s: %s", session_id, exc)
+        raise HTTPException(status_code=409, detail="La línea central guardada no se puede leer.")
+    if len(radii) != len(pts):
+        raise HTTPException(status_code=409, detail="La línea central guardada es inconsistente.")
+    if len(pts) < 2:
         raise HTTPException(status_code=409, detail="La línea central tiene menos de dos puntos.")
     arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
     return CenterlinePoints(

@@ -561,7 +561,15 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [mipWindow, setMipWindow] = useState<{ wc: number; ww: number } | null>(null);
   const [mipLocal, setMipLocal] = useState(false);
   const [volumeVersion, setVolumeVersion] = useState(0);
-  const bumpVolumeVersion = useCallback(() => setVolumeVersion((v) => v + 1), []);
+  // Un volumen nuevo dentro de la sesión (otra serie, recorte HU, remuestreo)
+  // no pasa por reset(): la ventana del MIP y LOCAL describían el volumen
+  // anterior y se limpian aquí (spec §3.3, §6). Son setters de useState,
+  // estables, así que las dependencias vacías siguen valiendo.
+  const bumpVolumeVersion = useCallback(() => {
+    setVolumeVersion((v) => v + 1);
+    setMipWindow(null);
+    setMipLocal(false);
+  }, []);
   const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
     setFocusPoint(mm);
     setMprVoxel(mmToVoxel(mm, meta));

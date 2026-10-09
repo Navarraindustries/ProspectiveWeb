@@ -54,3 +54,18 @@ def test_menos_de_dos_puntos_409():
 def test_sin_usuario_401():
     sid = _session_with_points([[0, 0, 0], [0, 0, 1]], [1.0, 1.0])
     assert anonymous_client(app).get(f"/api/centerline/{sid}/points").status_code == 401
+
+
+def test_fichero_ilegible_409_sin_eco_de_la_excepcion():
+    sid = create_session()
+    (session_subdir(sid, "meshes") / "centerline_points.npz").write_bytes(b"esto no es un npz")
+    r = client.get(f"/api/centerline/{sid}/points")
+    assert r.status_code == 409
+    assert r.json()["detail"] == "La línea central guardada no se puede leer."
+
+
+def test_radios_y_puntos_de_distinta_longitud_409():
+    sid = _session_with_points([[0, 0, 0], [0, 0, 1], [0, 0, 2]], [1.0, 1.0])
+    r = client.get(f"/api/centerline/{sid}/points")
+    assert r.status_code == 409
+    assert r.json()["detail"] == "La línea central guardada es inconsistente."

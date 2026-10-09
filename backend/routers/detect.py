@@ -182,7 +182,7 @@ _MORPHO_STATE_KEYS = (
     "morpho.plane_normal_x", "morpho.plane_normal_y", "morpho.plane_normal_z",
     "morpho.plane_seed_x", "morpho.plane_seed_y", "morpho.plane_seed_z",
     "morpho.neck_origin_x", "morpho.neck_origin_y", "morpho.neck_origin_z",
-    "morpho.axis_x", "morpho.axis_y", "morpho.axis_z",
+    "morpho.axis_x", "morpho.axis_y", "morpho.axis_z", "morpho.axis_measured",
     "morpho.max_diameter_mm", "morpho.neck_mm", "morpho.neck_perimeter_mm",
     "morpho.dome_height_mm",
     "morpho.volume_mm3", "morpho.surface_area_mm2",
@@ -1297,6 +1297,10 @@ def _run_morphometry_sync(
     write_state(session_id, "morpho.axis_x", str(axis[0]))
     write_state(session_id, "morpho.axis_y", str(axis[1]))
     write_state(session_id, "morpho.axis_z", str(axis[2]))
+    # El (0,0,1) de reserva sigue escrito porque clips, coils y plan leen esas
+    # claves; esta marca deja que el informe no lo presente como el eje del
+    # aneurisma cuando el PCA no dio eje (el panel ya dice «eje vertical»).
+    write_state(session_id, "morpho.axis_measured", "1" if mr.principal_axis else "0")
 
     # ── Persist key morphometry ───────────────────────────────────────── #
     # Consumed by the longitudinal comparison, the treatment engine and the

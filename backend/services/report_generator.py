@@ -711,7 +711,11 @@ def read_trajectory_state(session_id: str) -> dict:
     # El informe tiene que decir contra qué eje se midió: sin eje del saco el
     # ángulo es contra z y nombrar el aneurisma sería afirmar algo que no se usó.
     angle_ref = "aneurisma"
-    if None in (ax, ay, az) or (ax == 0 and ay == 0 and az == 0):
+    # axis_measured "0": detect.py escribió el (0,0,1) de reserva porque el PCA
+    # falló; es el eje vertical, no el del aneurisma. Las sesiones anteriores a
+    # la marca no la tienen y siguen la regla de antes.
+    unmeasured = read_state(session_id, "morpho.axis_measured", "") == "0"
+    if unmeasured or None in (ax, ay, az) or (ax == 0 and ay == 0 and az == 0):
         ax, ay, az = 0.0, 0.0, 1.0
         angle_ref = "vertical"
     an = math.sqrt(ax * ax + ay * ay + az * az) or 1.0

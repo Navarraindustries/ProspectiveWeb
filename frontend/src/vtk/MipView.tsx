@@ -50,9 +50,11 @@ import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from "./OrientationInset";
 import { mipReadoutLines } from "./mipReadout";
+import { derivedMipWindow, mipRampPoints } from "./mipRamp";
 import { unitFor } from "./modality";
 import { defaultVolumeWindow, presetToWindow, volumePresetsFor, type VolumePreset, type VolumeWindow } from "./volumePresets";
 import { windowFromDrag } from "./windowDrag";
+import { WL_TITLE } from "./windowPresets";
 import { AXIS_OF, indexOf, wheelAction, withIndex } from "./mipGestures";
 import { planeCorners, toPixels, tracePolygon, traceVisible, traceVisibleForNormal } from "./planeTrace";
 import { clampOffsetToBox, clipPolygon, normalOf, originOf, type FreePlane } from "./freePlane";
@@ -118,7 +120,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
 }) {
   const {
     mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
-    volumeMode, setVolumeMode, volumePreset, setVolumePreset, volumeWindows, setVolumeWindow,
+    volumeMode, setVolumeMode, volumePreset, setVolumePreset, volumeWindows, setVolumeWindow, mipWindow, setMipWindow,
     clipMode, setClipMode, cutFaceVisible, setCutFaceVisible, freePlane, setFreePlane, mprWl,
   } = usePlanning();
   const libre = clipMode === "libre";
@@ -186,6 +188,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   const presetOptions = volumePresetsFor(meta.modality).map((p) => ({ key: p, label: p.toUpperCase(), title: `Preajuste «${p}»` }));
   // Ventana del preajuste en COMPUESTO: la guardada para él o su ventana por defecto.
   const win: VolumeWindow = volumeWindows[volumePreset] ?? defaultVolumeWindow(volumePreset, [rlo, rhi], vesselBand);
+  // Ventana efectiva del MIP: la del usuario o la derivada del umbral.
+  const mipWin: VolumeWindow = mipWindow ?? derivedMipWindow(lo, rhi);
 
   useEffect(() => {
     const el = ref.current; if (!el) return;
@@ -288,13 +292,13 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     return () => el.removeEventListener("wheel", h, { capture: true });
   }, []);
 
-  // Botón derecho: nivel y ventana en COMPUESTO. vtk escucha sus punteros en
-  // el mismo contenedor, así que en fase de captura llegamos antes y
-  // stopImmediatePropagation impide que su interactor vea el botón derecho
-  // (en ningún modo: en MIP el botón derecho no hace nada). El arrastre parte
-  // de la ventana del preajuste al bajar y escribe en ese preajuste aunque se
-  // cambie a mitad; la captura del puntero sigue el arrastre fuera del lienzo.
-  const winDrag = useRef<{ id: number; x: number; y: number; start: VolumeWindow; preset: VolumePreset } | null>(null);
+  // Botón derecho: nivel y ventana, en COMPUESTO la del preajuste y en MIP la
+  // de la rampa. vtk escucha sus punteros en el mismo contenedor, así que en
+  // fase de captura llegamos antes y stopImmediatePropagation impide que su
+  // interactor vea el botón derecho. El arrastre parte de la ventana vigente
+  // al bajar y escribe en el mismo destino aunque se cambie de modo o de
+  // preajuste a mitad; la captura del puntero sigue el arrastre fuera del lienzo.
+  const winDrag = useRef<{ id: number; x: number; y: number; start: VolumeWindow; apply: (w: VolumeWindow) => void } | null>(null);
   const pointerRef = useRef<(e: PointerEvent) => void>(() => {});
   pointerRef.current = (e) => {
     const el = ref.current; if (!el) return;
@@ -302,8 +306,11 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     if (e.type === "pointerdown") {
       if (e.button !== 2) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      if (volumeMode !== "compuesto" || d) return;
-      winDrag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, start: win, preset: volumePreset };
+      if (d) return;
+      // En COMPUESTO escribe en la ventana del preajuste; en MIP, en la del MIP (spec §3.3).
+      const compuesto = volumeMode === "compuesto", preset = volumePreset;
+      winDrag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, start: compuesto ? win : mipWin,
+        apply: compuesto ? (w) => setVolumeWindow(preset, w) : setMipWindow };
       try { el.setPointerCapture(e.pointerId); } catch { /* el puntero ya no existe */ }
       return;
     }
@@ -316,7 +323,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     if (e.type === "pointermove") {
       // Sin el botón derecho pulsado (soltado fuera sin pointerup) se acaba.
       if (!(e.buttons & 2)) { end(); return; }
-      setVolumeWindow(d.preset, windowFromDrag(d.start, e.clientX - d.x, e.clientY - d.y, [rlo, rhi]));
+      d.apply(windowFromDrag(d.start, e.clientX - d.x, e.clientY - d.y, [rlo, rhi]));
       return;
     }
     end();   // pointerup o pointercancel
@@ -381,8 +388,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     const prop = s.actor.getProperty();
     if (volumeMode === "mip") {
       s.mapper.setBlendModeToMaximumIntensity();
-      ctf.addRGBPoint(rlo, 0, 0, 0); ctf.addRGBPoint(lo, 0.25, 0.25, 0.25); ctf.addRGBPoint(rhi, 1, 1, 1);
-      otf.addPoint(rlo, 0); otf.addPoint(lo, 0); otf.addPoint(lo + (rhi - lo) * 0.15, 0.9); otf.addPoint(rhi, 1);
+      const ramp = mipRampPoints(mipWin, rlo);
+      ramp.color.forEach(([x, r, g, b]) => ctf.addRGBPoint(x, r, g, b));
+      ramp.opacity.forEach(([x, a]) => otf.addPoint(x, a));
       prop.setShade(false);
     } else {
       s.mapper.setBlendModeToComposite();
@@ -398,7 +406,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     prop.setRGBTransferFunction(0, ctf); prop.setScalarOpacity(0, otf);
     prop.setInterpolationTypeToLinear();
     s.grw.getRenderWindow().render();
-  }, [lo, rlo, rhi, image, volumeMode, volumePreset, win.wc, win.ww]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lo, rlo, rhi, image, volumeMode, volumePreset, win.wc, win.ww, mipWin.wc, mipWin.ww]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Planos de recorte: es lo que hace que el MIP «avance» con el corte.
   // vtk conserva el semiespacio (p − origen)·normal ≥ 0. En LIBRE la misma
@@ -587,10 +595,18 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // En LIBRE la escalera sigue mostrando el índice del eje; arrastrarla mueve ese eje.
   const onLadder = (i: number) => { if (i !== index) setMprVoxel(withIndex(plane, mprVoxel, i)); };
 
+  // RESTABLECER y el doble clic en la lectura vuelven a la ventana por defecto del modo visible.
+  const resetWindow = () => (volumeMode === "compuesto" ? setVolumeWindow(volumePreset, null) : setMipWindow(null));
+  const readout = mipReadoutLines({
+    mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact, render: volumeMode, preset: volumePreset,
+    clip: clipMode, offsetMm: freePlane.offsetMm, unit: unitFor(meta.modality),
+    window: volumeMode === "compuesto" ? win : mipWin, windowDerived: volumeMode === "mip" && mipWindow === null,
+  });
+
   return (
     <div tabIndex={0} onKeyDown={onKey} style={{ position: "relative", width: "100%", height: "100%", background: "#000", outline: "none" }}>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} onContextMenu={(e) => e.preventDefault()}
-        title={`Arrastrar: rotar · Shift o botón central: desplazar · Rueda: corte · Ctrl+rueda: zoom${volumeMode === "compuesto" ? " · Botón derecho: nivel y ventana" : ""}`} />
+        title={`Arrastrar: rotar · Shift o botón central: desplazar · Rueda: corte · Ctrl+rueda: zoom · Botón derecho: nivel y ventana`} />
       <HudFrame label="VOLUMEN" active={!compact}>
         {heading && !compact && (
           // La cinta va arriba centrada, justo donde HudFrame pone el rótulo:
@@ -639,10 +655,16 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             <HudToggleGroup options={RENDER_OPTIONS} value={volumeMode} onChange={(k) => setVolumeMode(k as "mip" | "compuesto")} />
           </div>
         )}
-        <HudReadout at="bl" lines={mipReadoutLines({ mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact, render: volumeMode, preset: volumePreset, clip: clipMode, offsetMm: freePlane.offsetMm, window: win, unit: unitFor(meta.modality) })} />
+        {/* La lectura es un botón, como la W/L de los cortes: el doble clic
+            restablece la ventana. pointerdown no llega al lienzo (empezaría un
+            giro). Alineada a la izquierda: un botón centra sus líneas. */}
+        <button type="button" className="hud-readout bl hud-wl" title={compact ? undefined : WL_TITLE} style={{ textAlign: "left" }}
+          onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => { e.stopPropagation(); if (!compact) resetWindow(); }}>
+          {readout.join("\n")}
+        </button>
         {compact ? overlay : (
           // Una sola columna abajo a la izquierda, de abajo arriba: la fila de
-          // preajustes (solo en COMPUESTO) y encima la barra del cine. Así,
+          // preajustes (en MIP, solo RESTABLECER) y encima la barra del cine. Así,
           // si la fila se parte en dos líneas, empuja la barra en vez de
           // crecer por debajo de ella. Arranca encima de la lectura de la
           // izquierda (dos líneas; tres en COMPUESTO, con NIV · VENT) y una
@@ -652,14 +674,13 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           // escalera de cortes; la columna no recibe el puntero (sus hijos sí),
           // para no tapar el arrastre fuera de los nombres.
           <div className="hud-stack" style={{ position: "absolute", bottom: volumeMode === "compuesto" ? 100 : 84, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexDirection: "column-reverse", alignItems: "flex-start", gap: 6, pointerEvents: "none" }}>
-            {volumeMode === "compuesto" && (
-              // RESTABLECER va al final de la fila y salta con ella si no cabe.
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
-                <HudToggleGroup options={presetOptions} value={volumePreset} onChange={(k) => setVolumePreset(k as VolumePreset)} style={{ flexWrap: "wrap" }} />
-                <HudToggleGroup options={[{ key: "reset", label: "RESTABLECER", title: "Volver a la ventana por defecto de este preajuste" }]}
-                  value="" onChange={() => setVolumeWindow(volumePreset, null)} />
-              </div>
-            )}
+            {/* RESTABLECER va al final de la fila y salta con ella si no cabe;
+                en MIP la fila es solo él, porque la rampa también tiene ventana. */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
+              {volumeMode === "compuesto" && <HudToggleGroup options={presetOptions} value={volumePreset} onChange={(k) => setVolumePreset(k as VolumePreset)} style={{ flexWrap: "wrap" }} />}
+              <HudToggleGroup options={[{ key: "reset", label: "RESTABLECER", title: volumeMode === "compuesto" ? "Volver a la ventana por defecto de este preajuste" : "Volver a la rampa del umbral" }]}
+                value="" onChange={resetWindow} />
+            </div>
             {overlay}
           </div>
         )}

@@ -279,6 +279,9 @@ interface PlanningState {
   volumeWindows: Partial<Record<VolumePreset, { wc: number; ww: number }>>;
   /** null borra la entrada del preajuste y devuelve su ventana por defecto. */
   setVolumeWindow: (preset: VolumePreset, w: { wc: number; ww: number } | null) => void;
+  /** Ventana del modo MIP movida a mano; null = la derivada del umbral (la rampa de siempre). */
+  mipWindow: { wc: number; ww: number } | null;
+  setMipWindow: (w: { wc: number; ww: number } | null) => void;
   /** Sube cada vez que el volumen de la sesión cambia en el servidor sin que
    *  cambie la sesión (otra serie, preproceso o su reversión): el visor vuelve
    *  a pedir la meta y, con su cache_key nuevo, el volumen del navegador. */
@@ -541,6 +544,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [volumeWindows, setVolumeWindows] = useState<Partial<Record<VolumePreset, { wc: number; ww: number }>>>({});
   const setVolumeWindow = (k: VolumePreset, w: { wc: number; ww: number } | null) =>
     setVolumeWindows((m) => { const n = { ...m }; if (w) n[k] = w; else delete n[k]; return n; });
+  const [mipWindow, setMipWindow] = useState<{ wc: number; ww: number } | null>(null);
   const [volumeVersion, setVolumeVersion] = useState(0);
   const bumpVolumeVersion = useCallback(() => setVolumeVersion((v) => v + 1), []);
   const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
@@ -688,6 +692,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     // anterior; el nuevo abre con ella a la vista.
     setSlices3dMeshVisible(true);
     setVolumeWindows({});
+    setMipWindow(null);
     // WHY: un cine que siguiera corriendo movería los cortes del estudio nuevo
     // sin que nadie lo pidiera; la celda enfocada era de la sesión anterior.
     setCine(null);
@@ -710,7 +715,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
-        freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, cine, focusedPane,
+        freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,
         setMorphoInvalidatedNotice, clearMorphometry,
@@ -720,7 +725,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
-        setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setCine, setFocusedPane,
+        setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setCine, setFocusedPane,
         reset, resetDownstream,
       }}
     >

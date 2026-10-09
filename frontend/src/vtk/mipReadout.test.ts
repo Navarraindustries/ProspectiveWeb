@@ -35,4 +35,13 @@ describe("mipReadoutLines", () => {
     expect(mipReadoutLines({ mode: "acumulado", reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: false, render: "compuesto", preset: "Hueso", window: { wc: 400, ww: 1000 }, unit: " HU" })[2])
       .toBe("NIV 400 HU · VENT 1000 HU");
   });
+  it("en MIP ampliado la ventana se lee junto al umbral mientras es la derivada, y sola cuando se movió", () => {
+    const o = { mode: "acumulado" as const, reverse: false, index: 4, count: 10, slabMm: 8, threshold: 1470, compact: false, window: { wc: 3093.5, ww: 3247 } };
+    expect(mipReadoutLines({ ...o, windowDerived: true })[1]).toBe("UMBRAL 1470 · NIV 3094 · VENT 3247");
+    expect(mipReadoutLines({ ...o, windowDerived: false })[1]).toBe("NIV 3094 · VENT 3247");
+    // Sin ventana (llamadas antiguas) la lectura es la de siempre.
+    expect(mipReadoutLines({ ...o, window: undefined })[1]).toBe("UMBRAL 1470");
+    // En compacto no cabe: no cambia.
+    expect(mipReadoutLines({ ...o, compact: true, windowDerived: true })).toEqual(["ACUM 5/10"]);
+  });
 });

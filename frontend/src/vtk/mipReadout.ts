@@ -7,14 +7,16 @@ import type { VolumeWindow } from "./volumePresets";
     recorte libre la línea del corte dice el desplazamiento del plano (o el
     grosor de la lámina): el índice de un eje no describe un plano oblicuo.
     En compuesto ampliado se añade el nivel y la ventana del preajuste, que
-    el botón derecho cambia; en la celda compacta no cabe. `unit` es « HU»
+    el botón derecho cambia; en la celda compacta no cabe. En MIP ampliado,
+    con ventana, la segunda línea añade NIV · VENT (y conserva UMBRAL mientras
+    la ventana sea la derivada). `unit` es « HU»
     en TC y vacío fuera (ver `unitFor`). */
 export function mipReadoutLines(o: {
   mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number;
   slabMm: number; threshold: number; compact: boolean;
   render?: "mip" | "compuesto"; preset?: string;
   clip?: "eje" | "libre"; offsetMm?: number;
-  window?: VolumeWindow; unit?: string;
+  window?: VolumeWindow; windowDerived?: boolean; unit?: string;
 }): string[] {
   if (o.clip === "libre" && o.compact) return [o.mode === "acumulado" ? `LIB ${signedMm(o.offsetMm ?? 0)}` : `LIB ±${o.slabMm}`];
   if (o.render === "compuesto") {
@@ -24,7 +26,12 @@ export function mipReadoutLines(o: {
     return lines;
   }
   if (o.compact) return [o.mode === "acumulado" ? `ACUM ${o.index + 1}/${o.count}` : `LÁMINA ±${o.slabMm}`];
-  return [cutLine(o), `UMBRAL ${Math.round(o.threshold)}${o.unit ?? ""}`];
+  const umbral = `UMBRAL ${Math.round(o.threshold)}${o.unit ?? ""}`;
+  if (!o.window) return [cutLine(o), umbral];
+  const niv = `NIV ${Math.round(o.window.wc)}${o.unit ?? ""} · VENT ${Math.round(o.window.ww)}${o.unit ?? ""}`;
+  // Mientras la ventana es la derivada del umbral, el umbral la explica; movida
+  // a mano ya no describe la rampa y se calla.
+  return [cutLine(o), o.windowDerived ? `${umbral} · ${niv}` : niv];
 }
 
 function cutLine(o: { mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number; slabMm: number; clip?: "eje" | "libre"; offsetMm?: number }): string {

@@ -11,7 +11,7 @@ import type { VolumeWindow } from "./volumePresets";
     con ventana, la segunda línea añade NIV · VENT (y conserva UMBRAL mientras
     la ventana sea la derivada). `unit` es « HU»
     en TC y vacío fuera (ver `unitFor`). */
-export function mipReadoutLines(o: {
+function linesWithoutLocal(o: {
   mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number;
   slabMm: number; threshold: number; compact: boolean;
   render?: "mip" | "compuesto"; preset?: string;
@@ -32,6 +32,16 @@ export function mipReadoutLines(o: {
   // Mientras la ventana es la derivada del umbral, el umbral la explica; movida
   // a mano ya no describe la rampa y se calla.
   return [cutLine(o), o.windowDerived ? `${umbral} · ${niv}` : niv];
+}
+
+/** La línea del corte lleva « · LOCAL» con la caja activa: es la primera
+ *  salvo en COMPUESTO ampliado, donde la primera nombra el preajuste. */
+export function mipReadoutLines(o: Parameters<typeof linesWithoutLocal>[0] & { local?: boolean }): string[] {
+  const lines = linesWithoutLocal(o);
+  if (!o.local) return lines;
+  const i = o.render === "compuesto" && !o.compact ? 1 : 0;
+  lines[i] = `${lines[i]} · LOCAL`;
+  return lines;
 }
 
 function cutLine(o: { mode: "acumulado" | "lamina"; reverse: boolean; index: number; count: number; slabMm: number; clip?: "eje" | "libre"; offsetMm?: number }): string {

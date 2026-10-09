@@ -21,6 +21,10 @@ describe("visibleBounds en eje", () => {
     const w = visibleBounds(B, { mode: "eje", axis: 2, posMm: 10, acumulado: true, reverse: true, slabMm: 0 });
     expect(w[5] - w[4]).toBeGreaterThanOrEqual(1);
   });
+  it("con caja LOCAL lo visible es la intersección del corte con la caja", () => {
+    const v = visibleBounds([0, 100, 0, 100, 0, 100], { mode: "eje", axis: 2, posMm: 45, acumulado: true, reverse: false, slabMm: 5, box: [40, 60, 40, 60, 40, 60] });
+    expect(v).toEqual([40, 60, 40, 60, 40, 45]);
+  });
 });
 describe("visibleBounds en libre", () => {
   it("acumulado conserva el lado (v − o)·n ≤ 0 y el polígono", () => {

@@ -60,6 +60,8 @@ import { planeCorners, toPixels, tracePolygon, traceVisible, traceVisibleForNorm
 import { clampOffsetToBox, clipPolygon, normalOf, originOf, type FreePlane } from "./freePlane";
 import { wheelOffset } from "./obliqueGestures";
 import { rotationCenterMm, visibleBounds, visiblePoints, type Bounds6, type ClipState } from "./orbit";
+import { localBox } from "./localBox";
+import { axisClipPlanes } from "./mipClipPlanes";
 
 type Vec3 = [number, number, number];
 
@@ -97,7 +99,7 @@ function cameraToPlane(grw: vtkGenericRenderWindow, image: vtkImageData, plane: 
   renderer.resetCamera();
 }
 
-export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit, overlay, showInset = true, vesselBand }: {
+export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit, overlay, showInset = true, vesselBand, lesion }: {
   image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean;
   /** Eje en el que acumula y que recorre la rueda. */
   plane: Plane;
@@ -117,13 +119,19 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   showInset?: boolean;
   /** Banda de vasos del volumen (Tarea 1): ventana por defecto de «VASOS». */
   vesselBand: [number, number] | null;
+  /** Centro y diámetro de la lesión para la caja LOCAL; null sin lesión. */
+  lesion: { center: Vec3; diameterMm: number } | null;
 }) {
   const {
     mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
-    volumeMode, setVolumeMode, volumePreset, setVolumePreset, volumeWindows, setVolumeWindow, mipWindow, setMipWindow,
+    volumeMode, setVolumeMode, volumePreset, setVolumePreset, volumeWindows, setVolumeWindow, mipWindow, setMipWindow, mipLocal, setMipLocal,
     clipMode, setClipMode, cutFaceVisible, setCutFaceVisible, freePlane, setFreePlane, mprWl,
   } = usePlanning();
   const libre = clipMode === "libre";
+  // La caja LOCAL solo cabe con el recorte por eje: seis planos son el tope de vtk.js.
+  const box: Bounds6 | null = lesion && mipLocal && !libre ? localBox(lesion.center, lesion.diameterMm, image.getBounds() as Bounds6) : null;
+  // Por valor: los efectos dependen de la clave, no de la identidad del array.
+  const boxKey = box ? box.join(",") : "";
   // Plano libre vigente para la rueda, que vive fuera del ciclo de React: se
   // adelanta al render en cada paso para que dos eventos seguidos acumulen en
   // vez de partir los dos del mismo plano (como en ObliqueView).
@@ -430,19 +438,12 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
       s.grw.getRenderWindow().render();
       return;
     }
-    const n = (sign: 1 | -1): Vec3 => { const v: Vec3 = [0, 0, 0]; v[axis] = sign; return v; };
-    const o = (mm: number): Vec3 => { const v: Vec3 = [0, 0, 0]; v[axis] = mm; return v; };
-    if (mipMode === "acumulado") {
-      // Normal −eje: queda lo de índice ≤ actual; «desde el final», lo ≥ actual.
-      const pl = vtkPlane.newInstance(); pl.setOrigin(...o(posMm)); pl.setNormal(...n(reverse ? 1 : -1));
+    for (const p of axisClipPlanes({ axis, posMm, acumulado: mipMode === "acumulado", reverse, slabMm: mipSlabMm, box })) {
+      const pl = vtkPlane.newInstance(); pl.setOrigin(...p.origin); pl.setNormal(...p.normal);
       s.mapper.addClippingPlane(pl);
-    } else {
-      const a = vtkPlane.newInstance(); a.setOrigin(...o(posMm - mipSlabMm)); a.setNormal(...n(1));
-      const b = vtkPlane.newInstance(); b.setOrigin(...o(posMm + mipSlabMm)); b.setNormal(...n(-1));
-      s.mapper.addClippingPlane(a); s.mapper.addClippingPlane(b);
     }
     s.grw.getRenderWindow().render();
-  }, [axis, posMm, mipMode, mipSlabMm, reverse, image, libre, freePlane, mprVoxel]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [axis, posMm, mipMode, mipSlabMm, reverse, image, libre, freePlane, mprVoxel, boxKey]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cara del corte: el plano libre remuestreado en gris con la ventana de los
   // cortes. WHY: la geometría opaca se dibuja antes que el volumen, así que la
@@ -533,7 +534,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           polygons: acumulado ? undefined : [-mipSlabMm, mipSlabMm].map((k) => clipPolygon({ ...fp, offsetMm: fp.offsetMm + k }, mprVoxel, meta)),
           acumulado, reverse, slabMm: mipSlabMm,
         }
-      : { mode: "eje", axis, posMm, acumulado, reverse, slabMm: mipSlabMm };
+      : { mode: "eje", axis, posMm, acumulado, reverse, slabMm: mipSlabMm, box: box ?? undefined };
     const v = visibleBounds(image.getBounds() as Bounds6, clip);
     const pts = visiblePoints(image.getBounds() as Bounds6, clip);
     const renderer = s.grw.getRenderer();
@@ -576,6 +577,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // render; por ref, la función publicada una vez usa siempre la última.
   const fitRef = useRef(fit);
   fitRef.current = fit;
+  // Al encender LOCAL se encuadra una vez: la caja entera dejaba la lesión en un punto.
+  useEffect(() => { if (mipLocal && !libre) fitRef.current(); }, [mipLocal]);   // eslint-disable-line react-hooks/exhaustive-deps
   const registerFitRef = useRef(registerFit);
   registerFitRef.current = registerFit;
   useEffect(() => {
@@ -601,6 +604,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     mode: mipMode, reverse, index, count, slabMm: mipSlabMm, threshold: lo, compact, render: volumeMode, preset: volumePreset,
     clip: clipMode, offsetMm: freePlane.offsetMm, unit: unitFor(meta.modality),
     window: volumeMode === "compuesto" ? win : mipWin, windowDerived: volumeMode === "mip" && mipWindow === null,
+    local: !!box,
   });
 
   return (
@@ -647,6 +651,11 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             {/* El prefijo va dentro del grupo: un <span> suelto no lleva clase
                 del HUD y se quedaba flotando en esencial y limpio. */}
             <HudToggleGroup label="RECORTE ▸" options={CLIP_OPTIONS} value={clipMode} onChange={(k) => setClipMode(k as "eje" | "libre")} />
+            {lesion && (
+              <HudToggleGroup options={[{ key: "local", label: mipLocal ? "LOCAL ●" : "LOCAL ○",
+                                          title: libre ? "Solo con RECORTE EJE (vtk.js admite seis planos de recorte)" : "Acotar la proyección a la lesión y lo que la rodea" }]}
+                value={mipLocal && !libre ? "local" : ""} onChange={() => { if (!libre) setMipLocal(!mipLocal); }} style={libre ? { opacity: 0.45 } : undefined} />
+            )}
             {libre && (
               <HudToggleGroup options={[{ key: "cara", label: cutFaceVisible ? "CARA ●" : "CARA ○",
                                           title: cutFaceVisible ? "Ocultar el corte en gris sobre la cara" : "Pintar el corte en gris sobre la cara" }]}

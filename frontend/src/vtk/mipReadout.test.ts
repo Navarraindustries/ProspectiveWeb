@@ -44,4 +44,9 @@ describe("mipReadoutLines", () => {
     // En compacto no cabe: no cambia.
     expect(mipReadoutLines({ ...o, compact: true, windowDerived: true })).toEqual(["ACUM 5/10"]);
   });
+  it("LOCAL se lee en la línea del corte, en compacto y ampliado", () => {
+    expect(mipReadoutLines({ ...base, mode: "acumulado", compact: true, local: true })).toEqual(["ACUM 193/384 · LOCAL"]);
+    expect(mipReadoutLines({ ...base, mode: "acumulado", compact: false, local: true })[0]).toBe("ACUMULADO HASTA 193/384 · LOCAL");
+    expect(mipReadoutLines({ ...base, mode: "lamina", compact: false, render: "compuesto", preset: "Vasos", local: true })[1]).toBe("LÁMINA ±10 mm · LOCAL");
+  });
 });

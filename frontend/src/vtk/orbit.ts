@@ -7,7 +7,7 @@ import { voxelToMm, type Vec3 } from "./geometry";
 
 export type Bounds6 = [number, number, number, number, number, number];
 export type ClipState =
-  | { mode: "eje"; axis: 0 | 1 | 2; posMm: number; acumulado: boolean; reverse: boolean; slabMm: number }
+  | { mode: "eje"; axis: 0 | 1 | 2; posMm: number; acumulado: boolean; reverse: boolean; slabMm: number; box?: Bounds6 }
   | { mode: "libre"; normal: Vec3; originMm: Vec3; polygon: Vec3[]; polygons?: Vec3[][]; acumulado: boolean; reverse: boolean; slabMm: number };
 export const MIN_EXTENT_MM = 1;
 
@@ -63,6 +63,8 @@ export function visibleBounds(bounds: Bounds6, clip: ClipState): Bounds6 {
     const v = bounds.slice() as Bounds6, lo = 2 * clip.axis, hi = lo + 1;
     if (clip.acumulado) { if (clip.reverse) v[lo] = clip.posMm; else v[hi] = clip.posMm; }
     else { v[lo] = clip.posMm - clip.slabMm; v[hi] = clip.posMm + clip.slabMm; }
+    // Con LOCAL solo se ve lo que queda dentro de la caja: encuadrar el resto es encuadrar vacío.
+    if (clip.box) for (let a = 0; a < 3; a++) { v[2 * a] = Math.max(v[2 * a], clip.box[2 * a]); v[2 * a + 1] = Math.min(v[2 * a + 1], clip.box[2 * a + 1]); }
     return clampTo(v, bounds);
   }
   if (!clip.polygon.length) return bounds;

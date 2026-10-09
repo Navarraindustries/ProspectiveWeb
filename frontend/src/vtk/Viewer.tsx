@@ -26,6 +26,9 @@ import { useVesselBand } from "./useVesselBand";
 import { volumePresetsFor } from "./volumePresets";
 import { levelNoteFor } from "./levelNote";
 import { hasWebGL2 } from "./webgl";
+import { lesionFrameRadiusMm } from "./lesionFrame";
+// El visor la exportaba: se mantiene la salida para no romper a quien la importe de aquí.
+export { lesionFrameRadiusMm };
 import { ObliqueMprView } from "./ObliqueMprView";
 import { cameraHeading, effectiveDirection, mmToVoxel, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
 import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
@@ -1251,6 +1254,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const lesion: Vec3 | null = neck
     ? [neck.x, neck.y, neck.z]
     : candidate ? [candidate.center_mm.x, candidate.center_mm.y, candidate.center_mm.z] : null;
+  // Para la caja LOCAL de VOLUMEN: memorizado por valor, para que MipView no rehaga sus planos en cada render.
+  const lesionDiam = morphometry?.max_diameter_mm ?? candidate?.max_diameter_mm ?? 0;
+  const mipLesion = useMemo(() => (lesion ? { center: lesion, diameterMm: lesionDiam } : null), [lesion?.[0], lesion?.[1], lesion?.[2], lesionDiam]);   // eslint-disable-line react-hooks/exhaustive-deps
   const centerOnLesion = () => {
     if (!lesion || !meta) return;
     setFocusMm(lesion, meta);
@@ -1613,7 +1619,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       return (
         <Suspense fallback={<ViewerLoading label="Cargando VOLUMEN…" />}>
           <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} registerFit={regFit("mip")}
-            overlay={cineBarFor("mip", compact)} showInset={hudLevel !== "limpio"} vesselBand={vesselBand} />
+            overlay={cineBarFor("mip", compact)} showInset={hudLevel !== "limpio"} vesselBand={vesselBand} lesion={mipLesion} />
         </Suspense>
       );
     }
@@ -1965,17 +1971,6 @@ function deviceLayer(d: { kind: "clips" | "coils" | "stent"; url: string; color:
     }
   }
   return layer;
-}
-
-/** Medio lado del cubo que encuadra «Centrar en la lesión».
- *
- *  Eran 30 mm fijos, o sea un cubo de 60: en una 3D-RA eso es el árbol entero,
- *  y un aneurisma de 4 mm quedaba en un punto de seis píxeles sobre el que
- *  había que marcar cuello y ápice. Ahora es la lesión y lo que la rodea: dos
- *  veces y media su diámetro, entre 6 y 15 mm. */
-export function lesionFrameRadiusMm(diameterMm: number): number {
-  if (!(diameterMm > 0)) return 10;
-  return Math.min(15, Math.max(6, 2.5 * diameterMm));
 }
 
 /** Texto del aviso de marcado para cada modo. */

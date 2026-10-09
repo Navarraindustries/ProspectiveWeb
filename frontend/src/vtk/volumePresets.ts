@@ -2,13 +2,23 @@
    0–255 del volumen reducido que aquel pedía al servidor. Aquí se llevan al
    rango real de intensidades del volumen que ya está en el navegador, para
    que «Hueso» siga siendo hueso sin volver a bajar nada. */
-export type VolumePreset = "CTA" | "Vasos CTA" | "Cerebro" | "Hemorragia" | "Hueso" | "Tejido blando";
-export const VOLUME_PRESETS: VolumePreset[] = ["CTA", "Vasos CTA", "Cerebro", "Hemorragia", "Hueso", "Tejido blando"];
+import { isHuModality } from "./modality";
+
+export type VolumePreset = "CTA" | "Vasos CTA" | "Cerebro" | "Hemorragia" | "Hueso" | "Tejido blando" | "Vasos" | "Todo";
+/** Preajustes de tejido: solo tienen sentido en HU. */
+export const HU_VOLUME_PRESETS: VolumePreset[] = ["CTA", "Vasos CTA", "Cerebro", "Hemorragia", "Hueso", "Tejido blando"];
+/** Fuera de TC (XA/3DRA) la intensidad no es tejido: «Hueso» era «lo más
+ *  brillante» y «Cerebro» no significaba nada. Dos preajustes que sí dicen algo. */
+export const XA_VOLUME_PRESETS: VolumePreset[] = ["Vasos", "Todo"];
+
+export function volumePresetsFor(modality: string | null | undefined): VolumePreset[] {
+  return isHuModality(modality) ? HU_VOLUME_PRESETS : XA_VOLUME_PRESETS;
+}
 export interface TransferPoints { color: [number, number, number, number][]; opacity: [number, number][]; lighting: { ambient: number; diffuse: number; specular: number } }
 
 // [x, r, g, b] y [x, a] con x en 0–255: el servidor reescalaba p1–p99 a
 // 0–255, así que 0 y 255 son los extremos de `intensity_range`.
-const RAW: Record<VolumePreset, TransferPoints> = {
+const BASE: Record<Exclude<VolumePreset, "Vasos" | "Todo">, TransferPoints> = {
   "CTA": {
     color: [[0, 0, 0, 0], [70, 0.5, 0.15, 0.1], [130, 0.9, 0.55, 0.35], [200, 1, 0.85, 0.7], [255, 1, 1, 1]],
     opacity: [[0, 0], [60, 0], [110, 0.18], [180, 0.5], [255, 0.85]],
@@ -41,6 +51,10 @@ const RAW: Record<VolumePreset, TransferPoints> = {
   },
 };
 
+// «Vasos» y «Todo» no son curvas nuevas: la de «Vasos CTA» (aisla lo brillante)
+// y la de «CTA» (todo el rango) llevadas a otra ventana por defecto.
+const RAW: Record<VolumePreset, TransferPoints> = { ...BASE, "Vasos": BASE["Vasos CTA"], "Todo": BASE["CTA"] };
+
 /** Ventana de intensidad (nivel y anchura) a la que se llevan los puntos 0–255 de un preajuste. */
 export interface VolumeWindow { wc: number; ww: number }
 
@@ -48,6 +62,13 @@ export interface VolumeWindow { wc: number; ww: number }
 export function defaultWindow(range: [number, number]): VolumeWindow {
   const lo = range[0], hi = Math.max(range[1], range[0] + 1);
   return { wc: (lo + hi) / 2, ww: hi - lo };
+}
+
+/** Ventana por defecto de un preajuste: «Vasos» arranca en la banda de vasos
+ *  del volumen (spec §3.2); los demás, en el rango robusto como siempre. */
+export function defaultVolumeWindow(preset: VolumePreset, range: [number, number], band: [number, number] | null): VolumeWindow {
+  if (preset === "Vasos" && band && band[1] > band[0]) return { wc: (band[0] + band[1]) / 2, ww: band[1] - band[0] };
+  return defaultWindow(range);
 }
 
 /** Los puntos del preajuste (dominio 0–255) llevados linealmente a la ventana; ww se acota a ≥ 1 para que los puntos sigan siendo monótonos. */

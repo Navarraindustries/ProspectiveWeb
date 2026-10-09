@@ -273,10 +273,10 @@ describe("volume version", () => {
 });
 
 describe("modo y preajuste de la vista VOLUMEN", () => {
-  it("empieza en MIP con «Vasos CTA» y los setters no tocan el modo del MIP", () => {
+  it("empieza en MIP con «Vasos» y los setters no tocan el modo del MIP", () => {
     const { result } = renderHook(() => usePlanning(), { wrapper });
     expect(result.current.volumeMode).toBe("mip");
-    expect(result.current.volumePreset).toBe("Vasos CTA");
+    expect(result.current.volumePreset).toBe("Vasos");
     act(() => {
       result.current.setVolumeMode("compuesto");
       result.current.setVolumePreset("Hueso");
@@ -294,7 +294,7 @@ describe("modo y preajuste de la vista VOLUMEN", () => {
     });
     act(() => result.current.reset());
     expect(result.current.volumeMode).toBe("mip");
-    expect(result.current.volumePreset).toBe("Vasos CTA");
+    expect(result.current.volumePreset).toBe("Vasos");
   });
 });
 
@@ -434,5 +434,15 @@ describe("anotaciones", () => {
     act(() => result.current.setAnnotationsLoadState("pendiente"));
     act(() => result.current.setAnnotationsLoaded([]));
     expect(result.current.annotationsLoadState).toBe("cargado");
+  });
+});
+
+describe("VOLUMEN abre en «Vasos»", () => {
+  it("el preajuste inicial y el de después de reset es Vasos", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.volumePreset).toBe("Vasos");
+    act(() => result.current.setVolumePreset("Hueso"));
+    act(() => result.current.reset());
+    expect(result.current.volumePreset).toBe("Vasos");
   });
 });

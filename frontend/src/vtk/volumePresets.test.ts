@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { VOLUME_PRESETS, defaultWindow, presetToRange, presetToWindow } from "./volumePresets";
+import { HU_VOLUME_PRESETS, XA_VOLUME_PRESETS, defaultVolumeWindow, defaultWindow, presetToRange, presetToWindow, volumePresetsFor } from "./volumePresets";
 
 describe("presetToRange", () => {
-  it("hay seis preajustes con los nombres de siempre", () => {
-    expect(VOLUME_PRESETS).toEqual(["CTA", "Vasos CTA", "Cerebro", "Hemorragia", "Hueso", "Tejido blando"]);
+  it("en TC hay seis preajustes de tejido con los nombres de siempre", () => {
+    expect(HU_VOLUME_PRESETS).toEqual(["CTA", "Vasos CTA", "Cerebro", "Hemorragia", "Hueso", "Tejido blando"]);
+    expect(volumePresetsFor("CT")).toEqual(HU_VOLUME_PRESETS);
+    expect(volumePresetsFor("ctpa")).toEqual(HU_VOLUME_PRESETS);
   });
   it("lleva 0 → lo y 255 → hi, y conserva el orden de los puntos", () => {
     const t = presetToRange("CTA", [1000, 3000]);
@@ -40,5 +42,25 @@ describe("presetToWindow", () => {
     expect(defaultWindow([1000, 3000])).toEqual({ wc: 2000, ww: 2000 });
     // Rango degenerado: el dominio sigue siendo [7, 8], como en el antiguo presetToRange, así que el nivel es 7.5.
     expect(defaultWindow([7, 7])).toEqual({ wc: 7.5, ww: 1 });
+  });
+});
+
+describe("preajustes por modalidad (spec §3.2)", () => {
+  it("fuera de TC solo hay VASOS y TODO, en ese orden", () => {
+    expect(volumePresetsFor("XA")).toEqual(["Vasos", "Todo"]);
+    expect(volumePresetsFor(null)).toEqual(XA_VOLUME_PRESETS);
+  });
+  it("«Vasos» y «Todo» reutilizan las curvas de «Vasos CTA» y «CTA» punto a punto", () => {
+    expect(presetToRange("Vasos", [0, 255])).toEqual(presetToRange("Vasos CTA", [0, 255]));
+    expect(presetToRange("Todo", [0, 255])).toEqual(presetToRange("CTA", [0, 255]));
+  });
+  it("la ventana por defecto de «Vasos» es la banda de vasos; la del resto, el rango", () => {
+    expect(defaultVolumeWindow("Vasos", [0, 5000], [1470, 4717])).toEqual({ wc: 3093.5, ww: 3247 });
+    expect(defaultVolumeWindow("Todo", [0, 5000], [1470, 4717])).toEqual(defaultWindow([0, 5000]));
+    expect(defaultVolumeWindow("Hueso", [0, 5000], [1470, 4717])).toEqual(defaultWindow([0, 5000]));
+  });
+  it("sin banda (o degenerada) «Vasos» cae al rango", () => {
+    expect(defaultVolumeWindow("Vasos", [0, 5000], null)).toEqual(defaultWindow([0, 5000]));
+    expect(defaultVolumeWindow("Vasos", [0, 5000], [3000, 3000])).toEqual(defaultWindow([0, 5000]));
   });
 });

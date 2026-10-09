@@ -23,6 +23,7 @@ import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { useVolumeMeta } from "./useVolumeMeta";
 import { useVesselBand } from "./useVesselBand";
+import { volumePresetsFor } from "./volumePresets";
 import { levelNoteFor } from "./levelNote";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
@@ -231,7 +232,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     mprWl, mprVoxel, setMprWl, setMprVoxel,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
-    volumeMode, volumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
+    volumeMode, volumePreset, setVolumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
     slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
@@ -1236,6 +1237,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, morphometry?.neck_origin, meta]);
 
+  // El preajuste de VOLUMEN tiene que existir en esta modalidad: la sesión
+  // arranca en «Vasos» (XA) y un TC lo cambia a «CTA» al llegar la meta.
+  useEffect(() => {
+    if (!meta) return;
+    const list = volumePresetsFor(meta.modality);
+    if (!list.includes(volumePreset)) setVolumePreset(list[0]);
+  }, [meta, volumePreset, setVolumePreset]);
+
   // «Centrar en la lesión»: el cuello medido si lo hay; si no, el candidato.
   const neck = morphometry?.neck_origin;
   const lesion: Vec3 | null = neck
@@ -1592,7 +1601,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       return (
         <Suspense fallback={<ViewerLoading label="Cargando VOLUMEN…" />}>
           <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} registerFit={regFit("mip")}
-            overlay={cineBarFor("mip", compact)} showInset={hudLevel !== "limpio"} />
+            overlay={cineBarFor("mip", compact)} showInset={hudLevel !== "limpio"} vesselBand={vesselBand} />
         </Suspense>
       );
     }

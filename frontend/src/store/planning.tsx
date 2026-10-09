@@ -530,7 +530,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [mipSlabMm, setMipSlabMm] = useState(10);
   const [mipPlane, setMipPlane] = useState<Plane | null>(null);
   const [volumeMode, setVolumeMode] = useState<"mip" | "compuesto">("mip");
-  const [volumePreset, setVolumePreset] = useState<VolumePreset>("Vasos CTA");
+  const [volumePreset, setVolumePreset] = useState<VolumePreset>("Vasos");
   const [freePlane, setFreePlaneState] = useState<FreePlane>(DEFAULT_FREE_PLANE);
   const setFreePlane = (p: FreePlane) => setFreePlaneState(clampPlane(p));
   const [clipMode, setClipMode] = useState<"eje" | "libre">("eje");
@@ -675,9 +675,10 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     // seguir a la vista principal.
     setMipPlane(null);
     // El modo y el preajuste de VOLUMEN también son de la sesión: el estudio
-    // nuevo abre en MIP, como siempre.
+    // nuevo abre en MIP y con «Vasos»; si es TC, el visor lo cambia al primer
+    // preajuste de tejido al llegar la meta.
     setVolumeMode("mip");
-    setVolumePreset("Vasos CTA");
+    setVolumePreset("Vasos");
     // El plano libre, el modo de recorte y las ventanas se ajustaron sobre el
     // volumen anterior: el estudio nuevo abre con el recorte por ejes.
     setFreePlaneState(DEFAULT_FREE_PLANE);

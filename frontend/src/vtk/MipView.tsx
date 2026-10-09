@@ -20,7 +20,8 @@
    pinta en gris con la ventana de los cortes.
    En COMPUESTO el botón derecho arrastra el nivel y la ventana del preajuste
    (vertical nivel, horizontal ventana, como en los cortes); cada preajuste
-   recuerda la suya y RESTABLECER vuelve a la que abarca el rango robusto. */
+   recuerda la suya y RESTABLECER vuelve a la de por defecto (la banda de vasos
+   en «Vasos», el rango robusto en los demás). */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import "@kitware/vtk.js/Rendering/Profiles/Volume";
@@ -50,7 +51,7 @@ import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
 import { createOrientationInset, INSET_VIEWPORT, type OrientationInset } from "./OrientationInset";
 import { mipReadoutLines } from "./mipReadout";
 import { unitFor } from "./modality";
-import { defaultWindow, presetToWindow, VOLUME_PRESETS, type VolumePreset, type VolumeWindow } from "./volumePresets";
+import { defaultVolumeWindow, presetToWindow, volumePresetsFor, type VolumePreset, type VolumeWindow } from "./volumePresets";
 import { windowFromDrag } from "./windowDrag";
 import { AXIS_OF, indexOf, wheelAction, withIndex } from "./mipGestures";
 import { planeCorners, toPixels, tracePolygon, traceVisible, traceVisibleForNormal } from "./planeTrace";
@@ -78,7 +79,6 @@ const RENDER_OPTIONS = [
   { key: "mip", label: "MIP", title: "Proyección de máxima intensidad" },
   { key: "compuesto", label: "COMPUESTO", title: "Composición por tejidos con el preajuste elegido" },
 ];
-const PRESET_OPTIONS = VOLUME_PRESETS.map((p) => ({ key: p, label: p.toUpperCase(), title: `Preajuste «${p}»` }));
 
 /** Cámara de frente al eje de vóxel que se acumula, centrada en el volumen.
  *  El recorte sigue los ejes de vóxel, así que la cámara también: en un
@@ -95,7 +95,7 @@ function cameraToPlane(grw: vtkGenericRenderWindow, image: vtkImageData, plane: 
   renderer.resetCamera();
 }
 
-export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit, overlay, showInset = true }: {
+export function MipView({ image, meta, orientation, compact = false, plane, onPlaneChange, registerCapture, registerFit, overlay, showInset = true, vesselBand }: {
   image: vtkImageData; meta: VolumeMeta; orientation: Orientation; compact?: boolean;
   /** Eje en el que acumula y que recorre la rueda. */
   plane: Plane;
@@ -113,6 +113,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   overlay?: ReactNode;
   /** El recuadro del maniquí; false con el HUD limpio (el CSS no llega a vtk). */
   showInset?: boolean;
+  /** Banda de vasos del volumen (Tarea 1): ventana por defecto de «VASOS». */
+  vesselBand: [number, number] | null;
 }) {
   const {
     mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
@@ -180,9 +182,10 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   const rawLo = Number.isFinite(lower) ? lower : rlo + 0.6 * (rhi - rlo);
   // Dentro del rango: una banda fuera de él dejaría la rampa sin pendiente.
   const lo = Math.min(Math.max(rawLo, rlo), rhi - 1);
-  // Ventana del preajuste en COMPUESTO: la guardada para ese preajuste o la
-  // que abarca el rango robusto (la que daba presetToRange).
-  const win: VolumeWindow = volumeWindows[volumePreset] ?? defaultWindow([rlo, rhi]);
+  // Los preajustes que tienen sentido en esta modalidad (spec §3.2).
+  const presetOptions = volumePresetsFor(meta.modality).map((p) => ({ key: p, label: p.toUpperCase(), title: `Preajuste «${p}»` }));
+  // Ventana del preajuste en COMPUESTO: la guardada para él o su ventana por defecto.
+  const win: VolumeWindow = volumeWindows[volumePreset] ?? defaultVolumeWindow(volumePreset, [rlo, rhi], vesselBand);
 
   useEffect(() => {
     const el = ref.current; if (!el) return;
@@ -652,8 +655,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             {volumeMode === "compuesto" && (
               // RESTABLECER va al final de la fila y salta con ella si no cabe.
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
-                <HudToggleGroup options={PRESET_OPTIONS} value={volumePreset} onChange={(k) => setVolumePreset(k as VolumePreset)} style={{ flexWrap: "wrap" }} />
-                <HudToggleGroup options={[{ key: "reset", label: "RESTABLECER", title: "Volver a la ventana por defecto de este preajuste (todo el rango robusto)" }]}
+                <HudToggleGroup options={presetOptions} value={volumePreset} onChange={(k) => setVolumePreset(k as VolumePreset)} style={{ flexWrap: "wrap" }} />
+                <HudToggleGroup options={[{ key: "reset", label: "RESTABLECER", title: "Volver a la ventana por defecto de este preajuste" }]}
                   value="" onChange={() => setVolumeWindow(volumePreset, null)} />
               </div>
             )}

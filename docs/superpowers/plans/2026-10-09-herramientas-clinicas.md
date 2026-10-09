@@ -45,13 +45,13 @@
 - Consumes: `api.suggestedBand(sessionId) → Promise<SuggestedBand {lower, upper, vmin, vmax}>` (`api/client.ts:328`), `SegmentResult.threshold_lower?: number` (`api/types.ts:370`).
 - Produces: `export type VesselBand = [number, number]`; `export function useVesselBand(sessionId: string | null, segmentation: SegmentResult | null, volumeVersion?: number): VesselBand | null`. Tareas 2 y 3 reciben la banda como prop `vesselBand` de `MipView`.
 
-- [ ] **Step 1: Crear la rama**
+- [x] **Step 1: Crear la rama**
 
 ```bash
 git checkout -b herramientas-clinicas master
 ```
 
-- [ ] **Step 2: Escribir la prueba del hook**
+- [x] **Step 2: Escribir la prueba del hook**
 
 `frontend/src/vtk/useVesselBand.test.ts`:
 
@@ -106,12 +106,12 @@ describe("useVesselBand", () => {
 });
 ```
 
-- [ ] **Step 3: Ejecutar y ver fallar**
+- [x] **Step 3: Ejecutar y ver fallar**
 
 Run: `cd frontend && npx vitest run src/vtk/useVesselBand.test.ts`
 Expected: FAIL — «Cannot find module './useVesselBand'».
 
-- [ ] **Step 4: Implementar el hook**
+- [x] **Step 4: Implementar el hook**
 
 `frontend/src/vtk/useVesselBand.ts`:
 
@@ -152,12 +152,12 @@ export function useVesselBand(sessionId: string | null, segmentation: SegmentRes
 }
 ```
 
-- [ ] **Step 5: Ejecutar y ver pasar**
+- [x] **Step 5: Ejecutar y ver pasar**
 
 Run: `cd frontend && npx vitest run src/vtk/useVesselBand.test.ts`
 Expected: PASS (5 pruebas).
 
-- [ ] **Step 6: Usar la banda en el visor**
+- [x] **Step 6: Usar la banda en el visor**
 
 En `frontend/src/vtk/Viewer.tsx`, añade el import junto a los demás de `./`:
 
@@ -181,12 +181,12 @@ Sustituye la construcción de los preajustes (hoy `windowPresets(meta, previewBa
 
 y actualiza el comentario de encima: «se derivan de la meta y de la banda activa (vista previa viva mientras se ajusta el umbral; si no, la banda de vasos del volumen, que sobrevive a la segmentación)».
 
-- [ ] **Step 7: Comprobar tipos y suites tocadas**
+- [x] **Step 7: Comprobar tipos y suites tocadas**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/vtk/useVesselBand.test.ts src/vtk/windowPresets.test.ts`
 Expected: tsc sin errores; PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add frontend/src/vtk/useVesselBand.ts frontend/src/vtk/useVesselBand.test.ts frontend/src/vtk/Viewer.tsx
@@ -213,7 +213,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 - Consumes: `VesselBand` (Tarea 1), `isHuModality` (`vtk/modality.ts`).
 - Produces: `VolumePreset` ampliado con `"Vasos" | "Todo"`; `HU_VOLUME_PRESETS`, `XA_VOLUME_PRESETS`; `volumePresetsFor(modality: string | null | undefined): VolumePreset[]`; `defaultVolumeWindow(preset: VolumePreset, range: [number, number], band: [number, number] | null): VolumeWindow`. `MipView` gana la prop `vesselBand: [number, number] | null`. `VOLUME_PRESETS` desaparece.
 
-- [ ] **Step 1: Actualizar las pruebas de los preajustes**
+- [x] **Step 1: Actualizar las pruebas de los preajustes**
 
 En `frontend/src/vtk/volumePresets.test.ts`, cambia el import y la primera prueba, y añade un bloque:
 
@@ -250,12 +250,12 @@ describe("preajustes por modalidad (spec §3.2)", () => {
 });
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 Run: `cd frontend && npx vitest run src/vtk/volumePresets.test.ts`
 Expected: FAIL — `volumePresetsFor` no exportado.
 
-- [ ] **Step 3: Implementar en `volumePresets.ts`**
+- [x] **Step 3: Implementar en `volumePresets.ts`**
 
 Reemplaza las dos primeras líneas de código (tipo y `VOLUME_PRESETS`) y la constante `RAW`, y añade `defaultVolumeWindow`:
 
@@ -293,12 +293,12 @@ export function defaultVolumeWindow(preset: VolumePreset, range: [number, number
 }
 ```
 
-- [ ] **Step 4: Ejecutar y ver pasar**
+- [x] **Step 4: Ejecutar y ver pasar**
 
 Run: `cd frontend && npx vitest run src/vtk/volumePresets.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Cablear `MipView`**
+- [x] **Step 5: Cablear `MipView`**
 
 En `frontend/src/vtk/MipView.tsx`:
 - Import: sustituye `VOLUME_PRESETS` por `defaultVolumeWindow, volumePresetsFor` (deja `defaultWindow` si sigue usándose; si no, quítalo).
@@ -316,7 +316,7 @@ En `frontend/src/vtk/MipView.tsx`:
 (reemplaza la línea `const win: VolumeWindow = volumeWindows[volumePreset] ?? defaultWindow([rlo, rhi]);`).
 - En el JSX, `options={PRESET_OPTIONS}` → `options={presetOptions}`. El título de RESTABLECER pasa a «Volver a la ventana por defecto de este preajuste».
 
-- [ ] **Step 6: Store y visor**
+- [x] **Step 6: Store y visor**
 
 `frontend/src/store/planning.tsx`: `useState<VolumePreset>("Vasos CTA")` → `useState<VolumePreset>("Vasos")`; en `reset()`, `setVolumePreset("Vasos CTA")` → `setVolumePreset("Vasos")`, y cambia el comentario: «el estudio nuevo abre en MIP y con «Vasos»; si es TC, el visor lo cambia al primer preajuste de tejido al llegar la meta».
 
@@ -337,7 +337,7 @@ En `frontend/src/vtk/MipView.tsx`:
 
 (`setVolumePreset` hay que añadirlo a la destructuración de `usePlanning()` del visor, línea ~233.)
 
-- [ ] **Step 7: Prueba del store y de los nombres**
+- [x] **Step 7: Prueba del store y de los nombres**
 
 En `frontend/src/store/planning.test.tsx` añade al final:
 
@@ -363,12 +363,12 @@ En `frontend/src/vtk/copy.test.ts` añade al `describe("nombres de los botones")
   });
 ```
 
-- [ ] **Step 8: Verificar**
+- [x] **Step 8: Verificar**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/vtk/volumePresets.test.ts src/store/planning.test.tsx src/vtk/copy.test.ts src/vtk/mipReadout.test.ts`
 Expected: tsc limpio; PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add frontend/src/vtk/volumePresets.ts frontend/src/vtk/volumePresets.test.ts frontend/src/vtk/MipView.tsx frontend/src/store/planning.tsx frontend/src/store/planning.test.tsx frontend/src/vtk/Viewer.tsx frontend/src/vtk/copy.test.ts
@@ -393,7 +393,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 - Consumes: `VolumeWindow`, `windowFromDrag(start, dx, dy, range)`, `WL_TITLE` (`vtk/windowPresets.ts`).
 - Produces: `derivedMipWindow(thresholdLo: number, rangeHi: number): VolumeWindow`; `mipRampPoints(w: VolumeWindow, rangeLo: number): { color: [number, number, number, number][]; opacity: [number, number][] }`; store `mipWindow: VolumeWindow | null`, `setMipWindow(w: VolumeWindow | null)`; `mipReadoutLines` acepta `windowDerived?: boolean`.
 
-- [ ] **Step 1: Prueba de la rampa**
+- [x] **Step 1: Prueba de la rampa**
 
 `frontend/src/vtk/mipRamp.test.ts`:
 
@@ -427,12 +427,12 @@ describe("la rampa del MIP", () => {
 });
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 Run: `cd frontend && npx vitest run src/vtk/mipRamp.test.ts`
 Expected: FAIL — módulo inexistente.
 
-- [ ] **Step 3: Implementar `mipRamp.ts`**
+- [x] **Step 3: Implementar `mipRamp.ts`**
 
 ```ts
 /* La rampa de gris del MIP expresada como ventana (nivel y anchura), para que
@@ -460,12 +460,12 @@ export function mipRampPoints(w: VolumeWindow, rangeLo: number): MipRamp {
 }
 ```
 
-- [ ] **Step 4: Ejecutar y ver pasar**
+- [x] **Step 4: Ejecutar y ver pasar**
 
 Run: `cd frontend && npx vitest run src/vtk/mipRamp.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Lectura: prueba y cambio**
+- [x] **Step 5: Lectura: prueba y cambio**
 
 En `frontend/src/vtk/mipReadout.test.ts` añade:
 
@@ -496,7 +496,7 @@ Actualiza el comentario de cabecera: «En MIP ampliado, con ventana, la segunda 
 
 Run: `cd frontend && npx vitest run src/vtk/mipReadout.test.ts` → PASS.
 
-- [ ] **Step 6: Store**
+- [x] **Step 6: Store**
 
 `frontend/src/store/planning.tsx`:
 - Interfaz (junto a `volumeWindows`): 
@@ -510,7 +510,7 @@ Run: `cd frontend && npx vitest run src/vtk/mipReadout.test.ts` → PASS.
 - `reset()`: `setMipWindow(null);` junto a `setVolumeWindows({})`.
 - Value del provider: añade `mipWindow` y `setMipWindow`.
 
-- [ ] **Step 7: `MipView`: rampa, arrastre, RESTABLECER, lectura**
+- [x] **Step 7: `MipView`: rampa, arrastre, RESTABLECER, lectura**
 
 En `frontend/src/vtk/MipView.tsx`:
 
@@ -565,12 +565,12 @@ En `frontend/src/vtk/MipView.tsx`:
    (si `HudReadout` deja de usarse en `MipView`, quita su import; la Tarea 6 añade `local: !!box` a este mismo objeto).
    `readHud` lee `.hud-readout` por `textContent` y el salto de línea `\n` lo da `white-space: pre`; `HudReadout` ya usaba esa misma regla.
 
-- [ ] **Step 8: Verificar**
+- [x] **Step 8: Verificar**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/vtk/mipRamp.test.ts src/vtk/mipReadout.test.ts src/vtk/readHud.test.ts src/vtk/composeCapture.test.ts src/store/planning.test.tsx`
 Expected: tsc limpio; PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add frontend/src/vtk/mipRamp.ts frontend/src/vtk/mipRamp.test.ts frontend/src/vtk/mipReadout.ts frontend/src/vtk/mipReadout.test.ts frontend/src/store/planning.tsx frontend/src/vtk/MipView.tsx
@@ -594,7 +594,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 - Consumes: `normalOf`, `clampPlane`, `ELEVATION_RANGE` (freePlane); `standardViewInVolume`, `effectiveDirection`, `fromLps`, `StandardView`, `Orientation` (geometry).
 - Produces: `planeFromNormal(n: Vec3): FreePlane`; `oppositeView(v: StandardView): StandardView`; `resolveView(view: StandardView, currentDop: Vec3, o: Orientation): StandardView` (`SAME_VIEW_DOT = 0.99`); `lookAlongUp(dir: Vec3, o: Orientation): Vec3`; `CameraController.lookAlong(dir: Vec3, focal: Vec3, radiusMm: number): void`.
 
-- [ ] **Step 1: Pruebas de `planeFromNormal`**
+- [x] **Step 1: Pruebas de `planeFromNormal`**
 
 En `frontend/src/vtk/freePlane.test.ts`, añade `planeFromNormal` al import y:
 
@@ -623,7 +623,7 @@ describe("planeFromNormal (spec §4.2)", () => {
 });
 ```
 
-- [ ] **Step 2: Implementar `planeFromNormal`** (en `freePlane.ts`, tras `normalOf`)
+- [x] **Step 2: Implementar `planeFromNormal`** (en `freePlane.ts`, tras `normalOf`)
 
 ```ts
 /** El plano libre cuya normal es `n` (offset 0): la inversa de `normalOf`.
@@ -643,7 +643,7 @@ export function planeFromNormal(n: Vec3): FreePlane {
 
 Run: `cd frontend && npx vitest run src/vtk/freePlane.test.ts` → PASS.
 
-- [ ] **Step 3: Pruebas de `oppositeView`, `resolveView`, `lookAlongUp`**
+- [x] **Step 3: Pruebas de `oppositeView`, `resolveView`, `lookAlongUp`**
 
 En `frontend/src/vtk/geometry.test.ts` añade al import `lookAlongUp, oppositeView, resolveView, type Orientation` y:
 
@@ -686,7 +686,7 @@ describe("lookAlongUp (spec §4.2)", () => {
 
 `Orientation` es `{ direction: number[] | null; manual: ManualOrientation | null }` (`geometry.ts:13`); con los dos campos a `null` es la orientación asumida (+z superior), la misma que usan las pruebas existentes de `standardViewInVolume`. Añade `type Orientation` al import del test si no está.
 
-- [ ] **Step 4: Implementar en `geometry.ts`** (tras `standardViewInVolume`)
+- [x] **Step 4: Implementar en `geometry.ts`** (tras `standardViewInVolume`)
 
 ```ts
 /** La cara contraria de una vista estándar. */
@@ -725,7 +725,7 @@ export function lookAlongUp(dir: Vec3, o: Orientation): Vec3 {
 
 Run: `cd frontend && npx vitest run src/vtk/geometry.test.ts` → PASS.
 
-- [ ] **Step 5: `MeshView`: `setView` resuelve la cara y `lookAlong`**
+- [x] **Step 5: `MeshView`: `setView` resuelve la cara y `lookAlong`**
 
 En `frontend/src/vtk/MeshView.tsx`:
 - Import `lookAlongUp, resolveView` desde `./geometry` (junto a `standardViewInVolume`).
@@ -766,7 +766,7 @@ En `frontend/src/vtk/MeshView.tsx`:
 ```
 - Busca otros objetos que implementen `CameraController` (`grep -rn "CameraController" frontend/src --include=*.ts --include=*.tsx`) y añade `lookAlong` a los dobles de prueba que fallen en `tsc`.
 
-- [ ] **Step 6: Títulos en `Viewer.tsx`**
+- [x] **Step 6: Títulos en `Viewer.tsx`**
 
 ```ts
 const CAMERA_BUTTONS: [CameraView, string, string][] = [
@@ -777,7 +777,7 @@ const CAMERA_BUTTONS: [CameraView, string, string][] = [
 ];
 ```
 
-- [ ] **Step 7: Verificar y commit**
+- [x] **Step 7: Verificar y commit**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/vtk/freePlane.test.ts src/vtk/geometry.test.ts src/vtk/copy.test.ts`
 Expected: tsc limpio; PASS.
@@ -806,7 +806,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 - Consumes: `planeFromNormal`, `CameraController.lookAlong`, `lesionFrameRadiusMm` (Viewer), store `trajEntry/trajTarget/setFocusMm/setFreePlane`, `morphometry.principal_axis`.
 - Produces: `approachDirection(entry: Vec3, target: Vec3): Vec3 | null`; `angleReferenceLabel(axis: number[] | null | undefined): { text: string; title: string }`.
 
-- [ ] **Step 1: Pruebas**
+- [x] **Step 1: Pruebas**
 
 `frontend/src/vtk/approachView.test.ts`:
 
@@ -834,7 +834,7 @@ describe("angleReferenceLabel (spec §4.1)", () => {
 });
 ```
 
-- [ ] **Step 2: Implementar `approachView.ts`**
+- [x] **Step 2: Implementar `approachView.ts`**
 
 ```ts
 /* El abordaje como dirección: lo que la cámara mira y lo que el plano Oblicuo
@@ -859,7 +859,7 @@ export function angleReferenceLabel(axis: number[] | null | undefined): { text: 
 
 Run: `cd frontend && npx vitest run src/vtk/approachView.test.ts` → PASS.
 
-- [ ] **Step 3: Botón «ABORDAJE» en el visor**
+- [x] **Step 3: Botón «ABORDAJE» en el visor**
 
 En `frontend/src/vtk/Viewer.tsx`:
 - Imports: `import { approachDirection } from "./approachView";` y `planeFromNormal` desde `./freePlane` (amplía el import existente).
@@ -887,7 +887,7 @@ En `frontend/src/vtk/Viewer.tsx`:
                 value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : k === "abordaje" ? viewApproach() : camera.setView(k as CameraView))} />
 ```
 
-- [ ] **Step 4: Etiqueta del ángulo en el panel**
+- [x] **Step 4: Etiqueta del ángulo en el panel**
 
 En `frontend/src/components/planning/DevicesPanel.tsx`:
 - `function TrajectoryTool()` → `export function TrajectoryTool()`.
@@ -900,7 +900,7 @@ En `frontend/src/components/planning/DevicesPanel.tsx`:
           ); })()}
 ```
 
-- [ ] **Step 5: Prueba del panel**
+- [x] **Step 5: Prueba del panel**
 
 `frontend/src/components/planning/TrajectoryTool.test.tsx`:
 
@@ -944,7 +944,7 @@ describe("TrajectoryTool", () => {
 
 Si `DevicesPanel.tsx` arrastra al montarse módulos que rompan el test (p. ej. vtk), añade `vi.mock` para esos módulos como hace `DevicesPanel.clipField.test.tsx` (cópialos de ahí).
 
-- [ ] **Step 6: Informe y guardia de nombres**
+- [x] **Step 6: Informe y guardia de nombres**
 
 `backend/services/report_generator.py:1689`: `["Ángulo de incidencia", …]` → `["Ángulo respecto al eje del aneurisma", …]`. Comprueba que ninguna prueba espera el texto viejo: `grep -rn "ngulo de incidencia" backend/*.py` debe no devolver nada tras el cambio.
 
@@ -955,7 +955,7 @@ En `frontend/src/vtk/copy.test.ts`, en `describe("nombres de los botones")`:
   });
 ```
 
-- [ ] **Step 7: Verificar y commit**
+- [x] **Step 7: Verificar y commit**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/vtk/approachView.test.ts src/components/planning/TrajectoryTool.test.tsx src/components/planning/DevicesPanel.clipField.test.tsx src/vtk/copy.test.ts`
 Expected: PASS.
@@ -985,11 +985,11 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 - Consumes: `Bounds6`, `ClipState`, `visibleBounds`, `MIN_EXTENT_MM` (orbit); `lesion: Vec3 | null` y diámetro (Viewer).
 - Produces: `lesionFrameRadiusMm(diameterMm)` en `vtk/lesionFrame.ts` (Viewer la reexporta); `localBox(center: Vec3, diameterMm: number, volume: Bounds6): Bounds6`; `axisClipPlanes(o: { axis: 0|1|2; posMm: number; acumulado: boolean; reverse: boolean; slabMm: number; box: Bounds6 | null }): ClipPlaneSpec[]` con `ClipPlaneSpec = { origin: Vec3; normal: Vec3 }`; store `mipLocal: boolean`, `setMipLocal`; `MipView` prop `lesion: { center: Vec3; diameterMm: number } | null`; `mipReadoutLines` opción `local?: boolean`.
 
-- [ ] **Step 1: Mover `lesionFrameRadiusMm`**
+- [x] **Step 1: Mover `lesionFrameRadiusMm`**
 
 Crea `frontend/src/vtk/lesionFrame.ts` con la función y su comentario tal como están en `Viewer.tsx` (líneas ~1944-1952, `export function lesionFrameRadiusMm`). En `Viewer.tsx` bórrala e importa: `import { lesionFrameRadiusMm } from "./lesionFrame";` y añade `export { lesionFrameRadiusMm };` para no romper importadores (`grep -rn lesionFrameRadiusMm frontend/src`). Run: `cd frontend && npx tsc --noEmit -p .` → limpio.
 
-- [ ] **Step 2: Pruebas de `localBox` y `axisClipPlanes`**
+- [x] **Step 2: Pruebas de `localBox` y `axisClipPlanes`**
 
 `frontend/src/vtk/localBox.test.ts`:
 
@@ -1060,7 +1060,7 @@ describe("axisClipPlanes", () => {
 });
 ```
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 `frontend/src/vtk/localBox.ts`:
 
@@ -1127,7 +1127,7 @@ export function axisClipPlanes(o: { axis: 0 | 1 | 2; posMm: number; acumulado: b
 
 Run: `cd frontend && npx vitest run src/vtk/localBox.test.ts src/vtk/mipClipPlanes.test.ts` → PASS.
 
-- [ ] **Step 4: `ClipState.box` para el encuadre**
+- [x] **Step 4: `ClipState.box` para el encuadre**
 
 En `orbit.ts`, al modo `eje` añade `box?: Bounds6`:
 ```ts
@@ -1146,7 +1146,7 @@ Prueba en `orbit.test.ts`:
 ```
 Run: `cd frontend && npx vitest run src/vtk/orbit.test.ts` → PASS.
 
-- [ ] **Step 5: Lectura ` · LOCAL`**
+- [x] **Step 5: Lectura ` · LOCAL`**
 
 `mipReadout.ts`: opción `local?: boolean`. Renombra la función actual a `linesWithoutLocal` (misma firma y cuerpo) y exporta en su lugar:
 
@@ -1171,7 +1171,7 @@ Prueba en `mipReadout.test.ts`:
   });
 ```
 
-- [ ] **Step 6: Store, `MipView`, `Viewer`**
+- [x] **Step 6: Store, `MipView`, `Viewer`**
 
 Store: `mipLocal: boolean; setMipLocal: (v: boolean) => void;` (doc: «Acotar VOLUMEN a la caja de la lesión (spec §6)»), `useState(false)`, `setMipLocal(false)` en `reset()`, y en el value.
 
@@ -1214,7 +1214,7 @@ Store: `mipLocal: boolean; setMipLocal: (v: boolean) => void;` (doc: «Acotar VO
 ```
 y en el `<MipView …>` (línea ~1590, dentro de `renderPane`, declarado después de `lesion`) añade `lesion={mipLesion}`.
 
-- [ ] **Step 7: Verificar y commit**
+- [x] **Step 7: Verificar y commit**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/vtk/localBox.test.ts src/vtk/mipClipPlanes.test.ts src/vtk/orbit.test.ts src/vtk/mipReadout.test.ts src/store/planning.test.tsx src/vtk/copy.test.ts`
 Expected: PASS.
@@ -1241,7 +1241,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 **Interfaces:**
 - Produces: `GET /api/centerline/{session_id}/points → CenterlinePoints { points: Position3D[]; radii_mm: number[]; arc_mm: number[] }` (404 sin sesión o sin línea central; 409 si el `npz` es ilegible o tiene < 2 puntos); `api.centerlinePoints(sessionId): Promise<CenterlinePoints>`; TS `interface CenterlinePoints`.
 
-- [ ] **Step 1: Prueba del endpoint**
+- [x] **Step 1: Prueba del endpoint**
 
 `backend/test_centerline_points.py`:
 
@@ -1304,12 +1304,12 @@ def test_sin_usuario_401():
     assert anonymous_client(app).get(f"/api/centerline/{sid}/points").status_code == 401
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 Run: `cd backend && .venv/Scripts/python -m pytest test_centerline_points.py -q`
 Expected: FAIL (404 donde se espera 200; la ruta no existe aún).
 
-- [ ] **Step 3: Modelo y endpoint**
+- [x] **Step 3: Modelo y endpoint**
 
 `backend/models/centerline.py`, tras `CenterlineResult`:
 
@@ -1359,7 +1359,7 @@ async def get_centerline_points(session_id: str) -> CenterlinePoints:
 
 Run: `cd backend && .venv/Scripts/python -m pytest test_centerline_points.py -q` → 5 passed.
 
-- [ ] **Step 4: Regenerar el contrato y tipar el cliente**
+- [x] **Step 4: Regenerar el contrato y tipar el cliente**
 
 ```bash
 cd backend && .venv/Scripts/python scripts/export_openapi.py ../frontend/openapi.json && cd ../frontend && npm run gen:api
@@ -1385,7 +1385,7 @@ export interface CenterlinePoints {
   Cabe<Completo<S["CenterlinePoints"]>, ui.CenterlinePoints>,
 ```
 
-- [ ] **Step 5: Verificar y commit**
+- [x] **Step 5: Verificar y commit**
 
 Run: `cd frontend && npx tsc --noEmit -p . && cd ../backend && .venv/Scripts/python -m pytest test_openapi_contract.py -q && .venv/Scripts/python -m pytest test_centerline.py -q`
 Expected: tsc limpio; contract y centerline verdes (si `test_centerline.py` falla por entorno vtk, comprueba que falla igual en master: `git stash; pytest …; git stash pop`).
@@ -1413,7 +1413,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 - Consumes: `api.centerlinePoints`, `CenterlinePoints` (Tarea 7); `planeFromNormal` (Tarea 4); `useVolumeMeta`; store `focusPoint`, `setFocusMm(mm, meta)`, `setFreePlane`.
 - Produces: store `export interface CenterlineTrack { points: Vec3[]; radiiMm: number[]; arcMm: number[] }`, `centerline: CenterlineTrack | null`, `setCenterline(t: CenterlineTrack | null)`; `trackFromWire(w: CenterlinePoints): CenterlineTrack`; `tangentAt(points: Vec3[], i: number): Vec3`; `indexAtArc(arcMm: number[], mm: number): number`; `nearestIndex(points: Vec3[], p: Vec3): { index: number; distMm: number }`; `DiameterChart` props `onPick?(arcMm: number)`, `cursorArcMm?: number | null`.
 
-- [ ] **Step 1: Pruebas puras**
+- [x] **Step 1: Pruebas puras**
 
 `frontend/src/vtk/centerlineWalk.test.ts`:
 
@@ -1449,7 +1449,7 @@ describe("centerlineWalk", () => {
 });
 ```
 
-- [ ] **Step 2: Implementar `centerlineWalk.ts`**
+- [x] **Step 2: Implementar `centerlineWalk.ts`**
 
 ```ts
 /* Recorrer la línea central (spec §7): dónde está cada punto, hacia dónde va
@@ -1493,7 +1493,7 @@ export function nearestIndex(points: Vec3[], p: Vec3): { index: number; distMm: 
 
 Run: `cd frontend && npx vitest run src/vtk/centerlineWalk.test.ts` → PASS.
 
-- [ ] **Step 3: Store**
+- [x] **Step 3: Store**
 
 `frontend/src/store/planning.tsx`:
 - Import `type CenterlineTrack` desde `../vtk/centerlineWalk` y reexpórtalo: `export type { CenterlineTrack };`.
@@ -1534,7 +1534,7 @@ describe("la línea central recorrible", () => {
 });
 ```
 
-- [ ] **Step 4: `DiameterChart` clicable: prueba**
+- [x] **Step 4: `DiameterChart` clicable: prueba**
 
 `frontend/src/components/vessels/DiameterChart.test.tsx`:
 
@@ -1587,7 +1587,7 @@ describe("DiameterChart", () => {
 });
 ```
 
-- [ ] **Step 5: Implementar en `DiameterChart.tsx`**
+- [x] **Step 5: Implementar en `DiameterChart.tsx`**
 
 Cambia la firma y el `<svg>`:
 
@@ -1633,7 +1633,7 @@ export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcM
 
 Run: `cd frontend && npx vitest run src/components/vessels/DiameterChart.test.tsx` → PASS.
 
-- [ ] **Step 6: `CenterlinePanel`: cargar los puntos y responder a la gráfica**
+- [x] **Step 6: `CenterlinePanel`: cargar los puntos y responder a la gráfica**
 
 En `frontend/src/components/vessels/CenterlinePanel.tsx`:
 - Imports: `useVolumeMeta` (`../../vtk/useVolumeMeta`), `indexAtArc, nearestIndex, tangentAt, trackFromWire` (`../../vtk/centerlineWalk`), `planeFromNormal` (`../../vtk/freePlane`).
@@ -1677,7 +1677,7 @@ Actualiza `CenterlinePanel.test.tsx`: al mock del store añade `centerline: null
 ```
 (`centerlinePoints` debe ser un `vi.fn` accesible desde el test, como `getCenterline`).
 
-- [ ] **Step 7: Verificar y commit**
+- [x] **Step 7: Verificar y commit**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/vtk/centerlineWalk.test.ts src/components/vessels src/store/planning.test.tsx`
 Expected: PASS.
@@ -1706,7 +1706,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 - Consumes: store `centerline` (Tarea 8), `tangentAt`, `nearestIndex`, `planeFromNormal`, `applyStep`, `nextIndex`.
 - Produces: `stepTrackIndex(track: CenterlineTrack, currentMm: Vec3, lastIndex: number | null, toleranceMm: number): number` (índice vigente: el guardado si el foco sigue sobre su punto, el más cercano si no); `vesselReadout(index: number, count: number, diameterMm: number): string`; store `obliqueWalk: "plano" | "vaso"`, `setObliqueWalk`; `CineTarget` gana `{ kind: "vessel" }`; `ObliqueView` props `walk?: { mode: "plano" | "vaso"; index: number; count: number; diameterMm: number } | null`, `onWalkChange?: (m: "plano" | "vaso") => void`, `onStep?: (step: number) => void`.
 
-- [ ] **Step 1: Pruebas puras**
+- [x] **Step 1: Pruebas puras**
 
 `centerlineWalk.test.ts`, añade:
 ```ts
@@ -1731,7 +1731,7 @@ describe("vesselReadout", () => {
 });
 ```
 
-- [ ] **Step 2: Implementar**
+- [x] **Step 2: Implementar**
 
 `centerlineWalk.ts`:
 ```ts
@@ -1756,7 +1756,7 @@ export function vesselReadout(index: number, count: number, diameterMm: number):
 ```
 Run: `cd frontend && npx vitest run src/vtk/centerlineWalk.test.ts src/vtk/obliqueGestures.test.ts` → PASS.
 
-- [ ] **Step 3: Store**
+- [x] **Step 3: Store**
 
 `planning.tsx`: `obliqueWalk: "plano" | "vaso"; setObliqueWalk: (m: "plano" | "vaso") => void;` (doc: «Qué recorre el cine del Oblicuo: el desplazamiento del plano o los puntos de la línea central (spec §7.3)»), `useState<"plano" | "vaso">("plano")`, vuelve a `"plano"` en `reset()` y dentro de `setCenterline` cuando recibe `null` (envuelve: `const setCenterline = (t: CenterlineTrack | null) => { _setCenterline(t); if (!t) setObliqueWalk("plano"); };`). Value: `obliqueWalk, setObliqueWalk`. Prueba en `planning.test.tsx`:
 ```ts
@@ -1768,7 +1768,7 @@ Run: `cd frontend && npx vitest run src/vtk/centerlineWalk.test.ts src/vtk/obliq
   });
 ```
 
-- [ ] **Step 4: `Viewer`: el cine recorre el vaso**
+- [x] **Step 4: `Viewer`: el cine recorre el vaso**
 
 En `Viewer.tsx`:
 - `type CineTarget = { kind: "axis"; axis: "x" | "y" | "z" } | { kind: "free" } | { kind: "vessel" };`
@@ -1822,7 +1822,7 @@ En `Viewer.tsx`:
 ```
   (calcula `cinePosition("scene")` una vez en una `const` antes del JSX para no repetirlo).
 
-- [ ] **Step 5: `ObliqueView`: controles y lectura**
+- [x] **Step 5: `ObliqueView`: controles y lectura**
 
 Props nuevas (documentadas):
 ```ts
@@ -1845,7 +1845,7 @@ Props nuevas (documentadas):
 ```
 - `copy.test.ts`: añade `it("el Oblicuo ofrece RECORRIDO ▸ PLANO · VASO", () => { const src = readFileSync(join(root, "vtk", "ObliqueView.tsx"), "utf8"); expect(src).toMatch(/label="RECORRIDO ▸"/); expect(src).toMatch(/label:\s*"VASO"/); });`.
 
-- [ ] **Step 6: Verificar y commit**
+- [x] **Step 6: Verificar y commit**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/vtk/centerlineWalk.test.ts src/vtk/obliqueGestures.test.ts src/vtk/cine.test.ts src/store/planning.test.tsx src/vtk/copy.test.ts`
 Expected: PASS.
@@ -1874,7 +1874,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 **Interfaces:**
 - Produces: `ageFromDob(dob?: string | null): string` en `components/patientAge.ts`; atajo `center-lesion` (L); `UiatsCalculator` deja de exportar `edadDesde`.
 
-- [ ] **Step 1: Una caja**
+- [x] **Step 1: Una caja**
 
 `MeshEditTools.tsx`: quita `cropShape: shape, setCropShape: setShape` de la destructuración; en `runCrop` → `mode: "sphere"`; borra el `div` con los botones «Esfera»/«Caja» y deja `<Slider label="Radio" …>`. Añade bajo el texto de la tarjeta de ROI: «Para recortar por una caja con los seis límites a la vista, usa la «Caja de recorte» de abajo.» Comentario de cabecera del archivo: «· Recortar malla por ROI esférico (POST /api/mesh-crop; la caja la hace «Caja de recorte»)».
 
@@ -1892,7 +1892,7 @@ Prueba en `MeshEditTools.test.tsx`, montando el panel exactamente como lo hacen 
 ```
 y comprueba que la prueba existente de la caja (`req.mode` → `"box"`, línea ~207) sigue verde: esa es la «Caja de recorte», que no cambia.
 
-- [ ] **Step 2: Una edad**
+- [x] **Step 2: Una edad**
 
 `frontend/src/components/patientAge.ts`:
 ```ts
@@ -1955,7 +1955,7 @@ describe("PHASES y la edad", () => {
 ```
 El botón de `PhasesCalculator.tsx:116` pasa a `disabled={busy || !age}`; el de `ElapssCalculator.tsx:98` («Calcular ELAPSS»), igual.
 
-- [ ] **Step 3: Un «Centrar en la lesión» y la tecla L**
+- [x] **Step 3: Un «Centrar en la lesión» y la tecla L**
 
 - Borra `frontend/src/components/CenterOnLesionButton.tsx`; quita su import y `<CenterOnLesionButton />` de `MorphometryPanel.tsx` y `DevicesPanel.tsx`. Ajusta el `marginBottom` del `PanelHead` si el botón aportaba separación (comprueba visualmente en el navegador en la lista manual; si no hay servidores, déjalo).
 - `shortcuts.ts`: tras la fila `sync`: `{ id: "center-lesion", keys: "L", action: "Centrar en la lesión (3D y cortes)", scope: "visor" },` y en `matchShortcut`, tras `KeyS`: `if (e.code === "KeyL") return "center-lesion";`. Actualiza el comentario de cabecera (Workspace reenvía también L).
@@ -1965,7 +1965,7 @@ El botón de `PhasesCalculator.tsx:116` pasa a `disabled={busy || !age}`; el de 
 - `README.md`, tabla de atajos, tras la fila S: `| L | Centrar en la lesión (3D y cortes) | Visor |`.
 - `grep -rn "CenterOnLesionButton" frontend/src` debe quedar vacío.
 
-- [ ] **Step 4: Verificar y commit**
+- [x] **Step 4: Verificar y commit**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run src/components/segmentation/MeshEditTools.test.tsx src/components/patientAge.test.ts src/components/morphometry src/components/planning/TreatmentPanel.test.tsx src/vtk/shortcuts.test.ts src/vtk/hud/ShortcutsSheet.test.tsx src/store/planning.test.tsx`
 Expected: PASS.
@@ -1986,7 +1986,7 @@ Claude-Session: https://claude.ai/code/session_01WAKbyoY5UhogBhVEk3qAEM"
 - Modify: `README.md` (sección nueva tras «Atajos de teclado»)
 - Modify: `docs/superpowers/plans/2026-10-09-herramientas-clinicas.md` (marcar casillas)
 
-- [ ] **Step 1: Sección «Herramientas del visor y de los paneles»**
+- [x] **Step 1: Sección «Herramientas del visor y de los paneles»**
 
 Inserta tras la tabla de atajos (antes de `## Environment Variables`):
 
@@ -2054,12 +2054,12 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 
 Revisa cada fila contra el código (un `grep` por etiqueta) y corrige lo que no exista tal cual.
 
-- [ ] **Step 2: Suites completas y build**
+- [x] **Step 2: Suites completas y build**
 
 Run: `cd frontend && npx tsc --noEmit -p . && npx vitest run && npm run build`
 Expected: todo verde (anota el número de pruebas y archivos). Backend: `cd backend && .venv/Scripts/python -m pytest test_centerline_points.py -q && .venv/Scripts/python -m pytest test_openapi_contract.py -q && .venv/Scripts/python -m pytest test_corredor_abordaje.py -q` → verdes.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-10-09-herramientas-clinicas.md

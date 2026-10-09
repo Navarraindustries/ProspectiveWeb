@@ -16,6 +16,7 @@
 - [Installation](#installation)
 - [Running the App](#running-the-app)
 - [Atajos de teclado](#atajos-de-teclado)
+- [Herramientas del visor y de los paneles](#herramientas-del-visor-y-de-los-paneles)
 - [Environment Variables](#environment-variables)
 - [Data Model](#data-model)
 - [Session Lifecycle](#session-lifecycle)
@@ -309,6 +310,69 @@ Ningún atajo actúa con el cursor en un campo de texto.
 | Esc | Cancelar el marcado, parar el cine o cerrar la hoja | Flujo |
 | P | Ocultar o mostrar el panel del paso | Flujo |
 | 1 … 8 | Ir a ese paso del flujo (si ya está disponible) | Flujo |
+
+## Herramientas del visor y de los paneles
+
+Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
+
+### Banda de cabecera
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| PRINCIPAL ▸ 3D · AX · COR · SAG · VOL | Elige la celda grande | Para trabajar en una vista |
+| Distribución (Alt+1…4) | SOLA · DERECHA · ABAJO · CUATRO | Según cuántas vistas quieras a la vez |
+| SINCRO ●/○ (S) | Centra todas las vistas en el punto compartido | Casi siempre encendido |
+| PLANOS ●/○ | Dibuja los rectángulos de los cortes en el 3D | Para situar un corte en el árbol |
+| CALOR ●/○ | Mapa de calor del clip sobre la malla | En el paso de dispositivos |
+| HUD ▸ COMPLETO · ESENCIAL · LIMPIO (H) | Cuánto HUD se ve | Limpio para capturas y presentaciones |
+| ? | Hoja de atajos | — |
+
+### Celda 3D (malla)
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| VISTA ▸ ENCUADRAR · AX · COR · SAG | Cámara estándar; un segundo clic mira la cara opuesta | Perder la orientación al rotar |
+| VISTA ▸ LESIÓN (L) | Acerca la cámara a la lesión; L centra también los cortes | Al medir cuello y ápice, al colocar un dispositivo |
+| VISTA ▸ ABORDAJE | Mira a lo largo del corredor y pone el Oblicuo perpendicular a él | Con entrada y diana de la trayectoria marcadas |
+| CORTES 3D · MALLA ●/○ | Los tres cortes dentro del 3D, con o sin malla translúcida | Relacionar imagen y segmentación |
+| Marcado (clic) | Puntos de línea central, cuello, ápice, borde, tijera, recorte, lesión, trayectoria, anotaciones | Según el paso |
+
+### Cortes AX · COR · SAG
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| Rueda · flechas · escalera · cine (espacio) | Recorren los cortes | Siempre |
+| Arrastrar · W/L (doble clic restablece) · menú de preajustes | Ventana y nivel; «Vasos» sale de la banda de vasos del estudio | Ver el vaso con el contraste correcto |
+| R · A · G · T | Regla, ángulo, región, marcador | Medir y anotar; se guardan con la sesión |
+
+### Oblicuo
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| AZIMUT · ELEVACIÓN | Orientan el plano libre (compartido con VOLUMEN y el 3D) | Cortar el vaso en el ángulo que haga falta |
+| ENCUADRAR · AL PUNTO | Reencuadra; devuelve el plano al punto compartido | — |
+| RECORRIDO ▸ PLANO · VASO | El cine desplaza el plano o recorre la línea central perpendicular al vaso | Inspeccionar el vaso sección a sección |
+
+### VOLUMEN
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| EJE ▸ AX · COR · SAG | Eje de acumulación | — |
+| RECORTE ▸ EJE · LIBRE · CARA ●/○ | Recorta por el eje o por el plano libre del Oblicuo; pinta la cara del corte | Ver el interior del árbol |
+| LOCAL ●/○ | Acota la proyección a la caja de la lesión | Ver el cuello sin que lo tape el resto |
+| MIP · COMPUESTO | Proyección de máxima intensidad o composición por tejidos | — |
+| Preajustes (VASOS · TODO en angiografía; tejidos en TC) · RESTABLECER | Ventana de la rampa o del preajuste; RESTABLECER vuelve a la de por defecto | Contraste de la proyección |
+| ACUMULADO · LÁMINA · DESDE ▸ INICIO · FINAL | Acumula hasta el corte (desde un extremo u otro) o una lámina alrededor | — |
+| ENCUADRAR (C) | Reencuadra lo visible | — |
+
+### Paneles por paso
+| Paso | Herramientas |
+|---|---|
+| Cargar | Carga DICOM de paciente y caso, preprocesamiento avanzado (recorte HU, remuestreo) |
+| Segmentar | Método tubular o umbral con vista previa, borrado por radio, pieza suelta y región pegada, tijera, recorte de malla por ROI esférico (radio), caja de recorte, historial de la malla |
+| Detectar | Candidatos y descartados, confirmación de la lesión |
+| Morfometría | Cuello y ápice (o borde), métricas e índices, PHASES · ELAPSS · UIATS (edad desde la ficha), seguimiento, ramas cerca del cuello, línea central y calibre (clic en la gráfica lleva al sitio) |
+| Decisión | Factores y recomendación terapéutica |
+| Dispositivos | Clips (campo, ensayo de colocación), coils, stents, Stent CL, WEB, trayectoria de abordaje con valoración del corredor |
+| Fabricación | Fabricación de la pieza a medida y pedidos de clips |
+| Informe | Informe PDF, malla STL, escena GLB, preparación de impresión |
+
+La captura y la grabación están en la barra superior y las anotaciones en la columna derecha, en cualquier paso.
 
 ---
 

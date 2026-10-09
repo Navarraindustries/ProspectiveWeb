@@ -345,6 +345,8 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 ### Oblicuo
 | Herramienta | Qué hace | Cuándo |
 |---|---|---|
+| Arrastrar · botón derecho · rueda · Ctrl+rueda | Arrastrar con el izquierdo cambia ventana y nivel; botón derecho orienta el plano; rueda lo desplaza; Ctrl+rueda hace zoom | Ajustar el contraste y el corte sin salir de la vista |
+| Lectura W/L (doble clic restablece) | Muestra ventana y nivel; el doble clic vuelve a los de por defecto | — |
 | AZIMUT · ELEVACIÓN | Orientan el plano libre (compartido con VOLUMEN y el 3D) | Cortar el vaso en el ángulo que haga falta |
 | ENCUADRAR · AL PUNTO | Reencuadra; devuelve el plano al punto compartido | — |
 | RECORRIDO ▸ PLANO · VASO | El cine desplaza el plano o recorre la línea central perpendicular al vaso | Inspeccionar el vaso sección a sección |
@@ -352,9 +354,11 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 ### VOLUMEN
 | Herramienta | Qué hace | Cuándo |
 |---|---|---|
+| Arrastrar · Shift o botón central · rueda · Ctrl+rueda | Rota; desplaza; recorre el corte; zoom | Mover la proyección |
+| Botón derecho (MIP y COMPUESTO) · doble clic en la lectura | Arrastrar cambia nivel y ventana; el doble clic en la lectura restablece | Contraste de la proyección |
 | EJE ▸ AX · COR · SAG | Eje de acumulación | — |
 | RECORTE ▸ EJE · LIBRE · CARA ●/○ | Recorta por el eje o por el plano libre del Oblicuo; pinta la cara del corte | Ver el interior del árbol |
-| LOCAL ●/○ | Acota la proyección a la caja de la lesión | Ver el cuello sin que lo tape el resto |
+| LOCAL ●/○ | Acota la proyección a la caja de la lesión; solo con RECORTE EJE (con LIBRE se atenúa) | Ver el cuello sin que lo tape el resto |
 | MIP · COMPUESTO | Proyección de máxima intensidad o composición por tejidos | — |
 | Preajustes (VASOS · TODO en angiografía; tejidos en TC) · RESTABLECER | Ventana de la rampa o del preajuste; RESTABLECER vuelve a la de por defecto | Contraste de la proyección |
 | ACUMULADO · LÁMINA · DESDE ▸ INICIO · FINAL | Acumula hasta el corte (desde un extremo u otro) o una lámina alrededor | — |
@@ -363,14 +367,14 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 ### Paneles por paso
 | Paso | Herramientas |
 |---|---|
-| Cargar | Carga DICOM de paciente y caso, preprocesamiento avanzado (recorte HU, remuestreo) |
-| Segmentar | Método tubular o umbral con vista previa, borrado por radio, pieza suelta y región pegada, tijera, recorte de malla por ROI esférico (radio), caja de recorte, historial de la malla |
+| Cargar | Carga DICOM de paciente y caso |
+| Segmentar | Preprocesamiento avanzado (recorte HU, remuestreo), método tubular o umbral con vista previa, borrado por radio, pieza suelta y región pegada, tijera, recorte de malla por ROI esférico (radio), caja de recorte, historial de la malla |
 | Detectar | Candidatos y descartados, confirmación de la lesión |
-| Morfometría | Cuello y ápice (o borde), métricas e índices, PHASES · ELAPSS · UIATS (edad desde la ficha), seguimiento, ramas cerca del cuello, línea central y calibre (clic en la gráfica lleva al sitio) |
+| Morfometría | Cuello y ápice (o borde), métricas e índices, PHASES · ELAPSS · UIATS (edad desde la ficha), seguimiento, ramas cerca del cuello, línea central y calibre (clic, arrastre o flechas en la gráfica llevan al sitio) |
 | Decisión | Factores y recomendación terapéutica |
-| Dispositivos | Clips (campo, ensayo de colocación), coils, stents, Stent CL, WEB, trayectoria de abordaje con valoración del corredor |
+| Dispositivos | Clips (campo, ensayo de colocación), coils, stents, Stent CL, WEB, trayectoria de abordaje con valoración del corredor y su ángulo respecto al eje del aneurisma (sin morfometría, respecto al eje vertical del estudio) |
 | Fabricación | Fabricación de la pieza a medida y pedidos de clips |
-| Informe | Informe PDF, malla STL, escena GLB, preparación de impresión |
+| Informe | Informe PDF, malla STL, escena GLB, DICOM SR, DICOM SEG, preparación de impresión, Guardar sesión |
 
 La captura y la grabación están en la barra superior y las anotaciones en la columna derecha, en cualquier paso.
 

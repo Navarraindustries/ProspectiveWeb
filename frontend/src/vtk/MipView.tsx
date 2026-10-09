@@ -655,13 +655,17 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             <HudToggleGroup options={RENDER_OPTIONS} value={volumeMode} onChange={(k) => setVolumeMode(k as "mip" | "compuesto")} />
           </div>
         )}
-        {/* La lectura es un botón, como la W/L de los cortes: el doble clic
-            restablece la ventana. pointerdown no llega al lienzo (empezaría un
-            giro). Alineada a la izquierda: un botón centra sus líneas. */}
-        <button type="button" className="hud-readout bl hud-wl" title={compact ? undefined : WL_TITLE} style={{ textAlign: "left" }}
-          onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => { e.stopPropagation(); if (!compact) resetWindow(); }}>
-          {readout.join("\n")}
-        </button>
+        {/* Ampliada, la lectura es un botón, como la W/L de los cortes: el doble
+            clic restablece la ventana. pointerdown no llega al lienzo (empezaría
+            un giro). Alineada a la izquierda: un botón centra sus líneas. En la
+            celda compacta sigue siendo la lectura sin puntero de siempre: el
+            doble clic tiene que llegar a la rejilla, que maximiza la celda. */}
+        {compact ? <HudReadout at="bl" lines={readout} /> : (
+          <button type="button" className="hud-readout bl hud-wl" title={WL_TITLE} style={{ textAlign: "left" }}
+            onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => { e.stopPropagation(); resetWindow(); }}>
+            {readout.join("\n")}
+          </button>
+        )}
         {compact ? overlay : (
           // Una sola columna abajo a la izquierda, de abajo arriba: la fila de
           // preajustes (en MIP, solo RESTABLECER) y encima la barra del cine. Así,

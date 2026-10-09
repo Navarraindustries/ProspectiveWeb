@@ -25,6 +25,11 @@ describe("nombres de los botones", () => {
     expect(src).toMatch(/volumePresetsFor\(meta\.modality\)/);
     expect(src).not.toMatch(/VOLUME_PRESETS/);
   });
+  it("en la celda compacta la lectura del VOLUMEN es inerte: el doble clic llega a la rejilla y la maximiza", () => {
+    const src = readFileSync(join(root, "vtk", "MipView.tsx"), "utf8");
+    // Compacta: la lectura de siempre (sin puntero). Solo ampliada es el botón que restablece.
+    expect(src).toMatch(/\{compact \? <HudReadout at="bl" lines=\{readout\} \/> : \(\s*<button type="button" className="hud-readout bl hud-wl"/);
+  });
   it("ninguna etiqueta usa CENTRAR, AJUSTAR ni Ajustar", () => {
     const bad = files.filter((f) => OLD.test(readFileSync(f, "utf8")));
     expect(bad).toEqual([]);

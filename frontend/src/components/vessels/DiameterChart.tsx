@@ -1,14 +1,12 @@
 /* DiameterChart — inline SVG profile of vessel diameter (mm) vs arc position
    along the centreline. Highlights the narrowest point (stenosis). Theme-aware. */
 
-export function DiameterChart({
-  arc,
-  diameters,
-  meanDiameter,
-}: {
-  arc: number[];
-  diameters: number[];
-  meanDiameter: number;
+export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcMm = null }: {
+  arc: number[]; diameters: number[]; meanDiameter: number;
+  /** Clic o flechas sobre el trazado: posición en mm a lo largo del vaso (spec §7.2). */
+  onPick?: (arcMm: number) => void;
+  /** Dónde está el punto compartido sobre el vaso; null si no está sobre él. */
+  cursorArcMm?: number | null;
 }) {
   if (arc.length < 2) return null;
 
@@ -31,8 +29,27 @@ export function DiameterChart({
   const path = diameters.map((d, i) => `${i === 0 ? "M" : "L"}${sx(arc[i]).toFixed(1)},${sy(d).toFixed(1)}`).join(" ");
   const minIdx = diameters.indexOf(dMin);
 
+  // De píxeles de pantalla a mm: el viewBox es fijo, así que el ancho real escala x.
+  const mmAt = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const vx = ((e.clientX - r.left) / (r.width || 1)) * W;
+    const f = Math.min(1, Math.max(0, (vx - P.l) / iw));
+    return x0 + f * (x1 - x0);
+  };
+  const cursorIdx = cursorArcMm === null ? minIdx : arc.reduce((b, a, i) => (Math.abs(a - cursorArcMm) < Math.abs(arc[b] - cursorArcMm) ? i : b), 0);
+  const onKey = (e: React.KeyboardEvent<SVGSVGElement>) => {
+    if (!onPick) return;
+    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    onPick(arc[Math.max(0, Math.min(arc.length - 1, cursorIdx + d))]);
+  };
+
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", marginTop: 8 }} role="img" aria-label="Perfil de diámetro">
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} role={onPick ? "slider" : "img"} aria-label="Perfil de diámetro"
+      aria-valuemin={x0} aria-valuemax={x1} aria-valuenow={cursorArcMm ?? undefined}
+      tabIndex={onPick ? 0 : undefined} onClick={onPick ? (e) => onPick(mmAt(e)) : undefined} onKeyDown={onKey}
+      style={{ display: "block", marginTop: 8, cursor: onPick ? "crosshair" : undefined }}>
       {/* frame */}
       <line x1={P.l} y1={P.t} x2={P.l} y2={P.t + ih} stroke="var(--border)" strokeWidth={1} />
       <line x1={P.l} y1={P.t + ih} x2={P.l + iw} y2={P.t + ih} stroke="var(--border)" strokeWidth={1} />
@@ -60,6 +77,11 @@ export function DiameterChart({
       <text x={P.l + iw / 2} y={H - 4} textAnchor="middle" fontSize={9} fill="var(--muted-foreground)">
         posición a lo largo del vaso (mm)
       </text>
+
+      {/* El punto compartido sobre el vaso. */}
+      {cursorArcMm !== null && (
+        <line data-t="cursor" x1={sx(cursorArcMm)} y1={P.t} x2={sx(cursorArcMm)} y2={P.t + ih} stroke="var(--brand)" strokeWidth={1.5} strokeDasharray="2 2" />
+      )}
     </svg>
   );
 }

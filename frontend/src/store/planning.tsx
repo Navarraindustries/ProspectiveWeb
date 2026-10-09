@@ -30,6 +30,7 @@ import type { VolumePreset } from "../vtk/volumePresets";
 import { clampPlane, DEFAULT_FREE_PLANE, type FreePlane } from "../vtk/freePlane";
 import { clampTilt } from "../vtk/clipPose";
 import type { Annotation } from "../vtk/annotations";
+import type { CenterlineTrack } from "../vtk/centerlineWalk";
 import type {
   AneurysmCandidate,
   AnnotationKind,
@@ -88,6 +89,10 @@ interface PlanningState {
   deviceMeshes: Record<DeviceKind, string | null>;
   /** URL of the extracted vessel centreline tube mesh, shown in the viewer. */
   centerlineMesh: string | null;
+  /** Los puntos de la línea central (spec §7): la gráfica de calibre lleva a
+   *  ellos y el cine del Oblicuo los recorre. null hasta que se piden. */
+  centerline: CenterlineTrack | null;
+  setCenterline: (t: CenterlineTrack | null) => void;
   /** Total arc length (mm) of the extracted centreline — feeds the cl-stent range sliders. */
   centerlineArcMm: number | null;
   /** Qué se pinta sobre el stent de la línea central: a qué distancia queda
@@ -379,6 +384,7 @@ interface PlanningState {
 }
 
 export type Vec3 = [number, number, number];
+export type { CenterlineTrack };
 export interface FollowupOverlay {
   mapUrl: string;
   ghostUrl: string | null;
@@ -436,6 +442,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     { clips: null, coils: null, stent: null },
   );
   const [centerlineMesh, _setCenterlineMesh] = useState<string | null>(null);
+  const [centerline, setCenterline] = useState<CenterlineTrack | null>(null);
   const [centerlineArcMm, setCenterlineArcMm] = useState<number | null>(null);
   const [stentMap, setStentMap] = useState<StentMap>("apposition");
   const [mprWl, setMprWl] = useState<{ wc: number; ww: number } | null>(null);
@@ -588,7 +595,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setNeckDome(null);
     setNeckRim([]);
   };
-  const setCenterlineMesh = touch(_setCenterlineMesh);
+  // Sin tubo no hay puntos: quien quita la malla (descartar, recortar, resegmentar) quita el recorrido.
+  const setCenterlineMesh = touch((url: string | null) => { _setCenterlineMesh(url); if (!url) setCenterline(null); });
   const setAnnotations = useCallback((a: Annotation[] | ((prev: Annotation[]) => Annotation[])) => {
     _setAnnotations((prev) => (typeof a === "function" ? a(prev) : a));
     setDirty(true);
@@ -637,6 +645,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setTreatmentInputs(null);
     _setDeviceMeshes({ clips: null, coils: null, stent: null });
     _setCenterlineMesh(null);
+    setCenterline(null);
     setCenterlineArcMm(null);
     setPickMode(null);
     setClSource(null);
@@ -717,7 +726,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
-        centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
+        centerlineMesh, centerline, setCenterline, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,

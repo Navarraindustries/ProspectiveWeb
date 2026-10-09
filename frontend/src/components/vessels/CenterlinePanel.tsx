@@ -13,6 +13,9 @@ import { PanelHead, ErrorNote, SectionLabel } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { DiameterChart } from "./DiameterChart";
 import { usePlanning } from "../../store/planning";
+import { useVolumeMeta } from "../../vtk/useVolumeMeta";
+import { indexAtArc, nearestIndex, tangentAt, trackFromWire } from "../../vtk/centerlineWalk";
+import { planeFromNormal } from "../../vtk/freePlane";
 
 const RESOLUTIONS = [
   { value: "1.0", label: "1.0 mm · rápida" },
@@ -34,8 +37,9 @@ export function CenterlinePanel() {
   const {
     sessionId, segmentation, pickMode, clSource, clTarget, centerlineMesh,
     setPickMode, setClSource, setClTarget, setCenterlineMesh, setCenterlineArcMm,
-    clearDeviceMeshes,
+    clearDeviceMeshes, centerline, setCenterline, focusPoint, setFocusMm, setFreePlane, volumeVersion,
   } = usePlanning();
+  const { meta } = useVolumeMeta(sessionId, volumeVersion);
 
   const [voxel, setVoxel] = useState("0.8");
   const [busy, setBusy] = useState(false);
@@ -62,6 +66,14 @@ export function CenterlinePanel() {
     return () => { vivo = false; };
   }, [sessionId, centerlineMesh, result]);
 
+  // Los puntos se piden cuando hay tubo y aún no están: tras extraer y tras «Reanudar».
+  useEffect(() => {
+    if (!sessionId || !centerlineMesh || centerline) return;
+    let vivo = true;
+    api.centerlinePoints(sessionId).then((w) => { if (vivo) setCenterline(trackFromWire(w)); }).catch(() => { /* sin puntos la gráfica no lleva a ningún sitio; lo demás sigue */ });
+    return () => { vivo = false; };
+  }, [sessionId, centerlineMesh, centerline, setCenterline]);
+
   const extract = async () => {
     if (!sessionId || !clSource || !clTarget) return;
     setBusy(true);
@@ -76,6 +88,8 @@ export function CenterlinePanel() {
       setResult(res);
       setXs(null);
       setCenterlineMesh(res.centerline_mesh_url);
+      // Los puntos viejos son de otro trazado: vaciarlos fuerza a pedir los nuevos.
+      setCenterline(null);
       setCenterlineArcMm(res.arc_length_mm);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error extrayendo la línea central");
@@ -123,6 +137,20 @@ export function CenterlinePanel() {
       setClearing(false);
     }
   };
+
+  // Clic en la gráfica: el punto compartido va a esa sección y el Oblicuo
+  // queda perpendicular al vaso allí (spec §7.2).
+  const irA = (mm: number) => {
+    if (!centerline || !meta) return;
+    const i = indexAtArc(centerline.arcMm, mm);
+    setFocusMm(centerline.points[i], meta);
+    setFreePlane(planeFromNormal(tangentAt(centerline.points, i)));
+  };
+  const cursor = (() => {
+    if (!centerline || !focusPoint) return null;
+    const n = nearestIndex(centerline.points, focusPoint);
+    return n.distMm <= 2 ? centerline.arcMm[n.index] : null;
+  })();
 
   const stenosisVariant = (label: string): "success" | "warning" | "destructive" =>
     label === "Significativa" ? "destructive" : label === "Leve" ? "warning" : "success";
@@ -264,7 +292,8 @@ export function CenterlinePanel() {
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, marginRight: 10 }}>{xs.stenosis_pct.toFixed(0)} %</span>
                   <Badge variant={stenosisVariant(xs.stenosis_label)}>{xs.stenosis_label}</Badge>
                 </div>
-                <DiameterChart arc={xs.arc_positions_mm} diameters={xs.diameters_mm} meanDiameter={xs.mean_diameter_mm} />
+                <DiameterChart arc={xs.arc_positions_mm} diameters={xs.diameters_mm} meanDiameter={xs.mean_diameter_mm}
+                  onPick={centerline && meta ? irA : undefined} cursorArcMm={cursor} />
               </div>
             )}
           </div>

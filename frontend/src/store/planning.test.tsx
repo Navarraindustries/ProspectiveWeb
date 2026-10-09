@@ -446,3 +446,20 @@ describe("VOLUMEN abre en «Vasos»", () => {
     expect(result.current.volumePreset).toBe("Vasos");
   });
 });
+
+describe("la línea central recorrible", () => {
+  const track = { points: [[0, 0, 0], [0, 0, 1]] as Vec3[], radiiMm: [1, 1], arcMm: [0, 1] };
+  it("se guarda y se va con el tubo", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => { result.current.setCenterlineMesh("/cl.vtp"); result.current.setCenterline(track); });
+    expect(result.current.centerline).toEqual(track);
+    act(() => result.current.setCenterlineMesh(null));
+    expect(result.current.centerline).toBeNull();
+  });
+  it("resetDownstream la olvida", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setCenterline(track));
+    act(() => result.current.resetDownstream());
+    expect(result.current.centerline).toBeNull();
+  });
+});

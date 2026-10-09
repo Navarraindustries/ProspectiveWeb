@@ -6,11 +6,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCenterline = vi.fn();
-vi.mock("../../api/client", () => ({ api: { getCenterline: (...a: unknown[]) => getCenterline(...a) } }));
+const centerlinePoints = vi.fn();
+vi.mock("../../api/client", () => ({ api: {
+  getCenterline: (...a: unknown[]) => getCenterline(...a),
+  centerlinePoints: (...a: unknown[]) => centerlinePoints(...a),
+} }));
 
 let planning: Record<string, unknown> = {};
 vi.mock("../../store/planning", () => ({ usePlanning: () => planning }));
 vi.mock("./DiameterChart", () => ({ DiameterChart: () => null }));
+vi.mock("../../vtk/useVolumeMeta", () => ({ useVolumeMeta: () => ({ meta: null, forSession: null }) }));
 
 import { CenterlinePanel } from "./CenterlinePanel";
 
@@ -22,11 +27,14 @@ const metricas = {
 
 beforeEach(() => {
   getCenterline.mockReset().mockResolvedValue(metricas);
+  centerlinePoints.mockReset().mockResolvedValue({ points: [], radii_mm: [], arc_mm: [] });
   planning = {
     sessionId: "s", segmentation: { mesh_url: "/m.vtp" }, pickMode: null,
     clSource: null, clTarget: null, centerlineMesh: "/data/sessions/s/meshes/centerline.vtp",
     setPickMode: vi.fn(), setClSource: vi.fn(), setClTarget: vi.fn(),
     setCenterlineMesh: vi.fn(), setCenterlineArcMm: vi.fn(), clearDeviceMeshes: vi.fn(),
+    centerline: null, setCenterline: vi.fn(), focusPoint: null, setFocusMm: vi.fn(),
+    setFreePlane: vi.fn(), volumeVersion: 0,
   };
 });
 
@@ -48,5 +56,10 @@ describe("la línea central al reanudar", () => {
     render(<CenterlinePanel />);
     await waitFor(() => expect(getCenterline).toHaveBeenCalled());
     expect(screen.queryByText("Tortuosidad")).toBeNull();
+  });
+
+  it("con el tubo en el visor pide también los puntos", async () => {
+    render(<CenterlinePanel />);
+    await waitFor(() => expect(planning.setCenterline).toHaveBeenCalledWith({ points: [], radiiMm: [], arcMm: [] }));
   });
 });

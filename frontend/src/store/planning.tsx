@@ -210,7 +210,6 @@ interface PlanningState {
   /** Mesh-crop ROI shape/size/mode — shared with the viewer so it can draw a
    *  translucent preview of exactly what the crop will keep/remove. */
   cropRadius: number;
-  cropShape: "sphere" | "box";
   cropInvert: boolean;
   /** Surgical approach trajectory: entry point and aneurysm target (mm). */
   trajEntry: Vec3 | null;
@@ -373,7 +372,6 @@ interface PlanningState {
   setFollowup: (f: FollowupOverlay | null) => void;
   setErasePick: (p: Vec3 | null) => void;
   setCropRadius: (r: number) => void;
-  setCropShape: (s: "sphere" | "box") => void;
   setCropInvert: (v: boolean) => void;
   setTrajEntry: (p: Vec3 | null) => void;
   setTrajTarget: (p: Vec3 | null) => void;
@@ -523,7 +521,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [erasePick, setErasePick] = useState<Vec3 | null>(null);
   const [boxCut, setBoxCut] = useState<{ min: [number, number, number]; max: [number, number, number] } | null>(null);
   const [cropRadius, setCropRadius] = useState(10);
-  const [cropShape, setCropShape] = useState<"sphere" | "box">("sphere");
   const [cropInvert, setCropInvert] = useState(false);
   const [trajEntry, setTrajEntry] = useState<Vec3 | null>(null);
   const [trajTarget, setTrajTarget] = useState<Vec3 | null>(null);
@@ -735,7 +732,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
         centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
@@ -744,7 +741,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
         setCaptureViewport, setCenterOnLesion, markSaved,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setMipLocal, setCine, setFocusedPane,

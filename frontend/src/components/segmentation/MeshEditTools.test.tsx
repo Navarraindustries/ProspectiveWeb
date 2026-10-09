@@ -211,6 +211,14 @@ describe("la caja de recorte", () => {
     expect(await screen.findByText(/Malla recortada.*eliminados/)).toBeInTheDocument();
   });
 
+  it("el recorte por ROI es solo esférico: no hay botón «Caja» y sí la remisión a la caja de recorte", async () => {
+    mount();
+    expect(await screen.findByText("Caja de recorte")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Caja" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Esfera" })).toBeNull();
+    expect(screen.getByText(/usa la «Caja de recorte» de abajo/)).toBeInTheDocument();
+  });
+
   it("un lado no puede cruzar al otro", async () => {
     await activar();
     const desde = screen.getAllByLabelText("desde") as HTMLInputElement[];

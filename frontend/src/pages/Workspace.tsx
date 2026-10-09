@@ -33,7 +33,7 @@ import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
 /** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
-const VIEWER_SHORTCUTS = new Set(["sync", "hud-cycle", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
+const VIEWER_SHORTCUTS = new Set(["sync", "center-lesion", "hud-cycle", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
   "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
 
 /** What each step needs before it can say anything true, or null when it's ready.

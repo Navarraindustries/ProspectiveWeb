@@ -10,6 +10,7 @@ import { Select } from "../Select";
 import { Metric } from "../Metric";
 import { ErrorNote, SectionLabel } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
+import { ageFromDob } from "../patientAge";
 
 const POPULATIONS: { value: PhasesPopulation; label: string }[] = [
   { value: "other", label: "Otra población" },
@@ -46,7 +47,7 @@ export function PhasesCalculator({
   const planning = usePlanning();
   const [population, setPopulation] = useState<PhasesPopulation>("other");
   const [hypertension, setHypertension] = useState(false);
-  const [age, setAge] = useState("60");
+  const [age, setAge] = useState(ageFromDob(planning.patient?.dob));
   const [size, setSize] = useState(maxDiameterMm > 0 ? maxDiameterMm.toFixed(1) : "");
   const [earlierSah, setEarlierSah] = useState(false);
   const [site, setSite] = useState<PhasesSite>("ica");
@@ -113,7 +114,7 @@ export function PhasesCalculator({
         </label>
       </div>
 
-      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy}>
+      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy || !age}>
         {busy ? "Calculando…" : "Calcular PHASES"}
       </Button>
       <ErrorNote>{error}</ErrorNote>

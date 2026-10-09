@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { api } from "../../api/client";
+import { ageFromDob } from "../patientAge";
 import type { MorphometryResult, UiatsRequest, UiatsResult } from "../../api/types";
 import { Button } from "../Button";
 import { Input } from "../Input";
@@ -49,16 +50,6 @@ const LIFE = [
   { value: "lt5", label: "< 5 años (+4 vigilar)" },
 ];
 
-export function edadDesde(dob?: string): string {
-  if (!dob) return "";
-  const n = new Date(dob);
-  if (Number.isNaN(n.getTime())) return "";
-  const hoy = new Date();
-  let a = hoy.getFullYear() - n.getFullYear();
-  if (hoy < new Date(hoy.getFullYear(), n.getMonth(), n.getDate())) a--;
-  return a > 0 ? String(a) : "";
-}
-
 const REC: Record<UiatsResult["recommendation"], [string, string]> = {
   repair: ["A favor de tratar", "var(--warning)"],
   conservative: ["A favor de vigilar", "var(--success)"],
@@ -68,7 +59,7 @@ const REC: Record<UiatsResult["recommendation"], [string, string]> = {
 export function UiatsCalculator({
   m, sessionId, dob,
 }: { m: MorphometryResult; sessionId: string | null; dob?: string }) {
-  const [age, setAge] = useState(edadDesde(dob));
+  const [age, setAge] = useState(ageFromDob(dob));
   const [diameter, setDiameter] = useState(m.max_diameter_mm > 0 ? m.max_diameter_mm.toFixed(1) : "");
   const [sel, setSel] = useState<Record<string, Set<string>>>({});
   const [location, setLocation] = useState("other");

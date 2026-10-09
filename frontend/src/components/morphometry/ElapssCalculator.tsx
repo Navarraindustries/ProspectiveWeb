@@ -3,7 +3,7 @@
    repetir la imagen. El tamaño se rellena desde la morfometría. */
 
 import { useState } from "react";
-import { edadDesde } from "./UiatsCalculator";
+import { ageFromDob } from "../patientAge";
 import { api } from "../../api/client";
 import type { ElapssLocation, ElapssPopulation, ElapssResult } from "../../api/types";
 import { Button } from "../Button";
@@ -35,7 +35,7 @@ export function ElapssCalculator({
 }) {
   const [population, setPopulation] = useState<ElapssPopulation>("other");
   const [location, setLocation] = useState<ElapssLocation>("ica_aca_acom");
-  const [age, setAge] = useState(edadDesde(dob) || "60");
+  const [age, setAge] = useState(ageFromDob(dob));
   const [size, setSize] = useState(maxDiameterMm > 0 ? maxDiameterMm.toFixed(1) : "");
   const [earlierSah, setEarlierSah] = useState(false);
   const [irregular, setIrregular] = useState(false);
@@ -95,7 +95,7 @@ export function ElapssCalculator({
         )}
       </div>
 
-      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy}>
+      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy || !age}>
         {busy ? "Calculando…" : "Calcular ELAPSS"}
       </Button>
       <ErrorNote>{error}</ErrorNote>

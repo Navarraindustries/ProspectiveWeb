@@ -1,5 +1,5 @@
 /* Herramientas de malla — refinamiento interactivo tras la segmentación:
-   · Recortar malla por ROI caja/esfera (POST /api/mesh-crop)
+   · Recortar malla por ROI esférico (POST /api/mesh-crop; la caja la hace «Caja de recorte»)
    Ambas operan sobre vessel_tree.vtp; picking 3D reutiliza la infra del visor. */
 
 import { useEffect, useRef, useState } from "react";
@@ -17,7 +17,6 @@ export function MeshEditTools() {
     pickMode, setPickMode,
     cropCenter, setCropCenter, boxCut: caja, setBoxCut,
     cropRadius: radius, setCropRadius: setRadius,
-    cropShape: shape, setCropShape: setShape,
     cropInvert: invert, setCropInvert: setInvert,
     erasePick, setErasePick,
     scissorsPoints, setScissorsPoints,
@@ -208,7 +207,7 @@ export function MeshEditTools() {
     const [x, y, z] = cropCenter;
     try {
       const res = await api.meshCrop(sessionId, {
-        mode: shape,
+        mode: "sphere",
         center: { x, y, z },
         radius,
         invert,
@@ -580,7 +579,8 @@ export function MeshEditTools() {
           Recortar malla (ROI)
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
-          Elige un centro y conserva o elimina la geometría dentro de una esfera o caja.
+          Elige un centro y conserva o elimina la geometría dentro de una esfera.
+          Para recortar por una caja con los seis límites a la vista, usa la «Caja de recorte» de abajo.
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           <button
@@ -599,11 +599,7 @@ export function MeshEditTools() {
             </button>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <button onClick={() => setShape("sphere")} style={toolBtn(shape === "sphere")}>Esfera</button>
-          <button onClick={() => setShape("box")} style={toolBtn(shape === "box")}>Caja</button>
-        </div>
-        <Slider label={shape === "sphere" ? "Radio" : "Medio-lado"} min={2} max={80} value={radius} onChange={setRadius} unit=" mm" />
+        <Slider label="Radio" min={2} max={80} value={radius} onChange={setRadius} unit=" mm" />
         <div style={{ height: 12 }} />
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <button onClick={() => setInvert(false)} style={toolBtn(!invert)}>Conservar dentro</button>

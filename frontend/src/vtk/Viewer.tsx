@@ -231,7 +231,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     scissorsPoints, setScissorsPoints, scissorsPreview,
     annotations, setAnnotations, annotationDraft, setAnnotationDraft, selectedAnnotation, setSelectedAnnotation, setNoteFocusRequest, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
-    cropRadius, cropShape, cropInvert, boxCut,
+    cropRadius, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts, clipField, showClipField, setShowClipField,
@@ -1216,9 +1216,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // (cyan) or removed (red) before applying — the crop is otherwise blind.
   const cropPreview = useMemo(
     () => (cropCenter && step === "segment")
-      ? { center: cropCenter, radius: cropRadius, shape: cropShape, invert: cropInvert }
+      ? { center: cropCenter, radius: cropRadius, shape: "sphere" as const, invert: cropInvert }
       : null,
-    [cropCenter, cropRadius, cropShape, cropInvert, step],
+    [cropCenter, cropRadius, cropInvert, step],
   );
 
   // Con la sincronización activa, un pick 3D o un clic en un corte mueven el
@@ -1545,6 +1545,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const pane = focusedPane ?? viewerLayout.main;
     switch (id) {
       case "sync": setSyncViews(!syncViews); return;
+      case "center-lesion": if (lesion) centerOnLesion(); return;
       // Ningún atajo mira el nivel: en limpio todos siguen actuando.
       case "hud-cycle": {
         // De la ref, adelantada aquí: dos H antes del siguiente render avanzan dos.

@@ -295,6 +295,7 @@ Ningún atajo actúa con el cursor en un campo de texto.
 | ? | Abrir o cerrar la hoja de atajos | Visor |
 | Alt+1 · Alt+2 · Alt+3 · Alt+4 | Distribución SOLA · DERECHA · ABAJO · CUATRO | Visor |
 | S | Encender o apagar SINCRO | Visor |
+| L | Centrar en la lesión (3D y cortes) | Visor |
 | H | Nivel del HUD: completo · esencial · limpio | Visor |
 | R · A · G · T | Armar o desarmar la herramienta Regla · Ángulo · Región · Marcador | Visor |
 | Supr | Borrar la anotación seleccionada | Visor |

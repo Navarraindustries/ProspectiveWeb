@@ -16,18 +16,7 @@ import { Input } from "../Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
-
-/** Whole years from an ISO date of birth to today ("" when unknown/invalid). */
-function ageFromDob(dob?: string | null): string {
-  if (!dob) return "";
-  const born = new Date(dob);
-  if (Number.isNaN(born.getTime())) return "";
-  const today = new Date();
-  let years = today.getFullYear() - born.getFullYear();
-  const m = today.getMonth() - born.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < born.getDate())) years -= 1;
-  return years >= 0 && years <= 120 ? String(years) : "";
-}
+import { ageFromDob } from "../patientAge";
 
 /** La primera letra en minúscula, para una frase que sigue a dos puntos. */
 function minuscula(s: string): string {

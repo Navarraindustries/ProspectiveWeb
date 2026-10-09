@@ -15,6 +15,7 @@ describe("tabla de atajos", () => {
   it("resuelve S, C, espacio, Alt+4 y ?", () => {
     expect(matchShortcut(ev({ key: "s", code: "KeyS" }), null)).toBe("sync");
     expect(matchShortcut(ev({ key: "c", code: "KeyC" }), null)).toBe("center");
+    expect(matchShortcut(ev({ key: "l", code: "KeyL" }), null)).toBe("center-lesion");
     expect(matchShortcut(ev({ key: " ", code: "Space" }), null)).toBe("cine-toggle");
     expect(matchShortcut(ev({ key: "4", code: "Digit4", altKey: true }), null)).toBe("preset-cuatro");
     expect(matchShortcut(ev({ key: "?", code: "Slash", shiftKey: true }), null)).toBe("help");

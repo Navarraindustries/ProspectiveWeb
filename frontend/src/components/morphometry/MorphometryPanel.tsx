@@ -5,7 +5,6 @@ import { api } from "../../api/client";
 import type { LongitudinalResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { Button } from "../Button";
-import { CenterOnLesionButton } from "../CenterOnLesionButton";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, ErrorNote } from "../PanelHead";
@@ -117,7 +116,6 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
         desc="Medidas e índices del aneurisma. Todas las dimensiones en milímetros."
         right={m && <Badge variant={riskVariant(m.rupture_risk_label)}>Riesgo {m.rupture_risk_label}</Badge>}
       />
-      <CenterOnLesionButton />
 
       {busy && (
         <div style={{ marginBottom: 14 }}>

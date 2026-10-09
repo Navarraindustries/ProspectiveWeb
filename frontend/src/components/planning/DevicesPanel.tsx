@@ -28,7 +28,6 @@ import type {
   TrajectoryResult,
 } from "../../api/types";
 import { Button } from "../Button";
-import { CenterOnLesionButton } from "../CenterOnLesionButton";
 import { ClipFieldCard } from "./ClipFieldCard";
 import { ClipRehearsal } from "./ClipRehearsal";
 import { ClipSelectionPanel } from "./ClipSelection";
@@ -1714,7 +1713,6 @@ export function DevicesPanel({ onNext }: { onNext: () => void }) {
   return (
     <div className="fade-rise">
       <PanelHead title="Planificación de dispositivos" desc="Elige clip, coils o stent del catálogo y verifica su colocación." />
-      <CenterOnLesionButton />
       <TrajectoryTool />
       <PlacedDevicesBar />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />

@@ -4,7 +4,7 @@
 
    Quién ejecuta cada cosa:
    - Workspace (manejador global): Esc, «?», P (el panel del paso), los dígitos de paso, y reenvía al
-     visor S, H, C, espacio y +/− por el evento `viewer:shortcut`.
+     visor S, L, H, C, espacio y +/− por el evento `viewer:shortcut`.
    - Alt+1…4 siguen en su único camino, `presetForKey` (layoutShortcuts): aquí
      solo se listan; si Workspace también los atendiera, se dispararían dos veces.
    - Flechas, Re Pág/Av Pág, Inicio/Fin las atiende cada celda en su onKeyDown
@@ -28,6 +28,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "preset-abajo", keys: "Alt+3", action: "Distribución ABAJO", scope: "visor" },
   { id: "preset-cuatro", keys: "Alt+4", action: "Distribución CUATRO", scope: "visor" },
   { id: "sync", keys: "S", action: "Encender o apagar SINCRO", scope: "visor" },
+  { id: "center-lesion", keys: "L", action: "Centrar en la lesión (3D y cortes)", scope: "visor" },
   { id: "hud-cycle", keys: "H", action: "Nivel del HUD: completo · esencial · limpio", scope: "visor" },
   { id: "anot-regla", keys: "R", action: "Regla: dos puntos", scope: "visor" },
   { id: "anot-angulo", keys: "A", action: "Ángulo: tres puntos", scope: "visor" },
@@ -87,6 +88,7 @@ export function matchShortcut(
     return tag === "BUTTON" || tag === "A" ? null : "cine-toggle";
   }
   if (e.code === "KeyS") return "sync";
+  if (e.code === "KeyL") return "center-lesion";
   if (e.code === "KeyH") return "hud-cycle";
   if (e.code === "KeyC") return "center";
   if (e.code === "KeyP") return "panel-toggle";

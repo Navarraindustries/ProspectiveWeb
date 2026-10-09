@@ -22,6 +22,7 @@ import { clipNormal, fieldColoursOnScreen, isStale, neckAxis, neckPlacement } fr
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { useVolumeMeta } from "./useVolumeMeta";
+import { useVesselBand } from "./useVesselBand";
 import { levelNoteFor } from "./levelNote";
 import { hasWebGL2 } from "./webgl";
 import { ObliqueMprView } from "./ObliqueMprView";
@@ -352,6 +353,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       ? candidate.dome_mesh_url
       : undefined;
   const { meta, forSession: metaFor } = useVolumeMeta(sessionId, volumeVersion);
+  // Banda de vasos del volumen: una para los preajustes de los cortes y, en
+  // VOLUMEN, para «VASOS» (Tarea 2) — spec §3.1.
+  const vesselBand = useVesselBand(sessionId, segmentation, volumeVersion);
   // Un solo volumen en el navegador para las cinco celdas: las laterales y
   // la principal leen el mismo vtkImageData, así que no se descarga dos veces ni
   // pueden enseñar niveles distintos. Sin WebGL2 ni se pide.
@@ -1555,10 +1559,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // su lectura W/L (los monta SliceView): antes solo en la principal, y una
   // lateral no tenía cómo elegir uno. Fuera de TC no hay presets HU con
   // sentido clínico: se derivan de la meta y de la banda activa (vista previa
-  // de segmentación, o el umbral guardado si ya no hay vista previa) para que
-  // «Vasos» siga el umbral real.
+  // viva mientras se ajusta el umbral; si no, la banda de vasos del volumen,
+  // que sobrevive a la segmentación).
   const wlPresets = meta
-    ? windowPresets(meta, previewBand ?? (segmentation?.threshold_lower != null ? [segmentation.threshold_lower, NaN] : null))
+    ? windowPresets(meta, previewBand ?? vesselBand)
     : [];
 
   // `captureAs`: con qué nombre registra su captura. Casi siempre el propio

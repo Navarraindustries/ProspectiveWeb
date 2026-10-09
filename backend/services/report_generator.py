@@ -669,6 +669,14 @@ def read_annotations(session_id: str) -> list[dict]:
         return []
 
 
+# Las mismas frases que el panel (angleReferenceLabel en el frontend): el PDF y
+# la pantalla no pueden contar referencias distintas para el mismo número.
+_ANGLE_LABELS = {
+    "aneurisma": "Ángulo respecto al eje del aneurisma",
+    "vertical": "Ángulo respecto al eje vertical del estudio (sin eje del aneurisma medido)",
+}
+
+
 def read_trajectory_state(session_id: str) -> dict:
     """Read the surgical approach trajectory from session state.
 
@@ -700,8 +708,12 @@ def read_trajectory_state(session_id: str) -> dict:
     ax = _f("morpho.axis_x")
     ay = _f("morpho.axis_y")
     az = _f("morpho.axis_z")
+    # El informe tiene que decir contra qué eje se midió: sin eje del saco el
+    # ángulo es contra z y nombrar el aneurisma sería afirmar algo que no se usó.
+    angle_ref = "aneurisma"
     if None in (ax, ay, az) or (ax == 0 and ay == 0 and az == 0):
         ax, ay, az = 0.0, 0.0, 1.0
+        angle_ref = "vertical"
     an = math.sqrt(ax * ax + ay * ay + az * az) or 1.0
     if depth > 1e-6:
         dot = (vx * ax + vy * ay + vz * az) / (depth * an)
@@ -713,6 +725,7 @@ def read_trajectory_state(session_id: str) -> dict:
     return {
         "entry": entry, "target": target,
         "depth_mm": round(depth, 1), "angle_deg": round(angle, 1),
+        "angle_ref": angle_ref,
         # Lo que el corredor atraviesa. Si la viabilidad del abordaje depende de
         # esto, el documento que se lleva a sesión tiene que llevarlo.
         "verdict": read_state(session_id, "trajectory.verdict", ""),
@@ -1686,7 +1699,8 @@ class ReportGenerator:
             ["Punto diana / aneurisma (mm)",
              f"({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f})"],
             ["Profundidad de abordaje", f"{tr.get('depth_mm', 0):.1f} mm"],
-            ["Ángulo respecto al eje del aneurisma", f"{tr.get('angle_deg', 0):.1f} °"],
+            [_ANGLE_LABELS.get(tr.get("angle_ref", ""), _ANGLE_LABELS["vertical"]),
+             f"{tr.get('angle_deg', 0):.1f} °"],
         ]
         tbl = Table(rows, colWidths=[7*cm, 10.9*cm])
         tbl.setStyle(TableStyle([

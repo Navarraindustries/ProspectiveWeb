@@ -14,7 +14,8 @@ import { ProgressBar } from "../ProgressBar";
 import { DiameterChart } from "./DiameterChart";
 import { usePlanning } from "../../store/planning";
 import { useVolumeMeta } from "../../vtk/useVolumeMeta";
-import { indexAtArc, nearestIndex, tangentAt, trackFromWire } from "../../vtk/centerlineWalk";
+import { indexAtArc, nearestIndex, tangentAt } from "../../vtk/centerlineWalk";
+import { useCenterlineTrack } from "../../vtk/useCenterlineTrack";
 import { planeFromNormal } from "../../vtk/freePlane";
 
 const RESOLUTIONS = [
@@ -66,13 +67,7 @@ export function CenterlinePanel() {
     return () => { vivo = false; };
   }, [sessionId, centerlineMesh, result]);
 
-  // Los puntos se piden cuando hay tubo y aún no están: tras extraer y tras «Reanudar».
-  useEffect(() => {
-    if (!sessionId || !centerlineMesh || centerline) return;
-    let vivo = true;
-    api.centerlinePoints(sessionId).then((w) => { if (vivo) setCenterline(trackFromWire(w)); }).catch(() => { /* sin puntos la gráfica no lleva a ningún sitio; lo demás sigue */ });
-    return () => { vivo = false; };
-  }, [sessionId, centerlineMesh, centerline, setCenterline]);
+  useCenterlineTrack();
 
   const extract = async () => {
     if (!sessionId || !clSource || !clTarget) return;

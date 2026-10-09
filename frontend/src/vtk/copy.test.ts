@@ -99,3 +99,11 @@ describe("grupos con las mismas opciones (spec §4)", () => {
     expect(unprefixedAxisGroups(src)).toHaveLength(2);
   });
 });
+
+describe("recorrido del Oblicuo (spec §7.3)", () => {
+  it("el Oblicuo ofrece RECORRIDO ▸ PLANO · VASO", () => {
+    const src = readFileSync(join(root, "vtk", "ObliqueView.tsx"), "utf8");
+    expect(src).toMatch(/label="RECORRIDO ▸"/);
+    expect(src).toMatch(/label:\s*"VASO"/);
+  });
+});

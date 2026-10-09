@@ -35,3 +35,15 @@ export function nearestIndex(points: Vec3[], p: Vec3): { index: number; distMm: 
   points.forEach((q, i) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]); if (d < best) { best = d; index = i; } });
   return { index, distMm: best };
 }
+
+/** Índice vigente del recorrido. El redondeo a vóxel puede dejar el foco tan
+ *  cerca del punto siguiente como del propio: con el espaciado por encima del
+ *  paso de la línea (0,5 mm) el «más cercano» oscilaría y el cine se pegaría.
+ *  Por eso manda el índice guardado mientras el foco siga sobre su punto. */
+export function stepTrackIndex(track: CenterlineTrack, currentMm: Vec3, lastIndex: number | null, toleranceMm: number): number {
+  if (lastIndex !== null && lastIndex >= 0 && lastIndex < track.points.length) {
+    const p = track.points[lastIndex];
+    if (Math.hypot(p[0] - currentMm[0], p[1] - currentMm[1], p[2] - currentMm[2]) <= toleranceMm) return lastIndex;
+  }
+  return nearestIndex(track.points, currentMm).index;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dragAngles, obliqueReadout, wheelOffset } from "./obliqueGestures";
+import { dragAngles, obliqueReadout, vesselReadout, wheelOffset } from "./obliqueGestures";
 const p0 = { azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 };
 describe("gestos del oblicuo", () => {
   it("arrastrar 40 px a la derecha y 20 px arriba gira 20° de azimut y sube 10° de elevación", () => {
@@ -15,5 +15,11 @@ describe("gestos del oblicuo", () => {
   it("la lectura usa coma decimal y signo", () => {
     expect(obliqueReadout({ azimuthDeg: 20, elevationDeg: -10, offsetMm: 3.25 })).toBe("AZ 20° · EL −10° · +3,3 mm");
     expect(obliqueReadout({ azimuthDeg: 0, elevationDeg: 0, offsetMm: -0.5 })).toBe("AZ 0° · EL 0° · −0,5 mm");
+  });
+});
+
+describe("vesselReadout", () => {
+  it("índice 1-based y diámetro con coma", () => {
+    expect(vesselReadout(36, 120, 3.14)).toBe("VASO 37/120 · Ø 3,1 mm");
   });
 });

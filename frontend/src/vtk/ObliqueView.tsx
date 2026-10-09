@@ -17,7 +17,7 @@ import type { Vec3 } from "./geometry";
 import {
   AZIMUTH_RANGE, ELEVATION_RANGE, clampOffsetToBox, clipPolygon, normalOf, originOf, rightOf, upOf, type FreePlane,
 } from "./freePlane";
-import { dragAngles, obliqueReadout, wheelOffset } from "./obliqueGestures";
+import { dragAngles, obliqueReadout, vesselReadout, wheelOffset } from "./obliqueGestures";
 import { isNativeKeyTarget, stepFromKey } from "./cine";
 import { HudFrame } from "./hud/HudFrame";
 import { HudReadout } from "./hud/HudReadout";
@@ -30,13 +30,18 @@ const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 type Voxel = { x: number; y: number; z: number };
 const degLabel = (d: number) => { const r = Math.round(d); return `${r < 0 ? "−" : ""}${Math.abs(r)}°`; };
 
-export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelReset, active = false, registerCapture, registerFit, overlay }: {
+export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelReset, active = false, registerCapture, registerFit, overlay, walk, onWalkChange, onStep }: {
   image: vtkImageData; meta: VolumeMeta; wc: number; ww: number; onWindowLevel: (wc: number, ww: number) => void; active?: boolean;
   /** Doble clic en la lectura W/L: vuelve a la ventana del estudio. */
   onWindowLevelReset?: () => void;
   /** Algo que va sobre la imagen (la barra del cine): dentro del área del
    *  corte, para que quede encima de su lectura y no de la fila de deslizadores. */
   overlay?: ReactNode;
+  /** Recorrido del cine: PLANO (desplazamiento) o VASO (puntos de la línea central). null sin línea central. */
+  walk?: { mode: "plano" | "vaso"; index: number; count: number; diameterMm: number } | null;
+  onWalkChange?: (m: "plano" | "vaso") => void;
+  /** En VASO, las teclas de corte avanzan por los puntos; lo resuelve el visor. */
+  onStep?: (step: number) => void;
   /** Publica la captura de este panel en PNG mientras su escena viva.
    *  El lienzo de vtk.js se lee negro si no se pide la imagen del
    *  siguiente render, así que la captura tiene que salir de aquí. */
@@ -219,6 +224,8 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelR
     if (isNativeKeyTarget(e.target)) return;
     const step = stepFromKey(e.key); if (step === null) return;
     e.preventDefault();
+    // En VASO el paso es un punto de la línea central, que solo conoce el visor.
+    if (walk?.mode === "vaso" && onStep) { onStep(step); return; }
     const p = geom.current.p;
     commitPlane({ ...p, offsetMm: p.offsetMm + step * Math.min(...meta.spacing) });
   };
@@ -251,7 +258,7 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelR
         }}
         onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag}>
         <HudFrame active={active} label="OBLICUO">
-          <HudReadout at="bl" lines={[obliqueReadout(freePlane)]} />
+          <HudReadout at="bl" lines={[walk?.mode === "vaso" ? vesselReadout(walk.index, walk.count, walk.diameterMm) : obliqueReadout(freePlane)]} />
           {/* Como en los cortes: botón que explica el gesto y restablece. El
               pointerdown no llega al lienzo, que empezaría un arrastre de W/L. */}
           <button type="button" className="hud-readout br hud-wl" title={WL_TITLE}
@@ -269,6 +276,11 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelR
       <div className="hud-controls" style={{ flexShrink: 0, padding: "8px 16px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-dim)" }}>
         {slider("AZIMUT", "Azimut", AZIMUTH_RANGE, freePlane.azimuthDeg, (v) => commitPlane({ ...freePlane, azimuthDeg: v }))}
         {slider("ELEVACIÓN", "Elevación", ELEVATION_RANGE, freePlane.elevationDeg, (v) => commitPlane({ ...freePlane, elevationDeg: v }))}
+        {walk && onWalkChange && (
+          <HudToggleGroup label="RECORRIDO ▸"
+            options={[{ key: "plano", label: "PLANO", title: "El cine desplaza el plano libre" }, { key: "vaso", label: "VASO", title: "El cine recorre la línea central, con el corte perpendicular al vaso" }]}
+            value={walk.mode} onChange={(k) => onWalkChange(k as "plano" | "vaso")} />
+        )}
         <HudToggleGroup
           options={[{ key: "fit", label: "ENCUADRAR", title: "Reencuadrar el corte" }, { key: "reset", label: "AL PUNTO", title: "Devolver el plano al punto compartido" }]}
           value="" onChange={(key) => { if (key === "reset") commitPlane({ ...freePlane, offsetMm: 0 }); setFitRequest((r) => r + 1); }} />

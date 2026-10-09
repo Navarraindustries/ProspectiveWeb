@@ -45,6 +45,8 @@ import {
   type HudLevel,
 } from "./viewerPrefs";
 import { applyStep, cineShouldStop, clampFps, nextIndex } from "./cine";
+import { stepTrackIndex, tangentAt } from "./centerlineWalk";
+import { useCenterlineTrack } from "./useCenterlineTrack";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
@@ -79,7 +81,7 @@ const MipView = lazy(() => import("./MipView").then((m) => ({ default: m.MipView
 const ObliqueView = lazy(() => import("./ObliqueView").then((m) => ({ default: m.ObliqueView })));
 
 /** Qué recorre el cine de una celda: un eje del vóxel o el plano libre. */
-type CineTarget = { kind: "axis"; axis: "x" | "y" | "z" } | { kind: "free" };
+type CineTarget = { kind: "axis"; axis: "x" | "y" | "z" } | { kind: "free" } | { kind: "vessel" };
 /** El índice de cada corte es la coordenada perpendicular a él. */
 const PLANE_AXIS: Record<Plane, "x" | "y" | "z"> = { axial: "z", coronal: "y", sagital: "x" };
 /** Posición del eje en `meta.shape`, que va como [z, y, x]. */
@@ -240,7 +242,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
+    centerline, obliqueWalk, setObliqueWalk,
   } = usePlanning();
+  // El recorrido VASO necesita los puntos aunque el panel de la línea central no se abra.
+  useCenterlineTrack();
 
   // Cuánto HUD se ve (completo · esencial · limpio, tecla H): preferencia del
   // profesional, en su navegador; la rejilla lo publica como `data-hud` y lo
@@ -907,6 +912,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   mprVoxelRef.current = mprVoxel;
   const metaRef = useRef(meta);
   metaRef.current = meta;
+  const centerlineRef = useRef(centerline);
+  centerlineRef.current = centerline;
+  // Punto de la línea central donde dejó el foco el último paso (ver stepTrackIndex).
+  const trackIndexRef = useRef<number | null>(null);
 
   // ── Cine por celda ──────────────────────────────────────────────────── #
   // El eje de VOLUMEN: el elegido en su HUD o, sin elección, el del corte que
@@ -918,7 +927,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // (sin volumen, o la escena enseña la malla o los Cortes 3D).
   const cineTarget = (pane: PaneId): CineTarget | null => {
     if (!meta || !sessionId) return null;
-    if (pane === "scene") return viewMode === "oblique" && !legacy && clientVol.image ? { kind: "free" } : null;
+    if (pane === "scene") {
+      if (!(viewMode === "oblique" && !legacy && clientVol.image)) return null;
+      return centerline && obliqueWalk === "vaso" ? { kind: "vessel" } : { kind: "free" };
+    }
     if (pane === "mip") {
       if (!clientVol.image) return null;
       return clipMode === "libre" ? { kind: "free" } : { kind: "axis", axis: PLANE_AXIS[volumeAxis] };
@@ -934,6 +946,20 @@ export function ViewerWorkspace({ step }: { step: string }) {
    *  extremos; sin él (◀ ▶ de la barra) se queda en el borde. false = la
    *  celda ya no tiene qué recorrer (cambió de modo) y el reloj debe pararse.
    *  El plano libre avanza por el espaciado más fino, como la rueda. */
+  /** Lleva el punto compartido al punto i de la línea central y pone el plano
+   *  libre perpendicular al vaso allí. Adelantado al render, como el eje. */
+  const goToTrackIndex = (i: number) => {
+    const t = centerlineRef.current, m = metaRef.current; if (!t || !m) return;
+    const v = mmToVoxel(t.points[i], m);
+    mprVoxelRef.current = v; setMprVoxel(v);
+    const fp = planeFromNormal(tangentAt(t.points, i));
+    freePlaneRef.current = fp; setFreePlane(fp);
+    trackIndexRef.current = i;
+  };
+  const currentTrackIndex = (): number | null => {
+    const t = centerlineRef.current, m = metaRef.current; if (!t || !m) return null;
+    return stepTrackIndex(t, voxelToMm(mprVoxelRef.current, m), trackIndexRef.current, Math.max(1, ...m.spacing));
+  };
   const cineMove = (pane: PaneId, dir: 1 | -1, bounce: boolean): boolean => {
     const t = cineTargetRef.current(pane), m = metaRef.current;
     if (!t || !m) return false;
@@ -948,6 +974,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
         mprVoxelRef.current = v;
         setMprVoxel(v);
       }
+      return true;
+    }
+    if (t.kind === "vessel") {
+      const track = centerlineRef.current; if (!track) return false;
+      const count = track.points.length, i = currentTrackIndex() ?? 0;
+      const next = bounce ? nextIndex(i, dir, count, true) : { index: applyStep(i, dir, count), dir };
+      if (bounce) cineDirRef.current = next.dir;
+      if (next.index !== i) goToTrackIndex(next.index);
       return true;
     }
     const p = freePlaneRef.current, stepMm = Math.min(...m.spacing);
@@ -970,6 +1004,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const t = cineTarget(pane);
     if (!t || !meta) return null;
     if (t.kind === "axis") return { index: mprVoxel[t.axis], count: meta.shape[AXIS_DIM[t.axis]] };
+    if (t.kind === "vessel") { const track = centerline!; return { index: currentTrackIndex() ?? 0, count: track.points.length }; }
     const stepMm = Math.min(...meta.spacing);
     const lo = clampOffsetToBox({ ...freePlane, offsetMm: -Infinity }, mprVoxel, meta).offsetMm;
     const hi = clampOffsetToBox({ ...freePlane, offsetMm: Infinity }, mprVoxel, meta).offsetMm;
@@ -1693,11 +1728,17 @@ export function ViewerWorkspace({ step }: { step: string }) {
         body = <ObliqueMprView sessionId={sessionId} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} />;
         mode = "OBLICUO";
       } else {
+        // En PLANO la posición del cine es un desplazamiento, no un punto de la línea.
+        const walkIndex = obliqueWalk === "vaso" ? (cinePosition("scene")?.index ?? 0) : 0;
         body = (
           <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
               onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} onWindowLevelReset={() => setMprWl(null)} active={isMain}
-              registerCapture={registerMeshCapture} registerFit={regFit("scene")} overlay={cineBarFor("scene", compact)} />
+              registerCapture={registerMeshCapture} registerFit={regFit("scene")} overlay={cineBarFor("scene", compact)}
+              walk={centerline ? { mode: obliqueWalk, index: walkIndex, count: centerline.points.length,
+                                   diameterMm: 2 * (centerline.radiiMm[walkIndex] ?? 0) } : null}
+              onWalkChange={setObliqueWalk}
+              onStep={obliqueWalk === "vaso" && centerline ? (step) => { const i = currentTrackIndex() ?? 0; goToTrackIndex(applyStep(i, step, centerline.points.length)); } : undefined} />
           </Suspense>
         );
         bodyFramed = true;

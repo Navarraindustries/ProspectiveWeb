@@ -462,4 +462,10 @@ describe("la línea central recorrible", () => {
     act(() => result.current.resetDownstream());
     expect(result.current.centerline).toBeNull();
   });
+  it("al perder la línea central el recorrido vuelve a PLANO", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => { result.current.setCenterline(track); result.current.setObliqueWalk("vaso"); });
+    act(() => result.current.setCenterline(null));
+    expect(result.current.obliqueWalk).toBe("plano");
+  });
 });

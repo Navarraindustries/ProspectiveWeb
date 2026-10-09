@@ -93,6 +93,9 @@ interface PlanningState {
    *  ellos y el cine del Oblicuo los recorre. null hasta que se piden. */
   centerline: CenterlineTrack | null;
   setCenterline: (t: CenterlineTrack | null) => void;
+  /** Qué recorre el cine del Oblicuo: el desplazamiento del plano o los puntos de la línea central (spec §7.3). */
+  obliqueWalk: "plano" | "vaso";
+  setObliqueWalk: (m: "plano" | "vaso") => void;
   /** Total arc length (mm) of the extracted centreline — feeds the cl-stent range sliders. */
   centerlineArcMm: number | null;
   /** Qué se pinta sobre el stent de la línea central: a qué distancia queda
@@ -442,7 +445,11 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     { clips: null, coils: null, stent: null },
   );
   const [centerlineMesh, _setCenterlineMesh] = useState<string | null>(null);
-  const [centerline, setCenterline] = useState<CenterlineTrack | null>(null);
+  const [centerline, _setCenterline] = useState<CenterlineTrack | null>(null);
+  const [obliqueWalk, setObliqueWalk] = useState<"plano" | "vaso">("plano");
+  // Sin puntos no hay vaso que recorrer: VASO se quedaría marcado sin efecto.
+  // Estable: los efectos que piden los puntos la llevan en sus dependencias.
+  const setCenterline = useCallback((t: CenterlineTrack | null) => { _setCenterline(t); if (!t) setObliqueWalk("plano"); }, []);
   const [centerlineArcMm, setCenterlineArcMm] = useState<number | null>(null);
   const [stentMap, setStentMap] = useState<StentMap>("apposition");
   const [mprWl, setMprWl] = useState<{ wc: number; ww: number } | null>(null);
@@ -711,6 +718,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     // sin que nadie lo pidiera; la celda enfocada era de la sesión anterior.
     setCine(null);
     setFocusedPane(null);
+    setObliqueWalk("plano");
     resetDownstream();
     clearAnnotations();
     // WHY: un «sin guardar» o una lectura fallida eran de la sesión anterior;
@@ -726,7 +734,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
-        centerlineMesh, centerline, setCenterline, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
+        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,

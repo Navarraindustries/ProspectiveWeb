@@ -28,3 +28,8 @@ export function obliqueReadout(p: FreePlane): string {
   const mm = Math.round(p.offsetMm * 10) / 10;
   return `AZ ${deg(p.azimuthDeg)} · EL ${deg(p.elevationDeg)} · ${mm < 0 ? "−" : "+"}${Math.abs(mm).toFixed(1).replace(".", ",")} mm`;
 }
+
+/** Lectura del Oblicuo recorriendo el vaso: sección 1-based y calibre local. */
+export function vesselReadout(index: number, count: number, diameterMm: number): string {
+  return `VASO ${index + 1}/${count} · Ø ${diameterMm.toFixed(1).replace(".", ",")} mm`;
+}

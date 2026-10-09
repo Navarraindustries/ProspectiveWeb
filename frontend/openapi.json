@@ -1311,6 +1311,42 @@
     "title": "CenterlineClearResult",
     "type": "object"
    },
+   "CenterlinePoints": {
+    "description": "The resampled medial-axis points the extraction saved, for the client to walk along.",
+    "properties": {
+     "arc_mm": {
+      "description": "Cumulative arc length at each point, starting at 0 (mm)",
+      "items": {
+       "type": "number"
+      },
+      "title": "Arc Mm",
+      "type": "array"
+     },
+     "points": {
+      "description": "Centreline points (mm, volume frame), ~0.5 mm apart",
+      "items": {
+       "$ref": "#/components/schemas/Position3D"
+      },
+      "title": "Points",
+      "type": "array"
+     },
+     "radii_mm": {
+      "description": "Local vessel radius at each point (mm)",
+      "items": {
+       "type": "number"
+      },
+      "title": "Radii Mm",
+      "type": "array"
+     }
+    },
+    "required": [
+     "points",
+     "radii_mm",
+     "arc_mm"
+    ],
+    "title": "CenterlinePoints",
+    "type": "object"
+   },
    "CenterlineRequest": {
     "description": "Request to extract the medial-axis centreline between two vessel points.",
     "properties": {
@@ -11926,6 +11962,54 @@
      }
     ],
     "summary": "Dimensionar un flow-diverter sobre la línea central",
+    "tags": [
+     "centerline"
+    ]
+   }
+  },
+  "/api/centerline/{session_id}/points": {
+   "get": {
+    "description": "The medial-axis points `centerline_points.npz` holds, so the client can walk the vessel section by section and the calibre chart can lead to a position. 404 when no centreline was extracted; 409 when the file is unreadable or degenerate.",
+    "operationId": "get_centerline_points_api_centerline__session_id__points_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CenterlinePoints"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "The centreline points, radii and arc positions",
     "tags": [
      "centerline"
     ]

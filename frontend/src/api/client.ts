@@ -23,6 +23,7 @@ import type {
   CeilingCompareResult,
   CenterlineClearResult,
   CenterlineRequest,
+  CenterlinePoints,
   CenterlineResult,
   ClipAnimationResult,
   ClipOrder,
@@ -409,6 +410,9 @@ export const api = {
   /** La línea central ya extraída en la sesión (métricas incluidas), o null. */
   getCenterline: (sessionId: string) =>
     get<CenterlineResult | null>(`/api/centerline/${sessionId}`),
+  /** Los puntos de la línea central, para recorrerla y para que la gráfica lleve a ellos. */
+  centerlinePoints: (sessionId: string) =>
+    get<CenterlinePoints>(`/api/centerline/${sessionId}/points`),
   /** Discard the centreline, its cached points and any stent built along it. */
   clearCenterline: (sessionId: string) =>
     request<CenterlineClearResult>(`/api/centerline/${sessionId}`, { method: "DELETE" }),

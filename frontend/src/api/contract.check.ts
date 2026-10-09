@@ -36,6 +36,7 @@ export type Contrato = [
   Cabe<Completo<S["CenterlineClearResult"]>, ui.CenterlineClearResult>,
   Cabe<Completo<S["CenterlineRequest"]>, ui.CenterlineRequest>,
   Cabe<Completo<S["CenterlineResult"]>, ui.CenterlineResult>,
+  Cabe<Completo<S["CenterlinePoints"]>, ui.CenterlinePoints>,
   Cabe<Completo<S["ClStentApposition"]>, ui.ClStentApposition>,
   Cabe<Completo<S["ClStentCoverage"]>, ui.ClStentCoverage>,
   Cabe<Completo<S["ClStentRequest"]>, ui.ClStentRequest>,

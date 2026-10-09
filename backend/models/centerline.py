@@ -41,6 +41,14 @@ class CenterlineResult(BaseModel):
     )
 
 
+class CenterlinePoints(BaseModel):
+    """The resampled medial-axis points the extraction saved, for the client to walk along."""
+
+    points: list[Position3D] = Field(..., description="Centreline points (mm, volume frame), ~0.5 mm apart")
+    radii_mm: list[float] = Field(..., description="Local vessel radius at each point (mm)")
+    arc_mm: list[float] = Field(..., description="Cumulative arc length at each point, starting at 0 (mm)")
+
+
 class CrossSectionRequest(BaseModel):
     """Request to analyse cross-sections along the previously-extracted centreline."""
 

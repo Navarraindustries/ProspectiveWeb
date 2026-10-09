@@ -537,6 +537,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/centerline/{session_id}/points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The centreline points, radii and arc positions
+         * @description The medial-axis points `centerline_points.npz` holds, so the client can walk the vessel section by section and the calibre chart can lead to a position. 404 when no centreline was extracted; 409 when the file is unreadable or degenerate.
+         */
+        get: operations["get_centerline_points_api_centerline__session_id__points_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/cl-stent/{session_id}": {
         parameters: {
             query?: never;
@@ -3561,6 +3581,27 @@ export interface components {
              * @description Session files deleted (centreline geometry and anything built on it)
              */
             removed?: string[];
+        };
+        /**
+         * CenterlinePoints
+         * @description The resampled medial-axis points the extraction saved, for the client to walk along.
+         */
+        CenterlinePoints: {
+            /**
+             * Arc Mm
+             * @description Cumulative arc length at each point, starting at 0 (mm)
+             */
+            arc_mm: number[];
+            /**
+             * Points
+             * @description Centreline points (mm, volume frame), ~0.5 mm apart
+             */
+            points: components["schemas"]["Position3D"][];
+            /**
+             * Radii Mm
+             * @description Local vessel radius at each point (mm)
+             */
+            radii_mm: number[];
         };
         /**
          * CenterlineRequest
@@ -10586,6 +10627,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FdSizingResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_centerline_points_api_centerline__session_id__points_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CenterlinePoints"];
                 };
             };
             /** @description Validation Error */

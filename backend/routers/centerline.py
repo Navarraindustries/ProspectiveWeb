@@ -14,10 +14,11 @@ from services.audit import audit_device
 from services.db_models import User
 
 from models.centerline import (
-    CenterlineClearResult, CenterlineRequest, CenterlineResult,
+    CenterlineClearResult, CenterlinePoints, CenterlineRequest, CenterlineResult,
     CrossSectionRequest, CrossSectionResult, ClStentApposition, ClStentCoverage, ClStentRequest, ClStentResult,
     FdSizingResult,
 )
+from models.detection import Position3D
 from services.centerline import extract_centerline
 from services.cross_section import compute_cross_sections
 from services.stent_deployment import deploy_stent_on_centerline
@@ -137,6 +138,38 @@ async def get_centerline(session_id: str) -> CenterlineResult | None:
     result = CenterlineExtractor._compute_metrics(pts, radii)
     url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(points_path.stat().st_mtime * 1000)}"
     return _to_out(result, url)
+
+
+@router.get(
+    "/centerline/{session_id}/points",
+    response_model=CenterlinePoints,
+    summary="The centreline points, radii and arc positions",
+    description=(
+        "The medial-axis points `centerline_points.npz` holds, so the client can walk "
+        "the vessel section by section and the calibre chart can lead to a position. "
+        "404 when no centreline was extracted; 409 when the file is unreadable or degenerate."
+    ),
+)
+async def get_centerline_points(session_id: str) -> CenterlinePoints:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    points_path = session_subdir(session_id, "meshes") / "centerline_points.npz"
+    if not points_path.exists():
+        raise HTTPException(status_code=404, detail="No hay línea central extraída.")
+    try:
+        with np.load(points_path) as data:
+            pts = data["points"].astype(float)
+            radii = data["radii"].astype(float)
+    except Exception as exc:  # noqa: BLE001 — un fichero dañado no es un 500
+        raise HTTPException(status_code=409, detail=f"centerline_points.npz ilegible: {exc}")
+    if len(pts) < 2 or len(radii) != len(pts):
+        raise HTTPException(status_code=409, detail="La línea central tiene menos de dos puntos.")
+    arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
+    return CenterlinePoints(
+        points=[Position3D(x=round(float(p[0]), 2), y=round(float(p[1]), 2), z=round(float(p[2]), 2)) for p in pts],
+        radii_mm=[round(float(r), 3) for r in radii],
+        arc_mm=[round(float(a), 2) for a in arc],
+    )
 
 
 def _run_cross_section(vessel_path, points_path, n_samples):

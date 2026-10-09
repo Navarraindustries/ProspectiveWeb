@@ -123,6 +123,13 @@ export interface CenterlineResult {
   warning: string | null;
 }
 
+/** Puntos de la línea central (marco del volumen, mm), con radio y arco acumulado. */
+export interface CenterlinePoints {
+  points: Position3D[];
+  radii_mm: number[];
+  arc_mm: number[];
+}
+
 export interface CrossSectionRequest {
   session_id: string;
   n_samples: number;

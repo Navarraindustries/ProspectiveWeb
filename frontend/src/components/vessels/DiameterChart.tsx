@@ -1,13 +1,25 @@
 /* DiameterChart — inline SVG profile of vessel diameter (mm) vs arc position
    along the centreline. Highlights the narrowest point (stenosis). Theme-aware. */
+import { useRef } from "react";
+
+// El panel lleva el cursor al punto de la línea central más cercano (remuestreada
+// cada 0,5 mm), así que tras elegir una muestra el cursor puede quedar hasta
+// 0,25 mm de ella; con este margen se sigue reconociendo como la elegida.
+const SNAP_MM = 0.5;
 
 export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcMm = null }: {
   arc: number[]; diameters: number[]; meanDiameter: number;
-  /** Clic o flechas sobre el trazado: posición en mm a lo largo del vaso (spec §7.2). */
+  /** Clic, arrastre o flechas sobre el trazado: posición en mm a lo largo del vaso (spec §7.2). */
   onPick?: (arcMm: number) => void;
   /** Dónde está el punto compartido sobre el vaso; null si no está sobre él. */
   cursorArcMm?: number | null;
 }) {
+  // Un clic de ratón ya eligió en el pointerdown: el click que le sigue no repite.
+  const pressed = useRef(false);
+  // Última muestra elegida con flechas. Si el cursor volvió al mismo punto de la
+  // línea central (muestras más juntas que sus puntos), se avanza desde ella y
+  // no desde el cursor, o la flecha no se movería nunca.
+  const keyIdx = useRef<number | null>(null);
   if (arc.length < 2) return null;
 
   const W = 320;
@@ -36,19 +48,48 @@ export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcM
     const f = Math.min(1, Math.max(0, (vx - P.l) / iw));
     return x0 + f * (x1 - x0);
   };
-  const cursorIdx = cursorArcMm === null ? minIdx : arc.reduce((b, a, i) => (Math.abs(a - cursorArcMm) < Math.abs(arc[b] - cursorArcMm) ? i : b), 0);
+  const last = arc.length - 1;
+  const clampIdx = (i: number) => Math.max(0, Math.min(last, i));
+  // La muestra siguiente es la primera estrictamente más allá del cursor: con la
+  // más cercana, un cursor entre dos muestras juntas volvía a la misma.
+  const stepIdx = (d: 1 | -1): number => {
+    if (cursorArcMm === null) return clampIdx(minIdx + d);
+    const k = keyIdx.current;
+    if (k !== null && k <= last && Math.abs(arc[k] - cursorArcMm) <= SNAP_MM) return clampIdx(k + d);
+    const eps = 1e-6;
+    if (d > 0) { const i = arc.findIndex((a) => a > cursorArcMm + eps); return i < 0 ? last : i; }
+    for (let i = last; i >= 0; i--) if (arc[i] < cursorArcMm - eps) return i;
+    return 0;
+  };
   const onKey = (e: React.KeyboardEvent<SVGSVGElement>) => {
     if (!onPick) return;
     const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!d) return;
     e.preventDefault();
-    onPick(arc[Math.max(0, Math.min(arc.length - 1, cursorIdx + d))]);
+    const i = stepIdx(d);
+    keyIdx.current = i;
+    onPick(arc[i]);
+  };
+  const pickAt = (e: React.MouseEvent<SVGSVGElement>) => { keyIdx.current = null; onPick?.(mmAt(e)); };
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
+    pressed.current = true;
+    // Capturado, el arrastre sigue aunque el ratón salga de la gráfica.
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    pickAt(e);
+  };
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => { if (e.buttons & 1) pickAt(e); };
+  const onClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (pressed.current) { pressed.current = false; return; }
+    pickAt(e);
   };
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} role={onPick ? "slider" : "img"} aria-label="Perfil de diámetro"
       aria-valuemin={x0} aria-valuemax={x1} aria-valuenow={cursorArcMm ?? undefined}
-      tabIndex={onPick ? 0 : undefined} onClick={onPick ? (e) => onPick(mmAt(e)) : undefined} onKeyDown={onKey}
+      tabIndex={onPick ? 0 : undefined} onKeyDown={onKey}
+      onPointerDown={onPick ? onPointerDown : undefined} onPointerMove={onPick ? onPointerMove : undefined}
+      onClick={onPick ? onClick : undefined}
       style={{ display: "block", marginTop: 8, cursor: onPick ? "crosshair" : undefined }}>
       {/* frame */}
       <line x1={P.l} y1={P.t} x2={P.l} y2={P.t + ih} stroke="var(--border)" strokeWidth={1} />

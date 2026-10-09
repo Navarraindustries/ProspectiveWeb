@@ -20,6 +20,9 @@ const OLD = /(?:label\s*[:=]\s*\{?\s*["'`]|>\s*)(CENTRAR|AJUSTAR|Ajustar)(?:["'`
 const NEW = /(?:label\s*[:=]\s*\{?\s*["'`]|>\s*|\[\s*"fit",\s*")ENCUADRAR(?:["'`]|\s*<)/; // Viewer la declara en CAMERA_BUTTONS
 
 describe("nombres de los botones", () => {
+  it("el 3D ofrece ABORDAJE junto a las vistas", () => {
+    expect(readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8")).toMatch(/label:\s*"ABORDAJE"/);
+  });
   it("VOLUMEN construye sus preajustes por modalidad (sin lista fija)", () => {
     const src = readFileSync(join(root, "vtk", "MipView.tsx"), "utf8");
     expect(src).toMatch(/volumePresetsFor\(meta\.modality\)/);

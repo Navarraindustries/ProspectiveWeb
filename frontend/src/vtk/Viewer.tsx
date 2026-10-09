@@ -49,7 +49,8 @@ import { focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
-import { clampOffsetToBox, sliceSegment, type FreePlane } from "./freePlane";
+import { clampOffsetToBox, planeFromNormal, sliceSegment, type FreePlane } from "./freePlane";
+import { approachDirection } from "./approachView";
 import { ANNOTATION_HEX, HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
 import { captureFileName } from "./viewerRecorder";
 import { readHeading, readPaneHud } from "./readHud";
@@ -1255,6 +1256,17 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setFocusMm(lesion, meta);
     camera?.frame(lesion, lesionFrameRadiusMm(morphometry?.max_diameter_mm ?? candidate?.max_diameter_mm ?? 0));
   };
+  // «ABORDAJE»: la cámara mira por el corredor hacia la diana y el plano
+  // libre queda perpendicular a él en la diana (spec §4.2). Oblicuo y VOLUMEN
+  // en LIBRE siguen ese plano sin más.
+  const viewApproach = () => {
+    if (!trajEntry || !trajTarget || !meta) return;
+    const dir = approachDirection(trajEntry, trajTarget);
+    if (!dir) return;
+    camera?.lookAlong(dir, trajTarget, lesionFrameRadiusMm(morphometry?.max_diameter_mm ?? candidate?.max_diameter_mm ?? 0));
+    setFocusMm(trajTarget, meta);
+    setFreePlane(planeFromNormal(dir));
+  };
   // Los paneles lo llaman a través del store. Se registra una envoltura
   // estable que lee la versión vigente: registrar la función de cada render
   // en el store volvería a renderizar el visor, y así sin fin.
@@ -1803,8 +1815,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
                 options={[
                   ...CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title })),
                   ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Acercar la cámara a la lesión" }] : []),
+                  ...(trajEntry && trajTarget ? [{ key: "abordaje", label: "ABORDAJE", title: "Mirar a lo largo del corredor; el plano Oblicuo se pone perpendicular a él" }] : []),
                 ]}
-                value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : camera.setView(k as CameraView))} />
+                value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : k === "abordaje" ? viewApproach() : camera.setView(k as CameraView))} />
             )}
             {/* Solo sin orientación en el DICOM: con ella no hay nada que fijar. */}
             {meta.orientation_known === false && (

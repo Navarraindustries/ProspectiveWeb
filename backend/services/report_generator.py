@@ -1686,7 +1686,7 @@ class ReportGenerator:
             ["Punto diana / aneurisma (mm)",
              f"({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f})"],
             ["Profundidad de abordaje", f"{tr.get('depth_mm', 0):.1f} mm"],
-            ["Ángulo de incidencia",    f"{tr.get('angle_deg', 0):.1f} °"],
+            ["Ángulo respecto al eje del aneurisma", f"{tr.get('angle_deg', 0):.1f} °"],
         ]
         tbl = Table(rows, colWidths=[7*cm, 10.9*cm])
         tbl.setStyle(TableStyle([

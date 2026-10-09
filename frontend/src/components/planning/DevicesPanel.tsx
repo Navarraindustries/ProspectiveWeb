@@ -41,6 +41,7 @@ import { Select } from "../Select";
 import { Slider } from "../Slider";
 import { Tabs } from "../Tabs";
 import { TILT_MAX_DEG } from "../../vtk/clipPose";
+import { angleReferenceLabel } from "../../vtk/approachView";
 import { usePlanning, type PlacedClip } from "../../store/planning";
 import { neckPlacement, toPlacement, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
 
@@ -1421,10 +1422,10 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
 }
 
 /* ── Trayectoria de abordaje quirúrgico ────────────────────────────────── */
-function TrajectoryTool() {
+export function TrajectoryTool() {
   const {
     sessionId, segmentation, pickMode, setPickMode,
-    trajEntry, trajTarget, setTrajEntry, setTrajTarget,
+    trajEntry, trajTarget, setTrajEntry, setTrajTarget, morphometry,
   } = usePlanning();
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<TrajectoryResult | null>(null);
@@ -1596,7 +1597,9 @@ function TrajectoryTool() {
       {depth !== null && (
         <div style={{ fontSize: 12, color: "var(--foreground)", marginBottom: 10 }}>
           Profundidad de abordaje: <b style={{ fontFamily: "var(--font-mono)" }}>{depth.toFixed(1)} mm</b>
-          {saved && <> · Ángulo: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle_deg.toFixed(1)}°</b></>}
+          {saved && (() => { const ref = angleReferenceLabel(morphometry?.principal_axis); return (
+            <> · <span title={ref.title}>{ref.text}</span>: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle_deg.toFixed(1)}°</b></>
+          ); })()}
         </div>
       )}
 

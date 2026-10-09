@@ -64,8 +64,10 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     // The 3D components pull in WebGL and Node's "events" and are not unit
-    // tested; the pure helpers beside them (marker sizing) are.
-    exclude: ["node_modules/**", "dist/**", "src/vtk/*View.test.*"],
+    // tested; the pure helpers beside them (marker sizing) are. Only the
+    // PascalCase components are excluded, so a lower-case helper such as
+    // approachView.ts keeps its tests.
+    exclude: ["node_modules/**", "dist/**", "src/vtk/[A-Z]*View.test.*"],
   },
   server: {
     port: 5173,

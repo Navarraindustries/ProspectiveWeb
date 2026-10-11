@@ -1141,55 +1141,55 @@ El PDF cuenta lo que hice con mis palabras en la trayectoria, en la medida y en 
 Cada entrada es una fila del inventario con veredicto `eliminar` o `fusionar`. El propietario decide en la línea final de cada una; las que acepte entran en el plan de arreglos.
 
 1. **«Suite clínica activa»**, en «Landing» (eliminar). Motivo: parece un indicador de que el servidor está en marcha y no mide nada. Lo sustituye: nada.
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 2. **«Iniciar sesión»**, en «Landing» (fusionar). Motivo: hace lo mismo que «Entrar» y «Entrar a la plataforma» con otro nombre. Lo sustituye: un solo rótulo, «Entrar», para los tres botones.
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 3. **«VTK · SimpleITK · pydicom · scipy · FastAPI · React · vtk.js · SQLite»**, en «Landing» (eliminar). Motivo: nombres de librerías que no dicen nada a un cirujano. Lo sustituye: nada; el párrafo vecino ya explica que el cálculo va en el servidor.
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 4. **«Entrar a la plataforma»**, en «Landing» (fusionar). Motivo: un tercer nombre para entrar, junto a un texto que invita a registrarse. Lo sustituye: «Entrar», como el botón de la barra, y al lado un botón «Crear cuenta».
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 5. **«VTK · SimpleITK · SKULLAPP»**, en «Entrar» (eliminar). Motivo: nombres de librerías en el primer sitio donde el cirujano mira cada día. Lo sustituye: nada.
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 6. **«Preparando el espacio de trabajo…»**, en «Entrar» (eliminar). Motivo: dura 2,65 s fijos y no espera a nada. Lo sustituye: nada; se llega directo a «Pacientes».
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 7. **«Solicitudes»**, en «Pacientes» (fusionar). Motivo: repite con otro nombre la entrada «Solicitudes de registro» del menú. Lo sustituye: un solo acceso, «Cuentas pendientes», en la zona de administración.
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 8. **«Editar»**, en «Pacientes» (fusionar). Motivo: es la única puerta a la ficha y se anuncia como una edición. Lo sustituye: el clic en la fila, que abre la ficha, y el botón rotulado «Abrir ficha».
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 9. **«Nuevo estudio»**, en «Ficha del paciente» (fusionar). Motivo: crea lo mismo que «Nuevo caso» de la lista, con el mismo formulario. Lo sustituye: «Nuevo caso».
-   Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 10. **«Pacientes»**, botón con icono de casa en «Estudios» (fusionar). Motivo: tercera forma de ir a la lista en la misma barra, con la miga y el logotipo. Lo sustituye: la miga de pan y el logotipo.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 11. **«Pacientes»**, botón con icono de casa en «Usuarios» (fusionar). Motivo: el mismo triple camino que en «Estudios». Lo sustituye: la miga de pan y el logotipo.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 12. **«Pacientes»**, botón con icono de casa en «Solicitudes» (fusionar). Motivo: el mismo triple camino. Lo sustituye: la miga de pan y el logotipo.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 13. **«Los pedidos ya cursados guardan su propia copia de estos datos…»**, en «Talleres» (fusionar). Motivo: lo mismo se dice tres veces en la página. Lo sustituye: el texto de «Cómo se usa», una sola vez.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 14. **«Solicitudes de registro»**, en «Menú de usuario y tema» (fusionar). Motivo: el gemelo del botón «Solicitudes» de «Pacientes», con otro nombre. Lo sustituye: el acceso único «Cuentas pendientes» de la entrada 7.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 15. **«Pacientes / segura, Juan»**, en «Barra superior del espacio de trabajo» (fusionar). Motivo: «Pacientes» sale tres veces en la misma barra, y la miga no dice en qué sesión ni en qué paso se está. Lo sustituye: una miga «Paciente · sesión · paso» que siga abriendo la ficha.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 16. **«Pacientes»**, botón con icono de casa en «Barra superior del espacio de trabajo» (fusionar). Motivo: repite el logotipo y la miga. Lo sustituye: el logotipo y la miga.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 17. **«El método tubular no usa el techo; el hueso se descarta por forma.»**, en «Paso 2 · Segmentación» (fusionar). Motivo: lo mismo se dice tres veces. Lo sustituye: ocultar el techo en el método tubular, con una sola línea «Sin techo en el método tubular».
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 18. **«Salida vessel_tree.vtp?v=1791691671342»**, en «Paso 2 · Segmentación» (eliminar). Motivo: es un nombre de archivo interno sin uso clínico. Lo sustituye: nada.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 19. **«1 pieza · 8 semillas · recuperados 1686 mm³ · hueso vetado 149 mm³» y «total 38 s · carga 2 s · …»**, en «Paso 2 · Segmentación» (fusionar). Motivo: son datos de depuración a la vista. Lo sustituye: un «Detalles» plegado y, a la vista, solo cuánto tardó.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 20. **«Puesto bajo»**, en «Paso 3 · Detección» (eliminar). Motivo: repite el número de puesto en amarillo, como si fuera un aviso de calidad. Lo sustituye: nada; basta con «Puesto #4».
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 21. **«Localización» en PHASES, ELAPSS, UIATS y Decisión**, en «Paso 4 · Morfometría» (fusionar). Motivo: se pide cuatro veces con cuatro listas y valores por defecto distintos, y dejar uno sin tocar cambia la puntuación. Lo sustituye: una sola elección que heredan las cuatro.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 22. **«Tortuosidad» e «Índice de tortuosidad»**, en «Paso 4 · Morfometría» (fusionar). Motivo: son la misma cifra escrita dos veces. Lo sustituye: una sola fila de tortuosidad.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 23. **«Modelo de clip» y «Recomendados + personalizados (6)»**, en «Paso 6 · Dispositivos» (fusionar). Motivo: es la misma elección que las tarjetas, con otro orden. Lo sustituye: una sola lista, en el orden de las tarjetas.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 24. **«Coil (3 disponibles)», «Número de coils» y «Calcular empaque»**, en «Paso 6 · Dispositivos» (fusionar). Motivo: es una segunda forma de colocar coils, con otro número por defecto. Lo sustituye: el montaje sugerido, editable.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11). Condición: el montaje sugerido debe quedar editable coil a coil.
 25. **«Pacientes»**, botón con icono de casa en «Auditoría» (fusionar). Motivo: el mismo triple camino que en «Estudios», «Usuarios» y «Solicitudes». Lo sustituye: la miga de pan y el logotipo.
-    Decisión del propietario: ___
+Decisión del propietario: aprobada (2026-10-11).
 
 ## Arreglos F1 propuestos
 

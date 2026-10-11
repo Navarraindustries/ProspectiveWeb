@@ -1,0 +1,1037 @@
+# Arreglos F1a — anexo de filas
+
+Extraído de `docs/superpowers/audits/2026-10-10-auditoria-funcional.md` («Arreglos F1 propuestos») el 2026-10-11. Cada fila conserva su número F1, su gravedad, el cambio concreto, el archivo probable y la prueba que lo fija. Las filas sueltas de las pantallas de gestión (32) pasan a F2 y se listan al final. Las 25 eliminaciones y fusiones están aprobadas por el propietario; las filas «Condicionado a la decisión nº N» se ejecutan.
+
+
+## Familia A · error como lista vacía (8 filas)
+
+- **F1-2** [bloquea] Pacientes · Error al cargar la lista (mensaje)
+  - Cambio: Con error, no mostrar el vacío ni los contadores a 0; mensaje en castellano con «Reintentar»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: lista que falla no muestra «No hay pacientes registrados»
+- **F1-29** [bloquea] Guardar y reanudar · «0 registros» en Pacientes con el servidor caído (mensaje)
+  - Cambio: Mismo arreglo que «Error al cargar la lista» de «Pacientes»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx` (mismo que «Error al cargar la lista»)
+- **F1-75** [confunde] Estudios · Error al cargar estudios (mensaje)
+  - Cambio: Con error, no mostrar el vacío; mensaje en castellano
+  - Archivo: frontend/src/pages/Studies.tsx
+  - Prueba: Vitest `Studies.test.tsx`: error sin texto de vacío
+- **F1-88** [confunde] Usuarios · Error al cargar usuarios (mensaje)
+  - Cambio: Con error, no mostrar el vacío de búsqueda
+  - Archivo: frontend/src/pages/UsersAdmin.tsx
+  - Prueba: Vitest `UsersAdmin.test.tsx`: error sin «No hay usuarios que coincidan»
+- **F1-92** [confunde] Solicitudes · Error al cargar solicitudes (mensaje)
+  - Cambio: Con error, no mostrar «No hay solicitudes pendientes» ni la marca verde
+  - Archivo: frontend/src/pages/PendingRequests.tsx
+  - Prueba: Vitest `PendingRequests.test.tsx`: error sin marca verde
+- **F1-99** [confunde] Pedidos de clips · Error al leer el registro (mensaje)
+  - Cambio: Con error, no mostrar el vacío
+  - Archivo: frontend/src/pages/ClipOrders.tsx
+  - Prueba: Vitest `ClipOrders.test.tsx`: error sin texto de vacío
+- **F1-103** [confunde] Auditoría · Error al cargar la cadena (mensaje)
+  - Cambio: Con error, no mostrar «La cadena está vacía.»; mensaje propio
+  - Archivo: frontend/src/pages/AuditTrail.tsx
+  - Prueba: Vitest `AuditTrail.test.tsx`: error sin «vacía»
+- **F1-104** [confunde] Talleres · Error al leer el directorio (mensaje)
+  - Cambio: Con error, no mostrar «Todavía no hay talleres…»
+  - Archivo: frontend/src/pages/Workshops.tsx
+  - Prueba: Vitest `Workshops.test.tsx`: error sin texto de vacío
+
+## Familia B · confirmar o deshacer un clic destructivo (17 filas)
+
+- **F1-3** [bloquea] Ficha del paciente · «Borrar esta captura» (botón)
+  - Cambio: Pedir confirmación antes de borrar
+  - Archivo: frontend/src/components/CaptureGallery.tsx
+  - Prueba: Vitest `CaptureGallery.test.tsx`: el clic abre confirmación y no llama al borrado
+- **F1-6** [bloquea] Atajos · «Supr» y «Retroceso» (atajo)
+  - Cambio: Mismo arreglo que «Borrar (Supr)»: deshacer unos segundos o confirmación
+  - Archivo: frontend/src/components/annotations/AnnotationsPanel.tsx, frontend/src/vtk/shortcuts.ts
+  - Prueba: Vitest `AnnotationsPanel.test.tsx`: Supr ofrece «Deshacer» y la anotación vuelve
+- **F1-7** [bloquea] Anotaciones · «Borrar (Supr)» (botón)
+  - Cambio: Deshacer durante unos segundos tras borrar, o confirmación
+  - Archivo: frontend/src/components/annotations/AnnotationsPanel.tsx, frontend/src/components/annotations/useAnnotationsSync.ts
+  - Prueba: Vitest `AnnotationsPanel.test.tsx`: borrar y deshacer restaura la anotación
+- **F1-9** [bloquea] Paso 1 · Carga DICOM · Volver a cargar en una sesión con trabajo (mensaje)
+  - Cambio: Con trabajo hecho, confirmar «Esto descarta la segmentación, la detección y la medida. ¿Cargar otro estudio?»
+  - Archivo: frontend/src/components/upload/UploadPanel.tsx
+  - Prueba: Vitest `UploadPanel.test.tsx`: con malla, soltar un archivo pide confirmación
+- **F1-10** [bloquea] Paso 2 · Segmentación · «Aplicar preprocesamiento» (botón)
+  - Cambio: Confirmación «Se reinicia la segmentación y se borran las anotaciones»
+  - Archivo: frontend/src/components/segmentation/PreprocessSection.tsx
+  - Prueba: Vitest `PreprocessSection.test.tsx`: aplicar pide confirmación
+- **F1-11** [bloquea] Paso 2 · Segmentación · «Re-segmentar» (botón)
+  - Cambio: Confirmación que diga que se pierden candidatos, medida y anotaciones
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx
+  - Prueba: Vitest `SegmentPanel.test.tsx`: con malla, re-segmentar pide confirmación
+- **F1-12** [bloquea] Paso 3 · Detección · «Limpiar candidatos y morfometría» (botón)
+  - Cambio: Confirmación que diga que se pierden la medida, el cuello marcado y la recomendación
+  - Archivo: frontend/src/components/planning/DetectPanel.tsx
+  - Prueba: Vitest `DetectPanel.test.tsx`: el clic abre confirmación
+- **F1-18** [bloquea] Paso 5 · Decisión · «Limpiar decisión y PHASES» (botón)
+  - Cambio: Pedir confirmación
+  - Archivo: frontend/src/components/planning/TreatmentPanel.tsx
+  - Prueba: Vitest `TreatmentPanel.test.tsx`: el clic abre confirmación
+- **F1-21** [bloquea] Paso 6 · Dispositivos · «Limpiar» (botón)
+  - Cambio: Pedir confirmación antes de borrar la trayectoria guardada
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest `TrajectoryTool.test.tsx`: «Limpiar» con trayectoria guardada abre confirmación
+- **F1-22** [bloquea] Paso 6 · Dispositivos · «Limpiar clips colocados» (botón)
+  - Cambio: Pedir confirmación que diga que se pierden la pose, la verificación, la oclusión y el mapa de calor
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest `DevicesPanel.clipField.test.tsx`: el clic abre confirmación y no borra
+- **F1-58** [confunde] Pacientes · «✕» (botón)
+  - Cambio: El diálogo da el número de casos y sesiones que se borran; Intro no confirma un borrado
+  - Archivo: frontend/src/pages/Patients.tsx, frontend/src/components/ConfirmDialog.tsx
+  - Prueba: Vitest `Patients.test.tsx`: el diálogo dice «6 sesiones»; Intro no borra
+- **F1-91** [confunde] Solicitudes · «Rechazar» (botón)
+  - Cambio: Pedir confirmación antes de rechazar
+  - Archivo: frontend/src/pages/PendingRequests.tsx
+  - Prueba: Vitest `PendingRequests.test.tsx`: el clic abre confirmación
+- **F1-97** [confunde] Pedidos de clips · «Firmar · Marcar enviado · En fabricación · Registrar recepción» (botón)
+  - Cambio: Ocultar o apagar «Firmar» con el motivo para «Residente» y «Observador»; confirmar la firma
+  - Archivo: frontend/src/pages/ClipOrders.tsx
+  - Prueba: Vitest `ClipOrders.test.tsx`: un residente ve «Firmar» apagado con motivo
+- **F1-98** [confunde] Pedidos de clips · «Aceptar la pieza · Rechazar» (botón)
+  - Cambio: Pedir confirmación antes de «Rechazar»
+  - Archivo: frontend/src/pages/ClipOrders.tsx
+  - Prueba: Vitest `ClipOrders.test.tsx`: «Rechazar» abre confirmación
+- **F1-141** [confunde] Paso 2 · Segmentación · «Descartar malla y volver a los umbrales» (botón)
+  - Cambio: Confirmación cuando hay detección hecha
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx
+  - Prueba: Vitest `SegmentPanel.test.tsx`: con candidatos, descartar pide confirmación
+- **F1-147** [confunde] Paso 3 · Detección · «No hay aneurisma» (botón)
+  - Cambio: Pedir confirmación
+  - Archivo: frontend/src/components/planning/LesionConfirm.tsx
+  - Prueba: Vitest `LesionConfirm.test.tsx`: el clic abre confirmación
+- **F1-170** [confunde] Paso 4 · Morfometría · «Limpiar» de la línea central (botón)
+  - Cambio: Confirmación que avisa de que retira también el stent guiado
+  - Archivo: frontend/src/components/vessels/CenterlinePanel.tsx
+  - Prueba: Vitest `CenterlinePanel.test.tsx`: con stent, limpiar pide confirmación
+
+## Familia C · descartar cambios de un formulario (3 filas)
+
+- **F1-60** [confunde] Ficha del paciente · «Cerrar» (botón)
+  - Cambio: Si hay cambios, preguntar «¿Descartar los cambios?» al cerrar, con Escape y con el clic fuera
+  - Archivo: frontend/src/pages/Patients.tsx, frontend/src/components/Sheet.tsx
+  - Prueba: Vitest `Sheet.test.tsx`: Escape con cambios abre la pregunta
+- **F1-71** [confunde] Ficha del paciente · «Cancelar» (botón)
+  - Cambio: Si hay cambios, preguntar antes de descartar
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: «Cancelar» con «Notas» editado pregunta
+- **F1-81** [confunde] Nuevo caso · «Cancelar» (botón)
+  - Cambio: Si hay cambios, preguntar antes de descartar, también con Escape y clic fuera
+  - Archivo: frontend/src/pages/NuevoCaso.tsx, frontend/src/components/Sheet.tsx
+  - Prueba: Vitest `NuevoCaso.test.tsx`: «Cancelar» con diagnóstico escrito pregunta
+
+## Familia D · hora UTC mostrada como local (4 filas)
+
+- **F1-77** [confunde] Nuevo caso · «Fecha del caso» (campo)
+  - Cambio: Prellenar con la fecha local, no `toISOString`; ayuda «fecha del diagnóstico»
+  - Archivo: frontend/src/pages/NuevoCaso.tsx
+  - Prueba: Vitest `NuevoCaso.test.tsx` con reloj falso a las 22:15 UTC−5: propone el mismo día
+- **F1-83** [confunde] Usuarios · «Creado» (texto)
+  - Cambio: Leer la fecha del servidor como UTC y mostrarla en hora local
+  - Archivo: frontend/src/pages/UsersAdmin.tsx, backend/routers/auth.py
+  - Prueba: Vitest `UsersAdmin.test.tsx`: 03:28 UTC sale como 22:28 del día anterior en UTC−5
+- **F1-101** [confunde] Auditoría · «Fecha/Hora (UTC)» (texto)
+  - Cambio: Mostrar la hora local, con la UTC en el tooltip
+  - Archivo: frontend/src/pages/AuditTrail.tsx
+  - Prueba: Vitest `AuditTrail.test.tsx`: 03:01Z sale como 22:01 en UTC−5
+- **F1-243** [confunde] Guardar y reanudar · «11/10/2026, 5:05:09» en la ficha (texto)
+  - Cambio: Leer la hora del servidor como UTC y mostrarla local
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: 05:05Z sale 00:05 en UTC−5
+
+## Familia E · auditoría solo para el administrador (4 filas)
+
+- **F1-5** [bloquea] Auditoría · Acceso al registro (panel)
+  - Cambio: Dependencia de administrador en el router de auditoría (bloques, exportación y verificación)
+  - Archivo: backend/routers/audit.py, backend/main.py
+  - Prueba: pytest `test_audit.py`: un médico recibe 403 en las tres rutas
+- **F1-30** [bloquea] Usuario no administrador · `/app/auditoria` escrita a mano (panel)
+  - Cambio: Dependencia de administrador en el router de auditoría y guarda de ruta en el cliente
+  - Archivo: backend/routers/audit.py, frontend/src/App.tsx
+  - Prueba: pytest `test_audit.py`: médico recibe 403 al leer y exportar
+- **F1-31** [bloquea] Usuario no administrador · Escritura en la cadena de auditoría (panel)
+  - Cambio: Quitar la ruta de escritura o tomar el usuario de la sesión
+  - Archivo: backend/routers/audit.py, backend/services/audit.py
+  - Prueba: pytest `test_audit.py`: un POST con `username` ajeno no firma como otro
+- **F1-256** [confunde] Usuario no administrador · «Verificar integridad» (botón)
+  - Cambio: Queda resuelto con la misma dependencia
+  - Archivo: backend/routers/audit.py
+  - Prueba: pytest `test_audit.py`: médico recibe 403 al verificar
+
+## Familia F · pedidos por paciente propio (2 filas)
+
+- **F1-4** [bloquea] Pedidos de clips · «Paciente y caso» (texto)
+  - Cambio: Filtrar el registro por pacientes propios salvo para el administrador; mismo arreglo que «Pedidos de clips» como «Médico»
+  - Archivo: backend/routers/clip_orders.py, backend/services/access.py
+  - Prueba: pytest `test_access_control.py`: un médico no ve pedidos de pacientes ajenos
+- **F1-32** [bloquea] Usuario no administrador · «Pedidos de clips» como «Médico» (panel)
+  - Cambio: Regla de acceso por el paciente del pedido en registro, resumen, pedido, estado, recepción, verificación, rechazo, borrado, ficheros y paquete; comprobación de sesión en «prefill» y en la creación
+  - Archivo: backend/routers/clip_orders.py, backend/services/access.py
+  - Prueba: pytest `test_access_control.py`: médico recibe 403 en cada ruta de un pedido ajeno
+
+## Familia G · ficha ajena (4 filas)
+
+- **F1-33** [bloquea] Usuario no administrador · Ficha ajena por `?paciente=1` (panel)
+  - Cambio: Comprobación de dueño en ficha, casos y sesiones del paciente; la ficha se cierra con el aviso al recibir 403
+  - Archivo: backend/routers/patients.py, frontend/src/pages/Patients.tsx
+  - Prueba: pytest `test_access_control.py`: médico recibe 403 en las tres rutas; Vitest: la ficha se cierra
+- **F1-34** [bloquea] Usuario no administrador · «Sesiones de estudio (7)» en la ficha ajena (panel)
+  - Cambio: Queda resuelto con la comprobación de dueño de la ruta de sesiones
+  - Archivo: backend/routers/patients.py
+  - Prueba: pytest `test_access_control.py` (mismo que «Ficha ajena»)
+- **F1-257** [confunde] Usuario no administrador · «Reanudar en «Informe»» en la ficha ajena (botón)
+  - Cambio: Desaparece con el cierre de la ficha ajena
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest (mismo que «Ficha ajena»)
+- **F1-258** [confunde] Usuario no administrador · «Guardar cambios · Nuevo estudio · Pedidos» en la ficha ajena (botón)
+  - Cambio: Desaparece con el cierre de la ficha ajena; «Pedidos» queda filtrado por el arreglo de pedidos
+  - Archivo: frontend/src/pages/Patients.tsx, backend/routers/clip_orders.py
+  - Prueba: pytest `test_access_control.py` (mismo que «Pedidos de clips» como «Médico»)
+
+## Familia H · diámetro junto al corte de 10 mm (4 filas)
+
+- **F1-13** [bloquea] Paso 4 · Morfometría · «Ø máximo» (texto)
+  - Cambio: Mostrar la incertidumbre y avisar cuando la cifra cae a menos de 1 mm de un corte de 10 mm
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx, backend/services/morphometrics.py
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: 9,5 mm muestra el aviso de corte
+- **F1-14** [bloquea] Paso 4 · Morfometría · «Ø máximo del cuerpo (sin ramas finas)» (texto)
+  - Cambio: PHASES, ELAPSS y UIATS dicen cuál de los dos diámetros usan y avisan si la elección cambia de tramo
+  - Archivo: frontend/src/components/morphometry/PhasesCalculator.tsx, frontend/src/components/morphometry/ElapssCalculator.tsx, frontend/src/components/morphometry/UiatsCalculator.tsx
+  - Prueba: Vitest `PhasesCalculator.test.tsx`: 10,9 frente a 9,5 muestra el aviso de tramo
+- **F1-15** [bloquea] Paso 4 · Morfometría · «Tamaño (mm)» de PHASES (campo)
+  - Cambio: Decir qué diámetro se toma y avisar del corte de 10 mm
+  - Archivo: frontend/src/components/morphometry/PhasesCalculator.tsx, frontend/src/components/morphometry/ElapssCalculator.tsx
+  - Prueba: Vitest `PhasesCalculator.test.tsx`: el texto nombra el diámetro
+- **F1-157** [confunde] Paso 4 · Morfometría · «El saco aislado llega hasta el límite del recorte: el plano de cuello dejó entrar vaso padre…» (mensaje)
+  - Cambio: Marcar las medidas como provisionales y llevar el aviso a PHASES y a Decisión
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx, frontend/src/components/morphometry/PhasesCalculator.tsx, frontend/src/components/planning/TreatmentPanel.tsx
+  - Prueba: Vitest `PhasesCalculator.test.tsx`: con el aviso, el tamaño lleva «provisional»
+
+## Familia I · tabla PHASES publicada (3 filas)
+
+- **F1-16** [bloquea] Paso 4 · Morfometría · «Calcular PHASES» y resultado (botón)
+  - Cambio: Sustituir la tabla por la de Greving 2014: puntos y riesgos publicados, sin bandas propias
+  - Archivo: backend/services/phases.py
+  - Prueba: pytest `test_phases.py`: 9 puntos dan 4,3 %; tamaño 10–19,9 da 6; HSA previa da 1
+- **F1-17** [bloquea] Paso 5 · Decisión · «Contesta POR QUÉ VÍA, no SI HAY QUE TRATAR. El riesgo de rotura estimado es PHASES 9 → 5.9 %…» (mensaje)
+  - Cambio: Tomar PHASES de la tabla corregida y repetir el aviso de vaso padre en la nota
+  - Archivo: backend/services/treatment.py, backend/services/phases.py
+  - Prueba: pytest `test_phases.py` y `test_treatment_provenance.py`: la nota cita 4,3 % para 9 puntos
+- **F1-23** [bloquea] Paso 8 · Informe · PDF · «PHASES 9 — 5.9 %» (texto)
+  - Cambio: Tomar PHASES de la tabla corregida
+  - Archivo: backend/services/phases.py, backend/services/report_generator.py
+  - Prueba: pytest `test_phases.py`: el PDF de 9 puntos dice 4,3 %
+
+## Familia J · localización elegida una vez (3 filas)
+
+- **F1-165** [confunde] Paso 4 · Morfometría · «Localización» en PHASES, ELAPSS, UIATS y Decisión (campo)
+  - Cambio: Condicionado a la decisión nº 21. Elegirla una vez y heredarla en PHASES, ELAPSS, UIATS y Decisión
+  - Archivo: frontend/src/store/planning.tsx, frontend/src/components/morphometry/PhasesCalculator.tsx, frontend/src/components/planning/TreatmentPanel.tsx
+  - Prueba: Vitest `planning.test.tsx`: elegir en Decisión rellena PHASES
+- **F1-173** [confunde] Paso 5 · Decisión · «Localización» con «Desconocida / No especificada» (campo)
+  - Cambio: Heredar la localización ya elegida en PHASES y UIATS
+  - Archivo: frontend/src/components/planning/TreatmentPanel.tsx, frontend/src/store/planning.tsx
+  - Prueba: Vitest `TreatmentPanel.test.tsx`: arranca con la localización de PHASES
+- **F1-210** [confunde] Paso 6 · Dispositivos · «La indicación es para aneurismas de BIFURCACIÓN… eso no lo sabe la aplicación» (texto)
+  - Cambio: Usar la localización registrada: «Tronco basilar: fuera de la indicación de bifurcación»
+  - Archivo: frontend/src/components/planning/WebSizing.tsx, backend/services/web_sizing.py
+  - Prueba: pytest `test_web_sizing.py`: con tronco basilar, el aviso lo nombra
+
+## Familia K · tronco basilar aparte de la punta (3 filas)
+
+- **F1-174** [confunde] Paso 5 · Decisión · «Basilar (punta, tronco o AICA)» (menú)
+  - Cambio: Separar «Punta basilar», «Tronco basilar» y «AICA»
+  - Archivo: frontend/src/api/types.ts, backend/services/treatment.py, backend/services/perforator_anatomy.py
+  - Prueba: pytest `test_treatment_provenance.py`: tronco basilar da perforantes pontinas
+- **F1-181** [confunde] Paso 5 · Decisión · «Perforantes que esperar aquí» y «Talamoperforantes posteriores. Nacen de los segmentos P1…» (panel)
+  - Cambio: Tarjeta propia para el tronco basilar (perforantes pontinas)
+  - Archivo: backend/services/perforator_anatomy.py, frontend/src/components/planning/TreatmentPanel.tsx
+  - Prueba: pytest nuevo `test_perforator_anatomy.py`: tronco basilar no da talamoperforantes
+- **F1-231** [confunde] Paso 8 · Informe · PDF · «Perforantes esperadas por la localización» con talamoperforantes (texto)
+  - Cambio: Usar la localización separada (tronco frente a punta)
+  - Archivo: backend/services/report_generator.py, backend/services/perforator_anatomy.py
+  - Prueba: pytest `test_perforator_anatomy.py`: el PDF de tronco no lista talamoperforantes
+
+## Familia L · decisión del equipo (4 filas)
+
+- **F1-176** [confunde] Paso 5 · Decisión · «Evaluar CLIP vs ENDOVASCULAR» y «Re-evaluar» (botón)
+  - Cambio: Campo «Decisión del equipo» (clipaje, endovascular, vigilar u otra) que se guarda y va al informe
+  - Archivo: frontend/src/components/planning/TreatmentPanel.tsx, backend/routers/treatment.py, backend/services/report_generator.py
+  - Prueba: pytest `test_report_honesty_fixes.py`: la decisión del equipo sale en el PDF
+- **F1-188** [confunde] Paso 6 · Dispositivos · «En el plan (n)» y «Limpiar todos los dispositivos» (panel)
+  - Cambio: Marcar una estrategia como la del equipo
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx, backend/routers/devices.py
+  - Prueba: pytest `test_device_persistence.py`: la estrategia elegida se guarda
+- **F1-220** [confunde] Paso 8 · Informe · «Resumen del caso» con «Paciente», «Ø máximo», «Riesgo (morfometría)» y «Recomendación» (panel)
+  - Cambio: Añadir abordaje, dispositivo elegido y decisión; explicar riesgo morfométrico frente a PHASES
+  - Archivo: frontend/src/components/planning/ReportPanel.tsx
+  - Prueba: Vitest `ReportPanel.test.tsx`: el resumen lista abordaje y dispositivo
+- **F1-236** [confunde] Paso 8 · Informe · PDF · todos los dispositivos como «planificados» (texto)
+  - Cambio: Sección «Plan elegido» con la decisión del equipo y la estrategia marcada; el resto como «alternativas evaluadas»
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest `test_report_honesty_fixes.py`: el PDF tiene «Plan elegido»
+
+## Familia M · catálogo de clips vacío (7 filas)
+
+- **F1-190** [confunde] Paso 6 · Dispositivos · «Utilizable con reservas» (mensaje)
+  - Cambio: Con todo bajo pedido, el veredicto es el de pieza a medida y una línea «No hay clips de inventario cargados»
+  - Archivo: frontend/src/components/planning/ClipSelection.tsx, backend/services/clip_selection.py
+  - Prueba: Vitest `ClipSelection.test.tsx`: catálogo vacío no da «Utilizable con reservas»
+- **F1-191** [confunde] Paso 6 · Dispositivos · «Requiere fabricación» (mensaje)
+  - Cambio: «Pieza a medida: se pide en Fabricación», sin estilo de error
+  - Archivo: frontend/src/components/planning/ClipSelection.tsx
+  - Prueba: Vitest `ClipSelection.test.tsx`: veredicto nuevo y tono neutro
+- **F1-192** [confunde] Paso 6 · Dispositivos · «6 clips del inventario son utilizables, pero ninguno sin reservas. La alternativa a medida sería: Curvo de 12.0 mm · 125 g.» (texto)
+  - Cambio: No llamar «del inventario» a piezas bajo pedido; la alternativa coincide con la pieza de Fabricación
+  - Archivo: backend/services/clip_selection.py, frontend/src/components/planning/ClipSelection.tsx
+  - Prueba: pytest `test_clip_selection.py`: con catálogo vacío no dice «del inventario»
+- **F1-197** [confunde] Paso 6 · Dispositivos · «Ver todo el catálogo, no solo lo recomendado para este caso» (casilla)
+  - Cambio: Con catálogo vacío, «No hay catálogo de clips cargado en esta instalación»
+  - Archivo: frontend/src/components/planning/ClipSelection.tsx
+  - Prueba: Vitest `ClipSelection.test.tsx`: casilla con catálogo vacío muestra el texto
+- **F1-211** [confunde] Paso 7 · Fabricación · «Paso opcional. La mayoría de los casos se resuelven con un clip del catálogo…» (texto)
+  - Cambio: Con catálogo vacío, decirlo: «En esta instalación no hay catálogo de clips»
+  - Archivo: frontend/src/components/planning/ManufacturePanel.tsx
+  - Prueba: Vitest `ManufacturePanel.test.tsx`: catálogo vacío cambia el texto
+- **F1-212** [confunde] Paso 7 · Fabricación · «Alternativa a medida» (texto)
+  - Cambio: Título «Pieza a fabricar»
+  - Archivo: frontend/src/components/planning/ManufacturePanel.tsx
+  - Prueba: Vitest `ManufacturePanel.test.tsx`: título nuevo
+- **F1-214** [confunde] Paso 7 · Fabricación · «Por qué no sirve el inventario» y «Ninguna hoja del catálogo cubre este cuello con margen suficiente» (texto)
+  - Cambio: Con catálogo vacío, decir que no hay catálogo cargado en vez de culpar al cuello
+  - Archivo: frontend/src/components/planning/ManufacturePanel.tsx, backend/services/clip_dossier.py
+  - Prueba: pytest `test_clip_manufacture.py`: catálogo vacío no da el motivo del cuello
+
+## Familia N · un umbral por índice (4 filas)
+
+- **F1-160** [confunde] Paso 4 · Morfometría · «DNR» con «OK», «Mod» o «Alto» (texto)
+  - Cambio: Definición y umbral en tooltip; unificar el corte de la insignia (1,5) con el del riesgo (1,6)
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx, backend/services/morphometrics.py
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: tooltip con umbral; pytest `test_morphometry_sac.py`: un solo corte
+- **F1-161** [confunde] Paso 4 · Morfometría · «AR» con «OK» (texto)
+  - Cambio: Umbral a la vista; unificar insignia (1,2) y riesgo (1,3 y 1,6)
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx, backend/services/morphometrics.py
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: tooltip con el umbral
+- **F1-163** [confunde] Paso 4 · Morfometría · «UI · Undulación» con «Irregular» (texto)
+  - Cambio: «Ondulación»; un solo umbral de UI en insignia, riesgo y Decisión
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx, backend/services/morphometrics.py, backend/services/treatment.py
+  - Prueba: pytest nuevo: los tres módulos leen el mismo umbral de UI
+- **F1-180** [confunde] Paso 5 · Decisión · «Domo muy irregular (UI = 0.497 > 0.20)» (texto)
+  - Cambio: Un solo umbral de UI y aviso de vaso padre
+  - Archivo: backend/services/treatment.py
+  - Prueba: pytest: el umbral de UI de Decisión es el de Morfometría
+
+## Familia O · sentido del BF (2 filas)
+
+- **F1-162** [confunde] Paso 4 · Morfometría · «BF» con «Cuello ancho» (texto)
+  - Cambio: Insignia con el sentido correcto: BF alto = cuello relativamente estrecho
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx (insignia del BF, hacia la línea 262)
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: BF 5 no dice «Cuello ancho»
+- **F1-179** [confunde] Paso 5 · Decisión · «Bottleneck Factor moderado (BF = 1.65, 1.5–2.0)» y «cuello moderadamente estrecho» (texto)
+  - Cambio: La misma etiqueta del BF que en Morfometría, con el sentido correcto
+  - Archivo: backend/services/treatment.py, frontend/src/components/morphometry/MorphometryPanel.tsx
+  - Prueba: pytest `test_treatment_provenance.py`: el texto del BF coincide con la insignia
+
+## Familia P · línea del rol (3 filas)
+
+- **F1-86** [confunde] Usuarios · «Rol» (menú)
+  - Cambio: Línea bajo el menú con lo que permite cada rol hoy
+  - Archivo: frontend/src/pages/UsersAdmin.tsx
+  - Prueba: Vitest `UsersAdmin.test.tsx`: la línea cambia con el rol
+- **F1-106** [confunde] Menú de usuario y tema · «Administrador · @admin · Administrador» (texto)
+  - Cambio: Institución bajo el nombre y una línea con lo que permite el rol
+  - Archivo: frontend/src/components/Topbar.tsx
+  - Prueba: Vitest `Topbar.test.tsx`: la cabecera muestra institución y la línea del rol
+- **F1-251** [confunde] Usuario no administrador · «AF auditora ▾» (botón)
+  - Cambio: Línea bajo la cabecera del menú: «Médico: ves y editas los pacientes que creas; firmas pedidos»
+  - Archivo: frontend/src/components/Topbar.tsx
+  - Prueba: Vitest `Topbar.test.tsx`: cuenta Médico muestra la línea
+
+## Familia Q · guarda de ruta de administración (2 filas)
+
+- **F1-254** [confunde] Usuario no administrador · `/app/usuarios` escrita a mano (panel)
+  - Cambio: Guarda de ruta: un no administrador vuelve a «Pacientes»
+  - Archivo: frontend/src/App.tsx
+  - Prueba: Vitest `nav.test.ts`: médico en `/app/usuarios` acaba en pacientes
+- **F1-255** [confunde] Usuario no administrador · «Nuevo usuario» en `/app/usuarios` (botón)
+  - Cambio: Mismo arreglo: guarda de ruta
+  - Archivo: frontend/src/App.tsx
+  - Prueba: Vitest `nav.test.ts` (mismo que `/app/usuarios`)
+
+## Familia R · guardar tras reanudar (3 filas)
+
+- **F1-108** [confunde] Barra superior del espacio de trabajo · «Guardar progreso» (botón)
+  - Cambio: Tras reanudar, guardar sobre la sesión de origen o preguntar «¿Sobrescribir o guardar como nueva?»; tooltip con lo que se guarda
+  - Archivo: backend/routers/session_state.py, frontend/src/pages/Workspace.tsx
+  - Prueba: pytest `test_session_e.py`: reanudar y guardar no añade otra fila
+- **F1-241** [confunde] Guardar y reanudar · «Guardar progreso» (botón)
+  - Cambio: Mismo arreglo que «Guardar progreso» en la barra superior: guardar sobre la sesión de origen
+  - Archivo: backend/routers/session_state.py
+  - Prueba: pytest `test_session_e.py` (mismo que «Guardar progreso»)
+- **F1-245** [confunde] Guardar y reanudar · Identificador de sesión nuevo al reanudar (texto)
+  - Cambio: Mismo arreglo que «Guardar progreso»: guardar sobre la sesión de origen
+  - Archivo: backend/routers/session_state.py
+  - Prueba: pytest `test_session_e.py` (mismo que «Guardar progreso»)
+
+## Familia S · restaurar el estado al reanudar (7 filas)
+
+- **F1-27** [bloquea] Guardar y reanudar · Decisión tras reanudar (panel)
+  - Cambio: Restaurar localización, estado y recomendación
+  - Archivo: backend/routers/session_state.py, frontend/src/components/planning/TreatmentPanel.tsx
+  - Prueba: pytest `test_session_e.py`: la recomendación vuelve tras restaurar
+- **F1-28** [bloquea] Guardar y reanudar · Dispositivos tras reanudar (panel)
+  - Cambio: Restaurar la fila editable del clip, su verificación, la oclusión y el mapa de calor
+  - Archivo: backend/routers/session_state.py, frontend/src/components/planning/placedClips.ts
+  - Prueba: Vitest `placedClips.test.ts` y pytest `test_device_persistence.py`: el clip vuelve editable
+- **F1-246** [confunde] Guardar y reanudar · Detección tras reanudar (panel)
+  - Cambio: Restaurar candidatos y confirmación guardados en vez de rehacer la detección
+  - Archivo: backend/routers/session_state.py
+  - Prueba: pytest `test_session_e.py`: tras restaurar, la confirmación sigue
+- **F1-247** [confunde] Guardar y reanudar · Trayectoria tras reanudar (panel)
+  - Cambio: Restaurar ángulo y análisis del corredor; el botón dice «Guardada ✓»
+  - Archivo: backend/routers/session_state.py, frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: pytest `test_trajectory.py`: el corredor vuelve tras restaurar
+- **F1-248** [confunde] Guardar y reanudar · Ventana y nivel tras reanudar (texto)
+  - Cambio: Guardar ventana y nivel con la sesión y restaurarlos
+  - Archivo: backend/routers/session_state.py, frontend/src/vtk/SliceView.tsx
+  - Prueba: Vitest `SliceView.wl.test.tsx`: W/L restaurado
+- **F1-249** [confunde] Guardar y reanudar · Enlaces del informe tras reanudar (panel)
+  - Cambio: Restaurar los enlaces del PDF y del SR si no han caducado
+  - Archivo: backend/routers/session_state.py, frontend/src/components/planning/ReportPanel.tsx
+  - Prueba: Vitest `ReportPanel.test.tsx`: con PDF en disco, enlace a la vista
+- **F1-250** [confunde] Guardar y reanudar · «Tienes cambios sin guardar» al salir de la sesión reanudada (mensaje)
+  - Cambio: No marcar cambios al rehidratar la sesión
+  - Archivo: frontend/src/store/planning.tsx
+  - Prueba: Vitest `planning.test.tsx`: restaurar no deja `dirty`
+
+## Familia T · servidor que cae o no responde (6 filas)
+
+- **F1-8** [bloquea] Paso 1 · Carga DICOM · «CARGANDO VISTA PREVIA DEL VOLUMEN…» y «CARGANDO…» en los cortes (mensaje)
+  - Cambio: Reintentar la petición de los datos del volumen y, si falla, «No se pudo abrir el volumen» con «Reintentar»
+  - Archivo: frontend/src/vtk/useVolumeMeta.ts, frontend/src/vtk/Viewer.tsx
+  - Prueba: Vitest `useVolumeMeta.test.ts`: un 500 y luego 200 carga; dos 500 muestran el error
+- **F1-19** [bloquea] Paso 6 · Dispositivos · «Sugerir corredor» (botón)
+  - Cambio: Que la petición no tumbe el servidor: diagnosticar la caída y aislar el cálculo con un límite de tiempo
+  - Archivo: backend/routers/report.py, backend/services/approach.py
+  - Prueba: pytest `test_corredor_abordaje.py` sobre el Caso 3: la sugerencia responde sin matar el proceso
+- **F1-20** [bloquea] Paso 6 · Dispositivos · «Error 500» bajo «Sugerir corredor» (mensaje)
+  - Cambio: «El servidor no responde. Marca Entrada y Diana a mano»; el aviso se borra al reintentar
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest `TrajectoryTool.test.tsx`: un 500 muestra el texto y la vía manual
+- **F1-24** [bloquea] Guardar y reanudar · «Reanudar en «Informe»» (botón)
+  - Cambio: Que reanudar no tumbe el servidor: diagnosticar la caída; el cliente pone un límite de tiempo y un error
+  - Archivo: backend/routers/session_state.py, frontend/src/App.tsx
+  - Prueba: pytest `test_session_e.py`: restaurar la sesión del Caso 3 responde 200
+- **F1-25** [bloquea] Guardar y reanudar · «Restaurando sesión…» (mensaje)
+  - Cambio: Límite de tiempo y mensaje «No se pudo restaurar; el servidor no responde» con «Reintentar»
+  - Archivo: frontend/src/App.tsx
+  - Prueba: Vitest: restauración sin respuesta muestra el error tras el límite
+- **F1-26** [bloquea] Guardar y reanudar · Servidor caído sin aviso tras reanudar (panel)
+  - Cambio: Aviso global cuando el servidor deja de responder, tras varias peticiones fallidas
+  - Archivo: frontend/src/api/client.ts, frontend/src/App.tsx
+  - Prueba: Vitest `client.test.ts`: dos fallos de conexión seguidos activan el aviso
+
+## Familia U · fuerza del clip (2 filas)
+
+- **F1-202** [confunde] Paso 6 · Dispositivos · «Fuerza de cierre 120 g Óptima» y «Fuerza de cierre: 120–200 g solo es óptima entre 120 y 150 g…» (texto)
+  - Cambio: Una cifra de fuerza con su banda, la misma en verificación, Fabricación y pedido
+  - Archivo: frontend/src/components/planning/ClipFieldCard.tsx, frontend/src/components/planning/ManufacturePanel.tsx, backend/services/clip_orders.py
+  - Prueba: Vitest `ClipFieldCard.test.tsx` y `ManufacturePanel.test.tsx`: misma cifra
+- **F1-213** [confunde] Paso 7 · Fabricación · «Fuerza de cierre 125 g» (texto)
+  - Cambio: La misma cifra y banda que la verificación del clip
+  - Archivo: frontend/src/components/planning/ManufacturePanel.tsx, backend/services/clip_manufacture.py
+  - Prueba: pytest `test_clip_manufacture.py`: la fuerza coincide con la del clip colocado
+
+## Familia V · contar casos, no estudios (4 filas)
+
+- **F1-53** [confunde] Pacientes · «Estudios DICOM · vinculados a pacientes» (texto)
+  - Cambio: Rótulo del contador: «Casos clínicos»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: contador «Casos clínicos»
+- **F1-54** [confunde] Pacientes · «Sin estudios · pendientes de carga» (texto)
+  - Cambio: Rótulos «Sin caso» y «Con caso», sin subtítulo
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: rótulos nuevos
+- **F1-55** [confunde] Pacientes · «Estudios» (columna)
+  - Cambio: Cabecera de columna «Casos»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: cabecera «Casos»
+- **F1-242** [confunde] Guardar y reanudar · «Estudios 0» y «Sin estudios 1 pendientes de carga» en Pacientes (texto)
+  - Cambio: Mismo arreglo que los contadores de «Pacientes»: «Casos» y «Sin caso»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: la misma prueba que «Estudios DICOM»
+
+## Familia W · caso, estudio y sesión (6 filas)
+
+- **F1-64** [confunde] Ficha del paciente · «Casos / estudios (0)» (texto)
+  - Cambio: Encabezado «Casos (n)»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: encabezado «Casos (0)»
+- **F1-65** [confunde] Ficha del paciente · «Nuevo estudio» (botón)
+  - Cambio: Condicionado a la decisión nº 9. Rotular «Nuevo caso»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: botón «Nuevo caso» en la ficha
+- **F1-66** [confunde] Ficha del paciente · «Aún no hay casos/estudios. Añade uno con "Nuevo estudio".» (mensaje)
+  - Cambio: «Sin casos. Crea uno con «Nuevo caso» para archivar el DICOM y las capturas de este paciente.»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: texto vacío nuevo
+- **F1-67** [confunde] Ficha del paciente · «Sesiones de estudio (6)» (texto)
+  - Cambio: Encabezado «Sesiones guardadas (n)»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: encabezado nuevo
+- **F1-76** [confunde] Nuevo caso · «Nuevo caso / estudio» (texto)
+  - Cambio: Título «Nuevo caso»
+  - Archivo: frontend/src/pages/NuevoCaso.tsx
+  - Prueba: Vitest nuevo `NuevoCaso.test.tsx`: título
+- **F1-80** [confunde] Nuevo caso · «Crear estudio» (botón)
+  - Cambio: Rotular «Crear caso»
+  - Archivo: frontend/src/pages/NuevoCaso.tsx
+  - Prueba: Vitest `NuevoCaso.test.tsx`: botón «Crear caso»
+
+## Familia X · pedido y cuentas pendientes (4 filas)
+
+- **F1-89** [confunde] Solicitudes · «Solicitudes de registro» (texto)
+  - Cambio: El título cambia siempre; el botón de «Pacientes» y la entrada del menú, condicionados a las decisiones nº 7 y 14. «Cuentas pendientes» en el título, en el botón de «Pacientes» y en el menú
+  - Archivo: frontend/src/pages/PendingRequests.tsx, frontend/src/pages/Patients.tsx, frontend/src/components/Topbar.tsx
+  - Prueba: Vitest: ningún rótulo de administración dice «Solicitudes»
+- **F1-93** [confunde] Pedidos de clips · «Pedidos de clips» (texto)
+  - Cambio: «pedido» en todas partes: subtítulo sin «encargado» y Fabricación sin «solicitud»
+  - Archivo: frontend/src/pages/ClipOrders.tsx, frontend/src/components/planning/ClipOrderForm.tsx
+  - Prueba: Vitest `ClipOrders.test.tsx` y `ClipOrderForm.test.tsx`: ningún texto dice «solicitud»
+- **F1-217** [confunde] Paso 7 · Fabricación · «Preparando la solicitud…» (mensaje)
+  - Cambio: «Preparando el pedido…»
+  - Archivo: frontend/src/components/planning/ClipOrderForm.tsx
+  - Prueba: Vitest `ClipOrderForm.test.tsx`: texto nuevo
+- **F1-218** [confunde] Paso 7 · Fabricación · «No se pudo preparar la solicitud.» (mensaje)
+  - Cambio: «No se pudo preparar el pedido; vuelve a intentarlo»
+  - Archivo: frontend/src/components/planning/ClipOrderForm.tsx
+  - Prueba: Vitest `ClipOrderForm.test.tsx`: texto nuevo
+
+## Familia Y · falta de conexión (3 filas)
+
+- **F1-41** [confunde] Entrar · «No se pudo conectar con el servidor. ¿Está el backend en marcha?» (mensaje)
+  - Cambio: «El servidor no responde. Avisa al responsable de la instalación.» sin «backend»
+  - Archivo: frontend/src/pages/Login.tsx
+  - Prueba: Vitest `Login.test.tsx`: fallo de red muestra el texto nuevo
+- **F1-50** [confunde] Crear cuenta · «No se pudo enviar la solicitud. ¿Está el backend en marcha?» (mensaje)
+  - Cambio: Mismo texto de falta de conexión que «Entrar», sin «backend»
+  - Archivo: frontend/src/pages/Signup.tsx
+  - Prueba: Vitest `Signup.test.tsx`: fallo de red muestra el texto nuevo
+- **F1-51** [confunde] Cambio forzado de contraseña · Error del servidor en el cambio (mensaje)
+  - Cambio: Traducir «Failed to fetch» y «Error 500» con los textos de «Entrar»
+  - Archivo: frontend/src/components/ForcePasswordChange.tsx
+  - Prueba: Vitest `ForcePasswordChange.test.tsx`: fallo de red y 500 en castellano
+
+## Familia Z · captura y vídeo sin caso (5 filas)
+
+- **F1-70** [confunde] Ficha del paciente · «Capturas (0)» (texto)
+  - Cambio: Texto vacío: «…guarda aquí la vista cuando la sesión tiene un estudio archivado; si no, la descarga.»
+  - Archivo: frontend/src/components/CaptureGallery.tsx
+  - Prueba: Vitest `CaptureGallery.test.tsx`: texto vacío nuevo
+- **F1-122** [confunde] Capturas y grabación · «Captura descargada, pero no guardada en el caso: usa «Adjuntar a un caso» para que las siguientes se guarden en él.» (mensaje)
+  - Cambio: Aviso neutro, no rojo: «Captura descargada en la carpeta de descargas. No queda en la ficha porque la sesión no tiene caso: «Archivar en un caso».»
+  - Archivo: frontend/src/pages/Workspace.tsx
+  - Prueba: Vitest `Workspace.test.tsx`: el aviso no lleva estilo de error
+- **F1-123** [confunde] Capturas y grabación · «REC 00:22 · Detener» (botón)
+  - Cambio: Tooltip «Parar y descargar», y «; queda también en el caso» solo cuando lo hay
+  - Archivo: frontend/src/components/RecordButton.tsx
+  - Prueba: Vitest `RecordButton.test.tsx`: sin caso, el tooltip no promete el caso
+- **F1-124** [confunde] Capturas y grabación · «Vídeo descargado, pero no guardado en el caso: usa «Adjuntar a un caso»…» (mensaje)
+  - Cambio: Mismo texto y tono neutro que la captura
+  - Archivo: frontend/src/components/RecordButton.tsx, frontend/src/pages/Workspace.tsx
+  - Prueba: Vitest `RecordButton.test.tsx`: aviso neutro sin caso
+- **F1-223** [confunde] Paso 8 · Informe · «No hay capturas guardadas en este caso. Se hacen con el botón «Captura» del visor…» (mensaje)
+  - Cambio: «Adjunta la sesión a un caso para guardar capturas»
+  - Archivo: frontend/src/components/planning/CapturePicker.tsx
+  - Prueba: Vitest `CapturePicker.test.tsx`: sin caso, texto nuevo
+
+## Familia AA · contacto del administrador (5 filas)
+
+- **F1-1** [bloquea] Entrar · «¿Olvidaste tu contraseña?» (botón)
+  - Cambio: Línea bajo el formulario: «¿Olvidaste la contraseña? Un administrador puede restablecerla: escribe a ingprospective@skullapp.tech»
+  - Archivo: frontend/src/pages/Login.tsx
+  - Prueba: Vitest `Login.test.tsx`: la línea y el correo están a la vista
+- **F1-40** [confunde] Entrar · «Demasiados intentos fallidos. Vuelve a probar en N min.» (mensaje)
+  - Cambio: Añadir «Si no recuerdas la contraseña, pide a un administrador que la restablezca»; el 401 avisa cuando queda un intento, con el recuento que devuelva el servidor
+  - Archivo: backend/routers/auth.py, backend/services/login_throttle.py, frontend/src/pages/Login.tsx
+  - Prueba: pytest `test_auth_hardening.py`: el 401 trae los intentos restantes; Vitest `Login.test.tsx`: aviso con un intento
+- **F1-42** [confunde] Entrar · «Tu cuenta está pendiente de aprobación. Un administrador debe activarla antes de que puedas iniciar sesión.» (mensaje)
+  - Cambio: Añadir el correo de contacto a los mensajes de cuenta pendiente, rechazada y desactivada
+  - Archivo: backend/routers/auth.py, frontend/src/pages/Login.tsx
+  - Prueba: Vitest `Login.test.tsx`: los tres 403 muestran el contacto
+- **F1-43** [confunde] Entrar · «Solicitud enviada. Un administrador revisará tu cuenta y podrás iniciar sesión en cuanto sea aprobada.» (mensaje)
+  - Cambio: Texto nuevo: «Solicitud enviada. Un administrador la revisará; no recibirás aviso, así que vuelve a intentar entrar más adelante. Para consultas, ingprospective@skullapp.tech.»
+  - Archivo: frontend/src/App.tsx, frontend/src/pages/Login.tsx
+  - Prueba: Vitest `Login.test.tsx`: el aviso tras el registro dice «no recibirás aviso»
+- **F1-48** [confunde] Crear cuenta · «Tu cuenta quedará pendiente de aprobación hasta que un administrador la active.» (mensaje)
+  - Cambio: Añadir «No recibirás aviso: prueba a entrar más adelante o escribe a ingprospective@skullapp.tech»
+  - Archivo: frontend/src/pages/Signup.tsx
+  - Prueba: Vitest `Signup.test.tsx`: el aviso ámbar incluye el contacto
+
+## Familia AB · cambio obligatorio de contraseña (2 filas)
+
+- **F1-85** [confunde] Usuarios · «Restablecer contraseña» (botón)
+  - Cambio: El restablecimiento marca el cambio obligatorio de contraseña
+  - Archivo: backend/services/auth_service.py, backend/routers/auth.py
+  - Prueba: pytest `test_password_change.py`: tras restablecer, `must_change_password` es verdadero
+- **F1-87** [confunde] Usuarios · «Contraseña * · Confirmar *» (campo)
+  - Cambio: Marcar el cambio obligatorio en las cuentas creadas por un administrador; rótulo «mín. 8»
+  - Archivo: backend/services/auth_service.py, frontend/src/pages/UsersAdmin.tsx
+  - Prueba: pytest `test_admin_create_user.py`: la cuenta nueva tiene `must_change_password`
+
+## Familia AC · riesgo morfométrico frente a PHASES (3 filas)
+
+- **F1-68** [confunde] Ficha del paciente · «Alto» (texto)
+  - Cambio: Insignia «Riesgo morfométrico alto»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: la insignia lleva «morfométrico»
+- **F1-151** [confunde] Paso 4 · Morfometría · «Riesgo Bajo» y «Riesgo Alto» (texto)
+  - Cambio: «Sin medir» mientras no haya índices; tooltip con el criterio que decide la etiqueta
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx, backend/services/morphometrics.py
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: malla abierta sin índices muestra «Sin medir»
+- **F1-234** [confunde] Paso 8 · Informe · PDF · «Evaluación de riesgo de ruptura RIESGO: ALTO» (texto)
+  - Cambio: «Riesgo morfométrico» con una línea que lo distinga de PHASES
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest `test_report_honesty_fixes.py`: el PDF dice «morfométrico»
+
+## Familia AD · botón de avance (3 filas)
+
+- **F1-130** [confunde] Paso 1 · Carga DICOM · «Continuar a segmentación» (botón)
+  - Cambio: Línea bajo el botón apagado: «Carga una serie para continuar»; activo solo con el volumen en el visor
+  - Archivo: frontend/src/components/upload/UploadPanel.tsx
+  - Prueba: Vitest `UploadPanel.test.tsx`: botón apagado con motivo
+- **F1-140** [confunde] Paso 2 · Segmentación · «Detectar» (botón)
+  - Cambio: Rotular «Continuar a detección»
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx
+  - Prueba: Vitest `SegmentPanel.test.tsx`: rótulo nuevo
+- **F1-183** [confunde] Paso 5 · Decisión · «Planificar dispositivos» (botón)
+  - Cambio: La misma regla que el carril; si sigue apagado, decir por qué bajo el botón. Rotular «Continuar a dispositivos», según el «Glosario»
+  - Archivo: frontend/src/components/planning/TreatmentPanel.tsx, frontend/src/pipeline/steps.ts
+  - Prueba: Vitest `TreatmentPanel.test.tsx`: apagado con motivo visible
+
+## Familia ZZ · filas sueltas del espacio de trabajo (96 filas)
+
+- **F1-107** [confunde] Barra superior del espacio de trabajo · «Adjuntar a un caso» (botón)
+  - Cambio: Con paciente fijado: «Archivar en un caso» y tooltip «Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos»
+  - Archivo: frontend/src/pages/Workspace.tsx
+  - Prueba: Vitest `PanelCollapse.test.tsx` o nuevo `Workspace.test.tsx`: rótulo con paciente
+- **F1-109** [confunde] Barra superior del espacio de trabajo · «Guardado ✓» (mensaje)
+  - Cambio: «Guardar progreso •» mientras haya cambios y «Guardado hh:mm» después
+  - Archivo: frontend/src/pages/Workspace.tsx
+  - Prueba: Vitest `Workspace.test.tsx`: tocar el estado muestra el punto; guardar muestra la hora
+- **F1-110** [confunde] Barra superior del espacio de trabajo · «Tienes cambios sin guardar» (mensaje)
+  - Cambio: Añadir «Guardar y salir» al aviso
+  - Archivo: frontend/src/App.tsx
+  - Prueba: Vitest: el aviso tiene tres botones y «Guardar y salir» guarda antes de navegar
+- **F1-111** [confunde] Barra del visor · «3D · AX · COR · SAG · VOL» (botón)
+  - Cambio: Las celdas pequeñas siguen el orden fijo AX, COR, SAG, VOL; un solo nombre, «VOLUMEN»
+  - Archivo: frontend/src/vtk/mainOptions.ts, frontend/src/vtk/layout.ts
+  - Prueba: Vitest `layout.test.ts`: tras elegir VOL y luego AX, las pequeñas salen en orden fijo
+- **F1-112** [confunde] Barra del visor · «CUATRO» (botón)
+  - Cambio: Orden fijo axial, coronal, sagital y 3D, como dice el tooltip; avisar de que VOLUMEN queda fuera
+  - Archivo: frontend/src/vtk/layoutGrid.ts
+  - Prueba: Vitest `layoutGrid.test.ts`: CUATRO tras cambiar la principal da AX, COR, SAG, 3D
+- **F1-113** [confunde] Barra del visor · «RESOLUCIÓN REDUCIDA · 4/12» (texto)
+  - Cambio: «Vista previa en baja resolución; las medidas no cambian», sin «4/12»
+  - Archivo: frontend/src/vtk/levelNote.ts, frontend/src/vtk/ViewerHeader.tsx
+  - Prueba: Vitest `levelNote.test.ts`: texto nuevo
+- **F1-114** [confunde] Barra del visor · «HUD ▸» (texto)
+  - Cambio: Rótulo «TEXTOS ▸»
+  - Archivo: frontend/src/vtk/ViewerHeader.tsx, frontend/src/vtk/hud/HudToggleGroup.tsx
+  - Prueba: Vitest `ViewerHeader.test.tsx`: no aparece «HUD»
+- **F1-115** [confunde] Barra del visor · «SINCRO ● / ○» (botón)
+  - Cambio: Rótulo «VINCULAR»; tooltip «Encendido: un clic en una vista centra las demás en ese punto»
+  - Archivo: frontend/src/vtk/ViewerHeader.tsx, frontend/src/vtk/shortcuts.ts
+  - Prueba: Vitest `ViewerHeader.test.tsx`: rótulo y tooltip
+- **F1-116** [confunde] Barra del visor · «VISTA ▸ ENCUADRAR · AX · COR · SAG · LESIÓN» (botón)
+  - Cambio: Rótulos de cámara «DESDE ▸ ARRIBA · DELANTE · LADO», distintos de AX, COR y SAG
+  - Archivo: frontend/src/vtk/Viewer.tsx
+  - Prueba: Vitest `Viewer` o `copy.test.ts`: la barra 3D no repite AX, COR, SAG
+- **F1-117** [confunde] HUD y niveles · «ESENCIAL» (botón)
+  - Cambio: Tooltip «Oculta los botones de las vistas; deja orientación, corte y ventana»
+  - Archivo: frontend/src/vtk/hud/HudToggleGroup.tsx
+  - Prueba: Vitest `hudLevel.test.tsx`: tooltip de ESENCIAL
+- **F1-118** [confunde] HUD y niveles · «LIMPIO» (botón)
+  - Cambio: LIMPIO conserva lateralidad y escala
+  - Archivo: frontend/src/vtk/hud/hud.css, frontend/src/vtk/hud/HudFrame.tsx
+  - Prueba: Vitest `hudLevel.test.tsx`: en LIMPIO siguen «DER», «IZQ» y la regla
+- **F1-119** [confunde] HUD y niveles · «CARGANDO VISOR 3D…», «CARGANDO…» y «SIN VOLUMEN» (mensaje)
+  - Cambio: «CARGANDO VOLUMEN…» mientras carga; «SIN VOLUMEN» solo si falló
+  - Archivo: frontend/src/vtk/levelNote.ts, frontend/src/vtk/Viewer.tsx
+  - Prueba: Vitest `levelNote.test.ts`: estado de carga y estado vacío distintos
+- **F1-120** [confunde] Atajos · Hoja «Atajos» (panel)
+  - Cambio: Añadir los gestos del ratón y el arrastre de celdas y del divisor
+  - Archivo: frontend/src/vtk/hud/ShortcutsSheet.tsx, frontend/src/vtk/shortcuts.ts
+  - Prueba: Vitest `shortcuts.test.ts`: la hoja lista rueda, Ctrl+rueda, arrastre y doble clic
+- **F1-121** [confunde] Anotaciones · «guardando…», «sin guardar» y «no se pudieron cargar: sin guardado automático» (mensaje)
+  - Cambio: Subtítulo «guardado en esta sesión; usa Guardar progreso para conservarlo»
+  - Archivo: frontend/src/components/annotations/AnnotationsPanel.tsx, frontend/src/pages/Workspace.tsx
+  - Prueba: Vitest `useAnnotationsSync.test.tsx`: tras guardar sale el texto nuevo
+- **F1-125** [confunde] Paso 1 · Carga DICOM · «Seleccionar archivos» (botón)
+  - Cambio: Vaciar el campo de archivo después de cada carga
+  - Archivo: frontend/src/components/upload/UploadPanel.tsx
+  - Prueba: Vitest nuevo `UploadPanel.test.tsx`: el mismo archivo dos veces sube dos veces
+- **F1-126** [confunde] Paso 1 · Carga DICOM · «Cargado» (texto)
+  - Cambio: «Cargado» solo cuando el visor tiene el volumen; si no, «Subido»
+  - Archivo: frontend/src/components/upload/UploadPanel.tsx
+  - Prueba: Vitest `UploadPanel.test.tsx`: sin volumen la insignia no dice «Cargado»
+- **F1-127** [confunde] Paso 1 · Carga DICOM · «Descripción · Serie 1.2.276.» (texto)
+  - Cambio: Sin descripción: «Sin descripción» y la fecha y hora de adquisición
+  - Archivo: frontend/src/components/upload/UploadPanel.tsx, backend/services/dicom_loader.py
+  - Prueba: Vitest `UploadPanel.test.tsx`: serie sin descripción no muestra el UID
+- **F1-128** [confunde] Paso 1 · Carga DICOM · «Guardar en el archivo de estudios» (panel)
+  - Cambio: Decir el plazo real de borrado de la sesión
+  - Archivo: frontend/src/components/upload/UploadPanel.tsx, backend/services/sessions.py
+  - Prueba: Vitest `UploadPanel.test.tsx`: el texto incluye el plazo
+- **F1-129** [confunde] Paso 1 · Carga DICOM · «Este paciente no tiene ningún caso. Crea uno desde «Pacientes → Nuevo caso».» (mensaje)
+  - Cambio: «Este paciente no tiene casos. Usa «Adjuntar a un caso» arriba para crear uno y archivar este DICOM»
+  - Archivo: frontend/src/components/upload/UploadPanel.tsx
+  - Prueba: Vitest `UploadPanel.test.tsx`: texto nuevo
+- **F1-131** [confunde] Paso 2 · Segmentación · «Umbral inferior 1470» (campo)
+  - Cambio: «1470 · sugerido por el histograma de este estudio»
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx
+  - Prueba: Vitest `SegmentPanel.test.tsx`: la línea de sugerido aparece junto al valor
+- **F1-132** [confunde] Paso 2 · Segmentación · «Umbral superior 4717» y «Sin límite superior — conserva todo lo más brillante que el umbral inferior» (campo)
+  - Cambio: En tubular, ocultar el deslizador y la casilla y dejar «Sin techo en el método tubular»
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx, frontend/src/components/segmentation/TubularControls.tsx
+  - Prueba: Vitest `TubularControls.test.tsx`: en tubular no hay deslizador de techo
+- **F1-133** [confunde] Paso 2 · Segmentación · «Suavizado 3» (campo)
+  - Cambio: Ayuda «Iteraciones de suavizado de la superficie; valores altos redondean el cuello»
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx
+  - Prueba: Vitest `SegmentPanel.test.tsx`: la ayuda aparece
+- **F1-134** [confunde] Paso 2 · Segmentación · Vista previa 3D «3D · MALLA GRUESA» y «PULSA «SEGMENTAR» PARA LA MALLA FINAL» (mensaje)
+  - Cambio: Línea «La vista previa solo aplica el umbral; la forma tubular quitará el hueso»
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx, frontend/src/vtk/Viewer.tsx
+  - Prueba: Vitest `SegmentPanel.test.tsx`: en tubular la línea aparece
+- **F1-135** [confunde] Paso 2 · Segmentación · «Remuestreo isotrópico» (campo)
+  - Cambio: Desactivarlo si el volumen ya es isotrópico, o avisar de que baja la resolución
+  - Archivo: frontend/src/components/segmentation/PreprocessSection.tsx
+  - Prueba: Vitest nuevo `PreprocessSection.test.tsx`: con vóxel 0,32 isotrópico, apagado
+- **F1-136** [confunde] Paso 2 · Segmentación · Barra de fases «TUBULARIDAD 3/6 25 %» (mensaje)
+  - Cambio: «Segmentando… suele tardar menos de un minuto», con las fases en un detalle plegado
+  - Archivo: frontend/src/components/segmentation/SegmentProgress.tsx
+  - Prueba: Vitest `SegmentProgress.test.tsx`: el rótulo principal no es la fase
+- **F1-137** [confunde] Paso 2 · Segmentación · «Volumen conservado (del umbral) 35.3 %» (texto)
+  - Cambio: Ocultarlo en tubular o explicarlo: «frente a la máscara del umbral, que incluía el hueso»
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx
+  - Prueba: Vitest `SegmentPanel.test.tsx`: en tubular no aparece sin explicación
+- **F1-138** [confunde] Paso 2 · Segmentación · Nota de cambio del servidor en la tarjeta del resultado (mensaje)
+  - Cambio: Aviso amarillo en la cabecera de la tarjeta e insignia «Malla lista con cambios»
+  - Archivo: frontend/src/components/segmentation/SegmentPanel.tsx
+  - Prueba: Vitest `SegmentPanel.test.tsx`: con `fallback_note`, insignia nueva
+- **F1-139** [confunde] Paso 2 · Segmentación · «Recortar malla (ROI)» (panel)
+  - Cambio: «usa la «Caja de recorte» de arriba»
+  - Archivo: frontend/src/components/segmentation/MeshEditTools.tsx
+  - Prueba: Vitest `MeshEditTools.test.tsx`: texto «de arriba»
+- **F1-142** [confunde] Paso 3 · Detección · «Tres criterios buscan por separado…» y «Lo que se pinta de azul no es el saco…» (texto)
+  - Cambio: Tres líneas con «Más» plegado; quitar la cifra fija «los dos casos con diagnóstico»
+  - Archivo: frontend/src/components/planning/DetectPanel.tsx, frontend/src/components/planning/detectCopy.ts
+  - Prueba: Vitest `DetectPanel.test.tsx`: el texto plegado no lleva la cifra
+- **F1-143** [confunde] Paso 3 · Detección · «Ø 3.7 mm est.» (texto)
+  - Cambio: «≈3,7 mm de grosor local»; el título del visor conserva «est.»
+  - Archivo: frontend/src/components/planning/detectCopy.ts, frontend/src/vtk/Viewer.tsx
+  - Prueba: Vitest `DetectPanel.test.tsx`: coma decimal y «≈»
+- **F1-144** [confunde] Paso 3 · Detección · «Puesto bajo» (texto)
+  - Cambio: Condicionado a la decisión nº 20. Quitar la marca «Puesto bajo»
+  - Archivo: frontend/src/components/planning/DetectPanel.tsx
+  - Prueba: Vitest `DetectPanel.test.tsx`: el cuarto candidato no lleva «Puesto bajo»
+- **F1-145** [confunde] Paso 3 · Detección · «Es el #1» (botón)
+  - Cambio: «Confirmar cand-001 como la lesión»; tras confirmar, estado hecho; también para los descartados
+  - Archivo: frontend/src/components/planning/LesionConfirm.tsx
+  - Prueba: Vitest `LesionConfirm.test.tsx`: con un descartado elegido se ofrece confirmar
+- **F1-146** [confunde] Paso 3 · Detección · «Marcar en la malla», «Marcando… (clic en la malla)» y «Confirmar el punto marcado» (botón)
+  - Cambio: Decir en el panel que una lesión no detectada se mide en Morfometría marcando cuello y ápice; el punto confirmado queda como candidato «marcado a mano»
+  - Archivo: frontend/src/components/planning/LesionConfirm.tsx, frontend/src/components/planning/detectGate.ts
+  - Prueba: Vitest `LesionConfirm.test.tsx`: confirmar un punto añade un candidato elegible
+- **F1-148** [confunde] Paso 3 · Detección · «Este estudio no está archivado: … no se podrá volver a pasar el detector sobre él.» (mensaje)
+  - Cambio: «Sin archivar, esta confirmación no queda ligada al paciente ni sirve para evaluar versiones futuras del detector»
+  - Archivo: frontend/src/components/planning/LesionConfirm.tsx
+  - Prueba: Vitest `LesionConfirm.test.tsx`: texto nuevo
+- **F1-149** [confunde] Paso 3 · Detección · «Con 3 lesiones confirmadas, el detector la puso 1.ª en 3…» (mensaje)
+  - Cambio: Contar estudios, no sesiones
+  - Archivo: backend/routers/ground_truth.py
+  - Prueba: pytest `test_ground_truth.py`: tres confirmaciones del mismo estudio cuentan una
+- **F1-150** [confunde] Paso 3 · Detección · «LESIÓN» en la barra del 3D (botón)
+  - Cambio: Rotular «CANDIDATO» y tooltip «Acercar la cámara al candidato elegido»
+  - Archivo: frontend/src/vtk/Viewer.tsx
+  - Prueba: Vitest `copy.test.ts`: la barra 3D dice «CANDIDATO»
+- **F1-152** [confunde] Paso 4 · Morfometría · «Medición no fiable: malla abierta (32 aristas de borde). Define un plano de cuello…» (mensaje)
+  - Cambio: «La medida automática no cierra el saco: marca cuello y ápice», sin «aristas de borde»
+  - Archivo: backend/services/morphometrics.py
+  - Prueba: pytest `test_morphometry_sac.py`: el aviso no contiene «aristas»
+- **F1-153** [confunde] Paso 4 · Morfometría · «Marcar cuello» (botón)
+  - Cambio: Ayuda «Pincha en la unión del saco con el vaso»; coordenada y color del marcador junto al botón
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: tras marcar se ve la coordenada
+- **F1-154** [confunde] Paso 4 · Morfometría · Clic de marcado en el 3D (mensaje)
+  - Cambio: En modo de marcado, la cámara no se mueve: ni SINCRO ni el reencuadre tras medir
+  - Archivo: frontend/src/vtk/Viewer.tsx, frontend/src/vtk/MeshView.tsx
+  - Prueba: Vitest `pointerFocus.test.ts`: con marcado activo, el clic no recentra
+- **F1-155** [confunde] Paso 4 · Morfometría · «Ajustar con varios puntos», «Clic en el borde (n)» y «Borde del cuello (n)» (botón)
+  - Cambio: Botón «Terminar borde» aparte, con el recuento a la vista
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: tres clics y «Terminar» envían tres puntos
+- **F1-156** [confunde] Paso 4 · Morfometría · Saco cerrado medido alrededor de las marcas (mensaje)
+  - Cambio: Decirlo junto a «Plano de cuello» y rotular el visor «medida manual»
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx, frontend/src/vtk/Viewer.tsx
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: tras medir con marcas, el rótulo dice «medida manual»
+- **F1-158** [confunde] Paso 4 · Morfometría · «ANÁLISIS MORFOMÉTRICO · cand-001 · Ø 3.7 mm» en el visor (texto)
+  - Cambio: El título del visor muestra el Ø medido, o «est.» si no hay medida
+  - Archivo: frontend/src/vtk/Viewer.tsx
+  - Prueba: Vitest `copy.test.ts`: tras medir, el título lleva 10,9 mm
+- **F1-159** [confunde] Paso 4 · Morfometría · «Área superficie» (texto)
+  - Cambio: «—» con la malla abierta, como el resto del grupo
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: malla abierta da «—»
+- **F1-164** [confunde] Paso 4 · Morfometría · «EI · Elipticidad», «NSI · No-esfericidad», «Compacidad (Wadell)», «Ø esfera equivalente» (texto)
+  - Cambio: Una línea por índice con qué mide y desde qué valor importa, o plegarlos bajo «Más índices»
+  - Archivo: frontend/src/components/morphometry/MorphometryPanel.tsx
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: los índices de forma tienen tooltip
+- **F1-166** [confunde] Paso 4 · Morfometría · Fila «2026-10-10 · 10.9 mm · AR 0.91 · Alto» en «Seguimiento» (texto)
+  - Cambio: Rotular la fila «esta sesión» o no mostrarla hasta que haya dos
+  - Archivo: frontend/src/components/morphometry/FollowupOverlay.tsx
+  - Prueba: Vitest `FollowupOverlay.test.tsx`: con una sola sesión no hay fila sin rótulo
+- **F1-167** [confunde] Paso 4 · Morfometría · Filas «br-001 ⌀1.4 3.7 mm Medio» (botón)
+  - Cambio: «riesgo para el clip: medio»; al encender una fila se resalta su vaso
+  - Archivo: frontend/src/components/perforators/PerforatorsPanel.tsx
+  - Prueba: Vitest `PerforatorsPanel.test.tsx`: la zona lleva «riesgo para el clip»
+- **F1-168** [confunde] Paso 4 · Morfometría · «Ø medio», «Ø mínimo», «Ø máximo» de la línea central y de las secciones (texto)
+  - Cambio: Rótulos distintos: «Ø inscrito» para la línea central y «Ø por área de sección» para las secciones
+  - Archivo: frontend/src/components/vessels/CenterlinePanel.tsx
+  - Prueba: Vitest `CenterlinePanel.test.tsx`: los dos juegos tienen rótulos distintos
+- **F1-169** [confunde] Paso 4 · Morfometría · «Estenosis 71 % Significativa» (texto)
+  - Cambio: Calcular frente a una referencia y, con perfil ruidoso, decir «perfil irregular» en vez de un grado
+  - Archivo: backend/routers/centerline.py, backend/services/cross_section.py
+  - Prueba: pytest `test_centerline.py`: un perfil con saltos de rama no da «Significativa»
+- **F1-171** [confunde] Paso 4 · Morfometría · «Decisión terapéutica» con «Medición no fiable» (botón)
+  - Cambio: Con medida no fiable, aviso bajo el botón «La medida no es fiable: marca cuello y ápice antes de decidir»
+  - Archivo: frontend/src/pages/Workspace.tsx, frontend/src/components/morphometry/MorphometryPanel.tsx
+  - Prueba: Vitest `MorphometryPanel.test.tsx`: con `reliable=false` sale el aviso
+- **F1-172** [confunde] Paso 5 · Decisión · «Decisión terapéutica» y «Compara clipaje y tratamiento endovascular. Los índices de forma no puntúan…» (texto)
+  - Cambio: Entradilla «Propone una vía, clipaje o endovascular, a partir de la localización, el estado y la morfometría. La decisión es tuya»
+  - Archivo: frontend/src/components/planning/TreatmentPanel.tsx
+  - Prueba: Vitest `TreatmentPanel.test.tsx`: entradilla nueva
+- **F1-175** [confunde] Paso 5 · Decisión · «Riesgo estimado por cada vía · Japan Stroke Data Bank» (panel)
+  - Cambio: Veredicto arriba; avisar de la falta de WFNS antes de evaluar
+  - Archivo: frontend/src/components/planning/TreatmentPanel.tsx
+  - Prueba: Vitest `TreatmentPanel.test.tsx`: roto sin WFNS muestra el aviso antes de evaluar
+- **F1-177** [confunde] Paso 5 · Decisión · «100 % de los datos» y «Confianza baja» (texto)
+  - Cambio: Explicar «Confianza baja: los factores empujan en sentidos opuestos»
+  - Archivo: frontend/src/components/planning/TreatmentPanel.tsx, backend/services/treatment.py
+  - Prueba: Vitest `TreatmentPanel.test.tsx`: la confianza baja lleva el motivo
+- **F1-178** [confunde] Paso 5 · Decisión · «Factores contribuyentes» con «CLIP», «CLIP ·», «ENDO ·», «— ·» y «no influye» (texto)
+  - Cambio: Primero los factores que votan; los descriptivos aparte y plegados, sin insignia de vía
+  - Archivo: frontend/src/components/planning/TreatmentPanel.tsx
+  - Prueba: Vitest `TreatmentPanel.test.tsx`: un factor «no influye» no lleva insignia
+- **F1-182** [confunde] Paso 5 · Decisión · «Si se opta por la vía endovascular» y «Coiling asistido (balón o stent)» (panel)
+  - Cambio: «DNR por encima de 1,6 suele bastar el coiling simple»
+  - Archivo: backend/services/endovascular.py
+  - Prueba: pytest `test_endovascular_profile.py`: el texto nombra el DNR
+- **F1-184** [confunde] Paso 6 · Dispositivos · «Planificación de dispositivos» y «Elige clip, coils o stent del catálogo y verifica su colocación.» (texto)
+  - Cambio: «Traza el abordaje y prueba clip, coils, stent o WEB sobre el saco medido»
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest `DevicesPanel.clipField.test.tsx`: entradilla nueva
+- **F1-185** [confunde] Paso 6 · Dispositivos · «Entrada» (botón)
+  - Cambio: Ayuda «Pincha sobre un vaso en la dirección por la que entrarías»; aviso si el clic cae fuera de la malla
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest `TrajectoryTool.test.tsx`: clic fuera de la malla muestra el aviso
+- **F1-186** [confunde] Paso 6 · Dispositivos · «Profundidad de abordaje: 14.7 mm» (texto)
+  - Cambio: «Distancia entrada–diana», en pantalla y en el PDF
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx, backend/services/report_generator.py
+  - Prueba: pytest `test_report_trajectory_label.py`: el PDF dice «Distancia entrada–diana»
+- **F1-187** [confunde] Paso 6 · Dispositivos · «Guardar trayectoria» y «Guardada ✓» (botón)
+  - Cambio: «Guardar y analizar el corredor»
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest `TrajectoryTool.test.tsx`: rótulo nuevo
+- **F1-189** [confunde] Paso 6 · Dispositivos · Pestañas «Clips · Coils · Stents · Stent CL · WEB» (pestaña)
+  - Cambio: «Stent recto» y «Stent sobre la línea central», o una pestaña con dos modos; avisar de que hay un solo stent por sesión
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest `DevicesPanel.clipField.test.tsx`: rótulos nuevos
+- **F1-193** [confunde] Paso 6 · Dispositivos · «Recalcular» (botón)
+  - Cambio: Recalcular la selección al guardar el abordaje
+  - Archivo: frontend/src/components/planning/ClipSelection.tsx, frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest `ClipSelection.test.tsx`: guardar trayectoria relanza la selección
+- **F1-194** [confunde] Paso 6 · Dispositivos · «Clips recomendados (6)» (panel)
+  - Cambio: Primera tarjeta abierta y el resto plegadas, con la forma en el título
+  - Archivo: frontend/src/components/planning/ClipSelection.tsx
+  - Prueba: Vitest `ClipSelection.test.tsx`: solo la primera tarjeta abierta
+- **F1-195** [confunde] Paso 6 · Dispositivos · «Ajuste real: Libra los vasos vecinos en 4 de 6 orientaciones» (texto)
+  - Cambio: Todas las tarjetas con la comprobación, o «sin comprobar» explícito
+  - Archivo: frontend/src/components/planning/ClipSelection.tsx, backend/services/clip_fit.py
+  - Prueba: Vitest `ClipSelection.test.tsx`: tarjeta sin ajuste dice «sin comprobar»
+- **F1-196** [confunde] Paso 6 · Dispositivos · «Modelo de clip» y «Recomendados + personalizados (6)» (menú)
+  - Cambio: Condicionado a la decisión nº 23. Una sola lista: el menú sigue el orden de las tarjetas
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx, frontend/src/components/planning/ClipSelection.tsx
+  - Prueba: Vitest: el primer elemento del menú es la primera tarjeta
+- **F1-198** [confunde] Paso 6 · Dispositivos · «Para este cuello hay una pieza a medida especificada (Curvo de 12.0 mm · 125 g)…» (texto)
+  - Cambio: Remitir a la pieza que Fabricación tomará: el clip colocado
+  - Archivo: frontend/src/components/planning/ClipSelection.tsx, frontend/src/components/planning/ManufacturePanel.tsx
+  - Prueba: Vitest `ManufacturePanel.test.tsx`: la remisión y Fabricación nombran la misma pieza
+- **F1-199** [confunde] Paso 6 · Dispositivos · «Clip elegido», «Cambiar» y «Añadir» (panel)
+  - Cambio: «Añadir otro clip (montaje de varios)»
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest: rótulo nuevo
+- **F1-200** [confunde] Paso 6 · Dispositivos · «Clips colocados (1)» con «X», «Y», «Z», «Rot°», «Azimut°» y «Elevación°» (campo)
+  - Cambio: Plegar X, Y, Z y ángulos bajo «Ajuste fino»
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest: los campos numéricos empiezan plegados
+- **F1-201** [confunde] Paso 6 · Dispositivos · «Oclusión completa» y «La línea de cierre deja el saco entero fuera de la circulación (119 mm³ de 128). No queda muñón medible.» (texto)
+  - Cambio: «El 93 % del saco queda fuera de la circulación; el resto queda bajo las hojas»
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx, backend/services/clip_outcome.py
+  - Prueba: pytest `test_oclusion_clip.py`: el texto no dice «entero» con 119 de 128
+- **F1-203** [confunde] Paso 6 · Dispositivos · «Montaje sugerido para el saco medido» (panel)
+  - Cambio: Primer dato el cuello; aviso «cuello ancho: probable adyuvante» cuando aplique
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx, backend/services/coils.py
+  - Prueba: pytest `test_endovascular_profile.py`: cuello de 6,6 mm da el aviso
+- **F1-204** [confunde] Paso 6 · Dispositivos · «Coil (3 disponibles)», «Número de coils» y «Calcular empaque» (campo)
+  - Cambio: Condicionado a la decisión nº 24. Una sola vía: el montaje, editable
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest: no hay segundo formulario de coils
+- **F1-205** [confunde] Paso 6 · Dispositivos · «Diámetro nominal 4 mm» (campo)
+  - Cambio: Partir del vaso padre medido
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest: con vaso de 4,83 mm el valor inicial no es 4
+- **F1-206** [confunde] Paso 6 · Dispositivos · «Geometría · Sigue el vaso · Línea central» (texto)
+  - Cambio: Una sola expresión en pantalla, PDF y SR: «Sigue la línea central»
+  - Archivo: backend/routers/report.py, backend/services/dicom_sr.py, backend/services/report_generator.py
+  - Prueba: pytest `test_dicom_sr.py`: stent curvado no dice «Recto»
+- **F1-207** [confunde] Paso 6 · Dispositivos · «Despliegue OK» junto a «Arteria portadora 4.83 mm Infradimensionado» (texto)
+  - Cambio: «Revisar» cuando hay infradimensionado
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx
+  - Prueba: Vitest: infradimensionado no muestra «OK»
+- **F1-208** [confunde] Paso 6 · Dispositivos · «Arteria portadora 4.83 mm» frente a «arteria de 4.24 mm» en «Stent CL» (texto)
+  - Cambio: Decir dónde se mide cada calibre
+  - Archivo: frontend/src/components/planning/DevicesPanel.tsx, frontend/src/components/planning/FdSizing.tsx
+  - Prueba: Vitest `FdSizing.test.tsx`: el calibre lleva su referencia
+- **F1-209** [confunde] Paso 6 · Dispositivos · «Fuera de la indicación aprobada» y «Domo de 11.7 mm» (texto)
+  - Cambio: Explicar «anchura máxima en el plano del cuello» frente al Ø máximo
+  - Archivo: frontend/src/components/planning/WebSizing.tsx
+  - Prueba: Vitest `WebSizing.test.tsx`: el domo lleva su definición
+- **F1-215** [confunde] Paso 7 · Fabricación · «El cuello se midió con un punto de cuello marcado a mano» frente a «El cuello está ESTIMADO a partir del saco, no medido sobre un borde marcado a mano» (texto)
+  - Cambio: Una sola regla de «marcado» frente a «estimado» para informe y pedido
+  - Archivo: backend/routers/clip_orders.py, backend/services/report_generator.py
+  - Prueba: pytest `test_clip_orders.py`: un punto marcado da la misma etiqueta en informe y pedido
+- **F1-216** [confunde] Paso 7 · Fabricación · «Pedir también las tallas contiguas (10 mm, 16 mm)» (texto)
+  - Cambio: Pedir tallas contiguas solo con cuello estimado según la regla unificada
+  - Archivo: backend/services/clip_orders.py
+  - Prueba: pytest `test_clip_orders.py`: cuello marcado no pide tallas contiguas
+- **F1-219** [confunde] Paso 7 · Fabricación · «Pedidos de este caso» (panel)
+  - Cambio: Ligar los pedidos al caso, o rotular «Pedidos de esta sesión»
+  - Archivo: frontend/src/components/planning/ClipOrderForm.tsx, backend/routers/clip_orders.py
+  - Prueba: pytest `test_clip_orders.py`: tras reanudar se ven los pedidos de la sesión de origen
+- **F1-221** [confunde] Paso 8 · Informe · «Cirujano responsable» (campo)
+  - Cambio: Campo vacío y obligatorio, o relleno solo si la cuenta tiene nombre de profesional
+  - Archivo: frontend/src/components/planning/ReportPanel.tsx
+  - Prueba: Vitest `ReportPanel.test.tsx`: con la cuenta admin el campo arranca vacío
+- **F1-222** [confunde] Paso 8 · Informe · «Incluir captura 3D de la escena en el PDF» (casilla)
+  - Cambio: Encuadrar la lesión antes de la foto o mostrar una vista previa
+  - Archivo: frontend/src/components/planning/ReportPanel.tsx, frontend/src/vtk/captureRenderWindow.ts
+  - Prueba: Vitest `captureRenderWindow.test.ts`: la captura del informe usa la cámara de la lesión
+- **F1-224** [confunde] Paso 8 · Informe · PDF · «Datos del paciente» con «F. estudio 2026-10-11» (texto)
+  - Cambio: Fecha de adquisición del DICOM
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest `test_report_honesty_fixes.py`: «F. estudio» es la fecha del DICOM
+- **F1-225** [confunde] Paso 8 · Informe · PDF · «Morfometría del aneurisma» (panel)
+  - Cambio: Añadir BF y UI; rótulos en castellano; quitar «Riesgo ruptura si > 1.3» del AR
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest `test_report_honesty_fixes.py`: la tabla tiene BF y UI y no dice «Aspect Ratio»
+- **F1-226** [confunde] Paso 8 · Informe · PDF · «Recomendación Terapéutica» con columna «Estrategia» y «Clipping» (texto)
+  - Cambio: «Clipaje» y columna alineada con su factor
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest `test_report_honesty_fixes.py`: no aparece «Clipping»
+- **F1-227** [confunde] Paso 8 · Informe · PDF · «Ya no vota…» y «Ya no es un factor propio… entre los dos se llevaban 40 puntos» (texto)
+  - Cambio: La regla vigente, sin historia del programa
+  - Archivo: backend/services/treatment.py, backend/services/report_generator.py
+  - Prueba: pytest `test_treatment_provenance.py`: ningún texto contiene «Ya no»
+- **F1-228** [confunde] Paso 8 · Informe · PDF · «(*) … ISAT 2002, Spetzler-BRAT 2013, AHA/ASA 2015» (texto)
+  - Cambio: Una sola cita AHA/ASA, la de 2023
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest `test_report_honesty_fixes.py`: no aparece «AHA/ASA 2015»
+- **F1-229** [confunde] Paso 8 · Informe · PDF · «Clips quirúrgicos planificados» con «Tipo Catálogo» y «Orientación (0.0, 0.0, 0.0)» (texto)
+  - Cambio: «Pieza a medida» para el NAVARRO; orientación clínica o nada; añadir oclusión y mapa de calor
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest `test_report_honesty_fixes.py`: el clip bajo pedido no dice «Catálogo»
+- **F1-230** [confunde] Paso 8 · Informe · PDF · «Ramas visibles cerca del cuello» con distancias de 3,7 a 7,6 mm (texto)
+  - Cambio: Decir desde dónde se mide: «distancia al cuello»
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest: la tabla nombra la referencia
+- **F1-232** [confunde] Paso 8 · Informe · PDF · «Coils de embolización planificados» (panel)
+  - Cambio: Alinear la tabla: cada coil en su fila
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest nuevo: las celdas de la primera fila de coils no están vacías
+- **F1-233** [confunde] Paso 8 · Informe · PDF · «Stent / desviador de flujo planificado» (panel)
+  - Cambio: Alinear la columna de referencias
+  - Archivo: backend/services/report_generator.py
+  - Prueba: pytest nuevo: la fila de dimensionado tiene su texto al lado
+- **F1-235** [confunde] Paso 8 · Informe · PDF · ELAPSS con «Forma (S) Regular» (texto)
+  - Cambio: Avisar si la forma de ELAPSS contradice el UI medido
+  - Archivo: frontend/src/components/morphometry/ElapssCalculator.tsx
+  - Prueba: Vitest `ElapssCalculator.test.tsx`: UI 0,5 con «Regular» muestra el aviso
+- **F1-237** [confunde] Paso 8 · Informe · DICOM SR · «Approach Trajectory» como «Clip Model: Entrada (67.0, 77.2, 67.4)» (texto)
+  - Cambio: Codificar la trayectoria con su propio concepto, con distancia y ángulo
+  - Archivo: backend/services/dicom_sr.py
+  - Prueba: pytest `test_dicom_sr.py`: la trayectoria no usa el concepto de clip
+- **F1-238** [confunde] Paso 8 · Informe · DICOM SR · «Device Type: Recto / catálogo» y «Clip Type: Catálogo» (texto)
+  - Cambio: Tipo real del stent y del clip; añadir recomendación, anotaciones, ELAPSS y UIATS
+  - Archivo: backend/services/dicom_sr.py, backend/routers/report.py
+  - Prueba: pytest `test_dicom_sr.py`: clip bajo pedido no dice «Catálogo»
+- **F1-239** [confunde] Paso 8 · Informe · «Guardar sesión» (botón)
+  - Cambio: Rotular «Guardar y cerrar»
+  - Archivo: frontend/src/components/planning/ReportPanel.tsx
+  - Prueba: Vitest `ReportPanel.test.tsx`: rótulo nuevo
+- **F1-240** [confunde] Paso 8 · Informe · «La sesión se vincula al paciente y estudio en la base de datos.» (texto)
+  - Cambio: Decirlo solo si hay caso; si no, remitir a «Adjuntar a un caso»
+  - Archivo: frontend/src/components/planning/ReportPanel.tsx
+  - Prueba: Vitest `ReportPanel.test.tsx`: sin caso no promete el vínculo
+- **F1-244** [confunde] Guardar y reanudar · Recarga de la página en `/app/sesion` (panel)
+  - Cambio: Recordar la sesión abierta y ofrecerla al recargar
+  - Archivo: frontend/src/App.tsx, frontend/src/pages/Workspace.tsx
+  - Prueba: Vitest: recargar `/app/sesion` ofrece la sesión anterior
+- **F1-252** [confunde] Usuario no administrador · «Pacientes registrados 0 en la base de datos» (texto)
+  - Cambio: «tus pacientes» o «creados por ti»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: no administrador ve «tus pacientes»
+- **F1-253** [confunde] Usuario no administrador · «No hay pacientes registrados. Crea el primero para comenzar.» (mensaje)
+  - Cambio: Para un no administrador: «Solo ves los pacientes que has creado tú»
+  - Archivo: frontend/src/pages/Patients.tsx
+  - Prueba: Vitest `Patients.test.tsx`: lista vacía de no administrador
+
+
+## Filas que pasan a F2 como requisitos (32)
+
+- F1-35 [confunde] Landing · «Suite clínica activa» (texto) — Condicionado a la decisión nº 1. Quitar el piloto «Suite clínica activa»
+- F1-36 [confunde] Landing · «Cuello, altura máxima y cizallamiento de pared» (texto) — Pie de figura «Cuello, altura máxima y forma del saco», sin «cizallamiento de pared»
+- F1-37 [confunde] Landing · «Sin datos personales» (texto) — Texto nuevo: «Puedes registrar al paciente con iniciales o un código»; quitar «sin datos del paciente» del pie vecino
+- F1-38 [confunde] Landing · «Entrar a la plataforma» (botón) — Condicionado a la decisión nº 4. Rotular «Entrar» y añadir al lado «Crear cuenta», que navega a `/app/registro`
+- F1-39 [confunde] Entrar · «Usuario» (campo) — Quitar el marcador «admin»; poner «tu usuario»
+- F1-44 [confunde] Crear cuenta · «Acceso revisado · Datos cifrados · SKULLAPP» (texto) — Pie del panel: «Acceso revisado · SKULLAPP», sin «Datos cifrados»
+- F1-45 [confunde] Crear cuenta · «Datos personales» (texto) — Encabezado «Tus datos»
+- F1-46 [confunde] Crear cuenta · «Usuario *» (campo) — Rótulo «Usuario * (mín. 3)»
+- F1-47 [confunde] Crear cuenta · «Contraseña *» (campo) — Rótulo «Contraseña * (mín. 8)» y aviso en vivo si es corta o no coincide
+- F1-49 [confunde] Crear cuenta · «Las contraseñas no coinciden.» (mensaje) — Mostrar todos los errores a la vez, cada uno junto a su campo, con el campo marcado
+- F1-52 [confunde] Pacientes · «Empezar sin paciente» (botón) — Tooltip: «Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.»
+- F1-56 [confunde] Pacientes · Fila del paciente (botón) — El clic en la fila abre la ficha, como «Editar»; la fila es un control de teclado
+- F1-57 [confunde] Pacientes · «Editar» (botón) — Condicionado a la decisión nº 8. Fusionar con el clic en la fila; el botón restante se rotula «Abrir ficha»
+- F1-59 [confunde] Ficha del paciente · «Editar paciente» (texto) — Título de la ficha: el nombre del paciente, o «Ficha del paciente»
+- F1-61 [confunde] Ficha del paciente · «Apellidos» (campo) — Línea bajo el campo: «Puedes usar iniciales o un código en lugar del nombre real»
+- F1-62 [confunde] Ficha del paciente · «Sexo» (menú) — El menú arranca en «— sin dato —», se guarda vacío y un guardado sin sexo muestra «— sin dato —»
+- F1-63 [confunde] Ficha del paciente · «Antecedentes · Patológicos · Toxicológicos · Quirúrgicos · Alérgicos · Farmacológicos» (campo) — Línea bajo «Antecedentes»: «Solo para consulta: no entran en el cálculo de riesgo ni en el informe.»
+- F1-69 [confunde] Ficha del paciente · «Reanudar en «Detección»» (botón) — Tooltip con lo que se restaura y que tarda unos segundos; icono de reanudar
+- F1-72 [confunde] Ficha del paciente · Error al cargar la ficha (mensaje) — Mostrar el error de la recarga de casos, que hoy se traga
+- F1-73 [confunde] Estudios · «Estudios · Estudios cargados y archivados · haz clic en uno para abrirlo» (texto) — «Estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo»
+- F1-74 [confunde] Estudios · «Aún no hay estudios archivados. Carga un DICOM en el pipeline y pulsa «Guardar estudio».» (mensaje) — «…abre un caso con «Planificar este caso», carga el DICOM y pulsa «Guardar estudio» en el Paso 1.», sin «pipeline»
+- F1-78 [confunde] Nuevo caso · «Región anatómica» (menú) — Añadir vertebral, cerebelosa superior, AICA y pericallosa a la lista
+- F1-79 [confunde] Nuevo caso · «Tratamiento propuesto» (campo) — Añadir «Embolización con coils», «Stent + coils», «Diversor de flujo» y «Observación»
+- F1-82 [confunde] Usuarios · «Usuario · Rol · Especialidad / Hospital · Estado · Creado · Acciones» (texto) — La columna «Estado» muestra «Activo», «Pendiente», «Rechazada» o «Desactivada» según el estado que ya envía el servidor
+- F1-84 [confunde] Usuarios · «Cuenta activa (puede iniciar sesión)» (campo) — Enviar `is_active` solo si la casilla cambia
+- F1-90 [confunde] Solicitudes · «Aprobar» (botón) — Línea en la tarjeta: «Entrará como Médico; cambia el rol en Usuarios»
+- F1-94 [confunde] Pedidos de clips · «Filtrado por segura, Juan · Ver todos» (panel) — La entrada del menú limpia el filtro de paciente
+- F1-95 [confunde] Pedidos de clips · «Todos · Borrador · Firmado · Enviado al taller · En fabricación · Recibida · Verificada · Rechazada» (botón) — Recuentos de los chips sobre la lista filtrada; «Todos» con recuento
+- F1-96 [confunde] Pedidos de clips · «Solo los abiertos» (campo) — Desmarcar la casilla al elegir «Verificada» o «Rechazada»
+- F1-100 [confunde] Auditoría · «Acción» (menú) — Rótulos de acción en castellano, «password_change» incluido
+- F1-102 [confunde] Auditoría · Eventos de cuentas (texto) — Registrar altas, aprobaciones, rechazos, cambios de rol y borrados de cuentas
+- F1-105 [confunde] Menú de usuario y tema · Insignia roja de solicitudes (texto) — Pedir el recuento de cuentas pendientes al cargar la página, no al abrir el menú

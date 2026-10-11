@@ -756,6 +756,8 @@ Atascos. El paso arrancó con la localización en «Desconocida» y la edad en 2
 | «Elegir» y «Colocar» (pestaña) | Separar qué clip y dónde | mantener | — | — | Las dos preguntas quedan en dos pantallas y elegir lleva a colocar |
 | «Evaluando el catálogo…» (mensaje) | Esperar la selección | mantener | — | — | Unos segundos al entrar y 14,4 s con «Recalcular» |
 | «Utilizable con reservas» (mensaje) | Veredicto de la selección de clip | corregir | confunde | F1 | El catálogo de clips de esta máquina está vacío, así que todo lo propuesto son NAVARRO™ «bajo pedido». Aun así sale «Utilizable con reservas», mientras Fabricación titula «Por qué no sirve el inventario». La persona esperaba «Requiere fabricación» o «No hay clips de inventario cargados» |
+| «Falta medir el cuello» (mensaje) | Veredicto sin cuello medido | mantener | — | — | Leído en el código, no salió: con el cuello medido no aplica. Cuando sale, despliega «Qué limita esta recomendación» y lo explica |
+| «Requiere fabricación» (mensaje) | Veredicto cuando nada del inventario sirve | corregir | confunde | F1 | Leído en el código, no salió aunque el catálogo está vacío. Sale en rojo, como si fuese un fallo, cuando es una vía normal para piezas a medida. La persona esperaba «Pieza a medida: se pide en Fabricación» |
 | «6 clips del inventario son utilizables, pero ninguno sin reservas. La alternativa a medida sería: Curvo de 12.0 mm · 125 g.» (texto) | Resumen de la selección | corregir | confunde | F1 | Los seis llevan «bajo pedido»: no son de inventario. Además la alternativa que propone, curvo de 12 mm, no es la que Fabricación toma luego, que es el T1 recto de 13 mm colocado |
 | «Recalcular» (botón) | Volver a evaluar la selección | corregir | confunde | F1 | Al guardar la trayectoria la selección no se actualiza. Solo tras «Recalcular» (14,4 s) aparece la línea de la acodadura y cambia el orden: el primero pasa de «T3 Angulado 30°» a «T1 Recto». Se esperaba que se recalculase sola al guardar el abordaje |
 | «cuello 6.63 mm · AR 0.91 · vaso padre 4.83 mm» (texto) | Datos de partida | mantener | — | — | Coinciden con Morfometría |
@@ -787,9 +789,12 @@ Atascos. El paso arrancó con la localización en «Desconocida» y la edad en 2
 | «Enmarcado · Target 360° 12mm×30cm × 1» y razones de cada coil (texto) | Por qué cada coil | mantener | — | — | Cada escalón dice su motivo con la medida del domo |
 | «Empaquetamiento proyectado 27 %» y «Colocar el montaje completo» (botón) | Colocar la secuencia | mantener | — | — | 0,3 s; «Densidad de empaque 27.0 % Sobre el mínimo» con su límite («No es un pronóstico de oclusión») |
 | «Coil (3 disponibles)», «Número de coils» y «Calcular empaque» (campo) | Colocar N coils de un modelo | fusionar | confunde | F1 | Es una segunda forma de colocar coils: N copias del mismo modelo en un punto, con 3 por defecto frente a los 4 del montaje. Se esperaba una sola vía, la del montaje, editable |
+| «Limpiar coils» (botón) | Quitar los coils | mantener | — | — | Leído en el código, no se pulsó: quita la malla y el registro que lee el informe |
 | «Stent / desviador de flujo (4 modelos)» (menú) | Elegir el dispositivo | mantener | — | — | Dice tipo y fabricante en castellano |
 | «Diámetro nominal 4 mm» (campo) | Diámetro del stent | corregir | confunde | F1 | Arranca en 4 mm aunque el vaso padre medido es de 4,83 mm, y el resultado sale «Infradimensionado». Se esperaba que partiese del vaso medido |
 | «Longitud» y «Desplegar y evaluar» (botón) | Desplegar el stent recto | mantener | — | — | 0,3 s; «Longitud necesaria 17 mm» con 20 mm elegidos |
+| «Cuello cruzado 100.0 % Lo cruza» y «Del cuello medido 6.6 mm» (texto) | Si el stent cubre el cuello | mantener | — | — | Dice cuánto del cuello medido cruza el stent, con la longitud necesaria al lado |
+| «Geometría · Sigue el vaso · Línea central» (texto) | Forma del stent desplegado | corregir | confunde | F1 | En la pestaña «Stents», la del stent recto, el resultado dice «Sigue el vaso» porque ya hay línea central. El PDF lo recoge así, pero el DICOM SR lo llama «Recto / catálogo». La persona no sabe si desplegó un stent recto o uno curvo |
 | «Despliegue OK» junto a «Arteria portadora 4.83 mm Infradimensionado» (texto) | Veredicto del despliegue | corregir | confunde | F1 | En la misma tarjeta pone «OK» y avisa de mala aposición por infradimensionado. Se esperaba «Revisar» |
 | «Arteria portadora 4.83 mm» frente a «arteria de 4.24 mm» en «Stent CL» (texto) | Calibre del vaso padre | corregir | confunde | F1 | Dos pestañas dan dos calibres para el mismo vaso sin decir dónde se mide cada uno |
 | «Retirar stent» (botón) | Quitar el stent | mantener | — | — | Leído en el código: retira también el de la línea central |
@@ -840,6 +845,9 @@ Errores de consola: el 500 de cada «Sugerir corredor», 409 repetidos heredados
 | «Destinatario» y «＋ Registrar un taller nuevo» (campo) | Elegir taller | mantener | — | — | Leído en el código: deja dar de alta un taller desde el pedido |
 | «Quién responde de la pieza» y sus tres casillas (campo) | Responsabilidad del cirujano | mantener | — | — | Lo que la persona asume queda escrito |
 | «Guardar borrador» y «Firmar y generar pedido» (botón) | Registrar el pedido | mantener | — | — | Leído en el código, no se pulsó por orden de la tarea |
+| «Preparando la solicitud…» (mensaje) | Esperar el formulario de pedido | corregir | confunde | F1 | Leído en el código: es el aviso mientras carga el formulario. Llama «solicitud» al pedido, como señala la fila del título de «Pedidos de clips»; con las «Solicitudes» de cuentas, la persona tiene dos «solicitudes» distintas. Se esperaba «Preparando el pedido…» |
+| «No se pudo preparar la solicitud.» (mensaje) | Fallo al cargar el formulario | corregir | confunde | F1 | Leído en el código: sale cuando el servidor no da los datos del pedido y no hay mensaje propio. Mismo problema de nombre, y no dice qué hacer. Se esperaba «No se pudo preparar el pedido; vuelve a intentarlo» |
+| «Pedidos de este caso» (panel) | Seguir los pedidos de la sesión | corregir | confunde | F1 | Leído en el código: solo aparece si ya hay pedidos, y los busca por sesión, no por caso. Esta sesión no tiene caso y al reanudar cambia de identificador, así que un pedido hecho antes de guardar no se vería aquí tras reanudar. Se esperaba «Pedidos de esta sesión» o que se ligasen al caso |
 | «Continuar al informe» (botón) | Pasar al paso 8 | mantener | — | — | Siempre activo |
 
 Atascos. Fabricación responde a «¿cómo consigo la pieza?» y se entiende para quién es: el taller recibe un dossier sin datos de paciente. La persona se detiene en tres sitios.
@@ -856,7 +864,7 @@ El STL y los dossiers se generaron en 2,1 s como `PR-79A34304-0130`. No se envi�
 |---|---|---|---|---|---|
 | «Informe y exportación» y «Genera el informe del caso y exporta la malla o el informe estructurado.» (texto) | Título y alcance | mantener | — | — | Dice lo que hace |
 | «Resumen del caso» con «Paciente», «Ø máximo», «Riesgo (morfometría)» y «Recomendación» (panel) | Lo que va a salir | corregir | confunde | F1 | No dice nada de la trayectoria ni de los dispositivos, que son lo que la persona acaba de hacer. «Riesgo (morfometría) Alto» convive con un PHASES «moderado» sin explicar por qué. Se esperaba el resumen del plan: abordaje, dispositivo elegido y decisión |
-| «Cirujano responsable» (campo) | Firmante del informe | corregir | confunde | F1 | En pantalla estaba vacío y el PDF salió con «Cirujano: Administrador». Lo que se ve no es lo que se imprime. Se esperaba el campo relleno con lo que irá al PDF |
+| «Cirujano responsable» (campo) | Firmante del informe | corregir | confunde | F1 | Leído en el código: el campo arranca relleno con el nombre de la cuenta que ha entrado, y el PDF imprime lo que el campo tenga. Con la cuenta de administrador sale «Cirujano: Administrador», que no es un cirujano. Se esperaba el campo vacío y obligatorio, o relleno solo si la cuenta tiene un nombre de profesional |
 | «Notas clínicas» (campo) | Observaciones | corregir | cosmético | F3 | Es una línea suelta para un texto que suele ser un párrafo |
 | «Incluir captura 3D de la escena en el PDF» (casilla) | Foto del visor | corregir | confunde | F1 | Fotografía la escena tal como esté en ese momento, aunque esté en verde liso como en el paso 6. Se esperaba ver una vista previa o que el programa encuadrase la lesión antes de la foto |
 | «No hay capturas guardadas en este caso. Se hacen con el botón «Captura» del visor…» (mensaje) | Elegir capturas para el informe | corregir | confunde | F1 | La sesión no tiene caso, y el propio botón «Captura» avisa de que sin estudio archivado solo descarga. El consejo no lleva a ninguna parte. Se esperaba «Adjunta la sesión a un caso para guardar capturas» |
@@ -897,7 +905,7 @@ Atascos. El PDF tardó 1,8 s en cinco páginas y el DICOM SR 1,3 s; no hubo mens
 - **Tablas.** Las de coils y stent salen desalineadas.
 - **Texto interno.** Los factores llevan la historia del programa («Ya no vota», «se llevaban 40 puntos»).
 - **Riesgos sin explicar.** Hay dos riesgos con nombres casi iguales y valores distintos, «ALTO» y «moderado».
-- **Cirujano.** Pone «Administrador» aunque el campo estaba vacío.
+- **Cirujano.** Pone «Administrador»: el campo se rellena solo con el nombre de la cuenta y nada avisa de que eso irá firmado.
 - **Decisión.** El documento no recoge la decisión de nadie: lista a la vez clip, coils y stent como «planificados».
 
 El SR codifica la trayectoria como un clip. Errores de consola: ninguno nuevo. Captura `t8-informe.jpeg`.
@@ -914,18 +922,19 @@ El SR codifica la trayectoria como un clip. Errores de consola: ninguno nuevo. C
 | «11/10/2026, 5:05:09» en la ficha (texto) | Hora del guardado | corregir | confunde | F1 | Se guardó a las 00:05 hora local y la ficha enseña 5:05. Es la hora UTC del servidor leída como local |
 | «Reanudar en «Informe»» (botón) | Volver al trabajo | corregir | bloquea | F1 | El primer intento, sobre las 05:08 UTC, tumbó el servidor y dejó «Restaurando sesión…» para siempre; `/docs` no respondía a las 05:08:37. El segundo, a las 05:11:44,6 UTC con el servidor sin `--reload`, abrió el espacio de trabajo en 13,4 s en el paso 8 |
 | «Restaurando sesión…» (mensaje) | Esperar la restauración | corregir | bloquea | F1 | Con el servidor caído no hay error ni tiempo límite: el aviso se queda en pantalla y nada responde |
+| Servidor caído sin aviso tras reanudar (panel) | Seguir trabajando en la sesión reanudada | corregir | bloquea | F1 | Hacia las 05:13 UTC, tras un reanudar correcto y sin ninguna acción de la persona, el servidor ya sin `--reload` se cerró. La última respuesta servida fue GET `/api/devices` de la sesión `67b79faf`; la siguiente, GET `/api/trajectory`, dio 500 sin cuerpo, y a las 05:13:19 la conexión se rechazaba. Las mallas de los dispositivos fallaron con 500. La pantalla no dijo nada: la persona sigue pulsando sobre una aplicación sin servidor |
 | Recarga de la página en `/app/sesion` (panel) | Recuperar la pantalla | corregir | confunde | F1 | Recargar el espacio de trabajo lo deja vacío, en «Carga una serie DICOM para comenzar», sin ofrecer la sesión que estaba abierta |
 | Identificador de sesión nuevo al reanudar (texto) | Sesión viva | corregir | confunde | F1 | Reanudar crea otra sesión viva (`67b79faf-6a8d-4f3a-a2b1-f08bc5410996`). El próximo «Guardar progreso» guarda otra fila en vez de actualizar la que se reanudó |
 | Carga, segmentación, morfometría y línea central tras reanudar (panel) | Trabajo de los pasos 1 a 4 | mantener | — | — | Volvieron serie, malla, umbral 1470, cuello y ápice marcados, Ø 10,9 mm, índices y línea central |
 | Detección tras reanudar (panel) | Candidatos y lesión confirmada | corregir | confunde | F1 | La detección se rehízo al reanudar y la lista es otra: «cand-001» pasó a ser «curvatura · Ø 3.7 mm est.». La pantalla vuelve a preguntar «¿Cuál es la lesión?» aunque se había confirmado antes de guardar |
 | Decisión tras reanudar (panel) | Recomendación del paso 5 | corregir | bloquea | F1 | Vuelve vacía: localización «Desconocida / No especificada», sin recomendación y con «Planificar dispositivos» desactivado. El carril la marcaba ✓ hasta entrar en ella. El PDF sí la sigue llevando, porque está en disco; la pantalla no |
 | Trayectoria tras reanudar (panel) | Abordaje | corregir | confunde | F1 | Vuelven Entrada, Diana y «Profundidad de abordaje: 14.7 mm», pero no el ángulo ni el análisis del corredor. El botón vuelve a decir «Guardar trayectoria», como si no se hubiera guardado |
-| Dispositivos tras reanudar (panel) | Clip, coils y stent colocados | corregir | confunde | F1 | El servidor los conserva (GET `/api/devices` lista clips, coils y stent), pero el panel no enseñó «En el plan» ni la lista de clips. Leído en el código: el clip vuelve solo como malla, sin su fila editable, y el mapa de calor no vuelve. El servidor cayó mientras se cargaban las mallas |
-| Ventana y nivel tras reanudar (texto) | Ajuste de imagen | mantener | — | — | «W 7578 L -343», igual que antes. No se cambió durante la tarea, así que solo prueba que vuelve el valor por defecto. Leído en el código: no se guarda |
+| Dispositivos tras reanudar (panel) | Clip, coils y stent colocados | corregir | bloquea | F1 | El servidor los conserva: GET `/api/devices` lista clips, coils y stent. Leído en el código: solo vuelven sus mallas; la fila editable del clip, su verificación, la oclusión medida y el mapa de calor no vuelven, así que para mover el clip o volver a verlo verificado hay que colocarlo de nuevo, sin aviso. Si la barra «En el plan» llegó a mostrarse no es comprobable: la cuarta caída del servidor llegó entre GET devices y GET trajectory |
+| Ventana y nivel tras reanudar (texto) | Ajuste de imagen | corregir | confunde | F1 | «W 7578 L -343», igual que antes, pero es el valor por defecto del DICOM: no se cambió durante la tarea. Leído en el código: la ventana no se guarda y al reanudar solo vuelve la del estudio, así que una ventana ajustada por la persona se pierde sin aviso |
 | Anotaciones tras reanudar (panel) | Marcas del caso | mantener | — | — | «M1» volvió con su nota «Rama a 2 mm del clip» |
 | Enlaces del informe tras reanudar (panel) | PDF y SR generados | corregir | confunde | F1 | El PDF y el SR siguen en disco, pero el panel vuelve a «Generar informe PDF» sin enlace. «Resumen del caso» pierde la recomendación |
 | «Tienes cambios sin guardar» al salir de la sesión reanudada (mensaje) | Avisar de trabajo sin guardar | corregir | confunde | F1 | Salió sin haber cambiado nada, solo tras recorrer los pasos. La persona no sabe qué perdería |
-| «0 registros» en Pacientes con el servidor caído (mensaje) | Lista de pacientes | corregir | bloquea | F2 | Con el servidor caído la lista dice que no hay pacientes, sin ningún error. La persona cree que se ha borrado todo |
+| «0 registros» en Pacientes con el servidor caído (mensaje) | Lista de pacientes | corregir | bloquea | F1 | Con el servidor caído la lista dice que no hay pacientes, sin ningún error. La persona cree que se ha borrado todo. Arreglo pequeño: mostrar el error de carga en lugar de la lista vacía |
 
 Atascos. Pregunta de la tarea: ¿reanudar devuelve el trabajo completo? No, y no avisa.
 
@@ -940,15 +949,16 @@ Atascos. Pregunta de la tarea: ¿reanudar devuelve el trabajo completo? No, y no
 
 Reanudar tardó 13,4 s en el segundo intento.
 
-El servidor cayó tres veces en esta tarea.
+El servidor cayó cuatro veces en esta tarea.
 
-| Hora UTC | Acción |
-|---|---|
-| 04:42:05 | «Sugerir corredor» |
-| 04:50:23 | «Sugerir corredor» |
-| 05:08 | Primer «Reanudar» |
+| Hora UTC | Acción | Servidor |
+|---|---|---|
+| 04:42:05 | «Sugerir corredor» | con `--reload`: supervisor con el puerto abierto y sin proceso de trabajo |
+| 04:50:23 | «Sugerir corredor» | con `--reload`: igual |
+| hacia 05:08 | Primer «Reanudar» | con `--reload`: igual, «Restaurando sesión…» sin fin |
+| hacia 05:13 | Ninguna, tras un reanudar correcto | sin `--reload`: el proceso se cerró |
 
-Después de un reanudar que sí funcionó, cayó otra vez hacia las 05:13. Ocurrió entre una consulta de dispositivos y una de trayectoria sobre la sesión reanudada, sin acción de la persona. Las tres primeras caídas fueron con `--reload`: el supervisor dejaba el puerto ocupado sin proceso de trabajo y el fallo era silencioso. La cuarta, ya sin `--reload`, cerró el proceso. Por eso el recorrido tras reanudar llegó hasta el paso 6 y el paso 7 no se revisó.
+Las tres primeras caídas fueron silenciosas porque el supervisor seguía ocupando el puerto. La cuarta cerró el proceso entre una consulta de dispositivos y una de trayectoria. Por eso el recorrido tras reanudar llegó hasta el paso 6 y el paso 7 no se revisó.
 
 Dato creado por la auditoría:
 

@@ -140,3 +140,6 @@ NEUROLOGY*.pdf
 
 # Copias de la base de datos: datos de pacientes.
 backend/db_backups/
+
+# ── Superpowers scratch (brainstorm mockups, SDD ledgers) ─────────────────── #
+.superpowers/

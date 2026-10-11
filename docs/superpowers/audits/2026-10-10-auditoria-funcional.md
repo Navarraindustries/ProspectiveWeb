@@ -733,9 +733,237 @@ Atascos. «Analizar morfometría» devolvió en 0,8 s una medida automática sob
 Atascos. El paso arrancó con la localización en «Desconocida» y la edad en 27. Se eligió «Basilar (punta, tronco o AICA)» y «No roto (electivo)», que corresponden a un aneurisma de tronco basilar de unos 10 mm en una persona de 27 años. «Evaluar CLIP vs ENDOVASCULAR» respondió en 0,1 s con «Recomendación: DISCUSIÓN MULTIDISCIPLINARIA», «100 % de los datos» y «Confianza baja». El cuello ancho empuja al clipaje y la localización basilar a la vía endovascular. Pregunta de la tarea: la pantalla ayuda a ordenar la conversación, porque da factores con fuente, perforantes esperables y técnica endovascular probable. Pero no recoge la decisión de la persona: lo que queda registrado es la recomendación de la máquina. La persona se detiene en tres sitios. La tarjeta de perforantes habla de la punta, no del tronco. El BF se llama aquí «cuello moderadamente estrecho» y en Morfometría «Cuello ancho». Y la nota arrastra un PHASES de 9 puntos y 5,9 % con una tabla que no coincide con la publicada. La decisión queda registrada en la sesión `79a34304-8cb7-4169-b36e-1fae7f7775ae` y el navegador queda en este paso para la Tarea 8. Errores de consola: ninguno nuevo.
 
 ### Paso 6 · Dispositivos
+
+| Elemento | Propósito | Veredicto | Gravedad | Destino | Nota |
+|---|---|---|---|---|---|
+| «Planificación de dispositivos» y «Elige clip, coils o stent del catálogo y verifica su colocación.» (texto) | Título y alcance del paso | corregir | confunde | F1 | No nombra la trayectoria, que es lo primero del panel, ni el WEB. En esta máquina el catálogo de clips está vacío y todo lo que se ofrece es «bajo pedido». La persona esperaba leer: «Traza el abordaje y prueba clip, coils, stent o WEB sobre el saco medido» |
+| «Trayectoria de abordaje» y «Marca el punto de entrada y el aneurisma…» (panel) | Abordaje quirúrgico | corregir | cosmético | F3 | Va arriba del todo y fuera de las pestañas, también para quien planifica una vía endovascular, a quien no le sirve. Se esperaba como primer paso de la pestaña «Clips»; captura `t8-dispositivos.jpeg` |
+| «Entrada» (botón) | Marcar el punto de entrada | corregir | confunde | F1 | Al pulsarlo dice «Clic en el visor…», pero un clic fuera de la malla no hace nada y el botón se queda esperando sin decir por qué. Hizo falta probar seis puntos hasta acertar con un vaso. La entrada tiene que caer sobre la malla vascular, no sobre la piel ni el cráneo, que el estudio no reconstruye. Se esperaba «Pincha sobre un vaso en la dirección por la que entrarías» |
+| «Diana» (botón) | Marcar el aneurisma | mantener | — | — | Un clic sobre el saco verde basta y el botón pasa a ✓ |
+| «Sugerir corredor» (botón) | Que el programa proponga tres direcciones | corregir | bloquea | F1 | Se pulsó dos veces y las dos tumbó el servidor. Primera: respuesta 500 a las 04:42:05 UTC. Segunda: clic a las 04:50:23,9 UTC y 500 a los 1,3 s, con `/docs` sin respuesta a las 04:50:32. Es reproducible en esta sesión. El proceso del servidor muere en código nativo durante POST `/api/trajectory/{sid}/suggest`. Con `--reload` el supervisor seguía con el puerto abierto y sin proceso de trabajo, así que el fallo era silencioso y nada lo reiniciaba. La persona no puede saberlo: todo lo que pulse después falla. Hubo que reiniciar el servidor a mano |
+| «Error 500» bajo «Sugerir corredor» (mensaje) | Avisar del fallo | corregir | bloquea | F1 | El cuerpo de la respuesta viene vacío desde el proxy, así que el panel solo pone «Error 500». No dice qué ha pasado, ni que el servidor ha caído, ni qué hacer. El aviso sigue a la vista después de reiniciar el servidor y solo desaparece al guardar la trayectoria. Se esperaba «El servidor no responde. Marca Entrada y Diana a mano» y una vía para seguir trabajando |
+| «Usar esta» y «Qué se ha descartado y por qué» (botón) | Llevar una propuesta a los puntos y ver los sectores descartados | corregir | bloquea | F1 | No se pudieron ver por el fallo de arriba. Leído en el código: cada propuesta trae profundidad y veredicto del corredor, y avisa de que la entrada es el borde del estudio y no la piel. Se juzgará cuando funcione |
+| «Profundidad de abordaje: 14.7 mm» (texto) | Distancia de la entrada a la diana | corregir | confunde | F1 | Con la entrada sobre un vaso, son 14,7 mm entre dos puntos de la malla, no la profundidad desde la corteza. Un cirujano lee «profundidad de abordaje» como distancia desde la craneotomía. Se esperaba «Distancia entrada–diana» |
+| «Ángulo respecto al eje del aneurisma: 84.7°» (texto) | Ángulo de llegada al domo | mantener | — | — | Aparece solo al guardar la trayectoria. Rótulo y cifra salen idénticos en el PDF |
+| «Guardar trayectoria» y «Guardada ✓» (botón) | Fijar el abordaje | corregir | confunde | F1 | Respondió en 0,5 s. Los puntos ya se ven sin guardar, pero solo al guardar llegan el ángulo, el análisis del corredor, el informe y la acodadura del clip. El botón no lo dice: se esperaba «Guardar y analizar el corredor» |
+| «Corredor libre» y «El corredor no atraviesa ningún vaso… la rama más próxima queda a 2.5 mm» (texto) | Veredicto del corredor | mantener | — | — | Claro, con su límite: «Corredor de 5 mm de radio» y la advertencia de que las perforantes no llegan a la malla |
+| «Limpiar» (botón) | Borrar la trayectoria | mantener | — | — | Leído en el código, no se pulsó: borra puntos y trayectoria guardada sin confirmar. Se rehace en dos clics |
+| VISTA ▸ «ABORDAJE» (botón) | Mirar a lo largo del corredor | mantener | — | — | Aparece tras guardar. Su ayuda dice «Mirar a lo largo del corredor; el plano Oblicuo se pone perpendicular a él». La cámara pasó de AZ 0° · EL -20° a AZ 91° · EL 57° con el corredor a la vista |
+| Escena 3D en verde liso tras «ABORDAJE» y colocar el clip (panel) | Ver el clip colocado | corregir | confunde | F3 | Con la cámara de «ABORDAJE» y el clip ya colocado, la celda 3D queda pintada de verde de borde a borde: la cámara cae dentro de una malla. Se recupera con «LESIÓN». La persona cree que el visor se ha roto |
+| «DISPOSITIVO + TRAYECTORIA» (texto) | Rótulo del visor en el paso | mantener | — | — | Cambia con el paso, como en los anteriores |
+| «En el plan (n)» y «Limpiar todos los dispositivos» (panel) | Lo que irá al informe | corregir | confunde | F1 | Aceptó a la vez clip, cuatro coils y stent, y el informe los lista todos como «planificados». Para comparar estrategias está bien, pero ningún sitio permite decir cuál se elige. Se esperaba marcar una estrategia como la del equipo |
+| Pestañas «Clips · Coils · Stents · Stent CL · WEB» (pestaña) | Elegir familia de dispositivo | corregir | confunde | F1 | «Stent CL» no se entiende: es el stent desplegado sobre la línea central. «Stents» y «Stent CL» escriben el mismo registro, porque hay un stent por sesión y retirar uno retira el otro, cosa que la persona no sabe. Se esperaba «Stent recto» y «Stent sobre la línea central», o una sola pestaña con dos modos |
+| «Elegir» y «Colocar» (pestaña) | Separar qué clip y dónde | mantener | — | — | Las dos preguntas quedan en dos pantallas y elegir lleva a colocar |
+| «Evaluando el catálogo…» (mensaje) | Esperar la selección | mantener | — | — | Unos segundos al entrar y 14,4 s con «Recalcular» |
+| «Utilizable con reservas» (mensaje) | Veredicto de la selección de clip | corregir | confunde | F1 | El catálogo de clips de esta máquina está vacío, así que todo lo propuesto son NAVARRO™ «bajo pedido». Aun así sale «Utilizable con reservas», mientras Fabricación titula «Por qué no sirve el inventario». La persona esperaba «Requiere fabricación» o «No hay clips de inventario cargados» |
+| «6 clips del inventario son utilizables, pero ninguno sin reservas. La alternativa a medida sería: Curvo de 12.0 mm · 125 g.» (texto) | Resumen de la selección | corregir | confunde | F1 | Los seis llevan «bajo pedido»: no son de inventario. Además la alternativa que propone, curvo de 12 mm, no es la que Fabricación toma luego, que es el T1 recto de 13 mm colocado |
+| «Recalcular» (botón) | Volver a evaluar la selección | corregir | confunde | F1 | Al guardar la trayectoria la selección no se actualiza. Solo tras «Recalcular» (14,4 s) aparece la línea de la acodadura y cambia el orden: el primero pasa de «T3 Angulado 30°» a «T1 Recto». Se esperaba que se recalculase sola al guardar el abordaje |
+| «cuello 6.63 mm · AR 0.91 · vaso padre 4.83 mm» (texto) | Datos de partida | mantener | — | — | Coinciden con Morfometría |
+| «El corredor marcado llega a 85° del eje cuello-domo, así que pide una acodadura de ~5°…» (texto) | Ligar abordaje y forma del clip | mantener | — | — | Es lo que un cirujano espera: el abordaje decide la forma. Solo sale tras «Recalcular» (fila anterior) |
+| «Mordaza mínima 11.8 mm — medida sobre el contorno del cuello» (texto) | Longitud de hoja necesaria | mantener | — | — | Explica el cuello aplastado con la cifra del perímetro, 23,6 mm |
+| «Clips recomendados (6)» (panel) | Candidatos con sus criterios | corregir | confunde | F1 | Seis tarjetas casi iguales, con los mismos tres criterios y la misma mordaza de 13 mm. Solo cambia la forma y hay que leerlas todas para verlo. Se esperaba una tarjeta por forma con lo que la distingue, o la primera abierta y el resto plegadas |
+| «bajo pedido» y «Con reservas» (texto) | Disponibilidad y veredicto de cada clip | mantener | — | — | La reserva es solo la banda de fuerza, y lo dice el criterio «Fuerza de cierre» |
+| «Ajuste real: Libra los vasos vecinos en 4 de 6 orientaciones» (texto) | Comprobación sobre la malla | corregir | confunde | F1 | Antes de «Recalcular», la primera tarjeta («T3 Angulado 30°») no traía esta línea y las demás sí. La persona no sabe si a ese clip le falta la comprobación o si la pasó |
+| «Modelo de clip» y «Recomendados + personalizados (6)» (menú) | Elegir el clip de una lista | fusionar | confunde | F1 | Es la misma elección que las tarjetas de arriba, pero con otro orden. Al entrar, el menú tenía «T1 Recto» y la primera tarjeta era «T3 Angulado 30°». Dos listas del mismo dato con orden distinto. Se esperaba una sola |
+| «Ver todo el catálogo, no solo lo recomendado para este caso» (casilla) | Llegar a modelos no propuestos | corregir | confunde | F1 | Leído en el código, no se marcó: con el catálogo vacío no añade nada y tampoco lo dice. Se esperaba «No hay catálogo de clips cargado en esta instalación» |
+| «＋ Importar clip personalizado (STL/OBJ)» (botón) | Usar una pieza propia | mantener | — | — | Leído en el código, no se usó |
+| «Para este cuello hay una pieza a medida especificada (Curvo de 12.0 mm · 125 g)…» (texto) | Remitir a Fabricación | corregir | confunde | F1 | Fabricación no muestra esa pieza sino el T1 recto de 13 mm colocado. La persona busca allí el curvo de 12 mm y no lo encuentra |
+| «Añadir al plan y colocar» (botón) | Pasar el elegido a Colocar | mantener | — | — | Lleva a la pestaña «Colocar» con el clip en la lista |
+| «Clip elegido», «Cambiar» y «Añadir» (panel) | Recordar qué se coloca | corregir | confunde | F1 | Leído en el código: «Añadir» mete otro clip igual en el mismo punto del cuello sin avisar. Se esperaba «Añadir otro clip (montaje de varios)» |
+| «Ensayo de colocación» y «Preparar ensayo» (botón) | Animar la entrada del clip por el corredor | mantener | — | — | Respondió en 0,3 s. Dice que usa el corredor marcado y avisa de lo que no simula |
+| «Reproducir», «Repetir», «Al inicio», «Salir del ensayo» y «Momento de la maniobra» (botón) | Controlar la animación | mantener | — | — | Unos 3,4 s, de «Entrando por el corredor» a «Cerrando sobre el cuello · apertura 18° por hoja» |
+| «Clips colocados (1)» con «X», «Y», «Z», «Rot°», «Azimut°» y «Elevación°» (campo) | Mover el clip a mano | corregir | confunde | F1 | Son coordenadas del volumen en milímetros. Un cirujano piensa en girar alrededor del cuello, no en X, Y, Z. El asa del 3D sí responde a eso. Se esperaba plegar los números bajo «Ajuste fino» |
+| «Colocar 1 y verificar» (botón) | Colocar y comprobar | corregir | cosmético | F3 | Respondió en 1,1 s más el mapa de calor. «Colocar 1» se lee raro; se esperaba «Colocar y verificar (1 clip)» |
+| «Cómo queda el aneurisma» y «Medir» (botón) | Medir lo que queda fuera de la circulación | mantener | — | — | 0,3 s, con tres avisos de lo que la medida no es |
+| «Oclusión completa» y «La línea de cierre deja el saco entero fuera de la circulación (119 mm³ de 128). No queda muñón medible.» (texto) | Resultado de la oclusión | corregir | confunde | F1 | Dice «saco entero» y en la misma frase da 119 de 128 mm³. No explica los 9 mm³ que faltan. Se esperaba «el 93 % del saco; el resto queda bajo las hojas» o lo que corresponda |
+| «Extensión de las hojas sobre el cuello 100.0 % Alcanza» y «Choque fuera del cuello No Libre» (texto) | Verificación geométrica | mantener | — | — | El rótulo dice contra qué se mide y la ayuda aclara que no es cierre del cuello |
+| «Ramas al alcance de esta mordaza» (panel) | Ramas cerca de las hojas | mantener | — | — | Tres orígenes a 2,0, 2,4 y 2,7 mm, con el aviso de que no son perforantes. El informe da otra lista con otra referencia; ver Paso 8 |
+| «Mapa de calor del clip» y «Mostrar en el visor» (panel) | Cuánto cuello cierran las hojas | mantener | — | — | «Cuello cubierto 100.0 %», «residual 0.0 %», «no alcanzado 0.0 %». Se activa en el visor como «CALOR»; captura `t8-clips.jpeg` |
+| «Fuerza de cierre 120 g Óptima» y «Fuerza de cierre: 120–200 g solo es óptima entre 120 y 150 g…» (texto) | Fuerza frente a la ventana del cuello | corregir | confunde | F1 | En la misma tarjeta, la cifra dice «Óptima» con el mínimo de la banda y el criterio pone «!». Fabricación dice 125 g y el pedido, 120–200 g. Son tres cifras de fuerza para la misma pieza |
+| «Área pinzada estimada 116.2 mm²» (texto) | Área de contacto | mantener | — | — | La ayuda dice que es una cota amplia |
+| «Abordaje: El corredor marcado pide ~5° de acodadura…; esta pieza tiene 0°» (texto) | Comprobar la forma frente al abordaje | mantener | — | — | Une trayectoria y clip, como espera un cirujano |
+| «Limpiar clips colocados» (botón) | Quitar los clips | mantener | — | — | Leído en el código, no se pulsó |
+| «Montaje sugerido para el saco medido» (panel) | Secuencia de coils | corregir | confunde | F1 | Propone enmarcado, relleno y acabado para un cuello de 6,6 mm sin decir que es ancho. Decisión acababa de recomendar «Coiling asistido (balón o stent)». Un intervencionista espera que el primer dato sea el cuello y que la pestaña avise de que hace falta adyuvante |
+| «Enmarcado · Target 360° 12mm×30cm × 1» y razones de cada coil (texto) | Por qué cada coil | mantener | — | — | Cada escalón dice su motivo con la medida del domo |
+| «Empaquetamiento proyectado 27 %» y «Colocar el montaje completo» (botón) | Colocar la secuencia | mantener | — | — | 0,3 s; «Densidad de empaque 27.0 % Sobre el mínimo» con su límite («No es un pronóstico de oclusión») |
+| «Coil (3 disponibles)», «Número de coils» y «Calcular empaque» (campo) | Colocar N coils de un modelo | fusionar | confunde | F1 | Es una segunda forma de colocar coils: N copias del mismo modelo en un punto, con 3 por defecto frente a los 4 del montaje. Se esperaba una sola vía, la del montaje, editable |
+| «Stent / desviador de flujo (4 modelos)» (menú) | Elegir el dispositivo | mantener | — | — | Dice tipo y fabricante en castellano |
+| «Diámetro nominal 4 mm» (campo) | Diámetro del stent | corregir | confunde | F1 | Arranca en 4 mm aunque el vaso padre medido es de 4,83 mm, y el resultado sale «Infradimensionado». Se esperaba que partiese del vaso medido |
+| «Longitud» y «Desplegar y evaluar» (botón) | Desplegar el stent recto | mantener | — | — | 0,3 s; «Longitud necesaria 17 mm» con 20 mm elegidos |
+| «Despliegue OK» junto a «Arteria portadora 4.83 mm Infradimensionado» (texto) | Veredicto del despliegue | corregir | confunde | F1 | En la misma tarjeta pone «OK» y avisa de mala aposición por infradimensionado. Se esperaba «Revisar» |
+| «Arteria portadora 4.83 mm» frente a «arteria de 4.24 mm» en «Stent CL» (texto) | Calibre del vaso padre | corregir | confunde | F1 | Dos pestañas dan dos calibres para el mismo vaso sin decir dónde se mide cada uno |
+| «Retirar stent» (botón) | Quitar el stent | mantener | — | — | Leído en el código: retira también el de la línea central |
+| «Dimensionado de flow-diverter» y «Dimensionar» (botón) | Medir anclajes y proponer tallas | corregir | cosmético | F3 | 0,3 s y útil, pero dice «flow-diverter» donde la pestaña vecina dice «desviador de flujo» |
+| «Anclaje proximal 4.57 mm» y «Anclaje distal 3.90 mm» (texto) | Calibres de anclaje | mantener | — | — | Con rango y número de cortes |
+| «La línea central se acaba antes del anclaje distal completo: extráela más larga por ese lado.» (mensaje) | Avisar de medida incompleta | mantener | — | — | Dice qué hacer, aunque obliga a volver a Morfometría |
+| «Pipeline Flex Ø4.50 × 20 mm» y «Usar en el despliegue» (botón) | Llevar la talla al despliegue | mantener | — | — | Explica sobredimensionado en el cuello y en el anclaje estrecho |
+| «Proximal es el ORIGEN que marcaste al extraer la línea central» (texto) | Aclarar el sentido | mantener | — | — | Avisa del error más probable |
+| «Segmento de la línea central» y «Desplegar sobre la línea central» (botón) | Desplegar siguiendo la curva | mantener | — | — | Leído en el código, no se desplegó: arco total de 24,5 mm con deslizadores |
+| «Dimensionado de WEB» y «Dimensionar» (botón) | Medir el saco para un WEB | mantener | — | — | 0,3 s |
+| «Fuera de la indicación aprobada» y «Domo de 11.7 mm» (texto) | Indicación del WEB | corregir | confunde | F1 | El domo sale de 11,7 mm donde Morfometría dice Ø máximo 10,9 mm, y nada explica la diferencia: aquí es la anchura máxima en el plano del cuello |
+| «La indicación es para aneurismas de BIFURCACIÓN… eso no lo sabe la aplicación» (texto) | Avisar de la indicación | corregir | confunde | F1 | La localización se registró en Decisión como basilar. Se esperaba que la usase: «Tronco basilar: fuera de la indicación de bifurcación» |
+| «Ninguna medida del catálogo cumple la regla con 9.6 × 6.0 mm» (mensaje) | Resultado del dimensionado | mantener | — | — | Claro y con la regla explicada |
+| «Continuar a fabricación» (botón) | Pasar al paso 7 | mantener | — | — | Siempre activo; Fabricación es opcional |
+
+Atascos. Pregunta de la tarea: ¿el flujo corresponde a cómo decide cada uno? Para el cirujano, sí en el orden, abordaje y luego clip. La selección pide acodadura según el corredor, el ensayo entra por el corredor marcado y el criterio «Abordaje» aparece en la tarjeta del clip. Pero solo tras pulsar «Recalcular», que nada pide. Para el intervencionista, no: la pestaña de coils no empieza por el cuello ni avisa de que un cuello de 6,6 mm pide adyuvante, el stent arranca en un diámetro que no es el del vaso, y el WEB ignora la localización ya registrada. La trayectoria, además, preside el paso para los dos. La persona se detiene en cinco sitios.
+
+- **«Sugerir corredor».** Tumbó el servidor dos veces: a las 04:42:05 UTC y con el clic de las 04:50:23,9 UTC. Solo dejó un «Error 500» sin texto. El servidor corría con `--reload`, y el supervisor siguió con el puerto abierto y sin proceso de trabajo. Hubo que reiniciarlo a mano las dos veces. Desde ahí se marcaron «Entrada» y «Diana» a mano, con eventos de puntero sobre la malla. Hicieron falta seis intentos para que «Entrada» cayese sobre un vaso.
+- **Entrada sobre la malla.** Al pinchar en el vacío nada indica que hay que pinchar sobre la malla.
+- **Selección de clip.** No se recalcula al guardar el abordaje. Llama «del inventario» a piezas bajo pedido.
+- **Fuerza del clip.** Tres cifras distintas de fuerza para la misma pieza.
+- **Celda 3D en verde.** Tras «ABORDAJE» y colocar el clip, la celda quedó en verde liso hasta pulsar «LESIÓN».
+
+Errores de consola: el 500 de cada «Sugerir corredor», 409 repetidos heredados de pasos anteriores, y un error de React, «Maximum update depth exceeded», durante el paso, sin efecto visible. Capturas `t8-dispositivos.jpeg` y `t8-clips.jpeg`.
+
 ### Paso 7 · Fabricación
+
+| Elemento | Propósito | Veredicto | Gravedad | Destino | Nota |
+|---|---|---|---|---|---|
+| «7 Fabricación opcional» (pestaña) | Paso del carril | mantener | — | — | El carril ya dice que es opcional |
+| «Fabricación» y «Manda a hacer un clip a medida: especificación, STL, dossiers y seguimiento del pedido.» (texto) | Título y alcance | mantener | — | — | Dice qué hace y para quién |
+| «Paso opcional. La mayoría de los casos se resuelven con un clip del catálogo…» (texto) | Situar el paso | corregir | confunde | F1 | En esta instalación no hay catálogo de clips, así que el caso habitual aquí es el contrario. Se esperaba que lo dijera cuando el catálogo está vacío |
+| «Gestionar talleres» (botón) | Ir al directorio de talleres | mantener | — | — | Leído en el código, no se pulsó: sale del espacio de trabajo a la gestión |
+| «Alternativa a medida» (texto) | Título de la ficha | corregir | confunde | F1 | Llama «alternativa» a la única opción, y debajo pone «Por qué no sirve el inventario». Se esperaba «Pieza a fabricar» |
+| «NAVARRO™ T1 Recto, mordaza 13.0 mm» y «Es el clip que colocaste en Dispositivos…» (texto) | Ligar el pedido al plan | mantener | — | — | Toma el clip colocado y no lo que propondría el selector, que es lo que la persona espera |
+| «Forma», «Longitud de hoja», «Anchura de hoja», «Altura de hoja» y «Longitud de muelle» (texto) | Cotas de la pieza | mantener | — | — | Con la advertencia de que anchura, altura y muelle salen de proporciones medianas |
+| «Fuerza de cierre 125 g» (texto) | Fuerza especificada | corregir | confunde | F1 | El mapa de calor decía 120 g y el pedido dice 120–200 g. Se esperaba una sola cifra con su banda |
+| «Por qué no sirve el inventario» y «Ninguna hoja del catálogo cubre este cuello con margen suficiente» (texto) | Justificar la fabricación | corregir | confunde | F1 | El catálogo está vacío y no lo dice: atribuye al cuello lo que es falta de catálogo. Además contradice el «Utilizable con reservas» del paso 6 |
+| «A confirmar antes de fabricar» (texto) | Lo que el taller debe confirmar | mantener | — | — | Declara sus supuestos |
+| «Generar STL y dossiers» (botón) | Generar la pieza | mantener | — | — | 2,1 s; devolvió la pieza `PR-79A34304-0130`, «Descargar STL» y los dos PDF; captura `t8-fabricacion.jpeg` |
+| «Copiar especificación» (botón) | Copiar la ficha | corregir | cosmético | F3 | Leído en el código: copia al portapapeles sin ninguna señal de que lo ha hecho |
+| «Copia interna (PDF)» y «Para el taller (PDF)» (botón) | Dossiers con y sin paciente | mantener | — | — | Explica qué lleva cada uno y que el del taller no lleva datos de paciente |
+| «De dónde salen las medidas» con «Cuello», «Altura domo», «Ø máximo» y «Vaso padre» (panel) | Origen de las cotas | mantener | — | — | Coinciden con Morfometría |
+| «El cuello se midió con un punto de cuello marcado a mano» frente a «El cuello está ESTIMADO a partir del saco, no medido sobre un borde marcado a mano» (texto) | Fiabilidad del cuello | corregir | confunde | F1 | Las dos frases están en el mismo formulario y se contradicen. Leído en el código: un solo punto marcado cuenta como «marcado» para el informe y como «estimado» para el pedido. Hay que unificar la regla |
+| «Serie», «Cantidad» y «Mordaza (longitud útil de agarre)» (campo) | Definir la pieza | mantener | — | — | Con las tallas dibujadas a la vista |
+| «Pedir también las tallas contiguas (10 mm, 16 mm)» (texto) | Prever tallas de reserva | corregir | confunde | F1 | Nace de la misma regla del cuello «estimado» de la fila de arriba, así que pide dos piezas más por una contradicción |
+| «Uso previsto», «Fecha necesaria», «Prioridad», «Esterilización», «Marcado» y «Referencia de autorización» (campo) | Datos del pedido | mantener | — | — | Leído en el código, no se envió. Esterilización y marcado van como «supuestos declarados» |
+| «Destinatario» y «＋ Registrar un taller nuevo» (campo) | Elegir taller | mantener | — | — | Leído en el código: deja dar de alta un taller desde el pedido |
+| «Quién responde de la pieza» y sus tres casillas (campo) | Responsabilidad del cirujano | mantener | — | — | Lo que la persona asume queda escrito |
+| «Guardar borrador» y «Firmar y generar pedido» (botón) | Registrar el pedido | mantener | — | — | Leído en el código, no se pulsó por orden de la tarea |
+| «Continuar al informe» (botón) | Pasar al paso 8 | mantener | — | — | Siempre activo |
+
+Atascos. Fabricación responde a «¿cómo consigo la pieza?» y se entiende para quién es: el taller recibe un dossier sin datos de paciente. La persona se detiene en tres sitios.
+
+- **Inventario.** «Por qué no sirve el inventario» culpa al cuello cuando lo que pasa es que no hay catálogo cargado.
+- **Cuello.** El mismo formulario dice que el cuello se marcó a mano y que es estimado, y por eso pide tallas contiguas.
+- **Fuerza.** La fuerza vale 125 g aquí, 120 g en el mapa de calor y 120–200 g en el pedido.
+
+El STL y los dossiers se generaron en 2,1 s como `PR-79A34304-0130`. No se envió ningún pedido. Errores de consola: ninguno nuevo.
+
 ### Paso 8 · Informe
+
+| Elemento | Propósito | Veredicto | Gravedad | Destino | Nota |
+|---|---|---|---|---|---|
+| «Informe y exportación» y «Genera el informe del caso y exporta la malla o el informe estructurado.» (texto) | Título y alcance | mantener | — | — | Dice lo que hace |
+| «Resumen del caso» con «Paciente», «Ø máximo», «Riesgo (morfometría)» y «Recomendación» (panel) | Lo que va a salir | corregir | confunde | F1 | No dice nada de la trayectoria ni de los dispositivos, que son lo que la persona acaba de hacer. «Riesgo (morfometría) Alto» convive con un PHASES «moderado» sin explicar por qué. Se esperaba el resumen del plan: abordaje, dispositivo elegido y decisión |
+| «Cirujano responsable» (campo) | Firmante del informe | corregir | confunde | F1 | En pantalla estaba vacío y el PDF salió con «Cirujano: Administrador». Lo que se ve no es lo que se imprime. Se esperaba el campo relleno con lo que irá al PDF |
+| «Notas clínicas» (campo) | Observaciones | corregir | cosmético | F3 | Es una línea suelta para un texto que suele ser un párrafo |
+| «Incluir captura 3D de la escena en el PDF» (casilla) | Foto del visor | corregir | confunde | F1 | Fotografía la escena tal como esté en ese momento, aunque esté en verde liso como en el paso 6. Se esperaba ver una vista previa o que el programa encuadrase la lesión antes de la foto |
+| «No hay capturas guardadas en este caso. Se hacen con el botón «Captura» del visor…» (mensaje) | Elegir capturas para el informe | corregir | confunde | F1 | La sesión no tiene caso, y el propio botón «Captura» avisa de que sin estudio archivado solo descarga. El consejo no lleva a ninguna parte. Se esperaba «Adjunta la sesión a un caso para guardar capturas» |
+| «Generar informe PDF» (botón) | Generar el PDF | mantener | — | — | 1,8 s, «Descargar PDF (5 páginas) →» |
+| «Descargar PDF (5 páginas) →» (botón) | Abrir el PDF | mantener | — | — | Leído en el código: abre una pestaña nueva. Se leyó el archivo desde la carpeta de la sesión; captura `t8-informe.jpeg` |
+| PDF · «Datos del paciente» con «F. estudio 2026-10-11» (texto) | Fecha del estudio | corregir | confunde | F1 | Es la fecha de hoy, no la de la adquisición |
+| PDF · «Plan quirúrgico en 3D» con cuatro vistas y leyenda de colores (panel) | Vistas fijas del plan | mantener | — | — | Dorado, violeta y azul claro identifican clip, coils y stent |
+| PDF · «Morfometría del aneurisma» (panel) | Tabla de medidas | corregir | confunde | F1 | Faltan BF y UI, que la pantalla enseñaba. Mantiene «DNR (Dome/Neck ratio)» y «Aspect Ratio (AR)» en inglés, y «Riesgo ruptura si > 1.3» en el AR, mientras Decisión dice que el AR ya no vota |
+| PDF · «Recomendación Terapéutica» con columna «Estrategia» y «Clipping» (texto) | Voto de cada factor | corregir | confunde | F1 | La columna dice «Clipping», en inglés, y queda desalineada de los factores. No se sabe qué fila vota qué |
+| PDF · «Ya no vota…» y «Ya no es un factor propio… entre los dos se llevaban 40 puntos» (texto) | Procedencia de cada factor | corregir | confunde | F1 | Es la historia de los cambios del programa, impresa en un documento clínico. Se esperaba la regla vigente, sin «ya no» |
+| PDF · «(*) … ISAT 2002, Spetzler-BRAT 2013, AHA/ASA 2015» (texto) | Fuentes de la recomendación | corregir | confunde | F1 | Dos párrafos más arriba el mismo informe cita AHA/ASA 2023 |
+| PDF · «Clips quirúrgicos planificados» con «Tipo Catálogo» y «Orientación (0.0, 0.0, 0.0)» (texto) | Clip del plan | corregir | confunde | F1 | El NAVARRO™ es una pieza bajo pedido, no de catálogo, y la orientación en ceros no dice nada al cirujano. Faltan el resultado de la oclusión y el del mapa de calor |
+| PDF · «Ramas visibles cerca del cuello» con distancias de 3,7 a 7,6 mm (texto) | Ramas cercanas | corregir | confunde | F1 | La pantalla del clip daba ramas a 2,0–2,7 mm de las hojas. El informe mide desde el cuello y no lo dice, así que las cifras parecen contradecirse |
+| PDF · «Perforantes esperadas por la localización» con talamoperforantes (texto) | Anatomía de la zona | corregir | confunde | F1 | Repite la tarjeta de la punta de basilar para una lesión del tronco; ver Paso 5 |
+| PDF · «Coils de embolización planificados» (panel) | Coils del plan | corregir | confunde | F1 | La tabla sale desalineada: el diámetro, la longitud y el fabricante de cada coil caen en la fila siguiente, y la primera queda vacía |
+| PDF · «Stent / desviador de flujo planificado» (panel) | Stent del plan | corregir | confunde | F1 | La columna de referencias está desplazada. «sobredimensionar baja la cobertura metálica» queda junto a la longitud, con «Dimensionado Infradimensionado» debajo |
+| PDF · «Trayectoria de abordaje» y «Ángulo respecto al eje del aneurisma 84.7 °» (texto) | Abordaje en el informe | mantener | — | — | Mismas palabras y misma cifra que en pantalla, con «Corredor libre» y su límite. Pregunta de la tarea: sí |
+| PDF · «Anotaciones» con «M1 Marcador 3D Rama a 2 mm del clip» (texto) | Anotaciones del caso | mantener | — | — | La nota escrita en el visor llega tal cual |
+| PDF · «Evaluación de riesgo de ruptura RIESGO: ALTO» (texto) | Riesgo por forma | corregir | confunde | F1 | Sale «ALTO» por el UI, y una página después PHASES dice «moderado». Son dos riesgos con nombres casi iguales y sin explicar la diferencia |
+| PDF · «PHASES 9 — 5.9 %» (texto) | Riesgo de rotura a 5 años | corregir | bloquea | F1 | Arrastra la tabla de puntos que no es la publicada; ver Paso 5 |
+| PDF · ELAPSS con «Forma (S) Regular» (texto) | Riesgo de crecimiento | corregir | confunde | F1 | El mismo informe llama al domo «muy irregular» (UI 0,497). La forma se pidió a mano en Morfometría y nadie la contrastó con el índice |
+| PDF · UIATS «Tratar 10 · Vigilar 8» (texto) | Tratar o vigilar | mantener | — | — | Dice «no concluyente» y explica el umbral |
+| PDF · todos los dispositivos como «planificados» (texto) | Plan del caso | corregir | confunde | F1 | Pregunta de la tarea: el informe cuenta lo que la persona hizo, pero no lo que decidió. Lista clip, cuatro coils y stent juntos, y la recomendación de la máquina, «DISCUSIÓN MULTIDISCIPLINARIA». No hay decisión del equipo, ni estrategia elegida, ni oclusión, ni pieza de Fabricación, ni dimensionado de WEB o desviador. Se esperaba una sección «Plan elegido» |
+| «Exportar malla STL» y «Exportar escena 3D (GLB)» (botón) | Exportar geometría | mantener | — | — | Leído en el código, no se pulsó |
+| «Generar DICOM SR» (botón) | Informe estructurado | mantener | — | — | 1,3 s, «Descargar informe estructurado DICOM (.dcm) →» |
+| DICOM SR · «Approach Trajectory» como «Clip Model: Entrada (67.0, 77.2, 67.4)» (texto) | Trayectoria en el SR | corregir | confunde | F1 | Leído con pydicom: la trayectoria va con el nombre de concepto de un clip y sin profundidad ni ángulo. Un PACS la mostrará como dos clips |
+| DICOM SR · «Device Type: Recto / catálogo» y «Clip Type: Catálogo» (texto) | Tipo de dispositivo | corregir | confunde | F1 | El stent siguió la línea central y el clip es bajo pedido. El SR tampoco lleva recomendación, anotaciones, ELAPSS ni UIATS |
+| «Generar DICOM SEG (segmentación)» (botón) | Regiones para el PACS | mantener | — | — | Leído en el código, no se pulsó |
+| «El plan cambió desde que se generó este archivo…» (mensaje) | Avisar de archivo caducado | mantener | — | — | Leído en el código: sustituye el enlace cuando cambian malla, medida, recomendación o dispositivos |
+| «Guardar sesión» (botón) | Guardar desde el informe | corregir | confunde | F1 | Leído en el código: guarda igual que «Guardar progreso», pero además sale del espacio de trabajo. Son dos botones de guardar con efectos distintos y el rótulo no avisa de la salida. Se esperaba «Guardar y cerrar» |
+| «Impresión 3D» y «Preparar para impresión 3D» (panel) | Modelo físico de la malla | corregir | cosmético | F3 | Va bajo el informe cuando es fabricación de un modelo. Se esperaba en Fabricación |
+| «La sesión se vincula al paciente y estudio en la base de datos.» (texto) | Avisar del vínculo | corregir | confunde | F1 | Esta sesión no tiene caso: la barra ofrece «Adjuntar a un caso». La frase promete un vínculo que no existe |
+| «Report generation error», «DICOM SR error» y «STL export error» (mensaje) | Fallos del servidor | corregir | cosmético | F3 | Leído en el código: los 500 llegan en inglés al panel |
+
+Atascos. El PDF tardó 1,8 s en cinco páginas y el DICOM SR 1,3 s; no hubo mensajes de error. Pregunta de la tarea: ¿el informe cuenta la historia con las mismas palabras? A medias.
+
+- **Lo que coincide.** La trayectoria sale con la misma etiqueta y la misma cifra, «Ángulo respecto al eje del aneurisma 84.7 °». La anotación llega con su nota. La morfometría y la recomendación salen con las palabras de la pantalla.
+- **Tablas.** Las de coils y stent salen desalineadas.
+- **Texto interno.** Los factores llevan la historia del programa («Ya no vota», «se llevaban 40 puntos»).
+- **Riesgos sin explicar.** Hay dos riesgos con nombres casi iguales y valores distintos, «ALTO» y «moderado».
+- **Cirujano.** Pone «Administrador» aunque el campo estaba vacío.
+- **Decisión.** El documento no recoge la decisión de nadie: lista a la vez clip, coils y stent como «planificados».
+
+El SR codifica la trayectoria como un clip. Errores de consola: ninguno nuevo. Captura `t8-informe.jpeg`.
+
 ### Guardar y reanudar
+
+| Elemento | Propósito | Veredicto | Gravedad | Destino | Nota |
+|---|---|---|---|---|---|
+| «Guardar progreso» (botón) | Guardar la sesión | mantener | — | — | 0,2 s, de «Guardando…» a «Guardado ✓». Etiqueta por defecto «segura, Juan · Informe» |
+| Tamaño de cada guardado (texto) | Lo que ocupa | corregir | cosmético | F2 | Cada guardado es una copia completa: 349 927 KB, unos 342 MB, y este paciente ya tiene siete. La ficha no enseña el tamaño ni deja borrar las viejas |
+| «Pacientes» tras guardar (botón) | Salir del espacio de trabajo | mantener | — | — | Con todo guardado no pide confirmación |
+| «Estudios 0» y «Sin estudios 1 pendientes de carga» en Pacientes (texto) | Estado del paciente | corregir | confunde | F2 | El paciente tiene siete sesiones guardadas y la lista dice que no tiene estudios. La sesión no está adjunta a un caso |
+| «Sesiones de estudio (7)» (panel) | Elegir qué reanudar | corregir | confunde | F2 | Cinco entradas se llaman «segura, Juan · Detección» y solo las distingue la hora. Se esperaba poder renombrarlas o borrarlas |
+| «11/10/2026, 5:05:09» en la ficha (texto) | Hora del guardado | corregir | confunde | F1 | Se guardó a las 00:05 hora local y la ficha enseña 5:05. Es la hora UTC del servidor leída como local |
+| «Reanudar en «Informe»» (botón) | Volver al trabajo | corregir | bloquea | F1 | El primer intento, sobre las 05:08 UTC, tumbó el servidor y dejó «Restaurando sesión…» para siempre; `/docs` no respondía a las 05:08:37. El segundo, a las 05:11:44,6 UTC con el servidor sin `--reload`, abrió el espacio de trabajo en 13,4 s en el paso 8 |
+| «Restaurando sesión…» (mensaje) | Esperar la restauración | corregir | bloquea | F1 | Con el servidor caído no hay error ni tiempo límite: el aviso se queda en pantalla y nada responde |
+| Recarga de la página en `/app/sesion` (panel) | Recuperar la pantalla | corregir | confunde | F1 | Recargar el espacio de trabajo lo deja vacío, en «Carga una serie DICOM para comenzar», sin ofrecer la sesión que estaba abierta |
+| Identificador de sesión nuevo al reanudar (texto) | Sesión viva | corregir | confunde | F1 | Reanudar crea otra sesión viva (`67b79faf-6a8d-4f3a-a2b1-f08bc5410996`). El próximo «Guardar progreso» guarda otra fila en vez de actualizar la que se reanudó |
+| Carga, segmentación, morfometría y línea central tras reanudar (panel) | Trabajo de los pasos 1 a 4 | mantener | — | — | Volvieron serie, malla, umbral 1470, cuello y ápice marcados, Ø 10,9 mm, índices y línea central |
+| Detección tras reanudar (panel) | Candidatos y lesión confirmada | corregir | confunde | F1 | La detección se rehízo al reanudar y la lista es otra: «cand-001» pasó a ser «curvatura · Ø 3.7 mm est.». La pantalla vuelve a preguntar «¿Cuál es la lesión?» aunque se había confirmado antes de guardar |
+| Decisión tras reanudar (panel) | Recomendación del paso 5 | corregir | bloquea | F1 | Vuelve vacía: localización «Desconocida / No especificada», sin recomendación y con «Planificar dispositivos» desactivado. El carril la marcaba ✓ hasta entrar en ella. El PDF sí la sigue llevando, porque está en disco; la pantalla no |
+| Trayectoria tras reanudar (panel) | Abordaje | corregir | confunde | F1 | Vuelven Entrada, Diana y «Profundidad de abordaje: 14.7 mm», pero no el ángulo ni el análisis del corredor. El botón vuelve a decir «Guardar trayectoria», como si no se hubiera guardado |
+| Dispositivos tras reanudar (panel) | Clip, coils y stent colocados | corregir | confunde | F1 | El servidor los conserva (GET `/api/devices` lista clips, coils y stent), pero el panel no enseñó «En el plan» ni la lista de clips. Leído en el código: el clip vuelve solo como malla, sin su fila editable, y el mapa de calor no vuelve. El servidor cayó mientras se cargaban las mallas |
+| Ventana y nivel tras reanudar (texto) | Ajuste de imagen | mantener | — | — | «W 7578 L -343», igual que antes. No se cambió durante la tarea, así que solo prueba que vuelve el valor por defecto. Leído en el código: no se guarda |
+| Anotaciones tras reanudar (panel) | Marcas del caso | mantener | — | — | «M1» volvió con su nota «Rama a 2 mm del clip» |
+| Enlaces del informe tras reanudar (panel) | PDF y SR generados | corregir | confunde | F1 | El PDF y el SR siguen en disco, pero el panel vuelve a «Generar informe PDF» sin enlace. «Resumen del caso» pierde la recomendación |
+| «Tienes cambios sin guardar» al salir de la sesión reanudada (mensaje) | Avisar de trabajo sin guardar | corregir | confunde | F1 | Salió sin haber cambiado nada, solo tras recorrer los pasos. La persona no sabe qué perdería |
+| «0 registros» en Pacientes con el servidor caído (mensaje) | Lista de pacientes | corregir | bloquea | F2 | Con el servidor caído la lista dice que no hay pacientes, sin ningún error. La persona cree que se ha borrado todo |
+
+Atascos. Pregunta de la tarea: ¿reanudar devuelve el trabajo completo? No, y no avisa.
+
+- **Lo que vuelve.** Serie, malla, morfometría, línea central, anotaciones y los puntos del abordaje.
+- **Lo que hay que rehacer sin aviso.**
+  - La decisión del paso 5. Vuelve vacía y bloquea «Planificar dispositivos».
+  - El ángulo y el corredor de la trayectoria. Hay que volver a «Guardar trayectoria».
+  - La lista editable de clips y su mapa de calor.
+  - Los enlaces del PDF y del SR.
+  - La confirmación de la lesión. La detección se rehízo y la lista de candidatos cambió.
+- **Cambios fantasma.** Al salir, la sesión reanudada pide confirmar cambios que nadie hizo.
+
+Reanudar tardó 13,4 s en el segundo intento.
+
+El servidor cayó tres veces en esta tarea.
+
+| Hora UTC | Acción |
+|---|---|
+| 04:42:05 | «Sugerir corredor» |
+| 04:50:23 | «Sugerir corredor» |
+| 05:08 | Primer «Reanudar» |
+
+Después de un reanudar que sí funcionó, cayó otra vez hacia las 05:13. Ocurrió entre una consulta de dispositivos y una de trayectoria sobre la sesión reanudada, sin acción de la persona. Las tres primeras caídas fueron con `--reload`: el supervisor dejaba el puerto ocupado sin proceso de trabajo y el fallo era silencioso. La cuarta, ya sin `--reload`, cerró el proceso. Por eso el recorrido tras reanudar llegó hasta el paso 6 y el paso 7 no se revisó.
+
+Dato creado por la auditoría:
+
+| Dato | Valor |
+|---|---|
+| Registro de sesión | 7 |
+| Sesión guardada | `79a34304-8cb7-4169-b36e-1fae7f7775ae` |
+| Etiqueta | «segura, Juan · Informe» |
+| Paso | 7 (Informe) |
+| Tamaño | 349 927 KB |
+| Guardada | 2026-10-11 05:05:09 UTC |
+| Sesión viva al reanudar | `67b79faf-6a8d-4f3a-a2b1-f08bc5410996` |
+| Pieza de Fabricación | `PR-79A34304-0130` |
+
+La pieza tiene STL y dossiers y no tiene pedido. Están también la anotación «M1» y el PDF y el SR en la carpeta de la sesión. El propietario puede borrarlos si quiere. Captura `t8-reanudada.jpeg`.
 
 ## Segunda persona
 

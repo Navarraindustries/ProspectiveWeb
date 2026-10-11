@@ -4,6 +4,10 @@ Por qué: el informe lo escriben varias tareas y varios agentes; sin una
 comprobación mecánica se cuelan veredictos inventados, filas sin destino y
 pantallas olvidadas. El script falla con mensaje claro y código 1.
 
+Las tablas de inventario empiezan con la cabecera «Elemento» y deben tener
+seis columnas en todas sus filas; una fila con más o menos columnas es error.
+Otras tablas (fuera de un inventario) se ignoran.
+
 Uso: python scripts/audit_lint.py docs/superpowers/audits/<informe>.md [--complete]
   --complete  exige además que estén todas las pantallas del alcance.
 """
@@ -30,25 +34,46 @@ PANTALLAS_OBLIGATORIAS = [
     "Usuario no administrador",
 ]
 
+COLUMNAS = 6
 FILA = re.compile(r"^\|(.+)\|\s*$")
 
 
 def main(argv: list[str]) -> int:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
     if not argv:
         print("uso: audit_lint.py <informe.md> [--complete]")
         return 2
     path = Path(argv[0])
     complete = "--complete" in argv[1:]
+    if not path.exists():
+        print(f"no existe el informe: {path}")
+        return 2
     text = path.read_text(encoding="utf-8")
     errores: list[str] = []
     filas = 0
+    en_inventario = False
     for n, linea in enumerate(text.splitlines(), 1):
         m = FILA.match(linea)
         if not m:
+            en_inventario = False   # una línea que no es fila cierra la tabla
             continue
         celdas = [c.strip() for c in m.group(1).split("|")]
-        if len(celdas) != 6 or celdas[0] in {"Elemento", ""} or set(celdas[0]) <= {"-", ":"}:
-            continue   # cabecera, separador u otra tabla
+        if celdas[0] == "Elemento":
+            en_inventario = True
+            if len(celdas) != COLUMNAS:
+                errores.append(f"línea {n}: la fila tiene {len(celdas)} columnas y la tabla {COLUMNAS}")
+            continue
+        if not en_inventario:
+            continue   # otra tabla
+        if all(c and set(c) <= {"-", ":"} for c in celdas):
+            continue   # separador
+        if len(celdas) != COLUMNAS:
+            errores.append(f"línea {n}: la fila tiene {len(celdas)} columnas y la tabla {COLUMNAS}")
+            filas += 1
+            continue
         filas += 1
         _, _, veredicto, gravedad, destino, _ = celdas
         if veredicto not in VEREDICTOS:

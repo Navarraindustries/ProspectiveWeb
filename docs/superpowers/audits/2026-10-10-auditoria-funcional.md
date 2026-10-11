@@ -279,7 +279,7 @@ Atascos. Solo se llega aquí por el botón «Usuarios» de «Pacientes»; el men
 |---|---|---|---|---|---|
 | «Pacientes / Administración / Solicitudes» (botón) | Miga de pan | corregir | cosmético | F2 | «Administración» es texto sin destino, como en «Usuarios»; captura `t4-solicitudes.jpeg` |
 | «Pacientes» (botón) | Volver con icono de casa | fusionar | cosmético | F2 | Repite la miga y el logotipo |
-| «Solicitudes de registro» (texto) | Título, con «0 pendientes de aprobación» | corregir | confunde | F2 | Pregunta obligatoria: el título se entiende, pero los botones que traen aquí no dicen lo mismo. En «Pacientes» pone «Solicitudes» a secas, junto a «Estudios», y en el paso «Fabricación» un pedido de clip se llama «solicitud» («Preparando la solicitud…»). Un cirujano puede creer que «Solicitudes» son sus pedidos. Nombre propuesto en toda la aplicación: «Cuentas pendientes» |
+| «Solicitudes de registro» (texto) | Título, con «0 pendientes de aprobación» | corregir | confunde | F1 | Pregunta obligatoria: el título se entiende, pero los botones que traen aquí no dicen lo mismo. En «Pacientes» pone «Solicitudes» a secas, junto a «Estudios», y en el paso «Fabricación» un pedido de clip se llama «solicitud» («Preparando la solicitud…»). Un cirujano puede creer que «Solicitudes» son sus pedidos. Arreglo de texto, el mismo que en la fila del título de «Pedidos de clips»: «Cuentas pendientes» para las cuentas, en este título, en el botón de «Pacientes» y en el menú, y «pedido» para los clips en todas partes |
 | «Actualizar» (botón) | Recargar la lista | mantener | — | — | Útil para ver una solicitud recién llegada |
 | «No hay solicitudes pendientes.» (mensaje) | Lista vacía | corregir | cosmético | F2 | Lo que se aprueba o se rechaza desaparece sin historial. Una rechazada solo vuelve a verse en «Usuarios», como «Inactivo» |
 | Tarjeta de solicitud (panel) | Nombre, especialidad, cargo, hospital, documentos, ORCID, CV y fecha | mantener | — | — | Leída en el código, porque no hay solicitudes. Da al administrador lo que necesita para decidir |
@@ -295,7 +295,7 @@ Atascos. Con la lista vacía, la pantalla funciona y se entiende. El problema es
 | Elemento | Propósito | Veredicto | Gravedad | Destino | Nota |
 |---|---|---|---|---|---|
 | Barra superior sin miga de pan (panel) | Orientación y vuelta | corregir | confunde | F2 | A diferencia de «Usuarios» o «Auditoría», no hay miga ni botón «Pacientes»: solo el logotipo vuelve. Llegando desde la ficha del paciente no hay camino de vuelta a ella; captura `t4-pedidos.jpeg` |
-| «Pedidos de clips» (texto) | Título y «Todo lo encargado a fabricación, con su estado y lo que falta por hacer.» | corregir | confunde | F1 | La misma cosa se llama «pedido» aquí, «encargado» en el subtítulo y «solicitud» en el paso «Fabricación» («Preparando la solicitud…», «No se pudo preparar la solicitud.»). Arreglo de texto: «pedido» en todas partes. Para el glosario de la Tarea 10 |
+| «Pedidos de clips» (texto) | Título y «Todo lo encargado a fabricación, con su estado y lo que falta por hacer.» | corregir | confunde | F1 | La misma cosa se llama «pedido» aquí, «encargado» en el subtítulo y «solicitud» en el paso «Fabricación» («Preparando la solicitud…», «No se pudo preparar la solicitud.»). Arreglo de texto: «pedido» en todas partes, y «Cuentas pendientes» para las solicitudes de registro, como propone la fila del título de «Solicitudes». Para el glosario de la Tarea 10 |
 | «Filtrado por segura, Juan · Ver todos» (panel) | Aviso de filtro por paciente al venir de la ficha | corregir | confunde | F1 | El filtro se queda pegado. Se abrió desde la ficha, se volvió a «Pacientes» por el logotipo y se abrió «Pedidos de clips» desde el menú: seguía «Filtrado por segura, Juan» (comprobado; se limpió con «Ver todos»). Quien abre el registro desde el menú espera todos los pedidos. Arreglo: que la entrada del menú limpie el filtro |
 | «Todos · Borrador · Firmado · Enviado al taller · En fabricación · Recibida · Verificada · Rechazada» (botón) | Filtros por estado con su recuento | corregir | confunde | F1 | Funcionan (comprobado con «Firmado»), todos a 0. Leído en el código: los recuentos son de todos los pacientes aunque la lista esté filtrada por uno, así que un chip puede decir 3 y la lista salir vacía. «Todos» no lleva recuento |
 | «Solo los abiertos» (campo) | Ocultar verificados y rechazados, marcado por defecto | corregir | confunde | F1 | Leído en el código: con la casilla marcada, pulsar «Verificada» o «Rechazada» deja la lista siempre vacía, porque los dos filtros se contradicen. Desmarcarla al elegir uno de esos estados |
@@ -338,7 +338,7 @@ Atascos. Para el administrador la página se lee, pero no responde a las pregunt
 | Elemento | Propósito | Veredicto | Gravedad | Destino | Nota |
 |---|---|---|---|---|---|
 | Barra superior sin miga de pan (panel) | Orientación y vuelta | corregir | confunde | F2 | Como en «Pedidos de clips», solo el logotipo vuelve; captura `t4-talleres.jpeg` |
-| «Talleres» (texto) | Título y «Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido.» | mantener | — | — | Pregunta obligatoria: no es una página de administración. Leído en el código: cualquier usuario puede dar de alta y corregir talleres, y solo el administrador borra. La usa quien pide piezas, así que su sitio está junto a «Pedidos de clips»; la fila de su entrada en el menú lo recoge |
+| «Talleres» (texto) | Título y «Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido.» | corregir | cosmético | F2 | El título y el subtítulo son claros; lo que falla es el sitio. Pregunta obligatoria: no es una página de administración. Leído en el código: cualquier usuario puede dar de alta y corregir talleres, y solo el administrador borra. La usa quien pide piezas, así que debería vivir junto a «Pedidos de clips» y no en el menú personal, como dice también la fila de su entrada en el menú |
 | «Nuevo taller» (botón) | Abrir el alta de taller | mantener | — | — | Abierto y cancelado sin guardar (comprobado) |
 | «Todavía no hay talleres. Registra aquí los del convenio…» (mensaje) | Lista vacía | mantener | — | — | Dice qué hacer y dónde se usa el taller |
 | «Nombre» (campo) | Nombre del taller, único obligatorio | corregir | cosmético | F2 | El panel se abre con el campo ya en rojo y la ayuda «Como aparecerá en el desplegable al pedir una pieza.» también en rojo, antes de escribir nada: parece un error; captura `t4-talleres-nuevo.jpeg` |
@@ -396,6 +396,8 @@ Atascos. Quien entra no ve en ninguna parte en qué institución está ni qué l
 ## Segunda persona
 
 ### Usuario no administrador
+
+Dato creado por la auditoría: la cuenta `auditora` (nombre completo «Auditora F1», rol «Médico», contraseña `Auditora2026!`, activa, sin cambio de contraseña obligatorio), creada por la Tarea 4 desde «Usuarios»; el propietario puede borrarla cuando termine la auditoría.
 
 ## Recorrido del especialista
 

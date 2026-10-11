@@ -6,7 +6,10 @@ pantallas olvidadas. El script falla con mensaje claro y código 1.
 
 Las tablas de inventario empiezan con la cabecera «Elemento» y deben tener
 seis columnas en todas sus filas; una fila con más o menos columnas es error.
-Otras tablas (fuera de un inventario) se ignoran.
+Otras tablas (fuera de un inventario) se ignoran. Dentro de un inventario,
+solo una línea en blanco o un encabezado (`#`) cierra la tabla; una línea que
+empieza por «|» (con o sin sangría) y no es una fila bien formada, porque le
+falta el «|» final o va sangrada, es error, y la tabla sigue comprobándose.
 
 Uso: python scripts/audit_lint.py docs/superpowers/audits/<informe>.md [--complete]
   --complete  exige además que estén todas las pantallas del alcance.
@@ -36,6 +39,7 @@ PANTALLAS_OBLIGATORIAS = [
 
 COLUMNAS = 6
 FILA = re.compile(r"^\|(.+)\|\s*$")
+INICIO_FILA = re.compile(r"^\s*\|")
 
 
 def main(argv: list[str]) -> int:
@@ -58,7 +62,11 @@ def main(argv: list[str]) -> int:
     for n, linea in enumerate(text.splitlines(), 1):
         m = FILA.match(linea)
         if not m:
-            en_inventario = False   # una línea que no es fila cierra la tabla
+            if en_inventario and INICIO_FILA.match(linea):
+                errores.append(f"línea {n}: fila mal formada (sin «|» final o con sangría)")
+                continue
+            if not linea.strip() or linea.lstrip().startswith("#"):
+                en_inventario = False   # solo una línea en blanco o un encabezado cierra la tabla
             continue
         celdas = [c.strip() for c in m.group(1).split("|")]
         if celdas[0] == "Elemento":

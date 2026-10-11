@@ -318,6 +318,7 @@ Atascos. El registro está vacío y solo se pudieron probar los filtros. La pant
 | Elemento | Propósito | Veredicto | Gravedad | Destino | Nota |
 |---|---|---|---|---|---|
 | «Pacientes / Auditoría · SkullChain» (botón) | Miga de pan | corregir | cosmético | F2 | Aquí no hay segmento «Administración», a diferencia de «Usuarios» y «Solicitudes», aunque la página es igual de administrativa; captura `t4-auditoria.jpeg` |
+| «Pacientes» (botón) | Volver a la lista con icono de casa | fusionar | cosmético | F2 | Leído en el código (`AuditTrail.tsx:73`). Repite la miga y el logotipo, igual que en «Usuarios» y «Solicitudes» |
 | «Registro de auditoría — SkullChain» (texto) | Título y «Cadena de bloques con hash SHA-256; alterar un bloque invalida todos los siguientes.» | corregir | cosmético | F2 | Pregunta obligatoria: es una página para el administrador o el responsable de cumplimiento, no para el cirujano, y está bien que el menú solo se la muestre al administrador. «SkullChain», «hash» y «SHA-256» son jerga; bastaría «Registro de actividad, a prueba de manipulación» |
 | Acceso al registro (panel) | Quién puede leer la cadena | corregir | bloquea | F1 | Leído en el código: el menú la esconde a los no administradores, pero el servidor entrega la cadena, la exportación y la verificación a cualquier usuario con sesión, y además le deja añadir bloques. La Tarea 9 lo confirmó con `auditora` y lo gradúa igual: ver «Escritura en la cadena de auditoría» en «Usuario no administrador». Restringirlo al administrador |
 | «Verificar integridad» (botón) | Comprobar la cadena | mantener | — | — | No se pulsó porque escribe: leído en el código, cada verificación añade un bloque «INTEGRITY_CHECK». El resultado dice «Integridad verificada» o cuántos bloques están dañados y cuáles |
@@ -915,7 +916,7 @@ El SR codifica la trayectoria como un clip. Errores de consola: ninguno nuevo. C
 
 | Elemento | Propósito | Veredicto | Gravedad | Destino | Nota |
 |---|---|---|---|---|---|
-| «Guardar progreso» (botón) | Guardar la sesión | mantener | — | — | 0,2 s, de «Guardando…» a «Guardado ✓». Etiqueta por defecto «segura, Juan · Informe» |
+| «Guardar progreso» (botón) | Guardar la sesión | corregir | confunde | F1 | Mismo veredicto que «Guardar progreso» en «Barra superior del espacio de trabajo», donde se juzga: tras reanudar, el primer guardado añade otra sesión en vez de actualizar la reanudada. Aquí se midió la respuesta: 0,2 s, de «Guardando…» a «Guardado ✓», con la etiqueta por defecto «segura, Juan · Informe» |
 | Tamaño de cada guardado (texto) | Lo que ocupa | corregir | cosmético | F2 | Cada guardado es una copia completa: 349 927 KB, unos 342 MB, y este paciente ya tiene siete. La ficha no enseña el tamaño ni deja borrar las viejas |
 | «Pacientes» tras guardar (botón) | Salir del espacio de trabajo | mantener | — | — | Con todo guardado no pide confirmación |
 | «Estudios 0» y «Sin estudios 1 pendientes de carga» en Pacientes (texto) | Estado del paciente | corregir | confunde | F1 | El paciente tiene siete sesiones guardadas y la lista dice que no tiene estudios. La sesión no está adjunta a un caso. Es el mismo defecto de texto que los contadores y la columna de «Pacientes», con su mismo arreglo F1: «Casos» y «Sin caso» |
@@ -1187,10 +1188,12 @@ Cada entrada es una fila del inventario con veredicto `eliminar` o `fusionar`. E
     Decisión del propietario: ___
 24. **«Coil (3 disponibles)», «Número de coils» y «Calcular empaque»**, en «Paso 6 · Dispositivos» (fusionar). Motivo: es una segunda forma de colocar coils, con otro número por defecto. Lo sustituye: el montaje sugerido, editable.
     Decisión del propietario: ___
+25. **«Pacientes»**, botón con icono de casa en «Auditoría» (fusionar). Motivo: el mismo triple camino que en «Estudios», «Usuarios» y «Solicitudes». Lo sustituye: la miga de pan y el logotipo.
+    Decisión del propietario: ___
 
 ## Arreglos F1 propuestos
 
-Solo entran las filas con destino `F1`, primero las que bloquean y luego las que confunden; dentro de cada grupo, en el orden del informe. «Archivo probable» es el punto de partida leído en el código, no una lista cerrada. Cuando varias filas son el mismo defecto, su «Cambio concreto» empieza por «[Familia X · tema]», y la lista «Familias de arreglo», bajo la tabla, da el cambio común y los números de sus filas. Las filas marcadas «Condicionado a la decisión nº N» tocan un elemento que la lista de eliminaciones y fusiones propone quitar o fusionar: solo se aplican si el propietario decide conservarlo.
+Solo entran las filas con destino `F1`, primero las que bloquean y luego las que confunden; dentro de cada grupo, en el orden del informe. «Archivo probable» es el punto de partida leído en el código, no una lista cerrada. Cuando varias filas son el mismo defecto, su «Cambio concreto» empieza por «[Familia X · tema]», y la lista «Familias de arreglo», bajo la tabla, da el cambio común y los números de sus filas. Las filas marcadas «Condicionado a la decisión nº N», que son la 35, 38, 57, 65, 144, 165, 196 y 204, ejecutan en F1 la eliminación o fusión nº N de la lista anterior. Se aplican solo si el propietario aprueba esa entrada; si la rechaza, la fila decae y el elemento se queda como está. La fila 89 es mixta: el cambio de título se aplica siempre, y el del botón de «Pacientes» y el de la entrada del menú solo si el propietario aprueba las entradas 7 y 14.
 
 | nº | Pantalla | Elemento | Gravedad | Cambio concreto | Archivo probable | Prueba que lo fija |
 |---|---|---|---|---|---|---|
@@ -1434,33 +1437,34 @@ Solo entran las filas con destino `F1`, primero las que bloquean y luego las que
 | 238 | Paso 8 · Informe | DICOM SR · «Device Type: Recto / catálogo» y «Clip Type: Catálogo» (texto) | confunde | Tipo real del stent y del clip; añadir recomendación, anotaciones, ELAPSS y UIATS | backend/services/dicom_sr.py, backend/routers/report.py | pytest `test_dicom_sr.py`: clip bajo pedido no dice «Catálogo» |
 | 239 | Paso 8 · Informe | «Guardar sesión» (botón) | confunde | Rotular «Guardar y cerrar» | frontend/src/components/planning/ReportPanel.tsx | Vitest `ReportPanel.test.tsx`: rótulo nuevo |
 | 240 | Paso 8 · Informe | «La sesión se vincula al paciente y estudio en la base de datos.» (texto) | confunde | Decirlo solo si hay caso; si no, remitir a «Adjuntar a un caso» | frontend/src/components/planning/ReportPanel.tsx | Vitest `ReportPanel.test.tsx`: sin caso no promete el vínculo |
-| 241 | Guardar y reanudar | «Estudios 0» y «Sin estudios 1 pendientes de carga» en Pacientes (texto) | confunde | [Familia V · contar casos, no estudios] Mismo arreglo que los contadores de «Pacientes»: «Casos» y «Sin caso» | frontend/src/pages/Patients.tsx | Vitest `Patients.test.tsx`: la misma prueba que «Estudios DICOM» |
-| 242 | Guardar y reanudar | «11/10/2026, 5:05:09» en la ficha (texto) | confunde | [Familia D · hora UTC mostrada como local] Leer la hora del servidor como UTC y mostrarla local | frontend/src/pages/Patients.tsx | Vitest `Patients.test.tsx`: 05:05Z sale 00:05 en UTC−5 |
-| 243 | Guardar y reanudar | Recarga de la página en `/app/sesion` (panel) | confunde | Recordar la sesión abierta y ofrecerla al recargar | frontend/src/App.tsx, frontend/src/pages/Workspace.tsx | Vitest: recargar `/app/sesion` ofrece la sesión anterior |
-| 244 | Guardar y reanudar | Identificador de sesión nuevo al reanudar (texto) | confunde | [Familia R · guardar tras reanudar] Mismo arreglo que «Guardar progreso»: guardar sobre la sesión de origen | backend/routers/session_state.py | pytest `test_session_e.py` (mismo que «Guardar progreso») |
-| 245 | Guardar y reanudar | Detección tras reanudar (panel) | confunde | [Familia S · restaurar el estado al reanudar] Restaurar candidatos y confirmación guardados en vez de rehacer la detección | backend/routers/session_state.py | pytest `test_session_e.py`: tras restaurar, la confirmación sigue |
-| 246 | Guardar y reanudar | Trayectoria tras reanudar (panel) | confunde | [Familia S · restaurar el estado al reanudar] Restaurar ángulo y análisis del corredor; el botón dice «Guardada ✓» | backend/routers/session_state.py, frontend/src/components/planning/DevicesPanel.tsx | pytest `test_trajectory.py`: el corredor vuelve tras restaurar |
-| 247 | Guardar y reanudar | Ventana y nivel tras reanudar (texto) | confunde | [Familia S · restaurar el estado al reanudar] Guardar ventana y nivel con la sesión y restaurarlos | backend/routers/session_state.py, frontend/src/vtk/SliceView.tsx | Vitest `SliceView.wl.test.tsx`: W/L restaurado |
-| 248 | Guardar y reanudar | Enlaces del informe tras reanudar (panel) | confunde | [Familia S · restaurar el estado al reanudar] Restaurar los enlaces del PDF y del SR si no han caducado | backend/routers/session_state.py, frontend/src/components/planning/ReportPanel.tsx | Vitest `ReportPanel.test.tsx`: con PDF en disco, enlace a la vista |
-| 249 | Guardar y reanudar | «Tienes cambios sin guardar» al salir de la sesión reanudada (mensaje) | confunde | [Familia S · restaurar el estado al reanudar] No marcar cambios al rehidratar la sesión | frontend/src/store/planning.tsx | Vitest `planning.test.tsx`: restaurar no deja `dirty` |
-| 250 | Usuario no administrador | «AF auditora ▾» (botón) | confunde | [Familia P · línea del rol] Línea bajo la cabecera del menú: «Médico: ves y editas los pacientes que creas; firmas pedidos» | frontend/src/components/Topbar.tsx | Vitest `Topbar.test.tsx`: cuenta Médico muestra la línea |
-| 251 | Usuario no administrador | «Pacientes registrados 0 en la base de datos» (texto) | confunde | «tus pacientes» o «creados por ti» | frontend/src/pages/Patients.tsx | Vitest `Patients.test.tsx`: no administrador ve «tus pacientes» |
-| 252 | Usuario no administrador | «No hay pacientes registrados. Crea el primero para comenzar.» (mensaje) | confunde | Para un no administrador: «Solo ves los pacientes que has creado tú» | frontend/src/pages/Patients.tsx | Vitest `Patients.test.tsx`: lista vacía de no administrador |
-| 253 | Usuario no administrador | `/app/usuarios` escrita a mano (panel) | confunde | [Familia Q · guarda de ruta de administración] Guarda de ruta: un no administrador vuelve a «Pacientes» | frontend/src/App.tsx | Vitest `nav.test.ts`: médico en `/app/usuarios` acaba en pacientes |
-| 254 | Usuario no administrador | «Nuevo usuario» en `/app/usuarios` (botón) | confunde | [Familia Q · guarda de ruta de administración] Mismo arreglo: guarda de ruta | frontend/src/App.tsx | Vitest `nav.test.ts` (mismo que `/app/usuarios`) |
-| 255 | Usuario no administrador | «Verificar integridad» (botón) | confunde | [Familia E · auditoría solo para el administrador] Queda resuelto con la misma dependencia | backend/routers/audit.py | pytest `test_audit.py`: médico recibe 403 al verificar |
-| 256 | Usuario no administrador | «Reanudar en «Informe»» en la ficha ajena (botón) | confunde | [Familia G · ficha ajena] Desaparece con el cierre de la ficha ajena | frontend/src/pages/Patients.tsx | Vitest (mismo que «Ficha ajena») |
-| 257 | Usuario no administrador | «Guardar cambios · Nuevo estudio · Pedidos» en la ficha ajena (botón) | confunde | [Familia G · ficha ajena] Desaparece con el cierre de la ficha ajena; «Pedidos» queda filtrado por el arreglo de pedidos | frontend/src/pages/Patients.tsx, backend/routers/clip_orders.py | pytest `test_access_control.py` (mismo que «Pedidos de clips» como «Médico») |
+| 241 | Guardar y reanudar | «Guardar progreso» (botón) | confunde | [Familia R · guardar tras reanudar] Mismo arreglo que «Guardar progreso» en la barra superior: guardar sobre la sesión de origen | backend/routers/session_state.py | pytest `test_session_e.py` (mismo que «Guardar progreso») |
+| 242 | Guardar y reanudar | «Estudios 0» y «Sin estudios 1 pendientes de carga» en Pacientes (texto) | confunde | [Familia V · contar casos, no estudios] Mismo arreglo que los contadores de «Pacientes»: «Casos» y «Sin caso» | frontend/src/pages/Patients.tsx | Vitest `Patients.test.tsx`: la misma prueba que «Estudios DICOM» |
+| 243 | Guardar y reanudar | «11/10/2026, 5:05:09» en la ficha (texto) | confunde | [Familia D · hora UTC mostrada como local] Leer la hora del servidor como UTC y mostrarla local | frontend/src/pages/Patients.tsx | Vitest `Patients.test.tsx`: 05:05Z sale 00:05 en UTC−5 |
+| 244 | Guardar y reanudar | Recarga de la página en `/app/sesion` (panel) | confunde | Recordar la sesión abierta y ofrecerla al recargar | frontend/src/App.tsx, frontend/src/pages/Workspace.tsx | Vitest: recargar `/app/sesion` ofrece la sesión anterior |
+| 245 | Guardar y reanudar | Identificador de sesión nuevo al reanudar (texto) | confunde | [Familia R · guardar tras reanudar] Mismo arreglo que «Guardar progreso»: guardar sobre la sesión de origen | backend/routers/session_state.py | pytest `test_session_e.py` (mismo que «Guardar progreso») |
+| 246 | Guardar y reanudar | Detección tras reanudar (panel) | confunde | [Familia S · restaurar el estado al reanudar] Restaurar candidatos y confirmación guardados en vez de rehacer la detección | backend/routers/session_state.py | pytest `test_session_e.py`: tras restaurar, la confirmación sigue |
+| 247 | Guardar y reanudar | Trayectoria tras reanudar (panel) | confunde | [Familia S · restaurar el estado al reanudar] Restaurar ángulo y análisis del corredor; el botón dice «Guardada ✓» | backend/routers/session_state.py, frontend/src/components/planning/DevicesPanel.tsx | pytest `test_trajectory.py`: el corredor vuelve tras restaurar |
+| 248 | Guardar y reanudar | Ventana y nivel tras reanudar (texto) | confunde | [Familia S · restaurar el estado al reanudar] Guardar ventana y nivel con la sesión y restaurarlos | backend/routers/session_state.py, frontend/src/vtk/SliceView.tsx | Vitest `SliceView.wl.test.tsx`: W/L restaurado |
+| 249 | Guardar y reanudar | Enlaces del informe tras reanudar (panel) | confunde | [Familia S · restaurar el estado al reanudar] Restaurar los enlaces del PDF y del SR si no han caducado | backend/routers/session_state.py, frontend/src/components/planning/ReportPanel.tsx | Vitest `ReportPanel.test.tsx`: con PDF en disco, enlace a la vista |
+| 250 | Guardar y reanudar | «Tienes cambios sin guardar» al salir de la sesión reanudada (mensaje) | confunde | [Familia S · restaurar el estado al reanudar] No marcar cambios al rehidratar la sesión | frontend/src/store/planning.tsx | Vitest `planning.test.tsx`: restaurar no deja `dirty` |
+| 251 | Usuario no administrador | «AF auditora ▾» (botón) | confunde | [Familia P · línea del rol] Línea bajo la cabecera del menú: «Médico: ves y editas los pacientes que creas; firmas pedidos» | frontend/src/components/Topbar.tsx | Vitest `Topbar.test.tsx`: cuenta Médico muestra la línea |
+| 252 | Usuario no administrador | «Pacientes registrados 0 en la base de datos» (texto) | confunde | «tus pacientes» o «creados por ti» | frontend/src/pages/Patients.tsx | Vitest `Patients.test.tsx`: no administrador ve «tus pacientes» |
+| 253 | Usuario no administrador | «No hay pacientes registrados. Crea el primero para comenzar.» (mensaje) | confunde | Para un no administrador: «Solo ves los pacientes que has creado tú» | frontend/src/pages/Patients.tsx | Vitest `Patients.test.tsx`: lista vacía de no administrador |
+| 254 | Usuario no administrador | `/app/usuarios` escrita a mano (panel) | confunde | [Familia Q · guarda de ruta de administración] Guarda de ruta: un no administrador vuelve a «Pacientes» | frontend/src/App.tsx | Vitest `nav.test.ts`: médico en `/app/usuarios` acaba en pacientes |
+| 255 | Usuario no administrador | «Nuevo usuario» en `/app/usuarios` (botón) | confunde | [Familia Q · guarda de ruta de administración] Mismo arreglo: guarda de ruta | frontend/src/App.tsx | Vitest `nav.test.ts` (mismo que `/app/usuarios`) |
+| 256 | Usuario no administrador | «Verificar integridad» (botón) | confunde | [Familia E · auditoría solo para el administrador] Queda resuelto con la misma dependencia | backend/routers/audit.py | pytest `test_audit.py`: médico recibe 403 al verificar |
+| 257 | Usuario no administrador | «Reanudar en «Informe»» en la ficha ajena (botón) | confunde | [Familia G · ficha ajena] Desaparece con el cierre de la ficha ajena | frontend/src/pages/Patients.tsx | Vitest (mismo que «Ficha ajena») |
+| 258 | Usuario no administrador | «Guardar cambios · Nuevo estudio · Pedidos» en la ficha ajena (botón) | confunde | [Familia G · ficha ajena] Desaparece con el cierre de la ficha ajena; «Pedidos» queda filtrado por el arreglo de pedidos | frontend/src/pages/Patients.tsx, backend/routers/clip_orders.py | pytest `test_access_control.py` (mismo que «Pedidos de clips» como «Médico») |
 
 Familias de arreglo. Cada familia es un solo cambio que corrige todas sus filas; el plan puede hacer una tarea y una prueba por familia.
 
 - **A · error como lista vacía.** Con error de carga, no mostrar el texto de lista vacía; mensaje en castellano con «Reintentar». Filas 2, 29, 75, 88, 92, 99, 103, 104.
 - **B · confirmar o deshacer un clic destructivo.** Un mismo diálogo de confirmación, que dice qué se pierde, o «Deshacer» unos segundos. Filas 3, 6, 7, 9, 10, 11, 12, 18, 21, 22, 58, 91, 97, 98, 141, 147, 170.
 - **C · descartar cambios de un formulario.** Preguntar antes de descartar cambios, también con Escape y clic fuera. Filas 60, 71, 81.
-- **D · hora UTC mostrada como local.** Leer las fechas del servidor como UTC y mostrarlas en hora local. Filas 77, 83, 101, 242.
-- **E · auditoría solo para el administrador.** Dependencia de administrador en todo el router de auditoría; usuario tomado de la sesión. Filas 5, 30, 31, 255.
+- **D · hora UTC mostrada como local.** Leer las fechas del servidor como UTC y mostrarlas en hora local. Filas 77, 83, 101, 243.
+- **E · auditoría solo para el administrador.** Dependencia de administrador en todo el router de auditoría; usuario tomado de la sesión. Filas 5, 30, 31, 256.
 - **F · pedidos por paciente propio.** Regla de acceso por el paciente del pedido en todas las rutas de pedidos. Filas 4, 32.
-- **G · ficha ajena.** Comprobación de dueño en ficha, casos y sesiones; la ficha se cierra con el aviso al recibir 403. Filas 33, 34, 256, 257.
+- **G · ficha ajena.** Comprobación de dueño en ficha, casos y sesiones; la ficha se cierra con el aviso al recibir 403. Filas 33, 34, 257, 258.
 - **H · diámetro junto al corte de 10 mm.** Decir qué diámetro se usa, con su incertidumbre, y avisar cuando la elección cambia de tramo. Filas 13, 14, 15, 157.
 - **I · tabla PHASES publicada.** Sustituir la tabla del servidor por la de Greving 2014 y leerla en todas partes. Filas 16, 17, 23.
 - **J · localización elegida una vez.** Una sola localización por caso que heredan PHASES, ELAPSS, UIATS, Decisión y WEB. Filas 165, 173, 210.
@@ -1469,13 +1473,13 @@ Familias de arreglo. Cada familia es un solo cambio que corrige todas sus filas;
 - **M · catálogo de clips vacío.** Detectar el catálogo vacío y decirlo en selección, catálogo y Fabricación. Filas 190, 191, 192, 197, 211, 212, 214.
 - **N · un umbral por índice.** Un solo umbral por índice, compartido por insignia, riesgo y Decisión, y visible. Filas 160, 161, 163, 180.
 - **O · sentido del BF.** Una etiqueta del BF con el sentido correcto en Morfometría y Decisión. Filas 162, 179.
-- **P · línea del rol.** Una línea con lo que permite cada rol, la misma en el menú y en «Usuarios». Filas 86, 106, 250.
-- **Q · guarda de ruta de administración.** Guarda de ruta en el cliente para las páginas de administración. Filas 253, 254.
-- **R · guardar tras reanudar.** Guardar sobre la sesión de origen tras reanudar. Filas 108, 244.
-- **S · restaurar el estado al reanudar.** Restaurar al reanudar todo lo guardado en la sesión, sin rehacerlo. Filas 27, 28, 245, 246, 247, 248, 249.
+- **P · línea del rol.** Una línea con lo que permite cada rol, la misma en el menú y en «Usuarios». Filas 86, 106, 251.
+- **Q · guarda de ruta de administración.** Guarda de ruta en el cliente para las páginas de administración. Filas 254, 255.
+- **R · guardar tras reanudar.** Guardar sobre la sesión de origen tras reanudar. Filas 108, 241, 245.
+- **S · restaurar el estado al reanudar.** Restaurar al reanudar todo lo guardado en la sesión, sin rehacerlo. Filas 27, 28, 246, 247, 248, 249, 250.
 - **T · servidor que cae o no responde.** Diagnosticar las caídas; en el cliente, límite de tiempo y aviso de que el servidor no responde. Filas 8, 19, 20, 24, 25, 26.
 - **U · fuerza del clip.** Una cifra de fuerza con su banda en verificación, Fabricación y pedido. Filas 202, 213.
-- **V · contar casos, no estudios.** Rótulos «Casos», «Casos clínicos», «Sin caso» y «Con caso» en la lista. Filas 53, 54, 55, 241.
+- **V · contar casos, no estudios.** Rótulos «Casos», «Casos clínicos», «Sin caso» y «Con caso» en la lista. Filas 53, 54, 55, 242.
 - **W · caso, estudio y sesión.** Los rótulos del «Glosario» para caso y sesión en ficha y formulario. Filas 64, 65, 66, 67, 76, 80.
 - **X · pedido y cuentas pendientes.** «pedido» para los clips y «Cuentas pendientes» para el registro. Filas 89, 93, 217, 218.
 - **Y · falta de conexión.** Un solo texto de falta de conexión, sin «backend», en «Entrar», registro y cambio de contraseña. Filas 41, 50, 51.
@@ -1489,20 +1493,20 @@ Recuento final del inventario:
 
 | Agrupación | Valor | Filas |
 |---|---|---|
-| Total | filas de inventario | 710 |
-| Veredicto | mantener | 306 |
-| Veredicto | corregir | 380 |
-| Veredicto | fusionar | 18 |
+| Total | filas de inventario | 711 |
+| Veredicto | mantener | 305 |
+| Veredicto | corregir | 381 |
+| Veredicto | fusionar | 19 |
 | Veredicto | eliminar | 6 |
 | Gravedad | bloquea | 34 |
-| Gravedad | confunde | 256 |
-| Gravedad | cosmético | 114 |
-| Gravedad | — | 306 |
-| Destino | F1 | 257 |
-| Destino | F2 | 74 |
+| Gravedad | confunde | 257 |
+| Gravedad | cosmético | 115 |
+| Gravedad | — | 305 |
+| Destino | F1 | 258 |
+| Destino | F2 | 75 |
 | Destino | F3 | 67 |
 | Destino | E5 | 6 |
-| Destino | — | 306 |
+| Destino | — | 305 |
 
 ## Menores no tratados
 
@@ -1525,7 +1529,6 @@ Observaciones de las revisiones que no cambian ningún veredicto ni contradicen 
 - «Usuarios»: «Cuenta activa» podría ser `bloquea`, porque rechaza en silencio a quien espera; queda `confunde` porque se deshace marcando la casilla.
 - «Solicitudes»: no tienen fila «Solicitado: <fecha>», con el mismo desfase UTC que «Creado», ni el error «Error procesando la solicitud».
 - «Pedidos de clips»: no tienen fila «Leyendo el registro…», el «✕» del detalle, «Se aparta de lo recomendado (…)», «Medido: … dentro o fuera de especificación», la insignia de atención de cada fila ni «No se pudo completar la acción».
-- «Auditoría»: no tiene fila el botón «Pacientes» con icono de casa, que en «Usuarios» y «Solicitudes» se juzga `fusionar`.
 - «Talleres»: no tienen fila «Leyendo el directorio…», el título «Editar taller» ni los errores al guardar y al borrar.
 - «Barra superior del espacio de trabajo»: no tienen fila los estados apagados de «Captura» y «Grabar» («Abre un paso con el visor…») ni «Capturando…», «Guardando vídeo…» y «Captura guardada ✓».
 - «Barra superior del espacio de trabajo»: «No se pudo guardar el progreso: …» se mantiene aunque muestra el texto crudo del cliente.
@@ -1557,14 +1560,22 @@ Observaciones de las revisiones que no cambian ningún veredicto ni contradicen 
 - «Guardar y reanudar»: «Detección tras reanudar» podría ser `bloquea`, porque obliga a confirmar otra vez la lesión; la fila no dice si la medida sigue ligada al candidato antiguo.
 - «Usuario no administrador»: «Capturas (0)» en la ficha ajena se mantiene aunque no distingue un 0 real de uno filtrado; deja de importar cuando la ficha ajena se cierre.
 - «Usuario no administrador»: el «Error 500» pasajero de la lista de pacientes, visto como `admin` antes de cambiar de cuenta, solo está en la prosa, sin fila ni captura.
+- Cabecera del informe: dice «Base: master `b80e8da`», pero la rama sale de `c3bc1b5`, el commit del plan; el código del producto es el mismo.
+- Calibrado de la pérdida de trabajo: «Descartar malla y volver a los umbrales», «Cancelar» y «Cerrar» de la ficha y «Limpiar» de la línea central son `confunde`, mientras «Limpiar candidatos y morfometría», «Borrar esta captura» y «Limpiar» de la trayectoria son `bloquea`; el plan debe regraduar o fijar el criterio en la Leyenda.
+- «Carril de pasos y ficha»: la fila de los tooltips del carril, como «Calcula la morfometría primero», va a F3, y la Familia AD lleva el mismo defecto de los botones de avance a F1; una de las dos debe moverse.
+- «Recorrido del especialista»: «Escena 3D en verde liso» del paso 6 es la cámara dentro de la malla tras «ABORDAJE» y el clip; es conducta del visor y debería ir a F1 o aparcarse de forma explícita, no a F3 como si fuera visual.
+- «Pacientes»: «Nuevo caso» y «+ Nuevo paciente» vuelven a la lista sin abrir el caso; es una navegación pequeña en un componente que ya existe y va a F2 sin decir por qué.
+- «Ficha del paciente»: la nota de «Reanudar en «Detección»» dice que se repite la morfometría, pero en «Guardar y reanudar» la morfometría volvió restaurada y solo se rehízo la detección; hay que alinear el texto.
+- «Arreglos F1 propuestos»: la prueba de la fila 19 presupone el Caso 3 de 384³ en una prueba unitaria; el plan debe presupuestar un diagnóstico, no una prueba.
+- «Recorrido del especialista»: el paso 4 dice «Tiempo observado: sin medir»; bastaría «unos minutos de exploración».
+- «Arreglos F1 propuestos»: el plan debe tratar cada archivo de prueba citado como «crear si falta».
+- «Entrar»: la revisión final creyó que `Login.tsx:29` era el texto de falta de conexión; la línea 29 es el mensaje «El servidor respondió con el error N…» y la cita es correcta.
 - Entorno del servidor: al arrancar sale el aviso «(trapped) error reading bcrypt version», un desajuste entre passlib y bcrypt, sin efecto observado.
 - Herramienta `scripts/audit_lint.py`: `--complete` busca las secciones por subcadena y no exige «## Arreglos F1 propuestos».
 - Herramienta `scripts/audit_lint.py`: `--complete` aprueba el esqueleto con el texto de relleno.
-- Herramienta `scripts/audit_lint.py`: una fila sin «|» final, o sangrada, cierra la tabla en silencio.
 - «Recorrido del especialista»: en el paso 10, el atasco de marcar «Entrada» a mano no dice qué esperaba la persona.
 - «Recorrido del especialista»: el paso 14 no cita la captura `t8-reanudada.jpeg`, y su título, «El informe reanudado», cubre en realidad el recorrido de vuelta hasta el paso 6.
 - «Recorrido del especialista»: en el cierre, la quinta frase dice que el PDF anterior recoge «la decisión»; es la recomendación de la máquina.
-- «Guardar y reanudar»: «Guardar progreso» se mantiene aquí y es corregir/confunde/F1 en la barra superior, sin referencia entre las dos filas.
 - «Estudios»: «Reanudar» se mantiene sin remitir a la sesión duplicada ni a la caída al restaurar, que afectan a la misma restauración.
 - «Glosario»: los cambios de nombre «Continuar a …» se reparten entre F1 («Detectar», «Planificar dispositivos») y F3 («Analizar morfometría», «Decisión terapéutica»), y la fila F3 de «Decisión terapéutica» no menciona el cambio; tras F1 convivirían las dos convenciones.
 - «Glosario»: el rótulo único «Entrar» cubre tres botones con dos destinos: «Iniciar sesión» es cosmético/F2 y «Entrar a la plataforma» es confunde/F1.

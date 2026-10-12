@@ -15,13 +15,13 @@ from models import (
     SeriesInfo, SpacingXYZ,
 )
 from services.database import get_db
-from services.access import ORIGIN_KEY, own_patient_ids, require_patient
+from services.access import ORIGIN_KEY, own_patient_ids, require_patient, session_row
 from services.auth_service import get_current_user
 from services.db_models import LesionConfirmation, PlanningSession, Patient, User
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state, create_session,
     snapshot_session, rehydrate_session, has_saved_session, mesh_url as mesh_url_for,
-    delete_saved_session, session_lineage, LINEAGE_KEY,
+    delete_saved_session, session_lineage, LINEAGE_KEY, record_repoint,
 )
 
 logger = logging.getLogger(__name__)
@@ -160,9 +160,13 @@ async def save_session(
     origen_id = ""
     origen_ps: PlanningSession | None = None
     if ps is None and req.overwrite_origin:
-        origen_id = read_state(req.session_id, ORIGIN_KEY, "")
-        if origen_id and origen_id != req.session_id:
-            origen_ps = db.query(PlanningSession).filter_by(session_id=origen_id).first()
+        # session_row sigue el rastro si una hermana (otra pestaña reanudada de
+        # la misma guardada) ya guardó y la fila tomó su id.
+        origen_ps = session_row(db, req.session_id)
+        if origen_ps is not None and origen_ps.session_id != req.session_id:
+            origen_id = origen_ps.session_id
+        else:
+            origen_ps = None
     if origen_ps is not None:
         # Se va a escribir sobre esa fila: tiene que ser de un paciente que
         # esta persona ve, no basta con conocer el id de la sesión viva.
@@ -220,6 +224,7 @@ async def save_session(
     if origen_ps is not None:
         # Solo cuando el snapshot nuevo y la fila ya están: si algo fallaba
         # antes, la sesión de origen seguía entera y se podía reanudar.
+        record_repoint(origen_id, req.session_id)
         delete_saved_session(origen_id)
         logger.info("Session %s saved over its origin %s", req.session_id, origen_id)
 

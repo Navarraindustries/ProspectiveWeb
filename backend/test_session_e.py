@@ -567,8 +567,11 @@ class TestAResumedSessionStartsItsOwnClock:
 # recuerda de cuál salió y guarda sobre ella.
 
 from services.db_models import LesionConfirmation, Patient, PlanningSession, User  # noqa: E402
+import shutil  # noqa: E402
+
+from services.access import session_patient_id as _session_patient_id  # noqa: E402
 from services.sessions import (  # noqa: E402
-    create_session as _crear, has_saved_session as _guardada,
+    SESSIONS_ROOT as _SESIONES, create_session as _crear, has_saved_session as _guardada,
     session_lineage as _linaje, session_subdir as _subdir,
 )
 
@@ -582,6 +585,31 @@ def _reanudar(sid: str, c=None) -> str:
     r = (c or client).post(f"/api/sessions/{sid}/restore")
     assert r.status_code == 200, r.text
     return r.json()["session_id"]
+
+
+def _medicos(n: int):
+    import uuid as _uuid
+    from conftest import anonymous_client
+    from services.auth_service import create_access_token, get_password_hash
+    db = _TestingSessionLocal()
+    out = []
+    for _ in range(n):
+        nombre = f"med-{_uuid.uuid4().hex[:8]}"
+        u = User(username=nombre, hashed_password=get_password_hash("x" * 12), role="medico", full_name=nombre)
+        db.add(u); db.commit()
+        cl = anonymous_client(app)
+        cl.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
+        out.append((u.id, cl))
+    db.close()
+    return out
+
+
+def _paciente_de(user_id: int) -> int:
+    import uuid as _uuid
+    db = _TestingSessionLocal()
+    p = Patient(surname="DeA", hospital_id=f"HC-{_uuid.uuid4().hex[:6]}", created_by=user_id)
+    db.add(p); db.commit(); pid = p.id; db.close()
+    return pid
 
 
 def _sesion_con_malla() -> str:
@@ -629,8 +657,37 @@ class TestGuardarTrasReanudar:
         b = _reanudar(a); _guardar_sesion(b)
         c = _reanudar(b); _guardar_sesion(c)
         d = _reanudar(c)
+        # La purga de 24 h se lleva las sesiones vivas; sin ellas, el linaje solo
+        # se puede leer del snapshot que queda (el de C).
+        for x in (a, b, c):
+            shutil.rmtree(_SESIONES / x, ignore_errors=True)
         assert {a, b, c, d} <= _linaje(d)
         assert len(_filas(a, b, c)) == 1
+
+    def test_una_hermana_de_la_misma_reanudacion_sigue_ligada(self):
+        """Dos pestañas reanudadas de la misma guardada: cuando una guarda, la
+        fila pasa a su id y el snapshot de origen se borra. La otra solo sabe
+        de dónde salió; sin seguir el reapuntado, se quedaba sin paciente —y
+        sin paciente la regla de acceso dejaba entrar a cualquiera— y sin linaje."""
+        (_dueno_id, dueno), (_otro_id, otro) = _medicos(2)
+        pid = _paciente_de(_dueno_id)
+        a = _sesion_con_malla()
+        assert _guardar_sesion(a, dueno, patient_id=pid).status_code == 200
+        b = _reanudar(a, dueno)
+        c = _reanudar(a, dueno)
+        assert _guardar_sesion(b, dueno).status_code == 200
+        assert [f.session_id for f in _filas(a, b)] == [b]
+        db = _TestingSessionLocal()
+        try:
+            assert _session_patient_id(db, c) == pid
+        finally:
+            db.close()
+        assert otro.get(f"/api/annotations/{c}").status_code == 403
+        assert dueno.get(f"/api/annotations/{c}").status_code == 200
+        assert {a, b, c} <= _linaje(c)
+        # Y al guardar, la hermana también cae en la misma fila.
+        assert _guardar_sesion(c, dueno).status_code == 200
+        assert [f.session_id for f in _filas(a, b, c)] == [c]
 
     def test_las_confirmaciones_de_lesion_pasan_a_la_fila(self):
         """Sin estudio adjunto, la lesión confirmada se busca por el id de la
@@ -647,21 +704,8 @@ class TestGuardarTrasReanudar:
         db.close()
 
     def test_otro_profesional_no_guarda_sobre_la_fila_ajena(self):
-        import uuid as _uuid
-        from conftest import anonymous_client
-        from services.auth_service import create_access_token, get_password_hash
-        db = _TestingSessionLocal()
-        medicos = []
-        for _ in range(2):
-            n = f"med-{_uuid.uuid4().hex[:8]}"
-            u = User(username=n, hashed_password=get_password_hash("x" * 12), role="medico", full_name=n)
-            db.add(u); db.commit()
-            cl = anonymous_client(app)
-            cl.headers["Authorization"] = f"Bearer {create_access_token(subject=n)}"
-            medicos.append((u.id, cl))
-        p = Patient(surname="DeA", hospital_id=f"HC-{_uuid.uuid4().hex[:6]}", created_by=medicos[0][0])
-        db.add(p); db.commit(); pid = p.id; db.close()
-        (_a_id, a), (_b_id, b) = medicos
+        (a_id, a), (_b_id, b) = _medicos(2)
+        pid = _paciente_de(a_id)
         sid = _sesion_con_malla()
         assert _guardar_sesion(sid, a, patient_id=pid).status_code == 200
         vivo = _reanudar(sid, a)

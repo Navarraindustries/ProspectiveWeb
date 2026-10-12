@@ -109,6 +109,38 @@ def session_subdir(session_id: str, sub: str) -> Path:
 LINEAGE_KEY = "origin.lineage"
 
 
+def _repoint_marker(saved_session_id: str) -> Path:
+    # Un fichero, no una carpeta: `has_saved_session` mira carpetas, así que el
+    # id viejo no vuelve a parecer reanudable.
+    return SAVES_ROOT / f"{saved_session_id}.reapuntada"
+
+
+def record_repoint(old_id: str, new_id: str) -> None:
+    """Apunta que la sesión guardada `old_id` sigue ahora bajo `new_id`.
+
+    Guardar tras reanudar mueve la fila al id vivo y borra el snapshot viejo.
+    Otra sesión viva reanudada de la misma guardada (una segunda pestaña) solo
+    sabe de dónde salió: sin este rastro hacia delante se quedaba sin fila —sin
+    paciente, y sin paciente la regla de acceso dejaba entrar a cualquiera— y
+    sin linaje.
+    """
+    if valid_session_id(old_id) and valid_session_id(new_id):
+        SAVES_ROOT.mkdir(parents=True, exist_ok=True)
+        _repoint_marker(old_id).write_text(new_id, encoding="utf-8")
+
+
+def repointed_to(saved_session_id: str) -> str:
+    """El id que tomó la sesión guardada `saved_session_id`, o "" si no se movió."""
+    if not valid_session_id(saved_session_id):
+        return ""
+    f = _repoint_marker(saved_session_id)
+    try:
+        nuevo = f.read_text(encoding="utf-8").strip() if f.is_file() else ""
+    except OSError:
+        return ""
+    return nuevo if valid_session_id(nuevo) else ""
+
+
 def session_lineage(session_id: str) -> set[str]:
     """La sesión y las guardadas de las que viene, hacia atrás.
 
@@ -131,7 +163,10 @@ def session_lineage(session_id: str) -> set[str]:
                 break
         else:
             origen = ""
-        actual = origen
+        # Si esta guardada pasó a otro id, la cadena sigue por ahí: el linaje de
+        # la nueva incluye el de esta (origin.lineage), y lo colgado de la
+        # hermana que guardó también es de esta sesión.
+        actual = repointed_to(actual) or origen
     return ids
 
 

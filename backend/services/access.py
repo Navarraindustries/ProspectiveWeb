@@ -66,11 +66,21 @@ def session_row(db: Session, session_id: str) -> Optional[PlanningSession]:
     ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
     if ps is not None:
         return ps
-    from services.sessions import read_state, session_exists
+    from services.sessions import read_state, repointed_to, session_exists
     if not session_exists(session_id):
         return None
     origen = read_state(session_id, ORIGIN_KEY, "")
-    return db.query(PlanningSession).filter_by(session_id=origen).first() if origen else None
+    # Si otra sesión reanudada de la misma guardada ya guardó, la fila se movió
+    # a su id: se sigue el rastro (si no, esta quedaba sin paciente y la regla
+    # de acceso no tenía a quién aplicarse).
+    for _ in range(20):                       # cadena de reapuntados, sin bucles
+        if not origen:
+            return None
+        ps = db.query(PlanningSession).filter_by(session_id=origen).first()
+        if ps is not None:
+            return ps
+        origen = repointed_to(origen)
+    return None
 
 
 def session_patient_id(db: Session, session_id: str) -> Optional[int]:

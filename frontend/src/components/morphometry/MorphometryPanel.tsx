@@ -21,6 +21,8 @@ import { ElapssCalculator } from "./ElapssCalculator";
 import { PhasesCalculator } from "./PhasesCalculator";
 import { LongitudinalChart } from "./LongitudinalChart";
 import { usePlanning } from "../../store/planning";
+import type { MorphometryResult } from "../../api/types";
+import { MANUAL_NO_SAC, isManual } from "../planning/detectCopy";
 
 const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "UIATS", "Seguimiento"] as const;
 
@@ -102,6 +104,13 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   // perpendicular to the dome axis.
   const usesRim = neckRim.length >= 3;
   const canMeasure = !!neckDome && (usesRim || !!neckOrigin);
+  // Se mide el candidato elegido en Detección, no siempre el primero.
+  const selected = allCandidates[selectedCandidate];
+  const candidateId = selected?.id;
+  // Revisión de F1-146: un candidato «marcado a mano» no tiene saco detectado
+  // y la medida automática responde 422. Su camino es marcar cuello y ápice,
+  // así que esos controles tienen que estar aunque no haya medida.
+  const manualSel = !!selected && isManual(selected);
 
   async function recomputeWithNeckPlane() {
     if (!sessionId || !neckDome || !canMeasure) return;
@@ -121,6 +130,9 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
         rim_points: usesRim
           ? neckRim.map(([x, y, z]) => ({ x, y, z }))
           : [],
+        // A qué candidato pertenece la medida: con uno marcado a mano es la
+        // única ruta que lo deja elegido, y «Reanudar» la repite sobre él.
+        candidate_id: candidateId ?? null,
       });
       planning.setMorphometry(m);
       // Volver a medir el cuello a mano deja obsoleta la recomendación que se
@@ -143,7 +155,6 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   // Se mide el candidato elegido en Detección, no siempre el primero: en
   // Case 3 la lesión es cand-002. Cambiar la elección vacía `morphometry` en el
   // store, y este efecto vuelve a pedirla para el nuevo.
-  const candidateId = allCandidates[selectedCandidate]?.id;
   useEffect(() => {
     if (morphometry || !sessionId) return;
     let alive = true;
@@ -152,7 +163,9 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
     api
       .morphometry(sessionId, candidateId)
       .then((m) => { if (alive) planning.setMorphometry(m); })
-      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Error en morfometría"); })
+      // Con un marcado a mano el 422 es lo esperado si aún no se midió: la
+      // nota de abajo lo dice como información, no como error.
+      .catch((e) => { if (alive && !manualSel) setError(e instanceof Error ? e.message : "Error en morfometría"); })
       .finally(() => { if (alive) setBusy(false); });
     // Una respuesta que llega tras cambiar de candidato (o tras medir a mano)
     // es de otro sitio: se descarta, y la barra no se queda colgada.
@@ -190,6 +203,89 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
         : ".")
     : null;
 
+  // El bloque «Plano de cuello»: con una medida que refinar o, con un
+  // candidato marcado a mano, sin ninguna todavía (*mr* = null).
+  const neckBlock = (mr: MorphometryResult | null) => (
+    <div style={{ background: "var(--muted, rgba(120,130,140,0.08))", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <Icon name="STEP_PLAN" size={15} color="var(--muted-foreground)" />
+        <div style={{ fontSize: 12, fontWeight: 600 }}>
+          Plano de cuello{" "}
+          {mr?.neck_source === "manual" && <Badge variant="success">manual</Badge>}
+          {mr?.neck_source === "rim" && <Badge variant="success">ajustado al borde</Badge>}
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
+        {!mr
+          ? "Marca el cuello y el ápice del domo sobre el modelo 3D para medir sobre un saco cerrado."
+          : mr.neck_source === "rim"
+          ? `Plano ajustado a los puntos del borde, a ${mr.neck_tilt_deg.toFixed(0)}° del eje del domo. ${
+              mr.neck_tilt_deg < 10
+                ? "El cuello es casi perpendicular al eje, así que dos clics habrían dado lo mismo."
+                : "Con un solo punto el plano habría cortado el cuello en diagonal y lo habría medido más ancho de lo que es."
+            }`
+          : mr.reliable
+          ? "Cuello definido manualmente. Recolócalo si es necesario."
+          : "La detección automática aísla una superficie abierta y no mide un cuello válido. Marca el cuello y el ápice del domo sobre el modelo 3D para medir sobre un saco cerrado."}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Button
+          variant={neckOrigin ? "secondary" : "default"}
+          onClick={() => setPickMode("neck_origin")}
+          disabled={pickMode === "neck_origin"}
+          leadingIcon={<Icon name={neckOrigin ? "STATUS_OK" : "TARGET"} size={14} />}
+        >
+          {neckOrigin ? "Cuello ✓" : "Marcar cuello"}
+        </Button>
+        <Button
+          variant={neckDome ? "secondary" : "default"}
+          onClick={() => setPickMode("neck_dome")}
+          disabled={pickMode === "neck_dome"}
+          leadingIcon={<Icon name={neckDome ? "STATUS_OK" : "TARGET"} size={14} />}
+        >
+          {neckDome ? "Ápice ✓" : "Marcar ápice del domo"}
+        </Button>
+        <Button
+          variant={neckRim.length ? "secondary" : "outline"}
+          onClick={() => setPickMode(pickMode === "neck_rim" ? null : "neck_rim")}
+          leadingIcon={<Icon name={usesRim ? "STATUS_OK" : "TARGET"} size={14} />}
+        >
+          {pickMode === "neck_rim"
+            ? `Clic en el borde (${neckRim.length})`
+            : neckRim.length
+              ? `Borde del cuello (${neckRim.length})`
+              : "Ajustar con varios puntos"}
+        </Button>
+        {(neckRim.length > 0 || neckOrigin || neckDome) && (
+          // Only the rim used to be clearable, so a cuello or ápice put on
+          // the wrong spot stayed as a marker in the 3D scene with no way
+          // to take it off — and «Medir saco cerrado» kept using it.
+          <Button
+            variant="ghost"
+            onClick={() => { setNeckRim([]); setNeckOrigin(null); setNeckDome(null); setPickMode(null); }}
+            leadingIcon={<Icon name="CLEAR" size={14} />}
+          >
+            Limpiar marcas
+          </Button>
+        )}
+        <Button
+          onClick={recomputeWithNeckPlane}
+          disabled={!canMeasure || neckBusy}
+        >
+          {neckBusy ? "Midiendo…" : "Medir saco cerrado"}
+        </Button>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
+        {usesRim
+          ? `El plano se ajustará a los ${neckRim.length} puntos del borde: la orientación sale de la anatomía en vez de suponerse perpendicular al eje del domo.`
+          : neckRim.length > 0
+            ? `Marca al menos 3 puntos del borde para ajustar el plano (llevas ${neckRim.length}). Con menos se usa el punto de cuello y el ápice.`
+            : "Con un solo punto de cuello el plano se supone perpendicular al eje del domo. Si el cuello es oblicuo —típico en bifurcaciones— marca varios puntos de su borde."}
+      </div>
+      {neckBusy && <div style={{ marginTop: 8 }}><ProgressBar /></div>}
+    </div>
+  );
+
   return (
     <div className="fade-rise">
       <PanelHead
@@ -208,6 +304,21 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
       )}
       <ErrorNote>{error}</ErrorNote>
 
+      {/* Revisión de F1-146: sin esto el panel decía «marca cuello y ápice»
+          y los botones solo existían con una medida ya hecha. */}
+      {!m && manualSel && !busy && (
+        <>
+          <div role="note" aria-label="Candidato marcado a mano" style={{
+            fontSize: 12, lineHeight: 1.5, marginBottom: 10, padding: "8px 12px",
+            borderRadius: "var(--radius-md)", border: "1px solid var(--border)",
+            background: "var(--card)", color: "var(--muted-foreground)",
+          }}>
+            {MANUAL_NO_SAC}
+          </div>
+          {neckBlock(null)}
+        </>
+      )}
+
       {m && (
         <>
           {/* Cualquier aviso, no solo el de cuello inválido: el de «cuello mayor
@@ -222,84 +333,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
 
           {/* Semi-automatic neck plane — shown when the automatic analysis ran on
               an open detector cap (unreliable), or to refine a manual result. */}
-          {(!m.reliable || m.neck_source === "manual" || m.neck_source === "rim") && (
-            <div style={{ background: "var(--muted, rgba(120,130,140,0.08))", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <Icon name="STEP_PLAN" size={15} color="var(--muted-foreground)" />
-                <div style={{ fontSize: 12, fontWeight: 600 }}>
-                  Plano de cuello{" "}
-                  {m.neck_source === "manual" && <Badge variant="success">manual</Badge>}
-                  {m.neck_source === "rim" && <Badge variant="success">ajustado al borde</Badge>}
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
-                {m.neck_source === "rim"
-                  ? `Plano ajustado a los puntos del borde, a ${m.neck_tilt_deg.toFixed(0)}° del eje del domo. ${
-                      m.neck_tilt_deg < 10
-                        ? "El cuello es casi perpendicular al eje, así que dos clics habrían dado lo mismo."
-                        : "Con un solo punto el plano habría cortado el cuello en diagonal y lo habría medido más ancho de lo que es."
-                    }`
-                  : m.reliable
-                  ? "Cuello definido manualmente. Recolócalo si es necesario."
-                  : "La detección automática aísla una superficie abierta y no mide un cuello válido. Marca el cuello y el ápice del domo sobre el modelo 3D para medir sobre un saco cerrado."}
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Button
-                  variant={neckOrigin ? "secondary" : "default"}
-                  onClick={() => setPickMode("neck_origin")}
-                  disabled={pickMode === "neck_origin"}
-                  leadingIcon={<Icon name={neckOrigin ? "STATUS_OK" : "TARGET"} size={14} />}
-                >
-                  {neckOrigin ? "Cuello ✓" : "Marcar cuello"}
-                </Button>
-                <Button
-                  variant={neckDome ? "secondary" : "default"}
-                  onClick={() => setPickMode("neck_dome")}
-                  disabled={pickMode === "neck_dome"}
-                  leadingIcon={<Icon name={neckDome ? "STATUS_OK" : "TARGET"} size={14} />}
-                >
-                  {neckDome ? "Ápice ✓" : "Marcar ápice del domo"}
-                </Button>
-                <Button
-                  variant={neckRim.length ? "secondary" : "outline"}
-                  onClick={() => setPickMode(pickMode === "neck_rim" ? null : "neck_rim")}
-                  leadingIcon={<Icon name={usesRim ? "STATUS_OK" : "TARGET"} size={14} />}
-                >
-                  {pickMode === "neck_rim"
-                    ? `Clic en el borde (${neckRim.length})`
-                    : neckRim.length
-                      ? `Borde del cuello (${neckRim.length})`
-                      : "Ajustar con varios puntos"}
-                </Button>
-                {(neckRim.length > 0 || neckOrigin || neckDome) && (
-                  // Only the rim used to be clearable, so a cuello or ápice put on
-                  // the wrong spot stayed as a marker in the 3D scene with no way
-                  // to take it off — and «Medir saco cerrado» kept using it.
-                  <Button
-                    variant="ghost"
-                    onClick={() => { setNeckRim([]); setNeckOrigin(null); setNeckDome(null); setPickMode(null); }}
-                    leadingIcon={<Icon name="CLEAR" size={14} />}
-                  >
-                    Limpiar marcas
-                  </Button>
-                )}
-                <Button
-                  onClick={recomputeWithNeckPlane}
-                  disabled={!canMeasure || neckBusy}
-                >
-                  {neckBusy ? "Midiendo…" : "Medir saco cerrado"}
-                </Button>
-              </div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
-                {usesRim
-                  ? `El plano se ajustará a los ${neckRim.length} puntos del borde: la orientación sale de la anatomía en vez de suponerse perpendicular al eje del domo.`
-                  : neckRim.length > 0
-                    ? `Marca al menos 3 puntos del borde para ajustar el plano (llevas ${neckRim.length}). Con menos se usa el punto de cuello y el ápice.`
-                    : "Con un solo punto de cuello el plano se supone perpendicular al eje del domo. Si el cuello es oblicuo —típico en bifurcaciones— marca varios puntos de su borde."}
-              </div>
-              {neckBusy && <div style={{ marginTop: 8 }}><ProgressBar /></div>}
-            </div>
-          )}
+          {(!m.reliable || m.neck_source === "manual" || m.neck_source === "rim") && neckBlock(m)}
 
           {m.centroid && m.principal_axis && (
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--foreground)", cursor: "pointer", margin: "4px 0 12px", padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: planning.morphoOverlay ? "var(--brand-subtle)" : "transparent" }}>

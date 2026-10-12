@@ -5898,6 +5898,19 @@
    "NeckPlaneRequest": {
     "description": "User-defined neck plane for semi-automatic closed-sac morphometry.\n\nThe user places a point on the neck and a normal pointing toward the dome.\nThe backend clips the vessel tree at this plane, keeps the dome-side\nconnected component, caps the opening into a closed watertight sac, and\nmeasures the neck directly from the plane∩tree contour.",
     "properties": {
+     "candidate_id": {
+      "anyOf": [
+       {
+        "pattern": "^cand-(\\d{3})$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Candidato al que corresponde esta medida (`cand-00N`). Se guarda como el elegido para que «Reanudar» la repita sobre él. Hace falta con un candidato marcado a mano: la morfometría automática no lo mide (no tiene malla), así que nada más lo deja elegido (F1-146).",
+      "title": "Candidate Id"
+     },
      "dome_seed": {
       "anyOf": [
        {

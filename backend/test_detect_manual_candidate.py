@@ -120,3 +120,64 @@ def test_un_descartado_se_puede_confirmar_y_no_cuenta_como_puesto(sesion_detecta
     r = client.post("/api/ground-truth", json={"session_id": sid, "source": "candidate", "candidate_id": cid})
     assert r.status_code == 201, r.text
     assert r.json()["candidate_id"] == cid and r.json()["candidate_rank"] is None
+
+
+class TestMedirAMano:
+    """Revisión de F1-146: el panel manda medir marcando cuello y ápice, así que
+    esa medida tiene que funcionar sobre un candidato marcado a mano. La ruta
+    del plano de cuello recorta `vessel_tree.vtp` y no necesita la malla del
+    candidato, que este no tiene."""
+
+    PLANO = {
+        "origin": {"x": 0.0, "y": 3.0, "z": 0.0},
+        "normal": [0.0, 1.0, 0.0],
+        "dome_seed": {"x": 0.0, "y": 7.0, "z": 0.0},
+    }
+
+    def _sesion_fallo_del_detector(self) -> tuple[str, str]:
+        """El árbol sintético de esfera sobre cilindro, con una detección que no
+        encontró nada, y la lesión confirmada a mano en el domo."""
+        from test_morphometry_sac import _vessel_tree
+        sid = create_session()
+        write_vtp(_vessel_tree(), session_subdir(sid, "meshes") / "vessel_tree.vtp")
+        write_state(sid, "detect.n_candidates", "0")
+        write_state(sid, "detect.n_rejected", "0")
+        r = client.post("/api/ground-truth", json={
+            "session_id": sid, "source": "marked", "position": {"x": 0.0, "y": 7.0, "z": 0.0}})
+        assert r.status_code == 201, r.text
+        return sid, r.json()["candidate_id"]
+
+    def test_cuello_y_apice_miden_el_saco_del_candidato_marcado_a_mano(self):
+        sid, cid = self._sesion_fallo_del_detector()
+        assert cid == "cand-001"
+        assert client.get(f"/api/morphometry/{sid}", params={"candidate_id": cid}).status_code == 422
+        m = client.post(f"/api/morphometry/{sid}/neck-plane", json={**self.PLANO, "candidate_id": cid})
+        assert m.status_code == 200, m.text
+        j = m.json()
+        assert j["neck_source"] == "manual" and j["reliable"] is True
+        assert j["candidate_id"] == cid and 2.0 < j["neck_mm"] < 4.0
+        assert read_state(sid, "detect.selected_candidate") == cid
+
+    def test_reanudar_repite_la_medida_hecha_a_mano(self):
+        sid, cid = self._sesion_fallo_del_detector()
+        hecha = client.post(f"/api/morphometry/{sid}/neck-plane",
+                            json={**self.PLANO, "candidate_id": cid}).json()
+        # Con el id (volver a Morfometría) y sin él («Reanudar»): la misma medida.
+        for params in ({"candidate_id": cid}, {}):
+            r = client.get(f"/api/morphometry/{sid}", params=params)
+            assert r.status_code == 200, r.text
+            assert r.json()["candidate_id"] == cid
+            assert r.json()["neck_source"] == "manual"
+            assert r.json()["neck_mm"] == hecha["neck_mm"]
+
+    def test_el_plano_de_otro_candidato_no_se_aplica_al_marcado_a_mano(self):
+        sid, cid = self._sesion_fallo_del_detector()
+        client.post(f"/api/morphometry/{sid}/neck-plane", json=self.PLANO)   # sin id: de otro sitio
+        write_state(sid, "detect.selected_candidate", "")
+        r = client.get(f"/api/morphometry/{sid}", params={"candidate_id": cid})
+        assert r.status_code == 422 and r.json()["detail"] == TEXTO_422
+
+    def test_un_id_que_no_esta_en_la_lista_se_rechaza(self):
+        sid, _cid = self._sesion_fallo_del_detector()
+        r = client.post(f"/api/morphometry/{sid}/neck-plane", json={**self.PLANO, "candidate_id": "cand-009"})
+        assert r.status_code == 422

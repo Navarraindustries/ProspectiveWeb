@@ -826,6 +826,9 @@ export interface NeckPlaneRequest {
    *  and `origin`/`normal` are ignored — real necks are often oblique to the
    *  dome axis, and assuming perpendicularity overestimates the opening. */
   rim_points?: Position3D[];
+  /** Candidato al que corresponde la medida; queda como el elegido. Hace falta
+   *  con uno marcado a mano, que la morfometría automática no mide (F1-146). */
+  candidate_id?: string | null;
 }
 
 /* ── perforators ───────────────────────────────────────────────────────── */

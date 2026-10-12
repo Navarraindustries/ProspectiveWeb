@@ -42,7 +42,7 @@ export function summaryText(s: LesionSummary): string | null {
 export function LesionConfirm() {
   const {
     sessionId, imagingStudyId, candidates, allCandidates, selectedCandidate,
-    setCandidates, setSelectedCandidate,
+    setCandidates, setSelectedCandidate, clearMorphometry,
     pickMode, setPickMode, lesionMark, setLesionMark,
   } = usePlanning();
   const [current, setCurrent] = useState<LesionConfirmation | null>(null);
@@ -94,6 +94,10 @@ export function LesionConfirm() {
         };
         setCandidates([...candidates, manual]);
         setSelectedCandidate(candidates.length);
+        // Explícito: el nuevo ocupa el índice del primer descartado, y si ese
+        // era el elegido el índice no cambia y `setSelectedCandidate` no
+        // limpia nada. Las cifras de aquel sitio quedaban bajo este.
+        clearMorphometry();
       }
       api.lesionSummary().then(setSummary).catch(() => {});
     } catch (e) {

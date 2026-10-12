@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AneurysmCandidate, LesionConfirmation, LesionSummary } from "../../api/types";
+import type { AneurysmCandidate, LesionConfirmation, LesionSummary, MorphometryResult } from "../../api/types";
 
 vi.mock("../../api/client", () => ({
   api: {
@@ -35,15 +35,18 @@ const confirmacion = (over: Partial<LesionConfirmation>): LesionConfirmation => 
 function Lista() {
   const p = usePlanning();
   return (
-    <div data-testid="lista">
-      {p.allCandidates.map((c, i) => `${c.id}:${(c.channels ?? []).join("+")}${i === p.selectedCandidate ? "*" : ""}`).join(" ")}
-    </div>
+    <>
+      <div data-testid="lista">
+        {p.allCandidates.map((c, i) => `${c.id}:${(c.channels ?? []).join("+")}${i === p.selectedCandidate ? "*" : ""}`).join(" ")}
+      </div>
+      <div data-testid="medida">{p.morphometry ? "con medida" : "sin medida"}</div>
+    </>
   );
 }
 
 function montar(opts: {
   study?: number | null; selected?: number; mark?: [number, number, number];
-  rejected?: AneurysmCandidate[];
+  rejected?: AneurysmCandidate[]; measured?: boolean;
 } = {}) {
   function Seed({ children }: { children: ReactNode }) {
     const p = usePlanning();
@@ -54,6 +57,8 @@ function montar(opts: {
         p.setCandidates([cand(1), cand(2), cand(3)]);
         if (opts.rejected) p.setRejectedCandidates(opts.rejected);
         p.setSelectedCandidate(opts.selected ?? 0);
+        // Medido ANTES de confirmar, como tras pasar por Morfometría y volver.
+        if (opts.measured) p.setMorphometry({ max_diameter_mm: 7, candidate_id: "cand-004" } as unknown as MorphometryResult);
         if (opts.mark) p.setLesionMark(opts.mark);
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,6 +193,21 @@ describe("confirmar el punto marcado", () => {
       "cand-001:curvatura cand-002:curvatura cand-003:curvatura cand-005:manual* cand-004:curvatura"));
     // Y es elegible para confirmarlo como candidato.
     expect(screen.getByRole("button", { name: "Confirmada" })).toBeDisabled();
+  });
+
+  /* Revisión de F1-146: el nuevo ocupa el índice del primer descartado. Si
+     ese era el elegido, el índice no cambia y el store no limpiaba la medida:
+     el marcado a mano enseñaba las cifras del descartado. */
+  it("con el primer descartado elegido y medido, el marcado a mano no hereda su medida", async () => {
+    vi.mocked(api.confirmLesion).mockResolvedValue(confirmacion({
+      source: "marked", candidate_rank: null, candidate_id: "cand-005", position: { x: 40, y: 2, z: 3 },
+    }));
+    const descartado = { ...cand(4), id: "cand-004" } as unknown as AneurysmCandidate;
+    montar({ mark: [40, 2, 3], rejected: [descartado], selected: 3, measured: true });
+    expect(await screen.findByTestId("medida")).toHaveTextContent("con medida");
+    fireEvent.click(await screen.findByText("Confirmar el punto marcado"));
+    await waitFor(() => expect(screen.getByTestId("lista")).toHaveTextContent("cand-005:manual*"));
+    expect(screen.getByTestId("medida")).toHaveTextContent("sin medida");
   });
 
   it("si el punto cae sobre un candidato que ya está, no añade nada", async () => {

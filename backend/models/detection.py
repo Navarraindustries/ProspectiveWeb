@@ -394,6 +394,16 @@ class NeckPlaneRequest(BaseModel):
     """
 
     origin: Position3D = Field(..., description="A point on the neck plane (mm, patient space)")
+    candidate_id: str | None = Field(
+        None,
+        pattern=r"^cand-(\d{3})$",
+        description=(
+            "Candidato al que corresponde esta medida (`cand-00N`). Se guarda "
+            "como el elegido para que «Reanudar» la repita sobre él. Hace falta "
+            "con un candidato marcado a mano: la morfometría automática no lo "
+            "mide (no tiene malla), así que nada más lo deja elegido (F1-146)."
+        ),
+    )
     normal: list[float] = Field(
         ...,
         min_length=3,

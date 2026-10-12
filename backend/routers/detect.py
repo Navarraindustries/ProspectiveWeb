@@ -709,6 +709,40 @@ def _is_manual(session_id: str, rank: int) -> bool:
     return read_state(session_id, f"detect.cand_{rank:03d}.patch_kind", "") == MANUAL_CHANNEL
 
 
+async def _manual_morphometry(session_id: str, candidate_id: str) -> MorphometryResult:
+    """GET /morphometry sobre un candidato marcado a mano.
+
+    No hay región detectada que medir. Si ya se midió ESTE candidato marcando
+    cuello y ápice (`detect.selected_candidate` lo nombra y hay plano
+    guardado), se repite esa medida sobre la malla vascular, como hace la ruta
+    del plano de cuello: sin esto «Reanudar» perdía la medida hecha a mano. Si
+    no, el 422 que dice cómo medirlo. Un plano guardado de OTRO candidato no
+    sirve: mediría el sitio anterior bajo el nombre de este.
+    """
+    saved_plane = _read_saved_neck_plane(session_id)
+    if saved_plane is None or read_state(session_id, "detect.selected_candidate", "") != candidate_id:
+        raise HTTPException(status_code=422, detail=MANUAL_NO_SAC)
+    vessel = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
+    if not vessel.exists():
+        raise HTTPException(status_code=422, detail=MANUAL_NO_SAC)
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(
+            _executor,
+            partial(_run_morphometry_sync, session_id=session_id, vtp_path=vessel,
+                    neck_plane=saved_plane, replay=True),
+        )
+    except ValueError as exc:
+        # El plano ya no aísla un saco (malla rehecha): sin medida automática
+        # a la que caer, toca volver a marcar.
+        logger.warning("Saved neck plane no longer valid for manual %s in %s (%s)",
+                       candidate_id, session_id, exc)
+        raise HTTPException(status_code=422, detail=MANUAL_NO_SAC) from exc
+    result.candidate_id = candidate_id
+    result.site = clinical_site(session_id)
+    return result
+
+
 def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
     """La última detección tal como quedó en el estado, sin recalcular.
 
@@ -859,16 +893,20 @@ async def get_morphometry(
                     f"{_int_state(session_id, 'detect.n_rejected')} descartados."
                 ),
             )
-        # Antes de guardarlo como elegido: el informe y los perforantes
-        # buscarían la malla de «el medido», y un marcado a mano no la tiene.
+        # Un marcado a mano no tiene malla que medir: o se repite la medida
+        # hecha marcando cuello y ápice, o el 422 que dice cómo hacerla. No se
+        # guarda aquí como elegido; lo guarda la ruta del plano de cuello.
         if _is_manual(session_id, rank):
-            raise HTTPException(status_code=422, detail=MANUAL_NO_SAC)
+            return await _manual_morphometry(session_id, candidate_id)
         write_state(session_id, "detect.selected_candidate", candidate_id)
     else:
         # Una repetición (p. ej. «Reanudar») mide lo que se eligió la última vez.
-        rank = _candidate_rank(read_state(session_id, "detect.selected_candidate", ""))
-        if rank is not None and (rank > n_candidates or _is_manual(session_id, rank)):
+        chosen = read_state(session_id, "detect.selected_candidate", "")
+        rank = _candidate_rank(chosen)
+        if rank is not None and rank > n_candidates:
             rank = None
+        if rank is not None and _is_manual(session_id, rank):
+            return await _manual_morphometry(session_id, chosen)
     if rank is not None:
         best_vtp_name = f"aneurysm_cand_{rank:03d}.vtp"
     elif not best_vtp_name:
@@ -1046,6 +1084,19 @@ async def morphometry_neck_plane(
             detail="vessel_tree.vtp no encontrado. Ejecute la segmentación primero.",
         )
 
+    # El candidato que mide este plano pasa a ser el elegido. Con uno
+    # detectado ya lo era (GET /morphometry lo guardó); con uno marcado a mano
+    # (F1-146) es la única ruta que lo mide, y sin guardarlo «Reanudar» no
+    # sabría a qué candidato pertenece la medida.
+    if request.candidate_id is not None:
+        rank = _candidate_rank(request.candidate_id)
+        if rank is None or rank > listed_candidates(session_id):
+            raise HTTPException(
+                status_code=422,
+                detail=f"El candidato '{request.candidate_id}' no está en la lista.",
+            )
+        write_state(session_id, "detect.selected_candidate", request.candidate_id)
+
     loop = asyncio.get_event_loop()
     try:
         result = await loop.run_in_executor(
@@ -1063,6 +1114,8 @@ async def morphometry_neck_plane(
         logger.error("Neck-plane morphometry failed for %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
 
+    if request.candidate_id is not None:
+        result.candidate_id = request.candidate_id
     result.site = clinical_site(session_id)
     return result
 

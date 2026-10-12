@@ -6556,6 +6556,11 @@ export interface components {
          *     measures the neck directly from the plane∩tree contour.
          */
         NeckPlaneRequest: {
+            /**
+             * Candidate Id
+             * @description Candidato al que corresponde esta medida (`cand-00N`). Se guarda como el elegido para que «Reanudar» la repita sobre él. Hace falta con un candidato marcado a mano: la morfometría automática no lo mide (no tiene malla), así que nada más lo deja elegido (F1-146).
+             */
+            candidate_id?: string | null;
             /** @description Optional point inside the dome to disambiguate the sac side. Defaults to origin + 3·normal. */
             dome_seed?: components["schemas"]["Position3D"] | null;
             /**

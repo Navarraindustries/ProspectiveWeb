@@ -61,6 +61,12 @@ export const MANUAL_BADGE = "marcado a mano";
 /** F1-146: qué hacer cuando el detector no encontró la lesión. */
 export const MANUAL_HINT = "Una lesión que el detector no encontró se mide en Morfometría marcando el cuello y el ápice; el punto confirmado queda como candidato «marcado a mano».";
 
+/** Lo que responde la morfometría automática sobre un marcado a mano (el
+ *  mismo texto que el 422 del backend, `routers/detect.MANUAL_NO_SAC`). En
+ *  Morfometría se enseña como información, encima de los controles de cuello
+ *  y ápice: no es un fallo, es el camino. */
+export const MANUAL_NO_SAC = "Candidato marcado a mano: no hay saco detectado que aislar. Mide en Morfometría marcando el cuello y el ápice.";
+
 /** F1-148: lo que se pierde sin estudio archivado, dicho en lo que importa. */
 export const UNARCHIVED_NOTE = "Sin archivar, esta confirmación no queda ligada al paciente ni sirve para evaluar versiones futuras del detector";
 

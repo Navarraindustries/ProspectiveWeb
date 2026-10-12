@@ -187,3 +187,48 @@ def _shoelace_area(pts: np.ndarray, origin: np.ndarray, normal: np.ndarray) -> f
 
     area = 0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
     return float(area)
+
+
+# ── Graduación de la estenosis (F1-169) ─────────────────────────────────── #
+# La estenosis se gradúa como min/mediana sobre todo el perfil. En Case 3 un
+# perfil sano daba «Estenosis 71 % Significativa» porque la línea central
+# cruza bifurcaciones: el área salta de golpe al pasar a una rama más fina, y
+# ese salto no es un estrechamiento. El filtro IQR de arriba quita los valores
+# extremos pero no un escalón ni un mínimo de una sola muestra. Si el perfil
+# es así, se dice que es irregular en vez de poner un grado que alarma.
+IRREGULAR_CV = 0.35          # desviación típica / media de las áreas
+ISOLATED_MIN_FACTOR = 1.8    # vecinos del mínimo ≥ 1,8 × mínimo → mínimo aislado
+IRREGULAR_NOTE = ("El perfil tiene saltos (ramas o artefactos): "
+                  "la estenosis no se gradúa")
+
+
+@dataclass
+class StenosisGrade:
+    label: str
+    warning: str | None
+    note: str
+
+
+def grade_stenosis(areas_mm2: np.ndarray, stenosis_ratio: float) -> StenosisGrade:
+    """Rótulo, aviso y nota de la estenosis para un perfil de áreas ya filtrado."""
+    a = np.asarray(areas_mm2, dtype=np.float64)
+    if a.size >= 3:
+        mean = float(a.mean())
+        cv = float(a.std() / mean) if mean > 1e-9 else 0.0
+        i = int(a.argmin())
+        amin = float(a[i])
+        neighbours = [float(a[j]) for j in (i - 1, i + 1) if 0 <= j < a.size]
+        isolated = amin > 1e-9 and all(n >= ISOLATED_MIN_FACTOR * amin for n in neighbours)
+        if cv > IRREGULAR_CV or isolated:
+            return StenosisGrade("Perfil irregular", None, IRREGULAR_NOTE)
+
+    pct = (1.0 - stenosis_ratio) * 100.0
+    if pct < 20:
+        return StenosisGrade("Sin estenosis", None, "")
+    if pct < 50:
+        return StenosisGrade("Leve", None, "")
+    return StenosisGrade(
+        "Significativa",
+        f"Estenosis significativa (~{pct:.0f}%) en el punto más estrecho.",
+        "",
+    )

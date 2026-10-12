@@ -6,7 +6,7 @@
    DNR of 1.58 — while the 3D legend, which consulted no flag at all, went on
    annotating those same numbers over the scene. One screen, two answers. */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -17,10 +17,12 @@ vi.mock("../../api/client", () => ({
     morphometry: vi.fn().mockRejectedValue(new Error("no auto-run in test")),
     morphometryNeckPlane: vi.fn(),
     longitudinal: vi.fn().mockRejectedValue(new Error("sin seguimiento")),
+    followupStudies: vi.fn().mockResolvedValue([]),
     setClinicalSite: (sid: string, site: string) => setClinicalSite(sid, site),
   },
 }));
 
+import { api } from "../../api/client";
 import { MorphometryPanel, siteChangeNotice } from "./MorphometryPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import type { MorphometryResult } from "../../api/types";
@@ -71,8 +73,9 @@ describe("an open sac mesh with a valid neck", () => {
   it("hides the volume it could not measure", async () => {
     withMorphometry(openCap);
     await screen.findByText("7.0");
-    // Surface area survives an open mesh; the enclosed volume does not.
-    expect(screen.getByText("225.3")).toBeInTheDocument();
+    // F1-159: el área de una malla abierta tampoco es la del saco: «—» como
+    // el resto del grupo (antes salía 225.3 como si fuera una medida).
+    expect(screen.queryByText("225.3")).not.toBeInTheDocument();
     expect(screen.queryByText("0.0")).not.toBeInTheDocument();
   });
 });
@@ -331,5 +334,128 @@ describe("cambiar la localización lo dice", () => {
       { target: { value: "Tronco basilar" } });
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Se ha borrado: Decisión — vuelve a calcularla. Recalculados con la nueva localización: PHASES.");
+  });
+});
+
+
+/* ── Arreglos F1a, tarea 19: paso 4 ───────────────────────────────────── */
+
+let store: ReturnType<typeof usePlanning> | null = null;
+function withStore(m: MorphometryResult) {
+  function Seed({ children }: { children: ReactNode }) {
+    const p = usePlanning();
+    store = p;
+    useEffect(() => {
+      if (!p.sessionId) { p.setSession("s1"); p.setMorphometry(m); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [p.sessionId]);
+    return <>{children}</>;
+  }
+  return render(<PlanningProvider><Seed><MorphometryPanel onNext={() => {}} /></Seed></PlanningProvider>);
+}
+
+const valid = {
+  ...openCap, volume_mm3: 310.2, surface_area_mm2: 225.3, eq_sphere_diam_mm: 8.4, compactness: 0.72,
+  ei: 0.41, nsi: 0.28, reliable: true, volume_valid: true, neck_valid: true,
+} as unknown as MorphometryResult;
+
+describe("F1-153: «Marcar cuello» dice dónde pinchar y dónde quedó", () => {
+  it("tras marcar se ve la coordenada", async () => {
+    withStore(openCap);
+    const boton = await screen.findByRole("button", { name: /Marcar cuello/ });
+    expect(boton).toHaveAttribute("title", "Pincha en la unión del saco con el vaso");
+    act(() => { store!.setNeckOrigin([1.23, 4.56, -7.89]); store!.setNeckDome([0, 9.04, 2]); });
+    expect(await screen.findByText("(1,2; 4,6; −7,9) mm")).toBeInTheDocument();
+    expect(screen.getByText("(0,0; 9,0; 2,0) mm")).toBeInTheDocument();
+    // La muestra del color de la bola del 3D, junto a cada coordenada.
+    expect(screen.getByLabelText("Color de la marca de cuello")).toHaveStyle({ background: "rgb(217, 89, 217)" });
+    expect(screen.getByLabelText("Color de la marca de ápice")).toBeInTheDocument();
+  });
+});
+
+describe("F1-155: el borde del cuello se marca y se termina con botones aparte", () => {
+  it("tres clics y «Terminar» envían tres puntos", async () => {
+    vi.mocked(api.morphometryNeckPlane).mockResolvedValue(valid);
+    withStore(openCap);
+    fireEvent.click(await screen.findByRole("button", { name: "Marcar borde del cuello" }));
+    expect(store!.pickMode).toBe("neck_rim");
+    // Los tres clics en el 3D los añade el visor al store.
+    act(() => { store!.setNeckRim([[0, 3, 1], [1, 3, 0], [0, 3, -1]]); });
+    expect(await screen.findByText("Marcando borde · 3 puntos")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Terminar borde" }));
+    expect(store!.pickMode).toBeNull();
+    expect(screen.queryByRole("button", { name: "Terminar borde" })).toBeNull();
+    expect(screen.getByText("3 puntos de borde")).toBeInTheDocument();
+    act(() => { store!.setNeckDome([0, 7, 0]); });
+    fireEvent.click(screen.getByRole("button", { name: "Medir saco cerrado" }));
+    await waitFor(() => expect(api.morphometryNeckPlane).toHaveBeenCalled());
+    const body = vi.mocked(api.morphometryNeckPlane).mock.calls.at(-1)![1];
+    expect(body.rim_points).toHaveLength(3);
+  });
+});
+
+describe("F1-156: la medida hecha alrededor de las marcas lo dice", () => {
+  it("tras medir con marcas, el rótulo dice «medida manual»", async () => {
+    withStore({ ...valid, neck_source: "manual" } as MorphometryResult);
+    expect(await screen.findByText(/Saco cerrado medido alrededor de las marcas/)).toBeInTheDocument();
+    expect(screen.getByText("medida manual")).toBeInTheDocument();
+  });
+});
+
+describe("F1-164: los índices de forma, plegados y explicados", () => {
+  it("los índices de forma tienen tooltip", async () => {
+    withStore(valid);
+    fireEvent.click(await screen.findByText("Índices"));
+    expect(screen.queryByText("EI · Elipticidad")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Más índices/ }));
+    const tip = (label: string) => screen.getByText(label).closest("[title]")!.getAttribute("title");
+    expect(tip("EI · Elipticidad")).toMatch(/^Elipticidad: alargamiento del saco frente a una esfera.*Alto desde 0,35/);
+    expect(tip("NSI · No-esfericidad")).toMatch(/^No-esfericidad: desviación global de la esfera/);
+    expect(tip("Compacidad (Wadell)")).toBe("Wadell: 1 es una esfera; valores bajos indican lobulación");
+    expect(tip("Ø esfera equivalente")).toBe("Diámetro de la esfera con el mismo volumen");
+  });
+});
+
+describe("F1-166: la sesión actual en «Seguimiento»", () => {
+  const entry = (session_date: string, session_label: string) => ({
+    session_date, session_label, max_diameter_mm: 10.9, neck_mm: 4, volume_mm3: 300, ar: 0.91, dnr: 2,
+    rupture_risk_label: "Alto",
+  });
+  const seguimiento = async () => fireEvent.click(await screen.findByText("Seguimiento"));
+
+  it("con una sola sesión no hay fila sin rótulo", async () => {
+    vi.mocked(api.longitudinal).mockResolvedValueOnce({
+      patient_id: 1, entries: [entry("2026-10-10", "Estudio actual")], deltas: [],
+      growth_alert: false, growth_alert_message: null,
+    });
+    withStore(valid);
+    await seguimiento();
+    expect(await screen.findByText(/Sin sesiones previas guardadas/)).toBeInTheDocument();
+    expect(screen.queryByText("2026-10-10")).toBeNull();
+  });
+
+  it("con dos, la actual dice «esta sesión»", async () => {
+    vi.mocked(api.longitudinal).mockResolvedValueOnce({
+      patient_id: 1, entries: [entry("2026-04-01", "Control"), entry("2026-10-10", "Estudio actual")],
+      deltas: [], growth_alert: false, growth_alert_message: null,
+    });
+    withStore(valid);
+    await seguimiento();
+    expect(await screen.findByText("esta sesión · 2026-10-10")).toBeInTheDocument();
+    expect(screen.getByText("2026-04-01")).toBeInTheDocument();
+  });
+});
+
+describe("F1-171: avanzar con una medida no fiable", () => {
+  it("con `reliable=false` sale el aviso", async () => {
+    withStore(openCap);
+    const boton = await screen.findByRole("button", { name: /Continuar a decisión/ });
+    expect(boton).toBeEnabled();
+    expect(screen.getByText("La medida no es fiable: marca cuello y ápice antes de decidir")).toBeInTheDocument();
+  });
+  it("con una medida fiable no hay aviso", async () => {
+    withStore(valid);
+    await screen.findByRole("button", { name: /Continuar a decisión/ });
+    expect(screen.queryByText(/La medida no es fiable/)).toBeNull();
   });
 });

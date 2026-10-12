@@ -10,11 +10,12 @@ import { PHASES_CUTS, crossedCut, isProvisional, mm, nearCut } from "./diameterC
 import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
-import { PanelHead, ErrorNote } from "../PanelHead";
+import { PanelHead, ErrorNote, Collapsible } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { Select } from "../Select";
 import { Tabs } from "../Tabs";
-import { THRESHOLD_TIP, UI_HIGH, badgeFor } from "./thresholds";
+import { EI_MOD, THRESHOLD_TIP, UI_HIGH, badgeFor } from "./thresholds";
+import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, rgbCss, type Rgb } from "../../vtk/markerColors";
 import { FollowupOverlay } from "./FollowupOverlay";
 import { UiatsCalculator } from "./UiatsCalculator";
 import { ElapssCalculator } from "./ElapssCalculator";
@@ -53,6 +54,42 @@ function siteOptions(current: string | null | undefined) {
   const at = opts.findIndex((o) => o.value === "Punta basilar");
   return [...opts.slice(0, at), { value: LEGACY_BASILAR, label: LEGACY_BASILAR_LABEL }, ...opts.slice(at)];
 }
+
+/** «(1,2; 4,6; −7,9) mm»: coma decimal y punto y coma entre ejes, para que
+ *  la coma de los decimales no se confunda con la que separa x, y, z. */
+export function coordMm(p: readonly [number, number, number]): string {
+  const f = (v: number) => (Math.abs(v) < 0.05 ? 0 : v).toFixed(1).replace(".", ",").replace("-", "−");
+  return `(${p.map(f).join("; ")}) mm`;
+}
+
+/* F1-153: tras «Marcar cuello» el botón decía «Cuello ✓» y nada más; en el 3D
+   había dos bolas de colores y no se sabía cuál era cuál ni si la marca había
+   caído donde se quería. Al lado del botón, la muestra del color de la bola y
+   dónde quedó. */
+function MarkCoord({ p, color, what }: { p: readonly [number, number, number]; color: Rgb; what: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+      <span role="img" aria-label={`Color de la marca de ${what}`}
+            style={{ width: 10, height: 10, borderRadius: "50%", background: rgbCss(color), flexShrink: 0 }} />
+      {coordMm(p)}
+    </span>
+  );
+}
+
+/** F1-166: cómo llama el backend a la entrada de la sesión abierta
+ *  (routers/longitudinal.py): «Estudio actual» si está guardada, «Sesion actual» si no. */
+const CURRENT_LABELS = new Set(["Estudio actual", "Sesion actual", "Sesión actual"]);
+
+/* F1-164: los cuatro índices que la etiqueta de riesgo no usa (o usa solo el
+   EI), con qué miden y desde qué valor importan. Los cortes son los de
+   thresholds.ts; el NSI y la compacidad no tienen ninguno en la aplicación, y
+   así se dice en vez de inventarlo. */
+const MORE_TIP = {
+  ei: `Elipticidad: alargamiento del saco frente a una esfera (Raghavan 2005). Alto desde ${EI_MOD.toFixed(2).replace(".", ",")}, el mismo corte que la etiqueta de riesgo.`,
+  nsi: "No-esfericidad: desviación global de la esfera (1 − compacidad; Raghavan 2005). La aplicación no le pone corte ni lo usa en la etiqueta de riesgo.",
+  compactness: "Wadell: 1 es una esfera; valores bajos indican lobulación",
+  eq: "Diámetro de la esfera con el mismo volumen",
+};
 
 export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
@@ -217,21 +254,23 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
         <Icon name="STEP_PLAN" size={15} color="var(--muted-foreground)" />
         <div style={{ fontSize: 12, fontWeight: 600 }}>
           Plano de cuello{" "}
-          {mr?.neck_source === "manual" && <Badge variant="success">manual</Badge>}
-          {mr?.neck_source === "rim" && <Badge variant="success">ajustado al borde</Badge>}
+          {/* F1-156: «manual» solo no decía que la cifra de la tabla salía de
+              esas marcas, no de la medida automática que acababa de fallar. */}
+          {(mr?.neck_source === "manual" || mr?.neck_source === "rim") && <Badge variant="success">medida manual</Badge>}
+          {mr?.neck_source === "rim" && <> <Badge variant="success">ajustado al borde</Badge></>}
         </div>
       </div>
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
         {!mr
           ? "Marca el cuello y el ápice del domo sobre el modelo 3D para medir sobre un saco cerrado."
           : mr.neck_source === "rim"
-          ? `Plano ajustado a los puntos del borde, a ${mr.neck_tilt_deg.toFixed(0)}° del eje del domo. ${
+          ? `Saco cerrado medido alrededor de las marcas. Plano ajustado a los puntos del borde, a ${mr.neck_tilt_deg.toFixed(0)}° del eje del domo. ${
               mr.neck_tilt_deg < 10
                 ? "El cuello es casi perpendicular al eje, así que dos clics habrían dado lo mismo."
                 : "Con un solo punto el plano habría cortado el cuello en diagonal y lo habría medido más ancho de lo que es."
             }`
-          : mr.reliable
-          ? "Cuello definido manualmente. Recolócalo si es necesario."
+          : mr.neck_source === "manual"
+          ? "Saco cerrado medido alrededor de las marcas. Recolócalas y vuelve a medir si no están bien."
           : "La detección automática aísla una superficie abierta y no mide un cuello válido. Marca el cuello y el ápice del domo sobre el modelo 3D para medir sobre un saco cerrado."}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -239,29 +278,49 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
           variant={neckOrigin ? "secondary" : "default"}
           onClick={() => setPickMode("neck_origin")}
           disabled={pickMode === "neck_origin"}
+          title="Pincha en la unión del saco con el vaso"
           leadingIcon={<Icon name={neckOrigin ? "STATUS_OK" : "TARGET"} size={14} />}
         >
           {neckOrigin ? "Cuello ✓" : "Marcar cuello"}
         </Button>
+        {neckOrigin && <MarkCoord p={neckOrigin} color={NECK_ORIGIN_COLOR} what="cuello" />}
         <Button
           variant={neckDome ? "secondary" : "default"}
           onClick={() => setPickMode("neck_dome")}
           disabled={pickMode === "neck_dome"}
+          title="Pincha en la punta del domo"
           leadingIcon={<Icon name={neckDome ? "STATUS_OK" : "TARGET"} size={14} />}
         >
           {neckDome ? "Ápice ✓" : "Marcar ápice del domo"}
         </Button>
-        <Button
-          variant={neckRim.length ? "secondary" : "outline"}
-          onClick={() => setPickMode(pickMode === "neck_rim" ? null : "neck_rim")}
-          leadingIcon={<Icon name={usesRim ? "STATUS_OK" : "TARGET"} size={14} />}
-        >
-          {pickMode === "neck_rim"
-            ? `Clic en el borde (${neckRim.length})`
-            : neckRim.length
-              ? `Borde del cuello (${neckRim.length})`
-              : "Ajustar con varios puntos"}
-        </Button>
+        {neckDome && <MarkCoord p={neckDome} color={NECK_DOME_COLOR} what="ápice" />}
+        {/* F1-155: un solo botón pasaba por «Ajustar con varios puntos», «Clic
+            en el borde (n)» y «Borde del cuello (n)», y para terminar había que
+            volver a pulsar el mismo botón sin que nada lo dijera. Ahora entrar
+            y terminar son dos botones, y el recuento está siempre a la vista. */}
+        {pickMode === "neck_rim" ? (
+          <>
+            <Button variant="secondary" disabled leadingIcon={<Icon name="TARGET" size={14} />}>
+              {`Marcando borde · ${neckRim.length} ${neckRim.length === 1 ? "punto" : "puntos"}`}
+            </Button>
+            <Button onClick={() => setPickMode(null)} leadingIcon={<Icon name="STATUS_OK" size={14} />}>
+              Terminar borde
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant={neckRim.length ? "secondary" : "outline"}
+              onClick={() => setPickMode("neck_rim")}
+              leadingIcon={<Icon name={usesRim ? "STATUS_OK" : "TARGET"} size={14} />}
+            >
+              Marcar borde del cuello
+            </Button>
+            <span style={{ alignSelf: "center", fontSize: 11, color: "var(--muted-foreground)" }}>
+              {`${neckRim.length} ${neckRim.length === 1 ? "punto" : "puntos"} de borde`}
+            </span>
+          </>
+        )}
         {(neckRim.length > 0 || neckOrigin || neckDome) && (
           // Only the rim used to be clearable, so a cuello or ápice put on
           // the wrong spot stayed as a marker in the 3D scene with no way
@@ -288,6 +347,11 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             ? `Marca al menos 3 puntos del borde para ajustar el plano (llevas ${neckRim.length}). Con menos se usa el punto de cuello y el ápice.`
             : "Con un solo punto de cuello el plano se supone perpendicular al eje del domo. Si el cuello es oblicuo —típico en bifurcaciones— marca varios puntos de su borde."}
       </div>
+      {pickMode === "neck_origin" && (
+        <div role="status" style={{ fontSize: 11, color: "var(--foreground)", marginTop: 6 }}>
+          Pincha en la unión del saco con el vaso
+        </div>
+      )}
       {neckBusy && <div style={{ marginTop: 8 }}><ProgressBar /></div>}
     </div>
   );
@@ -392,7 +456,9 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 <Metric label="Altura de domo" value={neckOk ? m.dome_height_mm.toFixed(1) : "—"} unit={neckOk ? " mm" : ""} />
                 <Metric label="Volumen" value={volOk ? m.volume_mm3.toFixed(1) : "—"} unit={volOk ? " mm³" : ""}
                         badge={provisional && volOk ? ["provisional", "warning"] : undefined} />
-                <Metric label="Área superficie" value={m.surface_area_mm2.toFixed(1)} unit=" mm²" />
+                {/* F1-159: con la malla abierta el área es la del parche, no la del
+                    saco, igual que el volumen: «—» como el resto del grupo. */}
+                <Metric label="Área superficie" value={volOk ? m.surface_area_mm2.toFixed(1) : "—"} unit={volOk ? " mm²" : ""} />
                 {/* F1-160/161/162: un corte por índice, el mismo que la etiqueta de
                     riesgo y Decisión (thresholds.ts), con su fuente en el tooltip.
                     El BF decía «Cuello ancho» justo con el cuello estrecho. */}
@@ -442,10 +508,6 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 <div title={THRESHOLD_TIP.ui}>
                   <Metric label="UI · Ondulación" value={volOk ? m.ui.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ui", m.ui)} />
                 </div>
-                <div title={THRESHOLD_TIP.ei}>
-                  <Metric label="EI · Elipticidad" value={volOk ? m.ei.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ei", m.ei)} />
-                </div>
-                <Metric label="NSI · No-esfericidad" value={volOk ? m.nsi.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
                 {/* El SR depende de la arteria madre, que se mide justo por debajo
                     del cuello: con un cuello estimado automáticamente esa referencia
                     es frágil, y la cifra se presenta como orientativa. */}
@@ -464,8 +526,25 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                     mide justo bajo el cuello, así que marca el borde para fiarte de esta cifra.
                   </div>
                 )}
-                <Metric label="Compacidad (Wadell)" value={volOk ? m.compactness.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
-                <Metric label="Ø esfera equivalente" value={volOk ? m.eq_sphere_diam_mm.toFixed(1) : "—"} unit={volOk ? " mm" : ""} />
+                {/* F1-164: cuatro siglas sin decir qué miden ni desde cuándo
+                    importan, al mismo nivel que UI y SR, que sí puntúan. Van
+                    plegadas y cada una con su tooltip (MORE_TIP). */}
+                <div style={{ marginTop: 12 }}>
+                  <Collapsible title="Más índices" subtitle="Elipticidad, no-esfericidad, compacidad, Ø esfera equivalente" storageKey="morfo.mas-indices">
+                    <div title={MORE_TIP.ei}>
+                      <Metric label="EI · Elipticidad" value={volOk ? m.ei.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ei", m.ei)} />
+                    </div>
+                    <div title={MORE_TIP.nsi}>
+                      <Metric label="NSI · No-esfericidad" value={volOk ? m.nsi.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
+                    </div>
+                    <div title={MORE_TIP.compactness}>
+                      <Metric label="Compacidad (Wadell)" value={volOk ? m.compactness.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
+                    </div>
+                    <div title={MORE_TIP.eq}>
+                      <Metric label="Ø esfera equivalente" value={volOk ? m.eq_sphere_diam_mm.toFixed(1) : "—"} unit={volOk ? " mm" : ""} />
+                    </div>
+                  </Collapsible>
+                </div>
               </div>
             )}
             {tab === "PHASES" && (
@@ -492,11 +571,15 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                   </div>
                 )}
                 {longi && longi.entries.length >= 2 && <LongitudinalChart entries={longi.entries} />}
-                {longi && longi.entries.length > 0 ? (
+                {/* F1-166: con una sola entrada la lista era la propia sesión,
+                    una fecha suelta que parecía un control anterior. Hasta que
+                    haya dos no hay nada que comparar; con dos, la abierta se
+                    rotula «esta sesión». */}
+                {longi && longi.entries.length >= 2 ? (
                   longi.entries.map((e) => (
                     <Metric
                       key={e.session_date + e.session_label}
-                      label={e.session_date}
+                      label={CURRENT_LABELS.has(e.session_label) ? `esta sesión · ${e.session_date}` : e.session_date}
                       value={`${e.max_diameter_mm.toFixed(1)} mm · AR ${e.ar.toFixed(2)}`}
                       badge={[e.rupture_risk_label, riskVariant(e.rupture_risk_label)]}
                     />
@@ -519,8 +602,17 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
         disabled={!m}
         trailingIcon={<Icon name="STEP_PLAN" />}
       >
-        Decisión terapéutica
+        {/* Glosario: todo botón de avance dice «Continuar a …». */}
+        Continuar a decisión
       </Button>
+      {/* F1-171: se podía pasar a Decisión con «Medición no fiable» arriba y
+          nada junto al botón. Sigue encendido (el carril deja pasar), pero dice
+          qué falta. */}
+      {m && !m.reliable && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+          La medida no es fiable: marca cuello y ápice antes de decidir
+        </div>
+      )}
     </div>
   );
 }

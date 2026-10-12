@@ -135,7 +135,10 @@ class CrossSectionResult(BaseModel):
     mean_area_mm2: float
     stenosis_ratio: float = Field(..., description="min_area / median_area (1.0 = uniform)")
     stenosis_pct: float = Field(..., description="(1 − ratio) × 100 — narrowing at the tightest point")
-    stenosis_label: str = Field(..., description="'Sin estenosis' | 'Leve' | 'Significativa'")
+    stenosis_label: str = Field(
+        ..., description="'Sin estenosis' | 'Leve' | 'Significativa' | 'Perfil irregular'")
+    stenosis_note: str = Field(
+        "", description="Why the stenosis is not graded (profile with branch jumps); '' when graded")
     warning: str | None = None
 
 

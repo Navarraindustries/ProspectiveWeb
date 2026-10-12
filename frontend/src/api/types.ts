@@ -145,7 +145,10 @@ export interface CrossSectionResult {
   mean_area_mm2: number;
   stenosis_ratio: number;
   stenosis_pct: number;
+  /** 'Sin estenosis' | 'Leve' | 'Significativa' | 'Perfil irregular' */
   stenosis_label: string;
+  /** Por qué no se gradúa (perfil con saltos de rama, F1-169); «» si se gradúa. */
+  stenosis_note: string;
   warning: string | null;
 }
 

@@ -53,7 +53,10 @@ import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
 import { useAnnotationDelete } from "../components/annotations/useAnnotationDelete";
-import { focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
+import { cameraMayMove, focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
+import { hudCandidateLine, hudManualTag } from "./hudCandidate";
+// Cuello, ápice y borde: el panel de Morfometría pinta la misma muestra (F1-153).
+import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, NECK_RIM_COLOR } from "./markerColors";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
@@ -145,9 +148,6 @@ const TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29];     // red — picked target e
 const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — borrador de anotación (DRAFT_HEX en los cortes)
 /** La anotación seleccionada, más gruesa en el 3D (en los cortes, trazo 3). */
 const ANNOTATION_SELECTED_SCALE = 1.6;
-const NECK_ORIGIN_COLOR: Vector3 = [0.85, 0.35, 0.85]; // magenta — neck-plane point
-const NECK_DOME_COLOR: Vector3 = [0.36, 0.85, 0.86];   // cyan — dome apex
-const NECK_RIM_COLOR: Vector3 = [0.90, 0.45, 0.95];    // violet — marked neck rim
 const SCISSORS_COLOR: Vector3 = [1.00, 0.75, 0.10];    // amber — el anillo de la tijera
 const DOOMED_COLOR: Vector3 = [1.00, 0.25, 0.25];      // rojo — lo que se llevaría el corte
 const CROP_CENTER_COLOR: Vector3 = [0.98, 0.60, 0.20]; // orange — crop ROI centre
@@ -1254,11 +1254,19 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // llegada del mapa de calor, CALOR): ahí MeshView ya ha devuelto la cámara del
   // usuario, y volver a centrar la desplazaría también en profundidad, que se ve
   // como un zoom. Al entrar en el paso el foco se aplica con normalidad.
+  //
+  // F1-154: y salvo con un marcado armado (el borde del cuello sigue armado
+  // entre clics): un clic en un corte para orientarse movía el 3D y el
+  // siguiente punto caía en otro sitio. Por ref, para que desarmar el marcado
+  // no dispare este efecto y recentre justo al terminar.
   const focusFromPick = useRef(false);
   const lastFocus = useRef<{ point: Vec3 | null; inDevices: boolean }>({ point: null, inDevices: false });
+  const pickModeNow = useRef(pickMode);
+  pickModeNow.current = pickMode;
   useEffect(() => {
     if (focusFromPick.current) { focusFromPick.current = false; return; }
     if (!focusPoint || !syncViews || !camera) return;
+    if (!cameraMayMove({ pickMode: pickModeNow.current, justMeasuredManually: false })) return;
     const inDevices = devicesCameras.current.has(camera);
     if (inDevices && lastFocus.current.inDevices && lastFocus.current.point === focusPoint) return;
     camera.focus(focusPoint);
@@ -1775,11 +1783,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
         bodyFramed = true;
       }
     } else if (isMesh) {
+      // F1-154: tras «Medir saco cerrado» la capa del saco sustituye al
+      // localizador, la escena se rehace y MeshView reencuadraba al candidato:
+      // la vista desde la que se habían puesto las marcas se perdía. Con un
+      // marcado armado o una medida a mano en Morfometría se conserva la cámara.
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
           <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} labels={meshLabels} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
-            preserveCamera={step === "devices"}
+            preserveCamera={step === "devices" || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}
             handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio"} />
@@ -1805,10 +1817,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // Arriba a la izquierda: el paso, el candidato y el estado de la vista previa.
     const tl: string[] = [STEP_SCENE[step]?.toUpperCase() ?? ""];
     if (candidate && (step === "detect" || (isMesh && focusUrl))) {
-      // Un candidato marcado a mano (F1-146) no tiene grosor medido: «Ø 0.0 mm» mentiría.
-      tl.push(candidate.patch_kind === "manual"
-        ? `${candidate.id} · marcado a mano`
-        : `${candidate.id} · Ø ${candidate.max_diameter_mm.toFixed(1)} mm`);
+      // F1-158: el Ø medido si lo hay; si no, la estimación del detector con «est.».
+      tl.push(hudCandidateLine(candidate, morphometry));
+      // F1-156: dice que la medida salió de las marcas, no del saco automático.
+      const manualTag = hudManualTag(morphometry);
+      if (manualTag) tl.push(manualTag);
     }
     if (previewActive && previewBand) {
       const u = unitFor(meta?.modality);

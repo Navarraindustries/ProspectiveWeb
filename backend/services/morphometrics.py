@@ -229,18 +229,23 @@ class MorphometricAnalyzer:
         neck_reliable   = (neck_plane is not None) or (watertight and 0.1 <= neck_diam <= max_diam)
         reliable        = volume_reliable and neck_reliable
 
+        # F1-152: la nota antes contaba «32 aristas de borde» y pedía «definir
+        # un plano de cuello»; la persona no sabe qué es una arista de borde ni
+        # qué botón es ese plano. Se dice qué pasa y qué hacer con los botones
+        # que tiene delante («Marcar cuello» / «Marcar ápice»). El recuento de
+        # aristas se queda en el log para quien depure la malla.
         reasons = []
-        if not watertight:
-            reasons.append(f"malla abierta ({n_boundary} aristas de borde)")
         if watertight and not vol_ok:
             reasons.append("volumen no plausible")
         if not neck_reliable and watertight:
             reasons.append("cuello no medible automáticamente")
         note = ""
         if not reliable:
-            note = ("Medición no fiable: " + "; ".join(reasons)
-                    + ". Define un plano de cuello para medir sobre un saco cerrado.")
-            logger.warning("Morphometry unreliable — %s", note)
+            note = "; ".join(
+                ["La medida automática no cierra el saco: marca cuello y ápice"]
+                + reasons)
+            logger.warning("Morphometry unreliable — %s (aristas de borde: %d)",
+                           note, n_boundary)
         if not volume_reliable:
             # Volume group depends on a closed, plausible mesh.
             volume_mm3  = 0.0

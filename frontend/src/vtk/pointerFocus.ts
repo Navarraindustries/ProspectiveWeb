@@ -42,3 +42,16 @@ export function refocusAfterHide(
   if (!lost) return null;
   return mainCell?.querySelector<HTMLElement>('[tabindex="0"]') ?? host;
 }
+
+/** F1-154: si la cámara 3D puede moverse sola (seguir el foco de SINCRO o
+ *  reencuadrar al rehacer la escena). Al marcar cuello, ápice o borde no: un
+ *  clic en un corte recentraba el 3D y el siguiente punto caía en otro sitio.
+ *  Y justo después de medir a mano tampoco: la malla del saco cerrado entra en
+ *  la escena y el reencuadre devolvía la cámara a la vista inicial, perdiendo
+ *  el ángulo desde el que se habían puesto las marcas. Puro, para probarlo. */
+export function cameraMayMove({ pickMode, justMeasuredManually }: {
+  pickMode: string | null;
+  justMeasuredManually: boolean;
+}): boolean {
+  return pickMode === null && !justMeasuredManually;
+}

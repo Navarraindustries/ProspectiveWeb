@@ -1,6 +1,6 @@
 // frontend/src/vtk/pointerFocus.test.ts
 import { afterEach, describe, expect, it } from "vitest";
-import { focusOnPointerDown } from "./pointerFocus";
+import { cameraMayMove, focusOnPointerDown } from "./pointerFocus";
 
 function build() {
   document.body.innerHTML = `
@@ -75,5 +75,21 @@ describe("refocusAfterHide", () => {
     const t = mk();
     expect(refocusAfterHide(t.panelBtn, t.hidden, t.main, t.host)).toBeNull();
     t.done();
+  });
+});
+
+/* F1-154: al marcar cuello, ápice o borde, la cámara 3D se quedaba quieta tras
+   el clic pero luego se movía: SINCRO la recentraba con un clic en un corte y
+   el cambio de malla tras «Medir saco cerrado» la devolvía al encuadre. */
+describe("cameraMayMove", () => {
+  it("con marcado activo, el clic no recentra", () => {
+    expect(cameraMayMove({ pickMode: "neck_rim", justMeasuredManually: false })).toBe(false);
+    expect(cameraMayMove({ pickMode: "neck_origin", justMeasuredManually: false })).toBe(false);
+  });
+  it("tras medir a mano, el reencuadre no salta", () => {
+    expect(cameraMayMove({ pickMode: null, justMeasuredManually: true })).toBe(false);
+  });
+  it("sin marcado ni medida a mano, la cámara sigue al foco", () => {
+    expect(cameraMayMove({ pickMode: null, justMeasuredManually: false })).toBe(true);
   });
 });

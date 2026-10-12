@@ -5020,9 +5020,15 @@ export interface components {
             min_diameter_mm: number;
             /**
              * Stenosis Label
-             * @description 'Sin estenosis' | 'Leve' | 'Significativa'
+             * @description 'Sin estenosis' | 'Leve' | 'Significativa' | 'Perfil irregular'
              */
             stenosis_label: string;
+            /**
+             * Stenosis Note
+             * @description Why the stenosis is not graded (profile with branch jumps); '' when graded
+             * @default
+             */
+            stenosis_note: string;
             /**
              * Stenosis Pct
              * @description (1 − ratio) × 100 — narrowing at the tightest point

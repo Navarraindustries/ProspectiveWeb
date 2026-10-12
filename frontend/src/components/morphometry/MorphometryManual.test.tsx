@@ -62,7 +62,7 @@ describe("Morfometría con un candidato marcado a mano", () => {
     expect(screen.getAllByText(TEXTO_422)).toHaveLength(1);
     expect(screen.getByRole("button", { name: /Marcar cuello/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Marcar ápice del domo/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Ajustar con varios puntos/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Marcar borde del cuello" })).toBeInTheDocument();
     const medir = screen.getByRole("button", { name: "Medir saco cerrado" });
     expect(medir).toBeDisabled();
 

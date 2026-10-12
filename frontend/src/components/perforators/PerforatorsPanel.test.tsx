@@ -177,3 +177,26 @@ describe("when there is nothing to show", () => {
     expect(await screen.findByText(/ejecuta primero la detección/)).toBeInTheDocument();
   });
 });
+
+/* F1-167: «br-001 ⌀1.4 3.7 mm Medio» no decía de qué era «Medio» ni que la
+   fila encendía algo en el 3D. */
+describe("lo que dice cada fila", () => {
+  it("la zona lleva «riesgo para el clip»", async () => {
+    withSession({});
+    expect(await screen.findByText("riesgo para el clip: alto")).toBeInTheDocument();
+    expect(screen.getByText("riesgo para el clip: medio")).toBeInTheDocument();
+    expect(screen.queryByText("Medio")).toBeNull();
+  });
+
+  it("encender una fila la resalta en el 3D y lo dice", async () => {
+    const seen: { visible?: string[] } = {};
+    withSession(seen);
+    const row = await screen.findByRole("button", { name: /br-002/ });
+    expect(row).toHaveAttribute("aria-pressed", "false");
+    expect(row.getAttribute("title")).toMatch(/^Resaltar br-002 en el visor 3D/);
+    fireEvent.click(row);
+    await waitFor(() => expect(seen.visible).toEqual(["br-002"]));
+    expect(row).toHaveAttribute("aria-pressed", "true");
+    expect(row.getAttribute("title")).toMatch(/^Quitar el resalte de br-002 en el visor 3D/);
+  });
+});

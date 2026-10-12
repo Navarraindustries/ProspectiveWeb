@@ -12,7 +12,9 @@ vi.mock("../../api/client", () => ({ api: {
   getCenterline: (...a: unknown[]) => getCenterline(...a),
   centerlinePoints: (...a: unknown[]) => centerlinePoints(...a),
   clearCenterline: (...a: unknown[]) => clearCenterline(...a),
+  crossSection: (...a: unknown[]) => crossSection(...a),
 } }));
+const crossSection = vi.fn();
 
 let planning: Record<string, unknown> = {};
 vi.mock("../../store/planning", () => ({ usePlanning: () => planning }));
@@ -84,5 +86,52 @@ describe("«Limpiar» la línea central", () => {
     await waitFor(() => expect(clearCenterline).toHaveBeenCalledWith("s"));
     expect(planning.setCenterlineMesh).toHaveBeenCalledWith(null);
     expect(planning.clearDeviceMeshes).toHaveBeenCalledWith("stent");
+  });
+});
+
+
+/* F1-168 + fusión nº 22: la tabla de la línea central y la de secciones decían
+   las dos «Ø medio / mínimo / máximo» con cifras distintas, y la tortuosidad
+   salía dos veces (1,018 y 1,8 %). */
+describe("los rótulos de la línea central y de las secciones", () => {
+  const xs = (over: Record<string, unknown> = {}) => ({
+    arc_positions_mm: [0, 1], diameters_mm: [3, 3], mean_diameter_mm: 3.1, median_diameter_mm: 3.0,
+    min_diameter_mm: 2.2, max_diameter_mm: 4.0, mean_area_mm2: 7.5, stenosis_ratio: 0.29,
+    stenosis_pct: 71, stenosis_label: "Significativa", stenosis_note: "", warning: null, ...over,
+  });
+
+  it("una sola fila de tortuosidad, con el % en el tooltip", async () => {
+    render(<CenterlinePanel />);
+    const fila = (await screen.findByText("Tortuosidad")).closest("[title]")!;
+    expect(fila.getAttribute("title")).toMatch(/11,0 %/);
+    expect(screen.queryByText("Índice de tortuosidad")).toBeNull();
+  });
+
+  it("los dos juegos tienen rótulos distintos", async () => {
+    crossSection.mockResolvedValue(xs());
+    render(<CenterlinePanel />);
+    expect(await screen.findByText("Ø inscrito medio")).toBeInTheDocument();
+    expect(screen.getByText("Ø inscrito mínimo")).toBeInTheDocument();
+    expect(screen.getByText("Ø inscrito máximo")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Analizar secciones" }));
+    expect(await screen.findByText("Ø por área de sección medio")).toBeInTheDocument();
+    for (const l of ["mediana", "mínimo", "máximo"]) {
+      expect(screen.getByText(`Ø por área de sección ${l}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByText("Ø medio")).toBeNull();
+    expect(screen.queryByText("Ø mínimo")).toBeNull();
+  });
+
+  it("un perfil irregular enseña la nota y no un grado", async () => {
+    crossSection.mockResolvedValue(xs({
+      stenosis_label: "Perfil irregular",
+      stenosis_note: "El perfil tiene saltos (ramas o artefactos): la estenosis no se gradúa",
+    }));
+    render(<CenterlinePanel />);
+    await screen.findByText("Tortuosidad");
+    fireEvent.click(screen.getByRole("button", { name: "Analizar secciones" }));
+    expect(await screen.findByText("Perfil irregular")).toBeInTheDocument();
+    expect(screen.getByText("El perfil tiene saltos (ramas o artefactos): la estenosis no se gradúa")).toBeInTheDocument();
+    expect(screen.queryByText("71 %")).toBeNull();
   });
 });

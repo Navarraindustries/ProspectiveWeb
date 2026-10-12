@@ -3360,8 +3360,14 @@
       "type": "number"
      },
      "stenosis_label": {
-      "description": "'Sin estenosis' | 'Leve' | 'Significativa'",
+      "description": "'Sin estenosis' | 'Leve' | 'Significativa' | 'Perfil irregular'",
       "title": "Stenosis Label",
+      "type": "string"
+     },
+     "stenosis_note": {
+      "default": "",
+      "description": "Why the stenosis is not graded (profile with branch jumps); '' when graded",
+      "title": "Stenosis Note",
       "type": "string"
      },
      "stenosis_pct": {

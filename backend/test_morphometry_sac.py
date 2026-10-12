@@ -83,6 +83,9 @@ def test_open_cap_flagged_unreliable():
     assert mr.volume_mm3 == 0.0           # open-mesh volume nulled
     assert mr.dome_to_neck_ratio == 0.0
     assert "cuello" in mr.reliability_note or "abierta" in mr.reliability_note
+    # F1-152: la nota dice qué hacer y no cuenta aristas de borde.
+    assert "aristas" not in mr.reliability_note
+    assert "marca cuello y ápice" in mr.reliability_note
 
 
 def test_closed_sphere_volume_survives_even_if_auto_neck_degenerates():

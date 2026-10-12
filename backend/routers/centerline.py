@@ -20,7 +20,7 @@ from models.centerline import (
 )
 from models.detection import Position3D
 from services.centerline import extract_centerline
-from services.cross_section import compute_cross_sections
+from services.cross_section import compute_cross_sections, grade_stenosis
 from services.stent_deployment import deploy_stent_on_centerline
 from services.segmentation import read_vtp, write_vtp
 from services.sessions import mesh_url, session_exists, session_subdir
@@ -217,15 +217,8 @@ async def compute_cross_section(session_id: str, req: CrossSectionRequest) -> Cr
         raise HTTPException(status_code=500, detail=f"Error en sección transversal: {exc}")
 
     pct = (1.0 - result.stenosis_ratio) * 100.0
-    if pct < 20:
-        label = "Sin estenosis"
-    elif pct < 50:
-        label = "Leve"
-    else:
-        label = "Significativa"
-    warning = None
-    if pct >= 50:
-        warning = f"Estenosis significativa (~{pct:.0f}%) en el punto más estrecho."
+    # F1-169: con un perfil de saltos (bifurcaciones) no se pone grado.
+    grade = grade_stenosis(result.areas_mm2, result.stenosis_ratio)
 
     return CrossSectionResult(
         arc_positions_mm=[round(float(a), 2) for a in result.arc_positions_mm],
@@ -237,8 +230,9 @@ async def compute_cross_section(session_id: str, req: CrossSectionRequest) -> Cr
         mean_area_mm2=round(result.mean_area_mm2, 2),
         stenosis_ratio=round(result.stenosis_ratio, 3),
         stenosis_pct=round(pct, 1),
-        stenosis_label=label,
-        warning=warning,
+        stenosis_label=grade.label,
+        stenosis_note=grade.note,
+        warning=grade.warning,
     )
 
 

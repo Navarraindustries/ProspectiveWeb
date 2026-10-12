@@ -51,7 +51,41 @@ import { neckPlacement, toPlacement, toStoredClip, poseKey, isStale, fieldColour
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
 export { neckPlacement };
 
-const TABS = ["Clips", "Coils", "Stents", "Stent CL", "WEB"] as const;
+/* F1-189: «Stents» y «Stent CL» no decían en qué se diferenciaban. Los dos
+   colocan UN stent: la diferencia es la geometría (tubo recto con la medida
+   del catálogo, o desplegado sobre la línea central). Tabs parte en líneas,
+   así que los nombres largos caben. */
+const TAB_STENT = "Stent recto";
+const TAB_STENT_CL = "Stent sobre la línea central";
+const TABS = ["Clips", "Coils", TAB_STENT, TAB_STENT_CL, "WEB"] as const;
+
+/** Verificado en el backend: `devices.stent` es UNA ranura de estado que
+ *  escriben los dos planificadores (routers/plan.py y routers/centerline.py
+ *  llaman a `save_stent`), y el visor tiene una sola malla «stent». Colocar uno
+ *  sustituye al otro en el plan, en el visor y en el informe. */
+const UN_SOLO_STENT = "Un solo stent por sesión: colocar uno sustituye al otro";
+
+function UnSoloStent() {
+  return (
+    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+      {UN_SOLO_STENT}
+    </div>
+  );
+}
+
+/** F1-206: una sola expresión para la geometría, la misma del PDF y del SR
+ *  (`stent_geometry_label` en backend/services/report_generator.py). */
+function geometriaStent(followsCenterline: boolean): string {
+  return followsCenterline ? "Sigue la línea central" : "Tubo recto";
+}
+
+/** F1-205: el diámetro nominal parte de la arteria portadora medida, al paso
+ *  del deslizador (0,25 mm: el error queda dentro de la tolerancia «nominal»
+ *  del backend) y dentro del rango del modelo. */
+function diametroDesdeVaso(vesselMm: number, min: number, max: number): number {
+  const paso = Math.round(vesselMm / 0.25) * 0.25;
+  return Math.min(Math.max(paso, min), max);
+}
 const ORIGIN: Position3D = { x: 0, y: 0, z: 0 };
 
 /** Take a placed device family off the plan: its mesh AND the record the report
@@ -1119,6 +1153,16 @@ function StentsTab() {
 
   const current = stents.find((s) => s.id === sel);
 
+  // F1-205: empezaba en 4 mm, el valor por defecto, con la arteria portadora
+  // ya medida. Se siembra de la morfometría (la misma cifra contra la que el
+  // planificador juzga el dimensionado) hasta que la persona lo mueva.
+  const vaso = morphometry?.parent_artery_mm ?? 0;
+  const tocado = useRef(false);
+  useEffect(() => {
+    if (tocado.current || !current || !(vaso > 0)) return;
+    setDiameter(diametroDesdeVaso(vaso, current.min_diameter_mm, current.max_diameter_mm));
+  }, [current, vaso]);
+
   const run = async () => {
     if (!sessionId || !current) return;
     setBusy(true);
@@ -1144,6 +1188,7 @@ function StentsTab() {
 
   return (
     <div style={{ marginTop: 12 }}>
+      <UnSoloStent />
       <Select
         label={`Stent / desviador de flujo (${stents.length} modelos)`}
         options={stents.map((s) => ({ value: s.id, label: `${s.name} — ${s.manufacturer} (${STENT_TYPE_LABEL[s.type] ?? s.type})` }))}
@@ -1166,9 +1211,14 @@ function StentsTab() {
             max={current.max_diameter_mm}
             step={0.25}
             value={diameter}
-            onChange={setDiameter}
+            onChange={(v) => { tocado.current = true; setDiameter(v); }}
             unit=" mm"
           />
+          {vaso > 0 && !tocado.current && (
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+              Parte de la arteria portadora medida en el cuello ({vaso.toFixed(2)} mm).
+            </div>
+          )}
           <div style={{ height: 14 }} />
           <Select
             label="Longitud"
@@ -1190,8 +1240,11 @@ function StentsTab() {
           <Metric label="Del cuello medido" value={plan.neck_diameter_covered_mm.toFixed(1)} unit=" mm" />
           <Metric label="Longitud necesaria" value={plan.required_length_mm.toFixed(0)} unit=" mm" />
           {plan.parent_artery_mm > 0 && (
+            // F1-208: tres calibres en el paso y ninguno decía dónde se medía.
+            // Este es el del vaso padre estimado junto al cuello.
             <Metric
-              label="Arteria portadora"
+              label="Arteria portadora (en el cuello)"
+              wrapLabel
               value={plan.parent_artery_mm.toFixed(2)}
               unit=" mm"
               badge={
@@ -1203,13 +1256,19 @@ function StentsTab() {
           )}
           <Metric
             label="Geometría"
-            value={plan.follows_centerline ? "Sigue el vaso" : "Tubo recto"}
-            badge={plan.follows_centerline ? ["Línea central", "success"] : ["Aproximado", "warning"]}
+            value={geometriaStent(plan.follows_centerline)}
+            badge={plan.follows_centerline ? undefined : ["Aproximado", "warning"]}
           />
+          {/* F1-207: «OK» junto a «Infradimensionado» se contradecía. El
+              despliegue solo es OK si además el dimensionado es nominal. */}
           <Metric
             label="Despliegue"
-            value={plan.deployed ? "OK" : "Incompatible"}
-            badge={plan.deployed ? ["OK", "success"] : ["Revisar", "destructive"]}
+            value={!plan.deployed ? "Incompatible" : plan.sizing === "nominal" ? "OK" : "Desplegado"}
+            badge={
+              !plan.deployed ? ["Revisar", "destructive"]
+              : plan.sizing === "nominal" ? ["OK", "success"]
+              : ["Revisar", "warning"]
+            }
           />
           {plan.warning && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>
@@ -1280,16 +1339,20 @@ function ClStentTab() {
 
   if (!hasCenterline) {
     return (
-      <div style={{ marginTop: 12, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
-        Extrae primero la <b style={{ color: "var(--foreground)" }}>línea central</b> del vaso
-        (paso Morfometría → Línea central). El stent se desplegará siguiendo su curvatura,
-        a diferencia del stent recto de la pestaña «Stents».
+      <div style={{ marginTop: 12 }}>
+        <UnSoloStent />
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
+          Extrae primero la <b style={{ color: "var(--foreground)" }}>línea central</b> del vaso
+          (paso Morfometría → Línea central). El stent se desplegará siguiendo su curvatura,
+          a diferencia del de la pestaña «{TAB_STENT}».
+        </div>
       </div>
     );
   }
 
   return (
     <div style={{ marginTop: 12 }}>
+      <UnSoloStent />
       {sessionId && (
         <FdSizing
           sessionId={sessionId}
@@ -1320,7 +1383,9 @@ function ClStentTab() {
         <Card style={{ marginTop: 14 }}>
           <Metric label="Longitud desplegada" value={plan.length_mm.toFixed(1)} unit=" mm" />
           <Metric label="Ø stent" value={plan.nominal_diameter_mm.toFixed(2)} unit=" mm" />
-          <Metric label="Ø vaso medio" value={plan.mean_vessel_diameter_mm.toFixed(2)} unit=" mm" />
+          {/* F1-208: la media a lo largo del tramo cubierto, no la arteria en
+              el cuello de la otra pestaña: por eso las dos cifras no casan. */}
+          <Metric label="Ø medio del tramo cubierto" wrapLabel value={plan.mean_vessel_diameter_mm.toFixed(2)} unit=" mm" />
           <Metric
             label="Cobertura (stent/vaso)"
             value={plan.coverage_ratio.toFixed(2)}
@@ -1865,8 +1930,8 @@ const STRATEGY_OPTIONS: { value: DeviceStrategy | ""; label: string }[] = [
   { value: "", label: "—" },
   { value: "clips", label: "Clips" },
   { value: "coils", label: "Coils" },
-  { value: "stent", label: "Stent" },
-  { value: "stent_cl", label: "Stent CL" },
+  { value: "stent", label: TAB_STENT },
+  { value: "stent_cl", label: TAB_STENT_CL },
   { value: "web", label: "WEB" },
 ];
 
@@ -2024,8 +2089,8 @@ export function DevicesPanel({ onNext }: { onNext: () => void }) {
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
       {tab === "Clips" && <ClipsTab />}
       {tab === "Coils" && <CoilsTab />}
-      {tab === "Stents" && <StentsTab />}
-      {tab === "Stent CL" && <ClStentTab />}
+      {tab === TAB_STENT && <StentsTab />}
+      {tab === TAB_STENT_CL && <ClStentTab />}
       {tab === "WEB" && sessionId && <WebSizing sessionId={sessionId} />}
       <Button variant="outline" style={{ marginTop: 18, width: "100%" }} onClick={onNext} trailingIcon={<Icon name="SETTINGS" />}>
         Continuar a fabricación

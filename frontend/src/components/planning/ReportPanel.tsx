@@ -22,7 +22,7 @@ const TEAM_LABEL: Record<string, string> = {
   clipaje: "Clipaje", endovascular: "Endovascular", vigilar: "Vigilar", otra: "Otra",
 };
 const STRATEGY_LABEL: Record<string, string> = {
-  clips: "Clips", coils: "Coils", stent: "Stent", stent_cl: "Stent CL", web: "WEB",
+  clips: "Clips", coils: "Coils", stent: "Stent recto", stent_cl: "Stent sobre la línea central", web: "WEB",
 };
 
 /** «Coils · 3 en el plan». El WEB se dimensiona pero no se coloca: sin cuenta. */

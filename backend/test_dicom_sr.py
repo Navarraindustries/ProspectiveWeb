@@ -69,3 +69,49 @@ class TestDicomSR:
         # Risk encoded as a CODE item.
         code_items = [it for it in morph.ContentSequence if it.ValueType == "CODE"]
         assert len(code_items) == 1
+
+
+# ── F1-206: la geometría del stent con una sola expresión ─────────────────── #
+
+def _textos_sr(sid: str) -> list[str]:
+    path = session_subdir(sid, "reports") / f"{sid}_sr.dcm"
+    ds = pydicom.dcmread(str(path))
+    out: list[str] = []
+
+    def walk(seq):
+        for it in seq:
+            if getattr(it, "ValueType", "") == "TEXT":
+                out.append(str(it.TextValue))
+            if "ContentSequence" in it:
+                walk(it.ContentSequence)
+
+    walk(ds.ContentSequence)
+    return out
+
+
+class TestStentGeometryWording:
+    """Pantalla, PDF y SR decían la geometría de tres maneras («Sigue el vaso»,
+    «Guiado por línea central», «Recto / catálogo»), y el SR llamaba «Recto» a
+    un stent de la pestaña recta que en realidad seguía la línea central."""
+
+    def _sr(self, stent: dict) -> list[str]:
+        from services.device_state import save_stent
+        sid = _session_with_morpho()
+        save_stent(sid, {"name": "Pipeline", "diameter_mm": 4.0, "length_mm": 20.0,
+                         "coverage_pct": 100.0, **stent})
+        r = client.post("/api/report/dicom-sr", json={"session_id": sid})
+        assert r.status_code == 200, r.text
+        return _textos_sr(sid)
+
+    def test_un_stent_curvado_no_dice_recto(self):
+        textos = self._sr({"kind": "straight", "follows_centerline": True})
+        assert "Sigue la línea central" in textos
+        assert not any("Recto" in t or "recto" in t for t in textos)
+
+    def test_el_de_la_linea_central_dice_lo_mismo(self):
+        textos = self._sr({"kind": "centerline"})
+        assert "Sigue la línea central" in textos
+
+    def test_el_tubo_recto_se_llama_tubo_recto(self):
+        textos = self._sr({"kind": "straight", "follows_centerline": False})
+        assert "Tubo recto" in textos

@@ -773,6 +773,10 @@ export interface MorphometryResult {
   ei: number;
   nsi: number;
   sr: number;
+  /** Arteria portadora estimada en el cuello (la que usa el planificador de
+   *  stent recto); null si no se pudo medir. F1-205: siembra el «Diámetro
+   *  nominal» del stent en vez del 4 del catálogo. */
+  parent_artery_mm?: number | null;
   rupture_risk_label: RiskLabel;
   reliable: boolean;
   /** El saco CERRADO aislado al marcar el cuello. Es la única malla que

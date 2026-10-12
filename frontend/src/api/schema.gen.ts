@@ -6524,6 +6524,11 @@ export interface components {
              * @default 0
              */
             nsi: number;
+            /**
+             * Parent Artery Mm
+             * @description Parent-artery diameter estimated at the neck from the vessel tree (`morpho.parent_artery_mm`, services/parent_artery.py) — the same figure the straight-stent planner sizes against. None when it could not be measured. The device panel seeds the stent's nominal diameter from it (F1-205).
+             */
+            parent_artery_mm?: number | null;
             /** @description Unit normal of that same plane, pointing at the dome. Sent because the 3D annotation used to rebuild a neck ring from the PCA axis instead, so on an oblique neck — the case the rim fit exists for — the ring drawn was NOT the plane that measured the neck, and the user had no way to see where their plane had landed. */
             plane_normal?: components["schemas"]["Position3D"] | null;
             /** @description Origin of the neck plane ACTUALLY used to isolate the sac, when one was placed by hand. Null for the automatic path. */

@@ -43,4 +43,15 @@ describe("dimensionado de WEB", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("no es un domo lleno");
     expect(screen.queryByText(/^DAV/)).toBeNull();
   });
+
+  it("el domo lleva su definición y la indicación dice qué rango usa (F1-209)", async () => {
+    vi.mocked(api.webSizing).mockResolvedValue({ ...base, within_indication: false,
+      warnings: ["Domo de 11.7 mm: fuera de los 3–10 mm de la indicación aprobada."] });
+    render(<WebSizing sessionId="s1" />);
+    fireEvent.click(screen.getByText("Dimensionar"));
+    expect(await screen.findByText(/anchura máxima en el plano del cuello, no el Ø máximo del saco/)).toBeInTheDocument();
+    const linea = screen.getByText("Fuera de la indicación aprobada");
+    expect(linea.getAttribute("title")).toMatch(/domo de 3 a 10 mm/);
+    expect(linea.getAttribute("title")).toMatch(/cuello ≥ 4 mm/);
+  });
 });

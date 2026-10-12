@@ -31,6 +31,7 @@ from services.sessions import (
 )
 from services.report_generator import (
     ReportGenerator, build_report_data_from_session, read_trajectory_state,
+    stent_geometry_label,
 )
 from services.dicom_sr import DicomSRGenerator
 from services.mesh_exporter import export_stl, merge_poly_datas, apply_scale
@@ -255,8 +256,8 @@ async def generate_dicom_sr(
             phases = data.phases or None,
             stents = [{
                 "name":        stent.name,
-                "stent_type":  "Guiado por línea central" if stent.kind == "centerline"
-                               else "Recto / catálogo",
+                # F1-206: la misma expresión que la pantalla y el PDF.
+                "stent_type":  stent_geometry_label(stent.kind, stent.follows_centerline),
                 "diameter_mm": stent.diameter_mm,
                 "length_mm":   stent.length_mm,
             }] if stent is not None else None,

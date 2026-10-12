@@ -272,6 +272,27 @@ def test_morphometry_persists_every_field_the_report_reads():
     assert 0.0 <= morpho["compactness"] <= 1.0     # PDF prints it as "1.0 = esfera"
 
 
+def test_parent_artery_is_exposed_as_the_stent_planner_reads_it():
+    """F1-205: el «Diámetro nominal» del stent recto empezaba en 4 mm, el valor
+    por defecto del catálogo, con la arteria portadora ya medida. La pantalla
+    no tenía la cifra hasta después de desplegar; ahora la morfometría la da,
+    la misma que lee el planificador (`morpho.parent_artery_mm`)."""
+    from services.sessions import read_state, write_state
+
+    client, sid = _session_with_synthetic_tree()
+    api = client.post(f"/api/morphometry/{sid}/neck-plane", json=_NECK_PLANE_BODY).json()
+    assert "parent_artery_mm" in api
+    raw = read_state(sid, "morpho.parent_artery_mm", "")
+    assert api["parent_artery_mm"] == (round(float(raw), 2) if raw else None)
+
+    # Y vuelve con GET /morphometry (reanudar), leída del mismo sitio.
+    write_state(sid, "morpho.parent_artery_mm", "4.83")
+    from routers.detect import _parent_artery_out
+    assert _parent_artery_out(sid) == 4.83
+    write_state(sid, "morpho.parent_artery_mm", "")
+    assert _parent_artery_out(sid) is None
+
+
 def test_neck_origin_is_exposed_and_sits_on_the_neck_plane():
     """Device planning needs the neck centre, and must not re-derive it.
 

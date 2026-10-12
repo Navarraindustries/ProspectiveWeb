@@ -80,7 +80,7 @@ describe("«Estrategia del equipo» en «En el plan (n)»", () => {
     const sel = await screen.findByLabelText("Estrategia del equipo") as HTMLSelectElement;
     await waitFor(() => expect(sel.value).toBe("coils"));
     expect(Array.from(sel.options).map((o) => o.text))
-      .toEqual(["—", "Clips", "Coils", "Stent", "Stent CL", "WEB"]);
+      .toEqual(["—", "Clips", "Coils", "Stent recto", "Stent sobre la línea central", "WEB"]);
     fireEvent.change(sel, { target: { value: "clips" } });
     await waitFor(() => expect(api.setDeviceStrategy).toHaveBeenCalledWith("s1", "clips"));
     fireEvent.change(sel, { target: { value: "" } });

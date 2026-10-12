@@ -43,8 +43,20 @@ _TIPO_COIL = {"framing": "Enmarcado", "filling": "Relleno", "finishing": "Acabad
 _DECISION_EQUIPO = {"clipaje": "Clipaje", "endovascular": "Endovascular",
                     "vigilar": "Vigilar", "otra": "Otra"}
 #: F1-188: la estrategia de dispositivo marcada, con el nombre de su pestaña.
-_ESTRATEGIA = {"clips": "Clips", "coils": "Coils", "stent": "Stent",
-               "stent_cl": "Stent CL", "web": "WEB"}
+_ESTRATEGIA = {"clips": "Clips", "coils": "Coils", "stent": "Stent recto",
+               "stent_cl": "Stent sobre la línea central", "web": "WEB"}
+
+
+def stent_geometry_label(kind: str, follows_centerline: bool) -> str:
+    """F1-206: la geometría del stent con UNA expresión en pantalla, PDF y SR.
+
+    Se decía de tres maneras («Sigue el vaso», «Guiado por línea central»,
+    «Recto / catálogo») y el SR llamaba «Recto» a un stent de la pestaña recta
+    que, con línea central extraída, la sigue (`routers/plan.py`). Lo que
+    cuenta es la forma de la malla, no la pestaña desde la que se colocó.
+    """
+    return ("Sigue la línea central"
+            if kind == "centerline" or follows_centerline else "Tubo recto")
 
 
 def _minuscula(texto: str) -> str:
@@ -1750,7 +1762,7 @@ class ReportGenerator:
         # labelling them identically would misread a 101 % fit ratio as neck
         # coverage. See StentEntry.
         if st.kind == "centerline":
-            title        = self._stent_heading("stent_cl", "Stent guiado por línea central")
+            title        = self._stent_heading("stent_cl", "Stent sobre la línea central")
             length_label = "Longitud desplegada"
             cov_label    = "Cobertura (Ø stent / Ø vaso)"
             cov_value    = f"{st.coverage_pct / 100.0:.2f}"
@@ -1785,11 +1797,10 @@ class ReportGenerator:
             rows.append(["Dimensionado",
                          _SIZING_ES.get(st.sizing, st.sizing),
                          "sobredimensionar baja la cobertura metálica"])
-        if st.kind == "straight":
-            rows.append(["Geometría",
-                         "Sigue la línea central" if st.follows_centerline
-                         else "Tubo recto (sin línea central)",
-                         "—"])
+        # Las dos pestañas dicen la geometría, con la misma expresión (F1-206).
+        rows.append(["Geometría",
+                     stent_geometry_label(st.kind, st.follows_centerline),
+                     "—"])
         tbl = Table(rows, colWidths=[5.5*cm, 4.0*cm, 8.4*cm])
         ts  = TableStyle([
             ("BACKGROUND",    (0, 0), (0, -1), self._GREY_LIGHT),

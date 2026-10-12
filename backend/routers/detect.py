@@ -831,6 +831,21 @@ def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
 _CANDIDATE_ID = re.compile(r"^cand-(\d{3})$")
 
 
+def _parent_artery_out(session_id: str) -> float | None:
+    """La arteria portadora tal como la lee el planificador de stent.
+
+    F1-205: el panel de dispositivos arrancaba el «Diámetro nominal» en 4 mm
+    porque esta cifra solo volvía DESPUÉS de desplegar. Se lee del estado, no
+    de la variable local, para que sea exactamente la que usa `routers/plan.py`.
+    """
+    raw = read_state(session_id, "morpho.parent_artery_mm", "")
+    try:
+        v = float(raw) if raw else 0.0
+    except ValueError:
+        return None
+    return round(v, 2) if v > 0 else None
+
+
 # ── GET /morphometry/{session_id} ─────────────────────────────────────────── #
 
 @router.get(
@@ -1799,6 +1814,7 @@ def _run_morphometry_sync(
         ei                = round(_clamp01(mr.ellipticity_index),  4),
         nsi               = round(_clamp01(mr.non_sphericity_idx), 4),
         sr                = round(max(0.0, mr.size_ratio),         3),
+        parent_artery_mm  = _parent_artery_out(session_id),
         rupture_risk_label= mr.rupture_risk_label,
         reliable          = mr.reliable,
         neck_source       = neck_source,

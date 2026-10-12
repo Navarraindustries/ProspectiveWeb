@@ -419,7 +419,7 @@ def _run_fd_sizing(session_id: str, vessel_path, points_path):
         read_vtp(vessel_path), np.load(points_path)["points"], neck, neck_mm,
         [s.model_dump() for s in _STENT_LIBRARY], rim_points=rim,
     )
-    # Dos medidas de la misma arteria que no casan: la pestaña «Stents»
+    # Dos medidas de la misma arteria que no casan: la pestaña «Stent recto»
     # dimensiona con la de la morfometría. En un caso real dio 1,67 mm donde
     # los cortes sobre la línea central miden 4–5 mm.
     parent = _load_float(session_id, "morpho.parent_artery_mm", 0.0)
@@ -432,7 +432,7 @@ def _run_fd_sizing(session_id: str, vessel_path, points_path):
             r.warnings.append(
                 f"La arteria madre de la morfometría ({parent:.2f} mm) no coincide con "
                 f"el calibre medido aquí sobre la línea central ({aqui:.2f} mm). La "
-                f"pestaña «Stents» dimensiona con la de la morfometría: "
+                f"pestaña «Stent recto» dimensiona con la de la morfometría: "
                 + ("es de una versión anterior del cálculo; vuelve a ejecutar la morfometría."
                    if vieja else "compruébala."))
     return r

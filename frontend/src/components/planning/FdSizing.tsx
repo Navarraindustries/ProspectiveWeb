@@ -20,6 +20,12 @@ function zona(nombre: string, z: FdLandingZone) {
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700 }}>
         {z.diameter_mm > 0 ? `${z.diameter_mm.toFixed(2)} mm` : "sin medir"}
       </div>
+      {/* F1-208: el calibre dice dónde se mide. Es la mediana de los cortes
+          en el anclaje, no la arteria portadora en el cuello ni la media del
+          tramo que da el despliegue: tres cifras distintas del mismo vaso. */}
+      <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
+        {`Ø mediano del vaso en el ${nombre.toLowerCase()}`}
+      </div>
       {z.diameter_mm > 0 && (
         <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
           {z.min_mm.toFixed(2)}–{z.max_mm.toFixed(2)} · {z.n_sections} cortes

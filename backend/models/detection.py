@@ -221,6 +221,16 @@ class MorphometryResult(BaseModel):
             "0 when parent artery not available (> 3.0 → elevated risk)"
         ),
     )
+    parent_artery_mm: float | None = Field(
+        None, ge=0.0,
+        description=(
+            "Parent-artery diameter estimated at the neck from the vessel tree "
+            "(`morpho.parent_artery_mm`, services/parent_artery.py) — the same "
+            "figure the straight-stent planner sizes against. None when it could "
+            "not be measured. The device panel seeds the stent's nominal "
+            "diameter from it (F1-205)."
+        ),
+    )
 
     # ── Risk label ────────────────────────────────────────────────────────── #
     rupture_risk_label: Literal["Alto", "Moderado", "Bajo"] = Field(

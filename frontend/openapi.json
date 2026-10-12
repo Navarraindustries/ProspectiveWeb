@@ -5779,6 +5779,19 @@
       "title": "Nsi",
       "type": "number"
      },
+     "parent_artery_mm": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Parent-artery diameter estimated at the neck from the vessel tree (`morpho.parent_artery_mm`, services/parent_artery.py) — the same figure the straight-stent planner sizes against. None when it could not be measured. The device panel seeds the stent's nominal diameter from it (F1-205).",
+      "title": "Parent Artery Mm"
+     },
      "plane_normal": {
       "anyOf": [
        {

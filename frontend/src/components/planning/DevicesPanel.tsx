@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../../api/client";
 import type {
   ClipPlacement,
-  ClipPlanResult,
   CorridorAssessmentOut,
   ClipLibraryItem,
   CustomClipInfo,
@@ -25,7 +24,6 @@ import type {
   StentLibraryItem,
   StentPlanResult,
   SuggestCorridorsResult,
-  TrajectoryResult,
 } from "../../api/types";
 import { Button } from "../Button";
 import { ClipFieldCard } from "./ClipFieldCard";
@@ -42,7 +40,7 @@ import { Tabs } from "../Tabs";
 import { TILT_MAX_DEG } from "../../vtk/clipPose";
 import { angleReferenceLabel } from "../../vtk/approachView";
 import { usePlanning, type PlacedClip } from "../../store/planning";
-import { neckPlacement, toPlacement, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
+import { neckPlacement, toPlacement, toStoredClip, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
 
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
 export { neckPlacement };
@@ -158,6 +156,7 @@ function ClipsTab() {
     clipField, setClipField, showClipField, setShowClipField,
     placedClips: placed, setPlacedClips: setPlaced, plannedClips, setPlannedClips,
     fieldClips, fieldMeshOnScreen, selectedClipKey, setSelectedClipKey, setClipsTabActive,
+    clipPlan: plan, setClipPlan: setPlan,
   } = usePlanning();
   // El que maneja el asa del 3D: el elegido en la lista o, si no hay, el último.
   const activeKey = placed.some((c) => c.key === selectedClipKey) ? selectedClipKey : placed.at(-1)?.key ?? null;
@@ -184,7 +183,9 @@ function ClipsTab() {
   // Select showed no selection and the placed clip was labelled with its raw
   // id ("navarro:t1:0:7.0") instead of its name.
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
-  const [plan, setPlan] = useState<ClipPlanResult | null>(null);
+  // La verificación de la colocación vive en el store: en la pestaña se
+  // perdía al cambiar a Coils y volver, y no había forma de que «Reanudar» la
+  // devolviera (F1-28).
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -409,6 +410,10 @@ function ClipsTab() {
       // ella para saber cuánto se ha movido el clip desde entonces.
       setPlannedClips(clips);
       setDeviceMesh("clips", res.clips_mesh_url || null);
+      // La fila editable viaja con la sesión: reanudar devolvía el clip como
+      // malla, sin poder moverlo ni verificarlo (F1-28). Si no se guarda, el
+      // plan sigue en pie; solo se perdería al reanudar.
+      api.putPlacedClips(sessionId, { clips: clips.map(toStoredClip), plan: res }).catch(() => { /* ver arriba */ });
       await requestField(clips, placements, clearSeq);
     } catch (err) {
       if (cleared()) return;
@@ -1420,14 +1425,26 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
   );
 }
 
+/** El mismo punto, con la tolerancia de lo que viaja como texto en el estado. */
+function samePoint(a: number[], b: readonly number[] | null): boolean {
+  return !!b && a.length === 3 && a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
+}
+
 /* ── Trayectoria de abordaje quirúrgico ────────────────────────────────── */
 export function TrajectoryTool() {
   const {
     sessionId, segmentation, pickMode, setPickMode,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, morphometry,
+    // En el store, para que «Reanudar» la devuelva con su ángulo y su
+    // corredor y el botón diga «Guardada ✓» (F1-247).
+    trajSaved, setTrajSaved: setSaved,
   } = usePlanning();
+  // Lo guardado vale mientras los puntos sean esos: mover la entrada o la diana
+  // después de guardar dejaba «Guardada ✓» y el ángulo de la trayectoria vieja.
+  // Ahora que lo guardado vuelve con la sesión, se notaría más.
+  const saved = trajSaved && samePoint(trajSaved.entry, trajEntry) && samePoint(trajSaved.target, trajTarget)
+    ? trajSaved : null;
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<TrajectoryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sugerencias, setSugerencias] = useState<SuggestCorridorsResult | null>(null);
   const [sugiriendo, setSugiriendo] = useState(false);
@@ -1631,7 +1648,7 @@ const KIND_LABEL: Record<DeviceKind, string> = {
  *  stent looked like whichever tab was open. This is the one place that says
  *  what the plan really contains — and lets it be emptied in one action. */
 function PlacedDevicesBar() {
-  const { sessionId, deviceMeshes, setDeviceMesh, clearDeviceMeshes } = usePlanning();
+  const { sessionId, deviceMeshes, restoreDeviceMesh, clearDeviceMeshes } = usePlanning();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1646,7 +1663,10 @@ function PlacedDevicesBar() {
         if (!alive) return;
         for (const kind of r.remaining) {
           const url = r.mesh_urls[kind];
-          if (url) setDeviceMesh(kind, url);
+          // Reponer lo que ya está en el plan guardado no es un cambio: con
+          // setDeviceMesh, abrir Dispositivos tras reanudar avisaba de
+          // «cambios sin guardar» sin haber tocado nada (F1-250).
+          if (url) restoreDeviceMesh(kind, url);
         }
       })
       .catch(() => { /* nothing placed, or the session is gone */ });

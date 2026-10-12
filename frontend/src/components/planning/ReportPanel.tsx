@@ -48,7 +48,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const planning = usePlanning();
   const {
     sessionId, patient, caseId, imagingStudyId, morphometry, treatment,
-    captureViewport, markSaved,
+    captureViewport, markSaved, reportUrls,
   } = planning;
   const [includeShot, setIncludeShot] = useState(true);
   // Cuáles de las capturas guardadas entran, en el orden en que se marcan.
@@ -74,7 +74,15 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
     devices: planning.deviceMeshes,
   }), [planning.segmentation?.mesh_url, morphometry, treatment, planning.deviceMeshes]);
 
-  const generatedFrom = useRef<Record<string, string>>({});
+  // Los documentos que volvieron con una sesión reanudada (F1-249) se generaron
+  // con lo que se guardó, que es lo que el store tiene al abrir este paso: se
+  // dan por actuales hasta que algo cambie, como uno recién generado.
+  const generatedFrom = useRef<Record<string, string>>({
+    ...(reportUrls?.pdf_url ? { pdf: planSignature } : {}),
+    ...(reportUrls?.dicom_sr_url ? { sr: planSignature } : {}),
+  });
+  const pdfUrl = report?.pdf_url ?? reportUrls?.pdf_url ?? null;
+  const srUrl = sr?.dicom_sr_url ?? reportUrls?.dicom_sr_url ?? null;
   const stale = (kind: "pdf" | "stl" | "glb" | "seg" | "sr") =>
     generatedFrom.current[kind] !== undefined && generatedFrom.current[kind] !== planSignature;
 
@@ -251,9 +259,9 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         <Button leadingIcon={<Icon name="DOC" />} onClick={() => void genPdf()} disabled={busy !== null}>
           {busy === "pdf" ? "Generando…" : stale("pdf") ? "Regenerar informe PDF" : "Generar informe PDF"}
         </Button>
-        {report?.pdf_url && (
-          <OutputLink href={report.pdf_url} stale={stale("pdf")}>
-            Descargar PDF {report.page_count ? `(${report.page_count} páginas)` : ""} →
+        {pdfUrl && (
+          <OutputLink href={pdfUrl} stale={stale("pdf")}>
+            Descargar PDF {report?.page_count ? `(${report.page_count} páginas)` : ""} →
           </OutputLink>
         )}
         <Button variant="outline" leadingIcon={<Icon name="SAVE" />} onClick={() => void genStl()} disabled={busy !== null}>
@@ -275,8 +283,8 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         <Button variant="outline" leadingIcon={<Icon name="DATABASE" />} onClick={() => void genSr()} disabled={busy !== null}>
           {busy === "sr" ? "Generando…" : stale("sr") ? "Regenerar DICOM SR" : "Generar DICOM SR"}
         </Button>
-        {sr?.dicom_sr_url && (
-          <OutputLink href={sr.dicom_sr_url} stale={stale("sr")}>
+        {srUrl && (
+          <OutputLink href={srUrl} stale={stale("sr")}>
             Descargar informe estructurado DICOM (.dcm) →
           </OutputLink>
         )}

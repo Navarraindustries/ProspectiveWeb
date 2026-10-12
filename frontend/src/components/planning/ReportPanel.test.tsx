@@ -56,3 +56,33 @@ describe("exportar la segmentación como DICOM SEG", () => {
     expect(screen.getByText(/Sin saco aislado/)).toBeInTheDocument();
   });
 });
+
+/* F1-249: reanudar volvía sin los enlaces aunque el PDF y el SR siguieran en
+   disco; había que generarlos otra vez para poder descargarlos. */
+describe("enlaces del informe tras reanudar", () => {
+  function montarReanudada(urls: { pdf_url?: string | null; dicom_sr_url?: string | null } | null) {
+    function Seed({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        if (!p.sessionId) { p.setSession("s1"); p.setReportUrls(urls); }
+      }, [p]);
+      return p.sessionId ? <>{children}</> : null;
+    }
+    return render(<PlanningProvider><Seed><ReportPanel onFinish={() => {}} /></Seed></PlanningProvider>);
+  }
+
+  it("con el PDF y el SR en disco, enlaza a los dos", async () => {
+    montarReanudada({ pdf_url: "/data/sessions/s1/reports/vieja_report.pdf?v=1", dicom_sr_url: "/data/sessions/s1/reports/vieja_sr.dcm?v=1" });
+    const pdf = await screen.findByText(/Descargar PDF/);
+    expect(pdf.closest("a")).toHaveAttribute("href", "/data/sessions/s1/reports/vieja_report.pdf?v=1");
+    const sr = screen.getByText(/Descargar informe estructurado DICOM/);
+    expect(sr.closest("a")).toHaveAttribute("href", "/data/sessions/s1/reports/vieja_sr.dcm?v=1");
+  });
+
+  it("sin ficheros guardados no enseña enlaces", async () => {
+    montarReanudada(null);
+    await screen.findByText("Generar informe PDF");
+    expect(screen.queryByText(/Descargar PDF/)).toBeNull();
+    expect(screen.queryByText(/Descargar informe estructurado DICOM/)).toBeNull();
+  });
+});

@@ -45,8 +45,16 @@ import type {
   SeriesInfo,
   TreatmentDecisionRequest,
   TreatmentDecisionResult,
+  ClipPlanResult,
+  TrajectoryResult,
   VolumeMeta,
 } from "../api/types";
+
+/** Los documentos ya generados que volvieron con una sesión reanudada. */
+export interface ReportUrls {
+  pdf_url?: string | null;
+  dicom_sr_url?: string | null;
+}
 
 interface PlanningState {
   patient: PatientSummary | null;
@@ -111,6 +119,12 @@ interface PlanningState {
   /** Window/level shared by every MPR view (strip, main preview and oblique).
       Null until the volume metadata arrives, then seeded from the DICOM. */
   mprWl: { wc: number; ww: number } | null;
+  /** La ventana que volvió con una sesión reanudada. El visor siembra la del
+   *  DICOM al llegar la meta del volumen, DESPUÉS de reanudar; esta la gana una
+   *  vez y se consume (`takeRestoredWl`). Sin ella la ventana guardada se
+   *  perdía nada más abrir el visor (F1-248). */
+  restoreWl: (w: { wc: number; ww: number } | null) => void;
+  takeRestoredWl: () => { wc: number; ww: number } | null;
   /** Crosshair voxel shared by every MPR view, so navigating in one moves all. */
   mprVoxel: { x: number; y: number; z: number };
   /** Active pick mode: centreline endpoints, the neck plane, an annotation… */
@@ -168,6 +182,10 @@ interface PlanningState {
   placedClips: PlacedClip[];
   /** La lista con la que se cocieron las mallas vigentes; null sin plan. */
   plannedClips: PlacedClip[] | null;
+  /** La verificación de la última colocación (cobertura, contacto, ramas).
+   *  Vivía en la pestaña y se perdía al desmontarla o al reanudar (F1-28). */
+  clipPlan: ClipPlanResult | null;
+  setClipPlan: (p: ClipPlanResult | null) => void;
   /** La lista para la que se calculó el mapa de calor vigente; null sin campo.
    *  El plan llega antes que el campo: «DESFASADO» y el mapa atenuado siguen
    *  hasta que llega ESTE, porque hasta entonces el veredicto es el de antes. */
@@ -221,6 +239,14 @@ interface PlanningState {
   /** Surgical approach trajectory: entry point and aneurysm target (mm). */
   trajEntry: Vec3 | null;
   trajTarget: Vec3 | null;
+  /** La trayectoria guardada con su ángulo y su corredor. En el store y no en
+   *  el panel para que «Reanudar» la devuelva y el botón diga «Guardada ✓»
+   *  (F1-247). */
+  trajSaved: TrajectoryResult | null;
+  setTrajSaved: (t: TrajectoryResult | null) => void;
+  /** Enlaces al PDF y al SR que volvieron con la sesión reanudada (F1-249). */
+  reportUrls: ReportUrls | null;
+  setReportUrls: (u: ReportUrls | null) => void;
   /** Show the 3D morphometric overlay (neck disc, dome/max-diameter lines, labels). */
   morphoOverlay: boolean;
   /** Capture the live 3D viewport as a PNG data URL (set by MeshView while mounted). */
@@ -334,6 +360,9 @@ interface PlanningState {
   setDeviceMesh: (kind: DeviceKind, url: string | null) => void;
   /** Forget placed devices locally (the API call is the panel's job). */
   clearDeviceMeshes: (kind?: DeviceKind) => void;
+  /** Pone la malla de un dispositivo que ya estaba en el plan guardado. No
+   *  marca cambios: reponer lo que hay en disco no es un cambio (F1-250). */
+  restoreDeviceMesh: (kind: DeviceKind, url: string) => void;
   setCenterlineMesh: (url: string | null) => void;
   setCenterlineArcMm: (v: number | null) => void;
   setStentMap: (m: StentMap) => void;
@@ -461,6 +490,19 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [centerlineArcMm, setCenterlineArcMm] = useState<number | null>(null);
   const [stentMap, setStentMap] = useState<StentMap>("apposition");
   const [mprWl, setMprWl] = useState<{ wc: number; ww: number } | null>(null);
+  const restoredWlRef = useRef<{ wc: number; ww: number } | null>(null);
+  const restoreWl = useCallback((w: { wc: number; ww: number } | null) => {
+    restoredWlRef.current = w;
+    if (w) setMprWl(w);
+  }, []);
+  const takeRestoredWl = useCallback(() => {
+    const w = restoredWlRef.current;
+    restoredWlRef.current = null;
+    return w;
+  }, []);
+  const [trajSaved, setTrajSaved] = useState<TrajectoryResult | null>(null);
+  const [reportUrls, setReportUrls] = useState<ReportUrls | null>(null);
+  const [clipPlan, setClipPlan] = useState<ClipPlanResult | null>(null);
   const [mprVoxel, setMprVoxel] = useState({ x: 0, y: 0, z: 0 });
   const [pickMode, _setPickMode] = useState<PickMode>(null);
   const [annotationDraft, setAnnotationDraft] = useState<Vec3[]>([]);
@@ -645,6 +687,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     _setDeviceMeshes((d) => ({ ...d, [kind]: url }));
     setDirty(true);
   };
+  const restoreDeviceMesh = (kind: DeviceKind, url: string) =>
+    _setDeviceMeshes((d) => ({ ...d, [kind]: url }));
   const clearDeviceMeshes = (kind?: DeviceKind) => {
     _setDeviceMeshes((d) => (kind ? { ...d, [kind]: null } : { clips: null, coils: null, stent: null }));
     // El campo describe un plan de clips concreto; sin clips no hay nada que describa.
@@ -653,6 +697,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       // Sin malla de clips la lista ya no describe nada del plan.
       _setPlacedClips([]);
       setPlannedClips(null);
+      setClipPlan(null);
       setSelectedClipKey(null);
     }
     setDirty(true);
@@ -688,6 +733,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setClipField(null);
     _setPlacedClips([]);
     setPlannedClips(null);
+    setClipPlan(null);
     setSelectedClipKey(null);
     _setPerforators([]);
     setPerforatorZones(null);
@@ -702,6 +748,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setErasePick(null);
     setTrajEntry(null);
     setTrajTarget(null);
+    setTrajSaved(null);
+    // Un PDF de otro volumen no describe nada de lo nuevo.
+    setReportUrls(null);
     setMorphoOverlay(false);
     setFocusPoint(null);
     // La orientación fijada a mano NO es «aguas abajo»: es del volumen, no de
@@ -712,6 +761,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
 
   const reset = () => {
     setDirty(false);
+    restoredWlRef.current = null;
     setCase(null);
     setImagingStudyId(null);
     setSession(null);
@@ -757,14 +807,14 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
-        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, reportUrls, setReportUrls, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,
         setMorphoInvalidatedNotice, clearMorphometry,
-        setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
+        setDeviceMesh, clearDeviceMeshes, restoreDeviceMesh, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
         setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,

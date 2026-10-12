@@ -37,6 +37,7 @@ import { presetForKey } from "./layoutShortcuts";
 import { gridFor } from "./layoutGrid";
 import { flushSync } from "react-dom";
 import { api } from "../api/client";
+import { usePersistWindow } from "./windowPersist";
 import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
@@ -235,7 +236,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts, clipField, showClipField, setShowClipField,
-    mprWl, mprVoxel, setMprWl, setMprVoxel,
+    mprWl, mprVoxel, setMprWl, setMprVoxel, takeRestoredWl,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
     focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     volumeMode, volumePreset, setVolumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
@@ -410,14 +411,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const levelNoteShort = levelNoteFor(clientVol.level, clientVol.stride, clientVol.progress, clientVol.error, true);
   const [nz, ny, nx] = meta?.shape ?? [1, 1, 1];
   // Al llegar un volumen nuevo: crosshair al centro y la ventana del estudio
-  // (lo que hacía MprStrip, que ya no existe).
+  // (lo que hacía MprStrip, que ya no existe). Si la sesión se acaba de
+  // reanudar con una ventana guardada, esa: la meta llega después de reanudar
+  // y pisaba la ventana restaurada con la del DICOM (F1-248).
   useEffect(() => {
     if (meta) {
       setMprVoxel({ x: Math.floor(nx / 2), y: Math.floor(ny / 2), z: Math.floor(nz / 2) });
-      setMprWl({ wc: meta.wc, ww: meta.ww });
+      setMprWl(takeRestoredWl() ?? { wc: meta.wc, ww: meta.ww });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, nx, ny, nz]);
+  // La ventana viaja con la sesión: al soltar un arrastre de W/L, con rebote.
+  usePersistWindow(sessionId, mprWl, meta ? { wc: meta.wc, ww: meta.ww } : null, api.putWindow);
   // El plano libre pasa por el punto compartido más su desplazamiento: un clic
   // en un corte mueve ese punto y podía dejar el plano fuera del volumen (el
   // oblicuo en negro, el recorte LIBRE en todo o nada). Se reacota aquí, en un

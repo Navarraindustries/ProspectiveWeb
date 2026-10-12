@@ -2,7 +2,7 @@
    guarda posición y ángulos, y la normal se deriva SIEMPRE del eje del cuello.
    Guardarla aparte dejaría dos verdades que podrían separarse al cambiar la
    morfometría. */
-import type { ClipPlacement, MorphometryResult } from "../../api/types";
+import type { ClipPlacement, MorphometryResult, PlacedClipState } from "../../api/types";
 import type { PlacedClip } from "../../store/planning";
 import type { Vec3 } from "../../vtk/geometry";
 import { neckFrameNormal } from "../../vtk/clipPose";
@@ -61,6 +61,25 @@ export function activeClip(placed: PlacedClip[], selectedKey: number | null): Pl
 export function toPlacement(m: MorphometryResult | null, c: PlacedClip): ClipPlacement {
   const [x, y, z] = c.position;
   return { clip_id: c.clip_id, position: { x, y, z }, normal: [...clipNormal(m, c)], rotation_deg: c.rotation_deg };
+}
+
+/** Un clip del store tal como se guarda con la sesión. */
+export function toStoredClip(c: PlacedClip): PlacedClipState {
+  return {
+    key: c.key, clip_id: c.clip_id, name: c.name, position: [...c.position],
+    rotation_deg: c.rotation_deg, azimuthDeg: c.azimuthDeg, elevationDeg: c.elevationDeg,
+  };
+}
+
+/** Lo guardado con la sesión, de vuelta como fila editable. Null si la
+ *  posición no son tres números: un clip sin sitio no se puede colocar. */
+export function fromStoredClip(s: PlacedClipState): PlacedClip | null {
+  const [x, y, z] = s.position;
+  if (s.position.length !== 3 || ![x, y, z].every(Number.isFinite)) return null;
+  return {
+    key: s.key, clip_id: s.clip_id, name: s.name || s.clip_id, position: [x, y, z],
+    rotation_deg: s.rotation_deg, azimuthDeg: s.azimuthDeg, elevationDeg: s.elevationDeg,
+  };
 }
 
 /** Poses como texto: teclear «2» → «2.» → «2.0» crea listas nuevas con los

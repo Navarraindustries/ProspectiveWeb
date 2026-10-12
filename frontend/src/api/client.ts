@@ -52,6 +52,7 @@ import type {
   CustomClipInfo,
   CustomJawOut,
   DeviceClearResult,
+  PlacedClipsState,
   DeviceKind,
   ExportRequest,
   LibraryClip,
@@ -379,8 +380,10 @@ export const api = {
     post<MeshComponentDeleteResult>(`/api/mesh-component-delete/${sessionId}`, {
       point, max_distance_mm: maxDistanceMm,
     }),
-  detect: (sessionId: string) =>
-    post<AneurysmDetectionResult>(`/api/detect/${sessionId}`),
+  /** `cached`: la detección guardada en la sesión, sin recalcular (404 si no
+   *  hay). «Reanudar» la pide así: recalcular daba otra lista (F1-246). */
+  detect: (sessionId: string, opts: { cached?: boolean } = {}) =>
+    post<AneurysmDetectionResult>(`/api/detect/${sessionId}${opts.cached ? "?cached=true" : ""}`),
   /** Sin `candidateId`, el backend mide el que se eligió la última vez (o el mejor). */
   morphometry: (sessionId: string, candidateId?: string) =>
     get<MorphometryResult>(
@@ -471,6 +474,11 @@ export const api = {
 
   /* MPR / DICOM slice preview */
   volumeMeta: (sessionId: string) => get<VolumeMeta>(`/api/volume/${sessionId}/meta`),
+  /** Guarda la ventana y el nivel de los cortes con la sesión. */
+  putWindow: (sessionId: string, w: { wc: number; ww: number }) =>
+    request<{ wc: number; ww: number }>(`/api/volume/${sessionId}/window`, {
+      method: "PUT", body: JSON.stringify(w), headers: { "Content-Type": "application/json" },
+    }),
   /** Fija a mano la orientación de un volumen sin etiquetas; devuelve la meta. */
   setOrientation: (sessionId: string, body: ManualOrientationBody) =>
     request<VolumeMeta>(`/api/volume/${sessionId}/orientation`, { method: "PUT", body: JSON.stringify(body) }),
@@ -646,6 +654,11 @@ export const api = {
   /** Which device families still hold a plan (used after resuming a session). */
   placedDevices: (sessionId: string) =>
     get<DeviceClearResult>(`/api/devices/${sessionId}`),
+  /** Guarda la lista editable de clips y la verificación de su colocación. */
+  putPlacedClips: (sessionId: string, state: PlacedClipsState) =>
+    request<PlacedClipsState>(`/api/devices/${sessionId}/placed-clips`, {
+      method: "PUT", body: JSON.stringify(state), headers: { "Content-Type": "application/json" },
+    }),
   /** Remove a placed device family — mesh AND the record the report reads — so
       another device can be planned on a clean scene. Omit `kind` to clear all. */
   clearDevices: (sessionId: string, kind?: DeviceKind) =>

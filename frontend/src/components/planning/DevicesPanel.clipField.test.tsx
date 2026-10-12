@@ -16,6 +16,8 @@ vi.mock("../../api/client", async (orig) => {
     placedDevices: vi.fn(async () => ({ remaining: [], mesh_urls: {} })),
     coilRecommendations: vi.fn(() => new Promise(() => { /* la pestaña de coils solo se monta y se desmonta */ })),
     clearDevices: vi.fn(async () => ({ status: "ok" })),
+    putPlacedClips: vi.fn(async (_sid: string, state: unknown) => state),
+    clipOcclusion: vi.fn(() => new Promise(() => { /* la tarjeta de oclusión no es lo que se prueba */ })),
     planClips: vi.fn(async () => ({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null })),
     clipField: vi.fn(async () => ({ field_mesh_url: "/m/clip_field.vtp?v=1", scalars: {}, summary: { covered_pct: 90, residual_pct: 10, unreached_pct: 0, contact_area_mm2: 8, force_g: 120, force_is_band_min: true, force_provisional: true, pressure_g_mm2: 15, window_g_mm2: [10, 12, 18, 22], pressure_verdict: "optima", force_window_g: [70, 80, 120, 150], neck_evaluated: true, clips: [{ name: "x", force_g: 120, verdict: "optima" }], verdict: "ok", criteria: [], clip_name: "x", note: "Estimación geométrica" } })),
   } };
@@ -349,5 +351,38 @@ describe("DevicesPanel · campo del clip", () => {
     // El plan sigue ahí: la tarjeta de cobertura del plan se pintó.
     expect(screen.getByText("Extensión de las hojas sobre el cuello")).toBeInTheDocument();
     expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull();
+  });
+
+  // F1-28: reanudar devolvía el clip como malla. La fila editable y su
+  // verificación se guardan al colocar y vuelven con la sesión.
+  it("al colocar guarda la lista editable y la verificación con la sesión", async () => {
+    await colocar();
+    await waitFor(() => expect(api.putPlacedClips).toHaveBeenCalledTimes(1));
+    const [sid, state] = vi.mocked(api.putPlacedClips).mock.calls[0];
+    expect(sid).toBe("s1");
+    expect(state.clips).toEqual([{ key: 1, clip_id: "navarro:t1:0:10.0", name: "NAVARRO T1 10 mm",
+      position: [1, 2, 3], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 }]);
+    expect(state.plan?.neck_coverage_pct).toBe(90);
+  });
+
+  it("una lista que volvió al reanudar enseña su verificación sin volver a colocar", async () => {
+    const clip = { key: 5, clip_id: "navarro:t1:0:10.0", name: "NAVARRO T1 10 mm", position: [1, 2, 3] as [number, number, number], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 };
+    function Reanudada({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        if (p.sessionId) return;
+        p.setSession("s1"); p.setMorphometry(morpho);
+        p.setPlacedClips([clip]); p.setPlannedClips([clip]);
+        p.setClipPlan({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 77, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null });
+        p.restoreDeviceMesh("clips", "/m/clips.vtp");
+      }, [p]);
+      return p.sessionId ? <>{children}</> : null;
+    }
+    vi.mocked(api.placedDevices).mockResolvedValueOnce({ cleared: [], remaining: ["clips"], meshes_removed: 0, mesh_urls: { clips: "/m/clips.vtp?v=9" } });
+    render(<PlanningProvider><Reanudada><DevicesPanel onNext={() => {}} /></Reanudada></PlanningProvider>);
+    fireEvent.click(await screen.findByText("Colocar"));
+    expect(await screen.findByText(/77\.0/)).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(api.planClips).not.toHaveBeenCalled();
   });
 });

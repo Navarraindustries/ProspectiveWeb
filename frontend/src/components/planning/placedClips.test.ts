@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeClip, clipNormal, fieldColoursOnScreen, isStale, neckPlacement, poseKey, toPlacement } from "./placedClips";
+import { activeClip, clipNormal, fieldColoursOnScreen, fromStoredClip, isStale, neckPlacement, poseKey, toPlacement, toStoredClip } from "./placedClips";
 import type { MorphometryResult } from "../../api/types";
 const morpho = { principal_axis: [0, 1, 0], neck_origin: { x: 1, y: 2, z: 3 } } as unknown as MorphometryResult;
 const clip = { key: 1, clip_id: "navarro:x", name: "X", position: [1, 2, 3] as [number, number, number], rotation_deg: 10, azimuthDeg: 0, elevationDeg: 0 };
@@ -47,5 +47,18 @@ describe("fieldColoursOnScreen", () => {
   });
   it("sin campo tampoco", () => {
     expect(fieldColoursOnScreen({ shown: true, fieldUrl: null, loadedUrl: null })).toBe(true);
+  });
+});
+
+describe("la lista guardada con la sesión (F1-28)", () => {
+  // Reanudar devolvía los clips como malla: sin la fila no se podían mover.
+  const c = { key: 4, clip_id: "navarro:x", name: "X", position: [1, 2, 3] as [number, number, number], rotation_deg: 10, azimuthDeg: 12, elevationDeg: -8 };
+  it("ida y vuelta sin perder la pose ni la inclinación", () => {
+    const back = fromStoredClip(toStoredClip(c));
+    expect(back).toEqual(c);
+    expect(poseKey([back!])).toBe(poseKey([c]));
+  });
+  it("una posición que no son tres números no vuelve", () => {
+    expect(fromStoredClip({ ...toStoredClip(c), position: [1, 2] })).toBeNull();
   });
 });

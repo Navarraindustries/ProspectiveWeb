@@ -4,7 +4,6 @@ import { ForcePasswordChange } from "./components/ForcePasswordChange";
 import { useCallback, useEffect, useState } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api/client";
-import { restoredSegmentation } from "./api/restoredSegmentation";
 import type { PatientSummary, StudyCard, StudySummary } from "./api/types";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
@@ -23,7 +22,7 @@ import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
 import { ClipOrdersPage } from "./pages/ClipOrders";
 import { WorkshopsPage } from "./pages/Workshops";
 import type { Screen } from "./store/nav";
-import { STEPS, clampStep } from "./pipeline/steps";
+import { rehydrateSession } from "./resume";
 import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
 
 function Router() {
@@ -139,8 +138,8 @@ function Router() {
   };
 
   // Resume a saved study session: restore its files into a fresh live session,
-  // rehydrate the store (mesh + downstream results are re-derived deterministically),
-  // and open the workspace at the step it was saved on.
+  // rehydrate the store from what came back (src/resume.ts), and open the
+  // workspace at the step it was saved on.
   const resumeSession = async (sessionId: string, p: PatientSummary) => {
     setToast("Restaurando sesión…");
     try {
@@ -149,103 +148,12 @@ function Router() {
       // Hasta que llegue su lista, el [] del store no es el de la sesión.
       planning.setAnnotationsLoadState("pendiente");
       planning.setPatient(p);
-      // A resumed session keeps planning the same case and acquisition, so the
-      // breadcrumb and the next "Guardar progreso" don't lose that link.
-      planning.setCase(r.study_id, r.study_label);
-      planning.setImagingStudyId(r.imaging_study_id);
       setPatient(p);
-      planning.setSession(r.session_id);
-      // The volume came back with the snapshot; mirror its series so step 1
-      // shows the study instead of an empty drop zone.
-      planning.setSeries(r.series);
-      if (r.has_segmentation && r.mesh_url) {
-        planning.setSegmentation(restoredSegmentation(r));
-      }
-      // The centreline geometry comes back with the snapshot; without this the
-      // store stays empty and the centreline-guided stent asks to extract one
-      // that already exists (a ~30 s recomputation for nothing).
-      if (r.centerline_mesh_url) {
-        planning.setCenterlineMesh(r.centerline_mesh_url);
-        planning.setCenterlineArcMm(r.centerline_arc_mm || null);
-      }
-      // Replay downstream so the saved step shows its results (deterministic on
-      // the restored mesh). Failures are non-fatal — the user can re-run a step.
-      let restoredIds: string[] = [];
-      // El backend tiró la medida al re-detectar: el sitio medido ya no está.
-      let invalidated = false;
-      if (r.current_step >= 2) {
-        try {
-          const det = await api.detect(r.session_id);
-          planning.setCandidates(det.candidates);
-          // Al reanudar puede no haber aceptados y sí descartados: el índice elegido los recorre.
-          planning.setRejectedCandidates(det.rejected ?? []);
-          planning.setSelectedCandidate(0);
-          // La misma lista combinada que allCandidates: una morfometría medida
-          // sobre un descartado también recupera su índice.
-          restoredIds = [...det.candidates, ...(det.rejected ?? [])].map((c) => c.id);
-          if (det.morphometry_invalidated === true) {
-            invalidated = true;
-            planning.setMorphoInvalidatedNotice(true);
-          }
-        } catch { /* leave candidates empty */ }
-      }
-      // Con la medida invalidada no se pide otra: sin elección guardada el
-      // backend mediría cand-001 y la enseñaría como la de la sesión, aunque
-      // sea otro sitio. El clínico vuelve a Detección, ve el aviso y elige.
-      if (r.current_step >= 3 && !invalidated) {
-        try {
-          // Sin id: el backend repite el candidato que se eligió al medir
-          // (detect.selected_candidate). La selección se lleva a ese mismo
-          // candidato ANTES de poner la medida, porque cambiar de selección
-          // vacía la morfometría del store.
-          const m = await api.morphometry(r.session_id);
-          const idx = m.candidate_id ? restoredIds.indexOf(m.candidate_id) : -1;
-          if (idx > 0) planning.setSelectedCandidate(idx);
-          planning.setMorphometry(m);
-          // Put the hand-marked neck back in the scene. The measurement is
-          // rebuilt from the stored plane either way, but the marks are what
-          // the user actually placed, and re-marking a rim is real work.
-          if (m.rim_points?.length) {
-            planning.setNeckRim(m.rim_points.map((p) => [p.x, p.y, p.z] as [number, number, number]));
-          }
-          // El ápice también, y el punto de cuello cuando se marcó uno solo:
-          // sin ellos «Medir saco cerrado» quedaba apagado tras reanudar y
-          // había que volver a marcar para corregir una medida.
-          if (m.dome_seed) planning.setNeckDome([m.dome_seed.x, m.dome_seed.y, m.dome_seed.z]);
-          if (m.neck_source === "manual" && m.plane_origin) {
-            planning.setNeckOrigin([m.plane_origin.x, m.plane_origin.y, m.plane_origin.z]);
-          }
-        } catch { /* leave morphometry empty */ }
-      }
-      // El abordaje establecido. Sin esto volvía la sesión sin él: los puntos
-      // estaban en disco y en el PDF, pero el store vacío, así que el visor no
-      // dibujaba corredor y el ensayo de colocación caía a su aproximación por
-      // defecto — el vídeo enseñaba una maniobra que nadie había planeado.
-      try {
-        const tr = await api.getTrajectory(r.session_id);
-        if (tr) {
-          planning.setTrajEntry([tr.entry[0], tr.entry[1], tr.entry[2]]);
-          planning.setTrajTarget([tr.target[0], tr.target[1], tr.target[2]]);
-        }
-      } catch { /* sin trayectoria guardada, se sigue igual */ }
-      // Las anotaciones vuelven por el setter «cargado»: no ensucian la sesión
-      // ni disparan el guardado automático (ya están en disco).
-      try {
-        planning.setAnnotationsLoaded(await api.getAnnotations(r.session_id));
-      } catch {
-        // WHY no «sin anotaciones»: un fallo pasajero dejaba [] y la primera
-        // anotación nueva se guardaba ENCIMA de todas las del disco. Con
-        // «error» el guardado automático no escribe y el panel lo dice.
-        planning.setAnnotationsLoadState("error");
-      }
-      setResumeStep(clampStep(invalidated
-        ? Math.min(r.current_step, STEPS.findIndex((s) => s.key === "detect"))
-        : r.current_step));
-      // The store now mirrors what is on disk, so the session is NOT dirty: it
-      // was, because rehydrating goes through the same setters a real edit does,
-      // and resuming then immediately asked "tienes cambios sin guardar" before
-      // the user had touched anything.
-      planning.markSaved();
+      // Todo lo que vuelve con la sesión —también la decisión, el corredor, los
+      // clips editables, la ventana y los enlaces del informe— y sin rehacer la
+      // detección (familia S). Deja la sesión sin cambios pendientes.
+      const { step, invalidated } = await rehydrateSession(planning, r);
+      setResumeStep(step);
       if (invalidated) {
         setToast(MORPHO_INVALIDATED);
         setTimeout(() => setToast(null), 5000);

@@ -115,3 +115,111 @@ class TestStentGeometryWording:
     def test_el_tubo_recto_se_llama_tubo_recto(self):
         textos = self._sr({"kind": "straight", "follows_centerline": False})
         assert "Tubo recto" in textos
+
+
+# ── F1-237 y F1-238: la trayectoria, el tipo de clip y lo que faltaba ─────── #
+
+def _sr(sid: str):
+    r = client.post("/api/report/dicom-sr", json={"session_id": sid})
+    assert r.status_code == 200, r.text
+    return pydicom.dcmread(str(session_subdir(sid, "reports") / f"{sid}_sr.dcm"))
+
+
+def _contenedor(ds, meaning: str):
+    for it in ds.ContentSequence:
+        if it.ConceptNameCodeSequence[0].CodeMeaning == meaning:
+            return it
+    raise AssertionError(f"no hay contenedor «{meaning}»")
+
+
+def _conceptos(item) -> list[str]:
+    return [c.ConceptNameCodeSequence[0].CodeMeaning for c in item.ContentSequence]
+
+
+class TestLaTrayectoriaTieneSusConceptos:
+    def test_la_trayectoria_no_usa_el_concepto_de_clip(self):
+        sid = _session_with_morpho()
+        for k, v in {"entry_x": 67.0, "entry_y": 77.2, "entry_z": 67.4,
+                     "target_x": 58.8, "target_y": 64.9, "target_z": 67.6}.items():
+            write_state(sid, f"trajectory.{k}", str(v))
+        tray = _contenedor(_sr(sid), "Approach Trajectory")
+        conceptos = _conceptos(tray)
+        assert "Clip Model" not in conceptos
+        assert conceptos[:4] == ["Approach Entry Point", "Approach Target",
+                                 "Entry–target distance", "Incidence angle"]
+        nums = {c.ConceptNameCodeSequence[0].CodeMeaning: c for c in tray.ContentSequence
+                if c.ValueType == "NUM"}
+        distancia = nums["Entry–target distance"].MeasuredValueSequence[0]
+        assert float(distancia.NumericValue) > 0
+        assert distancia.MeasurementUnitsCodeSequence[0].CodeValue == "mm"
+        angulo = nums["Incidence angle"].MeasuredValueSequence[0]
+        assert angulo.MeasurementUnitsCodeSequence[0].CodeValue == "deg"
+        # Todos los conceptos nuevos son del esquema privado.
+        assert {c.ConceptNameCodeSequence[0].CodingSchemeDesignator
+                for c in tray.ContentSequence} == {"99PRP"}
+
+
+class TestElTipoRealDelClip:
+    def test_clip_bajo_pedido_no_dice_catalogo(self):
+        from services.device_state import save_clips
+        sid = _session_with_morpho()
+        save_clips(sid, [{"index": 0, "clip_id": "navarro:t1:0:13.0",
+                          "name": "NAVARRO™ T1 Recto 13.0 mm", "position": [60.0, 64.0, 67.6],
+                          "orientation": [0.0, 0.0, 0.0], "is_custom": False}])
+        _sr(sid)
+        textos = _textos_sr(sid)
+        assert "Pieza a medida" in textos
+        assert "Catálogo" not in textos
+
+
+class TestLoQueElPdfDiceYElSrNoLlevaba:
+    def test_recomendacion_anotaciones_elapss_y_uiats(self):
+        import json
+        sid = _session_with_morpho()
+        write_state(sid, "treatment.recommendation_key", "clip")
+        write_state(sid, "treatment.recommendation", "CLIPAJE MICROQUIRÚRGICO")
+        write_state(sid, "treatment.confidence", "Moderada")
+        write_state(sid, "elapss.json", json.dumps({
+            "total_score": 14, "score_band": "13-15", "growth_3yr_pct": 9.1,
+            "growth_5yr_pct": 15.6}))
+        write_state(sid, "uiats.json", json.dumps({
+            "repair": 9, "conservative": 6, "difference": 3, "recommendation": "repair"}))
+        ds = _sr(sid)
+
+        rec = _contenedor(ds, "Treatment Recommendation")
+        assert _conceptos(rec) == ["Recommendation Key", "Recommendation Text",
+                                   "Recommendation Confidence"]
+        assert [str(c.TextValue) for c in rec.ContentSequence] == [
+            "clip", "CLIPAJE MICROQUIRÚRGICO", "Moderada"]
+
+        el = _contenedor(ds, "ELAPSS Score Assessment")
+        assert "ELAPSS Total Score" in _conceptos(el)
+        ui = _contenedor(ds, "UIATS Assessment")
+        assert "A favor de tratar" in [str(getattr(c, "TextValue", "")) for c in ui.ContentSequence]
+
+        anot = _contenedor(ds, "Annotations")
+        cuenta = anot.ContentSequence[0]
+        assert cuenta.ConceptNameCodeSequence[0].CodeMeaning == "Annotation Count"
+        assert float(cuenta.MeasuredValueSequence[0].NumericValue) == 0
+
+    def test_sin_calcular_no_hay_contenedor(self):
+        ds = _sr(_session_with_morpho())
+        nombres = [it.ConceptNameCodeSequence[0].CodeMeaning for it in ds.ContentSequence]
+        assert "ELAPSS Score Assessment" not in nombres
+        assert "UIATS Assessment" not in nombres
+        assert "Treatment Recommendation" not in nombres
+
+
+class TestLasAnotacionesVanUnaAUna:
+    def test_cada_anotacion_con_su_nombre_tipo_y_valor(self):
+        from services.dicom_sr import DicomSRGenerator
+        gen = DicomSRGenerator(
+            series_meta={}, morphometrics={"volume_mm3": 1.0},
+            annotations=[{"label": "Cuello", "kind": "regla",
+                          "points": [{"x": 0, "y": 0, "z": 0}, {"x": 3, "y": 4, "z": 0}]}])
+        anot = _contenedor(gen._build_dataset(), "Annotations")
+        una = anot.ContentSequence[1]
+        assert _conceptos(una) == ["Annotation Label", "Annotation Kind", "Annotation Value"]
+        textos = [str(c.TextValue) for c in una.ContentSequence]
+        assert textos[:2] == ["Cuello", "Regla"]
+        assert "5" in textos[2]

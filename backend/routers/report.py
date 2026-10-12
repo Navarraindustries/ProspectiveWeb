@@ -30,7 +30,7 @@ from services.sessions import (
     session_exists, session_subdir, read_state, write_state,
 )
 from services.report_generator import (
-    ReportGenerator, build_report_data_from_session, read_trajectory_state,
+    ReportGenerator, build_report_data_from_session, clip_type_label, read_trajectory_state,
     stent_geometry_label,
 )
 from services.dicom_sr import DicomSRGenerator
@@ -246,9 +246,16 @@ async def generate_dicom_sr(
             risk_label    = data.risk_label,
             trajectory    = data.trajectory or None,
             clips = [
-                {"name": c.name, "is_custom": c.is_custom, "position_mm": c.position_mm}
+                {"name": c.name, "is_custom": c.is_custom, "position_mm": c.position_mm,
+                 # F1-238: el tipo real, el mismo que el PDF.
+                 "clip_type": clip_type_label(c.clip_id, c.is_custom)}
                 for c in data.clips
             ] or None,
+            # F1-238: el PDF lo imprimía y el SR no lo llevaba.
+            treatment   = data.treatment or None,
+            annotations = list(data.annotations or []),
+            elapss      = data.elapss or None,
+            uiats       = data.uiats or None,
             coils = [
                 {"name": c.name, "coil_type": c.coil_type, "diameter_mm": c.diameter_mm}
                 for c in data.coils

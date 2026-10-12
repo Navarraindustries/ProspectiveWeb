@@ -150,3 +150,26 @@ class TestDataNoEsUnaCarpetaPublica:
 
     def test_sin_credenciales_sigue_siendo_401(self):
         assert anonymous_client(app).get("/data/prospective.db").status_code == 401
+
+
+class TestRutasDeReanudar:
+    """Las rutas nuevas de la familia S escriben y leen el trabajo de una sesión
+    ligada a un paciente: solo quien ve a ese paciente."""
+
+    _CLIPS = {"clips": [{"key": 1, "clip_id": "c1", "name": "C", "position": [0, 0, 0],
+                         "rotation_deg": 0, "azimuthDeg": 0, "elevationDeg": 0}], "plan": None}
+
+    def test_otro_profesional_no_escribe_clips_ni_ventana_ni_lee_la_decision(self, caso):
+        _a, b, ids = caso
+        sid = ids["sid"]
+        assert b.put(f"/api/devices/{sid}/placed-clips", json=self._CLIPS).status_code == 403
+        assert b.put(f"/api/volume/{sid}/window", json={"wc": 40, "ww": 400}).status_code == 403
+        assert b.get(f"/api/treatment-decision/{sid}").status_code == 403
+
+    def test_el_dueno_si(self, caso):
+        a, _b, ids = caso
+        sid = ids["sid"]
+        assert a.put(f"/api/devices/{sid}/placed-clips", json=self._CLIPS).status_code == 200
+        assert a.put(f"/api/volume/{sid}/window", json={"wc": 40, "ww": 400}).status_code == 200
+        assert a.post("/api/treatment-decision", json={"session_id": sid}).status_code == 200
+        assert a.get(f"/api/treatment-decision/{sid}").status_code == 200

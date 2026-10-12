@@ -273,3 +273,38 @@ class TestConfirmacionDeLesion:
         assert r["lesion_confirmed"] is True
         cur = client.get(f"/api/ground-truth/current?session_id={r['session_id']}").json()
         assert cur is not None and cur["candidate_rank"] == 1
+
+
+class TestInformeRestauradoAlDia:
+    """Un PDF generado y luego un plan cambiado antes de guardar: al reanudar,
+    el enlace no puede ofrecerse como actual (se ofrecía siempre así)."""
+
+    def _con_pdf(self) -> str:
+        sid = _sesion_completa()
+        r = client.post("/api/report", json={"session_id": sid, "patient_name": "Prueba"})
+        assert r.status_code == 200, r.text
+        return sid
+
+    def test_sin_cambios_desde_el_pdf_vuelve_al_dia(self):
+        r = _guardar_y_reanudar(self._con_pdf())
+        assert r["report_urls"]["pdf_current"] is True
+
+    def test_cambiar_el_plan_despues_del_pdf_lo_deja_desfasado(self):
+        sid = self._con_pdf()
+        from services.device_state import save_clips
+        save_clips(sid, [{"index": 0, "name": "Otro clip", "position": [9, 9, 9],
+                          "orientation": [0, 0, 0], "is_custom": False}])
+        r = _guardar_y_reanudar(sid)
+        assert r["report_urls"]["pdf_url"] and r["report_urls"]["pdf_current"] is False
+
+    def test_otra_decision_tambien(self):
+        sid = self._con_pdf()
+        client.post("/api/treatment-decision", json={
+            "session_id": sid, "location": "ACM — Arteria Cerebral Media", "is_ruptured": True,
+            "wfns_grade": 4})
+        assert _guardar_y_reanudar(sid)["report_urls"]["pdf_current"] is False
+
+    def test_un_fichero_sin_procedencia_no_se_da_por_actual(self):
+        # _sesion_completa deja un SR vacío sin pasar por la ruta.
+        r = _guardar_y_reanudar(_sesion_completa())
+        assert r["report_urls"]["dicom_sr_url"] and r["report_urls"]["sr_current"] is False

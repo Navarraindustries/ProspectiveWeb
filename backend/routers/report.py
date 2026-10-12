@@ -60,6 +60,35 @@ def _versioned(url: str) -> str:
     """
     return f"{url}?v={int(time.time() * 1000)}"
 
+#: Lo que el informe imprime vive bajo estos prefijos del estado.
+_PLAN_PREFIXES = ("seg.", "morpho.", "detect.selected_candidate", "treatment.", "clinical.",
+                  "devices.", "trajectory.", "phases.", "elapss.", "uiats.", "preprocess.")
+#: …salvo las URLs (llevan el id de la sesión, que cambia al reanudar) y la
+#: lista editable de clips (lo impreso es `devices.clips`).
+_PLAN_SKIP = ("devices.placed_clips.json",)
+#: Con qué plan se generó cada documento.
+PDF_SIGNATURE_KEY = "report.pdf_signature"
+SR_SIGNATURE_KEY = "report.sr_signature"
+
+
+def plan_signature(session_id: str) -> str:
+    """Huella de lo que el informe imprime, leída del estado de la sesión.
+
+    Se apunta al generar el PDF y el SR. Al reanudar, el enlace a un documento
+    solo se da por actual si el plan sigue siendo ese: un PDF generado y luego
+    un clip cambiado antes de guardar se ofrecía como vigente.
+    """
+    import hashlib
+    from services.sessions import _read_state_map, session_dir
+
+    estado = _read_state_map(session_dir(session_id) / "state.txt")
+    partes = sorted(
+        f"{k}={v}" for k, v in estado.items()
+        if v and k.startswith(_PLAN_PREFIXES) and k not in _PLAN_SKIP and "url" not in k
+    )
+    return hashlib.sha256("\n".join(partes).encode("utf-8")).hexdigest()
+
+
 # All CPU-bound reportlab / VTK work runs off the event loop
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="report-worker")
 
@@ -113,6 +142,8 @@ async def generate_report(
         gen = ReportGenerator(data)
         return gen.generate(out_path)
 
+    # Lo que el PDF va a imprimir, antes de imprimirlo.
+    firma = plan_signature(req.session_id)
     try:
         pdf_path: Path = await loop.run_in_executor(_executor, _generate_sync)
     except RuntimeError as exc:
@@ -124,6 +155,7 @@ async def generate_report(
     # Build the page count from the file (reportlab writes it as part of the PDF)
     # We can get an approximate page count by reading the PDF trailer — simpler:
     page_count = _pdf_page_count(pdf_path)
+    write_state(req.session_id, PDF_SIGNATURE_KEY, firma)
 
     pdf_url = _versioned(f"/data/sessions/{req.session_id}/reports/{req.session_id}_report.pdf")
 
@@ -232,6 +264,7 @@ async def generate_dicom_sr(
         return gen.generate(out_dir / f"{req.session_id}_sr.dcm")
 
     try:
+        firma = plan_signature(req.session_id)
         sr_path: Path = await loop.run_in_executor(_executor, _generate_sync)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -240,6 +273,7 @@ async def generate_dicom_sr(
         raise HTTPException(status_code=500, detail=f"DICOM SR error: {exc}") from exc
 
     sr_url = _versioned(f"/data/sessions/{req.session_id}/reports/{req.session_id}_sr.dcm")
+    write_state(req.session_id, SR_SIGNATURE_KEY, firma)
 
     from services.audit import audit_append, ACT_SR_GENERATED
     audit_append(ACT_SR_GENERATED, {"session_id": req.session_id},
@@ -496,9 +530,9 @@ async def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryR
                     " | ".join(corridor.findings))
         # El análisis entero, para devolverlo al reanudar sin rehacerlo: volvían
         # los puntos pero no el corredor ni «Guardada ✓» (F1-247).
-        write_state(session_id, "trajectory.corridor_json", corridor.model_dump_json())
+        write_state(session_id, CORRIDOR_KEY, corridor.model_dump_json())
     else:
-        write_state(session_id, "trajectory.corridor_json", "")
+        write_state(session_id, CORRIDOR_KEY, "")
     return TrajectoryResult(
         entry=tr["entry"], target=tr["target"],
         depth_mm=tr["depth_mm"], angle_deg=tr["angle_deg"],
@@ -600,9 +634,28 @@ async def clear_trajectory(session_id: str) -> None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     # El veredicto se borra con los puntos. Dejarlo dejaría en el informe un
     # «corredor bloqueado» de una trayectoria que ya no existe.
-    for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z",
-              "verdict", "verdict_reason", "findings", "corridor_json"):
+    for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z"):
         write_state(session_id, f"trajectory.{k}", "")
+    clear_corridor_analysis(session_id)
+
+
+#: El análisis del corredor tal como se guardó con la trayectoria.
+CORRIDOR_KEY = "trajectory.corridor_json"
+#: Todo lo que se midió contra la malla al guardar la trayectoria.
+CORRIDOR_ANALYSIS_KEYS = (CORRIDOR_KEY, "trajectory.verdict",
+                          "trajectory.verdict_reason", "trajectory.findings")
+
+
+def clear_corridor_analysis(session_id: str) -> None:
+    """Olvida lo medido sobre la malla; los puntos (del cirujano) se quedan.
+
+    Lo llama quien cambia la malla (resegmentar, recortar, borrar): el
+    veredicto guardado describía la malla de antes, y una sesión reanudada lo
+    enseñaba como «Guardada ✓» —y el informe lo imprimía— aunque ahora un vaso
+    cruzara el corredor.
+    """
+    for key in CORRIDOR_ANALYSIS_KEYS:
+        write_state(session_id, key, "")
 
 
 # ── Proponer corredores de abordaje ─────────────────────────────────────────── #
@@ -753,23 +806,24 @@ def stored_trajectory(session_id: str) -> "TrajectoryResult | None":
     """La trayectoria guardada con su ángulo, profundidad y corredor.
 
     El corredor es el que se guardó con «Guardar trayectoria» —el mismo cuyo
-    veredicto imprime el informe—, sin volver a medirlo. Solo una sesión
-    guardada antes de que existiera `trajectory.corridor_json` lo recalcula.
+    veredicto imprime el informe—, sin volver a medirlo. Si hay malla y no hay
+    análisis (la malla cambió después, o la sesión es de antes de guardarlo),
+    vuelve sin corredor y con `stale`: medirlo aquí en silencio daría un
+    veredicto que el informe no tiene.
     """
     tr = read_trajectory_state(session_id)
     if not tr:
         return None
     corridor = None
-    raw = read_state(session_id, "trajectory.corridor_json", "")
+    raw = read_state(session_id, CORRIDOR_KEY, "")
     if raw:
         try:
             corridor = CorridorAssessmentOut.model_validate_json(raw)
         except ValueError:
-            logger.warning("Corredor guardado ilegible en %s; se recalcula", session_id)
-    if corridor is None:
-        corridor = _assess_corridor_for(session_id, tr["entry"], tr["target"])
+            logger.warning("Corredor guardado ilegible en %s", session_id)
+    hay_malla = (session_subdir(session_id, "meshes") / "vessel_tree.vtp").exists()
     return TrajectoryResult(
         entry=tr["entry"], target=tr["target"],
         depth_mm=tr["depth_mm"], angle_deg=tr["angle_deg"],
-        corridor=corridor,
+        corridor=corridor, stale=corridor is None and hay_malla,
     )

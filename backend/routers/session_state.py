@@ -427,9 +427,14 @@ def _restored_report_urls(session_id: str) -> ReportUrls | None:
     y la reanudada tiene otro id, así que se busca por el sufijo; si hay
     varios, el más reciente.
     """
-    from routers.report import _versioned
+    from routers.report import PDF_SIGNATURE_KEY, SR_SIGNATURE_KEY, _versioned, plan_signature
 
     reports = session_subdir(session_id, "reports")
+    firma = plan_signature(session_id)
+
+    def _al_dia(key: str) -> bool:
+        guardada = read_state(session_id, key, "")
+        return bool(guardada) and guardada == firma
 
     def _newest(pattern: str) -> str | None:
         files = sorted(reports.glob(pattern), key=lambda f: f.stat().st_mtime)
@@ -440,7 +445,11 @@ def _restored_report_urls(session_id: str) -> ReportUrls | None:
     pdf, sr = _newest("*_report.pdf"), _newest("*_sr.dcm")
     if pdf is None and sr is None:
         return None
-    return ReportUrls(pdf_url=pdf, dicom_sr_url=sr)
+    return ReportUrls(
+        pdf_url=pdf, dicom_sr_url=sr,
+        pdf_current=pdf is not None and _al_dia(PDF_SIGNATURE_KEY),
+        sr_current=sr is not None and _al_dia(SR_SIGNATURE_KEY),
+    )
 
 
 def _lesion_confirmed(db: Session, session_id: str, imaging_study_id: int | None) -> bool:

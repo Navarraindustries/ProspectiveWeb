@@ -8188,10 +8188,22 @@ export interface components {
              */
             dicom_sr_url?: string | null;
             /**
+             * Pdf Current
+             * @description El PDF se generó con el plan que la sesión tiene ahora. False si el plan cambió después o no se sabe con cuál se generó: hay que regenerarlo.
+             * @default false
+             */
+            pdf_current: boolean;
+            /**
              * Pdf Url
              * @description Informe PDF, si existe el fichero
              */
             pdf_url?: string | null;
+            /**
+             * Sr Current
+             * @description Lo mismo para el DICOM SR
+             * @default false
+             */
+            sr_current: boolean;
         };
         /**
          * ResetPasswordRequest
@@ -9285,6 +9297,12 @@ export interface components {
             depth_mm: number;
             /** Entry */
             entry: number[];
+            /**
+             * Stale
+             * @description True cuando hay malla pero el análisis guardado ya no vale: la malla cambió después de guardar la trayectoria (resegmentar, recortar, borrar) o la sesión se guardó antes de que se guardara el análisis. Los puntos siguen; hay que volver a guardar la trayectoria para medir el corredor sobre la malla de ahora.
+             * @default false
+             */
+            stale: boolean;
             /** Target */
             target: number[];
         };

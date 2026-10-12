@@ -75,6 +75,14 @@ class ReportUrls(BaseModel):
 
     pdf_url: str | None = Field(None, description="Informe PDF, si existe el fichero")
     dicom_sr_url: str | None = Field(None, description="DICOM SR, si existe el fichero")
+    pdf_current: bool = Field(
+        False,
+        description=(
+            "El PDF se generó con el plan que la sesión tiene ahora. False si el "
+            "plan cambió después o no se sabe con cuál se generó: hay que regenerarlo."
+        ),
+    )
+    sr_current: bool = Field(False, description="Lo mismo para el DICOM SR")
 
 
 class SessionRestoreResult(BaseModel):

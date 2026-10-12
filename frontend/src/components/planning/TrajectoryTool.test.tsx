@@ -56,4 +56,11 @@ describe("TrajectoryTool", () => {
     expect(screen.getByText("Guardar trayectoria")).toBeInTheDocument();
     expect(screen.queryByText("41.5°")).toBeNull();
   });
+  // La malla cambió después de guardar: el corredor guardado ya no vale.
+  it("con el análisis desfasado pide volver a guardar en vez de «Guardada ✓»", () => {
+    planning.trajSaved = { entry: [0, 0, 0], target: [0, 0, 10], depth_mm: 10, angle_deg: 41.5, corridor: null, stale: true };
+    render(<TrajectoryTool />);
+    expect(screen.getByText("Vuelve a guardar la trayectoria")).toBeInTheDocument();
+    expect(screen.queryByText("Guardada ✓")).toBeNull();
+  });
 });

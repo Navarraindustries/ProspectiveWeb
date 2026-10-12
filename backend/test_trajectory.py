@@ -73,3 +73,77 @@ class TestEndpoint:
             "entry": {"x": 0, "y": 0, "z": 0}, "target": {"x": 1, "y": 1, "z": 1},
         })
         assert r.status_code == 404
+
+
+# ── F1-247: el corredor guardado vuelve, y sabe si sigue al día ───────────── #
+
+def _sesion_con_malla() -> str:
+    import vtk
+    from services.segmentation import write_vtp
+    from services.sessions import session_subdir
+    src = vtk.vtkSphereSource()
+    src.SetRadius(10.0); src.SetThetaResolution(16); src.SetPhiResolution(16); src.Update()
+    sid = create_session()
+    write_vtp(src.GetOutput(), session_subdir(sid, "meshes") / "vessel_tree.vtp")
+    return sid
+
+
+def _guardar_trayectoria(sid: str) -> dict:
+    r = client.post(f"/api/trajectory/{sid}", json={
+        "entry": {"x": 40, "y": 0, "z": 0}, "target": {"x": 0, "y": 0, "z": 0},
+    })
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _reanudar(sid: str) -> dict:
+    assert client.post("/api/sessions/save", json={
+        "session_id": sid, "current_step": 5, "label": "t"}).status_code == 200
+    r = client.post(f"/api/sessions/{sid}/restore")
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+class TestCorredorGuardado:
+    def test_guardar_escribe_el_analisis_y_vuelve_al_reanudar(self):
+        from services.sessions import read_state
+        sid = _sesion_con_malla()
+        puesto = _guardar_trayectoria(sid)
+        assert puesto["corridor"] is not None and puesto["stale"] is False
+        # Lo que escribe la ruta, no una clave puesta a mano.
+        assert read_state(sid, "trajectory.corridor_json", "")
+        assert read_state(sid, "trajectory.verdict", "") == puesto["corridor"]["verdict"]
+        r = _reanudar(sid)
+        assert r["trajectory"]["corridor"] == puesto["corridor"]
+        assert r["trajectory"]["stale"] is False
+        assert r["trajectory"]["angle_deg"] == puesto["angle_deg"]
+
+    def test_cambiar_la_malla_deja_el_corredor_desfasado(self):
+        """El veredicto se midió sobre la malla de antes: tras recortarla no
+        puede volver como «Guardada ✓» (ni seguir en el informe)."""
+        from services.sessions import read_state
+        sid = _sesion_con_malla()
+        _guardar_trayectoria(sid)
+        crop = client.post(f"/api/mesh-crop/{sid}", json={
+            "mode": "sphere", "center": {"x": 10, "y": 0, "z": 0}, "radius": 6.0, "invert": False})
+        assert crop.status_code == 200, crop.text
+        for k in ("corridor_json", "verdict", "verdict_reason", "findings"):
+            assert read_state(sid, f"trajectory.{k}", "") == "", k
+        # Los puntos siguen: son del cirujano, no de la malla.
+        assert read_state(sid, "trajectory.entry_x", "") == "40.0"
+        tr = client.get(f"/api/trajectory/{sid}").json()
+        assert tr["stale"] is True and tr["corridor"] is None
+        assert _reanudar(sid)["trajectory"]["stale"] is True
+
+    def test_volver_a_guardar_la_pone_al_dia(self):
+        sid = _sesion_con_malla()
+        _guardar_trayectoria(sid)
+        client.post(f"/api/mesh-crop/{sid}", json={
+            "mode": "sphere", "center": {"x": 10, "y": 0, "z": 0}, "radius": 6.0, "invert": False})
+        assert _guardar_trayectoria(sid)["stale"] is False
+        assert client.get(f"/api/trajectory/{sid}").json()["stale"] is False
+
+    def test_sin_malla_no_hay_nada_que_este_desfasado(self):
+        sid = create_session()
+        assert _guardar_trayectoria(sid)["stale"] is False
+        assert client.get(f"/api/trajectory/{sid}").json()["stale"] is False

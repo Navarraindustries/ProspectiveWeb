@@ -1626,7 +1626,9 @@ export function TrajectoryTool() {
       <ErrorNote>{error}</ErrorNote>
       <div style={{ display: "flex", gap: 8 }}>
         <Button size="sm" style={{ flex: 1 }} disabled={busy || !trajEntry || !trajTarget} onClick={() => void save()} leadingIcon={<Icon name="SAVE" size={14} />}>
-          {busy ? "Guardando…" : saved ? "Guardada ✓" : "Guardar trayectoria"}
+          {/* Desfasada: la malla cambió después de guardarla y su corredor ya
+              no vale; decir «Guardada ✓» sería avalar un veredicto viejo. */}
+          {busy ? "Guardando…" : saved?.stale ? "Vuelve a guardar la trayectoria" : saved ? "Guardada ✓" : "Guardar trayectoria"}
         </Button>
         <Button size="sm" variant="outline" disabled={!trajEntry && !trajTarget} onClick={() => void clear()}>
           Limpiar

@@ -54,6 +54,9 @@ import type {
 export interface ReportUrls {
   pdf_url?: string | null;
   dicom_sr_url?: string | null;
+  /** Se generó con el plan guardado; false = hay que regenerarlo. */
+  pdf_current?: boolean;
+  sr_current?: boolean;
 }
 
 interface PlanningState {
@@ -631,7 +634,18 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   // Wrapping them here rather than at each call site means a panel added later
   // cannot forget to do it.
   const touch = <T,>(set: (v: T) => void) => (v: T) => { set(v); setDirty(true); };
-  const setSegmentation = touch(_setSegmentation);
+  // Otra malla (resegmentar, recortar, borrar, deshacer): el corredor guardado
+  // se midió contra la de antes. El backend borra su análisis; aquí la
+  // trayectoria guardada deja de decir «Guardada ✓» y pide volver a guardarla.
+  const segUrlRef = useRef<string | null>(null);
+  const setSegmentation = touch((s: SegmentResult | null) => {
+    const url = s?.mesh_url ?? null;
+    if (segUrlRef.current !== null && url !== segUrlRef.current) {
+      setTrajSaved((t) => (t && !t.stale ? { ...t, corridor: null, stale: true } : t));
+    }
+    segUrlRef.current = url;
+    _setSegmentation(s);
+  });
   const setCandidates = touch(_setCandidates);
   const setRejectedCandidates = touch(_setRejectedCandidates);
   // La morfometría trae la localización guardada (`site`): así «Reanudar», que
@@ -709,6 +723,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setPreviewBand(null);
     setPreviewMeshUrl(null);
     _setSegmentation(null);
+    segUrlRef.current = null;
     _setCandidates([]);
     _setRejectedCandidates([]);
     selectedRef.current = 0;

@@ -6,9 +6,10 @@ import gzip
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from sqlalchemy.orm import Session
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -17,6 +18,10 @@ from services.mpr import (
     volume_chunk_int16, volume_coarse_int16,
 )
 from models.session_state import ViewerWindow
+from services.access import require_session
+from services.auth_service import get_current_user
+from services.database import get_db
+from services.db_models import User
 from services.sessions import read_state, session_exists, write_state
 
 logger = logging.getLogger(__name__)
@@ -83,9 +88,16 @@ async def put_orientation(session_id: str, body: ManualOrientation) -> dict:
         "volvía siempre a la ventana por defecto del DICOM."
     ),
 )
-async def put_window(session_id: str, body: ViewerWindow) -> ViewerWindow:
+async def put_window(
+    session_id: str,
+    body: ViewerWindow,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> ViewerWindow:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
+    require_session(db, current_user, session_id)
     write_state(session_id, "viewer.wc", repr(float(body.wc)))
     write_state(session_id, "viewer.ww", repr(float(body.ww)))
     return body

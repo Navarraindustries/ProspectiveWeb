@@ -8141,6 +8141,12 @@
       "description": "DICOM SR, si existe el fichero",
       "title": "Dicom Sr Url"
      },
+     "pdf_current": {
+      "default": false,
+      "description": "El PDF se generó con el plan que la sesión tiene ahora. False si el plan cambió después o no se sabe con cuál se generó: hay que regenerarlo.",
+      "title": "Pdf Current",
+      "type": "boolean"
+     },
      "pdf_url": {
       "anyOf": [
        {
@@ -8152,6 +8158,12 @@
       ],
       "description": "Informe PDF, si existe el fichero",
       "title": "Pdf Url"
+     },
+     "sr_current": {
+      "default": false,
+      "description": "Lo mismo para el DICOM SR",
+      "title": "Sr Current",
+      "type": "boolean"
      }
     },
     "title": "ReportUrls",
@@ -9700,6 +9712,12 @@
       },
       "title": "Entry",
       "type": "array"
+     },
+     "stale": {
+      "default": false,
+      "description": "True cuando hay malla pero el análisis guardado ya no vale: la malla cambió después de guardar la trayectoria (resegmentar, recortar, borrar) o la sesión se guardó antes de que se guardara el análisis. Los puntos siguen; hay que volver a guardar la trayectoria para medir el corredor sobre la malla de ahora.",
+      "title": "Stale",
+      "type": "boolean"
      },
      "target": {
       "items": {

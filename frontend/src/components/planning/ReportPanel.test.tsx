@@ -60,7 +60,7 @@ describe("exportar la segmentación como DICOM SEG", () => {
 /* F1-249: reanudar volvía sin los enlaces aunque el PDF y el SR siguieran en
    disco; había que generarlos otra vez para poder descargarlos. */
 describe("enlaces del informe tras reanudar", () => {
-  function montarReanudada(urls: { pdf_url?: string | null; dicom_sr_url?: string | null } | null) {
+  function montarReanudada(urls: { pdf_url?: string | null; dicom_sr_url?: string | null; pdf_current?: boolean; sr_current?: boolean } | null) {
     function Seed({ children }: { children: ReactNode }) {
       const p = usePlanning();
       useEffect(() => {
@@ -72,7 +72,7 @@ describe("enlaces del informe tras reanudar", () => {
   }
 
   it("con el PDF y el SR en disco, enlaza a los dos", async () => {
-    montarReanudada({ pdf_url: "/data/sessions/s1/reports/vieja_report.pdf?v=1", dicom_sr_url: "/data/sessions/s1/reports/vieja_sr.dcm?v=1" });
+    montarReanudada({ pdf_url: "/data/sessions/s1/reports/vieja_report.pdf?v=1", dicom_sr_url: "/data/sessions/s1/reports/vieja_sr.dcm?v=1", pdf_current: true, sr_current: true });
     const pdf = await screen.findByText(/Descargar PDF/);
     expect(pdf.closest("a")).toHaveAttribute("href", "/data/sessions/s1/reports/vieja_report.pdf?v=1");
     const sr = screen.getByText(/Descargar informe estructurado DICOM/);
@@ -84,5 +84,17 @@ describe("enlaces del informe tras reanudar", () => {
     await screen.findByText("Generar informe PDF");
     expect(screen.queryByText(/Descargar PDF/)).toBeNull();
     expect(screen.queryByText(/Descargar informe estructurado DICOM/)).toBeNull();
+  });
+  it("un PDF generado con otro plan sale desfasado y ofrece regenerarlo", async () => {
+    montarReanudada({ pdf_url: "/data/sessions/s1/reports/vieja_report.pdf?v=1", pdf_current: false });
+    expect(await screen.findByText("Regenerar informe PDF")).toBeInTheDocument();
+    expect(screen.getByText(/El plan cambió desde que se generó este archivo/)).toBeInTheDocument();
+    expect(screen.queryByText(/Descargar PDF/)).toBeNull();
+  });
+
+  it("un PDF generado con el plan guardado sale al día", async () => {
+    montarReanudada({ pdf_url: "/data/sessions/s1/reports/vieja_report.pdf?v=1", pdf_current: true });
+    await screen.findByText(/Descargar PDF/);
+    expect(screen.getByText("Generar informe PDF")).toBeInTheDocument();
   });
 });

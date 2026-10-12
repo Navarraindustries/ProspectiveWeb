@@ -556,6 +556,9 @@ export interface TrajectoryResult {
   /** Null mientras no haya malla: sin ella no hay contra qué cruzar nada, y un
       «viable» sin haber mirado sería peor que no dar veredicto. */
   corridor: CorridorAssessmentOut | null;
+  /** Hay malla pero el corredor guardado ya no vale (la malla cambió después
+   *  de guardarlo): hay que volver a guardar la trayectoria. */
+  stale?: boolean;
 }
 
 /* ── DICOM volume preprocessing ────────────────────────────────────────── */
@@ -1475,7 +1478,11 @@ export interface SessionRestoreResult {
   placed_clips?: PlacedClipsState | null;
   /** Ventana y nivel de los cortes; null = la del DICOM. */
   window?: { wc: number; ww: number } | null;
-  report_urls?: { pdf_url?: string | null; dicom_sr_url?: string | null } | null;
+  /** `*_current`: el documento se generó con el plan que la sesión tiene. */
+  report_urls?: {
+    pdf_url?: string | null; dicom_sr_url?: string | null;
+    pdf_current?: boolean; sr_current?: boolean;
+  } | null;
   lesion_confirmed?: boolean;
 }
 

@@ -5,12 +5,15 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 import json
 
 from models import TreatmentDecisionRequest, TreatmentDecisionResult, DecisionFactor
 from services.audit import ACT_TREATMENT_DECISION, audit_append
+from services.access import require_session
 from services.auth_service import get_current_user
+from services.database import get_db
 from services.db_models import User
 from services.treatment import compute_decision
 from services.sessions  import read_state, write_state, session_exists
@@ -215,9 +218,15 @@ async def compute_treatment_decision(
         "stayed disabled."
     ),
 )
-async def get_treatment_decision(session_id: str) -> TreatmentDecisionResult:
+async def get_treatment_decision(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> TreatmentDecisionResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
+    require_session(db, current_user, session_id)
     stored = stored_decision(session_id)
     if stored is None:
         raise HTTPException(status_code=404, detail="Esta sesión no tiene una decisión guardada.")

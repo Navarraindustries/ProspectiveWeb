@@ -12,7 +12,15 @@ from __future__ import annotations
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from services.access import require_session
+from services.auth_service import get_current_user
+from services.database import get_db
+from services.db_models import User
 
 from models.clips import PlacedClipsState
 from models.plan import DeviceClearResult
@@ -87,9 +95,16 @@ def stored_placed_clips(session_id: str) -> PlacedClipsState | None:
         "back instead of bare meshes."
     ),
 )
-async def put_placed_clips(session_id: str, req: PlacedClipsState) -> PlacedClipsState:
+async def put_placed_clips(
+    session_id: str,
+    req: PlacedClipsState,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> PlacedClipsState:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
+    require_session(db, current_user, session_id)
     save_placed_clips(session_id, req.model_dump(mode="json"))
     return req
 

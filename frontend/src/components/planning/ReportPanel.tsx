@@ -74,12 +74,15 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
     devices: planning.deviceMeshes,
   }), [planning.segmentation?.mesh_url, morphometry, treatment, planning.deviceMeshes]);
 
-  // Los documentos que volvieron con una sesión reanudada (F1-249) se generaron
-  // con lo que se guardó, que es lo que el store tiene al abrir este paso: se
-  // dan por actuales hasta que algo cambie, como uno recién generado.
+  // Los documentos que volvieron con una sesión reanudada (F1-249). El backend
+  // dice si se generaron con el plan que se guardó; si no, o si algo ha
+  // cambiado desde que se reanudó (`dirty`), salen desfasados con
+  // «Regenerar…». Antes se daban siempre por actuales, aunque el plan hubiera
+  // cambiado después de generarlos.
+  const restoredFrom = (current: boolean | undefined) => (current && !planning.dirty ? planSignature : "desfasado");
   const generatedFrom = useRef<Record<string, string>>({
-    ...(reportUrls?.pdf_url ? { pdf: planSignature } : {}),
-    ...(reportUrls?.dicom_sr_url ? { sr: planSignature } : {}),
+    ...(reportUrls?.pdf_url ? { pdf: restoredFrom(reportUrls.pdf_current) } : {}),
+    ...(reportUrls?.dicom_sr_url ? { sr: restoredFrom(reportUrls.sr_current) } : {}),
   });
   const pdfUrl = report?.pdf_url ?? reportUrls?.pdf_url ?? null;
   const srUrl = sr?.dicom_sr_url ?? reportUrls?.dicom_sr_url ?? null;

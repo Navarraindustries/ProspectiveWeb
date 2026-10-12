@@ -150,4 +150,12 @@ describe("Reanudar rellena el store con lo guardado", () => {
     expect(result.current.deviceMeshes.coils).toBe("/c.vtp");
     expect(result.current.dirty).toBe(false);
   });
+  it("otra malla después de reanudar deja la trayectoria guardada desfasada", async () => {
+    const { result } = montar();
+    await act(async () => { await rehydrateSession(result.current, restored()); });
+    expect(result.current.trajSaved?.stale).toBeFalsy();
+    act(() => result.current.setSegmentation({ ...result.current.segmentation!, mesh_url: "/otra.vtp?v=9" }));
+    expect(result.current.trajSaved?.stale).toBe(true);
+    expect(result.current.trajSaved?.corridor).toBeNull();
+  });
 });

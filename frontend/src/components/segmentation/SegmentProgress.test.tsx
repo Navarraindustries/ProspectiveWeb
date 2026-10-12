@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SegmentProgress } from "./SegmentProgress";
 import type { ProgressState } from "../../api/types";
@@ -9,11 +9,9 @@ describe("SegmentProgress", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("sin estado, muestra la fase por defecto en mayúsculas mono y 0 %", () => {
+  it("sin estado, la fase por defecto queda plegada y el porcentaje es 0 %", () => {
     render(<SegmentProgress state={null} />);
-    // El estilo mono/mayúsculas va en el contenedor que envuelve fase y %, no
-    // en el <span> de la fase por separado.
-    expect(screen.getByText("preparando").parentElement).toHaveStyle({ textTransform: "uppercase", fontFamily: "var(--font-mono)" });
+    expect(screen.getByText("preparando")).not.toBeVisible();
     expect(screen.getByText("0 %")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).not.toHaveAttribute("aria-valuenow");
   });
@@ -21,6 +19,7 @@ describe("SegmentProgress", () => {
   it("con estado, muestra la fase, el porcentaje redondeado y la barra determinada", () => {
     render(<SegmentProgress state={running("tubularidad 2/6", 19.6)} />);
     expect(screen.getByText("tubularidad 2/6")).toBeInTheDocument();
+    expect(screen.getByText("tubularidad 2/6").closest("details")).not.toBeNull();
     expect(screen.getByText("20 %")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "19.6");
   });
@@ -32,6 +31,7 @@ describe("SegmentProgress", () => {
     expect(screen.getByText(/El servidor tarda/)).toBeInTheDocument();
     // En «carga» (o con el umbral clásico) no hay tubularidad que culpar.
     expect(screen.queryByText(/tubularidad/)).not.toBeInTheDocument();
+    expect(screen.getByText(/El servidor tarda/)).toBeVisible();
     rerender(<SegmentProgress state={running("núcleo", 10)} />);
     expect(screen.queryByText(/El servidor tarda/)).not.toBeInTheDocument();
   });
@@ -46,5 +46,21 @@ describe("SegmentProgress", () => {
     const { unmount } = render(<SegmentProgress state={running("núcleo", 1)} />);
     unmount();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+/* F1-136: el rótulo era el nombre interno de la fase («TUBULARIDAD 3/6»),
+   que no dice nada a quien espera; las fases siguen, plegadas. */
+describe("rótulo principal", () => {
+  it("el rótulo principal no es la fase", () => {
+    render(<SegmentProgress state={running("tubularidad 3/6", 25)} />);
+    const rotulo = screen.getByText("Segmentando… suele tardar menos de un minuto");
+    expect(rotulo).toBeVisible();
+    expect(rotulo.closest("[aria-live]")).not.toBeNull();
+    expect(screen.getByText("25 %")).toBeVisible();
+    expect(screen.getByText("tubularidad 3/6")).not.toBeVisible();
+    expect(screen.getByText("tubularidad 3/6").closest("[aria-live]")).toBeNull();
+    fireEvent.click(screen.getByText("Fases"));
+    expect(screen.getByText("tubularidad 3/6")).toBeVisible();
   });
 });

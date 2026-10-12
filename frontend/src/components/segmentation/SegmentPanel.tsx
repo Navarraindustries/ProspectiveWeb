@@ -20,7 +20,7 @@ import { Slider } from "../Slider";
 import { MeshEditTools } from "./MeshEditTools";
 import { PreprocessSection } from "./PreprocessSection";
 import { SegmentProgress } from "./SegmentProgress";
-import { TubularControls, type SegmentMethod } from "./TubularControls";
+import { CeilingControls, TubularControls, type SegmentMethod } from "./TubularControls";
 import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import { isHuModality } from "../../vtk/modality";
@@ -287,13 +287,20 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const hasQuality = segmentation?.boundary_edges != null;
   const boundaryEdges = segmentation?.boundary_edges ?? 0;
   const phases = phaseSummary(segmentation?.phase_seconds);
+  const elapsed = elapsedSeconds(segmentation?.phase_seconds);
+  // Redondeado igual que el valor que se le pone al deslizador al llegar.
+  const suggestedLower = suggested.current ? Math.round(suggested.current.lower) : null;
 
   return (
     <div className="fade-rise">
       <PanelHead
         title="Segmentación vascular"
         desc="Aísla la vasculatura por su forma tubular (o por umbral) y reconstruye su superficie 3D."
-        right={segmentation && <Badge variant="success">Malla lista</Badge>}
+        // F1-138: con `fallback_note` la malla existe pero no es la pedida; la
+        // insignia verde decía lo contrario.
+        right={segmentation && (segmentation.fallback_note
+          ? <Badge variant="warning">Malla lista con cambios</Badge>
+          : <Badge variant="success">Malla lista</Badge>)}
       />
 
       {/* El método va primero: decide qué controles de abajo cuentan (el
@@ -314,9 +321,27 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           ? "Mueve el umbral y observa la vista previa; el método tubular decide luego qué es vaso por su forma, no solo por su brillo."
           : "Mueve los umbrales y observa la vista previa: la malla será lo que quede dentro de la banda."}
       </div>
+      {/* F1-134: la previa gruesa («3D · MALLA GRUESA») es solo el umbral y
+          enseña el hueso; sin decirlo parecía que la segmentación lo iba a
+          dejar. El visor no sabe del método, así que se dice aquí. */}
+      {method === "tubular" && !segmentation && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -6, marginBottom: 12, lineHeight: 1.45 }}>
+          La vista previa solo aplica el umbral; la forma tubular quitará el hueso
+        </div>
+      )}
       <div>
         <Slider label="Umbral inferior" min={range.min} max={range.max} value={lower} onChange={setLower} unit={isHu ? " HU" : ""} />
+        {/* F1-131: el número no decía de dónde salía; el arranque es el
+            percentil del propio volumen y conviene saber si se ha movido. */}
+        {suggestedLower !== null && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, lineHeight: 1.45 }}>
+            {lower === suggestedLower
+              ? `${lower} · sugerido por el histograma de este estudio`
+              : `${lower} · sugerido: ${suggestedLower}`}
+          </div>
+        )}
         <div style={{ height: 14 }} />
+        <CeilingControls method={method}>
         <Slider
           label="Umbral superior"
           min={range.min}
@@ -324,8 +349,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           value={upper}
           onChange={setUpper}
           unit={isHu ? " HU" : ""}
-          disabled={sinTecho || method === "tubular"}
+          disabled={sinTecho}
         />
+        </CeilingControls>
         {/* Sin HU el número no es una magnitud física: se dice para que no se compare entre estudios. */}
         {!isHu && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
@@ -337,15 +363,12 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             justo donde estaba. En una 3DRA lo más brillante ES el contraste,
             y el techo corta el vaso donde más denso está. El backend ya sabe
             desactivarlo (`upper <= lower` → sin límite); faltaba poder pedirlo. */}
+        {method !== "tubular" && (
         <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
-          <input type="checkbox" checked={previaSinTecho} disabled={method === "tubular"}
+          <input type="checkbox" checked={sinTecho}
                  onChange={(e) => setSinTecho(e.target.checked)} />
           Sin límite superior — conserva todo lo más brillante que el umbral inferior
         </label>
-        {method === "tubular" && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
-            El método tubular nunca usa el límite superior; la vista previa tampoco.
-          </div>
         )}
         {sinTecho && method !== "tubular" && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
@@ -421,6 +444,10 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         )}
         <div style={{ height: 14 }} />
         <Slider label="Suavizado" min={0} max={10} value={smoothing} onChange={setSmoothing} />
+        {/* F1-133: «Suavizado 3» no decía qué suaviza ni qué se arriesga. */}
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, lineHeight: 1.45 }}>
+          Iteraciones de suavizado de la superficie; valores altos redondean el cuello
+        </div>
         {/* La máscara tubular ya es un componente: el filtro de fragmentos no
             tiene nada que quitar, así que solo se ofrece con el umbral. */}
         {method === "threshold" ? (
@@ -531,9 +558,23 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
       {segmentation && (
         <Card style={{ marginTop: 16 }}>
+          {/* El servidor cambió algo de lo pedido (sin semillas → umbral;
+              media resolución forzada por memoria). No es un error: la malla
+              existe, pero no es la que se pidió. F1-138: iba al final, bajo
+              las cifras, y se leía como una nota más; va en cabeza. */}
+          {segmentation.fallback_note && (
+            <div style={{
+              fontSize: 11, lineHeight: 1.5, marginBottom: 10, padding: "8px 10px",
+              borderRadius: "var(--radius-md)", background: "var(--warning-bg)",
+              borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
+            }}>
+              {segmentation.fallback_note}
+            </div>
+          )}
           <Metric label="Vértices" value={segmentation.vertices.toLocaleString("es")} />
           <Metric label="Caras" value={segmentation.faces.toLocaleString("es")} />
-          <Metric label="Salida" value={segmentation.mesh_url.split("/").pop() ?? ""} />
+          {/* Decisión 18: «Salida vessel_tree.vtp» era el nombre del archivo
+              interno; no le dice nada al cirujano. */}
           {segmentation.voxel_fraction !== null && (
             <Metric
               label="Fracción de vóxeles"
@@ -563,11 +604,11 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               En tubular es la malla final sobre la máscara del umbral. */}
           {/* En tubular la cifra es malla final / máscara del umbral y el filtro
               de fragmentos no corre (`largest_removed_mm3` = 0): el badge
-              «Limpio» no diría nada. «del umbral» va en la etiqueta para que
-              la unidad no se parta bajo el valor. */}
+              «Limpio» no diría nada. F1-137: «(del umbral)» no explicaba por
+              qué un 35 % es normal; la línea de debajo lo dice. */}
           {(!tubular || hasQuality) && (
           <Metric
-            label={tubular ? "Volumen conservado (del umbral)" : "Volumen conservado"}
+            label="Volumen conservado"
             value={(segmentation.kept_fraction * 100).toFixed(1)}
             unit=" %"
             badge={
@@ -580,24 +621,25 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           />
           )}
           {tubular && hasQuality && (
-            <div style={hudLine}>
-              {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}
-              {pieces(segmentation.seeds ?? 0, "semilla", "semillas")} · recuperados{" "}
-              {mm3(segmentation.reclaimed_mm3)} mm³ · hueso vetado {mm3(segmentation.vetoed_mm3)} mm³
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -2, lineHeight: 1.45 }}>
+              frente a la máscara del umbral, que incluía el hueso
             </div>
           )}
-          {tubular && phases && <div style={hudLine}>{phases}</div>}
-          {/* El servidor cambió algo de lo pedido (sin semillas → umbral;
-              media resolución forzada por memoria). No es un error: la malla
-              existe, pero no es la que se pidió, y eso hay que verlo. */}
-          {segmentation.fallback_note && (
-            <div style={{
-              fontSize: 11, lineHeight: 1.5, marginTop: 8, padding: "8px 10px",
-              borderRadius: "var(--radius-md)", background: "var(--muted)",
-              borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
-            }}>
-              {segmentation.fallback_note}
-            </div>
+          {/* Decisión 19: piezas, semillas, mm³ y los segundos por fase son
+              cifras de depuración; a la vista queda solo cuánto tardó. */}
+          {elapsed !== null && <div style={hudLine}>Segmentada en {elapsed} s</div>}
+          {((tubular && hasQuality) || (tubular && phases)) && (
+            <details style={{ marginTop: 4, fontSize: 11, color: "var(--muted-foreground)" }}>
+              <summary style={{ cursor: "pointer" }}>Detalles</summary>
+              {tubular && hasQuality && (
+                <div style={hudLine}>
+                  {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}
+                  {pieces(segmentation.seeds ?? 0, "semilla", "semillas")} · recuperados{" "}
+                  {mm3(segmentation.reclaimed_mm3)} mm³ · hueso vetado {mm3(segmentation.vetoed_mm3)} mm³
+                </div>
+              )}
+              {tubular && phases && <div style={hudLine}>{phases}</div>}
+            </details>
           )}
           {segmentation.fragments_removed > 0 && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
@@ -699,6 +741,16 @@ function pieces(n: number, one: string, many: string): string {
 
 function mm3(v: number | undefined): string {
   return Math.round(v ?? 0).toLocaleString("es");
+}
+
+/** Segundos de la segmentación: el «total» del servidor o, si no lo manda,
+ *  la suma de las fases. Null sin tiempos (p. ej. una sesión reanudada). */
+function elapsedSeconds(phases: Record<string, number> | undefined): number | null {
+  if (!phases) return null;
+  const vals = Object.values(phases);
+  if (vals.length === 0) return null;
+  const total = phases.total ?? vals.reduce((a, b) => a + b, 0);
+  return Math.round(total);
 }
 
 /** «total 40 s · tubularidad 13 s · laminaridad 14 s»: dónde se fue el

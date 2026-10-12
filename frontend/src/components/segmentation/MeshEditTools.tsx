@@ -580,7 +580,7 @@ export function MeshEditTools() {
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
           Elige un centro y conserva o elimina la geometría dentro de una esfera.
-          Para recortar por una caja con los seis límites a la vista, usa la «Caja de recorte» de abajo.
+          Para recortar por una caja con los seis límites a la vista, usa la «Caja de recorte» de arriba.
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           <button

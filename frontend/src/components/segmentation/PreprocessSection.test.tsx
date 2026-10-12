@@ -22,12 +22,12 @@ const resultado = {
   shape_before: [1, 1, 1], spacing_before: [1, 1, 1], shape_after: [1, 1, 1], spacing_after: [1, 1, 1], note: "ok",
 };
 
-function montar(conMalla: boolean) {
+function montar(conMalla: boolean, spacing?: { x: number; y: number; z: number }) {
   function Semilla({ children }: { children: ReactNode }) {
     const p = usePlanning();
     useEffect(() => {
       p.setSession("s1");
-      p.setSeries({ series_id: "1", modality: "CT" } as never);
+      p.setSeries({ series_id: "1", modality: "CT", spacing } as never);
       if (conMalla) p.setSegmentation(malla);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
     return p.sessionId ? <>{children}</> : null;
@@ -55,5 +55,27 @@ describe("«Aplicar preprocesamiento»", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Aplicar preprocesamiento" }));
     await waitFor(() => expect(preprocess).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});
+
+/* F1-135: «Remuestreo isotrópico» se ofrecía sobre un volumen ya isotrópico
+   y, con el objetivo por defecto de 0,5 mm, bajaba la resolución sin decirlo. */
+describe("«Remuestreo isotrópico»", () => {
+  const casilla = () => screen.getByRole("checkbox", { name: /Remuestreo isotrópico/ }) as HTMLInputElement;
+
+  it("con vóxel 0,32 isotrópico, apagado", async () => {
+    montar(false, { x: 0.32, y: 0.32, z: 0.32 });
+    await screen.findByRole("button", { name: "Aplicar preprocesamiento" });
+    expect(casilla().checked).toBe(false);
+    expect(casilla()).toBeDisabled();
+    expect(screen.getByText("El volumen ya es isotrópico (0,32 mm)")).toBeInTheDocument();
+  });
+
+  it("anisótropo con objetivo mayor que el vóxel, avisa de que baja la resolución", async () => {
+    montar(false, { x: 0.32, y: 0.32, z: 0.8 });
+    await screen.findByRole("button", { name: "Aplicar preprocesamiento" });
+    expect(casilla()).not.toBeDisabled();
+    fireEvent.click(casilla());
+    expect(screen.getByText("Baja la resolución de 0,32 a 0,5 mm")).toBeInTheDocument();
   });
 });

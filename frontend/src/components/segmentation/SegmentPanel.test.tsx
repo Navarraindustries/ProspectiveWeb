@@ -147,7 +147,8 @@ describe("una sesión reanudada", () => {
     expect(screen.queryByText("Estanca")).toBeNull();
     expect(screen.queryByText(/0 piezas/)).toBeNull();
     // Ni un «100 % conservado del umbral» que nadie midió en esta carga.
-    expect(screen.queryByText("Volumen conservado (del umbral)")).toBeNull();
+    expect(screen.queryByText("Volumen conservado")).toBeNull();
+    expect(screen.queryByText(/frente a la máscara del umbral/)).toBeNull();
   });
 });
 
@@ -256,7 +257,8 @@ describe("la banda del volumen, con una malla ya hecha", () => {
         </SessionOnly>
       </PlanningProvider>,
     );
-    const sup = (await screen.findByLabelText("Umbral superior")) as HTMLInputElement;
+    // El tubular (por defecto) ya no enseña el techo; el inferior comparte rango.
+    const sup = (await screen.findByLabelText("Umbral inferior")) as HTMLInputElement;
     await vi.waitFor(() => expect(Number(sup.max)).toBeGreaterThan(4450));
   });
 
@@ -265,6 +267,7 @@ describe("la banda del volumen, con una malla ya hecha", () => {
     // deja el techo donde estaba. Sin esta casilla no hay forma de pedir que
     // no haya límite superior.
     withResult(base);
+    fireEvent.click(await screen.findByRole("radio", { name: /Umbral clásico/ }));
     expect(await screen.findByText(/Sin límite superior/)).toBeInTheDocument();
   });
 });
@@ -732,7 +735,8 @@ describe("método tubular", () => {
     // getByText normaliza los espacios, así que el espacio duro se mira en el texto crudo.
     const fases = screen.getByText(/tubularidad 12 s · superficie 3 s · 1 fase <1 s/);
     expect(fases.textContent).toContain(`12${String.fromCharCode(160)}s`);
-    expect(screen.getByText("Volumen conservado (del umbral)")).toBeInTheDocument();
+    expect(screen.getByText("Volumen conservado")).toBeInTheDocument();
+    expect(screen.getByText("frente a la máscara del umbral, que incluía el hueso")).toBeInTheDocument();
     // El badge «Limpio/Revisar» mira el filtro de fragmentos, que el tubular no corre.
     expect(screen.queryByText("Limpio")).toBeNull();
     expect(screen.queryByText("Revisar")).toBeNull();
@@ -770,6 +774,91 @@ describe("método tubular", () => {
     expect(screen.queryByText(/Sin conexión con el progreso/)).toBeNull();
     // Con el resultado, el hook se para: el vigilante no sigue abierto.
     expect(progreso.activos.at(-1)).toBe(false);
+  });
+
+  /* F1-131: el valor del umbral inferior no decía de dónde salía. */
+  it("la línea de sugerido aparece junto al valor", async () => {
+    const { mockApi } = await mocks();
+    mockApi.suggestedBand.mockResolvedValue({ lower: 1470, upper: 4717, vmin: -20, vmax: 5000 });
+    renderPanel();
+    expect(await screen.findByText("1470 · sugerido por el histograma de este estudio")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Umbral inferior"), { target: { value: "1600" } });
+    expect(screen.getByText("1600 · sugerido: 1470")).toBeInTheDocument();
+    expect(screen.queryByText(/sugerido por el histograma/)).toBeNull();
+  });
+
+  /* F1-132 y decisión 17: en tubular el techo no manda; ni deslizador ni casilla. */
+  it("en tubular no hay techo: una sola línea; con el umbral clásico vuelve", async () => {
+    await mocks();
+    renderPanel();
+    await screen.findByLabelText("Umbral inferior");
+    expect(screen.queryByLabelText("Umbral superior")).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /Sin límite superior/ })).toBeNull();
+    expect(screen.getAllByText("Sin techo en el método tubular")).toHaveLength(1);
+    expect(screen.queryByText(/nunca usa el límite superior/)).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
+    expect(screen.getByLabelText("Umbral superior")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Sin límite superior/ })).toBeInTheDocument();
+    expect(screen.queryByText("Sin techo en el método tubular")).toBeNull();
+  });
+
+  /* F1-133 */
+  it("la ayuda del suavizado aparece", async () => {
+    await mocks();
+    renderPanel();
+    await screen.findByLabelText("Suavizado");
+    expect(screen.getByText("Iteraciones de suavizado de la superficie; valores altos redondean el cuello")).toBeInTheDocument();
+  });
+
+  /* F1-134: la previa gruesa enseñaba hueso que la segmentación tubular quita. */
+  it("en tubular la línea de la vista previa aparece", async () => {
+    await mocks();
+    renderPanel();
+    const linea = "La vista previa solo aplica el umbral; la forma tubular quitará el hueso";
+    expect(await screen.findByText(linea)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
+    expect(screen.queryByText(linea)).toBeNull();
+  });
+
+  /* F1-138: la nota de cambio iba al final de la tarjeta, bajo las cifras. */
+  it("con `fallback_note`, insignia nueva y aviso en la cabecera de la tarjeta", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue({ ...baseResult, fallback_note: "Se segmentó a media resolución por memoria." });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText("Malla lista con cambios")).toBeInTheDocument();
+    expect(screen.queryByText("Malla lista")).toBeNull();
+    const nota = screen.getByText("Se segmentó a media resolución por memoria.");
+    const vertices = screen.getByText("Vértices");
+    // La nota va antes que las cifras.
+    expect(nota.compareDocumentPosition(vertices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("sin `fallback_note`, «Malla lista»", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue(baseResult);
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText("Malla lista")).toBeInTheDocument();
+  });
+
+  /* Decisiones 18 y 19: «Salida vessel_tree.vtp» fuera; las cifras de
+     depuración plegadas en «Detalles»; a la vista, solo el tiempo. */
+  it("sin «Salida», y los mm³ no se ven hasta abrir «Detalles»", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue(baseResult);
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
+    expect(screen.queryByText("Salida")).toBeNull();
+    expect(screen.queryByText(/vessel_tree\.vtp/)).toBeNull();
+    // 12,1 + 3,4 + 0,4 s sin «total» del servidor → 16 s.
+    expect(screen.getByText("Segmentada en 16 s")).toBeVisible();
+    const cifras = screen.getByText(/hueso vetado/);
+    expect(cifras).not.toBeVisible();
+    expect(screen.getByText(/tubularidad 12/)).not.toBeVisible();
+    fireEvent.click(screen.getByText("Detalles"));
+    expect(cifras).toBeVisible();
   });
 
   it("enseña el detalle del 409 cuando ya hay otra segmentación tubular", async () => {
@@ -815,6 +904,8 @@ describe("unidad de los sliders de umbral", () => {
   it("en TC los dos sliders dicen HU y no hay ayuda", async () => {
     conModalidad("CT");
     await screen.findByLabelText("Umbral inferior");
+    // El techo solo existe con el umbral clásico (decisión 17).
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
     for (const t of unidades()) expect(t).toMatch(/ HU/);
     expect(screen.queryByText("Intensidad del volumen, sin unidad física")).toBeNull();
   });
@@ -822,6 +913,7 @@ describe("unidad de los sliders de umbral", () => {
   it("en XA los sliders no llevan unidad y la ayuda sale una vez", async () => {
     conModalidad("XA");
     await screen.findByLabelText("Umbral inferior");
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
     for (const t of unidades()) expect(t).not.toMatch(/HU/);
     expect(screen.getAllByText("Intensidad del volumen, sin unidad física")).toHaveLength(1);
   });

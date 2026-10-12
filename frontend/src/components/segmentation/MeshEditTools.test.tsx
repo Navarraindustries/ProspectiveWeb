@@ -216,7 +216,7 @@ describe("la caja de recorte", () => {
     expect(await screen.findByText("Caja de recorte")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Caja" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Esfera" })).toBeNull();
-    expect(screen.getByText(/usa la «Caja de recorte» de abajo/)).toBeInTheDocument();
+    expect(screen.getByText(/usa la «Caja de recorte» de arriba/)).toBeInTheDocument();
   });
 
   it("un lado no puede cruzar al otro", async () => {

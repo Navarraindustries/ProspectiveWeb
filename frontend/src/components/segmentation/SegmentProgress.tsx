@@ -16,12 +16,22 @@ export function SegmentProgress({ state, slowNote = "El servidor tarda: en un eq
   }, [state?.phase]);
   const pct = state ? Math.round(state.pct) : 0;
   return (
-    <div style={{ marginTop: 18 }} aria-live="polite">
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginBottom: 6, letterSpacing: ".06em", textTransform: "uppercase" }}>
-        <span>{state?.phase || "preparando"}</span>
-        <span>{pct} %</span>
+    <div style={{ marginTop: 18 }}>
+      {/* F1-136: el rótulo era la fase interna («TUBULARIDAD 3/6»), que no le
+          dice nada a quien espera. Lo que necesita saber es que avanza y
+          cuánto suele durar; las fases quedan plegadas para quien las quiera.
+          Solo el rótulo se anuncia: leer cada cambio de fase sería ruido. */}
+      <div aria-live="polite" style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--foreground)", marginBottom: 6 }}>
+        <span>Segmentando… suele tardar menos de un minuto</span>
+        <span style={{ fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{pct} %</span>
       </div>
       <ProgressBar value={state ? state.pct : undefined} />
+      <details style={{ marginTop: 6, fontSize: 11, color: "var(--muted-foreground)" }}>
+        <summary style={{ cursor: "pointer" }}>Fases</summary>
+        <div style={{ fontFamily: "var(--font-mono)", letterSpacing: ".06em", textTransform: "uppercase", marginTop: 4 }}>
+          {state?.phase || "preparando"}
+        </div>
+      </details>
       {/* Genérico a propósito: bajo el 5 % se está en «carga» o «núcleo», o en
           el umbral clásico, que no calcula tubularidad; culparla ahí era falso. */}
       {slow && pct < 5 && (

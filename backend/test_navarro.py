@@ -197,7 +197,9 @@ class TestInSelection:
         # no lo cierra ninguna pieza sola — eso es «fabricar», no «NAVARRO».)
         sel = select_clips(ClipCase(neck_mm=14.0, ar=1.3, dome_height_mm=26.0,
                                     neck_source="rim"))
-        assert sel.outcome in ("stock", "marginal")
+        # Sin inventario cargado el veredicto es el de pieza a medida (F1-190);
+        # lo que este test fija —que la familia contesta— es la lista.
+        assert sel.outcome in ("stock", "marginal", "manufacture")
         assert any("NAVARRO" in c.clip.name for c in sel.recommended)
 
     def test_made_to_order_clips_are_labelled_as_such(self):

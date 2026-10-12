@@ -25,7 +25,7 @@ vi.mock("../../api/client", () => ({
   ApiError: class ApiError extends Error {},
 }));
 
-import { ClipSelectionPanel } from "./ClipSelection";
+import { CatalogueToggle, ClipSelectionPanel } from "./ClipSelection";
 import type {
   ClipCandidateOut,
   ClipSelectionResult,
@@ -148,7 +148,7 @@ describe("when nothing in the inventory fits", () => {
     }));
     render(<ClipSelectionPanel sessionId="s1" />);
 
-    expect(await screen.findByText("Requiere fabricación")).toBeInTheDocument();
+    expect(await screen.findByText("Pieza a medida: se pide en Fabricación")).toBeInTheDocument();
     expect(screen.getByText(/paso/)).toBeInTheDocument();
     expect(screen.getByText("Fabricación")).toBeInTheDocument();
   });
@@ -467,5 +467,61 @@ describe("lo que el corredor le pide a la pieza", () => {
     render(<ClipSelectionPanel sessionId="s1" />);
     await screen.findByText(/Clips recomendados/);
     expect(screen.queryByText(/acodadura/)).not.toBeInTheDocument();
+  });
+});
+
+
+/* ── Catálogo sin inventario (F1-190, F1-191, F1-197) ───────────────────────── */
+
+describe("sin clips de inventario cargados", () => {
+  const sinInventario = () => result({
+    outcome: "manufacture",
+    stock_count: 0,
+    summary: "No hay clips de inventario cargados. 6 diseños bajo pedido sirven para un cuello de 6.0 mm; la pieza se concreta en Fabricación.",
+    recommended: [candidate({ verdict: "warn", availability: "made_to_order" })],
+    manufacture: spec,
+  });
+
+  it("catálogo vacío no da «Utilizable con reservas»", async () => {
+    clipSelection.mockResolvedValue(sinInventario());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText("Pieza a medida: se pide en Fabricación")).toBeInTheDocument();
+    expect(screen.queryByText("Utilizable con reservas")).toBeNull();
+    expect(screen.getByText(/No hay clips de inventario cargados/)).toBeInTheDocument();
+    // Los diseños que sirven se siguen ofreciendo.
+    expect(screen.getByText("Yasargil Recto 9mm")).toBeInTheDocument();
+  });
+
+  it("veredicto nuevo y tono neutro, sin estilo de error", async () => {
+    clipSelection.mockResolvedValue(sinInventario());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    const badge = await screen.findByText("Pieza a medida: se pide en Fabricación");
+    const style = badge.getAttribute("style") ?? "";
+    expect(style).toMatch(/brand-subtle/);
+    expect(style).not.toMatch(/destructive/);
+  });
+
+  it("el panel avisa al padre de cuántos clips de inventario hay", async () => {
+    clipSelection.mockResolvedValue(sinInventario());
+    const onLoaded = vi.fn();
+    render(<ClipSelectionPanel sessionId="s1" onLoaded={onLoaded} />);
+    await screen.findByText("Pieza a medida: se pide en Fabricación");
+    expect(onLoaded).toHaveBeenCalledWith(expect.objectContaining({ stock_count: 0 }));
+  });
+});
+
+describe("la casilla «Ver todo el catálogo» (F1-197)", () => {
+  it("casilla con catálogo vacío muestra el texto", () => {
+    render(<CatalogueToggle stockCount={0} checked={false} onChange={vi.fn()} />);
+    expect(screen.getByText("No hay catálogo de clips cargado en esta instalación")).toBeInTheDocument();
+    expect(screen.queryByText("Ver todo el catálogo, no solo lo recomendado para este caso")).toBeNull();
+  });
+
+  it("con inventario la casilla es la de siempre", () => {
+    const onChange = vi.fn();
+    render(<CatalogueToggle stockCount={4} checked={false} onChange={onChange} />);
+    expect(screen.queryByText("No hay catálogo de clips cargado en esta instalación")).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ver todo el catálogo/ }));
+    expect(onChange).toHaveBeenCalledWith(true);
   });
 });

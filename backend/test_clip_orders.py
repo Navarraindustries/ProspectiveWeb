@@ -159,6 +159,18 @@ class TestThePrefill:
         assert pre["force_band_g"] == [navarro.CLOSING_FORCE_MIN_G, navarro.CLOSING_FORCE_MAX_G]
         assert pre["max_tip_opening_mm"] == 10.0
 
+    def test_el_pedido_lleva_la_fuerza_del_clip_colocado(self, medico):
+        # F1-202: la misma cifra que la verificación y Fabricación, con su banda.
+        from services.device_state import save_clips
+
+        sid = _session()
+        save_clips(sid, [{"index": 0, "name": "NAVARRO™ T1 Recto 7.0 mm",
+                          "clip_id": "navarro:t1:0:7.0",
+                          "position": [0, 0, 0], "orientation": [0, 0, 0]}])
+        pre = client.get(f"/api/clip-orders/prefill/{sid}", headers=medico).json()
+        assert pre["force_target_g"] == navarro.CLOSING_FORCE_MIN_G
+        assert pre["force_statement"] == navarro.force_statement(navarro.CLOSING_FORCE_MIN_G)["text"]
+
     def test_an_estimated_neck_asks_for_the_adjacent_sizes(self, medico):
         # The jaw is only as certain as the neck it came from.
         est = client.get(f"/api/clip-orders/prefill/{_session(source='auto')}",

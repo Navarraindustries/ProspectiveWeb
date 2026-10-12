@@ -1100,6 +1100,12 @@ export interface ManufactureSpecOut {
   shape: string;
   angle_deg: number;
   closing_force_g: number;
+  /** La banda de diseño de la familia alrededor de `closing_force_g` (el
+   *  objetivo). Vacía si la fuerza no es una banda. */
+  force_band_g?: number[];
+  /** «Fuerza objetivo 120 g dentro de la banda de diseño 120–200 g (sin
+   *  caracterizar; se mide en la pieza)», la misma frase que el dossier. */
+  force_statement?: string;
   fenestration_mm: number;
   neck_mm: number;
   label: string;
@@ -1151,6 +1157,9 @@ export interface ClipFieldSummary {
   contact_area_mm2: number;
   /** Fuerza del peor clip (el que da `pressure_verdict`). */
   force_g: number; force_is_band_min: boolean; force_provisional: boolean;
+  /** La cifra de fuerza de la pieza (el objetivo) y su banda: la misma que
+   *  Fabricación y el pedido. Opcionales: un backend anterior no las manda. */
+  force_target_g?: number; force_band_g?: number[]; force_statement?: string;
   /** g/mm²: solo para la capa del .vtp y por compatibilidad. Presión y ventana se
    *  dividen por la misma área, así que no se enseña: se enseña la fuerza en gramos. */
   pressure_g_mm2: number; window_g_mm2: [number, number, number, number];
@@ -1271,6 +1280,9 @@ export interface ClipSelectionResult {
       cuello que el inventario no cubre. */
   multiclip: MultiClipConstructOut | null;
   caveats: string[];
+  /** Clips de INVENTARIO en el catálogo juzgado. Con 0 todo es bajo pedido: el
+   *  veredicto es «Pieza a medida» y nada se llama «del inventario». */
+  stock_count?: number;
 }
 
 /* ── Global clip library ────────────────────────────────────────────────── */
@@ -1640,6 +1652,9 @@ export interface ClipOrderPrefill {
   extra_sizes_reason: string;
   stock_sizes_mm: number[];
   force_band_g: number[];
+  /** La fuerza objetivo de la pieza (la del clip colocado, si lo hay). */
+  force_target_g?: number;
+  force_statement?: string;
   max_tip_opening_mm: number;
   material: string;
   tolerance_jaw_mm: number;

@@ -27,6 +27,7 @@ import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { Slider } from "../Slider";
 import { seriesAndShape, shapeLabel } from "./clipShape";
+import { forceWithBand } from "./clipForce";
 
 const STATUS_VARIANT: Record<OrderStatus, "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive"> = {
   borrador: "outline",
@@ -581,7 +582,10 @@ export function ClipOrderForm({
               He revisado las medidas del caso y las asumo.
             </Check>
             <Check checked={d2} onChange={setD2}>
-              Sé que la fuerza de cierre ({pre.force_band_g[0]}–{pre.force_band_g[1]} g) es
+              {/* La misma cifra que la tarjeta del mapa de calor y la ficha de
+                  Fabricación: el objetivo de la pieza y su banda. Aquí solo salía
+                  la banda, una tercera manera de decir la fuerza (F1-202). */}
+              Sé que la fuerza de cierre ({forceWithBand(pre.force_target_g ?? pre.force_band_g[0], pre.force_band_g)}) es
               un <b>objetivo</b>, no una propiedad del modelo, y hay que medirla en la
               pieza terminada.
             </Check>

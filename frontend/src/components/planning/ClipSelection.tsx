@@ -226,21 +226,58 @@ function CustomJawSheet({
 const OUTCOME_STYLE: Record<string, { variant: "success" | "warning" | "destructive" | "subtle"; label: string }> = {
   stock:       { variant: "success",     label: "Hay clip en inventario" },
   marginal:    { variant: "warning",     label: "Utilizable con reservas" },
-  manufacture: { variant: "destructive", label: "Requiere fabricación" },
+  // Fabricar no es un error: con la familia NAVARRO todo se fabrica bajo pedido,
+  // y el rojo de «Requiere fabricación» se leía como un fallo del caso (F1-191).
+  manufacture: { variant: "subtle",      label: "Pieza a medida: se pide en Fabricación" },
   unmeasured:  { variant: "subtle",      label: "Falta medir el cuello" },
 };
+
+/** La casilla «Ver todo el catálogo» del selector de modelo.
+ *
+ *  Sin ningún clip de inventario cargado, «todo el catálogo» prometía una
+ *  estantería que esta instalación no tiene (F1-197): se dice que no la hay. La
+ *  casilla sigue, con su nombre real, porque es la única vía hasta un diseño
+ *  bajo pedido que el recomendador no propone para este caso. */
+export function CatalogueToggle({
+  stockCount, checked, onChange,
+}: {
+  /** Clips de inventario en el catálogo juzgado; `undefined` mientras no se sabe. */
+  stockCount: number | undefined;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const empty = stockCount === 0;
+  return (
+    <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted-foreground)" }}>
+      {empty && (
+        <div style={{ marginBottom: 4, lineHeight: 1.5 }}>
+          No hay catálogo de clips cargado en esta instalación
+        </div>
+      )}
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        {empty
+          ? "Ver todos los diseños bajo pedido, no solo lo recomendado para este caso"
+          : "Ver todo el catálogo, no solo lo recomendado para este caso"}
+      </label>
+    </div>
+  );
+}
 
 export function ClipSelectionPanel({
   sessionId,
   caseId,
   selectedClipId,
   onPick,
+  onLoaded,
 }: {
   sessionId: string;
   caseId?: number | null;
   selectedClipId?: string;
   /** Called when the surgeon picks a candidate, so the placement list can use it. */
   onPick?: (clipId: string, clipName: string) => void;
+  /** La selección recién leída: el panel padre necesita saber si hay inventario. */
+  onLoaded?: (sel: ClipSelectionResult) => void;
 }) {
   const [sel, setSel] = useState<ClipSelectionResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -250,9 +287,12 @@ export function ClipSelectionPanel({
     setLoading(true);
     setError(null);
     api.clipSelection(sessionId, caseId)
-      .then(setSel)
+      .then((r) => { setSel(r); onLoaded?.(r); })
       .catch((e) => setError(e instanceof Error ? e.message : "Error cargando la selección de clip"))
       .finally(() => setLoading(false));
+    // `onLoaded` fuera de las dependencias: un callback nuevo en cada render del
+    // padre relanzaría la evaluación del catálogo entera.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, caseId]);
 
   useEffect(load, [load]);

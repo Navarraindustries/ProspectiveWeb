@@ -14,6 +14,7 @@ import { Badge } from "../Badge";
 import { Metric } from "../Metric";
 import { Card, SectionLabel } from "../PanelHead";
 import { CriterionChip } from "./ClipSelection";
+import { forceWithBand } from "./clipForce";
 
 type BadgeVariant = "success" | "warning" | "destructive";
 
@@ -30,6 +31,26 @@ const FORCE_BADGE: Record<ClipForceVerdict, [string, BadgeVariant]> = {
 
 const g0 = (n: number) => `${n.toFixed(0)} g`;
 
+/** El distintivo de la fuerza. Con la fuerza sin caracterizar, un veredicto
+ *  favorable no puede decir «Óptima»: el criterio de fuerza de la misma tarjeta
+ *  lleva «!» por esa misma razón (`force_provisional`), y los dos se leían
+ *  como si se contradijeran (F1-202). Lo que sí falla —insuficiente, exceso,
+ *  sin contacto— se sigue diciendo: eso no depende de la cifra exacta. */
+export function forceBadge(verdict: ClipForceVerdict, provisional: boolean): [string, BadgeVariant] {
+  if (provisional && (verdict === "optima" || verdict === "aceptable")) {
+    return ["Provisional", "warning"];
+  }
+  return FORCE_BADGE[verdict];
+}
+
+/** La cifra de fuerza de la tarjeta: el objetivo con su banda, la misma cadena
+ *  que Fabricación y el pedido. Con varios clips, la de cada uno. */
+export function forceValue(s: ClipFieldSummary): string {
+  if (s.clips.length > 1) return forcesText(s);
+  if (s.force_g <= 0) return "—";
+  return forceWithBand(s.force_target_g ?? s.force_g, s.force_band_g);
+}
+
 export function ClipFieldCard({
   summary, show, onToggle, stale = false,
 }: {
@@ -43,7 +64,9 @@ export function ClipFieldCard({
   const s = summary;
   const [accLo, optLo, optHi, accHi] = s.force_window_g;
   const sinFuerza = s.pressure_verdict === "sin_fuerza";
-  const matiz = [
+  // La frase de la fuerza viene del backend (`navarro.force_statement`), la
+  // misma que imprime el dossier; sin ella, la explicación de siempre.
+  const matiz = s.force_statement || [
     s.force_is_band_min && "fuerza mínima de la banda",
     s.force_provisional && "provisional",
   ].filter(Boolean).join(", ");
@@ -70,7 +93,7 @@ export function ClipFieldCard({
       <Metric label="Cuello cubierto" value={neckPct(s, s.covered_pct, 1)} />
       <Metric label="Cuello residual" value={neckPct(s, s.residual_pct, 1)} />
       <Metric label="Cuello no alcanzado" value={neckPct(s, s.unreached_pct, 1)} />
-      <Metric wrapLabel label="Fuerza de cierre" value={forcesText(s)} badge={FORCE_BADGE[s.pressure_verdict]} />
+      <Metric wrapLabel label="Fuerza de cierre" value={forceValue(s)} badge={forceBadge(s.pressure_verdict, s.force_provisional)} />
       {/* La ventana en gramos sirve incluso sin ficha: quien conozca la fuerza de
           su clip importado puede compararla. */}
       <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
@@ -79,7 +102,7 @@ export function ClipFieldCard({
       {s.clips.length > 1 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
           {s.clips.map((c, i) => (
-            <div key={i}>{c.name}: {c.force_g > 0 ? g0(c.force_g) : "—"} · {FORCE_BADGE[c.verdict][0]}</div>
+            <div key={i}>{c.name}: {c.force_g > 0 ? g0(c.force_g) : "—"} · {forceBadge(c.verdict, s.force_provisional)[0]}</div>
           ))}
         </div>
       )}

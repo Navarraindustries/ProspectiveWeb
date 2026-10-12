@@ -31,7 +31,7 @@ import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { ClipFieldCard } from "./ClipFieldCard";
 import { ClipRehearsal } from "./ClipRehearsal";
-import { ClipSelectionPanel } from "./ClipSelection";
+import { CatalogueToggle, ClipSelectionPanel } from "./ClipSelection";
 import { FdSizing } from "./FdSizing";
 import { WebSizing } from "./WebSizing";
 import { VERDICT_LABEL } from "./approachSummary";
@@ -181,6 +181,9 @@ function ClipsTab() {
   // el endpoint existía y nadie lo llamaba.
   const [catalogo, setCatalogo] = useState<ClipLibraryItem[]>([]);
   const [verTodo, setVerTodo] = useState(false);
+  // Cuántos clips de inventario juzgó la selección: con cero, la casilla de
+  // «todo el catálogo» dice que no hay catálogo (F1-197).
+  const [stockCount, setStockCount] = useState<number | undefined>(undefined);
   const [sel, setSel] = useState<string>("");
   // Cuál de las dos preguntas se está respondiendo.
   const [step, setStep] = useState<string>(CLIP_STEPS[0]);
@@ -524,6 +527,7 @@ function ClipsTab() {
                 caseId={caseId}
                 selectedClipId={sel}
                 onPick={(clipId, clipName) => { setPicked({ id: clipId, name: clipName }); setSel(clipId); }}
+                onLoaded={(r) => setStockCount(r.stock_count)}
               />
             </div>
           )}
@@ -543,10 +547,7 @@ function ClipsTab() {
             options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
           {/* Sin esto, un modelo que el recomendador no propone es inalcanzable
               desde la interfaz, aunque la institución lo tenga. */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
-            <input type="checkbox" checked={verTodo} onChange={(e) => setVerTodo(e.target.checked)} />
-            Ver todo el catálogo, no solo lo recomendado para este caso
-          </label>
+          <CatalogueToggle stockCount={stockCount} checked={verTodo} onChange={setVerTodo} />
           <input ref={fileRef} type="file" accept=".stl,.obj" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void importClip(f); }} />
           <button
             onClick={() => fileRef.current?.click()} disabled={uploading}

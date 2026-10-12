@@ -740,7 +740,14 @@ def _candidate_out(cand: ClipCandidate) -> ClipCandidateOut:
 
 
 def _spec_out(spec: ManufactureSpec, stl_url: str | None = None) -> ManufactureSpecOut:
+    from services.navarro import force_statement
+
+    # La banda y la frase salen de la misma función que el dossier y la tarjeta
+    # del mapa de calor: una cifra de fuerza, dicha igual en todas partes.
+    fuerza = force_statement(spec.closing_force_g)
     return ManufactureSpecOut(
+        force_band_g     = list(fuerza["band_g"]),
+        force_statement  = fuerza["text"],
         blade_length_mm  = spec.blade_length_mm,
         blade_width_mm   = spec.blade_width_mm,
         blade_height_mm  = spec.blade_height_mm,
@@ -809,10 +816,30 @@ async def clip_selection(
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
     selection = _run_selection(session_id, case_id, verify)
+    # La pieza colocada manda también aquí, no solo en Fabricación y el pedido.
+    # La fijaba el frontend (`pinToPlaced`) con el prefill del pedido, pero el
+    # resumen seguía nombrando la pieza del selector: «La alternativa a medida
+    # sería: Curvo de 12.0 mm · 125 g» mientras Fabricación describía otra
+    # (F1-192). Es la misma sustitución que `_advice` y `clip_manufacture_spec`.
+    piece_label = ""
+    if selection.manufacture is not None:
+        from services.clip_manufacture import perfect_from_id, placed_navarro_id
+        from services.clip_selection import pin_manufacture
+
+        placed_id = placed_navarro_id(session_id)
+        pinned = perfect_from_id(placed_id, selection.manufacture) if placed_id else None
+        if pinned is not None:
+            pin_manufacture(selection, pinned.spec)
+            piece_label = pinned.label
     c = selection.case
+    manufacture_out = None
+    if selection.manufacture is not None:
+        manufacture_out = _spec_out(selection.manufacture)
+        manufacture_out.piece_label = piece_label
     return ClipSelectionResult(
         outcome     = selection.outcome,
         summary     = selection.summary,
+        stock_count = selection.stock_count or 0,
         case        = ClipCaseOut(
             neck_mm=c.neck_mm,
             required_jaw_mm=c.jaw_requirement.mm,
@@ -839,7 +866,7 @@ async def clip_selection(
         ),
         recommended = [_candidate_out(x) for x in selection.recommended],
         rejected    = [_candidate_out(x) for x in selection.rejected],
-        manufacture = None if selection.manufacture is None else _spec_out(selection.manufacture),
+        manufacture = manufacture_out,
         custom_jaw  = None if selection.custom_jaw is None else CustomJawOut(
             series=selection.custom_jaw.series,
             shape=selection.custom_jaw.shape,
@@ -1264,6 +1291,9 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
     criteria: list[ClipCriterion] = []
     names: list[str] = []
     band_min, provisional, sin_ficha = False, False, False
+    # La fuerza objetivo del (primer) clip con ficha y su banda: la tarjeta la
+    # escribe igual que Fabricación y el pedido (F1-202).
+    fuerza: dict | None = None
     for pl in req.placements:
         local = _clip_geometry_for(pl.clip_id, meshes_dir)
         t = devices.pose_transform(
@@ -1292,6 +1322,9 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
             forces.append(float(lo))
             band_min = band_min or hi > lo
             provisional = provisional or spec.force_provisional
+            if fuerza is None and spec.force_provisional:
+                from services.navarro import force_statement
+                fuerza = force_statement(spec.closing_force_g)
             names.append(spec.name)
             # Los criterios son los del primer clip CON ficha: un importado delante no
             # debe dejar el veredicto sin criterios (y salir «ok» sin evaluar nada).
@@ -1342,6 +1375,9 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
             covered_pct=s.covered_pct, residual_pct=s.residual_pct, unreached_pct=s.unreached_pct,
             contact_area_mm2=s.contact_area_mm2, force_g=s.force_g, force_is_band_min=s.force_is_band_min,
             force_provisional=s.force_provisional, pressure_g_mm2=s.pressure_g_mm2,
+            force_target_g=(fuerza["target_g"] if fuerza and len(req.placements) == 1 else 0.0),
+            force_band_g=(list(fuerza["band_g"]) if fuerza and len(req.placements) == 1 else []),
+            force_statement=(fuerza["text"] if fuerza else ""),
             window_g_mm2=list(s.window_g_mm2), pressure_verdict=s.pressure_verdict,
             force_window_g=list(s.force_window_g), neck_evaluated=s.neck_evaluated,
             clips=[ClipFieldClip(name=nm, force_g=ld.force_g, verdict=ld.verdict)

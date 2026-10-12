@@ -19,41 +19,32 @@ import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
 import { useNav } from "../../store/nav";
 import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
+import { forceWithBand } from "./clipForce";
 
 
-/** La ficha del selector, con la pieza COLOCADA en Dispositivos encima.
- *
- *  Es la misma sustitución que hace el backend (`perfect_from_id`): forma,
- *  mordaza, ángulo y ventana de la pieza colocada; anchura, altura, muelle,
- *  fuerza y los avisos, del caso. Sin esto la ficha describía el recto de 8 mm
- *  del selector y el botón de debajo generaba el T2 curvo de 7 que se había
- *  colocado: se leía una pieza y se fabricaba otra. */
-export function pinToPlaced(spec: ManufactureSpecOut, pre: ClipOrderPrefill | null): ManufactureSpecOut {
-  if (!pre?.placed_in_plan) return spec;
-  return {
-    ...spec,
-    shape: pre.advised_shape || spec.shape,
-    blade_length_mm: pre.advised_jaw_mm || spec.blade_length_mm,
-    angle_deg: pre.advised_angle_deg,
-    fenestration_mm: pre.advised_window_mm,
-    label: pre.advised_label || spec.label,
-    piece_label: pre.advised_label || spec.piece_label,
-  };
-}
+/* La ficha ya llega con la pieza COLOCADA en Dispositivos encima: el backend
+   la fija en la selección (`routers/clips.clip_selection`, la misma sustitución
+   que `perfect_from_id`). Antes la fijaba aquí `pinToPlaced` con el prefill del
+   pedido, y el resumen del paso Dispositivos —que no pasa por aquí— seguía
+   nombrando la pieza del selector: «La alternativa a medida sería: Curvo de
+   12.0 mm · 125 g» mientras Fabricación describía otra (F1-192). */
 
 function ManufactureSheet({
-  spec, sessionId, caseId, placed,
+  spec, sessionId, caseId, placed, noStock,
 }: {
   spec: ManufactureSpecOut;
   sessionId: string;
   caseId?: number | null;
   /** El prefill del pedido: dice si hay una pieza colocada en el plan. */
   placed: ClipOrderPrefill | null;
+  /** No hay ningún clip de inventario cargado: los motivos no son «por qué no
+   *  sirve el inventario» sino que no hay inventario (F1-214). */
+  noStock: boolean;
 }) {
   const [built, setBuilt] = useState<ManufactureSpecOut | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const shown = built ?? pinToPlaced(spec, placed);
+  const shown = built ?? spec;
 
   const rows: [string, string][] = [
     ["Forma", `${shown.shape}${shown.angle_deg ? ` · ${shown.angle_deg.toFixed(0)}°` : ""}`],
@@ -61,7 +52,9 @@ function ManufactureSheet({
     ["Anchura de hoja", `${shown.blade_width_mm.toFixed(2)} mm`],
     ["Altura de hoja", `${shown.blade_height_mm.toFixed(2)} mm`],
     ["Longitud de muelle", `${shown.spring_length_mm.toFixed(1)} mm`],
-    ["Fuerza de cierre", `${shown.closing_force_g.toFixed(0)} g`],
+    // La misma cadena que la tarjeta del mapa de calor y el pedido: el objetivo
+    // y su banda. «125 g» aquí y «120 g Óptima» allí eran la misma pieza (F1-213).
+    ["Fuerza de cierre", forceWithBand(shown.closing_force_g, shown.force_band_g)],
     ...(shown.fenestration_mm > 0
       ? ([["Ventana (interior)", `${shown.fenestration_mm.toFixed(1)} mm`]] as [string, string][])
       : []),
@@ -140,7 +133,7 @@ function ManufactureSheet({
 
       {shown.reasons.length > 0 && (
         <div style={{ marginTop: 10 }}>
-          <SectionLabel>Por qué no sirve el inventario</SectionLabel>
+          <SectionLabel>{noStock ? "Por qué se fabrica" : "Por qué no sirve el inventario"}</SectionLabel>
           <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
             {shown.reasons.map((r) => <li key={r}>{r}</li>)}
           </ul>
@@ -251,9 +244,22 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
         padding: "8px 10px", borderRadius: "var(--radius-md)",
         background: "var(--muted)", marginBottom: 14,
       }}>
-        <b>Paso opcional.</b> La mayoría de los casos se resuelven con un clip del
-        catálogo y no pasan por aquí. Un pedido tarda semanas, así que el informe
-        del caso se genera sin esperarlo.
+        {/* Sin clips de inventario cargados, «la mayoría de los casos se
+            resuelven con un clip del catálogo» era falso en esta instalación:
+            todo lo que se coloca se fabrica (F1-211). */}
+        {sel?.stock_count === 0 ? (
+          <>
+            En esta instalación no hay catálogo de clips: toda pieza se fabrica bajo
+            pedido. Un pedido tarda semanas, así que el informe del caso se genera
+            sin esperarlo.
+          </>
+        ) : (
+          <>
+            <b>Paso opcional.</b> La mayoría de los casos se resuelven con un clip del
+            catálogo y no pasan por aquí. Un pedido tarda semanas, así que el informe
+            del caso se genera sin esperarlo.
+          </>
+        )}
       </div>
 
       {/* La puerta al directorio de talleres. Vive aquí porque es aquí donde se
@@ -283,7 +289,9 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
           <SectionLabel>
             {sel.outcome === "manufacture" ? "Especificación de fabricación"
               : sel.outcome === "stock" ? "Clip ideal a medida (opcional)"
-              : "Alternativa a medida"}
+              // «Alternativa a medida» sonaba a plan B cuando, sin inventario,
+              // es la única pieza que hay (F1-212).
+              : "Pieza a fabricar"}
           </SectionLabel>
           {sel.outcome === "stock" && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "4px 0 6px", lineHeight: 1.5 }}>
@@ -292,7 +300,8 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
               mandarla a fabricar.
             </div>
           )}
-          <ManufactureSheet spec={sel.manufacture} sessionId={sessionId} caseId={caseId} placed={placed} />
+          <ManufactureSheet spec={sel.manufacture} sessionId={sessionId} caseId={caseId} placed={placed}
+                            noStock={sel.stock_count === 0} />
         </div>
       )}
 

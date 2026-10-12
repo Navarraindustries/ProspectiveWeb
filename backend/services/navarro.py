@@ -103,6 +103,30 @@ CLOSING_FORCE_MAX_G: float = 200.0
 FORCE_IS_PROVISIONAL: bool = True
 
 
+def force_statement(target_g: float) -> dict:
+    """La única manera de decir la fuerza de cierre de una pieza de la familia.
+
+    La misma pieza salía con tres cifras: 120 g «Óptima» en el mapa de calor (el
+    mínimo de la banda), 125 g en Fabricación (el centro de la ventana del
+    cuello) y 120–200 g en el pedido (la banda). Quien las leía no sabía cuál era
+    la fuerza de la pieza (F1-202, F1-213). Ahora hay UNA cifra —el objetivo,
+    llevado dentro de la banda de diseño, que es todo lo que la familia promete—
+    y su banda, y la tarjeta, la ficha, el dossier y el pedido salen de aquí.
+    """
+    lo, hi = CLOSING_FORCE_MIN_G, CLOSING_FORCE_MAX_G
+    t = float(min(max(float(target_g), lo), hi))
+    tail = " (sin caracterizar; se mide en la pieza)" if FORCE_IS_PROVISIONAL else ""
+    return {
+        "target_g": t,
+        "band_g": [lo, hi],
+        "provisional": FORCE_IS_PROVISIONAL,
+        "text": f"Fuerza objetivo {t:.0f} g dentro de la banda de diseño {lo:.0f}–{hi:.0f} g{tail}",
+        # La forma corta de las filas: la misma cadena que `forceWithBand` del
+        # frontend, para que la ficha, la tarjeta y el dossier se lean iguales.
+        "short": f"{t:.0f} g · banda {lo:.0f}–{hi:.0f} g",
+    }
+
+
 #: The four drawn series and what each one is.
 STRAIGHT, CURVED, ANGLED, FENESTRATED = "straight", "curved", "angled", "fenestrated"
 

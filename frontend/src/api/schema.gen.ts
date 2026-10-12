@@ -4328,12 +4328,29 @@ export interface components {
             covered_pct: number;
             /** Criteria */
             criteria?: components["schemas"]["ClipCriterion"][];
+            /**
+             * Force Band G
+             * @description Banda de diseño de esa fuerza
+             */
+            force_band_g?: number[];
             /** Force G */
             force_g: number;
             /** Force Is Band Min */
             force_is_band_min: boolean;
             /** Force Provisional */
             force_provisional: boolean;
+            /**
+             * Force Statement
+             * @description La frase de la fuerza, la misma del dossier
+             * @default
+             */
+            force_statement: string;
+            /**
+             * Force Target G
+             * @description Fuerza objetivo del clip (0 sin ficha o con varios)
+             * @default 0
+             */
+            force_target_g: number;
             /**
              * Force Window G
              * @description Ventana de fuerza del cuello en gramos: aceptable mín, óptima mín, óptima máx, aceptable máx
@@ -4591,6 +4608,12 @@ export interface components {
              * @description Near misses, each carrying the one criterion that disqualified it
              */
             rejected?: components["schemas"]["ClipCandidateOut"][];
+            /**
+             * Stock Count
+             * @description Clips de INVENTARIO en el catálogo juzgado. Con 0 todo es bajo pedido: el veredicto es 'manufacture' aunque haya diseños que sirvan, y nada se llama «del inventario».
+             * @default 0
+             */
+            stock_count: number;
             /** Summary */
             summary: string;
         };
@@ -6071,6 +6094,17 @@ export interface components {
              * @default 0
              */
             fenestration_mm: number;
+            /**
+             * Force Band G
+             * @description Banda de diseño de la familia alrededor de `closing_force_g` (el objetivo)
+             */
+            force_band_g?: number[];
+            /**
+             * Force Statement
+             * @description «Fuerza objetivo X g dentro de la banda de diseño…», la frase del dossier
+             * @default
+             */
+            force_statement: string;
             /**
              * Label
              * @description One-line summary of the part to order
@@ -7719,6 +7753,16 @@ export interface components {
              * @default []
              */
             force_band_g: number[];
+            /**
+             * Force Statement
+             * @default
+             */
+            force_statement: string;
+            /**
+             * Force Target G
+             * @default 0
+             */
+            force_target_g: number;
             /**
              * Institution
              * @default

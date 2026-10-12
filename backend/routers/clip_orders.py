@@ -219,6 +219,11 @@ class PrefillOut(BaseModel):
     # Fixed properties of the family.
     stock_sizes_mm: list[int] = []
     force_band_g: list[float] = []
+    #: La fuerza objetivo de la pieza (la del clip colocado, si lo hay) y su
+    #: frase: la misma cifra que la tarjeta del mapa de calor y Fabricación
+    #: (F1-202). El pedido solo llevaba la banda, una tercera manera de decirla.
+    force_target_g: float = 0.0
+    force_statement: str = ""
     max_tip_opening_mm: float = 0.0
     material: str = ""
     tolerance_jaw_mm: float = 0.0
@@ -573,7 +578,8 @@ async def prefill(session_id: str, user: CurrentUser, db: Db,
                                            placed_navarro_id)
     from services.clip_animation import MAX_TIP_OPENING_MM
     from services.navarro import (CLOSING_FORCE_MAX_G, CLOSING_FORCE_MIN_G,
-                                  STOCK_JAW_MM, STOCK_WINDOW_MM, list_variants)
+                                  STOCK_JAW_MM, STOCK_WINDOW_MM, force_statement,
+                                  list_variants)
 
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
@@ -584,6 +590,7 @@ async def prefill(session_id: str, user: CurrentUser, db: Db,
     patient, case_label = _case_identity(session_id, case_id)
 
     jaw = piece.navarro_jaw_mm or spec.blade_length_mm
+    fuerza = force_statement(spec.closing_force_g)
     neighbours = sorted(STOCK_JAW_MM, key=lambda s: abs(s - jaw))[1:3]
     estimated = case.neck_source not in ("rim",)
 
@@ -623,6 +630,8 @@ async def prefill(session_id: str, user: CurrentUser, db: Db,
         ),
         stock_sizes_mm=list(STOCK_JAW_MM),
         force_band_g=[CLOSING_FORCE_MIN_G, CLOSING_FORCE_MAX_G],
+        force_target_g=fuerza["target_g"],
+        force_statement=fuerza["text"],
         max_tip_opening_mm=MAX_TIP_OPENING_MM,
         material=MATERIAL, tolerance_jaw_mm=TOL_JAW_MM, tolerance_other_mm=TOL_OTHER_MM,
         requester_name=user.full_name or user.username,

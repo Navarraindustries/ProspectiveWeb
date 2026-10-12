@@ -32,6 +32,7 @@ vi.mock("../../store/planning", () => ({
 }));
 
 import { ManufacturePanel } from "./ManufacturePanel";
+import { forceWithBand } from "./clipForce";
 import type { ClipSelectionResult, ManufactureSpecOut } from "../../api/types";
 
 const spec: ManufactureSpecOut = {
@@ -180,8 +181,12 @@ describe("the ideal clip is reachable whatever the outcome", () => {
 describe("la pieza colocada en Dispositivos manda", () => {
   // En la sesión de Hernandez la ficha describía el recto de 8 mm del selector y
   // «Generar STL y dossiers» fabricaba el T2 curvo de 7 mm que se había colocado.
+  // Ahora la selección llega ya fijada a la pieza colocada desde el backend
+  // (F1-192): la ficha la enseña tal cual, sin rehacer la sustitución aquí.
   const selector = { ...spec, shape: "Recto", blade_length_mm: 8, angle_deg: 0, label: "Recto de 8.0 mm · 125 g",
                      piece_label: "", part_no: "" };
+  const fijada = { ...spec, shape: "Curvo", blade_length_mm: 7, angle_deg: 0, label: "Curvo de 7.0 mm · 120 g",
+                   piece_label: "NAVARRO™ T2 Curvo, mordaza 7.0 mm", part_no: "" };
   const colocado = {
     can_order: false, reason: "", placed_in_plan: true,
     advised_label: "NAVARRO™ T2 Curvo, mordaza 7.0 mm", advised_shape: "Curvo",
@@ -189,7 +194,7 @@ describe("la pieza colocada en Dispositivos manda", () => {
   };
 
   it("antes de generar, la ficha ya describe la pieza colocada", async () => {
-    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: selector }));
+    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: fijada }));
     clipOrderPrefill.mockResolvedValue(colocado as never);
     draw();
     expect(await screen.findByText("NAVARRO™ T2 Curvo, mordaza 7.0 mm")).toBeInTheDocument();
@@ -205,5 +210,54 @@ describe("la pieza colocada en Dispositivos manda", () => {
     draw();
     expect(await screen.findByText("8.0 mm")).toBeInTheDocument();
     expect(screen.queryByText(/Es el clip que colocaste/)).toBeNull();
+  });
+});
+
+
+/* ── Catálogo vacío (F1-211, F1-212, F1-214) y una sola fuerza (F1-202/213) ── */
+
+describe("sin catálogo de clips de inventario", () => {
+  const sinCatalogo = { ...spec, part_no: "",
+    reasons: ["No hay catálogo de clips de inventario cargado en esta instalación"] };
+
+  it("catálogo vacío cambia el texto del paso", async () => {
+    clipSelection.mockResolvedValue(result({ stock_count: 0, manufacture: sinCatalogo }));
+    draw();
+    expect(await screen.findByText(/En esta instalación no hay catálogo de clips/)).toBeInTheDocument();
+    expect(screen.queryByText(/La mayoría de los casos se resuelven con un clip/)).toBeNull();
+  });
+
+  it("con inventario el texto sigue siendo el de paso opcional", async () => {
+    clipSelection.mockResolvedValue(result({ stock_count: 3, manufacture: null }));
+    draw();
+    expect(await screen.findByText(/Paso opcional/)).toBeInTheDocument();
+  });
+
+  it("los motivos dicen que no hay catálogo, no culpan al cuello", async () => {
+    clipSelection.mockResolvedValue(result({ stock_count: 0, manufacture: sinCatalogo }));
+    draw();
+    expect(await screen.findByText("Por qué se fabrica")).toBeInTheDocument();
+    expect(screen.queryByText("Por qué no sirve el inventario")).toBeNull();
+    expect(screen.getByText("No hay catálogo de clips de inventario cargado en esta instalación")).toBeInTheDocument();
+  });
+
+  it("título nuevo: «Pieza a fabricar» en vez de «Alternativa a medida»", async () => {
+    clipSelection.mockResolvedValue(result({ outcome: "marginal", stock_count: 2, manufacture: { ...spec, part_no: "" } }));
+    draw();
+    expect(await screen.findByText("Pieza a fabricar")).toBeInTheDocument();
+    expect(screen.queryByText("Alternativa a medida")).toBeNull();
+  });
+});
+
+describe("una sola cifra de fuerza (F1-202, F1-213)", () => {
+  // La misma cadena que fija ClipFieldCard.test para la tarjeta del mapa de calor.
+  const MISMA_FUERZA = "120 g · banda 120–200 g";
+
+  it("la ficha escribe la fuerza del clip colocado con su banda", async () => {
+    clipSelection.mockResolvedValue(result({ stock_count: 0,
+      manufacture: { ...spec, part_no: "", closing_force_g: 120, force_band_g: [120, 200] } }));
+    draw();
+    expect(await screen.findByText(MISMA_FUERZA)).toBeInTheDocument();
+    expect(forceWithBand(120, [120, 200])).toBe(MISMA_FUERZA);
   });
 });

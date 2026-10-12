@@ -335,6 +335,10 @@ def to_spec(clip: LibraryClip):
         closing_force_g=clip.closing_force_g,
         manufacturer=clip.manufacturer or "Biblioteca",
         fenestration_mm=clip.fenestration_mm,
+        # Un diseño «bajo pedido» de la biblioteca se fabrica para el caso: no es
+        # inventario. Sin esto heredaba `availability="stock"` y el selector lo
+        # contaba como estantería (F1-192).
+        availability="stock" if clip.kind == "stock" else "made_to_order",
     )
 
 

@@ -208,6 +208,13 @@ class ManufactureSpecOut(BaseModel):
     shape: str
     angle_deg: float
     closing_force_g: float
+    # La cifra de fuerza va siempre con su banda: la misma que enseñan la
+    # tarjeta del mapa de calor y el pedido (F1-202, F1-213).
+    force_band_g: list[float] = Field(
+        default_factory=list,
+        description="Banda de diseño de la familia alrededor de `closing_force_g` (el objetivo)")
+    force_statement: str = Field(
+        "", description="«Fuerza objetivo X g dentro de la banda de diseño…», la frase del dossier")
     fenestration_mm: float = Field(
         0.0, description="Inner window diameter (mm); 0 when a plain clip is specified"
     )
@@ -366,6 +373,14 @@ class ClipSelectionResult(BaseModel):
     )
     summary: str
     case: ClipCaseOut
+    stock_count: int = Field(
+        0,
+        description=(
+            "Clips de INVENTARIO en el catálogo juzgado. Con 0 todo es bajo pedido: "
+            "el veredicto es 'manufacture' aunque haya diseños que sirvan, y nada se "
+            "llama «del inventario»."
+        ),
+    )
     recommended: list[ClipCandidateOut] = Field(default_factory=list)
     rejected: list[ClipCandidateOut] = Field(
         default_factory=list,
@@ -488,6 +503,10 @@ class ClipFieldSummary(BaseModel):
     """Lo que el campo mide: cobertura, presión estimada y veredicto. Estimación geométrica."""
     covered_pct: float; residual_pct: float; unreached_pct: float
     contact_area_mm2: float; force_g: float; force_is_band_min: bool; force_provisional: bool
+    # La cifra de la pieza y su banda, la misma que Fabricación y el pedido.
+    force_target_g: float = Field(0.0, description="Fuerza objetivo del clip (0 sin ficha o con varios)")
+    force_band_g: list[float] = Field(default_factory=list, description="Banda de diseño de esa fuerza")
+    force_statement: str = Field("", description="La frase de la fuerza, la misma del dossier")
     pressure_g_mm2: float; window_g_mm2: list[float]; pressure_verdict: str
     force_window_g: list[float] = Field(
         default_factory=list,

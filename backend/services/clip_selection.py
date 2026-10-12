@@ -581,16 +581,25 @@ def _force_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
         )
 
     inside_opt = lo >= opt_lo and hi <= opt_hi
-    if inside_opt and not clip.force_provisional:
-        return Criterion("force", "Fuerza de cierre", "ok",
-                         f"{shown} dentro de la ventana {opt_lo:.0f}–{opt_hi:.0f} g", 1.0, _force_weight(clip))
-    if inside_opt:
+    if clip.force_provisional:
+        # La fuerza de una pieza sin caracterizar se dice como en todas partes:
+        # su objetivo y su banda (`navarro.force_statement`). «120–200 g solo es
+        # óptima entre 120 y 150 g» al lado de «120 g Óptima» en la tarjeta del
+        # mapa de calor eran dos cifras para la misma pieza (F1-202). El
+        # veredicto sigue en «warn» —nadie puede dar por cumplida una fuerza sin
+        # medir— y la tarjeta lo dice igual: «Provisional».
+        from services.navarro import force_statement
+
+        frase = force_statement(clip.closing_force_g)["text"]
+        score = 0.80 if inside_opt else (0.60 if max(lo, opt_lo) <= min(hi, opt_hi) else 0.55)
         return Criterion(
             "force", "Fuerza de cierre", "warn",
-            f"{shown} cae entera en la ventana {opt_lo:.0f}–{opt_hi:.0f} g, pero la "
-            f"fuerza real está sin caracterizar: confirmar antes de fabricar",
-            0.80, _force_weight(clip),
+            f"{frase}; la ventana óptima de este cuello es {opt_lo:.0f}–{opt_hi:.0f} g",
+            score, _force_weight(clip),
         )
+    if inside_opt:
+        return Criterion("force", "Fuerza de cierre", "ok",
+                         f"{shown} dentro de la ventana {opt_lo:.0f}–{opt_hi:.0f} g", 1.0, _force_weight(clip))
     # Part of the band is usable. Say which part, so the figure to ask the
     # manufacturer for is on screen instead of left to be worked out.
     ov_lo, ov_hi = max(lo, opt_lo), min(hi, opt_hi)
@@ -813,8 +822,33 @@ def _preferred_shape(case: ClipCase) -> ClipShape:
     return ClipShape.STRAIGHT
 
 
-def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> ManufactureSpec:
-    """Turn "nothing in stock fits" into something a workshop can build."""
+#: El único motivo de fabricar cuando la instalación no tiene inventario. Antes
+#: se daban los motivos de los diseños bajo pedido descartados («Ninguna hoja
+#: del catálogo cubre este cuello…»), que culpaban al cuello de algo que era
+#: falta de estantería (F1-214).
+NO_STOCK_REASON = "No hay catálogo de clips de inventario cargado en esta instalación"
+
+
+def stock_count_of(catalogue: list) -> int:
+    """Cuántos clips del catálogo juzgado son de INVENTARIO (en estantería).
+
+    La familia NAVARRO™ y los diseños de la biblioteca marcados «bajo pedido»
+    son piezas reales, pero se fabrican para el caso: no son inventario. En la
+    instalación auditada no había ni uno de inventario y el selector hablaba de
+    «6 clips del inventario» (F1-192).
+    """
+    return sum(1 for c in catalogue if getattr(c, "availability", "stock") == "stock")
+
+
+def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate],
+                            stock_count: int | None = None) -> ManufactureSpec:
+    """Turn "nothing in stock fits" into something a workshop can build.
+
+    `stock_count` es el número de clips de inventario del catálogo juzgado; con
+    0 el motivo es que no hay inventario, no el cuello. `None` (quien no lo
+    sabe) conserva los motivos de siempre.
+    """
+    from services.navarro import force_statement
     w_r, h_r, s_r = _catalogue_proportions()
 
     # Apunta a la mordaza que cierra el cuello aplastado, redondeando HACIA
@@ -834,7 +868,10 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> Ma
             ClipShape.ANGLED, ClipShape.ANGLED_45, ClipShape.BAYONET):
         angulo = round(bend_for_approach(case.approach_angle_deg), 1)
     _acc_lo, opt_lo, opt_hi, _acc_hi = force_window(case.neck_mm)
-    force = round((opt_lo + opt_hi) / 2.0)
+    # El centro de la ventana del cuello, pero DENTRO de la banda de la familia:
+    # una pieza NAVARRO no puede pedirse a 80 g si su muelle da 120–200 g.
+    fuerza = force_statement(round((opt_lo + opt_hi) / 2.0))
+    force = round(fuerza["target_g"])
 
     fen = 0.0
     notes: list[str] = []
@@ -851,7 +888,12 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> Ma
             "padre antes de fabricar, o confirma que el cuello no incorpora ninguna rama."
         )
 
-    # Distinct reasons the stock catalogue failed, most common first.
+    # Distinct reasons the stock catalogue failed, most common first. Sabiendo
+    # cuánto inventario hay, solo cuentan los descartes de inventario: que un
+    # diseño bajo pedido no sirva no dice nada de la estantería.
+    if stock_count is not None:
+        rejected = [c for c in rejected
+                    if getattr(c.clip, "availability", "stock") == "stock"]
     counts: dict[str, int] = {}
     for cand in rejected:
         for crit in cand.failures:
@@ -862,16 +904,21 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate]) -> Ma
             }.get(crit.key, crit.label)
             counts[key] = counts.get(key, 0) + 1
     reasons = [k for k, _v in sorted(counts.items(), key=lambda kv: -kv[1])]
-    if not reasons:
+    if stock_count == 0:
+        reasons = [NO_STOCK_REASON]
+    elif not reasons:
         reasons = ["El catálogo no ofrece ninguna combinación válida para este caso"]
 
     notes.append(
         "Anchura, altura y muelle se derivan de las proporciones medianas del "
         "catálogo real, no de una medición del caso."
     )
+    # Empieza por «Fuerza objetivo» a propósito: con un clip colocado,
+    # `clip_manufacture.perfect_from_id` cambia esta nota por la de la pieza.
     notes.append(
-        f"La fuerza de cierre ({force} g) es el centro de la ventana heurística para "
-        f"un cuello de {case.neck_mm:.1f} mm; confirmar con el fabricante."
+        f"{fuerza['text']}. La fuerza de cierre sale del centro de la ventana "
+        f"heurística para un cuello de {case.neck_mm:.1f} mm, llevado a la banda de "
+        f"la familia; confirmar con el fabricante."
     )
     if case.neck_source == "auto":
         notes.append(
@@ -1189,6 +1236,39 @@ class ClipSelection:
     #: salidas de un cuello que el inventario no cubre, y la elección entre
     #: mandar fabricar una pieza o poner dos que ya existen es del cirujano.
     multiclip: MultiClipConstruct | None = None
+    #: Clips de INVENTARIO en el catálogo juzgado. Con 0 todo es bajo pedido: el
+    #: veredicto es «pieza a medida» y nada se llama «del inventario» (F1-190,
+    #: F1-192). `None` cuando nadie lo contó: los textos de siempre.
+    stock_count: int | None = None
+
+
+def _bajo_pedido_summary(n: int, neck_mm: float, spec: ManufactureSpec | None,
+                         *, verified: bool = False) -> str:
+    """El resumen cuando no hay inventario: lo que hay son diseños bajo pedido."""
+    head = "No hay clips de inventario cargados."
+    if n > 0:
+        plural = n != 1
+        return (f"{head} {n} diseño{'s' if plural else ''} bajo pedido "
+                f"{'sirven' if plural else 'sirve'} para un cuello de {neck_mm:.1f} mm; "
+                f"la pieza se concreta en Fabricación.")
+    que = ("supera la comprobación sobre la malla de este paciente" if verified
+           else f"sirve para un cuello de {neck_mm:.1f} mm")
+    label = f": {spec.label}" if spec is not None else ""
+    return f"{head} Ningún diseño bajo pedido {que}; la pieza se concreta en Fabricación{label}."
+
+
+def pin_manufacture(selection: "ClipSelection", spec: ManufactureSpec) -> None:
+    """Pone en la selección la pieza que de verdad se fabrica.
+
+    Con un clip colocado, Fabricación describe ESA pieza; la selección seguía
+    nombrando la que proponía el selector («La alternativa a medida sería: Curvo
+    de 12.0 mm · 125 g») y las dos pantallas hablaban de piezas distintas
+    (F1-192). El resumen cambia la etiqueta vieja por la nueva y nada más.
+    """
+    old = selection.manufacture
+    selection.manufacture = spec
+    if old is not None and old.label != spec.label:
+        selection.summary = selection.summary.replace(old.label, spec.label)
 
 
 def _caveats(case: ClipCase) -> list[str]:
@@ -1268,7 +1348,16 @@ def repartition_after_verification(selection: "ClipSelection") -> None:
 
     case = selection.case
     clean = [c for c in selection.recommended if c.verdict == "ok"]
-    if not selection.recommended:
+    if selection.stock_count == 0:
+        # Sin inventario el veredicto es siempre el de pieza a medida; lo que
+        # cambia tras la malla es cuántos diseños bajo pedido quedan.
+        spec = selection.manufacture or derive_manufacture_spec(
+            case, selection.rejected, selection.stock_count)
+        selection.outcome = "manufacture"
+        selection.manufacture = spec
+        selection.summary = _bajo_pedido_summary(
+            len(selection.recommended), case.neck_mm, spec, verified=True)
+    elif not selection.recommended:
         spec = selection.manufacture or derive_manufacture_spec(case, selection.rejected)
         selection.outcome = "manufacture"
         selection.manufacture = spec
@@ -1372,6 +1461,7 @@ def select_clips(
         # recommend a clip nobody can pick up.
         from services.clip_library import catalogue_with_library
         catalogue = catalogue_with_library()
+    stock_count = stock_count_of(catalogue)
 
     if case.neck_mm <= 0 or not case.neck_reliable:
         return ClipSelection(
@@ -1382,6 +1472,7 @@ def select_clips(
             ),
             case=case, recommended=[], rejected=[], manufacture=None,
             caveats=["Sin cuello medido no se puede recomendar ni especificar un clip."],
+            stock_count=stock_count,
         )
 
     evaluated = [evaluate_clip(c, case) for c in catalogue]
@@ -1394,17 +1485,19 @@ def select_clips(
     rejected = failed[:n]
 
     if not viable:
-        spec = derive_manufacture_spec(case, failed)
+        spec = derive_manufacture_spec(case, failed, stock_count)
         multiclip = suggest_multiclip(case, catalogue)
-        resumen = (
-            f"Ningún clip del inventario sirve para un cuello de {case.neck_mm:.1f} mm. "
-            f"Se necesita fabricar: {spec.label}."
-        )
-        if multiclip is not None:
-            resumen += (
-                f" Con lo que hay en el inventario haría falta un montaje de "
-                f"{multiclip.n_clips} clips."
+        if stock_count == 0:
+            resumen = _bajo_pedido_summary(0, case.neck_mm, spec)
+        else:
+            resumen = (
+                f"Ningún clip del inventario sirve para un cuello de {case.neck_mm:.1f} mm. "
+                f"Se necesita fabricar: {spec.label}."
             )
+        if multiclip is not None:
+            donde = ("Con los diseños bajo pedido" if stock_count == 0
+                     else "Con lo que hay en el inventario")
+            resumen += f" {donde} haría falta un montaje de {multiclip.n_clips} clips."
         return ClipSelection(
             outcome="manufacture",
             summary=resumen,
@@ -1412,6 +1505,23 @@ def select_clips(
             caveats=_caveats(case),
             custom_jaw=suggest_custom_jaw(case, None),
             multiclip=multiclip,
+            stock_count=stock_count,
+        )
+
+    if stock_count == 0:
+        # Hay diseños que sirven, pero todos se fabrican para el caso: el
+        # veredicto es el de pieza a medida y los diseños se siguen ofreciendo
+        # (F1-190). «Utilizable con reservas» describía una estantería que no
+        # existe en esta instalación.
+        return ClipSelection(
+            outcome="manufacture",
+            summary=_bajo_pedido_summary(len(recommended), case.neck_mm, None),
+            case=case, recommended=recommended, rejected=rejected,
+            manufacture=derive_manufacture_spec(case, failed, stock_count),
+            caveats=(_caveats(case) + _availability_caveats(recommended)
+                     + _tie_caveat(recommended)),
+            custom_jaw=suggest_custom_jaw(case, _best_resizable(recommended)),
+            stock_count=stock_count,
         )
 
     clean = [c for c in recommended if c.verdict == "ok"]
@@ -1431,15 +1541,16 @@ def select_clips(
             # "what would fit this neck best", and the answer to that one exists
             # whatever is in the cupboard. The outcome still says a stock clip
             # meets every criterion, so this reads as the option it is.
-            manufacture=derive_manufacture_spec(case, failed),
+            manufacture=derive_manufacture_spec(case, failed, stock_count),
             caveats=(_caveats(case) + _availability_caveats(recommended)
                      + _tie_caveat(recommended)),
             custom_jaw=suggest_custom_jaw(case, _best_resizable(recommended)),
+            stock_count=stock_count,
         )
 
     # Usable but every one carries a caveat: offer the alternative rather than
     # letting the surgeon assume the top of the list is a clean fit.
-    spec = derive_manufacture_spec(case, failed)
+    spec = derive_manufacture_spec(case, failed, stock_count)
     plural = len(recommended) != 1
     return ClipSelection(
         outcome="marginal",
@@ -1452,4 +1563,5 @@ def select_clips(
         caveats=(_caveats(case) + _availability_caveats(recommended)
                  + _tie_caveat(recommended)),
         custom_jaw=suggest_custom_jaw(case, _best_resizable(recommended)),
+        stock_count=stock_count,
     )

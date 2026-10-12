@@ -2285,6 +2285,14 @@
       "title": "Criteria",
       "type": "array"
      },
+     "force_band_g": {
+      "description": "Banda de diseño de esa fuerza",
+      "items": {
+       "type": "number"
+      },
+      "title": "Force Band G",
+      "type": "array"
+     },
      "force_g": {
       "title": "Force G",
       "type": "number"
@@ -2296,6 +2304,18 @@
      "force_provisional": {
       "title": "Force Provisional",
       "type": "boolean"
+     },
+     "force_statement": {
+      "default": "",
+      "description": "La frase de la fuerza, la misma del dossier",
+      "title": "Force Statement",
+      "type": "string"
+     },
+     "force_target_g": {
+      "default": 0.0,
+      "description": "Fuerza objetivo del clip (0 sin ficha o con varios)",
+      "title": "Force Target G",
+      "type": "number"
      },
      "force_window_g": {
       "description": "Ventana de fuerza del cuello en gramos: aceptable mín, óptima mín, óptima máx, aceptable máx",
@@ -2729,6 +2749,12 @@
       },
       "title": "Rejected",
       "type": "array"
+     },
+     "stock_count": {
+      "default": 0,
+      "description": "Clips de INVENTARIO en el catálogo juzgado. Con 0 todo es bajo pedido: el veredicto es 'manufacture' aunque haya diseños que sirvan, y nada se llama «del inventario».",
+      "title": "Stock Count",
+      "type": "integer"
      },
      "summary": {
       "title": "Summary",
@@ -5154,6 +5180,20 @@
       "title": "Fenestration Mm",
       "type": "number"
      },
+     "force_band_g": {
+      "description": "Banda de diseño de la familia alrededor de `closing_force_g` (el objetivo)",
+      "items": {
+       "type": "number"
+      },
+      "title": "Force Band G",
+      "type": "array"
+     },
+     "force_statement": {
+      "default": "",
+      "description": "«Fuerza objetivo X g dentro de la banda de diseño…», la frase del dossier",
+      "title": "Force Statement",
+      "type": "string"
+     },
      "label": {
       "description": "One-line summary of the part to order",
       "title": "Label",
@@ -7416,6 +7456,16 @@
       },
       "title": "Force Band G",
       "type": "array"
+     },
+     "force_statement": {
+      "default": "",
+      "title": "Force Statement",
+      "type": "string"
+     },
+     "force_target_g": {
+      "default": 0.0,
+      "title": "Force Target G",
+      "type": "number"
      },
      "institution": {
       "default": "",

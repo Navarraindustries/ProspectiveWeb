@@ -77,4 +77,12 @@ describe("Morfometría con un candidato marcado a mano", () => {
     expect(await screen.findByText("3.1")).toBeInTheDocument();
     expect(screen.queryByRole("note", { name: "Candidato marcado a mano" })).toBeNull();
   });
+
+  /* Revisión 2: solo el 422 esperado se calla; un 500 o un fallo de red con
+     un marcado a mano elegido es un error y se dice. */
+  it("otro fallo de la medida automática sí se enseña como error", async () => {
+    vi.mocked(api.morphometry).mockRejectedValue(new Error("Morphometry error: boom"));
+    render(<PlanningProvider><Seed><MorphometryPanel onNext={() => {}} /></Seed></PlanningProvider>);
+    expect(await screen.findByText("Morphometry error: boom")).toBeInTheDocument();
+  });
 });

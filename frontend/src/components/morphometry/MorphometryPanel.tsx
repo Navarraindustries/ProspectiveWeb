@@ -163,9 +163,15 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
     api
       .morphometry(sessionId, candidateId)
       .then((m) => { if (alive) planning.setMorphometry(m); })
-      // Con un marcado a mano el 422 es lo esperado si aún no se midió: la
-      // nota de abajo lo dice como información, no como error.
-      .catch((e) => { if (alive && !manualSel) setError(e instanceof Error ? e.message : "Error en morfometría"); })
+      // Con un marcado a mano el 422 «mide marcando cuello y ápice» es lo
+      // esperado si aún no se midió: la nota de abajo lo dice como
+      // información. Cualquier otro fallo (500, sesión caducada, red) sí es
+      // un error y se enseña.
+      .catch((e) => {
+        if (!alive) return;
+        const msg = e instanceof Error ? e.message : "Error en morfometría";
+        if (!(manualSel && msg === MANUAL_NO_SAC)) setError(msg);
+      })
       .finally(() => { if (alive) setBusy(false); });
     // Una respuesta que llega tras cambiar de candidato (o tras medir a mano)
     // es de otro sitio: se descarta, y la barra no se queda colgada.

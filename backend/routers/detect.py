@@ -1084,10 +1084,7 @@ async def morphometry_neck_plane(
             detail="vessel_tree.vtp no encontrado. Ejecute la segmentación primero.",
         )
 
-    # El candidato que mide este plano pasa a ser el elegido. Con uno
-    # detectado ya lo era (GET /morphometry lo guardó); con uno marcado a mano
-    # (F1-146) es la única ruta que lo mide, y sin guardarlo «Reanudar» no
-    # sabría a qué candidato pertenece la medida.
+    # El id se valida antes de medir; se guarda como elegido DESPUÉS (abajo).
     if request.candidate_id is not None:
         rank = _candidate_rank(request.candidate_id)
         if rank is None or rank > listed_candidates(session_id):
@@ -1095,7 +1092,6 @@ async def morphometry_neck_plane(
                 status_code=422,
                 detail=f"El candidato '{request.candidate_id}' no está en la lista.",
             )
-        write_state(session_id, "detect.selected_candidate", request.candidate_id)
 
     loop = asyncio.get_event_loop()
     try:
@@ -1114,7 +1110,15 @@ async def morphometry_neck_plane(
         logger.error("Neck-plane morphometry failed for %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
 
+    # El candidato que mide este plano pasa a ser el elegido. Con uno
+    # detectado ya lo era (GET /morphometry lo guardó); con uno marcado a mano
+    # (F1-146) es la única ruta que lo mide, y sin guardarlo «Reanudar» no
+    # sabría a qué candidato pertenece la medida. Solo tras medir bien: el
+    # plano (`morpho.plane_*`) se guarda solo entonces, y guardar antes el
+    # elegido dejaba, tras un plano fallido, el plano de OTRO candidato bajo
+    # este nombre; GET /morphometry lo repetía como si fuera suyo.
     if request.candidate_id is not None:
+        write_state(session_id, "detect.selected_candidate", request.candidate_id)
         result.candidate_id = request.candidate_id
     result.site = clinical_site(session_id)
     return result

@@ -181,3 +181,25 @@ class TestMedirAMano:
         sid, _cid = self._sesion_fallo_del_detector()
         r = client.post(f"/api/morphometry/{sid}/neck-plane", json={**self.PLANO, "candidate_id": "cand-009"})
         assert r.status_code == 422
+
+    def test_un_plano_fallido_no_deja_medir_el_candidato_equivocado(self):
+        """Revisión 2: el elegido se guardaba ANTES de medir, y el plano solo al
+        acabar bien. Tras un plano fallido para cand-002 quedaba elegido
+        cand-002 con el plano de cand-001, y GET devolvía el saco de cand-001
+        con el nombre de cand-002."""
+        sid, c1 = self._sesion_fallo_del_detector()
+        ok = client.post(f"/api/morphometry/{sid}/neck-plane", json={**self.PLANO, "candidate_id": c1})
+        assert ok.status_code == 200, ok.text
+        c2 = client.post("/api/ground-truth", json={
+            "session_id": sid, "source": "marked",
+            "position": {"x": 200.0, "y": 200.0, "z": 200.0}}).json()["candidate_id"]
+        assert c2 == "cand-002"
+        assert client.get(f"/api/morphometry/{sid}", params={"candidate_id": c2}).status_code == 422
+        lejos = {"origin": {"x": 200.0, "y": 200.0, "z": 200.0}, "normal": [0.0, 1.0, 0.0],
+                 "dome_seed": {"x": 200.0, "y": 204.0, "z": 200.0}, "candidate_id": c2}
+        assert client.post(f"/api/morphometry/{sid}/neck-plane", json=lejos).status_code == 422
+        r = client.get(f"/api/morphometry/{sid}", params={"candidate_id": c2})
+        assert r.status_code == 422 and r.json()["detail"] == TEXTO_422
+        # «Reanudar» (sin id) sigue con la medida que sí se hizo, la de cand-001.
+        again = client.get(f"/api/morphometry/{sid}")
+        assert again.status_code == 200 and again.json()["candidate_id"] == c1

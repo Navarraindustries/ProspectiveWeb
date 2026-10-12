@@ -339,7 +339,7 @@ def list_orders(status: str | None = None, session_id: str = "",
                 open_only: bool = False, patient_id: int | None = None,
                 q: str = "", session_ids: set[str] | None = None,
                 patient_ids: Iterable[int] | None = None,
-                owner: str = "") -> list[ClipOrder]:
+                owner: str = "", case_id: int | None = None) -> list[ClipOrder]:
     """Orders newest first, optionally filtered.
 
     `q` searches the fields someone actually has in hand when they come looking:
@@ -358,7 +358,12 @@ def list_orders(status: str | None = None, session_id: str = "",
                                   else o.requested_by == owner)]
     if status:
         out = [o for o in out if o.status == status]
-    if session_ids:
+    if case_id is not None:
+        # F1-219: «Pedidos de este caso» son los del caso, se pidieran desde la
+        # sesión que fuera, más los de la cadena de sesiones de esta.
+        ids = session_ids or ({session_id} if session_id else set())
+        out = [o for o in out if o.case_id == case_id or o.session_id in ids]
+    elif session_ids:
         out = [o for o in out if o.session_id in session_ids]
     elif session_id:
         out = [o for o in out if o.session_id == session_id]

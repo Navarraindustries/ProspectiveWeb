@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from services import index_thresholds as IT
+from services.neck_provenance import neck_is_marked, neck_provenance_label
 from services.phases import phases_label
 
 logger = logging.getLogger(__name__)
@@ -298,7 +299,10 @@ def build_report_data_from_session(
         "undulation_index":   _rf("morpho.ui"),
         # El cuello lo marcó el profesional (uno o varios puntos) o lo estimó
         # el programa: el informe no puede llamar «estimado» a lo primero.
-        "neck_marked":        _rs("morpho.neck_source") in ("manual", "rim"),
+        # La regla es la del pedido de clip (services/neck_provenance): antes cada
+        # documento tenía la suya y el mismo cuello salía «marcado» y «estimado».
+        "neck_marked":        neck_is_marked(_rs("morpho.neck_source")),
+        "neck_source":        _rs("morpho.neck_source"),
     }
     try:
         risk_reasons = [str(x) for x in json.loads(_rs("morpho.rupture_risk_reasons") or "[]")]
@@ -922,6 +926,11 @@ class ReportGenerator:
             fontSize=7.5, textColor=colors.HexColor("#6b7280"),
             leading=11,
         )
+        # Una celda de tabla que puede partirse en líneas: un texto suelto en
+        # una celda de ReportLab no se parte y se sale de la columna.
+        self._style_cell = ParagraphStyle(
+            "ProspCell", parent=base, fontSize=8.5, leading=10.5,
+        )
         self._style_center = ParagraphStyle(
             "ProspCenter", parent=base,
             fontSize=9, alignment=TA_CENTER,
@@ -1171,9 +1180,11 @@ class ReportGenerator:
             ["Diámetro máximo",
              f"{m.get('max_diameter_mm', 0):.2f} mm",
              "< 7 mm bajo riesgo"],
-            ["Diámetro del cuello (borde marcado)" if m.get("neck_marked") else "Diámetro cuello (estimado)",
+            # La procedencia con la misma frase que el pedido de clip (F1-215).
+            ["Diámetro del cuello (marcado)" if m.get("neck_marked") else "Diámetro del cuello (estimado)",
              f"{m.get('neck_diameter_mm', 0):.2f} mm",
-             "Guía selección clip"],
+             Paragraph(f"Cuello {neck_provenance_label(m.get('neck_source'))}; "
+                       "guía de selección del clip", self._style_cell)],
             ["Altura del domo",
              f"{m.get('dome_height_mm', 0):.2f} mm", "—"],
             # Los cortes de la etiqueta de riesgo y de la pantalla (F1-160/161):

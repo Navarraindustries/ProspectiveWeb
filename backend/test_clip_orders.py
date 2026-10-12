@@ -181,6 +181,31 @@ class TestThePrefill:
         assert rim["suggest_extra_sizes"] is False
         assert len(est["suggested_extra_sizes_mm"]) == 2
 
+    def test_un_punto_marcado_da_la_misma_etiqueta_en_informe_y_pedido(self, medico):
+        # F1-215: el pedido decía «ESTIMADO a partir del saco» de un cuello con
+        # punto marcado a mano mientras el PDF lo daba por marcado.
+        from services.neck_provenance import neck_provenance_label
+        from services.report_generator import ReportGenerator, build_report_data_from_session
+
+        sid = _session(source="manual")
+        etiqueta = neck_provenance_label("manual")
+        assert etiqueta == "medido con un punto de cuello marcado a mano"
+        pre = client.get(f"/api/clip-orders/prefill/{sid}", headers=medico).json()
+        assert etiqueta in pre["extra_sizes_reason"]
+        assert "estimado" not in pre["extra_sizes_reason"].lower()
+
+        tabla = ReportGenerator(build_report_data_from_session(sid))._section_morphometrics()[1]
+        celdas = " ".join(getattr(c, "text", str(c)) for fila in tabla._cellvalues for c in fila)
+        assert etiqueta in celdas
+        assert "Diámetro del cuello (marcado)" in celdas
+
+    def test_cuello_marcado_no_pide_tallas_contiguas(self, medico):
+        # F1-216: con la regla unificada, un punto marcado a mano también es
+        # marcado: no se proponen las tallas contiguas por defecto.
+        manual = client.get(f"/api/clip-orders/prefill/{_session(source='manual')}",
+                            headers=medico).json()
+        assert manual["suggest_extra_sizes"] is False
+
     def test_a_resident_is_told_they_cannot_sign(self, residente):
         pre = client.get(f"/api/clip-orders/prefill/{_session()}", headers=residente).json()
         assert pre["can_sign"] is False
@@ -518,6 +543,37 @@ class TestTheRegister:
         rows = client.get("/api/clip-orders", headers=medico,
                           params={"session_id": sid}).json()
         assert len(rows) == 1 and rows[0]["session_id"] == sid
+
+    def test_tras_reanudar_se_ven_los_pedidos_de_la_sesion_de_origen(self, medico):
+        # F1-219: «Reanudar» da un id nuevo a la sesión; los pedidos hechos
+        # desde la de origen seguían colgados de ella y la lista salía vacía.
+        origen, _pre, r = _place(medico)
+        viva = create_session()
+        write_state(viva, "origin.saved_session_id", origen)
+        rows = client.get("/api/clip-orders", headers=medico,
+                          params={"session_id": viva}).json()
+        assert [o["part_no"] for o in rows] == [r.json()["part_no"]]
+
+    def test_con_caso_se_ven_los_pedidos_del_caso(self, medico):
+        # F1-219: con caso, «Pedidos de este caso» son los del caso aunque se
+        # pidieran desde otra sesión; sin caso, solo los de la sesión.
+        _sid, _pre, r = _place(medico)
+        part_no = r.json()["part_no"]
+        entradas = store._read(store._ORDERS_FILE)
+        for e in entradas:
+            if e.get("part_no") == part_no:
+                e["case_id"] = 7
+        store._write(store._ORDERS_FILE, entradas)
+        otra = create_session()
+
+        def _lista(**params):
+            return [o["part_no"] for o in client.get(
+                "/api/clip-orders", headers=medico,
+                params={"session_id": otra, **params}).json()]
+
+        assert _lista() == []
+        assert _lista(case_id=7) == [part_no]
+        assert _lista(case_id=8) == []
 
     def test_a_workflow_jump_is_refused_with_the_states_that_work(self, medico):
         _sid, _pre, r = _place(medico)

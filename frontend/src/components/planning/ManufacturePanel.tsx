@@ -319,7 +319,7 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
             caseId={caseId}
             onPlaced={() => setOrdersKey((k) => k + 1)}
           />
-          <ClipOrderList sessionId={sessionId} refreshKey={ordersKey} />
+          <ClipOrderList sessionId={sessionId} caseId={caseId} refreshKey={ordersKey} />
         </>
       )}
 

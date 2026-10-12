@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 
 from services.clip_selection import ClipCase, ManufactureSpec
 from services.clips import ClipShape
+from services.neck_provenance import neck_provenance_label
 
 logger = logging.getLogger(__name__)
 
@@ -379,8 +380,8 @@ def internal_dossier(perfect: PerfectClip, case: ClipCase, *, part_no: str,
         # order cannot be re-derived or audited later.
         "derived_from": [
             ("Cuello medido", f"{case.neck_mm:.2f} mm"),
-            ("Procedencia del cuello", {"rim": "borde marcado", "manual": "punto marcado",
-                                        "auto": "detección automática"}.get(case.neck_source, case.neck_source)),
+            # La misma frase que el informe y el formulario (F1-215).
+            ("Procedencia del cuello", neck_provenance_label(case.neck_source)),
             ("Altura de domo", f"{case.dome_height_mm:.2f} mm"),
             ("Ø máximo del saco", f"{case.max_diameter_mm:.2f} mm"),
             ("Vaso padre", f"{case.parent_artery_mm:.2f} mm" if case.parent_artery_mm > 0 else "sin medir"),

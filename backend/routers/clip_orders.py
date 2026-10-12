@@ -566,7 +566,7 @@ async def remove_workshop(workshop_id: str, _admin: Annotated[User, Depends(requ
         "workshops on file. The form asks the user only for what none of this can "
         "answer.\n\n"
         "`suggest_extra_sizes` is true when the neck was ESTIMATED rather than "
-        "measured off a marked rim: the jaw is only as certain as the neck it was "
+        "marked by hand (rim or neck point): the jaw is only as certain as the neck it was "
         "derived from, so the adjacent drawn sizes are worth having in theatre."
     ),
 )
@@ -592,7 +592,12 @@ async def prefill(session_id: str, user: CurrentUser, db: Db,
     jaw = piece.navarro_jaw_mm or spec.blade_length_mm
     fuerza = force_statement(spec.closing_force_g)
     neighbours = sorted(STOCK_JAW_MM, key=lambda s: abs(s - jaw))[1:3]
-    estimated = case.neck_source not in ("rim",)
+    # Una sola regla con el informe (F1-215): aquí solo el borde contaba como
+    # marcado, así que un punto puesto a mano salía «estimado» en el pedido y
+    # «marcado» en el PDF, y además se proponían tallas contiguas (F1-216).
+    from services.neck_provenance import neck_is_marked, neck_provenance_label
+    estimated = not neck_is_marked(case.neck_source)
+    procedencia = neck_provenance_label(case.neck_source)
 
     return PrefillOut(
         session_id=session_id,
@@ -621,12 +626,11 @@ async def prefill(session_id: str, user: CurrentUser, db: Db,
         suggested_extra_sizes_mm=[float(x) for x in sorted(neighbours)],
         suggest_extra_sizes=estimated,
         extra_sizes_reason=(
-            "El cuello está ESTIMADO a partir del saco, no medido sobre un borde "
-            "marcado a mano: la mordaza hereda esa incertidumbre y conviene tener "
-            "las tallas contiguas en quirófano."
+            f"El cuello está {procedencia}: la mordaza hereda esa incertidumbre y "
+            "conviene tener las tallas contiguas en quirófano."
             if estimated else
-            "El cuello se midió sobre el borde marcado, así que la talla elegida es "
-            "la más fiable que puede darse; las contiguas son opcionales."
+            f"El cuello está {procedencia}, así que la talla elegida es la más "
+            "fiable que puede darse; las contiguas son opcionales."
         ),
         stock_sizes_mm=list(STOCK_JAW_MM),
         force_band_g=[CLOSING_FORCE_MIN_G, CLOSING_FORCE_MAX_G],
@@ -784,7 +788,10 @@ async def list_orders(
     user: CurrentUser,
     db: Db,
     status: str | None = Query(None, description="Filter by status"),
-    session_id: str = Query("", description="Only orders raised from this session"),
+    session_id: str = Query("", description="Only orders raised from this session "
+                            "or from the saved sessions it was resumed from"),
+    case_id: int | None = Query(None, description="Also the orders of this case, "
+                                "whichever session raised them"),
     patient_id: int | None = Query(None, description="Only orders for this patient"),
     q: str = Query("", description="Free text over part number, patient, case, surgeon, workshop"),
     open_only: bool = Query(False, description="Hide verified and rejected orders"),
@@ -796,7 +803,7 @@ async def list_orders(
     return [_out(o) for o in store.list_orders(status=status, session_id=session_id,
                                                session_ids=linaje or None,
                                                patient_id=patient_id, q=q,
-                                               open_only=open_only,
+                                               open_only=open_only, case_id=case_id,
                                                **_visible(db, user))]
 
 

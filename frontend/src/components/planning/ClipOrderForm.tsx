@@ -50,12 +50,15 @@ const NEXT_LABEL: Partial<Record<OrderStatus, string>> = {
   recibida: "Registrar recepción",
 };
 
-/** Cómo se obtuvo el cuello, para completar «El cuello se midió …». */
+/** Cómo se obtuvo el cuello, para completar «El cuello está …». Las mismas
+    tres frases que `backend/services/neck_provenance.py` (F1-215): el pedido y
+    el informe decían cosas distintas del mismo cuello. Lo que no está marcado a
+    mano —borde o punto— es una estimación a partir del saco. */
 const NECK_SOURCE: Record<string, string> = {
-  rim: "sobre el borde marcado a mano",
-  manual: "con un punto de cuello marcado a mano",
-  auto: "automáticamente, sin marcarlo",
+  rim: "medido sobre un borde marcado a mano",
+  manual: "medido con un punto de cuello marcado a mano",
 };
+const NECK_ESTIMATED = "estimado a partir del saco";
 
 /** El backend devuelve una lista de problemas en `detail`; el cliente la
     serializa a texto. Aquí se recupera para poder enseñarlos uno a uno. */
@@ -312,7 +315,7 @@ export function ClipOrderForm({
             />
           </div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
-            El cuello se midió <b>{NECK_SOURCE[pre.neck_source] ?? pre.neck_source}</b>. Toda la
+            El cuello está <b>{NECK_SOURCE[pre.neck_source] ?? NECK_ESTIMATED}</b>. Toda la
             pieza se deriva de esa medida: si no es correcta, corrígela en Morfometría
             antes de pedir nada.
           </div>
@@ -788,22 +791,28 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
   );
 }
 
-export function ClipOrderList({ sessionId, refreshKey }: { sessionId: string; refreshKey: number }) {
+export function ClipOrderList({ sessionId, caseId, refreshKey }: {
+  sessionId: string; caseId?: number | null; refreshKey: number;
+}) {
   const [orders, setOrders] = useState<ClipOrder[]>([]);
   const [error, setError] = useState("");
 
+  // F1-219: el backend amplía la sesión a su cadena de reanudaciones y, con
+  // caso, a todos los pedidos del caso. Antes, tras reanudar, la lista salía
+  // vacía aunque el caso tuviera pedidos.
   const load = useCallback(() => {
-    api.listClipOrders({ sessionId })
+    api.listClipOrders({ sessionId, caseId })
       .then(setOrders)
       .catch((e) => setError(problemsFrom(e)[0]));
-  }, [sessionId]);
+  }, [sessionId, caseId]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
   if (!orders.length) return null;
   return (
     <div style={{ marginTop: 14 }}>
-      <SectionLabel>Pedidos de este caso</SectionLabel>
+      {/* Sin caso no hay «caso» que nombrar: son los de esta sesión. */}
+      <SectionLabel>{caseId != null ? "Pedidos de este caso" : "Pedidos de esta sesión"}</SectionLabel>
       <Card>
         {orders.map((o) => <OrderRow key={o.part_no} order={o} onChange={load} />)}
         <ErrorNote>{error}</ErrorNote>

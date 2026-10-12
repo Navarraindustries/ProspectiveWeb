@@ -696,7 +696,7 @@ export interface paths {
          * What the request form starts with for this case
          * @description Everything the system already knows: the advised series, bend and jaw, the measurements they came from, the family's fixed properties, and the workshops on file. The form asks the user only for what none of this can answer.
          *
-         *     `suggest_extra_sizes` is true when the neck was ESTIMATED rather than measured off a marked rim: the jaw is only as certain as the neck it was derived from, so the adjacent drawn sizes are worth having in theatre.
+         *     `suggest_extra_sizes` is true when the neck was ESTIMATED rather than marked by hand (rim or neck point): the jaw is only as certain as the neck it was derived from, so the adjacent drawn sizes are worth having in theatre.
          */
         get: operations["prefill_api_clip_orders_prefill__session_id__get"];
         put?: never;
@@ -11409,8 +11409,10 @@ export interface operations {
             query?: {
                 /** @description Filter by status */
                 status?: string | null;
-                /** @description Only orders raised from this session */
+                /** @description Only orders raised from this session or from the saved sessions it was resumed from */
                 session_id?: string;
+                /** @description Also the orders of this case, whichever session raised them */
+                case_id?: number | null;
                 /** @description Only orders for this patient */
                 patient_id?: number | null;
                 /** @description Free text over part number, patient, case, surgeon, workshop */

@@ -758,10 +758,12 @@ export const api = {
   createClipOrder: (sessionId: string, req: ClipOrderIn) =>
     post<ClipOrder>(`/api/clip-orders/${sessionId}`, req),
   listClipOrders: (opts: {
-    sessionId?: string; openOnly?: boolean; patientId?: number; status?: string; q?: string;
+    sessionId?: string; caseId?: number | null; openOnly?: boolean; patientId?: number;
+    status?: string; q?: string;
   } = {}) => {
     const p = new URLSearchParams();
     if (opts.sessionId) p.set("session_id", opts.sessionId);
+    if (opts.caseId != null) p.set("case_id", String(opts.caseId));
     if (opts.openOnly) p.set("open_only", "true");
     if (opts.patientId != null) p.set("patient_id", String(opts.patientId));
     if (opts.status) p.set("status", opts.status);

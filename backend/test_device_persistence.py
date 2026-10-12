@@ -282,3 +282,47 @@ class TestLaEstrategiaDelEquipo:
         save_stent(sid, {"name": "Pipeline", "kind": "centerline"})
         counts = client.get(f"/api/devices/{sid}").json()["placed_counts"]
         assert counts == {"clips": 0, "coils": 2, "stent": 0, "stent_cl": 1}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Otro profesional (ola final F1a): la sesión de un paciente ajeno es 403.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _dos_medicos_y_sesion_de_a():
+    """Dos médicos y una sesión ligada a un paciente creado por el primero.
+
+    Mismo patrón que `test_team_decision.py::TestOtroProfesional`: con solo el
+    login global, cualquiera que supiera la UUID tocaba la sesión de otro.
+    """
+    import uuid
+
+    from conftest import anonymous_client
+    from services.auth_service import create_access_token, get_password_hash
+    from services.database import Base, SessionLocal, engine
+    from services.db_models import Patient, PlanningSession, User
+
+    Base.metadata.create_all(bind=engine)
+    clientes = []
+    db = SessionLocal()
+    for _ in range(2):
+        nombre = f"med-{uuid.uuid4().hex[:8]}"
+        u = User(username=nombre, hashed_password=get_password_hash("x" * 12), role="medico",
+                 full_name=nombre)
+        db.add(u); db.commit()
+        c = anonymous_client(app)
+        c.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
+        clientes.append((u.id, c))
+    p = Patient(surname="DeA", hospital_id=f"HC-{uuid.uuid4().hex[:6]}", created_by=clientes[0][0])
+    db.add(p); db.commit()
+    return db, p.id, clientes[0][1], clientes[1][1]
+
+
+class TestOtroProfesional:
+    def test_no_marca_la_estrategia_de_otro(self):
+        from services.db_models import PlanningSession
+        db, pid, a, b = _dos_medicos_y_sesion_de_a()
+        sid = create_session()
+        db.add(PlanningSession(session_id=sid, patient_id=pid)); db.commit(); db.close()
+        assert b.put(f"/api/devices/{sid}/strategy", json={"strategy": "coils"}).status_code == 403
+        r = a.put(f"/api/devices/{sid}/strategy", json={"strategy": "coils"})
+        assert r.status_code == 200 and r.json() == {"strategy": "coils"}

@@ -432,19 +432,26 @@ def _out(order: store.ClipOrder) -> OrderOut:
 
 def _patient_id_for(session_id: str, case_id: int | None) -> int | None:
     """Which patient this order is for. None when the case is not registered."""
+    from services.access import session_row
     from services.database import SessionLocal
-    from services.db_models import PlanningSession, Study
+    from services.db_models import Study
 
     db = SessionLocal()
     try:
         study = db.get(Study, int(case_id)) if case_id else None
-        if study is None:
-            ps = (db.query(PlanningSession)
-                    .filter(PlanningSession.session_id == session_id)
-                    .order_by(PlanningSession.id.desc()).first())
-            if ps is not None and ps.study_id:
-                study = db.get(Study, ps.study_id)
-        return int(study.patient_id) if study is not None and study.patient_id else None
+        if study is not None and study.patient_id:
+            return int(study.patient_id)
+        # Por el mismo rastro que la guarda (`_require_case_session`): una sesión
+        # reanudada y aún sin guardar tiene un id nuevo sin fila, y buscarla por
+        # id exacto dejaba el pedido sin paciente, fuera del filtro de «Pedidos».
+        ps = session_row(db, session_id)
+        if ps is None:
+            return None
+        if ps.study_id:
+            study = db.get(Study, ps.study_id)
+            if study is not None and study.patient_id:
+                return int(study.patient_id)
+        return int(ps.patient_id) if ps.patient_id else None
     except Exception as exc:  # noqa: BLE001 — an order must not fail on a DB hiccup
         logger.warning("Patient lookup failed for %s: %s", session_id, exc)
         return None

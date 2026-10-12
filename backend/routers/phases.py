@@ -21,9 +21,13 @@ def _invalidate_decision_if_risk_changed(session_id: str, result: PhasesResult) 
     """Tira la recomendación si el riesgo de rotura estimado ha cambiado.
 
     Sólo si ha cambiado: volver a abrir la calculadora y pulsar sin tocar nada
-    no puede borrar una decisión.
+    no puede borrar una decisión. Y sólo la recomendación: la edad, el WFNS, el
+    Fisher y lo demás escrito a mano en Decisión (`clinical.*`) no dependen de la
+    banda PHASES, y borrarlos aquí los perdía sin aviso (el mismo fallo que la
+    Tarea 2 cerró en el cambio de localización). El PHASES nuevo lo escribe el
+    que llama.
     """
-    from routers.treatment import clear_treatment_state
+    from routers.treatment import clear_decision_only
 
     if not read_state(session_id, "treatment.recommendation_key", ""):
         return
@@ -40,7 +44,7 @@ def _invalidate_decision_if_risk_changed(session_id: str, result: PhasesResult) 
     logger.info("PHASES changed (%s → %s) — clearing the stale treatment decision "
                 "for session %s", before.get("total_score"), result.total_score,
                 session_id)
-    clear_treatment_state(session_id)
+    clear_decision_only(session_id)
 
 
 @router.post(

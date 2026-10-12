@@ -81,8 +81,17 @@ def _volume_mm3(poly: vtk.vtkPolyData) -> float:
     """Volumen encerrado. Requiere una malla cerrada; si no, devuelve 0."""
     if poly is None or poly.GetNumberOfPoints() < 4:
         return 0.0
+    # vtkMassProperties solo suma triángulos. Desde VTK 9.7 la tapa que pone
+    # `_cut_and_cap` (y algunos trozos del recorte) llegan como cuadriláteros o
+    # polígonos, que ignora sin avisar: el muñón salía con volumen ~0 y la oclusión
+    # se leía «completa» cuando quedaba resto de cuello. Triangular primero.
+    tri = vtk.vtkTriangleFilter()
+    tri.SetInputData(poly)
+    tri.PassVertsOff()
+    tri.PassLinesOff()
+    tri.Update()
     mp = vtk.vtkMassProperties()
-    mp.SetInputData(poly)
+    mp.SetInputData(tri.GetOutput())
     mp.Update()
     return float(mp.GetVolume())
 

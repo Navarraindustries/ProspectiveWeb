@@ -506,3 +506,50 @@ class TestPlanDeStentApi:
         d = r.json()
         assert d["parent_artery_mm"] == 3.4
         assert d["sizing"] == "oversized"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Otro profesional (ola final F1a): la sesión de un paciente ajeno es 403.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _dos_medicos_y_sesion_de_a():
+    """Dos médicos y una sesión ligada a un paciente creado por el primero.
+
+    Mismo patrón que `test_team_decision.py::TestOtroProfesional`: con solo el
+    login global, cualquiera que supiera la UUID tocaba la sesión de otro.
+    """
+    import uuid
+
+    from conftest import anonymous_client
+    from services.auth_service import create_access_token, get_password_hash
+    from services.database import Base, SessionLocal, engine
+    from services.db_models import Patient, PlanningSession, User
+
+    Base.metadata.create_all(bind=engine)
+    clientes = []
+    db = SessionLocal()
+    for _ in range(2):
+        nombre = f"med-{uuid.uuid4().hex[:8]}"
+        u = User(username=nombre, hashed_password=get_password_hash("x" * 12), role="medico",
+                 full_name=nombre)
+        db.add(u); db.commit()
+        c = anonymous_client(app)
+        c.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
+        clientes.append((u.id, c))
+    p = Patient(surname="DeA", hospital_id=f"HC-{uuid.uuid4().hex[:6]}", created_by=clientes[0][0])
+    db.add(p); db.commit()
+    return db, p.id, clientes[0][1], clientes[1][1]
+
+
+class TestOtroProfesional:
+    def test_no_ve_ni_proyecta_el_montaje_de_otro(self):
+        from services.db_models import PlanningSession
+        db, pid, a, b = _dos_medicos_y_sesion_de_a()
+        sid = _session(max_diameter_mm="9.1", volume_mm3="210.5")
+        db.add(PlanningSession(session_id=sid, patient_id=pid)); db.commit(); db.close()
+        assert b.get(f"/api/coils/recommendations/{sid}").status_code == 403
+        d = a.get(f"/api/coils/recommendations/{sid}")
+        assert d.status_code == 200, d.text
+        rows = [{"coil_id": s["coil_id"], "count": s["count"]} for s in d.json()["steps"]]
+        assert b.post(f"/api/coils/{sid}/construct/preview", json={"rows": rows}).status_code == 403
+        assert a.post(f"/api/coils/{sid}/construct/preview", json={"rows": rows}).status_code == 200

@@ -350,6 +350,13 @@ TREATMENT_STATE_KEYS = (
 #: whenever the decision does.
 PHASES_STATE_KEYS = ("phases.json",)
 
+#: Las entradas que una puntuación aparta cuando la localización elegida no
+#: tiene categoría en su escala (PUT /morphometry/{sid}/site). Si se quedaban al
+#: limpiar, un cambio de localización posterior las recuperaba y resucitaba una
+#: puntuación que se había borrado a propósito.
+PENDING_INPUT_KEYS = ("phases.pending_inputs", "elapss.pending_inputs",
+                      "uiats.pending_inputs")
+
 
 def clear_decision_only(session_id: str) -> None:
     """La recomendación y nada más: ni el contexto clínico escrito a mano
@@ -366,7 +373,7 @@ def clear_treatment_state(session_id: str) -> None:
     Never the team's decision (TEAM_KEYS): it is typed by hand, and losing it
     without anyone asking is what the F1 audit blocks. It goes only when the
     team chooses «Sin registrar» in its own card (PUT …/team with null)."""
-    for key in (*TREATMENT_STATE_KEYS, *PHASES_STATE_KEYS):
+    for key in (*TREATMENT_STATE_KEYS, *PHASES_STATE_KEYS, *PENDING_INPUT_KEYS):
         write_state(session_id, key, "")
 
 

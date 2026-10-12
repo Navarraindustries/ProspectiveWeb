@@ -168,3 +168,27 @@ def test_the_decision_note_cites_the_same_label():
     assert r.status_code == 200, r.text
     notes = r.json()["notes"]
     assert any("PHASES 9 · 4,3 % a 5 años (Greving 2014)" in n for n in notes), notes
+
+
+# ── Cambio de banda (ola final F1a) ─────────────────────────────────────── #
+
+def test_cambiar_de_banda_borra_la_recomendacion_pero_no_lo_escrito_a_mano():
+    """Recalcular PHASES con otra banda tiraba también la edad, el WFNS y el
+    Fisher tecleados en Decisión, y la sesión reanudada volvía sin ellos."""
+    from services.sessions import read_state, write_states
+
+    sid = _session_with_morpho()
+    client.post(_URL, json={**_LOW, "session_id": sid})
+    write_states(sid, {
+        "treatment.recommendation_key": "clip", "treatment.recommendation": "CLIPAJE",
+        "clinical.patient_age": "61", "clinical.wfns_grade": "2",
+        "clinical.fisher_grade": "3", "clinical.decision_inputs_json": '{"x": 1}',
+    })
+    client.post(_URL, json={**_HIGH, "session_id": sid})
+    assert read_state(sid, "treatment.recommendation_key", "") == ""
+    assert read_state(sid, "clinical.wfns_grade", "") == "2"
+    assert read_state(sid, "clinical.fisher_grade", "") == "3"
+    assert read_state(sid, "clinical.patient_age", "") == "61"
+    assert read_state(sid, "clinical.decision_inputs_json", "") == '{"x": 1}'
+    # Y el PHASES nuevo queda escrito.
+    assert build_report_data_from_session(sid).phases["total_score"] == 13

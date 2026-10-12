@@ -136,3 +136,30 @@ class TestSesionAjena:
         _a, b, ids = caso
         r = b.post(f"/api/clip-orders/{ids['sid']}", json={"jaw_mm": 5.0})
         assert r.status_code == 403
+
+
+class TestSesionReanudada:
+    """Ola final F1a: un pedido hecho desde una sesión reanudada y aún sin
+    guardar quedaba sin paciente (se buscaba la sesión por id exacto, y la
+    reanudada tiene un id nuevo sin fila), y no salía en el filtro del paciente."""
+
+    def test_el_pedido_va_al_paciente_de_la_sesion_original(self, caso):
+        from routers.clip_orders import _patient_id_for
+        from services.access import ORIGIN_KEY
+        from services.sessions import write_state
+
+        _a, _b, ids = caso
+        viva = create_session()
+        write_state(viva, ORIGIN_KEY, ids["sid"])
+        assert _patient_id_for(viva, None) == ids["patient"]
+
+    def test_sin_caso_cae_al_paciente_de_la_fila(self):
+        from routers.clip_orders import _patient_id_for
+
+        db = SessionLocal()
+        p = Patient(surname="SinCaso", hospital_id=f"HC-{uuid.uuid4().hex[:6]}")
+        db.add(p); db.commit()
+        sid = create_session()
+        db.add(PlanningSession(session_id=sid, patient_id=p.id)); db.commit()
+        pid = p.id; db.close()
+        assert _patient_id_for(sid, None) == pid

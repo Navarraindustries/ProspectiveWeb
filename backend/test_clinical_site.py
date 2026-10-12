@@ -232,3 +232,70 @@ class TestElWeb:
         _put(sid, PICA)
         j = client.post(f"/api/web-sizing/{sid}").json()
         assert "PICA / Vertebral: fuera de la indicación de bifurcación" in j["warnings"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Otro profesional (ola final F1a): la sesión de un paciente ajeno es 403.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _dos_medicos_y_sesion_de_a():
+    """Dos médicos y una sesión ligada a un paciente creado por el primero.
+
+    Mismo patrón que `test_team_decision.py::TestOtroProfesional`: con solo el
+    login global, cualquiera que supiera la UUID tocaba la sesión de otro.
+    """
+    import uuid
+
+    from conftest import anonymous_client
+    from services.auth_service import create_access_token, get_password_hash
+    from services.database import Base, SessionLocal, engine
+    from services.db_models import Patient, PlanningSession, User
+
+    Base.metadata.create_all(bind=engine)
+    clientes = []
+    db = SessionLocal()
+    for _ in range(2):
+        nombre = f"med-{uuid.uuid4().hex[:8]}"
+        u = User(username=nombre, hashed_password=get_password_hash("x" * 12), role="medico",
+                 full_name=nombre)
+        db.add(u); db.commit()
+        c = anonymous_client(app)
+        c.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
+        clientes.append((u.id, c))
+    p = Patient(surname="DeA", hospital_id=f"HC-{uuid.uuid4().hex[:6]}", created_by=clientes[0][0])
+    db.add(p); db.commit()
+    return db, p.id, clientes[0][1], clientes[1][1]
+
+
+class TestOtroProfesional:
+    def test_no_cambia_la_localizacion_de_otro(self):
+        from services.db_models import PlanningSession
+        db, pid, a, b = _dos_medicos_y_sesion_de_a()
+        sid = create_session()
+        db.add(PlanningSession(session_id=sid, patient_id=pid)); db.commit(); db.close()
+        r = b.put(f"/api/morphometry/{sid}/site", json={"site": ACM})
+        assert r.status_code == 403, r.text
+        # Y no se ha escrito nada: la localización de A sigue sin elegir.
+        assert read_state(sid, "clinical.site", "") == ""
+        assert a.put(f"/api/morphometry/{sid}/site", json={"site": ACM}).status_code == 200
+        assert read_state(sid, "clinical.site", "") == ACM
+
+
+class TestLasEntradasApartadasSeLimpian:
+    """Ola final F1a: limpiar la decisión (o re-medir) dejaba `*.pending_inputs`
+    y un cambio de localización posterior resucitaba la puntuación borrada."""
+
+    def test_borrar_la_decision_limpia_las_entradas_apartadas(self):
+        sid = create_session()
+        write_states(sid, {
+            "phases.pending_inputs": '{"site": "ica"}',
+            "elapss.pending_inputs": '{"location": "ica"}',
+            "uiats.pending_inputs": '{"location": "ica"}',
+        })
+        assert client.delete(f"/api/treatment-decision/{sid}").status_code == 200
+        for scale in ("phases", "elapss", "uiats"):
+            assert read_state(sid, f"{scale}.pending_inputs", "") == ""
+        # Elegir ahora una localización no recupera ninguna puntuación.
+        r = _put(sid, ACM).json()
+        assert r["recalculated"] == [] and r["pending"] == []
+        assert read_state(sid, "phases.json", "") == ""

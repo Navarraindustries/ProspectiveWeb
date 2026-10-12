@@ -13,7 +13,15 @@ import json
 import math
 import re
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from services.access import require_session
+from services.auth_service import get_current_user
+from services.database import get_db
+from services.db_models import User
 
 from models import (
     AneurysmCandidate as PydAneurysmCandidate,
@@ -1190,9 +1198,17 @@ def _recompute_score(scale: str, inputs: dict) -> dict:
         "el contexto clínico (`clinical.*`) no se toca."
     ),
 )
-async def set_clinical_site(session_id: str, req: ClinicalSiteRequest) -> ClinicalSiteResult:
+async def set_clinical_site(
+    session_id: str,
+    req: ClinicalSiteRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> ClinicalSiteResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Cambiar la localización recalcula PHASES/ELAPSS/UIATS y puede borrar la
+    # decisión: sin esta guarda, cualquiera con la UUID tocaba el plan de otro.
+    require_session(db, current_user, session_id)
     # Importado aquí: routers.treatment importa modelos que ya carga este módulo.
     from routers.treatment import clear_decision_only
     from services.clinical_site import site_category

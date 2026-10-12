@@ -7,8 +7,12 @@ import math
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Annotated
 
+from sqlalchemy.orm import Session
+
+from services.access import require_session
 from services.auth_service import get_current_user
 from services.audit import audit_device
+from services.database import get_db
 from services.db_models import User
 
 from models import (
@@ -62,9 +66,16 @@ async def get_coil_library() -> list[CoilLibraryItem]:
         "prescription: the operator chooses."
     ),
 )
-async def get_coil_recommendations(session_id: str) -> CoilConstructResult:
+async def get_coil_recommendations(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> CoilConstructResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # La propuesta lleva las medidas del saco de esa sesión: un profesional que no
+    # ve al paciente tampoco ve sus medidas por la puerta del montaje.
+    require_session(db, current_user, session_id)
 
     dome_mm = _load_float(session_id, "morpho.max_diameter_mm", 0.0)
     volume  = _load_float(session_id, "morpho.volume_mm3", 0.0)
@@ -112,9 +123,14 @@ async def get_coil_recommendations(session_id: str) -> CoilConstructResult:
 )
 async def preview_coil_construct(
     session_id: str, req: CoilPreviewRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> CoilPreviewResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # La proyección se calcula sobre el volumen medido de esa sesión: leerla es
+    # leer datos de su paciente, así que pide la misma propiedad que guardar.
+    require_session(db, current_user, session_id)
 
     id_to_spec = {_slug(c.name): c for c in COIL_CATALOGUE}
     desconocidos = [r.coil_id for r in req.rows if r.coil_id not in id_to_spec]

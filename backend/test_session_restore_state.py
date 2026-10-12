@@ -359,3 +359,33 @@ class TestLaDecisionDelEquipoVuelve:
         assert r["treatment"] is None
         got = client.get(f"/api/treatment-decision/{r['session_id']}/team").json()
         assert got["team_decision"] == "vigilar" and got["decided_by"] == "Dr. Gil"
+
+
+def _con_volumen(sid: str, **dicom) -> None:
+    """La caché de volumen que «Reanudar» copia y de la que sale la tarjeta de la serie."""
+    import json as _json
+
+    from services.mpr import _cache_paths
+    npy, meta = _cache_paths(sid)
+    npy.write_bytes(b"x")
+    meta.write_text(_json.dumps({"spacing": [0.5, 0.4, 0.4], "shape": [10, 20, 20],
+                                 "modality": "CT", "wc": 300.0, "ww": 900.0}))
+    write_states(sid, {f"dicom.{k}": v for k, v in dicom.items()})
+
+
+class TestLaSerieVuelve:
+    def test_la_fecha_de_adquisicion_y_el_plazo_vuelven_con_la_serie(self):
+        """Ola final F1a: la fecha, la hora (F1-129) y el plazo de borrado (F1-128)
+        se probaban sobre la carga, pero nada comprobaba que «Reanudar» los devolviera."""
+        from services.sessions import session_ttl_hours
+
+        sid = create_session()
+        (session_subdir(sid, "meshes") / "vessel_tree.vtp").write_text("x")
+        _con_volumen(sid, acquisition_date="2026-07-14", acquisition_time="09:35",
+                     description="Angio TC cerebral")
+        serie = _guardar_y_reanudar(sid)["series"]
+        assert serie is not None
+        assert serie["acquisition_date"] == "2026-07-14"
+        assert serie["acquisition_time"] == "09:35"
+        assert serie["session_ttl_hours"] == session_ttl_hours() > 0
+        assert serie["description"] == "Angio TC cerebral"

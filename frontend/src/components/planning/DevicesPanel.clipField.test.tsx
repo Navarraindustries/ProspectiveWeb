@@ -265,6 +265,7 @@ describe("DevicesPanel · campo del clip", () => {
     fireEvent.change(x, { target: { value: "5" } });
     act(() => { vi.advanceTimersByTime(100); });
     fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar todos" }));
     act(() => { vi.advanceTimersByTime(400); });
     // Un cambio hecho mientras el borrado no responde tampoco recoloca.
     fireEvent.change(x, { target: { value: "6" } });
@@ -290,6 +291,7 @@ describe("DevicesPanel · campo del clip", () => {
     await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
     // Con la segunda colocación en vuelo, «Limpiar todos» sigue disponible…
     fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar todos" }));
     // …pero el DELETE no sale mientras el plan no haya respondido: el servidor
     // atendería los dos a la vez y podría volver a apuntar el clip tras borrarlo.
     await act(async () => { vi.advanceTimersByTime(400); });
@@ -322,6 +324,7 @@ describe("DevicesPanel · campo del clip", () => {
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar todos" }));
     expect(api.clearDevices).not.toHaveBeenCalled();
     await act(async () => { fail(); });
     await waitFor(() => expect(api.clearDevices).toHaveBeenCalledTimes(1));
@@ -416,6 +419,31 @@ describe("DevicesPanel · campo del clip", () => {
     expect(await screen.findByText(/77\.0/)).toBeInTheDocument();
     act(() => { vi.advanceTimersByTime(400); });
     expect(api.planClips).not.toHaveBeenCalled();
+  });
+});
+
+/* Como F1-22: «Limpiar todos los dispositivos» quitaba los clips colocados a
+   mano sin preguntar, al lado de «Limpiar clips colocados», que sí preguntaba. */
+describe("«Limpiar todos los dispositivos»", () => {
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.clearAllMocks(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("abre la confirmación y no borra hasta confirmar", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Limpiar todos los dispositivos?" });
+    expect(dialogo).toHaveTextContent("todo lo colocado: los clips, con su verificación");
+    expect(dialogo).toHaveTextContent("La estrategia del equipo se queda.");
+    expect(api.clearDevices).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(api.clearDevices).not.toHaveBeenCalled();
+    expect(screen.getByText(/Estimación geométrica/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar todos" }));
+    await waitFor(() => expect(api.clearDevices).toHaveBeenCalledWith("s1"));
   });
 });
 

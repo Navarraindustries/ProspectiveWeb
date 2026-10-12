@@ -16,7 +16,7 @@ export const ROLE_OPTS = [
 export const ROLE_LABEL: Record<string, string> = Object.fromEntries(ROLE_OPTS.map((r) => [r.value, r.label]));
 
 export const ROLE_PERMITE: Record<string, string> = {
-  admin: "Administrador: todos los pacientes, usuarios, solicitudes, auditoría y catálogo de clips",
+  admin: "Administrador: todos los pacientes, usuarios, cuentas pendientes, auditoría y catálogo de clips",
   medico: "Médico: ves y editas los pacientes que creas; firmas pedidos",
   residente: "Residente: ves y editas los pacientes que creas; no firmas pedidos",
   viewer: "Observador: ves y editas los pacientes que creas; no firmas pedidos",

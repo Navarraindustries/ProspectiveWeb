@@ -38,6 +38,12 @@ export function TeamDecisionCard() {
   const touched = useRef(false);
 
   useEffect(() => {
+    // Otra sesión (otro paciente): lo elegido en la anterior no es de esta. Sin
+    // vaciarlo, la tarjeta mostraba la decisión del caso anterior hasta que la
+    // lectura trajera una, y si esta sesión no tenía ninguna se quedaba.
+    setTeam(treatment?.team ?? EMPTY);
+    setError(null);
+    touched.current = false;
     if (!sessionId || treatment?.team) return;
     let alive = true;
     api.getTeamDecision(sessionId)

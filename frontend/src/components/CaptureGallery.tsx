@@ -19,15 +19,24 @@ import { Button } from "./Button";
 import { Card, ErrorNote, SectionLabel } from "./PanelHead";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
-import { fechaHora } from "../lib/fecha";
+import { desdeServidor, fechaHora, type OpcionesFecha } from "../lib/fecha";
 
 /** Nombre del fichero al descargar: legible y sin datos del paciente. */
-export function downloadName(c: Pick<CaptureOut, "id" | "label" | "created_at" | "media_type">): string {
-  const fecha = new Date(c.created_at);
+export function downloadName(
+  c: Pick<CaptureOut, "id" | "label" | "created_at" | "media_type">,
+  o?: OpcionesFecha,
+): string {
+  // `created_at` llega sin zona y es UTC (lib/fecha). Leído con `new Date` y
+  // los getters locales, el fichero de una captura de las 22:31 en Bogotá
+  // decía 03:31 del día siguiente, distinto de la hora que enseña la galería.
+  const fecha = desdeServidor(c.created_at);
+  const zona = o?.timeZone ? { timeZone: o.timeZone } : {};
   const sello = Number.isNaN(fecha.getTime())
     ? String(c.id)
-    : `${fecha.getFullYear()}${String(fecha.getMonth() + 1).padStart(2, "0")}${String(fecha.getDate()).padStart(2, "0")}`
-      + `-${String(fecha.getHours()).padStart(2, "0")}${String(fecha.getMinutes()).padStart(2, "0")}`;
+    // «sv-SE» da AAAA-MM-DD y HH:MM en 24 h; se quitan los separadores.
+    : fecha.toLocaleDateString("sv-SE", zona).replace(/-/g, "")
+      + "-" + fecha.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", hour12: false, ...zona })
+        .replace(/:/g, "");
   const limpio = (c.label || "captura")
     .normalize("NFD").replace(/[̀-ͯ]/g, "")   // sin tildes: viaja mejor
     .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()

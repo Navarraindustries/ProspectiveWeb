@@ -73,7 +73,7 @@ approval, and a tamper-evident audit chain.
 |---|---|
 | Backend tests | **1594 passing** (`pytest`, 105 files) |
 | Frontend tests | **459 passing** (`vitest`, 65 files) · `tsc -b` clean · production build clean |
-| REST endpoints | **149** operations (28 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
+| REST endpoints | **160** operations (30 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
 | Feature parity with desktop | **Complete** |
 
 ---
@@ -2483,10 +2483,12 @@ Dónde lo comprueba el servidor:
 - **Solo administrador.** `routers/audit.py` (toda la auditoría),
   `routers/clip_library.py` (añadir, medir y quitar clips del catálogo; leerlo
   puede cualquiera), `routers/auth.py` (cuentas pendientes, usuarios,
-  restablecer contraseña) y quitar un taller en `routers/clip_orders.py`
-  dependen de `require_admin`. En la pantalla, `/app/usuarios` y
-  `/app/auditoria` escritas a mano por quien no es administrador muestran solo
-  la tarjeta «Solo para administradores» y no piden nada al servidor.
+  restablecer contraseña), quitar un taller en `routers/clip_orders.py` y
+  exportar las confirmaciones de lesión (`GET /api/ground-truth/export`, en
+  `routers/ground_truth.py`) dependen de `require_admin`. En la pantalla,
+  `/app/usuarios` y `/app/auditoria` escritas a mano por quien no es
+  administrador muestran solo la tarjeta «Solo para administradores» y no
+  piden nada al servidor.
 
 En «Pacientes», quien no es administrador lee «Ves los pacientes que
 creaste», el contador «Tus pacientes · creados por ti» y, con la lista vacía,
@@ -2506,7 +2508,7 @@ contacto es **ingprospective@skullapp.tech** (`frontend/src/lib/contacto.ts`).
 
 ## API Reference
 
-149 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
+160 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
 
 **Everything except `POST /api/auth/login`, `/signup` and `/logout` requires a
 token.** It travels as `Authorization: Bearer …` or as the `prospective_token`

@@ -101,12 +101,18 @@ def clips_fingerprint(clips: list[ClipPose], *, pose: bool = True) -> str:
     La oclusión corta por la posición del clip más proximal a lo largo del eje
     del saco, así que para ella basta la posición (`pose=False`).
     """
+    def _r(x, nd: int) -> float:
+        # `+ 0.0` convierte -0.0 en 0.0: una componente de -0.0 (o un -0.004 que
+        # redondea a -0.0) se escribía «-0.0» y partía la huella, y el informe
+        # decía «no calculado» de un mapa válido.
+        return round(float(x), nd) + 0.0
+
     def _fila(c: ClipPose):
         cid, pos, rot, normal = c
-        fila = [str(cid), [round(float(x), 1) for x in (pos or [])[:3]]]
+        fila = [str(cid), [_r(x, 1) for x in (pos or [])[:3]]]
         if pose:
             fila += [round(float(rot or 0.0)),
-                     [round(float(x), 2) for x in (normal or [])[:3]] or None]
+                     [_r(x, 2) for x in (normal or [])[:3]] or None]
         return fila
     return json.dumps(sorted((_fila(c) for c in clips), key=json.dumps))
 

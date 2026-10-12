@@ -33,7 +33,7 @@ describe("el encabezado del menú de usuario", () => {
   it("un administrador ve la línea de su rol", () => {
     currentUser = { ...base, role: "admin", institution: "Hospital Universitario" };
     abrirMenu();
-    expect(screen.getByText("Administrador: todos los pacientes, usuarios, solicitudes, auditoría y catálogo de clips")).toBeInTheDocument();
+    expect(screen.getByText("Administrador: todos los pacientes, usuarios, cuentas pendientes, auditoría y catálogo de clips")).toBeInTheDocument();
   });
 
   it("el administrador ve la entrada «Cuentas pendientes», no «Solicitudes de registro» (F1-89)", () => {

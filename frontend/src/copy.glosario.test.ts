@@ -13,11 +13,11 @@ import { basename, join, relative } from "node:path";
 
 const SRC = __dirname;
 
-function tsx(dir: string): string[] {
+function tsx(dir: string, ext = ".tsx"): string[] {
   return readdirSync(dir).flatMap((n) => {
     const p = join(dir, n);
-    if (statSync(p).isDirectory()) return tsx(p);
-    return p.endsWith(".tsx") && !p.endsWith(".test.tsx") ? [p] : [];
+    if (statSync(p).isDirectory()) return tsx(p, ext);
+    return p.endsWith(ext) && !p.endsWith(`.test${ext}`) ? [p] : [];
   });
 }
 
@@ -37,6 +37,10 @@ const archivos = [
   ...tsx(join(SRC, "pages")),
   join(SRC, "components", "planning", "ClipOrderForm.tsx"),
   join(SRC, "components", "Topbar.tsx"),
+  /* Los textos compartidos de `lib/` también se pintan (la línea del rol del
+     administrador, en Topbar y Usuarios, decía «solicitudes» y esta prueba no
+     la miraba porque vivía en roles.ts). */
+  ...tsx(join(SRC, "lib"), ".ts"),
 ];
 
 /* Palabras retiradas en cualquier pantalla. «Estudios» (galería de DICOM
@@ -48,6 +52,9 @@ const PROHIBIDAS: [RegExp, string][] = [
      nodo de texto de JSX, como el botón de «Pacientes»). «No hay solicitudes
      pendientes.» no entra: lleva más texto. */
   [/[>"`]Solicitudes[<"`]|^\s*Solicitudes\s*$/, "«Cuentas pendientes»"],
+  /* Como nombre de una sección dentro de una enumeración («usuarios,
+     solicitudes, auditoría»): es la pantalla «Cuentas pendientes». */
+  [/,\s*solicitudes\s*,/i, "«cuentas pendientes»"],
   [/Casos \/ estudios|caso \/ estudio|casos\/estudios/i, "«Casos» / «Caso»"],
   [/Nuevo estudio|Crear estudio|Editar estudio|Eliminar estudio/, "«Nuevo caso», «Crear caso», «Editar caso», «Eliminar caso»"],
   [/Sesiones de estudio/, "«Sesiones guardadas»"],
@@ -87,6 +94,10 @@ describe("la regla de «Solicitudes» suelto", () => {
     expect(violations('label="Solicitudes de registro"', "P.tsx")).toHaveLength(1);
   });
 
+  it("salta con «solicitudes» como sección en una enumeración", () => {
+    expect(violations('"Administrador: usuarios, solicitudes, auditoría"', "roles.ts")).toHaveLength(1);
+  });
+
   it("no salta con «No hay solicitudes pendientes.» ni con un comentario", () => {
     expect(violations("<div>No hay solicitudes pendientes.</div>", "P.tsx")).toEqual([]);
     expect(violations("/* Solicitudes — revisión */\n// Solicitudes\n", "P.tsx")).toEqual([]);
@@ -97,6 +108,7 @@ describe("el glosario en las pantallas", () => {
   it("recorre las pantallas, el formulario de pedido y el menú", () => {
     expect(archivos.length).toBeGreaterThan(10);
     expect(archivos.some((a) => a.endsWith("Topbar.tsx"))).toBe(true);
+    expect(archivos.some((a) => a.endsWith("roles.ts") && a.includes("lib"))).toBe(true);
   });
 
   it("no queda ninguna palabra retirada", () => {

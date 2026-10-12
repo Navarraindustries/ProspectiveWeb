@@ -1,6 +1,6 @@
 /* Login — cinematic dark brand panel + form panel. Real JWT auth. */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
@@ -48,6 +48,13 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
+  // El temporizador que quita el temblor sobrevivía a la pantalla: si se salía
+  // (o la prueba terminaba) antes de 500 ms, `setShake` caía sobre un componente
+  // desmontado y Vitest lo contaba como error sin manejar, a veces sí y a veces no.
+  const shakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (shakeTimer.current) clearTimeout(shakeTimer.current);
+  }, []);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -59,7 +66,8 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
     } catch (err) {
       setError(loginErrorMessage(err));
       setShake(true);
-      setTimeout(() => setShake(false), 500);
+      if (shakeTimer.current) clearTimeout(shakeTimer.current);
+      shakeTimer.current = setTimeout(() => setShake(false), 500);
     } finally {
       setBusy(false);
     }

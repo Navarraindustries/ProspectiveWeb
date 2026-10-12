@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -70,6 +71,24 @@ def _read_morpho(session_id: str) -> dict:
     }
 
 
+#: Antes de la Tarea 17 la carga guardaba como descripción «Serie <UID>» cuando
+#: la serie no traía SeriesDescription. Las sesiones guardadas entonces (las del
+#: Caso 3 en disco) devolvían ese UID al reanudar.
+_UID_COMO_DESCRIPCION = re.compile(r"^Serie \d+(\.\d+)+$")
+
+
+def _restored_description(raw: str | None) -> str:
+    """La descripción de la serie como la mostraría hoy la carga.
+
+    Una descripción con forma de UID es la antigua de relleno: se muestra
+    «Sin descripción», el mismo texto que da la carga de una serie sin ella.
+    """
+    desc = (raw or "").strip()
+    if _UID_COMO_DESCRIPCION.match(desc):
+        return "Sin descripción"
+    return desc or "Serie restaurada"
+
+
 def _restored_series(session_id: str) -> "SeriesInfo | None":
     """Rebuild the series card from the rehydrated volume cache.
 
@@ -90,7 +109,7 @@ def _restored_series(session_id: str) -> "SeriesInfo | None":
             size_mb=round(z * y * x * 4 / (1024 * 1024), 1),   # float32 volume
             session_id=session_id,
             series_id=read_state(session_id, "dicom.series_id", "") or "",
-            description=read_state(session_id, "dicom.description", "") or "Serie restaurada",
+            description=_restored_description(read_state(session_id, "dicom.description", "")),
             modality=meta.get("modality") or read_state(session_id, "dicom.modality", "") or "",
             slices=int(meta["shape"][0]),
             spacing=SpacingXYZ(x=float(sx), y=float(sy), z=float(sz)),

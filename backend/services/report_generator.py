@@ -1600,7 +1600,10 @@ class ReportGenerator:
             ang = c.clinical_angles_deg
             ori = f"{ang[0]:.0f} · {ang[1]:.0f} · {ang[2]:.0f}" if ang else "—"
             rows.append([
-                str(c.index + 1), Paragraph(c.name, self._style_cell), pos, ori,
+                # El nombre es texto libre en el contrato (PlacedClipState.name):
+                # un «<» o un «&» sin escapar abortaba el PDF entero, como pasó
+                # con `decided_by`.
+                str(c.index + 1), Paragraph(escape_xml(c.name), self._style_cell), pos, ori,
                 clip_type_label(c.clip_id, c.is_custom),
             ])
 

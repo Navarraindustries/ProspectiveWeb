@@ -31,11 +31,12 @@ vi.mock("../../api/client", () => ({
 }));
 
 let stored: unknown = null;
+let sid = "s1";
 let site: string | null = null;
 let morpho: unknown = { max_diameter_mm: 7 };
 vi.mock("../../store/planning", () => ({
   usePlanning: () => ({
-    sessionId: "s1",
+    sessionId: sid,
     patient: null,
     treatment: stored,
     setTreatment: (t: unknown) => { stored = t; },
@@ -86,6 +87,7 @@ const ARM = (arm: "clip" | "coil", labels: string[]) => ({
 
 beforeEach(() => {
   stored = RESULT;
+  sid = "s1";
   site = null;
   morpho = { max_diameter_mm: 7 };
   treatmentDecision.mockReset();
@@ -364,6 +366,22 @@ describe("«Decisión del equipo»", () => {
     render(<TreatmentPanel onNext={() => {}} />);
     await vi.waitFor(() => expect(select().value).toBe("vigilar"));
     expect((screen.getByLabelText("Quién decide") as HTMLInputElement).value).toBe("Dr. Gil");
+  });
+
+  it("al cambiar de sesión no se queda con la decisión de la anterior", async () => {
+    // La tarjeta guardaba su estado local y solo lo pisaba si el servidor
+    // traía una decisión: la sesión nueva, sin ninguna, mostraba la del otro caso.
+    stored = null;
+    const { rerender } = render(<TreatmentPanel onNext={() => {}} />);
+    fireEvent.change(select(), { target: { value: "clipaje" } });
+    fireEvent.change(screen.getByLabelText("Quién decide"), { target: { value: "Comité" } });
+    expect(select().value).toBe("clipaje");
+
+    sid = "s2";
+    rerender(<TreatmentPanel onNext={() => {}} />);
+    await vi.waitFor(() => expect(getTeamDecision).toHaveBeenCalledWith("s2"));
+    expect(select().value).toBe("");
+    expect((screen.getByLabelText("Quién decide") as HTMLInputElement).value).toBe("");
   });
 });
 

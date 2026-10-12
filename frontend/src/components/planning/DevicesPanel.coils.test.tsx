@@ -18,6 +18,7 @@ vi.mock("../../api/client", async (orig) => {
     listCoils: vi.fn(),
     coilConstructPreview: vi.fn(),
     planCoils: vi.fn(),
+    clearDevices: vi.fn(async () => ({ status: "ok" })),
     placedDevices: vi.fn(async () => ({ remaining: [], mesh_urls: {}, strategy: null, placed_counts: {} })),
     getTeamDecision: vi.fn(async () => ({ team_decision: "endovascular", decided_by: "", other_text: "" })),
   } };
@@ -155,6 +156,29 @@ describe("una sola vía de coils (decisión nº 24)", () => {
     await waitFor(() => expect(api.listCoils).toHaveBeenCalled());
     fireEvent.click(await screen.findByRole("button", { name: "Añadir coil" }));
     expect(modelo(1).value).toBe("enmarcado-10");
+  });
+});
+
+/* Como F1-22 con los clips: «Limpiar coils» quitaba el montaje colocado y su
+   empaque, también del informe, al primer clic. */
+describe("«Limpiar coils»", () => {
+  it("abre la confirmación y no borra hasta confirmar", async () => {
+    await abrirCoils();
+    fireEvent.click(screen.getByRole("button", { name: "Colocar el montaje" }));
+    await screen.findByText("Densidad de empaque");
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar coils" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Limpiar los coils colocados?" });
+    expect(dialogo).toHaveTextContent("los coils colocados y su densidad de empaque, también en el informe");
+    expect(api.clearDevices).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(api.clearDevices).not.toHaveBeenCalled();
+    expect(screen.getByText("Densidad de empaque")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar coils" }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar los coils" }));
+    await waitFor(() => expect(api.clearDevices).toHaveBeenCalledWith("s1", "coils"));
+    await waitFor(() => expect(screen.queryByText("Densidad de empaque")).toBeNull());
   });
 });
 

@@ -872,6 +872,9 @@ function filasDe(c: CoilConstructResult | null, nextKey: () => number): FilaCoil
 function CoilsTab() {
   const { sessionId, morphometry, setDeviceMesh } = usePlanning();
   const clearer = useClearDevice("coils");
+  // Como F1-22 con los clips: «Limpiar coils» se llevaba el montaje colocado y
+  // su empaquetamiento, también del informe, al primer clic.
+  const [askingClear, setAskingClear] = useState(false);
   const [coils, setCoils] = useState<CoilLibraryItem[]>([]);
   const [construct, setConstruct] = useState<CoilConstructResult | null>(null);
   const [cargado, setCargado] = useState(false);
@@ -1122,8 +1125,21 @@ function CoilsTab() {
         label="Limpiar coils"
         disabled={!clearer.placed && !plan}
         busy={clearer.busy}
-        onClick={() => void clearer.clear(() => setPlan(null))}
+        onClick={() => setAskingClear(true)}
       />
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar los coils colocados?"
+        confirmLabel="Limpiar los coils"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => {
+          setAskingClear(false);
+          void clearer.clear(() => setPlan(null));
+        }}
+      >
+        Se pierden los coils colocados y su densidad de empaque, también en el informe.
+      </ConfirmDialog>
       <ErrorNote>{clearer.error}</ErrorNote>
     </div>
   );
@@ -1924,6 +1940,16 @@ const KIND_LABEL: Record<DeviceKind, string> = {
   clips: "Clips", coils: "Coils", stent: "Stent",
 };
 
+/** Para la confirmación de «Limpiar todos los dispositivos». */
+const KIND_ARTICULO: Record<DeviceKind, string> = {
+  clips: "los clips", coils: "los coils", stent: "el stent",
+};
+
+/** «a», «a y b», «a, b y c». */
+function enumerar(xs: string[]): string {
+  return xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} y ${xs.at(-1)}`;
+}
+
 /** F1-188: las familias que pueden ser la estrategia del equipo, con el
  *  nombre de su pestaña. «—»: ninguna marcada. */
 const STRATEGY_OPTIONS: { value: DeviceStrategy | ""; label: string }[] = [
@@ -1944,6 +1970,10 @@ function PlacedDevicesBar() {
   const { sessionId, deviceMeshes, restoreDeviceMesh, clearDeviceMeshes } = usePlanning();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Como F1-22: «Limpiar todos los dispositivos» quitaba de golpe los clips
+  // colocados a mano, el montaje de coils y el stent, también del informe, sin
+  // preguntar, mientras «Limpiar clips colocados», al lado, sí preguntaba.
+  const [askingClear, setAskingClear] = useState(false);
   // F1-188: «En el plan» decía qué hay colocado, no cuál es la estrategia del
   // equipo; el informe las daba todas como planificadas. Vive en el servidor
   // (`devices.strategy`) y vuelve con GET /devices, también al reanudar.
@@ -2044,12 +2074,28 @@ function PlacedDevicesBar() {
       {placed.length > 0 && (
         <Button
           variant="outline" size="sm" style={{ width: "100%" }}
-          disabled={busy} onClick={() => void clearAll()}
+          disabled={busy} onClick={() => setAskingClear(true)}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {busy ? "Limpiando…" : "Limpiar todos los dispositivos"}
         </Button>
       )}
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar todos los dispositivos?"
+        confirmLabel="Limpiar todos"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => {
+          setAskingClear(false);
+          // Se limpia al confirmar: mientras el diálogo está abierto no se
+          // cancela ninguna recolocación, la persona aún puede decir que no.
+          void clearAll();
+        }}
+      >
+        Se borra del plan y del informe todo lo colocado: {enumerar(placed.map((k) => KIND_ARTICULO[k]))},
+        con su verificación. La estrategia del equipo se queda.
+      </ConfirmDialog>
       <ErrorNote>{error}</ErrorNote>
     </Card>
   );

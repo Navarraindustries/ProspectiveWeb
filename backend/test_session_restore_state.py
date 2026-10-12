@@ -389,3 +389,17 @@ class TestLaSerieVuelve:
         assert serie["acquisition_time"] == "09:35"
         assert serie["session_ttl_hours"] == session_ttl_hours() > 0
         assert serie["description"] == "Angio TC cerebral"
+
+    def test_una_descripcion_antigua_con_forma_de_uid_no_vuelve(self):
+        """Ola final F1a: antes de la Tarea 17 se guardaba «Serie <UID>» cuando la
+        serie no traía descripción; las sesiones del Caso 3 en disco la tienen."""
+        sid = create_session()
+        (session_subdir(sid, "meshes") / "vessel_tree.vtp").write_text("x")
+        _con_volumen(sid, description="Serie 1.2.276.0.7230010.3.1.3.8323329")
+        assert _guardar_y_reanudar(sid)["series"]["description"] == "Sin descripción"
+
+    def test_una_descripcion_que_solo_empieza_por_serie_se_queda(self):
+        sid = create_session()
+        (session_subdir(sid, "meshes") / "vessel_tree.vtp").write_text("x")
+        _con_volumen(sid, description="Serie 3 arterial")
+        assert _guardar_y_reanudar(sid)["series"]["description"] == "Serie 3 arterial"

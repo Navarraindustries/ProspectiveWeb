@@ -127,3 +127,25 @@ describe("contacto del administrador y último intento", () => {
     expect(screen.getByText(/no recibirás aviso/)).toBeInTheDocument();
   });
 });
+
+describe("el temblor del formulario", () => {
+  it("al salir de la pantalla no deja el temporizador pendiente", async () => {
+    // Quedaba un `setTimeout` de 500 ms vivo tras desmontar: al cerrarse el
+    // entorno de pruebas caía sobre la nada y `vitest run` salía con 1 a ratos.
+    const set = vi.spyOn(globalThis, "setTimeout");
+    const clear = vi.spyOn(globalThis, "clearTimeout");
+    login.mockRejectedValueOnce(new ApiError(401, "Credenciales incorrectas"));
+    const { unmount } = render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "ab" } });
+    fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: "12345" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await screen.findByText("Credenciales incorrectas");
+    const i = set.mock.calls.findIndex((c) => c[1] === 500);
+    expect(i).toBeGreaterThanOrEqual(0);
+    const id = set.mock.results[i].value;
+    unmount();
+    expect(clear).toHaveBeenCalledWith(id);
+    set.mockRestore();
+    clear.mockRestore();
+  });
+});

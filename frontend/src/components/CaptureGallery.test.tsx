@@ -80,9 +80,17 @@ describe("la galería", () => {
 describe("el nombre del fichero descargado", () => {
   it("lleva fecha y rótulo, y ni un dato del paciente", () => {
     // El PNG se reenvía sin pensarlo; el nombre del fichero viaja con él.
-    const n = downloadName({ id: 7, label: "Morfometría · plano de cuello", created_at: "2026-09-27T22:31:00" });
+    const n = downloadName({ id: 7, label: "Morfometría · plano de cuello", created_at: "2026-09-27T22:31:00" },
+      { timeZone: "UTC" });
     expect(n).toBe("prospective-20260927-2231-morfometria-plano-de-cuello.png");
     expect(n).not.toMatch(/hernandez|tannia|3245/i);
+  });
+
+  it("el sello es la hora de quien mira, no la del servidor leída como local", () => {
+    // El servidor manda UTC sin zona: las 03:31 del 28 en UTC son las 22:31 del
+    // 27 en Bogotá, la misma hora que enseña la galería.
+    expect(downloadName({ id: 7, label: "x", created_at: "2026-09-28T03:31:00" },
+      { timeZone: "America/Bogota" })).toBe("prospective-20260927-2231-x.png");
   });
 
   it("aguanta un rótulo raro o vacío", () => {

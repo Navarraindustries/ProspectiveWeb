@@ -361,6 +361,7 @@
      },
      "username": {
       "default": "",
+      "description": "Ignored: the event is signed with the authenticated administrator's username. Kept so older clients that still send it are not rejected.",
       "title": "Username",
       "type": "string"
      }
@@ -10670,6 +10671,7 @@
   },
   "/api/audit": {
    "post": {
+    "description": "Administrators only. The block is signed with the username of the authenticated administrator; the `username` field of the body is ignored.",
     "operationId": "append_event_api_audit_post",
     "requestBody": {
      "content": {

@@ -5,7 +5,7 @@ import { CaptureGallery } from "../components/CaptureGallery";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { FormEvent } from "react";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import type { PatientSummary, PatientSessionInfo, StudyCard, StudySummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { MorphoRiskBadge } from "../components/morphometry/MorphoRiskBadge";
@@ -57,6 +57,8 @@ function PatientSheet({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // El detalle del 403 cuando el paciente es de otro profesional.
+  const [denied, setDenied] = useState<string | null>(null);
   const [form, setForm] = useState({ ...BLANK });
   const [sessions, setSessions] = useState<PatientSessionInfo[]>([]);
   const [studies, setStudies] = useState<StudySummary[]>([]);
@@ -73,6 +75,7 @@ function PatientSheet({
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setDenied(null);
     if (patientId === null) {
       setForm({ ...BLANK });
       setSessions([]);
@@ -95,7 +98,14 @@ function PatientSheet({
         setSessions(s);
         setStudies(st);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando el paciente"))
+      .catch((e) => {
+        // Un 403 caía en el formulario vacío: un Médico que abría
+        // ?paciente=<id ajeno> veía los campos en blanco con «Guardar cambios»,
+        // «Nuevo estudio» y «Pedidos» sobre un paciente que no es suyo. Ahora
+        // la ficha solo muestra el motivo que da el servidor.
+        if (e instanceof ApiError && e.status === 403) setDenied(e.message);
+        else setError(e instanceof Error ? e.message : "Error cargando el paciente");
+      })
       .finally(() => setLoading(false));
   }, [open, patientId]);
 
@@ -123,6 +133,10 @@ function PatientSheet({
     <Sheet open={open} onClose={onClose} title={editing ? "Editar paciente" : "Nuevo paciente"} width={480}>
       {loading ? (
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", padding: "20px 0" }}>Cargando…</div>
+      ) : denied ? (
+        <div role="alert">
+          <ErrorNote>{denied}</ErrorNote>
+        </div>
       ) : (
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -477,6 +491,13 @@ export function Patients({
               <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
                 {loading ? "Cargando…" : `${rows.length} registros · ordenados por fecha de creación`}
               </div>
+              {!isAdmin && (
+                // Un Médico solo ve los pacientes que creó; sin esta línea, una
+                // lista corta o vacía parecía que faltaban datos.
+                <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
+                  Ves los pacientes que creaste
+                </div>
+              )}
             </div>
             <div style={{ flex: 1 }} />
             {isAdmin && (

@@ -34,7 +34,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Append an event to the audit chain */
+        /**
+         * Append an event to the audit chain
+         * @description Administrators only. The block is signed with the username of the authenticated administrator; the `username` field of the body is ignored.
+         */
         post: operations["append_event_api_audit_post"];
         delete?: never;
         options?: never;
@@ -2925,6 +2928,7 @@ export interface components {
             };
             /**
              * Username
+             * @description Ignored: the event is signed with the authenticated administrator's username. Kept so older clients that still send it are not rejected.
              * @default
              */
             username: string;

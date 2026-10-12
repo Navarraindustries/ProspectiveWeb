@@ -11,11 +11,21 @@ import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { Topbar } from "../components/Topbar";
 import { PanelHead, SectionLabel, Card, ErrorNote } from "../components/PanelHead";
+import { AdminOnlyCard } from "../components/AdminOnly";
+import { useAuth } from "../store/auth";
 
 /** Rows added per «Mostrar más». The chain is append-only and unbounded. */
 const PAGE = 50;
 
 export function AuditTrail({ onBack }: { onBack: () => void }) {
+  const { user } = useAuth();
+  // La guarda va antes de montar la página: sus llamadas y sus botones no
+  // tienen sentido para quien no es administrador.
+  if (user?.role !== "admin") return <AdminOnlyCard />;
+  return <AuditTrailPage onBack={onBack} />;
+}
+
+function AuditTrailPage({ onBack }: { onBack: () => void }) {
   const [blocks, setBlocks] = useState<AuditBlock[]>([]);
   const [verify, setVerify] = useState<AuditVerifyResult | null>(null);
   const [busy, setBusy] = useState(false);

@@ -15,6 +15,7 @@ import { Sheet } from "../components/Sheet";
 import { Topbar } from "../components/Topbar";
 import { ErrorNote } from "../components/PanelHead";
 import { useAuth } from "../store/auth";
+import { AdminOnlyCard } from "../components/AdminOnly";
 
 const SPECIALTIES = [
   "Neurocirugía", "Neurorradiología intervencionista", "Neurología",
@@ -190,6 +191,14 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
 }
 
 export function UsersAdmin({ onBack }: { onBack: () => void }) {
+  const { user } = useAuth();
+  // La guarda va antes de montar la página: sus llamadas y sus botones no
+  // tienen sentido para quien no es administrador.
+  if (user?.role !== "admin") return <AdminOnlyCard />;
+  return <UsersAdminPage onBack={onBack} />;
+}
+
+function UsersAdminPage({ onBack }: { onBack: () => void }) {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<UserAdminInfo[]>([]);
   const [loading, setLoading] = useState(true);

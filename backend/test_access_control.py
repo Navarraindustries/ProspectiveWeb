@@ -110,6 +110,29 @@ class TestOtroProfesional:
         assert b.get(f"/api/ground-truth/current?imaging_study_id={ids['img']}").status_code == 403
 
 
+class TestFichaAjena:
+    """F1-33/F1-34: la ficha, los casos y las sesiones de un paciente ajeno se
+    abrían con solo poner su id en la URL; editar y borrar sí estaban cerrados."""
+
+    def test_no_abre_su_ficha(self, caso):
+        a, b, ids = caso
+        r = b.get(f"/api/patients/{ids['patient']}")
+        assert r.status_code == 403
+        assert r.json()["detail"] == "No autorizado sobre este paciente."
+        assert a.get(f"/api/patients/{ids['patient']}").status_code == 200
+
+    def test_no_ve_sus_casos(self, caso):
+        a, b, ids = caso
+        assert b.get(f"/api/patients/{ids['patient']}/studies").status_code == 403
+        assert a.get(f"/api/patients/{ids['patient']}/studies").status_code == 200
+
+    def test_no_ve_sus_sesiones(self, caso):
+        a, b, ids = caso
+        assert b.get(f"/api/patients/{ids['patient']}/sessions").status_code == 403
+        assert a.get(f"/api/patients/{ids['patient']}/sessions").status_code == 200
+        assert admin.get(f"/api/patients/{ids['patient']}/sessions").status_code == 200
+
+
 class TestDataNoEsUnaCarpetaPublica:
     @pytest.mark.parametrize("ruta", [
         "/data/prospective.db", "/data/prospective.db-wal", "/data/audit/chain.db",

@@ -16,6 +16,7 @@ _STUDY_CASE_FIELDS = (
     "mod_tac", "mod_angio", "mod_rm", "mod_pangio",
 )
 from services.database import get_db
+from services.access import require_patient
 from services.auth_service import get_current_user
 from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, audit_append,
                             audit_patient)
@@ -224,12 +225,14 @@ async def create_case(
     summary="List DICOM studies for a patient",
 )
 async def list_studies(
-    patient_id: int,
-    db: Annotated[Session, Depends(get_db)],
+    patient_id:   int,
+    db:           Annotated[Session,     Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> list[StudySummary]:
     patient = db.get(Patient, patient_id)
     if patient is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    require_patient(db, current_user, patient_id)  # misma regla que la ficha
 
     studies = (
         db.query(Study)
@@ -350,12 +353,16 @@ async def delete_study(
     summary="Get a patient's full record (for editing)",
 )
 async def get_patient(
-    patient_id: int,
-    db: Annotated[Session, Depends(get_db)],
+    patient_id:   int,
+    db:           Annotated[Session,     Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> PatientDetail:
     patient = db.get(Patient, patient_id)
     if patient is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    # Editar y borrar ya comprobaban al dueño, pero leer no: un Médico abría la
+    # ficha de otro profesional con solo cambiar el id en la URL (?paciente=1).
+    require_patient(db, current_user, patient_id)
     return PatientDetail(id=patient.id, **{f: getattr(patient, f) for f in _PATIENT_FIELDS})
 
 
@@ -439,12 +446,14 @@ async def delete_patient(
     summary="List planning sessions done on a patient",
 )
 async def list_patient_sessions(
-    patient_id: int,
-    db: Annotated[Session, Depends(get_db)],
+    patient_id:   int,
+    db:           Annotated[Session,     Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> list[PatientSessionInfo]:
     patient = db.get(Patient, patient_id)
     if patient is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    require_patient(db, current_user, patient_id)  # misma regla que la ficha
 
     sessions = (
         db.query(PlanningSession)

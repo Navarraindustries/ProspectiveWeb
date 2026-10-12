@@ -7,7 +7,11 @@ from pydantic import BaseModel, Field
 class AuditAppendRequest(BaseModel):
     action: str = Field(..., description="Action name, e.g. DEVICE_PLACED")
     payload: dict = Field(default_factory=dict, description="Arbitrary JSON payload for the event")
-    username: str = ""
+    username: str = Field(
+        "",
+        description="Ignored: the event is signed with the authenticated administrator's "
+                    "username. Kept so older clients that still send it are not rejected.",
+    )
     patient_id: str = ""
     patient_dob: str = ""
 

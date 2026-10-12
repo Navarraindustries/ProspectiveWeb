@@ -8,12 +8,16 @@
    - Alt+1…4 siguen en su único camino, `presetForKey` (layoutShortcuts): aquí
      solo se listan; si Workspace también los atendiera, se dispararían dos veces.
    - Flechas, Re Pág/Av Pág, Inicio/Fin las atiende cada celda en su onKeyDown
-     (necesitan saber qué celda tiene el foco); aquí se listan para la hoja. */
+     (necesitan saber qué celda tiene el foco); aquí se listan para la hoja.
+   - Los gestos del ratón («raton») solo se enseñan: los atiende cada vista
+     con sus propios oyentes y `matchShortcut` nunca los devuelve. Solo están
+     los que existen en el código (F1-120); quien añada o quite uno, que lo
+     cambie aquí y en el README (shortcuts.test lo compara). */
 import { isTextEntryTarget } from "./layoutShortcuts";
 import { PAGE_STEP } from "./cine";
 import { isConfirmDialogOpen } from "../components/ConfirmDialog";
 
-export type ShortcutScope = "visor" | "celda" | "flujo";
+export type ShortcutScope = "visor" | "celda" | "flujo" | "raton";
 export interface Shortcut { id: string; keys: string; action: string; scope: ShortcutScope }
 
 /** Teclas apartadas para más adelante; la prueba de la tabla vigila que no se
@@ -28,9 +32,9 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "preset-derecha", keys: "Alt+2", action: "Distribución DERECHA", scope: "visor" },
   { id: "preset-abajo", keys: "Alt+3", action: "Distribución ABAJO", scope: "visor" },
   { id: "preset-cuatro", keys: "Alt+4", action: "Distribución CUATRO", scope: "visor" },
-  { id: "sync", keys: "S", action: "Encender o apagar SINCRO", scope: "visor" },
+  { id: "sync", keys: "S", action: "Encender o apagar VINCULAR", scope: "visor" },
   { id: "center-lesion", keys: "L", action: "Centrar en la lesión (3D y cortes)", scope: "visor" },
-  { id: "hud-cycle", keys: "H", action: "Nivel del HUD: completo · esencial · limpio", scope: "visor" },
+  { id: "hud-cycle", keys: "H", action: "Nivel de textos: completo · esencial · limpio", scope: "visor" },
   { id: "anot-regla", keys: "R", action: "Regla: dos puntos", scope: "visor" },
   { id: "anot-angulo", keys: "A", action: "Ángulo: tres puntos", scope: "visor" },
   { id: "anot-region", keys: "G", action: "Región: contorno en un corte", scope: "visor" },
@@ -54,6 +58,18 @@ export const SHORTCUTS: Shortcut[] = [
   ...Array.from({ length: STEP_COUNT }, (_, i): Shortcut => ({
     id: `step-${i + 1}`, keys: String(i + 1), action: `Ir al paso ${i + 1}`, scope: "flujo",
   })),
+  // Dónde vive cada gesto: SliceView (rueda, Ctrl+rueda, arrastre con el botón
+  // izquierdo o central y Mayús, doble clic en la lectura W/L); ViewerGrid
+  // (doble clic en una celda, asa de arriba de la celda, divisor y su doble clic).
+  { id: "raton-rueda", keys: "Rueda", action: "Corte siguiente o anterior", scope: "raton" },
+  { id: "raton-zoom", keys: "Ctrl+rueda", action: "Acercar o alejar el corte", scope: "raton" },
+  { id: "raton-wl", keys: "Arrastrar", action: "Ventana y nivel del corte", scope: "raton" },
+  { id: "raton-pan", keys: "Mayús+arrastrar o botón central", action: "Desplazar el corte", scope: "raton" },
+  { id: "raton-wl-reset", keys: "Doble clic en W/L", action: "Volver a la ventana del estudio", scope: "raton" },
+  { id: "raton-principal", keys: "Doble clic", action: "Hacer principal una vista pequeña", scope: "raton" },
+  { id: "raton-celda", keys: "Arrastrar la celda", action: "Intercambiar dos vistas (desde el borde de arriba de la celda)", scope: "raton" },
+  { id: "raton-divisor", keys: "Arrastrar el divisor", action: "Repartir el sitio entre la principal y las demás", scope: "raton" },
+  { id: "raton-divisor-reset", keys: "Doble clic en el divisor", action: "Volver al reparto por defecto", scope: "raton" },
 ];
 
 const PRESET_BY_CODE: Record<string, string> = {
@@ -65,7 +81,7 @@ const CELL_KEYS: Record<string, string> = {
 };
 
 /** El id del atajo que pide una tecla, o null. Nunca con el foco donde se
- *  escribe: teclear «s» en un campo no puede apagar SINCRO.
+ *  escribe: teclear «s» en un campo no puede apagar VINCULAR.
  *  Letras, dígitos y espacio por `code` (la tecla física: en AZERTY la fila de
  *  números no da dígitos sin mayúsculas); «?», «+» y «−» por `key`, porque su
  *  tecla física cambia con la distribución (en un teclado español «?» es
@@ -88,7 +104,7 @@ export function matchShortcut(
   if (e.key === "-" || e.key === "−" || e.code === "NumpadSubtract") return "cine-slower";
   if (e.code === "Space") {
     // Sobre un botón o un enlace el espacio es pulsarlo: los del HUD (la propia
-    // barra del cine, SINCRO…) se siguen manejando con el teclado.
+    // barra del cine, VINCULAR…) se siguen manejando con el teclado.
     const tag = (target as HTMLElement | null)?.tagName;
     return tag === "BUTTON" || tag === "A" ? null : "cine-toggle";
   }
@@ -117,7 +133,7 @@ export function matchShortcut(
 }
 
 export function shortcutsByScope(): Record<ShortcutScope, Shortcut[]> {
-  const out: Record<ShortcutScope, Shortcut[]> = { visor: [], celda: [], flujo: [] };
+  const out: Record<ShortcutScope, Shortcut[]> = { visor: [], celda: [], flujo: [], raton: [] };
   for (const s of SHORTCUTS) out[s.scope].push(s);
   return out;
 }

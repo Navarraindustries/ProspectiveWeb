@@ -43,7 +43,8 @@ describe("ViewerGrid", () => {
   it("doble clic en una secundaria la sube a principal", () => {
     const { cell, onLayoutChange } = setup();
     fireEvent.doubleClick(cell("coronal"));
-    expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["axial", "scene", "sagital", "mip"] });
+    // Las pequeñas en el orden fijo 3D, AX, SAG, VOLUMEN (F1-111).
+    expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["scene", "axial", "sagital", "mip"] });
   });
 
   it("doble clic en la celda principal no cambia nada", () => {

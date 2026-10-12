@@ -23,6 +23,16 @@ describe("nombres de los botones", () => {
   it("el 3D ofrece ABORDAJE junto a las vistas", () => {
     expect(readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8")).toMatch(/label:\s*"ABORDAJE"/);
   });
+  /* F1-116: «VISTA ▸ AX · COR · SAG» en el 3D se confundía con los cortes de
+     la cabecera; la cámara dice desde dónde se mira. */
+  it("la barra 3D no repite AX, COR, SAG: DESDE ▸ ARRIBA · DELANTE · LADO", () => {
+    const src = readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8");
+    const def = src.match(/const CAMERA_BUTTONS\b[^=]*=\s*([\s\S]*?);\r?\n/)![1];
+    const labels = [...def.matchAll(/\[\s*"\w+",\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(labels).toEqual(["ENCUADRAR", "ARRIBA", "DELANTE", "LADO"]);
+    expect(src).toMatch(/label="DESDE ▸"/);
+    expect(src).not.toMatch(/label="VISTA ▸"/);
+  });
   it("VOLUMEN construye sus preajustes por modalidad (sin lista fija)", () => {
     const src = readFileSync(join(root, "vtk", "MipView.tsx"), "utf8");
     expect(src).toMatch(/volumePresetsFor\(meta\.modality\)/);

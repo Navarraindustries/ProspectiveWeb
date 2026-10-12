@@ -1,5 +1,5 @@
 /* Banda de cabecera del visor: selector de la vista PRINCIPAL, presets de
-   distribución, el nivel del HUD, los conmutadores PLANOS · SINCRO · CALOR y «?».
+   distribución, el nivel de textos, los conmutadores PLANOS · VINCULAR · CALOR y «?».
 
    Separada de Viewer para poder probarla sola (spec §6: el selector refleja
    `layout.main` y cambia la distribución). Es presentacional: el estado vive
@@ -11,6 +11,12 @@ import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { headerLabels, mainOptions, NARROW_HEADER_PX, presetOptions } from "./mainOptions";
 import { HUD_LEVELS, type HudLevel } from "./viewerPrefs";
+
+const LEVEL_TITLES: Record<HudLevel, string> = {
+  completo: "Todo: botones de las vistas, lecturas, orientación y escala",
+  esencial: "Oculta los botones de las vistas; deja orientación, corte y ventana",
+  limpio: "Solo la imagen, con lateralidad y escala",
+};
 
 export interface ViewerHeaderProps {
   layout: ViewerLayout;
@@ -34,7 +40,7 @@ export interface ViewerHeaderProps {
   onShowClipFieldChange: (on: boolean) => void;
   /** «?» al final de la banda: abre la hoja de atajos (la misma que la tecla). */
   onHelp?: () => void;
-  /** Aviso de nivel del volumen («RESOLUCIÓN REDUCIDA · 4/12»): una sola vez,
+  /** Aviso de nivel del volumen («Vista previa en baja resolución…»): una sola vez,
    *  aquí, en vez de repetido en cada celda. `levelNoteShort` es la forma que
    *  cabe en una banda estrecha. */
   levelNote?: string | null;
@@ -72,7 +78,7 @@ export function ViewerHeader({
          style={{ flex: "none", height: 22, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "0 12px", lineHeight: 1.2, fontFamily: "var(--font-mono)", background: "#000", borderBottom: "1px solid var(--hud-dim)", overflow: "hidden", whiteSpace: "nowrap" }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
         {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
-            HUD y SINCRO dicen cómo se ve el visor, no qué hay en él. */}
+            TEXTOS y VINCULAR dicen cómo se ve el visor, no qué hay en él. */}
         <span style={{ color: "var(--hud-dim)" }} title="Vista principal">{header.mainCaption}</span>
         <HudToggleGroup options={mainOptions()} value={layout.main}
           onChange={(k) => onLayoutChange(promote(layout, k as PaneId))} />
@@ -87,10 +93,15 @@ export function ViewerHeader({
           value={planesHidden ? "" : "planes"} onChange={() => onPlanesHiddenChange(!planesHidden)} />
         {/* La banda queda fuera de `data-hud`: en limpio estos botones siguen
             ahí para volver (además de la H). En banda estrecha, C · E · L. */}
-        <HudToggleGroup label="HUD ▸" title="Nivel del HUD (H)" style={{ gap: 6, alignItems: "center" }}
-          options={HUD_LEVELS.map((l) => ({ key: l, label: bandWidth < NARROW_HEADER_PX ? l[0].toUpperCase() : l.toUpperCase(), title: `HUD ${l} (H)` }))}
+        {/* «TEXTOS», no «HUD» (F1-114): HUD es jerga de quien lo programó; lo
+            que cambia es cuánto texto se pinta sobre la imagen. Cada nivel
+            dice qué deja a la vista (F1-117). `data-hud` y las clases siguen
+            llamándose hud: son nombres de código, no se leen. */}
+        <HudToggleGroup label="TEXTOS ▸" title="Nivel de textos (H)" style={{ gap: 6, alignItems: "center" }}
+          options={HUD_LEVELS.map((l) => ({ key: l, label: bandWidth < NARROW_HEADER_PX ? l[0].toUpperCase() : l.toUpperCase(), title: LEVEL_TITLES[l] }))}
           value={hudLevel} onChange={(k) => onHudLevelChange(k as HudLevel)} />
-        <HudToggleGroup options={[{ key: "sync", label: syncViews ? "SINCRO ●" : "SINCRO ○", title: "Centrar todas las vistas en el punto" }]}
+        {/* «VINCULAR» (F1-115): «SINCRO» no decía qué se sincroniza ni cuándo. */}
+        <HudToggleGroup options={[{ key: "sync", label: syncViews ? "VINCULAR ●" : "VINCULAR ○", title: "Encendido: un clic en una vista centra las demás en ese punto" }]}
           value={syncViews ? "sync" : ""} onChange={() => onSyncViewsChange(!syncViews)} />
         {hasClipField && (
           <HudToggleGroup options={[{ key: "calor", label: calorOn ? "CALOR ●" : "CALOR ○",

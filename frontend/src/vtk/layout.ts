@@ -12,6 +12,8 @@ export type SidePanes = [PaneId, PaneId, PaneId, PaneId];
 export interface ViewerLayout { preset: LayoutPreset; main: PaneId; side: SidePanes; mainFraction: number }
 
 export const ALL_PANES: PaneId[] = ["scene", "axial", "coronal", "sagital", "mip"];
+/** El orden en que se leen las vistas pequeñas, siempre el mismo (F1-111). */
+export const CANONICAL_ORDER: PaneId[] = ALL_PANES;
 const PRESETS: LayoutPreset[] = ["derecha", "abajo", "sola", "cuatro"];
 export const LAYOUT_KEY_V2 = "ws.viewer.layout.v2";
 export const LAYOUT_KEY_V1 = "ws.viewer.layout";
@@ -41,12 +43,16 @@ export function swapPanes(l: ViewerLayout, a: PaneId, b: PaneId): ViewerLayout {
   return { ...l, side };
 }
 
+/** Sube `id` a principal. Las pequeñas quedan en el orden fijo 3D, AX, COR,
+ *  SAG, VOLUMEN (sin la nueva principal): antes la principal vieja caía en el
+ *  hueco de la nueva y, tras dos o tres cambios, la columna salía en un orden
+ *  distinto cada vez y había que leer los rótulos para encontrar el axial.
+ *  Un arrastre entre dos pequeñas (swapPanes) sí cambia el orden: es lo que
+ *  pidió quien arrastra, y dura hasta la próxima principal. */
 export function promote(l: ViewerLayout, id: PaneId): ViewerLayout {
   if (l.main === id) return l;
-  const i = l.side.indexOf(id);
-  if (i < 0) return l;
-  const side = [...l.side] as SidePanes;
-  side[i] = l.main;
+  if (!l.side.includes(id)) return l;
+  const side = CANONICAL_ORDER.filter((p) => p !== id) as SidePanes;
   return { ...l, main: id, side };
 }
 

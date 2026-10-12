@@ -25,7 +25,7 @@ import { useVolumeMeta } from "./useVolumeMeta";
 import { VolumeLoadFailed } from "./hud/VolumeLoadFailed";
 import { useVesselBand } from "./useVesselBand";
 import { volumePresetsFor } from "./volumePresets";
-import { levelNoteFor } from "./levelNote";
+import { levelNoteFor, volumeStateLabel } from "./levelNote";
 import { hasWebGL2 } from "./webgl";
 import { lesionFrameRadiusMm } from "./lesionFrame";
 // El visor la exportaba: se mantiene la salida para no romper a quien la importe de aquí.
@@ -130,13 +130,15 @@ const DEVICE_LABEL: Record<"clips" | "coils" | "stent", string> = {
   clips: "clips", coils: "coils", stent: "stent",
 };
 
-/* Vistas del visor 3D, nombradas como los planos MPR del resto de la app.
-   Un segundo clic en la misma vista la mira desde el lado opuesto. */
+/* Vistas de la cámara 3D, nombradas por desde dónde se mira (F1-116). Se
+   llamaban AX · COR · SAG, igual que los cortes de la cabecera, y pulsar
+   «AX» aquí parecía subir el corte axial a principal. Un segundo clic en la
+   misma vista la mira desde el lado opuesto. */
 const CAMERA_BUTTONS: [CameraView, string, string][] = [
   ["fit", "ENCUADRAR", "Reencuadrar la escena completa"],
-  ["axial", "AX", "Vista axial (desde superior; otro clic, desde inferior)"],
-  ["coronal", "COR", "Vista coronal (desde anterior; otro clic, desde posterior)"],
-  ["sagital", "SAG", "Vista sagital (desde la izquierda; otro clic, desde la derecha)"],
+  ["axial", "ARRIBA", "Desde arriba; otro clic, desde abajo"],
+  ["coronal", "DELANTE", "Desde delante; otro clic, desde detrás"],
+  ["sagital", "LADO", "Desde la izquierda; otro clic, desde la derecha"],
 ];
 const CENTERLINE_COLOR: Vector3 = [0.36, 0.85, 0.86]; // cyan — vessel centreline tube
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
@@ -407,10 +409,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     cameraFeed.current.last = cam;
     cameraFeed.current.listener?.(cam);
   }, []);
-  const levelNote = levelNoteFor(clientVol.level, clientVol.stride, clientVol.progress, clientVol.error);
+  const levelNote = levelNoteFor(clientVol.level, clientVol.stride, clientVol.error);
   // En una celda compacta (estrecha) la nota larga se monta sobre el
   // rótulo del plano; allí basta con la forma corta.
-  const levelNoteShort = levelNoteFor(clientVol.level, clientVol.stride, clientVol.progress, clientVol.error, true);
+  const levelNoteShort = levelNoteFor(clientVol.level, clientVol.stride, clientVol.error, true);
   const [nz, ny, nx] = meta?.shape ?? [1, 1, 1];
   // Al llegar un volumen nuevo: crosshair al centro y la ventana del estudio
   // (lo que hacía MprStrip, que ya no existe). Si la sesión se acaba de
@@ -1354,16 +1356,19 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [hint, hintSeq]);
   const showHint = useCallback((kind: HintKind) => showHintText(HINT_TEXT[kind], false), [showHintText]);
 
-  // Pista del nivel del HUD («HUD esencial»), arriba y 1,2 s. Aparte de la de
-  // la vista: esa la esconden los niveles y, al cargar, el cambio de pista de
-  // la principal (llega la sesión) la pisaría antes de leerse.
+  // Pista del nivel de textos («TEXTOS esencial»), arriba y 1,2 s. Aparte de la
+  // de la vista: esa la esconden los niveles y, al cargar, el cambio de pista de
+  // la principal (llega la sesión) la pisaría antes de leerse. Sirve también
+  // para otros avisos de la distribución que no pueden esconderse en limpio.
   const [levelHint, setLevelHint] = useState<{ text: string; seq: number } | null>(null);
   const levelHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showLevelHint = useCallback((level: HudLevel) => {
-    setLevelHint((p) => ({ text: `HUD ${level}`, seq: (p?.seq ?? 0) + 1 }));
+  const showLevelHintText = useCallback((text: string, ms = 1200) => {
+    setLevelHint((p) => ({ text, seq: (p?.seq ?? 0) + 1 }));
     if (levelHintTimer.current) clearTimeout(levelHintTimer.current);
-    levelHintTimer.current = setTimeout(() => setLevelHint(null), 1200);
+    levelHintTimer.current = setTimeout(() => setLevelHint(null), ms);
   }, []);
+  // «TEXTOS», no «HUD» (F1-114): es el nombre del grupo de la cabecera.
+  const showLevelHint = useCallback((level: HudLevel) => showLevelHintText(`TEXTOS ${level}`), [showLevelHintText]);
   const changeHudLevel = useCallback((level: HudLevel) => {
     setHudLevel(level);
     showLevelHint(level);
@@ -1599,7 +1604,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
   };
   // Dónde va la pista de la principal (hud.css): bajo la cinta de rumbo en la
   // escena 3D y, en VOLUMEN, bajo la fila de controles de arriba.
-  const hintPlace = viewerLayout.main === "mip" ? " hud-hint-vol" : viewerLayout.main === "scene" ? " hud-hint-cinta" : "";
+  // En CUATRO con VOLUMEN de principal la pista va en la 3D (layoutGrid).
+  const shownMain = viewerLayout.preset === "cuatro" && viewerLayout.main === "mip" ? "scene" : viewerLayout.main;
+  const hintPlace = shownMain === "mip" ? " hud-hint-vol" : shownMain === "scene" ? " hud-hint-cinta" : "";
   // Por ref: la escucha se pone una vez y siempre ve el estado del último render.
   const onShortcutRef = useRef(onShortcut);
   onShortcutRef.current = onShortcut;
@@ -1657,7 +1664,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         return (
           <HudFrame label="VOLUMEN" active={active}>
             {metaError ? <VolumeLoadFailed onRetry={retryMeta} /> : (
-              <HudReadout at="bl" lines={[meta && hasWebGL2() && !clientVol.error ? "CARGANDO…" : "SIN VOLUMEN"]} />
+              <HudReadout at="bl" lines={[volumeStateLabel({ series: !!series, webgl2: hasWebGL2(), error: clientVol.error })]} />
             )}
           </HudFrame>
         );
@@ -1667,7 +1674,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // si no (axial, 3D, MIP), el axial.
       const mipPlane: Plane = volumeAxis;
       return (
-        <Suspense fallback={<ViewerLoading label="Cargando VOLUMEN…" />}>
+        // Los Suspense esperan al código de la vista, no al volumen: «visor».
+        <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
           <MipView image={clientVol.image} meta={meta} orientation={orientation} compact={compact} plane={mipPlane} onPlaneChange={setMipPlane} registerCapture={regPane("mip")} registerFit={regFit("mip")}
             overlay={cineBarFor("mip", compact)} showInset={hudLevel !== "limpio"} vesselBand={vesselBand} lesion={mipLesion} />
         </Suspense>
@@ -1678,7 +1686,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // para siempre porque dependía de que hubiera serie, no de la meta (F1-8).
       return (
         <HudFrame label={id.toUpperCase()}>
-          {metaError ? <VolumeLoadFailed onRetry={retryMeta} /> : <HudReadout at="bl" lines={[series ? "CARGANDO…" : "SIN VOLUMEN"]} />}
+          {/* Los cortes tienen ruta sin WebGL2 (MprView): aquí no cuenta. */}
+          {metaError ? <VolumeLoadFailed onRetry={retryMeta} /> : <HudReadout at="bl" lines={[volumeStateLabel({ series: !!series, webgl2: true, error: null })]} />}
         </HudFrame>
       );
     }
@@ -1696,7 +1705,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       );
     }
     return (
-      <Suspense fallback={<ViewerLoading label="Cargando visor de cortes…" />}>
+      <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
         <SliceView image={clientVol.image!} meta={meta} plane={id} index={c.index} onIndexChange={c.onIndexChange}
           wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww} onWindowLevel={(wc, ww) => setMprWl({ wc, ww })}
           onWindowLevelReset={() => setMprWl(null)} presets={wlPresets}
@@ -1752,7 +1761,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         // En PLANO la posición del cine es un desplazamiento, no un punto de la línea.
         const walkIndex = obliqueWalk === "vaso" ? (cinePosition("scene")?.index ?? 0) : 0;
         body = (
-          <Suspense fallback={<ViewerLoading label="Cargando oblicuo…" />}>
+          <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
               onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} onWindowLevelReset={() => setMprWl(null)} active={isMain}
               registerCapture={registerMeshCapture} registerFit={regFit("scene")} overlay={cineBarFor("scene", compact)}
@@ -1770,7 +1779,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       }
     } else if (isMesh) {
       body = (
-        <Suspense fallback={<ViewerLoading label="Cargando visor 3D…" />}>
+        <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
           <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} labels={meshLabels} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices"}
@@ -1885,7 +1894,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
                 rotando no tenía vuelta atrás. */}
             {isMesh && camera && (
               <HudToggleGroup
-                label="VISTA ▸"
+                label="DESDE ▸"
                 options={[
                   ...CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title })),
                   ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Acercar la cámara a la lesión" }] : []),
@@ -1916,10 +1925,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
     );
   };
 
+  // F1-112: CUATRO no tiene cuadrante para VOLUMEN. Si era la principal, se
+  // dice al entrar; si no, VOLUMEN desaparecía sin explicación.
+  const changeLayout = (next: ViewerLayout) => {
+    if (next.preset === "cuatro" && viewerLayout.preset !== "cuatro" && next.main === "mip") {
+      showLevelHintText("VOLUMEN queda fuera en CUATRO", 2400);
+    }
+    setViewerLayout(next);
+  };
   const onLayoutKey = (e: ReactKeyboardEvent) => {
     if (e.ctrlKey || e.metaKey) return;
     const p = presetForKey(e.code, e.target, e.altKey);
-    if (p) { e.preventDefault(); setViewerLayout(setPreset(viewerLayout, p)); }
+    if (p) { e.preventDefault(); changeLayout(setPreset(viewerLayout, p)); }
   };
 
   return (
@@ -1940,7 +1957,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           que la rejilla, para que el foco en un conmutador no las pierda.
           La banda vive en ViewerHeader, con su prueba. */}
       <ViewerHeader
-        layout={viewerLayout} onLayoutChange={setViewerLayout} onKeyDown={onLayoutKey}
+        layout={viewerLayout} onLayoutChange={changeLayout} onKeyDown={onLayoutKey}
         planesHidden={planesHidden} onPlanesHiddenChange={setPlanesHidden}
         hudLevel={hudLevel} onHudLevelChange={changeHudLevel}
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
@@ -1953,7 +1970,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           nunca desde un campo de texto (presetForKey). Los dígitos solos son
           del salto de paso de Workspace, que ignora Alt. */}
       {/* `data-hud` en la rejilla y no en la raíz: la banda de cabecera queda
-          fuera, y sus botones (HUD ▸ incluido) se ven en cualquier nivel. */}
+          fuera, y sus botones (TEXTOS ▸ incluido) se ven en cualquier nivel. */}
       <div ref={gridHostRef} data-hud={hudLevel} style={{ flex: "1 1 0", position: "relative", minHeight: 0, overflow: "hidden" }}
            tabIndex={0}
            // Los lienzos de vtk.js y los cortes anulan la acción por defecto del

@@ -1,11 +1,13 @@
-/* Hoja «Atajos»: todas las teclas del visor en una tarjeta, en tres columnas
-   por ámbito. Sale de la misma tabla que atiende las teclas (shortcuts.ts),
+/* Hoja «Atajos»: todas las teclas del visor en una tarjeta, en columnas por
+   ámbito, y al final los gestos del ratón (F1-120: la rueda, el arrastre de
+   celdas y del divisor y los dobles clics no estaban escritos en ningún
+   sitio). Sale de la misma tabla que atiende las teclas (shortcuts.ts),
    así que no puede quedarse desfasada. Sustituye a la pista efímera que «?»
    volvía a mostrar: aquella solo enseñaba los gestos de la celda principal. */
 import { useEffect, useRef } from "react";
 import { shortcutsByScope, type Shortcut, type ShortcutScope } from "../shortcuts";
 
-const HEADINGS: [ShortcutScope, string][] = [["visor", "Visor"], ["celda", "Celda"], ["flujo", "Flujo"]];
+const HEADINGS: [ShortcutScope, string][] = [["visor", "Visor"], ["celda", "Celda"], ["flujo", "Flujo"], ["raton", "Ratón"]];
 
 /** Los ocho saltos de paso son una sola fila «1 … 8 · Ir al paso N»: ocho filas
  *  iguales salvo el número tapaban el resto de la columna. */

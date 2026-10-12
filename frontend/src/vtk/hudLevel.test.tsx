@@ -67,12 +67,32 @@ describe("nivel del HUD (hud.css)", () => {
     for (const t of ["ladder", "label", "readout", "edge", "scale", "cine", "anot", "level-hint", "aviso", "prompt"]) expect(shown(t), t).toBe(true);
   });
 
-  it("limpio: solo la imagen y las anotaciones (y el cine mientras reproduce)", () => {
+  it("limpio: la imagen con lateralidad, escala y anotaciones (y el cine mientras reproduce)", () => {
     const shown = fixture("limpio");
-    for (const t of ["decor", "ladder", "corner", "label", "readout", "edge", "scale", "hint", "cine", "toggle", "wrapped-range", "controls", "controls-range"]) {
+    for (const t of ["decor", "ladder", "corner", "label", "readout", "hint", "cine", "toggle", "wrapped-range", "controls", "controls-range"]) {
       expect(shown(t), t).toBe(false);
     }
     // Los avisos y la instrucción de la herramienta armada se leen también en limpio.
     for (const t of ["anot", "cine-playing", "level-hint", "aviso", "prompt"]) expect(shown(t), t).toBe(true);
+  });
+
+  /* F1-118: LIMPIO quitaba también ANT/POST/IZQ/DER y la regla de 10 mm; una
+     captura limpia no decía de qué lado era la lesión ni cuánto medía. */
+  it("F1-118: en LIMPIO siguen «DER», «IZQ» y la regla", () => {
+    const { container } = render(
+      <div data-hud="limpio">
+        <span className="hud-edge left">DER</span>
+        <span className="hud-edge right beside-ladder">IZQ</span>
+        <div className="hud-scale" data-t="regla"><span>10 mm</span></div>
+      </div>,
+    );
+    const visible = (el: Element | null) => {
+      for (let n = el; n; n = n.parentElement) if (getComputedStyle(n).display === "none") return false;
+      return el !== null;
+    };
+    const byText = (t: string) => [...container.querySelectorAll("span")].find((n) => n.textContent === t) ?? null;
+    expect(visible(byText("DER"))).toBe(true);
+    expect(visible(byText("IZQ"))).toBe(true);
+    expect(visible(container.querySelector('[data-t="regla"]'))).toBe(true);
   });
 });

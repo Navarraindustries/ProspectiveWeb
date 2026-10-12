@@ -77,14 +77,17 @@
 [data-hud="esencial"] .hud-decor:not(.hud-ladder), [data-hud="esencial"] .hud-corner,
 [data-hud="esencial"] .hud-toggle, [data-hud="esencial"] .hud-controls, [data-hud="esencial"] .hud-hint:not(.hud-hint-level):not(.hud-hint-aviso) { display: none !important; }
 [data-hud="esencial"] .hud-edge.right.beside-ladder { right: 48px; }   /* la escalera se queda */
-/* Limpio: solo la imagen y las anotaciones; el cine solo mientras reproduce,
-   para poder pararlo con el ratón. Los avisos (`.hud-hint-aviso`) y la
-   instrucción de la herramienta armada (`.hud-prompt`) se quedan: las
-   teclas siguen actuando y hay que ver qué piden. */
+/* Limpio: la imagen, las anotaciones, la lateralidad (ANT/POST/IZQ/DER) y la
+   regla de 10 mm; el cine solo mientras reproduce, para poder pararlo con el
+   ratón. Lateralidad y regla se quedan (F1-118): sin ellas una captura limpia
+   no decía de qué lado estaba la lesión ni a qué escala. Los avisos
+   (`.hud-hint-aviso`) y la instrucción de la herramienta armada
+   (`.hud-prompt`) se quedan: las teclas siguen actuando y hay que ver qué
+   piden. Sin escalera, la lateralidad derecha vuelve a su borde. */
 [data-hud="limpio"] .hud-decor, [data-hud="limpio"] .hud-corner, [data-hud="limpio"] .hud-toggle, [data-hud="limpio"] .hud-controls,
 [data-hud="limpio"] .hud-hint:not(.hud-hint-level):not(.hud-hint-aviso), [data-hud="limpio"] .hud-label,
-[data-hud="limpio"] .hud-readout:not(.hud-prompt), [data-hud="limpio"] .hud-edge,
-[data-hud="limpio"] .hud-scale, [data-hud="limpio"] .hud-cine:not(.playing) { display: none !important; }
+[data-hud="limpio"] .hud-readout:not(.hud-prompt), [data-hud="limpio"] .hud-cine:not(.playing) { display: none !important; }
+[data-hud="limpio"] .hud-edge.right.beside-ladder { right: 8px; }
 
 /* Anotaciones (cortes y 3D). Sin `hud-decor`: son datos del caso y se ven
    en cualquier nivel del HUD. Ancho y alto explícitos: un <svg> absoluto no se

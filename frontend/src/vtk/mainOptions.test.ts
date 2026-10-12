@@ -4,8 +4,8 @@ import { headerLabels, MAIN_LABELS, mainOptions, presetOptions } from "./mainOpt
 describe("mainOptions", () => {
   it("cinco vistas en orden fijo con rótulos cortos", () => {
     expect(mainOptions().map((o) => o.key)).toEqual(["scene", "axial", "coronal", "sagital", "mip"]);
-    expect(mainOptions().map((o) => o.label)).toEqual(["3D", "AX", "COR", "SAG", "VOL"]);
-    expect(MAIN_LABELS.mip).toBe("VOL");
+    expect(mainOptions().map((o) => o.label)).toEqual(["3D", "AX", "COR", "SAG", "VOLUMEN"]);
+    expect(MAIN_LABELS.mip).toBe("VOLUMEN");
   });
   it("cada opción explica qué hace", () => {
     for (const o of mainOptions()) expect(o.title).toMatch(/principal/i);
@@ -39,5 +39,12 @@ describe("presetOptions cuatro", () => {
   it("CUATRO está entre los presets y se abrevia a 4", () => {
     expect(presetOptions(1000).map((o) => o.key)).toContain("cuatro");
     expect(presetOptions(600).find((o) => o.key === "cuatro")!.label).toBe("4");
+  });
+});
+
+describe("F1-112: el título de CUATRO", () => {
+  it("dice qué cuatro vistas pinta y que VOLUMEN queda fuera", () => {
+    expect(presetOptions(1000).find((o) => o.key === "cuatro")!.title)
+      .toBe("Axial, coronal, sagital y 3D a cuartos; VOLUMEN queda fuera (Alt+4)");
   });
 });

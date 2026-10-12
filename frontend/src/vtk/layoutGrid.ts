@@ -27,25 +27,42 @@ export function effectivePreset(l: ViewerLayout, portrait: boolean): LayoutPrese
 
 const two = (x: number) => x.toFixed(2);
 
+/** CUATRO, en orden de lectura: lo que promete su título, sea cual sea la principal. */
+const QUADRANTS: PaneId[] = ["axial", "coronal", "sagital", "scene"];
+
+/* CUATRO pintaba la principal y las tres primeras de `side`: los cuadrantes
+   dependían de por dónde se hubiera pasado antes y VOLUMEN podía colarse.
+   Ahora son siempre axial, coronal, sagital y 3D, y VOLUMEN queda oculta
+   (F1-112). La principal conserva el hueco «main» en su cuadrante (lleva la
+   pista y el selector de ventana); si la principal es VOLUMEN, que no tiene
+   cuadrante, ese papel lo hace la 3D mientras dure CUATRO, sin tocar
+   `layout.main`: al volver a otro preset VOLUMEN sigue siendo la principal. */
+function cuatroFor(l: ViewerLayout): GridSpec {
+  const shownMain: PaneId = QUADRANTS.includes(l.main) ? l.main : "scene";
+  const rest: Slot[] = ["s0", "s1", "s2"];
+  const slotOf = {} as Record<PaneId, Slot>;
+  for (const id of QUADRANTS) slotOf[id] = id === shownMain ? "main" : rest.shift()!;
+  slotOf.mip = "s3";
+  const visible: Record<PaneId, boolean> = { scene: true, axial: true, coronal: true, sagital: true, mip: false };
+  const [a, b, c, d] = QUADRANTS.map((id) => slotOf[id]);
+  // Sin separador (las cuatro celdas son iguales) y también en vertical.
+  return {
+    columns: "repeat(2, minmax(0, 1fr))", rows: "repeat(2, minmax(0, 1fr))",
+    areas: `"${a} ${b}" "${c} ${d}"`, slotOf, visible, splitter: null,
+  };
+}
+
 export function gridFor(l: ViewerLayout, portrait: boolean): GridSpec {
   const preset = effectivePreset(l, portrait);
+  if (preset === "cuatro") return cuatroFor(l);
   const slots: Slot[] = ["s0", "s1", "s2", "s3"];
   const slotOf = { [l.main]: "main" } as Record<PaneId, Slot>;
   l.side.forEach((id, i) => { slotOf[id] = slots[i]; });
   const allVisible = Object.fromEntries([l.main, ...l.side].map((id) => [id, preset !== "sola"])) as Record<PaneId, boolean>;
   allVisible[l.main] = true;
-  // 2×2: cuatro celdas para cinco vistas, la última de `side` queda sin hueco.
-  if (preset === "cuatro") allVisible[l.side[3]] = false;
   const f = l.mainFraction, g = 1 - l.mainFraction;
   if (preset === "sola") {
     return { columns: "1fr", rows: "1fr", areas: '"main"', slotOf, visible: allVisible, splitter: null };
-  }
-  if (preset === "cuatro") {
-    // Sin separador (las cuatro celdas son iguales) y también en vertical.
-    return {
-      columns: "repeat(2, minmax(0, 1fr))", rows: "repeat(2, minmax(0, 1fr))",
-      areas: '"main s0" "s1 s2"', slotOf, visible: allVisible, splitter: null,
-    };
   }
   if (preset === "derecha") {
     return {

@@ -5,11 +5,12 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { render } from "@testing-library/react";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ShortcutsSheet } from "./hud/ShortcutsSheet";
 import { matchShortcut, RESERVED_KEYS, SHORTCUTS, shortcutsByScope } from "./shortcuts";
 const ev = (p: Partial<{ key: string; code: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }>) => ({ key: "", code: "", altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...p });
 describe("tabla de atajos", () => {
   it("no hay teclas duplicadas en el mismo ámbito y las reservadas no se asignan", () => {
-    for (const scope of ["visor", "celda", "flujo"] as const) {
+    for (const scope of ["visor", "celda", "flujo", "raton"] as const) {
       const keys = SHORTCUTS.filter((s) => s.scope === scope).map((s) => s.keys);
       expect(new Set(keys).size).toBe(keys.length);
     }
@@ -30,7 +31,7 @@ describe("tabla de atajos", () => {
     expect(matchShortcut(ev({ key: " ", code: "Space" }), input)).toBeNull();
   });
   it("shortcutsByScope agrupa todo", () => {
-    const g = shortcutsByScope(); expect(g.visor.length + g.celda.length + g.flujo.length).toBe(SHORTCUTS.length);
+    const g = shortcutsByScope(); expect(g.visor.length + g.celda.length + g.flujo.length + g.raton.length).toBe(SHORTCUTS.length);
   });
 });
 
@@ -38,7 +39,7 @@ describe("matchShortcut — bordes", () => {
   it("el espacio sobre un botón o un enlace es suyo (pulsarlo), no del cine", () => {
     expect(matchShortcut(ev({ key: " ", code: "Space" }), document.createElement("button"))).toBeNull();
     expect(matchShortcut(ev({ key: " ", code: "Space" }), document.createElement("a"))).toBeNull();
-    // S sobre un botón sigue siendo SINCRO: el botón no usa la S.
+    // S sobre un botón sigue siendo VINCULAR: el botón no usa la S.
     expect(matchShortcut(ev({ key: "s", code: "KeyS" }), document.createElement("button"))).toBe("sync");
   });
   it("dentro de un contenteditable no actúa", () => {
@@ -138,4 +139,36 @@ it("con un ConfirmDialog abierto no resuelve Supr, P, espacio ni dígitos", () =
   for (const e of [supr, p, espacio, dos, ev({ key: "r", code: "KeyR" })]) expect(matchShortcut(e, document.body)).toBeNull();
   unmount();
   expect(matchShortcut(p, null)).toBe("panel-toggle");
+});
+
+/* F1-120: la hoja solo hablaba del teclado; la rueda, el arrastre de celdas y
+   del divisor y los dobles clics no estaban escritos en ningún sitio. */
+describe("F1-120: gestos del ratón", () => {
+  it("la hoja lista rueda, Ctrl+rueda, arrastre y doble clic", () => {
+    const { getByRole, unmount } = render(createElement(ShortcutsSheet, { open: true, onClose: () => {} }));
+    const dlg = getByRole("dialog", { name: "Atajos" });
+    expect(getByRole("heading", { name: "Ratón" })).toBeTruthy();
+    for (const k of ["Rueda", "Ctrl+rueda", "Arrastrar", "Arrastrar la celda", "Arrastrar el divisor", "Doble clic"]) {
+      expect(dlg.textContent, k).toContain(k);
+    }
+    // «Ratón» va la última: el teclado sigue siendo lo primero que se busca.
+    const headings = [...dlg.querySelectorAll("h3")].map((h) => h.textContent);
+    expect(headings[headings.length - 1]).toBe("Ratón");
+    unmount();
+  });
+  it("ningún gesto del ratón se atiende como tecla", () => {
+    const ids = new Set(SHORTCUTS.filter((s) => s.scope === "raton").map((s) => s.id));
+    expect(ids.size).toBeGreaterThanOrEqual(6);
+    for (const s of SHORTCUTS.filter((x) => x.scope === "raton")) {
+      expect(matchShortcut(ev({ key: s.keys, code: s.keys }), null), s.id).toBeNull();
+    }
+  });
+  it("el README lista los mismos gestos", () => {
+    const readme = readFileSync(resolve(__dirname, "../../../README.md"), "utf8");
+    for (const s of SHORTCUTS.filter((x) => x.scope === "raton")) expect(readme, s.keys).toContain(`| ${s.keys} | ${s.action} |`);
+  });
+  it("VINCULAR y TEXTOS se llaman así también en la hoja", () => {
+    expect(SHORTCUTS.find((s) => s.id === "sync")?.action).toBe("Encender o apagar VINCULAR");
+    expect(SHORTCUTS.find((s) => s.id === "hud-cycle")?.action).toBe("Nivel de textos: completo · esencial · limpio");
+  });
 });

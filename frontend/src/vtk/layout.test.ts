@@ -13,10 +13,23 @@ describe("intercambiar y subir", () => {
   it("swapPanes con la principal es lo mismo que promote", () => {
     expect(swapPanes(DEFAULT_LAYOUT, "scene", "coronal")).toEqual(promote(DEFAULT_LAYOUT, "coronal"));
   });
-  it("promote sube el hueco y baja la principal a su sitio", () => {
+  it("promote sube la vista y deja las pequeñas en el orden fijo 3D, AX, COR, SAG, VOLUMEN", () => {
     const l = promote(DEFAULT_LAYOUT, "mip");
     expect(l.main).toBe("mip");
-    expect(l.side).toEqual(["axial", "coronal", "sagital", "scene"]);
+    expect(l.side).toEqual(["scene", "axial", "coronal", "sagital"]);
+  });
+  it("F1-111: tras elegir VOL y luego AX, las pequeñas salen en orden fijo", () => {
+    const l = promote(promote(DEFAULT_LAYOUT, "mip"), "axial");
+    expect(l.main).toBe("axial");
+    expect(l.side).toEqual(["scene", "coronal", "sagital", "mip"]);
+    // Con la 3D de principal, AX, COR, SAG, VOLUMEN, venga de donde venga.
+    expect(promote(promote(promote(DEFAULT_LAYOUT, "sagital"), "coronal"), "scene").side)
+      .toEqual(["axial", "coronal", "sagital", "mip"]);
+  });
+  it("el arrastre de dos pequeñas cambia el orden hasta la próxima principal", () => {
+    const l = swapPanes(DEFAULT_LAYOUT, "axial", "sagital");
+    expect(l.side).toEqual(["sagital", "coronal", "axial", "mip"]);
+    expect(promote(l, "coronal").side).toEqual(["scene", "axial", "sagital", "mip"]);
   });
   it("promote de la principal y swap de una vista consigo misma no cambian nada", () => {
     expect(promote(DEFAULT_LAYOUT, "scene")).toBe(DEFAULT_LAYOUT);

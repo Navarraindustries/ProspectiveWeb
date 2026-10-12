@@ -41,7 +41,7 @@ describe("ViewerHeader — selector PRINCIPAL", () => {
     const layout: ViewerLayout = promote(DEFAULT_LAYOUT, "coronal");
     setup({ layout });
     expect(screen.getByRole("button", { name: /^\[ COR \]$/ })).toHaveAttribute("aria-pressed", "true");
-    for (const label of ["3D", "AX", "SAG", "VOL"]) {
+    for (const label of ["3D", "AX", "SAG", "VOLUMEN"]) {
       expect(screen.getByRole("button", { name: new RegExp(`^${label}$`) })).toHaveAttribute("aria-pressed", "false");
     }
   });
@@ -80,27 +80,33 @@ describe("ViewerHeader — ancho de la banda", () => {
 });
 
 describe("ViewerHeader — conmutadores y teclas", () => {
-  it("PLANOS y SINCRO avisan con el valor contrario", () => {
+  it("PLANOS y VINCULAR avisan con el valor contrario", () => {
     const { props } = setup({ planesHidden: true, syncViews: true });
     fireEvent.click(screen.getByRole("button", { name: /PLANOS ○/ }));
-    fireEvent.click(screen.getByRole("button", { name: /SINCRO ●/ }));
+    fireEvent.click(screen.getByRole("button", { name: /VINCULAR ●/ }));
     expect(props.onPlanesHiddenChange).toHaveBeenCalledWith(false);
     expect(props.onSyncViewsChange).toHaveBeenCalledWith(false);
   });
 
-  it("el grupo HUD ▸ tiene los tres niveles, marca el actual y avisa del elegido", () => {
+  it("el grupo TEXTOS ▸ tiene los tres niveles, marca el actual y avisa del elegido", () => {
     stubBandWidth(1200);
     const { props } = setup({ hudLevel: "esencial" });
-    expect(screen.getByTitle("Nivel del HUD (H)")).toHaveTextContent(/^HUD ▸/);
+    expect(screen.getByTitle("Nivel de textos (H)")).toHaveTextContent(/^TEXTOS ▸/);
     expect(screen.getByRole("button", { name: /^\[ ESENCIAL \]$/ })).toHaveAttribute("aria-pressed", "true");
-    for (const [label, level] of [["COMPLETO", "completo"], ["ESENCIAL", "esencial"], ["LIMPIO", "limpio"]] as const) {
-      expect(screen.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("title", `HUD ${level} (H)`);
+    // F1-117: cada nivel dice qué deja a la vista, no «HUD esencial».
+    const titles = {
+      COMPLETO: "Todo: botones de las vistas, lecturas, orientación y escala",
+      ESENCIAL: "Oculta los botones de las vistas; deja orientación, corte y ventana",
+      LIMPIO: "Solo la imagen, con lateralidad y escala",
+    };
+    for (const [label, title] of Object.entries(titles)) {
+      expect(screen.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("title", title);
     }
     fireEvent.click(screen.getByRole("button", { name: /^LIMPIO$/ }));
     expect(props.onHudLevelChange).toHaveBeenCalledWith("limpio");
   });
 
-  it("estrecha (< 800 px) abrevia el grupo a HUD ▸ C · E · L", () => {
+  it("estrecha (< 800 px) abrevia el grupo a TEXTOS ▸ C · E · L", () => {
     stubBandWidth(700);
     setup({ hudLevel: "completo" });
     expect(screen.getByRole("button", { name: /^\[ C \]$/ })).toBeInTheDocument();
@@ -144,21 +150,37 @@ describe("ViewerHeader — conmutadores y teclas", () => {
 describe("ViewerHeader — aviso de nivel", () => {
   it("enseña el aviso ámbar con su texto completo cuando se le pasa", () => {
     stubBandWidth(1200);
-    setup({ levelNote: "RESOLUCIÓN REDUCIDA · 4/12", levelNoteShort: "REDUCIDA 4/12" });
-    const note = screen.getByTitle("RESOLUCIÓN REDUCIDA · 4/12");
-    expect(note.textContent).toBe("RESOLUCIÓN REDUCIDA · 4/12");
+    setup({ levelNote: "Vista previa en baja resolución; las medidas no cambian", levelNoteShort: "BAJA RESOLUCIÓN" });
+    const note = screen.getByTitle("Vista previa en baja resolución; las medidas no cambian");
+    expect(note.textContent).toBe("Vista previa en baja resolución; las medidas no cambian");
     expect(note.style.color).toBe("var(--hud-amber)");
   });
 
   it("estrecha (< 800 px) usa la forma abreviada", () => {
     stubBandWidth(700);
-    setup({ levelNote: "RESOLUCIÓN REDUCIDA · 4/12", levelNoteShort: "REDUCIDA 4/12" });
-    expect(screen.getByTitle("RESOLUCIÓN REDUCIDA · 4/12").textContent).toBe("REDUCIDA 4/12");
+    setup({ levelNote: "Vista previa en baja resolución; las medidas no cambian", levelNoteShort: "BAJA RESOLUCIÓN" });
+    expect(screen.getByTitle("Vista previa en baja resolución; las medidas no cambian").textContent).toBe("BAJA RESOLUCIÓN");
   });
 
   it("sin aviso no pinta nada", () => {
     setup({ levelNote: null });
     expect(screen.queryByTestId("header-level-note")).toBeNull();
-    expect(screen.queryByText(/REDUCIDA/)).toBeNull();
+    expect(screen.queryByText(/RESOLUCIÓN/)).toBeNull();
+  });
+});
+
+describe("ViewerHeader — nombres sin jerga (F1-114, F1-115)", () => {
+  it("no aparece «HUD» en el texto de la banda ni en sus títulos", () => {
+    stubBandWidth(1200);
+    const { container } = setup({ onHelp: () => {}, hasClipField: true });
+    expect(container.textContent).not.toMatch(/HUD/);
+    for (const el of container.querySelectorAll("[title]")) expect(el.getAttribute("title")).not.toMatch(/HUD/);
+  });
+
+  it("VINCULAR dice qué hace al encenderlo", () => {
+    setup({ syncViews: false });
+    const b = screen.getByRole("button", { name: /^VINCULAR ○$/ });
+    expect(b).toHaveAttribute("title", "Encendido: un clic en una vista centra las demás en ese punto");
+    expect(screen.queryByText(/SINCRO/)).toBeNull();
   });
 });

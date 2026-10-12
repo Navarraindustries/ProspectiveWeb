@@ -96,7 +96,7 @@ export interface ComposeInput {
   /** La cinta de rumbo, ya en texto: «AZ 12° · EL -20°», o entre corchetes si
    *  la orientación es asumida. Va arriba, centrada, como en el visor. */
   heading?: string;
-  /** Aviso de arriba a la derecha: «RESOLUCIÓN REDUCIDA · 1:2» y similares. */
+  /** Aviso de arriba a la derecha: «Vista previa 1:2; las medidas no cambian» y similares. */
   note?: string;
   colors: HudColors;
   /** Familia mono ya resuelta, p. ej. el valor de --font-mono. */

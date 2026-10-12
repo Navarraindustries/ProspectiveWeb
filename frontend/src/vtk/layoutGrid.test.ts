@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, setPreset } from "./layout";
+import { DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, promote, setPreset } from "./layout";
 import { COMPACT_MAX_WIDTH_PX, COMPACT_MIN_HEIGHT_PX, SPLITTER_PX, effectivePreset, fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
 
 describe("effectivePreset", () => {
@@ -66,11 +66,34 @@ describe("isCompact", () => {
   });
 });
 
+/** Qué vista se pinta en cada cuadrante, en orden de lectura. */
+function quadrants(g: ReturnType<typeof gridFor>): string[] {
+  const byslot = Object.fromEntries(Object.entries(g.slotOf).map(([id, s]) => [s, id]));
+  return g.areas.replace(/"/g, "").split(/\s+/).map((s) => byslot[s]);
+}
+
 describe("cuatro", () => {
-  it("cuatro es una rejilla 2×2 sin separador con side[3] oculta", () => {
+  it("cuatro es una rejilla 2×2 sin separador con VOLUMEN oculta", () => {
     const g = gridFor({ ...DEFAULT_LAYOUT, preset: "cuatro" }, false);
-    expect(g.areas).toBe('"main s0" "s1 s2"'); expect(g.splitter).toBeNull();
+    expect(g.splitter).toBeNull();
     expect(g.visible.mip).toBe(false); expect(g.visible.scene).toBe(true);
-    expect(gridFor({ ...DEFAULT_LAYOUT, preset: "cuatro" }, true).areas).toBe('"main s0" "s1 s2"');   // en vertical también 2×2
+    expect(quadrants(g)).toEqual(["axial", "coronal", "sagital", "scene"]);
+    expect(quadrants(gridFor({ ...DEFAULT_LAYOUT, preset: "cuatro" }, true))).toEqual(["axial", "coronal", "sagital", "scene"]);   // en vertical también 2×2
+  });
+  it("F1-112: CUATRO tras cambiar la principal da AX, COR, SAG, 3D", () => {
+    for (const main of ["axial", "coronal", "sagital", "scene", "mip"] as const) {
+      const l = setPreset(promote(promote(DEFAULT_LAYOUT, "sagital"), main), "cuatro");
+      const g = gridFor(l, false);
+      expect(quadrants(g), main).toEqual(["axial", "coronal", "sagital", "scene"]);
+      expect(g.visible, main).toEqual({ axial: true, coronal: true, sagital: true, scene: true, mip: false });
+    }
+  });
+  it("la principal sigue en su cuadrante; con VOLUMEN de principal, la 3D hace de principal", () => {
+    expect(gridFor(setPreset(promote(DEFAULT_LAYOUT, "coronal"), "cuatro"), false).slotOf.coronal).toBe("main");
+    // VOLUMEN no tiene cuadrante: el que recibe la pista y el selector de ventana
+    // de la principal tiene que verse, y la 3D es la vista más cercana a él.
+    const g = gridFor(setPreset(promote(DEFAULT_LAYOUT, "mip"), "cuatro"), false);
+    expect(g.slotOf.scene).toBe("main");
+    expect(g.slotOf.mip).not.toBe("main");
   });
 });

@@ -295,9 +295,9 @@ Ningún atajo actúa con el cursor en un campo de texto.
 |---|---|---|
 | ? | Abrir o cerrar la hoja de atajos | Visor |
 | Alt+1 · Alt+2 · Alt+3 · Alt+4 | Distribución SOLA · DERECHA · ABAJO · CUATRO | Visor |
-| S | Encender o apagar SINCRO | Visor |
+| S | Encender o apagar VINCULAR | Visor |
 | L | Centrar en la lesión (3D y cortes) | Visor |
-| H | Nivel del HUD: completo · esencial · limpio | Visor |
+| H | Nivel de textos: completo · esencial · limpio | Visor |
 | R · A · G · T | Armar o desarmar la herramienta Regla · Ángulo · Región · Marcador | Visor |
 | Supr | Borrar la anotación seleccionada | Visor |
 | Retroceso | Quitar el último punto de la anotación en curso | Visor |
@@ -311,6 +311,24 @@ Ningún atajo actúa con el cursor en un campo de texto.
 | P | Ocultar o mostrar el panel del paso | Flujo |
 | 1 … 8 | Ir a ese paso del flujo (si ya está disponible) | Flujo |
 
+### Ratón
+
+La hoja «Atajos» los lista en la columna «Ratón». Solo están los gestos que
+existen: la rueda y el arrastre son de las celdas de corte; el doble clic, el
+asa de la celda y el divisor, de la rejilla del visor.
+
+| Gesto | Acción |
+|---|---|
+| Rueda | Corte siguiente o anterior |
+| Ctrl+rueda | Acercar o alejar el corte |
+| Arrastrar | Ventana y nivel del corte |
+| Mayús+arrastrar o botón central | Desplazar el corte |
+| Doble clic en W/L | Volver a la ventana del estudio |
+| Doble clic | Hacer principal una vista pequeña |
+| Arrastrar la celda | Intercambiar dos vistas (desde el borde de arriba de la celda) |
+| Arrastrar el divisor | Repartir el sitio entre la principal y las demás |
+| Doble clic en el divisor | Volver al reparto por defecto |
+
 ## Herramientas del visor y de los paneles
 
 Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
@@ -318,20 +336,20 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 ### Banda de cabecera
 | Herramienta | Qué hace | Cuándo |
 |---|---|---|
-| PRINCIPAL ▸ 3D · AX · COR · SAG · VOL | Elige la celda grande | Para trabajar en una vista |
+| PRINCIPAL ▸ 3D · AX · COR · SAG · VOLUMEN | Elige la celda grande; las pequeñas siguen siempre el orden 3D · AX · COR · SAG · VOLUMEN | Para trabajar en una vista |
 | Distribución (Alt+1…4) | SOLA · DERECHA · ABAJO · CUATRO | Según cuántas vistas quieras a la vez |
-| SINCRO ●/○ (S) | Centra todas las vistas en el punto compartido | Casi siempre encendido |
+| VINCULAR ●/○ (S) | Encendido: un clic en una vista centra las demás en ese punto | Casi siempre encendido |
 | PLANOS ●/○ | Dibuja los rectángulos de los cortes en el 3D | Para situar un corte en el árbol |
 | CALOR ●/○ | Mapa de calor del clip sobre la malla | En el paso de dispositivos |
-| HUD ▸ COMPLETO · ESENCIAL · LIMPIO (H) | Cuánto HUD se ve | Limpio para capturas y presentaciones |
+| TEXTOS ▸ COMPLETO · ESENCIAL · LIMPIO (H) | Cuánto texto se pinta sobre la imagen; limpio deja lateralidad y escala | Limpio para capturas y presentaciones |
 | ? | Hoja de atajos | — |
 
 ### Celda 3D (malla)
 | Herramienta | Qué hace | Cuándo |
 |---|---|---|
-| VISTA ▸ ENCUADRAR · AX · COR · SAG | Cámara estándar; un segundo clic mira la cara opuesta | Perder la orientación al rotar |
-| VISTA ▸ LESIÓN (L) | El botón y L hacen lo mismo: acercan la cámara a la lesión y centran en ella los cortes | Al medir cuello y ápice, al colocar un dispositivo |
-| VISTA ▸ ABORDAJE | Mira a lo largo del corredor y pone el Oblicuo perpendicular a él | Con entrada y diana de la trayectoria marcadas |
+| DESDE ▸ ENCUADRAR · ARRIBA · DELANTE · LADO | Cámara estándar; un segundo clic mira desde el lado opuesto (abajo, detrás, derecha) | Perder la orientación al rotar |
+| DESDE ▸ LESIÓN (L) | El botón y L hacen lo mismo: acercan la cámara a la lesión y centran en ella los cortes | Al medir cuello y ápice, al colocar un dispositivo |
+| DESDE ▸ ABORDAJE | Mira a lo largo del corredor y pone el Oblicuo perpendicular a él | Con entrada y diana de la trayectoria marcadas |
 | CORTES 3D · MALLA ●/○ | Los tres cortes dentro del 3D, con o sin malla translúcida | Relacionar imagen y segmentación |
 | Marcado (clic) | Puntos de línea central, cuello, ápice, borde, tijera, recorte, lesión, trayectoria, anotaciones | Según el paso |
 
@@ -2246,12 +2264,12 @@ visible queda centrado y su lado mayor ocupa la celda; el giro posterior sigue
 siendo alrededor del punto. La escena 3D ya giraba alrededor de su foco, y
 «Centrar en la lesión» lleva ese foco a la lesión.
 
-**CUATRO** es una rejilla 2×2 de celdas iguales: la principal arriba a la
-izquierda y después las secundarias en orden de lectura. Caben cuatro vistas,
-así que VOLUMEN (la menos usada) se aparta, salvo que sea la principal; «VOL» en
-la banda (con «▸ VOL» en una banda estrecha) la trae, intercambiándola como en
-los demás presets. Atajo Alt+4; bajo 800 px el rótulo es «4». El reparto
-del separador no aplica aquí y se conserva para volver a DERECHA o ABAJO.
+**CUATRO** es una rejilla 2×2 de celdas iguales y siempre en el mismo orden:
+axial y coronal arriba, sagital y 3D abajo, sea cual sea la principal.
+VOLUMEN queda fuera; si era la principal, al entrar en CUATRO una pista lo
+dice («VOLUMEN queda fuera en CUATRO») y la 3D hace de principal hasta salir.
+Atajo Alt+4; bajo 800 px el rótulo es «4». El reparto del separador no aplica
+aquí y se conserva para volver a DERECHA o ABAJO.
 
 **Cortes 3D** es el tercer modo de la escena («3D · Cortes 3D · Oblicuo»). Pone
 los tres cortes (axial, coronal y sagital) como imágenes en su sitio dentro de
@@ -2278,7 +2296,7 @@ de la esquina inferior (◀ ▶ ▶, el índice, − fps +) hace lo mismo con el
 recuerda en este navegador (`viewer.cineFps`). Es un cine por celda: no hay un
 cine global sincronizado.
 
-**Atajos.** S enciende o apaga SINCRO y C reencuadra la celda enfocada (en el
+**Atajos.** S enciende o apaga VINCULAR y C reencuadra la celda enfocada (en el
 3D, ENCUADRAR). La lista completa está en [Atajos de teclado](#atajos-de-teclado)
 y en la hoja que abre «?». Los presets (Alt+1…4) actúan con el foco dentro del
 visor, y ningún atajo actúa con el cursor en un campo de texto.
@@ -2353,17 +2371,18 @@ el informe y medir sobre el volumen (densidad, perfiles).
 
 ## Pantalla limpia y controles
 
-**Tres niveles de HUD.** La tecla **H** (o el grupo «HUD ▸ COMPLETO · ESENCIAL ·
+**Tres niveles de textos.** La tecla **H** (o el grupo «TEXTOS ▸ COMPLETO · ESENCIAL ·
 LIMPIO» de la cabecera, «C · E · L» en pantallas estrechas) recorre completo →
 esencial → limpio. Al cambiar, una pista de poco más de un segundo arriba dice
-«HUD esencial». El nivel se guarda en el navegador (`viewer.hudLevel`); quien ya
+«TEXTOS esencial». El nivel se guarda en el navegador (`viewer.hudLevel`); quien ya
 había ocultado las esquinas parte de esencial.
 
 | Elemento | Completo | Esencial | Limpio |
 |---|---|---|---|
 | Esquinas, retícula, líneas de referencia, rumbo, traza del recorte | sí | no | no |
 | Grupos de botones del HUD y pista de gestos | sí | no | no |
-| Rótulo, lecturas, letras de borde, barra de escala | sí | sí | no |
+| Rótulo y lecturas | sí | sí | no |
+| Letras de borde (lateralidad) y barra de escala | sí | sí | sí |
 | Escalera de cortes, maniquí 3D, recuadro de orientación | sí | sí | no |
 | Barra de cine | enfocada o reproduciendo | igual | solo reproduciendo |
 | Anotaciones y asas de los planos | sí | sí | sí |
@@ -2382,8 +2401,8 @@ anotación sin terminar siguen escritos al desplegar. El estado se guarda en el
 navegador (`ws.panelCollapsed`).
 
 **Nombres y grupos.** Cada grupo de botones lleva su prefijo: «EJE ▸ AX · COR ·
-SAG» y «DESDE ▸ INICIO · FINAL» en VOLUMEN, «VISTA ▸ ENCUADRAR · AX · COR · SAG ·
-LESIÓN» en el 3D. «CENTRAR» y «AJUSTAR» pasan a **ENCUADRAR** (lo que hace C), y
+SAG» y «DESDE ▸ INICIO · FINAL» en VOLUMEN, «DESDE ▸ ENCUADRAR · ARRIBA · DELANTE ·
+LADO · LESIÓN» en el 3D. «CENTRAR» y «AJUSTAR» pasan a **ENCUADRAR** (lo que hace C), y
 en Oblicuo el desplazamiento a cero se llama **AL PUNTO**.
 
 **Pista de gestos.** Ahora va arriba, bajo el rótulo, sin fondo, y se enseña una

@@ -8649,6 +8649,18 @@
    "SeriesInfo": {
     "description": "Metadata returned after uploading and reading a DICOM series.",
     "properties": {
+     "acquisition_date": {
+      "default": "",
+      "description": "Acquisition date as YYYY-MM-DD (AcquisitionDate, else SeriesDate, ContentDate, StudyDate); empty when the header has none",
+      "title": "Acquisition Date",
+      "type": "string"
+     },
+     "acquisition_time": {
+      "default": "",
+      "description": "Acquisition time as HH:MM (AcquisitionTime, else SeriesTime, ContentTime); empty when absent",
+      "title": "Acquisition Time",
+      "type": "string"
+     },
      "description": {
       "description": "Series description from DICOM header",
       "title": "Description",
@@ -8686,6 +8698,12 @@
       "description": "Unique session identifier (UUID)",
       "title": "Session Id",
       "type": "string"
+     },
+     "session_ttl_hours": {
+      "default": 24.0,
+      "description": "Hours after creation at which an unsaved live session is purged (SESSION_TTL_HOURS on the server)",
+      "title": "Session Ttl Hours",
+      "type": "number"
      },
      "size_mb": {
       "description": "Estimated volume size in RAM (MB)",

@@ -10,7 +10,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.formparsers import MultiPartException
 
 from models import SeriesInfo, SpacingXYZ, UploadResult
-from services.sessions     import create_session, session_exists, session_subdir, write_state
+from services.sessions     import create_session, session_exists, session_subdir, session_ttl_hours, write_state
 from services.dicom_loader import scan_series
 
 logger = logging.getLogger(__name__)
@@ -175,7 +175,10 @@ def _build_series_list(session_id: str, raw_series: list[dict]) -> list[SeriesIn
         wc    = float(raw.get("window_center", 40.0))
         ww    = float(raw.get("window_width", 400.0))
         mod   = str(raw.get("modality", "CT")).upper()
-        desc  = str(raw.get("series_description", "")).strip() or f"Serie {uid[:8]}"
+        # F1-127: sin SeriesDescription salía «Serie 1.2.276.», el principio
+        # del UID, que no distingue nada a la vista; la fecha y la hora de
+        # adquisición viajan aparte y la pantalla las pone al lado.
+        desc  = str(raw.get("series_description", "")).strip() or "Sin descripción"
 
         in_plane  = min(sx, sy)
         # Una angiografía rotacional reconstruida tiene cientos de cortes. Una
@@ -206,6 +209,9 @@ def _build_series_list(session_id: str, raw_series: list[dict]) -> list[SeriesIn
             is_projection=     is_proj,
             projection_warning=proj_warn,
             size_mb=           size_mb,
+            acquisition_date=  str(raw.get("acquisition_date", "") or ""),
+            acquisition_time=  str(raw.get("acquisition_time", "") or ""),
+            session_ttl_hours= session_ttl_hours(),
         )
         series_list.append(info)
 
@@ -231,6 +237,9 @@ def _activate_series(session_id: str, s: SeriesInfo) -> None:
     write_state(session_id, "dicom.spacing_z",     str(s.spacing.z))
     write_state(session_id, "dicom.n_slices",      str(s.slices))
     write_state(session_id, "dicom.is_projection", "1" if s.is_projection else "0")
+    # Al reanudar, la tarjeta de la serie debe seguir diciendo cuándo se adquirió.
+    write_state(session_id, "dicom.acquisition_date", s.acquisition_date)
+    write_state(session_id, "dicom.acquisition_time", s.acquisition_time)
 
 
 @router.post(

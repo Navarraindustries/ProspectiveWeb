@@ -34,6 +34,24 @@ class SeriesInfo(BaseModel):
         description="Human-readable warning message when is_projection is True",
     )
     size_mb: float = Field(..., description="Estimated volume size in RAM (MB)")
+    acquisition_date: str = Field(
+        "",
+        description=(
+            "Acquisition date as YYYY-MM-DD (AcquisitionDate, else SeriesDate, "
+            "ContentDate, StudyDate); empty when the header has none"
+        ),
+    )
+    acquisition_time: str = Field(
+        "",
+        description="Acquisition time as HH:MM (AcquisitionTime, else SeriesTime, ContentTime); empty when absent",
+    )
+    session_ttl_hours: float = Field(
+        24.0,
+        description=(
+            "Hours after creation at which an unsaved live session is purged "
+            "(SESSION_TTL_HOURS on the server)"
+        ),
+    )
 
 
 class UploadResult(BaseModel):

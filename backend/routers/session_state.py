@@ -23,7 +23,7 @@ from services.db_models import LesionConfirmation, PlanningSession, Patient, Use
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state, create_session,
     snapshot_session, rehydrate_session, has_saved_session, mesh_url as mesh_url_for,
-    delete_saved_session, session_lineage, LINEAGE_KEY, record_repoint,
+    delete_saved_session, session_lineage, LINEAGE_KEY, record_repoint, session_ttl_hours,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,6 +97,9 @@ def _restored_series(session_id: str) -> "SeriesInfo | None":
             window_center=float(meta.get("wc", 0.0)),
             window_width=float(meta.get("ww", 0.0)),
             is_projection=read_state(session_id, "dicom.is_projection", "0") == "1",
+            acquisition_date=read_state(session_id, "dicom.acquisition_date", "") or "",
+            acquisition_time=read_state(session_id, "dicom.acquisition_time", "") or "",
+            session_ttl_hours=session_ttl_hours(),
         )
     except (KeyError, ValueError, TypeError):
         logger.warning("No se pudo reconstruir la serie de la sesión %s", session_id)

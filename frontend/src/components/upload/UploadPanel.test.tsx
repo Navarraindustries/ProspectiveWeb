@@ -81,6 +81,7 @@ describe("«Continuar a segmentación»", () => {
     session_id: "s1", series_id: "1.2", description: "CTA", modality: "CT", slices: 200,
     spacing: { x: 0.5, y: 0.5, z: 0.6 }, window_center: 300, window_width: 900,
     is_projection: false, projection_warning: null, size_mb: 80,
+    acquisition_date: "2026-07-14", acquisition_time: "09:35", session_ttl_hours: 24,
   };
 
   it("sin serie está apagado y lo dice", async () => {
@@ -105,5 +106,83 @@ describe("«Continuar a segmentación»", () => {
     expect(boton()).not.toBeDisabled();
     expect(screen.queryByText("Cargando el volumen…")).toBeNull();
     expect(screen.queryByText("Carga una serie para continuar")).toBeNull();
+  });
+});
+
+const serieBase: SeriesInfo = {
+  session_id: "s1", series_id: "1.2.276.0.7230010.3.1.3.99", description: "CTA", modality: "CT", slices: 200,
+  spacing: { x: 0.5, y: 0.5, z: 0.6 }, window_center: 300, window_width: 900,
+  is_projection: false, projection_warning: null, size_mb: 80,
+  acquisition_date: "2026-07-14", acquisition_time: "09:35", session_ttl_hours: 24,
+};
+
+/* F1-125: el selector no vuelve a disparar `change` con los mismos archivos;
+   sin vaciarlo, elegir otra vez la misma carpeta no hacía nada. */
+describe("elegir los mismos archivos dos veces", () => {
+  it.each([0, 1])("el selector %i sube dos veces", async (i) => {
+    const { container } = montar(false);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    const input = container.querySelectorAll<HTMLInputElement>('input[type="file"]')[i];
+    const file = new File(["x"], "IM0001.dcm");
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(1));
+    expect(input.value).toBe("");
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
+  });
+});
+
+/* F1-126: «Cargado» salía en cuanto llegaba la serie, con el visor aún vacío. */
+describe("insignia de carga", () => {
+  it("sin volumen en el visor la insignia no dice «Cargado»", async () => {
+    montar(false);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    await act(async () => { visto!.setSeries(serieBase); });
+    expect(screen.getByText("Subido")).toBeInTheDocument();
+    expect(screen.queryByText("Cargado")).toBeNull();
+    await act(async () => { visto!.setVolumeReady(true); });
+    expect(screen.getByText("Cargado")).toBeInTheDocument();
+    expect(screen.queryByText("Subido")).toBeNull();
+  });
+});
+
+/* F1-127: sin descripción salía «Serie 1.2.276.», el principio del UID. */
+describe("serie sin descripción", () => {
+  it("no muestra el UID y sí la fecha y hora de adquisición", async () => {
+    montar(false);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    const sin = { ...serieBase, description: "Sin descripción" };
+    const otra = { ...serieBase, series_id: "1.2.276.0.7230010.3.1.3.100", acquisition_time: "10:02" };
+    await act(async () => { visto!.setSeriesList([sin, otra]); visto!.setSeries(sin); });
+    expect(screen.getByText("Sin descripción · 14/07/2026 09:35")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /1\. Sin descripción · 14\/07\/2026 09:35/ })).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("1.2.276");
+  });
+});
+
+/* F1-128: «se borrará automáticamente» sin decir cuándo. */
+describe("plazo de borrado", () => {
+  it("el texto incluye el plazo real", async () => {
+    montar(false);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    await act(async () => { visto!.setSeries(serieBase); });
+    expect(screen.getByText(/Si no lo guardas, la sesión se borra a las 24 horas de crearla\./)).toBeInTheDocument();
+    await act(async () => { visto!.setSeries({ ...serieBase, session_ttl_hours: 1.5 }); });
+    expect(screen.getByText(/la sesión se borra a las 1,5 horas de crearla\./)).toBeInTheDocument();
+  });
+});
+
+/* F1-129: mandaba a «Pacientes → Nuevo caso», fuera del flujo de carga. */
+describe("paciente sin casos", () => {
+  it("dice cómo crear el caso desde aquí", async () => {
+    montar(false);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    await act(async () => {
+      visto!.setPatient({ id: 7, full_name: "P", hospital_id: "H", dob: "", sex: "", institution: "", study_count: 0, created_at: "" } as never);
+      visto!.setSeries(serieBase);
+    });
+    expect(await screen.findByText(
+      "Este paciente no tiene casos. Usa «Adjuntar a un caso» arriba para crear uno y archivar este DICOM",
+    )).toBeInTheDocument();
   });
 });

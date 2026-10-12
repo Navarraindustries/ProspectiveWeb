@@ -37,6 +37,14 @@ except ValueError:
     _TTL_HOURS = 24.0
 SESSION_TTL_SEC = int(_TTL_HOURS * 3600)
 
+
+def session_ttl_hours() -> float:
+    """Plazo real de borrado de una sesión sin guardar, en horas.
+
+    F1-128: la carga decía «se borrará automáticamente» sin decir cuándo; la
+    pantalla lo lee de aquí para no inventarse un número distinto del barrido."""
+    return SESSION_TTL_SEC / 3600
+
 # Sub-directories created inside each session folder
 _SUBDIRS = ["dicom", "meshes", "reports", "exports", "screenshots"]
 

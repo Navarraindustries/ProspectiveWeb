@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
-import type { StudySummary, UploadResult } from "../../api/types";
+import type { SeriesInfo, StudySummary, UploadResult } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -41,6 +41,24 @@ function walkEntry(entry: FileSystemEntry, out: File[]): Promise<void> {
       resolve();
     }
   });
+}
+
+/* F1-127: lo que distingue dos adquisiciones del mismo protocolo es cuándo se
+   hicieron; el backend manda ISO (YYYY-MM-DD, HH:MM) y aquí se lee en español. */
+function stampOf(s: SeriesInfo): string {
+  const [y, m, d] = (s.acquisition_date ?? "").split("-");
+  const fecha = y && m && d ? `${d}/${m}/${y}` : "";
+  return [fecha, s.acquisition_time ?? ""].filter(Boolean).join(" ");
+}
+
+function seriesLabel(s: SeriesInfo): string {
+  const stamp = stampOf(s);
+  return stamp ? `${s.description} · ${stamp}` : s.description;
+}
+
+/* F1-128: 24 → «24», 1.5 → «1,5»; el plazo es el del barrido del servidor. */
+function hoursEs(h: number): string {
+  return Number.isInteger(h) ? String(h) : String(Math.round(h * 10) / 10).replace(".", ",");
 }
 
 export function UploadPanel({ onNext }: { onNext: () => void }) {
@@ -222,7 +240,11 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       <PanelHead
         title="Carga DICOM"
         desc="Sube la serie del estudio (carpeta o arrastrando los archivos)."
-        right={series && <Badge variant="success">Cargado</Badge>}
+        // F1-126: «Cargado» salía con la serie, antes de que el visor tuviera el
+        // volumen; reutiliza la misma señal que enciende «Continuar» (F1-130).
+        right={series && (planning.volumeReady
+          ? <Badge variant="success">Cargado</Badge>
+          : <Badge>Subido</Badge>)}
       />
 
       <div
@@ -309,7 +331,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
                     acquisitions): label each one so they can be told apart. */}
                 {planning.seriesList.map((s, i) => (
                   <option key={s.series_id} value={s.series_id}>
-                    {i + 1}. {s.description} · {s.slices} cortes · {s.spacing.z.toFixed(2)} mm
+                    {i + 1}. {seriesLabel(s)} · {s.slices} cortes · {s.spacing.z.toFixed(2)} mm
                     {s.is_projection ? " · ⚠ proyección 2D" : ""}
                   </option>
                 ))}
@@ -328,7 +350,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
             value={`${series.spacing.x.toFixed(2)} × ${series.spacing.y.toFixed(2)} × ${series.spacing.z.toFixed(2)}`}
             unit=" mm"
           />
-          <Metric label="Descripción" value={series.description} />
+          <Metric label="Descripción" value={seriesLabel(series)} />
           {result && <Metric label="Archivos subidos" value={result.total_files} />}
           {series.is_projection && (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--warning)", display: "flex", gap: 8, alignItems: "flex-start" }}>
@@ -347,7 +369,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "6px 0 10px", lineHeight: 1.5 }}>
             {alreadyArchived
               ? "Este DICOM ya está en el archivo permanente; puedes seguir con el pipeline sin volver a guardarlo."
-              : "Guarda este DICOM de forma permanente como un estudio del caso clínico elegido (un caso puede tener varios: TAC, angiografía, control) y genera su vista previa. Si no lo guardas, se borrará automáticamente."}
+              : `Guarda este DICOM de forma permanente como un estudio del caso clínico elegido (un caso puede tener varios: TAC, angiografía, control) y genera su vista previa. Si no lo guardas, la sesión se borra a las ${hoursEs(series.session_ttl_hours ?? 24)} horas de crearla.`}
           </div>
           {alreadyArchived ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--success)" }}>
@@ -365,7 +387,9 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           ) : studies.length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--warning)", display: "flex", gap: 6, alignItems: "flex-start" }}>
               <Icon name="STATUS_WARN" size={14} />
-              Este paciente no tiene ningún caso. Crea uno desde «Pacientes → Nuevo caso».
+              {/* F1-129: mandaba a «Pacientes», fuera del flujo; el caso se crea
+                  desde «Adjuntar a un caso» sin perder la carga. */}
+              Este paciente no tiene casos. Usa «Adjuntar a un caso» arriba para crear uno y archivar este DICOM
             </div>
           ) : (
             <>

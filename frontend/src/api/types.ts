@@ -267,6 +267,12 @@ export interface SeriesInfo {
   is_projection: boolean;
   projection_warning: string | null;
   size_mb: number;
+  /** YYYY-MM-DD; vacío si la cabecera no trae fecha (F1-127). */
+  acquisition_date: string;
+  /** HH:MM; vacío si no hay hora. */
+  acquisition_time: string;
+  /** Horas tras crearla en que se borra una sesión sin guardar (F1-128). */
+  session_ttl_hours: number;
 }
 
 export interface UploadResult {

@@ -8609,6 +8609,18 @@ export interface components {
          */
         SeriesInfo: {
             /**
+             * Acquisition Date
+             * @description Acquisition date as YYYY-MM-DD (AcquisitionDate, else SeriesDate, ContentDate, StudyDate); empty when the header has none
+             * @default
+             */
+            acquisition_date: string;
+            /**
+             * Acquisition Time
+             * @description Acquisition time as HH:MM (AcquisitionTime, else SeriesTime, ContentTime); empty when absent
+             * @default
+             */
+            acquisition_time: string;
+            /**
              * Description
              * @description Series description from DICOM header
              */
@@ -8639,6 +8651,12 @@ export interface components {
              * @description Unique session identifier (UUID)
              */
             session_id: string;
+            /**
+             * Session Ttl Hours
+             * @description Hours after creation at which an unsaved live session is purged (SESSION_TTL_HOURS on the server)
+             * @default 24
+             */
+            session_ttl_hours: number;
             /**
              * Size Mb
              * @description Estimated volume size in RAM (MB)

@@ -86,7 +86,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
         La solicitud de <b style={{ color: "var(--foreground)" }}>{toReject?.full_name || toReject?.username}</b> se
         rechaza y sale de esta lista; no podrá entrar con esa cuenta.
       </ConfirmDialog>
-      <Topbar crumbs={[{ label: "Pacientes", onClick: onBack }, { label: "Administración" }, { label: "Solicitudes" }]}>
+      <Topbar crumbs={[{ label: "Pacientes", onClick: onBack }, { label: "Administración" }, { label: "Cuentas pendientes" }]}>
         <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>
           Pacientes
         </Button>
@@ -97,7 +97,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
           <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 22 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--foreground)" }}>
-                Solicitudes de registro
+                Cuentas pendientes
               </div>
               <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
                 {loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`}

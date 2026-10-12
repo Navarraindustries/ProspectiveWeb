@@ -294,3 +294,13 @@ describe("firmar y rechazar", () => {
     await waitFor(() => expect(rejectClipOrder).toHaveBeenCalledWith("PR-REC", "Pieza no conforme"));
   });
 });
+
+describe("el glosario de pedidos (F1-93)", () => {
+  it("el subtítulo dice «pedidos» y ningún texto dice «solicitud» ni «encargado»", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    const { container } = render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.getByText("Todos los pedidos de fabricación, con su estado y lo que falta por hacer.")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/solicitud|encargad/i);
+  });
+});

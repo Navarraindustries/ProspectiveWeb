@@ -146,7 +146,7 @@ function UserMenu() {
           {isAdmin && (
             <MenuItem
               icon="USERS"
-              label="Solicitudes de registro"
+              label="Cuentas pendientes"
               badge={pending > 0 ? pending : undefined}
               onClick={() => { setOpen(false); nav.go("pending"); }}
             />

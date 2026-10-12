@@ -400,7 +400,7 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
       <div style={{ maxWidth: "var(--content-max)", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
         <PanelHead
           title="Pedidos de clips"
-          desc="Todo lo encargado a fabricación, con su estado y lo que falta por hacer."
+          desc="Todos los pedidos de fabricación, con su estado y lo que falta por hacer."
         />
 
         {patientFilter && (

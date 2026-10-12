@@ -60,3 +60,13 @@ describe("la fecha propuesta (F1-77)", () => {
     }
   });
 });
+
+/* F1-76, F1-80: el formulario del caso decía «caso / estudio» y «Crear estudio». */
+describe("el glosario en el formulario del caso", () => {
+  it("el título es «Nuevo caso» y el botón «Crear caso»", () => {
+    montar();
+    expect(screen.getByText("Nuevo caso")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear caso" })).toBeInTheDocument();
+    expect(screen.queryByText(/caso \/ estudio|Crear estudio/)).toBeNull();
+  });
+});

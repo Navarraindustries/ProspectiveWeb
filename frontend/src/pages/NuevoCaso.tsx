@@ -146,7 +146,7 @@ export function NuevoEstudioSheet({
       onCreated();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar el estudio");
+      setError(err instanceof Error ? err.message : "Error al guardar el caso");
     } finally {
       setBusy(false);
     }
@@ -154,7 +154,7 @@ export function NuevoEstudioSheet({
 
   return (
     <>
-    <Sheet open={open} onClose={requestClose} title={editing ? "Editar caso / estudio" : "Nuevo caso / estudio"} width={520}>
+    <Sheet open={open} onClose={requestClose} title={editing ? "Editar caso" : "Nuevo caso"} width={520}>
       {patientName && <div style={{ ...SUBTLE, marginBottom: 12 }}>Paciente: <b style={{ color: "var(--foreground)" }}>{patientName}</b></div>}
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <Input label="Fecha del caso" hint="Fecha del diagnóstico" type="date" value={f.study_date} onChange={set("study_date")} />
@@ -195,7 +195,7 @@ export function NuevoEstudioSheet({
         <div style={{ height: 14 }} />
         <ErrorNote>{error}</ErrorNote>
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          <Button type="submit" style={{ flex: 1 }} disabled={busy}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear estudio"}</Button>
+          <Button type="submit" style={{ flex: 1 }} disabled={busy}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear caso"}</Button>
           <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
         </div>
       </form>

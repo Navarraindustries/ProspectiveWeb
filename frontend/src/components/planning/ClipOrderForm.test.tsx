@@ -29,6 +29,7 @@ vi.mock("../../api/client", () => ({
 vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 
 import { ClipOrderForm } from "./ClipOrderForm";
+import { ApiError } from "../../api/client";
 import type { ClipOrderPrefill } from "../../api/types";
 
 const prefill = (over: Partial<ClipOrderPrefill> = {}): ClipOrderPrefill => ({
@@ -324,5 +325,20 @@ describe("switching series leaves every field valid for it", () => {
     fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "curved" } });
     const jaw = await screen.findByLabelText(/Mordaza/) as HTMLSelectElement;
     expect([10, 13].map(String)).toContain(jaw.value);
+  });
+});
+
+describe("el glosario de pedidos en Fabricación (F1-93, F1-217, F1-218)", () => {
+  it("mientras prepara dice «Preparando el pedido…»", () => {
+    clipOrderPrefill.mockReturnValue(new Promise(() => {}));
+    draw();
+    expect(screen.getByText("Preparando el pedido…")).toBeInTheDocument();
+    expect(screen.queryByText(/solicitud/i)).toBeNull();
+  });
+
+  it("si no hay motivo del servidor, dice que no se pudo preparar el pedido y que se reintente", async () => {
+    clipOrderPrefill.mockRejectedValue(new ApiError(500, ""));
+    draw();
+    expect(await screen.findByText("No se pudo preparar el pedido; vuelve a intentarlo")).toBeInTheDocument();
   });
 });

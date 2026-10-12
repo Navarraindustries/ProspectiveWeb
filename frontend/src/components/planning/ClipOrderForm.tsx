@@ -1,4 +1,4 @@
-/* Solicitud de un clip NAVARRO™ — el formulario y el registro de pedidos.
+/* Pedido de un clip NAVARRO™ — el formulario y el registro de pedidos.
 
    La versión peligrosa de esta pantalla es un formulario en blanco donde el
    cirujano vuelve a teclear la mordaza: en cuanto el número escrito y el STL
@@ -202,9 +202,9 @@ export function ClipOrderForm({
   useEffect(load, [load]);
 
   if (loading) {
-    return <Card><div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Preparando la solicitud…</div></Card>;
+    return <Card><div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Preparando el pedido…</div></Card>;
   }
-  if (!pre) return <ErrorNote>{problems[0] ?? "No se pudo preparar la solicitud."}</ErrorNote>;
+  if (!pre) return <ErrorNote>{problems[0] || "No se pudo preparar el pedido; vuelve a intentarlo"}</ErrorNote>;
 
   if (!pre.can_order) {
     return (

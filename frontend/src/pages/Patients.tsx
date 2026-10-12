@@ -199,7 +199,7 @@ function PatientSheet({
             <div style={{ marginTop: 4 }}>
               <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted-foreground)", flex: 1 }}>
-                  Casos / estudios ({studies.length})
+                  Casos ({studies.length})
                 </div>
                 {onOpenOrders && (
                   <button
@@ -216,7 +216,7 @@ function PatientSheet({
                   onClick={() => { setEditStudy(null); setStudyOpen(true); }}
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "transparent", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "4px 10px", fontSize: 12, fontWeight: 600, color: "var(--brand-deep)", cursor: "pointer" }}
                 >
-                  <Icon name="STEP_PLAN" size={12} /> Nuevo estudio
+                  <Icon name="STEP_PLAN" size={12} /> Nuevo caso
                 </button>
               </div>
               {studiesError && (
@@ -224,7 +224,7 @@ function PatientSheet({
               )}
               {!studiesError && studies.length === 0 && (
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 4 }}>
-                  Aún no hay casos/estudios. Añade uno con "Nuevo estudio".
+                  Sin casos. Crea uno con «Nuevo caso» para archivar el DICOM y las capturas de este paciente.
                 </div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -236,14 +236,14 @@ function PatientSheet({
                         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", flex: 1 }}>{st.dx_principal || "Estudio"}</div>
                         <span style={{ display: "inline-flex", gap: 4, flexShrink: 0 }}>
                           <button
-                            type="button" title="Editar estudio"
+                            type="button" title="Editar caso"
                             onClick={() => { setEditStudy(st); setStudyOpen(true); }}
                             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer" }}
                           >
                             <Icon name="EDIT" size={13} color="var(--muted-foreground)" />
                           </button>
                           <button
-                            type="button" title="Eliminar estudio"
+                            type="button" title="Eliminar caso"
                             onClick={() => setDelStudy(st)}
                             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer" }}
                           >
@@ -297,7 +297,7 @@ function PatientSheet({
           {editing && (
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted-foreground)", marginBottom: 8 }}>
-                Sesiones de estudio ({sessions.length})
+                Sesiones guardadas ({sessions.length})
               </div>
               {sessions.length === 0 ? (
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
@@ -369,7 +369,7 @@ function PatientSheet({
     />
     <ConfirmDialog
       open={!!delStudy}
-      title="Eliminar estudio"
+      title="Eliminar caso"
       destructive
       busy={delBusy}
       confirmLabel={delBusy ? "Eliminando…" : "Eliminar"}
@@ -378,11 +378,11 @@ function PatientSheet({
         if (patientId === null || !delStudy) return;
         setDelBusy(true);
         try { await api.deleteStudy(patientId, delStudy.id); setDelStudy(null); reloadStudies(); }
-        catch (e) { setError(e instanceof Error ? e.message : "Error al eliminar el estudio"); setDelStudy(null); }
+        catch (e) { setError(e instanceof Error ? e.message : "Error al eliminar el caso"); setDelStudy(null); }
         finally { setDelBusy(false); }
       }}
     >
-      ¿Seguro que quieres eliminar el estudio <b style={{ color: "var(--foreground)" }}>{delStudy?.dx_principal || "Estudio"}</b>?
+      ¿Seguro que quieres eliminar el caso <b style={{ color: "var(--foreground)" }}>{delStudy?.dx_principal || "Estudio"}</b>?
       {(delStudy?.session_count ?? 0) > 0 && <> Sus {delStudy?.session_count} sesión(es) de planificación se conservarán pero quedarán desvinculadas.</>} Esta acción no se puede deshacer.
     </ConfirmDialog>
     </>
@@ -523,11 +523,11 @@ export function Patients({
   );
 
   const totalStudies = patients.reduce((acc, p) => acc + p.study_count, 0);
-  const tiles: { k: string; v: string; s: string; icon: React.ComponentProps<typeof Icon>["name"] }[] = [
+  const tiles: { k: string; v: string; s?: string; icon: React.ComponentProps<typeof Icon>["name"] }[] = [
     { k: "Pacientes registrados", v: String(patients.length), s: "en la base de datos", icon: "STEP_PATIENT" },
-    { k: "Estudios DICOM", v: String(totalStudies), s: "vinculados a pacientes", icon: "FOLDER" },
-    { k: "Con estudios", v: String(patients.filter((p) => p.study_count > 0).length), s: "listos para planificar", icon: "STATUS_OK" },
-    { k: "Sin estudios", v: String(patients.filter((p) => p.study_count === 0).length), s: "pendientes de carga", icon: "WAIT" },
+    { k: "Casos clínicos", v: String(totalStudies), icon: "FOLDER" },
+    { k: "Con caso", v: String(patients.filter((p) => p.study_count > 0).length), icon: "STATUS_OK" },
+    { k: "Sin caso", v: String(patients.filter((p) => p.study_count === 0).length), icon: "WAIT" },
   ];
 
   const iconBtn: React.CSSProperties = {
@@ -568,7 +568,7 @@ export function Patients({
                   Usuarios
                 </Button>
                 <Button variant="outline" leadingIcon={<Icon name="USERS" />} onClick={onOpenPending} style={{ marginRight: 10 }}>
-                  Solicitudes
+                  Cuentas pendientes
                   {pendingCount > 0 && (
                     <span style={{ marginLeft: 2 }}>
                       <Badge variant="destructive">{pendingCount}</Badge>
@@ -607,7 +607,7 @@ export function Patients({
                 <div style={{ fontSize: 28, fontWeight: 800, color: "var(--foreground)", marginTop: 6, fontFamily: "var(--font-mono)" }}>
                   {loading || loadError ? "—" : t.v}
                 </div>
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t.s}</div>
+                {t.s && <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t.s}</div>}
               </Card>
             ))}
           </div>
@@ -618,7 +618,7 @@ export function Patients({
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
-                  {["Paciente", "HC", "Sexo / Nac.", "Institución", "Estudios", "Creado", "Acciones"].map((h, i) => (
+                  {["Paciente", "HC", "Sexo / Nac.", "Institución", "Casos", "Creado", "Acciones"].map((h, i) => (
                     <th
                       key={i}
                       style={{ textAlign: i === 4 ? "center" : i === 6 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", borderBottom: "1px solid var(--border)" }}

@@ -2,7 +2,7 @@
 
    Un Médico que abría `?paciente=<id de otro>` recibía el 403 del servidor,
    pero la ficha seguía dibujando el formulario vacío con «Guardar cambios»,
-   «Nuevo estudio», «Pedidos» y «Reanudar en …». Ahora solo queda el aviso. */
+   «Nuevo caso», «Pedidos» y «Reanudar en …». Ahora solo queda el aviso. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -72,7 +72,7 @@ describe("la ficha de un paciente ajeno", () => {
 
     expect(await screen.findByText("No autorizado sobre este paciente.")).toBeTruthy();
     expect(screen.queryByText("Guardar cambios")).toBeNull();
-    expect(screen.queryByText(/Nuevo estudio/)).toBeNull();
+    expect(screen.queryByText(/Casos \(/)).toBeNull();
     expect(screen.queryByText(/Pedidos/)).toBeNull();
     expect(screen.queryByText(/Reanudar en/)).toBeNull();
     expect(screen.queryByLabelText("Apellidos")).toBeNull();
@@ -221,5 +221,46 @@ describe("las sesiones guardadas (F1-243)", () => {
     renderAt("/app/pacientes?paciente=2");
     // 05:05 UTC son las 00:05 en UTC−5; la expectativa con zona fija está en fecha.test.ts.
     expect(await screen.findByText((t) => t.includes(fechaHora("2026-10-11T05:05:09")))).toBeTruthy();
+  });
+});
+
+/* F1-53, F1-54, F1-55, F1-242, F1-64, F1-65, F1-66, F1-67, F1-89: la pantalla
+   contaba «estudios» donde el glosario dice «caso», y llamaba «Solicitudes» a
+   lo que son cuentas pendientes de aprobar. */
+describe("el glosario en «Pacientes» (familia V, W, X)", () => {
+  const maria = {
+    id: 7, full_name: "Restrepo, María", hospital_id: "HC-7", sex: "F", dob: "",
+    institution: "", study_count: 2, created_at: "2026-10-01T00:00:00Z",
+  };
+
+  it("los contadores y la columna cuentan casos, sin subtítulo de «carga»", async () => {
+    listPatients.mockResolvedValue([maria]);
+    renderAt("/app/pacientes");
+    await screen.findByText("Restrepo, María");
+    expect(screen.getByText("Casos clínicos")).toBeTruthy();
+    expect(screen.getByText("Con caso")).toBeTruthy();
+    expect(screen.getByText("Sin caso")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Casos" })).toBeTruthy();
+    expect(screen.queryByText(/Estudios DICOM|Con estudios|Sin estudios|pendientes de carga|vinculados a pacientes|listos para planificar/)).toBeNull();
+  });
+
+  it("el administrador ve el acceso como «Cuentas pendientes», no «Solicitudes»", async () => {
+    user.role = "admin";
+    renderAt("/app/pacientes");
+    expect(await screen.findByRole("button", { name: /Cuentas pendientes/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Solicitudes/ })).toBeNull();
+  });
+
+  it("la ficha dice «Casos (0)», «Nuevo caso», el vacío nuevo y «Sesiones guardadas (n)»", async () => {
+    getPatient.mockResolvedValue({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F" });
+    patientSessions.mockResolvedValue([{ session_id: "a" }, { session_id: "b" }]);
+    patientStudies.mockResolvedValue([]);
+    renderAt("/app/pacientes?paciente=2");
+    expect(await screen.findByText("Casos (0)")).toBeTruthy();
+    // Uno es el botón de la lista de detrás y otro el de la ficha.
+    expect(screen.getAllByRole("button", { name: /Nuevo caso/ })).toHaveLength(2);
+    expect(screen.getByText("Sin casos. Crea uno con «Nuevo caso» para archivar el DICOM y las capturas de este paciente.")).toBeTruthy();
+    expect(await screen.findByText("Sesiones guardadas (2)")).toBeTruthy();
+    expect(screen.queryByText(/Casos \/ estudios|Nuevo estudio|Sesiones de estudio/)).toBeNull();
   });
 });

@@ -273,6 +273,18 @@ app.mount(
     StaticFiles(directory="static", html=False),
     name="static",
 )
+# /data/sessions sigue la raíz configurable (PROSPECTIVE_SESSIONS_ROOT): con la
+# montura relativa "data" las pruebas creaban sesiones en una carpeta temporal
+# y sus descargas daban 404; y una raíz de producción movida a otro disco
+# rompería las descargas igual. Va ANTES de la montura genérica de /data. El
+# guardián guard_private_static analiza la ruta URL, no el disco, y no cambia.
+from services.sessions import SESSIONS_ROOT  # noqa: E402
+SESSIONS_ROOT.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/data/sessions",
+    StaticFiles(directory=str(SESSIONS_ROOT), html=False),
+    name="data_sessions",
+)
 app.mount(
     "/data",
     StaticFiles(directory="data", html=False),

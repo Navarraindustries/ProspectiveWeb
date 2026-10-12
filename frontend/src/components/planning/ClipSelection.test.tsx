@@ -68,7 +68,8 @@ const spec: ManufactureSpecOut = {
   stl_url: null,
   part_no: "PR-TEST-0001",
   source: "navarro",
-  piece_label: "NAVARRO™ T3 Angulado 90°, mordaza 27.0 mm",
+  // Vacío: el servidor solo lo rellena cuando la pieza es el clip colocado (F1-198).
+  piece_label: "",
   commercial_name: "",
   fallback_reason: "",
   dossier_internal_url: null,
@@ -398,7 +399,7 @@ describe("el montaje de varios clips", () => {
     spring_length_mm: 27, shape: "Curvo", angle_deg: 0, closing_force_g: 180,
     fenestration_mm: 0, neck_mm: 20, label: "Curvo de 30.0 mm",
     reasons: [], confidence_notes: [], stl_url: null, part_no: "X-1",
-    source: "navarro" as const, piece_label: "Curvo de 30.0 mm",
+    source: "navarro" as const, piece_label: "",
     commercial_name: "", fallback_reason: "",
     dossier_internal_url: null, dossier_workshop_url: null,
   };
@@ -523,5 +524,82 @@ describe("la casilla «Ver todo el catálogo» (F1-197)", () => {
     expect(screen.queryByText("No hay catálogo de clips cargado en esta instalación")).toBeNull();
     fireEvent.click(screen.getByRole("checkbox", { name: /Ver todo el catálogo/ }));
     expect(onChange).toHaveBeenCalledWith(true);
+  });
+});
+
+/* Filas F1-193, F1-194, F1-195 y F1-198 del paso Dispositivos. */
+describe("tarjetas de la selección (F1-194, F1-195)", () => {
+  const dos = () => result({
+    recommended: [
+      candidate(),
+      candidate({
+        clip_id: "sugita-curvo-12", clip_name: "Sugita Curvo 12mm", shape: "Curvo", blade_length_mm: 12,
+        criteria: [{ key: "coverage", label: "Longitud de hoja", verdict: "ok", detail: "Cubre el cuello con 6.0 mm de margen (×2.00)" }],
+      }),
+    ],
+  });
+
+  it("solo la primera tarjeta abierta", async () => {
+    clipSelection.mockResolvedValue(dos());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/3\.0 mm de margen/)).toBeInTheDocument();
+    // La segunda se ve por su nombre y su forma, sin los criterios.
+    expect(screen.getByText("Sugita Curvo 12mm")).toBeInTheDocument();
+    expect(screen.getByText(/Curvo · mordaza 12\.0 mm/)).toBeInTheDocument();
+    expect(screen.queryByText(/6\.0 mm de margen/)).toBeNull();
+    const [primera, segunda] = screen.getAllByRole("button")
+      .filter((b) => b.hasAttribute("aria-expanded"));
+    expect(primera).toHaveAttribute("aria-expanded", "true");
+    expect(segunda).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("pulsar la cabecera despliega la tarjeta sin elegir el clip", async () => {
+    clipSelection.mockResolvedValue(dos());
+    const onPick = vi.fn();
+    render(<ClipSelectionPanel sessionId="s1" onPick={onPick} />);
+    fireEvent.click(await screen.findByText("Sugita Curvo 12mm"));
+    expect(screen.getByText(/6\.0 mm de margen/)).toBeInTheDocument();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("tarjeta sin ajuste dice «sin comprobar»", async () => {
+    clipSelection.mockResolvedValue(result({ recommended: [candidate({ fit: null })] }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/sin comprobar/)).toBeInTheDocument();
+    expect(screen.getByText("Ajuste real:")).toBeInTheDocument();
+  });
+
+  it("con el ajuste comprobado no dice «sin comprobar»", async () => {
+    clipSelection.mockResolvedValue(result({
+      recommended: [candidate({
+        fit: { collision: false, n_contacts: 0, span_mm: 7, neck_coverage_pct: 100, clean_rolls: 4, n_rolls: 6, note: "" },
+      })],
+    }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText("4/6")).toBeInTheDocument();
+    expect(screen.queryByText(/sin comprobar/)).toBeNull();
+  });
+});
+
+describe("guardar el corredor relanza la selección (F1-193)", () => {
+  it("guardar trayectoria relanza la selección", async () => {
+    clipSelection.mockResolvedValue(result());
+    const { rerender } = render(<ClipSelectionPanel sessionId="s1" reloadKey={0} />);
+    await waitFor(() => expect(clipSelection).toHaveBeenCalledTimes(1));
+    // El store sube `trajectorySavedAt` al guardar; el panel lo recibe aquí.
+    rerender(<ClipSelectionPanel sessionId="s1" reloadKey={1734000000000} />);
+    await waitFor(() => expect(clipSelection).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("la remisión a Fabricación (F1-198)", () => {
+  it("con un clip colocado nombra esa pieza", async () => {
+    clipSelection.mockResolvedValue(result({
+      manufacture: { ...spec, piece_label: "NAVARRO™ T2 Curvo, mordaza 7.0 mm" },
+    }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/Fabricación tomará el clip colocado/)).toBeInTheDocument();
+    expect(screen.getByText("NAVARRO™ T2 Curvo, mordaza 7.0 mm")).toBeInTheDocument();
+    expect(screen.queryByText(/pieza a medida especificada/)).toBeNull();
   });
 });

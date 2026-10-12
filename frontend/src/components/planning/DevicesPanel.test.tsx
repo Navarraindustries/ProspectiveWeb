@@ -52,12 +52,12 @@ describe("la pestaña con la que abre", () => {
   it("con la decisión «endovascular» abre en Coils", async () => {
     montar(conEquipo({ team_decision: "endovascular", decided_by: "Comité", other_text: "" }));
     await waitFor(() => expect(api.coilRecommendations).toHaveBeenCalled());
-    expect(api.clipRecommendations).not.toHaveBeenCalled();
+    expect(api.clipSelection).not.toHaveBeenCalled();
   });
 
   it("con «clipaje», o sin decisión, abre en Clips", async () => {
     montar(conEquipo({ team_decision: "clipaje", decided_by: "", other_text: "" }));
-    await waitFor(() => expect(api.clipRecommendations).toHaveBeenCalled());
+    await waitFor(() => expect(api.clipSelection).toHaveBeenCalled());
     expect(api.coilRecommendations).not.toHaveBeenCalled();
   });
 

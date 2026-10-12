@@ -261,3 +261,37 @@ describe("una sola cifra de fuerza (F1-202, F1-213)", () => {
     expect(forceWithBand(120, [120, 200])).toBe(MISMA_FUERZA);
   });
 });
+
+/* F1-198: la línea del paso Dispositivos que remite a Fabricación nombraba la
+   pieza del selector («Curvo de 12.0 mm · 125 g») mientras Fabricación titulaba
+   la ficha con el clip colocado. Las dos leen ahora el mismo campo del mismo
+   `sel.manufacture`. */
+import { ClipSelectionPanel } from "./ClipSelection";
+import { within } from "@testing-library/react";
+
+describe("la remisión y Fabricación nombran la misma pieza (F1-198)", () => {
+  const fijada = { ...spec, label: "Curvo de 12.0 mm · 125 g", part_no: "",
+                   piece_label: "NAVARRO™ T2 Curvo, mordaza 12.0 mm" };
+
+  it("con un clip colocado, la remisión y la ficha dicen el mismo nombre", async () => {
+    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: fijada }));
+    const remision = render(<ClipSelectionPanel sessionId="s1" />);
+    const linea = await remision.findByText(/Fabricación tomará el clip colocado/);
+    expect(within(linea).getByText(fijada.piece_label)).toBeInTheDocument();
+    expect(remision.queryByText(fijada.label)).toBeNull();
+
+    const ficha = draw();
+    expect(await within(ficha.container).findByText(fijada.piece_label)).toBeInTheDocument();
+  });
+
+  it("sin clip colocado, las dos dicen la etiqueta de la especificación", async () => {
+    const libre = { ...fijada, piece_label: "" };
+    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: libre }));
+    const remision = render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await remision.findByText(libre.label)).toBeInTheDocument();
+    expect(remision.queryByText(/Fabricación tomará el clip colocado/)).toBeNull();
+
+    const ficha = draw();
+    expect(await within(ficha.container).findByText(`Clip a medida · ${libre.label}`)).toBeInTheDocument();
+  });
+});

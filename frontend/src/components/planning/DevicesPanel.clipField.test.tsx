@@ -7,12 +7,33 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const { SELECCION } = vi.hoisted(() => {
+  const cand = (clip_id: string, clip_name: string) => ({
+    clip_id, clip_name, manufacturer: "", shape: "Recto", blade_length_mm: 10, closing_force_g: 120,
+    score: 80, verdict: "ok", headline: "", coverage_ratio: 1.4, safety_margin_mm: 2, availability: "stock",
+    bend_angle_deg: 0, closing_force_min_g: 120, closing_force_max_g: 120, force_provisional: false,
+    criteria: [], fit: null,
+  });
+  return { SELECCION: {
+    outcome: "stock", summary: "", stock_count: 2,
+    case: { neck_mm: 0, required_jaw_mm: 0, required_jaw_source: "factor", required_jaw_detail: "",
+            approach_angle_deg: null, approach_bend_deg: null, dome_height_mm: 4, max_diameter_mm: 6,
+            ar: 1, dnr: 1, parent_artery_mm: 0, neck_source: "", neck_tilt_deg: 0, region: "", laterality: "", aneurysm_type: "" },
+    // Orden de las tarjetas: el ranking, no el catálogo.
+    recommended: [cand("navarro:t1:0:10.0", "NAVARRO T1 10 mm"), cand("aesculap-recto-7", "Aesculap Recto 7 mm")],
+    rejected: [], manufacture: null, custom_jaw: null, multiclip: null, caveats: [],
+  } };
+});
+
 vi.mock("../../api/client", async (orig) => {
   const mod = await orig<typeof import("../../api/client")>();
   return { ...mod, api: { ...mod.api,
-    clipRecommendations: vi.fn(async () => [{ clip_id: "navarro:t1:0:10.0", clip_name: "NAVARRO T1 10 mm" }]),
+    // El recomendador viejo, en orden de catálogo: ya no da la lista del menú.
+    clipRecommendations: vi.fn(async () => [{ clip_id: "aesculap-recto-7", clip_name: "Aesculap Recto 7 mm" }, { clip_id: "navarro:t1:0:10.0", clip_name: "NAVARRO T1 10 mm" }]),
     listCustomClips: vi.fn(async () => []),
-    clipSelection: vi.fn(() => new Promise(() => { /* nunca resuelve: no es lo que se prueba */ })),
+    // Decisión nº 23: el menú de modelos sale de las tarjetas de la selección,
+    // así que la selección tiene que llegar para poder añadir un clip.
+    clipSelection: vi.fn(async () => SELECCION),
     placedDevices: vi.fn(async () => ({ remaining: [], mesh_urls: {} })),
     coilRecommendations: vi.fn(() => new Promise(() => { /* la pestaña de coils solo se monta y se desmonta */ })),
     clearDevices: vi.fn(async () => ({ status: "ok" })),
@@ -36,6 +57,14 @@ function Seed({ children }: { children: ReactNode }) {
   const { sessionId, setSession, setMorphometry } = usePlanning();
   useEffect(() => { if (!sessionId) { setSession("s1"); setMorphometry(morpho); } }, [sessionId, setSession, setMorphometry]);
   return sessionId ? <>{children}</> : null;
+}
+
+/** Los números de los clips colocados, abriendo su «Ajuste fino» (F1-200). */
+function numeros() {
+  for (const t of screen.queryAllByRole("button", { name: /Ajuste fino/ })) {
+    if (t.getAttribute("aria-expanded") === "false") fireEvent.click(t);
+  }
+  return screen.getAllByRole("spinbutton");
 }
 
 /** Monta el panel, añade el clip recomendado y pulsa «Colocar 1 y verificar». */
@@ -70,7 +99,7 @@ describe("DevicesPanel · campo del clip", () => {
     await colocar();
     await screen.findByText(/Estimación geométrica/);
     expect(screen.queryByText("DESFASADO")).toBeNull();
-    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "2" } });
+    fireEvent.change(numeros()[0], { target: { value: "2" } });
     expect(screen.getByText("DESFASADO")).toBeInTheDocument();
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(screen.queryByText("DESFASADO")).toBeNull());
@@ -82,7 +111,7 @@ describe("DevicesPanel · campo del clip", () => {
     const campo = await vi.mocked(api.clipField).mock.results[0].value;
     let releaseField: () => void = () => {};
     vi.mocked(api.clipField).mockImplementationOnce(() => new Promise((r) => { releaseField = () => r(campo); }));
-    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "2" } });
+    fireEvent.change(numeros()[0], { target: { value: "2" } });
     expect(screen.getByText("DESFASADO")).toBeInTheDocument();
     act(() => { vi.advanceTimersByTime(260); });
     // El plan nuevo ya llegó y se pidió el campo, que sigue en vuelo…
@@ -153,7 +182,7 @@ describe("DevicesPanel · campo del clip", () => {
     const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
     await waitFor(() => expect(addBtn()).not.toBeDisabled());
     fireEvent.click(addBtn());
-    fireEvent.click(screen.getByRole("button", { name: /^Añadir$/ }));   // la segunda pantalla añade otro igual
+    fireEvent.click(screen.getByRole("button", { name: "Añadir otro clip (montaje de varios)" }));   // la segunda pantalla añade otro igual
     const rows = () => screen.getAllByRole("button", { name: /^#\d · / });
     expect(rows().map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "true"]);
     fireEvent.click(rows()[0]);
@@ -164,7 +193,7 @@ describe("DevicesPanel · campo del clip", () => {
     await colocar();
     await screen.findByText(/Estimación geométrica/);
     expect(api.clipField).toHaveBeenCalledTimes(1);
-    const [x] = screen.getAllByRole("spinbutton");
+    const [x] = numeros();
     fireEvent.change(x, { target: { value: "1.5" } });
     fireEvent.change(x, { target: { value: "2" } });
     expect(api.clipField).toHaveBeenCalledTimes(1);
@@ -184,7 +213,7 @@ describe("DevicesPanel · campo del clip", () => {
     vi.mocked(api.planClips).mockImplementationOnce(() => new Promise((r) => {
       release = () => r({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null });
     }));
-    const [x] = screen.getAllByRole("spinbutton");
+    const [x] = numeros();
     fireEvent.change(x, { target: { value: "5" } });
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
@@ -210,7 +239,7 @@ describe("DevicesPanel · campo del clip", () => {
     vi.mocked(api.clearDevices).mockImplementationOnce(() => new Promise((r) => {
       releaseClear = () => r({ status: "ok" } as never);
     }));
-    const [x] = screen.getAllByRole("spinbutton");
+    const [x] = numeros();
     fireEvent.change(x, { target: { value: "5" } });
     // Limpiar antes de que venzan los 250 ms, con el borrado aún sin responder.
     act(() => { vi.advanceTimersByTime(100); });
@@ -232,7 +261,7 @@ describe("DevicesPanel · campo del clip", () => {
     vi.mocked(api.clearDevices).mockImplementationOnce(() => new Promise((r) => {
       releaseClear = () => r({ status: "ok" } as never);
     }));
-    const [x] = screen.getAllByRole("spinbutton");
+    const [x] = numeros();
     fireEvent.change(x, { target: { value: "5" } });
     act(() => { vi.advanceTimersByTime(100); });
     fireEvent.click(screen.getByRole("button", { name: /Limpiar todos los dispositivos/ }));
@@ -255,7 +284,7 @@ describe("DevicesPanel · campo del clip", () => {
     vi.mocked(api.planClips).mockImplementationOnce(() => new Promise((r) => {
       release = () => r({ clips_mesh_url: "/m/clips_tarde.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null });
     }));
-    const [x] = screen.getAllByRole("spinbutton");
+    const [x] = numeros();
     fireEvent.change(x, { target: { value: "5" } });
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
@@ -288,7 +317,7 @@ describe("DevicesPanel · campo del clip", () => {
     await screen.findByText(/Estimación geométrica/);
     let fail: () => void = () => {};
     vi.mocked(api.planClips).mockImplementationOnce(() => new Promise((_, rej) => { fail = () => rej(new Error("caído")); }));
-    const [x] = screen.getAllByRole("spinbutton");
+    const [x] = numeros();
     fireEvent.change(x, { target: { value: "5" } });
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
@@ -307,7 +336,7 @@ describe("DevicesPanel · campo del clip", () => {
     vi.mocked(api.planClips).mockImplementationOnce(() => new Promise((r) => {
       release = () => r({ clips_mesh_url: "/m/clips.vtp", trajectory_mesh_url: null, neck_coverage_pct: 90, collision_detected: false, neck_region_excluded: true, branches_under_clip: [], warning: null });
     }));
-    const [x] = screen.getAllByRole("spinbutton");
+    const [x] = numeros();
     fireEvent.change(x, { target: { value: "5" } }); // pose B
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
@@ -324,7 +353,7 @@ describe("DevicesPanel · campo del clip", () => {
   it("volver a la pose ya colocada no pide nada", async () => {
     await colocar();
     await screen.findByText(/Estimación geométrica/);
-    const [x] = screen.getAllByRole("spinbutton");
+    const [x] = numeros();
     fireEvent.change(x, { target: { value: "1.5" } });
     fireEvent.change(x, { target: { value: "1" } });
     act(() => { vi.advanceTimersByTime(400); });
@@ -407,5 +436,60 @@ describe("«Limpiar clips colocados»", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Limpiar los clips" }));
     await waitFor(() => expect(api.clearDevices).toHaveBeenCalledWith("s1", "clips"));
+  });
+});
+
+/* Filas sueltas del paso Dispositivos: F1-184, F1-196 (decisión nº 23),
+   F1-199 y F1-200. */
+describe("DevicesPanel · rótulos y una sola lista de clips", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  const montar = () => render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+
+  it("entradilla nueva (F1-184)", async () => {
+    montar();
+    expect(await screen.findByText("Traza el abordaje y prueba clip, coils, stent o WEB sobre el saco medido")).toBeInTheDocument();
+    expect(screen.queryByText(/Elige clip, coils o stent del catálogo/)).toBeNull();
+  });
+
+  it("el primer elemento del menú es la primera tarjeta (F1-196, nº 23)", async () => {
+    montar();
+    const menu = await screen.findByLabelText(/Recomendados \+ personalizados \(2\)/) as HTMLSelectElement;
+    const tarjetas = SELECCION.recommended.map((c) => c.clip_name);
+    expect(Array.from(menu.options).map((o) => o.text)).toEqual(tarjetas);
+    // Y viene elegido: la primera tarjeta es lo que se coloca si no se toca nada.
+    expect(menu.value).toBe(SELECCION.recommended[0].clip_id);
+    // El recomendador viejo, en otro orden, ya no hace la lista.
+    expect(api.clipRecommendations).not.toHaveBeenCalled();
+  });
+
+  it("«Otros del catálogo» va detrás de las tarjetas y no se puede elegir", async () => {
+    vi.mocked(api).listClips = vi.fn(async () => [
+      { id: "aesculap-recto-7", name: "Aesculap Recto 7 mm" },
+      { id: "sugita-curvo-9", name: "Sugita Curvo 9 mm" },
+    ]) as never;
+    montar();
+    await screen.findByLabelText(/Recomendados \+ personalizados \(2\)/);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ver todo el catálogo/ }));
+    const menu = await screen.findByLabelText(/Todo el catálogo \(3\)/) as HTMLSelectElement;
+    const textos = Array.from(menu.options).map((o) => o.text);
+    expect(textos).toEqual(["NAVARRO T1 10 mm", "Aesculap Recto 7 mm", "── Otros del catálogo ──", "Sugita Curvo 9 mm"]);
+    expect(menu.options[2].disabled).toBe(true);
+  });
+
+  it("«Añadir» dice que suma otro clip al montaje (F1-199)", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    expect(screen.getByRole("button", { name: "Añadir otro clip (montaje de varios)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambiar" })).toBeInTheDocument();
+  });
+
+  it("los campos numéricos empiezan plegados (F1-200)", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
+    const fino = screen.getByRole("button", { name: /Ajuste fino/ });
+    expect(fino).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(fino);
+    expect(screen.getAllByRole("spinbutton")).toHaveLength(6);
   });
 });

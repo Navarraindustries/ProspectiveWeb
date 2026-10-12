@@ -147,6 +147,27 @@ def _width_at_plane(poly: vtk.vtkPolyData, origin, normal) -> float:
     return d
 
 
+def _completa_summary(v_excluido: float, total: float) -> str:
+    """Sin muñón medible, cuánto del saco sale de la circulación.
+
+    «El saco entero fuera de la circulación (119 mm³ de 128)» se contradecía en
+    la misma frase (F1-201): lo que falta no es muñón comunicado, es el volumen
+    que queda aplastado bajo las hojas, a ninguno de los dos lados del corte.
+    «Entero» solo cuando lo que falta cabe en lo despreciable."""
+    if total <= 0 or v_excluido >= total - NEGLIGIBLE_MM3:
+        return (
+            f"La línea de cierre deja el saco entero fuera de la circulación "
+            f"({v_excluido:.0f} mm³ de {total:.0f}). No queda muñón medible."
+        )
+    # Nunca «100 %» cuando falta más de lo despreciable: redondear un 99,6 hacia
+    # arriba volvería a decir «entero» con otras palabras.
+    pct = min(99, round(v_excluido / total * 100))
+    return (
+        f"El {pct} % del saco queda fuera de la circulación; el resto queda bajo "
+        f"las hojas. No queda muñón medible."
+    )
+
+
 def occlusion_after_clip(
     sac_poly: vtk.vtkPolyData | None,
     closing_origin,
@@ -196,10 +217,7 @@ def occlusion_after_clip(
 
     if v_munon <= NEGLIGIBLE_MM3:
         res.outcome = "completa"
-        res.summary = (
-            f"La línea de cierre deja el saco entero fuera de la circulación "
-            f"({v_excluido:.0f} mm³ de {total:.0f}). No queda muñón medible."
-        )
+        res.summary = _completa_summary(v_excluido, total)
     elif res.remnant_fraction <= RESIDUAL_FRACTION:
         res.outcome = "resto_de_cuello"
         res.summary = (

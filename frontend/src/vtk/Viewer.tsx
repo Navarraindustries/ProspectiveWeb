@@ -247,6 +247,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
     centerline, obliqueWalk, setObliqueWalk, setVolumeReady,
+    pickMiss, setPickMiss,
   } = usePlanning();
   // El recorrido VASO necesita los puntos aunque el panel de la línea central no se abra.
   useCenterlineTrack();
@@ -695,13 +696,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [setViewerRecording]);
 
   // Transient "you clicked outside the mesh" hint — without it a missed pick is
-  // silent and the tool feels broken.
-  const [pickMiss, setPickMiss] = useState(false);
+  // silent and the tool feels broken. En el store: el panel de abordaje lo
+  // repite junto a «Entrada»/«Diana», donde la persona está mirando (F1-185).
   const onPickMiss = useCallback(() => {
     setPickMiss(true);
     setTimeout(() => setPickMiss(false), 1800);
-  }, []);
-  useEffect(() => { if (!pickMode) setPickMiss(false); }, [pickMode]);
+  }, [setPickMiss]);
+  useEffect(() => { if (!pickMode) setPickMiss(false); }, [pickMode, setPickMiss]);
   // Every placed device is drawn, each in its own colour: planning a stent after
   // a clip leaves both in the plan, and a viewer showing only the last one placed
   // hid that — the clinician saw one device while the report listed two.

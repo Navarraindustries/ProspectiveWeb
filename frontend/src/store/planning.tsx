@@ -247,6 +247,16 @@ interface PlanningState {
    *  (F1-247). */
   trajSaved: TrajectoryResult | null;
   setTrajSaved: (t: TrajectoryResult | null) => void;
+  /** Cuándo se guardó y analizó el corredor por última vez (Date.now()). La
+   *  selección de clip depende del ángulo de abordaje y se cargaba una sola
+   *  vez: guardar el corredor no la cambiaba hasta pulsar «Recalcular»
+   *  (F1-193). Quien la muestra relanza la selección cuando cambia. */
+  trajectorySavedAt: number;
+  setTrajectorySavedAt: (t: number) => void;
+  /** El último clic de marcado cayó fuera de la malla. Vivía solo en el visor,
+   *  y el panel de abordaje no podía decirlo junto a «Entrada»/«Diana» (F1-185). */
+  pickMiss: boolean;
+  setPickMiss: (v: boolean) => void;
   /** Enlaces al PDF y al SR que volvieron con la sesión reanudada (F1-249). */
   reportUrls: ReportUrls | null;
   setReportUrls: (u: ReportUrls | null) => void;
@@ -515,6 +525,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     return w;
   }, []);
   const [trajSaved, setTrajSaved] = useState<TrajectoryResult | null>(null);
+  const [trajectorySavedAt, setTrajectorySavedAt] = useState(0);
+  const [pickMiss, setPickMiss] = useState(false);
   const [reportUrls, setReportUrls] = useState<ReportUrls | null>(null);
   const [clipPlan, setClipPlan] = useState<ClipPlanResult | null>(null);
   const [mprVoxel, setMprVoxel] = useState({ x: 0, y: 0, z: 0 });
@@ -843,7 +855,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
         centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, reportUrls, setReportUrls, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,

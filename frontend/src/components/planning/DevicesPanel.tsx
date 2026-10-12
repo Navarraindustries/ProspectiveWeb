@@ -12,7 +12,8 @@ import type {
   CustomClipInfo,
   DeviceKind,
   DeviceStrategy,
-  ClipRecommendation,
+  ClipCandidateOut,
+  ClipSelectionResult,
   ClStentApposition,
   ClStentCoverage,
   ClStentResult,
@@ -160,7 +161,7 @@ function ClipsTab() {
     clipField, setClipField, showClipField, setShowClipField,
     placedClips: placed, setPlacedClips: setPlaced, plannedClips, setPlannedClips,
     fieldClips, fieldMeshOnScreen, selectedClipKey, setSelectedClipKey, setClipsTabActive,
-    clipPlan: plan, setClipPlan: setPlan,
+    clipPlan: plan, setClipPlan: setPlan, trajectorySavedAt,
   } = usePlanning();
   // El que maneja el asa del 3D: el elegido en la lista o, si no hay, el último.
   const activeKey = placed.some((c) => c.key === selectedClipKey) ? selectedClipKey : placed.at(-1)?.key ?? null;
@@ -168,7 +169,12 @@ function ClipsTab() {
   // F1-22: «Limpiar clips colocados» se llevaba la pose, la verificación, la
   // oclusión y el mapa de calor al primer clic.
   const [askingClear, setAskingClear] = useState(false);
-  const [recs, setRecs] = useState<ClipRecommendation[]>([]);
+  // Decisión nº 23: una sola lista de modelos. El menú se hacía con otro
+  // recomendador (`/clips/recommendations`, en orden de catálogo) y las
+  // tarjetas con la selección por criterios (en orden de puntuación): el
+  // primer modelo del menú no era la primera tarjeta (F1-196). Ahora el menú
+  // sale de las mismas tarjetas, en su orden.
+  const [recs, setRecs] = useState<ClipCandidateOut[]>([]);
   // Hasta que la petición vuelve no se sabe si hay recomendación: decir «sin
   // recomendación para esta geometría» mientras el catálogo aún se evalúa
   // (medio minuto en una malla real) era afirmar lo contrario de lo que iba
@@ -187,6 +193,10 @@ function ClipsTab() {
   const [sel, setSel] = useState<string>("");
   // Cuál de las dos preguntas se está respondiendo.
   const [step, setStep] = useState<string>(CLIP_STEPS[0]);
+  // Qué clips tienen abiertos sus números. X, Y, Z y los tres ángulos a la
+  // vista invitaban a teclear coordenadas cuando la vía es el asa del 3D
+  // (F1-200): se pliegan bajo «Ajuste fino», cada clip el suyo.
+  const [fineOpen, setFineOpen] = useState<Set<number>>(new Set());
   // A clip chosen from the criteria panel is not in the legacy dropdown's list:
   // its options come from `/clips/recommendations`, which knows nothing about
   // the library or the NAVARRO™ family. Without remembering the pick here the
@@ -242,18 +252,19 @@ function ClipsTab() {
   const lastPlacedKey = useRef<string | null>(plannedClips ? poseKey(plannedClips) : null);
   const lastRequestedKey = useRef<string | null>(plannedClips ? poseKey(plannedClips) : null);
 
+  /** La selección por criterios acaba de llegar (la de las tarjetas). */
+  const onSelectionLoaded = (r: ClipSelectionResult) => {
+    setStockCount(r.stock_count);
+    setRecs(r.recommended);
+    setRecsLoaded(true);
+    // Functional update, and it matters: a pick made from a card WHILE the
+    // selection was being recomputed must survive it. The preselection is a
+    // default for an empty box, never a correction.
+    if (r.recommended.length > 0) setSel((cur) => cur || r.recommended[0].clip_id);
+  };
+
   useEffect(() => {
     if (!sessionId) return;
-    api.clipRecommendations(sessionId)
-      // Functional update, and it matters: the effect closes over `sel` as it
-      // was when it ran — empty, on mount — so a pick made from the criteria
-      // panel WHILE this request was in flight was overwritten the moment it
-      // landed, silently swapping the chosen clip for the top of the legacy
-      // ranking. Reading the current value instead makes the preselection what
-      // it was meant to be: a default for an empty box, never a correction.
-      .then((r) => { setRecs(r); if (r.length > 0) setSel((cur) => cur || r[0].clip_id); })
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando recomendaciones"))
-      .finally(() => setRecsLoaded(true));
     // Imported clips live in the session directory, but the browser forgets them
     // on resume — the dropdown lost geometry that was still on disk.
     api.listCustomClips(sessionId).then(setCustoms).catch(() => { /* none imported */ });
@@ -291,21 +302,27 @@ function ClipsTab() {
       // decisión. El orden de la lista ya dice cuál propone primero, y la
       // tarjeta de al lado lo dice con medidas («cierra el cuello aplastado de
       // 7,2 mm»). El número solo aparentaba precisión.
+      // En el orden de las tarjetas: el primero del menú ES la primera tarjeta.
       ...recs.map((r) => ({ value: r.clip_id, label: r.clip_name })),
       ...customs.map((c) => ({ value: c.clip_id, label: `★ ${c.name} (personalizado)` })),
-    ];
-    // Los del catálogo que el recomendador no propuso, al final y marcados:
-    // están disponibles, pero no son lo que el ranking sugiere para este caso.
+    ] as { value: string; label: string; disabled?: boolean }[];
+    // Los del catálogo que el recomendador no propuso, al final y bajo su
+    // separador: están disponibles, pero no son lo que se sugiere para este caso.
     if (verTodo) {
       const ya = new Set(base.map((o) => o.value));
-      for (const c of catalogo) {
-        if (!ya.has(c.id)) base.push({ value: c.id, label: `${c.name} · catálogo` });
+      const otros = catalogo.filter((c) => !ya.has(c.id));
+      if (otros.length > 0) {
+        base.push({ value: "__otros__", label: "── Otros del catálogo ──", disabled: true });
+        for (const c of otros) base.push({ value: c.id, label: c.name });
       }
     }
     return picked && !base.some((o) => o.value === picked.id)
       ? [{ value: picked.id, label: `★ ${picked.name}` }, ...base]
       : base;
   }, [recs, customs, catalogo, verTodo, picked]);
+
+  // Los modelos que se pueden elegir, sin contar el separador.
+  const nModels = options.filter((o) => !o.disabled).length;
 
   const nameFor = (clipId: string) =>
     recs.find((r) => r.clip_id === clipId)?.clip_name
@@ -527,7 +544,8 @@ function ClipsTab() {
                 caseId={caseId}
                 selectedClipId={sel}
                 onPick={(clipId, clipName) => { setPicked({ id: clipId, name: clipName }); setSel(clipId); }}
-                onLoaded={(r) => setStockCount(r.stock_count)}
+                onLoaded={onSelectionLoaded}
+                reloadKey={trajectorySavedAt}
               />
             </div>
           )}
@@ -542,8 +560,8 @@ function ClipsTab() {
           )}
           <Select
             label={verTodo
-              ? `Todo el catálogo (${options.length})`
-              : recsLoaded ? `Recomendados + personalizados (${options.length})` : "Recomendados + personalizados (evaluando…)"}
+              ? `Todo el catálogo (${nModels})`
+              : recsLoaded ? `Recomendados + personalizados (${nModels})` : "Recomendados + personalizados (evaluando…)"}
             options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
           {/* Sin esto, un modelo que el recomendador no propone es inalcanzable
               desde la interfaz, aunque la institución lo tenga. */}
@@ -606,8 +624,10 @@ function ClipsTab() {
                 <Button size="sm" variant="ghost" onClick={() => setStep(CLIP_STEPS[0])}>
                   Cambiar
                 </Button>
+                {/* «Añadir» a secas no decía que se suma un SEGUNDO clip al
+                    plan, en vez de cambiar el que hay (F1-199). */}
                 <Button size="sm" onClick={addClip} leadingIcon={<Icon name="CLIP_PLACE" size={13} />}>
-                  Añadir
+                  Añadir otro clip (montaje de varios)
                 </Button>
               </div>
             </Card>
@@ -637,13 +657,24 @@ function ClipsTab() {
                 {placed.map((c, i) => (
                   <Card key={c.key} onClick={() => setSelectedClipKey(c.key)}
                     style={{ padding: "10px 12px", cursor: "pointer", ...(c.key === activeKey ? { borderColor: "var(--primary)", boxShadow: "0 0 0 1px var(--primary)" } : null) }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button type="button" aria-pressed={c.key === activeKey} title="Manejar este clip en el 3D"
                         onClick={(e) => { e.stopPropagation(); setSelectedClipKey(c.key); }}
                         style={{ all: "unset", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>#{i + 1} · {c.name}</button>
+                      <button type="button" aria-expanded={fineOpen.has(c.key)}
+                        onClick={() => setFineOpen((cur) => {
+                          const next = new Set(cur);
+                          if (next.has(c.key)) next.delete(c.key); else next.add(c.key);
+                          return next;
+                        })}
+                        title="Posición y ángulos en números; el asa del 3D hace lo mismo"
+                        style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 11, padding: 2 }}>
+                        {fineOpen.has(c.key) ? "▾" : "▸"} Ajuste fino
+                      </button>
                       <button onClick={(e) => { e.stopPropagation(); removeClip(c.key); }} title="Quitar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
                     </div>
-                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                    {fineOpen.has(c.key) && (<>
+                    <div style={{ display: "flex", gap: 6, margin: "8px 0 6px" }}>
                       <NumField label="X" value={c.position[0]} onChange={(v) => updateClip(c.key, { position: [v, c.position[1], c.position[2]] })} />
                       <NumField label="Y" value={c.position[1]} onChange={(v) => updateClip(c.key, { position: [c.position[0], v, c.position[2]] })} />
                       <NumField label="Z" value={c.position[2]} onChange={(v) => updateClip(c.key, { position: [c.position[0], c.position[1], v] })} />
@@ -655,6 +686,7 @@ function ClipsTab() {
                       <NumField label="Azimut°" value={c.azimuthDeg} onChange={(v) => updateClip(c.key, { azimuthDeg: v })} step={5} min={-180} max={180} />
                       <NumField label="Elevación°" value={c.elevationDeg} onChange={(v) => updateClip(c.key, { elevationDeg: v })} step={5} min={0} max={TILT_MAX_DEG} />
                     </div>
+                    </>)}
                   </Card>
                 ))}
               </div>
@@ -1464,6 +1496,9 @@ export function TrajectoryTool() {
     // En el store, para que «Reanudar» la devuelva con su ángulo y su
     // corredor y el botón diga «Guardada ✓» (F1-247).
     trajSaved, setTrajSaved: setSaved,
+    // F1-193: guardar el corredor relanza la selección de clip, que depende
+    // del ángulo de abordaje. F1-185: un clic fuera de la malla se dice aquí.
+    setTrajectorySavedAt, pickMiss,
   } = usePlanning();
   // Lo guardado vale mientras los puntos sean esos: mover la entrada o la diana
   // después de guardar dejaba «Guardada ✓» y el ángulo de la trayectoria vieja.
@@ -1491,6 +1526,7 @@ export function TrajectoryTool() {
         entry: { x: trajEntry[0], y: trajEntry[1], z: trajEntry[2] },
         target: { x: trajTarget[0], y: trajTarget[1], z: trajTarget[2] },
       }));
+      setTrajectorySavedAt(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar la trayectoria");
     } finally {
@@ -1542,12 +1578,12 @@ export function TrajectoryTool() {
     if (sessionId) { try { await api.clearTrajectory(sessionId); } catch { /* ignore */ } }
   };
 
-  const pickBtn = (which: "traj_entry" | "traj_target", label: string, done: boolean) => {
+  const pickBtn = (which: "traj_entry" | "traj_target", label: string, done: boolean, title: string) => {
     const active = pickMode === which;
     return (
       <Button
         variant={active ? "default" : "outline"} size="sm" style={{ flex: 1 }}
-        disabled={!hasMesh}
+        disabled={!hasMesh} title={title}
         onClick={() => setPickMode(active ? null : which)}
         leadingIcon={<Icon name={done ? "STATUS_OK" : "TRAJECTORY"} size={14} />}
       >
@@ -1569,9 +1605,18 @@ export function TrajectoryTool() {
         </div>
       )}
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        {pickBtn("traj_entry", "Entrada", !!trajEntry)}
-        {pickBtn("traj_target", "Diana", !!trajTarget)}
+        {/* «Entrada» no decía dónde pinchar: es un punto sobre un vaso, en la
+            dirección por la que entraría la mano (F1-185). */}
+        {pickBtn("traj_entry", "Entrada", !!trajEntry, "Pincha sobre un vaso en la dirección por la que entrarías")}
+        {pickBtn("traj_target", "Diana", !!trajTarget, "Pincha sobre el aneurisma")}
       </div>
+      {/* El aviso del visor sale arriba del 3D, lejos de estos botones: un clic
+          al vacío parecía no hacer nada y el botón seguía en «Clic en el visor…». */}
+      {pickMiss && (pickMode === "traj_entry" || pickMode === "traj_target") && (
+        <div role="status" style={{ fontSize: 12, color: "var(--warning)", margin: "-4px 0 10px", lineHeight: 1.45 }}>
+          El clic cayó fuera de la malla: pincha sobre un vaso
+        </div>
+      )}
 
       <Button
         size="sm" variant="outline" style={{ width: "100%", marginBottom: 10 }}
@@ -1660,9 +1705,11 @@ export function TrajectoryTool() {
       )}
       {depth !== null && (
         <div style={{ fontSize: 12, color: "var(--foreground)", marginBottom: 10 }}>
-          Profundidad de abordaje: <b style={{ fontFamily: "var(--font-mono)" }}>{depth.toFixed(1)} mm</b>
+          {/* «Profundidad» se leía como la del campo quirúrgico; es la recta
+              entre los dos puntos marcados (F1-186). Coma decimal, como el PDF. */}
+          Distancia entrada–diana: <b style={{ fontFamily: "var(--font-mono)" }}>{depth.toFixed(1).replace(".", ",")} mm</b>
           {saved && (() => { const ref = angleReferenceLabel(morphometry?.principal_axis); return (
-            <> · <span title={ref.title}>{ref.text}</span>: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle_deg.toFixed(1)}°</b></>
+            <> · <span title={ref.title}>{ref.text}</span>: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle_deg.toFixed(1).replace(".", ",")}°</b></>
           ); })()}
         </div>
       )}
@@ -1676,7 +1723,9 @@ export function TrajectoryTool() {
         <Button size="sm" style={{ flex: 1 }} disabled={busy || !trajEntry || !trajTarget} onClick={() => void save()} leadingIcon={<Icon name="SAVE" size={14} />}>
           {/* Desfasada: la malla cambió después de guardarla y su corredor ya
               no vale; decir «Guardada ✓» sería avalar un veredicto viejo. */}
-          {busy ? "Guardando…" : saved?.stale ? "Vuelve a guardar la trayectoria" : saved ? "Guardada ✓" : "Guardar trayectoria"}
+          {/* Guardar también analiza lo que el corredor atraviesa: el rótulo lo
+              dice, porque es lo que el veredicto de abajo necesita (F1-187). */}
+          {busy ? "Guardando…" : saved?.stale ? "Vuelve a guardar y analizar" : saved ? "Corredor guardado y analizado ✓" : "Guardar y analizar el corredor"}
         </Button>
         <Button size="sm" variant="outline" disabled={!trajEntry && !trajTarget} onClick={requestClear}>
           Limpiar
@@ -1860,7 +1909,8 @@ export function DevicesPanel({ onNext }: { onNext: () => void }) {
   }, [sessionId]);
   return (
     <div className="fade-rise">
-      <PanelHead title="Planificación de dispositivos" desc="Elige clip, coils o stent del catálogo y verifica su colocación." />
+      {/* El paso empieza por el abordaje y tiene WEB: la entradilla no lo decía (F1-184). */}
+      <PanelHead title="Planificación de dispositivos" desc="Traza el abordaje y prueba clip, coils, stent o WEB sobre el saco medido" />
       <TrajectoryTool />
       <PlacedDevicesBar />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />

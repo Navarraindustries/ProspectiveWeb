@@ -85,3 +85,14 @@ def test_el_pdf_de_una_sesion_con_decision_del_equipo_la_pone_primero():
     plan = textos.index("Plan elegido")
     assert "Comité neurovascular" in textos[plan + 1]
     assert any(t.startswith("Trayectoria") or "corredor" in t.lower() for t in textos[plan:])
+
+
+def test_el_pdf_dice_distancia_entrada_diana():
+    """F1-186: «Profundidad de abordaje» se leía como la profundidad del campo
+    quirúrgico; es la recta entre la entrada y la diana marcadas."""
+    sid = _session(("1", "0", "0"))
+    gen = ReportGenerator(build_report_data_from_session(sid))
+    tables = [e for e in gen._section_trajectory() if hasattr(e, "_cellvalues")]
+    rotulos = [str(row[0]) for row in tables[0]._cellvalues]
+    assert "Distancia entrada–diana" in rotulos
+    assert not any("Profundidad" in r for r in rotulos)

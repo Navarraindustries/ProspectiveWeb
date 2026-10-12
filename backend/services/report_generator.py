@@ -1817,7 +1817,9 @@ class ReportGenerator:
              f"({entry[0]:.1f}, {entry[1]:.1f}, {entry[2]:.1f})"],
             ["Punto diana / aneurisma (mm)",
              f"({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f})"],
-            ["Profundidad de abordaje", f"{tr.get('depth_mm', 0):.1f} mm"],
+            # «Profundidad» se leía como la del campo quirúrgico; es la recta
+            # entre los dos puntos marcados, como dice el panel (F1-186).
+            ["Distancia entrada–diana", f"{tr.get('depth_mm', 0):.1f} mm"],
             [_ANGLE_LABELS.get(tr.get("angle_ref", ""), _ANGLE_LABELS["vertical"]),
              f"{tr.get('angle_deg', 0):.1f} °"],
         ]

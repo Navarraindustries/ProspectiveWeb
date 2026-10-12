@@ -65,11 +65,17 @@ export function CriterionChip({ c }: { c: ClipCriterion }) {
 }
 
 function CandidateCard({
-  cand, selected, onSelect,
+  cand, selected, onSelect, open = true, onToggle,
 }: {
   cand: ClipCandidateOut;
   selected: boolean;
   onSelect?: () => void;
+  /** Plegada, la tarjeta enseña solo el nombre y la forma. Seis tarjetas
+   *  abiertas eran una columna de criterios donde la primera, la propuesta, no
+   *  se distinguía de la sexta (F1-194). */
+  open?: boolean;
+  /** Sin él la tarjeta no se pliega (los descartados, dentro de su desplegable). */
+  onToggle?: () => void;
 }) {
   const fit = cand.fit;
   return (
@@ -83,9 +89,22 @@ function CandidateCard({
       onClick={onSelect}
     >
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
-          {cand.clip_name}
-        </div>
+        {onToggle ? (
+          // Abrir una tarjeta para leerla no es elegir el clip: el clic se queda
+          // en la cabecera y no llega a la tarjeta, que es la que elige.
+          <button
+            type="button" aria-expanded={open}
+            onClick={(e) => { e.stopPropagation(); onToggle(); }}
+            style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "baseline", gap: 6, fontSize: 13, fontWeight: 700, color: "var(--foreground)", flex: 1, minWidth: 0 }}
+          >
+            <span aria-hidden style={{ fontSize: 10, color: "var(--muted-foreground)", width: 10 }}>{open ? "▾" : "▸"}</span>
+            <span>{cand.clip_name}</span>
+          </button>
+        ) : (
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
+            {cand.clip_name}
+          </div>
+        )}
         {/* Que un clip se fabrique para el caso no lo hace peor, pero sí cambia
             la planificación: hay que contar con el plazo. Va junto al nombre,
             no escondido en los criterios. */}
@@ -109,6 +128,7 @@ function CandidateCard({
         {cand.manufacturer ? ` · ${cand.manufacturer}` : ""}
       </div>
 
+      {open && (<>
       {/* Los criterios, cada uno con su medida. Sustituyen a la barra de score:
           «cubre el cuello con 1,8 mm de margen» dice algo; «92,6» no. */}
       <div style={{ marginTop: 8, borderTop: "1px solid var(--border)", paddingTop: 6 }}>
@@ -127,6 +147,19 @@ function CandidateCard({
           orientaciones sin tocar vasos vecinos · cubre {fit.neck_coverage_pct.toFixed(0)}% del cuello
         </div>
       )}
+      {/* La comprobación sobre la malla cuesta varias pruebas de colisión por
+          clip y el servidor solo la hace en los primeros del ranking
+          (`clip_fit.verify_all`, limit=5). Las demás tarjetas no decían nada, y
+          callar se leía como «ajusta» (F1-195). */}
+      {!fit && (
+        <div
+          style={{ marginTop: 6, fontSize: 11, color: "var(--muted-foreground)" }}
+          title="Solo los primeros clips del ranking se prueban sobre la malla del paciente, y hace falta el plano del cuello marcado a mano"
+        >
+          <b style={{ color: "var(--foreground)" }}>Ajuste real:</b> sin comprobar
+        </div>
+      )}
+      </>)}
     </Card>
   );
 }
@@ -270,6 +303,7 @@ export function ClipSelectionPanel({
   selectedClipId,
   onPick,
   onLoaded,
+  reloadKey = 0,
 }: {
   sessionId: string;
   caseId?: number | null;
@@ -278,8 +312,16 @@ export function ClipSelectionPanel({
   onPick?: (clipId: string, clipName: string) => void;
   /** La selección recién leída: el panel padre necesita saber si hay inventario. */
   onLoaded?: (sel: ClipSelectionResult) => void;
+  /** Cambia cuando se guarda el corredor de abordaje: el ángulo cambia la forma
+   *  que pide el caso (`_approach_criterion`) y la selección se cargaba una sola
+   *  vez, así que seguía la del corredor anterior hasta pulsar «Recalcular»
+   *  (F1-193). */
+  reloadKey?: number;
 }) {
   const [sel, setSel] = useState<ClipSelectionResult | null>(null);
+  // Qué tarjetas recomendadas están abiertas: al llegar la selección, solo la
+  // primera, que es la que el ranking propone (F1-194).
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -287,13 +329,17 @@ export function ClipSelectionPanel({
     setLoading(true);
     setError(null);
     api.clipSelection(sessionId, caseId)
-      .then((r) => { setSel(r); onLoaded?.(r); })
+      .then((r) => {
+        setSel(r);
+        setOpenIds(new Set(r.recommended.slice(0, 1).map((c) => c.clip_id)));
+        onLoaded?.(r);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Error cargando la selección de clip"))
       .finally(() => setLoading(false));
     // `onLoaded` fuera de las dependencias: un callback nuevo en cada render del
     // padre relanzaría la evaluación del catálogo entera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, caseId]);
+  }, [sessionId, caseId, reloadKey]);
 
   useEffect(load, [load]);
 
@@ -375,6 +421,12 @@ export function ClipSelectionPanel({
                 cand={c}
                 selected={selectedClipId === c.clip_id}
                 onSelect={onPick ? () => onPick(c.clip_id, c.clip_name) : undefined}
+                open={openIds.has(c.clip_id)}
+                onToggle={() => setOpenIds((cur) => {
+                  const next = new Set(cur);
+                  if (next.has(c.clip_id)) next.delete(c.clip_id); else next.add(c.clip_id);
+                  return next;
+                })}
               />
             ))}
           </div>
@@ -400,9 +452,22 @@ export function ClipSelectionPanel({
           fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
           padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--muted)",
         }}>
-          Para este cuello hay una pieza a medida especificada
-          (<b>{sel.manufacture.label}</b>). Mandarla a fabricar, con su STL, los
-          dossiers y el pedido, se hace en el paso <b>Fabricación</b>.
+          {/* Con un clip colocado, el servidor fija `manufacture` a esa pieza y
+              la nombra en `piece_label`, que es el título de la ficha en
+              Fabricación. Esta línea seguía hablando de «una pieza a medida
+              especificada» y se leía como otra pieza (F1-198). */}
+          {sel.manufacture.piece_label ? (
+            <>
+              Fabricación tomará el clip colocado (<b>{sel.manufacture.piece_label}</b>) como
+              pieza a medida; el STL, los dossiers y el pedido se hacen en el paso <b>Fabricación</b>.
+            </>
+          ) : (
+            <>
+              Para este cuello hay una pieza a medida especificada
+              (<b>{sel.manufacture.label}</b>). Mandarla a fabricar, con su STL, los
+              dossiers y el pedido, se hace en el paso <b>Fabricación</b>.
+            </>
+          )}
         </div>
       )}
 

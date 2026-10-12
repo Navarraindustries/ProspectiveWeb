@@ -46,44 +46,45 @@ beforeEach(() => {
     sessionId: "s", segmentation: { mesh_url: "/m.vtp" }, pickMode: null, setPickMode: vi.fn(),
     trajEntry: [0, 0, 0], trajTarget: [0, 0, 10], setTrajEntry: vi.fn(), setTrajTarget: vi.fn(),
     morphometry: { principal_axis: [0, 0, 1] },
+    setTrajectorySavedAt: vi.fn(), pickMiss: false,
   };
 });
 
 describe("TrajectoryTool", () => {
   it("con eje medido, el ángulo se dice respecto al eje del aneurisma", async () => {
     render(<TrajectoryTool />);
-    fireEvent.click(screen.getByText("Guardar trayectoria"));
+    fireEvent.click(screen.getByText("Guardar y analizar el corredor"));
     await waitFor(() => expect(setTrajectory).toHaveBeenCalled());
     expect(await screen.findByText("Ángulo respecto al eje del aneurisma")).toBeInTheDocument();
-    expect(screen.getByText("37.2°")).toBeInTheDocument();
+    expect(screen.getByText("37,2°")).toBeInTheDocument();
   });
   it("sin morfometría avisa de que la referencia es el eje vertical", async () => {
     planning.morphometry = null;
     render(<TrajectoryTool />);
-    fireEvent.click(screen.getByText("Guardar trayectoria"));
+    fireEvent.click(screen.getByText("Guardar y analizar el corredor"));
     expect(await screen.findByText(/eje vertical del estudio/)).toBeInTheDocument();
   });
 
-  // F1-247: reanudar volvía con los puntos pero sin el análisis ni «Guardada ✓».
-  it("con la trayectoria guardada que volvió al reanudar, dice «Guardada ✓» y el ángulo", () => {
+  // F1-247: reanudar volvía con los puntos pero sin el análisis ni «Corredor guardado y analizado ✓».
+  it("con la trayectoria guardada que volvió al reanudar, dice «Corredor guardado y analizado ✓» y el ángulo", () => {
     planning.trajSaved = { entry: [0, 0, 0], target: [0, 0, 10], depth_mm: 10, angle_deg: 41.5, corridor: null };
     render(<TrajectoryTool />);
-    expect(screen.getByText("Guardada ✓")).toBeInTheDocument();
-    expect(screen.getByText("41.5°")).toBeInTheDocument();
+    expect(screen.getByText("Corredor guardado y analizado ✓")).toBeInTheDocument();
+    expect(screen.getByText("41,5°")).toBeInTheDocument();
     expect(setTrajectory).not.toHaveBeenCalled();
   });
-  it("si los puntos ya no son los guardados, no dice «Guardada ✓»", () => {
+  it("si los puntos ya no son los guardados, no dice «Corredor guardado y analizado ✓»", () => {
     planning.trajSaved = { entry: [0, 0, 0], target: [0, 0, 12], depth_mm: 12, angle_deg: 41.5, corridor: null };
     render(<TrajectoryTool />);
-    expect(screen.getByText("Guardar trayectoria")).toBeInTheDocument();
-    expect(screen.queryByText("41.5°")).toBeNull();
+    expect(screen.getByText("Guardar y analizar el corredor")).toBeInTheDocument();
+    expect(screen.queryByText("41,5°")).toBeNull();
   });
   // La malla cambió después de guardar: el corredor guardado ya no vale.
-  it("con el análisis desfasado pide volver a guardar en vez de «Guardada ✓»", () => {
+  it("con el análisis desfasado pide volver a guardar en vez de «Corredor guardado y analizado ✓»", () => {
     planning.trajSaved = { entry: [0, 0, 0], target: [0, 0, 10], depth_mm: 10, angle_deg: 41.5, corridor: null, stale: true };
     render(<TrajectoryTool />);
-    expect(screen.getByText("Vuelve a guardar la trayectoria")).toBeInTheDocument();
-    expect(screen.queryByText("Guardada ✓")).toBeNull();
+    expect(screen.getByText("Vuelve a guardar y analizar")).toBeInTheDocument();
+    expect(screen.queryByText("Corredor guardado y analizado ✓")).toBeNull();
   });
 });
 
@@ -130,7 +131,7 @@ describe("«Limpiar» la trayectoria", () => {
     expect(screen.getByRole("alertdialog", { name: "¿Limpiar la trayectoria guardada?" })).toBeInTheDocument();
     expect(clearTrajectory).not.toHaveBeenCalled();
     expect(planning.setTrajEntry).not.toHaveBeenCalled();
-    expect(screen.getByText("Guardada ✓")).toBeInTheDocument();
+    expect(screen.getByText("Corredor guardado y analizado ✓")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Limpiar trayectoria" }));
     await waitFor(() => expect(clearTrajectory).toHaveBeenCalledWith("s"));
@@ -142,5 +143,39 @@ describe("«Limpiar» la trayectoria", () => {
     fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     await waitFor(() => expect(clearTrajectory).toHaveBeenCalledWith("s"));
+  });
+});
+
+/* Filas F1-185/186/187/193 del paso Dispositivos. */
+describe("TrajectoryTool · rótulos del abordaje", () => {
+  it("«Entrada» explica dónde pinchar (F1-185)", () => {
+    render(<TrajectoryTool />);
+    expect(screen.getByRole("button", { name: "Entrada" })).toHaveAttribute(
+      "title", "Pincha sobre un vaso en la dirección por la que entrarías");
+  });
+  it("clic fuera de la malla muestra el aviso mientras se marca (F1-185)", () => {
+    planning.pickMode = "traj_entry";
+    planning.pickMiss = true;
+    render(<TrajectoryTool />);
+    expect(screen.getByText("El clic cayó fuera de la malla: pincha sobre un vaso")).toBeInTheDocument();
+  });
+  it("sin marcar, un clic perdido de otra herramienta no se dice aquí", () => {
+    planning.pickMode = "neck_rim";
+    planning.pickMiss = true;
+    render(<TrajectoryTool />);
+    expect(screen.queryByText(/El clic cayó fuera de la malla/)).toBeNull();
+  });
+  it("dice «Distancia entrada–diana» con coma decimal (F1-186)", () => {
+    planning.trajTarget = [0, 0, 14.7];
+    render(<TrajectoryTool />);
+    expect(screen.getByText(/Distancia entrada–diana/)).toBeInTheDocument();
+    expect(screen.getByText("14,7 mm")).toBeInTheDocument();
+    expect(screen.queryByText(/Profundidad de abordaje/)).toBeNull();
+  });
+  it("guardar anota cuándo se analizó el corredor para relanzar la selección (F1-187, F1-193)", async () => {
+    render(<TrajectoryTool />);
+    fireEvent.click(screen.getByRole("button", { name: "Guardar y analizar el corredor" }));
+    expect(await screen.findByText("Corredor guardado y analizado ✓")).toBeInTheDocument();
+    expect(planning.setTrajectorySavedAt).toHaveBeenCalledTimes(1);
   });
 });

@@ -5,7 +5,7 @@
    «Nuevo estudio», «Pedidos» y «Reanudar en …». Ahora solo queda el aviso. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const listPatients = vi.fn();
@@ -96,5 +96,41 @@ describe("la lista de «Pacientes»", () => {
     renderAt("/app/pacientes");
     await screen.findByText(/registros/);
     expect(screen.queryByText("Ves los pacientes que creaste")).toBeNull();
+  });
+});
+
+describe("con el API fallando (F1-2, F1-29)", () => {
+  it("la lista muestra el error y no «0 registros» ni el vacío; «Reintentar» vuelve a llamar", async () => {
+    listPatients.mockRejectedValueOnce(new ApiError(0, "Sin conexión con el servidor"));
+    renderAt("/app/pacientes");
+
+    expect(await screen.findByText("Sin conexión con el servidor")).toBeTruthy();
+    expect(screen.queryByText(/No hay pacientes registrados/)).toBeNull();
+    expect(screen.queryByText(/0 registros/)).toBeNull();
+
+    listPatients.mockResolvedValueOnce([{
+      id: 7, full_name: "Restrepo, María", hospital_id: "HC-7", sex: "F", dob: "",
+      institution: "", study_count: 0, created_at: "2026-10-01T00:00:00Z",
+    }]);
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByText("Restrepo, María")).toBeTruthy();
+    expect(listPatients).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Sin conexión con el servidor")).toBeNull();
+  });
+
+  it("la ficha que no carga no dibuja el formulario en blanco; «Reintentar» vuelve a pedirla", async () => {
+    getPatient.mockRejectedValueOnce(new ApiError(500, "La base de datos está bloqueada"));
+    patientSessions.mockResolvedValue([]);
+    patientStudies.mockResolvedValue([]);
+    renderAt("/app/pacientes?paciente=2");
+
+    expect(await screen.findByText("La base de datos está bloqueada")).toBeTruthy();
+    expect(screen.queryByText("Guardar cambios")).toBeNull();
+    expect(screen.queryByLabelText("Apellidos")).toBeNull();
+
+    getPatient.mockResolvedValueOnce({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F" });
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByText("Guardar cambios")).toBeTruthy();
+    expect(getPatient).toHaveBeenCalledTimes(2);
   });
 });

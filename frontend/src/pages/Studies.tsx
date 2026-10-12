@@ -13,7 +13,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Topbar } from "../components/Topbar";
-import { ErrorNote } from "../components/PanelHead";
+import { LoadState, loadErrorText } from "../components/LoadState";
 
 import { STEP_LABELS } from "../pipeline/steps";
 
@@ -77,6 +77,7 @@ export function StudyGallery({
   const [studies, setStudies] = useState<StudyCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [q, setQ] = useState("");
 
   // The search goes to the server (debounced). Filtering only on the client
@@ -86,13 +87,16 @@ export function StudyGallery({
     let alive = true;
     const t = setTimeout(() => {
       setLoading(true);
+      setError(null);
       api.listStudies(q.trim(), patientId, caseId)
         .then((s) => { if (alive) setStudies(s); })
-        .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Error cargando estudios"); })
+        // F1-75: el error salía encima del texto de vacío («Aún no hay estudios
+        // archivados»), y el vacío ganaba; ahora el error ocupa su sitio.
+        .catch((e) => { if (alive) setError(loadErrorText(e)); })
         .finally(() => { if (alive) setLoading(false); });
     }, q.trim() ? 280 : 0);
     return () => { alive = false; clearTimeout(t); };
-  }, [patientId, caseId, q]);
+  }, [patientId, caseId, q, attempt]);
 
   const rows = studies;
 
@@ -108,10 +112,10 @@ export function StudyGallery({
         </div>
       )}
 
-      <ErrorNote>{error}</ErrorNote>
-
       {loading ? (
         <div style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cargando estudios…</div>
+      ) : error ? (
+        <LoadState state="error" mensaje={error} onRetry={() => setAttempt((n) => n + 1)} />
       ) : rows.length === 0 ? (
         <div style={{ color: "var(--muted-foreground)", fontSize: compact ? 11 : 13, padding: compact ? "6px 0" : "24px 0", textAlign: compact ? "left" : "center" }}>
           {q.trim()

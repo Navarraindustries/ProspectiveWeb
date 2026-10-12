@@ -118,3 +118,18 @@ describe("who may delete", () => {
     expect(deleteWorkshop).not.toHaveBeenCalled();
   });
 });
+
+describe("con el API fallando (F1-104)", () => {
+  it("muestra el error sin «Todavía no hay talleres…» y «Reintentar» vuelve a llamar", async () => {
+    listWorkshops.mockRejectedValueOnce(Object.assign(new Error("Error 500"), { status: 500, fromServer: false }));
+    render(<WorkshopsPage />);
+
+    expect(await screen.findByText("No se pudo leer el directorio: El servidor no responde")).toBeTruthy();
+    expect(screen.queryByText(/Todavía no hay talleres/)).toBeNull();
+
+    listWorkshops.mockResolvedValueOnce([shop()]);
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByText("Taller Mecánico Sur")).toBeTruthy();
+    expect(listWorkshops).toHaveBeenCalledTimes(2);
+  });
+});

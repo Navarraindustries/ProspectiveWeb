@@ -14,6 +14,7 @@ import { Select } from "../components/Select";
 import { Sheet } from "../components/Sheet";
 import { Topbar } from "../components/Topbar";
 import { ErrorNote } from "../components/PanelHead";
+import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 import { AdminOnlyCard } from "../components/AdminOnly";
 
@@ -202,7 +203,9 @@ function UsersAdminPage({ onBack }: { onBack: () => void }) {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<UserAdminInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  // El fallo de borrar va en su nota; el de cargar sustituye a la tabla.
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [editUser, setEditUser] = useState<UserAdminInfo | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -236,10 +239,13 @@ function UsersAdminPage({ onBack }: { onBack: () => void }) {
 
   const load = () => {
     setLoading(true);
+    setLoadError(null);
     api
       .listUsers()
       .then(setUsers)
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando usuarios"))
+      // F1-88: el error salía junto a «No hay usuarios que coincidan con la
+      // búsqueda» y «0 usuarios», como si la búsqueda no encontrara a nadie.
+      .catch((e) => setLoadError(loadErrorText(e)))
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -287,7 +293,7 @@ function UsersAdminPage({ onBack }: { onBack: () => void }) {
                 Gestión de usuarios
               </div>
               <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
-                {loading ? "Cargando…" : `${rows.length} usuario${rows.length === 1 ? "" : "s"}`}
+                {loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${rows.length} usuario${rows.length === 1 ? "" : "s"}`}
               </div>
             </div>
             <div style={{ flex: 1 }} />
@@ -312,14 +318,18 @@ function UsersAdminPage({ onBack }: { onBack: () => void }) {
                 </tr>
               </thead>
               <tbody>
-                {!loading && rows.length === 0 && (
+                {(loadError || (loading && users.length === 0) || (!loading && rows.length === 0)) && (
                   <tr>
-                    <td colSpan={6} style={{ padding: "28px 16px", textAlign: "center", color: "var(--muted-foreground)" }}>
-                      No hay usuarios que coincidan con la búsqueda.
+                    <td colSpan={6}>
+                      <LoadState
+                        state={loadError ? "error" : loading ? "cargando" : "vacio"}
+                        mensaje={loadError ?? "No hay usuarios que coincidan con la búsqueda."}
+                        onRetry={load}
+                      />
                     </td>
                   </tr>
                 )}
-                {rows.map((u, i) => {
+                {!loadError && rows.map((u, i) => {
                   const isMe = me?.id === u.id;
                   return (
                     <tr key={u.id} style={{ borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : "none" }}>

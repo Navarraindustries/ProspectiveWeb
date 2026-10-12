@@ -9,6 +9,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Topbar } from "../components/Topbar";
 import { ErrorNote, Card } from "../components/PanelHead";
+import { LoadState, loadErrorText } from "../components/LoadState";
 
 /** Avatar that loads the pending user's uploaded photo (auth'd blob) or falls
  *  back to initials. */
@@ -20,6 +21,7 @@ function PendingAvatar({ user }: { user: PendingUser }) {
     let alive = true;
     api.pendingPhotoObjectUrl(user.id)
       .then((u) => { if (alive) { created = u; setUrl(u); } else URL.revokeObjectURL(u); })
+      // Sin foto quedan las iniciales: la solicitud se puede revisar igual.
       .catch(() => {});
     return () => { alive = false; if (created) URL.revokeObjectURL(created); };
   }, [user.id, user.has_photo]);
@@ -34,15 +36,21 @@ function PendingAvatar({ user }: { user: PendingUser }) {
 export function PendingRequests({ onBack }: { onBack: () => void }) {
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
+  // El fallo de aprobar o rechazar va en su nota; el de cargar sustituye a la lista.
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const load = () => {
     setLoading(true);
+    setLoadError(null);
     api
       .listPending()
       .then(setPending)
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando solicitudes"))
+      // F1-92: con el servidor caído salían la marca verde y «No hay
+      // solicitudes pendientes»: el administrador creía no tener nada que
+      // revisar y la persona que pidió cuenta seguía esperando.
+      .catch((e) => setLoadError(loadErrorText(e)))
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -77,7 +85,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
                 Solicitudes de registro
               </div>
               <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
-                {loading ? "Cargando…" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`}
+                {loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`}
               </div>
             </div>
             <div style={{ flex: 1 }} />
@@ -88,7 +96,13 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
 
           <ErrorNote>{error}</ErrorNote>
 
-          {!loading && pending.length === 0 && (
+          {loadError && (
+            <Card style={{ padding: "8px 20px" }}>
+              <LoadState state="error" mensaje={loadError} onRetry={load} />
+            </Card>
+          )}
+
+          {!loading && !loadError && pending.length === 0 && (
             <Card style={{ padding: "28px 20px", textAlign: "center" }}>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 8, color: "var(--muted-foreground)" }}>
                 <Icon name="STATUS_OK" size={26} />
@@ -100,7 +114,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {pending.map((u) => (
+            {!loadError && pending.map((u) => (
               <Card key={u.id} style={{ padding: "18px 20px" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
                   <PendingAvatar user={u} />

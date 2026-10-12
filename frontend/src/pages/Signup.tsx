@@ -6,7 +6,8 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
-import { api, ApiError } from "../api/client";
+import { api } from "../api/client";
+import { serverErrorText } from "../api/errorText";
 import { Button } from "../components/Button";
 import { FileField } from "../components/FileField";
 import { Input } from "../components/Input";
@@ -83,7 +84,10 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
       }, photo, cv);
       onDone(res.message);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo enviar la solicitud. ¿Está el backend en marcha?");
+      // F1-50: el mismo aviso de falta de conexión que «Entrar», sin «backend»;
+      // con el ApiError 0 del cliente se enseñaba «Sin conexión con el servidor»
+      // y con el 500 vacío del proxy, «Error 500».
+      setError(serverErrorText(err));
     } finally {
       setBusy(false);
     }

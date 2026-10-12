@@ -6,7 +6,7 @@
    es lo único que distingue esta pantalla de un listado cualquiera. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listClipOrders = vi.fn();
 const clipOrdersSummary = vi.fn();
@@ -215,5 +215,22 @@ describe("cómo se nombra la pieza en la lista", () => {
     const text = rows().map((r) => r.textContent).join(" | ");
     expect(text).toContain("T1 Recto");
     expect(text).toContain("T3 Angulado 60°");
+  });
+});
+
+describe("con el API fallando (F1-99)", () => {
+  it("muestra el error sin el texto de vacío y «Reintentar» vuelve a llamar", async () => {
+    listClipOrders.mockRejectedValueOnce(Object.assign(new Error("Sin conexión con el servidor"),
+      { status: 0, fromServer: false }));
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-0009" })]);
+    render(<ClipOrdersPage />);
+
+    expect(await screen.findByText("No se pudo leer el registro: Sin conexión con el servidor")).toBeTruthy();
+    expect(screen.queryByText(/No hay pedidos que encajen/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0]).toHaveTextContent("PR-0009");
+    expect(listClipOrders).toHaveBeenCalledTimes(2);
   });
 });

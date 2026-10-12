@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { api } from "../api/client";
+import { serverErrorText } from "../api/errorText";
 import { useAuth } from "../store/auth";
 import { Button } from "./Button";
 import { Input } from "./Input";
@@ -35,7 +36,9 @@ export function ForcePasswordChange() {
       await api.changePassword(current, next);
       await refreshUser();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cambiar la contraseña");
+      // F1-51: aquí llegaban «Failed to fetch» y «Error 500» tal cual; ahora
+      // dicen lo mismo que «Entrar» cuando el servidor no contesta o no explica.
+      setError(serverErrorText(e));
     } finally {
       setBusy(false);
     }

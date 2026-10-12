@@ -10,6 +10,7 @@ import { Icon } from "../components/Icon";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../store/auth";
 import { ApiError } from "../api/client";
+import { serverErrorText } from "../api/errorText";
 
 /** Qué decirle a quien no pudo entrar.
  *
@@ -19,16 +20,15 @@ import { ApiError } from "../api/client";
  *  falló): antes se enseñaba para cualquier código que no fuera 401 o 403, y
  *  decía «¿está el backend en marcha?» de un backend que acababa de contestar.
  *  Cuando el cuerpo no traía detalle, `ApiError.message` es «Error NNN»; eso
- *  no le dice nada a un médico, así que se reescribe. */
+ *  no le dice nada a un médico, así que se reescribe.
+ *
+ *  F1-41: sin respuesta (sin red, el límite, o el 500 vacío del proxy con el
+ *  backend caído) el aviso ya no habla de «backend»: dice que el servidor no
+ *  responde y a quién avisar. Desde la Tarea 6 el cliente lanza ApiError 0
+ *  en vez de TypeError, así que la clase sola ya no distingue el caso. */
 export function loginErrorMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) {
-    return "No se pudo conectar con el servidor. ¿Está el backend en marcha?";
-  }
-  if (err.status === 401) return "Credenciales incorrectas";
-  if (/^Error \d+$/.test(err.message)) {
-    return `El servidor respondió con el error ${err.status} y sin más detalle. Inténtalo de nuevo en unos minutos.`;
-  }
-  return err.message;
+  if (err instanceof ApiError && err.status === 401) return "Credenciales incorrectas";
+  return serverErrorText(err);
 }
 
 export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSignup: () => void; notice?: string | null }) {

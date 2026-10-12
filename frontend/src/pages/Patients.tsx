@@ -17,6 +17,7 @@ import { Sheet } from "../components/Sheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Topbar } from "../components/Topbar";
 import { ErrorNote, Card } from "../components/PanelHead";
+import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 import { useNav } from "../store/nav";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
@@ -59,6 +60,13 @@ function PatientSheet({
   const [error, setError] = useState<string | null>(null);
   // El detalle del 403 cuando el paciente es de otro profesional.
   const [denied, setDenied] = useState<string | null>(null);
+  // Un fallo al leer la ficha (no un 403). Antes caía en el formulario en
+  // blanco con «Guardar cambios», y guardarlo vaciaba al paciente.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  // La lista de estudios recargada tras crear o borrar uno: si fallaba, la
+  // lista se quedaba como estaba sin decir nada.
+  const [studiesError, setStudiesError] = useState<string | null>(null);
   const [form, setForm] = useState({ ...BLANK });
   const [sessions, setSessions] = useState<PatientSessionInfo[]>([]);
   const [studies, setStudies] = useState<StudySummary[]>([]);
@@ -68,7 +76,11 @@ function PatientSheet({
   const [delBusy, setDelBusy] = useState(false);
 
   const reloadStudies = () => {
-    if (patientId !== null) api.patientStudies(patientId).then(setStudies).catch(() => {});
+    if (patientId === null) return;
+    setStudiesError(null);
+    api.patientStudies(patientId)
+      .then(setStudies)
+      .catch((e) => setStudiesError(loadErrorText(e)));
   };
 
   // Load the full record + studies + past sessions when opening in edit mode.
@@ -76,6 +88,8 @@ function PatientSheet({
     if (!open) return;
     setError(null);
     setDenied(null);
+    setLoadError(null);
+    setStudiesError(null);
     if (patientId === null) {
       setForm({ ...BLANK });
       setSessions([]);
@@ -104,10 +118,10 @@ function PatientSheet({
         // «Nuevo estudio» y «Pedidos» sobre un paciente que no es suyo. Ahora
         // la ficha solo muestra el motivo que da el servidor.
         if (e instanceof ApiError && e.status === 403) setDenied(e.message);
-        else setError(e instanceof Error ? e.message : "Error cargando el paciente");
+        else setLoadError(loadErrorText(e));
       })
       .finally(() => setLoading(false));
-  }, [open, patientId]);
+  }, [open, patientId, attempt]);
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -132,11 +146,14 @@ function PatientSheet({
     <>
     <Sheet open={open} onClose={onClose} title={editing ? "Editar paciente" : "Nuevo paciente"} width={480}>
       {loading ? (
-        <div style={{ fontSize: 13, color: "var(--muted-foreground)", padding: "20px 0" }}>Cargando…</div>
+        <LoadState state="cargando" />
       ) : denied ? (
+        // El 403 no se reintenta: el paciente es de otro profesional.
         <div role="alert">
           <ErrorNote>{denied}</ErrorNote>
         </div>
+      ) : loadError ? (
+        <LoadState state="error" mensaje={loadError} onRetry={() => setAttempt((n) => n + 1)} />
       ) : (
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -186,7 +203,10 @@ function PatientSheet({
                   <Icon name="STEP_PLAN" size={12} /> Nuevo estudio
                 </button>
               </div>
-              {studies.length === 0 && (
+              {studiesError && (
+                <LoadState state="error" mensaje={studiesError} onRetry={reloadStudies} />
+              )}
+              {!studiesError && studies.length === 0 && (
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 4 }}>
                   Aún no hay casos/estudios. Añade uno con "Nuevo estudio".
                 </div>
@@ -397,7 +417,10 @@ export function Patients({
 }) {
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  // El fallo de la acción (borrar) va aparte del de la carga: este último
+  // sustituye a la lista, y con él no hay contadores ni «0 registros».
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sheetPatientId, setSheetPatientId] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [caseSheet, setCaseSheet] = useState(false);
@@ -416,10 +439,14 @@ export function Patients({
 
   const load = () => {
     setLoading(true);
+    setLoadError(null);
     api
       .listPatients()
       .then(setPatients)
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando pacientes"))
+      // F1-2, F1-29: con el servidor caído la lista quedaba vacía y decía
+      // «0 registros» y «No hay pacientes registrados»; quien lo veía creía
+      // haber perdido a sus pacientes.
+      .catch((e) => setLoadError(loadErrorText(e)))
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -489,7 +516,7 @@ export function Patients({
                 Pacientes
               </div>
               <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
-                {loading ? "Cargando…" : `${rows.length} registros · ordenados por fecha de creación`}
+                {loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${rows.length} registros · ordenados por fecha de creación`}
               </div>
               {!isAdmin && (
                 // Un Médico solo ve los pacientes que creó; sin esta línea, una
@@ -543,7 +570,7 @@ export function Patients({
                   </span>
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 800, color: "var(--foreground)", marginTop: 6, fontFamily: "var(--font-mono)" }}>
-                  {loading ? "—" : t.v}
+                  {loading || loadError ? "—" : t.v}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t.s}</div>
               </Card>
@@ -567,16 +594,20 @@ export function Patients({
                 </tr>
               </thead>
               <tbody>
-                {!loading && rows.length === 0 && (
+                {(loadError || (loading && patients.length === 0) || (!loading && rows.length === 0)) && (
                   <tr>
-                    <td colSpan={7} style={{ padding: "28px 16px", textAlign: "center", color: "var(--muted-foreground)" }}>
-                      {patients.length === 0
-                        ? "No hay pacientes registrados. Crea el primero para comenzar."
-                        : "Ningún paciente coincide con la búsqueda."}
+                    <td colSpan={7}>
+                      <LoadState
+                        state={loadError ? "error" : loading ? "cargando" : "vacio"}
+                        mensaje={loadError ?? (patients.length === 0
+                          ? "No hay pacientes registrados. Crea el primero para comenzar."
+                          : "Ningún paciente coincide con la búsqueda.")}
+                        onRetry={load}
+                      />
                     </td>
                   </tr>
                 )}
-                {rows.map((p, i) => (
+                {!loadError && rows.map((p, i) => (
                   <tr
                     key={p.id}
                     onClick={() => onOpenPatient(p)}

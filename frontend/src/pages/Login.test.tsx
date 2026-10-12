@@ -26,7 +26,8 @@ vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
 import { Login } from "./Login";
 
-const CONNECTIVITY = /¿Está el backend en marcha\?/;
+// F1-41: el aviso de conexión ya no habla de «backend».
+const CONNECTIVITY = "El servidor no responde. Avisa al responsable de la instalación.";
 
 async function attempt(failure: unknown): Promise<void> {
   login.mockRejectedValueOnce(failure);
@@ -67,5 +68,19 @@ describe("el aviso bajo la contraseña", () => {
   it("solo habla de conexión cuando de verdad no hubo respuesta", async () => {
     await attempt(new TypeError("Failed to fetch"));
     expect(await screen.findByText(CONNECTIVITY)).toBeInTheDocument();
+    expect(screen.queryByText(/backend/)).toBeNull();
+  });
+
+  it("el fallo de red del cliente (ApiError 0) da el texto nuevo, sin «backend»", async () => {
+    // Desde la Tarea 6 el cliente lanza ApiError(0) y no TypeError: antes de
+    // este arreglo se veía «Sin conexión con el servidor» a secas.
+    await attempt(new ApiError(0, "Sin conexión con el servidor"));
+    expect(await screen.findByText(CONNECTIVITY)).toBeInTheDocument();
+  });
+
+  it("el 500 vacío del proxy con el servidor caído tampoco es «el servidor respondió»", async () => {
+    await attempt(Object.assign(new ApiError(500, "Error 500"), { fromServer: false }));
+    expect(await screen.findByText(CONNECTIVITY)).toBeInTheDocument();
+    expect(screen.queryByText(/respondió/)).toBeNull();
   });
 });

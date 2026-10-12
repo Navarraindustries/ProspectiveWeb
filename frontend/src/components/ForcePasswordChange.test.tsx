@@ -46,3 +46,29 @@ describe("cambio obligatorio de la contraseña inicial", () => {
     expect(logout).toHaveBeenCalled();
   });
 });
+
+describe("errores del servidor en el cambio (F1-51)", () => {
+  const rellenarYEnviar = () => {
+    escribir("Contraseña actual", "admin123");
+    escribir(/Nueva contraseña/, "una-mucho-mejor");
+    escribir("Repite la nueva contraseña", "una-mucho-mejor");
+    fireEvent.click(screen.getByText("Cambiar contraseña y continuar").closest("button")!);
+  };
+
+  it("un fallo de red se dice en castellano, no «Failed to fetch»", async () => {
+    vi.mocked(api.changePassword).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<ForcePasswordChange />);
+    rellenarYEnviar();
+    expect(await screen.findByText("El servidor no responde. Avisa al responsable de la instalación.")).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).toBeNull();
+  });
+
+  it("un 500 sin detalle se dice en castellano, no «Error 500»", async () => {
+    vi.mocked(api.changePassword).mockRejectedValueOnce(
+      Object.assign(new Error("Error 500"), { status: 500, fromServer: true }));
+    render(<ForcePasswordChange />);
+    rellenarYEnviar();
+    expect(await screen.findByText(/El servidor respondió con el error 500 y sin más detalle/)).toBeInTheDocument();
+    expect(screen.queryByText("Error 500")).toBeNull();
+  });
+});

@@ -12,6 +12,7 @@ import { Select } from "../components/Select";
 import { Topbar } from "../components/Topbar";
 import { PanelHead, SectionLabel, Card, ErrorNote } from "../components/PanelHead";
 import { AdminOnlyCard } from "../components/AdminOnly";
+import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 
 /** Rows added per «Mostrar más». The chain is append-only and unbounded. */
@@ -30,6 +31,11 @@ function AuditTrailPage({ onBack }: { onBack: () => void }) {
   const [verify, setVerify] = useState<AuditVerifyResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // F1-103: sin estado de carga ni de error, la tabla decía «La cadena está
+  // vacía.» mientras cargaba y cuando el servidor fallaba; una cadena de
+  // auditoría vacía es una alarma, no un estado normal.
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // The chain only grows, so rendering every block put thousands of rows in one
   // table with no way to find anything in them.
   const [q, setQ] = useState("");
@@ -37,7 +43,12 @@ function AuditTrailPage({ onBack }: { onBack: () => void }) {
   const [shown, setShown] = useState(PAGE);
 
   const load = () => {
-    api.auditBlocks().then(setBlocks).catch((e) => setError(e instanceof Error ? e.message : "Error"));
+    setLoading(true);
+    setLoadError(null);
+    api.auditBlocks()
+      .then(setBlocks)
+      .catch((e) => setLoadError(`No se pudo leer la cadena: ${loadErrorText(e)}`))
+      .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
@@ -150,7 +161,7 @@ function AuditTrailPage({ onBack }: { onBack: () => void }) {
               </tr>
             </thead>
             <tbody>
-              {page.map((b) => (
+              {!loadError && page.map((b) => (
                 <tr key={b.id} style={{ borderTop: "1px solid var(--border)" }}>
                   <td style={{ padding: "6px 8px", fontFamily: "var(--font-mono)" }}>{b.id}</td>
                   <td style={{ padding: "6px 8px", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{b.iso_ts}</td>
@@ -165,13 +176,17 @@ function AuditTrailPage({ onBack }: { onBack: () => void }) {
           </table>
         </div>
 
-        {rows.length === 0 && (
+        {loadError ? (
+          <LoadState state="error" mensaje={loadError} onRetry={load} />
+        ) : loading && blocks.length === 0 ? (
+          <LoadState state="cargando" />
+        ) : rows.length === 0 && (
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "18px 0", textAlign: "center" }}>
             {blocks.length === 0 ? "La cadena está vacía." : "Ningún bloque coincide con el filtro."}
           </div>
         )}
 
-        {page.length < ordered.length && (
+        {!loadError && page.length < ordered.length && (
           <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
             <Button variant="outline" size="sm" onClick={() => setShown((n) => n + PAGE)}>
               Mostrar {Math.min(PAGE, ordered.length - page.length)} más

@@ -23,6 +23,7 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
 import { Topbar } from "../components/Topbar";
+import { LoadState, loadErrorText } from "../components/LoadState";
 import { shapeLabel } from "../components/planning/clipShape";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
@@ -306,6 +307,7 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
 
   const load = useCallback(() => {
     setLoading(true);
+    setError("");
     Promise.all([
       api.listClipOrders({
         status: status === ALL ? undefined : status,
@@ -321,7 +323,9 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
         setLabels(sum.labels);
         setError("");
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo leer el registro"))
+      // F1-99: el error salía encima de «No hay pedidos que encajen con este
+      // filtro», y quien lo leía buscaba el fallo en el filtro, no en el servidor.
+      .catch((e) => setError(`No se pudo leer el registro: ${loadErrorText(e)}`))
       .finally(() => setLoading(false));
   }, [status, q, openOnly, patientFilter?.id]);
 
@@ -399,14 +403,17 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
           </div>
         )}
 
-        <ErrorNote>{error}</ErrorNote>
-
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
           <div style={{ flex: 1, minWidth: 0, overflowX: "auto" }}>
-            {loading && orders.length === 0 && (
+            {error && (
+              <Card>
+                <LoadState state="error" mensaje={error} onRetry={load} />
+              </Card>
+            )}
+            {!error && loading && orders.length === 0 && (
               <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Leyendo el registro…</div>
             )}
-            {!loading && sorted.length === 0 && (
+            {!error && !loading && sorted.length === 0 && (
               <Card>
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
                   No hay pedidos que encajen con este filtro. Los pedidos se crean en el
@@ -414,7 +421,7 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
                 </div>
               </Card>
             )}
-            {sorted.length > 0 && (
+            {!error && sorted.length > 0 && (
               <Card style={{ padding: "14px 16px 4px" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>

@@ -26,6 +26,7 @@ import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
 import { Topbar } from "../components/Topbar";
+import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 
 const BLANK: WorkshopIn = {
@@ -136,16 +137,21 @@ export function WorkshopsPage() {
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
+  // El fallo de borrar va en su nota; el de leer sustituye al directorio.
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Workshop | null>(null);
   const [toDelete, setToDelete] = useState<Workshop | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
+    setLoadError("");
     api.listWorkshops()
       .then((w) => { setWorkshops(w); setError(""); })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo leer el directorio"))
+      // F1-104: el error salía encima de «Todavía no hay talleres…», que
+      // invitaba a dar de alta otra vez talleres que ya estaban registrados.
+      .catch((e) => setLoadError(`No se pudo leer el directorio: ${loadErrorText(e)}`))
       .finally(() => setLoading(false));
   }, []);
 
@@ -182,11 +188,17 @@ export function WorkshopsPage() {
 
         <ErrorNote>{error}</ErrorNote>
 
-        {loading && workshops.length === 0 && (
+        {loadError && (
+          <Card>
+            <LoadState state="error" mensaje={loadError} onRetry={load} />
+          </Card>
+        )}
+
+        {!loadError && loading && workshops.length === 0 && (
           <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Leyendo el directorio…</div>
         )}
 
-        {!loading && workshops.length === 0 && (
+        {!loadError && !loading && workshops.length === 0 && (
           <Card>
             <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
               Todavía no hay talleres. Registra aquí los del convenio y aparecerán en el
@@ -196,7 +208,7 @@ export function WorkshopsPage() {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {workshops.map((w) => (
+          {!loadError && workshops.map((w) => (
             <Card key={w.id}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>

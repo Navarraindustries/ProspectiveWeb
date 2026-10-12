@@ -2,6 +2,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { render } from "@testing-library/react";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { matchShortcut, RESERVED_KEYS, SHORTCUTS, shortcutsByScope } from "./shortcuts";
 const ev = (p: Partial<{ key: string; code: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }>) => ({ key: "", code: "", altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...p });
 describe("tabla de atajos", () => {
@@ -117,4 +120,22 @@ it("resuelve R, A, G, T, Supr y Retroceso", () => {
   const input = document.createElement("input");
   expect(matchShortcut(ev({ key: "r", code: "KeyR" }), input)).toBeNull();
   expect(matchShortcut(ev({ key: "Backspace", code: "Backspace" }), input)).toBeNull();
+});
+
+/* Con un diálogo de confirmación delante, ningún atajo llega al flujo ni al
+   visor: un segundo Supr apilaba otra pregunta, y P, el espacio o los dígitos
+   cambiaban la pantalla tapada. */
+it("con un ConfirmDialog abierto no resuelve Supr, P, espacio ni dígitos", () => {
+  const supr = ev({ key: "Delete", code: "Delete" });
+  const p = ev({ key: "p", code: "KeyP" });
+  const espacio = ev({ key: " ", code: "Space" });
+  const dos = ev({ key: "2", code: "Digit2" });
+  expect(matchShortcut(supr, null)).toBe("anot-borrar");
+  const { unmount } = render(createElement(ConfirmDialog, {
+    open: true, title: "¿Borrar la anotación?", confirmLabel: "Borrar anotación", destructive: true,
+    onCancel: () => {}, onConfirm: () => {}, children: "cuerpo",
+  }));
+  for (const e of [supr, p, espacio, dos, ev({ key: "r", code: "KeyR" })]) expect(matchShortcut(e, document.body)).toBeNull();
+  unmount();
+  expect(matchShortcut(p, null)).toBe("panel-toggle");
 });

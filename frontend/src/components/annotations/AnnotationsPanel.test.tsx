@@ -134,6 +134,29 @@ describe("AnnotationsPanel", () => {
     expect(fila).toHaveFocus();
   });
 
+  it("un segundo Supr con la pregunta abierta no apila otra", async () => {
+    montar([regla]);
+    const fila = (await screen.findByText("R1")).closest("[data-annotation]") as HTMLElement;
+    fireEvent.click(fila);
+    await waitFor(() => expect(visto?.selectedAnnotation).toBe("a1"));
+    fireEvent.keyDown(fila, { key: "Delete" });
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Borrar la anotación?" });
+    // El segundo Supr cae en el diálogo (tiene el foco) y el visor no lo recibe.
+    const vistos: string[] = [];
+    const on = (e: Event) => vistos.push(String((e as CustomEvent).detail));
+    window.addEventListener("viewer:shortcut", on);
+    fireEvent.keyDown(dialogo, { key: "Delete" });
+    // Ni por la fila ni por el botón de la fila se abre una segunda pregunta.
+    fireEvent.keyDown(fila, { key: "Delete" });
+    fireEvent.click(screen.getByTitle("Borrar (Supr)"));
+    window.removeEventListener("viewer:shortcut", on);
+    expect(vistos).toEqual([]);
+    expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(visto?.annotations.map((a) => a.id)).toEqual(["a1"]);
+  });
+
   it("«Borrar (Supr)» abre la confirmación y solo confirmar borra la fila", async () => {
     montar([regla]);
     fireEvent.click(await screen.findByTitle("Borrar (Supr)"));

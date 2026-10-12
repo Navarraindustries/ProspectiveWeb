@@ -11,6 +11,7 @@
      (necesitan saber qué celda tiene el foco); aquí se listan para la hoja. */
 import { isTextEntryTarget } from "./layoutShortcuts";
 import { PAGE_STEP } from "./cine";
+import { isConfirmDialogOpen } from "../components/ConfirmDialog";
 
 export type ShortcutScope = "visor" | "celda" | "flujo";
 export interface Shortcut { id: string; keys: string; action: string; scope: ShortcutScope }
@@ -74,6 +75,10 @@ export function matchShortcut(
   target: EventTarget | null,
 ): string | null {
   if (isTextEntryTarget(target)) return null;
+  // Con un diálogo de confirmación delante, lo de detrás no atiende teclas: un
+  // segundo Supr apilaba otra pregunta de borrar, y P o los dígitos cambiaban
+  // la pantalla tapada. Escape e Intro ya se los queda el diálogo.
+  if (isConfirmDialogOpen()) return null;
   // Ctrl/Cmd son del navegador y del sistema (copiar, guardar, recargar).
   if (e.ctrlKey || e.metaKey) return null;
   if (e.key === "Escape") return "escape";

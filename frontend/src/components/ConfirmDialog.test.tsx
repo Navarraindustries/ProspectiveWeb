@@ -7,7 +7,7 @@
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog, isConfirmDialogOpen } from "./ConfirmDialog";
 import { Sheet } from "./Sheet";
 
 describe("ConfirmDialog con el teclado", () => {
@@ -34,6 +34,78 @@ describe("ConfirmDialog con el teclado", () => {
     );
     fireEvent.keyDown(document, { key: "Enter" });
     expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  /* Intro sobre un botón con foco pulsa ese botón. Antes Intro confirmaba
+     siempre: con el foco en «Cancelar» firmaba el pedido o daba «sin
+     aneurisma», y sobre el botón de borrar no hacía nada. */
+  for (const destructive of [false, true]) {
+    it(`Intro con el foco en «Cancelar» cancela (${destructive ? "borrado" : "no destructivo"})`, () => {
+      const onConfirm = vi.fn();
+      const onCancel = vi.fn();
+      render(
+        <ConfirmDialog open title="¿Firmar el pedido?" destructive={destructive} confirmLabel="Firmar"
+                       onCancel={onCancel} onConfirm={onConfirm}>
+          cuerpo
+        </ConfirmDialog>,
+      );
+      const cancelar = screen.getByRole("button", { name: "Cancelar" });
+      cancelar.focus();
+      fireEvent.keyDown(cancelar, { key: "Enter" });
+      expect(onCancel).toHaveBeenCalledTimes(1);
+      expect(onConfirm).not.toHaveBeenCalled();
+    });
+  }
+
+  it("Intro con el foco en el botón de borrar confirma el borrado", () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <ConfirmDialog open title="Eliminar paciente" destructive confirmLabel="Eliminar"
+                     onCancel={onCancel} onConfirm={onConfirm}>
+        cuerpo
+      </ConfirmDialog>,
+    );
+    const eliminar = screen.getByRole("button", { name: "Eliminar" });
+    eliminar.focus();
+    fireEvent.keyDown(eliminar, { key: "Enter" });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("Intro en el diálogo, fuera de los botones: el borrado no confirma, lo demás sí", () => {
+    const borrar = vi.fn();
+    const { unmount } = render(
+      <ConfirmDialog open title="Eliminar paciente" destructive confirmLabel="Eliminar"
+                     onCancel={() => {}} onConfirm={borrar}>
+        cuerpo
+      </ConfirmDialog>,
+    );
+    const panel = screen.getByRole("alertdialog");
+    expect(panel).toHaveFocus();
+    fireEvent.keyDown(panel, { key: "Enter" });
+    expect(borrar).not.toHaveBeenCalled();
+    unmount();
+
+    const aceptar = vi.fn();
+    render(
+      <ConfirmDialog open title="¿Seguro?" confirmLabel="Sí" onCancel={() => {}} onConfirm={aceptar}>
+        cuerpo
+      </ConfirmDialog>,
+    );
+    fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Enter" });
+    expect(aceptar).toHaveBeenCalledTimes(1);
+  });
+
+  it("isConfirmDialogOpen sigue al diálogo abierto", () => {
+    const { rerender, unmount } = render(
+      <ConfirmDialog open={false} title="t" confirmLabel="Sí" onCancel={() => {}} onConfirm={() => {}}>c</ConfirmDialog>,
+    );
+    expect(isConfirmDialogOpen()).toBe(false);
+    rerender(<ConfirmDialog open title="t" confirmLabel="Sí" onCancel={() => {}} onConfirm={() => {}}>c</ConfirmDialog>);
+    expect(isConfirmDialogOpen()).toBe(true);
+    unmount();
+    expect(isConfirmDialogOpen()).toBe(false);
   });
 
   it("Escape cierra el diálogo y no la ficha que hay debajo", () => {

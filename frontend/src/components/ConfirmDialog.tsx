@@ -9,6 +9,18 @@ import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 
+/* Cuántos diálogos de confirmación hay abiertos ahora mismo. Los atajos del
+   visor y del flujo (vtk/shortcuts) escuchan en `window` y el diálogo solo se
+   queda Escape e Intro: sin esto, un segundo Supr con la pregunta de borrar
+   delante llegaba al visor y apilaba otra pregunta igual, y P, los dígitos o
+   el espacio cambiaban la pantalla de detrás sin que se viera. */
+let openDialogs = 0;
+
+/** true mientras haya algún ConfirmDialog abierto: lo de detrás no atiende teclas. */
+export function isConfirmDialogOpen(): boolean {
+  return openDialogs > 0;
+}
+
 export function ConfirmDialog({
   open,
   title,
@@ -44,16 +56,30 @@ export function ConfirmDialog({
       if (e.key !== "Enter") return;
       e.stopPropagation();
       e.preventDefault();
+      // Intro sobre un botón del diálogo es pulsar ese botón, sea cual sea: con
+      // el foco en «Cancelar» (llegado con Tab), Intro confirmaba igual y
+      // firmaba el pedido o daba «sin aneurisma». El clic se lanza aquí a mano
+      // porque el preventDefault de arriba (que impide que el Intro llegue a lo
+      // de debajo) también anula el clic nativo; un botón deshabilitado no
+      // responde a click().
+      const target = e.target as HTMLElement | null;
+      if (target instanceof HTMLButtonElement && panelRef.current?.contains(target)) {
+        target.click();
+        return;
+      }
       // F1-58: Intro no confirma un borrado. Un Intro de más, pensado para el
       // campo de debajo, borraba un paciente con sus sesiones; lo destructivo
-      // se confirma solo con el botón. Lo demás sigue aceptando Intro.
+      // se confirma solo con su botón (con el foco en él, Intro vale, ver arriba).
+      // Lo demás sigue aceptando Intro.
       if (!destructive && !busy) onConfirm();
     };
+    openDialogs += 1;
     window.addEventListener("keydown", onKey, true);
     const previous = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
     return () => {
       window.removeEventListener("keydown", onKey, true);
+      openDialogs -= 1;
       previous?.focus?.();
     };
   }, [open, busy, destructive, onCancel, onConfirm]);

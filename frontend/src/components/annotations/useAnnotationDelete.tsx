@@ -10,13 +10,19 @@
 
 import { useCallback, useState } from "react";
 import { usePlanning } from "../../store/planning";
-import { ConfirmDialog } from "../ConfirmDialog";
+import { ConfirmDialog, isConfirmDialogOpen } from "../ConfirmDialog";
 
 export function useAnnotationDelete() {
   const { annotations, setAnnotations, selectedAnnotation, setSelectedAnnotation } = usePlanning();
   const [pending, setPending] = useState<string | null>(null);
 
-  const askDelete = useCallback((id: string) => setPending(id), []);
+  // Con una pregunta ya abierta (la del panel o la del visor, que tienen cada
+  // uno la suya) no se abre otra encima: un Supr repetido apilaba dos diálogos
+  // iguales y un solo Escape los cerraba a la vez.
+  const askDelete = useCallback((id: string) => {
+    if (isConfirmDialogOpen()) return;
+    setPending(id);
+  }, []);
   const cancel = useCallback(() => setPending(null), []);
   const confirm = useCallback(() => {
     const gone = pending;

@@ -8,7 +8,7 @@ import type { Annotation } from "../../vtk/annotations";
 vi.mock("../../api/client", () => ({ api: { putAnnotations: vi.fn() } }));
 
 import { api } from "../../api/client";
-import { useAnnotationsSync } from "./useAnnotationsSync";
+import { annotationsSubtitle, useAnnotationsSync } from "./useAnnotationsSync";
 
 const regla = (id: string, label = "R1", created_by = ""): Annotation => ({
   id, kind: "regla", points: [[0, 0, 0], [5, 0, 0]], plane: null, label, note: "",
@@ -154,5 +154,22 @@ describe("useAnnotationsSync", () => {
     rerender({ sid: "s1", list: server });
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     expect(api.putAnnotations).toHaveBeenCalledTimes(1);
+  });
+});
+
+/* F1-121: con todo guardado el subtítulo decía «Reglas, ángulos, regiones y
+   notas», y «guardado» se leía como «queda en la ficha»: las anotaciones viven
+   en la sesión viva y solo «Guardar progreso» las conserva para reanudar. */
+describe("annotationsSubtitle", () => {
+  it("tras guardar sale el texto nuevo", () => {
+    expect(annotationsSubtitle("cargado", "guardado", 2)).toBe("guardado en esta sesión; usa Guardar progreso para conservarlo");
+  });
+  it("los demás estados no cambian", () => {
+    expect(annotationsSubtitle("error", "guardado", 2)).toBe("no se pudieron cargar: sin guardado automático");
+    expect(annotationsSubtitle("cargado", "guardando", 2)).toBe("guardando…");
+    expect(annotationsSubtitle("cargado", "error", 2)).toBe("sin guardar");
+  });
+  it("sin ninguna anotación no presume de guardado: dice qué hay en el panel", () => {
+    expect(annotationsSubtitle("cargado", "guardado", 0)).toBe("Reglas, ángulos, regiones y notas");
   });
 });

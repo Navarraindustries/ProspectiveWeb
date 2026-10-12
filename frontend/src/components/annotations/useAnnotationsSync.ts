@@ -134,3 +134,19 @@ export function useAnnotationsSync(
 
   return { flush };
 }
+
+/** Subtítulo del panel «Anotaciones». Con todo guardado decía solo «Reglas,
+ *  ángulos, regiones y notas», y quien veía «guardado» en otro sitio creía que
+ *  quedaban en la ficha: se guardan solas en la sesión viva y solo «Guardar
+ *  progreso» las conserva para reanudar (F1-121). Sin ninguna anotación no hay
+ *  nada guardado que anunciar: se dice qué cabe en el panel. */
+export function annotationsSubtitle(
+  loadState: "pendiente" | "cargado" | "error",
+  sync: AnnotationsSync,
+  count: number,
+): string {
+  if (loadState === "error") return "no se pudieron cargar: sin guardado automático";
+  if (sync === "guardando") return "guardando…";
+  if (sync === "error") return "sin guardar";
+  return count > 0 ? "guardado en esta sesión; usa Guardar progreso para conservarlo" : "Reglas, ángulos, regiones y notas";
+}

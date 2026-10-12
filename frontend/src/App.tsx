@@ -15,7 +15,7 @@ import { UsersAdmin } from "./pages/UsersAdmin";
 import { AuditTrail } from "./pages/AuditTrail";
 import { VideoSplash } from "./components/VideoSplash";
 import { LoadingScreen } from "./components/LoadingScreen";
-import { ConfirmDialog } from "./components/ConfirmDialog";
+import { UnsavedExitDialog } from "./components/UnsavedExitDialog";
 import { AuthProvider, useAuth } from "./store/auth";
 import { PlanningProvider, usePlanning } from "./store/planning";
 import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
@@ -270,23 +270,14 @@ function Router() {
     <div style={{ height: "100%", position: "relative" }}>
       {view}
       {loadingIn && <LoadingScreen onDone={() => setLoadingIn(false)} />}
-      <ConfirmDialog
+      <UnsavedExitDialog
         open={blocker.state === "blocked"}
-        title="Tienes cambios sin guardar"
-        destructive
-        cancelLabel="Seguir aquí"
-        confirmLabel="Salir sin guardar"
-        onCancel={() => blocker.reset?.()}
-        onConfirm={() => blocker.proceed?.()}
-      >
-        Esta sesión tiene resultados que no se han guardado. Si sales ahora se
-        perderán: usa <b style={{ color: "var(--foreground)" }}>Guardar progreso</b> en
-        la barra superior para poder reanudarla después.
-        {!planning.imagingStudyId && (
-          <> Además no está adjunta a ningún caso: con <b style={{ color: "var(--foreground)" }}>Adjuntar
-          a un caso</b> queda ligada a un paciente y su DICOM archivado.</>
-        )}
-      </ConfirmDialog>
+        hasPatient={!!(planning.patient ?? patient)}
+        attached={!!planning.imagingStudyId}
+        onStay={() => blocker.reset?.()}
+        onLeave={() => blocker.proceed?.()}
+        saveNow={planning.saveNow}
+      />
       <ServerDownBanner />
       {toast && (
         <div

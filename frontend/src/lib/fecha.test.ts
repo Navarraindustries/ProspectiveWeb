@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { desdeServidor, fecha, fechaHora, hoyLocal } from "./fecha";
+import { desdeServidor, fecha, fechaHora, hora, hoyLocal } from "./fecha";
 
 const BOGOTA = { timeZone: "America/Bogota" }; // UTC−5 todo el año
 
@@ -37,5 +37,13 @@ describe("horas del servidor en hora local", () => {
     const ahora = new Date("2026-10-12T03:15:00Z"); // 22:15 del 11 en Bogotá
     expect(hoyLocal(ahora, BOGOTA)).toBe("2026-10-11");
     expect(ahora.toISOString().slice(0, 10)).toBe("2026-10-12"); // lo que proponía antes
+  });
+});
+
+describe("hora", () => {
+  it("da HH:mm en la zona pedida (F1-109: «Guardado hh:mm»)", () => {
+    const d = new Date("2026-10-11T14:05:09Z");
+    expect(hora(d, { timeZone: "UTC" })).toBe("14:05");
+    expect(hora(d, { timeZone: "America/Bogota" })).toBe("09:05");
   });
 });

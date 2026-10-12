@@ -1,6 +1,6 @@
 /* Sesión de planificación — rail de flujo (7 pasos) · visor 3D + MPR · panel del paso. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AttachCaseSheet } from "../components/AttachCaseSheet";
 import type { AttachResult } from "../api/types";
 import { api } from "../api/client";
@@ -22,11 +22,12 @@ import { DevicesPanel } from "../components/planning/DevicesPanel";
 import { ManufacturePanel } from "../components/planning/ManufacturePanel";
 import { ReportPanel } from "../components/planning/ReportPanel";
 import { AnnotationsPanel } from "../components/annotations/AnnotationsPanel";
-import { useAnnotationsSync } from "../components/annotations/useAnnotationsSync";
+import { annotationsSubtitle, useAnnotationsSync } from "../components/annotations/useAnnotationsSync";
 import { ViewerWorkspace } from "../vtk/Viewer";
 import { matchShortcut } from "../vtk/shortcuts";
 import { RecordButton } from "../components/RecordButton";
-import { sinCasoAviso } from "../lib/textos";
+import { ARCHIVAR_EN_CASO, sinCasoAviso } from "../lib/textos";
+import { hora } from "../lib/fecha";
 import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { usePlanning } from "../store/planning";
@@ -76,7 +77,7 @@ export function Workspace({
     morphometry, sessionId, caseId, caseLabel, imagingStudyId,
     centerlineMesh, setPickMode, markSaved, captureCase,
     annotations, annotationsSync, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded, annotationsFlushRef,
-    annotationsLoadState, noteFocusRequest,
+    annotationsLoadState, noteFocusRequest, dirty, registerSaver,
   } = planning;
   // Las anotaciones se guardan solas en la sesión viva; «Guardar progreso»
   // espera a que termine el PUT pendiente para no archivar una lista vieja.
@@ -94,7 +95,12 @@ export function Workspace({
   // Una nota de marcador pendiente despliega la columna (si no, su campo no
   // puede tener el foco y lo tecleado dispararía atajos).
   const columnCollapsed = useUnfoldForNote(panelCollapsed, setPanelCollapsed, noteFocusRequest);
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
+  const [saving, setSaving] = useState<"idle" | "saving">("idle");
+  // Hora del último guardado hecho en esta pantalla. El botón la enseña
+  // mientras no haya cambios nuevos (`dirty`); no hay temporizador que la
+  // borre: «Guardado ✓» desaparecía a los 1,8 s y no decía si lo de ahora
+  // estaba guardado o no (F1-109).
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   // La captura vive aquí arriba, al lado de «Guardar progreso», porque es
   // donde uno busca «guardar algo de este caso» — y porque está en todos los
   // pasos, que era la pregunta: «¿en qué momento puedo hacer una captura?».
@@ -141,6 +147,7 @@ export function Workspace({
           label: `${r.patient.full_name} · ${STEPS[stepIdx].label}`,
         });
         markSaved();
+        setSavedAt(new Date());
       } catch { /* adjunto igualmente; «Guardar progreso» lo reintenta */ }
     }
     setAttachNote(`Adjunto a ${r.patient.full_name} · ${r.case_label}. El estudio está archivado`
@@ -149,8 +156,8 @@ export function Workspace({
   };
   const step = STEPS[stepIdx].key;
 
-  const saveProgress = async () => {
-    if (!sessionId) return;
+  const saveProgress = async (): Promise<boolean> => {
+    if (!sessionId) return false;
     setSaving("saving");
     setSaveError(null);
     try {
@@ -174,16 +181,31 @@ export function Workspace({
       if (!annotationsOk) {
         setSaving("idle");
         setSaveError("Las anotaciones no se guardaron; vuelve a intentarlo");
-        return;
+        return false;
       }
       markSaved();
-      setSaving("saved");
-      setTimeout(() => setSaving("idle"), 1800);
+      setSavedAt(new Date());
+      setSaving("idle");
+      return true;
     } catch (e) {
       setSaving("idle");
       setSaveError(e instanceof Error ? e.message : "No se pudo guardar el progreso");
+      return false;
     }
   };
+  // El aviso de salida de App («Guardar y salir», F1-110) guarda con esta misma
+  // función: se presta al store mientras la pantalla está montada. Por ref, para
+  // registrar una sola vez y que siempre guarde con el estado del último render.
+  const saveRef = useRef(saveProgress);
+  saveRef.current = saveProgress;
+  useEffect(() => {
+    registerSaver(() => saveRef.current());
+    return () => registerSaver(null);
+  }, [registerSaver]);
+  const saveLabel = saving === "saving" ? "Guardando…"
+    : dirty ? "Guardar progreso •"
+    : savedAt ? `Guardado ${hora(savedAt)}`
+    : "Guardar progreso";
 
   const go = (i: number) => {
     // Cancel any active 3D/MPR pick mode so a tool armed on one step (e.g. the
@@ -310,16 +332,20 @@ export function Workspace({
             : shot === "err" ? "No se guardó" : "Captura"}
         </Button>
         <RecordButton step={step} onMessage={setRecMessage} />
-        {/* Sin estudio archivado: la sesión aún no es de nadie. */}
+        {/* Sin estudio archivado: la sesión aún no es de nadie. Con el
+            paciente ya fijado, «Adjuntar a un caso» sonaba a elegir paciente
+            otra vez; lo que falta es el caso donde archivar (F1-107). */}
         {sessionId && !imagingStudyId && (
           <Button
             size="sm"
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
             style={{ marginRight: 8 }}
-            title="Liga esta sesión a un paciente y un caso y archiva su DICOM"
+            title={patient
+              ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos"
+              : "Liga esta sesión a un paciente y un caso y archiva su DICOM"}
           >
-            Adjuntar a un caso
+            {patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso"}
           </Button>
         )}
         <Button
@@ -335,13 +361,13 @@ export function Workspace({
         <Button
           variant="outline"
           size="sm"
-          onClick={saveProgress}
+          onClick={() => void saveProgress()}
           disabled={!sessionId || saving === "saving"}
           title="Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión"
-          leadingIcon={<Icon name={saving === "saved" ? "STATUS_OK" : "SAVE"} />}
+          leadingIcon={<Icon name={!dirty && savedAt && saving !== "saving" ? "STATUS_OK" : "SAVE"} />}
           style={{ marginRight: 8 }}
         >
-          {saving === "saving" ? "Guardando…" : saving === "saved" ? "Guardado ✓" : "Guardar progreso"}
+          {saveLabel}
         </Button>
         <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>
           Pacientes
@@ -572,10 +598,7 @@ export function Workspace({
             <div style={{ marginTop: 16 }}>
               <Collapsible
                 title="Anotaciones"
-                subtitle={annotationsLoadState === "error" ? "no se pudieron cargar: sin guardado automático"
-                  : annotationsSync === "guardando" ? "guardando…"
-                  : annotationsSync === "error" ? "sin guardar"
-                  : "Reglas, ángulos, regiones y notas"}
+                subtitle={annotationsSubtitle(annotationsLoadState, annotationsSync, annotations.length)}
                 storageKey="ws.annotations"
                 // Un marcador recién puesto espera su nota: el panel se abre
                 // para que el campo exista y reciba el foco.

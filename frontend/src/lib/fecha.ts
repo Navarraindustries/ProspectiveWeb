@@ -42,3 +42,10 @@ export function hoyLocal(ahora: Date = new Date(), o?: OpcionesFecha): string {
   // «sv-SE» da justo AAAA-MM-DD, el formato que pide <input type="date">.
   return ahora.toLocaleDateString("sv-SE", o?.timeZone ? { timeZone: o.timeZone } : undefined);
 }
+
+/** «09:05»: la hora de un instante del navegador (no del servidor), p. ej. la
+ *  de un guardado recién hecho. «Guardado ✓» se borraba a los 1,8 s y no
+ *  decía cuándo; con la hora queda a la vista hasta el próximo cambio (F1-109). */
+export function hora(d: Date = new Date(), o?: OpcionesFecha): string {
+  return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", ...(o?.timeZone ? { timeZone: o.timeZone } : {}) });
+}

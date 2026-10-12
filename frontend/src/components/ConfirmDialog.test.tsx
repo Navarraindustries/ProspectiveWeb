@@ -125,6 +125,53 @@ describe("ConfirmDialog con el teclado", () => {
   });
 });
 
+/* F1-110: el aviso de salida solo ofrecía quedarse o perder el trabajo; la
+   tercera acción («Guardar y salir») va entre las dos y nunca la dispara un
+   Intro suelto. */
+describe("ConfirmDialog con tercera acción", () => {
+  const montar = (over: { onExtra?: () => void; onConfirm?: () => void; onCancel?: () => void; destructive?: boolean } = {}) => render(
+    <ConfirmDialog open title="Tienes cambios sin guardar" destructive={over.destructive ?? true}
+                   cancelLabel="Seguir aquí" confirmLabel="Salir sin guardar"
+                   extraLabel="Guardar y salir" onExtra={over.onExtra ?? (() => {})}
+                   onCancel={over.onCancel ?? (() => {})} onConfirm={over.onConfirm ?? (() => {})}>
+      cuerpo
+    </ConfirmDialog>,
+  );
+
+  it("pinta tres botones, con la tercera acción entre cancelar y confirmar", () => {
+    montar();
+    const nombres = screen.getAllByRole("button").map((b) => b.textContent);
+    expect(nombres).toEqual(["Seguir aquí", "Guardar y salir", "Salir sin guardar"]);
+  });
+
+  it("el clic en la tercera llama a onExtra y a nadie más", () => {
+    const onExtra = vi.fn(), onConfirm = vi.fn(), onCancel = vi.fn();
+    montar({ onExtra, onConfirm, onCancel });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar y salir" }));
+    expect(onExtra).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("Intro suelto no dispara la tercera; con el foco en ella, sí", () => {
+    const onExtra = vi.fn(), onConfirm = vi.fn();
+    montar({ onExtra, onConfirm, destructive: false });
+    fireEvent.keyDown(document, { key: "Enter" });
+    expect(onExtra).not.toHaveBeenCalled();
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    const extra = screen.getByRole("button", { name: "Guardar y salir" });
+    extra.focus();
+    fireEvent.keyDown(extra, { key: "Enter" });
+    expect(onExtra).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin extraLabel siguen siendo dos botones", () => {
+    render(<ConfirmDialog open title="t" confirmLabel="Sí" onCancel={() => {}} onConfirm={() => {}}>c</ConfirmDialog>);
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+  });
+});
+
 describe("Sheet apilada", () => {
   it("Escape cierra solo la ficha de encima", () => {
     const debajo = vi.fn();

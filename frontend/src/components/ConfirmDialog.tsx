@@ -31,6 +31,8 @@ export function ConfirmDialog({
   busy = false,
   onCancel,
   onConfirm,
+  extraLabel,
+  onExtra,
 }: {
   open: boolean;
   title: string;
@@ -42,6 +44,10 @@ export function ConfirmDialog({
   busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Tercera acción, entre cancelar y confirmar (p. ej. «Guardar y salir»).
+   *  Nunca la dispara un Intro suelto: solo su clic, o Intro con el foco en ella. */
+  extraLabel?: string;
+  onExtra?: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -106,6 +112,9 @@ export function ConfirmDialog({
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
           <Button variant="outline" onClick={onCancel} disabled={busy}>{cancelLabel}</Button>
+          {extraLabel && onExtra && (
+            <Button variant="default" onClick={onExtra} disabled={busy}>{extraLabel}</Button>
+          )}
           <Button variant={destructive ? "destructive" : "default"} onClick={onConfirm} disabled={busy}>
             {confirmLabel}
           </Button>

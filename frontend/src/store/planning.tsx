@@ -426,6 +426,12 @@ interface PlanningState {
   setCenterOnLesion: (fn: (() => void) | null) => void;
   /** Called after a successful save — the session on disk now matches the store. */
   markSaved: () => void;
+  /** «Guardar progreso» de Workspace, prestado mientras está montado: el aviso
+   *  de salida de App («Guardar y salir», F1-110) guarda con él sin duplicar
+   *  qué se guarda. null al desmontarse. */
+  registerSaver: (fn: (() => Promise<boolean>) | null) => void;
+  /** Guarda con el guardado registrado; false si no hay ninguno o falló. */
+  saveNow: () => Promise<boolean>;
   reset: () => void;
   resetDownstream: () => void;
 }
@@ -598,6 +604,14 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const setCenterOnLesion = useCallback((fn: (() => void) | null) => _setCenterOnLesion(() => fn), []);
   const [dirty, setDirty] = useState(false);
   const markSaved = () => setDirty(false);
+  // En un ref: cambiar de guardado no tiene que repintar nada.
+  const saverRef = useRef<(() => Promise<boolean>) | null>(null);
+  const registerSaver = useCallback((fn: (() => Promise<boolean>) | null) => { saverRef.current = fn; }, []);
+  const saveNow = useCallback(async () => {
+    const fn = saverRef.current;
+    if (!fn) return false;
+    try { return await fn(); } catch { return false; }
+  }, []);
   const [viewerLayout, _setViewerLayout] = useState<ViewerLayout>(() => loadLayout());
   const setViewerLayout = (l: ViewerLayout) => { _setViewerLayout(l); saveLayout(l); };
   const [focusPoint, setFocusPoint] = useState<Vec3 | null>(null);
@@ -839,7 +853,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
         setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
-        setCaptureViewport, setCenterOnLesion, markSaved,
+        setCaptureViewport, setCenterOnLesion, markSaved, registerSaver, saveNow,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setMipLocal, setCine, setFocusedPane,
         reset, resetDownstream,

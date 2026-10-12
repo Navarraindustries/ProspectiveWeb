@@ -29,7 +29,7 @@ const morpho = {
 
 function conEquipo(team: TeamDecision | null): TreatmentDecisionResult {
   return {
-    recommendation: "TRATAMIENTO ENDOVASCULAR", recommendation_key: "endo", confidence: "Moderada",
+    recommendation: "TRATAMIENTO ENDOVASCULAR", recommendation_key: "endo", confidence: "Moderada", confidence_reason: "",
     coverage_pct: 100, missing_inputs: [], notes: [], endovascular: null, jsdb: null,
     perforators: null, factors: [], clip_factors: [], endo_factors: [], team,
   };

@@ -18,9 +18,10 @@ const STYLES: Record<Variant, CSSProperties> = {
   },
 };
 
-export function Badge({ variant = "default", children, style }: { variant?: Variant; children: ReactNode; style?: CSSProperties }) {
+export function Badge({ variant = "default", children, style, title }: { variant?: Variant; children: ReactNode; style?: CSSProperties; title?: string }) {
   return (
     <span
+      title={title}
       style={{
         display: "inline-flex",
         alignItems: "center",

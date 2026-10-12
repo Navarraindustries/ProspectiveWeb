@@ -19,10 +19,27 @@ import { ageFromDob } from "../patientAge";
 import { InheritedSite } from "../morphometry/InheritedSite";
 import { NEEDS_MORPHOMETRY } from "../../pipeline/steps";
 import { TeamDecisionCard } from "./TeamDecisionCard";
+import type { DecisionFactor } from "../../api/types";
 
 /** La primera letra en minúscula, para una frase que sigue a dos puntos. */
 function minuscula(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
+/** Nombre, detalle y procedencia de un factor; la insignia de vía la pone
+ *  quien lo pinta, y solo a los que votan (F1-178). */
+function FactorText({ f, showSources }: { f: DecisionFactor; showSources: boolean }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{f.name}</div>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{f.detail}</div>
+      {showSources && f.source && (
+        <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45, opacity: 0.85 }}>
+          {f.source}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function TreatmentPanel({ onNext, onChangeSite }: {
@@ -51,6 +68,8 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
   // La procedencia importa y no es lo que se lee a diario: doce líneas de
   // fuentes bajo siete factores tapan los factores. Plegada por defecto.
   const [showSources, setShowSources] = useState(false);
+  // F1-178: los factores que no votan, plegados por defecto.
+  const [showDescriptive, setShowDescriptive] = useState(false);
   const [wfns, setWfns] = useState<string>(txt(prev?.wfns_grade));
   const [fisher, setFisher] = useState<string>(txt(prev?.fisher_grade));
   // La única variable del JSDB que la aplicación no recogía en ninguna parte.
@@ -105,7 +124,9 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
 
   return (
     <div className="fade-rise">
-      <PanelHead title="Decisión terapéutica" desc="Compara clipaje y tratamiento endovascular. Los índices de forma no puntúan: describen la vía endovascular, que es donde tienen respaldo." />
+      {/* F1-172: la entradilla decía cómo puntúa el motor y no qué hace el
+          paso ni quién decide. */}
+      <PanelHead title="Decisión terapéutica" desc="Propone una vía, clipaje o endovascular, a partir de la localización, el estado y la morfometría. La decisión es tuya" />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
         <InheritedSite site={planning.aneurysmSite} known onChange={onChangeSite} />
@@ -195,6 +216,14 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
       <Button style={{ marginTop: 14, width: "100%" }} variant={t ? "outline" : "default"} onClick={() => void run()} disabled={busy || clearing || !sessionId}>
         {busy ? "Evaluando…" : t ? "Re-evaluar" : "Evaluar CLIP vs ENDOVASCULAR"}
       </Button>
+      {/* F1-175: sin WFNS el JSDB salía con «Rellenado el N % del modelo» en
+          letra pequeña al final de la tarjeta, después de evaluar. Se avisa
+          antes; el botón sigue encendido porque el dato es opcional. */}
+      {ruptured && wfns === "" && (
+        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 6, lineHeight: 1.5 }}>
+          Sin WFNS el modelo del Japan Stroke Data Bank pierde su variable de más peso: rellénalo antes de evaluar
+        </div>
+      )}
       {t && (
         <Button
           variant="ghost" style={{ marginTop: 8, width: "100%" }}
@@ -236,10 +265,17 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               {/* La cobertura al lado de la confianza, porque es lo que la
                   limita: antes la confianza medía cuántos factores había, y un
                   caso con un solo dato salía como «Moderada». */}
-              <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}>
+              <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}
+                     title="Parte de los datos del caso que este motor ha podido evaluar">
                 {t.coverage_pct} % de los datos
               </Badge>
-              <Badge variant="subtle">Confianza {t.confidence.toLowerCase()}</Badge>
+              {/* F1-177: «100 % de los datos» junto a «Confianza baja» parecía
+                  una contradicción. La baja tiene dos causas y se dice cuál. */}
+              <Badge variant="subtle" style={{ whiteSpace: "normal" }}>
+                {t.confidence === "Baja" && t.confidence_reason
+                  ? `Confianza baja: ${t.confidence_reason}`
+                  : `Confianza ${t.confidence.toLowerCase()}`}
+              </Badge>
             </div>
             {/* Aquí iban dos barras con los puntos de cada vía. Se retiran
                 enteras: una barra ES una puntuación dibujada, y lo que llevaba
@@ -280,6 +316,11 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                 Riesgo estimado por cada vía · Japan Stroke Data Bank
               </SectionLabel>
               <Card style={t.jsdb.both_poor ? { borderLeft: "3px solid var(--warning)" } : undefined}>
+                {/* F1-175: el veredicto iba al pie, tras la explicación del
+                    modelo y las dos vías; es lo que se busca al abrir la tarjeta. */}
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.45, marginBottom: 8 }}>
+                  {t.jsdb.verdict}
+                </div>
                 <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>
                   Modelo ajustado sobre 3 547 hemorragias. Estima el riesgo de mal
                   resultado al alta (mRS&nbsp;&gt;&nbsp;2) de <b>cada vía por separado</b>,
@@ -298,9 +339,6 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                     </div>
                   </div>
                 ))}
-                <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 12, lineHeight: 1.5 }}>
-                  {t.jsdb.verdict}
-                </div>
                 {t.jsdb.missing.length > 0 && (
                   <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
                     Rellenado el {t.jsdb.known_pct} % del modelo; falta{" "}
@@ -330,12 +368,17 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               {showSources ? "Ocultar procedencia" : "Ver procedencia"}
             </button>
           </div>
+          {/* F1-178: los factores salían en el orden del motor, mezclados, y
+              los que no votan llevaban «CLIP ·», «ENDO ·» o «— ·» y un «no
+              influye»: una insignia de vía en algo que no empuja hacia
+              ninguna. Primero los que votan; los descriptivos aparte, plegados
+              y sin insignia, porque el título del grupo ya dice que no influyen. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {t.factors.map((f) => (
+            {t.factors.filter((f) => f.votes).map((f) => (
               /* Rejilla, no flex: la insignia se ajustaba a su contenido, así
-                 que «ENDO +25» y «CLIP ·» dejaban el texto arrancando en sitios
+                 que «ENDO» y «CLIP» dejaban el texto arrancando en sitios
                  distintos y el borde izquierdo quedaba dentado. Una columna fija
-                 alinea las seis filas por construcción. */
+                 alinea las filas por construcción. */
               <div key={f.name} style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 10, alignItems: "start" }}>
                 <span
                   style={{
@@ -351,29 +394,35 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                   }}
                 >
                   {f.direction === "clip" ? "CLIP" : f.direction === "endo" ? "ENDO" : "—"}
-                  {f.votes ? "" : " ·"}
                 </span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-                    {f.name}
-                    {/* Lo que se mide, se enseña y NO influye. Sin esta marca
-                        el factor se lee como si estuviera empujando. */}
-                    {!f.votes && (
-                      <span style={{ fontSize: 10, fontWeight: 700, marginLeft: 6, padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", background: "var(--muted)", color: "var(--muted-foreground)", verticalAlign: "middle" }}>
-                        no influye
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{f.detail}</div>
-                  {showSources && f.source && (
-                    <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45, opacity: 0.85 }}>
-                      {f.source}
-                    </div>
-                  )}
-                </div>
+                <FactorText f={f} showSources={showSources} />
               </div>
             ))}
           </div>
+          {t.factors.some((f) => !f.votes) && (
+            <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+              <button
+                type="button"
+                aria-expanded={showDescriptive}
+                onClick={() => setShowDescriptive((v) => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px",
+                  background: "transparent", border: "none", cursor: "pointer", textAlign: "left",
+                  fontSize: 12, fontWeight: 600, color: "var(--muted-foreground)", fontFamily: "var(--font-sans)",
+                }}
+              >
+                <span style={{ flex: 1 }}>Descriptivos (no influyen)</span>
+                <span>{showDescriptive ? "▾" : "▸"}</span>
+              </button>
+              {showDescriptive && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 10px 10px" }}>
+                  {t.factors.filter((f) => !f.votes).map((f) => (
+                    <FactorText key={f.name} f={f} showSources={showSources} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <TeamDecisionCard />
 

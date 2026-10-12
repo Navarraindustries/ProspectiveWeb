@@ -50,7 +50,7 @@ import type { TreatmentDecisionResult } from "../../api/types";
 
 const RESULT: TreatmentDecisionResult = {
   recommendation: "TRATAMIENTO ENDOVASCULAR", recommendation_key: "endo",
-  confidence: "Moderada", coverage_pct: 100, missing_inputs: [], notes: [],
+  confidence: "Moderada", confidence_reason: "", coverage_pct: 100, missing_inputs: [], notes: [],
   endovascular: null,
   jsdb: null,
   perforators: {
@@ -122,6 +122,8 @@ describe("la procedencia de cada factor", () => {
     render(<TreatmentPanel onNext={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Ver procedencia/ }));
     expect(screen.getByText(/Brinjikji/)).toBeInTheDocument();
+    // El factor descriptivo está en su grupo plegado (F1-178).
+    fireEvent.click(screen.getByRole("button", { name: /Descriptivos \(no influyen\)/ }));
     expect(screen.getByText(/RIESGO DE ROTURA/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Ocultar procedencia/ }));
@@ -129,9 +131,10 @@ describe("la procedencia de cada factor", () => {
   });
 
   it("marca el factor que no influye aunque la procedencia esté plegada", () => {
-    // Sin la marca, un factor que no empuja se lee como si lo hiciera.
+    // Sin la marca, un factor que no empuja se lee como si lo hiciera. F1-178:
+    // la marca es ahora el título del grupo, a la vista aunque esté plegado.
     render(<TreatmentPanel onNext={() => {}} />);
-    expect(screen.getByText("no influye")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Descriptivos \(no influyen\)/ })).toBeInTheDocument();
   });
 
   /* Lo que dirección pidió retirar: ni el sumatorio del motor ni los puntos
@@ -382,5 +385,81 @@ describe("«Continuar a dispositivos»", () => {
     render(<TreatmentPanel onNext={() => {}} />);
     expect(boton()).toBeDisabled();
     expect(screen.getByText("Calcula la morfometría primero")).toBeInTheDocument();
+  });
+});
+
+
+/* ── Arreglos F1a, tarea 19: paso 5 ───────────────────────────────────── */
+
+describe("F1-172: la entradilla", () => {
+  it("entradilla nueva", () => {
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText(
+      "Propone una vía, clipaje o endovascular, a partir de la localización, el estado y la morfometría. La decisión es tuya",
+    )).toBeInTheDocument();
+    expect(screen.queryByText(/Los índices de forma no puntúan/)).toBeNull();
+  });
+});
+
+describe("F1-175: el JSDB, veredicto arriba y WFNS antes de evaluar", () => {
+  const AVISO = "Sin WFNS el modelo del Japan Stroke Data Bank pierde su variable de más peso: rellénalo antes de evaluar";
+
+  it("roto sin WFNS muestra el aviso antes de evaluar", () => {
+    stored = null;
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByText(AVISO)).toBeNull();
+    fireEvent.change(screen.getByLabelText("Estado"), { target: { value: "si" } });
+    expect(screen.getByText(AVISO)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Evaluar CLIP vs ENDOVASCULAR/ })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("WFNS"), { target: { value: "2" } });
+    expect(screen.queryByText(AVISO)).toBeNull();
+  });
+
+  it("el veredicto va arriba de la tarjeta, antes de las vías", () => {
+    stored = {
+      ...RESULT,
+      jsdb: {
+        clip: ARM("clip", ["Edad ≥ 72 años (75)"]), coil: ARM("coil", ["WFNS V"]),
+        favours: "clip", both_poor: false, known_pct: 100, missing: [],
+        verdict: "Clipaje quirúrgico sale menos penalizado.", source: "",
+      },
+    };
+    render(<TreatmentPanel onNext={() => {}} />);
+    const veredicto = screen.getByText("Clipaje quirúrgico sale menos penalizado.");
+    const via = screen.getByText("Clipaje quirúrgico");
+    expect(veredicto.compareDocumentPosition(via) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(veredicto).toHaveStyle({ fontWeight: "700" });
+  });
+});
+
+describe("F1-177: la confianza baja dice por qué", () => {
+  it("la confianza baja lleva el motivo", () => {
+    stored = { ...RESULT, confidence: "Baja", confidence_reason: "los factores empujan en sentidos opuestos" };
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText("Confianza baja: los factores empujan en sentidos opuestos")).toBeInTheDocument();
+    expect(screen.getByText("100 % de los datos")).toHaveAttribute(
+      "title", "Parte de los datos del caso que este motor ha podido evaluar");
+  });
+});
+
+describe("F1-178: los factores que votan, primero", () => {
+  it("un factor «no influye» no lleva insignia", () => {
+    render(<TreatmentPanel onNext={() => {}} />);
+    // El que vota lleva su vía; el descriptivo está plegado y sin insignia.
+    expect(screen.getByText("ENDO")).toBeInTheDocument();
+    expect(screen.queryByText(/Aspect Ratio bajo/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Descriptivos \(no influyen\)/ }));
+    expect(screen.getByText(/Aspect Ratio bajo/)).toBeInTheDocument();
+    expect(screen.queryByText("CLIP")).toBeNull();
+    expect(screen.queryByText(/CLIP ·|ENDO ·|— ·/)).toBeNull();
+    expect(screen.queryByText("no influye")).toBeNull();
+  });
+
+  it("los que votan van antes aunque lleguen después", () => {
+    stored = { ...RESULT, factors: [...RESULT.factors].reverse() };
+    render(<TreatmentPanel onNext={() => {}} />);
+    const vota = screen.getByText(/Cuello intermedio/);
+    const grupo = screen.getByRole("button", { name: /Descriptivos \(no influyen\)/ });
+    expect(vota.compareDocumentPosition(grupo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

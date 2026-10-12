@@ -60,6 +60,17 @@ class TestTheTechniqueFollowsTheWideNeckDefinition:
         assert p.technique == "assisted"
         assert "casi siempre" in p.rationale
 
+    def test_el_texto_nombra_el_dnr(self):
+        # F1-182: «Coiling asistido (balón o stent)» no decía de qué cifra
+        # dependía. Las dos ramas asistidas nombran el gradiente del DNR.
+        gradiente = ("Con DNR por encima de 1,6 suele bastar el coiling simple; "
+                     "por debajo de 1,2 casi siempre hace falta adyuvante")
+        for p in (endovascular_profile(neck_mm=4.5, dnr=1.7),
+                  endovascular_profile(neck_mm=3.0, dnr=1.1)):
+            assert p.technique == "assisted"
+            assert "DNR" in p.rationale and "1,6" in p.rationale
+            assert gradiente in p.rationale
+
     def test_a_giant_aneurysm_changes_the_family_of_device(self):
         p = endovascular_profile(neck_mm=6.0, dnr=1.4, max_diameter_mm=28.0)
         assert p.technique == "diverter"

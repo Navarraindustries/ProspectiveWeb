@@ -1011,6 +1011,8 @@ export interface TreatmentDecisionResult {
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";
   confidence: "Alta" | "Moderada" | "Baja";
+  /** F1-177: por qué la confianza es baja; «» si no lo es. */
+  confidence_reason: string;
   factors: DecisionFactor[];
   clip_factors: string[];
   endo_factors: string[];

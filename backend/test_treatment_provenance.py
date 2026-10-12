@@ -497,3 +497,37 @@ class TestTheExpectedPerforatorTerritory:
             if "Sin perforantes" in t.arteries:
                 continue          # la entrada que dice que aquí no aplica
             assert t.sources, f"{loc} afirma un riesgo sin fuente"
+
+
+class TestLowConfidenceSaysWhy:
+    """F1-177: «Confianza baja» tenía dos causas y la pantalla no decía cuál.
+
+    Con «100 % de los datos» al lado, una confianza baja parecía un error: lo
+    que pasaba es que los factores empujaban en sentidos opuestos. Con pocos
+    datos la causa es otra, y se dice otra cosa."""
+
+    def test_factores_opuestos_dan_su_motivo(self):
+        d = compute_decision(neck_mm=2.5, aspect_ratio=1.1, dnr=1.2,
+                             max_diameter_mm=14.0, bottleneck_factor=1.2,
+                             undulation_index=0.05, location=LOCATION_ACA_ACOA,
+                             patient_age=75)
+        assert d["coverage_pct"] == 100
+        assert d["confidence"] == "Baja"
+        assert d["confidence_reason"] == "los factores empujan en sentidos opuestos"
+
+    def test_faltan_datos_da_su_motivo(self):
+        d = compute_decision(neck_mm=6.5, aspect_ratio=0.0, dnr=0.0,
+                             max_diameter_mm=0.0, bottleneck_factor=0.0,
+                             undulation_index=0.0)
+        assert d["confidence"] == "Baja"
+        assert d["confidence_reason"] == f"faltan datos: evaluado el {d['coverage_pct']} % del caso"
+
+    def test_una_confianza_que_no_es_baja_no_lleva_motivo(self):
+        d = compute_decision(**TestTheScoreSaysHowMuchOfTheCaseItSaw.MORFO,
+                             location=LOCATION_MCA, patient_age=55)
+        assert d["confidence"] != "Baja"
+        assert d["confidence_reason"] == ""
+
+    def test_el_modelo_lo_publica(self):
+        from models.treatment import TreatmentDecisionResult
+        assert "confidence_reason" in TreatmentDecisionResult.model_fields

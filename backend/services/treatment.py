@@ -205,6 +205,8 @@ class _Decision:
     #: Qué parte del caso se ha podido evaluar, y qué datos faltaban.
     coverage_pct:   int       = 100
     missing_inputs: list[str] = field(default_factory=list)
+    #: F1-177: por qué la confianza es baja; «» si no lo es.
+    confidence_reason: str = ""
 
 
 # F1-17: el aviso del saco que llega al límite del recorte se quedaba en
@@ -259,6 +261,7 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
             coverage_pct=cov,
             recommendation="DISCUSIÓN MULTIDISCIPLINARIA",
             recommendation_key="mdt", confidence="Baja",
+            confidence_reason="el tamaño no basta para elegir vía en un aneurisma roto",
             factors=[], notes=notes,
         ))
 
@@ -275,6 +278,7 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
             "es como plantea la decisión la guía ESO 2022— se pueda hacer."
         )
         confidence = "Baja"
+        reason = "faltan datos: no se ha estimado el riesgo de rotura"
     elif band == "high":
         # Las dos cifras se contradicen, y decirlo es más útil que elegir una.
         notes.append(
@@ -288,6 +292,7 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
             coverage_pct=cov,
             recommendation="DISCUSIÓN MULTIDISCIPLINARIA",
             recommendation_key="mdt", confidence="Baja",
+            confidence_reason="el tamaño y el riesgo de rotura empujan en sentidos opuestos",
             factors=[], notes=notes,
         ))
     else:
@@ -297,12 +302,13 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
             f"Seguimiento con imagen." + caveat
         )
         confidence = "Alta" if band == "low" else "Moderada"
+        reason = ""
 
     return _to_dict(_Decision(
         clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
         coverage_pct=cov,
         recommendation="VIGILANCIA ACTIVA", recommendation_key="surveillance",
-        confidence=confidence, factors=[], notes=notes,
+        confidence=confidence, confidence_reason=reason, factors=[], notes=notes,
     ))
 
 
@@ -676,6 +682,16 @@ def compute_decision(
     elif coverage < 0.8 and confidence == "Alta":
         confidence = "Moderada"
 
+    # F1-177: «Confianza baja» junto a «100 % de los datos» parecía un error.
+    # Tiene dos causas y se dice cuál: faltan datos (manda, porque es el tope
+    # que se aplica aunque los factores coincidan) o los factores no coinciden.
+    confidence_reason = ""
+    if confidence == "Baja":
+        confidence_reason = (
+            f"faltan datos: evaluado el {round(coverage * 100)} % del caso"
+            if coverage < 0.5 else "los factores empujan en sentidos opuestos"
+        )
+
     if missing:
         notes.append(
             f"Evaluado el {round(coverage * 100)} % del caso: falta "
@@ -741,7 +757,7 @@ def compute_decision(
         clip_raw=clip_pts, endo_raw=endo_pts, balance=balance,
         clip_pct=clip_pct, endo_pct=endo_pct,
         recommendation=rec, recommendation_key=rec_key,
-        confidence=confidence,
+        confidence=confidence, confidence_reason=confidence_reason,
         factors=factors, notes=notes,
         coverage_pct=round(coverage * 100), missing_inputs=missing,
     ))
@@ -828,6 +844,7 @@ def _to_dict(d: _Decision) -> dict[str, Any]:
         "recommendation":     d.recommendation,
         "recommendation_key": d.recommendation_key,
         "confidence":         d.confidence,
+        "confidence_reason":  d.confidence_reason,
         "factors":            factor_dicts,
         "clip_factors":       [f.name for f in d.factors if f.direction == "clip"],
         "endo_factors":       [f.name for f in d.factors if f.direction == "endo"],

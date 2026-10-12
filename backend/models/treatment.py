@@ -320,6 +320,14 @@ class TreatmentDecisionResult(BaseModel):
         ..., description="Machine-readable recommendation key"
     )
     confidence: Confidence = Field(..., description="Confidence level of the recommendation")
+    confidence_reason: str = Field(
+        "",
+        description=(
+            "F1-177: why confidence is low — «los factores empujan en sentidos "
+            "opuestos» or «faltan datos: evaluado el N % del caso». Empty when "
+            "confidence is not low."
+        ),
+    )
 
     # ── Factors breakdown ─────────────────────────────────────────────────── #
     factors: list[DecisionFactor] = Field(

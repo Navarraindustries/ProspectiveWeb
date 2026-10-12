@@ -55,6 +55,11 @@ WIDE_DNR: float = 2.0
 DNR_NO_ADJUNCT: float = 1.6
 DNR_ALWAYS_ADJUNCT: float = 1.2
 
+def _es(x: float) -> str:
+    """1.6 → «1,6»: los textos salen tal cual en pantalla y en el informe."""
+    return f"{x:.1f}".replace(".", ",")
+
+
 #: AR desde el que se dispara la recanalización tras coiling.
 AR_RECANALIZATION: float = 1.6
 AR_RECANALIZATION_OR: str = "OR 4.15 (IC 95 % 1.57–11.00)"
@@ -109,6 +114,14 @@ def endovascular_profile(
 
     wide = (neck_mm >= WIDE_NECK_MM) or (0 < dnr < WIDE_DNR)
     sources.append(SRC_WIDE_NECK)
+    # F1-182: «Coiling asistido (balón o stent)» se leía como un veredicto sin
+    # decir de qué cifra salía. Las dos ramas asistidas nombran el gradiente del
+    # DNR con los cortes de arriba, en el formato de la pantalla (coma decimal).
+    gradiente = (
+        f"Con DNR por encima de {_es(DNR_NO_ADJUNCT)} suele bastar el coiling "
+        f"simple; por debajo de {_es(DNR_ALWAYS_ADJUNCT)} casi siempre hace "
+        f"falta adyuvante."
+    )
 
     if not wide:
         technique, label = "simple", "Coiling simple"
@@ -120,9 +133,9 @@ def endovascular_profile(
     elif 0 < dnr < DNR_ALWAYS_ADJUNCT:
         technique, label = "assisted", "Coiling asistido (balón o stent)"
         rationale = (
-            f"Relación domo-cuello {dnr:.2f}, por debajo de {DNR_ALWAYS_ADJUNCT}: "
+            f"Relación domo-cuello {dnr:.2f}, por debajo de {_es(DNR_ALWAYS_ADJUNCT)}: "
             f"en esa franja casi siempre hace falta balón o stent para retener "
-            f"los coils."
+            f"los coils. {gradiente}"
         )
     else:
         technique, label = "assisted", "Coiling asistido (balón o stent)"
@@ -130,8 +143,7 @@ def endovascular_profile(
                   else f"relación domo-cuello {dnr:.2f}")
         rationale = (
             f"Cuello ancho por {motivo}: esa definición existe porque predice la "
-            f"necesidad de adyuvante. Por encima de {DNR_NO_ADJUNCT} suele "
-            f"bastar el coiling simple."
+            f"necesidad de adyuvante. {gradiente}"
         )
 
     # ── Grandes y gigantes: otra familia de dispositivo ───────────────── #

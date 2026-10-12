@@ -9562,6 +9562,12 @@ export interface components {
              */
             confidence: "Alta" | "Moderada" | "Baja";
             /**
+             * Confidence Reason
+             * @description F1-177: why confidence is low — «los factores empujan en sentidos opuestos» or «faltan datos: evaluado el N % del caso». Empty when confidence is not low.
+             * @default
+             */
+            confidence_reason: string;
+            /**
              * Coverage Pct
              * @description How much of the case the engine could actually evaluate, as a share of the weight available. Nothing is mandatory — and WFNS and Fisher cannot be, since they do not exist for an unruptured aneurysm — but confidence is capped by this, because agreement among the factors that were seen cannot make up for the ones that were not.
              * @default 100

@@ -6,7 +6,7 @@
    presta Workspace al store) y solo navega si salió bien; si falla, el aviso
    se queda abierto y lo dice dentro, porque detrás no se ve la barra. */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ARCHIVAR_EN_CASO } from "../lib/textos";
 
@@ -24,12 +24,24 @@ export function UnsavedExitDialog({ open, hasPatient, attached, onStay, onLeave,
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Cada apertura es un intento nuevo. Un guardado que termina con el aviso
+  // ya cerrado (el blocker se resolvió por otro lado) es de un aviso que ya
+  // no existe: ni navega con el blocker viejo ni deja su error para la
+  // próxima vez que se abra.
+  const turno = useRef(0);
+  useEffect(() => {
+    turno.current += 1;
+    setError(null);
+    setSaving(false);
+  }, [open]);
   const cerrar = (f: () => void) => () => { setError(null); f(); };
   const guardarYSalir = async () => {
+    const mio = turno.current;
     setSaving(true);
     setError(null);
     let ok = false;
     try { ok = await saveNow(); } catch { ok = false; }
+    if (mio !== turno.current) return;
     setSaving(false);
     if (ok) onLeave();
     else setError(ERROR_GUARDAR);
@@ -46,7 +58,9 @@ export function UnsavedExitDialog({ open, hasPatient, attached, onStay, onLeave,
       extraLabel={saving ? "Guardando…" : "Guardar y salir"}
       onExtra={() => void guardarYSalir()}
       confirmLabel="Salir sin guardar"
-      onCancel={cerrar(onStay)}
+      // Mientras guarda, Escape y el clic fuera no cancelan: el guardado ya
+      // está en marcha y al terminar saldría igual con el blocker de antes.
+      onCancel={saving ? () => {} : cerrar(onStay)}
       onConfirm={cerrar(onLeave)}
     >
       Esta sesión tiene resultados que no se han guardado. Si sales ahora se

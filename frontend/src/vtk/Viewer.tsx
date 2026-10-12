@@ -11,7 +11,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { ANNOTATION_MODES, kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
 import { ANNOTATIONS_MAX, centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
-import { shouldShowHint } from "./hint";
+import { mainHintKind, shouldShowHint, type HintKind } from "./hint";
 import type { AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
@@ -35,7 +35,7 @@ import { cameraHeading, effectiveDirection, mmToVoxel, voxelToMm, type Orientati
 import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
 import { ViewerGrid, type PaneContext } from "./ViewerGrid";
 import { presetForKey } from "./layoutShortcuts";
-import { gridFor } from "./layoutGrid";
+import { gridFor, shortcutPane, shownMain } from "./layoutGrid";
 import { flushSync } from "react-dom";
 import { api } from "../api/client";
 import { usePersistWindow } from "./windowPersist";
@@ -92,7 +92,6 @@ const AXIS_DIM = { z: 0, y: 1, x: 2 } as const;
 
 /* Pistas efímeras del panel principal (Task 14): qué gesto usar según lo que
    haya montado ahí. El MIP gira como el 3D pero su rueda es la de los cortes. */
-type HintKind = "rotate" | "slice" | "mip";
 const HINT_TEXT: Record<HintKind, string> = {
   rotate: "ARRASTRAR ROTA · RUEDA ZOOM · DOBLE CLIC EN UNA CELDA LA MAXIMIZA",
   slice: "RUEDA CORTE · CTRL+RUEDA ZOOM · ARRASTRAR VENTANA · SHIFT DESPLAZA",
@@ -1071,7 +1070,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (focusedPane && !visible[focusedPane]) {
       setFocusedPane(null);
       // Después de soltarla: enfocar la principal la vuelve la celda enfocada.
-      refocusAfterHide(document.activeElement, cellEls.current[focusedPane], cellEls.current[viewerLayout.main], gridHostRef.current)
+      // A la principal que se VE: en CUATRO con VOLUMEN de principal, la 3D.
+      refocusAfterHide(document.activeElement, cellEls.current[focusedPane], cellEls.current[shownMain(viewerLayout)], gridHostRef.current)
         ?.focus({ preventScroll: true });
     }
     if (cineShouldStop(cineRef.current, { focusedPane, visible })) setCine(null);
@@ -1521,8 +1521,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // Sin malla, la escena ES el corte axial: el principal enseña cortes aunque
   // su celda se llame «scene».
   const sceneIsSlice = meshScene && !meshVisible && !!sessionId && !!meta;
-  const mainIsSlice = viewerLayout.main === "axial" || viewerLayout.main === "coronal"
-    || viewerLayout.main === "sagital" || (viewerLayout.main === "scene" && sceneIsSlice);
+  // La principal que se ve (en CUATRO con VOLUMEN de principal, la 3D).
+  const visibleMain = shownMain(viewerLayout);
 
   // La pista del panel principal ocupaba la esquina para siempre; ahora aparece
   // 3 s cuando cambia lo que hay en él y se desvanece (la animación de
@@ -1530,10 +1530,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // (3D o VOLUMEN) o un corte; en cualquier otro caso (oblicuo, sin sesión) no
   // hay nada que enseñar. «?» ya no la repite: abre la hoja de atajos, que
   // tiene todas las teclas y no se desvanece.
-  const mainRotatable = viewerLayout.main === "scene" && sceneHasMesh;
-  // En limpio no hay pista: es pantalla para la imagen.
-  const hintKind: HintKind | null = hudLevel === "limpio" ? null
-    : viewerLayout.main === "mip" ? "mip" : mainRotatable ? "rotate" : mainIsSlice ? "slice" : null;
+  // Girable (3D con malla), corte o VOLUMEN: lo decide mainHintKind (hint.ts).
+  const hintKind = mainHintKind({ hudLevel, main: visibleMain, sceneHasMesh, sceneIsSlice });
   useEffect(() => {
     if (hintKind) {
       if (shouldShowHint(hintKind, window.sessionStorage)) showHint(hintKind);
@@ -1561,7 +1559,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const onShortcut = (id: string) => {
     // Con la hoja abierta el visor queda detrás: una tecla no puede cambiarlo sin verse.
     if (sheetOpenRef.current) return;
-    const pane = focusedPane ?? viewerLayout.main;
+    const pane = shortcutPane(focusedPane, viewerLayout);
     switch (id) {
       case "sync": setSyncViews(!syncViews); return;
       case "center-lesion": if (lesion) centerOnLesion(); return;
@@ -1605,8 +1603,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // Dónde va la pista de la principal (hud.css): bajo la cinta de rumbo en la
   // escena 3D y, en VOLUMEN, bajo la fila de controles de arriba.
   // En CUATRO con VOLUMEN de principal la pista va en la 3D (layoutGrid).
-  const shownMain = viewerLayout.preset === "cuatro" && viewerLayout.main === "mip" ? "scene" : viewerLayout.main;
-  const hintPlace = shownMain === "mip" ? " hud-hint-vol" : shownMain === "scene" ? " hud-hint-cinta" : "";
+  const hintPlace = visibleMain === "mip" ? " hud-hint-vol" : visibleMain === "scene" ? " hud-hint-cinta" : "";
   // Por ref: la escucha se pone una vez y siempre ve el estado del último render.
   const onShortcutRef = useRef(onShortcut);
   onShortcutRef.current = onShortcut;

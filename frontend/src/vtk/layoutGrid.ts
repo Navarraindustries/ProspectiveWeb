@@ -37,11 +37,27 @@ const QUADRANTS: PaneId[] = ["axial", "coronal", "sagital", "scene"];
    pista y el selector de ventana); si la principal es VOLUMEN, que no tiene
    cuadrante, ese papel lo hace la 3D mientras dure CUATRO, sin tocar
    `layout.main`: al volver a otro preset VOLUMEN sigue siendo la principal. */
+/** La vista que hace de principal en pantalla. Casi siempre `layout.main`;
+ *  en CUATRO con VOLUMEN de principal, la 3D (VOLUMEN está oculta e `inert`).
+ *  Todo lo que en Viewer «va a la principal» (foco tras ocultar, atajos sin
+ *  celda enfocada, pista de gestos) tiene que usar esta y no `layout.main`:
+ *  si no, apunta a una celda que no se ve ni puede tener el foco. */
+export function shownMain(l: ViewerLayout): PaneId {
+  return l.preset === "cuatro" && !QUADRANTS.includes(l.main) ? "scene" : l.main;
+}
+
+/** Sobre qué celda actúan espacio, C y +/−: la enfocada o, sin ninguna, la
+ *  principal que se ve. Con `layout.main` el espacio arrancaba el cine en
+ *  VOLUMEN oculta en CUATRO. */
+export function shortcutPane(focused: PaneId | null, l: ViewerLayout): PaneId {
+  return focused ?? shownMain(l);
+}
+
 function cuatroFor(l: ViewerLayout): GridSpec {
-  const shownMain: PaneId = QUADRANTS.includes(l.main) ? l.main : "scene";
+  const shown = shownMain(l);
   const rest: Slot[] = ["s0", "s1", "s2"];
   const slotOf = {} as Record<PaneId, Slot>;
-  for (const id of QUADRANTS) slotOf[id] = id === shownMain ? "main" : rest.shift()!;
+  for (const id of QUADRANTS) slotOf[id] = id === shown ? "main" : rest.shift()!;
   slotOf.mip = "s3";
   const visible: Record<PaneId, boolean> = { scene: true, axial: true, coronal: true, sagital: true, mip: false };
   const [a, b, c, d] = QUADRANTS.map((id) => slotOf[id]);

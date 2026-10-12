@@ -2809,12 +2809,16 @@ endpoints above. The PDF report offers and embeds captures only, not videos.
 one grid in four presets, chosen in the header band above the grid or with
 **Alt+1 · Alt+2 · Alt+3 · Alt+4**: «SOLA» (the main view alone), «DERECHA» (main view
 plus a column of four, the default), «ABAJO» (main view plus a strip of
-four) and «CUATRO» (a 2×2 grid of equal cells with four views; VOLUMEN is left
-out unless it is the main view). When the header band is narrower than 800 px the presets read
+four) and «CUATRO» (a 2×2 grid of equal cells, always axial and coronal on top,
+sagittal and 3D below; VOLUMEN is left out, and if it was the main view a hint
+says «VOLUMEN queda fuera en CUATRO» and the 3D acts as the main view until
+CUATRO is left). When the header band is narrower than 800 px the presets read
 «DER · ABA · 4 · SOLA» and «PRINCIPAL» shrinks to «▸». Plain digits keep jumping between pipeline steps, and no shortcut fires
-while typing in a field. The header selector «PRINCIPAL ▸ 3D · AX · COR · SAG · VOL»
+while typing in a field. The header selector «PRINCIPAL ▸ 3D · AX · COR · SAG · VOLUMEN»
 chooses the main view directly, and a double click on a secondary view promotes
-it (the «⤢» button each secondary view used to carry is gone). Dragging the thin handle along the top edge of a view
+it (the «⤢» button each secondary view used to carry is gone). After a new main
+view is chosen the small views always read 3D · AX · COR · SAG · VOLUMEN, minus
+the main one. Dragging the thin handle along the top edge of a view
 onto another swaps them. The views are
 never remounted, so the 3D camera, slice positions and window/level survive
 every swap. The splitter between the main view and the others sets the share
@@ -2896,12 +2900,13 @@ the client copy of the volume is in, the scene falls back to the server-side
 oblique (a PNG with its own tilt, position and axis); that degraded mode does not read or
 move the shared plane.
 
-The header group «HUD ▸ COMPLETO · ESENCIAL · LIMPIO» (or the H key) sets how
-much HUD is drawn. Completo shows everything. Esencial drops the decoration
+The header group «TEXTOS ▸ COMPLETO · ESENCIAL · LIMPIO» (or the H key) sets how
+much text is drawn over the image. Completo shows everything. Esencial drops the decoration
 (corners, heading tape, reticle), the button groups and the gesture hint; the
 view label, readouts, edge letters, scale bar and slice ladder stay. Limpio
-leaves only the image and the annotations, plus the cine bar while it plays,
-safety notices and the prompt of an armed tool. Hidden buttons still work from
+leaves the image, the annotations, the edge letters (laterality) and the scale
+bar, plus the cine bar while it plays, safety notices and the prompt of an
+armed tool. Hidden buttons still work from
 the keyboard. Layout, HUD level, «PLANOS» and the folded step panel (P) are
 per-browser view preferences, and captures and recordings follow what is on
 screen; their saved state includes `hud_level`, `panel_collapsed`,

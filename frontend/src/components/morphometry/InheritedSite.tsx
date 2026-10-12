@@ -4,7 +4,7 @@
    defecto, y una sin tocar cambiaba la cifra sin que nadie lo viera. Ahora se
    enseña la elegida y cómo cambiarla; sin ella, se dice y no se calcula. */
 
-import { PICK_SITE } from "./thresholds";
+import { PICK_SITE, siteLabel } from "./thresholds";
 
 /** Lleva al selector único de Morfometría (está encima de las pestañas). */
 export function focusSiteSelector() {
@@ -35,7 +35,7 @@ export function InheritedSite({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, lineHeight: 1.5 }}>
       <div style={{ color: "var(--muted-foreground)" }}>
-        Localización: <b style={{ color: "var(--foreground)" }}>{site || "Desconocida / No especificada"}</b>
+        Localización: <b style={{ color: "var(--foreground)" }}>{site ? siteLabel(site) : "Desconocida / No especificada"}</b>
         {" · "}{link}
       </div>
       {!known && <div style={{ color: "var(--warning)" }}>{PICK_SITE}</div>}

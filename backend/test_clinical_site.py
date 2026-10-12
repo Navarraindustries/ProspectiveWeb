@@ -30,7 +30,9 @@ from services.web_sizing import SacDims, size_web
 client = TestClient(app, raise_server_exceptions=True)
 
 ACM = "ACM — Arteria Cerebral Media"
-BASILAR = "Basilar (punta, tronco o AICA)"
+BASILAR = "Tronco basilar"
+#: F1-174: la entrada antigua. Ya no se ofrece, pero hay sesiones que la llevan.
+BASILAR_ANTIGUA = "Basilar (punta, tronco o AICA)"
 PICA = "PICA / Vertebral"
 
 
@@ -45,6 +47,15 @@ class TestLaRuta:
         assert r.status_code == 200, r.text
         assert r.json()["site"] == BASILAR
         assert read_state(sid, "clinical.site", "") == BASILAR
+
+    def test_el_valor_antiguo_se_sigue_aceptando_tal_cual(self):
+        # No se traduce a «punta» ni a «tronco»: Case 3 es de tronco y su
+        # propietario no lo ha vuelto a elegir.
+        sid = create_session()
+        r = _put(sid, BASILAR_ANTIGUA)
+        assert r.status_code == 200, r.text
+        assert r.json()["site"] == BASILAR_ANTIGUA
+        assert clinical_site(sid) == BASILAR_ANTIGUA
 
     def test_la_morfometria_la_devuelve_al_reanudar(self):
         sid = create_session()

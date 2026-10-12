@@ -225,6 +225,31 @@ describe("las perforantes que la imagen no ve", () => {
     expect(screen.getByText(/no resuelve un vaso de/)).toBeInTheDocument();
   });
 
+  /* F1-181: el tronco salía con la tarjeta de la punta. */
+  it("el tronco basilar tiene su tarjeta, sin talamoperforantes", () => {
+    site = "Tronco basilar";
+    stored = { ...RESULT, perforators: {
+      arteries: "Perforantes pontinas paramedianas y circunferenciales cortas, desde la cara posterior y lateral del tronco",
+      supplies: "Protuberancia (base y tegmento)",
+      consequence: "Infarto pontino: paresia bilateral, afectación de pares craneales, locked-in en los extensos",
+      surgical_note: "", sources: [], notice: "",
+    } };
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText(/Perforantes pontinas paramedianas/)).toBeInTheDocument();
+    expect(screen.queryByText(/alamoperforantes/)).not.toBeInTheDocument();
+  });
+
+  it("con la localización antigua avisa antes de la tarjeta", () => {
+    site = "Basilar (punta, tronco o AICA)";
+    stored = { ...RESULT, perforators: { ...RESULT.perforators!,
+      notice: "Localización sin precisar: elige punta o tronco para la tarjeta exacta" } };
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText("Localización sin precisar: elige punta o tronco para la tarjeta exacta"))
+      .toBeInTheDocument();
+    // Y la localización heredada no se enseña como si fuera precisa.
+    expect(screen.getByText("Basilar (sin precisar: elige punta, tronco o AICA)")).toBeInTheDocument();
+  });
+
   it("no inventa un territorio cuando no hay localización", () => {
     stored = { ...RESULT, perforators: null };
     render(<TreatmentPanel onNext={() => {}} />);

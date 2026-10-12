@@ -274,12 +274,39 @@ describe("la localización, una sola vez", () => {
     withMorphometry(openCap);
     await screen.findByText("7.0");
     fireEvent.change(screen.getByLabelText("Localización"),
-      { target: { value: "Basilar (punta, tronco o AICA)" } });
-    expect(setClinicalSite).toHaveBeenCalledWith("s1", "Basilar (punta, tronco o AICA)");
+      { target: { value: "Tronco basilar" } });
+    expect(setClinicalSite).toHaveBeenCalledWith("s1", "Tronco basilar");
     fireEvent.click(screen.getByText("PHASES"));
     await screen.findByText(/referencia poblacional/);
     expect(screen.queryByText("Elige la localización en Morfometría")).not.toBeInTheDocument();
-    expect(screen.getByText(/Basilar \(punta, tronco o AICA\)/, { selector: "b" })).toBeInTheDocument();
+    expect(screen.getByText("Tronco basilar", { selector: "b" })).toBeInTheDocument();
+  });
+});
+
+/* F1-174: «Basilar (punta, tronco o AICA)» juntaba tres sitios con perforantes
+   distintas. El menú ofrece los tres; el valor antiguo solo aparece si una
+   sesión guardada lo trae, y pide precisarlo en vez de traducirse solo. */
+describe("punta, tronco y AICA por separado", () => {
+  const opciones = () => Array.from(
+    (screen.getByLabelText("Localización") as HTMLSelectElement).options).map((o) => o.text);
+
+  it("el menú ofrece las tres y no la entrada que las juntaba", async () => {
+    withMorphometry(openCap);
+    await screen.findByText("7.0");
+    expect(opciones()).toEqual(expect.arrayContaining(["Punta basilar", "Tronco basilar", "AICA"]));
+    expect(opciones().some((t) => t.startsWith("Basilar"))).toBe(false);
+  });
+
+  it("una sesión con el valor antiguo lo enseña sin precisar y ofrece las tres", async () => {
+    withMorphometry({ ...openCap, site: "Basilar (punta, tronco o AICA)" } as MorphometryResult);
+    await screen.findByText("7.0");
+    const sel = screen.getByLabelText("Localización") as HTMLSelectElement;
+    expect(sel.value).toBe("Basilar (punta, tronco o AICA)");
+    expect(sel.options[sel.selectedIndex]!.text)
+      .toBe("Basilar (sin precisar: elige punta, tronco o AICA)");
+    expect(opciones()).toEqual(expect.arrayContaining(["Punta basilar", "Tronco basilar", "AICA"]));
+    // No se ha guardado nada por abrir la pantalla: la traducción no es automática.
+    expect(setClinicalSite).not.toHaveBeenCalledWith("s1", "Punta basilar");
   });
 });
 
@@ -297,11 +324,11 @@ describe("cambiar la localización lo dice", () => {
 
   it("el mensaje aparece bajo el selector", async () => {
     setClinicalSite.mockResolvedValueOnce(
-      { site: "Basilar (punta, tronco o AICA)", cleared: ["Decisión"], recalculated: ["PHASES"], pending: [] });
+      { site: "Tronco basilar", cleared: ["Decisión"], recalculated: ["PHASES"], pending: [] });
     withMorphometry(openCap);
     await screen.findByText("7.0");
     fireEvent.change(screen.getByLabelText("Localización"),
-      { target: { value: "Basilar (punta, tronco o AICA)" } });
+      { target: { value: "Tronco basilar" } });
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Se ha borrado: Decisión — vuelve a calcularla. Recalculados con la nueva localización: PHASES.");
   });

@@ -1501,6 +1501,10 @@ class ReportGenerator:
         # esperadas por la localización», que es decir lo mismo dos veces.
         out = [Paragraph("Perforantes esperadas por la localización",
                          self._style_h2 if standalone else self._style_h3)]
+        if t.get("notice"):
+            # F1-231: la localización antigua no dice punta o tronco; el PDF
+            # lo dice antes de la tarjeta para que no se lea como la exacta.
+            out.append(Paragraph(f"<b>{t['notice']}.</b>", self._style_body))
         out.append(Paragraph(
             f"<b>{t['arteries']}.</b> Irrigan: {_minuscula(t.get('supplies', ''))}. "
             f"Lesionarlas: {_minuscula(t.get('consequence', ''))}.", self._style_body))

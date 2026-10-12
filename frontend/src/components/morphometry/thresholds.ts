@@ -16,6 +16,7 @@
    ANEURYSM_LOCATIONS) y `siteFor` la traduce a cada escala. */
 
 import type { ElapssLocation, PhasesSite, UiatsRequest } from "../../api/types";
+import { LEGACY_BASILAR, LEGACY_BASILAR_LABEL } from "../../api/types";
 
 export const AR_HIGH = 1.6;
 export const AR_MOD = 1.2;
@@ -85,16 +86,26 @@ export const THRESHOLD_TIP: Record<IndexKey, string> = {
    | ACI proximal (segm. cavernoso / clinoideo)| ica                | ica_aca_acom   | other               |
    | ACI distal (PCOM / oftálmica)             | ica                | ica_aca_acom   | other               |
    | ACoP — Arteria Comunicante Posterior      | aca_pcom_posterior | pcom_posterior | acom_pcom           |
+   | Punta basilar                             | aca_pcom_posterior | pcom_posterior | basilar_bifurcation |
+   | Tronco basilar                            | aca_pcom_posterior | pcom_posterior | vertebrobasilar     |
+   | AICA                                      | aca_pcom_posterior | pcom_posterior | vertebrobasilar     |
    | Basilar (punta, tronco o AICA)            | aca_pcom_posterior | pcom_posterior | vertebrobasilar     |
-   |   «Punta basilar» (si la lista la separa) | aca_pcom_posterior | pcom_posterior | basilar_bifurcation |
    | PICA / Vertebral                          | aca_pcom_posterior | pcom_posterior | vertebrobasilar     |
    | Otra localización                         | — (bloquea)        | — (bloquea)    | other               |
 
    «ACI distal» va como ACI: el aneurisma de comunicante posterior tiene su
    propia fila, y quien lo marque como ACI distal se queda sin los +4 de PHASES.
-   La fila «Basilar» junta punta y tronco: UIATS suma +4 (vertebrobasilar) y no
-   +5 (bifurcación) mientras no se separen. Se clasifica por palabras y no por
-   igualdad para que la lista separada (tronco, punta, AICA) caiga donde debe. */
+   F1-174: la lista ya separa punta, tronco y AICA. La fila antigua «Basilar
+   (punta, tronco o AICA)» sigue porque hay sesiones guardadas que la llevan:
+   UIATS le da +4 (vertebrobasilar) y no +5 (bifurcación), que es lo que daba.
+   Se clasifica por palabras y no por igualdad. */
+
+/** Cómo se enseña una localización. Solo cambia la basilar antigua (F1-174):
+ *  su texto «punta, tronco o AICA» se leía como una localización precisa, y
+ *  no lo es — la tarjeta de perforantes y el UIATS dependen de cuál sea. */
+export function siteLabel(site: string): string {
+  return site === LEGACY_BASILAR ? LEGACY_BASILAR_LABEL : site;
+}
 
 type Region =
   | "unknown" | "other" | "mca" | "aca_acom" | "ica" | "pcom"

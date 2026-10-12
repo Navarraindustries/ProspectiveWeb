@@ -3941,7 +3941,7 @@ export interface components {
              * @description Una de las localizaciones de la lista clínica (ANEURYSM_LOCATIONS).
              * @enum {string}
              */
-            site: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Basilar (punta, tronco o AICA)" | "PICA / Vertebral" | "Otra localización";
+            site: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Punta basilar" | "Tronco basilar" | "AICA" | "PICA / Vertebral" | "Otra localización" | "Basilar (punta, tronco o AICA)";
         };
         /** ClinicalSiteResult */
         ClinicalSiteResult: {
@@ -3965,7 +3965,7 @@ export interface components {
              * @description La localización guardada en `clinical.site`.
              * @enum {string}
              */
-            site: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Basilar (punta, tronco o AICA)" | "PICA / Vertebral" | "Otra localización";
+            site: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Punta basilar" | "Tronco basilar" | "AICA" | "PICA / Vertebral" | "Otra localización" | "Basilar (punta, tronco o AICA)";
         };
         /**
          * ClipAnimationResult
@@ -6358,7 +6358,7 @@ export interface components {
              * Site
              * @description Localización del aneurisma elegida en Morfometría (`clinical.site`, PUT /morphometry/{session_id}/site). La heredan PHASES, ELAPSS, UIATS, la decisión y el informe; viaja aquí para que «Reanudar» la recupere con la medida. None si no se eligió o es «Desconocida».
              */
-            site?: ("Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Basilar (punta, tronco o AICA)" | "PICA / Vertebral" | "Otra localización") | null;
+            site?: ("Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Punta basilar" | "Tronco basilar" | "AICA" | "PICA / Vertebral" | "Otra localización" | "Basilar (punta, tronco o AICA)") | null;
             /**
              * Sr
              * @description Size Ratio = max_diameter / parent_artery_diameter. 0 when parent artery not available (> 3.0 → elevated risk)
@@ -7266,6 +7266,12 @@ export interface components {
              * @default
              */
             consequence: string;
+            /**
+             * Notice
+             * @description Aviso que va antes de la tarjeta. Hoy solo para la localización basilar antigua, que no dice si es punta o tronco.
+             * @default
+             */
+            notice: string;
             /** Sources */
             sources?: string[];
             /**
@@ -9334,7 +9340,7 @@ export interface components {
              * @default Desconocida / No especificada
              * @enum {string}
              */
-            location: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Basilar (punta, tronco o AICA)" | "PICA / Vertebral" | "Otra localización";
+            location: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Punta basilar" | "Tronco basilar" | "AICA" | "PICA / Vertebral" | "Otra localización" | "Basilar (punta, tronco o AICA)";
             /**
              * Patient Age
              * @description Patient age in years. Now scored: the validated Japan Stroke Data Bank model penalises clipping from 72 and coiling only from 80. Optional — the engine reports how much of the case it could see rather than refusing to answer.

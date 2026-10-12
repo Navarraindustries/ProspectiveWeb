@@ -308,3 +308,28 @@ class TestInformeRestauradoAlDia:
         # _sesion_completa deja un SR vacío sin pasar por la ruta.
         r = _guardar_y_reanudar(_sesion_completa())
         assert r["report_urls"]["dicom_sr_url"] and r["report_urls"]["sr_current"] is False
+
+
+class TestLaLocalizacionBasilarAntigua:
+    """F1-174: la lista separa punta, tronco y AICA. Una sesión guardada antes
+    lleva «Basilar (punta, tronco o AICA)» (Case 3, de tronco) y tiene que
+    volver tal cual: ni un 422 ni traducida a «punta» sin que nadie lo elija."""
+
+    ANTIGUA = "Basilar (punta, tronco o AICA)"
+
+    def test_vuelve_tal_cual_y_la_tarjeta_pide_precisar(self):
+        from routers.detect import clinical_site
+
+        sid = create_session()
+        (session_subdir(sid, "meshes") / "vessel_tree.vtp").write_text("x")
+        write_states(sid, {"morpho.max_diameter_mm": "8.2", "morpho.neck_mm": "3.5",
+                           "clinical.site": self.ANTIGUA})
+        r = client.post("/api/treatment-decision", json={
+            "session_id": sid, "location": self.ANTIGUA, "is_ruptured": False})
+        assert r.status_code == 200, r.text
+        r = _guardar_y_reanudar(sid)
+        assert clinical_site(r["session_id"]) == self.ANTIGUA
+        assert r["treatment_inputs"]["location"] == self.ANTIGUA
+        perf = r["treatment"]["perforators"]
+        assert perf["notice"] == ("Localización sin precisar: elige punta o tronco "
+                                  "para la tarjeta exacta")

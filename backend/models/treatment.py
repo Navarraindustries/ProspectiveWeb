@@ -17,9 +17,14 @@ AneurysmLocation = Literal[
     "ACI proximal (segm. cavernoso / clinoideo)",
     "ACI distal (PCOM / oftálmica)",
     "ACoP — Arteria Comunicante Posterior",
-    "Basilar (punta, tronco o AICA)",
+    "Punta basilar",
+    "Tronco basilar",
+    "AICA",
     "PICA / Vertebral",
     "Otra localización",
+    # F1-174: la entrada antigua, que juntaba las tres. Sigue aceptada porque
+    # hay sesiones guardadas que la llevan; la interfaz ya no la ofrece.
+    "Basilar (punta, tronco o AICA)",
 ]
 
 RecommendationKey = Literal["clip", "endo", "mdt", "surveillance"]
@@ -141,6 +146,13 @@ class PerforatorTerritoryOut(BaseModel):
     supplies: str = ""
     consequence: str = ""
     surgical_note: str = ""
+    notice: str = Field(
+        "",
+        description=(
+            "Aviso que va antes de la tarjeta. Hoy solo para la localización "
+            "basilar antigua, que no dice si es punta o tronco."
+        ),
+    )
     sources: list[str] = Field(default_factory=list)
 
 

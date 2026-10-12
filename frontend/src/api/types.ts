@@ -844,12 +844,21 @@ export const ANEURYSM_LOCATIONS = [
   "ACI proximal (segm. cavernoso / clinoideo)",
   "ACI distal (PCOM / oftálmica)",
   "ACoP — Arteria Comunicante Posterior",
-  "Basilar (punta, tronco o AICA)",
+  "Punta basilar",
+  "Tronco basilar",
+  "AICA",
   "PICA / Vertebral",
   "Otra localización",
 ] as const;
 
-export type AneurysmLocation = (typeof ANEURYSM_LOCATIONS)[number];
+/** F1-174: la entrada que juntaba punta, tronco y AICA. El menú ya no la
+ *  ofrece, pero el servidor la sigue aceptando y devolviendo porque hay
+ *  sesiones guardadas que la llevan (Case 3, de tronco). No se traduce a
+ *  «punta» sin que nadie lo elija: se enseña como sin precisar. */
+export const LEGACY_BASILAR = "Basilar (punta, tronco o AICA)" as const;
+export const LEGACY_BASILAR_LABEL = "Basilar (sin precisar: elige punta, tronco o AICA)";
+
+export type AneurysmLocation = (typeof ANEURYSM_LOCATIONS)[number] | typeof LEGACY_BASILAR;
 
 /** PUT /api/morphometry/{sid}/site: la localización, elegida una vez (F1-165). */
 export interface ClinicalSiteResult {
@@ -886,6 +895,8 @@ export interface PerforatorTerritory {
   consequence: string;
   surgical_note: string;
   sources: string[];
+  /** Aviso antes de la tarjeta: hoy solo con la localización basilar antigua. */
+  notice?: string;
 }
 
 /** Cómo sería la vía endovascular para esta geometría. No es una segunda

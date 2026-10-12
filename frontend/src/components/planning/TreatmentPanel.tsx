@@ -377,6 +377,13 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
             <>
               <SectionLabel style={{ marginTop: 16 }}>Perforantes que esperar aquí</SectionLabel>
               <Card style={{ borderLeft: "3px solid var(--warning)" }}>
+                {/* F1-181: la basilar antigua no dice punta o tronco, y la
+                    tarjeta que sigue es la de la punta. Se dice antes de leerla. */}
+                {t.perforators.notice && (
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--warning)", marginBottom: 6, lineHeight: 1.5 }}>
+                    {t.perforators.notice}
+                  </div>
+                )}
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.4 }}>
                   {t.perforators.arteries}
                 </div>

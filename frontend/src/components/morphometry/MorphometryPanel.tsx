@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
-import { ANEURYSM_LOCATIONS } from "../../api/types";
+import { ANEURYSM_LOCATIONS, LEGACY_BASILAR, LEGACY_BASILAR_LABEL } from "../../api/types";
 import type { AneurysmLocation, ClinicalSiteResult, LongitudinalResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { MorphoRiskBadge, MORPHO_RISK_CRITERIA } from "./MorphoRiskBadge";
@@ -40,6 +40,16 @@ export function siteChangeNotice(r: Pick<ClinicalSiteResult, "cleared" | "recalc
       "Salen del informe y se recalculan al elegir otra.");
   }
   return partes.join(" ");
+}
+
+/** Las opciones del selector. F1-174: la basilar antigua ya no se ofrece,
+ *  pero si una sesión guardada la trae se enseña —como sin precisar y junto a
+ *  las tres nuevas— en vez de que el selector salte a otra en silencio. */
+function siteOptions(current: string | null | undefined) {
+  const opts = ANEURYSM_LOCATIONS.map((o) => ({ value: o as string, label: o as string }));
+  if (current !== LEGACY_BASILAR) return opts;
+  const at = opts.findIndex((o) => o.value === "Punta basilar");
+  return [...opts.slice(0, at), { value: LEGACY_BASILAR, label: LEGACY_BASILAR_LABEL }, ...opts.slice(at)];
 }
 
 export function MorphometryPanel({ onNext }: { onNext: () => void }) {
@@ -302,7 +312,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             <Select
               label="Localización"
               data-localizacion=""
-              options={ANEURYSM_LOCATIONS}
+              options={siteOptions(sitePending ?? planning.aneurysmSite)}
               value={sitePending ?? planning.aneurysmSite ?? ANEURYSM_LOCATIONS[0]}
               disabled={siteBusy}
               onChange={(e) => void changeSite(e.target.value as AneurysmLocation)}

@@ -1767,9 +1767,12 @@
        "ACI proximal (segm. cavernoso / clinoideo)",
        "ACI distal (PCOM / oftálmica)",
        "ACoP — Arteria Comunicante Posterior",
-       "Basilar (punta, tronco o AICA)",
+       "Punta basilar",
+       "Tronco basilar",
+       "AICA",
        "PICA / Vertebral",
-       "Otra localización"
+       "Otra localización",
+       "Basilar (punta, tronco o AICA)"
       ],
       "title": "Site",
       "type": "string"
@@ -1816,9 +1819,12 @@
        "ACI proximal (segm. cavernoso / clinoideo)",
        "ACI distal (PCOM / oftálmica)",
        "ACoP — Arteria Comunicante Posterior",
-       "Basilar (punta, tronco o AICA)",
+       "Punta basilar",
+       "Tronco basilar",
+       "AICA",
        "PICA / Vertebral",
-       "Otra localización"
+       "Otra localización",
+       "Basilar (punta, tronco o AICA)"
       ],
       "title": "Site",
       "type": "string"
@@ -5641,9 +5647,12 @@
          "ACI proximal (segm. cavernoso / clinoideo)",
          "ACI distal (PCOM / oftálmica)",
          "ACoP — Arteria Comunicante Posterior",
-         "Basilar (punta, tronco o AICA)",
+         "Punta basilar",
+         "Tronco basilar",
+         "AICA",
          "PICA / Vertebral",
-         "Otra localización"
+         "Otra localización",
+         "Basilar (punta, tronco o AICA)"
         ],
         "type": "string"
        },
@@ -6828,6 +6837,12 @@
      "consequence": {
       "default": "",
       "title": "Consequence",
+      "type": "string"
+     },
+     "notice": {
+      "default": "",
+      "description": "Aviso que va antes de la tarjeta. Hoy solo para la localización basilar antigua, que no dice si es punta o tronco.",
+      "title": "Notice",
       "type": "string"
      },
      "sources": {
@@ -9775,9 +9790,12 @@
        "ACI proximal (segm. cavernoso / clinoideo)",
        "ACI distal (PCOM / oftálmica)",
        "ACoP — Arteria Comunicante Posterior",
-       "Basilar (punta, tronco o AICA)",
+       "Punta basilar",
+       "Tronco basilar",
+       "AICA",
        "PICA / Vertebral",
-       "Otra localización"
+       "Otra localización",
+       "Basilar (punta, tronco o AICA)"
       ],
       "title": "Location",
       "type": "string"

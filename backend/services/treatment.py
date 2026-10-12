@@ -53,13 +53,26 @@ LOCATION_ACA_ACOA  = "ACA / ACoA — Arteria Comunicante Anterior"
 LOCATION_ICA_PROX  = "ACI proximal (segm. cavernoso / clinoideo)"
 LOCATION_ICA_DIST  = "ACI distal (PCOM / oftálmica)"
 LOCATION_PCOM      = "ACoP — Arteria Comunicante Posterior"
-LOCATION_BASILAR   = "Basilar (punta, tronco o AICA)"
+LOCATION_BASILAR_TIP   = "Punta basilar"
+LOCATION_BASILAR_TRUNK = "Tronco basilar"
+LOCATION_AICA          = "AICA"
+#: F1-174: la entrada única juntaba punta, tronco y AICA, y la tarjeta de
+#: perforantes era siempre la de la punta. Se separa en tres, pero el valor
+#: antiguo se sigue aceptando: hay sesiones guardadas que lo llevan (Case 3, de
+#: tronco). No se traduce a «punta» en silencio; la interfaz pide precisarlo.
+LOCATION_BASILAR_LEGACY = "Basilar (punta, tronco o AICA)"
+#: Las cuatro: puntúan igual (circulación posterior, alta complejidad quirúrgica).
+BASILAR_LOCATIONS = (LOCATION_BASILAR_TIP, LOCATION_BASILAR_TRUNK, LOCATION_AICA,
+                     LOCATION_BASILAR_LEGACY)
 LOCATION_PICA      = "PICA / Vertebral"
 LOCATION_OTHER     = "Otra localización"
 
 LOCATIONS: list[str] = [
     LOCATION_UNKNOWN, LOCATION_MCA, LOCATION_ACA_ACOA, LOCATION_ICA_PROX,
-    LOCATION_ICA_DIST, LOCATION_PCOM, LOCATION_BASILAR, LOCATION_PICA, LOCATION_OTHER,
+    LOCATION_ICA_DIST, LOCATION_PCOM, LOCATION_BASILAR_TIP, LOCATION_BASILAR_TRUNK,
+    LOCATION_AICA, LOCATION_PICA, LOCATION_OTHER,
+    # Al final y fuera del menú: solo para que validen las sesiones antiguas.
+    LOCATION_BASILAR_LEGACY,
 ]
 
 
@@ -545,10 +558,13 @@ def compute_decision(
             "PCOM: tratable por ambas vías; el tamaño y morfología determinan la estrategia.",
             "neutral", 0, "location",
         )
-    elif loc == LOCATION_BASILAR:
+    elif loc in BASILAR_LOCATIONS:
+        # El voto es el mismo en las cuatro; el texto nombra la que se eligió
+        # para que el factor no diga «punta, tronco o AICA» de un tronco.
+        sitio = "Basilar" if loc == LOCATION_BASILAR_LEGACY else loc
         _add(
-            "Localización Basilar (punta, tronco o AICA)",
-            "Basilar: acceso quirúrgico de alta complejidad — endovascular de elección.",
+            f"Localización {loc}",
+            f"{sitio}: acceso quirúrgico de alta complejidad — endovascular de elección.",
             "endo", 25, "location",
         )
     elif loc == LOCATION_PICA:

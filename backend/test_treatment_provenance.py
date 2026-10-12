@@ -449,12 +449,22 @@ class TestTheExpectedPerforatorTerritory:
                                 location=location)["perforators"]
 
     def test_the_basilar_apex_names_what_costs_most(self):
-        from services.treatment import LOCATION_BASILAR
+        from services.treatment import LOCATION_BASILAR_TIP
 
-        t = self._perf(LOCATION_BASILAR)
+        t = self._perf(LOCATION_BASILAR_TIP)
         assert "alamoperforantes" in t["arteries"]
         assert "coma" in t["consequence"]
         assert t["sources"], "una tabla clínica sin fuente es una opinión"
+
+    def test_tronco_basilar_da_perforantes_pontinas(self):
+        # F1-174: la lista juntaba punta y tronco, y el tronco salía con las
+        # talamoperforantes de la punta. Case 3 es de tronco.
+        from services.treatment import LOCATION_BASILAR_TRUNK
+
+        t = self._perf(LOCATION_BASILAR_TRUNK)
+        assert "pontinas" in t["arteries"]
+        assert "alamoperforantes" not in t["arteries"]
+        assert t["notice"] == ""
 
     def test_the_acom_names_the_recurrent_artery(self):
         from services.treatment import LOCATION_ACA_ACOA

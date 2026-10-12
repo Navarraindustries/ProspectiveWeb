@@ -103,6 +103,34 @@ describe("la lista de «Pacientes»", () => {
   });
 });
 
+/* F1-252, F1-253: un Médico veía «Pacientes registrados · en la base de
+   datos» y, con la lista vacía, «No hay pacientes registrados»; con cero
+   pacientes propios parecía que la base de datos estaba vacía o perdida. */
+describe("usuario no administrador (F1-252, F1-253)", () => {
+  it("el contador dice «Tus pacientes · creados por ti»", async () => {
+    renderAt("/app/pacientes");
+    expect(await screen.findByText("Tus pacientes")).toBeTruthy();
+    expect(screen.getByText("creados por ti")).toBeTruthy();
+    expect(screen.queryByText("Pacientes registrados")).toBeNull();
+    expect(screen.queryByText("en la base de datos")).toBeNull();
+  });
+
+  it("la lista vacía dice que solo ve los pacientes que ha creado", async () => {
+    renderAt("/app/pacientes");
+    expect(await screen.findByText("Solo ves los pacientes que has creado tú. Crea el primero para comenzar.")).toBeTruthy();
+    expect(screen.queryByText("No hay pacientes registrados. Crea el primero para comenzar.")).toBeNull();
+  });
+
+  it("el administrador conserva «Pacientes registrados» y el vacío de siempre", async () => {
+    user.role = "admin";
+    renderAt("/app/pacientes");
+    expect(await screen.findByText("No hay pacientes registrados. Crea el primero para comenzar.")).toBeTruthy();
+    expect(screen.getByText("Pacientes registrados")).toBeTruthy();
+    expect(screen.getByText("en la base de datos")).toBeTruthy();
+    expect(screen.queryByText("Tus pacientes")).toBeNull();
+  });
+});
+
 describe("con el API fallando (F1-2, F1-29)", () => {
   it("la lista muestra el error y no «0 registros» ni el vacío; «Reintentar» vuelve a llamar", async () => {
     listPatients.mockRejectedValueOnce(new ApiError(0, "Sin conexión con el servidor"));

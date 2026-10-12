@@ -26,6 +26,7 @@
 - [Anotaciones del visor](#anotaciones-del-visor)
 - [Pantalla limpia y controles](#pantalla-limpia-y-controles)
 - [Navigation & Unsaved Work](#navigation--unsaved-work)
+- [Roles y permisos](#roles-y-permisos)
 - [API Reference](#api-reference)
 - [Candidatos descartados y puesto](#candidatos-descartados-y-puesto)
 - [Banco de detección](#banco-de-detección)
@@ -2453,6 +2454,53 @@ marks itself dirty as soon as a step produces a result worth keeping, and:
 
 The dirty flag is set inside the store's setters rather than at each call site,
 so a panel added later cannot forget to do it.
+
+---
+
+## Roles y permisos
+
+Cada cuenta tiene uno de cuatro roles. Las frases que ven la barra superior y
+«Usuarios» salen de `frontend/src/lib/roles.ts` (`ROLE_PERMITE`); lo que de
+verdad decide es el servidor, y la tabla dice dónde.
+
+| Rol | Qué ve | Qué puede hacer |
+|---|---|---|
+| **Administrador** (`admin`) | Todos los pacientes, sus casos, sesiones, capturas y pedidos; «Usuarios», «Cuentas pendientes» y «Auditoría». | Todo lo de un Médico, y además: aprobar o rechazar cuentas pendientes, crear, editar y borrar usuarios, restablecer contraseñas, añadir o quitar clips del catálogo de la institución, quitar talleres y verificar la cadena de auditoría. |
+| **Médico** (`medico`) | Solo los pacientes que ha creado, y los casos, sesiones, capturas, decisiones y pedidos de esos pacientes. | Crear y editar sus pacientes y casos, planificar y guardar sesiones, pedir clips y **firmar** pedidos. |
+| **Residente** (`residente`) | Lo mismo que un Médico: solo sus pacientes. | Lo mismo que un Médico salvo firmar: prepara el pedido, pero «Firmar» le sale apagado con el motivo y el servidor lo rechaza. |
+| **Observador** (`viewer`) | Lo mismo que un Médico: solo sus pacientes. | Lo mismo que un Residente: no firma pedidos. |
+
+Dónde lo comprueba el servidor:
+
+- **Pacientes propios.** `routers/patients.py` filtra la lista por `created_by`
+  salvo para el administrador, y abrir, editar o borrar un paciente ajeno da
+  403 «No autorizado sobre este paciente.». El mismo control
+  (`services/access.py`, `require_patient`) protege casos, sesiones, capturas,
+  ficheros de sesión, la decisión y los pedidos. Pedir los pedidos de un
+  paciente ajeno devuelve la lista vacía: nunca enseña los de otro profesional.
+- **Firma de pedidos.** `services/clip_orders.py` (`SIGNING_ROLES`): solo
+  `medico` y `admin` firman.
+- **Solo administrador.** `routers/audit.py` (toda la auditoría),
+  `routers/clip_library.py` (añadir, medir y quitar clips del catálogo; leerlo
+  puede cualquiera), `routers/auth.py` (cuentas pendientes, usuarios,
+  restablecer contraseña) y quitar un taller en `routers/clip_orders.py`
+  dependen de `require_admin`. En la pantalla, `/app/usuarios` y
+  `/app/auditoria` escritas a mano por quien no es administrador muestran solo
+  la tarjeta «Solo para administradores» y no piden nada al servidor.
+
+En «Pacientes», quien no es administrador lee «Ves los pacientes que
+creaste», el contador «Tus pacientes · creados por ti» y, con la lista vacía,
+«Solo ves los pacientes que has creado tú. Crea el primero para comenzar.»;
+sin eso, cero pacientes propios parecía una base de datos vacía.
+
+**Contraseñas.** Una cuenta creada por un administrador, y una a la que un
+administrador restablece la contraseña, queda marcada para cambiarla: hasta
+hacerlo, el servidor responde 403 a todo salvo cambiar la contraseña, leer la
+propia cuenta y cerrar sesión. Quien se registra por su cuenta ya eligió la suya y entra con rol
+Médico cuando un administrador la aprueba.
+
+Para problemas con la cuenta (aprobación, rol, contraseña olvidada) el
+contacto es **ingprospective@skullapp.tech** (`frontend/src/lib/contacto.ts`).
 
 ---
 

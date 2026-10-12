@@ -244,6 +244,30 @@ describe("con el API fallando (F1-99)", () => {
   });
 });
 
+/* Verificación cruzada de la Tarea 3 desde un Médico: filtrar por un paciente
+   ajeno no enseña pedidos de otro profesional. El servidor devuelve la lista
+   vacía (los pedidos ajenos no se ven) o, si responde 403, la pantalla dice el
+   motivo en lugar de la tabla. */
+describe("un Médico filtrando por un paciente ajeno", () => {
+  beforeEach(() => { auth.user = { role: "medico" }; });
+
+  it("con la lista vacía del servidor no hay tabla ni pedidos", async () => {
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage patientFilter={{ id: 99, full_name: "Ajeno, Paciente" } as never} />);
+    expect(await screen.findByText(/No hay pedidos que encajen/)).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("con un 403 muestra el motivo y no la tabla", async () => {
+    listClipOrders.mockRejectedValue(Object.assign(new Error("No autorizado sobre este paciente."),
+      { status: 403, fromServer: true }));
+    render(<ClipOrdersPage patientFilter={{ id: 99, full_name: "Ajeno, Paciente" } as never} />);
+    expect(await screen.findByText("No se pudo leer el registro: No autorizado sobre este paciente.")).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText(/No hay pedidos que encajen/)).toBeNull();
+  });
+});
+
 /* F1-97, F1-98: «Firmar» se ofrecía a quien el servidor no deja firmar, y
    firmar o rechazar la pieza ocurría al primer clic. */
 describe("firmar y rechazar", () => {

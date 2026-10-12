@@ -524,7 +524,12 @@ export function Patients({
 
   const totalStudies = patients.reduce((acc, p) => acc + p.study_count, 0);
   const tiles: { k: string; v: string; s?: string; icon: React.ComponentProps<typeof Icon>["name"] }[] = [
-    { k: "Pacientes registrados", v: String(patients.length), s: "en la base de datos", icon: "STEP_PATIENT" },
+    // F1-252: un Médico solo recibe los pacientes que creó; «Pacientes
+    // registrados · en la base de datos» con 0 le hacía creer que la base
+    // estaba vacía. El administrador sí ve la base entera.
+    isAdmin
+      ? { k: "Pacientes registrados", v: String(patients.length), s: "en la base de datos", icon: "STEP_PATIENT" }
+      : { k: "Tus pacientes", v: String(patients.length), s: "creados por ti", icon: "STEP_PATIENT" },
     { k: "Casos clínicos", v: String(totalStudies), icon: "FOLDER" },
     { k: "Con caso", v: String(patients.filter((p) => p.study_count > 0).length), icon: "STATUS_OK" },
     { k: "Sin caso", v: String(patients.filter((p) => p.study_count === 0).length), icon: "WAIT" },
@@ -634,8 +639,12 @@ export function Patients({
                     <td colSpan={7}>
                       <LoadState
                         state={loadError ? "error" : loading ? "cargando" : "vacio"}
+                        // F1-253: para un Médico la lista vacía no significa que no
+                        // haya pacientes en el sistema, sino que no ha creado ninguno.
                         mensaje={loadError ?? (patients.length === 0
-                          ? "No hay pacientes registrados. Crea el primero para comenzar."
+                          ? (isAdmin
+                            ? "No hay pacientes registrados. Crea el primero para comenzar."
+                            : "Solo ves los pacientes que has creado tú. Crea el primero para comenzar.")
                           : "Ningún paciente coincide con la búsqueda.")}
                         onRetry={load}
                       />

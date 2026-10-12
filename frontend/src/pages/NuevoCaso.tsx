@@ -9,6 +9,7 @@ import type { FormEvent } from "react";
 import { api } from "../api/client";
 import type { PatientSummary, StudyCreate, StudySummary } from "../api/types";
 import { Button } from "../components/Button";
+import { DiscardChanges } from "../components/DiscardChanges";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
@@ -78,14 +79,24 @@ export function NuevoEstudioSheet({
   const [mods, setMods] = useState<Mods>({ tac: false, angio: false, rm: false, pangio: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // F1-81: «Cancelar», Escape o el clic fuera tiraban el caso a medio escribir.
+  // Lo que había al abrir, para saber si hay algo que perder.
+  const [initial, setInitial] = useState("");
+  const [askDiscard, setAskDiscard] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const snapshot = JSON.stringify({ f, trat, mods });
+  const requestClose = () => (snapshot !== initial ? setAskDiscard(true) : onClose());
 
   // Reset (or prefill from `study` when editing) each time it opens.
   useEffect(() => {
     if (!open) return;
+    setAskDiscard(false);
+    let nf: typeof f;
+    let nt: Record<string, boolean>;
+    let nm: Mods;
     if (study) {
       const [marca, tipo] = (study.angiographer || "").split(" | ");
-      setF({
+      nf = {
         study_date: study.acquired_at || today,
         sintomas_positivos: study.sintomas_positivos || "",
         dx_principal: study.dx_principal || "",
@@ -95,15 +106,20 @@ export function NuevoEstudioSheet({
         lateralidad: study.lateralidad || "",
         angio_marca: marca || "",
         angio_tipo: (tipo || "").trim(),
-      });
+      };
       const chosen = (study.tratamiento_propuesto || "").split(",").map((s) => s.trim());
-      setTrat(Object.fromEntries(TRATAMIENTOS.map((t) => [t, chosen.includes(t)])));
-      setMods({ tac: study.mod_tac, angio: study.mod_angio, rm: study.mod_rm, pangio: study.mod_pangio });
+      nt = Object.fromEntries(TRATAMIENTOS.map((t) => [t, chosen.includes(t)]));
+      nm = { tac: study.mod_tac, angio: study.mod_angio, rm: study.mod_rm, pangio: study.mod_pangio };
     } else {
-      setF({ study_date: today, sintomas_positivos: "", dx_principal: "", dx_secundario: "", tipo_aneurisma: "", region_anatomica: "", lateralidad: "", angio_marca: "", angio_tipo: "" });
-      setTrat(Object.fromEntries(TRATAMIENTOS.map((t) => [t, false])));
-      setMods({ tac: false, angio: false, rm: false, pangio: false });
+      nf = { study_date: today, sintomas_positivos: "", dx_principal: "", dx_secundario: "", tipo_aneurisma: "", region_anatomica: "", lateralidad: "", angio_marca: "", angio_tipo: "" };
+      nt = Object.fromEntries(TRATAMIENTOS.map((t) => [t, false]));
+      nm = { tac: false, angio: false, rm: false, pangio: false };
     }
+    setF(nf);
+    setTrat(nt);
+    setMods(nm);
+    // La foto de partida sale de los mismos valores que se acaban de poner.
+    setInitial(JSON.stringify({ f: nf, trat: nt, mods: nm }));
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, patientId, study]);
@@ -135,7 +151,8 @@ export function NuevoEstudioSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title={editing ? "Editar caso / estudio" : "Nuevo caso / estudio"} width={520}>
+    <>
+    <Sheet open={open} onClose={requestClose} title={editing ? "Editar caso / estudio" : "Nuevo caso / estudio"} width={520}>
       {patientName && <div style={{ ...SUBTLE, marginBottom: 12 }}>Paciente: <b style={{ color: "var(--foreground)" }}>{patientName}</b></div>}
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <Input label="Fecha del caso" type="date" value={f.study_date} onChange={set("study_date")} />
@@ -177,10 +194,16 @@ export function NuevoEstudioSheet({
         <ErrorNote>{error}</ErrorNote>
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
           <Button type="submit" style={{ flex: 1 }} disabled={busy}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear estudio"}</Button>
-          <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
         </div>
       </form>
     </Sheet>
+    <DiscardChanges
+      open={askDiscard}
+      onKeep={() => setAskDiscard(false)}
+      onDiscard={() => { setAskDiscard(false); onClose(); }}
+    />
+    </>
   );
 }
 

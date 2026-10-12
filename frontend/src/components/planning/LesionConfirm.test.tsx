@@ -81,6 +81,10 @@ describe("confirmar", () => {
     vi.mocked(api.confirmLesion).mockResolvedValue(confirmacion({ source: "no_lesion", candidate_rank: null }));
     montar();
     fireEvent.click(await screen.findByText("No hay aneurisma"));
+    // F1-147: antes de registrarlo, se pregunta.
+    expect(screen.getByRole("alertdialog", { name: "¿No hay aneurisma en este estudio?" })).toBeInTheDocument();
+    expect(api.confirmLesion).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Registrar sin aneurisma" }));
     expect(await screen.findByText(/Sin aneurisma en este estudio/)).toBeInTheDocument();
   });
 });
@@ -102,5 +106,17 @@ describe("lo que enseña", () => {
     expect(summaryText(vacio)).toBeNull();
     expect(summaryText({ ...vacio, confirmed: 5, first: 2, top3: 4, missed: 1 }))
       .toBe("Con 5 lesiones confirmadas, el detector la puso 1.ª en 2, entre las 3 primeras en 4 y no la encontró en 1.");
+  });
+});
+
+/* F1-147: «No hay aneurisma» quedaba registrado a tu nombre al primer clic. */
+describe("«No hay aneurisma»", () => {
+  it("abre la confirmación y «Cancelar» no registra nada", async () => {
+    montar({ study: 3 });
+    fireEvent.click(await screen.findByText("No hay aneurisma"));
+    expect(screen.getByRole("alertdialog", { name: "¿No hay aneurisma en este estudio?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(api.confirmLesion).not.toHaveBeenCalled();
   });
 });

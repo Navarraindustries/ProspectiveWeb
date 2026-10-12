@@ -15,6 +15,7 @@ import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { Sheet } from "../components/Sheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DiscardChanges } from "../components/DiscardChanges";
 import { Topbar } from "../components/Topbar";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -68,6 +69,10 @@ function PatientSheet({
   // lista se quedaba como estaba sin decir nada.
   const [studiesError, setStudiesError] = useState<string | null>(null);
   const [form, setForm] = useState({ ...BLANK });
+  // Lo que había al abrir: «Cancelar», el ✕, Escape y el clic fuera tiraban lo
+  // escrito sin preguntar (F1-60, F1-71). Contra esto se mide si hay cambios.
+  const [initial, setInitial] = useState({ ...BLANK });
+  const [askDiscard, setAskDiscard] = useState(false);
   const [sessions, setSessions] = useState<PatientSessionInfo[]>([]);
   const [studies, setStudies] = useState<StudySummary[]>([]);
   const [studyOpen, setStudyOpen] = useState(false);
@@ -90,8 +95,10 @@ function PatientSheet({
     setDenied(null);
     setLoadError(null);
     setStudiesError(null);
+    setAskDiscard(false);
     if (patientId === null) {
       setForm({ ...BLANK });
+      setInitial({ ...BLANK });
       setSessions([]);
       setStudies([]);
       return;
@@ -99,7 +106,7 @@ function PatientSheet({
     setLoading(true);
     Promise.all([api.getPatient(patientId), api.patientSessions(patientId), api.patientStudies(patientId)])
       .then(([p, s, st]) => {
-        setForm({
+        const loaded = {
           surname: p.surname ?? "", given_name: p.given_name ?? "", hospital_id: p.hospital_id ?? "",
           sex: p.sex || "F", dob: p.dob ?? "", institution: p.institution ?? "", ocupacion: p.ocupacion ?? "",
           antecedentes_patologicos: p.antecedentes_patologicos ?? "",
@@ -108,7 +115,9 @@ function PatientSheet({
           antecedentes_alergicos: p.antecedentes_alergicos ?? "",
           antecedentes_farmacologicos: p.antecedentes_farmacologicos ?? "",
           notes: p.notes ?? "",
-        });
+        };
+        setForm(loaded);
+        setInitial(loaded);
         setSessions(s);
         setStudies(st);
       })
@@ -125,6 +134,12 @@ function PatientSheet({
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Solo cuenta lo que se ve como formulario: con el 403 o el fallo de carga
+  // no hay nada escrito que perder.
+  const dirty = !loading && !denied && !loadError
+    && (Object.keys(form) as (keyof typeof form)[]).some((k) => form[k] !== initial[k]);
+  const requestClose = () => (dirty ? setAskDiscard(true) : onClose());
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -144,7 +159,7 @@ function PatientSheet({
 
   return (
     <>
-    <Sheet open={open} onClose={onClose} title={editing ? "Editar paciente" : "Nuevo paciente"} width={480}>
+    <Sheet open={open} onClose={requestClose} title={editing ? "Editar paciente" : "Nuevo paciente"} width={480}>
       {loading ? (
         <LoadState state="cargando" />
       ) : denied ? (
@@ -333,11 +348,16 @@ function PatientSheet({
             <Button type="submit" style={{ flex: 1 }} disabled={busy || !form.surname}>
               {busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear paciente"}
             </Button>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
           </div>
         </form>
       )}
     </Sheet>
+    <DiscardChanges
+      open={askDiscard}
+      onKeep={() => setAskDiscard(false)}
+      onDiscard={() => { setAskDiscard(false); onClose(); }}
+    />
     <NuevoEstudioSheet
       open={studyOpen}
       patientId={patientId}
@@ -378,6 +398,20 @@ function DeleteConfirm({
   onConfirm: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // F1-58: el diálogo no decía cuánto se borraba. Los casos vienen en la fila;
+  // las sesiones se piden al abrirlo. Si la cuenta falla, se dice sin número.
+  const [nSessions, setNSessions] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.patientSessions(patient.id)
+      .then((s) => { if (alive) setNSessions(s.length); })
+      .catch(() => { /* sin cifra: el texto general sigue siendo verdad */ });
+    return () => { alive = false; };
+  }, [patient.id]);
+  const casos = `${patient.study_count} ${patient.study_count === 1 ? "caso" : "casos"}`;
+  const sesiones = nSessions === null
+    ? "sus sesiones de planificación"
+    : `${nSessions} ${nSessions === 1 ? "sesión" : "sesiones"} de planificación`;
   return (
     <ConfirmDialog
       open
@@ -389,7 +423,7 @@ function DeleteConfirm({
       onConfirm={async () => { setBusy(true); await onConfirm(); }}
     >
       ¿Seguro que quieres eliminar a <b style={{ color: "var(--foreground)" }}>{patient.full_name}</b>? Se
-      borrarán también sus estudios y sesiones de planificación. Esta acción no se puede deshacer.
+      borrarán también sus {casos} y {sesiones}. Esta acción no se puede deshacer.
     </ConfirmDialog>
   );
 }

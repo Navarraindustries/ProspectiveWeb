@@ -7,6 +7,7 @@ import { api } from "../../api/client";
 import type { CenterlineResult, CrossSectionResult } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, ErrorNote, SectionLabel } from "../PanelHead";
@@ -39,12 +40,17 @@ export function CenterlinePanel() {
     sessionId, segmentation, pickMode, clSource, clTarget, centerlineMesh,
     setPickMode, setClSource, setClTarget, setCenterlineMesh, setCenterlineArcMm,
     clearDeviceMeshes, centerline, setCenterline, focusPoint, setFocusMm, setFreePlane, volumeVersion,
+    deviceMeshes,
   } = usePlanning();
   const { meta } = useVolumeMeta(sessionId, volumeVersion);
 
   const [voxel, setVoxel] = useState("0.8");
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
+  // F1-170: «Limpiar» borraba la línea central y, con ella, el stent guiado
+  // por ella, sin preguntar. Solo con dos puntos marcados no hay nada que
+  // perder y no se pregunta.
+  const [askingClear, setAskingClear] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CenterlineResult | null>(null);
 
@@ -221,12 +227,23 @@ export function CenterlinePanel() {
         <Button
           variant="outline" style={{ flex: 1 }}
           disabled={busy || clearing || (!result && !clSource && !centerlineMesh)}
-          onClick={() => void clear()}
+          onClick={() => (result || centerlineMesh ? setAskingClear(true) : void clear())}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {clearing ? "…" : "Limpiar"}
         </Button>
       </div>
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar la línea central?"
+        confirmLabel="Limpiar línea central"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => { setAskingClear(false); void clear(); }}
+      >
+        Se borran la línea central y sus medidas.
+        {deviceMeshes?.stent && " Si el stent colocado está guiado por ella, el stent guiado se retira también."}
+      </ConfirmDialog>
 
       {busy && (
         <div style={{ marginTop: 12 }}>

@@ -7,6 +7,7 @@ import { api } from "../../api/client";
 import type { StudySummary, UploadResult } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -57,6 +58,12 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
   const [studyId, setStudyId] = useState<number | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [archived, setArchived] = useState(false);
+  // F1-9: soltar otra carpeta con trabajo hecho vaciaba la segmentación, la
+  // detección, la medida y las anotaciones sin preguntar. Los archivos
+  // esperan aquí a que se confirme.
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+  const hasWork = planning.segmentation !== null || planning.candidates.length > 0
+    || planning.morphometry !== null || planning.annotations.length > 0;
   // Already in the permanent archive — either opened from the gallery or just
   // saved. Offering "Guardar estudio" again would duplicate a ~1 GB study.
   const alreadyArchived = planning.imagingStudyId != null || archived;
@@ -70,6 +77,11 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
     el.setAttribute("directory", "");
     el.setAttribute("mozdirectory", "");
   }, []);
+
+  const requestUpload = (files: File[]) => {
+    if (files.length > 0 && hasWork) { setPendingFiles(files); return; }
+    void doUpload(files);
+  };
 
   const doUpload = async (files: File[]) => {
     if (files.length === 0) {
@@ -178,17 +190,35 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       void (async () => {
         const files: File[] = [];
         for (const entry of entries) await walkEntry(entry, files);
-        await doUpload(files);
+        requestUpload(files);
       })();
     } else {
-      void doUpload(Array.from(e.dataTransfer.files));
+      requestUpload(Array.from(e.dataTransfer.files));
     }
+  };
+
+  // El selector no vuelve a disparar `change` con los mismos archivos: se
+  // vacía para que elegir otra vez la misma carpeta tras «Cancelar» funcione.
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    requestUpload(files);
   };
 
   const series = planning.series;
 
   return (
     <div className="fade-rise">
+      <ConfirmDialog
+        open={pendingFiles !== null}
+        title="¿Cargar otro estudio?"
+        confirmLabel="Cargar otro estudio"
+        destructive
+        onCancel={() => setPendingFiles(null)}
+        onConfirm={() => { const f = pendingFiles; setPendingFiles(null); if (f) void doUpload(f); }}
+      >
+        Esto descarta la segmentación, la detección y la medida. ¿Cargar otro estudio?
+      </ConfirmDialog>
       <PanelHead
         title="Carga DICOM"
         desc="Sube la serie del estudio (carpeta o arrastrando los archivos)."
@@ -215,14 +245,14 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           type="file"
           multiple
           style={{ display: "none" }}
-          onChange={(e) => void doUpload(Array.from(e.target.files ?? []))}
+          onChange={onPick}
         />
         <input
           ref={dirInput}
           type="file"
           multiple
           style={{ display: "none" }}
-          onChange={(e) => void doUpload(Array.from(e.target.files ?? []))}
+          onChange={onPick}
         />
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, color: "var(--muted-foreground)" }}>
           <Icon name="FOLDER" size={30} />

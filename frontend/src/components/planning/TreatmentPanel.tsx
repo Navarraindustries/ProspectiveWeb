@@ -9,6 +9,7 @@ import { useState } from "react";
 import { api } from "../../api/client";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Input } from "../Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
@@ -54,6 +55,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
   const [priorStroke, setPriorStroke] = useState<string>(txt(prev?.prior_stroke));
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [askingClear, setAskingClear] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const run = async () => {
@@ -195,12 +197,23 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
         <Button
           variant="ghost" style={{ marginTop: 8, width: "100%" }}
           disabled={busy || clearing}
-          onClick={() => void clear()}
+          onClick={() => setAskingClear(true)}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {clearing ? "Limpiando…" : "Limpiar decisión y PHASES"}
         </Button>
       )}
+      {/* F1-18: limpiar borraba la recomendación al primer clic. */}
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar la decisión y PHASES?"
+        confirmLabel="Limpiar"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => { setAskingClear(false); void clear(); }}
+      >
+        Se borran la recomendación, sus factores y la puntuación PHASES, también del informe.
+      </ConfirmDialog>
       <ErrorNote>{error}</ErrorNote>
 
       {t && (

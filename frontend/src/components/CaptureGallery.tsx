@@ -17,6 +17,7 @@ import { isRecording, type CaptureOut } from "../api/types";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { Card, ErrorNote, SectionLabel } from "./PanelHead";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
 
 /** Nombre del fichero al descargar: legible y sin datos del paciente. */
@@ -58,6 +59,9 @@ export function CaptureGallery({
   const [error, setError] = useState<string | null>(null);
   const [editando, setEditando] = useState<number | null>(null);
   const [borrador, setBorrador] = useState("");
+  // F1-3: la ✕ borraba al primer clic, sin aviso ni deshacer. La captura
+  // pendiente de confirmar vive aquí hasta que se dice que sí.
+  const [aBorrar, setABorrar] = useState<CaptureOut | null>(null);
   // Una URL de objeto por captura, revocadas al desmontar.
   const [urls, setUrls] = useState<Record<number, string>>({});
   const urlsRef = useRef<Record<number, string>>({});
@@ -151,6 +155,16 @@ export function CaptureGallery({
 
   return (
     <div style={{ marginTop: 14 }}>
+      <ConfirmDialog
+        open={aBorrar !== null}
+        title="¿Borrar la captura?"
+        confirmLabel="Borrar captura"
+        destructive
+        onCancel={() => setABorrar(null)}
+        onConfirm={() => { const c = aBorrar; setABorrar(null); if (c) void borrar(c); }}
+      >
+        «{aBorrar?.label ?? ""}» desaparece de la galería del caso y no se puede recuperar.
+      </ConfirmDialog>
       <SectionLabel>Capturas ({total})</SectionLabel>
       <ErrorNote>{error}</ErrorNote>
       {rows === null ? (
@@ -232,7 +246,7 @@ export function CaptureGallery({
                   Descargar
                 </Button>
                 <Button size="sm" variant="ghost" title="Borrar esta captura"
-                  onClick={() => void borrar(c)}>
+                  onClick={() => setABorrar(c)}>
                   ✕
                 </Button>
               </div>

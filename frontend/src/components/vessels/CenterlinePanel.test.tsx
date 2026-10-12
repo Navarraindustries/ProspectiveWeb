@@ -2,14 +2,16 @@
 
    El tubo volvía al visor pero las métricas vivían solo en el estado local del
    panel, así que la tabla salía vacía hasta volver a extraer. */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCenterline = vi.fn();
 const centerlinePoints = vi.fn();
+const clearCenterline = vi.fn();
 vi.mock("../../api/client", () => ({ api: {
   getCenterline: (...a: unknown[]) => getCenterline(...a),
   centerlinePoints: (...a: unknown[]) => centerlinePoints(...a),
+  clearCenterline: (...a: unknown[]) => clearCenterline(...a),
 } }));
 
 let planning: Record<string, unknown> = {};
@@ -28,6 +30,7 @@ const metricas = {
 beforeEach(() => {
   getCenterline.mockReset().mockResolvedValue(metricas);
   centerlinePoints.mockReset().mockResolvedValue({ points: [], radii_mm: [], arc_mm: [] });
+  clearCenterline.mockReset().mockResolvedValue({ removed: ["centerline.vtp", "cl_stent.vtp"] });
   planning = {
     sessionId: "s", segmentation: { mesh_url: "/m.vtp" }, pickMode: null,
     clSource: null, clTarget: null, centerlineMesh: "/data/sessions/s/meshes/centerline.vtp",
@@ -61,5 +64,25 @@ describe("la línea central al reanudar", () => {
   it("con el tubo en el visor pide también los puntos", async () => {
     render(<CenterlinePanel />);
     await waitFor(() => expect(planning.setCenterline).toHaveBeenCalledWith({ points: [], radiiMm: [], arcMm: [] }));
+  });
+});
+
+/* F1-170: «Limpiar» borraba la línea central y, con ella, el stent guiado, sin
+   preguntar ni avisar del stent. */
+describe("«Limpiar» la línea central", () => {
+  it("con stent guiado pide confirmación, avisa del stent y no borra hasta confirmar", async () => {
+    planning.deviceMeshes = { stent: "/m/cl_stent.vtp" };
+    render(<CenterlinePanel />);
+    await screen.findByText("1.110");
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Limpiar la línea central?" });
+    expect(dialogo).toHaveTextContent("stent guiado");
+    expect(clearCenterline).not.toHaveBeenCalled();
+    expect(planning.setCenterlineMesh).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar línea central" }));
+    await waitFor(() => expect(clearCenterline).toHaveBeenCalledWith("s"));
+    expect(planning.setCenterlineMesh).toHaveBeenCalledWith(null);
+    expect(planning.clearDeviceMeshes).toHaveBeenCalledWith("stent");
   });
 });

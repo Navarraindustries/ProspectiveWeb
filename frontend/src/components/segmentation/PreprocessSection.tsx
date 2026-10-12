@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { PreprocessResult } from "../../api/types";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { SectionLabel, ErrorNote } from "../PanelHead";
 import { Slider } from "../Slider";
@@ -13,7 +14,14 @@ import { usePlanning } from "../../store/planning";
 import { isHuModality } from "../../vtk/modality";
 
 export function PreprocessSection() {
-  const { sessionId, series, resetDownstream, clearAnnotations, bumpVolumeVersion } = usePlanning();
+  const {
+    sessionId, series, resetDownstream, clearAnnotations, bumpVolumeVersion,
+    segmentation, candidates, morphometry, annotations,
+  } = usePlanning();
+  // F1-10: aplicar reinicia la segmentación y borra las anotaciones; lo hacía
+  // al primer clic. Solo se pregunta si hay algo que perder.
+  const hasWork = segmentation !== null || candidates.length > 0 || morphometry !== null || annotations.length > 0;
+  const [asking, setAsking] = useState(false);
   const isHu = isHuModality(series?.modality);
   const [open, setOpen] = useState(false);
   // Only offered pre-ticked where it means something: on a 3DRA/XA volume the
@@ -142,7 +150,18 @@ export function PreprocessSection() {
             </div>
           )}
           <ErrorNote>{error}</ErrorNote>
-          <Button variant="outline" style={{ width: "100%" }} disabled={busy || reverting || !sessionId || (!clip && !iso && !smooth)} onClick={() => void apply()}>
+          <ConfirmDialog
+            open={asking}
+            title="¿Aplicar el preprocesamiento?"
+            confirmLabel="Aplicar y reiniciar"
+            destructive
+            onCancel={() => setAsking(false)}
+            onConfirm={() => { setAsking(false); void apply(); }}
+          >
+            Se reinicia la segmentación y se borran las anotaciones.
+          </ConfirmDialog>
+          <Button variant="outline" style={{ width: "100%" }} disabled={busy || reverting || !sessionId || (!clip && !iso && !smooth)}
+                  onClick={() => (hasWork ? setAsking(true) : void apply())}>
             {busy ? "Procesando…" : "Aplicar preprocesamiento"}
           </Button>
           {applied && (

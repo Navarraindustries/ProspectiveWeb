@@ -10,18 +10,24 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 const listClipOrders = vi.fn();
 const clipOrdersSummary = vi.fn();
+const advanceClipOrder = vi.fn();
+const rejectClipOrder = vi.fn();
+const auth = { user: null as null | { role: string } };
 
 vi.mock("../api/client", () => ({
   api: {
     listClipOrders: (...a: unknown[]) => listClipOrders(...(a as [])),
     clipOrdersSummary: (...a: unknown[]) => clipOrdersSummary(...(a as [])),
     downloadClipOrderFile: vi.fn(),
+    advanceClipOrder: (...a: unknown[]) => advanceClipOrder(...a),
+    rejectClipOrder: (...a: unknown[]) => rejectClipOrder(...a),
   },
   ApiError: class ApiError extends Error {},
 }));
 
 vi.mock("../components/Topbar", () => ({ Topbar: () => null }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
+vi.mock("../store/auth", () => ({ useAuth: () => auth }));
 
 import { ClipOrdersPage } from "./ClipOrders";
 import type { ClipOrder } from "../api/types";
@@ -51,6 +57,9 @@ const rows = () => within(screen.getByRole("table")).getAllByRole("row").slice(1
 beforeEach(() => {
   listClipOrders.mockReset();
   clipOrdersSummary.mockReset();
+  advanceClipOrder.mockReset().mockResolvedValue({});
+  rejectClipOrder.mockReset().mockResolvedValue({});
+  auth.user = null;
   clipOrdersSummary.mockResolvedValue({
     counts: { enviado: 2, recibida: 1 },
     labels: { enviado: "Enviado al taller", recibida: "Recibida" },
@@ -232,5 +241,56 @@ describe("con el API fallando (F1-99)", () => {
     await waitFor(() => expect(rows()).toHaveLength(1));
     expect(rows()[0]).toHaveTextContent("PR-0009");
     expect(listClipOrders).toHaveBeenCalledTimes(2);
+  });
+});
+
+/* F1-97, F1-98: «Firmar» se ofrecía a quien el servidor no deja firmar, y
+   firmar o rechazar la pieza ocurría al primer clic. */
+describe("firmar y rechazar", () => {
+  const borrador = () => order({ part_no: "PR-BOR", status: "borrador", status_label: "Borrador", next_states: ["firmado"] });
+
+  it("un residente ve «Firmar» apagado con el motivo", async () => {
+    auth.user = { role: "residente" };
+    listClipOrders.mockResolvedValue([borrador()]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-BOR")).click();
+    const firmar = await screen.findByRole("button", { name: "Firmar" });
+    expect(firmar).toBeDisabled();
+    expect(screen.getByText("Solo un médico responsable puede firmar un pedido.")).toBeInTheDocument();
+  });
+
+  it("un observador tampoco puede firmar", async () => {
+    auth.user = { role: "viewer" };
+    listClipOrders.mockResolvedValue([borrador()]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-BOR")).click();
+    expect(await screen.findByRole("button", { name: "Firmar" })).toBeDisabled();
+  });
+
+  it("un médico confirma la firma antes de que se mande", async () => {
+    auth.user = { role: "medico" };
+    listClipOrders.mockResolvedValue([borrador()]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-BOR")).click();
+    fireEvent.click(await screen.findByRole("button", { name: "Firmar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Firmar el pedido PR-BOR?" })).toBeInTheDocument();
+    expect(advanceClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Firmar el pedido" }));
+    await waitFor(() => expect(advanceClipOrder).toHaveBeenCalledWith("PR-BOR", "firmado"));
+  });
+
+  it("«Rechazar» la pieza abre la confirmación y no rechaza hasta confirmar", async () => {
+    listClipOrders.mockResolvedValue([order({
+      part_no: "PR-REC", status: "recibida", status_label: "Recibida",
+      next_states: ["verificada", "rechazada"],
+      reception: { measured_jaw_mm: 7, measured_force_g: 150, jaw_within_tolerance: true, force_within_band: true },
+    })]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-REC")).click();
+    fireEvent.click(await screen.findByRole("button", { name: "Rechazar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Rechazar la pieza PR-REC?" })).toBeInTheDocument();
+    expect(rejectClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar la pieza" }));
+    await waitFor(() => expect(rejectClipOrder).toHaveBeenCalledWith("PR-REC", "Pieza no conforme"));
   });
 });

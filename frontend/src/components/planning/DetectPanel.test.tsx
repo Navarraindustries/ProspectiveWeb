@@ -6,10 +6,11 @@ import { StrictMode, useEffect, useRef, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const detect = vi.fn();
+const clearDetection = vi.fn();
 vi.mock("../../api/client", () => ({
   api: {
     detect: (...a: unknown[]) => detect(...a),
-    clearDetection: vi.fn().mockResolvedValue({}),
+    clearDetection: (...a: unknown[]) => clearDetection(...a),
     // «¿Cuál es la lesión?» va debajo de la lista: sin confirmación previa ni estadística.
     currentLesion: vi.fn().mockResolvedValue(null),
     lesionSummary: vi.fn().mockResolvedValue({ confirmed: 0, first: 0, top3: 0, missed: 0 }),
@@ -89,6 +90,7 @@ function Wrapped() {
 
 beforeEach(() => {
   detect.mockReset();
+  clearDetection.mockReset().mockResolvedValue({});
   mockDetect();
 });
 
@@ -242,3 +244,20 @@ function Toggle({ show }: { show: boolean }) {
     </PlanningProvider>
   );
 }
+
+/* F1-12: «Limpiar candidatos y morfometría» se llevaba la medida, el cuello
+   marcado a mano y la recomendación al primer clic. */
+describe("«Limpiar candidatos y morfometría»", () => {
+  it("abre la confirmación y no limpia hasta confirmar", async () => {
+    render(<Wrapped />);
+    await screen.findByText("Puesto #1");
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar candidatos y morfometría" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Limpiar candidatos y morfometría?" });
+    expect(dialogo).toHaveTextContent("la medida, el cuello marcado y la recomendación");
+    expect(clearDetection).not.toHaveBeenCalled();
+    expect(screen.getByText("Puesto #1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+    await vi.waitFor(() => expect(clearDetection).toHaveBeenCalledWith("s1"));
+  });
+});

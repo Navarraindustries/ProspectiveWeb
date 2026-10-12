@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { LesionConfirmation, LesionConfirmIn, LesionSummary } from "../../api/types";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { usePlanning } from "../../store/planning";
 
 function describe(c: LesionConfirmation): string {
@@ -36,6 +37,9 @@ export function LesionConfirm() {
   const [summary, setSummary] = useState<LesionSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // F1-147: «No hay aneurisma» quedaba registrado a tu nombre al primer clic,
+  // y cuenta en la estadística del detector.
+  const [askingNone, setAskingNone] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -133,10 +137,20 @@ export function LesionConfirm() {
           </Button>
         )}
         <Button size="sm" variant="ghost" disabled={busy}
-                onClick={() => void send({ source: "no_lesion" })}>
+                onClick={() => setAskingNone(true)}>
           No hay aneurisma
         </Button>
       </div>
+      <ConfirmDialog
+        open={askingNone}
+        title="¿No hay aneurisma en este estudio?"
+        confirmLabel="Registrar sin aneurisma"
+        onCancel={() => setAskingNone(false)}
+        onConfirm={() => { setAskingNone(false); void send({ source: "no_lesion" }); }}
+      >
+        Queda registrado a tu nombre que este estudio no tiene aneurisma, y cuenta para medir
+        cómo acierta el detector. Puedes retirarlo después con «Retirar».
+      </ConfirmDialog>
 
       {imagingStudyId == null && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 8 }}>

@@ -52,6 +52,7 @@ import { useCenterlineTrack } from "./useCenterlineTrack";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
+import { useAnnotationDelete } from "../components/annotations/useAnnotationDelete";
 import { focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
@@ -1540,6 +1541,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // orden de las escuchas se cerraría y se volvería a abrir en la misma tecla;
   // la ref se lee en el momento de la tecla, antes del nuevo render.
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { askDelete: askDeleteAnnotation, deleteDialog: annotationDeleteDialog } = useAnnotationDelete();
   const sheetOpenRef = useRef(sheetOpen);
   sheetOpenRef.current = sheetOpen;
   const openSheet = useCallback(() => { if (!sheetOpenRef.current) setSheetOpen(true); }, []);
@@ -1570,11 +1572,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
         return;
       }
       case "anot-borrar":
-        if (selectedAnnotation) {
-          const gone = selectedAnnotation;
-          setAnnotations((p) => p.filter((a) => a.id !== gone));
-          setSelectedAnnotation(null);
-        }
+        // Pregunta antes, como la fila del panel (F1-6): Supr sobre el visor
+        // borraba la anotación elegida sin aviso ni deshacer.
+        if (selectedAnnotation) askDeleteAnnotation(selectedAnnotation);
         return;
       case "anot-deshacer-punto":
         if (annotationDraft.length > 0) onAnnotationKey("Backspace");
@@ -1944,6 +1944,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         onShowClipFieldChange={setShowClipField} onHelp={openSheet}
         levelNote={levelNote} levelNoteShort={levelNoteShort} />
       <ShortcutsSheet open={sheetOpen} onClose={closeSheet} />
+      {annotationDeleteDialog}
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;
           nunca desde un campo de texto (presetForKey). Los dígitos solos son
           del salto de paso de Workspace, que ignora Alt. */}

@@ -5,13 +5,14 @@
    «Nuevo estudio», «Pedidos» y «Reanudar en …». Ahora solo queda el aviso. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const listPatients = vi.fn();
 const getPatient = vi.fn();
 const patientSessions = vi.fn();
 const patientStudies = vi.fn();
+const deletePatient = vi.fn();
 const user = { role: "medico" as string };
 
 vi.mock("../api/client", () => {
@@ -27,6 +28,7 @@ vi.mock("../api/client", () => {
       getPatient: (id: number) => getPatient(id),
       patientSessions: (id: number) => patientSessions(id),
       patientStudies: (id: number) => patientStudies(id),
+      deletePatient: (id: number) => deletePatient(id),
     },
   };
 });
@@ -55,6 +57,7 @@ beforeEach(() => {
   getPatient.mockReset();
   patientSessions.mockReset();
   patientStudies.mockReset();
+  deletePatient.mockReset().mockResolvedValue(undefined);
   user.role = "medico";
 });
 
@@ -132,5 +135,76 @@ describe("con el API fallando (F1-2, F1-29)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByText("Guardar cambios")).toBeTruthy();
     expect(getPatient).toHaveBeenCalledTimes(2);
+  });
+});
+
+/* F1-58: el diálogo de borrar un paciente no decía cuánto se llevaba, e Intro
+   lo confirmaba. */
+describe("borrar un paciente", () => {
+  const maria = {
+    id: 7, full_name: "Restrepo, María", hospital_id: "HC-7", sex: "F", dob: "",
+    institution: "", study_count: 2, created_at: "2026-10-01T00:00:00Z",
+  };
+
+  it("el diálogo dice cuántos casos y sesiones se borran, e Intro no borra", async () => {
+    listPatients.mockResolvedValue([maria]);
+    patientSessions.mockResolvedValue(Array.from({ length: 6 }, (_, i) => ({ session_id: `s${i}` })));
+    renderAt("/app/pacientes");
+    fireEvent.click(await screen.findByTitle("Eliminar"));
+    const dialogo = screen.getByRole("alertdialog", { name: "Eliminar paciente" });
+    expect(await screen.findByText(/6 sesiones/)).toBeTruthy();
+    expect(dialogo.textContent).toContain("2 casos");
+    expect(patientSessions).toHaveBeenCalledWith(7);
+
+    fireEvent.keyDown(document, { key: "Enter" });
+    expect(deletePatient).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    await waitFor(() => expect(deletePatient).toHaveBeenCalledWith(7));
+  });
+});
+
+/* F1-60, F1-71: «Cancelar», el ✕, Escape y el clic fuera cerraban la ficha y
+   tiraban lo escrito sin preguntar. */
+describe("descartar los cambios de la ficha", () => {
+  const abrir = async () => {
+    getPatient.mockResolvedValue({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F", notes: "" });
+    patientSessions.mockResolvedValue([]);
+    patientStudies.mockResolvedValue([]);
+    renderAt("/app/pacientes?paciente=2");
+    await screen.findByText("Guardar cambios");
+  };
+
+  it("«Cancelar» con «Notas» editado pregunta y no cierra hasta confirmar", async () => {
+    await abrir();
+    fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "Cefalea en trueno" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeTruthy();
+    expect(screen.getByLabelText("Notas")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect((screen.getByLabelText("Notas") as HTMLInputElement).value).toBe("Cefalea en trueno");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
+    await waitFor(() => expect(screen.queryByLabelText("Notas")).toBeNull());
+  });
+
+  it("Escape con cambios también pregunta, y Escape otra vez cierra solo la pregunta", async () => {
+    await abrir();
+    fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "x" } });
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByLabelText("Notas")).toBeTruthy();
+  });
+
+  it("«Cancelar» sin cambios cierra sin preguntar", async () => {
+    await abrir();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByLabelText("Notas")).toBeNull());
   });
 });

@@ -5,17 +5,18 @@
    descarga no lleva datos del paciente, y que las URL de objeto se sueltan
    al desmontar — son memoria del navegador y una lista abierta veinte veces
    las acumula. */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const listCaptures = vi.fn();
 const captureObjectUrl = vi.fn();
+const deleteCapture = vi.fn();
 vi.mock("../api/client", () => ({
   api: {
     listCaptures: (...a: unknown[]) => listCaptures(...a),
     captureObjectUrl: (...a: unknown[]) => captureObjectUrl(...a),
     renameCapture: vi.fn(),
-    deleteCapture: vi.fn(),
+    deleteCapture: (...a: unknown[]) => deleteCapture(...a),
   },
 }));
 
@@ -32,6 +33,7 @@ const fila = (over = {}) => ({
 beforeEach(() => {
   listCaptures.mockReset().mockResolvedValue([fila()]);
   captureObjectUrl.mockReset().mockResolvedValue("blob:captura-7");
+  deleteCapture.mockReset().mockResolvedValue(undefined);
 });
 
 describe("la galería", () => {
@@ -120,5 +122,28 @@ describe("grabaciones en la galería", () => {
     expect(downloadName({ ...video(), media_type: "video/mp4" })).toMatch(/\.mp4$/);
     expect(downloadName({ ...video(), media_type: "video/webm" })).toMatch(/\.webm$/);
     expect(downloadName(fila())).toMatch(/\.png$/);
+  });
+});
+
+/* F1-3: la ✕ borraba la captura al primer clic, sin aviso ni deshacer. */
+describe("«Borrar esta captura»", () => {
+  it("abre la confirmación y no borra hasta confirmar", async () => {
+    render(<CaptureGallery patientId={4} />);
+    fireEvent.click(await screen.findByTitle("Borrar esta captura"));
+    expect(screen.getByRole("alertdialog", { name: "¿Borrar la captura?" })).toBeInTheDocument();
+    expect(deleteCapture).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Borrar captura" }));
+    await waitFor(() => expect(deleteCapture).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(screen.queryByText("Morfometría · plano de cuello")).toBeNull());
+  });
+
+  it("«Cancelar» la deja donde estaba", async () => {
+    render(<CaptureGallery patientId={4} />);
+    fireEvent.click(await screen.findByTitle("Borrar esta captura"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(deleteCapture).not.toHaveBeenCalled();
+    expect(screen.getByText("Morfometría · plano de cuello")).toBeInTheDocument();
   });
 });

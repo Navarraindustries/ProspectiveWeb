@@ -6,6 +6,7 @@ import { api } from "../api/client";
 import type { PendingUser } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Topbar } from "../components/Topbar";
 import { ErrorNote, Card } from "../components/PanelHead";
@@ -40,6 +41,8 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  // F1-91: «Rechazar», al lado de «Aprobar», echaba la solicitud al primer clic.
+  const [toReject, setToReject] = useState<PendingUser | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -71,6 +74,17 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
+      <ConfirmDialog
+        open={toReject !== null}
+        title="¿Rechazar la solicitud?"
+        confirmLabel="Rechazar solicitud"
+        destructive
+        onCancel={() => setToReject(null)}
+        onConfirm={() => { const u = toReject; setToReject(null); if (u) void act(u.id, "reject"); }}
+      >
+        La solicitud de <b style={{ color: "var(--foreground)" }}>{toReject?.full_name || toReject?.username}</b> se
+        rechaza y sale de esta lista; no podrá entrar con esa cuenta.
+      </ConfirmDialog>
       <Topbar crumbs={[{ label: "Pacientes", onClick: onBack }, { label: "Administración" }, { label: "Solicitudes" }]}>
         <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>
           Pacientes
@@ -168,7 +182,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => void act(u.id, "reject")}
+                      onClick={() => setToReject(u)}
                       disabled={busyId === u.id}
                       leadingIcon={<Icon name="STATUS_FAIL" size={13} />}
                     >

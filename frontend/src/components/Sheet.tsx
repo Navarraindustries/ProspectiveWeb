@@ -10,6 +10,12 @@ import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 
+/** Las fichas abiertas, de abajo arriba. La ficha del paciente abre encima la
+    del caso; con las dos escuchando Escape en `document`, una sola pulsación
+    cerraba las dos — y con cambios sin guardar, preguntaba dos veces. Solo la
+    de encima atiende la tecla. */
+const openSheets: object[] = [];
+
 export function Sheet({
   open,
   onClose,
@@ -27,17 +33,27 @@ export function Sheet({
 
   // Escape closed the user menu but not this, so the only ways out were the ✕
   // and the scrim — and keyboard focus stayed behind on the page underneath.
+  // Por ref: el efecto corre solo al abrir y cerrar. Dependiendo de `onClose`
+  // (una flecha nueva en cada render del padre) se volvía a apilar al teclear,
+  // y la ficha de debajo pasaba a ser la de encima.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const token = {};
+    openSheets.push(token);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && openSheets[openSheets.length - 1] === token) onCloseRef.current();
+    };
     document.addEventListener("keydown", onKey);
     const previous = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
+      openSheets.splice(openSheets.indexOf(token), 1);
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return createPortal(

@@ -105,19 +105,41 @@ describe("AnnotationsPanel", () => {
     await waitFor(() => expect(visto?.annotations.every((a) => a.visible)).toBe(true));
   });
 
-  it("clic en la fila la elige y Supr la borra", async () => {
+  /* F1-6, F1-7: Supr y «Borrar (Supr)» quitaban la anotación al momento, sin
+     aviso ni deshacer: una regla medida a mano se perdía por un roce de tecla. */
+  it("clic en la fila la elige y Supr pide confirmación antes de borrarla", async () => {
     montar([regla, marcador]);
     const fila = (await screen.findByText("R1")).closest("[data-annotation]") as HTMLElement;
     fireEvent.click(fila);
     await waitFor(() => expect(visto?.selectedAnnotation).toBe("a1"));
     fireEvent.keyDown(fila, { key: "Delete" });
+    expect(screen.getByRole("alertdialog", { name: "¿Borrar la anotación?" })).toBeInTheDocument();
+    expect(visto?.annotations.map((a) => a.id)).toEqual(["a1", "m1"]);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar anotación" }));
     await waitFor(() => expect(visto?.annotations.map((a) => a.id)).toEqual(["m1"]));
     expect(visto?.selectedAnnotation).toBeNull();
   });
 
-  it("«Borrar (Supr)» borra la fila", async () => {
+  it("Escape cancela el borrado por Supr y devuelve el foco a la fila", async () => {
+    montar([regla]);
+    const fila = (await screen.findByText("R1")).closest("[data-annotation]") as HTMLElement;
+    fila.focus();
+    fireEvent.keyDown(fila, { key: "Delete" });
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Borrar la anotación?" });
+    // El diálogo se queda el foco: Supr o Intro no siguen yendo a la fila.
+    expect(dialogo).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(visto?.annotations.map((a) => a.id)).toEqual(["a1"]);
+    expect(fila).toHaveFocus();
+  });
+
+  it("«Borrar (Supr)» abre la confirmación y solo confirmar borra la fila", async () => {
     montar([regla]);
     fireEvent.click(await screen.findByTitle("Borrar (Supr)"));
+    expect(screen.getByRole("alertdialog", { name: "¿Borrar la anotación?" })).toHaveTextContent("R1");
+    expect(visto?.annotations).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar anotación" }));
     await waitFor(() => expect(visto?.annotations).toEqual([]));
   });
 

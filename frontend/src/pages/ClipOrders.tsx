@@ -19,12 +19,14 @@ import { api } from "../api/client";
 import type { ClipOrder, OrderStatus, PatientSummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
 import { Topbar } from "../components/Topbar";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { shapeLabel } from "../components/planning/clipShape";
+import { useAuth } from "../store/auth";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
 
@@ -43,6 +45,12 @@ const STATUS_VARIANT: Record<OrderStatus, Variant> = {
     tienen sus propios botones. Recorrer `next_states` sin filtrar pintaba dos
     botones idénticos —ambos caían en el `else` de la etiqueta— junto a los de
     aceptar y rechazar, que hacen lo mismo. */
+/** Quién puede firmar: lo mismo que exige el servidor (SIGNING_ROLES en
+    backend/services/clip_orders.py). Un residente o un observador veía «Firmar»
+    y solo al pulsarlo recibía el 403. */
+const SIGNING_ROLES = ["medico", "admin"];
+const SIGN_DENIED = "Solo un médico responsable puede firmar un pedido.";
+
 const ADVANCE_LABEL: Partial<Record<OrderStatus, string>> = {
   firmado: "Firmar",
   enviado: "Marcar enviado",
@@ -145,6 +153,12 @@ function Detail({ order, onChanged, onClose }: {
   const [force, setForce] = useState(0);
   const [deviation, setDeviation] = useState("");
   const [receiving, setReceiving] = useState(false);
+  // F1-97, F1-98: firmar y rechazar la pieza ocurrían al primer clic. Firmar
+  // genera la documentación y compromete al médico; rechazar cierra el pedido.
+  const [asking, setAsking] = useState<"firmar" | "rechazar" | null>(null);
+  const { user } = useAuth();
+  // Sin usuario conocido no se apaga nada: decide el servidor.
+  const cannotSign = !!user && !SIGNING_ROLES.includes(user.role);
   const r = order.reception;
   const outOfSpec = isOutOfSpec(order);
 
@@ -260,6 +274,12 @@ function Detail({ order, onChanged, onClose }: {
                     onClick={() => setReceiving(true)}>
               {ADVANCE_LABEL[s]}
             </Button>
+          ) : s === "firmado" ? (
+            <Button key={s} size="sm" variant="outline" disabled={busy || cannotSign}
+                    title={cannotSign ? SIGN_DENIED : undefined}
+                    onClick={() => setAsking("firmar")}>
+              {ADVANCE_LABEL[s]}
+            </Button>
           ) : (
             <Button key={s} size="sm" variant="outline" disabled={busy}
                     onClick={() => act(api.advanceClipOrder(order.part_no, s))}>
@@ -274,12 +294,42 @@ function Detail({ order, onChanged, onClose }: {
               Aceptar la pieza
             </Button>
             <Button size="sm" variant="destructive" disabled={busy}
-                    onClick={() => act(api.rejectClipOrder(order.part_no, deviation || "Pieza no conforme"))}>
+                    onClick={() => setAsking("rechazar")}>
               Rechazar
             </Button>
           </>
         )}
       </div>
+      {cannotSign && order.next_states.includes("firmado") && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
+          {SIGN_DENIED}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={asking === "firmar"}
+        title={`¿Firmar el pedido ${order.part_no}?`}
+        confirmLabel="Firmar el pedido"
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); act(api.advanceClipOrder(order.part_no, "firmado")); }}
+      >
+        Firmas como médico responsable: se genera la documentación para el taller y el
+        pedido queda listo para enviar. Una vez firmado ya no es un borrador.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={asking === "rechazar"}
+        title={`¿Rechazar la pieza ${order.part_no}?`}
+        confirmLabel="Rechazar la pieza"
+        destructive
+        onCancel={() => setAsking(null)}
+        onConfirm={() => {
+          setAsking(null);
+          act(api.rejectClipOrder(order.part_no, deviation || "Pieza no conforme"));
+        }}
+      >
+        La pieza queda rechazada{deviation ? ` con el motivo «${deviation}»` : " como «Pieza no conforme»"} y
+        el pedido se cierra. No se puede aceptar después.
+      </ConfirmDialog>
 
       <ErrorNote>{error}</ErrorNote>
     </Card>

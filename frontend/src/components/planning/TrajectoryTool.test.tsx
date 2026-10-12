@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const setTrajectory = vi.fn();
 const suggestCorridors = vi.fn();
+const clearTrajectory = vi.fn();
 // Con `status`, como el de verdad: el panel distingue «no responde» (0) de un
 // 500 que trae explicación. Hoisted porque vi.mock sube por encima del import.
 const { ApiErrorMock } = vi.hoisted(() => ({
@@ -19,6 +20,7 @@ vi.mock("../../api/client", () => ({
   api: {
     setTrajectory: (...a: unknown[]) => setTrajectory(...a),
     suggestCorridors: (...a: unknown[]) => suggestCorridors(...a),
+    clearTrajectory: (...a: unknown[]) => clearTrajectory(...a),
   },
   ApiError: ApiErrorMock,
 }));
@@ -38,6 +40,7 @@ import { TrajectoryTool } from "./DevicesPanel";
 
 beforeEach(() => {
   suggestCorridors.mockReset();
+  clearTrajectory.mockReset().mockResolvedValue({});
   setTrajectory.mockReset().mockResolvedValue({ entry: [0, 0, 0], target: [0, 0, 10], depth_mm: 10, angle_deg: 37.2, corridor: null });
   planning = {
     sessionId: "s", segmentation: { mesh_url: "/m.vtp" }, pickMode: null, setPickMode: vi.fn(),
@@ -114,5 +117,30 @@ describe("TrajectoryTool · «Sugerir corredor» que falla", () => {
     fireEvent.click(screen.getByText("Sugerir corredor"));
     expect(await screen.findByText("El servidor no responde. Marca Entrada y Diana a mano")).toBeInTheDocument();
     expect(screen.queryByText("Error 500")).toBeNull();
+  });
+});
+
+/* F1-21: «Limpiar» borraba la trayectoria guardada (con su corredor) al
+   primer clic. */
+describe("«Limpiar» la trayectoria", () => {
+  it("con trayectoria guardada abre la confirmación y no borra hasta confirmar", async () => {
+    planning.trajSaved = { entry: [0, 0, 0], target: [0, 0, 10], depth_mm: 10, angle_deg: 41.5, corridor: null };
+    render(<TrajectoryTool />);
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Limpiar la trayectoria guardada?" })).toBeInTheDocument();
+    expect(clearTrajectory).not.toHaveBeenCalled();
+    expect(planning.setTrajEntry).not.toHaveBeenCalled();
+    expect(screen.getByText("Guardada ✓")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar trayectoria" }));
+    await waitFor(() => expect(clearTrajectory).toHaveBeenCalledWith("s"));
+    expect(planning.setTrajEntry).toHaveBeenCalledWith(null);
+  });
+
+  it("con solo los puntos sin guardar, limpia sin preguntar", async () => {
+    render(<TrajectoryTool />);
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await waitFor(() => expect(clearTrajectory).toHaveBeenCalledWith("s"));
   });
 });

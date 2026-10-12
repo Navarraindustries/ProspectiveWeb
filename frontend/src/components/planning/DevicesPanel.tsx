@@ -26,6 +26,7 @@ import type {
   SuggestCorridorsResult,
 } from "../../api/types";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { ClipFieldCard } from "./ClipFieldCard";
 import { ClipRehearsal } from "./ClipRehearsal";
 import { ClipSelectionPanel } from "./ClipSelection";
@@ -161,6 +162,9 @@ function ClipsTab() {
   // El que maneja el asa del 3D: el elegido en la lista o, si no hay, el último.
   const activeKey = placed.some((c) => c.key === selectedClipKey) ? selectedClipKey : placed.at(-1)?.key ?? null;
   const clearer = useClearDevice("clips");
+  // F1-22: «Limpiar clips colocados» se llevaba la pose, la verificación, la
+  // oclusión y el mapa de calor al primer clic.
+  const [askingClear, setAskingClear] = useState(false);
   const [recs, setRecs] = useState<ClipRecommendation[]>([]);
   // Hasta que la petición vuelve no se sabe si hay recomendación: decir «sin
   // recomendación para esta geometría» mientras el catálogo aún se evalúa
@@ -729,9 +733,20 @@ function ClipsTab() {
             label="Limpiar clips colocados"
             disabled={(!clearer.placed && !plan) || busy}
             busy={clearer.busy}
-            onClick={() => {
-              // Se cancela AL PULSAR, antes de esperar al servidor: un temporizador
-              // que disparase durante el borrado recolocaría el clip detrás de él.
+            onClick={() => setAskingClear(true)}
+          />
+          <ConfirmDialog
+            open={askingClear}
+            title="¿Limpiar los clips colocados?"
+            confirmLabel="Limpiar los clips"
+            destructive
+            onCancel={() => setAskingClear(false)}
+            onConfirm={() => {
+              setAskingClear(false);
+              // Se cancela AL CONFIRMAR, antes de esperar al servidor: un
+              // temporizador que disparase durante el borrado recolocaría el
+              // clip detrás de él. Mientras el diálogo está abierto no se
+              // cancela nada: la persona aún puede decir que no.
               void whileClearingClips(() => clearer.clear(() => {
               // Lo que estuviera en vuelo ya no tiene clip al que pintar.
               lastPlacedKey.current = null;
@@ -744,7 +759,10 @@ function ClipsTab() {
               // clearDeviceMeshes("clips") dentro de clear().
               }));
             }}
-          />
+          >
+            Se pierden la pose, la verificación, la oclusión y el mapa de calor de los clips
+            colocados, también en el informe.
+          </ConfirmDialog>
           <ErrorNote>{clearer.error}</ErrorNote>
         </div>
       )}
@@ -1504,6 +1522,12 @@ export function TrajectoryTool() {
     setSaved(null);
   };
 
+  // F1-21: con una trayectoria guardada, «Limpiar» se llevaba también su
+  // corredor y su ángulo del plan al primer clic. Sin guardar, solo hay dos
+  // puntos que se vuelven a marcar con dos clics, y no se pregunta.
+  const [askingClear, setAskingClear] = useState(false);
+  const requestClear = () => (trajSaved ? setAskingClear(true) : void clear());
+
   const clear = async () => {
     setTrajEntry(null);
     setTrajTarget(null);
@@ -1649,10 +1673,20 @@ export function TrajectoryTool() {
               no vale; decir «Guardada ✓» sería avalar un veredicto viejo. */}
           {busy ? "Guardando…" : saved?.stale ? "Vuelve a guardar la trayectoria" : saved ? "Guardada ✓" : "Guardar trayectoria"}
         </Button>
-        <Button size="sm" variant="outline" disabled={!trajEntry && !trajTarget} onClick={() => void clear()}>
+        <Button size="sm" variant="outline" disabled={!trajEntry && !trajTarget} onClick={requestClear}>
           Limpiar
         </Button>
       </div>
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar la trayectoria guardada?"
+        confirmLabel="Limpiar trayectoria"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => { setAskingClear(false); void clear(); }}
+      >
+        Se borran la entrada, la diana, el ángulo y el análisis del corredor guardados con el plan.
+      </ConfirmDialog>
     </Card>
   );
 }

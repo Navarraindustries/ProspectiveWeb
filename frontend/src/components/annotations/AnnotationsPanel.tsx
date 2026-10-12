@@ -12,6 +12,7 @@ import { ANNOTATIONS_MAX, formatMeasure, LABEL_MAX, measure, NOTE_MAX, toCsv, ty
 import { ANNOTATION_HEX } from "../../vtk/planeColors";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
+import { useAnnotationDelete } from "./useAnnotationDelete";
 
 const TOOLS: { kind: AnnotationKind; label: string; key: string }[] = [
   { kind: "regla", label: "Regla", key: "R" },
@@ -73,10 +74,8 @@ export function AnnotationsPanel() {
 
   const patch = (id: string, p: Partial<Annotation>) =>
     setAnnotations((list) => list.map((a) => (a.id === id ? { ...a, ...p } : a)));
-  const remove = (id: string) => {
-    setAnnotations((list) => list.filter((a) => a.id !== id));
-    if (selectedAnnotation === id) setSelectedAnnotation(null);
-  };
+  // Supr y «Borrar (Supr)» preguntan antes (F1-6, F1-7): ver useAnnotationDelete.
+  const { askDelete: remove, deleteDialog } = useAnnotationDelete();
   const setAllVisible = (visible: boolean) =>
     setAnnotations((list) => (list.every((a) => a.visible === visible) ? list : list.map((a) => ({ ...a, visible }))));
 
@@ -121,6 +120,7 @@ export function AnnotationsPanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {deleteDialog}
       <div role="group" aria-label="Herramientas de anotación" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
         {TOOLS.map((t) => {
           const mode = ANNOTATION_MODES[t.kind];

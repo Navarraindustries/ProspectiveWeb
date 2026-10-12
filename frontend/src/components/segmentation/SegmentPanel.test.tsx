@@ -528,9 +528,73 @@ describe("segmentar deja la malla y se lleva lo de la malla vieja", () => {
     expect(visto.annotations).toEqual([regla]);
 
     fireEvent.click(await screen.findByRole("button", { name: /Re-segmentar/ }));
+    // F1-11: con malla, re-segmentar pregunta antes de llevarse lo hecho.
+    fireEvent.click(await screen.findByRole("button", { name: "Re-segmentar y borrar" }));
     await vi.waitFor(() => expect(api.segment).toHaveBeenCalledTimes(2));
     await vi.waitFor(() => expect(visto.annotations).toEqual([]));
     expect(visto.segmentation).not.toBeNull();
+  });
+});
+
+/* F1-11, F1-141: re-segmentar y «Descartar malla» se llevaban los candidatos,
+   la medida y (al re-segmentar) las anotaciones al primer clic. */
+describe("confirmar antes de llevarse el trabajo de la malla", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const candidato = {
+    id: "cand_001", center_mm: { x: 1, y: 2, z: 3 }, max_diameter_mm: 6.4, confidence: 0.9,
+    dome_mesh_url: "/c1.vtp", selected: true, channels: ["curv"], patch_kind: "dome",
+  };
+
+  function conMalla(conCandidatos: boolean) {
+    const visto: { segmentation: unknown; candidates: unknown[] } = { segmentation: null, candidates: [] };
+    function Sonda({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        p.setSession("sesion-conf");
+        p.setSeries({ series_id: "1.2.3", modality: "XA" } as never);
+        p.setSegmentation(base);
+        if (conCandidatos) p.setCandidates([candidato] as never);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      visto.segmentation = p.segmentation;
+      visto.candidates = p.candidates;
+      return <>{p.sessionId && p.segmentation ? children : null}</>;
+    }
+    render(<PlanningProvider><Sonda><SegmentPanel onNext={() => {}} /></Sonda></PlanningProvider>);
+    return visto;
+  }
+
+  it("con malla, «Re-segmentar» abre la confirmación y no segmenta", async () => {
+    const { api } = await import("../../api/client");
+    conMalla(true);
+    fireEvent.click(await screen.findByRole("button", { name: /Re-segmentar/ }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Re-segmentar?" });
+    expect(dialogo).toHaveTextContent("los candidatos, la medida y las anotaciones");
+    expect(api.segment).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(api.segment).not.toHaveBeenCalled();
+  });
+
+  it("con candidatos, «Descartar malla» pide confirmación y solo confirmar descarta", async () => {
+    const { api } = await import("../../api/client");
+    const visto = conMalla(true);
+    fireEvent.click(await screen.findByRole("button", { name: /Descartar malla y volver a los umbrales/ }));
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar la malla?" })).toBeInTheDocument();
+    expect(api.clearDetection).not.toHaveBeenCalled();
+    expect(visto.segmentation).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Descartar malla" }));
+    await vi.waitFor(() => expect(api.clearDetection).toHaveBeenCalledWith("sesion-conf"));
+    await vi.waitFor(() => expect(visto.candidates).toEqual([]));
+  });
+
+  it("sin detección hecha, «Descartar malla» no pregunta", async () => {
+    const { api } = await import("../../api/client");
+    conMalla(false);
+    fireEvent.click(await screen.findByRole("button", { name: /Descartar malla y volver a los umbrales/ }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await vi.waitFor(() => expect(api.clearDetection).toHaveBeenCalled());
   });
 });
 

@@ -7,10 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 const listPending = vi.fn();
+const rejectPending = vi.fn();
 
 vi.mock("../api/client", () => ({
   api: {
     listPending: () => listPending(),
+    rejectPending: (id: number) => rejectPending(id),
     pendingPhotoObjectUrl: () => Promise.reject(new Error("sin foto")),
   },
   ApiError: class ApiError extends Error {},
@@ -20,7 +22,7 @@ vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }
 
 import { PendingRequests } from "./PendingRequests";
 
-beforeEach(() => { listPending.mockReset(); });
+beforeEach(() => { listPending.mockReset(); rejectPending.mockReset().mockResolvedValue(undefined); });
 
 describe("«Solicitudes» con el API fallando", () => {
   it("muestra el error sin la marca verde ni el vacío, y «Reintentar» vuelve a llamar", async () => {
@@ -45,5 +47,24 @@ describe("«Solicitudes» con el API fallando", () => {
     listPending.mockResolvedValueOnce([]);
     render(<PendingRequests onBack={() => {}} />);
     expect(await screen.findByText("No hay solicitudes pendientes.")).toBeTruthy();
+  });
+});
+
+/* F1-91: «Rechazar» echaba la solicitud al primer clic, al lado de «Aprobar». */
+describe("«Rechazar» una solicitud", () => {
+  it("abre la confirmación y no rechaza hasta confirmar", async () => {
+    listPending.mockResolvedValue([{
+      id: 5, username: "nuevo", full_name: "Nuevo Residente", has_photo: false, has_cv: false,
+      created_at: "2026-10-01T00:00:00Z",
+    }]);
+    render(<PendingRequests onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Rechazar" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Rechazar la solicitud?" });
+    expect(dialogo.textContent).toContain("Nuevo Residente");
+    expect(rejectPending).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar solicitud" }));
+    await vi.waitFor(() => expect(rejectPending).toHaveBeenCalledWith(5));
+    await vi.waitFor(() => expect(screen.queryByText("Nuevo Residente")).toBeNull());
   });
 });

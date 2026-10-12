@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -70,6 +71,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const [mainTree, setMainTree] = useState(true);
   const [busy, setBusy] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  // F1-11, F1-141: re-segmentar y «Descartar malla» se llevaban al primer clic
+  // lo hecho sobre la malla. Qué confirmación hay abierta, si alguna.
+  const [asking, setAsking] = useState<"resegmentar" | "descartar" | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Slider range + suggested band, adapted to this volume's intensity scale.
   const [range, setRange] = useState<{ min: number; max: number }>({ min: -500, max: 3000 });
@@ -632,7 +636,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
         <Button
           variant={segmentation ? "outline" : "default"}
-          onClick={() => void run()}
+          // La primera segmentación no pierde nada; re-segmentar sí.
+          onClick={() => (segmentation ? setAsking("resegmentar") : void run())}
           disabled={busy || discarding || !sessionId}
           leadingIcon={<Icon name="GROWTH" />}
           style={{ flex: 1 }}
@@ -650,12 +655,33 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           variant="ghost"
           style={{ marginTop: 8, width: "100%" }}
           disabled={busy || discarding}
-          onClick={() => void discard()}
+          // Sin detección hecha solo se pierde la malla, que se rehace igual.
+          onClick={() => (planning.candidates.length > 0 || planning.morphometry ? setAsking("descartar") : void discard())}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {discarding ? "Descartando…" : "Descartar malla y volver a los umbrales"}
         </Button>
       )}
+      <ConfirmDialog
+        open={asking === "resegmentar"}
+        title="¿Re-segmentar?"
+        confirmLabel="Re-segmentar y borrar"
+        destructive
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); void run(); }}
+      >
+        La malla nueva sustituye a la actual: se pierden los candidatos, la medida y las anotaciones.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={asking === "descartar"}
+        title="¿Descartar la malla?"
+        confirmLabel="Descartar malla"
+        destructive
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); void discard(); }}
+      >
+        Se borran la malla, los candidatos detectados y la medida hecha sobre ellos. Las anotaciones de los cortes se conservan.
+      </ConfirmDialog>
     </div>
   );
 }

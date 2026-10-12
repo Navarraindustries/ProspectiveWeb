@@ -14,11 +14,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const treatmentDecision = vi.fn();
 const clearTreatmentDecision = vi.fn(async () => {});
+const clearTreatment = vi.fn(async () => {});
 
 vi.mock("../../api/client", () => ({
   api: {
     treatmentDecision: (...a: unknown[]) => treatmentDecision(...a),
     clearTreatmentDecision: (...a: unknown[]) => clearTreatmentDecision(...(a as [])),
+    clearTreatment: (...a: unknown[]) => clearTreatment(...(a as [])),
   },
   ApiError: class ApiError extends Error {},
 }));
@@ -80,6 +82,7 @@ beforeEach(() => {
   site = null;
   treatmentDecision.mockReset();
   treatmentDecision.mockResolvedValue(RESULT);
+  clearTreatment.mockClear();
 });
 
 describe("cómo se lee la recomendación", () => {
@@ -250,5 +253,18 @@ describe("la localización de Decisión", () => {
     expect(screen.getByText("Desconocida / No especificada")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Cambiar en Morfometría"));
     expect(irA).toHaveBeenCalled();
+  });
+});
+
+/* F1-18: «Limpiar decisión y PHASES» borraba la recomendación al primer clic. */
+describe("«Limpiar decisión y PHASES»", () => {
+  it("abre la confirmación y no borra hasta confirmar", async () => {
+    render(<TreatmentPanel onNext={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar decisión y PHASES" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Limpiar la decisión y PHASES?" })).toBeInTheDocument();
+    expect(clearTreatment).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+    await vi.waitFor(() => expect(clearTreatment).toHaveBeenCalledWith("s1"));
   });
 });

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
@@ -77,6 +78,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
   // Con solo descartados también hubo detección: no se repite al volver.
   const [ran, setRan] = useState(allCandidates.length > 0);
   const [clearing, setClearing] = useState(false);
+  const [askingClear, setAskingClear] = useState(false);
   const [diag, setDiag] = useState<DetectionDiagnostics | null>(null);
   // Los descartados empiezan plegados: están para poder discrepar del
   // detector, no para recorrerlos primero.
@@ -405,12 +407,24 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           variant="ghost"
           style={{ marginTop: 8, width: "100%" }}
           disabled={busy || clearing || !sessionId}
-          onClick={() => void clear()}
+          onClick={() => setAskingClear(true)}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {clearing ? "Limpiando…" : "Limpiar candidatos y morfometría"}
         </Button>
       )}
+      {/* F1-12: limpiar se llevaba la medida, el cuello marcado a mano y la
+          recomendación al primer clic, sin forma de recuperarlos. */}
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar candidatos y morfometría?"
+        confirmLabel="Limpiar"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => { setAskingClear(false); void clear(); }}
+      >
+        Se pierden los candidatos, la medida, el cuello marcado y la recomendación de tratamiento.
+      </ConfirmDialog>
     </div>
   );
 }

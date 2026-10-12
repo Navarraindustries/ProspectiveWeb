@@ -36,18 +36,27 @@ export function ConfirmDialog({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      // Escape siempre cancela; Enter confirma salvo mientras la acción corre.
-      if (e.key === "Escape") { e.stopPropagation(); onCancel(); }
-      else if (e.key === "Enter" && !busy) { e.preventDefault(); onConfirm(); }
+      // Escape siempre cancela. Se escucha en `window` en fase de captura y se
+      // corta ahí: escuchando en `document`, la ficha de debajo (Sheet) y los
+      // atajos del visor también recibían el mismo Escape, y cancelar «¿Descartar
+      // los cambios?» cerraba la ficha que se quería conservar.
+      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); onCancel(); return; }
+      if (e.key !== "Enter") return;
+      e.stopPropagation();
+      e.preventDefault();
+      // F1-58: Intro no confirma un borrado. Un Intro de más, pensado para el
+      // campo de debajo, borraba un paciente con sus sesiones; lo destructivo
+      // se confirma solo con el botón. Lo demás sigue aceptando Intro.
+      if (!destructive && !busy) onConfirm();
     };
-    document.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     const previous = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
     return () => {
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       previous?.focus?.();
     };
-  }, [open, busy, onCancel, onConfirm]);
+  }, [open, busy, destructive, onCancel, onConfirm]);
 
   if (!open) return null;
 

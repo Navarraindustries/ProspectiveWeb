@@ -215,6 +215,7 @@ describe("DevicesPanel · campo del clip", () => {
     // Limpiar antes de que venzan los 250 ms, con el borrado aún sin responder.
     act(() => { vi.advanceTimersByTime(100); });
     fireEvent.click(screen.getByRole("button", { name: /Limpiar clips colocados/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar los clips" }));
     act(() => { vi.advanceTimersByTime(400); });
     expect(api.planClips).toHaveBeenCalledTimes(1);
     await act(async () => { releaseClear(); });
@@ -384,5 +385,25 @@ describe("DevicesPanel · campo del clip", () => {
     expect(await screen.findByText(/77\.0/)).toBeInTheDocument();
     act(() => { vi.advanceTimersByTime(400); });
     expect(api.planClips).not.toHaveBeenCalled();
+  });
+});
+
+/* F1-22: «Limpiar clips colocados» se llevaba la pose, la verificación, la
+   oclusión y el mapa de calor al primer clic. */
+describe("«Limpiar clips colocados»", () => {
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.clearAllMocks(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("abre la confirmación y no borra hasta confirmar", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    fireEvent.click(screen.getByRole("button", { name: /Limpiar clips colocados/ }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Limpiar los clips colocados?" });
+    expect(dialogo).toHaveTextContent("la pose, la verificación, la oclusión y el mapa de calor");
+    expect(api.clearDevices).not.toHaveBeenCalled();
+    expect(screen.getByText(/Estimación geométrica/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar los clips" }));
+    await waitFor(() => expect(api.clearDevices).toHaveBeenCalledWith("s1", "clips"));
   });
 });

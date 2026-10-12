@@ -44,6 +44,11 @@ os.environ.setdefault("STUDY_FILES_ROOT", tempfile.mkdtemp(prefix="prospective_s
 os.environ.setdefault("CLIP_ORDERS_ROOT", tempfile.mkdtemp(prefix="prospective_clip_orders_"))
 os.environ.setdefault("CLIP_LIBRARY_ROOT", tempfile.mkdtemp(prefix="prospective_clip_library_"))
 
+# Sesiones de trabajo y guardados: sin esto create_session()/snapshot_session()
+# llenaban backend/data/sessions y backend/data/session_saves reales.
+os.environ.setdefault("PROSPECTIVE_SESSIONS_ROOT", tempfile.mkdtemp(prefix="prospective_sessions_"))
+os.environ.setdefault("PROSPECTIVE_SAVES_ROOT", tempfile.mkdtemp(prefix="prospective_saves_"))
+
 # The audit chain too. Without this the suite appended thousands of blocks to
 # the developer's real chain, and the endpoint test then asserted a property of
 # that file rather than of the code: one break anywhere in it — a crash, two

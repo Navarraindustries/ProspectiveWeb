@@ -389,6 +389,8 @@ The server runs out of the box with sensible defaults.
 | `PROSPECTIVE_DB_URL` | `sqlite:///backend/data/prospective.db` | SQLAlchemy connection string |
 | `JWT_SECRET` | auto-generated into `backend/secrets/jwt_secret.txt` | HS256 signing key |
 | `SESSION_TTL_HOURS` | `24` | Age at which an idle working session is purged |
+| `PROSPECTIVE_SESSIONS_ROOT` | `backend/data/sessions` | Folder for working sessions (tests point it at a temp dir) |
+| `PROSPECTIVE_SAVES_ROOT` | `backend/data/session_saves` | Folder for saved sessions (tests point it at a temp dir) |
 | `STUDY_FILES_ROOT` | `backend/study_files` | Root of the durable study archive |
 | `STORAGE_BACKEND` | `local` | `local` (filesystem) or `s3` |
 | `STORAGE_S3_BUCKET` | — | Required when `STORAGE_BACKEND=s3`; bucket must be private |

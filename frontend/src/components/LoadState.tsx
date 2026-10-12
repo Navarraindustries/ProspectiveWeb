@@ -12,27 +12,26 @@
 
    No importa el cliente del API a propósito: las pruebas de cada página lo
    simulan con `vi.mock`, y el texto del error se deduce de la forma del objeto
-   (`status`, `fromServer`) que lanza `ApiError`. */
+   (`status`, `fromServer`) que lanza `ApiError`. Los textos de conexión salen
+   de api/connectionText.ts, el mismo módulo que usa el cliente, que no importa
+   nada y por eso sobrevive a esa simulación. */
 
+import { NO_RESPONDE, SIN_CONEXION } from "../api/connectionText";
 import { Button } from "./Button";
 
 export type LoadStatus = "cargando" | "error" | "vacio";
-
-/** Lo que se ve cuando la petición ni llegó (mismo texto que api/client.ts). */
-const NO_CONNECTION = "Sin conexión con el servidor";
-/** El 500 sin cuerpo del proxy: «Error 500» no le dice nada a quien lo lee. */
-const NO_ANSWER = "El servidor no responde";
 
 /** El texto de un fallo de carga, en castellano y sin jerga del navegador. */
 export function loadErrorText(e: unknown): string {
   if (e instanceof Error) {
     const err = e as Error & { status?: number; fromServer?: boolean };
     // `fetch` sin red lanza un TypeError («Failed to fetch»): es conexión.
-    if (e instanceof TypeError) return NO_CONNECTION;
+    if (e instanceof TypeError) return SIN_CONEXION;
     if (err.fromServer === false) {
       // Status 0 ya trae «Sin conexión…» o «El servidor no responde»;
       // un 5xx sin `detail` es el proxy con el backend caído.
-      return err.status === 0 && e.message ? e.message : NO_ANSWER;
+      // El 500 sin cuerpo del proxy: «Error 500» no le dice nada a quien lo lee.
+      return err.status === 0 && e.message ? e.message : NO_RESPONDE;
     }
     if (e.message) return e.message;
   }

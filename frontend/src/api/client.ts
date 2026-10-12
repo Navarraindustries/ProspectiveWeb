@@ -125,6 +125,7 @@ import type {
 import type { Annotation } from "../vtk/annotations";
 import { fromWire, toWire } from "./annotationsWire";
 import { clearVolumeCache } from "../vtk/volume/volumeCache";
+import { NO_RESPONDE, SIN_CONEXION } from "./connectionText";
 
 /* La sesión va SOLO en la cookie `prospective_token`, que es httpOnly: el
    JavaScript de la página no puede leerla. Antes el JWT se guardaba además en
@@ -207,10 +208,10 @@ function csrfToken(): string | null {
    TypeError que llegaba al panel como «Failed to fetch», o nada, y la persona
    no sabía que el problema era el servidor ni que su sesión seguía en disco. */
 
-/** Lo que se ve cuando la petición ni siquiera llega al servidor. */
-export const NO_CONNECTION = "Sin conexión con el servidor";
-/** Lo que se ve cuando llegó pero no contesta dentro del límite. */
-export const NO_ANSWER = "El servidor no responde";
+/** Los textos de «sin conexión» y «no responde» viven en api/connectionText.ts,
+ *  que LoadState también importa: un solo origen para los dos. */
+export const NO_CONNECTION = SIN_CONEXION;
+export const NO_ANSWER = NO_RESPONDE;
 /** Límites por defecto. Sin ellos, con el supervisor de `--reload` reteniendo
  *  el puerto, las peticiones no volvían nunca y la banda no saltaba. Las
  *  lecturas son rápidas; las escrituras incluyen los cálculos largos

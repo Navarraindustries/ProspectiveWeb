@@ -7,6 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { LoadState, loadErrorText } from "./LoadState";
+import { NO_RESPONDE, SIN_CONEXION } from "../api/connectionText";
 
 class FakeApiError extends Error {
   status: number;
@@ -54,5 +55,19 @@ describe("loadErrorText", () => {
   });
   it("algo que no es un error da un texto genérico en castellano", () => {
     expect(loadErrorText(undefined)).toBe("No se pudo cargar");
+  });
+});
+
+describe("un solo origen para los textos de conexión", () => {
+  it("LoadState muestra exactamente las constantes de api/connectionText", () => {
+    // Antes LoadState llevaba su propia copia de los textos del cliente; si
+    // uno cambiaba, la lista y la banda dirían cosas distintas.
+    const { unmount } = render(
+      <LoadState state="error" mensaje={loadErrorText(new TypeError("Failed to fetch"))} />);
+    expect(screen.getByRole("alert").textContent).toBe(SIN_CONEXION);
+    unmount();
+    render(<LoadState state="error"
+      mensaje={loadErrorText(new FakeApiError(502, "Error 502", false))} />);
+    expect(screen.getByRole("alert").textContent).toBe(NO_RESPONDE);
   });
 });

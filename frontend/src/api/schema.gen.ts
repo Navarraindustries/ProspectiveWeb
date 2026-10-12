@@ -1323,6 +1323,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/devices/{session_id}/strategy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a device family as the team's strategy
+         * @description Marks which device family (clips, coils, stent, stent_cl, web) is the strategy the team chose. GET /devices and a session restore return it, and the report lists that family under «Plan elegido» and the others as evaluated alternatives. `null` removes the mark. Clearing devices does not touch it.
+         */
+        put: operations["put_device_strategy_api_devices__session_id__strategy_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/elapss": {
         parameters: {
             query?: never;
@@ -2587,11 +2607,35 @@ export interface paths {
         post?: never;
         /**
          * Clear the treatment recommendation
-         * @description Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it and the PHASES score, so none of them reach the PDF or the DICOM SR.
+         * @description Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it, the PHASES score and the team's decision, so none of them reach the PDF or the DICOM SR.
          *
          *     Called on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent.
          */
         delete: operations["clear_treatment_api_treatment_decision__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/treatment-decision/{session_id}/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The team's recorded decision
+         * @description The team's decision on its own, also when no recommendation was computed (the team can decide without the engine). `team_decision` is null when none was recorded.
+         */
+        get: operations["get_team_decision_api_treatment_decision__session_id__team_get"];
+        /**
+         * Record the team's decision
+         * @description What the team decided (clipaje, endovascular, vigilar u otra) and who decided it, kept apart from the engine's recommendation: the report prints it first, under «Plan elegido». It survives re-evaluating or changing the location; only clearing the decision step removes it. `team_decision: null` removes it.
+         */
+        put: operations["set_team_decision_api_treatment_decision__session_id__team_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5178,10 +5222,33 @@ export interface components {
             /** @description La lista editable de clips y su verificación, si se guardó (PUT /devices/{session_id}/placed-clips). Null sin clips colocados. */
             placed_clips?: components["schemas"]["PlacedClipsState"] | null;
             /**
+             * Placed Counts
+             * @description Cuántos dispositivos hay en el plan por familia (clips, coils, stent, stent_cl). El resumen del informe dice cuántos hay de la estrategia marcada.
+             */
+            placed_counts?: {
+                [key: string]: number;
+            };
+            /**
              * Remaining
              * @description Device families that still hold a plan after the call
              */
             remaining?: string[];
+            /**
+             * Strategy
+             * @description La familia marcada como estrategia del equipo (PUT /devices/{session_id}/strategy), o null. El informe la pone en «Plan elegido» y el resto como alternativas evaluadas.
+             */
+            strategy?: ("clips" | "coils" | "stent" | "stent_cl" | "web") | null;
+        };
+        /**
+         * DeviceStrategyState
+         * @description PUT /api/devices/{session_id}/strategy: la estrategia, o null para quitarla.
+         */
+        DeviceStrategyState: {
+            /**
+             * Strategy
+             * @description clips | coils | stent | stent_cl | web, o null.
+             */
+            strategy: ("clips" | "coils" | "stent" | "stent_cl" | "web") | null;
         };
         /**
          * DicomSegResult
@@ -9278,6 +9345,47 @@ export interface components {
             vmin: number;
         };
         /**
+         * TeamDecision
+         * @description La decisión del equipo tal como está guardada (`treatment.team_*`).
+         */
+        TeamDecision: {
+            /**
+             * Decided By
+             * @default
+             */
+            decided_by: string;
+            /**
+             * Other Text
+             * @default
+             */
+            other_text: string;
+            /** Team Decision */
+            team_decision?: ("clipaje" | "endovascular" | "vigilar" | "otra") | null;
+        };
+        /**
+         * TeamDecisionRequest
+         * @description PUT /api/treatment-decision/{session_id}/team. `null` la borra.
+         */
+        TeamDecisionRequest: {
+            /**
+             * Decided By
+             * @description Quién decide (persona o comité). No se rellena con el usuario conectado: quien teclea no es necesariamente quien decide.
+             * @default
+             */
+            decided_by: string;
+            /**
+             * Other Text
+             * @description Qué, cuando la decisión es «otra».
+             * @default
+             */
+            other_text: string;
+            /**
+             * Team Decision
+             * @description La decisión del equipo, o null para quitarla.
+             */
+            team_decision: ("clipaje" | "endovascular" | "vigilar" | "otra") | null;
+        };
+        /**
          * TrajectoryRequest
          * @description Entry → target surgical approach corridor (mesh/world space, mm).
          */
@@ -9418,6 +9526,8 @@ export interface components {
              * @enum {string}
              */
             recommendation_key: "clip" | "endo" | "mdt" | "surveillance";
+            /** @description La decisión del equipo, si se ha registrado. Va aparte de la recomendación y no se borra con ella: re-evaluar o cambiar la localización tira lo del motor, no lo que decidió el equipo. */
+            team?: components["schemas"]["TeamDecision"] | null;
         };
         /** UiatsItem */
         UiatsItem: {
@@ -12312,6 +12422,41 @@ export interface operations {
             };
         };
     };
+    put_device_strategy_api_devices__session_id__strategy_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceStrategyState"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceStrategyState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     elapss_api_elapss_post: {
         parameters: {
             query?: never;
@@ -14535,6 +14680,72 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_team_decision_api_treatment_decision__session_id__team_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamDecision"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_team_decision_api_treatment_decision__session_id__team_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamDecision"];
                 };
             };
             /** @description Validation Error */

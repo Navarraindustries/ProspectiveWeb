@@ -112,6 +112,9 @@ import type {
   TrajectoryResult,
   TreatmentDecisionRequest,
   TreatmentDecisionResult,
+  TeamDecision,
+  DeviceStrategy,
+  DeviceStrategyState,
   AneurysmLocation,
   ClinicalSiteResult,
   UploadResult,
@@ -658,6 +661,13 @@ export const api = {
     request<{ status: string }>(`/api/treatment-decision/${sessionId}`, { method: "DELETE" }),
   treatmentDecision: (req: TreatmentDecisionRequest) =>
     post<TreatmentDecisionResult>("/api/treatment-decision", req),
+  /** F1-176: la decisión del equipo, aparte de la recomendación. `team_decision: null` la quita. */
+  setTeamDecision: (sessionId: string, team: TeamDecision) =>
+    request<TeamDecision>(`/api/treatment-decision/${sessionId}/team`, {
+      method: "PUT", body: JSON.stringify(team), headers: { "Content-Type": "application/json" },
+    }),
+  getTeamDecision: (sessionId: string) =>
+    get<TeamDecision>(`/api/treatment-decision/${sessionId}/team`),
   listClips: () => get<ClipLibraryItem[]>("/api/clips"),
   clipRecommendations: (sessionId: string) =>
     get<ClipRecommendation[]>(`/api/clips/recommendations/${sessionId}`),
@@ -808,6 +818,11 @@ export const api = {
   putPlacedClips: (sessionId: string, state: PlacedClipsState) =>
     request<PlacedClipsState>(`/api/devices/${sessionId}/placed-clips`, {
       method: "PUT", body: JSON.stringify(state), headers: { "Content-Type": "application/json" },
+    }),
+  /** F1-188: marca qué familia es la estrategia del equipo (null la quita). */
+  setDeviceStrategy: (sessionId: string, strategy: DeviceStrategy | null) =>
+    request<DeviceStrategyState>(`/api/devices/${sessionId}/strategy`, {
+      method: "PUT", body: JSON.stringify({ strategy }), headers: { "Content-Type": "application/json" },
     }),
   /** Remove a placed device family — mesh AND the record the report reads — so
       another device can be planned on a clean scene. Omit `kind` to clear all. */

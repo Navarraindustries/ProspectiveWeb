@@ -3642,6 +3642,14 @@
       ],
       "description": "La lista editable de clips y su verificación, si se guardó (PUT /devices/{session_id}/placed-clips). Null sin clips colocados."
      },
+     "placed_counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "description": "Cuántos dispositivos hay en el plan por familia (clips, coils, stent, stent_cl). El resumen del informe dice cuántos hay de la estrategia marcada.",
+      "title": "Placed Counts",
+      "type": "object"
+     },
      "remaining": {
       "description": "Device families that still hold a plan after the call",
       "items": {
@@ -3649,9 +3657,57 @@
       },
       "title": "Remaining",
       "type": "array"
+     },
+     "strategy": {
+      "anyOf": [
+       {
+        "enum": [
+         "clips",
+         "coils",
+         "stent",
+         "stent_cl",
+         "web"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La familia marcada como estrategia del equipo (PUT /devices/{session_id}/strategy), o null. El informe la pone en «Plan elegido» y el resto como alternativas evaluadas.",
+      "title": "Strategy"
      }
     },
     "title": "DeviceClearResult",
+    "type": "object"
+   },
+   "DeviceStrategyState": {
+    "description": "PUT /api/devices/{session_id}/strategy: la estrategia, o null para quitarla.",
+    "properties": {
+     "strategy": {
+      "anyOf": [
+       {
+        "enum": [
+         "clips",
+         "coils",
+         "stent",
+         "stent_cl",
+         "web"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "clips | coils | stent | stent_cl | web, o null.",
+      "title": "Strategy"
+     }
+    },
+    "required": [
+     "strategy"
+    ],
+    "title": "DeviceStrategyState",
     "type": "object"
    },
    "DicomSegResult": {
@@ -9679,6 +9735,82 @@
     "title": "SuggestedBand",
     "type": "object"
    },
+   "TeamDecision": {
+    "description": "La decisión del equipo tal como está guardada (`treatment.team_*`).",
+    "properties": {
+     "decided_by": {
+      "default": "",
+      "title": "Decided By",
+      "type": "string"
+     },
+     "other_text": {
+      "default": "",
+      "title": "Other Text",
+      "type": "string"
+     },
+     "team_decision": {
+      "anyOf": [
+       {
+        "enum": [
+         "clipaje",
+         "endovascular",
+         "vigilar",
+         "otra"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Team Decision"
+     }
+    },
+    "title": "TeamDecision",
+    "type": "object"
+   },
+   "TeamDecisionRequest": {
+    "description": "PUT /api/treatment-decision/{session_id}/team. `null` la borra.",
+    "properties": {
+     "decided_by": {
+      "default": "",
+      "description": "Quién decide (persona o comité). No se rellena con el usuario conectado: quien teclea no es necesariamente quien decide.",
+      "maxLength": 120,
+      "title": "Decided By",
+      "type": "string"
+     },
+     "other_text": {
+      "default": "",
+      "description": "Qué, cuando la decisión es «otra».",
+      "maxLength": 200,
+      "title": "Other Text",
+      "type": "string"
+     },
+     "team_decision": {
+      "anyOf": [
+       {
+        "enum": [
+         "clipaje",
+         "endovascular",
+         "vigilar",
+         "otra"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La decisión del equipo, o null para quitarla.",
+      "title": "Team Decision"
+     }
+    },
+    "required": [
+     "team_decision"
+    ],
+    "title": "TeamDecisionRequest",
+    "type": "object"
+   },
    "TrajectoryRequest": {
     "description": "Entry → target surgical approach corridor (mesh/world space, mm).",
     "properties": {
@@ -9962,6 +10094,17 @@
       ],
       "title": "Recommendation Key",
       "type": "string"
+     },
+     "team": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TeamDecision"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La decisión del equipo, si se ha registrado. Va aparte de la recomendación y no se borra con ella: re-evaluar o cambiar la localización tira lo del motor, no lo que decidió el equipo."
      }
     },
     "required": [
@@ -14714,6 +14857,64 @@
     ]
    }
   },
+  "/api/devices/{session_id}/strategy": {
+   "put": {
+    "description": "Marks which device family (clips, coils, stent, stent_cl, web) is the strategy the team chose. GET /devices and a session restore return it, and the report lists that family under «Plan elegido» and the others as evaluated alternatives. `null` removes the mark. Clearing devices does not touch it.",
+    "operationId": "put_device_strategy_api_devices__session_id__strategy_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeviceStrategyState"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DeviceStrategyState"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Mark a device family as the team's strategy",
+    "tags": [
+     "devices"
+    ]
+   }
+  },
   "/api/elapss": {
    "post": {
     "description": "Backes et al., Neurology 2017. Seis factores: HSA previa, localización, edad, población, tamaño y forma. Predice CRECIMIENTO, no rotura: orienta cada cuánto repetir la imagen. Con `session_id` queda registrado y llega al informe PDF, con los valores introducidos al lado de sus puntos.",
@@ -18298,7 +18499,7 @@
   },
   "/api/treatment-decision/{session_id}": {
    "delete": {
-    "description": "Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it and the PHASES score, so none of them reach the PDF or the DICOM SR.\n\nCalled on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent.",
+    "description": "Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it, the PHASES score and the team's decision, so none of them reach the PDF or the DICOM SR.\n\nCalled on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent.",
     "operationId": "clear_treatment_api_treatment_decision__session_id__delete",
     "parameters": [
      {
@@ -18387,6 +18588,110 @@
      }
     ],
     "summary": "The stored CLIP vs ENDOVASCULAR recommendation",
+    "tags": [
+     "treatment"
+    ]
+   }
+  },
+  "/api/treatment-decision/{session_id}/team": {
+   "get": {
+    "description": "The team's decision on its own, also when no recommendation was computed (the team can decide without the engine). `team_decision` is null when none was recorded.",
+    "operationId": "get_team_decision_api_treatment_decision__session_id__team_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TeamDecision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "The team's recorded decision",
+    "tags": [
+     "treatment"
+    ]
+   },
+   "put": {
+    "description": "What the team decided (clipaje, endovascular, vigilar u otra) and who decided it, kept apart from the engine's recommendation: the report prints it first, under «Plan elegido». It survives re-evaluating or changing the location; only clearing the decision step removes it. `team_decision: null` removes it.",
+    "operationId": "set_team_decision_api_treatment_decision__session_id__team_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TeamDecisionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TeamDecision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Record the team's decision",
     "tags": [
      "treatment"
     ]

@@ -23,15 +23,35 @@ from services.database import get_db
 from services.db_models import User
 
 from models.clips import PlacedClipsState
-from models.plan import DeviceClearResult
+from models.plan import DeviceClearResult, DeviceStrategyState
 from services.device_state import (
     DEVICE_KINDS, clear_device, read_clips, read_coils, read_placed_clips, read_stent,
     save_placed_clips,
 )
-from services.sessions import mesh_url, session_exists, session_subdir
+from services.sessions import (mesh_url, read_state, session_exists, session_subdir,
+                               write_state)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["devices"])
+
+
+#: F1-188: la estrategia marcada como la del equipo. No la borra «Limpiar»:
+#: limpiar es probar otra colocación, no cambiar de estrategia.
+STRATEGY_KEY = "devices.strategy"
+_STRATEGIES = ("clips", "coils", "stent", "stent_cl", "web")
+
+
+def stored_strategy(session_id: str) -> str | None:
+    value = read_state(session_id, STRATEGY_KEY, "")
+    return value if value in _STRATEGIES else None
+
+
+def _counts(session_id: str) -> dict[str, int]:
+    """Cuántos hay de cada familia. El stent es uno, recto o de línea central."""
+    stent = read_stent(session_id)
+    cl = stent.get("kind") == "centerline" if stent else False
+    return {"clips": len(read_clips(session_id)), "coils": len(read_coils(session_id)),
+            "stent": int(bool(stent) and not cl), "stent_cl": int(cl)}
 
 
 def _placed(session_id: str) -> list[str]:
@@ -127,7 +147,34 @@ async def list_placed_devices(session_id: str) -> DeviceClearResult:
         cleared=[], remaining=remaining, meshes_removed=0,
         mesh_urls=_mesh_urls(session_id, remaining),
         placed_clips=stored_placed_clips(session_id),
+        strategy=stored_strategy(session_id),
+        placed_counts=_counts(session_id),
     )
+
+
+@router.put(
+    "/devices/{session_id}/strategy",
+    response_model=DeviceStrategyState,
+    summary="Mark a device family as the team's strategy",
+    description=(
+        "Marks which device family (clips, coils, stent, stent_cl, web) is the "
+        "strategy the team chose. GET /devices and a session restore return it, "
+        "and the report lists that family under «Plan elegido» and the others "
+        "as evaluated alternatives. `null` removes the mark. Clearing devices "
+        "does not touch it."
+    ),
+)
+async def put_device_strategy(
+    session_id: str,
+    req: DeviceStrategyState,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> DeviceStrategyState:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    require_session(db, current_user, session_id)
+    write_state(session_id, STRATEGY_KEY, req.strategy or "")
+    return DeviceStrategyState(strategy=stored_strategy(session_id))
 
 
 @router.delete(

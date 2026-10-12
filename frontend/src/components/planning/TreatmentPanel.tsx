@@ -17,6 +17,7 @@ import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
 import { ageFromDob } from "../patientAge";
 import { InheritedSite } from "../morphometry/InheritedSite";
+import { TeamDecisionCard } from "./TeamDecisionCard";
 
 /** La primera letra en minúscula, para una frase que sigue a dos puntos. */
 function minuscula(s: string): string {
@@ -216,6 +217,10 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
       </ConfirmDialog>
       <ErrorNote>{error}</ErrorNote>
 
+      {/* F1-176: sin recomendación también se registra; el equipo puede
+          decidir sin el motor. Con ella, va debajo de su porqué. */}
+      {!t && <TeamDecisionCard />}
+
       {t && (
         <>
           <div style={{ background: "var(--brand-subtle)", borderRadius: "var(--radius-lg)", padding: "16px 18px", margin: "16px 0" }}>
@@ -368,6 +373,8 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               </div>
             ))}
           </div>
+
+          <TeamDecisionCard />
 
           {/* Lo que la imagen no puede dar. Una perforante mide 0,1–0,5 mm y el
               vóxel de una angio-TC ronda 0,5–1,0 mm: no llega a la malla, así

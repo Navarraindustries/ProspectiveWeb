@@ -216,6 +216,35 @@ class TreatmentDecisionRequest(BaseModel):
     )
 
 
+#: F1-176: lo que el equipo decide, que no tiene por qué ser lo que el motor
+#: recomienda. «otra» lleva su texto (bypass, trapping, tratamiento combinado…).
+TeamDecisionKey = Literal["clipaje", "endovascular", "vigilar", "otra"]
+
+
+class TeamDecisionRequest(BaseModel):
+    """PUT /api/treatment-decision/{session_id}/team. `null` la borra."""
+
+    team_decision: TeamDecisionKey | None = Field(
+        ..., description="La decisión del equipo, o null para quitarla."
+    )
+    decided_by: str = Field(
+        "", max_length=120,
+        description=(
+            "Quién decide (persona o comité). No se rellena con el usuario "
+            "conectado: quien teclea no es necesariamente quien decide."
+        ),
+    )
+    other_text: str = Field("", max_length=200, description="Qué, cuando la decisión es «otra».")
+
+
+class TeamDecision(BaseModel):
+    """La decisión del equipo tal como está guardada (`treatment.team_*`)."""
+
+    team_decision: TeamDecisionKey | None = None
+    decided_by: str = ""
+    other_text: str = ""
+
+
 class TreatmentDecisionResult(BaseModel):
     """Full output of the CLIP vs ENDO decision engine."""
 
@@ -275,6 +304,14 @@ class TreatmentDecisionResult(BaseModel):
             "Reasoning that is not a scored factor: why a small aneurysm is or "
             "is not a surveillance case, what the PHASES score says about it, "
             "and what the engine could not settle."
+        ),
+    )
+    team: TeamDecision | None = Field(
+        None,
+        description=(
+            "La decisión del equipo, si se ha registrado. Va aparte de la "
+            "recomendación y no se borra con ella: re-evaluar o cambiar la "
+            "localización tira lo del motor, no lo que decidió el equipo."
         ),
     )
     # ── Recommendation ────────────────────────────────────────────────────── #

@@ -65,6 +65,8 @@ from .treatment import (
     JsdbItemOut,
     JsdbOut,
     RecommendationKey,
+    TeamDecision,
+    TeamDecisionRequest,
     TreatmentDecisionRequest,
     TreatmentDecisionResult,
 )
@@ -102,5 +104,5 @@ __all__ = [
     # treatment
     "AneurysmLocation", "ClinicalSiteRequest", "ClinicalSiteResult", "Confidence", "DecisionFactor",
     "JsdbArmOut", "JsdbItemOut", "JsdbOut",
-    "RecommendationKey", "TreatmentDecisionRequest", "TreatmentDecisionResult",
+    "RecommendationKey", "TeamDecision", "TeamDecisionRequest", "TreatmentDecisionRequest", "TreatmentDecisionResult",
 ]

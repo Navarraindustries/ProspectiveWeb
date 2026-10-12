@@ -452,6 +452,18 @@ export interface DeviceClearResult {
   mesh_urls: Partial<Record<DeviceKind, string>>;
   /** La lista editable de clips y su verificación; null sin clips guardados. */
   placed_clips?: PlacedClipsState | null;
+  /** F1-188: la familia marcada como estrategia del equipo, o null. */
+  strategy?: DeviceStrategy | null;
+  /** Cuántos dispositivos hay en el plan por familia (clips, coils, stent, stent_cl). */
+  placed_counts?: Record<string, number>;
+}
+
+/** Las pestañas de Dispositivos que pueden ser la estrategia del equipo. */
+export type DeviceStrategy = "clips" | "coils" | "stent" | "stent_cl" | "web";
+
+/** PUT /api/devices/{sid}/strategy. */
+export interface DeviceStrategyState {
+  strategy: DeviceStrategy | null;
 }
 
 /** Un clip de la lista de colocación tal como lo guarda el backend (mismo
@@ -987,6 +999,21 @@ export interface TreatmentDecisionResult {
   factors: DecisionFactor[];
   clip_factors: string[];
   endo_factors: string[];
+  /** F1-176: lo que decidió el equipo, aparte de lo que recomienda el motor.
+      No se borra al re-evaluar ni al cambiar la localización. */
+  team?: TeamDecision | null;
+}
+
+/** La decisión del equipo (PUT/GET /api/treatment-decision/{sid}/team). */
+export type TeamDecisionKey = "clipaje" | "endovascular" | "vigilar" | "otra";
+
+export interface TeamDecision {
+  /** null: no se ha registrado. */
+  team_decision: TeamDecisionKey | null;
+  /** Quién decide; no se rellena con el usuario conectado. */
+  decided_by: string;
+  /** Qué, cuando la decisión es «otra». */
+  other_text: string;
 }
 
 /* ── devices: clips ────────────────────────────────────────────────────── */

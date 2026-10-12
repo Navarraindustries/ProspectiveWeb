@@ -15,12 +15,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const treatmentDecision = vi.fn();
 const clearTreatmentDecision = vi.fn(async () => {});
 const clearTreatment = vi.fn(async () => {});
+const NO_TEAM = { team_decision: null, decided_by: "", other_text: "" };
+const setTeamDecision = vi.fn(async (_sid: string, t: unknown) => t);
+const getTeamDecision = vi.fn(async (_sid: string): Promise<unknown> => NO_TEAM);
 
 vi.mock("../../api/client", () => ({
   api: {
     treatmentDecision: (...a: unknown[]) => treatmentDecision(...a),
     clearTreatmentDecision: (...a: unknown[]) => clearTreatmentDecision(...(a as [])),
     clearTreatment: (...a: unknown[]) => clearTreatment(...(a as [])),
+    setTeamDecision: (sid: string, t: unknown) => setTeamDecision(sid, t),
+    getTeamDecision: (sid: string) => getTeamDecision(sid),
   },
   ApiError: class ApiError extends Error {},
 }));
@@ -83,6 +88,9 @@ beforeEach(() => {
   treatmentDecision.mockReset();
   treatmentDecision.mockResolvedValue(RESULT);
   clearTreatment.mockClear();
+  setTeamDecision.mockClear();
+  getTeamDecision.mockReset();
+  getTeamDecision.mockResolvedValue(NO_TEAM);
 });
 
 describe("cómo se lee la recomendación", () => {
@@ -291,5 +299,64 @@ describe("«Limpiar decisión y PHASES»", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
     await vi.waitFor(() => expect(clearTreatment).toHaveBeenCalledWith("s1"));
+  });
+});
+
+/* F1-176: la pantalla solo tenía la recomendación del algoritmo. El equipo
+   registra aquí lo que decide, y eso es lo que va primero en el informe. */
+describe("«Decisión del equipo»", () => {
+  const select = () => screen.getByLabelText("Decisión del equipo") as HTMLSelectElement;
+
+  it("ofrece clipaje, endovascular, vigilar u otra y lo guarda al elegir", async () => {
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(Array.from(select().options).map((o) => o.text))
+      .toEqual(["Sin registrar", "Clipaje", "Endovascular", "Vigilar", "Otra"]);
+    fireEvent.change(select(), { target: { value: "clipaje" } });
+    await vi.waitFor(() => expect(setTeamDecision).toHaveBeenCalledWith(
+      "s1", { team_decision: "clipaje", decided_by: "", other_text: "" }));
+  });
+
+  it("«Quién decide» no se rellena con el usuario conectado y se guarda al salir", async () => {
+    render(<TreatmentPanel onNext={() => {}} />);
+    const quien = screen.getByLabelText("Quién decide") as HTMLInputElement;
+    expect(quien.value).toBe("");
+    expect(quien.placeholder).toBe("Nombre o comité");
+    fireEvent.change(select(), { target: { value: "endovascular" } });
+    fireEvent.change(quien, { target: { value: "Comité neurovascular" } });
+    fireEvent.blur(quien);
+    await vi.waitFor(() => expect(setTeamDecision).toHaveBeenLastCalledWith(
+      "s1", { team_decision: "endovascular", decided_by: "Comité neurovascular", other_text: "" }));
+  });
+
+  it("«Otra» pide qué", async () => {
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByLabelText("Cuál")).not.toBeInTheDocument();
+    fireEvent.change(select(), { target: { value: "otra" } });
+    const cual = screen.getByLabelText("Cuál");
+    fireEvent.change(cual, { target: { value: "Bypass y trapping" } });
+    fireEvent.blur(cual);
+    await vi.waitFor(() => expect(setTeamDecision).toHaveBeenLastCalledWith(
+      "s1", { team_decision: "otra", decided_by: "", other_text: "Bypass y trapping" }));
+  });
+
+  it("se puede registrar sin recomendación del algoritmo", async () => {
+    stored = null;
+    render(<TreatmentPanel onNext={() => {}} />);
+    fireEvent.change(select(), { target: { value: "vigilar" } });
+    await vi.waitFor(() => expect(setTeamDecision).toHaveBeenCalled());
+  });
+
+  it("vuelve la guardada: la de la recomendación o, sin ella, la del servidor", async () => {
+    stored = { ...RESULT, team: { team_decision: "clipaje", decided_by: "Comité", other_text: "" } };
+    const { unmount } = render(<TreatmentPanel onNext={() => {}} />);
+    expect(select().value).toBe("clipaje");
+    expect((screen.getByLabelText("Quién decide") as HTMLInputElement).value).toBe("Comité");
+    unmount();
+
+    stored = null;
+    getTeamDecision.mockResolvedValue({ team_decision: "vigilar", decided_by: "Dr. Gil", other_text: "" });
+    render(<TreatmentPanel onNext={() => {}} />);
+    await vi.waitFor(() => expect(select().value).toBe("vigilar"));
+    expect((screen.getByLabelText("Quién decide") as HTMLInputElement).value).toBe("Dr. Gil");
   });
 });

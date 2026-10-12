@@ -1,6 +1,8 @@
 """Stent planning models."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from .clips import PlacedClipsState
@@ -124,6 +126,16 @@ class StentLibraryItem(BaseModel):
     )
 
 
+#: F1-188: qué familia es la del equipo. Las pestañas del paso 6.
+DeviceStrategy = Literal["clips", "coils", "stent", "stent_cl", "web"]
+
+
+class DeviceStrategyState(BaseModel):
+    """PUT /api/devices/{session_id}/strategy: la estrategia, o null para quitarla."""
+
+    strategy: DeviceStrategy | None = Field(..., description="clips | coils | stent | stent_cl | web, o null.")
+
+
 class DeviceClearResult(BaseModel):
     """Outcome of removing placed devices from a session's plan."""
 
@@ -151,6 +163,22 @@ class DeviceClearResult(BaseModel):
         description=(
             "La lista editable de clips y su verificación, si se guardó "
             "(PUT /devices/{session_id}/placed-clips). Null sin clips colocados."
+        ),
+    )
+    placed_counts: dict[str, int] = Field(
+        default_factory=dict,
+        description=(
+            "Cuántos dispositivos hay en el plan por familia (clips, coils, "
+            "stent, stent_cl). El resumen del informe dice cuántos hay de la "
+            "estrategia marcada."
+        ),
+    )
+    strategy: DeviceStrategy | None = Field(
+        None,
+        description=(
+            "La familia marcada como estrategia del equipo (PUT "
+            "/devices/{session_id}/strategy), o null. El informe la pone en "
+            "«Plan elegido» y el resto como alternativas evaluadas."
         ),
     )
 

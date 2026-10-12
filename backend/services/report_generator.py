@@ -39,6 +39,13 @@ def _hora_local(d: datetime) -> datetime:
 
 _TIPO_COIL = {"framing": "Enmarcado", "filling": "Relleno", "finishing": "Acabado"}
 
+#: F1-176: la decisión del equipo tal como se lee en el informe.
+_DECISION_EQUIPO = {"clipaje": "Clipaje", "endovascular": "Endovascular",
+                    "vigilar": "Vigilar", "otra": "Otra"}
+#: F1-188: la estrategia de dispositivo marcada, con el nombre de su pestaña.
+_ESTRATEGIA = {"clips": "Clips", "coils": "Coils", "stent": "Stent",
+               "stent_cl": "Stent CL", "web": "WEB"}
+
 
 def _minuscula(texto: str) -> str:
     """La primera letra en minúscula, para una frase que sigue a dos puntos."""
@@ -218,6 +225,12 @@ class ReportData:
     #: clip. La lista puede estar vacía; `branch_floor_mm` dice desde qué calibre.
     branches: list[dict[str, Any]] = field(default_factory=list)
     branch_floor_mm: float = 0.0
+    #: F1-176: lo que el equipo decidió ({team_decision, decided_by,
+    #: other_text}), vacío si no lo registró. Va antes de la recomendación.
+    team: dict[str, Any] = field(default_factory=dict)
+    #: F1-188: la familia marcada como estrategia (clips, coils, stent,
+    #: stent_cl, web) o "". Su sección es el plan; las demás, alternativas.
+    device_strategy: str = ""
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -326,6 +339,17 @@ def build_report_data_from_session(
                 treatment["jsdb"] = json.loads(jsdb_raw) or {}
             except ValueError as exc:
                 logger.warning("Informe: treatment.jsdb_json ilegible, la sección sale sin ello: %s", exc)
+
+    # La decisión del equipo y la estrategia marcada (F1-176, F1-188). Aparte
+    # de `treatment`: existen aunque no se haya pedido la recomendación.
+    team: dict[str, Any] = {}
+    if _rs("treatment.team_decision") in _DECISION_EQUIPO:
+        team = {"team_decision": _rs("treatment.team_decision"),
+                "decided_by": _rs("treatment.decided_by", ""),
+                "other_text": _rs("treatment.team_other", "")}
+    device_strategy = _rs("devices.strategy", "")
+    if device_strategy not in _ESTRATEGIA:
+        device_strategy = ""
 
     # ── 3. Patient info — request params > DB > defaults ─────────────── #
     db_patient_name  = ""
@@ -545,6 +569,8 @@ def build_report_data_from_session(
         risk_label   = risk_label,
         risk_reasons = risk_reasons,
         treatment    = treatment,
+        team         = team,
+        device_strategy = device_strategy,
     )
 
 
@@ -805,6 +831,8 @@ class ReportGenerator:
         story += self._section_screenshot()
         story += self._section_captures()
         story += self._section_morphometrics()
+        # F1-236: lo que se eligió, antes de lo que el algoritmo recomendó.
+        story += self._section_chosen_plan()
         story += self._section_treatment_decision()
         story += self._section_clips()
         story += self._section_branches()
@@ -1185,6 +1213,71 @@ class ReportGenerator:
         elems.append(tbl)
         return elems
 
+    def _device_heading(self, family: str, base: str) -> str:
+        """El título de la sección de una familia de dispositivos (F1-236).
+
+        Antes todas decían «planificados», y un plan con clip y coils parecía
+        llevar los dos. Solo la familia marcada como estrategia es el plan; las
+        demás se probaron. Sin estrategia marcada no hay plan que nombrar.
+        """
+        chosen = self._data.device_strategy
+        if chosen == family:
+            return f"{base} planificados"
+        return f"{base} evaluados (alternativa)" if chosen else f"{base} evaluados"
+
+    def _chosen_devices(self) -> list[str]:
+        """Los dispositivos colocados de la familia elegida, por su nombre."""
+        d = self._data
+        fam = d.device_strategy
+        if fam == "clips":
+            return [c.name for c in d.clips]
+        if fam == "coils":
+            return [c.name for c in d.coils]
+        if fam in ("stent", "stent_cl") and d.stent is not None:
+            if (d.stent.kind == "centerline") == (fam == "stent_cl"):
+                return [d.stent.name]
+        return []
+
+    def _stent_heading(self, family: str, base: str) -> str:
+        """Como `_device_heading`, en singular: hay un solo stent."""
+        chosen = self._data.device_strategy
+        if chosen == family:
+            return f"{base} planificado"
+        return f"{base} evaluado (alternativa)" if chosen else base
+
+    def _section_chosen_plan(self) -> list:
+        """«Plan elegido»: la decisión del equipo y la estrategia marcada.
+
+        F1-236: el informe imprimía la recomendación del algoritmo y todos los
+        dispositivos como «planificados», sin decir qué había elegido el
+        equipo. Sin decisión registrada, se dice: lo que sigue NO es el plan.
+        """
+        d = self._data
+        elems = [Paragraph("Plan elegido", self._style_h2)]
+        team = d.team or {}
+        key = team.get("team_decision", "")
+        if key in _DECISION_EQUIPO:
+            texto = _DECISION_EQUIPO[key]
+            if key == "otra" and team.get("other_text"):
+                texto += f": {team['other_text']}"
+            quien = (team.get("decided_by") or "").strip()
+            elems.append(Paragraph(
+                f"Decisión del equipo: <b>{texto}</b>"
+                + (f" — por {quien}." if quien else "."), self._style_body))
+        else:
+            elems.append(Paragraph(
+                "El equipo no ha registrado su decisión; lo que sigue es la "
+                "recomendación del algoritmo y los dispositivos evaluados.",
+                self._style_body))
+        if d.device_strategy in _ESTRATEGIA:
+            nombres = self._chosen_devices()
+            elems.append(Paragraph(
+                f"Estrategia de dispositivo: <b>{_ESTRATEGIA[d.device_strategy]}</b>"
+                + (f". En el plan: {', '.join(nombres)}." if nombres
+                   else ". No hay dispositivos de esa familia colocados en el plan."),
+                self._style_body))
+        return elems
+
     def _section_treatment_decision(self) -> list:
         t = self._data.treatment
         if not t:
@@ -1397,7 +1490,7 @@ class ReportGenerator:
                 ),
             ]
 
-        elems = [Paragraph("Clips quirúrgicos planificados", self._style_h2)]
+        elems = [Paragraph(self._device_heading("clips", "Clips quirúrgicos"), self._style_h2)]
         rows  = [["#", "Nombre / Modelo", "Posición (mm)", "Orientación (°)", "Tipo"]]
         for c in clips:
             pos = f"({c.position_mm[0]:.1f}, {c.position_mm[1]:.1f}, {c.position_mm[2]:.1f})"
@@ -1611,7 +1704,7 @@ class ReportGenerator:
         if not coils:
             return []
 
-        elems = [Paragraph("Coils de embolización planificados", self._style_h2)]
+        elems = [Paragraph(self._device_heading("coils", "Coils de embolización"), self._style_h2)]
         rows  = [["#", "Nombre / Modelo", "Tipo", "Ø (mm)", "Long. (cm)", "Fabricante", "Posición (mm)"]]
         for c in coils:
             pos = f"({c.position_mm[0]:.1f}, {c.position_mm[1]:.1f}, {c.position_mm[2]:.1f})"
@@ -1654,13 +1747,13 @@ class ReportGenerator:
         # labelling them identically would misread a 101 % fit ratio as neck
         # coverage. See StentEntry.
         if st.kind == "centerline":
-            title        = "Stent guiado por línea central"
+            title        = self._stent_heading("stent_cl", "Stent guiado por línea central")
             length_label = "Longitud desplegada"
             cov_label    = "Cobertura (Ø stent / Ø vaso)"
             cov_value    = f"{st.coverage_pct / 100.0:.2f}"
             cov_ref      = "0.90 – 1.15 = buen ajuste"
         else:
-            title        = "Stent / desviador de flujo planificado"
+            title        = self._stent_heading("stent", "Stent / desviador de flujo")
             length_label = "Longitud nominal"
             cov_label    = "Cuello cruzado por el dispositivo"
             cov_value    = f"{st.coverage_pct:.1f} %"

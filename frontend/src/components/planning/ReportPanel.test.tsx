@@ -17,6 +17,8 @@ vi.mock("../../api/client", () => ({
     }),
     exportStl: vi.fn(), report: vi.fn(), dicomSr: vi.fn(), saveSession: vi.fn(),
     listCaptures: vi.fn().mockResolvedValue([]), captureObjectUrl: vi.fn(),
+    placedDevices: vi.fn().mockResolvedValue({ remaining: [], mesh_urls: {}, strategy: null, placed_counts: {} }),
+    getTeamDecision: vi.fn().mockResolvedValue({ team_decision: null, decided_by: "", other_text: "" }),
   },
 }));
 vi.mock("../../store/auth", () => ({ useAuth: () => ({ user: { username: "admin", full_name: "" } }) }));
@@ -96,5 +98,54 @@ describe("enlaces del informe tras reanudar", () => {
     montarReanudada({ pdf_url: "/data/sessions/s1/reports/vieja_report.pdf?v=1", pdf_current: true });
     await screen.findByText(/Descargar PDF/);
     expect(screen.getByText("Generar informe PDF")).toBeInTheDocument();
+  });
+});
+
+/* F1-220: el resumen decía paciente, Ø, riesgo y recomendación, pero no por
+   dónde se entra, qué dispositivo se eligió ni qué decidió el equipo; y
+   «Riesgo (morfometría)» se leía como el riesgo del PHASES. */
+describe("«Resumen del caso»", () => {
+  function montarCon(seed: (p: ReturnType<typeof usePlanning>) => void) {
+    function Seed({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => { if (!p.sessionId) { p.setSession("s1"); seed(p); } }, [p]);
+      return p.sessionId ? <>{children}</> : null;
+    }
+    return render(<PlanningProvider><Seed><ReportPanel onFinish={() => {}} /></Seed></PlanningProvider>);
+  }
+
+  it("lista abordaje, dispositivo elegido y decisión del equipo", async () => {
+    vi.mocked(api.placedDevices).mockResolvedValueOnce({
+      cleared: [], remaining: ["coils"], meshes_removed: 0, mesh_urls: {},
+      strategy: "coils", placed_counts: { clips: 0, coils: 3, stent: 0, stent_cl: 0 },
+    });
+    vi.mocked(api.getTeamDecision).mockResolvedValueOnce(
+      { team_decision: "endovascular", decided_by: "Comité neurovascular", other_text: "" });
+    montarCon((p) => p.setTrajSaved({
+      entry: [0, 0, 0], target: [3, 4, 0], depth_mm: 62.4, angle_deg: 18.2,
+      corridor: { radius_mm: 5, vessels_crossed: [], nearest_branch_mm: null, nearest_branch_calibre_mm: 0,
+        dense_tissue_mm: 0, dense_tissue_measurable: true, verdict: "viable", verdict_reason: "",
+        findings: [], assumptions: [] },
+    }));
+    expect(await screen.findByText("Abordaje")).toBeInTheDocument();
+    expect(screen.getByText("Corredor libre · 62 mm · 18°")).toBeInTheDocument();
+    expect(screen.getByText("Dispositivo elegido")).toBeInTheDocument();
+    expect(await screen.findByText("Coils · 3 en el plan")).toBeInTheDocument();
+    expect(await screen.findByText("Endovascular · por Comité neurovascular")).toBeInTheDocument();
+  });
+
+  it("sin nada de eso dice «—» en cada fila", async () => {
+    montarCon(() => {});
+    await screen.findByText("Abordaje");
+    for (const rotulo of ["Abordaje", "Dispositivo elegido", "Decisión del equipo"]) {
+      const fila = screen.getByText(rotulo).parentElement!;
+      expect(fila).toHaveTextContent("—");
+    }
+  });
+
+  it("el riesgo de la morfometría se distingue del PHASES", async () => {
+    montarCon((p) => p.setMorphometry({ max_diameter_mm: 7, rupture_risk_label: "Alto" } as never));
+    expect(await screen.findByText("Índice de forma (AR, BF, UI); no es el PHASES, que está en Morfometría"))
+      .toBeInTheDocument();
   });
 });

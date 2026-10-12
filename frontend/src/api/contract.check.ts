@@ -128,6 +128,8 @@ export type Contrato = [
   Cabe<Completo<S["TrajectoryRequest"]>, ui.TrajectoryRequest>,
   Cabe<Completo<S["TrajectoryResult"]>, ui.TrajectoryResult>,
   Cabe<Completo<S["TreatmentDecisionRequest"]>, ui.TreatmentDecisionRequest>,
+  Cabe<Completo<S["TeamDecision"]>, ui.TeamDecision>,
+  Cabe<Completo<S["DeviceStrategyState"]>, ui.DeviceStrategyState>,
   Cabe<Completo<S["UiatsRequest"]>, ui.UiatsRequest>,
   Cabe<Completo<S["UiatsResult"]>, ui.UiatsResult>,
   Cabe<Completo<S["UploadResult"]>, ui.UploadResult>,

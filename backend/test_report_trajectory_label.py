@@ -72,3 +72,16 @@ def test_eje_medido_con_marca_es_el_aneurisma():
     sid = _session(("1", "0", "0"))
     write_state(sid, "morpho.axis_measured", "1")
     assert read_trajectory_state(sid)["angle_ref"] == "aneurisma"
+
+
+def test_el_pdf_de_una_sesion_con_decision_del_equipo_la_pone_primero():
+    """F1-176/F1-236, de punta a punta: lo guardado en la sesión llega al PDF,
+    con «Plan elegido» delante del corredor y de la recomendación."""
+    sid = _session(("1", "0", "0"))
+    write_state(sid, "treatment.team_decision", "clipaje")
+    write_state(sid, "treatment.decided_by", "Comité neurovascular")
+    gen = ReportGenerator(build_report_data_from_session(sid))
+    textos = [f.text for f in gen._build_story() if hasattr(f, "text")]
+    plan = textos.index("Plan elegido")
+    assert "Comité neurovascular" in textos[plan + 1]
+    assert any(t.startswith("Trayectoria") or "corredor" in t.lower() for t in textos[plan:])

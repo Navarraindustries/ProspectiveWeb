@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 import json
 
-from models import TreatmentDecisionRequest, TreatmentDecisionResult, DecisionFactor
+from models import (DecisionFactor, TeamDecision, TeamDecisionRequest,
+                    TreatmentDecisionRequest, TreatmentDecisionResult)
 from services.audit import ACT_TREATMENT_DECISION, audit_append
 from services.access import require_session
 from services.auth_service import get_current_user
@@ -27,16 +28,37 @@ RESULT_KEY = "treatment.result_json"
 INPUTS_KEY = "clinical.decision_inputs_json"
 
 
+#: F1-176: la decisión del equipo. Claves propias y fuera de RESULT_KEY porque
+#: no sale del motor: re-evaluar, cambiar la localización o re-medir tiran la
+#: recomendación, y nada de eso dice nada de lo que el equipo decidió.
+TEAM_KEYS = ("treatment.team_decision", "treatment.decided_by", "treatment.team_other")
+
+
+def stored_team(session_id: str) -> TeamDecision | None:
+    """La decisión del equipo guardada, o None si no se ha registrado."""
+    key = read_state(session_id, "treatment.team_decision", "")
+    if key not in ("clipaje", "endovascular", "vigilar", "otra"):
+        return None
+    return TeamDecision(team_decision=key,
+                        decided_by=read_state(session_id, "treatment.decided_by", ""),
+                        other_text=read_state(session_id, "treatment.team_other", ""))
+
+
 def stored_decision(session_id: str) -> TreatmentDecisionResult | None:
-    """La última recomendación guardada en la sesión, o None si no la hay."""
+    """La última recomendación guardada en la sesión, o None si no la hay.
+
+    Lleva la decisión del equipo (`team`) leída aparte, así que reanudar la
+    devuelve sin más (routers/session_state.py usa esta función)."""
     raw = read_state(session_id, RESULT_KEY, "")
     if not raw:
         return None
     try:
-        return TreatmentDecisionResult.model_validate_json(raw)
+        result = TreatmentDecisionResult.model_validate_json(raw)
     except ValueError:
         logger.warning("Decisión guardada ilegible en %s", session_id)
         return None
+    result.team = stored_team(session_id)
+    return result
 
 
 def stored_inputs(session_id: str) -> TreatmentDecisionRequest | None:
@@ -201,7 +223,69 @@ async def compute_treatment_decision(
         "ruptured": bool(req.is_ruptured),
     }, username=current_user.username if current_user else "")
 
-    return TreatmentDecisionResult(**result)
+    out = TreatmentDecisionResult(**result)
+    out.team = stored_team(req.session_id)
+    return out
+
+
+# ── PUT/GET /treatment-decision/{session_id}/team ─────────────────────────── #
+
+@router.put(
+    "/treatment-decision/{session_id}/team",
+    response_model=TeamDecision,
+    summary="Record the team's decision",
+    description=(
+        "What the team decided (clipaje, endovascular, vigilar u otra) and who "
+        "decided it, kept apart from the engine's recommendation: the report "
+        "prints it first, under «Plan elegido». It survives re-evaluating or "
+        "changing the location; only clearing the decision step removes it. "
+        "`team_decision: null` removes it."
+    ),
+)
+async def set_team_decision(
+    session_id: str,
+    req: TeamDecisionRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> TeamDecision:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    require_session(db, current_user, session_id)
+    if req.team_decision is None:
+        for key in TEAM_KEYS:
+            write_state(session_id, key, "")
+    else:
+        write_state(session_id, "treatment.team_decision", req.team_decision)
+        write_state(session_id, "treatment.decided_by", req.decided_by.strip())
+        write_state(session_id, "treatment.team_other",
+                    req.other_text.strip() if req.team_decision == "otra" else "")
+    team = stored_team(session_id) or TeamDecision()
+    # Es lo que se lleva a la historia: queda quién la registró y qué puso.
+    audit_append(ACT_TREATMENT_DECISION, {
+        "session_id": session_id, "team": team.model_dump(),
+    }, username=current_user.username if current_user else "")
+    return team
+
+
+@router.get(
+    "/treatment-decision/{session_id}/team",
+    response_model=TeamDecision,
+    summary="The team's recorded decision",
+    description=(
+        "The team's decision on its own, also when no recommendation was "
+        "computed (the team can decide without the engine). "
+        "`team_decision` is null when none was recorded."
+    ),
+)
+async def get_team_decision(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> TeamDecision:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    require_session(db, current_user, session_id)
+    return stored_team(session_id) or TeamDecision()
 
 
 # ── GET /treatment-decision/{session_id} ──────────────────────────────────── #
@@ -268,9 +352,14 @@ def clear_decision_only(session_id: str) -> None:
             write_state(session_id, key, "")
 
 
-def clear_treatment_state(session_id: str) -> None:
-    """Forget the recommendation, its clinical context and the PHASES score."""
-    for key in (*TREATMENT_STATE_KEYS, *PHASES_STATE_KEYS):
+def clear_treatment_state(session_id: str, *, team: bool = False) -> None:
+    """Forget the recommendation, its clinical context and the PHASES score.
+
+    `team=True` also forgets the team's decision. Only «Limpiar decisión y
+    PHASES» passes it: the other callers run on their own when the
+    measurements change, and the team's decision is typed by hand — losing it
+    without anyone asking is what the F1 audit blocks."""
+    for key in (*TREATMENT_STATE_KEYS, *PHASES_STATE_KEYS, *(TEAM_KEYS if team else ())):
         write_state(session_id, key, "")
 
 
@@ -279,7 +368,7 @@ def clear_treatment_state(session_id: str) -> None:
     summary="Clear the treatment recommendation",
     description=(
         "Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context "
-        "recorded alongside it and the PHASES score, so none of them reach the "
+        "recorded alongside it, the PHASES score and the team's decision, so none of them reach the "
         "PDF or the DICOM SR.\n\n"
         "Called on its own from the decision step, and automatically whenever the "
         "morphometry underneath is discarded. Idempotent."
@@ -288,5 +377,5 @@ def clear_treatment_state(session_id: str) -> None:
 async def clear_treatment(session_id: str) -> dict:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-    clear_treatment_state(session_id)
+    clear_treatment_state(session_id, team=True)
     return {"status": "cleared"}

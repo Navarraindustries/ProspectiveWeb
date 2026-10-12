@@ -333,3 +333,29 @@ class TestLaLocalizacionBasilarAntigua:
         perf = r["treatment"]["perforators"]
         assert perf["notice"] == ("Localización sin precisar: elige punta o tronco "
                                   "para la tarjeta exacta")
+
+
+class TestLaDecisionDelEquipoVuelve:
+    """F1-176/F1-188: la decisión del equipo y la estrategia marcada vuelven al
+    reanudar, con la recomendación o sin ella."""
+
+    def test_con_recomendacion_viaja_en_treatment(self):
+        sid = _sesion_completa()
+        assert client.put(f"/api/treatment-decision/{sid}/team", json={
+            "team_decision": "clipaje", "decided_by": "Comité"}).status_code == 200
+        assert client.put(f"/api/devices/{sid}/strategy",
+                          json={"strategy": "clips"}).status_code == 200
+        r = _guardar_y_reanudar(sid)
+        assert r["treatment"]["team"] == {"team_decision": "clipaje", "decided_by": "Comité",
+                                          "other_text": ""}
+        assert client.get(f"/api/devices/{r['session_id']}").json()["strategy"] == "clips"
+
+    def test_sin_recomendacion_se_lee_aparte(self):
+        sid = create_session()
+        (session_subdir(sid, "meshes") / "vessel_tree.vtp").write_text("x")
+        client.put(f"/api/treatment-decision/{sid}/team",
+                   json={"team_decision": "vigilar", "decided_by": "Dr. Gil"})
+        r = _guardar_y_reanudar(sid)
+        assert r["treatment"] is None
+        got = client.get(f"/api/treatment-decision/{r['session_id']}/team").json()
+        assert got["team_decision"] == "vigilar" and got["decided_by"] == "Dr. Gil"

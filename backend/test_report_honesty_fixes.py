@@ -73,3 +73,78 @@ class TestElRiesgoMorfometricoNoSeConfundeConElPhases:
     def test_una_linea_lo_distingue_del_phases(self):
         textos = self._textos(risk_label="Bajo")
         assert any("PHASES" in t and "forma" in t for t in textos), textos
+
+
+class TestElPlanElegido:
+    """F1-176 y F1-236: el PDF imprimía la recomendación del algoritmo como si
+    fuera el plan, y todos los dispositivos como «planificados». Ahora va
+    primero lo que el equipo decidió y la estrategia marcada; el resto se
+    imprime como alternativas evaluadas."""
+
+    def _gen(self, **kw):
+        from services.report_generator import (ClipEntry, CoilEntry, ReportData,
+                                               ReportGenerator)
+        data = ReportData()
+        data.treatment = {"recommendation": "TRATAMIENTO ENDOVASCULAR",
+                          "recommendation_key": "endo", "confidence": "Moderada",
+                          "factors": [], "notes": []}
+        data.clips = [ClipEntry(0, "Yaşargil FE720K", (1.0, 2.0, 3.0), (0.0, 0.0, 0.0))]
+        data.coils = [CoilEntry(1, "Target 360 6x20", (1.0, 2.0, 3.0))]
+        for k, v in kw.items():
+            setattr(data, k, v)
+        return ReportGenerator(data)
+
+    @staticmethod
+    def _textos(flowables) -> list[str]:
+        return [f.text for f in flowables if hasattr(f, "text")]
+
+    def test_la_decision_del_equipo_sale_en_el_pdf(self):
+        gen = self._gen(team={"team_decision": "clipaje", "decided_by": "Comité neurovascular",
+                              "other_text": ""}, device_strategy="clips")
+        textos = " ".join(self._textos(gen._section_chosen_plan()))
+        assert "Clipaje" in textos and "Comité neurovascular" in textos
+
+    def test_el_pdf_tiene_plan_elegido_antes_que_la_recomendacion(self):
+        gen = self._gen(team={"team_decision": "clipaje", "decided_by": "Comité",
+                              "other_text": ""}, device_strategy="clips")
+        textos = self._textos(gen._build_story())
+        plan = textos.index("Plan elegido")
+        rec = textos.index("Recomendación Terapéutica")
+        assert plan < rec
+        assert any("Clipaje" in t for t in textos[plan:rec])
+
+    def test_la_familia_elegida_es_el_plan_y_el_resto_alternativa(self):
+        gen = self._gen(team={"team_decision": "clipaje", "decided_by": "", "other_text": ""},
+                        device_strategy="clips")
+        textos = self._textos(gen._build_story())
+        assert "Clips quirúrgicos planificados" in textos
+        assert "Coils de embolización evaluados (alternativa)" in textos
+        assert "Coils de embolización planificados" not in textos
+        plan = " ".join(self._textos(gen._section_chosen_plan()))
+        assert "Yaşargil FE720K" in plan and "Target 360" not in plan
+
+    def test_otra_imprime_su_texto(self):
+        gen = self._gen(team={"team_decision": "otra", "decided_by": "Dra. Ruiz",
+                              "other_text": "Bypass y trapping"})
+        textos = " ".join(self._textos(gen._section_chosen_plan()))
+        assert "Bypass y trapping" in textos and "Dra. Ruiz" in textos
+
+    def test_sin_decision_lo_dice(self):
+        textos = self._textos(self._gen()._section_chosen_plan())
+        assert "Plan elegido" in textos
+        assert any("El equipo no ha registrado su decisión; lo que sigue es la "
+                   "recomendación del algoritmo y los dispositivos evaluados" in t for t in textos)
+        story = self._textos(self._gen()._build_story())
+        assert "Clips quirúrgicos planificados" not in story
+
+    def test_la_sesion_lleva_las_claves_al_informe(self):
+        from services.report_generator import build_report_data_from_session
+        from services.sessions import create_session, write_states
+        sid = create_session()
+        write_states(sid, {"treatment.team_decision": "endovascular",
+                           "treatment.decided_by": "Comité", "treatment.team_other": "",
+                           "devices.strategy": "coils"})
+        data = build_report_data_from_session(sid)
+        assert data.team == {"team_decision": "endovascular", "decided_by": "Comité",
+                             "other_text": ""}
+        assert data.device_strategy == "coils"

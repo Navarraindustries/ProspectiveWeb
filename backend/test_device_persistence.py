@@ -240,3 +240,42 @@ class TestClipEditable:
             "plan": {"clips_mesh_url": "x", "neck_coverage_pct": 88.0}})
         got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
         assert got["clips"] == self._LISTA and got["plan"] is None
+
+
+class TestLaEstrategiaDelEquipo:
+    """F1-188: «En el plan (n)» listaba lo colocado, pero nada decía cuál de
+    esas familias era la estrategia elegida. El informe las daba todas como
+    planificadas."""
+
+    def test_la_estrategia_elegida_se_guarda_y_vuelve_en_get(self):
+        sid = create_session()
+        assert client.get(f"/api/devices/{sid}").json()["strategy"] is None
+        r = client.put(f"/api/devices/{sid}/strategy", json={"strategy": "coils"})
+        assert r.status_code == 200, r.text
+        assert r.json() == {"strategy": "coils"}
+        assert client.get(f"/api/devices/{sid}").json()["strategy"] == "coils"
+        assert build_report_data_from_session(sid).device_strategy == "coils"
+
+    def test_null_la_quita_y_un_valor_fuera_de_la_lista_es_422(self):
+        sid = create_session()
+        client.put(f"/api/devices/{sid}/strategy", json={"strategy": "web"})
+        assert client.put(f"/api/devices/{sid}/strategy", json={"strategy": None}).json() == {"strategy": None}
+        assert client.get(f"/api/devices/{sid}").json()["strategy"] is None
+        assert client.put(f"/api/devices/{sid}/strategy", json={"strategy": "balon"}).status_code == 422
+        assert client.put("/api/devices/no-existe/strategy", json={"strategy": "clips"}).status_code == 404
+
+    def test_limpiar_los_dispositivos_no_borra_la_estrategia(self):
+        # La estrategia es del equipo; limpiar es probar otra colocación.
+        sid = create_session()
+        client.put(f"/api/devices/{sid}/strategy", json={"strategy": "clips"})
+        client.delete(f"/api/devices/{sid}")
+        assert client.get(f"/api/devices/{sid}").json()["strategy"] == "clips"
+
+    def test_get_cuenta_lo_colocado_por_familia(self):
+        # F1-220: el resumen del informe dice «Clips · 2 en el plan».
+        from services.device_state import save_coils, save_stent
+        sid = create_session()
+        save_coils(sid, [{"name": "a"}, {"name": "b"}])
+        save_stent(sid, {"name": "Pipeline", "kind": "centerline"})
+        counts = client.get(f"/api/devices/{sid}").json()["placed_counts"]
+        assert counts == {"clips": 0, "coils": 2, "stent": 0, "stent_cl": 1}

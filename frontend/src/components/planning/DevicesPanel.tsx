@@ -11,6 +11,7 @@ import type {
   ClipLibraryItem,
   CustomClipInfo,
   DeviceKind,
+  DeviceStrategy,
   ClipRecommendation,
   ClStentApposition,
   ClStentCoverage,
@@ -24,6 +25,7 @@ import type {
   StentLibraryItem,
   StentPlanResult,
   SuggestCorridorsResult,
+  TeamDecision,
 } from "../../api/types";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -32,6 +34,7 @@ import { ClipRehearsal } from "./ClipRehearsal";
 import { ClipSelectionPanel } from "./ClipSelection";
 import { FdSizing } from "./FdSizing";
 import { WebSizing } from "./WebSizing";
+import { VERDICT_LABEL } from "./approachSummary";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -1384,11 +1387,12 @@ function OcclusionReport() {
 
 /* ── Lo que el corredor de abordaje atraviesa ──────────────────────────── */
 
+// Los rótulos, de approachSummary.ts: el resumen del informe los repite.
 const VERDICT_UI: Record<CorridorAssessmentOut["verdict"],
                          { label: string; color: string }> = {
-  viable:    { label: "Corredor libre",      color: "var(--success)" },
-  revisar:   { label: "Revisar el corredor", color: "var(--warning)" },
-  no_viable: { label: "Corredor bloqueado",  color: "var(--destructive)" },
+  viable:    { label: VERDICT_LABEL.viable,    color: "var(--success)" },
+  revisar:   { label: VERDICT_LABEL.revisar,   color: "var(--warning)" },
+  no_viable: { label: VERDICT_LABEL.no_viable, color: "var(--destructive)" },
 };
 
 function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
@@ -1697,6 +1701,17 @@ const KIND_LABEL: Record<DeviceKind, string> = {
   clips: "Clips", coils: "Coils", stent: "Stent",
 };
 
+/** F1-188: las familias que pueden ser la estrategia del equipo, con el
+ *  nombre de su pestaña. «—»: ninguna marcada. */
+const STRATEGY_OPTIONS: { value: DeviceStrategy | ""; label: string }[] = [
+  { value: "", label: "—" },
+  { value: "clips", label: "Clips" },
+  { value: "coils", label: "Coils" },
+  { value: "stent", label: "Stent" },
+  { value: "stent_cl", label: "Stent CL" },
+  { value: "web", label: "WEB" },
+];
+
 /** What the PDF report and the DICOM SR will actually list, above the tabs.
  *
  *  Each tab only knows about its own device, so a plan holding a clip AND a
@@ -1706,6 +1721,10 @@ function PlacedDevicesBar() {
   const { sessionId, deviceMeshes, restoreDeviceMesh, clearDeviceMeshes } = usePlanning();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // F1-188: «En el plan» decía qué hay colocado, no cuál es la estrategia del
+  // equipo; el informe las daba todas como planificadas. Vive en el servidor
+  // (`devices.strategy`) y vuelve con GET /devices, también al reanudar.
+  const [strategy, setStrategy] = useState<DeviceStrategy | null>(null);
 
   // A resumed session rebuilds the store from scratch, so ask the backend what
   // it still has on record — otherwise the devices are in the report but not in
@@ -1716,6 +1735,7 @@ function PlacedDevicesBar() {
     api.placedDevices(sessionId)
       .then((r) => {
         if (!alive) return;
+        setStrategy(r.strategy ?? null);
         for (const kind of r.remaining) {
           const url = r.mesh_urls[kind];
           // Reponer lo que ya está en el plan guardado no es un cambio: con
@@ -1747,7 +1767,23 @@ function PlacedDevicesBar() {
     }
   };
 
-  if (placed.length === 0) return null;
+  const markStrategy = async (value: DeviceStrategy | null) => {
+    if (!sessionId) return;
+    const before = strategy;
+    setStrategy(value);
+    setError(null);
+    try {
+      await api.setDeviceStrategy(sessionId, value);
+    } catch (err) {
+      // Sin guardar, el informe sigue con la anterior: el selector vuelve a ella.
+      setStrategy(before);
+      setError(err instanceof Error ? err.message : "No se pudo guardar la estrategia");
+    }
+  };
+
+  // Con una estrategia marcada se enseña aunque se haya limpiado todo: sigue
+  // en el informe, y aquí es donde se quita.
+  if (placed.length === 0 && !strategy) return null;
 
   return (
     <Card style={{ marginBottom: 14, padding: "12px 14px" }}>
@@ -1769,6 +1805,17 @@ function PlacedDevicesBar() {
         Estos dispositivos se dibujan en el visor y aparecen en el informe. Límpialos
         para probar otra estrategia sin que se acumulen.
       </div>
+      <div style={{ marginBottom: 10 }}>
+        <Select
+          label="Estrategia del equipo"
+          options={STRATEGY_OPTIONS}
+          value={strategy ?? ""}
+          onChange={(e) => void markStrategy((e.target.value || null) as DeviceStrategy | null)}
+        />
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+          El informe la pone en «Plan elegido»; las demás salen como alternativas evaluadas.
+        </div>
+      </div>
       <Button
         variant="outline" size="sm" style={{ width: "100%" }}
         disabled={busy} onClick={() => void clearAll()}
@@ -1782,9 +1829,30 @@ function PlacedDevicesBar() {
 }
 
 /* ── Panel ─────────────────────────────────────────────────────────────── */
+/** F1-188: la pestaña con la que abre el paso, la de la decisión del equipo.
+ *  Solo «endovascular» cambia: las demás (clipaje, vigilar, otra o ninguna)
+ *  abren en Clips, como siempre. */
+function tabForTeam(team: TeamDecision | null | undefined): string {
+  return team?.team_decision === "endovascular" ? "Coils" : "Clips";
+}
+
 export function DevicesPanel({ onNext }: { onNext: () => void }) {
-  const [tab, setTab] = useState<string>("Clips");
-  const { sessionId } = usePlanning();
+  const { sessionId, treatment } = usePlanning();
+  const [tab, _setTab] = useState<string>(() => tabForTeam(treatment?.team));
+  // Una pestaña elegida a mano manda sobre la lectura que llega tarde.
+  const picked = useRef(false);
+  const setTab = (t: string) => { picked.current = true; _setTab(t); };
+  // Sin recomendación el store no trae la decisión del equipo (se puede
+  // registrar sin el motor): se pide una vez al abrir.
+  useEffect(() => {
+    if (!sessionId || treatment?.team) return;
+    let alive = true;
+    api.getTeamDecision(sessionId)
+      .then((t) => { if (alive && !picked.current) _setTab(tabForTeam(t)); })
+      .catch(() => { /* sin decisión o sin servidor: se queda en Clips */ });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
   return (
     <div className="fade-rise">
       <PanelHead title="Planificación de dispositivos" desc="Elige clip, coils o stent del catálogo y verifica su colocación." />

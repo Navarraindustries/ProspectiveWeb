@@ -1,8 +1,8 @@
 /* Paso 7 — Informe y exportación. POST /api/report · /api/export/stl · /api/export/glb · /api/sessions/save. */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
-import type { DicomSegResult, GlbExportResult, ReportResult } from "../../api/types";
+import type { DeviceClearResult, DicomSegResult, GlbExportResult, ReportResult, TeamDecision } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
@@ -15,6 +15,30 @@ import { PrintPrepPanel } from "./PrintPrepPanel";
 import { useAuth } from "../../store/auth";
 import { usePlanning } from "../../store/planning";
 import { STEPS } from "../../pipeline/steps";
+import { approachSummary } from "./approachSummary";
+
+/** F1-220: las palabras del informe para la decisión del equipo y la estrategia. */
+const TEAM_LABEL: Record<string, string> = {
+  clipaje: "Clipaje", endovascular: "Endovascular", vigilar: "Vigilar", otra: "Otra",
+};
+const STRATEGY_LABEL: Record<string, string> = {
+  clips: "Clips", coils: "Coils", stent: "Stent", stent_cl: "Stent CL", web: "WEB",
+};
+
+/** «Coils · 3 en el plan». El WEB se dimensiona pero no se coloca: sin cuenta. */
+function strategySummary(d: DeviceClearResult | null): string {
+  const s = d?.strategy;
+  if (!s) return "—";
+  if (s === "web") return STRATEGY_LABEL.web!;
+  const n = d.placed_counts?.[s] ?? 0;
+  return `${STRATEGY_LABEL[s]} · ${n > 0 ? `${n} en el plan` : "ninguno en el plan"}`;
+}
+
+function teamSummary(t: TeamDecision | null): string {
+  if (!t?.team_decision) return "—";
+  const what = t.team_decision === "otra" && t.other_text ? `Otra: ${t.other_text}` : TEAM_LABEL[t.team_decision]!;
+  return t.decided_by ? `${what} · por ${t.decided_by}` : what;
+}
 
 /** Index of this step in the workspace rail — what a session saved here resumes at. */
 // Por su clave, no por un número: era un 6 fijo, y desde que «Fabricación»
@@ -62,6 +86,18 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const [sr, setSr] = useState<ReportResult | null>(null);
   const [busy, setBusy] = useState<"pdf" | "stl" | "glb" | "seg" | "sr" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // F1-220: lo que el equipo decidió y la estrategia marcada viven en el
+  // servidor (se registran en Decisión y en Dispositivos); el resumen los pide
+  // al abrir para no decir otra cosa que el PDF.
+  const [devices, setDevices] = useState<DeviceClearResult | null>(null);
+  const [team, setTeam] = useState<TeamDecision | null>(treatment?.team ?? null);
+  useEffect(() => {
+    if (!sessionId) return;
+    let alive = true;
+    api.placedDevices(sessionId).then((d) => { if (alive) setDevices(d); }).catch(() => {});
+    api.getTeamDecision(sessionId).then((t) => { if (alive) setTeam(t); }).catch(() => {});
+    return () => { alive = false; };
+  }, [sessionId]);
 
   // What the outputs describe. A PDF is a snapshot of the mesh, the measurements
   // and the devices at the moment it was generated; editing any of them left a
@@ -230,8 +266,16 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
               value=""
               badge={[morphometry.rupture_risk_label, riskVariant(morphometry.rupture_risk_label)]}
             />
+            {/* Se leía como el riesgo de rotura del PHASES; es una etiqueta de
+                forma. La misma distinción que hace el PDF (F1-234). */}
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", padding: "4px 0 6px", lineHeight: 1.45 }}>
+              Índice de forma (AR, BF, UI); no es el PHASES, que está en Morfometría
+            </div>
           </>
         )}
+        <Metric label="Abordaje" value={planning.trajSaved ? approachSummary(planning.trajSaved) : "—"} />
+        <Metric label="Dispositivo elegido" value={strategySummary(devices)} />
+        <Metric label="Decisión del equipo" value={teamSummary(team)} />
         {treatment && (
           <div style={{ padding: "9px 0" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>

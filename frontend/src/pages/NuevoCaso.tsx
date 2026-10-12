@@ -15,6 +15,7 @@ import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { Sheet } from "../components/Sheet";
 import { ErrorNote } from "../components/PanelHead";
+import { hoyLocal } from "../lib/fecha";
 
 const TIPOS = ["", "Sacular", "Fusiforme", "Disecante", "Blíster", "Gigante (> 25 mm)", "Grande (10-25 mm)", "Pequeño (< 10 mm)", "Otro"];
 const REGIONES = [
@@ -70,7 +71,8 @@ export function NuevoEstudioSheet({
   open, patientId, patientName, study, onClose, onCreated,
 }: { open: boolean; patientId: number | null; patientName?: string; study?: StudySummary | null; onClose: () => void; onCreated: () => void }) {
   const editing = !!study;
-  const today = new Date().toISOString().slice(0, 10);
+  // Día local: con toISOString (UTC) pasadas las 19:00 en UTC−5 proponía el de mañana.
+  const today = hoyLocal();
   const [f, setF] = useState({
     study_date: today, sintomas_positivos: "", dx_principal: "", dx_secundario: "",
     tipo_aneurisma: "", region_anatomica: "", lateralidad: "", angio_marca: "", angio_tipo: "",
@@ -155,7 +157,7 @@ export function NuevoEstudioSheet({
     <Sheet open={open} onClose={requestClose} title={editing ? "Editar caso / estudio" : "Nuevo caso / estudio"} width={520}>
       {patientName && <div style={{ ...SUBTLE, marginBottom: 12 }}>Paciente: <b style={{ color: "var(--foreground)" }}>{patientName}</b></div>}
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Input label="Fecha del caso" type="date" value={f.study_date} onChange={set("study_date")} />
+        <Input label="Fecha del caso" hint="Fecha del diagnóstico" type="date" value={f.study_date} onChange={set("study_date")} />
 
         <div style={SECTION}>Datos clínicos</div>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Síntomas positivos</div>

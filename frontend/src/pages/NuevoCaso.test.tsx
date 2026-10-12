@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../api/client", () => ({ api: { createStudy: vi.fn(), updateStudy: vi.fn() } }));
 
 import { NuevoEstudioSheet } from "./NuevoCaso";
+import { hoyLocal } from "../lib/fecha";
 
 const onClose = vi.fn();
 const montar = () =>
@@ -41,5 +42,21 @@ describe("descartar el caso a medio escribir", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("la fecha propuesta (F1-77)", () => {
+  it("a las 22:15 en UTC−5 propone el día local, no el de mañana en UTC", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-12T03:15:00Z"));
+      montar();
+      const campo = screen.getByLabelText("Fecha del caso") as HTMLInputElement;
+      expect(campo.value).toBe(hoyLocal());
+      expect(campo.value).toBe(hoyLocal(new Date("2026-10-12T03:15:00Z")));
+      expect(screen.getByText("Fecha del diagnóstico")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

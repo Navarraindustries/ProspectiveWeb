@@ -14,6 +14,7 @@ import { PanelHead, SectionLabel, Card, ErrorNote } from "../components/PanelHea
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
+import { fechaHora } from "../lib/fecha";
 
 /** Rows added per «Mostrar más». The chain is append-only and unbounded. */
 const PAGE = 50;
@@ -154,7 +155,7 @@ function AuditTrailPage({ onBack }: { onBack: () => void }) {
             <thead>
               <tr style={{ textAlign: "left", color: "var(--muted-foreground)" }}>
                 <th style={{ padding: "6px 8px" }}>#</th>
-                <th style={{ padding: "6px 8px" }}>Fecha/Hora (UTC)</th>
+                <th style={{ padding: "6px 8px" }}>Fecha/Hora (local)</th>
                 <th style={{ padding: "6px 8px" }}>Usuario</th>
                 <th style={{ padding: "6px 8px" }}>Acción</th>
                 <th style={{ padding: "6px 8px" }}>Hash bloque</th>
@@ -164,7 +165,8 @@ function AuditTrailPage({ onBack }: { onBack: () => void }) {
               {!loadError && page.map((b) => (
                 <tr key={b.id} style={{ borderTop: "1px solid var(--border)" }}>
                   <td style={{ padding: "6px 8px", fontFamily: "var(--font-mono)" }}>{b.id}</td>
-                  <td style={{ padding: "6px 8px", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{b.iso_ts}</td>
+                  {/* Hora local para leer; la UTC original, que es la que firma la cadena, queda en el tooltip. */}
+                  <td style={{ padding: "6px 8px", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }} title={`UTC: ${b.iso_ts}`}>{fechaHora(b.iso_ts)}</td>
                   <td style={{ padding: "6px 8px" }}>{b.username || "—"}</td>
                   <td style={{ padding: "6px 8px" }}>
                     <Badge variant={b.action === "GENESIS" ? "outline" : b.action === "INTEGRITY_CHECK" ? "subtle" : "secondary"}>{b.action}</Badge>

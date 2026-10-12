@@ -42,6 +42,7 @@ vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 
 import { ApiError } from "../api/client";
 import { Patients } from "./Patients";
+import { fechaHora } from "../lib/fecha";
 
 const noop = () => {};
 const renderAt = (url: string) =>
@@ -206,5 +207,19 @@ describe("descartar los cambios de la ficha", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     await waitFor(() => expect(screen.queryByLabelText("Notas")).toBeNull());
+  });
+});
+
+describe("las sesiones guardadas (F1-243)", () => {
+  it("la hora de la sesión sale en hora local, no la del servidor sin convertir", async () => {
+    getPatient.mockResolvedValue({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F" });
+    patientStudies.mockResolvedValue([]);
+    patientSessions.mockResolvedValue([{
+      session_id: "s1", label: "", updated_at: "2026-10-11T05:05:09", current_step: "dicom",
+      rupture_risk_label: null, max_diameter_mm: null,
+    }]);
+    renderAt("/app/pacientes?paciente=2");
+    // 05:05 UTC son las 00:05 en UTC−5; la expectativa con zona fija está en fecha.test.ts.
+    expect(await screen.findByText((t) => t.includes(fechaHora("2026-10-11T05:05:09")))).toBeTruthy();
   });
 });

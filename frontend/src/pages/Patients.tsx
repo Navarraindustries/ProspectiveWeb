@@ -25,6 +25,7 @@ import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { StudyGallery } from "./Studies";
 
 import { STEP_LABELS } from "../pipeline/steps";
+import { fecha, fechaHora } from "../lib/fecha";
 
 const BLANK = {
   surname: "", given_name: "", hospital_id: "", sex: "F", dob: "",
@@ -308,13 +309,13 @@ function PatientSheet({
                     <Card key={s.session_id} style={{ padding: "10px 12px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", flex: 1 }}>
-                          {s.label || `Sesión ${new Date(s.updated_at).toLocaleDateString()}`}
+                          {s.label || `Sesión ${fecha(s.updated_at)}`}
                         </span>
                         {/* F1-68: «Alto» a secas se leía como riesgo de rotura. */}
                         {s.rupture_risk_label && <MorphoRiskBadge label={s.rupture_risk_label} />}
                       </div>
                       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
-                        {new Date(s.updated_at).toLocaleString()} · Paso: {STEP_LABELS[s.current_step] ?? s.current_step}
+                        {fechaHora(s.updated_at)} · Paso: {STEP_LABELS[s.current_step] ?? s.current_step}
                         {s.max_diameter_mm != null && ` · Ø ${s.max_diameter_mm.toFixed(1)} mm`}
                       </div>
                       {onResume && (
@@ -657,7 +658,7 @@ export function Patients({
                       <Badge variant="subtle">{p.study_count}</Badge>
                     </td>
                     <td style={{ padding: "12px 16px", color: "var(--muted-foreground)" }}>
-                      {new Date(p.created_at).toLocaleDateString()}
+                      {fecha(p.created_at)}
                     </td>
                     <td style={{ padding: "8px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                       <span style={{ display: "inline-flex", gap: 6 }}>

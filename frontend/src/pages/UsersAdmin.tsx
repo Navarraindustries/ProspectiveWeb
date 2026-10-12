@@ -17,6 +17,7 @@ import { ErrorNote } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 import { AdminOnlyCard } from "../components/AdminOnly";
+import { fechaHora } from "../lib/fecha";
 
 const SPECIALTIES = [
   "Neurocirugía", "Neurorradiología intervencionista", "Neurología",
@@ -352,7 +353,7 @@ function UsersAdminPage({ onBack }: { onBack: () => void }) {
                           : <span style={{ fontSize: 12, color: "var(--destructive, #ef4444)", fontWeight: 600 }}>Inactivo</span>}
                       </td>
                       <td style={{ padding: "12px 16px", color: "var(--muted-foreground)" }}>
-                        {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+                        {fechaHora(u.created_at)}
                       </td>
                       <td style={{ padding: "8px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                         <span style={{ display: "inline-flex", gap: 6 }}>

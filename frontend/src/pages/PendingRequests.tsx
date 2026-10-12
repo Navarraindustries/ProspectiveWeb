@@ -11,6 +11,7 @@ import { Icon } from "../components/Icon";
 import { Topbar } from "../components/Topbar";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
+import { fechaHora } from "../lib/fecha";
 
 /** Avatar that loads the pending user's uploaded photo (auth'd blob) or falls
  *  back to initials. */
@@ -166,7 +167,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
                         </button>
                       )}
                       <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                        Solicitado: {new Date(u.created_at).toLocaleString()}
+                        Solicitado: {fechaHora(u.created_at)}
                       </span>
                     </div>
                   </div>

@@ -19,6 +19,7 @@ import { Button } from "./Button";
 import { Card, ErrorNote, SectionLabel } from "./PanelHead";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
+import { fechaHora } from "../lib/fecha";
 
 /** Nombre del fichero al descargar: legible y sin datos del paciente. */
 export function downloadName(c: Pick<CaptureOut, "id" | "label" | "created_at" | "media_type">): string {
@@ -234,7 +235,7 @@ export function CaptureGallery({
                             display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 {isRecording(c) && <Badge variant="outline">vídeo · {formatDuration(c.duration_s ?? 0)}</Badge>}
                 {c.step && <Badge variant="outline">{c.step}</Badge>}
-                <span>{new Date(c.created_at).toLocaleString()}</span>
+                <span>{fechaHora(c.created_at)}</span>
                 {c.width > 0 && <span>{c.width}×{c.height}</span>}
                 {c.size_bytes > 0 && <span>{humanSize(c.size_bytes)}</span>}
               </div>

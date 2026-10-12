@@ -20,6 +20,7 @@ vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { id: 1, role: "admin", username: "admin" } }) }));
 
 import { AuditTrail } from "./AuditTrail";
+import { fechaHora } from "../lib/fecha";
 
 beforeEach(() => { auditBlocks.mockReset(); });
 
@@ -46,5 +47,19 @@ describe("«Auditoría» con el API fallando", () => {
     render(<AuditTrail onBack={() => {}} />);
     expect(screen.getByText("Cargando…")).toBeTruthy();
     expect(screen.queryByText(/vacía/)).toBeNull();
+  });
+});
+
+describe("la columna de hora (F1-101)", () => {
+  it("el encabezado dice «(local)», la celda muestra la hora local y la UTC va en el tooltip", async () => {
+    auditBlocks.mockResolvedValueOnce([{
+      id: 1, iso_ts: "2026-10-11T03:01:00Z", username: "admin", action: "LOGIN",
+      block_hash: "abcdef0123456789abcdef", prev_hash: "", payload: "",
+    }]);
+    render(<AuditTrail onBack={() => {}} />);
+    const celda = await screen.findByText(fechaHora("2026-10-11T03:01:00Z"));
+    expect(celda.getAttribute("title")).toBe("UTC: 2026-10-11T03:01:00Z");
+    expect(screen.getByText("Fecha/Hora (local)")).toBeTruthy();
+    expect(screen.queryByText(/\(UTC\)/)).toBeNull();
   });
 });

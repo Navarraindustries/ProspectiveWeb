@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
@@ -41,6 +42,14 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # (these are personal documents) and served only through admin-authenticated
 # endpoints below.
 _USER_FILES = Path("user_files")
+
+
+def _utc_iso(dt: datetime | None) -> str:
+    """SQLite guarda `created_at` como UTC sin zona; sin «+00:00» el navegador lo leía como hora local."""
+    if not dt:
+        return ""
+    return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).isoformat()
+
 _MAX_UPLOAD_BYTES = 6 * 1024 * 1024   # 6 MB
 
 
@@ -296,7 +305,7 @@ def _pending_to_api(u: User) -> PendingUser:
         orcid=u.orcid,
         has_photo=bool(u.photo_path),
         has_cv=bool(u.cv_path),
-        created_at=u.created_at.isoformat() if u.created_at else "",
+        created_at=_utc_iso(u.created_at),
     )
 
 
@@ -359,7 +368,7 @@ def _user_to_admin(u: User) -> UserAdminInfo:
         hospital=u.hospital,
         has_photo=bool(u.photo_path),
         has_cv=bool(u.cv_path),
-        created_at=u.created_at.isoformat() if u.created_at else "",
+        created_at=_utc_iso(u.created_at),
     )
 
 

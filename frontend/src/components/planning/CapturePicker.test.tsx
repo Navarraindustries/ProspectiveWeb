@@ -71,6 +71,13 @@ describe("el selector", () => {
     expect(await screen.findByText(/botón «Captura» del visor/)).toBeInTheDocument();
   });
 
+  it("sin caso ni estudio no habla de un caso vacío: pide archivar la sesión", async () => {
+    render(<CapturePicker caseId={null} value={[]} onChange={vi.fn()} />);
+    expect(await screen.findByText("Adjunta la sesión a un caso para guardar capturas")).toBeInTheDocument();
+    expect(screen.queryByText(/No hay capturas guardadas/)).toBeNull();
+    expect(listCaptures).not.toHaveBeenCalled();
+  });
+
   it("si no se pueden listar, el informe sigue pudiéndose generar", async () => {
     listCaptures.mockRejectedValue(new Error("sin conexión"));
     render(<Harness />);

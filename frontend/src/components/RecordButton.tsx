@@ -21,6 +21,7 @@ import {
 } from "../vtk/viewerRecorder";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { sinCasoAviso } from "../lib/textos";
 
 type Estado = "idle" | "rec" | "saving";
 
@@ -44,7 +45,7 @@ export function downloadBlob(blob: Blob, name: string): void {
 export function RecordButton({ step, onMessage }: {
   step: string;
   /** Qué pasó al terminar: error o aviso, para la franja de avisos del topbar. */
-  onMessage: (m: { tone: "ok" | "err"; text: string } | null) => void;
+  onMessage: (m: { tone: "ok" | "err" | "info"; text: string } | null) => void;
 }) {
   const { viewerRecording, imagingStudyId, sessionId } = usePlanning();
   const [estado, setEstado] = useState<Estado>("idle");
@@ -75,7 +76,7 @@ export function RecordButton({ step, onMessage }: {
     const aviso = r.hitLimit ? " Se paró sola al llegar a los 3 minutos." : "";
     if (!estudio) {
       setEstado("idle");
-      onMessage({ tone: "err", text: `Vídeo descargado, pero no guardado en el caso: usa «Adjuntar a un caso» para que las siguientes se guarden en él.${aviso}` });
+      onMessage({ tone: "info", text: `${sinCasoAviso("Vídeo descargado")}${aviso}` });
       return;
     }
     try {
@@ -140,7 +141,7 @@ export function RecordButton({ step, onMessage }: {
   if (estado === "rec") {
     return (
       <Button variant="outline" size="sm" onClick={parar}
-              title="Parar y descargar; se guarda también en el caso"
+              title={ctx.current.imagingStudyId ? "Parar y descargar; queda también en el caso" : "Parar y descargar"}
               leadingIcon={<Icon name="STOP" color="var(--destructive)" />}
               style={{ marginRight: 8, color: "var(--destructive)", borderColor: "var(--destructive)" }}>
         <span aria-live="polite">REC {formatElapsed(ms)} · Detener</span>

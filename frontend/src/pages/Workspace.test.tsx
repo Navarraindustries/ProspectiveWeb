@@ -7,15 +7,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { saveSession, markSaved, Nada } = vi.hoisted(() => ({
-  saveSession: vi.fn(), markSaved: vi.fn(), Nada: () => null,
+const { saveSession, markSaved, captureCase, Nada } = vi.hoisted(() => ({
+  saveSession: vi.fn(), markSaved: vi.fn(), captureCase: vi.fn(), Nada: () => null,
 }));
 vi.mock("../api/client", () => ({ api: { saveSession: (...a: unknown[]) => saveSession(...a) } }));
 
 vi.mock("../store/planning", () => ({
   usePlanning: () => ({
     morphometry: null, sessionId: "vivo-1", caseId: 7, caseLabel: "Caso", imagingStudyId: 9,
-    centerlineMesh: null, setPickMode: vi.fn(), markSaved, captureCase: null,
+    centerlineMesh: null, setPickMode: vi.fn(), markSaved, captureCase,
     annotations: [], annotationsSync: "idle", setAnnotationsSync: vi.fn(),
     annotationsLoadedRef: { current: true }, setAnnotationsLoaded: vi.fn(),
     annotationsFlushRef: { current: null }, annotationsLoadState: "loaded", noteFocusRequest: null,
@@ -62,5 +62,19 @@ describe("«Guardar progreso»", () => {
     expect(screen.getByRole("button", { name: /Guardar progreso/ }).getAttribute("title")).toBe(
       "Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión",
     );
+  });
+});
+
+describe("captura sin estudio archivado (F1-122)", () => {
+  it("el aviso es informativo, no un error rojo", async () => {
+    // Descargar la imagen es el comportamiento esperado sin caso: pintarlo como
+    // alerta destructiva hacía creer que algo había fallado.
+    captureCase.mockReset().mockResolvedValue("downloaded");
+    montar();
+    fireEvent.click(screen.getByRole("button", { name: /Captura/ }));
+    const aviso = await screen.findByRole("status");
+    expect(aviso.textContent).toContain("Captura descargada en la carpeta de descargas. No queda en la ficha porque la sesión no tiene caso: «Archivar en un caso».");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(aviso.getAttribute("style") ?? "").not.toContain("var(--destructive)");
   });
 });

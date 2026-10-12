@@ -172,7 +172,7 @@ export function CaptureGallery({
         <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Cargando…</div>
       ) : total === 0 ? (
         <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-          {emptyHint ?? "Todavía no hay capturas. En el visor, el botón «Captura» guarda aquí la vista que haya en pantalla."}
+          {emptyHint ?? "Todavía no hay capturas. El botón «Captura» del visor guarda aquí la vista cuando la sesión tiene un estudio archivado; si no, la descarga."}
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>

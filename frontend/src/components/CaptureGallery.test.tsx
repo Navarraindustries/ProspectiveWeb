@@ -55,7 +55,9 @@ describe("la galería", () => {
   it("sin capturas explica cómo se hacen, en vez de quedarse en blanco", async () => {
     listCaptures.mockResolvedValue([]);
     render(<CaptureGallery patientId={4} />);
-    expect(await screen.findByText(/botón «Captura»/)).toBeInTheDocument();
+    expect(await screen.findByText(
+      "Todavía no hay capturas. El botón «Captura» del visor guarda aquí la vista cuando la sesión tiene un estudio archivado; si no, la descarga.",
+    )).toBeInTheDocument();
   });
 
   it("suelta las URL de objeto al desmontar", async () => {

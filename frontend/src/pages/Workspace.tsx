@@ -26,6 +26,7 @@ import { useAnnotationsSync } from "../components/annotations/useAnnotationsSync
 import { ViewerWorkspace } from "../vtk/Viewer";
 import { matchShortcut } from "../vtk/shortcuts";
 import { RecordButton } from "../components/RecordButton";
+import { sinCasoAviso } from "../lib/textos";
 import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { usePlanning } from "../store/planning";
@@ -110,7 +111,7 @@ export function Workspace({
       // Sin estudio archivado la imagen se descarga y NO queda en el caso: se
       // dice, igual que con la grabación, para que nadie crea que está guardada.
       if (destino === "downloaded") {
-        setRecMessage({ tone: "err", text: "Captura descargada, pero no guardada en el caso: usa «Adjuntar a un caso» para que las siguientes se guarden en él." });
+        setRecMessage({ tone: "info", text: sinCasoAviso("Captura descargada") });
       }
     } catch (e) {
       setShot("err");
@@ -119,7 +120,7 @@ export function Workspace({
     }
   };
   // Cómo terminó la última grabación: guardada, solo descargada o fallida.
-  const [recMessage, setRecMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const [recMessage, setRecMessage] = useState<{ tone: "ok" | "err" | "info"; text: string } | null>(null);
   // A failed save used to reset the button to "Guardar progreso" with no notice,
   // so the user believed their work was stored when it was not.
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -405,14 +406,18 @@ export function Workspace({
           style={{
             display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
             padding: "8px 18px", fontSize: 12, fontWeight: 600,
+            // «info»: descargar sin caso es lo esperado, no un fallo; ni rojo ni verde.
             background: recMessage.tone === "err"
               ? "color-mix(in srgb, var(--destructive) 12%, transparent)"
-              : "color-mix(in srgb, var(--success, #2f7d5b) 12%, transparent)",
-            color: recMessage.tone === "err" ? "var(--destructive)" : "var(--success, #2f7d5b)",
+              : recMessage.tone === "info"
+                ? "color-mix(in srgb, var(--foreground) 6%, transparent)"
+                : "color-mix(in srgb, var(--success, #2f7d5b) 12%, transparent)",
+            color: recMessage.tone === "err" ? "var(--destructive)"
+              : recMessage.tone === "info" ? "var(--muted-foreground)" : "var(--success, #2f7d5b)",
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <Icon name={recMessage.tone === "err" ? "STATUS_WARN" : "STATUS_OK"} size={14} />
+          <Icon name={recMessage.tone === "err" ? "STATUS_WARN" : recMessage.tone === "info" ? "INFO" : "STATUS_OK"} size={14} />
           <span style={{ flex: 1, minWidth: 0 }}>{recMessage.text}</span>
           <span style={{ opacity: 0.7 }}>✕</span>
         </div>

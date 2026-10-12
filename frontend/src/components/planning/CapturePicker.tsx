@@ -73,6 +73,15 @@ export function CapturePicker({
 
   if (rows === null) return <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Cargando capturas…</div>;
   if (rows.length === 0) {
+    // Sin caso ni estudio no es «un caso vacío»: no hay a dónde guardar, y decirlo
+    // evita buscar capturas que no pueden existir.
+    if (caseId == null && imagingStudyId == null) {
+      return (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+          Adjunta la sesión a un caso para guardar capturas
+        </div>
+      );
+    }
     return (
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
         No hay capturas guardadas en este caso. Se hacen con el botón «Captura» del visor,

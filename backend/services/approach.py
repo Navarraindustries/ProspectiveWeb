@@ -145,17 +145,38 @@ def _vessel_locator(poly: vtk.vtkPolyData) -> vtk.vtkCellLocator:
     return loc
 
 
+#: Dos impactos a menos de esto son el mismo punto de la malla.
+_HIT_TOL_MM = 1e-6
+
+
+def distinct_hit_distances(pts: vtk.vtkPoints, origin) -> list[float]:
+    """Distancias desde `origin` a los cruces, ordenadas y sin repetir.
+
+    vtkCellLocator da un impacto por celda: un rayo que pasa justo por un
+    vértice o una arista compartidos lo cuenta una vez por cada triángulo que
+    lo toca (64 en el polo de una esfera de 32×32). El vtkOBBTree los fundía;
+    sin fundirlos aquí, el tramo de dentro se partía en tramos de longitud cero
+    y la paridad dentro/fuera podía invertirse.
+    """
+    o = np.asarray(origin, dtype=float)
+    d = sorted(float(np.linalg.norm(np.asarray(pts.GetPoint(i)) - o))
+               for i in range(pts.GetNumberOfPoints()))
+    out: list[float] = []
+    for x in d:
+        if not out or x - out[-1] > _HIT_TOL_MM:
+            out.append(x)
+    return out
+
+
 def _segments_along_ray(tree: vtk.vtkAbstractCellLocator, p0: np.ndarray,
                         p1: np.ndarray) -> list[tuple[float, float]]:
     """Tramos [t_entrada, t_salida] en mm donde el rayo va DENTRO de la malla."""
     pts = vtk.vtkPoints()
     if tree.IntersectWithLine(p0.tolist(), p1.tolist(), 0.0, pts, vtk.vtkIdList()) == 0:
         return []
-    n = pts.GetNumberOfPoints()
-    if n == 0:
+    d = distinct_hit_distances(pts, p0)
+    if not d:
         return []
-    d = [float(np.linalg.norm(np.asarray(pts.GetPoint(i)) - p0)) for i in range(n)]
-    d.sort()
     # Las intersecciones vienen en pares entrada/salida. Un número impar
     # significa que un extremo del rayo cae dentro de la malla; se cierra con el
     # extremo para no perder ese tramo.

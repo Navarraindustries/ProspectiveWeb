@@ -51,6 +51,11 @@ ya usaba `services/clip_field.py` por otro fallo del OBB:
   `propose_corridors` construyen el localizador con él. El parámetro
   `obb_tree` conserva su nombre para no tocar a los llamadores.
 - `services/followup.py::_inside_parity`: el mismo cambio.
+- `vtkCellLocator` da un impacto por celda: un rayo que pasa justo por un
+  vértice o una arista compartidos lo cuenta varias veces (64 en el polo de
+  una esfera de 32×32), cosa que el OBB fundía. `approach.distinct_hit_distances`
+  ordena las distancias y descarta las que quedan a menos de 1e-6 mm de la
+  anterior, antes de emparejar tramos y antes de contar la paridad.
 - Prueba de regresión `backend/test_localizador_rayos.py`: esfera de 180 000
   caras (la que abortaba el OBB de 9.7.0), un rayo que la cruza da un tramo de
   10 mm, uno que pasa de largo no da nada, 200 rayos seguidos sobre el mismo
@@ -169,10 +174,11 @@ los veredictos ciegos no caen, se guardan.
 2. **Mantener el aislamiento de la Tarea 6** como defensa en profundidad. No
    hace falta extenderlo a `set_trajectory` ahora que el cálculo no cae; ese
    cálculo tarda 0,2 s.
-3. **Excluir VTK 9.7.0** en `requirements.txt` (`vtk>=9.3,!=9.7.0`) o
-   reinstalar el `.venv` desde el lock (9.6.1). Hay que hacerlo con los
-   servidores parados, porque Windows bloquea las DLL cargadas. Queda para
-   el propietario, porque cambia el entorno y no el código.
+3. **Excluir VTK 9.7.0.** Hecho en `requirements.txt` (`vtk>=9.3,!=9.7.0`)
+   en el commit de los impactos duplicados; el lock ya fija 9.6.1.
+   **El propietario debe reinstalar el `.venv` desde el lock con los
+   servidores parados**, porque Windows bloquea las DLL cargadas; hasta
+   entonces el `.venv` sigue con 9.7.0.
 4. **Revisar los veredictos y mapas guardados desde el 2026-09-24.** Todo
    «viable» de corredor y todo mapa de aposición calculado desde entonces se
    hizo con el OBB ciego. Basta con volver a colocar la trayectoria o

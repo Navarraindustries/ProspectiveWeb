@@ -179,6 +179,8 @@ def _inside_parity(points: np.ndarray, closed: vtk.vtkPolyData) -> np.ndarray:
     30 mm salía «dentro»). Contar cruces no depende de la orientación.
     Localizador de celdas y no vtkOBBTree: en VTK 9.7.0 el OBB no ve ningún
     cruce, así que todo salía «fuera» y la aposición del stent daba basura."""
+    from services.approach import distinct_hit_distances
+
     tree = vtk.vtkCellLocator(); tree.SetDataSet(closed); tree.BuildLocator()
     b = np.array(closed.GetBounds()).reshape(3, 2)
     far = float(np.linalg.norm(b[:, 1] - b[:, 0])) + 10.0
@@ -188,7 +190,7 @@ def _inside_parity(points: np.ndarray, closed: vtk.vtkPolyData) -> np.ndarray:
         votes = 0
         for d in _RAYS:
             tree.IntersectWithLine(tuple(p), tuple(p + far * d), 0.0, hits, vtk.vtkIdList())
-            votes += hits.GetNumberOfPoints() % 2
+            votes += len(distinct_hit_distances(hits, p)) % 2
         out[i] = votes >= 2
     return out
 

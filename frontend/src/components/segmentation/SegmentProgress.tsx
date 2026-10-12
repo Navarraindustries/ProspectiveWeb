@@ -3,8 +3,15 @@ import type { ProgressState } from "../../api/types";
 import { ProgressBar } from "../ProgressBar";
 
 /** Fase y porcentaje de la segmentación, con aviso cuando el servidor va lento. */
-export function SegmentProgress({ state, slowNote = "El servidor tarda: en un equipo pequeño la segmentación lleva minutos." }: {
+export function SegmentProgress({
+  state,
+  slowNote = "El servidor tarda: en un equipo pequeño la segmentación lleva minutos.",
+  headline = "Segmentando… suele tardar menos de un minuto",
+}: {
   state: ProgressState | null;
+  /** Rótulo principal. La detección usa esta misma barra: con el de la
+   *  segmentación, el paso 3 decía «Segmentando…» mientras detectaba. */
+  headline?: string;
   /** Lo que se dice cuando la fase no avanza en 10 s. */
   slowNote?: string;
 }) {
@@ -21,8 +28,10 @@ export function SegmentProgress({ state, slowNote = "El servidor tarda: en un eq
           dice nada a quien espera. Lo que necesita saber es que avanza y
           cuánto suele durar; las fases quedan plegadas para quien las quiera.
           Solo el rótulo se anuncia: leer cada cambio de fase sería ruido. */}
-      <div aria-live="polite" style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--foreground)", marginBottom: 6 }}>
-        <span>Segmentando… suele tardar menos de un minuto</span>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--foreground)", marginBottom: 6 }}>
+        {/* Solo el rótulo es región viva: con el porcentaje dentro se
+            anunciaba cada punto que avanzaba. */}
+        <span aria-live="polite">{headline}</span>
         <span style={{ fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{pct} %</span>
       </div>
       <ProgressBar value={state ? state.pct : undefined} />

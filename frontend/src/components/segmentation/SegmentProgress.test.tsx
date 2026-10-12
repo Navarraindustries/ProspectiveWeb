@@ -58,9 +58,19 @@ describe("rótulo principal", () => {
     expect(rotulo).toBeVisible();
     expect(rotulo.closest("[aria-live]")).not.toBeNull();
     expect(screen.getByText("25 %")).toBeVisible();
+    // El porcentaje no es región viva: cada punto se anunciaría.
+    expect(screen.getByText("25 %").closest("[aria-live]")).toBeNull();
     expect(screen.getByText("tubularidad 3/6")).not.toBeVisible();
     expect(screen.getByText("tubularidad 3/6").closest("[aria-live]")).toBeNull();
     fireEvent.click(screen.getByText("Fases"));
     expect(screen.getByText("tubularidad 3/6")).toBeVisible();
+  });
+});
+
+describe("rótulo de otro paso", () => {
+  it("usa el rótulo que se le pasa en lugar del de la segmentación", () => {
+    render(<SegmentProgress state={running("regiones", 50)} headline="Detectando… suele tardar alrededor de un minuto" />);
+    expect(screen.getByText("Detectando… suele tardar alrededor de un minuto")).toBeVisible();
+    expect(screen.queryByText(/Segmentando/)).toBeNull();
   });
 });

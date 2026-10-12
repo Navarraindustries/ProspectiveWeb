@@ -57,6 +57,12 @@ describe("mientras detecta", () => {
     expect(await screen.findByText("calibre y cociente")).toBeInTheDocument();
     expect(screen.getByText("45 %")).toBeInTheDocument();
   });
+
+  it("el rótulo dice detección, no segmentación", async () => {
+    conMalla(malla(1));
+    expect(await screen.findByText("Detectando… suele tardar alrededor de un minuto")).toBeInTheDocument();
+    expect(screen.queryByText(/Segmentando/)).toBeNull();
+  });
 });
 
 describe("malla a media resolución", () => {

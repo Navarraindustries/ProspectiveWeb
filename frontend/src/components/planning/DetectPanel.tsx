@@ -166,7 +166,11 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         <div style={{ marginBottom: 14 }}>
           {progress === CONNECTION_LOST
             ? <ProgressBar />
-            : <SegmentProgress state={progress} slowNote="El servidor tarda: en una malla grande la detección pasa del minuto." />}
+            : <SegmentProgress
+                state={progress}
+                headline="Detectando… suele tardar alrededor de un minuto"
+                slowNote="El servidor tarda: en una malla grande la detección pasa del minuto."
+              />}
         </div>
       )}
 

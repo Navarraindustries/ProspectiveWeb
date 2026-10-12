@@ -157,3 +157,59 @@ describe("partes finas que inflan el Ø máximo", () => {
     expect(screen.getByText("5.0")).toBeInTheDocument();
   });
 });
+
+/* F1-13 / F1-157: el Ø máximo salía como cifra firme aunque estuviera a medio
+   milímetro del corte de 10 mm, o midiera vaso padre. */
+describe("el Ø máximo junto a un corte", () => {
+  const cerca = { ...openCap, max_diameter_mm: 9.5 } as unknown as MorphometryResult;
+
+  it("9,5 mm muestra el aviso de corte", async () => {
+    withMorphometry(cerca);
+    expect(await screen.findByText(/junto al corte de 10 mm/)).toBeInTheDocument();
+  });
+
+  it("11,0 mm no avisa", async () => {
+    withMorphometry(openCap);
+    await screen.findByText("7.0");
+    expect(screen.queryByText(/junto al corte/)).not.toBeInTheDocument();
+  });
+
+  it("dice si el Ø del cuerpo cae al otro lado del corte", async () => {
+    withMorphometry({ ...openCap, max_diameter_mm: 10.9, body_max_diameter_mm: 9.5 } as unknown as MorphometryResult);
+    expect((await screen.findByText(/junto al corte de 10 mm/)).textContent).toContain("Ø del cuerpo (9,5 mm)");
+  });
+
+  it("con el saco hasta el límite del recorte, las medidas son provisionales", async () => {
+    withMorphometry({
+      ...openCap,
+      warning: "El saco aislado llega hasta el límite del recorte: el plano de cuello dejó entrar vaso padre, así que Ø máximo, volumen y los índices describen arteria además de aneurisma.",
+    } as unknown as MorphometryResult);
+    await screen.findByText("7.0");
+    expect(screen.getAllByText("provisional").length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+/* F1-151 / F1-68: «Riesgo Alto» se leía como riesgo de rotura (PHASES), y es una
+   etiqueta de forma. */
+describe("el riesgo morfométrico", () => {
+  it("la fila «Riesgo morfométrico (forma)» existe y no dice «PHASES»", async () => {
+    withMorphometry(openCap);
+    const rotulo = await screen.findByText("Riesgo morfométrico (forma)");
+    const fila = rotulo.closest("[data-fila-riesgo]") as HTMLElement;
+    expect(fila).not.toBeNull();
+    expect(fila.textContent).toContain("Moderado");
+    expect(fila.textContent).not.toContain("PHASES");
+  });
+
+  it("la insignia de cabecera dice «morfométrico»", async () => {
+    withMorphometry(openCap);
+    expect(await screen.findByText("Riesgo morfométrico moderado")).toBeInTheDocument();
+  });
+
+  it("malla abierta sin índices muestra «Sin medir»", async () => {
+    withMorphometry({ ...openCap, neck_valid: false, volume_valid: false } as unknown as MorphometryResult);
+    await screen.findByText("Riesgo morfométrico (forma)");
+    expect(screen.getAllByText("Sin medir").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Riesgo morfométrico moderado")).not.toBeInTheDocument();
+  });
+});

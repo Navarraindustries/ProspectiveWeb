@@ -7,7 +7,8 @@ import { useSearchParams } from "react-router-dom";
 import type { FormEvent } from "react";
 import { api } from "../api/client";
 import type { PatientSummary, PatientSessionInfo, StudyCard, StudySummary } from "../api/types";
-import { Badge, riskVariant } from "../components/Badge";
+import { Badge } from "../components/Badge";
+import { MorphoRiskBadge } from "../components/morphometry/MorphoRiskBadge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
@@ -260,9 +261,8 @@ function PatientSheet({
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", flex: 1 }}>
                           {s.label || `Sesión ${new Date(s.updated_at).toLocaleDateString()}`}
                         </span>
-                        {s.rupture_risk_label && (
-                          <Badge variant={riskVariant(s.rupture_risk_label as never)}>{s.rupture_risk_label}</Badge>
-                        )}
+                        {/* F1-68: «Alto» a secas se leía como riesgo de rotura. */}
+                        {s.rupture_risk_label && <MorphoRiskBadge label={s.rupture_risk_label} />}
                       </div>
                       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
                         {new Date(s.updated_at).toLocaleString()} · Paso: {STEP_LABELS[s.current_step] ?? s.current_step}

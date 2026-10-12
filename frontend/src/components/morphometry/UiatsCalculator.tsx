@@ -12,6 +12,8 @@ import { Button } from "../Button";
 import { Input } from "../Input";
 import { Select } from "../Select";
 import { ErrorNote, SectionLabel } from "../PanelHead";
+import { DiameterSource } from "./DiameterSource";
+import { UIATS_CUTS, isProvisional } from "./diameterCut";
 
 type Opt = [key: string, label: string, pts: number];
 
@@ -126,6 +128,11 @@ export function UiatsCalculator({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, margin: "8px 0" }}>
         <Input label="Edad (años)" type="number" min={18} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
         <Input label="Diámetro máximo (mm)" type="number" step="0.1" value={diameter} onChange={(e) => setDiameter(e.target.value)} />
+      </div>
+      {/* F1-14: qué Ø se toma, y si el del cuerpo lo cambia de tramo. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "4px 0 10px" }}>
+        <DiameterSource maxMm={m.max_diameter_mm} sizeMm={Number(diameter) || 0} bodyMm={m.body_max_diameter_mm}
+                        provisional={isProvisional(m.warning)} cuts={UIATS_CUTS} score="UIATS" />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
         {checks("risk", RISK)}

@@ -40,6 +40,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from services.phases import phases_label
+
 logger = logging.getLogger(__name__)
 
 # ── Location constants ─────────────────────────────────────────────────────── #
@@ -191,8 +193,19 @@ class _Decision:
     missing_inputs: list[str] = field(default_factory=list)
 
 
+# F1-17: el aviso del saco que llega al límite del recorte se quedaba en
+# Morfometría, y aquí se citaba un PHASES calculado con ese mismo Ø —que mide
+# arteria además de aneurisma— como si fuera firme.
+_PARENT_IN_SAC_NOTE = (
+    " Ese PHASES es provisional: el saco aislado llega hasta el límite del "
+    "recorte y el plano de cuello dejó entrar vaso padre, así que el Ø máximo "
+    "con que se calculó mide arteria además de aneurisma. Vuelve a marcar el "
+    "cuello en Morfometría antes de apoyarte en la cifra."
+)
+
+
 def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
-                    ruptured: bool) -> dict[str, Any]:
+                    ruptured: bool, parent_in_sac: bool = False) -> dict[str, Any]:
     """«Tratar o vigilar» para un aneurisma menor de 3 mm.
 
     Esto no es la pregunta que responde el resto del módulo. El resto elige
@@ -201,9 +214,9 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
 
     Se contestaba con el diámetro y nada más, y con confianza «Alta». Dos
     pacientes con el mismo aneurisma de 2.8 mm —uno finlandés, hipertenso, con
-    HSA previa, PHASES 14 y 17 % de riesgo a cinco años; otro sin factores, con
-    PHASES 0 y 0.4 %— recibían el mismo veredicto y la misma confianza. Un
-    riesgo 42 veces mayor no movía nada, porque el PHASES lo calcula el paso de
+    HSA previa, PHASES 11 y 7,2 % de riesgo a cinco años; otro sin factores, con
+    PHASES 0 y 0,4 %— recibían el mismo veredicto y la misma confianza. Un
+    riesgo 18 veces mayor no movía nada, porque el PHASES lo calcula el paso de
     morfometría y este cálculo no lo miraba.
 
     ESO 2022 plantea la decisión como comparar el riesgo de rotura contra el del
@@ -238,6 +251,7 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
     band = (phases or {}).get("risk_band", "")
     risk = (phases or {}).get("risk_5yr_pct")
     score = (phases or {}).get("total_score")
+    caveat = _PARENT_IN_SAC_NOTE if parent_in_sac and band else ""
 
     if not band:
         notes.append(
@@ -250,10 +264,10 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
     elif band == "high":
         # Las dos cifras se contradicen, y decirlo es más útil que elegir una.
         notes.append(
-            f"Pero el PHASES es {score} → {risk:.1f} % de riesgo de rotura a 5 "
-            f"años, que es una estimación ALTA. El tamaño sugiere vigilar y el "
+            f"Pero el riesgo de rotura estimado es {phases_label(score, risk)}, "
+            f"una estimación ALTA. El tamaño sugiere vigilar y el "
             f"riesgo estimado sugiere lo contrario: la decisión no se sostiene "
-            f"en el diámetro y corresponde a sesión multidisciplinar."
+            f"en el diámetro y corresponde a sesión multidisciplinar." + caveat
         )
         return _to_dict(_Decision(
             clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
@@ -264,9 +278,9 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
         ))
     else:
         notes.append(
-            f"El PHASES lo acompaña: {score} → {risk:.1f} % de riesgo de rotura "
-            f"a 5 años ({'moderado' if band == 'moderate' else 'bajo'}). "
-            f"Seguimiento con imagen."
+            f"El riesgo de rotura lo acompaña: {phases_label(score, risk)} "
+            f"({'moderado' if band == 'moderate' else 'bajo'}). "
+            f"Seguimiento con imagen." + caveat
         )
         confidence = "Alta" if band == "low" else "Moderada"
 
@@ -294,6 +308,7 @@ def compute_decision(
     wfns_grade:        int | None = None,
     fisher_grade:      int | None = None,
     prior_stroke:      int | None = None,
+    parent_in_sac:     bool = False,
 ) -> dict[str, Any]:
     """Compute CLIP vs ENDOVASCULAR recommendation.
 
@@ -304,6 +319,10 @@ def compute_decision(
     one. It does not enter the clip-vs-endo arithmetic — it answers a different
     question — but it decides whether the small-aneurysm shortcut below is
     entitled to say «watch and wait».
+
+    `parent_in_sac` says the isolated sac reached the crop bound in Morfometría:
+    the diameter the PHASES was computed with is provisional, and the note that
+    cites the score says so.
 
     Returns a dict matching TreatmentDecisionResult Pydantic model fields.
     """
@@ -326,7 +345,7 @@ def compute_decision(
 
     # ── Special case: very small aneurysm (< 3 mm) ────────────────────── #
     if 0 < max_diameter_mm < 3.0:
-        return _small_aneurysm(max_diameter_mm, phases, ruptured)
+        return _small_aneurysm(max_diameter_mm, phases, ruptured, parent_in_sac)
 
     # ── Factor 1: Cuello ancho, en la definición de Brinjikji ──────────── #
     #
@@ -658,11 +677,11 @@ def compute_decision(
         else:
             notes.append(
                 f"Contesta POR QUÉ VÍA, no SI HAY QUE TRATAR. El riesgo de "
-                f"rotura estimado es PHASES {score} → {risk:.1f} % a 5 años "
+                f"rotura estimado es {phases_label(score, risk)} "
                 f"({'alto' if band == 'high' else 'moderado' if band == 'moderate' else 'bajo'}). "
                 f"El riesgo del procedimiento no lo calcula esta aplicación, así "
                 f"que la comparación que pide la guía ESO 2022 queda para la "
-                f"sesión clínica."
+                f"sesión clínica." + (_PARENT_IN_SAC_NOTE if parent_in_sac else "")
             )
 
     if balance >= 20:

@@ -37,3 +37,12 @@ describe("ELAPSS", () => {
     expect((screen.getByLabelText(/Forma irregular/) as HTMLInputElement).checked).toBe(false);
   });
 });
+
+/* F1-14: ELAPSS no decía qué Ø tomaba, ni que el del cuerpo lo cambiaba de tramo. */
+describe("ELAPSS y el diámetro", () => {
+  it("dice qué diámetro toma y avisa si el del cuerpo cambia de tramo", () => {
+    render(<ElapssCalculator maxDiameterMm={10.9} bodyDiameterMm={9.5} sessionId="s1" />);
+    expect(screen.getByText(/Ø máximo medido 10,9 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/cambia de tramo/).textContent).toContain("corte de 10 mm");
+  });
+});

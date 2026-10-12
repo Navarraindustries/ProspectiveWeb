@@ -74,8 +74,13 @@ async def compute_treatment_decision(
         except (ValueError, TypeError):
             pass
 
+    # El saco que llegó al límite del recorte en Morfometría: el Ø con que se
+    # calculó el PHASES mide también vaso padre, y la nota que lo cita lo dice.
+    parent_in_sac = read_state(req.session_id, "morpho.sac_hit_crop", "0") == "1"
+
     result = compute_decision(
         phases=phases,
+        parent_in_sac=parent_in_sac,
         neck_mm=neck_mm,
         aspect_ratio=aspect_ratio,
         dnr=dnr,

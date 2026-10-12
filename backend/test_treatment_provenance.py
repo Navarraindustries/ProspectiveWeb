@@ -6,7 +6,7 @@ Tres cosas que estaban mal y no eran bugs de cálculo, sino de honestidad.
 1. **«Tratar o vigilar» se decidía sobre un milímetro.** El atajo de menos de
    3 mm devolvía «vigilancia activa» con confianza Alta sin mirar el PHASES que
    el paso de morfometría ya había calculado. Dos pacientes con el mismo
-   aneurisma de 2.8 mm y riesgos a cinco años de 17.0 % y 0.4 % —42 veces— salían
+   aneurisma de 2.8 mm y riesgos a cinco años de 7,2 % y 0,4 % —18 veces— salían
    con el mismo veredicto y la misma confianza.
 2. **Los pesos no decían de dónde venían.** Los umbrales están mayormente
    publicados; los números (25, 20, 15…) no los atribuye nada, y cuatro factores
@@ -51,15 +51,15 @@ def _phases(**over) -> dict:
 
 
 HIGH = _phases(population="finland", hypertension=True, earlier_sah=True,
-               site="aca_pcom_posterior")          # PHASES 14 → 17.0 %
-LOW = _phases()                                     # PHASES 0  → 0.4 %
+               site="aca_pcom_posterior")          # PHASES 11 → 7,2 % (Greving 2014)
+LOW = _phases()                                     # PHASES 0  → 0,4 %
 
 
 # ── 1. El riesgo de rotura entra en «tratar o vigilar» ────────────────────── #
 
 class TestSmallAneurysmConsultsThePhasesScore:
-    def test_the_premise_two_patients_forty_two_times_apart(self):
-        assert HIGH["risk_5yr_pct"] == pytest.approx(17.0)
+    def test_the_premise_two_patients_eighteen_times_apart(self):
+        assert HIGH["risk_5yr_pct"] == pytest.approx(7.2)
         assert LOW["risk_5yr_pct"] == pytest.approx(0.4)
         assert HIGH["risk_band"] == "high" and LOW["risk_band"] == "low"
 
@@ -67,13 +67,13 @@ class TestSmallAneurysmConsultsThePhasesScore:
         d = compute_decision(**SMALL, location=LOCATION_ACA_ACOA, phases=HIGH)
         assert d["recommendation_key"] == "mdt"
         assert d["confidence"] == "Baja"
-        assert any("17.0" in n for n in d["notes"]), d["notes"]
+        assert any("PHASES 11 · 7,2 % a 5 años (Greving 2014)" in n for n in d["notes"]), d["notes"]
 
     def test_a_low_rupture_risk_still_gets_surveillance(self):
         d = compute_decision(**SMALL, location=LOCATION_ACA_ACOA, phases=LOW)
         assert d["recommendation_key"] == "surveillance"
         assert d["confidence"] == "Alta"
-        assert any("0.4" in n for n in d["notes"]), d["notes"]
+        assert any("PHASES 0 · 0,4 % a 5 años (Greving 2014)" in n for n in d["notes"]), d["notes"]
 
     def test_the_two_patients_no_longer_get_the_same_answer(self):
         # El fallo, en una línea.
@@ -87,6 +87,19 @@ class TestSmallAneurysmConsultsThePhasesScore:
         assert d["recommendation_key"] == "surveillance"
         assert d["confidence"] == "Baja", "sin riesgo estimado no hay confianza alta"
         assert any("PHASES" in n for n in d["notes"])
+
+    def test_the_note_repeats_the_parent_vessel_warning(self):
+        # F1-17: con el saco aislado hasta el límite del recorte el Ø máximo
+        # mide también vaso padre, y el PHASES se calculó con ese Ø.
+        d = compute_decision(**SMALL, location=LOCATION_ACA_ACOA, phases=LOW,
+                             parent_in_sac=True)
+        assert any("vaso padre" in n and "PHASES" in n for n in d["notes"]), d["notes"]
+        big = dict(SMALL, max_diameter_mm=10.9, neck_mm=4.0)
+        d = compute_decision(**big, location=LOCATION_ACA_ACOA, phases=LOW,
+                             parent_in_sac=True)
+        assert any("vaso padre" in n and "PHASES" in n for n in d["notes"]), d["notes"]
+        d = compute_decision(**big, location=LOCATION_ACA_ACOA, phases=LOW)
+        assert not any("vaso padre" in n for n in d["notes"])
 
     def test_a_ruptured_aneurysm_is_never_a_surveillance_case(self):
         # PHASES está validado en aneurismas incidentales; sobre uno roto no dice
@@ -209,6 +222,13 @@ class TestThePhasesScoreTravelsFromTheMorphometryStep:
     def test_the_endpoint_reads_the_stored_score(self):
         assert self._decide(self._session(HIGH))["recommendation_key"] == "mdt"
         assert self._decide(self._session(LOW))["recommendation_key"] == "surveillance"
+
+    def test_the_endpoint_repeats_the_parent_vessel_warning(self):
+        sid = self._session(LOW)
+        write_state(sid, "morpho.sac_hit_crop", "1")
+        assert any("vaso padre" in n for n in self._decide(sid)["notes"])
+        write_state(sid, "morpho.sac_hit_crop", "0")
+        assert not any("vaso padre" in n for n in self._decide(sid)["notes"])
 
     def test_the_reasoning_is_persisted_and_the_sum_is_not(self):
         # Las notas son el razonamiento y viajan al informe. El sumatorio ya no

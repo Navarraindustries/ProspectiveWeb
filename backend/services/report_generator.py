@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from services.phases import phases_label
+
 logger = logging.getLogger(__name__)
 
 _MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
@@ -1803,7 +1805,9 @@ class ReportGenerator:
         if not risk:
             return []
 
-        elems = [Paragraph("Evaluación de riesgo de ruptura", self._style_h2)]
+        # F1-234: «Evaluación de riesgo de ruptura · RIESGO: ALTO» se leía como
+        # el riesgo de rotura del PHASES, y es una etiqueta de forma.
+        elems = [Paragraph("Riesgo morfométrico (forma)", self._style_h2)]
 
         # El porqué son los índices que de verdad cruzaron su umbral en este
         # caso, con su cifra. Si la sesión es anterior a que se guardaran, se
@@ -1825,9 +1829,15 @@ class ReportGenerator:
             detail = ("Índices morfométricos dentro de rangos de bajo riesgo. "
                       "Seguimiento radiológico según protocolo.")
 
-        elems.append(Paragraph(f"RIESGO: {risk.upper()}", style))
+        elems.append(Paragraph(f"Riesgo morfométrico {risk.lower()}", style))
         elems.append(Spacer(1, 0.1*cm))
         elems.append(Paragraph(detail, self._style_body))
+        elems.append(Paragraph(
+            "Describe la forma del saco (índices AR, DNR, ondulación, elipticidad "
+            "y cociente de tamaño); no es el riesgo de rotura a 5 años, que es el "
+            "PHASES de su propia sección.",
+            self._style_td_disclaimer,
+        ))
         return elems
 
     _PHASES_POP  = {"other": "Otra población", "japan": "Japón", "finland": "Finlandia"}
@@ -1849,9 +1859,10 @@ class ReportGenerator:
         )
 
         elems = [Paragraph("PHASES — riesgo de rotura a 5 años", self._style_h2)]
+        # El mismo rótulo que la nota de Decisión (services/phases.py): el PDF
+        # decía «PHASES 9 — 5.9 %» sin fuente, con la columna de riesgo corrida.
         elems.append(Paragraph(
-            f"PHASES {ph.get('total_score', 0)} — "
-            f"{float(ph.get('risk_5yr_pct', 0.0)):.1f} % · "
+            f"{phases_label(ph.get('total_score', 0), ph.get('risk_5yr_pct', 0.0))} · "
             f"{self._PHASES_BAND.get(band, band)}",
             style,
         ))

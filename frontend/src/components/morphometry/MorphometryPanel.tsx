@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { LongitudinalResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
+import { MorphoRiskBadge, MORPHO_RISK_CRITERIA } from "./MorphoRiskBadge";
+import { PHASES_CUTS, crossedCut, isProvisional, mm, nearCut } from "./diameterCut";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
@@ -108,13 +110,29 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   // nulled zeros as if they were measurements.
   const volOk = m ? (m.volume_valid ?? m.reliable) : false;
   const neckOk = m ? (m.neck_valid ?? m.reliable) : false;
+  // F1-151: sin ningún índice de forma medido la etiqueta no tiene de qué salir.
+  const riskMeasured = volOk || neckOk;
+  // F1-157: con el saco hasta el límite del recorte, Ø, volumen e índices
+  // miden también vaso padre; se marcan como provisionales aquí, en PHASES y
+  // (desde el backend) en la nota de Decisión.
+  const provisional = isProvisional(m?.warning);
+  // F1-13: a menos de 1 mm de un corte de PHASES el error de medida cambia el
+  // tramo; si el Ø del cuerpo cae al otro lado, se dice con su cifra.
+  const corte = m ? nearCut(m.max_diameter_mm, PHASES_CUTS) : null;
+  const bodyMm = m?.body_max_diameter_mm ?? null;
+  const avisoCorte = m && corte != null
+    ? `Ø máximo junto al corte de ${corte} mm de PHASES: un error de medida de menos de 1 mm cambia de tramo` +
+      (bodyMm != null && crossedCut(m.max_diameter_mm, bodyMm, [corte]) != null
+        ? `, y con el Ø del cuerpo (${mm(bodyMm)} mm) ya cae al otro lado.`
+        : ".")
+    : null;
 
   return (
     <div className="fade-rise">
       <PanelHead
         title="Morfometría"
         desc="Medidas e índices del aneurisma. Todas las dimensiones en milímetros."
-        right={m && <Badge variant={riskVariant(m.rupture_risk_label)}>Riesgo {m.rupture_risk_label}</Badge>}
+        right={m && <MorphoRiskBadge label={m.rupture_risk_label} measured={riskMeasured} />}
       />
 
       {busy && (
@@ -236,7 +254,13 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                     mismo: con una sola bandera combinada, un cuello perfectamente
                     medido se ocultaba en cuanto fallaba el volumen — mientras el
                     visor, que no consulta la bandera, seguía anotándolo en 3D. */}
-                <Metric label="Ø máximo" value={m.max_diameter_mm.toFixed(1)} unit=" mm" />
+                <Metric label="Ø máximo" value={m.max_diameter_mm.toFixed(1)} unit=" mm"
+                        badge={provisional ? ["provisional", "warning"] : undefined} />
+                {avisoCorte && (
+                  <div style={{ fontSize: 11, lineHeight: 1.5, color: "var(--warning)", margin: "4px 0 6px" }}>
+                    {avisoCorte}
+                  </div>
+                )}
                 {/* El mismo Ø sin ramas finas pegadas al saco: si se separa del de
                     arriba, el aviso explica por qué (services/sac_body.py). */}
                 {m.body_max_diameter_mm != null && (
@@ -244,7 +268,8 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 )}
                 <Metric label="Cuello" value={neckOk ? m.neck_mm.toFixed(1) : "—"} unit={neckOk ? " mm" : ""} />
                 <Metric label="Altura de domo" value={neckOk ? m.dome_height_mm.toFixed(1) : "—"} unit={neckOk ? " mm" : ""} />
-                <Metric label="Volumen" value={volOk ? m.volume_mm3.toFixed(1) : "—"} unit={volOk ? " mm³" : ""} />
+                <Metric label="Volumen" value={volOk ? m.volume_mm3.toFixed(1) : "—"} unit={volOk ? " mm³" : ""}
+                        badge={provisional && volOk ? ["provisional", "warning"] : undefined} />
                 <Metric label="Área superficie" value={m.surface_area_mm2.toFixed(1)} unit=" mm²" />
                 <Metric
                   label="DNR"
@@ -261,6 +286,18 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                   value={neckOk ? m.bf.toFixed(2) : "—"}
                   badge={!neckOk ? ["sin medir", "outline"] : m.bf > 1.5 ? ["Cuello ancho", "warning"] : ["OK", "success"]}
                 />
+                {/* F1-151 / F1-68: la etiqueta de forma, con su criterio y separada
+                    del riesgo de rotura de la pestaña de al lado. */}
+                <div data-fila-riesgo title={riskMeasured ? MORPHO_RISK_CRITERIA : undefined}>
+                  <Metric
+                    label="Riesgo morfométrico (forma)"
+                    value={riskMeasured ? m.rupture_risk_label : "Sin medir"}
+                    badge={riskMeasured ? undefined : ["sin medir", "outline"]}
+                  />
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "4px 0 6px" }}>
+                    {MORPHO_RISK_CRITERIA}
+                  </div>
+                </div>
               </div>
             )}
             {tab === "Índices" && (
@@ -293,13 +330,15 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
               </div>
             )}
             {tab === "PHASES" && (
-              <PhasesCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} />
+              <PhasesCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId}
+                                bodyDiameterMm={bodyMm} provisional={provisional} />
             )}
             {tab === "UIATS" && (
               <UiatsCalculator m={m} sessionId={sessionId} dob={planning.patient?.dob} />
             )}
             {tab === "ELAPSS" && (
               <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} dob={planning.patient?.dob}
+                                bodyDiameterMm={bodyMm} provisional={provisional}
                                 irregularHint={m.volume_valid && m.ui > 0.15} />
             )}
             {tab === "Seguimiento" && (

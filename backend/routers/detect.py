@@ -198,6 +198,9 @@ _MORPHO_STATE_KEYS = (
     # Cuánto se movió el plano marcado para aislar el saco: describe esa
     # medida, así que se va con ella.
     "morpho.neck_shift_mm",
+    # La marca de saco hasta el límite del recorte describe esa medida: sin
+    # ella borrada, Decisión seguiría avisando de vaso padre sin medida detrás.
+    "morpho.sac_hit_crop",
 )
 
 
@@ -1324,6 +1327,9 @@ def _run_morphometry_sync(
     write_state(session_id, "morpho.rupture_risk_reasons", json.dumps(_motivos, ensure_ascii=False))
     write_state(session_id, "morpho.neck_source",      neck_source)
     write_state(session_id, "morpho.neck_tilt_deg",     str(round(neck_tilt_deg, 2)))
+    # Decisión repite el aviso del recorte junto al PHASES (F1-17); se escribe
+    # siempre para que una medida buena borre la marca de la anterior.
+    write_state(session_id, "morpho.sac_hit_crop",      "1" if sac_hit_crop else "0")
 
     # ── Reliability guard (Tier 1) ────────────────────────────────────── #
     # analyze() nulls volume/neck metrics when the mesh is an open patch or the

@@ -1,5 +1,5 @@
 /* PHASES partía de una edad inventada («60»); ahora de la del paciente, y sin ella no calcula (spec §8). */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 let planning: Record<string, unknown> = {};
 vi.mock("../../store/planning", () => ({ usePlanning: () => planning }));
@@ -18,5 +18,70 @@ describe("PHASES y la edad", () => {
     render(<PhasesCalculator maxDiameterMm={6} sessionId="s" />);
     expect((screen.getByLabelText("Edad (años)") as HTMLInputElement).value).toBe("");
     expect(screen.getByRole("button", { name: "Calcular PHASES" })).toBeDisabled();
+  });
+});
+
+/* F1-15 / F1-14 / F1-157: el tamaño decía un número sin decir de dónde salía, y
+   un Ø de 10,9 mm (Case 3) da 10 puntos donde uno de 9,5 da 7. */
+describe("PHASES y el corte de tamaño", () => {
+  const posterior = () =>
+    fireEvent.change(screen.getByLabelText("Localización"), { target: { value: "aca_pcom_posterior" } });
+
+  it("el texto nombra el diámetro que toma", () => {
+    planning = { patient: null };
+    render(<PhasesCalculator maxDiameterMm={10.9} sessionId="s" />);
+    expect(screen.getByText(/Ø máximo medido 10,9 mm/)).toBeInTheDocument();
+  });
+
+  it("con 9,5 mm avisa del corte de 10 mm con los puntos", () => {
+    planning = { patient: null };
+    render(<PhasesCalculator maxDiameterMm={9.5} sessionId="s" />);
+    posterior();
+    const aviso = screen.getByText(/junto al corte de 10 mm/);
+    expect(aviso.textContent).toContain("10 mm");
+    expect(aviso.textContent).toContain("7 puntos");
+  });
+
+  it("10,9 frente a 9,5 del cuerpo muestra el aviso de tramo", () => {
+    planning = { patient: null };
+    render(<PhasesCalculator maxDiameterMm={10.9} bodyDiameterMm={9.5} sessionId="s" />);
+    posterior();
+    expect(screen.getByText(/junto al corte de 10 mm/).textContent)
+      .toContain("con 9,5 mm el PHASES baja de 10 a 7 puntos");
+    expect(screen.getByText(/Ø máximo medido/).textContent).toContain("Ø del cuerpo 9,5 mm");
+  });
+
+  it("lejos de un corte no avisa", () => {
+    planning = { patient: null };
+    render(<PhasesCalculator maxDiameterMm={8.5} sessionId="s" />);
+    expect(screen.queryByText(/junto al corte/)).not.toBeInTheDocument();
+  });
+
+  it("con el aviso del recorte, el tamaño lleva «provisional»", () => {
+    planning = { patient: null };
+    render(<PhasesCalculator maxDiameterMm={10.9} sessionId="s" provisional />);
+    expect(screen.getByText(/Ø máximo medido 10,9 mm/).textContent).toContain("provisional");
+  });
+
+  it("el resultado se rotula con la tabla publicada", async () => {
+    planning = { patient: { dob: "1999-01-01" }, setTreatment: () => {} };
+    const { api } = await import("../../api/client");
+    (api.phases as ReturnType<typeof vi.fn>).mockResolvedValue({
+      population_pts: 0, hypertension_pts: 0, age_pts: 0, size_pts: 6, sah_pts: 0, site_pts: 4,
+      total_score: 10, risk_5yr_pct: 5.3, risk_band: "moderate",
+    });
+    render(<PhasesCalculator maxDiameterMm={10.9} sessionId="s" />);
+    fireEvent.click(screen.getByRole("button", { name: "Calcular PHASES" }));
+    expect(await screen.findByText("PHASES 10 · 5,3 % a 5 años (Greving 2014)")).toBeInTheDocument();
+  });
+});
+
+describe("PHASES con el tamaño escrito a mano", () => {
+  it("deja de decir que toma el Ø medido", () => {
+    planning = { patient: null };
+    render(<PhasesCalculator maxDiameterMm={10.9} sessionId="s" />);
+    fireEvent.change(screen.getByLabelText("Tamaño (mm)"), { target: { value: "8" } });
+    expect(screen.getByText(/Tamaño escrito a mano \(8,0 mm\); el Ø máximo medido es 10,9 mm/)).toBeInTheDocument();
+    expect(screen.queryByText(/Se toma el Ø máximo/)).not.toBeInTheDocument();
   });
 });

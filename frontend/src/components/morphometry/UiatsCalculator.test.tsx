@@ -43,3 +43,13 @@ describe("UIATS", () => {
     expect((screen.getByLabelText(/SR > 3 o AR > 1,6/) as HTMLInputElement).checked).toBe(false);
   });
 });
+
+/* F1-14: UIATS no decía qué Ø tomaba, ni que el del cuerpo lo cambiaba de tramo. */
+describe("UIATS y el diámetro", () => {
+  it("dice qué diámetro toma y avisa si el del cuerpo cambia de tramo", () => {
+    const m2 = { ...m, max_diameter_mm: 10.9, body_max_diameter_mm: 9.5 } as unknown as MorphometryResult;
+    render(<UiatsCalculator m={m2} sessionId="s1" />);
+    expect(screen.getByText(/Ø máximo medido 10,9 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/cambia de tramo/).textContent).toContain("corte de 10 mm");
+  });
+});

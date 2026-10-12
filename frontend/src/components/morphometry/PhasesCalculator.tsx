@@ -11,6 +11,10 @@ import { Metric } from "../Metric";
 import { ErrorNote, SectionLabel } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
 import { ageFromDob } from "../patientAge";
+import { CUT_WARN, DiameterSource } from "./DiameterSource";
+import {
+  PHASES_CUTS, PHASES_POP_PTS, PHASES_SITE_PTS, mm, nearCut, phasesLabel, phasesSizePoints,
+} from "./diameterCut";
 
 const POPULATIONS: { value: PhasesPopulation; label: string }[] = [
   { value: "other", label: "Otra población" },
@@ -40,9 +44,15 @@ const BAND_LABEL: Record<PhasesResult["risk_band"], string> = {
 export function PhasesCalculator({
   maxDiameterMm,
   sessionId,
+  bodyDiameterMm,
+  provisional,
 }: {
   maxDiameterMm: number;
   sessionId: string | null;
+  /** Ø del cuerpo sin ramas finas: el otro diámetro posible, si lo hay. */
+  bodyDiameterMm?: number | null;
+  /** El saco aislado llega al límite del recorte: el Ø mide también vaso padre. */
+  provisional?: boolean;
 }) {
   const planning = usePlanning();
   const [population, setPopulation] = useState<PhasesPopulation>("other");
@@ -54,6 +64,31 @@ export function PhasesCalculator({
   const [result, setResult] = useState<PhasesResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // F1-15: a menos de 1 mm de un corte, decir cuántos puntos cambia, con los
+  // demás factores tal como están. Se enuncia siempre del lado alto al bajo,
+  // como la fila del anexo: «con 9,5 mm el PHASES baja de 10 a 7 puntos». El
+  // otro valor es el Ø del cuerpo si cae al otro lado; si no, el tamaño
+  // desplazado el margen de 1 mm.
+  const sizeNum = Number(size) || 0;
+  const corte = nearCut(sizeNum, PHASES_CUTS);
+  let avisoCorte: string | null = null;
+  if (corte != null) {
+    const resto = PHASES_POP_PTS[population] + (hypertension ? 1 : 0) + ((Number(age) || 0) >= 70 ? 1 : 0)
+      + (earlierSah ? 1 : 0) + PHASES_SITE_PTS[site];
+    const body = bodyDiameterMm != null && bodyDiameterMm > 0 ? bodyDiameterMm : null;
+    let alto: number, bajo: number;
+    if (sizeNum >= corte) {
+      alto = sizeNum;
+      bajo = body != null && body < corte ? body : Math.round((sizeNum - 1) * 10) / 10;
+    } else {
+      bajo = sizeNum;
+      alto = body != null && body >= corte ? body : Math.round((sizeNum + 1) * 10) / 10;
+    }
+    avisoCorte =
+      `El tamaño (${mm(sizeNum)} mm) está junto al corte de ${corte} mm: con ${mm(bajo)} mm el PHASES ` +
+      `baja de ${resto + phasesSizePoints(alto)} a ${resto + phasesSizePoints(bajo)} puntos.`;
+  }
 
   const compute = async () => {
     setBusy(true);
@@ -104,6 +139,9 @@ export function PhasesCalculator({
           <Input label="Edad (años)" type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
           <Input label="Tamaño (mm)" type="number" step="0.1" value={size} onChange={(e) => setSize(e.target.value)} />
         </div>
+        <DiameterSource maxMm={maxDiameterMm} sizeMm={sizeNum} bodyMm={bodyDiameterMm} provisional={provisional}
+                        cuts={PHASES_CUTS} score="PHASES" showTramo={false} />
+        {avisoCorte && <div style={CUT_WARN}>{avisoCorte}</div>}
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer" }}>
           <input type="checkbox" checked={hypertension} onChange={(e) => setHypertension(e.target.checked)} />
           Hipertensión arterial
@@ -141,7 +179,11 @@ export function PhasesCalculator({
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: BAND_COLOR[result.risk_band] }}>
-                {result.risk_5yr_pct.toFixed(1)}%
+                {mm(result.risk_5yr_pct)} %
+              </div>
+              {/* El mismo rótulo que Decisión y el PDF, con la tabla de la que sale. */}
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                {phasesLabel(result.total_score, result.risk_5yr_pct)}
               </div>
               <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
                 {BAND_LABEL[result.risk_band]} · rotura a 5 años

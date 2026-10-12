@@ -19,7 +19,7 @@ _URL = "/api/phases"
 
 # Greving et al. 2014, worked through by hand:
 #   Japan +3, hypertension +1, age ≥70 +1, size 8.7 mm +3,
-#   earlier SAH +4, ACA/PCOM/posterior +4  →  16 points
+#   earlier SAH +1, ACA/PCOM/posterior +4  →  13 points (≥ 12 → 17,8 %)
 _HIGH = {
     "population": "japan", "hypertension": True, "age_years": 75,
     "size_mm": 8.7, "earlier_sah": True, "site": "aca_pcom_posterior",
@@ -44,8 +44,9 @@ def _session_with_morpho() -> str:
 def test_score_matches_the_published_table():
     d = client.post(_URL, json=_HIGH).json()
     assert (d["population_pts"], d["hypertension_pts"], d["age_pts"],
-            d["size_pts"], d["sah_pts"], d["site_pts"]) == (3, 1, 1, 3, 4, 4)
-    assert d["total_score"] == 16
+            d["size_pts"], d["sah_pts"], d["site_pts"]) == (3, 1, 1, 3, 1, 4)
+    assert d["total_score"] == 13
+    assert d["risk_5yr_pct"] == 17.8
     assert d["risk_band"] == "high"
 
     d = client.post(_URL, json=_LOW).json()
@@ -107,7 +108,7 @@ def test_phases_reaches_the_pdf_with_its_breakdown():
     assert any("75 años" in c for c in cells)
 
     titles = [f.text for f in gen._build_story() if hasattr(f, "text")]
-    assert any("PHASES 16" in t and "17.0 %" in t for t in titles), \
+    assert any("PHASES 13 · 17,8 % a 5 años (Greving 2014)" in t for t in titles), \
         "el PHASES no llega al documento"
 
     out = session_subdir(sid, "reports")
@@ -133,3 +134,37 @@ def test_phases_reaches_the_dicom_sr():
     assert "PHASES Score Assessment" in text
     assert "PHASES Total Score" in text
     assert "PHASES 5-Year Rupture Risk" in text
+
+
+# ── F1-17 / F1-23: la cifra de la tabla publicada, rotulada igual en todas partes ── #
+# Japón +3, tamaño 8.7 mm +3, ACM +2, hipertensión +1 → 9 puntos. La tabla
+# anterior daba 5,9 % a un 9; Greving 2014 da 4,3 %.
+_NINE = {
+    "population": "japan", "hypertension": True, "age_years": 60,
+    "size_mm": 8.7, "earlier_sah": False, "site": "mca",
+}
+
+
+def test_nine_points_read_4_3_percent():
+    d = client.post(_URL, json=_NINE).json()
+    assert (d["total_score"], d["risk_5yr_pct"]) == (9, 4.3)
+
+
+def test_the_pdf_of_nine_points_says_4_3_percent():
+    sid = _session_with_morpho()
+    client.post(_URL, json={**_NINE, "session_id": sid})
+    gen = ReportGenerator(build_report_data_from_session(sid))
+    texts = [f.text for f in gen._section_phases() if hasattr(f, "text")]
+    assert any("PHASES 9 · 4,3 % a 5 años (Greving 2014)" in t for t in texts), texts
+    assert not any("5.9" in t or "5,9" in t for t in texts)
+
+
+def test_the_decision_note_cites_the_same_label():
+    sid = _session_with_morpho()
+    client.post(_URL, json={**_NINE, "session_id": sid})
+    r = client.post("/api/treatment-decision", json={
+        "session_id": sid, "location": "Desconocida / No especificada",
+        "is_ruptured": False, "patient_age": 60, "has_comorbidities": False})
+    assert r.status_code == 200, r.text
+    notes = r.json()["notes"]
+    assert any("PHASES 9 · 4,3 % a 5 años (Greving 2014)" in n for n in notes), notes

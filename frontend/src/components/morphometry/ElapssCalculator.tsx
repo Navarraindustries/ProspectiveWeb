@@ -11,6 +11,8 @@ import { Input } from "../Input";
 import { Select } from "../Select";
 import { Metric } from "../Metric";
 import { ErrorNote, SectionLabel } from "../PanelHead";
+import { DiameterSource } from "./DiameterSource";
+import { ELAPSS_CUTS } from "./diameterCut";
 
 const POPULATIONS: { value: ElapssPopulation; label: string }[] = [
   { value: "other", label: "Norteamérica, China o Europa (salvo Finlandia)" },
@@ -24,9 +26,13 @@ const LOCATIONS: { value: ElapssLocation; label: string }[] = [
 ];
 
 export function ElapssCalculator({
-  maxDiameterMm, sessionId, irregularHint, dob,
+  maxDiameterMm, sessionId, irregularHint, dob, bodyDiameterMm, provisional,
 }: {
   maxDiameterMm: number;
+  /** Ø del cuerpo sin ramas finas: si cae en otro tramo, se avisa (F1-14). */
+  bodyDiameterMm?: number | null;
+  /** El saco aislado llega al límite del recorte: el Ø mide también vaso padre. */
+  provisional?: boolean;
   sessionId: string | null;
   /** La morfometría sugiere contorno irregular (UI alto): solo se avisa, no se marca. */
   irregularHint?: boolean;
@@ -79,6 +85,8 @@ export function ElapssCalculator({
           <Input label="Edad (años)" type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
           <Input label="Tamaño (mm)" type="number" step="0.1" value={size} onChange={(e) => setSize(e.target.value)} />
         </div>
+        <DiameterSource maxMm={maxDiameterMm} sizeMm={Number(size) || 0} bodyMm={bodyDiameterMm} provisional={provisional}
+                        cuts={ELAPSS_CUTS} score="ELAPSS" />
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer" }}>
           <input type="checkbox" checked={earlierSah} onChange={(e) => setEarlierSah(e.target.checked)} />
           HSA previa (otro aneurisma)

@@ -52,3 +52,24 @@ class TestFechasYTextos:
 
     def test_tras_dos_puntos_va_minuscula(self):
         assert _minuscula("Brazo posterior") == "brazo posterior" and _minuscula("") == ""
+
+
+class TestElRiesgoMorfometricoNoSeConfundeConElPhases:
+    """F1-234: «RIESGO: ALTO» bajo «Evaluación de riesgo de ruptura» se leía como
+    el riesgo de rotura del PHASES, y es una etiqueta de forma."""
+
+    def _textos(self, **kw) -> list[str]:
+        from services.report_generator import ReportData, ReportGenerator
+        data = ReportData()
+        for k, v in kw.items():
+            setattr(data, k, v)
+        return [f.text for f in ReportGenerator(data)._section_risk() if hasattr(f, "text")]
+
+    def test_el_pdf_dice_morfometrico(self):
+        textos = self._textos(risk_label="Alto", risk_reasons=["AR 1.70 ≥ 1.6"])
+        assert any("Riesgo morfométrico" in t for t in textos), textos
+        assert not any(t.startswith("RIESGO:") for t in textos), textos
+
+    def test_una_linea_lo_distingue_del_phases(self):
+        textos = self._textos(risk_label="Bajo")
+        assert any("PHASES" in t and "forma" in t for t in textos), textos

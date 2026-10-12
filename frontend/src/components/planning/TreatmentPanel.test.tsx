@@ -32,6 +32,7 @@ vi.mock("../../api/client", () => ({
 
 let stored: unknown = null;
 let site: string | null = null;
+let morpho: unknown = { max_diameter_mm: 7 };
 vi.mock("../../store/planning", () => ({
   usePlanning: () => ({
     sessionId: "s1",
@@ -40,6 +41,7 @@ vi.mock("../../store/planning", () => ({
     setTreatment: (t: unknown) => { stored = t; },
     setTreatmentInputs: () => {},
     aneurysmSite: site,
+    morphometry: morpho,
   }),
 }));
 
@@ -85,6 +87,7 @@ const ARM = (arm: "clip" | "coil", labels: string[]) => ({
 beforeEach(() => {
   stored = RESULT;
   site = null;
+  morpho = { max_diameter_mm: 7 };
   treatmentDecision.mockReset();
   treatmentDecision.mockResolvedValue(RESULT);
   clearTreatment.mockClear();
@@ -358,5 +361,26 @@ describe("«Decisión del equipo»", () => {
     render(<TreatmentPanel onNext={() => {}} />);
     await vi.waitFor(() => expect(select().value).toBe("vigilar"));
     expect((screen.getByLabelText("Quién decide") as HTMLInputElement).value).toBe("Dr. Gil");
+  });
+});
+
+/* F1-183: «Planificar dispositivos» se apagaba sin recomendación, aunque el
+   carril deja entrar en Dispositivos con la morfometría; y apagado no decía
+   por qué. Ahora sigue la regla del carril y se rotula según el glosario. */
+describe("«Continuar a dispositivos»", () => {
+  const boton = () => screen.getByRole("button", { name: /Continuar a dispositivos/ });
+
+  it("con morfometría está encendido aunque no haya recomendación", () => {
+    stored = null;
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(boton()).not.toBeDisabled();
+    expect(screen.queryByText("Calcula la morfometría primero")).toBeNull();
+  });
+
+  it("sin morfometría está apagado con el motivo del carril", () => {
+    morpho = null;
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(boton()).toBeDisabled();
+    expect(screen.getByText("Calcula la morfometría primero")).toBeInTheDocument();
   });
 });

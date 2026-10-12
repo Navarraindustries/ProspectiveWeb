@@ -8,7 +8,7 @@ import type { PatientSummary } from "../api/types";
 import { Badge, riskVariant } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
-import { STEPS } from "../pipeline/steps";
+import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
 import { Topbar } from "../components/Topbar";
 import { SectionLabel, Card, Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -52,7 +52,7 @@ function missingFor(
     case 2: return p.segmentation ? null : "Segmenta el vaso primero";
     // Un descartado también se mide: con todo vetado el paso sigue abierto.
     case 3: return canAdvanceFromDetect(p.candidates, p.rejectedCandidates) ? null : "Detecta un candidato primero";
-    default: return p.morphometry ? null : "Calcula la morfometría primero";
+    default: return p.morphometry ? null : NEEDS_MORPHOMETRY;
   }
 }
 

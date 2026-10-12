@@ -32,6 +32,12 @@ export const STEPS: PipelineStep[] = [
   { key: "report",      icon: "STEP_EXPORT",  label: "Informe",       short: "Informe" },
 ];
 
+/** Lo que el carril dice de un paso posterior a Morfometría sin morfometría.
+ *  Aquí y no en Workspace porque el botón de avance de Decisión dice lo mismo
+ *  bajo el botón (F1-183): dos textos para la misma regla acabarían
+ *  diciendo cosas distintas. */
+export const NEEDS_MORPHOMETRY = "Calcula la morfometría primero";
+
 /** Etiquetas por índice, para las vistas que solo guardan el número. */
 export const STEP_LABELS: string[] = STEPS.map((s) => s.label);
 

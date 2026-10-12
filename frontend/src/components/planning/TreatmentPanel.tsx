@@ -17,6 +17,7 @@ import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
 import { ageFromDob } from "../patientAge";
 import { InheritedSite } from "../morphometry/InheritedSite";
+import { NEEDS_MORPHOMETRY } from "../../pipeline/steps";
 import { TeamDecisionCard } from "./TeamDecisionCard";
 
 /** La primera letra en minúscula, para una frase que sigue a dos puntos. */
@@ -448,9 +449,17 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
         </>
       )}
 
-      <Button style={{ marginTop: 18, width: "100%" }} onClick={onNext} disabled={!t} trailingIcon={<Icon name="CLIPS" />}>
-        Planificar dispositivos
+      {/* F1-183: se apagaba sin recomendación, aunque el carril deja entrar en
+          Dispositivos con la morfometría (Workspace.tsx, missingFor): el
+          equipo puede decidir sin el motor. Misma regla y mismo motivo. */}
+      <Button style={{ marginTop: 18, width: "100%" }} onClick={onNext} disabled={!planning.morphometry} trailingIcon={<Icon name="CLIPS" />}>
+        Continuar a dispositivos
       </Button>
+      {!planning.morphometry && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, textAlign: "center" }}>
+          {NEEDS_MORPHOMETRY}
+        </div>
+      )}
     </div>
   );
 }

@@ -645,8 +645,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {segmentation ? "Re-segmentar" : "Segmentar"}
         </Button>
         {segmentation && (
+          // F1-140: glosario, todo botón de avance dice «Continuar a …».
           <Button onClick={onNext} trailingIcon={<Icon name="STEP_DETECT" />}>
-            Detectar
+            Continuar a detección
           </Button>
         )}
       </div>

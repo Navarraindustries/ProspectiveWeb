@@ -245,7 +245,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
-    centerline, obliqueWalk, setObliqueWalk,
+    centerline, obliqueWalk, setObliqueWalk, setVolumeReady,
   } = usePlanning();
   // El recorrido VASO necesita los puntos aunque el panel de la línea central no se abra.
   useCenterlineTrack();
@@ -423,6 +423,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, nx, ny, nz]);
+  // F1-130: «Continuar a segmentación» espera a que el volumen esté aquí. La
+  // meta solo se entrega para la sesión y la versión vigentes, así que otra
+  // serie la vuelve null y el botón se apaga hasta que llega la suya.
+  useEffect(() => { setVolumeReady(!!meta); }, [meta, setVolumeReady]);
   // La ventana viaja con la sesión: al soltar un arrastre de W/L, con rebote.
   usePersistWindow(sessionId, mprWl, meta ? { wc: meta.wc, ww: meta.ww } : null, api.putWindow);
   // El plano libre pasa por el punto compartido más su desplazamiento: un clic

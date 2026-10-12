@@ -333,6 +333,11 @@ interface PlanningState {
    *  a pedir la meta y, con su cache_key nuevo, el volumen del navegador. */
   volumeVersion: number;
   bumpVolumeVersion: () => void;
+  /** El volumen de la serie actual está en el visor (su meta ha llegado). Lo
+   *  escribe el visor; lo lee «Continuar a segmentación» (F1-130), que se
+   *  encendía con la serie, antes de que hubiera nada que ver. */
+  volumeReady: boolean;
+  setVolumeReady: (v: boolean) => void;
 
   setPatient: (p: PatientSummary | null) => void;
   setCase: (id: number | null, label?: string) => void;
@@ -616,6 +621,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [mipWindow, setMipWindow] = useState<{ wc: number; ww: number } | null>(null);
   const [mipLocal, setMipLocal] = useState(false);
   const [volumeVersion, setVolumeVersion] = useState(0);
+  const [volumeReady, setVolumeReady] = useState(false);
   // Un volumen nuevo dentro de la sesión (otra serie, recorte HU, remuestreo)
   // no pasa por reset(): la ventana del MIP y LOCAL describían el volumen
   // anterior y se limpian aquí (spec §3.3, §6). Son setters de useState,
@@ -824,7 +830,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
         centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, reportUrls, setReportUrls, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
-        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,
+        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,

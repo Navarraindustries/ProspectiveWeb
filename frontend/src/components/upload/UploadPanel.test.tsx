@@ -4,7 +4,7 @@
    la medida y las anotaciones antes de que el estudio nuevo terminara de
    subir, sin preguntar. Con trabajo hecho, ahora se pregunta. */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,7 +18,7 @@ vi.mock("../../api/client", () => ({
 
 import { UploadPanel } from "./UploadPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
-import type { SegmentResult } from "../../api/types";
+import type { SegmentResult, SeriesInfo } from "../../api/types";
 
 const malla = { mesh_url: "/m/vessel_tree.vtp", vertices: 10, faces: 20 } as unknown as SegmentResult;
 
@@ -70,5 +70,40 @@ describe("volver a cargar con trabajo hecho", () => {
     await soltar();
     await waitFor(() => expect(upload).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});
+
+/* F1-130: «Continuar a segmentación» se encendía en cuanto había serie, antes
+   de que el volumen estuviera en el visor, y apagado no decía por qué. */
+describe("«Continuar a segmentación»", () => {
+  const boton = () => screen.getByRole("button", { name: /Continuar a segmentación/ });
+  const serie: SeriesInfo = {
+    session_id: "s1", series_id: "1.2", description: "CTA", modality: "CT", slices: 200,
+    spacing: { x: 0.5, y: 0.5, z: 0.6 }, window_center: 300, window_width: 900,
+    is_projection: false, projection_warning: null, size_mb: 80,
+  };
+
+  it("sin serie está apagado y lo dice", async () => {
+    montar(false);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    expect(boton()).toBeDisabled();
+    expect(screen.getByText("Carga una serie para continuar")).toBeInTheDocument();
+  });
+
+  it("con serie pero sin el volumen en el visor, sigue apagado y dice que carga", async () => {
+    montar(false);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    await act(async () => { visto!.setSeries(serie); });
+    expect(boton()).toBeDisabled();
+    expect(screen.getByText("Cargando el volumen…")).toBeInTheDocument();
+  });
+
+  it("con el volumen en el visor se enciende y no dice nada", async () => {
+    montar(false);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    await act(async () => { visto!.setSeries(serie); visto!.setVolumeReady(true); });
+    expect(boton()).not.toBeDisabled();
+    expect(screen.queryByText("Cargando el volumen…")).toBeNull();
+    expect(screen.queryByText("Carga una serie para continuar")).toBeNull();
   });
 });

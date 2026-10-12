@@ -414,14 +414,21 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
         </Card>
       )}
 
+      {/* F1-130: se encendía con la serie, antes de que el volumen estuviera
+          en el visor, y apagado no decía por qué. */}
       <Button
         style={{ marginTop: 18, width: "100%" }}
         onClick={onNext}
-        disabled={!series}
+        disabled={!series || !planning.volumeReady}
         trailingIcon={<Icon name="STEP_SEGMENT" />}
       >
         Continuar a segmentación
       </Button>
+      {(!series || !planning.volumeReady) && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, textAlign: "center" }}>
+          {!series ? "Carga una serie para continuar" : "Cargando el volumen…"}
+        </div>
+      )}
     </div>
   );
 }

@@ -826,3 +826,15 @@ describe("unidad de los sliders de umbral", () => {
     expect(screen.getAllByText("Intensidad del volumen, sin unidad física")).toHaveLength(1);
   });
 });
+
+/* F1-140: «Detectar» era el único botón de avance que no decía a dónde lleva.
+   Glosario: todo botón de avance dice «Continuar a …». */
+describe("el botón de avance", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("dice «Continuar a detección»", async () => {
+    withMeshReady(base, "s1");
+    expect(await screen.findByRole("button", { name: /Continuar a detección/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Detectar$/ })).toBeNull();
+  });
+});

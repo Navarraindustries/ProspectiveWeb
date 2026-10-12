@@ -15,12 +15,13 @@ from models import (
     SeriesInfo, SpacingXYZ,
 )
 from services.database import get_db
-from services.access import own_patient_ids, require_patient
+from services.access import ORIGIN_KEY, own_patient_ids, require_patient
 from services.auth_service import get_current_user
-from services.db_models import PlanningSession, Patient, User
+from services.db_models import LesionConfirmation, PlanningSession, Patient, User
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state, create_session,
     snapshot_session, rehydrate_session, has_saved_session, mesh_url as mesh_url_for,
+    delete_saved_session, session_lineage, LINEAGE_KEY,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,6 +136,8 @@ def _restore_state(session_id: str, ps: PlanningSession) -> None:
     description=(
         "Persists the session's morphometry snapshot and metadata to the database. "
         "Subsequent calls update the same record (upsert on session_id). "
+        "A session resumed from a saved one updates that saved record "
+        "(it takes the new session_id) unless `overwrite_origin` is false. "
         "Optionally links the session to a patient and/or study record."
     ),
 )
@@ -147,6 +150,28 @@ async def save_session(
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
     require_patient(db, current_user, req.patient_id)
+
+    # Reanudar da a la sesión viva un id nuevo, y guardar por ese id dejaba una
+    # fila más en «Sesiones guardadas» en cada reanudar-y-guardar (seis casi
+    # iguales en la ficha del paciente de prueba). Quien pulsa «Guardar
+    # progreso» espera actualizar la sesión que abrió: si la viva todavía no
+    # tiene fila propia y salió de una guardada, se guarda sobre esa.
+    ps = db.query(PlanningSession).filter_by(session_id=req.session_id).first()
+    origen_id = ""
+    origen_ps: PlanningSession | None = None
+    if ps is None and req.overwrite_origin:
+        origen_id = read_state(req.session_id, ORIGIN_KEY, "")
+        if origen_id and origen_id != req.session_id:
+            origen_ps = db.query(PlanningSession).filter_by(session_id=origen_id).first()
+    if origen_ps is not None:
+        # Se va a escribir sobre esa fila: tiene que ser de un paciente que
+        # esta persona ve, no basta con conocer el id de la sesión viva.
+        require_patient(db, current_user, origen_ps.patient_id)
+        # El snapshot de origen se borra al final; su linaje (de dónde venía)
+        # se apunta aquí para que viaje en el snapshot nuevo y los pedidos de
+        # clip colgados de sesiones anteriores se sigan encontrando.
+        write_state(req.session_id, LINEAGE_KEY, ",".join(sorted(session_lineage(origen_id))))
+
     morpho      = _read_morpho(req.session_id)
     # Snapshot the whole session dir (volume + meshes + state) into the durable
     # store so it survives the TTL purge and can be rehydrated on resume.
@@ -157,9 +182,16 @@ async def save_session(
         raise HTTPException(status_code=500, detail=f"No se pudo guardar la sesión: {exc}")
     now         = datetime.now(timezone.utc)
 
-    # Upsert: update existing record or create new one
-    ps = db.query(PlanningSession).filter_by(session_id=req.session_id).first()
-    if ps is None:
+    # Upsert: update existing record, take over the origin's, or create a new one
+    if ps is None and origen_ps is not None:
+        ps = origen_ps
+        ps.session_id = req.session_id
+        # Sin estudio adjunto, la lesión confirmada se busca por el id de la
+        # sesión (seguimiento, verdad de referencia): acompaña a la fila.
+        (db.query(LesionConfirmation)
+           .filter(LesionConfirmation.session_id == origen_id)
+           .update({"session_id": req.session_id}, synchronize_session=False))
+    elif ps is None:
         ps = PlanningSession(session_id=req.session_id, created_at=now)
         db.add(ps)
 
@@ -184,6 +216,12 @@ async def save_session(
 
     db.commit()
     db.refresh(ps)
+
+    if origen_ps is not None:
+        # Solo cuando el snapshot nuevo y la fila ya están: si algo fallaba
+        # antes, la sesión de origen seguía entera y se podía reanudar.
+        delete_saved_session(origen_id)
+        logger.info("Session %s saved over its origin %s", req.session_id, origen_id)
 
     logger.info(
         "Session saved — id=%s  label=%r  step=%d  patient_id=%s",
@@ -284,7 +322,6 @@ async def restore_session(
 
     # La sesión viva recuerda de cuál salió: así sigue siendo del mismo
     # paciente antes de volver a guardarse (services/access.session_row).
-    from services.access import ORIGIN_KEY
     write_state(new_sid, ORIGIN_KEY, session_id)
 
     # Inspect the rehydrated dir to build a payload the frontend can hydrate from.

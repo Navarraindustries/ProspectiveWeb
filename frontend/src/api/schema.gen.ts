@@ -2241,7 +2241,7 @@ export interface paths {
         put?: never;
         /**
          * Save current session state to database
-         * @description Persists the session's morphometry snapshot and metadata to the database. Subsequent calls update the same record (upsert on session_id). Optionally links the session to a patient and/or study record.
+         * @description Persists the session's morphometry snapshot and metadata to the database. Subsequent calls update the same record (upsert on session_id). A session resumed from a saved one updates that saved record (it takes the new session_id) unless `overwrite_origin` is false. Optionally links the session to a patient and/or study record.
          */
         post: operations["save_session_api_sessions_save_post"];
         delete?: never;
@@ -8604,6 +8604,12 @@ export interface components {
              * @default
              */
             label: string;
+            /**
+             * Overwrite Origin
+             * @description If this live session was resumed from a saved one and has no record of its own yet, update that saved record (it takes this session's id) instead of adding a new one. False saves it as a new session.
+             * @default true
+             */
+            overwrite_origin: boolean;
             /**
              * Patient Id
              * @description Associate this session with a patient record

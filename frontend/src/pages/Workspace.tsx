@@ -163,6 +163,9 @@ export function Workspace({
         imaging_study_id: imagingStudyId,
         current_step: stepIdx,
         label: patient ? `${patient.full_name} · ${STEPS[stepIdx].label}` : STEPS[stepIdx].label,
+        // «Reanudar» da a la sesión un id nuevo y cada guardado añadía otra
+        // fila casi igual a «Sesiones guardadas»: se guarda sobre la de origen.
+        overwrite_origin: true,
       });
       // WHY: la instantánea se guarda igual (el resto del trabajo sí está),
       // pero sin las anotaciones en disco decir «guardado» y limpiar el aviso
@@ -333,6 +336,7 @@ export function Workspace({
           size="sm"
           onClick={saveProgress}
           disabled={!sessionId || saving === "saving"}
+          title="Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión"
           leadingIcon={<Icon name={saving === "saved" ? "STATUS_OK" : "SAVE"} />}
           style={{ marginRight: 8 }}
         >

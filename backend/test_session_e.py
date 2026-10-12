@@ -557,3 +557,113 @@ class TestAResumedSessionStartsItsOwnClock:
         new = rehydrate_session(sid)
         purge_expired_sessions()
         assert session_dir(new).is_dir(), "la purga borró una sesión recién reanudada"
+
+
+# ── Reanudar y guardar no añade otra fila (F1-108, F1-241, F1-245) ─────────── #
+#
+# «Reanudar» da a la sesión viva un id nuevo y «Guardar progreso» guardaba por
+# ese id: cada reanudar-y-guardar dejaba una fila más en «Sesiones guardadas»
+# (seis casi iguales en la ficha del paciente de prueba). La sesión viva
+# recuerda de cuál salió y guarda sobre ella.
+
+from services.db_models import LesionConfirmation, Patient, PlanningSession, User  # noqa: E402
+from services.sessions import (  # noqa: E402
+    create_session as _crear, has_saved_session as _guardada,
+    session_lineage as _linaje, session_subdir as _subdir,
+)
+
+
+def _guardar_sesion(sid: str, c=None, **extra):
+    return (c or client).post("/api/sessions/save",
+                              json={"session_id": sid, "current_step": 2, "label": "p", **extra})
+
+
+def _reanudar(sid: str, c=None) -> str:
+    r = (c or client).post(f"/api/sessions/{sid}/restore")
+    assert r.status_code == 200, r.text
+    return r.json()["session_id"]
+
+
+def _sesion_con_malla() -> str:
+    sid = _crear()
+    (_subdir(sid, "meshes") / "vessel_tree.vtp").write_text("x")
+    return sid
+
+
+def _filas(*ids: str) -> list[PlanningSession]:
+    db = _TestingSessionLocal()
+    try:
+        return db.query(PlanningSession).filter(PlanningSession.session_id.in_(ids)).all()
+    finally:
+        db.close()
+
+
+class TestGuardarTrasReanudar:
+    def test_guardar_tras_reanudar_actualiza_la_fila_de_origen(self):
+        sid = _sesion_con_malla()
+        assert _guardar_sesion(sid).status_code == 200
+        id_fila = _filas(sid)[0].id
+        vivo = _reanudar(sid)
+        assert _guardar_sesion(vivo).status_code == 200
+        filas = _filas(sid, vivo)
+        assert len(filas) == 1 and filas[0].session_id == vivo and filas[0].id == id_fila
+        # El snapshot viaja con la fila: el del id viejo ya no está.
+        assert _guardada(vivo) and not _guardada(sid)
+        # Y se vuelve a reanudar desde ella.
+        assert _reanudar(vivo)
+
+    def test_guardar_como_nueva_crea_otra_fila(self):
+        sid = _sesion_con_malla()
+        _guardar_sesion(sid)
+        vivo = _reanudar(sid)
+        _guardar_sesion(vivo, overwrite_origin=False)
+        assert {f.session_id for f in _filas(sid, vivo)} == {sid, vivo}
+        assert _guardada(sid) and _guardada(vivo)
+
+    def test_el_linaje_sobrevive_a_varias_reanudaciones(self):
+        """Los pedidos de clip se buscan por el linaje, que se leía del estado
+        de cada snapshot. Al borrar el snapshot de origen, la cadena se cortaba
+        dos reanudaciones más allá y un pedido hecho al principio dejaba de verse."""
+        a = _sesion_con_malla()
+        _guardar_sesion(a)
+        b = _reanudar(a); _guardar_sesion(b)
+        c = _reanudar(b); _guardar_sesion(c)
+        d = _reanudar(c)
+        assert {a, b, c, d} <= _linaje(d)
+        assert len(_filas(a, b, c)) == 1
+
+    def test_las_confirmaciones_de_lesion_pasan_a_la_fila(self):
+        """Sin estudio adjunto, la lesión confirmada se busca por el id de la
+        sesión; si la fila cambia de id, la confirmación la acompaña."""
+        sid = _sesion_con_malla()
+        _guardar_sesion(sid)
+        db = _TestingSessionLocal()
+        conf = LesionConfirmation(session_id=sid, source="manual", x_mm=1.0, y_mm=2.0, z_mm=3.0)
+        db.add(conf); db.commit(); cid = conf.id; db.close()
+        vivo = _reanudar(sid)
+        _guardar_sesion(vivo)
+        db = _TestingSessionLocal()
+        assert db.get(LesionConfirmation, cid).session_id == vivo
+        db.close()
+
+    def test_otro_profesional_no_guarda_sobre_la_fila_ajena(self):
+        import uuid as _uuid
+        from conftest import anonymous_client
+        from services.auth_service import create_access_token, get_password_hash
+        db = _TestingSessionLocal()
+        medicos = []
+        for _ in range(2):
+            n = f"med-{_uuid.uuid4().hex[:8]}"
+            u = User(username=n, hashed_password=get_password_hash("x" * 12), role="medico", full_name=n)
+            db.add(u); db.commit()
+            cl = anonymous_client(app)
+            cl.headers["Authorization"] = f"Bearer {create_access_token(subject=n)}"
+            medicos.append((u.id, cl))
+        p = Patient(surname="DeA", hospital_id=f"HC-{_uuid.uuid4().hex[:6]}", created_by=medicos[0][0])
+        db.add(p); db.commit(); pid = p.id; db.close()
+        (_a_id, a), (_b_id, b) = medicos
+        sid = _sesion_con_malla()
+        assert _guardar_sesion(sid, a, patient_id=pid).status_code == 200
+        vivo = _reanudar(sid, a)
+        assert _guardar_sesion(vivo, b).status_code == 403
+        assert [f.session_id for f in _filas(sid, vivo)] == [sid]

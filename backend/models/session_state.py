@@ -30,6 +30,18 @@ class SessionSaveRequest(BaseModel):
     imaging_study_id: int | None = Field(
         None, description="Imaging study (acquisition) this session analysed"
     )
+    # «Reanudar» da a la sesión viva un id nuevo; guardar por ese id añadía una
+    # fila más en «Sesiones guardadas» cada vez (seis casi iguales en la ficha
+    # del paciente de prueba). Por defecto se guarda sobre la sesión de la que
+    # salió; `False` la guarda como una sesión nueva, como antes.
+    overwrite_origin: bool = Field(
+        True,
+        description=(
+            "If this live session was resumed from a saved one and has no record of "
+            "its own yet, update that saved record (it takes this session's id) "
+            "instead of adding a new one. False saves it as a new session."
+        ),
+    )
     # Ocho pasos desde que «Fabricación» entró antes del informe (índices 0–7).
     # El tope seguía en 6: guardar el progreso estando en el Informe se
     # rechazaba, y el botón del propio informe guardaba un 6, que ya es

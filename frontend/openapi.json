@@ -8751,6 +8751,12 @@
       "title": "Label",
       "type": "string"
      },
+     "overwrite_origin": {
+      "default": true,
+      "description": "If this live session was resumed from a saved one and has no record of its own yet, update that saved record (it takes this session's id) instead of adding a new one. False saves it as a new session.",
+      "title": "Overwrite Origin",
+      "type": "boolean"
+     },
      "patient_id": {
       "anyOf": [
        {
@@ -16934,7 +16940,7 @@
   },
   "/api/sessions/save": {
    "post": {
-    "description": "Persists the session's morphometry snapshot and metadata to the database. Subsequent calls update the same record (upsert on session_id). Optionally links the session to a patient and/or study record.",
+    "description": "Persists the session's morphometry snapshot and metadata to the database. Subsequent calls update the same record (upsert on session_id). A session resumed from a saved one updates that saved record (it takes the new session_id) unless `overwrite_origin` is false. Optionally links the session to a patient and/or study record.",
     "operationId": "save_session_api_sessions_save_post",
     "requestBody": {
      "content": {

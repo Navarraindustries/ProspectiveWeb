@@ -101,6 +101,14 @@ def session_subdir(session_id: str, sub: str) -> Path:
     return p
 
 
+#: Clave del estado: los ids guardados de los que viene la sesión, separados
+#: por comas. Guardar tras reanudar reutiliza la fila de origen y BORRA su
+#: snapshot; sin esta lista, el linaje —que se lee del `state.txt` de cada
+#: snapshot— se cortaba en ese hueco y un pedido de clip hecho dos reanudaciones
+#: atrás dejaba de verse.
+LINEAGE_KEY = "origin.lineage"
+
+
 def session_lineage(session_id: str) -> set[str]:
     """La sesión y las guardadas de las que viene, hacia atrás.
 
@@ -117,7 +125,9 @@ def session_lineage(session_id: str) -> set[str]:
         for raiz in (SESSIONS_ROOT, SAVES_ROOT):
             estado = raiz / actual / "state.txt"
             if estado.exists():
-                origen = _read_state_map(estado).get("origin.saved_session_id", "")
+                mapa = _read_state_map(estado)
+                origen = mapa.get("origin.saved_session_id", "")
+                ids.update(x for x in mapa.get(LINEAGE_KEY, "").split(",") if valid_session_id(x))
                 break
         else:
             origen = ""

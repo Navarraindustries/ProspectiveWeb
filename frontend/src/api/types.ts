@@ -1413,6 +1413,9 @@ export interface SessionSaveRequest {
   study_id?: number | null;
   imaging_study_id?: number | null;
   current_step?: number;
+  /** Tras «Reanudar», guardar sobre la sesión de la que salió en vez de
+   *  añadir otra fila a «Sesiones guardadas» (por defecto, sí). */
+  overwrite_origin?: boolean;
 }
 
 export interface SessionSaveResult {

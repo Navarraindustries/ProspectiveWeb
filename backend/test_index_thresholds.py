@@ -94,3 +94,40 @@ class TestDecisionLeeLosMismosCortes:
     def test_el_perfil_endovascular_avisa_desde_el_mismo_corte_de_ui(self):
         assert endovascular_profile(neck_mm=3.0, dnr=2.5, undulation_index=0.22).cautions == []
         assert endovascular_profile(neck_mm=3.0, dnr=2.5, undulation_index=0.25).cautions
+
+
+# ── El sentido del BF, en todo el texto ──────────────────────────────────── #
+# Revisión de la Tarea 2: «> 1.5 → wide neck» seguía en el modelo de la API (y
+# de ahí en openapi.json y schema.gen.ts) y «cuello ancho si > 1.5» en la
+# portada. Un BF alto es un cuello relativamente ESTRECHO.
+
+_ANCHO = r"(cuello\s+(relativamente\s+)?ancho|wide\s+neck)"
+_MAYOR = r">\s*1[.,]5"
+_BF_AL_REVES = re.compile(
+    rf"{_ANCHO}\s*(si|if|cuando|when)?\s*(BF\s*)?{_MAYOR}|{_MAYOR}\s*(→|=|:|->)?\s*{_ANCHO}",
+    re.IGNORECASE,
+)
+_RAIZ = Path(__file__).resolve().parent.parent
+
+
+def _textos():
+    for p in (_RAIZ / "backend").rglob("*.py"):
+        if ".venv" not in p.parts and p.name != Path(__file__).name:
+            yield p
+    for patron in ("*.ts", "*.tsx"):
+        yield from (_RAIZ / "frontend" / "src").rglob(patron)
+    yield _RAIZ / "frontend" / "openapi.json"
+
+
+def test_el_patron_reconoce_el_texto_al_reves():
+    assert _BF_AL_REVES.search("(> 1.5 → wide neck)")
+    assert _BF_AL_REVES.search("Ø domo / cuello · cuello ancho si > 1.5")
+    assert not _BF_AL_REVES.search("BF > 1,5 = cuello relativamente estrecho; ≤ 1,5 = cuello relativamente ancho")
+
+
+def test_ningun_texto_llama_ancho_a_un_bf_mayor_de_1_5():
+    malos = [f"{p.relative_to(_RAIZ)}:{i}: {linea.strip()}"
+             for p in _textos()
+             for i, linea in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1)
+             if _BF_AL_REVES.search(linea)]
+    assert malos == []

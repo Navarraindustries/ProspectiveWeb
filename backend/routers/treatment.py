@@ -99,6 +99,9 @@ async def compute_treatment_decision(
     write_state(req.session_id, "treatment.recommendation",     result["recommendation"])
     write_state(req.session_id, "treatment.recommendation_key", result["recommendation_key"])
     write_state(req.session_id, "treatment.confidence",         result["confidence"])
+    # Con qué localización se decidió: cambiarla en Morfometría solo invalida la
+    # decisión si es otra (routers/detect.py, set_clinical_site).
+    write_state(req.session_id, "treatment.location",           req.location)
     # El sumatorio ya no se guarda: no se enseña en pantalla ni se imprime, y
     # dejarlo en el estado era dejar la puerta abierta a que volviera por el
     # informe. El motor lo sigue calculando por dentro, que es de donde sale la
@@ -167,7 +170,7 @@ TREATMENT_STATE_KEYS = (
     "treatment.clip_points", "treatment.endo_points",
     "treatment.factors_json", "treatment.notes_json",
     "treatment.endovascular_json", "treatment.perforators_json",
-    "treatment.jsdb_json",
+    "treatment.jsdb_json", "treatment.location",
     "clinical.patient_age", "clinical.has_comorbidities",
     "clinical.wfns_grade", "clinical.fisher_grade", "clinical.prior_stroke",
 )
@@ -175,6 +178,15 @@ TREATMENT_STATE_KEYS = (
 #: The PHASES score is a rupture risk built on the same morphometry, so it goes
 #: whenever the decision does.
 PHASES_STATE_KEYS = ("phases.json",)
+
+
+def clear_decision_only(session_id: str) -> None:
+    """La recomendación y nada más: ni el contexto clínico escrito a mano
+    (`clinical.*`) ni las puntuaciones. Lo usa el cambio de localización, que
+    deja la decisión de otro sitio pero no toca la edad ni el WFNS."""
+    for key in TREATMENT_STATE_KEYS:
+        if key.startswith("treatment."):
+            write_state(session_id, key, "")
 
 
 def clear_treatment_state(session_id: str) -> None:

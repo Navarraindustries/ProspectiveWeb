@@ -831,8 +831,12 @@ export type AneurysmLocation = (typeof ANEURYSM_LOCATIONS)[number];
 /** PUT /api/morphometry/{sid}/site: la localización, elegida una vez (F1-165). */
 export interface ClinicalSiteResult {
   site: AneurysmLocation;
-  /** Había otra y se borraron PHASES, ELAPSS, UIATS y la decisión calculados con ella. */
-  cleared: boolean;
+  /** Borrado por describir otra localización: solo puede ser «Decisión». */
+  cleared: string[];
+  /** Puntuaciones guardadas recalculadas con sus mismas entradas («PHASES», «ELAPSS», «UIATS»). */
+  recalculated: string[];
+  /** Sin categoría en la nueva localización: salen del informe hasta elegir una. */
+  pending: string[];
 }
 
 export interface DecisionFactor {

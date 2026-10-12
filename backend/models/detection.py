@@ -6,10 +6,11 @@ Ratios and indices    → dimensionless.
 Clinical reference ranges (Dhar 2008, Raghavan 2005, Greving 2014):
   dome_mm:            3–30 mm    (most 5–15 mm)
   neck_mm:            2–10 mm    (typical 3–6 mm)
-  ar:                 1.0–4.0    (> 1.6 → elevated rupture risk)
-  bf:                 0.5–3.0    (> 1.5 → wide neck)
-  dnr:                0.5–3.0
-  ui:                 0.0–0.5    (> 0.15 → irregular dome, higher risk)
+  (cuts: services/index_thresholds.py, the same in badge, risk label and decision)
+  ar:                 1.0–4.0    (≥ 1.2 moderate, ≥ 1.6 elevated rupture risk)
+  bf:                 0.5–3.0    (> 1.5 → relatively NARROW neck; ≤ 1.5 → relatively wide)
+  dnr:                0.5–3.0    (≥ 1.6 moderate, ≥ 2.0 high)
+  ui:                 0.0–0.5    (≥ 0.10 moderate, ≥ 0.25 irregular dome)
   ei:                 0.0–0.6    (> 0.35 → non-spherical, higher risk)
   nsi:                0.0–0.5
   sr:                 0.5–5.0    (> 3.0 → elevated risk)
@@ -183,13 +184,13 @@ class MorphometryResult(BaseModel):
 
     # ── Primary clinical ratios ───────────────────────────────────────────── #
     dnr: float = Field(
-        ..., description="Dome-to-Neck Ratio = max_diameter / neck_mm  (risk ↑ if > 2.0)"
+        ..., description="Dome-to-Neck Ratio = max_diameter / neck_mm  (moderate ≥ 1.6, high ≥ 2.0)"
     )
     ar: float = Field(
-        ..., description="Aspect Ratio = dome_height / neck_mm  (risk ↑ if > 1.6)"
+        ..., description="Aspect Ratio = dome_height / neck_mm  (moderate ≥ 1.2, high ≥ 1.6)"
     )
     bf: float = Field(
-        ..., description="Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → wide neck)"
+        ..., description="Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → relatively narrow neck)"
     )
     compactness: float = Field(
         ..., ge=0.0, le=1.0,
@@ -199,7 +200,7 @@ class MorphometryResult(BaseModel):
     # ── Shape-complexity indices (Ankyras-style) ──────────────────────────── #
     ui: float = Field(
         0.0, ge=0.0, le=1.0,
-        description="Undulation Index = 1 − V_sac / V_convex_hull  (> 0.15 → irregular)"
+        description="Undulation Index = 1 − V_sac / V_convex_hull  (moderate ≥ 0.10, irregular ≥ 0.25)"
     )
     ei: float = Field(
         0.0, ge=0.0, le=1.0,

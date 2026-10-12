@@ -294,10 +294,24 @@ class ClinicalSiteRequest(BaseModel):
 
 class ClinicalSiteResult(BaseModel):
     site: AneurysmLocation = Field(..., description="La localización guardada en `clinical.site`.")
-    cleared: bool = Field(
-        False,
+    cleared: list[str] = Field(
+        default_factory=list,
         description=(
-            "True si había otra localización y se borraron PHASES, ELAPSS, UIATS y "
-            "la decisión calculados con ella: sus cifras eran de otro sitio."
+            "Lo que se borró por describir otra localización. Solo puede ser "
+            "«Decisión»: la recomendación, no el contexto clínico escrito a mano."
+        ),
+    )
+    recalculated: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Puntuaciones guardadas («PHASES», «ELAPSS», «UIATS») cuya categoría "
+            "cambió y se volvieron a calcular con sus mismas entradas."
+        ),
+    )
+    pending: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Puntuaciones sin categoría para la nueva localización: salen del "
+            "informe y sus entradas se guardan aparte para recalcularlas al elegir una."
         ),
     )

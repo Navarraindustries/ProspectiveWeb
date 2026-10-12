@@ -1762,7 +1762,7 @@ export interface paths {
          * Guardar la localización del aneurisma
          * @description La localización se elige UNA vez, en Morfometría, y la heredan PHASES, ELAPSS, UIATS, la decisión terapéutica, el WEB y el informe. Antes se preguntaba en cuatro sitios con cuatro listas, y dejar uno sin tocar cambiaba la cifra.
          *
-         *     Si ya había otra, se borran el PHASES, el ELAPSS, el UIATS y la decisión calculados con ella (`cleared`): describían otro sitio.
+         *     Al cambiarla nada escrito a mano se pierde. Cada puntuación guardada cuya categoría cambia se vuelve a calcular con sus mismas entradas (`recalculated`); si la nueva localización no tiene categoría en esa escala, sus entradas se apartan y se recalcula al elegir una (`pending`). La decisión solo se borra si se tomó con otra localización (`cleared`); el contexto clínico (`clinical.*`) no se toca.
          */
         put: operations["set_clinical_site_api_morphometry__session_id__site_put"];
         post?: never;
@@ -3899,10 +3899,19 @@ export interface components {
         ClinicalSiteResult: {
             /**
              * Cleared
-             * @description True si había otra localización y se borraron PHASES, ELAPSS, UIATS y la decisión calculados con ella: sus cifras eran de otro sitio.
-             * @default false
+             * @description Lo que se borró por describir otra localización. Solo puede ser «Decisión»: la recomendación, no el contexto clínico escrito a mano.
              */
-            cleared: boolean;
+            cleared?: string[];
+            /**
+             * Pending
+             * @description Puntuaciones sin categoría para la nueva localización: salen del informe y sus entradas se guardan aparte para recalcularlas al elegir una.
+             */
+            pending?: string[];
+            /**
+             * Recalculated
+             * @description Puntuaciones guardadas («PHASES», «ELAPSS», «UIATS») cuya categoría cambió y se volvieron a calcular con sus mismas entradas.
+             */
+            recalculated?: string[];
             /**
              * Site
              * @description La localización guardada en `clinical.site`.
@@ -6163,7 +6172,7 @@ export interface components {
         MorphometryResult: {
             /**
              * Ar
-             * @description Aspect Ratio = dome_height / neck_mm  (risk ↑ if > 1.6)
+             * @description Aspect Ratio = dome_height / neck_mm  (moderate ≥ 1.2, high ≥ 1.6)
              */
             ar: number;
             /**
@@ -6178,7 +6187,7 @@ export interface components {
             bbox_w_mm: number;
             /**
              * Bf
-             * @description Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → wide neck)
+             * @description Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → relatively narrow neck)
              */
             bf: number;
             /**
@@ -6200,7 +6209,7 @@ export interface components {
             compactness: number;
             /**
              * Dnr
-             * @description Dome-to-Neck Ratio = max_diameter / neck_mm  (risk ↑ if > 2.0)
+             * @description Dome-to-Neck Ratio = max_diameter / neck_mm  (moderate ≥ 1.6, high ≥ 2.0)
              */
             dnr: number;
             /**
@@ -6313,7 +6322,7 @@ export interface components {
             surface_area_mm2: number;
             /**
              * Ui
-             * @description Undulation Index = 1 − V_sac / V_convex_hull  (> 0.15 → irregular)
+             * @description Undulation Index = 1 − V_sac / V_convex_hull  (moderate ≥ 0.10, irregular ≥ 0.25)
              * @default 0
              */
             ui: number;

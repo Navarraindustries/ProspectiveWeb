@@ -540,9 +540,11 @@ function Security() {
 /* ── Clinical indices / rigor ───────────────────────────────────────────── */
 function Indices() {
   const metrics: [string, string, string][] = [
+    // Los cortes de morphometry/thresholds.ts. El BF decía «cuello ancho si
+    // > 1.5», al revés: un BF alto es un cuello relativamente estrecho (F1-162).
     ["DNR", "Dome-to-Neck Ratio", "Ø máx / cuello · riesgo ↑ si ≥ 2.0"],
     ["AR", "Aspect Ratio", "altura de domo / cuello · riesgo ↑ si ≥ 1.6"],
-    ["BF", "Bottleneck Factor", "Ø domo / cuello · cuello ancho si > 1.5"],
+    ["BF", "Bottleneck Factor", "Ø domo / cuello · cuello estrecho si > 1.5"],
     ["UI", "Undulation Index", "irregularidad del domo · alto si ≥ 0.25"],
     ["EI", "Ellipticity Index", "desviación elíptica · moderado si ≥ 0.35"],
     ["NSI", "Non-Sphericity Index", "1 − esfericidad de Wadell"],

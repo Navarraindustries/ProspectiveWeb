@@ -902,15 +902,36 @@ async def morphometry_neck_plane(
 
 # ── Localización del aneurisma (clinical.site) ────────────────────────────── #
 
-#: Lo que se calculó con la localización y deja de valer si cambia. La decisión
-#: y el PHASES los borra `clear_treatment_state`; ELAPSS y UIATS van aparte.
-_SITE_DEPENDENT_SCORES = ("elapss.json", "uiats.json")
+#: (nombre en pantalla, escala, clave guardada, campo de la localización en sus entradas)
+_SITE_SCORES = (
+    ("PHASES", "phases", "phases.json", "site"),
+    ("ELAPSS", "elapss", "elapss.json", "location"),
+    ("UIATS", "uiats", "uiats.json", "location"),
+)
 
 
 def clinical_site(session_id: str) -> str | None:
     """La localización elegida en Morfometría, o None si no hay o es «Desconocida»."""
     site = read_state(session_id, "clinical.site", "") or ""
     return site if site and not site.startswith("Desconocida") else None
+
+
+def _recompute_score(scale: str, inputs: dict) -> dict:
+    """Lo que se guarda de la escala, calculado otra vez con `inputs`."""
+    from models.elapss import ElapssRequest
+    from models.phases import PhasesRequest
+    from models.uiats import UiatsRequest
+    from routers.phases import elapss_record, phases_record, uiats_compute
+    from services.elapss import compute_elapss
+    from services.phases import compute_phases
+
+    if scale == "phases":
+        req = PhasesRequest(**inputs)
+        return phases_record(req, compute_phases(req))
+    if scale == "elapss":
+        req = ElapssRequest(**inputs)
+        return elapss_record(req, compute_elapss(req))
+    return uiats_compute(UiatsRequest(**inputs))[1]
 
 
 @router.put(
@@ -922,26 +943,79 @@ def clinical_site(session_id: str) -> str | None:
         "ELAPSS, UIATS, la decisión terapéutica, el WEB y el informe. Antes se "
         "preguntaba en cuatro sitios con cuatro listas, y dejar uno sin tocar "
         "cambiaba la cifra.\n\n"
-        "Si ya había otra, se borran el PHASES, el ELAPSS, el UIATS y la decisión "
-        "calculados con ella (`cleared`): describían otro sitio."
+        "Al cambiarla nada escrito a mano se pierde. Cada puntuación guardada cuya "
+        "categoría cambia se vuelve a calcular con sus mismas entradas "
+        "(`recalculated`); si la nueva localización no tiene categoría en esa "
+        "escala, sus entradas se apartan y se recalcula al elegir una (`pending`). "
+        "La decisión solo se borra si se tomó con otra localización (`cleared`); "
+        "el contexto clínico (`clinical.*`) no se toca."
     ),
 )
 async def set_clinical_site(session_id: str, req: ClinicalSiteRequest) -> ClinicalSiteResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     # Importado aquí: routers.treatment importa modelos que ya carga este módulo.
-    from routers.treatment import clear_treatment_state
+    from routers.treatment import clear_decision_only
+    from services.clinical_site import site_category
 
     previous = read_state(session_id, "clinical.site", "") or ""
-    cleared = bool(previous) and previous != req.site
-    if cleared:
-        # Cifras calculadas con otra localización: el PDF las imprimiría como
-        # de este aneurisma. Se borran y la pantalla lo sabe por `cleared`.
-        clear_treatment_state(session_id)
-        for key in _SITE_DEPENDENT_SCORES:
+    cleared: list[str] = []
+    recalculated: list[str] = []
+    pending: list[str] = []
+    if previous == req.site:
+        return ClinicalSiteResult(site=req.site)
+
+    # La decisión puntúa la localización y elige las perforantes por ella: si se
+    # tomó con otra, describe otro aneurisma. Solo la recomendación; la edad, el
+    # WFNS y lo demás escrito a mano (`clinical.*`) se quedan.
+    if read_state(session_id, "treatment.recommendation_key", ""):
+        used = (read_state(session_id, "treatment.location", "")
+                or previous or "Desconocida / No especificada")
+        if used != req.site:
+            clear_decision_only(session_id)
+            cleared.append("Decisión")
+
+    # Antes se borraban las tres, también las que no cambiaban de categoría
+    # (ACoP → Basilar es «aca_pcom_posterior» igual) y con UIATS lo marcado a
+    # mano. Ahora cada una se recalcula con sus mismas entradas si su categoría
+    # cambia, y si la nueva no tiene categoría sus entradas esperan aparte.
+    for label, scale, key, field in _SITE_SCORES:
+        pending_key = f"{scale}.pending_inputs"
+        raw = read_state(session_id, key, "") or ""
+        inputs: dict | None = None
+        try:
+            if raw:
+                inputs = dict(json.loads(raw)["inputs"])
+            elif read_state(session_id, pending_key, ""):
+                inputs = dict(json.loads(read_state(session_id, pending_key, "")))
+        except (ValueError, TypeError, KeyError):
+            inputs = None
+        if inputs is None:
+            continue
+        new = site_category(scale, req.site)
+        if raw and inputs.get(field) == new:
+            continue
+        if new is None:
+            write_state(session_id, pending_key, json.dumps(inputs))
             write_state(session_id, key, "")
+            pending.append(label)
+            continue
+        inputs[field] = new
+        try:
+            record = _recompute_score(scale, inputs)
+        except (ValueError, TypeError) as exc:
+            logger.warning("No se pudo recalcular %s para %s: %s", label, session_id, exc)
+            write_state(session_id, pending_key, json.dumps(inputs))
+            write_state(session_id, key, "")
+            pending.append(label)
+            continue
+        write_state(session_id, key, json.dumps(record))
+        write_state(session_id, pending_key, "")
+        recalculated.append(label)
+
     write_state(session_id, "clinical.site", req.site)
-    return ClinicalSiteResult(site=req.site, cleared=cleared)
+    return ClinicalSiteResult(site=req.site, cleared=cleared,
+                              recalculated=recalculated, pending=pending)
 
 
 #: Las medidas de las que dependen la recomendación, el perfil endovascular y el

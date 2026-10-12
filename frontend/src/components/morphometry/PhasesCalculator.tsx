@@ -1,7 +1,7 @@
 /* PHASES calculator — 5-year rupture risk (Greving 2014). POST /api/phases.
    The Size factor auto-fills from the morphometric max diameter. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { PhasesPopulation, PhasesResult } from "../../api/types";
 import { Button } from "../Button";
@@ -66,9 +66,17 @@ export function PhasesCalculator({
   const [result, setResult] = useState<PhasesResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Un resultado calculado con otra localización ya no es de este aneurisma
-  // (el backend también lo borra al cambiarla).
-  useEffect(() => { setResult(null); }, [site]);
+  // Al cambiar la localización en Morfometría el servidor recalcula lo guardado
+  // con sus mismas entradas; aquí se recalcula lo que está en pantalla, para
+  // que la cifra que se ve sea la del informe. Sin categoría, no hay cifra.
+  const prevSite = useRef(site);
+  useEffect(() => {
+    if (prevSite.current === site) return;
+    prevSite.current = site;
+    if (result && siteKnown) void compute();
+    else setResult(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site]);
 
   // F1-15: a menos de 1 mm de un corte, decir cuántos puntos cambia, con los
   // demás factores tal como están. Se enuncia siempre del lado alto al bajo,

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import { ANEURYSM_LOCATIONS } from "../../api/types";
-import type { AneurysmLocation, LongitudinalResult } from "../../api/types";
+import type { AneurysmLocation, ClinicalSiteResult, LongitudinalResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { MorphoRiskBadge, MORPHO_RISK_CRITERIA } from "./MorphoRiskBadge";
 import { PHASES_CUTS, crossedCut, isProvisional, mm, nearCut } from "./diameterCut";
@@ -24,6 +24,24 @@ import { usePlanning } from "../../store/planning";
 
 const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "UIATS", "Seguimiento"] as const;
 
+/** Lo que ha pasado al cambiar la localización, en una línea; «» si nada. */
+export function siteChangeNotice(r: Pick<ClinicalSiteResult, "cleared" | "recalculated" | "pending">): string {
+  const partes: string[] = [];
+  if (r.cleared.length) {
+    partes.push(r.cleared.length === 1 && r.cleared[0] === "Decisión"
+      ? "Se ha borrado: Decisión — vuelve a calcularla."
+      : `Se han borrado: ${r.cleared.join(", ")} — vuelve a calcularlos.`);
+  }
+  if (r.recalculated.length) {
+    partes.push(`Recalculados con la nueva localización: ${r.recalculated.join(", ")}.`);
+  }
+  if (r.pending.length) {
+    partes.push(`Sin categoría para esta localización: ${r.pending.join(", ")}. ` +
+      "Salen del informe y se recalculan al elegir otra.");
+  }
+  return partes.join(" ");
+}
+
 export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const {
@@ -37,26 +55,34 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const [longi, setLongi] = useState<LongitudinalResult | null>(null);
   const [neckBusy, setNeckBusy] = useState(false);
   const [siteBusy, setSiteBusy] = useState(false);
+  /** La que se está guardando: el selector la enseña ya, el store la recibe al guardarse. */
+  const [sitePending, setSitePending] = useState<AneurysmLocation | null>(null);
+  const [siteNotice, setSiteNotice] = useState<string | null>(null);
 
   // F1-165 (fusión nº 21): la localización se elige aquí, una vez, y la heredan
   // PHASES, ELAPSS, UIATS y Decisión. Se guarda en `clinical.site` para el PDF,
-  // el WEB y «Reanudar». Si ya había otra, el backend borra lo calculado con
-  // ella, y la decisión de la pantalla se va con ello.
+  // el WEB y «Reanudar». Cambiarla no borra nada escrito a mano: el backend
+  // recalcula lo guardado cuya categoría cambia y solo borra una decisión
+  // tomada con otra localización, y aquí se dice qué ha pasado con cada cosa.
+  // El store la recibe DESPUÉS de guardarse: la calculadora abierta recalcula
+  // al verla cambiar, y así su POST llega detrás del recálculo del servidor.
   async function changeSite(next: AneurysmLocation) {
-    const before = planning.aneurysmSite;
-    planning.setAneurysmSite(next);
-    if (!sessionId) return;
+    setSiteNotice(null);
+    if (!sessionId) { planning.setAneurysmSite(next); return; }
+    setSitePending(next);
     setSiteBusy(true);
     setError(null);
     try {
       const r = await api.setClinicalSite(sessionId, next);
-      if (r.cleared) planning.setTreatment(null);
+      if (r.cleared.includes("Decisión")) planning.setTreatment(null);
+      planning.setAneurysmSite(next);
+      setSiteNotice(siteChangeNotice(r) || null);
     } catch (e) {
-      // Sin guardar, el PDF y la sesión seguirían con la anterior: se vuelve a
-      // ella en pantalla para no enseñar una que no está guardada.
-      planning.setAneurysmSite(before);
+      // Sin guardar, el PDF y la sesión siguen con la anterior, y el selector
+      // vuelve a ella para no enseñar una que no está guardada.
       setError(e instanceof Error ? e.message : "No se pudo guardar la localización");
     } finally {
+      setSitePending(null);
       setSiteBusy(false);
     }
   }
@@ -277,13 +303,18 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
               label="Localización"
               data-localizacion=""
               options={ANEURYSM_LOCATIONS}
-              value={planning.aneurysmSite ?? ANEURYSM_LOCATIONS[0]}
+              value={sitePending ?? planning.aneurysmSite ?? ANEURYSM_LOCATIONS[0]}
               disabled={siteBusy}
               onChange={(e) => void changeSite(e.target.value as AneurysmLocation)}
             />
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
               La usan PHASES, ELAPSS, UIATS, la decisión terapéutica y el informe.
             </div>
+            {siteNotice && (
+              <div role="status" style={{ fontSize: 12, color: "var(--warning)", marginTop: 6, lineHeight: 1.5 }}>
+                {siteNotice}
+              </div>
+            )}
           </div>
 
           <Tabs tabs={TABS} value={tab} onChange={setTab} />

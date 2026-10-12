@@ -2,7 +2,7 @@
    POST /api/elapss. Predice crecimiento, no rotura: orienta cada cuánto
    repetir la imagen. El tamaño se rellena desde la morfometría. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ageFromDob } from "../patientAge";
 import { api } from "../../api/client";
 import type { ElapssPopulation, ElapssResult } from "../../api/types";
@@ -50,8 +50,17 @@ export function ElapssCalculator({
   const [result, setResult] = useState<ElapssResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Un resultado de otra localización ya no es de este aneurisma.
-  useEffect(() => { setResult(null); }, [location]);
+  // Al cambiar la localización en Morfometría el servidor recalcula lo guardado
+  // con sus mismas entradas; aquí se recalcula lo que está en pantalla, para
+  // que la cifra que se ve sea la del informe. Sin categoría, no hay cifra.
+  const prevSite = useRef(location);
+  useEffect(() => {
+    if (prevSite.current === location) return;
+    prevSite.current = location;
+    if (result && siteKnown) void compute();
+    else setResult(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
 
   const compute = async () => {
     setBusy(true);

@@ -72,30 +72,7 @@ async def phases(req: PhasesRequest) -> PhasesResult:
         # cambia de verdad, como en la morfometría.
         _invalidate_decision_if_risk_changed(req.session_id, result)
 
-        # Store the inputs alongside the score: the size auto-fills from the
-        # morphometry, so a later re-measurement would otherwise leave a number
-        # in the report that nothing on file explains.
-        write_state(req.session_id, "phases.json", json.dumps({
-            "total_score":  result.total_score,
-            "risk_5yr_pct": result.risk_5yr_pct,
-            "risk_band":    result.risk_band,
-            "points": {
-                "population":   result.population_pts,
-                "hypertension": result.hypertension_pts,
-                "age":          result.age_pts,
-                "size":         result.size_pts,
-                "sah":          result.sah_pts,
-                "site":         result.site_pts,
-            },
-            "inputs": {
-                "population":   req.population,
-                "hypertension": req.hypertension,
-                "age_years":    req.age_years,
-                "size_mm":      req.size_mm,
-                "earlier_sah":  req.earlier_sah,
-                "site":         req.site,
-            },
-        }))
+        write_state(req.session_id, "phases.json", json.dumps(phases_record(req, result)))
         logger.info("PHASES recorded for %s — score=%d (%.1f%%)",
                     req.session_id, result.total_score, result.risk_5yr_pct)
 
@@ -118,16 +95,7 @@ async def elapss(req: ElapssRequest) -> ElapssResult:
     if req.session_id:
         if not session_exists(req.session_id):
             raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
-        write_state(req.session_id, "elapss.json", json.dumps({
-            "total_score": result.total_score, "score_band": result.score_band,
-            "growth_3yr_pct": result.growth_3yr_pct, "growth_5yr_pct": result.growth_5yr_pct,
-            "points": {
-                "earlier_sah": result.earlier_sah_pts, "location": result.location_pts,
-                "age": result.age_pts, "population": result.population_pts,
-                "size": result.size_pts, "shape": result.shape_pts,
-            },
-            "inputs": req.model_dump(exclude={"session_id"}),
-        }))
+        write_state(req.session_id, "elapss.json", json.dumps(elapss_record(req, result)))
         logger.info("ELAPSS recorded for %s — score=%d", req.session_id, result.total_score)
     return result
 
@@ -144,11 +112,68 @@ async def elapss(req: ElapssRequest) -> ElapssResult:
     ),
 )
 async def uiats(req: UiatsRequest) -> UiatsResult:
-    from services.uiats import SRC_UIATS, compute_uiats
     try:
-        s = compute_uiats(**req.model_dump(exclude={"session_id", "age_years"}), age=req.age_years)
+        result, record = uiats_compute(req)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if req.session_id:
+        if not session_exists(req.session_id):
+            raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        write_state(req.session_id, "uiats.json", json.dumps(record))
+        logger.info("UIATS recorded for %s — %d vs %d", req.session_id, result.repair, result.conservative)
+    return result
+
+
+# ── Lo que se guarda de cada escala ──────────────────────────────────────── #
+# Fuera de las rutas porque cambiar la localización en Morfometría vuelve a
+# calcular lo guardado con sus mismas entradas (routers/detect.py,
+# set_clinical_site): lo marcado a mano se conserva y el informe no imprime una
+# cifra de otra localización.
+
+def phases_record(req: PhasesRequest, result: PhasesResult) -> dict:
+    # Store the inputs alongside the score: the size auto-fills from the
+    # morphometry, so a later re-measurement would otherwise leave a number
+    # in the report that nothing on file explains.
+    return {
+        "total_score":  result.total_score,
+        "risk_5yr_pct": result.risk_5yr_pct,
+        "risk_band":    result.risk_band,
+        "points": {
+            "population":   result.population_pts,
+            "hypertension": result.hypertension_pts,
+            "age":          result.age_pts,
+            "size":         result.size_pts,
+            "sah":          result.sah_pts,
+            "site":         result.site_pts,
+        },
+        "inputs": {
+            "population":   req.population,
+            "hypertension": req.hypertension,
+            "age_years":    req.age_years,
+            "size_mm":      req.size_mm,
+            "earlier_sah":  req.earlier_sah,
+            "site":         req.site,
+        },
+    }
+
+
+def elapss_record(req: ElapssRequest, result: ElapssResult) -> dict:
+    return {
+        "total_score": result.total_score, "score_band": result.score_band,
+        "growth_3yr_pct": result.growth_3yr_pct, "growth_5yr_pct": result.growth_5yr_pct,
+        "points": {
+            "earlier_sah": result.earlier_sah_pts, "location": result.location_pts,
+            "age": result.age_pts, "population": result.population_pts,
+            "size": result.size_pts, "shape": result.shape_pts,
+        },
+        "inputs": req.model_dump(exclude={"session_id"}),
+    }
+
+
+def uiats_compute(req: UiatsRequest) -> tuple[UiatsResult, dict]:
+    """(resultado, lo que se guarda). ValueError si las entradas no valen."""
+    from services.uiats import SRC_UIATS, compute_uiats
+    s = compute_uiats(**req.model_dump(exclude={"session_id", "age_years"}), age=req.age_years)
     notes = [
         "Consenso de 69 especialistas (Delphi), no un modelo ajustado a desenlaces: "
         "ordena la conversación, no decide.",
@@ -164,14 +189,9 @@ async def uiats(req: UiatsRequest) -> UiatsResult:
         conservative_items=[UiatsItem(label=l, points=p) for l, p in s.conservative_items],
         notes=notes, sources=[SRC_UIATS],
     )
-    if req.session_id:
-        if not session_exists(req.session_id):
-            raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
-        write_state(req.session_id, "uiats.json", json.dumps({
-            "repair": s.repair, "conservative": s.conservative, "difference": s.difference,
-            "recommendation": s.recommendation,
-            "repair_items": s.repair_items, "conservative_items": s.conservative_items,
-            "inputs": req.model_dump(exclude={"session_id"}),
-        }))
-        logger.info("UIATS recorded for %s — %d vs %d", req.session_id, s.repair, s.conservative)
-    return result
+    return result, {
+        "repair": s.repair, "conservative": s.conservative, "difference": s.difference,
+        "recommendation": s.recommendation,
+        "repair_items": s.repair_items, "conservative_items": s.conservative_items,
+        "inputs": req.model_dump(exclude={"session_id"}),
+    }

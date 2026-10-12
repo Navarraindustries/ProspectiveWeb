@@ -4,7 +4,7 @@
    diámetro de la morfometría; lo demás lo marca el profesional. Las pistas
    (SR/AR, cuello ancho) solo se enseñan: no se marcan solas. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { ageFromDob } from "../patientAge";
 import type { MorphometryResult, UiatsRequest, UiatsResult } from "../../api/types";
@@ -71,8 +71,17 @@ export function UiatsCalculator({
   const [r, setR] = useState<UiatsResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Un resultado de otra localización ya no es de este aneurisma.
-  useEffect(() => { setR(null); }, [location]);
+  // Al cambiar la localización en Morfometría el servidor recalcula lo guardado
+  // con sus mismas entradas; aquí se recalcula lo que está en pantalla, para
+  // que la cifra que se ve sea la del informe. Sin categoría, no hay cifra.
+  const prevSite = useRef(location);
+  useEffect(() => {
+    if (prevSite.current === location) return;
+    prevSite.current = location;
+    if (r && siteKnown) void calcular();
+    else setR(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
 
   const toggle = (grupo: string, k: string) => setSel((s) => {
     const n = new Set(s[grupo] ?? []);

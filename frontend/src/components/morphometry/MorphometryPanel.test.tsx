@@ -10,7 +10,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-const setClinicalSite = vi.fn(async (_sid: string, site: string) => ({ site, cleared: false }));
+const setClinicalSite = vi.fn(async (_sid: string, site: string) =>
+  ({ site, cleared: [] as string[], recalculated: [] as string[], pending: [] as string[] }));
 vi.mock("../../api/client", () => ({
   api: {
     morphometry: vi.fn().mockRejectedValue(new Error("no auto-run in test")),
@@ -20,7 +21,7 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
-import { MorphometryPanel } from "./MorphometryPanel";
+import { MorphometryPanel, siteChangeNotice } from "./MorphometryPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import type { MorphometryResult } from "../../api/types";
 
@@ -279,5 +280,29 @@ describe("la localización, una sola vez", () => {
     await screen.findByText(/referencia poblacional/);
     expect(screen.queryByText("Elige la localización en Morfometría")).not.toBeInTheDocument();
     expect(screen.getByText(/Basilar \(punta, tronco o AICA\)/, { selector: "b" })).toBeInTheDocument();
+  });
+});
+
+/* Revisión de la Tarea 2: cambiar la localización borraba en silencio. Ahora
+   el servidor recalcula lo que cambia de categoría y la pantalla dice qué ha
+   pasado con cada cosa. */
+describe("cambiar la localización lo dice", () => {
+  it("nombra lo borrado, lo recalculado y lo que queda sin categoría", () => {
+    expect(siteChangeNotice({ cleared: ["Decisión"], recalculated: ["PHASES", "UIATS"], pending: [] }))
+      .toBe("Se ha borrado: Decisión — vuelve a calcularla. Recalculados con la nueva localización: PHASES, UIATS.");
+    expect(siteChangeNotice({ cleared: [], recalculated: [], pending: ["PHASES", "ELAPSS"] }))
+      .toContain("Sin categoría para esta localización: PHASES, ELAPSS.");
+    expect(siteChangeNotice({ cleared: [], recalculated: [], pending: [] })).toBe("");
+  });
+
+  it("el mensaje aparece bajo el selector", async () => {
+    setClinicalSite.mockResolvedValueOnce(
+      { site: "Basilar (punta, tronco o AICA)", cleared: ["Decisión"], recalculated: ["PHASES"], pending: [] });
+    withMorphometry(openCap);
+    await screen.findByText("7.0");
+    fireEvent.change(screen.getByLabelText("Localización"),
+      { target: { value: "Basilar (punta, tronco o AICA)" } });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Se ha borrado: Decisión — vuelve a calcularla. Recalculados con la nueva localización: PHASES.");
   });
 });

@@ -291,6 +291,61 @@ class TestConstructSugerido:
         assert client.get("/api/coils/recommendations/nope").status_code == 404
 
 
+class TestMontajeEditable:
+    """Decisión nº 24: una sola vía de coils, el montaje sugerido editable coil
+    a coil. El empaquetamiento proyectado tiene que seguir a las filas editadas
+    ANTES de colocar nada, que es lo que la tarjeta enseña."""
+
+    def _ids(self, sid):
+        d = client.get(f"/api/coils/recommendations/{sid}").json()
+        return [s["coil_id"] for s in d["steps"]], d
+
+    def test_la_proyeccion_de_la_sugerencia_es_la_del_montaje(self):
+        sid = _session(max_diameter_mm="9.1", volume_mm3="210.5")
+        _, d = self._ids(sid)
+        rows = [{"coil_id": s["coil_id"], "count": s["count"]} for s in d["steps"]]
+        r = client.post(f"/api/coils/{sid}/construct/preview", json={"rows": rows})
+        assert r.status_code == 200, r.text
+        assert r.json()["projected_packing"] == d["projected_packing"]
+
+    def test_otra_lista_da_otro_empaquetamiento(self):
+        sid = _session(max_diameter_mm="9.1", volume_mm3="210.5")
+        ids, _ = self._ids(sid)
+        uno = client.post(f"/api/coils/{sid}/construct/preview",
+                          json={"rows": [{"coil_id": ids[0], "count": 1}]}).json()
+        tres = client.post(f"/api/coils/{sid}/construct/preview",
+                           json={"rows": [{"coil_id": ids[0], "count": 3}]}).json()
+        assert 0 < uno["projected_packing"] < tres["projected_packing"]
+        assert tres["n_coils"] == 3
+
+    def test_lo_lee_con_la_regla_del_empaquetamiento(self):
+        sid = _session(max_diameter_mm="9.1", volume_mm3="210.5")
+        ids, _ = self._ids(sid)
+        r = client.post(f"/api/coils/{sid}/construct/preview",
+                        json={"rows": [{"coil_id": ids[-1], "count": 1}]}).json()
+        assert r["meets_minimum"] is False
+        assert r["warning"]
+
+    def test_sin_volumen_no_hay_proyeccion(self):
+        sid = _session(max_diameter_mm="9.1", volume_mm3="0")
+        ids = [c["id"] for c in client.get("/api/coils").json()][:1]
+        r = client.post(f"/api/coils/{sid}/construct/preview",
+                        json={"rows": [{"coil_id": ids[0], "count": 2}]}).json()
+        assert r["projected_packing"] == 0.0
+        assert "morfometr" in r["warning"].lower()
+
+    def test_un_modelo_desconocido_es_422(self):
+        sid = _session()
+        r = client.post(f"/api/coils/{sid}/construct/preview",
+                        json={"rows": [{"coil_id": "no-existe", "count": 1}]})
+        assert r.status_code == 422
+        assert "no-existe" in r.json()["detail"]
+
+    def test_404_en_sesion_inexistente(self):
+        r = client.post("/api/coils/nope/construct/preview", json={"rows": []})
+        assert r.status_code == 404
+
+
 class TestMarañaDentroDelSaco:
     """Antes: cinco esferas arbitrarias centradas en el ORIGEN DEL CUELLO."""
 

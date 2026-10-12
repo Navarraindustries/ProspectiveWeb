@@ -1227,6 +1227,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/coils/{session_id}/construct/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Projected packing of an edited coil montage
+         * @description Takes the montage rows as the operator edited them (model and count per row) and returns the packing they would reach in the measured sac, read through the same rule as POST /coils/plan. Nothing is placed or persisted: it lets the montage card follow every edit before «Colocar el montaje».
+         */
+        post: operations["preview_coil_construct_api_coils__session_id__construct_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/cross-section/{session_id}": {
         parameters: {
             query?: never;
@@ -4639,6 +4659,12 @@ export interface components {
              */
             feasible: boolean;
             /**
+             * Neck Mm
+             * @description Measured neck (morphometry), the montage card's first datum: a wide neck decides whether coils alone stay in the sac. 0 = not measured.
+             * @default 0
+             */
+            neck_mm: number;
+            /**
              * Note
              * @default
              */
@@ -4656,6 +4682,12 @@ export interface components {
              * @default 0
              */
             volume_mm3: number;
+            /**
+             * Wide Neck
+             * @description Neck ≥ 4 mm or dome-to-neck ratio < 2 — the same definition as the endovascular profile. When true, `note` starts with «cuello ancho: probable adyuvante».
+             * @default false
+             */
+            wide_neck: boolean;
         };
         /**
          * CoilConstructStep
@@ -4792,6 +4824,64 @@ export interface components {
              * @description Warning when the measured packing density is below `packing_min`.
              */
             warning?: string | null;
+        };
+        /**
+         * CoilPreviewRequest
+         * @description The montage as the operator edited it, before placing it.
+         */
+        CoilPreviewRequest: {
+            /** Rows */
+            rows?: components["schemas"]["CoilPreviewRow"][];
+        };
+        /**
+         * CoilPreviewResult
+         * @description Projected packing of the edited montage (decision nº 24).
+         *
+         *     Same arithmetic as the suggestion and as POST /coils/plan — catalogue wire
+         *     volume over the measured sac volume — read through the same packing rule.
+         *     Nothing is placed and nothing is persisted.
+         */
+        CoilPreviewResult: {
+            /**
+             * Durability
+             * @default
+             */
+            durability: string;
+            /**
+             * Meets Minimum
+             * @default false
+             */
+            meets_minimum: boolean;
+            /**
+             * N Coils
+             * @default 0
+             */
+            n_coils: number;
+            /**
+             * Packing Min
+             * @default 0.2
+             */
+            packing_min: number;
+            /**
+             * Projected Packing
+             * @default 0
+             */
+            projected_packing: number;
+            /** Warning */
+            warning?: string | null;
+        };
+        /**
+         * CoilPreviewRow
+         * @description One edited row of the montage: a catalogue model and how many of it.
+         */
+        CoilPreviewRow: {
+            /**
+             * Coil Id
+             * @description Catalogue id (`CoilLibraryItem.id`)
+             */
+            coil_id: string;
+            /** Count */
+            count: number;
         };
         /**
          * ComparedCandidate
@@ -12291,6 +12381,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CoilConstructResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_coil_construct_api_coils__session_id__construct_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoilPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoilPreviewResult"];
                 };
             };
             /** @description Validation Error */

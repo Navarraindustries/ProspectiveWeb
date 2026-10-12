@@ -2783,6 +2783,13 @@
       "title": "Feasible",
       "type": "boolean"
      },
+     "neck_mm": {
+      "default": 0.0,
+      "description": "Measured neck (morphometry), the montage card's first datum: a wide neck decides whether coils alone stay in the sac. 0 = not measured.",
+      "minimum": 0.0,
+      "title": "Neck Mm",
+      "type": "number"
+     },
      "note": {
       "default": "",
       "title": "Note",
@@ -2807,6 +2814,12 @@
       "default": 0.0,
       "title": "Volume Mm3",
       "type": "number"
+     },
+     "wide_neck": {
+      "default": false,
+      "description": "Neck ≥ 4 mm or dome-to-neck ratio < 2 — the same definition as the endovascular profile. When true, `note` starts with «cuello ancho: probable adyuvante».",
+      "title": "Wide Neck",
+      "type": "boolean"
      }
     },
     "title": "CoilConstructResult",
@@ -3024,6 +3037,87 @@
      "total_packing_density"
     ],
     "title": "CoilPlanResult",
+    "type": "object"
+   },
+   "CoilPreviewRequest": {
+    "description": "The montage as the operator edited it, before placing it.",
+    "properties": {
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/CoilPreviewRow"
+      },
+      "title": "Rows",
+      "type": "array"
+     }
+    },
+    "title": "CoilPreviewRequest",
+    "type": "object"
+   },
+   "CoilPreviewResult": {
+    "description": "Projected packing of the edited montage (decision nº 24).\n\nSame arithmetic as the suggestion and as POST /coils/plan — catalogue wire\nvolume over the measured sac volume — read through the same packing rule.\nNothing is placed and nothing is persisted.",
+    "properties": {
+     "durability": {
+      "default": "",
+      "title": "Durability",
+      "type": "string"
+     },
+     "meets_minimum": {
+      "default": false,
+      "title": "Meets Minimum",
+      "type": "boolean"
+     },
+     "n_coils": {
+      "default": 0,
+      "title": "N Coils",
+      "type": "integer"
+     },
+     "packing_min": {
+      "default": 0.2,
+      "title": "Packing Min",
+      "type": "number"
+     },
+     "projected_packing": {
+      "default": 0.0,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Projected Packing",
+      "type": "number"
+     },
+     "warning": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Warning"
+     }
+    },
+    "title": "CoilPreviewResult",
+    "type": "object"
+   },
+   "CoilPreviewRow": {
+    "description": "One edited row of the montage: a catalogue model and how many of it.",
+    "properties": {
+     "coil_id": {
+      "description": "Catalogue id (`CoilLibraryItem.id`)",
+      "title": "Coil Id",
+      "type": "string"
+     },
+     "count": {
+      "maximum": 30.0,
+      "minimum": 1.0,
+      "title": "Count",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "coil_id",
+     "count"
+    ],
+    "title": "CoilPreviewRow",
     "type": "object"
    },
    "ComparedCandidate": {
@@ -14622,6 +14716,64 @@
      }
     ],
     "summary": "Suggest a coil construct for the measured sac",
+    "tags": [
+     "coils"
+    ]
+   }
+  },
+  "/api/coils/{session_id}/construct/preview": {
+   "post": {
+    "description": "Takes the montage rows as the operator edited them (model and count per row) and returns the packing they would reach in the measured sac, read through the same rule as POST /coils/plan. Nothing is placed or persisted: it lets the montage card follow every edit before «Colocar el montaje».",
+    "operationId": "preview_coil_construct_api_coils__session_id__construct_preview_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CoilPreviewRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CoilPreviewResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Projected packing of an edited coil montage",
     "tags": [
      "coils"
     ]

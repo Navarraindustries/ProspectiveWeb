@@ -1,6 +1,6 @@
 /* Paso 6 — Planificación de dispositivos.
    Clips: GET /api/clips/recommendations · POST /api/clips/plan
-   Coils: GET /api/coils · GET /api/coils/recommendations · POST /api/coils/plan
+   Coils: GET /api/coils · GET /api/coils/recommendations · POST /api/coils/{sid}/construct/preview · POST /api/coils/plan
    Stents: GET /api/stents · POST /api/plan */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,6 +20,7 @@ import type {
   CoilConstructResult,
   CoilLibraryItem,
   CoilPlanResult,
+  CoilPreviewResult,
   OcclusionOut,
   Position3D,
   ProposedCorridorOut,
@@ -813,19 +814,45 @@ const ROL_ES: Record<string, string> = {
   finishing: "Acabado",
 };
 
+/** Una fila del montaje: un modelo y cuántos. `sugerido` guarda el modelo que
+ *  propuso el servidor para esa fila, para enseñar su porqué solo mientras no
+ *  se cambie (el porqué de otro modelo no vale para este). */
+type FilaCoil = { key: number; coil_id: string; count: number; sugerido?: string; rationale?: string };
+type ModeloCoil = { id: string; name: string; diameter_mm: number; length_cm: number; role: string; sugerido: boolean };
+
+/** El backend acepta hasta 30 por fila: más en un escalón no es un plan. */
+const MAX_POR_FILA = 30;
+
+function filasDe(c: CoilConstructResult | null, nextKey: () => number): FilaCoil[] {
+  return (c?.steps ?? []).map((s) => ({
+    key: nextKey(), coil_id: s.coil_id, count: s.count, sugerido: s.coil_id, rationale: s.rationale,
+  }));
+}
+
+/** Decisión nº 24: UNA vía de coils. Antes convivían la tarjeta del montaje
+ *  sugerido y un formulario aparte (un modelo, «Número de coils», «Calcular
+ *  empaque») que colocaba N coils idénticos, y no se sabía cuál mandaba. Queda
+ *  el montaje, y es editable coil a coil (la condición del propietario): cada
+ *  fila tiene su modelo y su número, se añaden y se quitan filas, y el
+ *  empaquetamiento proyectado sigue a lo editado ANTES de colocar. */
 function CoilsTab() {
   const { sessionId, morphometry, setDeviceMesh } = usePlanning();
   const clearer = useClearDevice("coils");
   const [coils, setCoils] = useState<CoilLibraryItem[]>([]);
   const [construct, setConstruct] = useState<CoilConstructResult | null>(null);
-  const [sel, setSel] = useState("");
-  const [count, setCount] = useState(3);
+  const [cargado, setCargado] = useState(false);
+  const [filas, setFilas] = useState<FilaCoil[]>([]);
+  const [editado, setEditado] = useState(false);
+  const [preview, setPreview] = useState<CoilPreviewResult | null>(null);
   const [verTodo, setVerTodo] = useState(false);
   const [plan, setPlan] = useState<CoilPlanResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const keyRef = useRef(0);
+  const nextKey = () => ++keyRef.current;
 
-  // El montaje sugerido: el catálogo acotado por el domo que se midió.
+  // El montaje sugerido: el catálogo acotado por el domo que se midió. Siembra
+  // las filas; a partir de ahí son de la persona.
   useEffect(() => {
     if (!sessionId) return;
     let vivo = true;
@@ -833,52 +860,97 @@ function CoilsTab() {
       .then((c) => {
         if (!vivo) return;
         setConstruct(c);
-        if (c.steps.length > 0) setSel((cur) => cur || c.steps[0].coil_id);
+        setFilas(filasDe(c, nextKey));
+        setEditado(false);
       })
-      .catch(() => { /* sin morfometría todavía; queda el catálogo completo */ });
+      .catch(() => { /* sin morfometría todavía: se monta desde el catálogo */ })
+      .finally(() => { if (vivo) setCargado(true); });
     return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // El catálogo entero solo cuando se pide verlo, como en los clips.
+  // El catálogo entero cuando se pide verlo, y también cuando no hay montaje
+  // sugerido: sin él no habría de dónde sacar un coil.
+  const sinSugerencia = cargado && !(construct?.steps.length);
   useEffect(() => {
-    if (!verTodo || coils.length) return;
+    if (!(verTodo || sinSugerencia) || coils.length) return;
     let vivo = true;
     api.listCoils()
-      .then((c) => { if (vivo) { setCoils(c); setSel((cur) => cur || c[0]?.id || ""); } })
+      .then((c) => { if (vivo) setCoils(c); })
       .catch((e) => setError(e instanceof Error ? e.message : "Error cargando catálogo de coils"));
     return () => { vivo = false; };
-  }, [verTodo, coils.length]);
+  }, [verTodo, sinSugerencia, coils.length]);
 
-  const options = useMemo(() => {
-    const base = (construct?.steps ?? []).map((s) => ({
-      value: s.coil_id,
-      label: `${ROL_ES[s.role] ?? s.role} · ${s.name}`,
-    }));
-    if (verTodo) {
-      const ya = new Set(base.map((o) => o.value));
-      for (const c of coils) {
-        if (!ya.has(c.id)) {
-          base.push({
-            value: c.id,
-            label: `${c.name} — ${c.diameter_mm} mm × ${c.length_cm} cm · catálogo`,
-          });
-        }
+  // Diámetro, longitud y papel salen del MODELO elegido en cada fila: de la
+  // sugerencia si lo propuso ella, del catálogo si no.
+  const modelos = useMemo(() => {
+    const m = new Map<string, ModeloCoil>();
+    for (const s of construct?.steps ?? []) {
+      m.set(s.coil_id, { id: s.coil_id, name: s.name, diameter_mm: s.diameter_mm, length_cm: s.length_cm, role: s.role, sugerido: true });
+    }
+    for (const c of coils) {
+      if (!m.has(c.id)) {
+        m.set(c.id, { id: c.id, name: c.name, diameter_mm: c.diameter_mm, length_cm: c.length_cm, role: c.coil_type, sugerido: false });
       }
     }
-    return base;
-  }, [construct, coils, verTodo]);
+    return m;
+  }, [construct, coils]);
 
-  /** Coloca el montaje completo: cada escalón con su modelo y su número, que
-   *  es la secuencia real. Antes se mandaban N coils IDÉNTICOS en un punto. */
+  const opciones = (actual: string) => {
+    const lista = [...modelos.values()].filter(
+      (m) => m.sugerido || verTodo || sinSugerencia || m.id === actual,
+    );
+    return lista.map((m) => ({
+      value: m.id,
+      label: `${ROL_ES[m.role] ?? m.role} · ${m.name}${m.sugerido ? "" : " · catálogo"}`,
+    }));
+  };
+
+  const editar = (cambio: (f: FilaCoil[]) => FilaCoil[]) => {
+    setFilas(cambio);
+    setEditado(true);
+  };
+  const cambiarFila = (key: number, parche: Partial<FilaCoil>) =>
+    editar((fs) => fs.map((f) => (f.key === key ? { ...f, ...parche } : f)));
+  const quitarFila = (key: number) => editar((fs) => fs.filter((f) => f.key !== key));
+  const anadirFila = () => {
+    // Un coil más es casi siempre otro de relleno: se parte de ese modelo.
+    const relleno = construct?.steps.find((s) => s.role === "filling")?.coil_id;
+    const coil_id = relleno ?? filas[filas.length - 1]?.coil_id ?? opciones("")[0]?.value;
+    if (!coil_id) return;
+    editar((fs) => [...fs, { key: nextKey(), coil_id, count: 1 }]);
+  };
+  const volverASugerencia = () => {
+    setFilas(filasDe(construct, nextKey));
+    setEditado(false);
+    setPreview(null);
+  };
+
+  // El empaquetamiento de lo EDITADO, antes de colocar: misma cuenta que el
+  // servidor usa al colocarlo. Sin editar vale la proyección de la sugerencia.
+  useEffect(() => {
+    if (!sessionId || !editado) return;
+    if (filas.length === 0) { setPreview(null); return; }
+    let vivo = true;
+    api.coilConstructPreview(sessionId, filas.map((f) => ({ coil_id: f.coil_id, count: f.count })))
+      .then((p) => { if (vivo) setPreview(p); })
+      .catch(() => { if (vivo) setPreview(null); });
+    return () => { vivo = false; };
+  }, [sessionId, editado, filas]);
+
+  const proyectado = editado ? preview?.projected_packing : construct?.projected_packing;
+
+  /** Coloca el montaje tal como está en la tabla: cada fila con su modelo y su
+   *  número, en orden, que es la secuencia real. */
   const colocarMontaje = async () => {
-    if (!sessionId || !construct?.steps.length) return;
+    if (!sessionId || filas.length === 0) return;
     setBusy(true);
     setError(null);
     try {
       const position = morphometry?.centroid ?? ORIGIN;
-      const placements = construct.steps.flatMap((s) =>
-        Array.from({ length: s.count }, () => ({
-          coil_id: s.coil_id,
+      const placements = filas.flatMap((f) =>
+        Array.from({ length: f.count }, () => ({
+          coil_id: f.coil_id,
           position,
           packing_density: 0,
         }))
@@ -893,67 +965,106 @@ function CoilsTab() {
     }
   };
 
-  const run = async () => {
-    if (!sessionId || !sel) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const position = morphometry?.centroid ?? ORIGIN;
-      const placements = Array.from({ length: count }, () => ({
-        coil_id: sel,
-        position,
-        packing_density: 0,
-      }));
-      const res = await api.planCoils(sessionId, placements);
-      setPlan(res);
-      setDeviceMesh("coils", res.coils_mesh_url || null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error en el plan de coils");
-    } finally {
-      setBusy(false);
-    }
-  };
+  // F1-203: el primer dato es el cuello, porque decide si los coils solos se
+  // quedan en el saco. Se lee de la morfometría; tras reanudar, del montaje.
+  const cuello = morphometry?.neck_mm || construct?.neck_mm || 0;
 
   return (
     <div style={{ marginTop: 12 }}>
-      {construct && (
-        <Card style={{ marginBottom: 14 }}>
-          <SectionLabel>Montaje sugerido para el saco medido</SectionLabel>
-          {construct.feasible ? (
-            <>
-              {construct.steps.map((s) => (
-                <div key={s.coil_id + s.role} style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>
-                    {ROL_ES[s.role] ?? s.role} · {s.name} × {s.count}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.rationale}</div>
-                </div>
-              ))}
-              <div style={{ marginTop: 10 }}>
-                <Metric
-                  label="Empaquetamiento proyectado"
-                  value={(construct.projected_packing * 100).toFixed(0)}
-                  unit=" %"
-                />
-              </div>
-              <Button style={{ marginTop: 10, width: "100%" }} onClick={() => void colocarMontaje()} disabled={busy}>
-                {busy ? "Colocando…" : "Colocar el montaje completo"}
-              </Button>
-            </>
-          ) : null}
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>{construct.note}</div>
-        </Card>
-      )}
+      <Card style={{ marginBottom: 14 }}>
+        <SectionLabel>Montaje sugerido para el saco medido</SectionLabel>
+        {construct && (
+          <div style={{ marginTop: 8 }}>
+            <Metric
+              label="Cuello"
+              value={cuello > 0 ? cuello.toFixed(1) : "sin medir"}
+              unit={cuello > 0 ? " mm" : ""}
+              badge={construct.wide_neck ? ["cuello ancho: probable adyuvante", "warning"] : undefined}
+            />
+            {construct.dome_mm > 0 && <Metric label="Domo" value={construct.dome_mm.toFixed(1)} unit=" mm" />}
+            {construct.volume_mm3 > 0 && <Metric label="Volumen del saco" value={construct.volume_mm3.toFixed(0)} unit=" mm³" />}
+          </div>
+        )}
 
-      <Select label={`Coil (${options.length} disponibles)`} options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
-      {/* Sin esto, un modelo que el dimensionado no propone es inalcanzable,
-          aunque la institución lo tenga. Mismo criterio que en los clips. */}
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
-        <input type="checkbox" checked={verTodo} onChange={(e) => setVerTodo(e.target.checked)} />
-        Ver todo el catálogo, no solo lo dimensionado para este saco
-      </label>
-      <div style={{ height: 14 }} />
-      <Slider label="Número de coils" min={1} max={8} value={count} onChange={setCount} />
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "10px 0 4px", lineHeight: 1.5 }}>
+          Cambia el modelo o el número de cada coil, añade o quita coils: el
+          empaquetamiento se recalcula con lo que quede en la tabla.
+        </div>
+        {filas.map((f, i) => {
+          const m = modelos.get(f.coil_id);
+          const n = i + 1;
+          return (
+            <div key={f.key} style={{ marginTop: 8, paddingTop: 8, borderTop: i ? "1px solid var(--border)" : undefined }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 2 }}>
+                    {m ? (ROL_ES[m.role] ?? m.role) : "Coil"}
+                  </div>
+                  <Select
+                    aria-label={`Modelo (fila ${n})`}
+                    options={opciones(f.coil_id)}
+                    value={f.coil_id}
+                    onChange={(e) => cambiarFila(f.key, { coil_id: e.target.value })}
+                  />
+                </div>
+                <label style={{ display: "flex", flexDirection: "column", gap: 2, width: 64 }}>
+                  <span style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>Nº</span>
+                  <input
+                    type="number" min={1} max={MAX_POR_FILA} step={1} value={f.count}
+                    aria-label={`Cuántos (fila ${n})`}
+                    onChange={(e) => {
+                      const v = Math.round(Number(e.target.value));
+                      cambiarFila(f.key, { count: Math.min(MAX_POR_FILA, Math.max(1, Number.isFinite(v) ? v : 1)) });
+                    }}
+                    style={{ width: "100%", fontSize: 12, fontFamily: "var(--font-mono)", padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)" }}
+                  />
+                </label>
+                <Button size="sm" variant="ghost" aria-label={`Quitar (fila ${n})`} onClick={() => quitarFila(f.key)}>
+                  Quitar
+                </Button>
+              </div>
+              {m && (
+                <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 4 }}>
+                  Ø{m.diameter_mm} mm × {m.length_cm} cm
+                </div>
+              )}
+              {f.rationale && f.coil_id === f.sugerido && (
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{f.rationale}</div>
+              )}
+            </div>
+          );
+        })}
+        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <Button size="sm" variant="outline" onClick={anadirFila} disabled={!cargado}>Añadir coil</Button>
+          {editado && construct?.steps.length ? (
+            <Button size="sm" variant="ghost" onClick={volverASugerencia}>Volver a la sugerencia</Button>
+          ) : null}
+        </div>
+        {/* Sin esto, un modelo que el dimensionado no propone es inalcanzable,
+            aunque la institución lo tenga. Mismo criterio que en los clips. */}
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+          <input type="checkbox" checked={verTodo} onChange={(e) => setVerTodo(e.target.checked)} />
+          Ver todo el catálogo, no solo lo dimensionado para este saco
+        </label>
+
+        {filas.length > 0 && proyectado != null && (
+          <div style={{ marginTop: 10 }}>
+            <Metric label="Empaquetamiento proyectado" value={(proyectado * 100).toFixed(0)} unit=" %" />
+            {editado && preview?.warning && (
+              <div style={{ marginTop: 4, fontSize: 11, color: "var(--warning)" }}>{preview.warning}</div>
+            )}
+          </div>
+        )}
+        <Button
+          style={{ marginTop: 10, width: "100%" }} onClick={() => void colocarMontaje()}
+          disabled={busy || filas.length === 0} leadingIcon={<Icon name="COIL" />}
+        >
+          {busy ? "Colocando…" : "Colocar el montaje"}
+        </Button>
+        {construct?.note && (
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>{construct.note}</div>
+        )}
+      </Card>
 
       {plan && (
         <Card style={{ marginTop: 14 }}>
@@ -973,9 +1084,6 @@ function CoilsTab() {
       )}
       <ErrorNote>{error}</ErrorNote>
 
-      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void run()} disabled={busy || !sel} leadingIcon={<Icon name="COIL" />}>
-        {busy ? "Calculando…" : "Calcular empaque"}
-      </Button>
       <ClearDeviceButton
         label="Limpiar coils"
         disabled={!clearer.placed && !plan}

@@ -29,6 +29,8 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
+from services.endovascular import WIDE_DNR, WIDE_NECK_MM
+
 
 # ── Enums ──────────────────────────────────────────────────────────────────── #
 
@@ -325,6 +327,8 @@ class CoilConstruct:
     projected_packing: float
     feasible:         bool
     note:             str
+    neck_mm:          float = 0.0
+    wide_neck:        bool = False
 
 
 def _closest(specs: list[CoilSpec], target_mm: float) -> CoilSpec | None:
@@ -334,7 +338,28 @@ def _closest(specs: list[CoilSpec], target_mm: float) -> CoilSpec | None:
     return min(specs, key=lambda c: abs(c.diameter_mm - target_mm))
 
 
-def suggest_construct(dome_mm: float, volume_mm3: float) -> CoilConstruct:
+#: F1-203: el aviso que acompaña al montaje cuando el cuello es ancho. Los
+#: coils solos no se quedan en un saco de cuello ancho, y la tarjeta los
+#: proponía sin decirlo: el cuello ni siquiera aparecía.
+WIDE_NECK_NOTE = "cuello ancho: probable adyuvante"
+
+
+def is_wide_neck(neck_mm: float, dnr: float) -> bool:
+    """Cuello ancho con la MISMA regla que el perfil endovascular.
+
+    Se importa de allí en vez de copiar los umbrales: dos definiciones de
+    «cuello ancho» en dos tarjetas del mismo paso acabarían discrepando. Un
+    cuello sin medir (0) no es ni ancho ni estrecho.
+    """
+    return (neck_mm >= WIDE_NECK_MM) or (0 < dnr < WIDE_DNR)
+
+
+def suggest_construct(
+    dome_mm: float,
+    volume_mm3: float,
+    neck_mm: float = 0.0,
+    dnr: float = 0.0,
+) -> CoilConstruct:
     """Propone enmarcado, relleno y acabado para el saco medido.
 
     No es una prescripción: es el catálogo filtrado por las reglas de
@@ -421,11 +446,44 @@ def suggest_construct(dome_mm: float, volume_mm3: float) -> CoilConstruct:
             f"acomodar dentro del saco."
         )
 
+    wide = is_wide_neck(neck_mm, dnr)
+    if wide:
+        # Primero el cuello: es lo que decide si los coils se quedan dentro.
+        note = (
+            f"Cuello {neck_mm:.1f} mm, domo/cuello {dnr:.2f}: {WIDE_NECK_NOTE} "
+            f"(balón o stent). {note}"
+        )
+
     return CoilConstruct(
         steps=steps, dome_mm=dome_mm, volume_mm3=volume_mm3,
         projected_packing=round(packing, 3),
         feasible=bool(steps), note=note,
+        neck_mm=neck_mm, wide_neck=wide,
     )
+
+
+# ── El montaje editado (decisión nº 24) ────────────────────────────────────── #
+# Había dos vías de coils en la misma pestaña: el montaje sugerido y un
+# formulario aparte con un modelo, un número y «Calcular empaque». Queda una:
+# el montaje, editable coil a coil. Para que la tarjeta pueda enseñar el
+# empaquetamiento de lo EDITADO antes de colocarlo, la cuenta es la misma que
+# usa `suggest_construct` y `plan_coils`, expuesta aquí.
+
+
+def project_packing(
+    rows: list[tuple[CoilSpec, int]],
+    volume_mm3: float,
+) -> tuple[float, int]:
+    """Empaquetamiento de una lista (modelo, número) en un saco de *volume_mm3*.
+
+    Devuelve (empaquetamiento, número de coils). Sin volumen no hay divisor, y
+    el empaquetamiento es 0, no un número de relleno: ver `packing_assessment`.
+    """
+    n = sum(max(0, c) for _, c in rows)
+    if volume_mm3 <= 0:
+        return 0.0, n
+    hilo = sum(spec.wire_volume_mm3 * max(0, c) for spec, c in rows)
+    return round(min(hilo / volume_mm3, PACKING_MAX), 3), n
 
 
 # ── API type mapping ───────────────────────────────────────────────────────── #

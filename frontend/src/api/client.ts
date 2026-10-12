@@ -47,6 +47,8 @@ import type {
   CoilLibraryItem,
   CoilPlacement,
   CoilPlanResult,
+  CoilPreviewResult,
+  CoilPreviewRow,
   CrossSectionRequest,
   CrossSectionResult,
   CustomClipInfo,
@@ -808,6 +810,9 @@ export const api = {
    *  relleno → acabado. Sin morfometría devuelve `feasible: false`. */
   coilRecommendations: (sessionId: string) =>
     get<CoilConstructResult>(`/api/coils/recommendations/${sessionId}`),
+  /** Empaquetamiento proyectado de las filas del montaje tal como se editaron. */
+  coilConstructPreview: (sessionId: string, rows: CoilPreviewRow[]) =>
+    post<CoilPreviewResult>(`/api/coils/${sessionId}/construct/preview`, { rows }),
   planCoils: (sessionId: string, placements: CoilPlacement[]) =>
     post<CoilPlanResult>("/api/coils/plan", { session_id: sessionId, placements }),
   listStents: () => get<StentLibraryItem[]>("/api/stents"),

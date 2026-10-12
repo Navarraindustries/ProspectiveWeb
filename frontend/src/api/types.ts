@@ -1406,6 +1406,28 @@ export interface CoilConstructResult {
   projected_packing: number;
   feasible: boolean;
   note: string;
+  /** F1-203: el cuello medido, primer dato del montaje. 0 = sin medir. */
+  neck_mm: number;
+  /** Cuello ≥ 4 mm o domo/cuello < 2 (la regla del perfil endovascular);
+   *  entonces `note` empieza con «cuello ancho: probable adyuvante». */
+  wide_neck: boolean;
+}
+
+/** Una fila del montaje editado: modelo del catálogo y cuántos. */
+export interface CoilPreviewRow {
+  coil_id: string;
+  count: number;
+}
+
+/** Empaquetamiento proyectado del montaje EDITADO, antes de colocarlo
+ *  (decisión nº 24). Misma cuenta que POST /coils/plan; no guarda nada. */
+export interface CoilPreviewResult {
+  projected_packing: number;
+  n_coils: number;
+  packing_min: number;
+  meets_minimum: boolean;
+  durability: string;
+  warning?: string | null;
 }
 
 export interface CoilPlanResult {

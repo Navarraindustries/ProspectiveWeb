@@ -88,6 +88,50 @@ class CoilConstructResult(BaseModel):
     )
     feasible: bool = False
     note: str = ""
+    neck_mm: float = Field(
+        0.0, ge=0.0,
+        description=(
+            "Measured neck (morphometry), the montage card's first datum: a wide "
+            "neck decides whether coils alone stay in the sac. 0 = not measured."
+        ),
+    )
+    wide_neck: bool = Field(
+        False,
+        description=(
+            "Neck ≥ 4 mm or dome-to-neck ratio < 2 — the same definition as the "
+            "endovascular profile. When true, `note` starts with "
+            "«cuello ancho: probable adyuvante»."
+        ),
+    )
+
+
+class CoilPreviewRow(BaseModel):
+    """One edited row of the montage: a catalogue model and how many of it."""
+
+    coil_id: str = Field(..., description="Catalogue id (`CoilLibraryItem.id`)")
+    count: int = Field(..., ge=1, le=30)
+
+
+class CoilPreviewRequest(BaseModel):
+    """The montage as the operator edited it, before placing it."""
+
+    rows: list[CoilPreviewRow] = Field(default_factory=list)
+
+
+class CoilPreviewResult(BaseModel):
+    """Projected packing of the edited montage (decision nº 24).
+
+    Same arithmetic as the suggestion and as POST /coils/plan — catalogue wire
+    volume over the measured sac volume — read through the same packing rule.
+    Nothing is placed and nothing is persisted.
+    """
+
+    projected_packing: float = Field(0.0, ge=0.0, le=1.0)
+    n_coils: int = 0
+    packing_min: float = 0.20
+    meets_minimum: bool = False
+    durability: str = ""
+    warning: str | None = None
 
 
 class CoilPlanResult(BaseModel):

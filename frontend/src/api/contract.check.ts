@@ -56,6 +56,8 @@ export type Contrato = [
   Cabe<Completo<S["CoilLibraryItem"]>, ui.CoilLibraryItem>,
   Cabe<Completo<S["CoilPlacement"]>, ui.CoilPlacement>,
   Cabe<Completo<S["CoilPlanResult"]>, ui.CoilPlanResult>,
+  Cabe<Completo<S["CoilPreviewResult"]>, ui.CoilPreviewResult>,
+  Cabe<Completo<S["CoilPreviewRow"]>, ui.CoilPreviewRow>,
   Cabe<Completo<S["ComparedCandidate"]>, ui.ComparedCandidate>,
   Cabe<Completo<S["CorridorAssessmentOut"]>, ui.CorridorAssessmentOut>,
   Cabe<Completo<S["CrossSectionRequest"]>, ui.CrossSectionRequest>,

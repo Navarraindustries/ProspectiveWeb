@@ -168,3 +168,55 @@ class TestTheDecisionUsesTheProfileInsteadOfVoting:
                                 undulation_index=0.0)
         assert alto["balance"] == bajo["balance"], "el AR ya no mueve el saldo"
         assert alto["endovascular"]["durability"] != bajo["endovascular"]["durability"]
+
+
+# ── 4. El montaje de coils empieza por el cuello (F1-203) ─────────────────── #
+
+class TestTheCoilConstructStartsFromTheNeck:
+    """«Montaje sugerido para el saco medido» proponía coils sin mirar el cuello.
+
+    Con un cuello ancho los coils solos no se quedan en el saco: el montaje
+    tiene que decirlo con la misma definición que el perfil endovascular, no
+    con otra. El aviso va en `note` y en el indicador `wide_neck` del montaje.
+    """
+
+    def test_a_6_6_mm_neck_gives_the_warning(self):
+        from services.coils import suggest_construct
+        c = suggest_construct(dome_mm=9.1, volume_mm3=210.5, neck_mm=6.6, dnr=1.4)
+        assert c.wide_neck is True
+        assert c.neck_mm == 6.6
+        assert "cuello ancho: probable adyuvante" in c.note
+        # La misma regla que el perfil, no una parecida.
+        assert endovascular_profile(neck_mm=6.6, dnr=1.4).technique == "assisted"
+
+    def test_a_low_dnr_alone_gives_the_warning(self):
+        from services.coils import suggest_construct
+        c = suggest_construct(dome_mm=5.0, volume_mm3=60.0, neck_mm=3.0,
+                              dnr=WIDE_DNR - 0.2)
+        assert c.wide_neck is True
+
+    def test_a_narrow_neck_does_not(self):
+        from services.coils import suggest_construct
+        c = suggest_construct(dome_mm=9.1, volume_mm3=210.5, neck_mm=2.5, dnr=3.6)
+        assert c.wide_neck is False
+        assert "cuello ancho" not in c.note
+
+    def test_without_a_neck_nothing_is_claimed(self):
+        # Un cuello sin medir no es un cuello estrecho ni uno ancho.
+        from services.coils import suggest_construct
+        c = suggest_construct(dome_mm=9.1, volume_mm3=210.5)
+        assert c.wide_neck is False
+        assert c.neck_mm == 0.0
+
+    def test_the_api_returns_the_neck_and_the_flag(self):
+        from fastapi.testclient import TestClient
+        from main import app
+        from services.sessions import create_session, write_state
+        sid = create_session()
+        for k, v in dict(max_diameter_mm="9.1", volume_mm3="210.5",
+                         neck_mm="6.6", dnr="1.38").items():
+            write_state(sid, f"morpho.{k}", v)
+        d = TestClient(app).get(f"/api/coils/recommendations/{sid}").json()
+        assert d["neck_mm"] == 6.6
+        assert d["wide_neck"] is True
+        assert "cuello ancho: probable adyuvante" in d["note"]

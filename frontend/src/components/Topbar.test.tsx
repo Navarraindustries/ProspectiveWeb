@@ -36,6 +36,13 @@ describe("el encabezado del menú de usuario", () => {
     expect(screen.getByText("Administrador: todos los pacientes, usuarios, solicitudes, auditoría y catálogo de clips")).toBeInTheDocument();
   });
 
+  it("el administrador ve la entrada «Cuentas pendientes», no «Solicitudes de registro» (F1-89)", () => {
+    currentUser = { ...base, role: "admin", institution: "Hospital Universitario" };
+    abrirMenu();
+    expect(screen.getByText("Cuentas pendientes")).toBeInTheDocument();
+    expect(screen.queryByText("Solicitudes de registro")).toBeNull();
+  });
+
   it("sin institución no deja una línea vacía", () => {
     currentUser = { ...base, role: "medico", institution: "" };
     abrirMenu();

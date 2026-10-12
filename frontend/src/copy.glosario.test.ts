@@ -30,15 +30,24 @@ function sinComentarios(src: string): string {
     .replace(/(^|\s)\/\/.*$/gm, "$1");
 }
 
+/* Pantallas y componentes con rótulos de navegación. La lista de componentes es
+   explícita: el menú de usuario (Topbar) nombraba «Solicitudes de registro» y
+   ninguna regla lo miraba. */
 const archivos = [
   ...tsx(join(SRC, "pages")),
   join(SRC, "components", "planning", "ClipOrderForm.tsx"),
+  join(SRC, "components", "Topbar.tsx"),
 ];
 
-/* Palabras retiradas en cualquier pantalla. */
+/* Palabras retiradas en cualquier pantalla. «Estudios» (galería de DICOM
+   archivados), «Guardar estudio» y «estudio archivado» siguen vigentes en el
+   glosario y ninguna regla los alcanza, por eso no hay lista de permitidas. */
 const PROHIBIDAS: [RegExp, string][] = [
   [/Solicitudes de registro/, "«Cuentas pendientes»"],
-  [/[>"`]Solicitudes[<"`]/, "«Cuentas pendientes»"],
+  /* La palabra sola: entre comillas, entre etiquetas o sola en su línea (un
+     nodo de texto de JSX, como el botón de «Pacientes»). «No hay solicitudes
+     pendientes.» no entra: lleva más texto. */
+  [/[>"`]Solicitudes[<"`]|^\s*Solicitudes\s*$/, "«Cuentas pendientes»"],
   [/Casos \/ estudios|caso \/ estudio|casos\/estudios/i, "«Casos» / «Caso»"],
   [/Nuevo estudio|Crear estudio|Editar estudio|Eliminar estudio/, "«Nuevo caso», «Crear caso», «Editar caso», «Eliminar caso»"],
   [/Sesiones de estudio/, "«Sesiones guardadas»"],
@@ -49,38 +58,49 @@ const PROHIBIDAS: [RegExp, string][] = [
 const SOLO_PEDIDOS = /solicitud|encargad/i;
 const ARCHIVOS_DE_PEDIDOS = ["ClipOrderForm.tsx", "ClipOrders.tsx", "ManufacturePanel.tsx"];
 
-/* «Estudios» sigue siendo la galería de DICOM archivados (Studies.tsx) y
-   «Guardar estudio» / «estudio archivado» nombran esa adquisición: el glosario
-   los conserva, así que ninguna regla de arriba los toca. La lista queda aquí
-   por si una regla futura los alcanzara. */
-const PERMITIDAS = ["estudio archivado", "Guardar estudio"];
-
-function hallazgos(): string[] {
+/* Pura, para probar la regla con fragmentos sin tocar el disco. */
+function violations(source: string, file: string): string[] {
   const out: string[] = [];
-  for (const f of archivos) {
-    const lineas = sinComentarios(readFileSync(f, "utf-8")).split("\n");
-    const nombre = basename(f);
-    lineas.forEach((l0, i) => {
-      let l = l0;
-      for (const ok of PERMITIDAS) l = l.split(ok).join("");
-      const donde = `${relative(SRC, f).replace(/\\/g, "/")}:${i + 1}`;
-      for (const [re, uso] of PROHIBIDAS) {
-        if (re.test(l)) out.push(`${donde} «${l.trim().slice(0, 100)}» → usa ${uso}`);
-      }
-      if (ARCHIVOS_DE_PEDIDOS.includes(nombre) && SOLO_PEDIDOS.test(l)) {
-        out.push(`${donde} «${l.trim().slice(0, 100)}» → usa «pedido»`);
-      }
-    });
-  }
+  const nombre = basename(file);
+  sinComentarios(source).split("\n").forEach((l, i) => {
+    const donde = `${file}:${i + 1}`;
+    for (const [re, uso] of PROHIBIDAS) {
+      if (re.test(l)) out.push(`${donde} «${l.trim().slice(0, 100)}» → usa ${uso}`);
+    }
+    if (ARCHIVOS_DE_PEDIDOS.includes(nombre) && SOLO_PEDIDOS.test(l)) {
+      out.push(`${donde} «${l.trim().slice(0, 100)}» → usa «pedido»`);
+    }
+  });
   return out;
 }
 
+function hallazgos(): string[] {
+  return archivos.flatMap((f) =>
+    violations(readFileSync(f, "utf-8"), relative(SRC, f).replace(/\\/g, "/")));
+}
+
+describe("la regla de «Solicitudes» suelto", () => {
+  it("salta con la palabra sola en su línea, entre etiquetas o entre comillas", () => {
+    expect(violations("<Button>\n                  Solicitudes\n</Button>", "P.tsx")).toHaveLength(1);
+    expect(violations("<b>Solicitudes</b>", "P.tsx")).toHaveLength(1);
+    expect(violations('const l = "Solicitudes";', "P.tsx")).toHaveLength(1);
+    expect(violations('label="Solicitudes de registro"', "P.tsx")).toHaveLength(1);
+  });
+
+  it("no salta con «No hay solicitudes pendientes.» ni con un comentario", () => {
+    expect(violations("<div>No hay solicitudes pendientes.</div>", "P.tsx")).toEqual([]);
+    expect(violations("/* Solicitudes — revisión */\n// Solicitudes\n", "P.tsx")).toEqual([]);
+  });
+});
+
 describe("el glosario en las pantallas", () => {
-  it("recorre las pantallas y el formulario de pedido", () => {
+  it("recorre las pantallas, el formulario de pedido y el menú", () => {
     expect(archivos.length).toBeGreaterThan(10);
+    expect(archivos.some((a) => a.endsWith("Topbar.tsx"))).toBe(true);
   });
 
   it("no queda ninguna palabra retirada", () => {
-    expect(hallazgos(), "Palabras fuera del glosario:\n" + hallazgos().join("\n")).toEqual([]);
+    const h = hallazgos();
+    expect(h, "Palabras fuera del glosario:\n" + h.join("\n")).toEqual([]);
   });
 });

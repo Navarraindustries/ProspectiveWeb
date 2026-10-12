@@ -494,6 +494,11 @@ async def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryR
         write_state(session_id, "trajectory.verdict_reason", corridor.verdict_reason)
         write_state(session_id, "trajectory.findings",
                     " | ".join(corridor.findings))
+        # El análisis entero, para devolverlo al reanudar sin rehacerlo: volvían
+        # los puntos pero no el corredor ni «Guardada ✓» (F1-247).
+        write_state(session_id, "trajectory.corridor_json", corridor.model_dump_json())
+    else:
+        write_state(session_id, "trajectory.corridor_json", "")
     return TrajectoryResult(
         entry=tr["entry"], target=tr["target"],
         depth_mm=tr["depth_mm"], angle_deg=tr["angle_deg"],
@@ -596,7 +601,7 @@ async def clear_trajectory(session_id: str) -> None:
     # El veredicto se borra con los puntos. Dejarlo dejaría en el informe un
     # «corredor bloqueado» de una trayectoria que ya no existe.
     for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z",
-              "verdict", "verdict_reason", "findings"):
+              "verdict", "verdict_reason", "findings", "corridor_json"):
         write_state(session_id, f"trajectory.{k}", "")
 
 
@@ -727,9 +732,10 @@ async def suggest_corridors(
     response_model=TrajectoryResult | None,
     summary="The approach trajectory stored in this session, if any",
     description=(
-        "Returns the entry/target the surgeon established, with the corridor "
-        "assessment recomputed against the current mesh — or null when none was "
-        "marked.\n\n"
+        "Returns the entry/target the surgeon established, its depth and "
+        "incidence angle, and the corridor assessment stored when it was saved "
+        "(the one the report prints; recomputed only for sessions saved before "
+        "it was stored) — or null when none was marked.\n\n"
         "It exists because a resumed session used to come back WITHOUT it: the "
         "points were on disk and in the PDF, but the store was empty, so the "
         "viewer drew no corridor and the placement rehearsal silently fell back "
@@ -740,11 +746,30 @@ async def suggest_corridors(
 async def get_trajectory(session_id: str) -> "TrajectoryResult | None":
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    return stored_trajectory(session_id)
+
+
+def stored_trajectory(session_id: str) -> "TrajectoryResult | None":
+    """La trayectoria guardada con su ángulo, profundidad y corredor.
+
+    El corredor es el que se guardó con «Guardar trayectoria» —el mismo cuyo
+    veredicto imprime el informe—, sin volver a medirlo. Solo una sesión
+    guardada antes de que existiera `trajectory.corridor_json` lo recalcula.
+    """
     tr = read_trajectory_state(session_id)
     if not tr:
         return None
+    corridor = None
+    raw = read_state(session_id, "trajectory.corridor_json", "")
+    if raw:
+        try:
+            corridor = CorridorAssessmentOut.model_validate_json(raw)
+        except ValueError:
+            logger.warning("Corredor guardado ilegible en %s; se recalcula", session_id)
+    if corridor is None:
+        corridor = _assess_corridor_for(session_id, tr["entry"], tr["target"])
     return TrajectoryResult(
         entry=tr["entry"], target=tr["target"],
         depth_mm=tr["depth_mm"], angle_deg=tr["angle_deg"],
-        corridor=_assess_corridor_for(session_id, tr["entry"], tr["target"]),
+        corridor=corridor,
     )

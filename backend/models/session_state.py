@@ -9,7 +9,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from .clips import PlacedClipsState
 from .dicom import SeriesInfo
+from .trajectory import TrajectoryResult
+from .treatment import TreatmentDecisionRequest, TreatmentDecisionResult
 
 
 #: Índice del último paso del flujo (el Informe). Va a la par de
@@ -60,6 +63,20 @@ class SessionSaveResult(BaseModel):
     saved_at: datetime
 
 
+class ViewerWindow(BaseModel):
+    """Ventana y nivel de los cortes, tal como los dejó el profesional."""
+
+    wc: float = Field(..., description="Centro de la ventana (nivel)")
+    ww: float = Field(..., gt=0, description="Anchura de la ventana")
+
+
+class ReportUrls(BaseModel):
+    """Los documentos ya generados que siguen en disco."""
+
+    pdf_url: str | None = Field(None, description="Informe PDF, si existe el fichero")
+    dicom_sr_url: str | None = Field(None, description="DICOM SR, si existe el fichero")
+
+
 class SessionRestoreResult(BaseModel):
     """Result of loading a saved session."""
 
@@ -108,6 +125,36 @@ class SessionRestoreResult(BaseModel):
     )
     centerline_arc_mm: float = Field(
         0.0, description="Total arc length of the restored centreline (mm)"
+    )
+    # ── Lo hecho a mano después de detectar (familia S) ──────────────────── #
+    # Reanudar volvía sin nada de esto aunque estuviera en el estado: la
+    # decisión (y con ella «Planificar dispositivos» apagado), el corredor, la
+    # lista editable de clips, la ventana y los enlaces del informe. Null =
+    # no se hizo (o se borró) en la sesión guardada.
+    treatment: TreatmentDecisionResult | None = Field(
+        None, description="La recomendación guardada, igual que la devolvió el motor"
+    )
+    treatment_inputs: TreatmentDecisionRequest | None = Field(
+        None, description="Las entradas clínicas con que se pidió (con el session_id nuevo)"
+    )
+    trajectory: TrajectoryResult | None = Field(
+        None, description="La trayectoria guardada con su ángulo, profundidad y corredor"
+    )
+    placed_clips: PlacedClipsState | None = Field(
+        None, description="La lista editable de clips colocados y su verificación"
+    )
+    window: ViewerWindow | None = Field(
+        None, description="Ventana y nivel de los cortes; null = la del DICOM"
+    )
+    report_urls: ReportUrls | None = Field(
+        None, description="Enlaces al PDF y al SR ya generados, si siguen en disco"
+    )
+    lesion_confirmed: bool = Field(
+        False,
+        description=(
+            "Hay una confirmación de lesión vigente para esta sesión (por su "
+            "estudio o por su linaje de sesiones)"
+        ),
     )
 
 

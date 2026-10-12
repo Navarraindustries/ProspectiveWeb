@@ -450,6 +450,26 @@ export interface DeviceClearResult {
   meshes_removed: number;
   /** Mesh URL per still-placed family — lets a resumed session redraw its devices. */
   mesh_urls: Partial<Record<DeviceKind, string>>;
+  /** La lista editable de clips y su verificación; null sin clips guardados. */
+  placed_clips?: PlacedClipsState | null;
+}
+
+/** Un clip de la lista de colocación tal como lo guarda el backend (mismo
+ *  dibujo que `PlacedClip` del store, con la posición como lista). */
+export interface PlacedClipState {
+  key: number;
+  clip_id: string;
+  name: string;
+  position: number[];
+  rotation_deg: number;
+  azimuthDeg: number;
+  elevationDeg: number;
+}
+
+export interface PlacedClipsState {
+  clips: PlacedClipState[];
+  /** La verificación de la última colocación de esta lista. */
+  plan?: ClipPlanResult | null;
 }
 
 export interface PreprocessStatus {
@@ -1448,6 +1468,15 @@ export interface SessionRestoreResult {
   fallback_note?: string;           // por qué se bajó a media resolución
   centerline_mesh_url: string;      // "" when the session had no centreline
   centerline_arc_mm: number;
+  /* Lo hecho después de detectar (familia S); null = no se hizo. */
+  treatment?: TreatmentDecisionResult | null;
+  treatment_inputs?: TreatmentDecisionRequest | null;
+  trajectory?: TrajectoryResult | null;
+  placed_clips?: PlacedClipsState | null;
+  /** Ventana y nivel de los cortes; null = la del DICOM. */
+  window?: { wc: number; ww: number } | null;
+  report_urls?: { pdf_url?: string | null; dicom_sr_url?: string | null } | null;
+  lesion_confirmed?: boolean;
 }
 
 /* ── longitudinal ──────────────────────────────────────────────────────── */

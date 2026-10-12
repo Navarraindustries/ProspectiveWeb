@@ -209,3 +209,34 @@ class TestDicomSrCarriesDevices:
         assert "Pipeline Flex" in text
         assert "Clip Model" in text, "el SR no lleva los clips"
         assert "Coil Model" in text, "el SR no lleva los coils"
+
+
+class TestClipEditable:
+    """F1-28: reanudar devolvía los clips como malla y nada más. La lista que
+    edita el panel (pose e inclinación de cada clip) y su verificación se
+    guardan aparte y vuelven con GET /devices."""
+
+    _LISTA = [{"key": 3, "clip_id": "c1", "name": "Clip 1", "position": [1.0, 2.0, 3.0],
+               "rotation_deg": 20.0, "azimuthDeg": 15.0, "elevationDeg": -10.0}]
+
+    def test_la_lista_vuelve_y_limpiar_la_borra(self):
+        sid = _session_with_volume()
+        (session_subdir(sid, "meshes") / "clips_placed.vtp").write_text("x")
+        plan = {"clips_mesh_url": "/data/sessions/OTRA/meshes/clips_placed.vtp",
+                "neck_coverage_pct": 88.0}
+        r = client.put(f"/api/devices/{sid}/placed-clips", json={"clips": self._LISTA, "plan": plan})
+        assert r.status_code == 200, r.text
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert got["clips"] == self._LISTA
+        # La malla es la de esta sesión, no la de la que colocó.
+        assert got["plan"]["clips_mesh_url"].startswith(f"/data/sessions/{sid}/meshes/clips_placed.vtp")
+        client.delete(f"/api/devices/{sid}")
+        assert client.get(f"/api/devices/{sid}").json()["placed_clips"] is None
+
+    def test_sin_malla_de_clips_la_verificacion_no_vuelve(self):
+        sid = _session_with_volume()
+        client.put(f"/api/devices/{sid}/placed-clips", json={
+            "clips": self._LISTA,
+            "plan": {"clips_mesh_url": "x", "neck_coverage_pct": 88.0}})
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert got["clips"] == self._LISTA and got["plan"] is None

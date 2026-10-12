@@ -173,3 +173,50 @@ class TestAdjuntar:
         r = client.post(f"/api/sessions/{create_session()}/attach", json={
             "new_patient": {"surname": "X"}, "new_case": {"dx_principal": "X"}})
         assert r.status_code == 422 and "DICOM" in r.json()["detail"]
+
+
+class TestAdjuntarUnaSesionReanudada:
+    """Reanudar da a la sesión viva un id nuevo. Adjuntar buscaba la fila por
+    ese id exacto, no la encontraba y creaba otra: la sesión guardada salía dos
+    veces en «Sesiones guardadas», una de ellas sin instantánea que reanudar."""
+
+    def _guardada_y_reanudada(self) -> tuple[str, str]:
+        sid, _ = _sesion()
+        assert client.post("/api/sessions/save", json={
+            "session_id": sid, "current_step": 2, "label": "sin paciente"}).status_code == 200
+        r = client.post(f"/api/sessions/{sid}/restore")
+        assert r.status_code == 200, r.text
+        return sid, r.json()["session_id"]
+
+    def _filas(self, *ids: str):
+        from services.db_models import PlanningSession
+        db = SessionLocal()
+        try:
+            return db.query(PlanningSession).filter(PlanningSession.session_id.in_(ids)).all()
+        finally:
+            db.close()
+
+    def test_adjuntar_la_reanudada_reutiliza_la_fila_de_origen(self):
+        sid, vivo = self._guardada_y_reanudada()
+        id_fila = self._filas(sid)[0].id
+        r = client.post(f"/api/sessions/{vivo}/attach", json={
+            "new_patient": {"surname": "Reanudada"}, "new_case": {"dx_principal": "Control"}})
+        assert r.status_code == 200, r.text
+        filas = self._filas(sid, vivo)
+        assert len(filas) == 1 and filas[0].id == id_fila
+        assert filas[0].imaging_study_id == r.json()["imaging_study_id"]
+        assert filas[0].patient_id == r.json()["patient"]["id"]
+        # Y «Guardar progreso» después sigue cayendo en esa misma fila.
+        assert client.post("/api/sessions/save", json={
+            "session_id": vivo, "current_step": 3}).status_code == 200
+        assert [f.id for f in self._filas(sid, vivo)] == [id_fila]
+
+    def test_la_reanudada_de_una_adjunta_no_se_adjunta_otra_vez(self):
+        sid, vivo = self._guardada_y_reanudada()
+        assert client.post(f"/api/sessions/{vivo}/attach", json={
+            "new_patient": {"surname": "Primera"}, "new_case": {"dx_principal": "X"}}).status_code == 200
+        # Otra pestaña reanuda la misma guardada: ya está adjunta por su origen.
+        otra = client.post(f"/api/sessions/{sid}/restore").json()["session_id"]
+        assert client.get(f"/api/sessions/{otra}/identity").json()["attached"] is True
+        assert client.post(f"/api/sessions/{otra}/attach", json={
+            "new_patient": {"surname": "Segunda"}, "new_case": {"dx_principal": "Y"}}).status_code == 409

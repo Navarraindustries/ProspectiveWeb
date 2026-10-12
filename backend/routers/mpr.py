@@ -16,7 +16,8 @@ from services.mpr import (
     ensure_volume_cached, render_slice_png, render_oblique_png,
     volume_chunk_int16, volume_coarse_int16,
 )
-from services.sessions import session_exists, write_state
+from models.session_state import ViewerWindow
+from services.sessions import read_state, session_exists, write_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["mpr"])
@@ -70,6 +71,36 @@ async def put_orientation(session_id: str, body: ManualOrientation) -> dict:
     except Exception as exc:
         logger.error("Volume meta failed for %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
+
+
+@router.put(
+    "/volume/{session_id}/window",
+    response_model=ViewerWindow,
+    summary="Guardar la ventana y el nivel de los cortes",
+    description=(
+        "El visor la manda al soltar un arrastre de ventana/nivel (con un rebote "
+        "de 500 ms). Viaja con la sesión guardada y vuelve al reanudar: antes se "
+        "volvía siempre a la ventana por defecto del DICOM."
+    ),
+)
+async def put_window(session_id: str, body: ViewerWindow) -> ViewerWindow:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    write_state(session_id, "viewer.wc", repr(float(body.wc)))
+    write_state(session_id, "viewer.ww", repr(float(body.ww)))
+    return body
+
+
+def stored_window(session_id: str) -> ViewerWindow | None:
+    """La ventana guardada con la sesión, o None si nunca se tocó."""
+    try:
+        wc = float(read_state(session_id, "viewer.wc", "") or "nan")
+        ww = float(read_state(session_id, "viewer.ww", "") or "nan")
+    except ValueError:
+        return None
+    if wc != wc or ww != ww or ww <= 0:          # NaN: no hay ventana guardada
+        return None
+    return ViewerWindow(wc=wc, ww=ww)
 
 
 @router.get(

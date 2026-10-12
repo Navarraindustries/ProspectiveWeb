@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     SessionSaveRequest, SessionSaveResult, SessionRestoreResult, SessionListItem,
-    SeriesInfo, SpacingXYZ,
+    SeriesInfo, SpacingXYZ, ReportUrls,
 )
 from services.database import get_db
 from services.access import ORIGIN_KEY, own_patient_ids, require_patient, session_row
@@ -384,7 +384,73 @@ async def restore_session(
         series=_restored_series(new_sid),
         centerline_mesh_url=cl_url,
         centerline_arc_mm=cl_arc,
+        **_restored_work(new_sid, ps, db),
     )
+
+
+def _restored_work(session_id: str, ps: PlanningSession, db: Session) -> dict:
+    """Lo hecho después de detectar, leído del estado copiado (familia S).
+
+    Todo esto ya viajaba en la instantánea —el estado se copia entero— pero no
+    se devolvía: la sesión volvía sin decisión, sin corredor, con los clips
+    como mallas sueltas, con la ventana del DICOM y sin los enlaces del PDF y
+    del SR. Cada parte se lee por su lado: una ilegible vuelve como null y no
+    tumba la restauración entera.
+    """
+    from routers.devices import stored_placed_clips
+    from routers.mpr import stored_window
+    from routers.report import stored_trajectory
+    from routers.treatment import stored_decision, stored_inputs
+
+    out: dict = {}
+    for key, read in (
+        ("treatment", stored_decision),
+        ("treatment_inputs", stored_inputs),
+        ("trajectory", stored_trajectory),
+        ("placed_clips", stored_placed_clips),
+        ("window", stored_window),
+        ("report_urls", _restored_report_urls),
+    ):
+        try:
+            out[key] = read(session_id)
+        except Exception as exc:  # noqa: BLE001 — una parte no tumba las demás
+            logger.warning("No se pudo restaurar %s de %s: %s", key, session_id, exc)
+            out[key] = None
+    out["lesion_confirmed"] = _lesion_confirmed(db, session_id, ps.imaging_study_id)
+    return out
+
+
+def _restored_report_urls(session_id: str) -> ReportUrls | None:
+    """Enlaces al PDF y al SR que siguen en disco.
+
+    El fichero conserva el nombre de la sesión que lo generó (`<sid>_report.pdf`)
+    y la reanudada tiene otro id, así que se busca por el sufijo; si hay
+    varios, el más reciente.
+    """
+    from routers.report import _versioned
+
+    reports = session_subdir(session_id, "reports")
+
+    def _newest(pattern: str) -> str | None:
+        files = sorted(reports.glob(pattern), key=lambda f: f.stat().st_mtime)
+        if not files:
+            return None
+        return _versioned(f"/data/sessions/{session_id}/reports/{files[-1].name}")
+
+    pdf, sr = _newest("*_report.pdf"), _newest("*_sr.dcm")
+    if pdf is None and sr is None:
+        return None
+    return ReportUrls(pdf_url=pdf, dicom_sr_url=sr)
+
+
+def _lesion_confirmed(db: Session, session_id: str, imaging_study_id: int | None) -> bool:
+    """¿Hay una confirmación de lesión vigente, por el estudio o por el linaje?"""
+    q = db.query(LesionConfirmation).filter(LesionConfirmation.retracted.is_(False))
+    if imaging_study_id:
+        q = q.filter(LesionConfirmation.imaging_study_id == imaging_study_id)
+    else:
+        q = q.filter(LesionConfirmation.session_id.in_(sorted(session_lineage(session_id))))
+    return q.first() is not None
 
 
 def _restored_centerline(session_id: str, stamp: int) -> tuple[str, float]:

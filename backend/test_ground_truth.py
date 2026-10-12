@@ -155,3 +155,38 @@ class TestResumenYExport:
 
     def test_el_export_es_solo_para_administradores(self):
         assert anonymous_client(app).get("/api/ground-truth/export").status_code == 401
+
+
+class TestLinajeDeLaSesion:
+    """«Reanudar» da a la sesión viva un id nuevo y `/current` buscaba por el id
+    exacto: la lesión confirmada antes de guardar desaparecía al volver."""
+
+    def test_la_confirmacion_del_origen_se_ve_desde_la_reanudada(self):
+        from services.sessions import write_state
+        origen = _sesion_con_candidatos()
+        assert client.post("/api/ground-truth", json={
+            "session_id": origen, "source": "candidate", "candidate_id": "cand-002"}).status_code == 201
+        viva = _sesion_con_candidatos()
+        write_state(viva, "origin.saved_session_id", origen)
+        cur = client.get(f"/api/ground-truth/current?session_id={viva}").json()
+        assert cur is not None and cur["candidate_rank"] == 2
+
+    def test_confirmar_en_la_reanudada_sustituye_a_la_del_origen(self):
+        from services.sessions import write_state
+        origen = _sesion_con_candidatos()
+        client.post("/api/ground-truth", json={
+            "session_id": origen, "source": "candidate", "candidate_id": "cand-002"})
+        viva = _sesion_con_candidatos()
+        write_state(viva, "origin.saved_session_id", origen)
+        client.post("/api/ground-truth", json={
+            "session_id": viva, "source": "candidate", "candidate_id": "cand-003"})
+        assert client.get(f"/api/ground-truth/current?session_id={viva}").json()["candidate_rank"] == 3
+        # Una sola vigente en todo el linaje: la del origen quedó retirada.
+        assert client.get(f"/api/ground-truth/current?session_id={origen}").json() is None
+
+    def test_otra_sesion_sin_parentesco_no_la_ve(self):
+        origen = _sesion_con_candidatos()
+        client.post("/api/ground-truth", json={
+            "session_id": origen, "source": "candidate", "candidate_id": "cand-001"})
+        ajena = _sesion_con_candidatos()
+        assert client.get(f"/api/ground-truth/current?session_id={ajena}").json() is None

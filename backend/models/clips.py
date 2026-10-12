@@ -505,3 +505,37 @@ class ClipFieldResult(BaseModel):
     field_mesh_url: str
     scalars: dict[str, str]
     summary: ClipFieldSummary
+
+
+class PlacedClipState(BaseModel):
+    """Un clip de la lista de colocación, tal como la edita el panel.
+
+    Es la fila editable (posición, giro y los dos ángulos de inclinación), no
+    la malla cocida: reanudar devolvía solo `clips_placed.vtp`, y sin la lista
+    el clip no se podía mover, ni verificar, ni volver a pedir su mapa de calor
+    (F1-28). Los nombres en camelCase son los de `PlacedClip` del frontend, que
+    se guarda tal cual.
+    """
+
+    key: int = Field(..., description="Clave estable del clip dentro de la lista")
+    clip_id: str
+    name: str = ""
+    position: list[float] = Field(..., min_length=3, max_length=3,
+                                  description="Centro del clip (mm, mundo)")
+    rotation_deg: float = 0.0
+    azimuthDeg: float = 0.0
+    elevationDeg: float = 0.0
+
+
+class PlacedClipsState(BaseModel):
+    """La lista de clips colocados y la verificación con la que se colocó."""
+
+    clips: list[PlacedClipState] = Field(default_factory=list)
+    plan: ClipPlanResult | None = Field(
+        None,
+        description=(
+            "El resultado de la última colocación de esta lista (cobertura del "
+            "cuello, contacto, ramas bajo el clip). Vuelve con la sesión para que "
+            "la tarjeta de verificación no exija volver a colocar."
+        ),
+    )

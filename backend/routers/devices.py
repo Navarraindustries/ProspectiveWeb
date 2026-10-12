@@ -14,8 +14,12 @@ import time
 
 from fastapi import APIRouter, HTTPException, Query
 
+from models.clips import PlacedClipsState
 from models.plan import DeviceClearResult
-from services.device_state import DEVICE_KINDS, clear_device, read_clips, read_coils, read_stent
+from services.device_state import (
+    DEVICE_KINDS, clear_device, read_clips, read_coils, read_placed_clips, read_stent,
+    save_placed_clips,
+)
 from services.sessions import mesh_url, session_exists, session_subdir
 
 logger = logging.getLogger(__name__)
@@ -47,6 +51,49 @@ def _mesh_urls(session_id: str, kinds: list[str]) -> dict[str, str]:
     return urls
 
 
+def stored_placed_clips(session_id: str) -> PlacedClipsState | None:
+    """La lista editable de clips guardada, con la URL de la malla de ESTA sesión.
+
+    La verificación guardada lleva la URL de la sesión en la que se colocó;
+    tras reanudar, la sesión viva tiene otro id y el fichero se copió a ella.
+    """
+    raw = read_placed_clips(session_id)
+    if raw is None:
+        return None
+    try:
+        state = PlacedClipsState.model_validate(raw)
+    except ValueError:
+        logger.warning("Lista de clips guardada ilegible en %s", session_id)
+        return None
+    if state.plan is not None:
+        url = _mesh_urls(session_id, ["clips"]).get("clips")
+        if url is None:
+            # Sin malla de clips la verificación no describe nada en pantalla.
+            state.plan = None
+        else:
+            state.plan.clips_mesh_url = url
+    return state
+
+
+@router.put(
+    "/devices/{session_id}/placed-clips",
+    response_model=PlacedClipsState,
+    summary="Store the editable list of placed clips",
+    description=(
+        "Stores the clip list as the devices panel edits it (pose and tilt of "
+        "each clip) together with the verification of its last placement. The "
+        "panel sends it after each successful placement. GET /devices and a "
+        "session restore return it, so a resumed session gets editable clips "
+        "back instead of bare meshes."
+    ),
+)
+async def put_placed_clips(session_id: str, req: PlacedClipsState) -> PlacedClipsState:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    save_placed_clips(session_id, req.model_dump(mode="json"))
+    return req
+
+
 @router.get(
     "/devices/{session_id}",
     response_model=DeviceClearResult,
@@ -64,6 +111,7 @@ async def list_placed_devices(session_id: str) -> DeviceClearResult:
     return DeviceClearResult(
         cleared=[], remaining=remaining, meshes_removed=0,
         mesh_urls=_mesh_urls(session_id, remaining),
+        placed_clips=stored_placed_clips(session_id),
     )
 
 

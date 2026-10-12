@@ -1,6 +1,7 @@
 """Treatment decision router — CLIP vs ENDOVASCULAR."""
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,7 +15,43 @@ from services.db_models import User
 from services.treatment import compute_decision
 from services.sessions  import read_state, write_state, session_exists
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["treatment"])
+
+#: La respuesta del motor tal cual (la devuelve GET y vuelve al reanudar).
+RESULT_KEY = "treatment.result_json"
+#: Las entradas clínicas con que se pidió.
+INPUTS_KEY = "clinical.decision_inputs_json"
+
+
+def stored_decision(session_id: str) -> TreatmentDecisionResult | None:
+    """La última recomendación guardada en la sesión, o None si no la hay."""
+    raw = read_state(session_id, RESULT_KEY, "")
+    if not raw:
+        return None
+    try:
+        return TreatmentDecisionResult.model_validate_json(raw)
+    except ValueError:
+        logger.warning("Decisión guardada ilegible en %s", session_id)
+        return None
+
+
+def stored_inputs(session_id: str) -> TreatmentDecisionRequest | None:
+    """Las entradas clínicas de la última decisión, con este session_id."""
+    raw = read_state(session_id, INPUTS_KEY, "")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        # La localización vigente es la elegida en Morfometría, que puede
+        # haber cambiado después de decidir.
+        site = read_state(session_id, "clinical.site", "")
+        if site:
+            data["location"] = site
+        return TreatmentDecisionRequest(session_id=session_id, **data)
+    except (ValueError, TypeError):
+        logger.warning("Entradas de la decisión ilegibles en %s", session_id)
+        return None
 
 
 def _load_float(session_id: str, key: str, default: float) -> float:
@@ -142,6 +179,15 @@ async def compute_treatment_decision(
     write_state(req.session_id, "clinical.has_comorbidities",
                 "1" if req.has_comorbidities else "0")
 
+    # La respuesta entera y lo que se pidió. Reanudar volvía sin decisión
+    # (F1-27): las claves de arriba son las que lee el informe, no bastan para
+    # rehacer la pantalla (faltan la cobertura, las notas, los factores con su
+    # fuente…), y sin decisión «Planificar dispositivos» quedaba apagado. Las
+    # entradas van en `clinical.*` porque son lo escrito a mano: cambiar la
+    # localización borra la decisión, no lo que la persona tecleó.
+    write_state(req.session_id, RESULT_KEY, TreatmentDecisionResult(**result).model_dump_json())
+    write_state(req.session_id, INPUTS_KEY, req.model_dump_json(exclude={"session_id"}))
+
     # La recomendación es lo que el informe imprime y lo que se lleva a la
     # sesión multidisciplinar: queda quién la pidió y con qué salió. La
     # constante existía y nadie la usaba.
@@ -153,6 +199,29 @@ async def compute_treatment_decision(
     }, username=current_user.username if current_user else "")
 
     return TreatmentDecisionResult(**result)
+
+
+# ── GET /treatment-decision/{session_id} ──────────────────────────────────── #
+
+@router.get(
+    "/treatment-decision/{session_id}",
+    response_model=TreatmentDecisionResult,
+    summary="The stored CLIP vs ENDOVASCULAR recommendation",
+    description=(
+        "Returns the last recommendation computed in this session, exactly as "
+        "POST /treatment-decision returned it, without recomputing. 404 when "
+        "none was computed (or it was cleared). A resumed session needs it: "
+        "without it the decision step came back empty and device planning "
+        "stayed disabled."
+    ),
+)
+async def get_treatment_decision(session_id: str) -> TreatmentDecisionResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    stored = stored_decision(session_id)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="Esta sesión no tiene una decisión guardada.")
+    return stored
 
 
 # ── DELETE /treatment-decision/{session_id} ───────────────────────────────── #
@@ -170,9 +239,10 @@ TREATMENT_STATE_KEYS = (
     "treatment.clip_points", "treatment.endo_points",
     "treatment.factors_json", "treatment.notes_json",
     "treatment.endovascular_json", "treatment.perforators_json",
-    "treatment.jsdb_json", "treatment.location",
+    "treatment.jsdb_json", "treatment.location", RESULT_KEY,
     "clinical.patient_age", "clinical.has_comorbidities",
     "clinical.wfns_grade", "clinical.fisher_grade", "clinical.prior_stroke",
+    INPUTS_KEY,
 )
 
 #: The PHASES score is a rupture risk built on the same morphometry, so it goes

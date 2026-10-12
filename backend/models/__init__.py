@@ -20,6 +20,8 @@ from .clips import (
     ClipPlanRequest,
     ClipPlanResult,
     ClipRecommendation,
+    PlacedClipState,
+    PlacedClipsState,
 )
 from .coils import (
     CoilConstructResult,
@@ -50,6 +52,8 @@ from .session_state import (
     SessionRestoreResult,
     SessionSaveRequest,
     SessionSaveResult,
+    ReportUrls,
+    ViewerWindow,
 )
 from .treatment import (
     AneurysmLocation,
@@ -72,7 +76,7 @@ __all__ = [
     "SignupRequest", "SignupResponse", "PendingUser",
     # clips
     "ClipLibraryItem", "ClipPlacement", "ClipPlanRequest",
-    "ClipPlanResult", "ClipRecommendation",
+    "ClipPlanResult", "ClipRecommendation", "PlacedClipState", "PlacedClipsState",
     # coils
     "CoilConstructResult", "CoilConstructStep",
     "CoilLibraryItem", "CoilPlacement", "CoilPlanRequest", "CoilPlanResult",
@@ -94,6 +98,7 @@ __all__ = [
     "AutoThresholdResult", "SegmentRequest", "SegmentResult",
     # session
     "SessionListItem", "SessionRestoreResult", "SessionSaveRequest", "SessionSaveResult",
+    "ReportUrls", "ViewerWindow",
     # treatment
     "AneurysmLocation", "ClinicalSiteRequest", "ClinicalSiteResult", "Confidence", "DecisionFactor",
     "JsdbArmOut", "JsdbItemOut", "JsdbOut",

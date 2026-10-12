@@ -65,8 +65,23 @@ def read_stent(session_id: str) -> dict:
     return v if isinstance(v, dict) else {}
 
 
+#: La lista editable de clips del panel y su verificación (PlacedClipsState).
+#: Va aparte de `devices.clips`, que es lo que imprime el informe: aquella es
+#: la fila que se edita, esta lo que el plan colocó.
+_PLACED_CLIPS_KEY = "devices.placed_clips.json"
+
+
+def save_placed_clips(session_id: str, state: dict) -> None:
+    _dump(session_id, _PLACED_CLIPS_KEY, state)
+
+
+def read_placed_clips(session_id: str) -> dict | None:
+    v = _load(session_id, _PLACED_CLIPS_KEY, None)
+    return v if isinstance(v, dict) and v.get("clips") else None
+
+
 def clear_devices(session_id: str) -> None:
-    for k in (_CLIPS_KEY, _COILS_KEY, _STENT_KEY):
+    for k in (_CLIPS_KEY, _COILS_KEY, _STENT_KEY, _PLACED_CLIPS_KEY):
         write_state(session_id, k, "")
 
 
@@ -88,3 +103,7 @@ def clear_device(session_id: str, kind: str) -> None:
     if entry is None:
         raise ValueError(f"Unknown device kind: {kind!r}")
     write_state(session_id, entry[0], "")
+    if kind == "clips":
+        # Sin clips en el plan, la lista editable tampoco describe nada: si se
+        # quedara, reanudar volvería a poner clips que se quitaron.
+        write_state(session_id, _PLACED_CLIPS_KEY, "")

@@ -97,7 +97,7 @@ REDETECT_MOVE_MM: float = 2.0
 #: describiendo un candidato que ya no existe.
 _CAND_STATE_SUFFIXES = (
     "vtp_name", "url", "centroid_x", "centroid_y", "centroid_z",
-    "diameter_mm", "score", "channels", "patch_kind", "veto_reason",
+    "diameter_mm", "score", "channels", "patch_kind", "veto_reason", "veto_detail",
 )
 
 
@@ -233,6 +233,7 @@ def _clear_detection_state(session_id: str, meshes_dir: Path, *, morphometry: bo
     blank["detect.n_candidates"] = "0"
     blank["detect.n_rejected"] = "0"
     blank["detect.best_vtp_name"] = ""
+    blank["detect.diagnostics_json"] = ""
     write_states(session_id, blank)
 
     if morphometry:
@@ -308,9 +309,24 @@ async def clear_detection(session_id: str) -> dict:
         "**Prerequisite:** `POST /segment` must be called first."
     ),
 )
-async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
+async def detect_aneurysm(
+    session_id: str,
+    cached: bool = Query(
+        False,
+        description=(
+            "Devolver la última detección guardada en la sesión sin recalcular "
+            "(lo usa «Reanudar»). 404 si no hay ninguna guardada o falta la malla "
+            "de algún candidato: entonces hay que pedirla sin `cached`."
+        ),
+    ),
+) -> AneurysmDetectionResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    if cached:
+        stored = cached_detection(session_id)
+        if stored is None:
+            raise HTTPException(status_code=404, detail="Esta sesión no tiene una detección guardada.")
+        return stored
 
     meshes_dir = session_subdir(session_id, "meshes")
     vtp_path   = meshes_dir / "vessel_tree.vtp"
@@ -546,6 +562,9 @@ def _run_detection_sync(
             f"{prefix}.channels":    ",".join(hit.channels),
             f"{prefix}.patch_kind":  patch_kind,
             f"{prefix}.veto_reason": veto.reason if veto is not None else "",
+            # La frase con la cifra que decidió el veto: sin ella, la lista
+            # devuelta sin recalcular (?cached=true) no podría explicarlo.
+            f"{prefix}.veto_detail": veto.detail if veto is not None else "",
         })
 
         cand_id = f"cand-{idx:03d}"
@@ -604,15 +623,7 @@ def _run_detection_sync(
         session_id, len(pyd_candidates), len(pyd_rejected), by_reason,
     )
 
-    return AneurysmDetectionResult(
-        found=len(pyd_candidates) > 0,
-        candidates=pyd_candidates,
-        rejected=pyd_rejected,
-        morphometry_invalidated=invalidated,
-        # Carried out so an empty result can explain itself. On a complete mesh
-        # the size gate rejects the vast majority: high-curvature patches merge
-        # across several vessels and their equivalent radius exceeds the bound.
-        diagnostics=DetectionDiagnostics(
+    diagnostics = DetectionDiagnostics(
             regions_analyzed        = det_result.n_regions_total,
             rejected_too_few_points = det_result.n_failed_points,
             rejected_size           = det_result.n_failed_size,
@@ -626,7 +637,86 @@ def _run_detection_sync(
             max_radius_mm           = detector.max_radius_mm,
             n_rejected              = len(pyd_rejected),
             rejected_by_reason      = by_reason,
-        ),
+    )
+    # Con la lista, para devolverla tal cual al reanudar (?cached=true).
+    write_state(session_id, "detect.diagnostics_json", diagnostics.model_dump_json())
+
+    return AneurysmDetectionResult(
+        found=len(pyd_candidates) > 0,
+        candidates=pyd_candidates,
+        rejected=pyd_rejected,
+        morphometry_invalidated=invalidated,
+        # Carried out so an empty result can explain itself. On a complete mesh
+        # the size gate rejects the vast majority: high-curvature patches merge
+        # across several vessels and their equivalent radius exceeds the bound.
+        diagnostics=diagnostics,
+    )
+
+
+def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
+    """La última detección tal como quedó en el estado, sin recalcular.
+
+    «Reanudar» volvía a detectar, y el orden de la lista es inestable: salía
+    otra lista y la confirmación de lesión hecha sobre la anterior dejaba de
+    corresponder (F1-246). None si no hay detección guardada o si falta la
+    malla de algún candidato (entonces solo cabe recalcular).
+    """
+    raw_n = read_state(session_id, "detect.n_candidates", "")
+    if raw_n == "":
+        return None
+    try:
+        n_acc = int(raw_n)
+        n_rej = int(read_state(session_id, "detect.n_rejected", "0") or 0)
+    except ValueError:
+        return None
+    meshes_dir = session_subdir(session_id, "meshes")
+    from services.candidate_vetoes import LABELS as VETO_LABELS
+
+    accepted: list[PydAneurysmCandidate] = []
+    rejected: list[PydAneurysmCandidate] = []
+    for idx in range(1, n_acc + n_rej + 1):
+        p = f"detect.cand_{idx:03d}"
+        name = read_state(session_id, f"{p}.vtp_name", "") or f"aneurysm_cand_{idx:03d}.vtp"
+        if not (meshes_dir / name).exists():
+            return None
+        try:
+            center = [float(read_state(session_id, f"{p}.centroid_{a}", "")) for a in "xyz"]
+            diameter = float(read_state(session_id, f"{p}.diameter_mm", "0") or 0)
+            score = float(read_state(session_id, f"{p}.score", "0") or 0)
+        except ValueError:
+            return None
+        is_rejected = idx > n_acc
+        reason = read_state(session_id, f"{p}.veto_reason", "") or ""
+        veto = None
+        if is_rejected and reason in VETO_LABELS:
+            veto = PydVeto(reason=reason, label=VETO_LABELS[reason],
+                           detail=read_state(session_id, f"{p}.veto_detail", "") or "")
+        channels = [c for c in (read_state(session_id, f"{p}.channels", "") or "").split(",") if c]
+        kind = read_state(session_id, f"{p}.patch_kind", "") or "region"
+        (rejected if is_rejected else accepted).append(PydAneurysmCandidate(
+            id=f"cand-{idx:03d}",
+            center_mm=Position3D(x=center[0], y=center[1], z=center[2]),
+            max_diameter_mm=diameter,
+            confidence=round(_clamp01(score), 4),
+            # La URL de ESTA sesión: la guardada lleva el id de la que detectó.
+            dome_mesh_url=mesh_url(session_id, name),
+            selected=(idx == 1 and not is_rejected),
+            channels=channels,
+            patch_kind=kind if kind in ("region", "locator") else "region",
+            rank=idx - n_acc if is_rejected else idx,
+            veto=veto,
+        ))
+
+    diagnostics = DetectionDiagnostics(n_rejected=len(rejected))
+    raw_diag = read_state(session_id, "detect.diagnostics_json", "")
+    if raw_diag:
+        try:
+            diagnostics = DetectionDiagnostics.model_validate_json(raw_diag)
+        except ValueError:
+            pass
+    return AneurysmDetectionResult(
+        found=bool(accepted), candidates=accepted, rejected=rejected,
+        morphometry_invalidated=False, diagnostics=diagnostics,
     )
 
 

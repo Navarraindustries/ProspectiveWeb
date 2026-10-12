@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from .clips import PlacedClipsState
 from .detection import Position3D
 
 
@@ -143,6 +144,13 @@ class DeviceClearResult(BaseModel):
             "Mesh URL per still-placed device family. Lets a resumed session put "
             "its devices back in the 3D viewer, which otherwise showed an empty "
             "scene while the report still listed them."
+        ),
+    )
+    placed_clips: PlacedClipsState | None = Field(
+        None,
+        description=(
+            "La lista editable de clips y su verificación, si se guardó "
+            "(PUT /devices/{session_id}/placed-clips). Null sin clips colocados."
         ),
     )
 

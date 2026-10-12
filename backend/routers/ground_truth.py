@@ -34,7 +34,7 @@ from services.access import require_patient
 from services.auth_service import get_current_user, require_admin
 from services.database import get_db
 from services.db_models import ImagingStudy, LesionConfirmation, Patient, User
-from services.sessions import read_state, session_exists
+from services.sessions import read_state, session_exists, session_lineage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ground-truth", tags=["ground-truth"])
@@ -111,7 +111,11 @@ def _active(db: Session, session_id: str, imaging_study_id: Optional[int]):
     if imaging_study_id:
         q = q.filter(LesionConfirmation.imaging_study_id == imaging_study_id)
     else:
-        q = q.filter(LesionConfirmation.session_id == session_id)
+        # Por el linaje y no por el id exacto: «Reanudar» da a la sesión viva un
+        # id nuevo, y la lesión confirmada antes de guardar dejaba de verse al
+        # volver (F1-246). Confirmar en la reanudada retira la del origen: una
+        # sola vigente por sesión, se mire desde donde se mire.
+        q = q.filter(LesionConfirmation.session_id.in_(sorted(session_lineage(session_id))))
     return q.order_by(LesionConfirmation.id.desc())
 
 

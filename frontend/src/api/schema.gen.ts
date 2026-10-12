@@ -1303,6 +1303,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/devices/{session_id}/placed-clips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Store the editable list of placed clips
+         * @description Stores the clip list as the devices panel edits it (pose and tilt of each clip) together with the verification of its last placement. The panel sends it after each successful placement. GET /devices and a session restore return it, so a resumed session gets editable clips back instead of bare meshes.
+         */
+        put: operations["put_placed_clips_api_devices__session_id__placed_clips_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/elapss": {
         parameters: {
             query?: never;
@@ -2483,7 +2503,7 @@ export interface paths {
         };
         /**
          * The approach trajectory stored in this session, if any
-         * @description Returns the entry/target the surgeon established, with the corridor assessment recomputed against the current mesh — or null when none was marked.
+         * @description Returns the entry/target the surgeon established, its depth and incidence angle, and the corridor assessment stored when it was saved (the one the report prints; recomputed only for sessions saved before it was stored) — or null when none was marked.
          *
          *     It exists because a resumed session used to come back WITHOUT it: the points were on disk and in the PDF, but the store was empty, so the viewer drew no corridor and the placement rehearsal silently fell back to its default approach. The established trajectory has to reach the rehearsal, or the video shows a manoeuvre nobody planned.
          */
@@ -2558,7 +2578,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The stored CLIP vs ENDOVASCULAR recommendation
+         * @description Returns the last recommendation computed in this session, exactly as POST /treatment-decision returned it, without recomputing. 404 when none was computed (or it was cleared). A resumed session needs it: without it the decision step came back empty and device planning stayed disabled.
+         */
+        get: operations["get_treatment_decision_api_treatment_decision__session_id__get"];
         put?: never;
         post?: never;
         /**
@@ -2690,6 +2714,26 @@ export interface paths {
          * @description Para 3DRA/XA sin ImageOrientationPatient. Guarda cómo está orientado el axial tal como se ve (qué borde es anterior, si el primer corte es superior). No modifica los datos; solo las etiquetas y el maniquí.
          */
         put: operations["put_orientation_api_volume__session_id__orientation_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/volume/{session_id}/window": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Guardar la ventana y el nivel de los cortes
+         * @description El visor la manda al soltar un arrastre de ventana/nivel (con un rebote de 500 ms). Viaja con la sesión guardada y vuelve al reanudar: antes se volvía siempre a la ventana por defecto del DICOM.
+         */
+        put: operations["put_window_api_volume__session_id__window_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5131,6 +5175,8 @@ export interface components {
              * @default 0
              */
             meshes_removed: number;
+            /** @description La lista editable de clips y su verificación, si se guardó (PUT /devices/{session_id}/placed-clips). Null sin clips colocados. */
+            placed_clips?: components["schemas"]["PlacedClipsState"] | null;
             /**
              * Remaining
              * @description Device families that still hold a plan after the call
@@ -7369,6 +7415,60 @@ export interface components {
             total_score: number;
         };
         /**
+         * PlacedClipState
+         * @description Un clip de la lista de colocación, tal como la edita el panel.
+         *
+         *     Es la fila editable (posición, giro y los dos ángulos de inclinación), no
+         *     la malla cocida: reanudar devolvía solo `clips_placed.vtp`, y sin la lista
+         *     el clip no se podía mover, ni verificar, ni volver a pedir su mapa de calor
+         *     (F1-28). Los nombres en camelCase son los de `PlacedClip` del frontend, que
+         *     se guarda tal cual.
+         */
+        PlacedClipState: {
+            /**
+             * Azimuthdeg
+             * @default 0
+             */
+            azimuthDeg: number;
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * Elevationdeg
+             * @default 0
+             */
+            elevationDeg: number;
+            /**
+             * Key
+             * @description Clave estable del clip dentro de la lista
+             */
+            key: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Position
+             * @description Centro del clip (mm, mundo)
+             */
+            position: number[];
+            /**
+             * Rotation Deg
+             * @default 0
+             */
+            rotation_deg: number;
+        };
+        /**
+         * PlacedClipsState
+         * @description La lista de clips colocados y la verificación con la que se colocó.
+         */
+        PlacedClipsState: {
+            /** Clips */
+            clips?: components["schemas"]["PlacedClipState"][];
+            /** @description El resultado de la última colocación de esta lista (cobertura del cuello, contacto, ramas bajo el clip). Vuelve con la sesión para que la tarjeta de verificación no exija volver a colocar. */
+            plan?: components["schemas"]["ClipPlanResult"] | null;
+        };
+        /**
          * PlanRequest
          * @description Request to compute a stent deployment plan.
          */
@@ -8078,6 +8178,22 @@ export interface components {
             stl_url?: string | null;
         };
         /**
+         * ReportUrls
+         * @description Los documentos ya generados que siguen en disco.
+         */
+        ReportUrls: {
+            /**
+             * Dicom Sr Url
+             * @description DICOM SR, si existe el fichero
+             */
+            dicom_sr_url?: string | null;
+            /**
+             * Pdf Url
+             * @description Informe PDF, si existe el fichero
+             */
+            pdf_url?: string | null;
+        };
+        /**
          * ResetPasswordRequest
          * @description Admin resetting someone else's password (no current password needed).
          */
@@ -8524,6 +8640,12 @@ export interface components {
             /** Label */
             label: string;
             /**
+             * Lesion Confirmed
+             * @description Hay una confirmación de lesión vigente para esta sesión (por su estudio o por su linaje de sesiones)
+             * @default false
+             */
+            lesion_confirmed: boolean;
+            /**
              * Mesh Url
              * @description URL of the restored vessel mesh (empty if none)
              * @default
@@ -8558,6 +8680,10 @@ export interface components {
              * @description Patient this session belongs to
              */
             patient_id?: number | null;
+            /** @description La lista editable de clips colocados y su verificación */
+            placed_clips?: components["schemas"]["PlacedClipsState"] | null;
+            /** @description Enlaces al PDF y al SR ya generados, si siguen en disco */
+            report_urls?: components["schemas"]["ReportUrls"] | null;
             /**
              * Restored At
              * Format: date-time
@@ -8581,6 +8707,14 @@ export interface components {
              * @default
              */
             study_label: string;
+            /** @description La trayectoria guardada con su ángulo, profundidad y corredor */
+            trajectory?: components["schemas"]["TrajectoryResult"] | null;
+            /** @description La recomendación guardada, igual que la devolvió el motor */
+            treatment?: components["schemas"]["TreatmentDecisionResult"] | null;
+            /** @description Las entradas clínicas con que se pidió (con el session_id nuevo) */
+            treatment_inputs?: components["schemas"]["TreatmentDecisionRequest"] | null;
+            /** @description Ventana y nivel de los cortes; null = la del DICOM */
+            window?: components["schemas"]["ViewerWindow"] | null;
         };
         /**
          * SessionSaveRequest
@@ -9532,6 +9666,22 @@ export interface components {
              * @enum {string}
              */
             reason: "borde" | "isla" | "bifurcacion" | "forma";
+        };
+        /**
+         * ViewerWindow
+         * @description Ventana y nivel de los cortes, tal como los dejó el profesional.
+         */
+        ViewerWindow: {
+            /**
+             * Wc
+             * @description Centro de la ventana (nivel)
+             */
+            wc: number;
+            /**
+             * Ww
+             * @description Anchura de la ventana
+             */
+            ww: number;
         };
         /** WebOption */
         WebOption: {
@@ -11973,7 +12123,10 @@ export interface operations {
     };
     detect_aneurysm_api_detect__session_id__post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Devolver la última detección guardada en la sesión sin recalcular (lo usa «Reanudar»). 404 si no hay ninguna guardada o falta la malla de algún candidato: entonces hay que pedirla sin `cached`. */
+                cached?: boolean;
+            };
             header?: never;
             path: {
                 session_id: string;
@@ -12087,6 +12240,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceClearResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_placed_clips_api_devices__session_id__placed_clips_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlacedClipsState"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacedClipsState"];
                 };
             };
             /** @description Validation Error */
@@ -14272,6 +14460,37 @@ export interface operations {
             };
         };
     };
+    get_treatment_decision_api_treatment_decision__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TreatmentDecisionResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     clear_treatment_api_treatment_decision__session_id__delete: {
         parameters: {
             query?: never;
@@ -14489,6 +14708,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_window_api_volume__session_id__window_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewerWindow"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewerWindow"];
                 };
             };
             /** @description Validation Error */

@@ -111,7 +111,9 @@ export type Contrato = [
   Cabe<Completo<S["ScissorsResult"]>, ui.ScissorsResult>,
   Cabe<Completo<S["SegmentRequest"]>, ui.SegmentRequest>,
   Cabe<Completo<S["SeriesInfo"]>, ui.SeriesInfo>,
-  Cabe<Completo<S["SessionRestoreResult"]>, ui.SessionRestoreResult>,
+  // Sin `treatment`: es un TreatmentDecisionResult, que la interfaz declara más
+  // estricto que la API (ver la lista de abajo).
+  Cabe<Completo<Omit<S["SessionRestoreResult"], "treatment">>, Omit<ui.SessionRestoreResult, "treatment">>,
   Cabe<Completo<S["SessionSaveRequest"]>, ui.SessionSaveRequest>,
   Cabe<Completo<S["SessionSaveResult"]>, ui.SessionSaveResult>,
   Cabe<Completo<S["SignupResponse"]>, ui.SignupResponse>,

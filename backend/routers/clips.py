@@ -443,6 +443,10 @@ async def plan_clips(
                      else (index[pl.clip_id].name if pl.clip_id in index else pl.clip_id)),
             "position": [pl.position.x, pl.position.y, pl.position.z],
             "orientation": [0.0, 0.0, float(pl.rotation_deg)],
+            # La normal de la hoja: con el giro, es la pose que evalúa el mapa
+            # de calor, y su huella la necesita para no dar por buena una
+            # cobertura calculada con el clip orientado de otra manera.
+            "normal": list(pl.normal) if pl.normal else None,
             "is_custom": pl.clip_id.startswith("custom:"),
         }
         for i, pl in enumerate(req.placements)
@@ -1374,7 +1378,8 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
     save_clip_evaluation(session_id, "field", {
         "verdict": verdict, "covered_pct": s.covered_pct, "residual_pct": s.residual_pct,
         "pressure_verdict": s.pressure_verdict,
-    }, clips=[(pl.clip_id, [pl.position.x, pl.position.y, pl.position.z])
+    }, clips=[(pl.clip_id, [pl.position.x, pl.position.y, pl.position.z],
+               float(pl.rotation_deg), list(pl.normal) if pl.normal else None)
               for pl in req.placements])
     return ClipFieldResult(
         field_mesh_url=f"{mesh_url(session_id, 'clip_field.vtp')}?v={int(time.time() * 1000)}",

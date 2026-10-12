@@ -244,7 +244,8 @@ class TestClipsDelPlan:
         sid = create_session()
         save_clips(sid, [{"index": 0, "clip_id": "navarro:t1:0:13.0",
                           "name": "NAVARRO™ T1 Recto 13.0 mm", "position": [60.0, 64.0, 67.6],
-                          "orientation": [0.0, 0.0, 20.0], "is_custom": False}])
+                          "orientation": [0.0, 0.0, 20.0], "normal": [0.0, 0.0, 1.0],
+                          "is_custom": False}])
         save_placed_clips(sid, {"clips": [{"key": 1, "clip_id": "navarro:t1:0:13.0",
                                            "position": [60.0, 64.0, 67.6], "rotation_deg": 20.0,
                                            "azimuthDeg": 35.0, "elevationDeg": -10.0}]})
@@ -282,7 +283,7 @@ class TestClipsDelPlan:
                                                 "summary": "Oclusión completa del saco."})
         save_clip_evaluation(sid, "field", {"verdict": "ok", "covered_pct": 92.0,
                                             "residual_pct": 3.0, "pressure_verdict": "ok"},
-                             clips=[("navarro:t1:0:13.0", [60.0, 64.0, 67.6])])
+                             clips=[("navarro:t1:0:13.0", [60.0, 64.0, 67.6], 20.0, [0.0, 0.0, 1.0])])
         textos = " ".join(getattr(f, "text", "") for f in self._elems(sid))
         assert "Oclusión completa del saco." in textos
         assert "cubre 92 % del cuello, residuo 3 % (correcto)" in textos
@@ -292,3 +293,100 @@ class TestClipsDelPlan:
                           "orientation": [0.0, 0.0, 20.0], "is_custom": False}])
         textos = " ".join(getattr(f, "text", "") for f in self._elems(sid))
         assert "no evaluada" in textos and "no calculado con estos clips" in textos
+
+
+class TestLaHuellaDelMapaDeCalorIncluyeLaOrientacion:
+    """Revisión de la Tarea 21: la huella era id + posición. Girar el clip sin
+    moverlo y pulsar «Colocar» dejaba en el PDF la cobertura de otra pose."""
+
+    _ID, _POS = "navarro:t1:0:13.0", [60.0, 64.0, 67.6]
+
+    def _colocar(self, sid, rot, normal):
+        from services.device_state import save_clips
+        save_clips(sid, [{"index": 0, "clip_id": self._ID, "name": "NAVARRO™ T1 Recto 13.0 mm",
+                          "position": self._POS, "orientation": [0.0, 0.0, rot],
+                          "normal": normal, "is_custom": False}])
+
+    def _textos(self, sid) -> str:
+        from services.report_generator import ReportGenerator, build_report_data_from_session
+        return " ".join(getattr(f, "text", "") for f in
+                        ReportGenerator(build_report_data_from_session(sid))._section_clips())
+
+    def _evaluar(self, sid):
+        from services.device_state import save_clip_evaluation
+        save_clip_evaluation(sid, "occlusion", {"outcome": "complete",
+                                                "summary": "Oclusión completa del saco."})
+        save_clip_evaluation(sid, "field", {"verdict": "ok", "covered_pct": 92.0,
+                                            "residual_pct": 3.0, "pressure_verdict": "ok"},
+                             clips=[(self._ID, self._POS, 0.0, [0.0, 0.0, 1.0])])
+
+    def test_mismo_sitio_otro_giro_el_mapa_de_calor_no_vale(self):
+        from services.sessions import create_session
+        sid = create_session()
+        self._colocar(sid, 0.0, [0.0, 0.0, 1.0])
+        self._evaluar(sid)
+        assert "cubre 92 % del cuello" in self._textos(sid)
+        self._colocar(sid, 35.0, [0.0, 0.0, 1.0])        # girado sin moverlo
+        textos = self._textos(sid)
+        assert "<b>Mapa de calor:</b> no calculado con estos clips" in textos
+        # La oclusión corta por la posición: sigue valiendo.
+        assert "Oclusión completa del saco." in textos
+
+    def test_mismo_sitio_otra_inclinacion_el_mapa_de_calor_no_vale(self):
+        from services.sessions import create_session
+        sid = create_session()
+        self._colocar(sid, 0.0, [0.0, 0.0, 1.0])
+        self._evaluar(sid)
+        self._colocar(sid, 0.0, [0.0, 0.6, 0.8])
+        assert "no calculado con estos clips" in self._textos(sid)
+
+    def test_quitar_los_clips_olvida_lo_evaluado(self):
+        from services.device_state import clear_device, read_state
+        from services.sessions import create_session
+        sid = create_session()
+        self._colocar(sid, 0.0, [0.0, 0.0, 1.0])
+        self._evaluar(sid)
+        clear_device(sid, "clips")
+        assert read_state(sid, "devices.clip_field.json", "") == ""
+        assert read_state(sid, "devices.clip_occlusion.json", "") == ""
+        # Volver a poner el mismo clip en el mismo sitio no resucita nada.
+        self._colocar(sid, 0.0, [0.0, 0.0, 1.0])
+        textos = self._textos(sid)
+        assert "no evaluada" in textos and "no calculado con estos clips" in textos
+
+
+# ── Decisiones guardadas antes de F1-225 / F1-227 ─────────────────────────── #
+
+#: Textos exactos guardados por sesiones decididas en 8d4c7e8 o antes.
+_VIEJO_AR = ("Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
+             "modalidad. Un AR ≥ 1.6 se asocia a RECANALIZACIÓN tras coiling (OR "
+             "4.15) — va al perfil endovascular.")
+_VIEJO_DNR = ("Ya no es un factor propio: el DNR es domo ÷ cuello, así que puntuaba "
+              "la misma medida que el factor del cuello y entre los dos se llevaban "
+              "40 puntos. Ahora se evalúan como un solo criterio de cuello ancho.")
+
+
+class TestLasDecisionesAntiguasSeLeenConLosTextosNuevos:
+    def test_el_pdf_de_una_sesion_antigua_no_dice_ya_no(self):
+        import json
+        from services.report_generator import ReportGenerator, build_report_data_from_session
+        from services.sessions import create_session, write_states
+        from services.treatment import _SOURCE
+        sid = create_session()
+        write_states(sid, {
+            "treatment.recommendation_key": "endo", "treatment.recommendation": "ENDOVASCULAR",
+            "treatment.confidence": "Moderada",
+            "treatment.factors_json": json.dumps([
+                {"name": "Aspect Ratio bajo (AR = 0.91 < 1.3)", "direction": "clip",
+                 "source": _VIEJO_AR, "votes": False},
+                {"name": "DNR 1.65", "direction": "neutral", "source": _VIEJO_DNR, "votes": False},
+                {"name": "Otro", "direction": "endo", "source": "Texto que no conoce el mapa",
+                 "votes": True},
+            ]),
+        })
+        data = build_report_data_from_session(sid)
+        celdas = " ".join(_celdas(_tabla(ReportGenerator(data)._section_treatment_decision())))
+        assert "Ya no" not in celdas and "Aspect Ratio" not in celdas
+        assert "Relación de aspecto (AR) baja (AR = 0.91 < 1.3)" in celdas
+        assert _SOURCE["ar"] in celdas and _SOURCE["dnr"] in celdas
+        assert "Texto que no conoce el mapa" in celdas         # lo desconocido pasa igual

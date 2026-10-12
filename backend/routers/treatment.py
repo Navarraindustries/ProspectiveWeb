@@ -58,6 +58,14 @@ def stored_decision(session_id: str) -> TreatmentDecisionResult | None:
         logger.warning("Decisión guardada ilegible en %s", session_id)
         return None
     result.team = stored_team(session_id)
+    # Los textos de una decisión guardada antes de F1-225/F1-227 se leen con
+    # los vigentes: reanudar y GET /treatment-decision no enseñan «Ya no vota…».
+    from services.treatment import modern_factor_name, modern_factor_source
+    for f in result.factors:
+        f.name = modern_factor_name(f.name)
+        f.source = modern_factor_source(f.source)
+    result.clip_factors = [modern_factor_name(n) for n in result.clip_factors]
+    result.endo_factors = [modern_factor_name(n) for n in result.endo_factors]
     return result
 
 

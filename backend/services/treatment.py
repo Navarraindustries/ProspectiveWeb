@@ -37,6 +37,7 @@ References
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -192,6 +193,76 @@ _SOURCE: dict[str, str] = {
         "rotura contra el del procedimiento, no cortar por diámetro."
     ),
 }
+
+
+# ── Textos de decisiones guardadas antes de F1-227 / F1-225 ───────────────── #
+# Una decisión guarda el nombre y la procedencia de cada factor tal como eran
+# al decidir (`treatment.factors_json`, `treatment.result_json`). Las sesiones
+# decididas antes de reescribirlos —las de Case 3 entre ellas— seguían
+# imprimiendo «Ya no vota…» y «Aspect Ratio bajo…» hasta volver a decidir.
+# Volver a decidir al abrir cambiaría en silencio una decisión que el equipo
+# pudo haber revisado; aquí solo se traduce el TEXTO al leer. Las claves son los
+# textos exactos de 8d4c7e8 (y anteriores, que eran iguales): un texto que no
+# está en el mapa pasa sin tocar.
+_LEGACY_SOURCE_TEXTS: dict[str, str] = {
+    # ar
+    (
+        'Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir '
+        'modalidad. Un AR ≥ 1.6 se asocia a RECANALIZACIÓN tras coiling (OR '
+        '4.15) — va al perfil endovascular.'
+    ): _SOURCE['ar'],
+    # dnr
+    (
+        'Ya no es un factor propio: el DNR es domo ÷ cuello, así que puntuaba '
+        'la misma medida que el factor del cuello y entre los dos se llevaban '
+        '40 puntos. Ahora se evalúan como un solo criterio de cuello ancho.'
+    ): _SOURCE['dnr'],
+    # bf
+    (
+        'Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir '
+        'modalidad. Lo que sí predice va al perfil endovascular.'
+    ): _SOURCE['bf'],
+    # ui
+    (
+        'Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir '
+        'modalidad ni para el resultado del coiling.'
+    ): _SOURCE['ui'],
+    # wfns
+    (
+        'Ya no puntúa aquí: se lo lleva el JSDB, que lo tiene ajustado en tres '
+        'niveles (II-III / IV / V) sobre 3 547 pacientes en vez de en dos a '
+        'mano.'
+    ): _SOURCE['wfns'],
+    # fisher
+    (
+        'Ya no puntúa aquí: se lo lleva el JSDB. Sumarlo en los dos sitios '
+        'sería contar la misma variable dos veces.'
+    ): _SOURCE['fisher'],
+}
+
+_LEGACY_AR_NAME = re.compile(r"^Aspect Ratio (alto|moderado|bajo)(?= |$)")
+_AR_NAME_ES = {"alto": "alta", "moderado": "moderada", "bajo": "baja"}
+
+
+def modern_factor_name(name: str) -> str:
+    """«Aspect Ratio bajo (AR = …)» → «Relación de aspecto (AR) baja (AR = …)»."""
+    return _LEGACY_AR_NAME.sub(
+        lambda m: f"Relación de aspecto (AR) {_AR_NAME_ES[m.group(1)]}", name or "")
+
+
+def modern_factor_source(source: str) -> str:
+    """La procedencia vigente para un texto de procedencia antiguo exacto."""
+    return _LEGACY_SOURCE_TEXTS.get(source, source)
+
+
+def modernize_factor(f: dict) -> dict:
+    """Un factor guardado (dict) con los textos vigentes; el resto, igual."""
+    out = dict(f)
+    if "name" in out:
+        out["name"] = modern_factor_name(str(out["name"]))
+    if "source" in out:
+        out["source"] = modern_factor_source(str(out["source"]))
+    return out
 
 
 

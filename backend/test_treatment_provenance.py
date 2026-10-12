@@ -542,3 +542,43 @@ class TestLowConfidenceSaysWhy:
     def test_el_modelo_lo_publica(self):
         from models.treatment import TreatmentDecisionResult
         assert "confidence_reason" in TreatmentDecisionResult.model_fields
+
+
+# ── Decisiones guardadas antes de F1-225 / F1-227 ─────────────────────────── #
+
+class TestGetDevuelveLosTextosVigentes:
+    """Reanudar y GET /treatment-decision devuelven la decisión guardada: una
+    guardada antes de reescribir los textos seguía diciendo «Ya no vota…»."""
+
+    _VIEJO_AR = ("Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
+                 "modalidad. Un AR ≥ 1.6 se asocia a RECANALIZACIÓN tras coiling (OR "
+                 "4.15) — va al perfil endovascular.")
+
+    def test_una_decision_antigua_sale_con_los_textos_nuevos(self):
+        import json
+        from routers.treatment import RESULT_KEY
+        from services.sessions import create_session, read_state, write_state, write_states
+
+        sid = create_session()
+        # El motor lee la morfometría del estado de la sesión, no de la petición.
+        write_states(sid, {"morpho.neck_mm": "6.0", "morpho.ar": "1.1", "morpho.dnr": "1.2",
+                           "morpho.max_diameter_mm": "8.0", "morpho.bf": "1.1",
+                           "morpho.ui": "0.25"})
+        r = client.post("/api/treatment-decision", json={"session_id": sid})
+        assert r.status_code == 200, r.text
+        # La misma decisión, guardada como la guardaba 8d4c7e8.
+        guardada = json.loads(read_state(sid, RESULT_KEY, ""))
+        ar = next(f for f in guardada["factors"] if f["source"] == _SOURCE["ar"])
+        nombre_nuevo = ar["name"]
+        ar["source"] = self._VIEJO_AR
+        ar["name"] = nombre_nuevo.replace("Relación de aspecto (AR) baja", "Aspect Ratio bajo")
+        guardada["clip_factors"] = [ar["name"] if n == nombre_nuevo else n
+                                    for n in guardada["clip_factors"]]
+        write_state(sid, RESULT_KEY, json.dumps(guardada))
+
+        got = client.get(f"/api/treatment-decision/{sid}")
+        assert got.status_code == 200, got.text
+        texto = json.dumps(got.json(), ensure_ascii=False)
+        assert "Ya no" not in texto and "Aspect Ratio" not in texto
+        factores = {f["name"]: f["source"] for f in got.json()["factors"]}
+        assert factores[nombre_nuevo] == _SOURCE["ar"]

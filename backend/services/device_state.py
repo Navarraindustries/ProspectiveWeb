@@ -88,22 +88,48 @@ _CLIP_EVAL_KEYS = {"occlusion": "devices.clip_occlusion.json",
                    "field": "devices.clip_field.json"}
 
 
-def clips_fingerprint(clips: list[tuple[str, list[float]]]) -> str:
-    """La huella de una colocación: qué clip y dónde, al décimo de milímetro."""
-    filas = sorted((str(cid), tuple(round(float(x), 1) for x in (pos or [])[:3]))
-                   for cid, pos in clips)
-    return json.dumps(filas)
+#: Una pose de clip para la huella: id, posición, giro y normal de la hoja.
+ClipPose = tuple[str, list[float], float, list[float] | None]
 
 
-def _current_fingerprint(session_id: str) -> str:
-    return clips_fingerprint([(c.get("clip_id", c.get("name", "")), c.get("position"))
-                              for c in read_clips(session_id)])
+def clips_fingerprint(clips: list[ClipPose], *, pose: bool = True) -> str:
+    """La huella de una colocación: qué clip, dónde (al décimo de milímetro) y,
+    con `pose`, cómo está orientado (giro al grado, normal a la centésima).
+
+    El mapa de calor depende de la orientación: girar un clip sin moverlo y
+    pulsar «Colocar» dejaba en el PDF una cobertura calculada para otra pose.
+    La oclusión corta por la posición del clip más proximal a lo largo del eje
+    del saco, así que para ella basta la posición (`pose=False`).
+    """
+    def _fila(c: ClipPose):
+        cid, pos, rot, normal = c
+        fila = [str(cid), [round(float(x), 1) for x in (pos or [])[:3]]]
+        if pose:
+            fila += [round(float(rot or 0.0)),
+                     [round(float(x), 2) for x in (normal or [])[:3]] or None]
+        return fila
+    return json.dumps(sorted((_fila(c) for c in clips), key=json.dumps))
+
+
+def _placed_poses(session_id: str) -> list[ClipPose]:
+    """Las poses de los clips colocados, como las guarda `save_clips`. El giro
+    es `orientation[2]`; la normal, la que se guardó (None en sesiones
+    anteriores a que se guardara: la huella con pose no coincidirá y el informe
+    dirá «no calculado», que es lo prudente)."""
+    out: list[ClipPose] = []
+    for c in read_clips(session_id):
+        ori = list(c.get("orientation") or [0.0, 0.0, 0.0])
+        out.append((c.get("clip_id", c.get("name", "")), c.get("position"),
+                    float(ori[2]) if len(ori) > 2 else 0.0, c.get("normal")))
+    return out
 
 
 def save_clip_evaluation(session_id: str, kind: str, record: dict,
-                         clips: list[tuple[str, list[float]]] | None = None) -> None:
+                         clips: list[ClipPose] | None = None) -> None:
     """Guarda `record` con la huella de `clips` (por defecto, los colocados)."""
-    huella = clips_fingerprint(clips) if clips is not None else _current_fingerprint(session_id)
+    pose = kind == "field"
+    huella = clips_fingerprint(clips if clips is not None else _placed_poses(session_id),
+                               pose=pose)
     _dump(session_id, _CLIP_EVAL_KEYS[kind], {**record, "fingerprint": huella})
 
 
@@ -112,7 +138,8 @@ def read_clip_evaluation(session_id: str, kind: str) -> dict | None:
     v = _load(session_id, _CLIP_EVAL_KEYS[kind], None)
     if not isinstance(v, dict) or not read_clips(session_id):
         return None
-    return v if v.get("fingerprint") == _current_fingerprint(session_id) else None
+    actual = clips_fingerprint(_placed_poses(session_id), pose=kind == "field")
+    return v if v.get("fingerprint") == actual else None
 
 
 def clear_devices(session_id: str) -> None:
@@ -142,3 +169,7 @@ def clear_device(session_id: str, kind: str) -> None:
         # Sin clips en el plan, la lista editable tampoco describe nada: si se
         # quedara, reanudar volvería a poner clips que se quitaron.
         write_state(session_id, _PLACED_CLIPS_KEY, "")
+        # Y lo evaluado con ellos: volver a poner el mismo clip en el mismo
+        # sitio resucitaba una oclusión o un mapa de calor de antes de quitarlo.
+        for k in _CLIP_EVAL_KEYS.values():
+            write_state(session_id, k, "")

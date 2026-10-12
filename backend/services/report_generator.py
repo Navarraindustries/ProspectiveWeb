@@ -351,7 +351,12 @@ def build_report_data_from_session(
         factors_raw = _rs("treatment.factors_json", "")
         if factors_raw:
             try:
-                treatment["factors"] = json.loads(factors_raw)
+                # Una decisión guardada antes de F1-225/F1-227 trae los textos
+                # de entonces («Ya no vota…», «Aspect Ratio bajo»): se leen con
+                # los vigentes, sin volver a decidir.
+                from services.treatment import modernize_factor
+                treatment["factors"] = [modernize_factor(f) if isinstance(f, dict) else f
+                                        for f in json.loads(factors_raw)]
             except ValueError as exc:
                 logger.warning("Informe: treatment.factors_json ilegible, la sección sale sin ello: %s", exc)
         # The engine's notes. The section has always been ready to print these;

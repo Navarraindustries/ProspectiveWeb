@@ -68,10 +68,10 @@ const RESULT: TreatmentDecisionResult = {
       source: "Umbral: cuello ≥ 4 mm, definición estándar de cuello ancho (Brinjikji, AJNR 2009). Peso: heurístico.",
     },
     {
-      name: "Aspect Ratio bajo (AR = 1.16 < 1.3)",
-      detail: "AR < 1.3: saco corto y ancho — acceso quirúrgico favorable.",
+      name: "Relación de aspecto (AR) baja (AR = 1.16 < 1.2)",
+      detail: "AR < 1.2: saco corto y ancho — acceso quirúrgico favorable.",
       direction: "clip", votes: false,
-      source: "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir modalidad.",
+      source: "Índice de riesgo de rotura: describe la vía endovascular, no vota. Sin validación para elegir modalidad.",
     },
   ],
   clip_factors: [], endo_factors: [],
@@ -124,7 +124,7 @@ describe("la procedencia de cada factor", () => {
     expect(screen.getByText(/Brinjikji/)).toBeInTheDocument();
     // El factor descriptivo está en su grupo plegado (F1-178).
     fireEvent.click(screen.getByRole("button", { name: /Descriptivos \(no influyen\)/ }));
-    expect(screen.getByText(/RIESGO DE ROTURA/)).toBeInTheDocument();
+    expect(screen.getByText(/Índice de riesgo de rotura/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Ocultar procedencia/ }));
     expect(screen.queryByText(/Brinjikji/)).not.toBeInTheDocument();
@@ -447,9 +447,9 @@ describe("F1-178: los factores que votan, primero", () => {
     render(<TreatmentPanel onNext={() => {}} />);
     // El que vota lleva su vía; el descriptivo está plegado y sin insignia.
     expect(screen.getByText("ENDO")).toBeInTheDocument();
-    expect(screen.queryByText(/Aspect Ratio bajo/)).toBeNull();
+    expect(screen.queryByText(/Relación de aspecto \(AR\) baja/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Descriptivos \(no influyen\)/ }));
-    expect(screen.getByText(/Aspect Ratio bajo/)).toBeInTheDocument();
+    expect(screen.getByText(/Relación de aspecto \(AR\) baja/)).toBeInTheDocument();
     expect(screen.queryByText("CLIP")).toBeNull();
     expect(screen.queryByText(/CLIP ·|ENDO ·|— ·/)).toBeNull();
     expect(screen.queryByText("no influye")).toBeNull();

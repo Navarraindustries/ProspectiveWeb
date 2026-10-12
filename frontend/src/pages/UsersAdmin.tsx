@@ -18,6 +18,12 @@ import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { fechaHora } from "../lib/fecha";
+import { ROLE_LABEL, ROLE_OPTS, ROLE_PERMITE } from "../lib/roles";
+
+/** Qué permite el rol elegido (F1-86): el nombre solo no dice si el Observador puede editar. */
+function RolePermite({ role }: { role: string }) {
+  return <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.4 }}>{ROLE_PERMITE[role] ?? ""}</div>;
+}
 
 const SPECIALTIES = [
   "Neurocirugía", "Neurorradiología intervencionista", "Neurología",
@@ -33,13 +39,6 @@ const GROUP_LABEL: React.CSSProperties = {
   color: "var(--muted-foreground)", margin: "20px 0 2px",
 };
 
-const ROLE_OPTS = [
-  { value: "admin", label: "Administrador" },
-  { value: "medico", label: "Médico" },
-  { value: "residente", label: "Residente" },
-  { value: "viewer", label: "Observador" },
-];
-const ROLE_LABEL: Record<string, string> = Object.fromEntries(ROLE_OPTS.map((r) => [r.value, r.label]));
 const roleVariant = (r: string): "destructive" | "default" | "secondary" | "subtle" =>
   r === "admin" ? "destructive" : r === "medico" ? "default" : r === "residente" ? "secondary" : "subtle";
 
@@ -84,6 +83,7 @@ function EditUserSheet({
           </div>
           <Input label="Nombre completo" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nombre y apellidos" />
           <Select label="Rol" options={ROLE_OPTS} value={role} onChange={(e) => setRole(e.target.value)} />
+          <RolePermite role={role} />
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer" }}>
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
             Cuenta activa (puede iniciar sesión)
@@ -177,8 +177,9 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
           <Input label="Usuario *" value={form.username} onChange={set("username")} autoComplete="off" />
           <Select label="Rol" options={ROLE_OPTS} value={form.role} onChange={set("role")} />
         </div>
+        <RolePermite role={form.role} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Input label="Contraseña *" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" />
+          <Input label="Contraseña * (mín. 8)" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" />
           <Input label="Confirmar *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" />
         </div>
       </div>

@@ -183,10 +183,14 @@ export class ApiError extends Error {
    *  vacío que da el proxy de Vite con el backend caído: ahí «Error 500» no
    *  explica nada y los paneles dicen que el servidor no responde. */
   fromServer: boolean;
-  constructor(status: number, detail: string, fromServer = status !== 0) {
+  /** El `detail` tal como llegó cuando era un objeto (el 401 de «Entrar» trae
+   *  `remaining_attempts`); `undefined` si fue texto. */
+  data?: unknown;
+  constructor(status: number, detail: string, fromServer = status !== 0, data?: unknown) {
     super(detail);
     this.status = status;
     this.fromServer = fromServer;
+    this.data = data;
   }
 }
 
@@ -324,9 +328,16 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: numb
   if (!res.ok) {
     let detail = `Error ${res.status}`;
     let fromServer = false;
+    let data: unknown;
     try {
       const body = await res.json();
       if (typeof body.detail === "string") { detail = body.detail; fromServer = true; }
+      else if (body.detail && typeof body.detail === "object" && typeof body.detail.message === "string") {
+        // Detalle con forma de objeto (el 401 de «Entrar» lleva los intentos
+        // que quedan): el texto legible es `message`, y el objeto se conserva
+        // en `ApiError.data`. Sin esto saldría el JSON crudo en pantalla.
+        detail = body.detail.message; data = body.detail; fromServer = true;
+      }
       else if (body.detail) { detail = JSON.stringify(body.detail); fromServer = true; }
     } catch {
       /* non-JSON error body */
@@ -336,7 +347,7 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: numb
     const answered = fromServer || res.status < 500;
     if (answered) noteServerAnswered();
     else noteConnectionFailure(method, retry);
-    throw new ApiError(res.status, detail, answered);
+    throw new ApiError(res.status, detail, answered, data);
   }
   noteServerAnswered();
   // 204 No Content (e.g. DELETE) has no body to parse.

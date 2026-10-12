@@ -55,6 +55,14 @@ class TestAdminCreate:
         li = client.post("/api/auth/login", json={"username": "created1", "password": "claveSegura1"})
         assert li.status_code == 200
 
+    def test_new_account_must_change_the_password_the_admin_chose(self):
+        # F1-87: la contraseña inicial la conoce el administrador.
+        H = _admin_headers()
+        client.post("/api/auth/users", headers=H, data={
+            "username": "forzada1", "password": "claveSegura1", "full_name": "F"})
+        li = client.post("/api/auth/login", json={"username": "forzada1", "password": "claveSegura1"})
+        assert li.status_code == 200 and li.json()["user"]["must_change_password"] is True
+
     def test_role_respected(self):
         H = _admin_headers()
         r = client.post("/api/auth/users", headers=H, data={

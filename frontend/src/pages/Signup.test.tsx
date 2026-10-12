@@ -56,3 +56,11 @@ describe("el aviso de «Crear cuenta»", () => {
     expect(screen.queryByText(CONNECTIVITY)).toBeNull();
   });
 });
+
+describe("la nota de cuenta pendiente (F1-48)", () => {
+  it("dice que no habrá aviso y a quién escribir", () => {
+    render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
+    expect(screen.getByText(/No recibirás aviso: prueba a entrar más adelante o escribe a/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ingprospective@skullapp.tech" })).toBeInTheDocument();
+  });
+});

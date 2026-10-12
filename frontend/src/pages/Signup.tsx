@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
 import { api } from "../api/client";
 import { serverErrorText } from "../api/errorText";
+import { CONTACTO_ADMIN } from "../lib/contacto";
 import { Button } from "../components/Button";
 import { FileField } from "../components/FileField";
 import { Input } from "../components/Input";
@@ -199,6 +200,8 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
 
             <div style={{ marginTop: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", color: "var(--warning)", fontSize: 12 }}>
               Tu cuenta quedará <b>pendiente de aprobación</b> hasta que un administrador la active.
+              {" "}No recibirás aviso: prueba a entrar más adelante o escribe a{" "}
+              <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "inherit", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
             </div>
 
             {error && (

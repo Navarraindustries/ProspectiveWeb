@@ -307,4 +307,15 @@ describe("servidor caído · revisión", () => {
   it("los POST largos tienen su propio límite, mayor que el de las lecturas", () => {
     expect(LONG_TIMEOUT_MS).toBeGreaterThan(GET_TIMEOUT_MS);
   });
+
+  it("lee `message` de un detalle con forma de objeto y conserva el objeto", async () => {
+    // El 401 de «Entrar» lleva los intentos que quedan; cualquier pantalla que
+    // lo muestre debe leer un texto, no el JSON crudo.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ detail: { message: "Credenciales incorrectas", remaining_attempts: 1 } }, 401),
+    );
+    const err = await api.login("admin", "mal").catch((e) => e);
+    expect(err.message).toBe("Credenciales incorrectas");
+    expect(err.data).toEqual({ message: "Credenciales incorrectas", remaining_attempts: 1 });
+  });
 });

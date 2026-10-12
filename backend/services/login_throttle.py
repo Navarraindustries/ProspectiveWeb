@@ -47,6 +47,18 @@ def blocked_for(k: tuple[str, str]) -> float:
         return max(0.0, WINDOW_S - (now - q[0]))
 
 
+def remaining(k: tuple[str, str]) -> int:
+    """Intentos que quedan antes del bloqueo; 0 si ya está bloqueado.
+
+    Se avisa en el 401 para que quien ha fallado cuatro veces sepa que el
+    siguiente fallo lo deja fuera quince minutos, en vez de enterarse al
+    quedarse fuera.
+    """
+    now = time.time()
+    with _lock:
+        return max(0, MAX_FAILURES - len(_recent(k, now)))
+
+
 def record_failure(k: tuple[str, str]) -> None:
     now = time.time()
     with _lock:

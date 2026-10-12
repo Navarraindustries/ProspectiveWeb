@@ -89,6 +89,11 @@ def get_user_by_username(db: Session, username: str) -> User | None:
     return db.query(User).filter(User.username == username, User.is_active == True).first()
 
 
+# Dónde escribir cuando una cuenta no puede entrar. El frontend tiene la misma
+# dirección en frontend/src/lib/contacto.ts; si cambia, cambian las dos.
+CONTACTO_ADMIN = "ingprospective@skullapp.tech"
+
+
 class AuthError(Exception):
     """Raised on login when the account exists but cannot sign in (pending/rejected)."""
 
@@ -114,12 +119,13 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
     if status_val == User.STATUS_PENDING:
         raise AuthError(
             "Tu cuenta está pendiente de aprobación. Un administrador debe "
-            "activarla antes de que puedas iniciar sesión."
+            "activarla antes de que puedas iniciar sesión. "
+            f"Para consultas, escribe a {CONTACTO_ADMIN}."
         )
     if status_val == User.STATUS_REJECTED:
-        raise AuthError("Tu solicitud de registro fue rechazada. Contacta al administrador.")
+        raise AuthError(f"Tu solicitud de registro fue rechazada. Para consultas, escribe a {CONTACTO_ADMIN}.")
     if not user.is_active:
-        raise AuthError("Cuenta desactivada. Contacta al administrador.")
+        raise AuthError(f"Cuenta desactivada. Para consultas, escribe a {CONTACTO_ADMIN}.")
 
     if not verify_password(password, user.hashed_password):
         return None
@@ -156,6 +162,9 @@ def create_pending_user(
         role            = role if active else "medico",
         institution     = str(fields.get("hospital", "")).strip(),
         is_active       = bool(active),
+        # F1-87: si la creó un administrador, la contraseña inicial la conoce él;
+        # quien se registra por su cuenta ya eligió la suya.
+        must_change_password = bool(active),
         status          = User.STATUS_ACTIVE if active else User.STATUS_PENDING,
         national_id     = str(fields.get("national_id", "")).strip(),
         professional_id = str(fields.get("professional_id", "")).strip(),

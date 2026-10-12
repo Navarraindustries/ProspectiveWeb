@@ -95,6 +95,16 @@ class TestAdminReset:
         assert _login("olvidadizo", "resetPorAdmin1")[1].status_code == 200
         assert _login("olvidadizo", "originalPass1")[1].status_code == 401
 
+    def test_reset_obliga_a_cambiarla_en_el_primer_acceso(self):
+        # F1-85: el administrador conoce la contraseña que acaba de poner; hasta
+        # que la persona elija la suya, no puede hacer nada más.
+        uid = _make_user("provisional", "originalPass1")
+        assert client.post(f"/api/auth/users/{uid}/reset-password",
+                           json={"new_password": "resetPorAdmin1"}).status_code == 200
+        c, r = _login("provisional", "resetPorAdmin1")
+        assert r.status_code == 200 and r.json()["user"]["must_change_password"] is True
+        assert c.get("/api/patients").status_code == 403
+
     def test_non_admin_cannot_reset_anyone(self):
         uid = _make_user("victima", "sigueSiendoMia1")
         _make_user("curioso", "clavePropia1", role="medico")

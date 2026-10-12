@@ -9,7 +9,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 const listUsers = vi.fn();
 
 vi.mock("../api/client", () => ({
-  api: { listUsers: () => listUsers() },
+  api: { listUsers: () => listUsers(), createUser: vi.fn() },
   ApiError: class ApiError extends Error {},
 }));
 vi.mock("../components/Topbar", () => ({ Topbar: () => null }));
@@ -49,5 +49,17 @@ describe("la columna «Creado» (F1-83)", () => {
     render(<UsersAdmin onBack={() => {}} />);
     // La conversión a UTC−5 (22:28 del día anterior) se fija en fecha.test.ts con zona explícita.
     expect(await screen.findByText(fechaHora("2026-10-11T03:28:00+00:00"))).toBeTruthy();
+  });
+});
+describe("la línea bajo «Rol» (F1-86)", () => {
+  it("cambia con el rol elegido y el rótulo de la contraseña dice «mín. 8»", async () => {
+    listUsers.mockResolvedValueOnce([]);
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Nuevo usuario/ }));
+    expect(screen.getByText("Médico: ves y editas los pacientes que creas; firmas pedidos")).toBeTruthy();
+    expect(screen.getByLabelText("Contraseña * (mín. 8)")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Rol"), { target: { value: "viewer" } });
+    expect(screen.getByText("Observador: ves y editas los pacientes que creas; no firmas pedidos")).toBeTruthy();
+    expect(screen.queryByText(/^Médico: ves/)).toBeNull();
   });
 });

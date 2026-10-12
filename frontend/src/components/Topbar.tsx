@@ -12,13 +12,7 @@ import { useAuth } from "../store/auth";
 import { ChangePasswordSheet } from "./ChangePasswordSheet";
 import { useNav } from "../store/nav";
 import { api } from "../api/client";
-
-const ROLE_LABEL: Record<string, string> = {
-  admin: "Administrador",
-  medico: "Médico",
-  residente: "Residente",
-  viewer: "Observador",
-};
+import { ROLE_LABEL, ROLE_PERMITE } from "../lib/roles";
 
 /** Circular avatar: the user's uploaded photo (auth'd blob) or their initials. */
 function Avatar({ url, initials, size, fontSize }: { url: string | null; initials: string; size: number; fontSize: number }) {
@@ -133,6 +127,14 @@ function UserMenu() {
               <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
                 @{user.username} · {ROLE_LABEL[user.role] ?? user.role}
               </div>
+              {/* F1-106/251: la institución y lo que permite el rol, para que la
+                  persona sepa con qué cuenta está y qué puede hacer con ella. */}
+              {user.institution && (
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{user.institution}</div>
+              )}
+              {ROLE_PERMITE[user.role] && (
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.35, marginTop: 2 }}>{ROLE_PERMITE[user.role]}</div>
+              )}
             </div>
           </div>
 

@@ -11,6 +11,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../store/auth";
 import { ApiError } from "../api/client";
 import { serverErrorText } from "../api/errorText";
+import { CONTACTO_ADMIN } from "../lib/contacto";
 
 /** Qué decirle a quien no pudo entrar.
  *
@@ -27,7 +28,15 @@ import { serverErrorText } from "../api/errorText";
  *  responde y a quién avisar. Desde la Tarea 6 el cliente lanza ApiError 0
  *  en vez de TypeError, así que la clase sola ya no distingue el caso. */
 export function loginErrorMessage(err: unknown): string {
-  if (err instanceof ApiError && err.status === 401) return "Credenciales incorrectas";
+  if (err instanceof ApiError && err.status === 401) {
+    // Al quinto fallo se bloquea la entrada quince minutos; avisar del último
+    // intento evita que alguien que duda de su contraseña se quede fuera sin
+    // saber que estaba a uno.
+    const left = (err.data as { remaining_attempts?: number } | undefined)?.remaining_attempts;
+    return left === 1
+      ? "Credenciales incorrectas. Te queda un intento antes del bloqueo temporal."
+      : "Credenciales incorrectas";
+  }
   return serverErrorText(err);
 }
 
@@ -161,6 +170,12 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
               {busy ? "Verificando…" : "Entrar"}
             </Button>
           </form>
+          {/* F1-1: no hay recuperación automática de contraseña; sin esta línea
+              quien la olvida no sabe que existe un camino ni cuál. */}
+          <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
+            ¿Olvidaste la contraseña? Un administrador puede restablecerla: escribe a{" "}
+            <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "var(--brand-deep)", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
+          </p>
           <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
             ¿No tienes cuenta?{" "}
             <button

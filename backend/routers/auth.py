@@ -20,6 +20,7 @@ from models import (
 from services.database import get_db
 from services.auth_service import (
     ACCESS_TOKEN_EXPIRE_MIN,
+    CONTACTO_ADMIN,
     COOKIE_NAME,
     AuthError,
     approve_user,
@@ -109,7 +110,10 @@ async def login(
     if espera > 0:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Demasiados intentos fallidos. Vuelve a probar en {int(espera // 60) + 1} min.",
+            detail=(
+                f"Demasiados intentos fallidos. Vuelve a probar en {int(espera // 60) + 1} min. "
+                "Si no recuerdas la contraseña, pide a un administrador que la restablezca."
+            ),
             headers={"Retry-After": str(int(espera) + 1)},
         )
     try:
@@ -124,7 +128,12 @@ async def login(
         login_throttle.record_failure(clave)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales incorrectas",
+            # Objeto y no texto: el aviso «te queda un intento» necesita el número.
+            # El cliente lee `message` como cualquier otro detalle (ApiError.fromServer).
+            detail={
+                "message": "Credenciales incorrectas",
+                "remaining_attempts": login_throttle.remaining(clave),
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
     login_throttle.clear(clave)
@@ -250,8 +259,9 @@ async def signup(
     return SignupResponse(
         status="pending",
         message=(
-            "Solicitud enviada. Un administrador revisará tu cuenta y podrás "
-            "iniciar sesión en cuanto sea aprobada."
+            "Solicitud enviada. Un administrador la revisará; no recibirás aviso, "
+            "así que vuelve a intentar entrar más adelante. "
+            f"Para consultas, {CONTACTO_ADMIN}."
         ),
     )
 
@@ -560,6 +570,9 @@ async def reset_password(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
     user.hashed_password = get_password_hash(req.new_password)
+    # F1-85: el administrador conoce esta contraseña; la persona elige la suya
+    # en el primer acceso.
+    user.must_change_password = True
     db.commit()
     logger.info("Password reset by admin — target=%s by=%s", user.username, admin.username)
 

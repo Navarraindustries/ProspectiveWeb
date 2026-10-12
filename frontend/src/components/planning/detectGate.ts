@@ -8,7 +8,12 @@ import type { AneurysmCandidate } from "../../api/types";
  *  Antes solo contaban los aceptados: con todos los sitios vetados (el caso
  *  típico es recortar ajustado alrededor de la lesión, que entonces toca la
  *  cara del recorte) el flujo se quedaba bloqueado, aunque un descartado se
- *  puede elegir y medir igual que un aceptado. */
+ *  puede elegir y medir igual que un aceptado.
+ *
+ *  Un candidato «marcado a mano» (F1-146: el punto confirmado que no era
+ *  ninguno de la lista) va en `candidates` y cuenta igual: en un fallo del
+ *  detector es lo único que llevar a Morfometría, donde se mide marcando
+ *  cuello y ápice. */
 export function canAdvanceFromDetect(
   candidates: readonly AneurysmCandidate[],
   rejected: readonly AneurysmCandidate[],

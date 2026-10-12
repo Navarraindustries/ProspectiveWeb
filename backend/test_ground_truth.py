@@ -190,3 +190,49 @@ class TestLinajeDeLaSesion:
             "session_id": origen, "source": "candidate", "candidate_id": "cand-001"})
         ajena = _sesion_con_candidatos()
         assert client.get(f"/api/ground-truth/current?session_id={ajena}").json() is None
+
+
+class TestCuentaEstudios:
+    """F1-149: «Con 3 lesiones confirmadas…» contaba filas, no estudios. `_active`
+    retira la anterior del mismo estudio al confirmar por la API, pero el
+    resumen no puede depender de eso: tres filas vigentes del mismo estudio
+    (una carrera, una base antigua) son UN estudio."""
+
+    def _filas(self, n: int, **campos) -> None:
+        from services.database import SessionLocal
+        from services.db_models import LesionConfirmation
+        db = SessionLocal()
+        try:
+            for k in range(n):
+                db.add(LesionConfirmation(source="candidate", candidate_rank=1 + k,
+                                          n_candidates=3, **campos))
+            db.commit()
+        finally:
+            db.close()
+
+    def test_tres_confirmaciones_del_mismo_estudio_cuentan_una(self):
+        _pid, _caso, img = _estudio("TresVecesElMismo")
+        antes = client.get("/api/ground-truth/summary").json()
+        self._filas(3, imaging_study_id=img, session_id="s-a")
+        d = client.get("/api/ground-truth/summary").json()
+        assert d["confirmed"] - antes["confirmed"] == 1
+        # Cuenta la última: puesto 3, ni primera ni fallo.
+        assert d["first"] - antes["first"] == 0
+        assert d["top3"] - antes["top3"] == 1
+        assert d["reproducible"] - antes["reproducible"] == 1
+
+    def test_sin_estudio_cuenta_una_por_sesion(self):
+        antes = client.get("/api/ground-truth/summary").json()
+        self._filas(2, session_id="sesion-sin-estudio-1")
+        self._filas(1, session_id="sesion-sin-estudio-2")
+        d = client.get("/api/ground-truth/summary").json()
+        assert d["confirmed"] - antes["confirmed"] == 2
+
+    def test_por_la_api_tres_veces_el_mismo_estudio_cuenta_una(self):
+        _pid, _caso, img = _estudio("TresVecesPorLaApi")
+        antes = client.get("/api/ground-truth/summary").json()
+        for cid in ("cand-001", "cand-002", "cand-003"):
+            _confirmar(session_id=_sesion_con_candidatos(), imaging_study_id=img,
+                       source="candidate", candidate_id=cid)
+        d = client.get("/api/ground-truth/summary").json()
+        assert d["confirmed"] - antes["confirmed"] == 1

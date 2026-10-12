@@ -137,11 +137,55 @@ describe("DetectPanel", () => {
       expect(screen.queryByText(/La morfometría se ha limpiado/)).not.toBeInTheDocument());
   });
 
-  it("marca «Puesto bajo» pasado el tercer puesto", async () => {
+  /* Decisión nº 20 (F1-144): «Puesto #4» ya dice el orden; «Puesto bajo»
+     sugería un juicio que el orden no sostiene. */
+  it("el cuarto candidato no lleva «Puesto bajo»", async () => {
     mockDetect({ candidates: [cand("a", 1), cand("b", 2), cand("c", 3), cand("d", 4)] });
     render(<Wrapped />);
     expect(await screen.findByText("Puesto #4")).toBeInTheDocument();
-    expect(screen.getAllByText("Puesto bajo")).toHaveLength(1);
+    expect(screen.queryByText("Puesto bajo")).not.toBeInTheDocument();
+  });
+
+  /* F1-142: tres párrafos delante de la lista y una cifra fija («los dos casos
+     con diagnóstico») que ya no era verdad. */
+  it("la explicación son tres líneas y lo demás se pliega en «Más», sin la cifra fija", async () => {
+    mockDetect({ candidates: [cand("a", 1), cand("b", 2)] });
+    render(<Wrapped />);
+    const nota = await screen.findByRole("note", { name: "Cómo leer la lista" });
+    expect(nota.querySelectorAll("li")).toHaveLength(3);
+    expect(nota).toHaveTextContent("lista para recorrer, no un veredicto");
+    expect(nota).toHaveTextContent("Lo que se pinta de azul no es el saco");
+    expect(nota).not.toHaveTextContent(/dos casos/);
+    expect(nota).not.toHaveTextContent(/La medida real la da Morfometría/);
+    const mas = screen.getByRole("button", { name: "Más" });
+    expect(mas).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(mas);
+    expect(nota).toHaveTextContent(/La medida real la da Morfometría/);
+    expect(nota).not.toHaveTextContent(/dos casos/);
+  });
+
+  /* F1-143: «Ø 3.7 mm est.» se leía como el diámetro del aneurisma. */
+  it("el grosor se lee como grosor local, con coma decimal y «≈»", async () => {
+    mockDetect({ candidates: [cand("a", 1, { max_diameter_mm: 3.71 })] });
+    render(<Wrapped />);
+    expect(await screen.findByText("≈3,7 mm de grosor local")).toBeInTheDocument();
+    expect(screen.queryByText(/est\./)).not.toBeInTheDocument();
+  });
+
+  /* F1-146: el punto confirmado a mano es un candidato más de la lista. */
+  it("un candidato marcado a mano lleva su insignia y no enseña grosor ni puesto", async () => {
+    mockDetect({
+      candidates: [cand("cand-001", 1), cand("cand-004", 0, {
+        channels: ["manual"], patch_kind: "manual", max_diameter_mm: 0, dome_mesh_url: "", confidence: 0,
+      })],
+      rejected: [],
+    });
+    render(<Wrapped />);
+    expect(await screen.findByText("marcado a mano")).toBeInTheDocument();
+    expect(screen.getAllByText(/de grosor local/)).toHaveLength(1);
+    expect(screen.queryByText("Puesto #0")).not.toBeInTheDocument();
+    // «encontrados» cuenta lo que encontró el detector.
+    expect(screen.getByText("1 encontrados")).toBeInTheDocument();
   });
 
   it("sin candidatos sigue explicando el vacío y no muestra el desplegable", async () => {

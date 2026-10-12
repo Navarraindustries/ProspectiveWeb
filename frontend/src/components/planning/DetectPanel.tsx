@@ -13,7 +13,10 @@ import { SegmentProgress } from "../segmentation/SegmentProgress";
 import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
-import { ALL_REJECTED, MORPHO_INVALIDATED, rankLabel, rejectedSummary, vetoHint } from "./detectCopy";
+import {
+  ALL_REJECTED, DETECT_LINES, DETECT_MORE, MANUAL_BADGE, MORPHO_INVALIDATED, isManual,
+  rankLabel, rejectedSummary, thicknessLabel, vetoHint,
+} from "./detectCopy";
 import { canAdvanceFromDetect } from "./detectGate";
 
 /** Número de la última detección pedida. De módulo y no del componente: si el
@@ -83,6 +86,11 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
   // Los descartados empiezan plegados: están para poder discrepar del
   // detector, no para recorrerlos primero.
   const [showRejected, setShowRejected] = useState(false);
+  // F1-142: la explicación larga va plegada detrás de «Más».
+  const [showMore, setShowMore] = useState(false);
+  // «encontrados» es lo que encontró el detector: un punto marcado a mano y
+  // confirmado (F1-146) está en la lista, pero no lo encontró él.
+  const found = candidates.filter((c) => !isManual(c)).length;
   // Índice combinado: los descartados van detrás de los aceptados.
   const selectedRejected = selectedCandidate >= candidates.length
     ? rejectedCandidates[selectedCandidate - candidates.length] ?? null
@@ -159,7 +167,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       <PanelHead
         title="Candidatos detectados"
         desc="Zonas de la vasculatura que merece la pena mirar, en una lista corta para recorrer."
-        right={ran && <Badge variant="subtle">{candidates.length} encontrados</Badge>}
+        right={ran && <Badge variant="subtle">{found} encontrados</Badge>}
       />
 
       {busy && (
@@ -191,23 +199,27 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         </div>
       )}
 
+      {/* F1-142: tres párrafos delante de la lista, con una cifra fija («los
+          dos casos con diagnóstico») que ya no era verdad. Tres líneas y el
+          resto plegado; la cifra viva la da «¿Cuál es la lesión?». */}
       {ran && candidates.length > 1 && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
-          Tres criterios buscan por separado: <b>curvatura</b> (la superficie se abomba),{" "}
-          <b>calibre</b> (más gruesa que el resto de la vasculatura) y <b>cociente</b> (más gruesa
-          que el vaso de al lado). Cada candidato dice cuáles lo encontraron.
-          <br />
-          Es una <b>lista para recorrer, no un veredicto</b>: el orden no está validado
-          contra casos anotados. En los dos casos con diagnóstico que tenemos la lesión
-          la encontró un criterio distinto en cada uno —en uno la curvatura, en el otro
-          el cociente—, así que ningún criterio basta por sí solo.
-          <br />
-          <b>Lo que se pinta de azul no es el saco.</b> Cuando lo encontró la curvatura
-          es la región detectada; cuando lo encontró el calibre es una bola alrededor del
-          punto, que incluye pared de vaso — señala dónde mirar. El diámetro es una
-          estimación del grosor ahí. <b>La medida real la da Morfometría</b>, marcando el
-          cuello y el ápice: se vuelve a aislar el saco desde el volumen, así que nada de
-          esto altera los números.
+        <div role="note" aria-label="Cómo leer la lista"
+             style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+          <ul style={{ margin: 0, paddingLeft: 16 }}>
+            {DETECT_LINES.map((t) => <li key={t}>{t}</li>)}
+          </ul>
+          {showMore && DETECT_MORE.map((t) => <p key={t} style={{ margin: "6px 0 0" }}>{t}</p>)}
+          <button
+            type="button"
+            aria-expanded={showMore}
+            onClick={() => setShowMore((v) => !v)}
+            style={{
+              background: "none", border: "none", padding: "4px 0 0", cursor: "pointer",
+              fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
+            }}
+          >
+            {showMore ? "Menos" : "Más"}
+          </button>
         </div>
       )}
 
@@ -215,7 +227,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         {candidates.map((c, i) => {
           const on = selectedCandidate === i;
           const rank = c.rank ?? i + 1;
-          const low = rank > 3;
+          // Un punto marcado a mano no tiene grosor medido ni puesto del detector.
+          const manual = isManual(c);
           return (
             <div
               key={c.id}
@@ -233,23 +246,27 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{c.id}</span>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}
-                {(c.channels ?? []).map((ch) => (
-                  <Badge key={ch} variant={ch === "curvatura" ? "subtle" : "success"}>
-                    {ch}
-                  </Badge>
-                ))}
-                {low && <Badge variant="warning">Puesto bajo</Badge>}
+                {manual
+                  ? <Badge variant="subtle">{MANUAL_BADGE}</Badge>
+                  : (c.channels ?? []).map((ch) => (
+                    <Badge key={ch} variant={ch === "curvatura" ? "subtle" : "success"}>
+                      {ch}
+                    </Badge>
+                  ))}
+                {/* Decisión nº 20 (F1-144): sin «Puesto bajo». «Puesto #4» ya
+                    dice el orden, y la marca juzgaba con un orden que no está
+                    validado. */}
                 <div style={{ flex: 1 }} />
                 {on && <Icon name="STATUS_OK" size={15} color="var(--brand-deep)" />}
               </div>
               <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                  Ø{" "}
-                  <b style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
-                    {c.max_diameter_mm.toFixed(1)} mm
-                  </b>
-                  {" "}est.
-                </span>
+                {/* F1-143: «Ø 3.7 mm est.» se leía como el diámetro del
+                    aneurisma; es el grosor estimado en ese punto. */}
+                {!manual && (
+                  <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                    {thicknessLabel(c.max_diameter_mm)}
+                  </span>
+                )}
                 {c.patch_kind === "locator" && (
                   <span style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
                     azul = dónde, no el saco
@@ -261,13 +278,17 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     único caso con diagnóstico médico el primero era el
                     equivocado. El puesto dice el orden sin prometer nada; la
                     barra sigue dando la puntuación relativa. */}
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)", whiteSpace: "nowrap" }}>
-                  {rankLabel(rank)}
-                </span>
+                {!manual && (
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)", whiteSpace: "nowrap" }}>
+                    {rankLabel(rank)}
+                  </span>
+                )}
               </div>
-              <div style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${c.confidence * 100}%`, background: low ? "var(--warning)" : "var(--primary)" }} />
-              </div>
+              {!manual && (
+                <div style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${c.confidence * 100}%`, background: "var(--primary)" }} />
+                </div>
+              )}
             </div>
           );
         })}
@@ -313,11 +334,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
                       <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                        Ø{" "}
-                        <b style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
-                          {c.max_diameter_mm.toFixed(1)} mm
-                        </b>
-                        {" "}est.
+                        {thicknessLabel(c.max_diameter_mm)}
                       </span>
                       <div style={{ flex: 1 }} />
                       {c.veto && (

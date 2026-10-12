@@ -23,6 +23,13 @@ describe("nombres de los botones", () => {
   it("el 3D ofrece ABORDAJE junto a las vistas", () => {
     expect(readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8")).toMatch(/label:\s*"ABORDAJE"/);
   });
+  /* F1-150: «LESIÓN» acercaba la cámara al candidato elegido, que no tiene por
+     qué ser la lesión. */
+  it("la barra 3D dice «CANDIDATO», no «LESIÓN»", () => {
+    const src = readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8");
+    expect(src).toMatch(/\{ key: "lesion", label: "CANDIDATO", title: "Acercar la cámara al candidato elegido" \}/);
+    expect(src).not.toMatch(/label: "LESIÓN"/);
+  });
   /* F1-116: «VISTA ▸ AX · COR · SAG» en el 3D se confundía con los cortes de
      la cabecera; la cámara dice desde dónde se mira. */
   it("la barra 3D no repite AX, COR, SAG: DESDE ▸ ARRIBA · DELANTE · LADO", () => {

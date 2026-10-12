@@ -58,7 +58,7 @@ class AneurysmCandidate(BaseModel):
     selected: bool = Field(
         False, description="True when this candidate is the user-selected one"
     )
-    patch_kind: Literal["region", "locator"] = Field(
+    patch_kind: Literal["region", "locator", "manual"] = Field(
         "region",
         description=(
             "Qué es la malla de `dome_mesh_url`. «region»: la región que el "
@@ -67,7 +67,10 @@ class AneurysmCandidate(BaseModel):
             "geométricos, así que enseña DÓNDE mirar y no qué parte es la "
             "lesión; incluye pared de vaso alrededor. En ninguno de los dos "
             "casos afecta a la morfometría, que se mide sobre el saco aislado "
-            "desde el volumen a partir del plano de cuello marcado."
+            "desde el volumen a partir del plano de cuello marcado. «manual»: "
+            "un punto que el profesional marcó y confirmó como la lesión sin "
+            "que coincidiera con ningún candidato; no tiene malla "
+            "(`dome_mesh_url` vacío) y se mide marcando cuello y ápice."
         ),
     )
     channels: list[str] = Field(
@@ -84,7 +87,8 @@ class AneurysmCandidate(BaseModel):
         ...,
         description=(
             "Posición 1-based dentro de su lista: los aceptados 1..n en el "
-            "orden del consenso, los descartados 1..m en el suyo."
+            "orden del consenso, los descartados 1..m en el suyo. 0 en un "
+            "candidato marcado a mano: el detector no le dio puesto."
         ),
     )
     veto: Veto | None = Field(

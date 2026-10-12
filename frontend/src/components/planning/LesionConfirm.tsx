@@ -7,17 +7,28 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
-import type { LesionConfirmation, LesionConfirmIn, LesionSummary } from "../../api/types";
+import type {
+  AneurysmCandidate, LesionConfirmation, LesionConfirmIn, LesionSummary,
+} from "../../api/types";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { usePlanning } from "../../store/planning";
+import { MANUAL_CHANNEL, MANUAL_HINT, UNARCHIVED_NOTE, isManual } from "./detectCopy";
 
-function describe(c: LesionConfirmation): string {
+/** *cands*: la lista entera del panel, para nombrar lo que no tiene puesto
+ *  (un descartado o un marcado a mano, F1-145/F1-146). */
+function describe(c: LesionConfirmation, cands: readonly AneurysmCandidate[]): string {
   if (c.source === "no_lesion") return "Sin aneurisma en este estudio.";
-  if (c.source === "candidate") return `La lesión es el candidato #${c.candidate_rank}.`;
-  return c.candidate_rank != null
-    ? `Marcada a mano; coincide con el candidato #${c.candidate_rank}.`
-    : `Marcada a mano; no estaba entre los ${c.n_candidates} candidatos.`;
+  const cand = c.candidate_id ? cands.find((x) => x.id === c.candidate_id) : undefined;
+  if (c.source === "candidate") {
+    if (c.candidate_rank != null) return `La lesión es el candidato #${c.candidate_rank}.`;
+    if (cand && isManual(cand)) return `La lesión es ${cand.id}, marcado a mano.`;
+    if (c.candidate_id) return `La lesión es ${c.candidate_id}, que el detector descartó.`;
+    return "La lesión es un candidato de una detección anterior.";
+  }
+  if (c.candidate_rank != null) return `Marcada a mano; coincide con el candidato #${c.candidate_rank}.`;
+  if (cand && !isManual(cand)) return `Marcada a mano; coincide con ${cand.id}, que el detector descartó.`;
+  return `Marcada a mano; no estaba entre los ${c.n_candidates} candidatos.`;
 }
 
 /** La cifra que sustituye a «en los dos casos que tenemos». */
@@ -30,7 +41,8 @@ export function summaryText(s: LesionSummary): string | null {
 
 export function LesionConfirm() {
   const {
-    sessionId, imagingStudyId, candidates, selectedCandidate,
+    sessionId, imagingStudyId, candidates, allCandidates, selectedCandidate,
+    setCandidates, setSelectedCandidate,
     pickMode, setPickMode, lesionMark, setLesionMark,
   } = usePlanning();
   const [current, setCurrent] = useState<LesionConfirmation | null>(null);
@@ -55,7 +67,12 @@ export function LesionConfirm() {
 
   if (!sessionId) return null;
   const marking = pickMode === "lesion_mark";
-  const cand = candidates[selectedCandidate];
+  // F1-145: la lista combinada, como el panel. Con `candidates` a secas, un
+  // descartado elegido no tenía botón de confirmar.
+  const cand = allCandidates[selectedCandidate];
+  // Ya confirmado: el botón pasa a estado hecho en vez de ofrecerlo otra vez.
+  const done = !!cand && current != null && current.source !== "no_lesion"
+    && current.candidate_id === cand.id;
 
   const send = async (body: Omit<LesionConfirmIn, "session_id" | "imaging_study_id">) => {
     setBusy(true);
@@ -64,6 +81,20 @@ export function LesionConfirm() {
       const c = await api.confirmLesion({ session_id: sessionId, imaging_study_id: imagingStudyId, ...body });
       setCurrent(c);
       setLesionMark(null);
+      // F1-146: un punto que no era ningún candidato vuelve como uno nuevo,
+      // «marcado a mano». Va con los aceptados (delante de los descartados,
+      // como lo lista el backend) y queda elegido: si no, en un fallo del
+      // detector no había nada que llevar a Morfometría.
+      const pos = c.position;
+      if (c.candidate_id && pos && !allCandidates.some((x) => x.id === c.candidate_id)) {
+        const manual: AneurysmCandidate = {
+          id: c.candidate_id, center_mm: pos, max_diameter_mm: 0, confidence: 0,
+          dome_mesh_url: "", selected: false, channels: [MANUAL_CHANNEL],
+          patch_kind: "manual", rank: 0, veto: null,
+        };
+        setCandidates([...candidates, manual]);
+        setSelectedCandidate(candidates.length);
+      }
       api.lesionSummary().then(setSummary).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar la confirmación");
@@ -109,7 +140,7 @@ export function LesionConfirm() {
           background: "var(--brand-subtle)", display: "flex", alignItems: "center", gap: 8,
         }}>
           <span style={{ flex: 1 }}>
-            <b>Confirmado:</b> {describe(current)}
+            <b>Confirmado:</b> {describe(current, allCandidates)}
             {current.created_by ? <span style={{ color: "var(--muted-foreground)" }}> · {current.created_by}</span> : null}
           </span>
           <Button size="sm" variant="ghost" onClick={() => void retract()} disabled={busy}>Retirar</Button>
@@ -117,12 +148,16 @@ export function LesionConfirm() {
       )}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {cand && (
-          <Button size="sm" disabled={busy}
-                  onClick={() => void send({ source: "candidate", candidate_id: cand.id })}>
-            {`Es el #${selectedCandidate + 1}`}
-          </Button>
-        )}
+        {/* F1-145: «Es el #1» numeraba por la posición en la lista, que no
+            es el id que se ve en la tarjeta. */}
+        {cand && (done
+          ? <Button size="sm" variant="outline" disabled>Confirmada</Button>
+          : (
+            <Button size="sm" disabled={busy}
+                    onClick={() => void send({ source: "candidate", candidate_id: cand.id })}>
+              {`Confirmar ${cand.id} como la lesión`}
+            </Button>
+          ))}
         <Button size="sm" variant="outline" disabled={busy}
                 onClick={() => setPickMode(marking ? null : "lesion_mark")}>
           {marking ? "Marcando… (clic en la malla)" : lesionMark ? "Volver a marcar" : "Marcar en la malla"}
@@ -152,10 +187,14 @@ export function LesionConfirm() {
         cómo acierta el detector. Puedes retirarlo después con «Retirar».
       </ConfirmDialog>
 
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 8 }}>
+        {MANUAL_HINT}
+      </div>
+
+      {/* F1-148: «no se podrá volver a pasar el detector» no decía qué se pierde. */}
       {imagingStudyId == null && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 8 }}>
-          Este estudio no está archivado: la confirmación cuenta para la estadística,
-          pero no se podrá volver a pasar el detector sobre él.
+          {UNARCHIVED_NOTE}
         </div>
       )}
       {error && <div style={{ fontSize: 11, color: "var(--destructive)", marginTop: 8 }}>{error}</div>}

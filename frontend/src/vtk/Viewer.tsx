@@ -1805,7 +1805,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // Arriba a la izquierda: el paso, el candidato y el estado de la vista previa.
     const tl: string[] = [STEP_SCENE[step]?.toUpperCase() ?? ""];
     if (candidate && (step === "detect" || (isMesh && focusUrl))) {
-      tl.push(`${candidate.id} · Ø ${candidate.max_diameter_mm.toFixed(1)} mm`);
+      // Un candidato marcado a mano (F1-146) no tiene grosor medido: «Ø 0.0 mm» mentiría.
+      tl.push(candidate.patch_kind === "manual"
+        ? `${candidate.id} · marcado a mano`
+        : `${candidate.id} · Ø ${candidate.max_diameter_mm.toFixed(1)} mm`);
     }
     if (previewActive && previewBand) {
       const u = unitFor(meta?.modality);
@@ -1894,7 +1897,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
                 label="DESDE ▸"
                 options={[
                   ...CAMERA_BUTTONS.map(([key, label, title]) => ({ key, label, title })),
-                  ...(lesion ? [{ key: "lesion", label: "LESIÓN", title: "Acercar la cámara a la lesión" }] : []),
+                  // F1-150: acerca al candidato ELEGIDO, que no tiene por qué ser la lesión.
+                  ...(lesion ? [{ key: "lesion", label: "CANDIDATO", title: "Acercar la cámara al candidato elegido" }] : []),
                   ...(trajEntry && trajTarget ? [{ key: "abordaje", label: "ABORDAJE", title: "Mirar a lo largo del corredor; el plano Oblicuo se pone perpendicular a él" }] : []),
                 ]}
                 value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : k === "abordaje" ? viewApproach() : camera.setView(k as CameraView))} />

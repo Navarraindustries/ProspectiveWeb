@@ -15,6 +15,11 @@ describe("canAdvanceFromDetect", () => {
   it("con solo descartados también deja avanzar: se pueden medir", () => {
     expect(canAdvanceFromDetect([], [site])).toBe(true);
   });
+  // F1-146: en un fallo del detector, el punto confirmado a mano es el sitio.
+  it("con solo un candidato marcado a mano también deja avanzar", () => {
+    const manual = { id: "cand-001", channels: ["manual"], patch_kind: "manual" } as AneurysmCandidate;
+    expect(canAdvanceFromDetect([manual], [])).toBe(true);
+  });
 });
 
 describe("vetoHint", () => {

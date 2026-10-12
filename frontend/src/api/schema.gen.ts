@@ -1532,7 +1532,7 @@ export interface paths {
         };
         /**
          * Cómo le va al detector frente a lo confirmado
-         * @description Sobre las confirmaciones vigentes (una por estudio): en cuántas la lesión salió primera, entre las 3 y las 5 primeras, o no salió. Es lo que el panel de detección enseña en vez de una cifra fija.
+         * @description Sobre las confirmaciones vigentes, una por estudio (o por sesión si no hay estudio archivado): en cuántas la lesión salió primera, entre las 3 y las 5 primeras, o no salió. Es lo que el panel de detección enseña en vez de una cifra fija.
          */
         get: operations["summary_api_ground_truth_summary_get"];
         put?: never;
@@ -2860,14 +2860,14 @@ export interface components {
             max_diameter_mm: number;
             /**
              * Patch Kind
-             * @description Qué es la malla de `dome_mesh_url`. «region»: la región que el canal de curvatura detectó — el azul ES lo marcado. «locator»: una bola alrededor del punto que propusieron los canales geométricos, así que enseña DÓNDE mirar y no qué parte es la lesión; incluye pared de vaso alrededor. En ninguno de los dos casos afecta a la morfometría, que se mide sobre el saco aislado desde el volumen a partir del plano de cuello marcado.
+             * @description Qué es la malla de `dome_mesh_url`. «region»: la región que el canal de curvatura detectó — el azul ES lo marcado. «locator»: una bola alrededor del punto que propusieron los canales geométricos, así que enseña DÓNDE mirar y no qué parte es la lesión; incluye pared de vaso alrededor. En ninguno de los dos casos afecta a la morfometría, que se mide sobre el saco aislado desde el volumen a partir del plano de cuello marcado. «manual»: un punto que el profesional marcó y confirmó como la lesión sin que coincidiera con ningún candidato; no tiene malla (`dome_mesh_url` vacío) y se mide marcando cuello y ápice.
              * @default region
              * @enum {string}
              */
-            patch_kind: "region" | "locator";
+            patch_kind: "region" | "locator" | "manual";
             /**
              * Rank
-             * @description Posición 1-based dentro de su lista: los aceptados 1..n en el orden del consenso, los descartados 1..m en el suyo.
+             * @description Posición 1-based dentro de su lista: los aceptados 1..n en el orden del consenso, los descartados 1..m en el suyo. 0 en un candidato marcado a mano: el detector no le dio puesto.
              */
             rank: number;
             /**
@@ -5733,6 +5733,11 @@ export interface components {
         };
         /** LesionConfirmOut */
         LesionConfirmOut: {
+            /**
+             * Candidate Id
+             * @description El candidato de la lista que es la lesión ('cand-003'), también si es un descartado o el marcado a mano que se acaba de crear con el punto (F1-146); None si no hay lesión.
+             */
+            candidate_id?: string | null;
             /**
              * Candidate Rank
              * @description Puesto del candidato que ES la lesión; None si ninguno lo era.

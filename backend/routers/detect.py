@@ -232,6 +232,10 @@ def _clear_detection_state(session_id: str, meshes_dir: Path, *, morphometry: bo
             blank[f"{prefix}.{suffix}"] = ""
     blank["detect.n_candidates"] = "0"
     blank["detect.n_rejected"] = "0"
+    # Los marcados a mano (F1-146) se apuntaron sobre la lista anterior: una
+    # detección nueva es otra lista, y el punto sigue guardado en la
+    # confirmación de la lesión.
+    blank["detect.n_manual"] = "0"
     blank["detect.best_vtp_name"] = ""
     blank["detect.diagnostics_json"] = ""
     write_states(session_id, blank)
@@ -653,6 +657,58 @@ def _run_detection_sync(
     )
 
 
+#: Canal y tipo de un candidato que no salió del detector sino de un punto
+#: marcado a mano (F1-146).
+MANUAL_CHANNEL = "manual"
+
+#: Lo que responde la morfometría automática sobre un marcado a mano: no hay
+#: región detectada que aislar como saco, pero sí la vía manual.
+MANUAL_NO_SAC = ("Candidato marcado a mano: no hay saco detectado que aislar. "
+                 "Mide en Morfometría marcando el cuello y el ápice.")
+
+
+def add_manual_candidate(session_id: str, point: tuple[float, float, float]) -> str | None:
+    """Apunta un punto marcado a mano como un candidato más; devuelve su id.
+
+    F1-146: cuando el detector no encontró la lesión, el profesional la marca
+    y la confirma, pero la lista seguía sin nada que elegir y Morfometría se
+    quedaba cerrada justo en el caso que más importa. El punto entra en el
+    estado con las mismas claves que un candidato detectado, `channels` y
+    `patch_kind` «manual», sin malla, diámetro ni puntuación (el detector no
+    midió nada ahí). Va detrás de aceptados y descartados para no mover sus
+    ids, con su propio contador (`detect.n_manual`): sumarlo a
+    `detect.n_candidates` haría pasar por aceptado al primer descartado.
+    Re-detectar lo borra con el resto (`_clear_detection_state`).
+
+    None si la sesión no tiene una detección guardada: sin lista no hay a qué
+    añadirlo, y crearla aquí haría que «Reanudar» diera por hecha una
+    detección que no se hizo.
+    """
+    if read_state(session_id, "detect.n_candidates", "") == "":
+        return None
+    idx = listed_candidates(session_id) + 1
+    prefix = f"detect.cand_{idx:03d}"
+    write_states(session_id, {
+        f"{prefix}.vtp_name":    "",
+        f"{prefix}.url":         "",
+        f"{prefix}.centroid_x":  str(float(point[0])),
+        f"{prefix}.centroid_y":  str(float(point[1])),
+        f"{prefix}.centroid_z":  str(float(point[2])),
+        f"{prefix}.diameter_mm": "0",
+        f"{prefix}.score":       "0",
+        f"{prefix}.channels":    MANUAL_CHANNEL,
+        f"{prefix}.patch_kind":  MANUAL_CHANNEL,
+        f"{prefix}.veto_reason": "",
+        f"{prefix}.veto_detail": "",
+        "detect.n_manual":       str(_int_state(session_id, "detect.n_manual") + 1),
+    })
+    return f"cand-{idx:03d}"
+
+
+def _is_manual(session_id: str, rank: int) -> bool:
+    return read_state(session_id, f"detect.cand_{rank:03d}.patch_kind", "") == MANUAL_CHANNEL
+
+
 def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
     """La última detección tal como quedó en el estado, sin recalcular.
 
@@ -707,6 +763,22 @@ def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
             veto=veto,
         ))
 
+    # Los marcados a mano van con los aceptados, que es donde el panel los
+    # enseña; sin malla que comprobar (no la tienen).
+    n_man = _int_state(session_id, "detect.n_manual")
+    for idx in range(n_acc + n_rej + 1, n_acc + n_rej + n_man + 1):
+        p = f"detect.cand_{idx:03d}"
+        try:
+            center = [float(read_state(session_id, f"{p}.centroid_{a}", "")) for a in "xyz"]
+        except ValueError:
+            continue
+        accepted.append(PydAneurysmCandidate(
+            id=f"cand-{idx:03d}",
+            center_mm=Position3D(x=center[0], y=center[1], z=center[2]),
+            max_diameter_mm=0.0, confidence=0.0, dome_mesh_url="", selected=False,
+            channels=[MANUAL_CHANNEL], patch_kind="manual", rank=0, veto=None,
+        ))
+
     diagnostics = DetectionDiagnostics(n_rejected=len(rejected))
     raw_diag = read_state(session_id, "detect.diagnostics_json", "")
     if raw_diag:
@@ -715,7 +787,8 @@ def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
         except ValueError:
             pass
     return AneurysmDetectionResult(
-        found=bool(accepted), candidates=accepted, rejected=rejected,
+        # «Encontró» lo dice el detector, no un punto marcado a mano.
+        found=n_acc > 0, candidates=accepted, rejected=rejected,
         morphometry_invalidated=False, diagnostics=diagnostics,
     )
 
@@ -786,11 +859,15 @@ async def get_morphometry(
                     f"{_int_state(session_id, 'detect.n_rejected')} descartados."
                 ),
             )
+        # Antes de guardarlo como elegido: el informe y los perforantes
+        # buscarían la malla de «el medido», y un marcado a mano no la tiene.
+        if _is_manual(session_id, rank):
+            raise HTTPException(status_code=422, detail=MANUAL_NO_SAC)
         write_state(session_id, "detect.selected_candidate", candidate_id)
     else:
         # Una repetición (p. ej. «Reanudar») mide lo que se eligió la última vez.
         rank = _candidate_rank(read_state(session_id, "detect.selected_candidate", ""))
-        if rank is not None and rank > n_candidates:
+        if rank is not None and (rank > n_candidates or _is_manual(session_id, rank)):
             rank = None
     if rank is not None:
         best_vtp_name = f"aneurysm_cand_{rank:03d}.vtp"

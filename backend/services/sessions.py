@@ -371,14 +371,17 @@ def read_state(session_id: str, key: str, default: str = "") -> str:
 
 
 def listed_candidates(session_id: str) -> int:
-    """Cuántos `cand-00N` dio la última detección: aceptados + descartados.
+    """Cuántos `cand-00N` hay en la lista: aceptados + descartados + marcados a mano.
 
     Los descartados por un veto llevan ids a continuación de los aceptados y
     tienen malla, así que se pueden elegir y medir igual. Quien valide un id
-    contra `detect.n_candidates` solo dejaría fuera justo a esos.
+    contra `detect.n_candidates` solo dejaría fuera justo a esos. Los marcados
+    a mano (F1-146, `routers/detect.add_manual_candidate`) van detrás de los
+    descartados; no tienen malla, y quien la busque tiene que mirar
+    `patch_kind`.
     """
     total = 0
-    for key in ("detect.n_candidates", "detect.n_rejected"):
+    for key in ("detect.n_candidates", "detect.n_rejected", "detect.n_manual"):
         try:
             total += int(read_state(session_id, key, "0") or 0)
         except ValueError:

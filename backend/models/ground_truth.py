@@ -29,6 +29,11 @@ class LesionConfirmOut(BaseModel):
     position: Optional[Position3D]
     candidate_rank: Optional[int] = Field(
         None, description="Puesto del candidato que ES la lesión; None si ninguno lo era.")
+    candidate_id: Optional[str] = Field(
+        None, description=(
+            "El candidato de la lista que es la lesión ('cand-003'), también "
+            "si es un descartado o el marcado a mano que se acaba de crear con "
+            "el punto (F1-146); None si no hay lesión."))
     n_candidates: int
     channels: str
     modality: str

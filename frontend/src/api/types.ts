@@ -703,10 +703,13 @@ export interface AneurysmCandidate {
       «locator»: una bola alrededor del punto — enseña DÓNDE mirar, no qué
       parte es la lesión, e incluye pared de vaso. Ninguno de los dos afecta a
       la morfometría, que se mide sobre el saco aislado desde el volumen a
-      partir del plano de cuello marcado. */
-  patch_kind: "region" | "locator";
+      partir del plano de cuello marcado. «manual»: un punto que el profesional
+      marcó y confirmó como la lesión sin que coincidiera con ningún candidato
+      (F1-146); sin malla (`dome_mesh_url` vacío), se mide marcando cuello y
+      ápice. */
+  patch_kind: "region" | "locator" | "manual";
   /** Posición entre los aceptados (1 = el primero). En un descartado numera
-      el orden en que se evaluó. */
+      el orden en que se evaluó; 0 en un marcado a mano (sin puesto). */
   rank: number;
   /** null si el sitio pasó los vetos; si no, el motivo por el que se descartó.
       Los descartados se listan igualmente para que el cirujano pueda verlos
@@ -1977,6 +1980,9 @@ export interface LesionConfirmation {
   position: Position3D | null;
   /** Puesto del candidato que ES la lesión; null si ninguno lo era. */
   candidate_rank: number | null;
+  /** El candidato de la lista que es la lesión ('cand-003'), también si es un
+      descartado o el marcado a mano recién creado con el punto (F1-146). */
+  candidate_id?: string | null;
   n_candidates: number;
   channels: string;
   modality: string;

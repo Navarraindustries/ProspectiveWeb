@@ -21,7 +21,11 @@ vi.mock("../../api/client", () => ({
     getTeamDecision: vi.fn().mockResolvedValue({ team_decision: null, decided_by: "", other_text: "" }),
   },
 }));
-vi.mock("../../store/auth", () => ({ useAuth: () => ({ user: { username: "admin", full_name: "" } }) }));
+// La cuenta es mutable: F1-221 depende del rol y del nombre de quien entra.
+const auth = vi.hoisted(() => ({
+  user: { username: "admin", full_name: "", role: "admin" } as Record<string, unknown>,
+}));
+vi.mock("../../store/auth", () => ({ useAuth: () => ({ user: auth.user }) }));
 vi.mock("./PrintPrepPanel", () => ({ PrintPrepPanel: () => null }));
 
 import { api } from "../../api/client";
@@ -147,5 +151,98 @@ describe("«Resumen del caso»", () => {
     montarCon((p) => p.setMorphometry({ max_diameter_mm: 7, rupture_risk_label: "Alto" } as never));
     expect(await screen.findByText("Índice de forma (AR, BF, UI); no es el PHASES, que está en Morfometría"))
       .toBeInTheDocument();
+  });
+});
+
+/* F1-221: el campo arrancaba con el nombre de la cuenta; la del administrador
+   firmaba el PDF como «Administrador». */
+describe("«Cirujano responsable»", () => {
+  const conCuenta = (user: Record<string, unknown>) => { auth.user = user; };
+
+  it("con la cuenta admin el campo arranca vacío y el PDF pide el nombre", async () => {
+    conCuenta({ username: "admin", full_name: "Administrador", role: "admin" });
+    montar();
+    const campo = await screen.findByLabelText("Cirujano responsable") as HTMLInputElement;
+    expect(campo.value).toBe("");
+    expect(screen.getByText("Generar informe PDF").closest("button")).toBeDisabled();
+    expect(screen.getByText("Escribe el cirujano responsable")).toBeInTheDocument();
+    fireEvent.change(campo, { target: { value: "Dra. Ruiz" } });
+    expect(screen.getByText("Generar informe PDF").closest("button")).not.toBeDisabled();
+    expect(screen.queryByText("Escribe el cirujano responsable")).toBeNull();
+  });
+
+  it("una cuenta de médico con nombre lo propone", async () => {
+    conCuenta({ username: "jruiz", full_name: "Dra. Ruiz", role: "medico" });
+    montar();
+    const campo = await screen.findByLabelText("Cirujano responsable") as HTMLInputElement;
+    expect(campo.value).toBe("Dra. Ruiz");
+  });
+
+  it("una cuenta de médico sin nombre no propone el usuario", async () => {
+    conCuenta({ username: "jruiz", full_name: "  ", role: "medico" });
+    montar();
+    const campo = await screen.findByLabelText("Cirujano responsable") as HTMLInputElement;
+    expect(campo.value).toBe("");
+  });
+});
+
+/* F1-239 y F1-240: el botón guarda y cierra; el pie solo promete el vínculo
+   con el paciente cuando hay caso. */
+describe("guardar desde el informe", () => {
+  function montarConCaso(caseId: number | null) {
+    function Seed({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => { if (!p.sessionId) { p.setSession("s1"); p.setCase(caseId); } }, [p]);
+      return p.sessionId ? <>{children}</> : null;
+    }
+    return render(<PlanningProvider><Seed><ReportPanel onFinish={() => {}} /></Seed></PlanningProvider>);
+  }
+
+  it("el botón dice «Guardar y cerrar»", async () => {
+    montarConCaso(null);
+    expect(await screen.findByText("Guardar y cerrar")).toBeInTheDocument();
+    expect(screen.queryByText("Guardar sesión")).toBeNull();
+  });
+
+  it("sin caso no promete el vínculo y remite a «Adjuntar a un caso»", async () => {
+    montarConCaso(null);
+    expect(await screen.findByText(
+      "Sin caso, la sesión se guarda suelta: con «Adjuntar a un caso» queda ligada al paciente",
+    )).toBeInTheDocument();
+    expect(screen.queryByText(/se vincula al paciente/)).toBeNull();
+  });
+
+  it("con caso dice que se vincula", async () => {
+    montarConCaso(4);
+    expect(await screen.findByText("La sesión se vincula al paciente y estudio en la base de datos."))
+      .toBeInTheDocument();
+  });
+});
+
+/* F1-222: la foto del informe encuadra la lesión y devuelve la cámara. */
+describe("la captura 3D del informe", () => {
+  it("encuadra con el encuadrador del visor antes de capturar y restaura después", async () => {
+    auth.user = { username: "jruiz", full_name: "Dra. Ruiz", role: "medico" };
+    const orden: string[] = [];
+    const restaurar = vi.fn(() => { orden.push("restaurar"); });
+    function Seed({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        if (!p.sessionId) {
+          p.setSession("s1");
+          p.setCaptureViewport(async () => { orden.push("capturar"); return "data:image/png;base64,QUJD"; });
+          p.registerSceneFramer(() => { orden.push("encuadrar"); return restaurar; });
+        }
+      }, [p]);
+      return p.sessionId ? <>{children}</> : null;
+    }
+    vi.mocked(api.report).mockResolvedValueOnce({ pdf_url: "/x.pdf", generated_at: "" } as never);
+    render(<PlanningProvider><Seed><ReportPanel onFinish={() => {}} /></Seed></PlanningProvider>);
+    fireEvent.click(await screen.findByText("Generar informe PDF"));
+    await screen.findByText(/Descargar PDF/);
+    expect(orden).toEqual(["encuadrar", "capturar", "restaurar"]);
+    expect(vi.mocked(api.report).mock.calls.at(-1)?.[0]).toMatchObject({
+      screenshot_png_b64: "QUJD", surgeon_name: "Dra. Ruiz",
+    });
   });
 });

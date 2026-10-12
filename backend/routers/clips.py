@@ -1368,6 +1368,14 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
         note = s.note + " Clip importado sin ficha: sin fuerza de catálogo, la presión no se puede estimar."
     else:
         note = s.note
+    # Para el informe (F1-229), con la huella de ESTA colocación: el visor lo
+    # pide también mientras se arrastra, y solo vale si coincide con la guardada.
+    from services.device_state import save_clip_evaluation
+    save_clip_evaluation(session_id, "field", {
+        "verdict": verdict, "covered_pct": s.covered_pct, "residual_pct": s.residual_pct,
+        "pressure_verdict": s.pressure_verdict,
+    }, clips=[(pl.clip_id, [pl.position.x, pl.position.y, pl.position.z])
+              for pl in req.placements])
     return ClipFieldResult(
         field_mesh_url=f"{mesh_url(session_id, 'clip_field.vtp')}?v={int(time.time() * 1000)}",
         scalars={"coverage": "uint8", "pressure_g_mm2": "float32", "colors": "uint8x3"},
@@ -1469,6 +1477,12 @@ async def clip_occlusion(session_id: str) -> OcclusionOut:
             f"Hay {len(colocados)} clips colocados y la medida usa la línea de "
             f"cierre del más proximal. Para un montaje en fila es una "
             f"aproximación del conjunto."))
+
+    # El informe dice si el clip se comprobó (F1-229): se guarda con la huella
+    # de los clips de ahora, y moverlos la invalida.
+    from services.device_state import save_clip_evaluation
+    save_clip_evaluation(session_id, "occlusion",
+                         {"outcome": res.outcome, "summary": res.summary})
 
     return OcclusionOut(
         outcome=res.outcome,

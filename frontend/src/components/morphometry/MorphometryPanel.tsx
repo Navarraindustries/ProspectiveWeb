@@ -14,7 +14,7 @@ import { PanelHead, ErrorNote, Collapsible } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { Select } from "../Select";
 import { Tabs } from "../Tabs";
-import { EI_MOD, THRESHOLD_TIP, UI_HIGH, badgeFor } from "./thresholds";
+import { EI_MOD, THRESHOLD_TIP, badgeFor } from "./thresholds";
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, rgbCss, type Rgb } from "../../vtk/markerColors";
 import { FollowupOverlay } from "./FollowupOverlay";
 import { UiatsCalculator } from "./UiatsCalculator";
@@ -557,7 +557,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             {tab === "ELAPSS" && (
               <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} dob={planning.patient?.dob}
                                 bodyDiameterMm={bodyMm} provisional={provisional}
-                                irregularHint={m.volume_valid && m.ui >= UI_HIGH} />
+                                measuredUi={m.volume_valid ? m.ui : null} />
             )}
             {tab === "Seguimiento" && (
               <div>

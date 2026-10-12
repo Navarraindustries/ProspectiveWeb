@@ -15,7 +15,7 @@ import { ErrorNote, SectionLabel } from "../PanelHead";
 import { DiameterSource } from "./DiameterSource";
 import { ELAPSS_CUTS } from "./diameterCut";
 import { InheritedSite } from "./InheritedSite";
-import { isSiteKnown, siteFor } from "./thresholds";
+import { isSiteKnown, siteFor, UI_HIGH } from "./thresholds";
 
 const POPULATIONS: { value: ElapssPopulation; label: string }[] = [
   { value: "other", label: "Norteamérica, China o Europa (salvo Finlandia)" },
@@ -24,7 +24,7 @@ const POPULATIONS: { value: ElapssPopulation; label: string }[] = [
 ];
 
 export function ElapssCalculator({
-  maxDiameterMm, sessionId, irregularHint, dob, bodyDiameterMm, provisional,
+  maxDiameterMm, sessionId, measuredUi, dob, bodyDiameterMm, provisional,
 }: {
   maxDiameterMm: number;
   /** Ø del cuerpo sin ramas finas: si cae en otro tramo, se avisa (F1-14). */
@@ -32,8 +32,9 @@ export function ElapssCalculator({
   /** El saco aislado llega al límite del recorte: el Ø mide también vaso padre. */
   provisional?: boolean;
   sessionId: string | null;
-  /** La morfometría sugiere contorno irregular (UI alto): solo se avisa, no se marca. */
-  irregularHint?: boolean;
+  /** El índice de ondulación medido (null si el volumen no es válido). Con UI
+   *  alto se avisa de la contradicción con «regular», pero no se marca solo. */
+  measuredUi?: number | null;
   /** Fecha de nacimiento del paciente: rellena la edad, como en UIATS. */
   dob?: string;
 }) {
@@ -108,10 +109,14 @@ export function ElapssCalculator({
           <input type="checkbox" checked={irregular} onChange={(e) => setIrregular(e.target.checked)} />
           Forma irregular (varios lóbulos, blebs o protrusiones)
         </label>
-        {irregularHint && !irregular && (
-          <div style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.5, marginTop: -6 }}>
-            La morfometría da un contorno ondulado (UI alto): mira en el visor si tiene
-            lóbulos o blebs antes de dejarlo como regular.
+        {/* F1-235: el PDF imprimía «Forma (S) Regular» junto a un UI de 0,50
+            sin que nada lo señalara. La nota suave pasaba desapercibida: ahora
+            es un aviso con la cifra. El corte es el «irregular» de la insignia
+            (UI_HIGH); la casilla no se marca sola, la forma la decide quien mira. */}
+        {measuredUi != null && measuredUi >= UI_HIGH && !irregular && (
+          <div role="alert" style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.5, marginTop: -6 }}>
+            La forma elegida (regular) contradice el UI medido ({measuredUi.toLocaleString("es-ES", {
+              minimumFractionDigits: 2, maximumFractionDigits: 2 })}): revisa el contorno en el visor
           </div>
         )}
       </div>

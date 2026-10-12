@@ -88,8 +88,8 @@ class TestDecisionLeeLosMismosCortes:
         assert "vaso padre" not in _factor("Domo", undulation_index=0.497)["detail"]
 
     def test_ar_usa_los_cortes_de_morfometria(self):
-        assert "1.2" in _factor("Aspect", aspect_ratio=1.25)["name"]
-        assert "1.6" in _factor("Aspect", aspect_ratio=1.7)["name"]
+        assert "1.2" in _factor("Relación de aspecto", aspect_ratio=1.25)["name"]
+        assert "1.6" in _factor("Relación de aspecto", aspect_ratio=1.7)["name"]
 
     def test_el_perfil_endovascular_avisa_desde_el_mismo_corte_de_ui(self):
         assert endovascular_profile(neck_mm=3.0, dnr=2.5, undulation_index=0.22).cautions == []

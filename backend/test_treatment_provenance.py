@@ -132,9 +132,10 @@ class TestEveryWeightCarriesItsProvenance:
         # AR, BF y UI vienen de literatura de riesgo de ROTURA, no de elección
         # de modalidad. Se enseñan —borrar una medida la esconde— pero no suman.
         for key in ("ar", "bf", "ui"):
-            assert "ROTURA" in _SOURCE[key]
-            assert "Ya no vota" in _SOURCE[key]
-            assert "sin validación para elegir modalidad" in _SOURCE[key]
+            assert "riesgo de rotura" in _SOURCE[key].lower()
+            # F1-227: la regla vigente, no la historia del programa.
+            assert "no vota" in _SOURCE[key]
+            assert "sin validación para elegir modalidad" in _SOURCE[key].lower()
         mudos = [f for f in self._factors() if not f["votes"]]
         # Cuatro: los tres índices de forma más el DNR, que desde que el cuello
         # y él son un solo criterio se enseña sin volver a puntuar.
@@ -158,12 +159,22 @@ class TestEveryWeightCarriesItsProvenance:
         # dos criterios: son las dos mitades de la definición de cuello ancho.
         assert "O DNR < 2" in _SOURCE["neck"]
         assert "una sola vez" in _SOURCE["neck"]
-        assert "Ya no es un factor propio" in _SOURCE["dnr"]
+        assert "otra mitad de la definición de cuello ancho" in _SOURCE["dnr"]
 
     def test_the_clinical_grades_say_who_scores_them_now(self):
         for key in ("wfns", "fisher"):
-            assert "Ya no puntúa aquí" in _SOURCE[key]
+            assert "Japan Stroke Data Bank" in _SOURCE[key]
             assert "JSDB" in _SOURCE[key]
+
+    def test_no_factor_text_tells_the_program_history(self):
+        # F1-227: el PDF decía «Ya no vota…», «Ya no es un factor propio… entre
+        # los dos se llevaban 40 puntos»: historia del programa, no la regla.
+        for key, text in _SOURCE.items():
+            assert "Ya no" not in text, key
+        for f in self._factors():
+            assert "Ya no" not in f["source"] and "Ya no" not in f.get("name", "")
+            # F1-225: el nombre del factor llega al PDF, en castellano.
+            assert "Aspect Ratio" not in f.get("name", "")
 
     def test_the_small_aneurysm_cutoff_does_not_pretend_to_be_a_guideline(self):
         assert "heurístico" in _SOURCE["small"].lower()

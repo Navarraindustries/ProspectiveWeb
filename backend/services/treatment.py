@@ -130,6 +130,9 @@ class _Factor:
 
 #: Provenance per factor. Written out rather than inferred so that adding a
 #: factor without a source is a visible omission.
+#: F1-227: los textos llegan al PDF y dicen la regla VIGENTE. La historia
+#: (AR/BF/UI votaban; DNR y cuello sumaban 40 puntos entre los dos; WFNS y
+#: Fisher puntuaban aquí además de en el JSDB) se queda en este comentario.
 _SOURCE: dict[str, str] = {
     "neck": (
         "Umbral: cuello ancho = cuello ≥ 4 mm O DNR < 2 — las dos mitades de UNA "
@@ -137,26 +140,27 @@ _SOURCE: dict[str, str] = {
         "una sola vez. Peso: heurístico."
     ),
     "ar": (
-        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
-        "modalidad. Un AR ≥ 1.6 se asocia a RECANALIZACIÓN tras coiling "
-        "(OR 4.15) — va al perfil endovascular."
+        "Índice de riesgo de rotura: describe la vía endovascular, no vota. "
+        "Sin validación para elegir modalidad; un AR ≥ 1.6 se asocia a "
+        "RECANALIZACIÓN tras coiling (OR 4.15) y figura en el perfil endovascular."
     ),
     "dnr": (
-        "Ya no es un factor propio: el DNR es domo ÷ cuello, así que puntuaba la "
-        "misma medida que el factor del cuello y entre los dos se llevaban 40 "
-        "puntos. Ahora se evalúan como un solo criterio de cuello ancho."
+        "El DNR es la otra mitad de la definición de cuello ancho: se evalúa "
+        "con el cuello, en un solo criterio (domo ÷ cuello mide lo mismo que el "
+        "cuello y no se cuenta dos veces)."
     ),
     "size": (
         "Umbrales de tamaño de uso corriente; el corte de gigante es "
         "convencional. Peso: heurístico."
     ),
     "bf": (
-        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
-        "modalidad. Lo que sí predice va al perfil endovascular."
+        "Índice de riesgo de rotura: describe la vía endovascular, no vota. "
+        "Sin validación para elegir modalidad; lo que sí predice figura en el "
+        "perfil endovascular."
     ),
     "ui": (
-        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
-        "modalidad ni para el resultado del coiling."
+        "Índice de riesgo de rotura: describe la vía endovascular, no vota. "
+        "Sin validación para elegir modalidad ni para el resultado del coiling."
     ),
     "location": (
         "Dirección recogida en guía para circulación posterior (AHA/ASA 2023). "
@@ -175,12 +179,13 @@ _SOURCE: dict[str, str] = {
         "resultado demostrada en ≥60."
     ),
     "wfns": (
-        "Ya no puntúa aquí: se lo lleva el JSDB, que lo tiene ajustado en tres "
-        "niveles (II-III / IV / V) sobre 3 547 pacientes en vez de en dos a mano."
+        "WFNS/Fisher los evalúa el modelo del Japan Stroke Data Bank (JSDB), ajustado "
+        "en tres niveles (II-III / IV / V) sobre 3 547 pacientes; no puntúan "
+        "aparte."
     ),
     "fisher": (
-        "Ya no puntúa aquí: se lo lleva el JSDB. Sumarlo en los dos sitios sería "
-        "contar la misma variable dos veces."
+        "WFNS/Fisher los evalúa el modelo del Japan Stroke Data Bank (JSDB); no puntúa "
+        "aparte para no contar la misma variable dos veces."
     ),
     "small": (
         "Umbral heurístico, no de guía: ESO 2022 plantea comparar el riesgo de "
@@ -416,26 +421,28 @@ def compute_decision(
             )
 
     # ── Factor 2: Aspect Ratio (AR = dome_height / neck) ──────────────── #
+    # F1-225: el nombre llega a la tabla de factores del PDF; en castellano,
+    # como la fila de morfometría («Relación de aspecto (AR)»).
     # Los cortes son los de la insignia y la etiqueta de riesgo (F1-161):
     # aquí eran 1,3 y 2,0, y un AR de 1,25 salía «bajo» en Decisión y «Mod» en
     # Morfometría.
     if aspect_ratio > 0:
         if aspect_ratio >= T.AR_HIGH:
             _add(
-                f"Aspect Ratio alto (AR = {aspect_ratio:.2f} ≥ {T.AR_HIGH:g})",
+                f"Relación de aspecto (AR) alta (AR = {aspect_ratio:.2f} ≥ {T.AR_HIGH:g})",
                 f"AR ≥ {T.AR_HIGH:g}: domo profundo relativo al cuello — retiene bien los "
                 f"coils, y se asocia a recanalización después.",
                 "endo", 20, "ar", votes=False,
             )
         elif aspect_ratio >= T.AR_MOD:
             _add(
-                f"Aspect Ratio moderado (AR = {aspect_ratio:.2f}, {T.AR_MOD:g}–{T.AR_HIGH:g})",
+                f"Relación de aspecto (AR) moderada (AR = {aspect_ratio:.2f}, {T.AR_MOD:g}–{T.AR_HIGH:g})",
                 f"AR {T.AR_MOD:g}–{T.AR_HIGH:g}: geometría ligeramente favorable para coiling.",
                 "endo", 10, "ar", votes=False,
             )
         else:
             _add(
-                f"Aspect Ratio bajo (AR = {aspect_ratio:.2f} < {T.AR_MOD:g})",
+                f"Relación de aspecto (AR) baja (AR = {aspect_ratio:.2f} < {T.AR_MOD:g})",
                 f"AR < {T.AR_MOD:g}: saco corto y ancho — acceso quirúrgico favorable.",
                 "clip", 10, "ar", votes=False,
             )

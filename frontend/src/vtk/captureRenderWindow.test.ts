@@ -4,7 +4,7 @@
    vtk.js está animando y su `render()` no dibuja. El vídeo copiaba entonces
    un lienzo vacío y salían fotogramas enteros en verde. */
 import { describe, expect, it, vi } from "vitest";
-import { captureRenderWindow, drawNow } from "./captureRenderWindow";
+import { captureFramed, captureRenderWindow, drawNow } from "./captureRenderWindow";
 
 function ventana() {
   const canvas = { width: 800, height: 600 } as HTMLCanvasElement;
@@ -52,5 +52,35 @@ describe("drawNow", () => {
     drawNow({ getRenderWindow: () => ({ getViews: () => [] }) }, render);
     drawNow(null, render);
     expect(render).toHaveBeenCalledTimes(2);
+  });
+});
+
+/* F1-222: la foto del informe cogía la vista que hubiera. */
+describe("captureFramed", () => {
+  it("la captura del informe usa la cámara de la lesión: encuadra, dibuja y captura, y luego restaura", async () => {
+    const orden: string[] = [];
+    const png = await captureFramed(
+      async () => { orden.push("capturar"); return "data:image/png;base64,AAA"; },
+      () => { orden.push("encuadrar"); return () => { orden.push("restaurar"); }; },
+      async () => { orden.push("fotograma"); },
+    );
+    expect(png).toBe("data:image/png;base64,AAA");
+    expect(orden).toEqual(["encuadrar", "fotograma", "capturar", "restaurar"]);
+  });
+
+  it("devuelve la cámara aunque la captura falle", async () => {
+    const restaurar = vi.fn();
+    await expect(captureFramed(
+      async () => { throw new Error("sin contexto"); },
+      () => restaurar,
+      async () => {},
+    )).rejects.toThrow("sin contexto");
+    expect(restaurar).toHaveBeenCalledOnce();
+  });
+
+  it("sin encuadrador es la captura de siempre, sin esperar fotogramas", async () => {
+    const fotograma = vi.fn(async () => {});
+    expect(await captureFramed(async () => "data:x", null, fotograma)).toBe("data:x");
+    expect(fotograma).not.toHaveBeenCalled();
   });
 });

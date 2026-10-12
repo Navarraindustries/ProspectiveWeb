@@ -183,6 +183,19 @@ export interface CameraController {
   frame(p: Vec3, radiusMm: number): void;
   /** Mira a lo largo de `dir` hacia `focal`, encuadrando un cubo de lado 2·radiusMm (spec §4.2). */
   lookAlong(dir: Vec3, focal: Vec3, radiusMm: number): void;
+  /** La cámara tal como está, para devolverla luego (F1-222: la foto del
+   *  informe encuadra la lesión y deja la vista como el profesional la tenía). */
+  getState(): CameraState | null;
+  setState(s: CameraState): void;
+}
+
+/** Lo que hace falta para devolver la cámara exactamente a donde estaba. */
+export interface CameraState {
+  position: Vec3;
+  focalPoint: Vec3;
+  viewUp: Vec3;
+  viewAngle: number;
+  parallelScale: number;
 }
 
 export interface CropPreview {
@@ -613,6 +626,29 @@ export function MeshView({
         // resetCamera(bounds) ajusta también los planos de recorte al cubo:
         // al alejarse o girar, el resto del árbol quedaba cortado. Se
         // recalculan con lo que de verdad hay en escena.
+        h.renderer.resetCameraClippingRange();
+        h.renderer.updateLightsGeometryToFollowCamera();
+        h.renderWindow.render();
+      },
+      getState: () => {
+        const h = handles.current; if (!h) return null;
+        const cam = h.renderer.getActiveCamera();
+        return {
+          position: [...cam.getPosition()] as Vec3,
+          focalPoint: [...cam.getFocalPoint()] as Vec3,
+          viewUp: [...cam.getViewUp()] as Vec3,
+          viewAngle: cam.getViewAngle(),
+          parallelScale: cam.getParallelScale(),
+        };
+      },
+      setState: (st: CameraState) => {
+        const h = handles.current; if (!h) return;
+        const cam = h.renderer.getActiveCamera();
+        cam.setPosition(...st.position);
+        cam.setFocalPoint(...st.focalPoint);
+        cam.setViewUp(...st.viewUp);
+        cam.setViewAngle(st.viewAngle);
+        cam.setParallelScale(st.parallelScale);
         h.renderer.resetCameraClippingRange();
         h.renderer.updateLightsGeometryToFollowCamera();
         h.renderWindow.render();

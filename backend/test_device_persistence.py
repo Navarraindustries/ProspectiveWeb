@@ -168,9 +168,12 @@ class TestStentReachesTheReport:
 
         section = ReportGenerator(data)._section_stent()
         assert "línea central" in section[0].text
-        cells = [str(c) for row in section[1]._cellvalues for c in row]
+        # F1-233: la tabla va junta (KeepTogether) y cada valor lleva su
+        # referencia en la misma celda, debajo.
+        tabla = section[1]._content[0]
+        cells = [getattr(c, "text", str(c)) for row in tabla._cellvalues for c in row]
         assert any("Ø stent / Ø vaso" in c for c in cells)
-        assert "1.01" in cells              # ratio, not "101.0 %"
+        assert any(c.startswith("1.01<br/>") for c in cells)   # ratio, not "101.0 %"
         assert not any("Cobertura del cuello" in c for c in cells)
 
     def test_empty_session_has_no_stent(self):

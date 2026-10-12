@@ -80,8 +80,43 @@ def read_placed_clips(session_id: str) -> dict | None:
     return v if isinstance(v, dict) and v.get("clips") else None
 
 
+#: F1-229: lo que se evaluó con los clips puestos —la oclusión y el mapa de
+#: calor— para que el informe lo diga. Se calculaba en pantalla y se perdía; el
+#: PDF no podía decir si el clip se había comprobado. Cada evaluación lleva la
+#: huella de los clips con los que se hizo: si se mueven, deja de valer.
+_CLIP_EVAL_KEYS = {"occlusion": "devices.clip_occlusion.json",
+                   "field": "devices.clip_field.json"}
+
+
+def clips_fingerprint(clips: list[tuple[str, list[float]]]) -> str:
+    """La huella de una colocación: qué clip y dónde, al décimo de milímetro."""
+    filas = sorted((str(cid), tuple(round(float(x), 1) for x in (pos or [])[:3]))
+                   for cid, pos in clips)
+    return json.dumps(filas)
+
+
+def _current_fingerprint(session_id: str) -> str:
+    return clips_fingerprint([(c.get("clip_id", c.get("name", "")), c.get("position"))
+                              for c in read_clips(session_id)])
+
+
+def save_clip_evaluation(session_id: str, kind: str, record: dict,
+                         clips: list[tuple[str, list[float]]] | None = None) -> None:
+    """Guarda `record` con la huella de `clips` (por defecto, los colocados)."""
+    huella = clips_fingerprint(clips) if clips is not None else _current_fingerprint(session_id)
+    _dump(session_id, _CLIP_EVAL_KEYS[kind], {**record, "fingerprint": huella})
+
+
+def read_clip_evaluation(session_id: str, kind: str) -> dict | None:
+    """La evaluación guardada, solo si se hizo con los clips que hay ahora."""
+    v = _load(session_id, _CLIP_EVAL_KEYS[kind], None)
+    if not isinstance(v, dict) or not read_clips(session_id):
+        return None
+    return v if v.get("fingerprint") == _current_fingerprint(session_id) else None
+
+
 def clear_devices(session_id: str) -> None:
-    for k in (_CLIPS_KEY, _COILS_KEY, _STENT_KEY, _PLACED_CLIPS_KEY):
+    for k in (_CLIPS_KEY, _COILS_KEY, _STENT_KEY, _PLACED_CLIPS_KEY, *_CLIP_EVAL_KEYS.values()):
         write_state(session_id, k, "")
 
 

@@ -148,3 +148,147 @@ class TestElPlanElegido:
         assert data.team == {"team_decision": "endovascular", "decided_by": "Comité",
                              "other_text": ""}
         assert data.device_strategy == "coils"
+
+
+# ── Paso 8 · las filas sueltas del PDF (F1-224 a F1-229) ──────────────────── #
+
+def _celdas(tabla) -> list[str]:
+    return [getattr(c, "text", str(c)) for fila in tabla._cellvalues for c in fila]
+
+
+def _tabla(flowables):
+    from reportlab.platypus import Table
+    return next(f for f in flowables if isinstance(f, Table))
+
+
+class TestFechaDelEstudio:
+    """F1-224: «F. estudio» era la fecha del día en que se generaba el informe."""
+
+    def test_f_estudio_es_la_fecha_del_dicom(self):
+        from services.report_generator import ReportGenerator, build_report_data_from_session
+        from services.sessions import create_session, write_state
+        sid = create_session()
+        write_state(sid, "dicom.acquisition_date", "2026-09-14")
+        data = build_report_data_from_session(sid)
+        assert data.patient.study_date == "2026-09-14"
+        celdas = _celdas(_tabla(ReportGenerator(data)._section_patient()))
+        assert celdas[celdas.index("F. estudio") + 1] == "2026-09-14"
+
+    def test_sin_fecha_dicom_no_se_inventa_la_de_hoy(self):
+        from services.report_generator import build_report_data_from_session
+        from services.sessions import create_session
+        data = build_report_data_from_session(create_session())
+        assert data.patient.study_date == ""
+
+
+class TestMorfometriaEnCastellano:
+    """F1-225: rótulos en inglés, sin BF ni UI, y «Riesgo ruptura si > 1.3»."""
+
+    def test_la_tabla_tiene_bf_y_ui_y_no_dice_aspect_ratio(self):
+        from services.report_generator import ReportData, ReportGenerator
+        data = ReportData()
+        data.morphometrics = {"aspect_ratio": 1.3, "bottleneck_factor": 1.62,
+                              "undulation_index": 0.31, "neck_diameter_mm": 4.0}
+        celdas = _celdas(_tabla(ReportGenerator(data)._section_morphometrics()))
+        texto = " ".join(celdas)
+        assert "Factor de abultamiento (BF)" in celdas and "1.62" in celdas
+        assert "Índice de ondulación (UI)" in celdas and "0.310" in celdas
+        assert "Relación de aspecto (AR)" in celdas
+        assert "Aspect Ratio" not in texto and "Dome/Neck" not in texto
+        assert "Riesgo ruptura" not in texto
+
+
+class TestFactoresEnCastellano:
+    """F1-226: columna «Estrategia» y «Clipping»."""
+
+    def _tabla(self, factors):
+        from services.report_generator import ReportData, ReportGenerator
+        data = ReportData()
+        data.treatment = {"recommendation": "CLIPAJE", "recommendation_key": "clip",
+                          "confidence": "Moderada", "factors": factors, "notes": []}
+        return _tabla(ReportGenerator(data)._section_treatment_decision())
+
+    def test_no_aparece_clipping(self):
+        largo = "Localización de ACM " + "con una procedencia muy larga " * 12
+        tabla = self._tabla([{"name": largo, "source": largo, "direction": "clip", "votes": True},
+                             {"name": "Edad", "source": "", "direction": "endo", "votes": True}])
+        celdas = _celdas(tabla)
+        assert "Clipping" not in " ".join(celdas)
+        assert celdas[:2] == ["Factor y procedencia", "Favorece"]
+        # La dirección en la MISMA fila que su factor, arriba, aunque el factor
+        # ocupe varias líneas.
+        assert celdas[3] == "Clipaje" and celdas[5] == "Endovascular"
+        assert all(e.valign == "TOP" for e in tabla._cellStyles[1])
+
+
+class TestUnaSolaCita:
+    """F1-228: ISAT 2002, Spetzler-BRAT 2013 y AHA/ASA 2015."""
+
+    def test_no_aparece_aha_asa_2015(self):
+        from services.report_generator import ReportData, ReportGenerator
+        data = ReportData()
+        data.treatment = {"recommendation": "CLIPAJE", "recommendation_key": "clip",
+                          "confidence": "Moderada", "factors": [], "notes": []}
+        texto = " ".join(getattr(f, "text", "") for f in
+                         ReportGenerator(data)._section_treatment_decision())
+        assert "AHA/ASA 2015" not in texto and "ISAT" not in texto and "BRAT" not in texto
+        assert "AHA/ASA 2023 (Hoh BL et al., Stroke 2023;54:e314–e370)" in texto
+
+
+class TestClipsDelPlan:
+    """F1-229: «Tipo Catálogo» para un NAVARRO y «Orientación (0.0, 0.0, 0.0)»."""
+
+    def _sesion(self):
+        from services.device_state import save_clips, save_placed_clips
+        from services.sessions import create_session
+        sid = create_session()
+        save_clips(sid, [{"index": 0, "clip_id": "navarro:t1:0:13.0",
+                          "name": "NAVARRO™ T1 Recto 13.0 mm", "position": [60.0, 64.0, 67.6],
+                          "orientation": [0.0, 0.0, 20.0], "is_custom": False}])
+        save_placed_clips(sid, {"clips": [{"key": 1, "clip_id": "navarro:t1:0:13.0",
+                                           "position": [60.0, 64.0, 67.6], "rotation_deg": 20.0,
+                                           "azimuthDeg": 35.0, "elevationDeg": -10.0}]})
+        return sid
+
+    def _elems(self, sid):
+        from services.report_generator import ReportGenerator, build_report_data_from_session
+        return ReportGenerator(build_report_data_from_session(sid))._section_clips()
+
+    def test_el_clip_bajo_pedido_no_dice_catalogo(self):
+        celdas = _celdas(_tabla(self._elems(self._sesion())))
+        assert "Pieza a medida" in celdas and "Catálogo" not in celdas
+
+    def test_los_tipos_de_clip(self):
+        from services.report_generator import clip_type_label
+        assert clip_type_label("navarro:t3:90:8.5", False) == "Pieza a medida"
+        assert clip_type_label("custom:abc", True) == "Personalizado"
+        assert clip_type_label("yasargil-fe720k", False) == "Catálogo"
+
+    def test_la_orientacion_es_la_clinica_no_la_terna_cruda(self):
+        celdas = _celdas(_tabla(self._elems(self._sesion())))
+        assert "Giro · acimut · elevación (°)" in celdas
+        assert "20 · 35 · -10" in celdas
+        assert "(0.0, 0.0, 0.0)" not in celdas and "(0.0, 0.0, 20.0)" not in celdas
+
+    def test_sin_evaluar_lo_dice(self):
+        textos = " ".join(getattr(f, "text", "") for f in self._elems(self._sesion()))
+        assert "<b>Oclusión:</b> no evaluada" in textos
+        assert "<b>Mapa de calor:</b> no calculado con estos clips" in textos
+
+    def test_la_evaluacion_sale_y_caduca_si_el_clip_se_mueve(self):
+        from services.device_state import save_clip_evaluation, save_clips
+        sid = self._sesion()
+        save_clip_evaluation(sid, "occlusion", {"outcome": "complete",
+                                                "summary": "Oclusión completa del saco."})
+        save_clip_evaluation(sid, "field", {"verdict": "ok", "covered_pct": 92.0,
+                                            "residual_pct": 3.0, "pressure_verdict": "ok"},
+                             clips=[("navarro:t1:0:13.0", [60.0, 64.0, 67.6])])
+        textos = " ".join(getattr(f, "text", "") for f in self._elems(sid))
+        assert "Oclusión completa del saco." in textos
+        assert "cubre 92 % del cuello, residuo 3 % (correcto)" in textos
+        # Se mueve el clip: lo evaluado ya no describe esta colocación.
+        save_clips(sid, [{"index": 0, "clip_id": "navarro:t1:0:13.0",
+                          "name": "NAVARRO™ T1 Recto 13.0 mm", "position": [61.0, 64.0, 67.6],
+                          "orientation": [0.0, 0.0, 20.0], "is_custom": False}])
+        textos = " ".join(getattr(f, "text", "") for f in self._elems(sid))
+        assert "no evaluada" in textos and "no calculado con estos clips" in textos

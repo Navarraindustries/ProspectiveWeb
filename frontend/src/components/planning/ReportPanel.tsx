@@ -16,6 +16,7 @@ import { useAuth } from "../../store/auth";
 import { usePlanning } from "../../store/planning";
 import { STEPS } from "../../pipeline/steps";
 import { approachSummary } from "./approachSummary";
+import { captureFramed } from "../../vtk/captureRenderWindow";
 
 /** F1-220: las palabras del informe para la decisión del equipo y la estrategia. */
 const TEAM_LABEL: Record<string, string> = {
@@ -44,6 +45,14 @@ function teamSummary(t: TeamDecision | null): string {
 // Por su clave, no por un número: era un 6 fijo, y desde que «Fabricación»
 // entró antes del informe el 6 es Fabricación.
 const REPORT_STEP = STEPS.findIndex((s) => s.key === "report");
+
+/** F1-221: el campo arrancaba con el nombre de la cuenta, y la del
+ *  administrador firmaba los informes como «Administrador». Solo se propone
+ *  el nombre de quien puede ser el cirujano (médico o residente) y lo tiene. */
+function surgeonPrefill(user: { role?: string | null; full_name?: string | null } | null): string {
+  const name = user?.full_name?.trim() ?? "";
+  return name && (user?.role === "medico" || user?.role === "residente") ? name : "";
+}
 
 /** A download link that stops offering a file once the plan has moved on.
  *
@@ -77,7 +86,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const [includeShot, setIncludeShot] = useState(true);
   // Cuáles de las capturas guardadas entran, en el orden en que se marcan.
   const [captureIds, setCaptureIds] = useState<number[]>([]);
-  const [surgeon, setSurgeon] = useState(user?.full_name ?? "");
+  const [surgeon, setSurgeon] = useState(() => surgeonPrefill(user));
   const [notes, setNotes] = useState("");
   const [report, setReport] = useState<ReportResult | null>(null);
   const [stl, setStl] = useState<ReportResult | null>(null);
@@ -131,10 +140,12 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
     setError(null);
     try {
       // Capture the live 3D scene (data URL → base64 payload) when available.
+      // F1-222: con la lesión encuadrada, no con la vista que hubiera; después
+      // la cámara vuelve a donde la tenía el profesional.
       let shotB64: string | null = null;
       if (includeShot && captureViewport) {
         try {
-          const dataUrl = await captureViewport();
+          const dataUrl = await captureFramed(captureViewport, planning.sceneFramer);
           if (dataUrl && dataUrl.startsWith("data:image")) shotB64 = dataUrl.split(",")[1] ?? null;
         } catch { /* screenshot is best-effort */ }
       }
@@ -290,7 +301,8 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
       </Card>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
-        <Input label="Cirujano responsable" value={surgeon} onChange={(e) => setSurgeon(e.target.value)} placeholder="Dr. …" />
+        <Input label="Cirujano responsable" value={surgeon} onChange={(e) => setSurgeon(e.target.value)} placeholder="Dr. …"
+          invalid={!surgeon.trim()} />
         <Input label="Notas clínicas" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones para el informe…" />
       </div>
 
@@ -303,9 +315,17 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
             guardando durante la planificación. */}
         <CapturePicker caseId={caseId} imagingStudyId={imagingStudyId}
           value={captureIds} onChange={setCaptureIds} />
-        <Button leadingIcon={<Icon name="DOC" />} onClick={() => void genPdf()} disabled={busy !== null}>
+        {/* El cirujano es obligatorio: un PDF clínico sin responsable, o con
+            el nombre de la cuenta que lo generó, no sirve (F1-221). */}
+        <Button leadingIcon={<Icon name="DOC" />} onClick={() => void genPdf()}
+          disabled={busy !== null || !surgeon.trim()}>
           {busy === "pdf" ? "Generando…" : stale("pdf") ? "Regenerar informe PDF" : "Generar informe PDF"}
         </Button>
+        {!surgeon.trim() && (
+          <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", textAlign: "center" }}>
+            Escribe el cirujano responsable
+          </div>
+        )}
         {pdfUrl && (
           <OutputLink href={pdfUrl} stale={stale("pdf")}>
             Descargar PDF {report?.page_count ? `(${report.page_count} páginas)` : ""} →
@@ -350,7 +370,9 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         )}
         <Separator style={{ margin: "6px 0" }} />
         <Button variant="secondary" leadingIcon={<Icon name="SAVE" />} onClick={() => void save()} disabled={busy !== null}>
-          {busy === "save" ? "Guardando…" : "Guardar sesión"}
+          {/* Guarda Y sale del caso (llama a onFinish): «Guardar sesión»
+              prometía lo primero y hacía también lo segundo (F1-239). */}
+          {busy === "save" ? "Guardando…" : "Guardar y cerrar"}
         </Button>
       </div>
 
@@ -360,8 +382,12 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         <PrintPrepPanel />
       </div>
 
+      {/* F1-240: lo prometía siempre, también en una sesión sin caso, que se
+          guarda suelta y no queda ligada a ningún paciente. */}
       <div style={{ marginTop: 14, textAlign: "center", fontSize: 11, color: "var(--muted-foreground)" }}>
-        La sesión se vincula al paciente y estudio en la base de datos.
+        {caseId != null
+          ? "La sesión se vincula al paciente y estudio en la base de datos."
+          : "Sin caso, la sesión se guarda suelta: con «Adjuntar a un caso» queda ligada al paciente"}
       </div>
     </div>
   );

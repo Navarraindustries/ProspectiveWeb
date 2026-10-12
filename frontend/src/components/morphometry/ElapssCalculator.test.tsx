@@ -36,9 +36,27 @@ describe("ELAPSS", () => {
   });
 
   it("si la morfometría sugiere contorno irregular, lo dice pero no lo marca", () => {
-    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" irregularHint />);
-    expect(screen.getByText(/contorno ondulado/)).toBeInTheDocument();
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" measuredUi={0.3} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(/contradice el UI medido/);
     expect((screen.getByLabelText(/Forma irregular/) as HTMLInputElement).checked).toBe(false);
+  });
+
+  /* F1-235: el PDF decía «Forma (S) Regular» con un UI de 0,50. */
+  it("UI 0,5 con «Regular» muestra el aviso", () => {
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" measuredUi={0.5} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "La forma elegida (regular) contradice el UI medido (0,50): revisa el contorno en el visor");
+    // Al marcarla irregular deja de contradecir.
+    fireEvent.click(screen.getByText(/Forma irregular/));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("con UI bajo o sin volumen válido no avisa", () => {
+    const { unmount } = render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" measuredUi={0.08} />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    unmount();
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" measuredUi={null} />);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

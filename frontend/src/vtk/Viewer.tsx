@@ -41,6 +41,7 @@ import { api } from "../api/client";
 import { usePersistWindow } from "./windowPersist";
 import { STEPS } from "../pipeline/steps";
 import { captureWithLayout, type CaptureFn } from "./captureWithLayout";
+import type { SceneFramer } from "./captureRenderWindow";
 import { browserDeps, composeCapture, type PaneShot } from "./composeCapture";
 import {
   HUD_LEVELS, nextHudLevel, PREF_HUD_LEVEL, PREF_PLANES_HIDDEN, readCineFps, readHudLevel, useStoredChoice, useStoredFlag, writeCineFps,
@@ -241,7 +242,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     clipRehearsal, registerClipParts, clipField, showClipField, setShowClipField,
     mprWl, mprVoxel, setMprWl, setMprVoxel, takeRestoredWl,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
-    focusPoint, setFocusMm, setCenterOnLesion, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
+    focusPoint, setFocusMm, setCenterOnLesion, registerSceneFramer, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     volumeMode, volumePreset, setVolumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
     slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
@@ -1342,6 +1343,21 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setCenterOnLesion(canCenter ? () => centerRef.current() : null);
   }, [canCenter, setCenterOnLesion]);
   useEffect(() => () => setCenterOnLesion(null), [setCenterOnLesion]);
+  // F1-222: la foto del informe. El mismo encuadre que «Centrar en la lesión»
+  // pero solo de la cámara 3D (los cortes no se mueven) y con la cámara de
+  // antes guardada, para devolver al profesional la vista que tenía.
+  const framerRef = useRef<SceneFramer>(() => undefined);
+  framerRef.current = () => {
+    if (!lesion || !camera) return;
+    const antes = camera.getState();
+    camera.frame(lesion, lesionFrameRadiusMm(lesionDiam));
+    return () => { if (antes) camera.setState(antes); };
+  };
+  const canFrame = !!lesion && !!camera;
+  useEffect(() => {
+    registerSceneFramer(canFrame ? () => framerRef.current() : null);
+  }, [canFrame, registerSceneFramer]);
+  useEffect(() => () => registerSceneFramer(null), [registerSceneFramer]);
 
   // `aviso`: un mensaje (tope de anotaciones, cine…) que hay que leer en
   // cualquier nivel del HUD; sin él es la pista del gesto, que esencial y

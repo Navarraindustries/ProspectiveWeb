@@ -746,6 +746,9 @@ export interface MorphometryResult {
    *  landed in the same place. */
   /** Candidato medido (`cand-00N`); solo lo trae GET /morphometry. */
   candidate_id?: string | null;
+  /** Localización elegida en Morfometría (`clinical.site`); vuelve al reanudar.
+   *  null si no se eligió o es «Desconocida». */
+  site?: AneurysmLocation | null;
   neck_tilt_deg: number;
   /** False when the sac mesh was open or its volume implausible: volume,
    *  equivalent sphere, compactness, UI, EI and NSI were nulled. Independent
@@ -824,6 +827,13 @@ export const ANEURYSM_LOCATIONS = [
 ] as const;
 
 export type AneurysmLocation = (typeof ANEURYSM_LOCATIONS)[number];
+
+/** PUT /api/morphometry/{sid}/site: la localización, elegida una vez (F1-165). */
+export interface ClinicalSiteResult {
+  site: AneurysmLocation;
+  /** Había otra y se borraron PHASES, ELAPSS, UIATS y la decisión calculados con ella. */
+  cleared: boolean;
+}
 
 export interface DecisionFactor {
   name: string;

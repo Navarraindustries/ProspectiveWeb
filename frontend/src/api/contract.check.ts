@@ -80,6 +80,7 @@ export type Contrato = [
   Cabe<Completo<S["MeshCropResult"]>, ui.MeshCropResult>,
   Cabe<Completo<S["MeshRestoreResult"]>, ui.MeshRestoreResult>,
   Cabe<Completo<S["MorphometryResult"]>, ui.MorphometryResult>,
+  Cabe<Completo<S["ClinicalSiteResult"]>, ui.ClinicalSiteResult>,
   Cabe<Completo<S["MultiClipConstructOut"]>, ui.MultiClipConstructOut>,
   Cabe<Completo<S["NeckPlaneRequest"]>, ui.NeckPlaneRequest>,
   Cabe<Completo<S["OcclusionOut"]>, ui.OcclusionOut>,

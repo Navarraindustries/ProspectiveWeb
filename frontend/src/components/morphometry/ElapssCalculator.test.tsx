@@ -13,6 +13,10 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
+// La localización llega de Morfometría (F1-165): ELAPSS ya no la pregunta.
+let planning: Record<string, unknown> = { aneurysmSite: "ACA / ACoA — Arteria Comunicante Anterior" };
+vi.mock("../../store/planning", () => ({ usePlanning: () => planning }));
+
 import { api } from "../../api/client";
 import { ElapssCalculator } from "./ElapssCalculator";
 
@@ -44,5 +48,23 @@ describe("ELAPSS y el diámetro", () => {
     render(<ElapssCalculator maxDiameterMm={10.9} bodyDiameterMm={9.5} sessionId="s1" />);
     expect(screen.getByText(/Ø máximo medido 10,9 mm/)).toBeInTheDocument();
     expect(screen.getByText(/cambia de tramo/).textContent).toContain("corte de 10 mm");
+  });
+});
+
+describe("ELAPSS con la localización de Morfometría", () => {
+  it("traduce la localización elegida y no tiene selector propio", async () => {
+    planning = { aneurysmSite: "ACoP — Arteria Comunicante Posterior" };
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" dob="1950-01-01" />);
+    expect(screen.queryByLabelText("Localización")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Calcular ELAPSS"));
+    await waitFor(() => expect(api.elapss).toHaveBeenLastCalledWith(
+      expect.objectContaining({ location: "pcom_posterior" })));
+  });
+
+  it("sin localización lo dice y no calcula", () => {
+    planning = { aneurysmSite: null };
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" dob="1950-01-01" />);
+    expect(screen.getByText("Elige la localización en Morfometría")).toBeInTheDocument();
+    expect(screen.getByText("Calcular ELAPSS").closest("button")).toBeDisabled();
   });
 });

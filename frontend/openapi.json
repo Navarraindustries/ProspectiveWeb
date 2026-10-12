@@ -1754,6 +1754,63 @@
     "title": "ClStentResult",
     "type": "object"
    },
+   "ClinicalSiteRequest": {
+    "description": "La localización del aneurisma, elegida una vez en Morfometría (F1-165).",
+    "properties": {
+     "site": {
+      "description": "Una de las localizaciones de la lista clínica (ANEURYSM_LOCATIONS).",
+      "enum": [
+       "Desconocida / No especificada",
+       "ACM — Arteria Cerebral Media",
+       "ACA / ACoA — Arteria Comunicante Anterior",
+       "ACI proximal (segm. cavernoso / clinoideo)",
+       "ACI distal (PCOM / oftálmica)",
+       "ACoP — Arteria Comunicante Posterior",
+       "Basilar (punta, tronco o AICA)",
+       "PICA / Vertebral",
+       "Otra localización"
+      ],
+      "title": "Site",
+      "type": "string"
+     }
+    },
+    "required": [
+     "site"
+    ],
+    "title": "ClinicalSiteRequest",
+    "type": "object"
+   },
+   "ClinicalSiteResult": {
+    "properties": {
+     "cleared": {
+      "default": false,
+      "description": "True si había otra localización y se borraron PHASES, ELAPSS, UIATS y la decisión calculados con ella: sus cifras eran de otro sitio.",
+      "title": "Cleared",
+      "type": "boolean"
+     },
+     "site": {
+      "description": "La localización guardada en `clinical.site`.",
+      "enum": [
+       "Desconocida / No especificada",
+       "ACM — Arteria Cerebral Media",
+       "ACA / ACoA — Arteria Comunicante Anterior",
+       "ACI proximal (segm. cavernoso / clinoideo)",
+       "ACI distal (PCOM / oftálmica)",
+       "ACoP — Arteria Comunicante Posterior",
+       "Basilar (punta, tronco o AICA)",
+       "PICA / Vertebral",
+       "Otra localización"
+      ],
+      "title": "Site",
+      "type": "string"
+     }
+    },
+    "required": [
+     "site"
+    ],
+    "title": "ClinicalSiteResult",
+    "type": "object"
+   },
    "ClipAnimationResult": {
     "description": "Everything a viewer needs to play the clip going on.\n\nThree meshes rather than one: the body never moves, and each blade turns\nabout the hinge. The viewer animates actor transforms, so the geometry is\nfetched once and the motion costs nothing per frame.",
     "properties": {
@@ -5543,6 +5600,29 @@
       "description": "El saco CERRADO que se aisló al marcar el plano de cuello, para poder pintarlo. Es la única malla de este paso que delimita el cuerpo del aneurisma: la del candidato en Detección solo señala dónde mirar. Vacío mientras no se haya marcado el cuello. Se intentó delimitarlo automáticamente desde los tres criterios de detección y no se puede: el calibre se derrama por el tronco (31 mm para una lesión de 5), el cociente no tiene corte natural, y la curvatura gaussiana no frena en un vaso porque un cilindro la tiene CERO — validado con sacos sintéticos de 4, 6 y 8 mm, que devolvían los tres la misma región de 27,5 mm. Lo que delimita el saco es el cuello, y eso lo marca el clínico.",
       "title": "Sac Mesh Url",
       "type": "string"
+     },
+     "site": {
+      "anyOf": [
+       {
+        "enum": [
+         "Desconocida / No especificada",
+         "ACM — Arteria Cerebral Media",
+         "ACA / ACoA — Arteria Comunicante Anterior",
+         "ACI proximal (segm. cavernoso / clinoideo)",
+         "ACI distal (PCOM / oftálmica)",
+         "ACoP — Arteria Comunicante Posterior",
+         "Basilar (punta, tronco o AICA)",
+         "PICA / Vertebral",
+         "Otra localización"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Localización del aneurisma elegida en Morfometría (`clinical.site`, PUT /morphometry/{session_id}/site). La heredan PHASES, ELAPSS, UIATS, la decisión y el informe; viaja aquí para que «Reanudar» la recupere con la medida. None si no se eligió o es «Desconocida».",
+      "title": "Site"
      },
      "sr": {
       "default": 0.0,
@@ -15289,7 +15369,7 @@
   },
   "/api/morphometry/{session_id}": {
    "get": {
-    "description": "Runs the full morphometric analysis on the best-scoring candidate mesh from the most recent detection run.\n\nReturns all clinical indices:\n- **DNR** (Dome-to-Neck Ratio) — risk ↑ if > 2.0\n- **AR** (Aspect Ratio) — risk ↑ if > 1.6\n- **BF** (Bottleneck Factor) — wide neck if > 1.5\n- **UI** (Undulation Index) — irregular dome if > 0.15\n- **EI** (Ellipticity Index) — non-spherical if > 0.35\n- **NSI** (Non-Sphericity Index)\n\nNeck origin is saved to session state for the perforators endpoint.\n\n**Prerequisite:** `POST /detect/{session_id}` must be called first.",
+    "description": "Runs the full morphometric analysis on the best-scoring candidate mesh from the most recent detection run.\n\nReturns all clinical indices (cuts in services/index_thresholds.py):\n- **DNR** (Dome-to-Neck Ratio) — moderate ≥ 1.6, high ≥ 2.0\n- **AR** (Aspect Ratio) — moderate ≥ 1.2, high ≥ 1.6\n- **BF** (Bottleneck Factor) — > 1.5 = relatively NARROW neck\n- **UI** (Undulation Index) — moderate ≥ 0.10, irregular ≥ 0.25\n- **EI** (Ellipticity Index) — non-spherical if ≥ 0.35\n- **site** — the location chosen in Morfometría (`clinical.site`)\n- **NSI** (Non-Sphericity Index)\n\nNeck origin is saved to session state for the perforators endpoint.\n\n**Prerequisite:** `POST /detect/{session_id}` must be called first.",
     "operationId": "get_morphometry_api_morphometry__session_id__get",
     "parameters": [
      {
@@ -15407,6 +15487,64 @@
      }
     ],
     "summary": "Morphometry from a user-defined neck plane (closed-sac)",
+    "tags": [
+     "detection"
+    ]
+   }
+  },
+  "/api/morphometry/{session_id}/site": {
+   "put": {
+    "description": "La localización se elige UNA vez, en Morfometría, y la heredan PHASES, ELAPSS, UIATS, la decisión terapéutica, el WEB y el informe. Antes se preguntaba en cuatro sitios con cuatro listas, y dejar uno sin tocar cambiaba la cifra.\n\nSi ya había otra, se borran el PHASES, el ELAPSS, el UIATS y la decisión calculados con ella (`cleared`): describían otro sitio.",
+    "operationId": "set_clinical_site_api_morphometry__session_id__site_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ClinicalSiteRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ClinicalSiteResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Guardar la localización del aneurisma",
     "tags": [
      "detection"
     ]

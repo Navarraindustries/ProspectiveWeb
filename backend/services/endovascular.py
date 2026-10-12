@@ -42,6 +42,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from services import index_thresholds as T
+
 # ── Umbrales publicados ────────────────────────────────────────────────────── #
 
 #: Cuello ancho, en la definición que usan los ensayos de dispositivos.
@@ -170,7 +172,9 @@ def endovascular_profile(
             sources.append(SRC_RECANALIZATION)
 
     # ── Lo que no tiene respaldo, dicho como tal ──────────────────────── #
-    if undulation_index >= 0.20:
+    # El mismo corte que «Alto» en la etiqueta de riesgo y «muy irregular» en
+    # Decisión (F1-163): aquí era 0,20 y allí 0,25.
+    if undulation_index >= T.UI_HIGH:
         cautions.append(
             f"Domo irregular (UI {undulation_index:.2f}): índice de riesgo de "
             f"ROTURA, no de resultado. Que un saco lobulado se llene peor es "

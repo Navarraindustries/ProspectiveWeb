@@ -1,9 +1,9 @@
 /* PHASES calculator — 5-year rupture risk (Greving 2014). POST /api/phases.
    The Size factor auto-fills from the morphometric max diameter. */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api/client";
-import type { PhasesPopulation, PhasesResult, PhasesSite } from "../../api/types";
+import type { PhasesPopulation, PhasesResult } from "../../api/types";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { Select } from "../Select";
@@ -16,16 +16,13 @@ import {
   PHASES_AGE_MIN, PHASES_AGE_PTS, PHASES_CUTS, PHASES_HTN_PTS, PHASES_POP_PTS, PHASES_SAH_PTS,
   PHASES_SITE_PTS, mm, nearCut, phasesLabel, phasesSizePoints,
 } from "./diameterCut";
+import { InheritedSite } from "./InheritedSite";
+import { isSiteKnown, siteFor } from "./thresholds";
 
 const POPULATIONS: { value: PhasesPopulation; label: string }[] = [
   { value: "other", label: "Otra población" },
   { value: "japan", label: "Japón" },
   { value: "finland", label: "Finlandia" },
-];
-const SITES: { value: PhasesSite; label: string }[] = [
-  { value: "ica", label: "ACI (carótida interna)" },
-  { value: "mca", label: "ACM (cerebral media)" },
-  { value: "aca_pcom_posterior", label: "ACA / ACoP / Posterior" },
 ];
 
 const BAND_COLOR: Record<PhasesResult["risk_band"], string> = {
@@ -61,10 +58,17 @@ export function PhasesCalculator({
   const [age, setAge] = useState(ageFromDob(planning.patient?.dob));
   const [size, setSize] = useState(maxDiameterMm > 0 ? maxDiameterMm.toFixed(1) : "");
   const [earlierSah, setEarlierSah] = useState(false);
-  const [site, setSite] = useState<PhasesSite>("ica");
+  // F1-165: la localización ya no se elige aquí (arrancaba en «ACI» y, sin
+  // tocarla, quitaba los +4 de un aneurisma posterior). Se hereda de
+  // Morfometría y se traduce a la categoría de PHASES.
+  const site = siteFor("phases", planning.aneurysmSite);
+  const siteKnown = isSiteKnown("phases", planning.aneurysmSite);
   const [result, setResult] = useState<PhasesResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Un resultado calculado con otra localización ya no es de este aneurisma
+  // (el backend también lo borra al cambiarla).
+  useEffect(() => { setResult(null); }, [site]);
 
   // F1-15: a menos de 1 mm de un corte, decir cuántos puntos cambia, con los
   // demás factores tal como están. Se enuncia siempre del lado alto al bajo,
@@ -136,7 +140,7 @@ export function PhasesCalculator({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Select label="Población" options={POPULATIONS} value={population} onChange={(e) => setPopulation(e.target.value as PhasesPopulation)} />
-        <Select label="Localización" options={SITES} value={site} onChange={(e) => setSite(e.target.value as PhasesSite)} />
+        <InheritedSite site={planning.aneurysmSite} known={siteKnown} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Input label="Edad (años)" type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
           <Input label="Tamaño (mm)" type="number" step="0.1" value={size} onChange={(e) => setSize(e.target.value)} />
@@ -154,7 +158,7 @@ export function PhasesCalculator({
         </label>
       </div>
 
-      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy || !age}>
+      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy || !age || !siteKnown}>
         {busy ? "Calculando…" : "Calcular PHASES"}
       </Button>
       <ErrorNote>{error}</ErrorNote>

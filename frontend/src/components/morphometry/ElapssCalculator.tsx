@@ -2,10 +2,11 @@
    POST /api/elapss. Predice crecimiento, no rotura: orienta cada cuánto
    repetir la imagen. El tamaño se rellena desde la morfometría. */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ageFromDob } from "../patientAge";
 import { api } from "../../api/client";
-import type { ElapssLocation, ElapssPopulation, ElapssResult } from "../../api/types";
+import type { ElapssPopulation, ElapssResult } from "../../api/types";
+import { usePlanning } from "../../store/planning";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { Select } from "../Select";
@@ -13,16 +14,13 @@ import { Metric } from "../Metric";
 import { ErrorNote, SectionLabel } from "../PanelHead";
 import { DiameterSource } from "./DiameterSource";
 import { ELAPSS_CUTS } from "./diameterCut";
+import { InheritedSite } from "./InheritedSite";
+import { isSiteKnown, siteFor } from "./thresholds";
 
 const POPULATIONS: { value: ElapssPopulation; label: string }[] = [
   { value: "other", label: "Norteamérica, China o Europa (salvo Finlandia)" },
   { value: "japan", label: "Japón" },
   { value: "finland", label: "Finlandia" },
-];
-const LOCATIONS: { value: ElapssLocation; label: string }[] = [
-  { value: "ica_aca_acom", label: "ACI / ACA / AComA" },
-  { value: "mca", label: "ACM (cerebral media)" },
-  { value: "pcom_posterior", label: "AComP / circulación posterior" },
 ];
 
 export function ElapssCalculator({
@@ -40,7 +38,11 @@ export function ElapssCalculator({
   dob?: string;
 }) {
   const [population, setPopulation] = useState<ElapssPopulation>("other");
-  const [location, setLocation] = useState<ElapssLocation>("ica_aca_acom");
+  // F1-165: la localización se hereda de Morfometría; aquí arrancaba en
+  // «ACI / ACA / AComA» y, sin tocarla, restaba los puntos de una posterior.
+  const { aneurysmSite } = usePlanning();
+  const location = siteFor("elapss", aneurysmSite);
+  const siteKnown = isSiteKnown("elapss", aneurysmSite);
   const [age, setAge] = useState(ageFromDob(dob));
   const [size, setSize] = useState(maxDiameterMm > 0 ? maxDiameterMm.toFixed(1) : "");
   const [earlierSah, setEarlierSah] = useState(false);
@@ -48,6 +50,8 @@ export function ElapssCalculator({
   const [result, setResult] = useState<ElapssResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Un resultado de otra localización ya no es de este aneurisma.
+  useEffect(() => { setResult(null); }, [location]);
 
   const compute = async () => {
     setBusy(true);
@@ -80,7 +84,7 @@ export function ElapssCalculator({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Select label="Población" options={POPULATIONS} value={population} onChange={(e) => setPopulation(e.target.value as ElapssPopulation)} />
-        <Select label="Localización" options={LOCATIONS} value={location} onChange={(e) => setLocation(e.target.value as ElapssLocation)} />
+        <InheritedSite site={aneurysmSite} known={siteKnown} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Input label="Edad (años)" type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
           <Input label="Tamaño (mm)" type="number" step="0.1" value={size} onChange={(e) => setSize(e.target.value)} />
@@ -103,7 +107,7 @@ export function ElapssCalculator({
         )}
       </div>
 
-      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy || !age}>
+      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy || !age || !siteKnown}>
         {busy ? "Calculando…" : "Calcular ELAPSS"}
       </Button>
       <ErrorNote>{error}</ErrorNote>

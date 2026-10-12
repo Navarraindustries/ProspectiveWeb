@@ -6,10 +6,11 @@
 
 import { Badge, riskVariant } from "../Badge";
 
-/** El criterio que decide la etiqueta (backend/services/morphometrics.py, rupture_risk). */
+/** El criterio que decide la etiqueta (backend/services/morphometrics.py, rupture_risk).
+ *  Los cortes son los de thresholds.ts: los mismos que las insignias (F1-161). */
 export const MORPHO_RISK_CRITERIA =
   "Etiqueta de forma, no una probabilidad de rotura. Alto si AR ≥ 1,6, DNR ≥ 2,0, " +
-  "ondulación ≥ 0,25 o cociente de tamaño ≥ 3,0; Moderado si AR ≥ 1,3, DNR ≥ 1,6, " +
+  "ondulación ≥ 0,25 o cociente de tamaño ≥ 3,0; Moderado si AR ≥ 1,2, DNR ≥ 1,6, " +
   "elipticidad ≥ 0,35, ondulación ≥ 0,10 o cociente de tamaño ≥ 2,0; si no, Bajo.";
 
 export function MorphoRiskBadge({ label, measured = true }: { label: string; measured?: boolean }) {

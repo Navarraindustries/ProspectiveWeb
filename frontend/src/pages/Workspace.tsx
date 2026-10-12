@@ -262,7 +262,7 @@ export function Workspace({
         </Collapsible>
       </div>
     ),
-    treatment: <TreatmentPanel onNext={next} />,
+    treatment: <TreatmentPanel onNext={next} onChangeSite={() => go(STEPS.findIndex((st) => st.key === "morpho"))} />,
     devices: <DevicesPanel onNext={next} />,
     manufacture: <ManufacturePanel onNext={next} />,
     report: <ReportPanel onFinish={onFinish} />,

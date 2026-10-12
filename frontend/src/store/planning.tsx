@@ -33,6 +33,7 @@ import type { Annotation } from "../vtk/annotations";
 import type { CenterlineTrack } from "../vtk/centerlineWalk";
 import type {
   AneurysmCandidate,
+  AneurysmLocation,
   AnnotationKind,
   DeviceKind,
   MorphometryResult,
@@ -79,6 +80,12 @@ interface PlanningState {
    *  el panel de detección tiene que poder decirlo después. */
   morphoInvalidatedNotice: boolean;
   morphometry: MorphometryResult | null;
+  /** La localización del aneurisma, elegida UNA vez en Morfometría (F1-165,
+   *  fusión nº 21). La heredan PHASES, ELAPSS, UIATS y Decisión, cada uno
+   *  traducido a su escala (morphometry/thresholds.ts, siteFor). Antes se
+   *  pedía cuatro veces con cuatro valores por defecto. Se guarda en
+   *  `clinical.site` y vuelve con la morfometría al reanudar. */
+  aneurysmSite: AneurysmLocation | null;
   treatment: TreatmentDecisionResult | null;
   /** Placed device meshes by family, shown together in the viewer. One slot per
    *  family because that is how the backend records them: planning a stent after
@@ -311,6 +318,8 @@ interface PlanningState {
   setRejectedCandidates: (c: AneurysmCandidate[]) => void;
   setSelectedCandidate: (i: number) => void;
   setMorphometry: (m: MorphometryResult | null) => void;
+  /** Solo el store: el panel de Morfometría hace el PUT a `clinical.site`. */
+  setAneurysmSite: (s: AneurysmLocation | null) => void;
   setTreatment: (t: TreatmentDecisionResult | null) => void;
   setMorphoInvalidatedNotice: (v: boolean) => void;
   /** Olvida la medida y todo lo que cuelga de ella: cifras, recomendación y
@@ -436,6 +445,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [selectedCandidate, _setSelectedCandidate] = useState(0);
   const selectedRef = useRef(0);
   const [morphometry, _setMorphometry] = useState<MorphometryResult | null>(null);
+  const [aneurysmSite, _setAneurysmSite] = useState<AneurysmLocation | null>(null);
   const [morphoInvalidatedNotice, setMorphoInvalidatedNotice] = useState(false);
   const [treatment, _setTreatment] = useState<TreatmentDecisionResult | null>(null);
   const [treatmentInputs, setTreatmentInputs] = useState<TreatmentDecisionRequest | null>(null);
@@ -582,7 +592,14 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const setSegmentation = touch(_setSegmentation);
   const setCandidates = touch(_setCandidates);
   const setRejectedCandidates = touch(_setRejectedCandidates);
-  const setMorphometry = touch(_setMorphometry);
+  // La morfometría trae la localización guardada (`site`): así «Reanudar», que
+  // vuelve a pedir la medida, la recupera sin otra llamada. Una medida sin ella
+  // no borra la elegida en esta sesión.
+  const setMorphometry = touch((m: MorphometryResult | null) => {
+    _setMorphometry(m);
+    if (m?.site) _setAneurysmSite(m.site);
+  });
+  const setAneurysmSite = touch(_setAneurysmSite);
   const setTreatment = touch(_setTreatment);
   // La morfometría automática mide el candidato elegido: si la elección
   // cambia, la medida (y la recomendación calculada con ella) es de otro
@@ -652,6 +669,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     selectedRef.current = 0;
     _setSelectedCandidate(0);
     _setMorphometry(null);
+    _setAneurysmSite(null);
     _setTreatment(null);
     setMorphoInvalidatedNotice(false);
     setTreatmentInputs(null);
@@ -738,7 +756,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     <PlanningContext.Provider
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
-        selectedCandidate, morphoInvalidatedNotice, morphometry, treatment, deviceMeshes,
+        selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
         centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion,

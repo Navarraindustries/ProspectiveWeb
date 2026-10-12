@@ -19,6 +19,8 @@ from typing import Optional
 import numpy as np
 import vtk
 
+from services import index_thresholds as T
+
 try:
     from vtkmodules.util import numpy_support as ns
 except ImportError:
@@ -89,18 +91,20 @@ class MorphometricResult:
         DNR 1,17 salía «Moderado» por su cociente de tamaño, y el texto decía
         que era por dos índices que no cumplía.
         """
+        # Los cortes son los de la insignia y los de Decisión (F1-160/161/163):
+        # antes aquí el AR moderado cortaba en 1,3 y la insignia en 1,2.
         alto = [
-            (self.aspect_ratio >= 1.6, f"AR {self.aspect_ratio:.2f} ≥ 1.6"),
-            (self.dome_to_neck_ratio >= 2.0, f"DNR {self.dome_to_neck_ratio:.2f} ≥ 2.0"),
-            (self.undulation_index >= 0.25, f"ondulación (UI) {self.undulation_index:.2f} ≥ 0.25"),
-            (self.size_ratio >= 3.0, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ 3.0"),
+            (self.aspect_ratio >= T.AR_HIGH, f"AR {self.aspect_ratio:.2f} ≥ {T.AR_HIGH:g}"),
+            (self.dome_to_neck_ratio >= T.DNR_HIGH, f"DNR {self.dome_to_neck_ratio:.2f} ≥ {T.DNR_HIGH:.1f}"),
+            (self.undulation_index >= T.UI_HIGH, f"ondulación (UI) {self.undulation_index:.2f} ≥ {T.UI_HIGH:.2f}"),
+            (self.size_ratio >= T.SR_HIGH, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ {T.SR_HIGH:.1f}"),
         ]
         moderado = [
-            (self.aspect_ratio >= 1.3, f"AR {self.aspect_ratio:.2f} ≥ 1.3"),
-            (self.dome_to_neck_ratio >= 1.6, f"DNR {self.dome_to_neck_ratio:.2f} ≥ 1.6"),
-            (self.ellipticity_index >= 0.35, f"elipticidad (EI) {self.ellipticity_index:.2f} ≥ 0.35"),
-            (self.undulation_index >= 0.10, f"ondulación (UI) {self.undulation_index:.2f} ≥ 0.10"),
-            (self.size_ratio >= 2.0, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ 2.0"),
+            (self.aspect_ratio >= T.AR_MOD, f"AR {self.aspect_ratio:.2f} ≥ {T.AR_MOD:g}"),
+            (self.dome_to_neck_ratio >= T.DNR_MOD, f"DNR {self.dome_to_neck_ratio:.2f} ≥ {T.DNR_MOD:g}"),
+            (self.ellipticity_index >= T.EI_MOD, f"elipticidad (EI) {self.ellipticity_index:.2f} ≥ {T.EI_MOD:.2f}"),
+            (self.undulation_index >= T.UI_MOD, f"ondulación (UI) {self.undulation_index:.2f} ≥ {T.UI_MOD:.2f}"),
+            (self.size_ratio >= T.SR_MOD, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ {T.SR_MOD:.1f}"),
         ]
         por_alto = [texto for cumple, texto in alto if cumple]
         if por_alto:

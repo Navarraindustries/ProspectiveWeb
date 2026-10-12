@@ -484,3 +484,24 @@ describe("la línea central recorrible", () => {
     expect(result.current.obliqueWalk).toBe("plano");
   });
 });
+
+/* F1-165: la localización se elige una vez (Morfometría) y la heredan PHASES,
+   ELAPSS, UIATS y Decisión desde el store; vuelve con la medida al reanudar. */
+describe("la localización del aneurisma", () => {
+  it("vuelve con la morfometría al reanudar y no se pierde con una medida sin ella", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setMorphometry(
+      { ...fakeMorpho, site: "Basilar (punta, tronco o AICA)" } as MorphometryResult));
+    expect(result.current.aneurysmSite).toBe("Basilar (punta, tronco o AICA)");
+    act(() => result.current.setMorphometry(fakeMorpho));
+    expect(result.current.aneurysmSite).toBe("Basilar (punta, tronco o AICA)");
+  });
+
+  it("es del estudio: otro estudio arranca sin ella", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setAneurysmSite("ACM — Arteria Cerebral Media"));
+    expect(result.current.aneurysmSite).toBe("ACM — Arteria Cerebral Media");
+    act(() => result.current.reset());
+    expect(result.current.aneurysmSite).toBeNull();
+  });
+});

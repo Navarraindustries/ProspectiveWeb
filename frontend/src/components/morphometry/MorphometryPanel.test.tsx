@@ -10,11 +10,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+const setClinicalSite = vi.fn(async (_sid: string, site: string) => ({ site, cleared: false }));
 vi.mock("../../api/client", () => ({
   api: {
     morphometry: vi.fn().mockRejectedValue(new Error("no auto-run in test")),
     morphometryNeckPlane: vi.fn(),
     longitudinal: vi.fn().mockRejectedValue(new Error("sin seguimiento")),
+    setClinicalSite: (sid: string, site: string) => setClinicalSite(sid, site),
   },
 }));
 
@@ -211,5 +213,71 @@ describe("el riesgo morfométrico", () => {
     await screen.findByText("Riesgo morfométrico (forma)");
     expect(screen.getAllByText("Sin medir").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("Riesgo morfométrico moderado")).not.toBeInTheDocument();
+  });
+});
+
+/* F1-162: la insignia decía «Cuello ancho» con un BF alto, que es justo el
+   cuello relativamente estrecho. */
+describe("el sentido del BF", () => {
+  it("BF 1,65 dice «Cuello estrecho»", async () => {
+    withMorphometry({ ...openCap, bf: 1.65 } as unknown as MorphometryResult);
+    expect(await screen.findByText("Cuello estrecho")).toBeInTheDocument();
+    expect(screen.queryByText("Cuello ancho")).not.toBeInTheDocument();
+  });
+
+  it("BF 5 no dice «Cuello ancho»", async () => {
+    withMorphometry({ ...openCap, bf: 5 } as unknown as MorphometryResult);
+    await screen.findByText("7.0");
+    expect(screen.queryByText("Cuello ancho")).not.toBeInTheDocument();
+  });
+});
+
+/* F1-160 / F1-161: la insignia y la etiqueta de riesgo cortaban en sitios
+   distintos, y el corte no se veía. */
+describe("un umbral por índice, a la vista", () => {
+  it("el DNR lleva su umbral y su fuente en el tooltip", async () => {
+    withMorphometry(openCap);
+    const fila = (await screen.findByText("DNR")).closest("[title]") as HTMLElement;
+    expect(fila.title).toContain("1,6");
+    expect(fila.title).toContain("2,0");
+  });
+
+  it("el AR lleva su umbral en el tooltip", async () => {
+    withMorphometry(openCap);
+    const fila = (await screen.findByText("AR")).closest("[title]") as HTMLElement;
+    expect(fila.title).toContain("1,2");
+    expect(fila.title).toContain("1,6");
+  });
+
+  it("«Undulación» pasa a «Ondulación» (F1-163)", async () => {
+    withMorphometry({ ...openCap, volume_valid: true } as unknown as MorphometryResult);
+    fireEvent.click(await screen.findByText("Índices"));
+    expect(await screen.findByText("UI · Ondulación")).toBeInTheDocument();
+  });
+});
+
+/* F1-165: la localización se pedía en PHASES, ELAPSS, UIATS y Decisión, con
+   cuatro listas y cuatro valores por defecto. Ahora se elige una vez. */
+describe("la localización, una sola vez", () => {
+  it("hay un único «Localización» y PHASES no tiene selector propio", async () => {
+    withMorphometry(openCap);
+    await screen.findByText("7.0");
+    expect(screen.getAllByLabelText("Localización")).toHaveLength(1);
+    fireEvent.click(screen.getByText("PHASES"));
+    await screen.findByText(/referencia poblacional/);
+    expect(screen.getAllByLabelText("Localización")).toHaveLength(1);
+    expect(screen.getByText("Elige la localización en Morfometría")).toBeInTheDocument();
+  });
+
+  it("elegirla la guarda con la sesión y PHASES la hereda", async () => {
+    withMorphometry(openCap);
+    await screen.findByText("7.0");
+    fireEvent.change(screen.getByLabelText("Localización"),
+      { target: { value: "Basilar (punta, tronco o AICA)" } });
+    expect(setClinicalSite).toHaveBeenCalledWith("s1", "Basilar (punta, tronco o AICA)");
+    fireEvent.click(screen.getByText("PHASES"));
+    await screen.findByText(/referencia poblacional/);
+    expect(screen.queryByText("Elige la localización en Morfometría")).not.toBeInTheDocument();
+    expect(screen.getByText(/Basilar \(punta, tronco o AICA\)/, { selector: "b" })).toBeInTheDocument();
   });
 });

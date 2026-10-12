@@ -257,8 +257,10 @@ def _run_web_sizing(session_id: str):
         h = _load_float(session_id, "morpho.dome_height_mm", 0.0)
         dims = SacDims(width_mm=max_d, width_max_mm=max_d, width_min_mm=max_d,
                        height_mm=h, source="morpho")
+    # F1-210: la indicación es de bifurcación, y la localización ya está elegida.
     r = size_web(dims, neck_mm, _load_float(session_id, "morpho.volume_mm3", 0.0),
-                 dnr=_load_float(session_id, "morpho.dnr", 0.0))
+                 dnr=_load_float(session_id, "morpho.dnr", 0.0),
+                 site=read_state(session_id, "clinical.site", "") or "")
     return asdict(r)
 
 

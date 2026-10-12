@@ -53,6 +53,8 @@ from .session_state import (
 )
 from .treatment import (
     AneurysmLocation,
+    ClinicalSiteRequest,
+    ClinicalSiteResult,
     Confidence,
     DecisionFactor,
     JsdbArmOut,
@@ -93,7 +95,7 @@ __all__ = [
     # session
     "SessionListItem", "SessionRestoreResult", "SessionSaveRequest", "SessionSaveResult",
     # treatment
-    "AneurysmLocation", "Confidence", "DecisionFactor",
+    "AneurysmLocation", "ClinicalSiteRequest", "ClinicalSiteResult", "Confidence", "DecisionFactor",
     "JsdbArmOut", "JsdbItemOut", "JsdbOut",
     "RecommendationKey", "TreatmentDecisionRequest", "TreatmentDecisionResult",
 ]

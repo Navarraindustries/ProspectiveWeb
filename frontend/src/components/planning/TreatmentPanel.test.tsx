@@ -24,12 +24,15 @@ vi.mock("../../api/client", () => ({
 }));
 
 let stored: unknown = null;
+let site: string | null = null;
 vi.mock("../../store/planning", () => ({
   usePlanning: () => ({
     sessionId: "s1",
     patient: null,
     treatment: stored,
     setTreatment: (t: unknown) => { stored = t; },
+    setTreatmentInputs: () => {},
+    aneurysmSite: site,
   }),
 }));
 
@@ -74,6 +77,7 @@ const ARM = (arm: "clip" | "coil", labels: string[]) => ({
 
 beforeEach(() => {
   stored = RESULT;
+  site = null;
   treatmentDecision.mockReset();
   treatmentDecision.mockResolvedValue(RESULT);
 });
@@ -222,5 +226,29 @@ describe("las perforantes que la imagen no ve", () => {
     stored = { ...RESULT, perforators: null };
     render(<TreatmentPanel onNext={() => {}} />);
     expect(screen.queryByText(/Perforantes que esperar/)).not.toBeInTheDocument();
+  });
+});
+
+/* F1-173 / F1-165: Decisión tenía su propio «Localización», que arrancaba en
+   «Desconocida» aunque PHASES ya la tuviera. Ahora la hereda de Morfometría. */
+describe("la localización de Decisión", () => {
+  it("arranca con la localización de Morfometría y la manda", async () => {
+    site = "ACM — Arteria Cerebral Media";
+    stored = null;
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByLabelText("Localización")).not.toBeInTheDocument();
+    expect(screen.getByText("ACM — Arteria Cerebral Media")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Evaluar CLIP vs ENDOVASCULAR"));
+    expect(treatmentDecision).toHaveBeenCalledWith(
+      expect.objectContaining({ location: "ACM — Arteria Cerebral Media" }));
+  });
+
+  it("sin elegir, dice «Desconocida» y lleva a Morfometría", () => {
+    const irA = vi.fn();
+    stored = null;
+    render(<TreatmentPanel onNext={() => {}} onChangeSite={irA} />);
+    expect(screen.getByText("Desconocida / No especificada")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Cambiar en Morfometría"));
+    expect(irA).toHaveBeenCalled();
   });
 });

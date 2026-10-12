@@ -21,6 +21,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .treatment import AneurysmLocation
+
 
 class Position3D(BaseModel):
     x: float = Field(..., description="X coordinate in mm (patient space)")
@@ -264,6 +266,15 @@ class MorphometryResult(BaseModel):
             "la tiene CERO — validado con sacos sintéticos de 4, 6 y 8 mm, que "
             "devolvían los tres la misma región de 27,5 mm. Lo que delimita el "
             "saco es el cuello, y eso lo marca el clínico."
+        ),
+    )
+    site: AneurysmLocation | None = Field(
+        None,
+        description=(
+            "Localización del aneurisma elegida en Morfometría (`clinical.site`, "
+            "PUT /morphometry/{session_id}/site). La heredan PHASES, ELAPSS, "
+            "UIATS, la decisión y el informe; viaja aquí para que «Reanudar» la "
+            "recupere con la medida. None si no se eligió o es «Desconocida»."
         ),
     )
     candidate_id: str | None = Field(

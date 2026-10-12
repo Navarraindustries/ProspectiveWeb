@@ -111,6 +111,8 @@ import type {
   TrajectoryResult,
   TreatmentDecisionRequest,
   TreatmentDecisionResult,
+  AneurysmLocation,
+  ClinicalSiteResult,
   UploadResult,
   UserAdminInfo,
   UserInfo,
@@ -385,6 +387,10 @@ export const api = {
       `/api/morphometry/${sessionId}${candidateId ? `?candidate_id=${encodeURIComponent(candidateId)}` : ""}`),
   morphometryNeckPlane: (sessionId: string, req: NeckPlaneRequest) =>
     post<MorphometryResult>(`/api/morphometry/${sessionId}/neck-plane`, req),
+  /** La localización del aneurisma, elegida una vez en Morfometría y guardada en `clinical.site`. */
+  setClinicalSite: (sessionId: string, site: AneurysmLocation) =>
+    request<ClinicalSiteResult>(`/api/morphometry/${sessionId}/site`,
+      { method: "PUT", body: JSON.stringify({ site }) }),
   perforators: (sessionId: string) =>
     get<PerforatorsResult>(`/api/perforators/${sessionId}`),
   longitudinal: (sessionId: string) =>

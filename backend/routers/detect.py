@@ -18,6 +18,8 @@ from fastapi import APIRouter, HTTPException, Query
 from models import (
     AneurysmCandidate as PydAneurysmCandidate,
     AneurysmDetectionResult,
+    ClinicalSiteRequest,
+    ClinicalSiteResult,
     DetectionDiagnostics,
     MorphometryResult,
     NeckPlaneRequest,
@@ -641,12 +643,13 @@ _CANDIDATE_ID = re.compile(r"^cand-(\d{3})$")
     description=(
         "Runs the full morphometric analysis on the best-scoring candidate "
         "mesh from the most recent detection run.\n\n"
-        "Returns all clinical indices:\n"
-        "- **DNR** (Dome-to-Neck Ratio) — risk ↑ if > 2.0\n"
-        "- **AR** (Aspect Ratio) — risk ↑ if > 1.6\n"
-        "- **BF** (Bottleneck Factor) — wide neck if > 1.5\n"
-        "- **UI** (Undulation Index) — irregular dome if > 0.15\n"
-        "- **EI** (Ellipticity Index) — non-spherical if > 0.35\n"
+        "Returns all clinical indices (cuts in services/index_thresholds.py):\n"
+        "- **DNR** (Dome-to-Neck Ratio) — moderate ≥ 1.6, high ≥ 2.0\n"
+        "- **AR** (Aspect Ratio) — moderate ≥ 1.2, high ≥ 1.6\n"
+        "- **BF** (Bottleneck Factor) — > 1.5 = relatively NARROW neck\n"
+        "- **UI** (Undulation Index) — moderate ≥ 0.10, irregular ≥ 0.25\n"
+        "- **EI** (Ellipticity Index) — non-spherical if ≥ 0.35\n"
+        "- **site** — the location chosen in Morfometría (`clinical.site`)\n"
         "- **NSI** (Non-Sphericity Index)\n\n"
         "Neck origin is saved to session state for the perforators endpoint.\n\n"
         "**Prerequisite:** `POST /detect/{session_id}` must be called first."
@@ -760,6 +763,8 @@ async def get_morphometry(
         raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
 
     result.candidate_id = measured_id
+    # «Reanudar» repite esta ruta: la localización vuelve con la medida.
+    result.site = clinical_site(session_id)
     return result
 
 
@@ -891,7 +896,52 @@ async def morphometry_neck_plane(
         logger.error("Neck-plane morphometry failed for %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
 
+    result.site = clinical_site(session_id)
     return result
+
+
+# ── Localización del aneurisma (clinical.site) ────────────────────────────── #
+
+#: Lo que se calculó con la localización y deja de valer si cambia. La decisión
+#: y el PHASES los borra `clear_treatment_state`; ELAPSS y UIATS van aparte.
+_SITE_DEPENDENT_SCORES = ("elapss.json", "uiats.json")
+
+
+def clinical_site(session_id: str) -> str | None:
+    """La localización elegida en Morfometría, o None si no hay o es «Desconocida»."""
+    site = read_state(session_id, "clinical.site", "") or ""
+    return site if site and not site.startswith("Desconocida") else None
+
+
+@router.put(
+    "/morphometry/{session_id}/site",
+    response_model=ClinicalSiteResult,
+    summary="Guardar la localización del aneurisma",
+    description=(
+        "La localización se elige UNA vez, en Morfometría, y la heredan PHASES, "
+        "ELAPSS, UIATS, la decisión terapéutica, el WEB y el informe. Antes se "
+        "preguntaba en cuatro sitios con cuatro listas, y dejar uno sin tocar "
+        "cambiaba la cifra.\n\n"
+        "Si ya había otra, se borran el PHASES, el ELAPSS, el UIATS y la decisión "
+        "calculados con ella (`cleared`): describían otro sitio."
+    ),
+)
+async def set_clinical_site(session_id: str, req: ClinicalSiteRequest) -> ClinicalSiteResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Importado aquí: routers.treatment importa modelos que ya carga este módulo.
+    from routers.treatment import clear_treatment_state
+
+    previous = read_state(session_id, "clinical.site", "") or ""
+    cleared = bool(previous) and previous != req.site
+    if cleared:
+        # Cifras calculadas con otra localización: el PDF las imprimiría como
+        # de este aneurisma. Se borran y la pantalla lo sabe por `cleared`.
+        clear_treatment_state(session_id)
+        for key in _SITE_DEPENDENT_SCORES:
+            write_state(session_id, key, "")
+    write_state(session_id, "clinical.site", req.site)
+    return ClinicalSiteResult(site=req.site, cleared=cleared)
 
 
 #: Las medidas de las que dependen la recomendación, el perfil endovascular y el

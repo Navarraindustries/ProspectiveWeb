@@ -15,6 +15,10 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
+// La localización llega de Morfometría (F1-165): UIATS ya no la pregunta.
+let planning: Record<string, unknown> = { aneurysmSite: "Otra localización" };
+vi.mock("../../store/planning", () => ({ usePlanning: () => planning }));
+
 import { api } from "../../api/client";
 import { UiatsCalculator } from "./UiatsCalculator";
 
@@ -51,5 +55,23 @@ describe("UIATS y el diámetro", () => {
     render(<UiatsCalculator m={m2} sessionId="s1" />);
     expect(screen.getByText(/Ø máximo medido 10,9 mm/)).toBeInTheDocument();
     expect(screen.getByText(/cambia de tramo/).textContent).toContain("corte de 10 mm");
+  });
+});
+
+describe("UIATS con la localización de Morfometría", () => {
+  it("la punta basilar suma la bifurcación sin tocar nada", async () => {
+    planning = { aneurysmSite: "Punta basilar" };
+    render(<UiatsCalculator m={m} sessionId="s1" dob="1960-01-01" />);
+    expect(screen.queryByLabelText("Localización")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Calcular UIATS"));
+    await waitFor(() => expect(api.uiats).toHaveBeenLastCalledWith(
+      expect.objectContaining({ location: "basilar_bifurcation" })));
+  });
+
+  it("sin localización lo dice y no calcula", () => {
+    planning = { aneurysmSite: null };
+    render(<UiatsCalculator m={m} sessionId="s1" dob="1960-01-01" />);
+    expect(screen.getByText("Elige la localización en Morfometría")).toBeInTheDocument();
+    expect(screen.getByText("Calcular UIATS").closest("button")).toBeDisabled();
   });
 });

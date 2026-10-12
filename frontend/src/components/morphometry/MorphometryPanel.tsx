@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
-import type { LongitudinalResult } from "../../api/types";
+import { ANEURYSM_LOCATIONS } from "../../api/types";
+import type { AneurysmLocation, LongitudinalResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { MorphoRiskBadge, MORPHO_RISK_CRITERIA } from "./MorphoRiskBadge";
 import { PHASES_CUTS, crossedCut, isProvisional, mm, nearCut } from "./diameterCut";
@@ -11,7 +12,9 @@ import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
+import { Select } from "../Select";
 import { Tabs } from "../Tabs";
+import { THRESHOLD_TIP, UI_HIGH, badgeFor } from "./thresholds";
 import { FollowupOverlay } from "./FollowupOverlay";
 import { UiatsCalculator } from "./UiatsCalculator";
 import { ElapssCalculator } from "./ElapssCalculator";
@@ -33,6 +36,30 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [longi, setLongi] = useState<LongitudinalResult | null>(null);
   const [neckBusy, setNeckBusy] = useState(false);
+  const [siteBusy, setSiteBusy] = useState(false);
+
+  // F1-165 (fusión nº 21): la localización se elige aquí, una vez, y la heredan
+  // PHASES, ELAPSS, UIATS y Decisión. Se guarda en `clinical.site` para el PDF,
+  // el WEB y «Reanudar». Si ya había otra, el backend borra lo calculado con
+  // ella, y la decisión de la pantalla se va con ello.
+  async function changeSite(next: AneurysmLocation) {
+    const before = planning.aneurysmSite;
+    planning.setAneurysmSite(next);
+    if (!sessionId) return;
+    setSiteBusy(true);
+    setError(null);
+    try {
+      const r = await api.setClinicalSite(sessionId, next);
+      if (r.cleared) planning.setTreatment(null);
+    } catch (e) {
+      // Sin guardar, el PDF y la sesión seguirían con la anterior: se vuelve a
+      // ella en pantalla para no enseñar una que no está guardada.
+      planning.setAneurysmSite(before);
+      setError(e instanceof Error ? e.message : "No se pudo guardar la localización");
+    } finally {
+      setSiteBusy(false);
+    }
+  }
 
   // Three or more rim points fit the plane to the anatomy; otherwise the plane
   // is inferred from the neck point and the apex, which assumes the neck is
@@ -245,6 +272,20 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             </label>
           )}
 
+          <div style={{ marginBottom: 12 }}>
+            <Select
+              label="Localización"
+              data-localizacion=""
+              options={ANEURYSM_LOCATIONS}
+              value={planning.aneurysmSite ?? ANEURYSM_LOCATIONS[0]}
+              disabled={siteBusy}
+              onChange={(e) => void changeSite(e.target.value as AneurysmLocation)}
+            />
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+              La usan PHASES, ELAPSS, UIATS, la decisión terapéutica y el informe.
+            </div>
+          </div>
+
           <Tabs tabs={TABS} value={tab} onChange={setTab} />
           <div style={{ marginTop: 12 }}>
             {tab === "Métricas" && (
@@ -271,21 +312,30 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 <Metric label="Volumen" value={volOk ? m.volume_mm3.toFixed(1) : "—"} unit={volOk ? " mm³" : ""}
                         badge={provisional && volOk ? ["provisional", "warning"] : undefined} />
                 <Metric label="Área superficie" value={m.surface_area_mm2.toFixed(1)} unit=" mm²" />
-                <Metric
-                  label="DNR"
-                  value={neckOk ? m.dnr.toFixed(2) : "—"}
-                  badge={!neckOk ? ["sin medir", "outline"] : m.dnr > 2.0 ? ["Alto", "destructive"] : m.dnr > 1.5 ? ["Mod", "warning"] : ["OK", "success"]}
-                />
-                <Metric
-                  label="AR"
-                  value={neckOk ? m.ar.toFixed(2) : "—"}
-                  badge={!neckOk ? ["sin medir", "outline"] : m.ar > 1.6 ? ["Alto", "destructive"] : m.ar > 1.2 ? ["Mod", "warning"] : ["OK", "success"]}
-                />
-                <Metric
-                  label="BF"
-                  value={neckOk ? m.bf.toFixed(2) : "—"}
-                  badge={!neckOk ? ["sin medir", "outline"] : m.bf > 1.5 ? ["Cuello ancho", "warning"] : ["OK", "success"]}
-                />
+                {/* F1-160/161/162: un corte por índice, el mismo que la etiqueta de
+                    riesgo y Decisión (thresholds.ts), con su fuente en el tooltip.
+                    El BF decía «Cuello ancho» justo con el cuello estrecho. */}
+                <div title={THRESHOLD_TIP.dnr}>
+                  <Metric
+                    label="DNR"
+                    value={neckOk ? m.dnr.toFixed(2) : "—"}
+                    badge={!neckOk ? ["sin medir", "outline"] : badgeFor("dnr", m.dnr)}
+                  />
+                </div>
+                <div title={THRESHOLD_TIP.ar}>
+                  <Metric
+                    label="AR"
+                    value={neckOk ? m.ar.toFixed(2) : "—"}
+                    badge={!neckOk ? ["sin medir", "outline"] : badgeFor("ar", m.ar)}
+                  />
+                </div>
+                <div title={THRESHOLD_TIP.bf}>
+                  <Metric
+                    label="BF"
+                    value={neckOk ? m.bf.toFixed(2) : "—"}
+                    badge={!neckOk ? ["sin medir", "outline"] : badgeFor("bf", m.bf)}
+                  />
+                </div>
                 {/* F1-151 / F1-68: la etiqueta de forma, con su criterio y separada
                     del riesgo de rotura de la pestaña de al lado. */}
                 <div data-fila-riesgo title={riskMeasured ? MORPHO_RISK_CRITERIA : undefined}>
@@ -306,19 +356,27 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                     cuelga de volume_valid. Compacidad y Ø equivalente NO estaban
                     filtrados y mostraban el 0,00 con el que se anulan como si
                     fuera una medida. */}
-                <Metric label="UI · Undulación" value={volOk ? m.ui.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : m.ui > 0.15 ? ["Irregular", "warning"] : ["Bajo", "success"]} />
-                <Metric label="EI · Elipticidad" value={volOk ? m.ei.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : m.ei > 0.35 ? ["Alto", "warning"] : ["Bajo", "success"]} />
+                {/* F1-163: «Ondulación», y el corte de la etiqueta de riesgo y de
+                    Decisión (aquí era 0,15; allí 0,10/0,25 y 0,20). */}
+                <div title={THRESHOLD_TIP.ui}>
+                  <Metric label="UI · Ondulación" value={volOk ? m.ui.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ui", m.ui)} />
+                </div>
+                <div title={THRESHOLD_TIP.ei}>
+                  <Metric label="EI · Elipticidad" value={volOk ? m.ei.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ei", m.ei)} />
+                </div>
                 <Metric label="NSI · No-esfericidad" value={volOk ? m.nsi.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
                 {/* El SR depende de la arteria madre, que se mide justo por debajo
                     del cuello: con un cuello estimado automáticamente esa referencia
                     es frágil, y la cifra se presenta como orientativa. */}
-                <Metric
-                  label="SR · Size Ratio"
-                  value={m.sr > 0 ? m.sr.toFixed(2) : "—"}
-                  badge={m.sr <= 0 ? ["sin medir", "outline"]
-                    : m.neck_source === "auto" ? ["orientativo", "outline"]
-                    : m.sr > 3.0 ? ["Alto", "destructive"] : undefined}
-                />
+                <div title={THRESHOLD_TIP.sr}>
+                  <Metric
+                    label="SR · Size Ratio"
+                    value={m.sr > 0 ? m.sr.toFixed(2) : "—"}
+                    badge={m.sr <= 0 ? ["sin medir", "outline"]
+                      : m.neck_source === "auto" ? ["orientativo", "outline"]
+                      : badgeFor("sr", m.sr)}
+                  />
+                </div>
                 {m.sr > 0 && m.neck_source === "auto" && (
                   <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "-2px 0 8px" }}>
                     SR orientativo: el cuello está estimado, no marcado. La arteria madre se
@@ -339,7 +397,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
             {tab === "ELAPSS" && (
               <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} dob={planning.patient?.dob}
                                 bodyDiameterMm={bodyMm} provisional={provisional}
-                                irregularHint={m.volume_valid && m.ui > 0.15} />
+                                irregularHint={m.volume_valid && m.ui >= UI_HIGH} />
             )}
             {tab === "Seguimiento" && (
               <div>

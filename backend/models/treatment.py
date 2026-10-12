@@ -282,3 +282,22 @@ class TreatmentDecisionResult(BaseModel):
     endo_factors: list[str] = Field(
         ..., description="Names of factors favouring endovascular"
     )
+
+
+class ClinicalSiteRequest(BaseModel):
+    """La localización del aneurisma, elegida una vez en Morfometría (F1-165)."""
+
+    site: AneurysmLocation = Field(
+        ..., description="Una de las localizaciones de la lista clínica (ANEURYSM_LOCATIONS)."
+    )
+
+
+class ClinicalSiteResult(BaseModel):
+    site: AneurysmLocation = Field(..., description="La localización guardada en `clinical.site`.")
+    cleared: bool = Field(
+        False,
+        description=(
+            "True si había otra localización y se borraron PHASES, ELAPSS, UIATS y "
+            "la decisión calculados con ella: sus cifras eran de otro sitio."
+        ),
+    )

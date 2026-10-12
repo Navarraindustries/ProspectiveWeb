@@ -1706,12 +1706,13 @@ export interface paths {
          * Compute aneurysm morphometry
          * @description Runs the full morphometric analysis on the best-scoring candidate mesh from the most recent detection run.
          *
-         *     Returns all clinical indices:
-         *     - **DNR** (Dome-to-Neck Ratio) — risk ↑ if > 2.0
-         *     - **AR** (Aspect Ratio) — risk ↑ if > 1.6
-         *     - **BF** (Bottleneck Factor) — wide neck if > 1.5
-         *     - **UI** (Undulation Index) — irregular dome if > 0.15
-         *     - **EI** (Ellipticity Index) — non-spherical if > 0.35
+         *     Returns all clinical indices (cuts in services/index_thresholds.py):
+         *     - **DNR** (Dome-to-Neck Ratio) — moderate ≥ 1.6, high ≥ 2.0
+         *     - **AR** (Aspect Ratio) — moderate ≥ 1.2, high ≥ 1.6
+         *     - **BF** (Bottleneck Factor) — > 1.5 = relatively NARROW neck
+         *     - **UI** (Undulation Index) — moderate ≥ 0.10, irregular ≥ 0.25
+         *     - **EI** (Ellipticity Index) — non-spherical if ≥ 0.35
+         *     - **site** — the location chosen in Morfometría (`clinical.site`)
          *     - **NSI** (Non-Sphericity Index)
          *
          *     Neck origin is saved to session state for the perforators endpoint.
@@ -1743,6 +1744,28 @@ export interface paths {
          *     Use this when the automatic analysis returns `reliable=false` (the detector isolated an open surface cap, on which volume/neck degenerate).
          */
         post: operations["morphometry_neck_plane_api_morphometry__session_id__neck_plane_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/morphometry/{session_id}/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Guardar la localización del aneurisma
+         * @description La localización se elige UNA vez, en Morfometría, y la heredan PHASES, ELAPSS, UIATS, la decisión terapéutica, el WEB y el informe. Antes se preguntaba en cuatro sitios con cuatro listas, y dejar uno sin tocar cambiaba la cifra.
+         *
+         *     Si ya había otra, se borran el PHASES, el ELAPSS, el UIATS y la decisión calculados con ella (`cleared`): describían otro sitio.
+         */
+        put: operations["set_clinical_site_api_morphometry__session_id__site_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3859,6 +3882,33 @@ export interface components {
              * @description Fit warning (over/undersized)
              */
             warning?: string | null;
+        };
+        /**
+         * ClinicalSiteRequest
+         * @description La localización del aneurisma, elegida una vez en Morfometría (F1-165).
+         */
+        ClinicalSiteRequest: {
+            /**
+             * Site
+             * @description Una de las localizaciones de la lista clínica (ANEURYSM_LOCATIONS).
+             * @enum {string}
+             */
+            site: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Basilar (punta, tronco o AICA)" | "PICA / Vertebral" | "Otra localización";
+        };
+        /** ClinicalSiteResult */
+        ClinicalSiteResult: {
+            /**
+             * Cleared
+             * @description True si había otra localización y se borraron PHASES, ELAPSS, UIATS y la decisión calculados con ella: sus cifras eran de otro sitio.
+             * @default false
+             */
+            cleared: boolean;
+            /**
+             * Site
+             * @description La localización guardada en `clinical.site`.
+             * @enum {string}
+             */
+            site: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Basilar (punta, tronco o AICA)" | "PICA / Vertebral" | "Otra localización";
         };
         /**
          * ClipAnimationResult
@@ -6245,6 +6295,11 @@ export interface components {
              * @default
              */
             sac_mesh_url: string;
+            /**
+             * Site
+             * @description Localización del aneurisma elegida en Morfometría (`clinical.site`, PUT /morphometry/{session_id}/site). La heredan PHASES, ELAPSS, UIATS, la decisión y el informe; viaja aquí para que «Reanudar» la recupere con la medida. None si no se eligió o es «Desconocida».
+             */
+            site?: ("Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Basilar (punta, tronco o AICA)" | "PICA / Vertebral" | "Otra localización") | null;
             /**
              * Sr
              * @description Size Ratio = max_diameter / parent_artery_diameter. 0 when parent artery not available (> 3.0 → elevated risk)
@@ -12711,6 +12766,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MorphometryResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_clinical_site_api_morphometry__session_id__site_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClinicalSiteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicalSiteResult"];
                 };
             };
             /** @description Validation Error */

@@ -7,8 +7,6 @@
 
 import { useState } from "react";
 import { api } from "../../api/client";
-import { ANEURYSM_LOCATIONS } from "../../api/types";
-import type { AneurysmLocation } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
@@ -17,13 +15,18 @@ import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
 import { ageFromDob } from "../patientAge";
+import { InheritedSite } from "../morphometry/InheritedSite";
 
 /** La primera letra en minúscula, para una frase que sigue a dos puntos. */
 function minuscula(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
-export function TreatmentPanel({ onNext }: { onNext: () => void }) {
+export function TreatmentPanel({ onNext, onChangeSite }: {
+  onNext: () => void;
+  /** Lleva a Morfometría, donde se elige la localización. */
+  onChangeSite?: () => void;
+}) {
   const planning = usePlanning();
   const { sessionId, treatment, patient } = planning;
 
@@ -31,7 +34,10 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
   // blanco: ver `treatmentInputs` en el store.
   const prev = planning.treatmentInputs;
   const txt = (n: number | null | undefined) => (n === null || n === undefined ? "" : String(n));
-  const [location, setLocation] = useState<AneurysmLocation>(prev?.location ?? ANEURYSM_LOCATIONS[0]);
+  // F1-173 / F1-165: la localización es la elegida en Morfometría. Aquí había
+  // otro selector que arrancaba en «Desconocida» aunque PHASES ya la tuviera, y
+  // la decisión podía salir con un sitio y el PHASES con otro.
+  const location = planning.aneurysmSite ?? "Desconocida / No especificada";
   const [ruptured, setRuptured] = useState(prev?.is_ruptured ?? false);
   // Pre-filled from the patient record — no reason to re-type what we know.
   const [age, setAge] = useState<string>(() => (prev ? txt(prev.patient_age) : ageFromDob(patient?.dob)));
@@ -98,12 +104,7 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
       <PanelHead title="Decisión terapéutica" desc="Compara clipaje y tratamiento endovascular. Los índices de forma no puntúan: describen la vía endovascular, que es donde tienen respaldo." />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <Select
-          label="Localización"
-          options={ANEURYSM_LOCATIONS}
-          value={location}
-          onChange={(e) => setLocation(e.target.value as AneurysmLocation)}
-        />
+        <InheritedSite site={planning.aneurysmSite} known onChange={onChangeSite} />
         <Select
           label="Estado"
           options={[

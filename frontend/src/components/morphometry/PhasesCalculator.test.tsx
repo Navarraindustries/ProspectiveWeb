@@ -24,8 +24,7 @@ describe("PHASES y la edad", () => {
 /* F1-15 / F1-14 / F1-157: el tamaño decía un número sin decir de dónde salía, y
    un Ø de 10,9 mm (Case 3) da 10 puntos donde uno de 9,5 da 7. */
 describe("PHASES y el corte de tamaño", () => {
-  const posterior = () =>
-    fireEvent.change(screen.getByLabelText("Localización"), { target: { value: "aca_pcom_posterior" } });
+  // La localización ya no se elige aquí: llega de Morfometría en el store (F1-165).
 
   it("el texto nombra el diámetro que toma", () => {
     planning = { patient: null };
@@ -34,18 +33,16 @@ describe("PHASES y el corte de tamaño", () => {
   });
 
   it("con 9,5 mm avisa del corte de 10 mm con los puntos", () => {
-    planning = { patient: null };
+    planning = { patient: null, aneurysmSite: "basilar" };
     render(<PhasesCalculator maxDiameterMm={9.5} sessionId="s" />);
-    posterior();
     const aviso = screen.getByText(/junto al corte de 10 mm/);
     expect(aviso.textContent).toContain("10 mm");
     expect(aviso.textContent).toContain("7 puntos");
   });
 
   it("10,9 frente a 9,5 del cuerpo muestra el aviso de tramo", () => {
-    planning = { patient: null };
+    planning = { patient: null, aneurysmSite: "basilar" };
     render(<PhasesCalculator maxDiameterMm={10.9} bodyDiameterMm={9.5} sessionId="s" />);
-    posterior();
     expect(screen.getByText(/junto al corte de 10 mm/).textContent)
       .toContain("con 9,5 mm el PHASES baja de 10 a 7 puntos");
     expect(screen.getByText(/Ø máximo medido/).textContent).toContain("Ø del cuerpo 9,5 mm");
@@ -64,7 +61,7 @@ describe("PHASES y el corte de tamaño", () => {
   });
 
   it("el resultado se rotula con la tabla publicada", async () => {
-    planning = { patient: { dob: "1999-01-01" }, setTreatment: () => {} };
+    planning = { patient: { dob: "1999-01-01" }, setTreatment: () => {}, aneurysmSite: "basilar" };
     const { api } = await import("../../api/client");
     (api.phases as ReturnType<typeof vi.fn>).mockResolvedValue({
       population_pts: 0, hypertension_pts: 0, age_pts: 0, size_pts: 6, sah_pts: 0, site_pts: 4,
@@ -83,5 +80,31 @@ describe("PHASES con el tamaño escrito a mano", () => {
     fireEvent.change(screen.getByLabelText("Tamaño (mm)"), { target: { value: "8" } });
     expect(screen.getByText(/Tamaño escrito a mano \(8,0 mm\); el Ø máximo medido es 10,9 mm/)).toBeInTheDocument();
     expect(screen.queryByText(/Se toma el Ø máximo/)).not.toBeInTheDocument();
+  });
+});
+
+/* F1-165: la localización se elegía cuatro veces; ahora se hereda de Morfometría. */
+describe("PHASES con la localización de Morfometría", () => {
+  it("con basilar suma +4 de localización sin tocar nada", async () => {
+    planning = { patient: { dob: "1950-01-01" }, setTreatment: () => {}, aneurysmSite: "basilar" };
+    const { api } = await import("../../api/client");
+    const phases = api.phases as ReturnType<typeof vi.fn>;
+    phases.mockReset();
+    phases.mockResolvedValue({
+      population_pts: 0, hypertension_pts: 0, age_pts: 1, size_pts: 0, sah_pts: 0, site_pts: 4,
+      total_score: 5, risk_5yr_pct: 1.3, risk_band: "low",
+    });
+    render(<PhasesCalculator maxDiameterMm={6} sessionId="s" />);
+    expect(screen.queryByLabelText("Localización")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Calcular PHASES" }));
+    expect(phases).toHaveBeenCalledWith(expect.objectContaining({ site: "aca_pcom_posterior" }));
+    expect(await screen.findByText("+4")).toBeInTheDocument();
+  });
+
+  it("sin localización lo dice y no calcula", () => {
+    planning = { patient: { dob: "1950-01-01" }, aneurysmSite: null };
+    render(<PhasesCalculator maxDiameterMm={6} sessionId="s" />);
+    expect(screen.getByText("Elige la localización en Morfometría")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Calcular PHASES" })).toBeDisabled();
   });
 });

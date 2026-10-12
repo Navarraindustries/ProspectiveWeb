@@ -40,6 +40,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from services import index_thresholds as T
 from services.phases import phases_label
 
 logger = logging.getLogger(__name__)
@@ -396,23 +397,27 @@ def compute_decision(
             )
 
     # ── Factor 2: Aspect Ratio (AR = dome_height / neck) ──────────────── #
+    # Los cortes son los de la insignia y la etiqueta de riesgo (F1-161):
+    # aquí eran 1,3 y 2,0, y un AR de 1,25 salía «bajo» en Decisión y «Mod» en
+    # Morfometría.
     if aspect_ratio > 0:
-        if aspect_ratio > 2.0:
+        if aspect_ratio >= T.AR_HIGH:
             _add(
-                f"Aspect Ratio alto (AR = {aspect_ratio:.2f} > 2.0)",
-                "AR > 2: domo profundo relativo al cuello — geometría favorable para coiling.",
+                f"Aspect Ratio alto (AR = {aspect_ratio:.2f} ≥ {T.AR_HIGH:g})",
+                f"AR ≥ {T.AR_HIGH:g}: domo profundo relativo al cuello — retiene bien los "
+                f"coils, y se asocia a recanalización después.",
                 "endo", 20, "ar", votes=False,
             )
-        elif aspect_ratio > 1.3:
+        elif aspect_ratio >= T.AR_MOD:
             _add(
-                f"Aspect Ratio moderado (AR = {aspect_ratio:.2f}, 1.3–2.0)",
-                "AR 1.3–2.0: geometría ligeramente favorable para coiling.",
+                f"Aspect Ratio moderado (AR = {aspect_ratio:.2f}, {T.AR_MOD:g}–{T.AR_HIGH:g})",
+                f"AR {T.AR_MOD:g}–{T.AR_HIGH:g}: geometría ligeramente favorable para coiling.",
                 "endo", 10, "ar", votes=False,
             )
         else:
             _add(
-                f"Aspect Ratio bajo (AR = {aspect_ratio:.2f} < 1.3)",
-                "AR < 1.3: saco corto y ancho — acceso quirúrgico favorable.",
+                f"Aspect Ratio bajo (AR = {aspect_ratio:.2f} < {T.AR_MOD:g})",
+                f"AR < {T.AR_MOD:g}: saco corto y ancho — acceso quirúrgico favorable.",
                 "clip", 10, "ar", votes=False,
             )
 
@@ -454,43 +459,56 @@ def compute_decision(
         # 5–12 mm: neutral (no factor added)
 
     # ── Factor 5: Bottleneck Factor (BF = max_dome_diam / neck) ──────── #
+    # La misma etiqueta que la insignia de Morfometría y con el sentido bueno
+    # (F1-162, F1-179): un BF alto es un domo mucho más ancho que su cuello, o
+    # sea un cuello relativamente ESTRECHO. La insignia decía «Cuello ancho» con
+    # un BF de 1,65 mientras aquí se leía «cuello moderadamente estrecho».
     if bottleneck_factor > 0:
-        if bottleneck_factor > 2.0:
+        etiqueta = T.bf_label(bottleneck_factor)
+        if bottleneck_factor > T.BF_WIDE:
             _add(
-                f"Bottleneck Factor alto (BF = {bottleneck_factor:.2f} > 2.0)",
-                "BF > 2: cuello muy estrecho relativo al domo — ideal para coiling.",
-                "endo", 12, "bf", votes=False,
-            )
-        elif bottleneck_factor > 1.5:
-            _add(
-                f"Bottleneck Factor moderado (BF = {bottleneck_factor:.2f}, 1.5–2.0)",
-                "BF 1.5–2.0: cuello moderadamente estrecho.",
+                f"Bottleneck Factor: {etiqueta} (BF = {bottleneck_factor:.2f} > {T.BF_WIDE:g})",
+                f"BF > {T.BF_WIDE:g}: el domo es bastante más ancho que el cuello — "
+                f"cuello relativamente estrecho, que retiene los coils.",
                 "endo", 6, "bf", votes=False,
             )
-        elif bottleneck_factor <= 1.2:
+        else:
             _add(
-                f"Bottleneck Factor bajo (BF = {bottleneck_factor:.2f} ≤ 1.2)",
-                "BF ≤ 1.2: domo ancho (no hay efecto de cuello) — clipping favorable.",
+                f"Bottleneck Factor: {etiqueta} (BF = {bottleneck_factor:.2f} ≤ {T.BF_WIDE:g})",
+                f"BF ≤ {T.BF_WIDE:g}: el domo apenas es más ancho que el cuello — "
+                f"cuello relativamente ancho; clipping favorable.",
                 "clip", 8, "bf", votes=False,
             )
 
     # ── Factor 6: Undulation Index (UI — dome irregularity) ───────────── #
+    # Un solo corte de UI, el de la etiqueta de riesgo (F1-163, F1-180): aquí
+    # «muy irregular» empezaba en 0,20 y allí «Alto» en 0,25. Y un UI muy alto
+    # sobre un saco que llegó al límite del recorte suele ser vaso padre medido
+    # como domo: se dice junto a la cifra (F1-180).
     if undulation_index > 0:
-        if undulation_index > 0.20:
+        aviso_padre = (
+            " El saco aislado llega al límite del recorte: parte de esta "
+            "ondulación puede ser vaso padre, no domo; revisa el saco en el visor."
+            if parent_in_sac else ""
+        )
+        if undulation_index >= T.UI_HIGH:
             _add(
-                f"Domo muy irregular (UI = {undulation_index:.3f} > 0.20)",
-                "UI > 0.20: morfología lobulada; riesgo de llenado incompleto con coils.",
+                f"Domo muy irregular (UI = {undulation_index:.3f} ≥ {T.UI_HIGH:.2f})",
+                f"UI ≥ {T.UI_HIGH:.2f}: morfología lobulada; riesgo de llenado incompleto "
+                f"con coils.{aviso_padre}",
                 "clip", 10, "ui", votes=False,
             )
-        elif undulation_index > 0.10:
+        elif undulation_index >= T.UI_MOD:
             _add(
-                f"Domo moderadamente irregular (UI = {undulation_index:.3f}, 0.10–0.20)",
-                "UI 0.10–0.20: cierta irregularidad; leve preferencia por clipping.",
+                f"Domo moderadamente irregular (UI = {undulation_index:.3f}, "
+                f"{T.UI_MOD:.2f}–{T.UI_HIGH:.2f})",
+                f"UI {T.UI_MOD:.2f}–{T.UI_HIGH:.2f}: cierta irregularidad; leve preferencia "
+                f"por clipping.{aviso_padre}",
                 "clip", 5, "ui", votes=False,
             )
-        elif undulation_index < 0.05:
+        else:
             _add(
-                f"Domo regular (UI = {undulation_index:.3f} < 0.05)",
+                f"Domo regular (UI = {undulation_index:.3f} < {T.UI_MOD:.2f})",
                 "Domo esférico regular — favorable para empaquetado con coils.",
                 "endo", 5, "ui", votes=False,
             )

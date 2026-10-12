@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from services import index_thresholds as IT
 from services.phases import phases_label
 
 logger = logging.getLogger(__name__)
@@ -485,6 +486,10 @@ def build_report_data_from_session(
     clinical = {
         "patient_age":       int(raw_age) if raw_age.isdigit() else None,
         "has_comorbidities": (raw_comb == "1") if raw_comb else None,
+        # La localización que se eligió una vez en Morfometría (F1-165, F1-173).
+        # El informe no la imprimía en ningún sitio: solo salía, traducida, en
+        # las tablas de PHASES y ELAPSS, y cada una podía decir otra.
+        "site":              _rs("clinical.site") or None,
     }
 
     # ── 8. PHASES score (recorded by POST /api/phases) ─────────────────── #
@@ -1111,8 +1116,14 @@ class ReportGenerator:
             return []
 
         elems = [Paragraph("Morfometría del aneurisma", self._style_h2)]
+        site = self._data.clinical.get("site")
         rows = [
             ["Parámetro", "Valor", "Referencia clínica"],
+            # La localización va con la morfometría porque es donde se elige; la
+            # heredan PHASES, ELAPSS, UIATS y la decisión.
+            ["Localización",
+             site if site and not site.startswith("Desconocida") else "Sin especificar",
+             "Elegida en Morfometría"],
             ["Volumen",
              f"{m.get('volume_mm3', 0):.2f} mm³", "—"],
             ["Área superficial",
@@ -1125,12 +1136,14 @@ class ReportGenerator:
              "Guía selección clip"],
             ["Altura del domo",
              f"{m.get('dome_height_mm', 0):.2f} mm", "—"],
+            # Los cortes de la etiqueta de riesgo y de la pantalla (F1-160/161):
+            # aquí el AR decía 1,3 mientras la insignia cortaba en 1,2.
             ["DNR (Dome/Neck ratio)",
              f"{m.get('dome_to_neck_ratio', 0):.2f}",
-             "Riesgo ruptura si > 1.6"],
+             f"Moderado ≥ {IT.DNR_MOD:g} · alto ≥ {IT.DNR_HIGH:.1f}"],
             ["Aspect Ratio (AR)",
              f"{m.get('aspect_ratio', 0):.2f}",
-             "Riesgo ruptura si > 1.3"],
+             f"Moderado ≥ {IT.AR_MOD:g} · alto ≥ {IT.AR_HIGH:g}"],
             ["Compacidad",
              f"{m.get('compactness', 0):.3f}",
              "1.0 = esfera perfecta"],
@@ -1154,17 +1167,17 @@ class ReportGenerator:
 
         dnr    = m.get("dome_to_neck_ratio", 0)
         ar     = m.get("aspect_ratio", 0)
-        dnr_row, ar_row = 6, 7
-        if dnr >= 2.0:
+        dnr_row, ar_row = 7, 8
+        if dnr >= IT.DNR_HIGH:
             ts.add("TEXTCOLOR", (1, dnr_row), (1, dnr_row), self._RED)
             ts.add("FONTNAME",  (1, dnr_row), (1, dnr_row), "Helvetica-Bold")
-        elif dnr >= 1.6:
+        elif dnr >= IT.DNR_MOD:
             ts.add("TEXTCOLOR", (1, dnr_row), (1, dnr_row), self._YELLOW)
             ts.add("FONTNAME",  (1, dnr_row), (1, dnr_row), "Helvetica-Bold")
-        if ar >= 1.6:
+        if ar >= IT.AR_HIGH:
             ts.add("TEXTCOLOR", (1, ar_row), (1, ar_row), self._RED)
             ts.add("FONTNAME",  (1, ar_row), (1, ar_row), "Helvetica-Bold")
-        elif ar >= 1.3:
+        elif ar >= IT.AR_MOD:
             ts.add("TEXTCOLOR", (1, ar_row), (1, ar_row), self._YELLOW)
             ts.add("FONTNAME",  (1, ar_row), (1, ar_row), "Helvetica-Bold")
 

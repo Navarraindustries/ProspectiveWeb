@@ -192,7 +192,110 @@ function csrfToken(): string | null {
   return m ? decodeURIComponent(m[1]!) : null;
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+/* ── Servidor que cae o no responde (familia T: F1-24, F1-25, F1-26) ──────────
+   La auditoría vio morir el backend tras reanudar: `fetch` lanzaba un
+   TypeError que llegaba al panel como «Failed to fetch», o nada, y la persona
+   no sabía que el problema era el servidor ni que su sesión seguía en disco. */
+
+/** Lo que se ve cuando la petición ni siquiera llega al servidor. */
+export const NO_CONNECTION = "Sin conexión con el servidor";
+/** Límite de «Reanudar»: por encima del del servidor (90 s,
+ *  routers/session_state.py), para que su explicación llegue antes que el corte. */
+export const RESTORE_TIMEOUT_MS = 120_000;
+
+let consecutiveFailures = 0;
+let serverDown = false;
+const downListeners = new Set<(down: boolean) => void>();
+let lastFailed: (() => Promise<unknown>) | null = null;
+
+/** Avisa con `true` tras dos fallos de conexión seguidos y con `false` cuando
+ *  el servidor vuelve a contestar. Devuelve la función para darse de baja. */
+export function onServerDown(cb: (down: boolean) => void): () => void {
+  downListeners.add(cb);
+  return () => { downListeners.delete(cb); };
+}
+
+/** Repite la última llamada que falló por conexión (el «Reintentar» de la banda). */
+export function retryLastFailed(): Promise<unknown> {
+  return lastFailed ? lastFailed() : Promise.resolve(undefined);
+}
+
+/** Solo para las pruebas: vuelve al estado de arranque. */
+export function resetServerHealth() {
+  consecutiveFailures = 0;
+  serverDown = false;
+  lastFailed = null;
+  downListeners.clear();
+}
+
+function setServerDown(down: boolean) {
+  if (down === serverDown) return;
+  serverDown = down;
+  for (const cb of [...downListeners]) cb(down);
+}
+
+/** Un fallo de conexión: no llegó, o llegó al proxy de Vite y no más allá (su
+ *  500 viene sin cuerpo JSON). Un 5xx con `detail` es el servidor contestando
+ *  —p. ej. el corredor que falló en el proceso hijo— y no cuenta como caída. */
+function noteConnectionFailure(retry: () => Promise<unknown>) {
+  lastFailed = retry;
+  consecutiveFailures += 1;
+  if (consecutiveFailures >= 2) setServerDown(true);
+}
+
+function noteServerAnswered() {
+  consecutiveFailures = 0;
+  setServerDown(false);
+}
+
+/** `fetch` con límite opcional; lo que no llega al servidor es un ApiError 0. */
+async function send(path: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
+  const ctrl = timeoutMs ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+  try {
+    return await fetch(path, ctrl ? { ...init, signal: ctrl.signal } : init);
+  } catch (e) {
+    // Un abort pedido por quien llama (cambio de sesión, desmontaje) no es
+    // una caída del servidor: se propaga tal cual.
+    if (e instanceof DOMException && e.name === "AbortError" && !ctrl?.signal.aborted) throw e;
+    throw new ApiError(0, NO_CONNECTION);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: number): Promise<T> {
+  const retry = () => request<T>(path, init, timeoutMs);
+  let res: Response;
+  try {
+    res = await sendRequest(path, init, timeoutMs);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 0) noteConnectionFailure(retry);
+    throw e;
+  }
+  if (!res.ok) {
+    let detail = `Error ${res.status}`;
+    let fromServer = false;
+    try {
+      const body = await res.json();
+      if (typeof body.detail === "string") { detail = body.detail; fromServer = true; }
+      else if (body.detail) { detail = JSON.stringify(body.detail); fromServer = true; }
+    } catch {
+      /* non-JSON error body */
+    }
+    if (res.status >= 500 && !fromServer) noteConnectionFailure(retry);
+    else noteServerAnswered();
+    throw new ApiError(res.status, detail);
+  }
+  noteServerAnswered();
+  // 204 No Content (e.g. DELETE) has no body to parse.
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+  return res.json() as Promise<T>;
+}
+
+async function sendRequest(path: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
   const headers = new Headers(init.headers);
   const method = (init.method ?? "GET").toUpperCase();
   const csrf = method === "GET" || method === "HEAD" ? null : csrfToken();
@@ -201,28 +304,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  const res = await send(path, { ...init, headers, credentials: "same-origin" }, timeoutMs);
   if (res.status === 401 && !isAuthAttempt(path)) {
     // The token is gone or expired: drop it and let the app show the login
     // screen once, rather than surfacing an error in whichever panel asked.
     handleUnauthorized();
   }
-  if (!res.ok) {
-    let detail = `Error ${res.status}`;
-    try {
-      const body = await res.json();
-      if (typeof body.detail === "string") detail = body.detail;
-      else if (body.detail) detail = JSON.stringify(body.detail);
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, detail);
-  }
-  // 204 No Content (e.g. DELETE) has no body to parse.
-  if (res.status === 204 || res.headers.get("content-length") === "0") {
-    return undefined as T;
-  }
-  return res.json() as Promise<T>;
+  return res;
 }
 
 /** Authenticated fetch returning the raw Blob (for images / documents that an
@@ -681,8 +769,10 @@ export const api = {
   /* sessions */
   saveSession: (req: SessionSaveRequest) =>
     post<SessionSaveResult>("/api/sessions/save", req),
+  /** Con límite de tiempo: un servidor caído dejaba «Restaurando sesión…»
+   *  para siempre (F1-25); pasado el límite es un ApiError 0. */
   restoreSession: (sessionId: string) =>
-    post<SessionRestoreResult>(`/api/sessions/${sessionId}/restore`),
+    request<SessionRestoreResult>(`/api/sessions/${sessionId}/restore`, { method: "POST" }, RESTORE_TIMEOUT_MS),
   /** Switch which DICOM series of the study the session works on. */
   setActiveSeries: (sessionId: string, seriesId: string) =>
     post<SeriesInfo>(`/api/upload/${sessionId}/series/${encodeURIComponent(seriesId)}`),

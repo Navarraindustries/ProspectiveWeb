@@ -1,6 +1,7 @@
 """Session save / restore router — real SQLite persistence (Session D)."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from models import (
     SeriesInfo, SpacingXYZ, ReportUrls,
 )
 from services.database import get_db
+from services.isolated import CalculoCaido, run_isolated
 from services.access import ORIGIN_KEY, own_patient_ids, require_patient, session_row
 from services.auth_service import get_current_user
 from services.db_models import LesionConfirmation, PlanningSession, Patient, User
@@ -285,6 +287,17 @@ async def list_sessions(
 
 # ── POST /sessions/{session_id}/restore ───────────────────────────────────── #
 
+#: Lo que ve la persona si la copia de la sesión muere o no acaba.
+RESTORE_FAILED_DETAIL = (
+    "No se pudo restaurar la sesión: el proceso que la copiaba se cayó. "
+    "La sesión guardada sigue en disco; pulsa «Reintentar»."
+)
+#: Copiar una sesión es copiar ficheros: segundos. Por debajo del límite del
+#: cliente (frontend/src/api/client.ts), para que llegue esta explicación y
+#: no un corte sin más.
+RESTORE_TIMEOUT_S = 90.0
+
+
 @router.post(
     "/{session_id}/restore",
     response_model=SessionRestoreResult,
@@ -319,8 +332,15 @@ async def restore_session(
         )
 
     # Rehydrate: copy the durable snapshot into a brand-new live session dir.
+    # La copia corre en un proceso hijo: la auditoría vio caer el worker de
+    # uvicorn al restaurar, sin traza de Python, y con él todo el servidor. En
+    # un hijo solo falla esta petición y la guardada sigue intacta en disco.
     try:
-        new_sid = rehydrate_session(session_id)
+        new_sid = await asyncio.to_thread(
+            run_isolated, rehydrate_session, session_id, timeout_s=RESTORE_TIMEOUT_S)
+    except CalculoCaido as exc:
+        logger.error("Restaurar %s: el proceso hijo cayó: %s", session_id, exc)
+        raise HTTPException(status_code=500, detail=RESTORE_FAILED_DETAIL) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Session rehydration failed")
         raise HTTPException(status_code=500, detail=f"No se pudo restaurar la sesión: {exc}")

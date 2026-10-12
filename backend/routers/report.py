@@ -35,6 +35,7 @@ from services.report_generator import (
 from services.dicom_sr import DicomSRGenerator
 from services.mesh_exporter import export_stl, merge_poly_datas, apply_scale
 from services.segmentation import read_vtp
+from services.isolated import CalculoCaido, run_isolated
 
 logger  = logging.getLogger(__name__)
 router  = APIRouter(prefix="/api", tags=["report"])
@@ -686,10 +687,6 @@ async def suggest_corridors(
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
-    from services.approach import (FACE_MAX_ELEVATION_DEG, MAX_INFERIOR_DEG,
-                                   propose_corridors)
-    from services.head_axes import axes_from_dicom
-
     meshes = session_subdir(session_id, "meshes")
     vtp = meshes / "vessel_tree.vtp"
     if not vtp.exists():
@@ -720,6 +717,51 @@ async def suggest_corridors(
                 detail=("No hay aneurisma al que apuntar: marca el cuello en "
                         "Morfometría, detecta un candidato, o pasa la diana."))
 
+    # El cálculo corre en un proceso hijo: VTK abortó el worker de uvicorn dos
+    # veces aquí, sin traza, sobre el Caso 3 a resolución completa, y con él se
+    # caía la sesión de todo el que estuviera trabajando. En un hijo solo falla
+    # esta petición, y la persona sabe que puede marcar el corredor a mano.
+    try:
+        return await asyncio.to_thread(
+            run_isolated, _suggest_for_session, session_id, objetivo,
+            req.radius_mm, req.top, timeout_s=SUGGEST_TIMEOUT_S,
+        )
+    except CalculoCaido as exc:
+        logger.error("Sugerir corredor: el proceso hijo cayó (%s): %s", session_id, exc)
+        raise HTTPException(status_code=500, detail=SUGGEST_FAILED_DETAIL) from exc
+
+
+#: Lo que ve la persona si el cálculo del corredor muere o no acaba.
+SUGGEST_FAILED_DETAIL = (
+    "El cálculo del corredor falló en el servidor; la sesión no se ha perdido. "
+    "Coloca la entrada y la diana a mano."
+)
+#: Un barrido sano tarda segundos; más de esto es un hijo colgado.
+SUGGEST_TIMEOUT_S = 300.0
+
+
+def _suggest_for_session(
+    session_id: str, objetivo: tuple[float, float, float],
+    radius_mm: float, top: int,
+) -> SuggestCorridorsResult:
+    """El barrido de corredores, tal como corre en el proceso hijo.
+
+    Recibe solo datos sencillos y vuelve a leer del disco la malla, el volumen
+    y la orientación: los objetos VTK no cruzan entre procesos.
+    """
+    from services.approach import (FACE_MAX_ELEVATION_DEG, MAX_INFERIOR_DEG,
+                                   propose_corridors)
+    from services.head_axes import axes_from_dicom
+
+    vtp = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
+
+    def _f(key: str, default: float = 0.0) -> float:
+        raw = read_state(session_id, key, "")
+        try:
+            return float(raw) if raw != "" else default
+        except ValueError:
+            return default
+
     ejes = axes_from_dicom(session_subdir(session_id, "dicom"),
                            read_state(session_id, "dicom.series_id", ""))
 
@@ -744,11 +786,11 @@ async def suggest_corridors(
     eje_cuello = (_f("morpho.axis_x"), _f("morpho.axis_y"), _f("morpho.axis_z", 1.0))
     clearance = max(6.0, _f("morpho.max_diameter_mm") / 2.0 + 2.0)
 
-    propuestas = await asyncio.to_thread(
-        propose_corridors, objetivo, read_vtp(vtp), ejes,
-        radius_mm=req.radius_mm, target_clearance_mm=clearance,
+    propuestas = propose_corridors(
+        objetivo, read_vtp(vtp), ejes,
+        radius_mm=radius_mm, target_clearance_mm=clearance,
         neck_axis=eje_cuello, branches=ramas, volume=volume, spacing=spacing,
-        top=req.top,
+        top=top,
     )
 
     return SuggestCorridorsResult(

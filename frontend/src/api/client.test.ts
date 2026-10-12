@@ -2,7 +2,10 @@
    stays usable when a token dies mid-study. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, hasSession, markSession, setUnauthorizedHandler } from "./client";
+import {
+  ApiError, RESTORE_TIMEOUT_MS, api, hasSession, markSession, onServerDown, resetServerHealth,
+  retryLastFailed, setUnauthorizedHandler,
+} from "./client";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -136,5 +139,105 @@ describe("token CSRF", () => {
     await api.listPatients();
     const headers = new Headers((fetchSpy.mock.calls[0]![1] as RequestInit).headers);
     expect(headers.get("X-CSRF-Token")).toBeNull();
+  });
+});
+
+/* Familia T (F1-24, F1-25, F1-26): el servidor caído se ve. La auditoría vio
+   morir el backend tras reanudar y el cliente decía «Failed to fetch» en el
+   panel que tocara, o nada: un «CARGANDO…» para siempre. */
+describe("servidor que cae o no responde", () => {
+  beforeEach(() => {
+    resetServerHealth();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    resetServerHealth();
+  });
+
+  it("un fetch que no llega al servidor es un ApiError 0 en castellano", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+    const err = await api.listPatients().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(0);
+    expect((err as ApiError).message).toBe("Sin conexión con el servidor");
+  });
+
+  it("dos fallos de conexión seguidos activan el aviso; uno solo no", async () => {
+    const aviso = vi.fn();
+    const quitar = onServerDown(aviso);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await api.listPatients().catch(() => {});
+    expect(aviso).not.toHaveBeenCalled();
+    await api.listPatients().catch(() => {});
+    expect(aviso).toHaveBeenCalledTimes(1);
+    expect(aviso).toHaveBeenLastCalledWith(true);
+
+    // Vuelve: el aviso se retira con la primera respuesta.
+    fetchSpy.mockResolvedValue(jsonResponse([]));
+    await api.listPatients();
+    expect(aviso).toHaveBeenLastCalledWith(false);
+    quitar();
+  });
+
+  it("un fallo y luego una respuesta no avisan", async () => {
+    const aviso = vi.fn();
+    const quitar = onServerDown(aviso);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("x"));
+    fetchSpy.mockResolvedValueOnce(jsonResponse([]));
+    fetchSpy.mockRejectedValueOnce(new TypeError("x"));
+    await api.listPatients().catch(() => {});
+    await api.listPatients();
+    await api.listPatients().catch(() => {});
+    expect(aviso).not.toHaveBeenCalled();
+    quitar();
+  });
+
+  it("el 500 vacío que da el proxy con el backend caído cuenta como caída", async () => {
+    const aviso = vi.fn();
+    const quitar = onServerDown(aviso);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response("", { status: 500 }));
+    await api.listPatients().catch(() => {});
+    await api.listPatients().catch(() => {});
+    expect(aviso).toHaveBeenCalledWith(true);
+    quitar();
+  });
+
+  it("un 500 con explicación del servidor no es un servidor caído", async () => {
+    // El servidor contestó: decir «no responde» sería mentir, y el panel ya
+    // enseña su explicación (p. ej. el corredor que falló en el proceso hijo).
+    const aviso = vi.fn();
+    const quitar = onServerDown(aviso);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      jsonResponse({ detail: "El cálculo del corredor falló en el servidor" }, 500));
+    await api.listPatients().catch(() => {});
+    await api.listPatients().catch(() => {});
+    expect(aviso).not.toHaveBeenCalled();
+    quitar();
+  });
+
+  it("«Reintentar» repite la última llamada fallida", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("x"));
+    await api.restoreSession("abc").catch(() => {});
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ session_id: "nuevo" }));
+    await retryLastFailed();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[1]![0]).toBe("/api/sessions/abc/restore");
+    expect((fetchSpy.mock.calls[1]![1] as RequestInit).method).toBe("POST");
+  });
+
+  it("restaurar sin respuesta corta tras el límite con un ApiError 0", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation((_p, init) =>
+      new Promise((_res, rej) => {
+        (init as RequestInit).signal?.addEventListener("abort", () =>
+          rej(new DOMException("aborted", "AbortError")));
+      }));
+    const p = api.restoreSession("abc").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(RESTORE_TIMEOUT_MS + 10);
+    const err = await p;
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(0);
   });
 });

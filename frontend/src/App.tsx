@@ -23,6 +23,8 @@ import { ClipOrdersPage } from "./pages/ClipOrders";
 import { WorkshopsPage } from "./pages/Workshops";
 import type { Screen } from "./store/nav";
 import { rehydrateSession } from "./resume";
+import { restoreFailure } from "./restoreFailure";
+import { ServerDownBanner } from "./components/ServerDownBanner";
 import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
 
 function Router() {
@@ -41,6 +43,11 @@ function Router() {
   // Paciente por el que se abre el registro de pedidos, cuando se llega desde su ficha.
   const [ordersPatient, setOrdersPatient] = useState<PatientSummary | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // «Reintentar» del aviso de una restauración fallida (F1-25): el aviso se
+  // queda hasta que se pulse, en vez de borrarse a los tres segundos.
+  const [toastRetry, setToastRetry] = useState<{ forText: string; run: () => void } | null>(null);
+  // Solo vale para el aviso al que pertenece: otro aviso posterior no lo hereda.
+  const retryHere = toastRetry && toastRetry.forText === toast ? toastRetry.run : null;
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
   const [loadingIn, setLoadingIn] = useState(false);
   const [resumeStep, setResumeStep] = useState(0);
@@ -141,6 +148,7 @@ function Router() {
   // rehydrate the store from what came back (src/resume.ts), and open the
   // workspace at the step it was saved on.
   const resumeSession = async (sessionId: string, p: PatientSummary) => {
+    setToastRetry(null);
     setToast("Restaurando sesión…");
     try {
       const r = await api.restoreSession(sessionId);
@@ -162,8 +170,12 @@ function Router() {
       }
       setScreen("workspace");
     } catch (e) {
-      setToast(e instanceof Error ? e.message : "No se pudo restaurar la sesión");
-      setTimeout(() => setToast(null), 3000);
+      // Sin respuesta (pasado el límite del cliente) o con la copia caída en
+      // el servidor, la guardada sigue en disco: se dice y se ofrece repetir.
+      const { text, retry } = restoreFailure(e);
+      setToast(text);
+      if (retry) setToastRetry({ forText: text, run: () => void resumeSession(sessionId, p) });
+      else setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -275,8 +287,10 @@ function Router() {
           a un caso</b> queda ligada a un paciente y su DICOM archivado.</>
         )}
       </ConfirmDialog>
+      <ServerDownBanner />
       {toast && (
         <div
+          role={retryHere ? "alert" : undefined}
           style={{
             position: "fixed",
             top: 76,
@@ -293,6 +307,25 @@ function Router() {
           }}
         >
           {toast}
+          {retryHere && (
+            <>
+              <button
+                type="button"
+                onClick={() => { setToastRetry(null); retryHere(); }}
+                style={{ marginLeft: 14, background: "transparent", color: "inherit", border: "1px solid currentColor", borderRadius: "var(--radius-sm)", padding: "3px 10px", font: "inherit", cursor: "pointer" }}
+              >
+                Reintentar
+              </button>
+              <button
+                type="button"
+                aria-label="Cerrar aviso"
+                onClick={() => { setToastRetry(null); setToast(null); }}
+                style={{ marginLeft: 6, background: "transparent", color: "inherit", border: "none", font: "inherit", cursor: "pointer" }}
+              >
+                ×
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

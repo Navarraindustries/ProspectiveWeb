@@ -1430,6 +1430,9 @@ function samePoint(a: number[], b: readonly number[] | null): boolean {
   return !!b && a.length === 3 && a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
 }
 
+/** «Sugerir corredor» sin respuesta del servidor: la vía manual sigue abierta. */
+const SUGGEST_NO_SERVER = "El servidor no responde. Marca Entrada y Diana a mano";
+
 /* ── Trayectoria de abordaje quirúrgico ────────────────────────────────── */
 export function TrajectoryTool() {
   const {
@@ -1448,6 +1451,8 @@ export function TrajectoryTool() {
   const [error, setError] = useState<string | null>(null);
   const [sugerencias, setSugerencias] = useState<SuggestCorridorsResult | null>(null);
   const [sugiriendo, setSugiriendo] = useState(false);
+  // Aparte del error de guardar: este lleva su «Reintentar» (F1-20).
+  const [sugerirError, setSugerirError] = useState<string | null>(null);
 
   const hasMesh = !!segmentation?.mesh_url;
   const depth = trajEntry && trajTarget
@@ -1476,11 +1481,16 @@ export function TrajectoryTool() {
   const sugerir = async () => {
     if (!sessionId) return;
     setSugiriendo(true);
-    setError(null);
+    setSugerirError(null);
     try {
       setSugerencias(await api.suggestCorridors(sessionId, {}));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al sugerir corredores");
+      // Con el servidor caído esto era un «Error 500» y nada más (F1-20). Sin
+      // respuesta, se dice y se señala la vía manual; con respuesta, el
+      // servidor ya explica qué falló y que la sesión no se ha perdido.
+      setSugerirError(
+        err instanceof ApiError && err.status === 0 ? SUGGEST_NO_SERVER
+          : err instanceof Error ? err.message : "Error al sugerir corredores");
     } finally {
       setSugiriendo(false);
     }
@@ -1541,6 +1551,15 @@ export function TrajectoryTool() {
       >
         {sugiriendo ? "Buscando por dónde entrar…" : "Sugerir corredor"}
       </Button>
+      {sugerirError && (
+        <div style={{ marginBottom: 10 }}>
+          <ErrorNote>{sugerirError}</ErrorNote>
+          <Button size="sm" variant="outline" style={{ marginTop: 6 }} disabled={sugiriendo}
+                  onClick={() => void sugerir()}>
+            Reintentar
+          </Button>
+        </div>
+      )}
 
       {sugerencias && (
         <div style={{ marginBottom: 10 }}>

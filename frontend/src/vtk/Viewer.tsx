@@ -22,6 +22,7 @@ import { clipNormal, fieldColoursOnScreen, isStale, neckAxis, neckPlacement } fr
 import { MprViewLegacy as MprView } from "./MprViewLegacy";
 import { useClientVolume } from "./volume/useClientVolume";
 import { useVolumeMeta } from "./useVolumeMeta";
+import { VolumeLoadFailed } from "./hud/VolumeLoadFailed";
 import { useVesselBand } from "./useVesselBand";
 import { volumePresetsFor } from "./volumePresets";
 import { levelNoteFor } from "./levelNote";
@@ -363,7 +364,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     (step === "detect" || step === "morpho") && candidate?.dome_mesh_url
       ? candidate.dome_mesh_url
       : undefined;
-  const { meta, forSession: metaFor } = useVolumeMeta(sessionId, volumeVersion);
+  const { meta, forSession: metaFor, error: metaError, retry: retryMeta } = useVolumeMeta(sessionId, volumeVersion);
   // Banda de vasos del volumen: una para los preajustes de los cortes y, en
   // VOLUMEN, para «VASOS» (Tarea 2) — spec §3.1.
   const vesselBand = useVesselBand(sessionId, segmentation, volumeVersion);
@@ -1651,7 +1652,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (!meta || !clientVol.image) {
         return (
           <HudFrame label="VOLUMEN" active={active}>
-            <HudReadout at="bl" lines={[meta && hasWebGL2() && !clientVol.error ? "CARGANDO…" : "SIN VOLUMEN"]} />
+            {metaError ? <VolumeLoadFailed onRetry={retryMeta} /> : (
+              <HudReadout at="bl" lines={[meta && hasWebGL2() && !clientVol.error ? "CARGANDO…" : "SIN VOLUMEN"]} />
+            )}
           </HudFrame>
         );
       }
@@ -1667,7 +1670,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
       );
     }
     if (!meta || !sessionId) {
-      return <HudFrame label={id.toUpperCase()}><HudReadout at="bl" lines={[series ? "CARGANDO…" : "SIN VOLUMEN"]} /></HudFrame>;
+      // Con la meta caída tras los reintentos, decirlo: «CARGANDO…» se quedaba
+      // para siempre porque dependía de que hubiera serie, no de la meta (F1-8).
+      return (
+        <HudFrame label={id.toUpperCase()}>
+          {metaError ? <VolumeLoadFailed onRetry={retryMeta} /> : <HudReadout at="bl" lines={[series ? "CARGANDO…" : "SIN VOLUMEN"]} />}
+        </HudFrame>
+      );
     }
     const c = planeCfg(id);
     // El tinte de banda solo tiene sentido mientras se ajusta el umbral.
@@ -1771,6 +1780,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
         : segPreview ? "3D · MALLA GRUESA" : "3D";
     } else if (sceneIsSlice) {
       body = renderPane("axial", ctx, "scene");
+    } else if (metaError) {
+      body = <VolumeLoadFailed onRetry={retryMeta} />;
     } else {
       body = (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>

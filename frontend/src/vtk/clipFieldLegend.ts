@@ -2,6 +2,7 @@
    (services/clip_field.py), para que la barra diga lo que la malla enseña. */
 import type { ClipFieldSummary, ClipForceVerdict } from "../api/types";
 import type { HudTextLine } from "./hud/HudReadout";
+import { forceWithBand } from "../components/planning/clipForce";
 
 export const FIELD_COLORS = {
   cubierto_optima: "rgb(34,197,94)", cubierto_aceptable: "rgb(245,158,11)", cubierto_insuficiente: "rgb(59,130,246)",
@@ -28,6 +29,26 @@ export function forcesText(s: ClipFieldSummary): string {
   return s.clips.length > 1 ? s.clips.map((c) => g(c.force_g)).join(" + ") : g(s.force_g);
 }
 
+/** Con la fuerza sin caracterizar, un veredicto favorable no puede decir
+ *  «Óptima»: se dice «Provisional». Una sola regla para la tarjeta del mapa de
+ *  calor y para esta leyenda, que están en pantalla a la vez y llegaron a decir
+ *  «Provisional» y «ÓPTIMA» de la misma pieza (F1-202). Lo que falla
+ *  —insuficiente, exceso, sin contacto— se sigue diciendo. */
+export function isProvisionalVerdict(verdict: ClipForceVerdict, provisional: boolean): boolean {
+  return provisional && (verdict === "optima" || verdict === "aceptable");
+}
+
+/** La cifra de fuerza de la pieza, la misma en la tarjeta, la leyenda,
+ *  Fabricación y el pedido: el objetivo con su banda. Con varios clips, la de
+ *  cada uno. El backend manda `force_target_g = 0` cuando no hay objetivo
+ *  (fuerza caracterizada o varios clips): entonces vale la fuerza del clip, no
+ *  «0 g». */
+export function forceValue(s: ClipFieldSummary): string {
+  if (s.clips.length > 1) return forcesText(s);
+  if (s.force_g <= 0) return "—";
+  return forceWithBand(s.force_target_g || s.force_g, s.force_band_g);
+}
+
 /** La ventana óptima del cuello en gramos, «80–120 g». La de g/mm² divide por la
  *  misma área que la presión y no añade nada: el veredicto es fuerza contra ventana. */
 export function optimalWindowText(s: ClipFieldSummary): string {
@@ -42,7 +63,8 @@ export function legendLines(s: ClipFieldSummary): HudTextLine[] {
     { text: `CUELLO RESIDUAL ${neckPct(s, s.residual_pct)}`, color: FIELD_COLORS.residual },
     { text: `CUELLO NO ALCANZADO ${neckPct(s, s.unreached_pct)}`, color: FIELD_COLORS.no_alcanzado },
     { text: "NO EVALUADO", color: FIELD_COLORS.no_evaluado },
-    { text: `FUERZA ${forcesText(s)} · ${VERDICT_LABEL[s.pressure_verdict]} (${optimalWindowText(s)})` },
+    { text: `FUERZA ${forceValue(s)} · ${isProvisionalVerdict(s.pressure_verdict, s.force_provisional)
+      ? "PROVISIONAL" : VERDICT_LABEL[s.pressure_verdict]} (${optimalWindowText(s)})` },
     { text: `VEREDICTO ${s.verdict.toUpperCase()} · ESTIMACIÓN GEOMÉTRICA` },
   ];
 }

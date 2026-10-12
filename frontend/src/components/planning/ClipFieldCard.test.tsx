@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ClipFieldCard } from "./ClipFieldCard";
+import { legendLines } from "../../vtk/clipFieldLegend";
 import { forceWithBand } from "./clipForce";
 import type { ClipFieldSummary } from "../../api/types";
 
@@ -92,5 +93,21 @@ describe("una sola cifra de fuerza (F1-202)", () => {
   it("lo que falla se sigue diciendo aunque sea provisional", () => {
     render(<ClipFieldCard summary={{ ...s, pressure_verdict: "insuficiente" }} show onToggle={vi.fn()} />);
     expect(screen.getByText("Insuficiente")).toBeInTheDocument();
+  });
+});
+
+describe("la tarjeta y la leyenda del visor no se contradicen (F1-202)", () => {
+  it("la misma cifra y el mismo distintivo en las dos", () => {
+    render(<ClipFieldCard summary={s} show onToggle={vi.fn()} />);
+    expect(screen.getByText(MISMA_FUERZA)).toBeInTheDocument();
+    expect(screen.getByText("Provisional")).toBeInTheDocument();
+    expect(legendLines(s)[4].text).toBe(`FUERZA ${MISMA_FUERZA} · PROVISIONAL (80–120 g)`);
+  });
+  it("un clip de biblioteca con ficha (objetivo 0) enseña su fuerza, no «0 g»", () => {
+    render(<ClipFieldCard summary={{ ...s, force_g: 140, force_target_g: 0, force_band_g: [], force_statement: "",
+      force_provisional: false, force_is_band_min: false, clips: [{ name: "Biblio 9", force_g: 140, verdict: "optima" }] }}
+      show onToggle={vi.fn()} />);
+    expect(screen.getByText("140 g")).toBeInTheDocument();
+    expect(screen.queryByText("0 g")).toBeNull();
   });
 });

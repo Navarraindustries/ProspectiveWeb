@@ -9,12 +9,11 @@
    mide. Sigue en la API y en el .vtp para la fase mecánica. */
 
 import type { ClipFieldSummary, ClipForceVerdict } from "../../api/types";
-import { forcesText, neckPct } from "../../vtk/clipFieldLegend";
+import { forceValue, isProvisionalVerdict, neckPct } from "../../vtk/clipFieldLegend";
 import { Badge } from "../Badge";
 import { Metric } from "../Metric";
 import { Card, SectionLabel } from "../PanelHead";
 import { CriterionChip } from "./ClipSelection";
-import { forceWithBand } from "./clipForce";
 
 type BadgeVariant = "success" | "warning" | "destructive";
 
@@ -31,24 +30,10 @@ const FORCE_BADGE: Record<ClipForceVerdict, [string, BadgeVariant]> = {
 
 const g0 = (n: number) => `${n.toFixed(0)} g`;
 
-/** El distintivo de la fuerza. Con la fuerza sin caracterizar, un veredicto
- *  favorable no puede decir «Óptima»: el criterio de fuerza de la misma tarjeta
- *  lleva «!» por esa misma razón (`force_provisional`), y los dos se leían
- *  como si se contradijeran (F1-202). Lo que sí falla —insuficiente, exceso,
- *  sin contacto— se sigue diciendo: eso no depende de la cifra exacta. */
+/** El distintivo de la fuerza: la regla es la de la leyenda del visor
+ *  (`isProvisionalVerdict`), para que las dos no puedan decir cosas distintas. */
 export function forceBadge(verdict: ClipForceVerdict, provisional: boolean): [string, BadgeVariant] {
-  if (provisional && (verdict === "optima" || verdict === "aceptable")) {
-    return ["Provisional", "warning"];
-  }
-  return FORCE_BADGE[verdict];
-}
-
-/** La cifra de fuerza de la tarjeta: el objetivo con su banda, la misma cadena
- *  que Fabricación y el pedido. Con varios clips, la de cada uno. */
-export function forceValue(s: ClipFieldSummary): string {
-  if (s.clips.length > 1) return forcesText(s);
-  if (s.force_g <= 0) return "—";
-  return forceWithBand(s.force_target_g ?? s.force_g, s.force_band_g);
+  return isProvisionalVerdict(verdict, provisional) ? ["Provisional", "warning"] : FORCE_BADGE[verdict];
 }
 
 export function ClipFieldCard({

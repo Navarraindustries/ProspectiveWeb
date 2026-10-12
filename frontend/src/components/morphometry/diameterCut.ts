@@ -5,11 +5,25 @@
    que a menos de 1 mm de un corte un error de medida cambia el tramo (F1-13,
    F1-14, F1-15). */
 
+/* Todas las tablas de puntos y cortes viven aquí y solo aquí: el aviso de corte
+   se da ANTES de «Calcular», así que si estas cifras se separan de las del
+   backend la pantalla diría «baja de 10 a 7 puntos» y el cálculo otra cosa.
+   backend/test_frontend_points_parity.py las lee de este archivo y las compara
+   con services/phases.py, elapss.py y uiats.py. */
+
 /** Cortes de tamaño de cada escala, en mm (backend/services/phases.py, elapss.py, uiats.py). */
 export const PHASES_CUTS = [7, 10, 20] as const;
+/** Puntos de tamaño PHASES por tramo: < 7, 7–9,9, 10–19,9, ≥ 20. */
+export const PHASES_SIZE_PTS = [0, 3, 6, 10] as const;
+export const PHASES_HTN_PTS = 1;
+export const PHASES_AGE_MIN = 70;
+export const PHASES_AGE_PTS = 1;
+export const PHASES_SAH_PTS = 1;
 export const ELAPSS_CUTS = [3, 5, 7, 10] as const;
-/** UIATS usa el diámetro dos veces: puntos por diámetro (4/7/13/25) y riesgo por tamaño (6/10/20). */
-export const UIATS_CUTS = [4, 6, 7, 10, 13, 20, 25] as const;
+/** UIATS usa el diámetro dos veces: puntos por diámetro y riesgo por tamaño. */
+export const UIATS_DIAMETER_CUTS = [4, 7, 13, 25] as const;
+export const UIATS_SIZE_RISK_CUTS = [6, 10, 20] as const;
+export const UIATS_CUTS = [...new Set([...UIATS_DIAMETER_CUTS, ...UIATS_SIZE_RISK_CUTS])].sort((a, b) => a - b);
 
 /** Distancia a un corte por debajo de la cual se avisa: el orden del error de medida. */
 export const CUT_MARGIN_MM = 1;
@@ -44,10 +58,8 @@ export function isProvisional(warning: string | null | undefined): boolean {
  *  Se repiten aquí solo para poder decir ANTES de calcular cuántos puntos
  *  cambia el corte; la cifra que se guarda sigue saliendo del backend. */
 export function phasesSizePoints(x: number): number {
-  if (x < 7) return 0;
-  if (x < 10) return 3;
-  if (x < 20) return 6;
-  return 10;
+  const tramo = PHASES_CUTS.filter((c) => x >= c).length;
+  return PHASES_SIZE_PTS[tramo]!;
 }
 
 export const PHASES_POP_PTS = { other: 0, japan: 3, finland: 5 } as const;

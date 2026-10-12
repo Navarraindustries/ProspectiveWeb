@@ -13,7 +13,8 @@ import { usePlanning } from "../../store/planning";
 import { ageFromDob } from "../patientAge";
 import { CUT_WARN, DiameterSource } from "./DiameterSource";
 import {
-  PHASES_CUTS, PHASES_POP_PTS, PHASES_SITE_PTS, mm, nearCut, phasesLabel, phasesSizePoints,
+  PHASES_AGE_MIN, PHASES_AGE_PTS, PHASES_CUTS, PHASES_HTN_PTS, PHASES_POP_PTS, PHASES_SAH_PTS,
+  PHASES_SITE_PTS, mm, nearCut, phasesLabel, phasesSizePoints,
 } from "./diameterCut";
 
 const POPULATIONS: { value: PhasesPopulation; label: string }[] = [
@@ -74,8 +75,9 @@ export function PhasesCalculator({
   const corte = nearCut(sizeNum, PHASES_CUTS);
   let avisoCorte: string | null = null;
   if (corte != null) {
-    const resto = PHASES_POP_PTS[population] + (hypertension ? 1 : 0) + ((Number(age) || 0) >= 70 ? 1 : 0)
-      + (earlierSah ? 1 : 0) + PHASES_SITE_PTS[site];
+    const resto = PHASES_POP_PTS[population] + (hypertension ? PHASES_HTN_PTS : 0)
+      + ((Number(age) || 0) >= PHASES_AGE_MIN ? PHASES_AGE_PTS : 0)
+      + (earlierSah ? PHASES_SAH_PTS : 0) + PHASES_SITE_PTS[site];
     const body = bodyDiameterMm != null && bodyDiameterMm > 0 ? bodyDiameterMm : null;
     let alto: number, bajo: number;
     if (sizeNum >= corte) {

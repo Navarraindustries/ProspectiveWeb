@@ -2607,9 +2607,9 @@ export interface paths {
         post?: never;
         /**
          * Clear the treatment recommendation
-         * @description Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it, the PHASES score and the team's decision, so none of them reach the PDF or the DICOM SR.
+         * @description Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it and the PHASES score, so none of them reach the PDF or the DICOM SR.
          *
-         *     Called on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent.
+         *     Called on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent. The team's decision (PUT …/team) is kept: it is removed only from its own card.
          */
         delete: operations["clear_treatment_api_treatment_decision__session_id__delete"];
         options?: never;

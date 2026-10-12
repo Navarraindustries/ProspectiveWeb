@@ -1257,10 +1257,13 @@ class ReportGenerator:
         team = d.team or {}
         key = team.get("team_decision", "")
         if key in _DECISION_EQUIPO:
+            # Texto tecleado a mano: un «<b>» o un «&» rompía el Paragraph de
+            # ReportLab y el PDF entero no salía. Escapado, como las anotaciones.
+            from xml.sax.saxutils import escape
             texto = _DECISION_EQUIPO[key]
             if key == "otra" and team.get("other_text"):
-                texto += f": {team['other_text']}"
-            quien = (team.get("decided_by") or "").strip()
+                texto += f": {escape(str(team['other_text']))}"
+            quien = escape((team.get("decided_by") or "").strip())
             elems.append(Paragraph(
                 f"Decisión del equipo: <b>{texto}</b>"
                 + (f" — por {quien}." if quien else "."), self._style_body))

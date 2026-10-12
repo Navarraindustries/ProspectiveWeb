@@ -1781,13 +1781,14 @@ function PlacedDevicesBar() {
     }
   };
 
-  // Con una estrategia marcada se enseña aunque se haya limpiado todo: sigue
-  // en el informe, y aquí es donde se quita.
-  if (placed.length === 0 && !strategy) return null;
-
+  // La tarjeta se enseña siempre: el selector de estrategia tiene que estar
+  // antes de colocar nada (el WEB solo se dimensiona, nunca «está en el
+  // plan», y escondida no se podía elegir). Lo de los dispositivos colocados
+  // solo aparece cuando los hay.
   return (
     <Card style={{ marginBottom: 14, padding: "12px 14px" }}>
       <SectionLabel style={{ marginBottom: 8 }}>En el plan ({placed.length})</SectionLabel>
+      {placed.length > 0 && (<>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
         {placed.map((k) => (
           <span
@@ -1805,7 +1806,8 @@ function PlacedDevicesBar() {
         Estos dispositivos se dibujan en el visor y aparecen en el informe. Límpialos
         para probar otra estrategia sin que se acumulen.
       </div>
-      <div style={{ marginBottom: 10 }}>
+      </>)}
+      <div style={{ marginBottom: placed.length > 0 ? 10 : 0 }}>
         <Select
           label="Estrategia del equipo"
           options={STRATEGY_OPTIONS}
@@ -1816,13 +1818,15 @@ function PlacedDevicesBar() {
           El informe la pone en «Plan elegido»; las demás salen como alternativas evaluadas.
         </div>
       </div>
-      <Button
-        variant="outline" size="sm" style={{ width: "100%" }}
-        disabled={busy} onClick={() => void clearAll()}
-        leadingIcon={<Icon name="CLEAR" size={14} />}
-      >
-        {busy ? "Limpiando…" : "Limpiar todos los dispositivos"}
-      </Button>
+      {placed.length > 0 && (
+        <Button
+          variant="outline" size="sm" style={{ width: "100%" }}
+          disabled={busy} onClick={() => void clearAll()}
+          leadingIcon={<Icon name="CLEAR" size={14} />}
+        >
+          {busy ? "Limpiando…" : "Limpiar todos los dispositivos"}
+        </Button>
+      )}
       <ErrorNote>{error}</ErrorNote>
     </Card>
   );

@@ -267,12 +267,14 @@ describe("DevicesPanel · campo del clip", () => {
     expect(api.clearDevices).not.toHaveBeenCalled();
     await act(async () => { release(); });
     await waitFor(() => expect(api.clearDevices).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.queryByText(/En el plan/)).toBeNull());
+    await waitFor(() => expect(screen.getByText("En el plan (0)")).toBeInTheDocument());
     act(() => { vi.advanceTimersByTime(400); });
     // Nada vuelve: ni la tarjeta del plan, ni la barra (malla de clips), ni el
     // campo, ni otra petición.
     expect(screen.queryByText("Extensión de las hojas sobre el cuello")).toBeNull();
-    expect(screen.queryByText(/En el plan/)).toBeNull();
+    // La barra se queda (lleva el selector de estrategia), pero vacía.
+    expect(screen.getByText("En el plan (0)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Limpiar todos los dispositivos/ })).toBeNull();
     expect(screen.queryByText(/Mapa de calor del clip/)).toBeNull();
     expect(api.clipField).toHaveBeenCalledTimes(1);
     expect(api.planClips).toHaveBeenCalledTimes(2);
@@ -294,7 +296,7 @@ describe("DevicesPanel · campo del clip", () => {
     expect(api.clearDevices).not.toHaveBeenCalled();
     await act(async () => { fail(); });
     await waitFor(() => expect(api.clearDevices).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.queryByText(/En el plan/)).toBeNull());
+    await waitFor(() => expect(screen.getByText("En el plan (0)")).toBeInTheDocument());
     expect(screen.queryByText(/caído/)).toBeNull();
   });
 

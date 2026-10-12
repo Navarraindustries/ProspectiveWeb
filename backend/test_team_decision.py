@@ -106,13 +106,34 @@ class TestViajaConLaRecomendacion:
         clear_treatment_state(sid)
         assert read_state(sid, "treatment.team_decision", "") == "clipaje"
 
-    def test_limpiar_la_borra(self):
+    def test_limpiar_no_la_borra(self):
+        # «Limpiar decisión y PHASES» quita lo del motor. La decisión del
+        # equipo es trabajo a mano: solo se quita desde su tarjeta.
         sid = _sid()
         client.post("/api/treatment-decision", json={"session_id": sid})
-        _put(sid, team_decision="clipaje", decided_by="Comité", other_text="")
+        _put(sid, team_decision="otra", decided_by="Comité", other_text="Bypass")
         assert client.delete(f"/api/treatment-decision/{sid}").status_code == 200
-        for k in ("treatment.team_decision", "treatment.decided_by", "treatment.team_other"):
-            assert read_state(sid, k, "") == "", k
+        assert read_state(sid, "treatment.recommendation_key", "") == ""
+        assert read_state(sid, "treatment.team_decision", "") == "otra"
+        assert read_state(sid, "treatment.decided_by", "") == "Comité"
+        assert read_state(sid, "treatment.team_other", "") == "Bypass"
+
+
+class TestElPdfConTextoTecleado:
+    def test_marcas_en_quien_decide_salen_literales(self, tmp_path):
+        # «<b>comité» rompía el Paragraph de ReportLab y el PDF no salía.
+        from services.report_generator import (ReportGenerator,
+                                               build_report_data_from_session)
+        sid = _sid()
+        _put(sid, team_decision="otra", decided_by="<b>comité & cía",
+             other_text="<i>bypass")
+        gen = ReportGenerator(build_report_data_from_session(sid))
+        # Lo que se lee impreso (getPlainText), no el marcado de ReportLab.
+        textos = [f.getPlainText() for f in gen._build_story() if hasattr(f, "getPlainText")]
+        linea = next(t for t in textos if t.startswith("Decisión del equipo"))
+        assert "<b>comité & cía" in linea and "<i>bypass" in linea
+        # Y el documento entero se escribe.
+        assert gen.generate(tmp_path / "informe.pdf").stat().st_size > 0
 
 
 def _medico() -> tuple[int, TestClient]:
@@ -137,5 +158,8 @@ class TestOtroProfesional:
         db.add(PlanningSession(session_id=sid, patient_id=p.id)); db.commit(); db.close()
         assert _put(sid, b, team_decision="clipaje", decided_by="B").status_code == 403
         assert b.get(f"/api/treatment-decision/{sid}/team").status_code == 403
+        # Limpiar la decisión también es tocar trabajo de esa sesión.
+        assert b.delete(f"/api/treatment-decision/{sid}").status_code == 403
         assert _put(sid, a, team_decision="clipaje", decided_by="A").status_code == 200
         assert a.get(f"/api/treatment-decision/{sid}/team").json()["decided_by"] == "A"
+        assert a.delete(f"/api/treatment-decision/{sid}").status_code == 200

@@ -87,3 +87,22 @@ describe("«Estrategia del equipo» en «En el plan (n)»", () => {
     await waitFor(() => expect(api.setDeviceStrategy).toHaveBeenLastCalledWith("s1", null));
   });
 });
+
+/* Revisión de la Tarea 12: sin nada colocado la tarjeta no se pintaba, así
+   que el WEB (que se dimensiona pero no se coloca) nunca se podía marcar, ni
+   ninguna estrategia antes de colocar. */
+describe("«Estrategia del equipo» sin nada colocado", () => {
+  it("el selector está y guarda «WEB»", async () => {
+    vi.mocked(api.placedDevices).mockResolvedValue({
+      cleared: [], remaining: [], meshes_removed: 0, mesh_urls: {},
+      strategy: null, placed_counts: {},
+    });
+    montar(null);
+    const sel = await screen.findByLabelText("Estrategia del equipo") as HTMLSelectElement;
+    expect(screen.getByText("En el plan (0)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Limpiar todos los dispositivos/ })).toBeNull();
+    fireEvent.change(sel, { target: { value: "web" } });
+    await waitFor(() => expect(api.setDeviceStrategy).toHaveBeenCalledWith("s1", "web"));
+    expect(sel.value).toBe("web");
+  });
+});

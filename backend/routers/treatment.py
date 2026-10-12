@@ -352,14 +352,13 @@ def clear_decision_only(session_id: str) -> None:
             write_state(session_id, key, "")
 
 
-def clear_treatment_state(session_id: str, *, team: bool = False) -> None:
+def clear_treatment_state(session_id: str) -> None:
     """Forget the recommendation, its clinical context and the PHASES score.
 
-    `team=True` also forgets the team's decision. Only «Limpiar decisión y
-    PHASES» passes it: the other callers run on their own when the
-    measurements change, and the team's decision is typed by hand — losing it
-    without anyone asking is what the F1 audit blocks."""
-    for key in (*TREATMENT_STATE_KEYS, *PHASES_STATE_KEYS, *(TEAM_KEYS if team else ())):
+    Never the team's decision (TEAM_KEYS): it is typed by hand, and losing it
+    without anyone asking is what the F1 audit blocks. It goes only when the
+    team chooses «Sin registrar» in its own card (PUT …/team with null)."""
+    for key in (*TREATMENT_STATE_KEYS, *PHASES_STATE_KEYS):
         write_state(session_id, key, "")
 
 
@@ -368,14 +367,21 @@ def clear_treatment_state(session_id: str, *, team: bool = False) -> None:
     summary="Clear the treatment recommendation",
     description=(
         "Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context "
-        "recorded alongside it, the PHASES score and the team's decision, so none of them reach the "
+        "recorded alongside it and the PHASES score, so none of them reach the "
         "PDF or the DICOM SR.\n\n"
         "Called on its own from the decision step, and automatically whenever the "
-        "morphometry underneath is discarded. Idempotent."
+        "morphometry underneath is discarded. Idempotent. The team's decision "
+        "(PUT …/team) is kept: it is removed only from its own card."
     ),
 )
-async def clear_treatment(session_id: str) -> dict:
+async def clear_treatment(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> dict:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-    clear_treatment_state(session_id, team=True)
+    # Borra trabajo de una sesión ligada a un paciente: solo quien lo ve.
+    require_session(db, current_user, session_id)
+    clear_treatment_state(session_id)
     return {"status": "cleared"}

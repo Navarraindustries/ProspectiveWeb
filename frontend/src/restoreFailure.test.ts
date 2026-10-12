@@ -18,4 +18,8 @@ describe("restoreFailure", () => {
     expect(restoreFailure(new ApiError(409, "La sesión existe pero sus archivos ya no están")))
       .toEqual({ text: "La sesión existe pero sus archivos ya no están", retry: false });
   });
+  it("el 500 vacío del proxy con el backend caído es «no responde», no «Error 500»", () => {
+    expect(restoreFailure(new ApiError(500, "Error 500", false)))
+      .toEqual({ text: RESTORE_NO_SERVER, retry: true });
+  });
 });

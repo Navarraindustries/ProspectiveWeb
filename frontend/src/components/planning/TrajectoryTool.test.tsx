@@ -9,7 +9,10 @@ const suggestCorridors = vi.fn();
 const { ApiErrorMock } = vi.hoisted(() => ({
   ApiErrorMock: class extends Error {
     status: number;
-    constructor(status: number, detail: string) { super(detail); this.status = status; }
+    fromServer: boolean;
+    constructor(status: number, detail: string, fromServer = status !== 0) {
+      super(detail); this.status = status; this.fromServer = fromServer;
+    }
   },
 }));
 vi.mock("../../api/client", () => ({
@@ -103,5 +106,13 @@ describe("TrajectoryTool · «Sugerir corredor» que falla", () => {
     fireEvent.click(screen.getByText("Sugerir corredor"));
     expect(await screen.findByText("El servidor no responde. Marca Entrada y Diana a mano")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+  });
+
+  it("el 500 vacío del proxy (backend caído) también dice que no responde", async () => {
+    suggestCorridors.mockRejectedValueOnce(new ApiErrorMock(500, "Error 500", false));
+    render(<TrajectoryTool />);
+    fireEvent.click(screen.getByText("Sugerir corredor"));
+    expect(await screen.findByText("El servidor no responde. Marca Entrada y Diana a mano")).toBeInTheDocument();
+    expect(screen.queryByText("Error 500")).toBeNull();
   });
 });

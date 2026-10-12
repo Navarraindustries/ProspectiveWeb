@@ -9,7 +9,9 @@ import { ApiError } from "./api/client";
 export const RESTORE_NO_SERVER = "No se pudo restaurar; el servidor no responde";
 
 export function restoreFailure(e: unknown): { text: string; retry: boolean } {
-  if (e instanceof ApiError && e.status === 0) return { text: RESTORE_NO_SERVER, retry: true };
+  // Sin conexión, colgado, o el 500 vacío del proxy con el backend caído: en
+  // ninguno «Error 500» explica nada.
+  if (e instanceof ApiError && !e.fromServer) return { text: RESTORE_NO_SERVER, retry: true };
   const text = e instanceof Error ? e.message : "No se pudo restaurar la sesión";
   return { text, retry: e instanceof ApiError && e.status >= 500 };
 }

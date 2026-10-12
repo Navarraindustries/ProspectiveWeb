@@ -178,10 +178,20 @@ function isAuthAttempt(path: string): boolean {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, detail: string) {
+  /** ¿Contestó el backend? Falso sin conexión, al pasar el límite y en el 500
+   *  vacío que da el proxy de Vite con el backend caído: ahí «Error 500» no
+   *  explica nada y los paneles dicen que el servidor no responde. */
+  fromServer: boolean;
+  constructor(status: number, detail: string, fromServer = status !== 0) {
     super(detail);
     this.status = status;
+    this.fromServer = fromServer;
   }
+}
+
+/** ¿Falló sin que el backend contestara? (sin conexión, colgado, o tras el proxy) */
+export function serverUnreachable(e: unknown): boolean {
+  return e instanceof ApiError && !e.fromServer;
 }
 
 /** La pareja del doble envío contra CSRF (backend/services/csrf.py): la cookie
@@ -199,6 +209,15 @@ function csrfToken(): string | null {
 
 /** Lo que se ve cuando la petición ni siquiera llega al servidor. */
 export const NO_CONNECTION = "Sin conexión con el servidor";
+/** Lo que se ve cuando llegó pero no contesta dentro del límite. */
+export const NO_ANSWER = "El servidor no responde";
+/** Límites por defecto. Sin ellos, con el supervisor de `--reload` reteniendo
+ *  el puerto, las peticiones no volvían nunca y la banda no saltaba. Las
+ *  lecturas son rápidas; las escrituras incluyen los cálculos largos
+ *  (segmentar, detectar, informe, exportar, clips), y la subida del DICOM aún más. */
+export const GET_TIMEOUT_MS = 60_000;
+export const LONG_TIMEOUT_MS = 300_000;
+export const UPLOAD_TIMEOUT_MS = 900_000;
 /** Límite de «Reanudar»: por encima del del servidor (90 s,
  *  routers/session_state.py), para que su explicación llegue antes que el corte. */
 export const RESTORE_TIMEOUT_MS = 120_000;
@@ -206,7 +225,7 @@ export const RESTORE_TIMEOUT_MS = 120_000;
 let consecutiveFailures = 0;
 let serverDown = false;
 const downListeners = new Set<(down: boolean) => void>();
-let lastFailed: (() => Promise<unknown>) | null = null;
+let lastFailed: { method: string; replay: () => Promise<unknown> } | null = null;
 
 /** Avisa con `true` tras dos fallos de conexión seguidos y con `false` cuando
  *  el servidor vuelve a contestar. Devuelve la función para darse de baja. */
@@ -215,9 +234,22 @@ export function onServerDown(cb: (down: boolean) => void): () => void {
   return () => { downListeners.delete(cb); };
 }
 
-/** Repite la última llamada que falló por conexión (el «Reintentar» de la banda). */
-export function retryLastFailed(): Promise<unknown> {
-  return lastFailed ? lastFailed() : Promise.resolve(undefined);
+/** El «Reintentar» de la banda: un SONDEO, nunca una escritura repetida.
+ *
+ *  Repite la última llamada fallida solo si era una lectura. Una escritura no
+ *  se reenvía: tras el 500 vacío del proxy pudo haberse hecho ya en el backend
+ *  (una restauración copiada dos veces, un pedido duplicado), y su resultado
+ *  no volvería al panel que la hizo. En su lugar se pregunta `GET /api/auth/me`;
+ *  si contesta, la banda se retira y la persona repite la acción en su panel.
+ *  Devuelve "replayed" o "probed"; lanza si el servidor sigue sin contestar. */
+export async function retryLastFailed(): Promise<"replayed" | "probed"> {
+  const last = lastFailed;
+  if (last && (last.method === "GET" || last.method === "HEAD")) {
+    await last.replay();
+    return "replayed";
+  }
+  await request<unknown>("/api/auth/me");
+  return "probed";
 }
 
 /** Solo para las pruebas: vuelve al estado de arranque. */
@@ -237,8 +269,8 @@ function setServerDown(down: boolean) {
 /** Un fallo de conexión: no llegó, o llegó al proxy de Vite y no más allá (su
  *  500 viene sin cuerpo JSON). Un 5xx con `detail` es el servidor contestando
  *  —p. ej. el corredor que falló en el proceso hijo— y no cuenta como caída. */
-function noteConnectionFailure(retry: () => Promise<unknown>) {
-  lastFailed = retry;
+function noteConnectionFailure(method: string, replay: () => Promise<unknown>) {
+  lastFailed = { method, replay };
   consecutiveFailures += 1;
   if (consecutiveFailures >= 2) setServerDown(true);
 }
@@ -248,29 +280,44 @@ function noteServerAnswered() {
   setServerDown(false);
 }
 
-/** `fetch` con límite opcional; lo que no llega al servidor es un ApiError 0. */
-async function send(path: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
-  const ctrl = timeoutMs ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+/** `fetch` con límite; lo que no llega o no contesta a tiempo es un ApiError 0. */
+async function send(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const ctrl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, timeoutMs);
+  // La señal de quien llama sigue mandando: se encadena a la del límite.
+  const outer = init.signal;
+  const onOuterAbort = () => ctrl.abort();
+  if (outer) {
+    if (outer.aborted) ctrl.abort();
+    else outer.addEventListener("abort", onOuterAbort);
+  }
   try {
-    return await fetch(path, ctrl ? { ...init, signal: ctrl.signal } : init);
+    return await fetch(path, { ...init, signal: ctrl.signal });
   } catch (e) {
     // Un abort pedido por quien llama (cambio de sesión, desmontaje) no es
     // una caída del servidor: se propaga tal cual.
-    if (e instanceof DOMException && e.name === "AbortError" && !ctrl?.signal.aborted) throw e;
-    throw new ApiError(0, NO_CONNECTION);
+    if (!timedOut && e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ApiError(0, timedOut ? NO_ANSWER : NO_CONNECTION, false);
   } finally {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
+    outer?.removeEventListener("abort", onOuterAbort);
   }
 }
 
+function defaultTimeout(method: string): number {
+  return method === "GET" || method === "HEAD" ? GET_TIMEOUT_MS : LONG_TIMEOUT_MS;
+}
+
 async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: number): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const limit = timeoutMs ?? defaultTimeout(method);
   const retry = () => request<T>(path, init, timeoutMs);
   let res: Response;
   try {
-    res = await sendRequest(path, init, timeoutMs);
+    res = await sendRequest(path, init, limit);
   } catch (e) {
-    if (e instanceof ApiError && e.status === 0) noteConnectionFailure(retry);
+    if (e instanceof ApiError && e.status === 0) noteConnectionFailure(method, retry);
     throw e;
   }
   if (!res.ok) {
@@ -283,9 +330,12 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: numb
     } catch {
       /* non-JSON error body */
     }
-    if (res.status >= 500 && !fromServer) noteConnectionFailure(retry);
-    else noteServerAnswered();
-    throw new ApiError(res.status, detail);
+    // 4xx sin JSON también es el backend contestando; un 5xx sin `detail` es
+    // el proxy diciendo que detrás no hay nadie.
+    const answered = fromServer || res.status < 500;
+    if (answered) noteServerAnswered();
+    else noteConnectionFailure(method, retry);
+    throw new ApiError(res.status, detail, answered);
   }
   noteServerAnswered();
   // 204 No Content (e.g. DELETE) has no body to parse.
@@ -295,7 +345,7 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: numb
   return res.json() as Promise<T>;
 }
 
-async function sendRequest(path: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
+async function sendRequest(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const headers = new Headers(init.headers);
   const method = (init.method ?? "GET").toUpperCase();
   const csrf = method === "GET" || method === "HEAD" ? null : csrfToken();
@@ -323,11 +373,11 @@ async function getBlob(path: string): Promise<Blob> {
 }
 
 const get = <T>(path: string) => request<T>(path);
-const post = <T>(path: string, body?: unknown) =>
+const post = <T>(path: string, body?: unknown, timeoutMs?: number) =>
   request<T>(path, {
     method: "POST",
     body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  }, timeoutMs);
 
 export const api = {
   /* auth */
@@ -400,7 +450,7 @@ export const api = {
   upload: (files: File[]) => {
     const form = new FormData();
     for (const f of files) form.append("files", f, f.name);
-    return post<UploadResult>("/api/upload", form);
+    return post<UploadResult>("/api/upload", form, UPLOAD_TIMEOUT_MS);
   },
   /** Lanza la segmentación en segundo plano y espera su resultado preguntando
    *  cada poco. Antes era una sola petición de minutos, y detrás de un proxy

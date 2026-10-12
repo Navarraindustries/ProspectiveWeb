@@ -1489,7 +1489,7 @@ export function TrajectoryTool() {
       // respuesta, se dice y se señala la vía manual; con respuesta, el
       // servidor ya explica qué falló y que la sesión no se ha perdido.
       setSugerirError(
-        err instanceof ApiError && err.status === 0 ? SUGGEST_NO_SERVER
+        err instanceof ApiError && !err.fromServer ? SUGGEST_NO_SERVER
           : err instanceof Error ? err.message : "Error al sugerir corredores");
     } finally {
       setSugiriendo(false);

@@ -3,7 +3,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ApiError, RESTORE_TIMEOUT_MS, api, hasSession, markSession, onServerDown, resetServerHealth,
+  ApiError, GET_TIMEOUT_MS, LONG_TIMEOUT_MS, RESTORE_TIMEOUT_MS, api, hasSession, markSession,
+  onServerDown, resetServerHealth,
   retryLastFailed, setUnauthorizedHandler,
 } from "./client";
 
@@ -217,16 +218,6 @@ describe("servidor que cae o no responde", () => {
     quitar();
   });
 
-  it("«Reintentar» repite la última llamada fallida", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("x"));
-    await api.restoreSession("abc").catch(() => {});
-    fetchSpy.mockResolvedValueOnce(jsonResponse({ session_id: "nuevo" }));
-    await retryLastFailed();
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(fetchSpy.mock.calls[1]![0]).toBe("/api/sessions/abc/restore");
-    expect((fetchSpy.mock.calls[1]![1] as RequestInit).method).toBe("POST");
-  });
-
   it("restaurar sin respuesta corta tras el límite con un ApiError 0", async () => {
     vi.useFakeTimers();
     vi.spyOn(globalThis, "fetch").mockImplementation((_p, init) =>
@@ -239,5 +230,81 @@ describe("servidor que cae o no responde", () => {
     const err = await p;
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(0);
+  });
+});
+
+/* Revisión de la tarea 6: el «Reintentar» de la banda no repite escrituras, el
+   500 vacío del proxy se reconoce como «no responde», y un servidor colgado
+   (el supervisor con el puerto, sin contestar) también salta. */
+describe("servidor caído · revisión", () => {
+  beforeEach(() => { resetServerHealth(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    resetServerHealth();
+  });
+
+  it("tras un POST fallido, «Reintentar» sondea con un GET y nunca reenvía el POST", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("x"));
+    await api.restoreSession("abc").catch(() => {});
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ username: "admin" }));
+    await expect(retryLastFailed()).resolves.toBe("probed");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[1]![0]).toBe("/api/auth/me");
+    const init = fetchSpy.mock.calls[1]![1] as RequestInit;
+    expect((init.method ?? "GET").toUpperCase()).toBe("GET");
+  });
+
+  it("tras un GET fallido, «Reintentar» lo repite", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("x"));
+    await api.listPatients().catch(() => {});
+    fetchSpy.mockResolvedValueOnce(jsonResponse([]));
+    await expect(retryLastFailed()).resolves.toBe("replayed");
+    expect(fetchSpy.mock.calls[1]![0]).toBe("/api/patients");
+  });
+
+  it("fromServer: falso sin conexión y en el 500 vacío del proxy; cierto si el servidor explica", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("x"));
+    const sinConexion = (await api.listPatients().catch((e: unknown) => e)) as ApiError;
+    expect(sinConexion.fromServer).toBe(false);
+
+    fetchSpy.mockResolvedValueOnce(new Response("", { status: 500 }));
+    const proxy = (await api.listPatients().catch((e: unknown) => e)) as ApiError;
+    expect(proxy.status).toBe(500);
+    expect(proxy.fromServer).toBe(false);
+
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ detail: "El cálculo falló" }, 500));
+    const servidor = (await api.listPatients().catch((e: unknown) => e)) as ApiError;
+    expect(servidor.fromServer).toBe(true);
+  });
+
+  it("una petición que nunca vuelve se corta tras el límite y la segunda activa el aviso", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation((_p, init) =>
+      new Promise((_res, rej) => {
+        (init as RequestInit).signal?.addEventListener("abort", () =>
+          rej(new DOMException("aborted", "AbortError")));
+      }));
+    const aviso = vi.fn();
+    const quitar = onServerDown(aviso);
+
+    const p1 = api.listPatients().catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS + 10);
+    const e1 = (await p1) as ApiError;
+    expect(e1).toBeInstanceOf(ApiError);
+    expect(e1.status).toBe(0);
+    expect(e1.message).toBe("El servidor no responde");
+    expect(e1.fromServer).toBe(false);
+    expect(aviso).not.toHaveBeenCalled();
+
+    const p2 = api.listPatients().catch(() => {});
+    await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS + 10);
+    await p2;
+    expect(aviso).toHaveBeenCalledWith(true);
+    quitar();
+  });
+
+  it("los POST largos tienen su propio límite, mayor que el de las lecturas", () => {
+    expect(LONG_TIMEOUT_MS).toBeGreaterThan(GET_TIMEOUT_MS);
   });
 });

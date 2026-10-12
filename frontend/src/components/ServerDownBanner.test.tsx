@@ -22,7 +22,7 @@ const avisar = (down: boolean) => act(() => { for (const cb of listeners) cb(dow
 
 beforeEach(() => {
   listeners.clear();
-  retryLastFailed.mockReset().mockResolvedValue(undefined);
+  retryLastFailed.mockReset().mockResolvedValue("replayed");
 });
 
 describe("ServerDownBanner", () => {
@@ -51,5 +51,13 @@ describe("ServerDownBanner", () => {
     avisar(true);
     avisar(false);
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("si lo que falló era una escritura, no se repite: se avisa de que el servidor volvió", async () => {
+    retryLastFailed.mockImplementation(async () => { avisar(false); return "probed"; });
+    render(<ServerDownBanner />);
+    avisar(true);
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByText("El servidor responde de nuevo; repite la acción que falló")).toBeInTheDocument();
   });
 });

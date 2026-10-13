@@ -294,7 +294,11 @@ def purge_saved_session(session_id: str) -> None:
             _repoint_marker(session_id).unlink(missing_ok=True)
             # Las marcas que apuntaban a ella ya no llevan a ningún sitio.
             for m in SAVES_ROOT.glob("*.reapuntada"):
-                if m.read_text(encoding="utf-8").strip() == session_id:
+                try:
+                    apunta = m.read_text(encoding="utf-8").strip()
+                except (OSError, ValueError):
+                    continue   # una marca ilegible no puede convertir el borrado en un 500
+                if apunta == session_id:
                     m.unlink(missing_ok=True)
         except OSError:
             pass
@@ -339,8 +343,6 @@ def live_sessions_from(saved_session_id: str) -> list[str]:
     for d in SESSIONS_ROOT.iterdir():
         estado = d / "state.txt"
         if d.is_dir() and estado.is_file():
-            if d.name == saved_session_id:
-                continue   # la viva que ES esta guardada (guardó sobre su origen)
             origen = _read_state_map(estado).get("origin.saved_session_id", "")
             # Si el origen se reapuntó (otra pestaña guardó encima), la viva
             # sigue apoyándose en la guardada que lo heredó: se sigue la cadena.

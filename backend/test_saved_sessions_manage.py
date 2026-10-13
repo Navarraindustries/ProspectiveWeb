@@ -160,3 +160,16 @@ def test_la_pestana_hermana_con_origen_reapuntado_bloquea_el_borrado():
     delete_session(l2)
     assert m.delete(f"/api/sessions/saved/{l1}").status_code == 204
     assert not (SAVES_ROOT / f"{a}.reapuntada").exists()
+
+
+def test_la_guardada_de_la_pestana_abierta_no_se_borra():
+    from services.sessions import delete_session
+    uid, m = _medico(); pid = _paciente_de(uid); a = _guardada(m, pid)
+    l1 = m.post(f"/api/sessions/{a}/restore").json()["session_id"]
+    assert m.post("/api/sessions/save", json={"session_id": l1, "current_step": 3,
+                                              "patient_id": pid}).status_code == 200
+    r = m.delete(f"/api/sessions/saved/{l1}")      # l1 sigue abierta
+    assert r.status_code == 409 and (SAVES_ROOT / l1).is_dir()
+    assert any(s["session_id"] == l1 for s in _lista(m, pid))
+    delete_session(l1)
+    assert m.delete(f"/api/sessions/saved/{l1}").status_code == 204

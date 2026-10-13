@@ -2,7 +2,7 @@
    Lists self-registrations with their professional profile and approve/reject;
    «Aprobadas» y «Rechazadas» guardan el historial que antes desaparecía (F2-51). */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { PendingUser, UserAdminInfo } from "../api/types";
 import { Badge } from "../components/Badge";
@@ -29,15 +29,19 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
   const [rows, setRows] = useState<UserAdminInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Cambiar de pestaña deprisa dejaba la respuesta de la anterior pisando a la
+  // actual: cada carga solo cuenta mientras su pestaña siga abierta.
+  const vivo = useRef(true);
+  useEffect(() => { vivo.current = true; return () => { vivo.current = false; }; }, [tab]);
   const load = () => {
     setLoading(true);
     setLoadError(null);
     api
       .listUsers(tab === "Aprobadas" ? "approved" : "rejected")
       // Los administradores no pasaron por una solicitud: fuera de «Aprobadas».
-      .then((l) => setRows(tab === "Aprobadas" ? l.filter((u) => u.role !== "admin") : l))
-      .catch((e) => setLoadError(loadErrorText(e)))
-      .finally(() => setLoading(false));
+      .then((l) => { if (vivo.current) setRows(tab === "Aprobadas" ? l.filter((u) => u.role !== "admin") : l); })
+      .catch((e) => { if (vivo.current) setLoadError(loadErrorText(e)); })
+      .finally(() => { if (vivo.current) setLoading(false); });
   };
   useEffect(load, [tab]);
 
@@ -52,6 +56,11 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {tab === "Rechazadas" && (
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+          Solo salen las solicitudes rechazadas desde esta versión; las anteriores no tenían fecha y no se listan.
+        </div>
+      )}
       {tab === "Aprobadas" && (
         <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
           Cuentas activas que no son de administrador, con su fecha de alta. El servidor no distingue las

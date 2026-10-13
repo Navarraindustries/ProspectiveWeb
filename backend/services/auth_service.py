@@ -198,6 +198,7 @@ def approve_user(db: Session, user_id: int) -> tuple[bool, str]:
         return False, "Usuario no encontrado."
     user.is_active = True
     user.status = User.STATUS_ACTIVE
+    user.rejected_at = None
     db.commit()
     logger.info("User approved: %s", user.username)
     return True, ""

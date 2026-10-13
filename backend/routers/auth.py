@@ -403,6 +403,10 @@ async def list_users(
     if status_filter is not None:
         # «approved» es el estado interno «active».
         q = q.filter(User.status == (User.STATUS_ACTIVE if status_filter == "approved" else status_filter))
+        if status_filter == "rejected":
+            # Una desactivación a mano también deja status=rejected; solo el
+            # rechazo de una solicitud trae fecha.
+            q = q.filter(User.rejected_at.isnot(None))
     users = q.order_by(User.created_at.desc()).all()
     return [_user_to_admin(u) for u in users]
 
@@ -520,6 +524,8 @@ async def update_user(
     if req.is_active is not None:
         user.is_active = req.is_active
         user.status = User.STATUS_ACTIVE if req.is_active else User.STATUS_REJECTED
+        if req.is_active:
+            user.rejected_at = None
     db.commit()
     db.refresh(user)
     logger.info("User updated by admin — id=%d role=%s active=%s", user.id, user.role, user.is_active)

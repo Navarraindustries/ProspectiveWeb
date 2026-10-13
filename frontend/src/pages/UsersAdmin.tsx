@@ -295,9 +295,12 @@ function UsersAdminPage() {
   const [resetBusy, setResetBusy] = useState(false);
   const [resetErr, setResetErr] = useState<string | null>(null);
   const [resetDone, setResetDone] = useState<string | null>(null);
+  // «Restablecer» pulsado con menos de 8 caracteres: el campo lo dice en vez de no hacer nada.
+  const [resetTried, setResetTried] = useState(false);
 
   const confirmReset = async () => {
-    if (!toReset || resetPw.length < 8) return;
+    if (!toReset) return;
+    if (resetPw.length < 8) { setResetTried(true); return; }
     setResetBusy(true);
     setResetErr(null);
     try {
@@ -451,7 +454,7 @@ function UsersAdminPage() {
                           </button>
                           <button
                             title="Restablecer contraseña" style={iconBtn}
-                            onClick={() => { setToReset(u); setResetPw(""); setResetErr(null); }}
+                            onClick={() => { setToReset(u); setResetPw(""); setResetErr(null); setResetTried(false); }}
                             onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--brand-deep)")}
                             onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
                           >
@@ -523,8 +526,8 @@ function UsersAdminPage() {
             value={resetPw}
             onChange={(e) => setResetPw(e.target.value)}
             autoComplete="new-password"
-            invalid={resetPw.length > 0 && resetPw.length < 8}
-            hint={resetPw.length > 0 && resetPw.length < 8 ? "Mínimo 8 caracteres." : undefined}
+            invalid={(resetTried || resetPw.length > 0) && resetPw.length < 8}
+            hint={(resetTried || resetPw.length > 0) && resetPw.length < 8 ? "Mínimo 8 caracteres." : undefined}
           />
         </div>
         <ErrorNote>{resetErr}</ErrorNote>

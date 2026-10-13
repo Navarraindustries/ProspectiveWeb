@@ -235,3 +235,18 @@ describe("la columna «Estado» (F1-82)", () => {
     for (const t of ["Activo", "Pendiente", "Rechazada", "Desactivada"]) expect(screen.getAllByText(t)).toHaveLength(1);
   });
 });
+
+describe("«Restablecer contraseña»", () => {
+  it("el campo conserva el foco al teclear y pulsar con el campo vacío dice el mínimo", async () => {
+    listUsers.mockResolvedValue([cuenta()]);
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByTitle("Restablecer contraseña"));
+    const dialogo = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Restablecer" }));
+    expect(within(dialogo).getByText("Mínimo 8 caracteres.")).toBeTruthy();
+    const campo = within(dialogo).getByLabelText("Nueva contraseña (mín. 8)") as HTMLInputElement;
+    campo.focus();
+    fireEvent.change(campo, { target: { value: "abc" } });
+    expect(document.activeElement).toBe(campo);
+  });
+});

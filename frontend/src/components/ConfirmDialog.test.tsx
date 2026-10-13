@@ -5,6 +5,7 @@
    vez el diálogo y la ficha que había debajo, porque los dos escuchaban la
    misma tecla en `document`. */
 
+import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ConfirmDialog, isConfirmDialogOpen } from "./ConfirmDialog";
@@ -185,5 +186,25 @@ describe("Sheet apilada", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(encima).toHaveBeenCalledTimes(1);
     expect(debajo).not.toHaveBeenCalled();
+  });
+});
+
+describe("ConfirmDialog con un campo dentro", () => {
+  it("el campo conserva el foco mientras se teclea, aunque los manejadores cambien en cada render", () => {
+    function Host() {
+      const [v, setV] = useState("");
+      return (
+        <ConfirmDialog open title="Campo" confirmLabel="Sí" onCancel={() => setV("")} onConfirm={() => {}}>
+          <input aria-label="clave" value={v} onChange={(e) => setV(e.target.value)} />
+        </ConfirmDialog>
+      );
+    }
+    render(<Host />);
+    const campo = screen.getByLabelText("clave") as HTMLInputElement;
+    campo.focus();
+    fireEvent.change(campo, { target: { value: "a" } });
+    fireEvent.change(campo, { target: { value: "ab" } });
+    expect(document.activeElement).toBe(campo);
+    expect(campo.value).toBe("ab");
   });
 });

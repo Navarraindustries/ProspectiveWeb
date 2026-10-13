@@ -186,3 +186,16 @@ describe("aviso a la barra lateral", () => {
     window.removeEventListener("prospective:pending-changed", f);
   });
 });
+
+describe("«Rechazadas» (nota)", () => {
+  it("avisa de que las rechazadas antes de esta versión no se listan", async () => {
+    listPending.mockResolvedValue([]);
+    render(<PendingRequests />);
+    fireEvent.click(await screen.findByRole("button", { name: "Rechazadas" }));
+    // Con lista vacía sale el vacío; con filas, la nota.
+    listUsers.mockResolvedValue([{ id: 9, username: "r", full_name: "R R", role: "medico", status: "rejected", is_active: false, specialty: "", hospital: "", created_at: "2026-10-01T00:00:00+00:00", rejected_at: "2026-10-03T15:30:00+00:00" }]);
+    fireEvent.click(screen.getByRole("button", { name: "Pendientes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazadas" }));
+    expect(await screen.findByText(/las anteriores no tenían fecha/)).toBeTruthy();
+  });
+});

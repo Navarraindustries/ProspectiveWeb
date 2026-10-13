@@ -50,6 +50,13 @@ export function ConfirmDialog({
   onExtra?: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Los manejadores van por ref: quien llama los pasa en línea y cambian en cada
+  // render. Si el efecto dependiera de ellos, cada letra tecleada en un campo
+  // del diálogo lo reejecutaba y devolvía el foco al panel.
+  const onCancelRef = useRef(onCancel);
+  const onConfirmRef = useRef(onConfirm);
+  onCancelRef.current = onCancel;
+  onConfirmRef.current = onConfirm;
 
   useEffect(() => {
     if (!open) return;
@@ -58,7 +65,7 @@ export function ConfirmDialog({
       // corta ahí: escuchando en `document`, la ficha de debajo (Sheet) y los
       // atajos del visor también recibían el mismo Escape, y cancelar «¿Descartar
       // los cambios?» cerraba la ficha que se quería conservar.
-      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); onCancel(); return; }
+      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); onCancelRef.current(); return; }
       if (e.key !== "Enter") return;
       e.stopPropagation();
       e.preventDefault();
@@ -77,18 +84,23 @@ export function ConfirmDialog({
       // campo de debajo, borraba un paciente con sus sesiones; lo destructivo
       // se confirma solo con su botón (con el foco en él, Intro vale, ver arriba).
       // Lo demás sigue aceptando Intro.
-      if (!destructive && !busy) onConfirm();
+      if (!destructive && !busy) onConfirmRef.current();
     };
     openDialogs += 1;
     window.addEventListener("keydown", onKey, true);
-    const previous = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
     return () => {
       window.removeEventListener("keydown", onKey, true);
       openDialogs -= 1;
-      previous?.focus?.();
     };
-  }, [open, busy, destructive, onCancel, onConfirm]);
+  }, [open, busy, destructive]);
+
+  // El foco solo se mueve al abrir y vuelve al cerrar, nunca por un re-render.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => { previous?.focus?.(); };
+  }, [open]);
 
   if (!open) return null;
 

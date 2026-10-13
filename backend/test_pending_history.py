@@ -57,6 +57,34 @@ def test_desactivar_a_mano_no_es_rechazo():
     assert _fila(uid)["rejected_at"] is None
 
 
+def test_desactivar_a_mano_no_sale_en_rechazadas():
+    uid, _ = _cuenta("active")
+    admin.put(f"/api/auth/users/{uid}", json={"is_active": False})
+    assert _fila(uid)["status"] == "rejected"
+    assert _fila(uid, "rejected") is None
+
+
+def test_aprobar_o_reactivar_borra_la_fecha_de_rechazo():
+    uid, _ = _cuenta()
+    admin.post(f"/api/auth/pending/{uid}/reject")
+    assert _fila(uid, "rejected")
+    admin.post(f"/api/auth/pending/{uid}/approve")
+    assert _fila(uid)["rejected_at"] is None and _fila(uid, "rejected") is None
+    uid2, _ = _cuenta()
+    admin.post(f"/api/auth/pending/{uid2}/reject")
+    admin.put(f"/api/auth/users/{uid2}", json={"is_active": True})
+    assert _fila(uid2)["rejected_at"] is None
+
+
+def test_foto_solo_admin():
+    uid, nombre = _cuenta("active")
+    med = anonymous_client(app)
+    med.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
+    f = {"photo": ("a.png", b"PNG-falso", "image/png")}
+    assert med.post(f"/api/auth/users/{uid}/photo", files=f).status_code == 403
+    assert anonymous_client(app).post(f"/api/auth/users/{uid}/photo", files=f).status_code == 401
+
+
 def test_filtro_por_estado():
     pend, _ = _cuenta("pending"); act, _ = _cuenta("active"); rej, _ = _cuenta("pending")
     admin.post(f"/api/auth/pending/{rej}/reject")
@@ -78,7 +106,7 @@ def test_editar_campos_profesionales():
 
 def test_foto_se_reemplaza():
     uid, _ = _cuenta("active")
-    r = admin.post(f"/api/auth/users/{uid}/photo", files={"photo": ("a.png", b"\x89PNG", "image/png")})
+    r = admin.post(f"/api/auth/users/{uid}/photo", files={"photo": ("a.png", b"PNG-falso", "image/png")})
     assert r.status_code == 200 and r.json()["has_photo"] is True
 
 

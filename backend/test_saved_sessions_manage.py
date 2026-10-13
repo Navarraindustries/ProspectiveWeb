@@ -173,3 +173,20 @@ def test_la_guardada_de_la_pestana_abierta_no_se_borra():
     assert any(s["session_id"] == l1 for s in _lista(m, pid))
     delete_session(l1)
     assert m.delete(f"/api/sessions/saved/{l1}").status_code == 204
+
+
+def test_un_compartido_reanuda_pero_no_renombra_ni_borra():
+    """Spec §6.2: renombrar y borrar guardados es del creador del paciente o de
+    un administrador; quien lo tiene compartido trabaja con ellos y los ve."""
+    uid, m = _medico(); pid = _paciente_de(uid); sid = _guardada(m, pid)
+    b_id, b = _medico()
+    assert m.put(f"/api/patients/{pid}/shares", json={"user_ids": [b_id]}).status_code == 200
+    r = b.patch(f"/api/sessions/saved/{sid}", json={"label": "x"})
+    assert r.status_code == 403
+    assert r.json()["detail"] == "Solo quien creó al paciente o un administrador puede cambiar sus guardados."
+    r = b.delete(f"/api/sessions/saved/{sid}")
+    assert r.status_code == 403
+    assert r.json()["detail"] == "Solo quien creó al paciente o un administrador puede cambiar sus guardados."
+    assert (SAVES_ROOT / sid).is_dir()
+    lista = b.get(f"/api/patients/{pid}/sessions")
+    assert lista.status_code == 200 and any(s["session_id"] == sid for s in lista.json())

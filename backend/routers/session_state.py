@@ -18,7 +18,7 @@ from models import (
 )
 from services.database import get_db
 from services.isolated import CalculoCaido, run_isolated
-from services.access import ORIGIN_KEY, is_admin, own_patient_ids, require_patient, session_row
+from services.access import ORIGIN_KEY, can_share_patient, is_admin, own_patient_ids, require_patient, session_row
 from services.audit import (ACT_SAVED_SESSION_DELETED, ACT_SAVED_SESSION_RENAMED,
                             audit_append, audit_patient)
 from services.auth_service import get_current_user
@@ -315,7 +315,12 @@ async def list_sessions(
 # ── PATCH / DELETE /sessions/saved/{session_id} ────────────────────────────── #
 
 def _saved_row_or_404(db: Session, current_user: User | None, session_id: str) -> PlanningSession:
-    """La fila de una sesión guardada, con la regla de acceso de su paciente."""
+    """La fila de una sesión guardada que se va a renombrar o borrar.
+
+    Spec §6.2: cambiar los guardados es de quien creó al paciente o de un
+    administrador. Quien lo tiene compartido los ve y los reanuda (la lista y
+    `restore` siguen con `require_patient`), pero no les cambia el nombre ni
+    los borra: son la historia del caso de otro profesional."""
     ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
     if ps is None or not has_saved_session(session_id):
         raise HTTPException(status_code=404, detail="Sesión guardada no encontrada.")
@@ -325,7 +330,14 @@ def _saved_row_or_404(db: Session, current_user: User | None, session_id: str) -
         if not is_admin(current_user):
             raise HTTPException(status_code=403, detail="No autorizado sobre este paciente.")
     else:
+        # Primero el acceso, con su 403 de siempre para quien no es nadie del
+        # paciente; después el derecho a cambiar, con su propio motivo.
         require_patient(db, current_user, ps.patient_id)
+        if current_user is not None and not can_share_patient(db, current_user, ps.patient_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Solo quien creó al paciente o un administrador puede cambiar sus guardados.",
+            )
     return ps
 
 

@@ -5,7 +5,7 @@
    «Nuevo caso», «Pedidos» y «Reanudar en …». Ahora solo queda el aviso. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const listPatients = vi.fn();
@@ -14,7 +14,7 @@ const patientSessions = vi.fn();
 const patientStudies = vi.fn();
 const deletePatient = vi.fn();
 const createPatient = vi.fn();
-const user = { role: "medico" as string };
+const user = { id: 1, role: "medico" as string };
 
 vi.mock("../api/client", () => {
   class ApiError extends Error {
@@ -29,6 +29,7 @@ vi.mock("../api/client", () => {
       getPatient: (id: number) => getPatient(id),
       patientSessions: (id: number) => patientSessions(id),
       patientStudies: (id: number) => patientStudies(id),
+      patientShares: () => Promise.resolve([]),
       deletePatient: (id: number) => deletePatient(id),
       createPatient: (body: unknown) => createPatient(body),
     },
@@ -95,6 +96,7 @@ beforeEach(() => {
   createPatient.mockReset();
   onResume.mockReset();
   onPlanCase.mockReset();
+  user.id = 1;
   user.role = "medico";
 });
 
@@ -204,28 +206,35 @@ describe("con el API fallando (F1-2, F1-29)", () => {
 });
 
 /* F1-58: el diálogo de borrar un paciente no decía cuánto se llevaba, e Intro
-   lo confirmaba. */
+   lo confirmaba. Desde F2 (Tarea 11) se elimina desde el pie de la ficha: la
+   fila se queda con «Reanudar» y «Abrir ficha». */
 describe("borrar un paciente", () => {
-  const maria = {
-    id: 7, full_name: "Restrepo, María", hospital_id: "HC-7", sex: "F", dob: "",
-    institution: "", study_count: 2, created_at: "2026-10-01T00:00:00Z",
-  };
+  const maria = fila({ id: 7, full_name: "Restrepo, María", study_count: 2 });
 
-  it("el diálogo dice cuántos casos y sesiones se borran, e Intro no borra", async () => {
+  it("la fila ya no tiene ✕; el pie de la ficha dice cuántos casos y sesiones se borran, e Intro no borra", async () => {
     listPatients.mockResolvedValue([maria]);
-    patientSessions.mockResolvedValue(Array.from({ length: 6 }, (_, i) => ({ session_id: `s${i}` })));
+    getPatient.mockResolvedValue({ id: 7, surname: "Restrepo", given_name: "María", hospital_id: "HC-7", sex: "F" });
+    patientStudies.mockResolvedValue([]);
+    patientSessions.mockResolvedValue(Array.from({ length: 6 }, (_, i) => ({ session_id: `s${i}`, label: "", current_step: 0, updated_at: "2026-10-01T00:00:00", size_bytes: 0 })));
     renderAt("/app/pacientes");
-    fireEvent.click(await screen.findByTitle("Eliminar"));
+    await screen.findByText("Restrepo, María");
+    expect(screen.queryByTitle("Eliminar")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Eliminar a/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir ficha" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Eliminar paciente" }));
     const dialogo = screen.getByRole("alertdialog", { name: "Eliminar paciente" });
-    expect(await screen.findByText(/6 sesiones/)).toBeTruthy();
+    await waitFor(() => expect(dialogo.textContent).toContain("6 sesiones"));
     expect(dialogo.textContent).toContain("2 casos");
     expect(patientSessions).toHaveBeenCalledWith(7);
 
     fireEvent.keyDown(document, { key: "Enter" });
     expect(deletePatient).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    listPatients.mockResolvedValue([]);
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(deletePatient).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(screen.queryByText("Restrepo, María")).toBeNull());
   });
 });
 

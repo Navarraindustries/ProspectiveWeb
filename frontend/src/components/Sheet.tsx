@@ -20,12 +20,16 @@ export function Sheet({
   open,
   onClose,
   title,
+  eyebrow,
   width = 420,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Rótulo pequeño encima del título: qué es lo que se abre («Ficha de
+   *  paciente») cuando el título es el nombre de lo abierto. */
+  eyebrow?: string;
   width?: number;
   children: ReactNode;
 }) {
@@ -87,8 +91,15 @@ export function Sheet({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
-          <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)", flex: 1 }}>
-            {title}
+          <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+            {eyebrow && (
+              <span style={{ fontSize: "var(--text-label)", fontWeight: 600, letterSpacing: "var(--tracking-label)", textTransform: "uppercase", color: "var(--muted-foreground)" }}>
+                {eyebrow}
+              </span>
+            )}
+            <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
+              {title}
+            </span>
           </span>
           <button
             onClick={onClose}

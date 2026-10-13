@@ -6963,6 +6963,49 @@
       "title": "Is Shared With Me",
       "type": "boolean"
      },
+     "last_case_label": {
+      "default": "",
+      "description": "Diagnóstico del caso más reciente; vacío si no hay casos",
+      "title": "Last Case Label",
+      "type": "string"
+     },
+     "last_session_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Última vez que se guardó una sesión del paciente",
+      "title": "Last Session At"
+     },
+     "last_session_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Sesión guardada más reciente, para reanudarla",
+      "title": "Last Session Id"
+     },
+     "last_session_step": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Paso en que quedó esa sesión",
+      "title": "Last Session Step"
+     },
      "owner_id": {
       "anyOf": [
        {

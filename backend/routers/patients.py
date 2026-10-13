@@ -53,12 +53,18 @@ router = APIRouter(prefix="/api/patients", tags=["patients"])
 # ── Mappers ────────────────────────────────────────────────────────────────── #
 
 def _patient_to_summary(p: Patient, shared_with_count: int | None = None,
-                        is_shared_with_me: bool = False) -> PatientSummary:
-    # La lista pasa el recuento ya calculado (una sola consulta agrupada, no una
-    # por paciente); crear, editar o adjuntar devuelven UN paciente y lo cuentan
-    # aquí. Quien llama sabe si el paciente le llega compartido (adjuntar).
+                        is_shared_with_me: bool = False, study_count: int | None = None,
+                        last_session: PlanningSession | None = None,
+                        last_case_label: str = "") -> PatientSummary:
+    # La lista pasa los recuentos y la última actividad ya calculados (consultas
+    # agrupadas, no una por paciente); crear, editar o adjuntar devuelven UN
+    # paciente, lo cuentan aquí y dejan vacía la última actividad, que solo
+    # sirve para ordenar la lista. Quien llama sabe si el paciente le llega
+    # compartido (adjuntar).
     if shared_with_count is None:
         shared_with_count = len(p.shares)
+    if study_count is None:
+        study_count = p.study_count
     return PatientSummary(
         id=p.id,
         full_name=p.full_name,
@@ -66,11 +72,15 @@ def _patient_to_summary(p: Patient, shared_with_count: int | None = None,
         dob=p.dob,
         sex=p.sex,
         institution=p.institution,
-        study_count=p.study_count,
+        study_count=study_count,
         created_at=p.created_at,
         owner_id=p.created_by,
         shared_with_count=shared_with_count,
         is_shared_with_me=is_shared_with_me,
+        last_session_at=last_session.updated_at if last_session else None,
+        last_session_step=last_session.current_step if last_session else None,
+        last_session_id=last_session.session_id if last_session else None,
+        last_case_label=last_case_label,
     )
 
 
@@ -131,12 +141,49 @@ async def list_patients(
     if current_user is not None:
         mine_by_share = {pid for (pid,) in db.query(PatientShare.patient_id)
                          .filter(PatientShare.user_id == current_user.id)}
+
+    # Recuento de casos agrupado: `p.study_count` cargaba los casos de cada
+    # paciente, una consulta por fila.
+    n_casos = db.query(Study.patient_id, func.count(Study.id))
+    # La sesión más reciente de cada paciente: el máximo de updated_at por
+    # paciente y, unida a él, la fila que lo tiene (paso e id para reanudar).
+    ult_ses = (db.query(PlanningSession.patient_id.label("pid"),
+                        func.max(PlanningSession.updated_at).label("at"))
+               .filter(PlanningSession.patient_id.isnot(None)))
+    # El caso más reciente, igual: su diagnóstico es el «Último caso» de la fila.
+    ult_caso = db.query(Study.patient_id.label("pid"), func.max(Study.created_at).label("at"))
+    if visibles is not None:
+        n_casos = n_casos.filter(Study.patient_id.in_(visibles))
+        ult_ses = ult_ses.filter(PlanningSession.patient_id.in_(visibles))
+        ult_caso = ult_caso.filter(Study.patient_id.in_(visibles))
+    studies_by_patient = dict(n_casos.group_by(Study.patient_id).all())
+    ult_ses = ult_ses.group_by(PlanningSession.patient_id).subquery()
+    ult_caso = ult_caso.group_by(Study.patient_id).subquery()
+
+    # Con dos filas empatadas en la misma fecha gana la de id mayor (la última
+    # creada): el orden por id ascendente deja que la última sobrescriba.
+    last_session: dict[int, PlanningSession] = {}
+    for s in (db.query(PlanningSession)
+              .join(ult_ses, (PlanningSession.patient_id == ult_ses.c.pid)
+                    & (PlanningSession.updated_at == ult_ses.c.at))
+              .order_by(PlanningSession.id)):
+        last_session[s.patient_id] = s
+    last_case: dict[int, str] = {}
+    for pid, dx in (db.query(Study.patient_id, Study.dx_principal)
+                    .join(ult_caso, (Study.patient_id == ult_caso.c.pid)
+                          & (Study.created_at == ult_caso.c.at))
+                    .order_by(Study.id)):
+        last_case[pid] = dx or ""
+
     return [
         _patient_to_summary(
             p,
             shared_with_count=counts.get(p.id, 0),
             is_shared_with_me=(p.id in mine_by_share
                                and (current_user is None or p.created_by != current_user.id)),
+            study_count=studies_by_patient.get(p.id, 0),
+            last_session=last_session.get(p.id),
+            last_case_label=last_case.get(p.id, ""),
         )
         for p in patients
     ]

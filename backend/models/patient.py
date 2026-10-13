@@ -52,6 +52,13 @@ class PatientSummary(BaseModel):
     owner_id: int | None = Field(None, description="Cuenta que creó al paciente")
     shared_with_count: int = Field(0, description="Cuentas con las que está compartido")
     is_shared_with_me: bool = Field(False, description="Lo ve porque se lo compartieron, no porque lo creó")
+    # Última actividad (F2-19, F2-24): quien vuelve cada día busca arriba al
+    # paciente con el que trabajó por última vez, y reanuda desde la lista sin
+    # abrir la ficha. Solo la lista los rellena; crear o editar devuelven vacío.
+    last_session_at: datetime | None = Field(None, description="Última vez que se guardó una sesión del paciente")
+    last_session_step: int | None = Field(None, description="Paso en que quedó esa sesión")
+    last_session_id: str | None = Field(None, description="Sesión guardada más reciente, para reanudarla")
+    last_case_label: str = Field("", description="Diagnóstico del caso más reciente; vacío si no hay casos")
 
 
 class PatientShareOut(BaseModel):

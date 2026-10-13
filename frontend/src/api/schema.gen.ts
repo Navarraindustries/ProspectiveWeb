@@ -7450,6 +7450,27 @@ export interface components {
              */
             is_shared_with_me: boolean;
             /**
+             * Last Case Label
+             * @description Diagnóstico del caso más reciente; vacío si no hay casos
+             * @default
+             */
+            last_case_label: string;
+            /**
+             * Last Session At
+             * @description Última vez que se guardó una sesión del paciente
+             */
+            last_session_at?: string | null;
+            /**
+             * Last Session Id
+             * @description Sesión guardada más reciente, para reanudarla
+             */
+            last_session_id?: string | null;
+            /**
+             * Last Session Step
+             * @description Paso en que quedó esa sesión
+             */
+            last_session_step?: number | null;
+            /**
              * Owner Id
              * @description Cuenta que creó al paciente
              */

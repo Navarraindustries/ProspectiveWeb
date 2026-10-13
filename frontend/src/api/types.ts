@@ -214,6 +214,14 @@ export interface PatientSummary {
   shared_with_count: number;
   /** Lo veo porque me lo compartieron, no porque lo creé. */
   is_shared_with_me: boolean;
+  /** Última sesión guardada del paciente (F2-19, F2-24); null si no hay. Solo la lista la rellena. */
+  last_session_at: string | null;
+  /** Paso (índice del pipeline) en que quedó esa sesión. */
+  last_session_step: number | null;
+  /** Id de esa sesión, para «Reanudar» desde la lista. */
+  last_session_id: string | null;
+  /** Diagnóstico del caso más reciente; "" si no tiene casos. */
+  last_case_label: string;
 }
 
 /** Una cuenta con la que está compartido un paciente. */

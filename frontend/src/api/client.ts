@@ -958,7 +958,12 @@ export const api = {
   deleteCapture: (captureId: number) =>
     request<void>(`/api/captures/${captureId}`, { method: "DELETE" }),
 
-  /* audit (SkullChain) */
-  auditBlocks: () => get<AuditBlock[]>("/api/audit/blocks"),
+  /* audit (cadena de bloques) */
+  /** Con `patientId` el servidor calcula la huella del paciente y filtra: la
+   *  cadena solo guarda la huella, así que el navegador no puede buscarla. */
+  auditBlocks: (opts?: { patientId?: number }) =>
+    get<AuditBlock[]>(opts?.patientId != null
+      ? `/api/audit/blocks?patient_id=${encodeURIComponent(String(opts.patientId))}`
+      : "/api/audit/blocks"),
   auditVerify: () => get<AuditVerifyResult>("/api/audit/verify"),
 };

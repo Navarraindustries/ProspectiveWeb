@@ -168,7 +168,7 @@ export interface CrossSectionResult {
   warning: string | null;
 }
 
-/* ── audit (SkullChain) ─────────────────────────────────────────────────── */
+/* ── audit (cadena de bloques) ─────────────────────────────────────────────────── */
 export interface AuditBlock {
   id: number;
   iso_ts: string;

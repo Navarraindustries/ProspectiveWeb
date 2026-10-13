@@ -16,6 +16,7 @@ vi.mock("../api/client", () => ({
   api: {
     listUsers: () => listUsers(),
     auditBlocks: () => auditBlocks(),
+    listPatients: () => Promise.resolve([]),
     auditVerify: () => Promise.resolve({ ok: true, total_blocks: 0, broken: [] }),
     listPending: () => Promise.resolve([]),
   },

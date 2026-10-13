@@ -273,6 +273,9 @@ class PlanningSession(Base):
     dicom_modality  = Column(String(16), nullable=True)
 
     file_size_kb = Column(Float, nullable=False, default=0.0)
+    # Bytes de la carpeta guardada, cacheados al guardar (F2-73). Nulo en las
+    # filas anteriores: se calcula al listarlas y se guarda entonces.
+    size_bytes = Column(Integer, nullable=True)
 
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())

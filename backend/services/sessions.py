@@ -282,6 +282,60 @@ def delete_saved_session(session_id: str) -> None:
         shutil.rmtree(d, ignore_errors=True)
 
 
+def purge_saved_session(session_id: str) -> None:
+    """Borrado definitivo pedido por la persona: la carpeta y su marca de reapuntado.
+
+    `delete_saved_session` se queda solo con la carpeta porque «guardar sobre
+    el origen» escribe la marca JUSTO antes de borrarla, y la necesita.
+    """
+    delete_saved_session(session_id)
+    if valid_session_id(session_id):
+        try:
+            _repoint_marker(session_id).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def saved_session_size(session_id: str) -> int:
+    """Bytes de la carpeta guardada (0 si no existe).
+
+    Los DICOM del snapshot son enlaces duros (`_clone_tree`): `st_size` los
+    cuenta enteros, que es lo que ocupa la sesión si se copia o se saca.
+    """
+    d = _saved(session_id) if valid_session_id(session_id) else None
+    if d is None or not d.is_dir():
+        return 0
+    total = 0
+    for f in d.rglob("*"):
+        try:
+            if f.is_file():
+                total += f.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def size_of_row(db, ps) -> int:
+    """`size_bytes` de una fila; si es nula (fila anterior) la calcula y la guarda."""
+    if ps.size_bytes is None:
+        ps.size_bytes = saved_session_size(ps.session_id)
+        db.commit()
+    return ps.size_bytes
+
+
+def live_sessions_from(saved_session_id: str) -> list[str]:
+    """Las sesiones vivas reanudadas de la guardada `saved_session_id`."""
+    if not valid_session_id(saved_session_id) or not SESSIONS_ROOT.is_dir():
+        return []
+    vivas: list[str] = []
+    for d in SESSIONS_ROOT.iterdir():
+        estado = d / "state.txt"
+        if d.is_dir() and estado.is_file():
+            if _read_state_map(estado).get("origin.saved_session_id", "") == saved_session_id:
+                vivas.append(d.name)
+    return vivas
+
+
 # ── State helpers ──────────────────────────────────────────────────────────── #
 
 # The state file has to be read and written as UTF-8 explicitly. Without it

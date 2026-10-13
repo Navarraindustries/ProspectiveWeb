@@ -14,17 +14,20 @@ from sqlalchemy.orm import Session
 
 from models import (
     SessionSaveRequest, SessionSaveResult, SessionRestoreResult, SessionListItem,
-    SeriesInfo, SpacingXYZ, ReportUrls,
+    SeriesInfo, SpacingXYZ, ReportUrls, SavedSessionRenameIn,
 )
 from services.database import get_db
 from services.isolated import CalculoCaido, run_isolated
-from services.access import ORIGIN_KEY, own_patient_ids, require_patient, session_row
+from services.access import ORIGIN_KEY, is_admin, own_patient_ids, require_patient, session_row
+from services.audit import (ACT_SAVED_SESSION_DELETED, ACT_SAVED_SESSION_RENAMED,
+                            audit_append, audit_patient)
 from services.auth_service import get_current_user
 from services.db_models import LesionConfirmation, PlanningSession, Patient, User
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state, create_session,
     snapshot_session, rehydrate_session, has_saved_session, mesh_url as mesh_url_for,
     delete_saved_session, session_lineage, LINEAGE_KEY, record_repoint, session_ttl_hours,
+    saved_session_size, size_of_row, live_sessions_from, purge_saved_session,
 )
 
 logger = logging.getLogger(__name__)
@@ -240,6 +243,7 @@ async def save_session(
     ps.rupture_risk_label   = morpho["rupture_risk_label"]
     ps.dicom_modality       = morpho["dicom_modality"]
     ps.file_size_kb         = file_size
+    ps.size_bytes           = saved_session_size(req.session_id)
     ps.updated_at           = now
 
     db.commit()
@@ -302,9 +306,88 @@ async def list_sessions(
                 created_at=ps.created_at,
                 updated_at=ps.updated_at,
                 file_size_kb=ps.file_size_kb,
+                size_bytes=size_of_row(db, ps),
             )
         )
     return items
+
+
+# ── PATCH / DELETE /sessions/saved/{session_id} ────────────────────────────── #
+
+def _saved_row_or_404(db: Session, current_user: User | None, session_id: str) -> PlanningSession:
+    """La fila de una sesión guardada, con la regla de acceso de su paciente."""
+    ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
+    if ps is None or not has_saved_session(session_id):
+        raise HTTPException(status_code=404, detail="Sesión guardada no encontrada.")
+    # `require_patient` deja pasar a cualquiera con patient_id nulo; una sesión
+    # suelta no tiene dueño conocido y, como en la lista, es solo del administrador.
+    if ps.patient_id is None:
+        if not is_admin(current_user):
+            raise HTTPException(status_code=403, detail="No autorizado sobre este paciente.")
+    else:
+        require_patient(db, current_user, ps.patient_id)
+    return ps
+
+
+def _audit_patient_of(ps: PlanningSession) -> dict:
+    return audit_patient(ps.patient) if ps.patient is not None else {}
+
+
+@router.patch(
+    "/saved/{session_id}",
+    response_model=SessionListItem,
+    summary="Rename a saved session",
+)
+async def rename_saved_session(
+    session_id:   str,
+    req:          SavedSessionRenameIn,
+    db:           Annotated[Session,    Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> SessionListItem:
+    ps = _saved_row_or_404(db, current_user, session_id)
+    antes = ps.label or ""
+    ps.label = req.label
+    db.commit()
+    db.refresh(ps)
+    audit_append(ACT_SAVED_SESSION_RENAMED,
+                 {"session_id": session_id, "label_from": antes, "label_to": ps.label},
+                 username=current_user.username if current_user else "", **_audit_patient_of(ps))
+    return SessionListItem(
+        id=ps.id, session_id=ps.session_id, label=ps.label or ps.session_id[:12],
+        current_step=ps.current_step,
+        patient_name=ps.patient.full_name if ps.patient is not None else "",
+        created_at=ps.created_at, updated_at=ps.updated_at,
+        file_size_kb=ps.file_size_kb, size_bytes=size_of_row(db, ps),
+    )
+
+
+@router.delete(
+    "/saved/{session_id}",
+    status_code=204,
+    summary="Delete a saved session",
+    description="Removes the saved snapshot, its repoint marker and its database row.",
+)
+async def delete_saved(
+    session_id:   str,
+    db:           Annotated[Session,    Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> None:
+    ps = _saved_row_or_404(db, current_user, session_id)
+    # Una sesión abierta reanudada de esta guardada sigue apoyándose en ella
+    # (su fila, su paciente, su linaje): borrarla la dejaría huérfana.
+    if live_sessions_from(session_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Esta sesión guardada es el origen de una sesión abierta: "
+                   "ciérrala antes de borrarla.",
+        )
+    etiqueta = ps.label or ""
+    paciente = _audit_patient_of(ps)
+    db.delete(ps)
+    db.commit()
+    purge_saved_session(session_id)
+    audit_append(ACT_SAVED_SESSION_DELETED, {"session_id": session_id, "label": etiqueta},
+                 username=current_user.username if current_user else "", **paciente)
 
 
 # ── POST /sessions/{session_id}/restore ───────────────────────────────────── #

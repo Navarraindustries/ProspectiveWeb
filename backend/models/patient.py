@@ -158,6 +158,7 @@ class PatientSessionInfo(BaseModel):
     rupture_risk_label: str | None = None
     created_at: datetime
     updated_at: datetime
+    size_bytes: int = 0
 
 
 class PlanningSessionSummary(BaseModel):

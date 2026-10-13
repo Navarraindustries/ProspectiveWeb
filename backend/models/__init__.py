@@ -52,6 +52,7 @@ from .plan import PlanRequest, PlanResult, StentLibraryItem, StentParams
 from .report import ExportRequest, ReportRequest, ReportResult
 from .segmentation import AutoThresholdResult, SegmentRequest, SegmentResult
 from .session_state import (
+    SavedSessionRenameIn,
     SessionListItem,
     SessionRestoreResult,
     SessionSaveRequest,
@@ -104,7 +105,7 @@ __all__ = [
     # segmentation
     "AutoThresholdResult", "SegmentRequest", "SegmentResult",
     # session
-    "SessionListItem", "SessionRestoreResult", "SessionSaveRequest", "SessionSaveResult",
+    "SavedSessionRenameIn", "SessionListItem", "SessionRestoreResult", "SessionSaveRequest", "SessionSaveResult",
     "ReportUrls", "ViewerWindow",
     # treatment
     "AneurysmLocation", "ClinicalSiteRequest", "ClinicalSiteResult", "Confidence", "DecisionFactor",

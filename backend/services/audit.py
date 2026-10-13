@@ -42,6 +42,10 @@ ACT_ANNOTATIONS_DELETED = "ANNOTATIONS_DELETED"
 # Quién ve a un paciente es parte de su historia: cada cambio de la lista de
 # cuentas con las que se comparte deja su bloque.
 ACT_PATIENT_SHARED     = "PATIENT_SHARED"
+# Borrar una sesión guardada no se deshace; renombrarla cambia cómo se la
+# reconoce en la ficha. Ambas dejan bloque.
+ACT_SAVED_SESSION_DELETED = "SAVED_SESSION_DELETED"
+ACT_SAVED_SESSION_RENAMED = "SAVED_SESSION_RENAMED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a

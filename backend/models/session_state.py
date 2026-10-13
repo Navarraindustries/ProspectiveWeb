@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .clips import PlacedClipsState
 from .dicom import SeriesInfo
@@ -177,3 +177,20 @@ class SessionListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     file_size_kb: float
+    size_bytes: int = 0
+
+
+class SavedSessionRenameIn(BaseModel):
+    """Nuevo nombre de una sesión guardada."""
+
+    label: str
+
+    @field_validator("label")
+    @classmethod
+    def _nombre(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("El nombre de la sesión no puede estar vacío.")
+        if len(v) > 256:
+            raise ValueError("El nombre de la sesión admite como máximo 256 caracteres.")
+        return v

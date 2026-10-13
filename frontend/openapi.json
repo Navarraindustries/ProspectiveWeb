@@ -6829,6 +6829,11 @@
       "title": "Session Id",
       "type": "string"
      },
+     "size_bytes": {
+      "default": 0,
+      "title": "Size Bytes",
+      "type": "integer"
+     },
      "updated_at": {
       "format": "date-time",
       "title": "Updated At",
@@ -8517,6 +8522,20 @@
     "title": "ResetPasswordRequest",
     "type": "object"
    },
+   "SavedSessionRenameIn": {
+    "description": "Nuevo nombre de una sesión guardada.",
+    "properties": {
+     "label": {
+      "title": "Label",
+      "type": "string"
+     }
+    },
+    "required": [
+     "label"
+    ],
+    "title": "SavedSessionRenameIn",
+    "type": "object"
+   },
    "ScissorsRequest": {
     "description": "La tijera: seccionar un vaso por un anillo de puntos marcados encima.\n\nEl borrador de región quita lo que rodea a UN clic; esto secciona por\ndonde el profesional dibuja el anillo, que es como se corta un vaso: una\nsección transversal, no una mordida.\n\nNo aplica nada por defecto. Con `apply` en falso devuelve la pieza que se\niría para pintarla en el visor, y quien mira decide. Las dos respuestas\nsalen del mismo cálculo, así que lo que se ve es lo que se corta.",
     "properties": {
@@ -9025,6 +9044,11 @@
      "session_id": {
       "title": "Session Id",
       "type": "string"
+     },
+     "size_bytes": {
+      "default": 0,
+      "title": "Size Bytes",
+      "type": "integer"
      },
      "updated_at": {
       "format": "date-time",
@@ -18039,6 +18063,102 @@
      }
     ],
     "summary": "Save current session state to database",
+    "tags": [
+     "sessions"
+    ]
+   }
+  },
+  "/api/sessions/saved/{session_id}": {
+   "delete": {
+    "description": "Removes the saved snapshot, its repoint marker and its database row.",
+    "operationId": "delete_saved_api_sessions_saved__session_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Delete a saved session",
+    "tags": [
+     "sessions"
+    ]
+   },
+   "patch": {
+    "operationId": "rename_saved_session_api_sessions_saved__session_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SavedSessionRenameIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionListItem"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Rename a saved session",
     "tags": [
      "sessions"
     ]

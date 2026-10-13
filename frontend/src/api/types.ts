@@ -277,6 +277,13 @@ export interface PatientSessionInfo {
   rupture_risk_label: string | null;
   created_at: string;
   updated_at: string;
+  /** Lo que ocupa la sesión guardada en disco. */
+  size_bytes: number;
+}
+
+/** Nuevo nombre de una sesión guardada (1–256 caracteres, sin espacios en los extremos). */
+export interface SavedSessionRenameIn {
+  label: string;
 }
 
 /* ── dicom / upload ────────────────────────────────────────────────────── */

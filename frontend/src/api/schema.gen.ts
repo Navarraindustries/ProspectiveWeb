@@ -2354,6 +2354,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sessions/saved/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a saved session
+         * @description Removes the saved snapshot, its repoint marker and its database row.
+         */
+        delete: operations["delete_saved_api_sessions_saved__session_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a saved session */
+        patch: operations["rename_saved_session_api_sessions_saved__session_id__patch"];
+        trace?: never;
+    };
     "/api/sessions/{session_id}/attach": {
         parameters: {
             query?: never;
@@ -7336,6 +7357,11 @@ export interface components {
             /** Session Id */
             session_id: string;
             /**
+             * Size Bytes
+             * @default 0
+             */
+            size_bytes: number;
+            /**
              * Updated At
              * Format: date-time
              */
@@ -8530,6 +8556,14 @@ export interface components {
             new_password: string;
         };
         /**
+         * SavedSessionRenameIn
+         * @description Nuevo nombre de una sesión guardada.
+         */
+        SavedSessionRenameIn: {
+            /** Label */
+            label: string;
+        };
+        /**
          * ScissorsRequest
          * @description La tijera: seccionar un vaso por un anillo de puntos marcados encima.
          *
@@ -8930,6 +8964,11 @@ export interface components {
             patient_name: string;
             /** Session Id */
             session_id: string;
+            /**
+             * Size Bytes
+             * @default 0
+             */
+            size_bytes: number;
             /**
              * Updated At
              * Format: date-time
@@ -14500,6 +14539,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionSaveResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_saved_api_sessions_saved__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_saved_session_api_sessions_saved__session_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedSessionRenameIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionListItem"];
                 };
             };
             /** @description Validation Error */

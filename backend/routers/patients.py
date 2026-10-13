@@ -23,6 +23,7 @@ from services.access import own_patient_ids, require_patient, require_share_righ
 from services.auth_service import get_current_user
 from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, ACT_PATIENT_SHARED,
                             audit_append, audit_patient)
+from services.sessions import size_of_row
 from services.db_models import Patient, PatientShare, PlanningSession, Study, User
 
 # Patient demographic + history fields copied on create / update.
@@ -513,6 +514,7 @@ async def list_patient_sessions(
             rupture_risk_label=s.rupture_risk_label,
             created_at=s.created_at,
             updated_at=s.updated_at,
+            size_bytes=size_of_row(db, s),
         )
         for s in sessions
     ]

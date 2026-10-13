@@ -113,3 +113,84 @@ def test_borrar_cuentas_no_choca_con_lo_compartido():
     filas = [(s.user_id, s.shared_by) for s in db.query(PatientShare).filter_by(patient_id=pid)]
     db.close()
     assert filas == [(c_id, None)]
+
+
+# ── Ronda 1 de revisión: regla T7 de derechos y bordes ─────────────────────── #
+
+_CASO = {"dx_principal": "Aneurisma de prueba"}
+_FICHA = {"surname": "Cambiado"}
+
+
+def test_el_compartido_crea_y_edita_casos_pero_no_borra_ni_toca_la_ficha():
+    a_id, a = _medico(); b_id, b = _medico(); _c_id, c = _medico()
+    pid = _paciente_de(a_id)
+    a.put(f"/api/patients/{pid}/shares", json={"user_ids": [b_id]})
+
+    r = b.post(f"/api/patients/{pid}/studies", json=_CASO)
+    assert r.status_code == 201
+    sid = r.json()["id"]
+    assert b.put(f"/api/patients/{pid}/studies/{sid}", json={**_CASO, "dx_secundario": "x"}).status_code == 200
+    assert b.delete(f"/api/patients/{pid}/studies/{sid}").status_code == 403
+    assert b.put(f"/api/patients/{pid}", json=_FICHA).status_code == 403
+    assert b.delete(f"/api/patients/{pid}").status_code == 403
+
+    # Un tercero, nada.
+    assert c.post(f"/api/patients/{pid}/studies", json=_CASO).status_code == 403
+    assert c.put(f"/api/patients/{pid}/studies/{sid}", json=_CASO).status_code == 403
+    assert c.delete(f"/api/patients/{pid}/studies/{sid}").status_code == 403
+    assert c.put(f"/api/patients/{pid}", json=_FICHA).status_code == 403
+    assert c.delete(f"/api/patients/{pid}").status_code == 403
+
+    # El creador sí borra el caso que abrió el compartido.
+    assert a.delete(f"/api/patients/{pid}/studies/{sid}").status_code == 204
+
+
+def test_los_administradores_no_entran_en_la_lista():
+    from services.db_models import User
+    a_id, a = _medico(); b_id, _b = _medico()
+    db = SessionLocal()
+    admin_id = db.query(User.id).filter(User.role == "admin").first()[0]
+    db.close()
+    pid = _paciente_de(a_id)
+    r = a.put(f"/api/patients/{pid}/shares", json={"user_ids": [admin_id, b_id]})
+    assert r.status_code == 200 and [s["user_id"] for s in r.json()] == [b_id]
+
+
+def _bloques_compartir() -> int:
+    from services.audit import SkullChain
+    return sum(1 for b in SkullChain.instance().get_all_blocks() if b["action"] == "PATIENT_SHARED")
+
+
+def test_guardar_la_misma_lista_no_deja_bloque():
+    a_id, a = _medico(); b_id, _b = _medico()
+    pid = _paciente_de(a_id)
+    a.put(f"/api/patients/{pid}/shares", json={"user_ids": [b_id]})
+    antes = _bloques_compartir()
+    r = a.put(f"/api/patients/{pid}/shares", json={"user_ids": [b_id, b_id]})
+    assert r.status_code == 200 and [s["user_id"] for s in r.json()] == [b_id]
+    assert _bloques_compartir() == antes
+
+
+def test_el_404_de_compartir_va_en_castellano():
+    assert admin.get("/api/patients/999999999/shares").json()["detail"] == "Paciente no encontrado."
+
+
+def test_dos_guardados_a_la_vez_dan_409(monkeypatch):
+    # La carrera real (dos PUT que insertan la misma fila) termina en la
+    # restricción única al hacer commit: se simula ese fallo.
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.orm import Session
+    a_id, a = _medico(); b_id, _b = _medico()
+    pid = _paciente_de(a_id)
+    commit = Session.commit
+
+    def choca(self):
+        if any(type(o).__name__ == "PatientShare" for o in self.new):
+            raise IntegrityError("INSERT", {}, Exception("UNIQUE constraint failed"))
+        return commit(self)
+
+    monkeypatch.setattr(Session, "commit", choca)
+    r = a.put(f"/api/patients/{pid}/shares", json={"user_ids": [b_id]})
+    monkeypatch.undo()
+    assert r.status_code == 409 and "Otra persona" in r.json()["detail"]
+    assert a.get(f"/api/patients/{pid}/shares").json() == []

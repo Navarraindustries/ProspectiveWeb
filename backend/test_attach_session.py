@@ -220,3 +220,47 @@ class TestAdjuntarUnaSesionReanudada:
         assert client.get(f"/api/sessions/{otra}/identity").json()["attached"] is True
         assert client.post(f"/api/sessions/{otra}/attach", json={
             "new_patient": {"surname": "Segunda"}, "new_case": {"dx_principal": "Y"}}).status_code == 409
+
+
+class TestHistoriaDeOtroProfesional:
+    """Revisión T7: el 409 por historia repetida no nombra a un paciente que
+    quien adjunta no ve; al compartido sí, y puede adjuntar con caso nuevo."""
+
+    @staticmethod
+    def _medico():
+        from conftest import anonymous_client
+        from services.auth_service import create_access_token, get_password_hash
+        from services.db_models import User
+        nombre = f"med-{uuid.uuid4().hex[:8]}"
+        db = SessionLocal()
+        u = User(username=nombre, hashed_password=get_password_hash("x" * 12), role="medico", full_name=nombre)
+        db.add(u); db.commit(); uid = u.id; db.close()
+        c = anonymous_client(app)
+        c.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
+        return uid, c
+
+    def _de(self, uid: int, hc: str) -> int:
+        db = SessionLocal()
+        p = Patient(surname="Reservado", given_name="Nombre", hospital_id=hc, created_by=uid)
+        db.add(p); db.commit(); pid = p.id; db.close()
+        return pid
+
+    def test_no_dice_el_nombre_de_un_paciente_ajeno(self):
+        a_id, _a = self._medico(); _b_id, b = self._medico()
+        sid, hc = _sesion()
+        self._de(a_id, hc)
+        r = b.post(f"/api/sessions/{sid}/attach", json={
+            "new_patient": {"surname": "Otro", "hospital_id": hc}, "new_case": {"dx_principal": "X"}})
+        assert r.status_code == 409
+        assert "Reservado" not in r.json()["detail"] and "comparta contigo" in r.json()["detail"]
+
+    def test_al_compartido_si_y_adjunta_con_caso_nuevo(self):
+        a_id, a = self._medico(); b_id, b = self._medico()
+        sid, hc = _sesion()
+        pid = self._de(a_id, hc)
+        assert a.put(f"/api/patients/{pid}/shares", json={"user_ids": [b_id]}).status_code == 200
+        r = b.post(f"/api/sessions/{sid}/attach", json={
+            "new_patient": {"surname": "Otro", "hospital_id": hc}, "new_case": {"dx_principal": "X"}})
+        assert r.status_code == 409 and "Reservado" in r.json()["detail"]
+        r = b.post(f"/api/sessions/{sid}/attach", json={"patient_id": pid, "new_case": {"dx_principal": "X"}})
+        assert r.status_code == 200 and r.json()["patient"]["is_shared_with_me"] is True

@@ -6,6 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models import (CaseCreate, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut,
@@ -34,7 +35,13 @@ _PATIENT_FIELDS = (
 
 
 def _require_owner_or_admin(patient: Patient, user: User | None) -> None:
-    """A non-admin authenticated user may only touch patients they created."""
+    """Lo que solo decide quien creó al paciente (o un administrador).
+
+    Regla T7: un compartido crea y edita casos y trabaja en las sesiones (es
+    el equipo que lleva el caso), pero no cambia la ficha del paciente, no lo
+    borra, no borra casos y no vuelve a compartir. Estas puertas usan esta
+    función; las de crear y editar casos, `require_patient`.
+    """
     if user is not None and user.role != "admin" and patient.created_by != user.id:
         raise HTTPException(status_code=403, detail="No autorizado sobre este paciente.")
 
@@ -288,7 +295,9 @@ async def create_study(
     patient = db.get(Patient, patient_id)
     if patient is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
-    _require_owner_or_admin(patient, current_user)
+    # Crear un caso es trabajo clínico: lo puede el compartido (regla T7), como
+    # al adjuntar una sesión con «caso nuevo».
+    require_patient(db, current_user, patient_id)
     if not req.dx_principal.strip():
         raise HTTPException(status_code=422, detail="El diagnóstico principal es obligatorio.")
 
@@ -308,11 +317,17 @@ async def create_study(
     return _study_to_summary(study)
 
 
-def _get_owned_study(db: Session, patient_id: int, study_id: int, user: User | None) -> Study:
+def _get_owned_study(db: Session, patient_id: int, study_id: int, user: User | None,
+                     owner_only: bool = False) -> Study:
+    """El caso del paciente, con la puerta que toque: editar lo puede quien ve
+    al paciente; borrar (`owner_only`), solo su creador o un administrador."""
     patient = db.get(Patient, patient_id)
     if patient is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
-    _require_owner_or_admin(patient, user)
+    if owner_only:
+        _require_owner_or_admin(patient, user)
+    else:
+        require_patient(db, user, patient_id)
     study = db.get(Study, study_id)
     if study is None or study.patient_id != patient_id:
         raise HTTPException(status_code=404, detail=f"Study {study_id} not found for patient {patient_id}")
@@ -361,7 +376,7 @@ async def delete_study(
     db:           Annotated[Session,     Depends(get_db)],
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> None:
-    study = _get_owned_study(db, patient_id, study_id, current_user)
+    study = _get_owned_study(db, patient_id, study_id, current_user, owner_only=True)
     paciente = audit_patient(db.get(Patient, patient_id))
     # Its planning sessions have a study_id FK without cascade — detach them so
     # the saved planning work survives under the patient.
@@ -532,7 +547,7 @@ async def list_patient_shares(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> list[PatientShareOut]:
     if db.get(Patient, patient_id) is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     require_patient(db, current_user, patient_id)
     return _shares_out(db, patient_id)
 
@@ -543,9 +558,10 @@ async def list_patient_shares(
     summary="Fijar con qué cuentas se comparte un paciente",
     description=(
         "Sustituye la lista entera por `user_ids`. Solo quien creó al paciente o un "
-        "administrador; el creador y quien comparte se ignoran si vienen en la lista. "
-        "Una cuenta que no existe o no está activa es un 422. Deja un bloque "
-        "`PATIENT_SHARED` en la auditoría."
+        "administrador; el creador, quien comparte y los administradores se ignoran "
+        "si vienen en la lista. Una cuenta que no existe o no está activa es un 422; "
+        "dos guardados a la vez, un 409. Cada cambio real deja un bloque "
+        "`PATIENT_SHARED` en la auditoría (guardar la misma lista, no)."
     ),
 )
 async def set_patient_shares(
@@ -556,12 +572,13 @@ async def set_patient_shares(
 ) -> list[PatientShareOut]:
     patient = db.get(Patient, patient_id)
     if patient is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     require_share_right(db, current_user, patient_id)
 
-    # El creador ya lo ve, y quien comparte (creador o administrador) también:
-    # una fila suya solo engordaría el contador de «compartido con».
+    # El creador ya lo ve, y quien comparte y los administradores también: una
+    # fila suya solo engordaría el contador de «compartido con».
     fuera = {patient.created_by, current_user.id if current_user else None}
+    fuera |= {uid for (uid,) in db.query(User.id).filter(User.id.in_(req.user_ids), User.role == "admin")}
     wanted = [uid for uid in dict.fromkeys(req.user_ids) if uid not in fuera]
 
     if wanted:
@@ -577,6 +594,10 @@ async def set_patient_shares(
             )
 
     actuales = {sh.user_id: sh for sh in db.query(PatientShare).filter(PatientShare.patient_id == patient_id)}
+    if set(actuales) == set(wanted):
+        # Guardar la misma lista no cambia quién lo ve: sin bloque de auditoría
+        # que diga lo contrario.
+        return _shares_out(db, patient_id)
     for uid, sh in actuales.items():
         if uid not in wanted:
             db.delete(sh)
@@ -586,7 +607,14 @@ async def set_patient_shares(
         if uid not in actuales:
             db.add(PatientShare(patient_id=patient_id, user_id=uid,
                                 shared_by=current_user.id if current_user else None))
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Dos guardados a la vez sobre el mismo paciente: el otro llegó antes.
+        db.rollback()
+        raise HTTPException(status_code=409,
+                            detail="Otra persona acaba de cambiar con quién se comparte este paciente. "
+                                   "Vuelve a abrir la lista e inténtalo de nuevo.")
 
     logger.info("Patient shares set — patient=%d users=%s by=%s", patient_id, wanted,
                 current_user.username if current_user else "anonymous")

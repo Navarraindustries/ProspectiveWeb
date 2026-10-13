@@ -1955,7 +1955,7 @@ export interface paths {
         get: operations["list_patient_shares_api_patients__patient_id__shares_get"];
         /**
          * Fijar con qué cuentas se comparte un paciente
-         * @description Sustituye la lista entera por `user_ids`. Solo quien creó al paciente o un administrador; el creador y quien comparte se ignoran si vienen en la lista. Una cuenta que no existe o no está activa es un 422. Deja un bloque `PATIENT_SHARED` en la auditoría.
+         * @description Sustituye la lista entera por `user_ids`. Solo quien creó al paciente o un administrador; el creador, quien comparte y los administradores se ignoran si vienen en la lista. Una cuenta que no existe o no está activa es un 422; dos guardados a la vez, un 409. Cada cambio real deja un bloque `PATIENT_SHARED` en la auditoría (guardar la misma lista, no).
          */
         put: operations["set_patient_shares_api_patients__patient_id__shares_put"];
         post?: never;

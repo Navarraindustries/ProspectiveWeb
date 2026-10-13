@@ -31,7 +31,7 @@ from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import (ImagingStudy, LesionConfirmation, Patient,
                                 PlanningSession, Study, User)
-from services.access import own_patient_ids, require_patient, session_row
+from services.access import can_access_patient, own_patient_ids, require_patient, session_row
 from services.sessions import read_state, session_exists, session_lineage, session_subdir
 
 logger = logging.getLogger(__name__)
@@ -238,11 +238,15 @@ async def attach_session(
             if hc:
                 dup = db.query(Patient).filter(Patient.hospital_id == hc).first()
                 if dup is not None:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"Ya existe un paciente con la historia clínica '{hc}' "
-                               f"({dup.full_name}). Elígelo en lugar de crear otro.",
-                    )
+                    # El nombre solo a quien ya ve a ese paciente: si no, bastaba
+                    # probar números de historia para leer pacientes ajenos.
+                    if can_access_patient(db, current_user, dup.id):
+                        detail = (f"Ya existe un paciente con la historia clínica '{hc}' "
+                                  f"({dup.full_name}). Elígelo en lugar de crear otro.")
+                    else:
+                        detail = ("Ya existe un paciente con ese número de historia que no está "
+                                  "entre los tuyos: pide a su responsable que lo comparta contigo.")
+                    raise HTTPException(status_code=409, detail=detail)
             patient = Patient(surname=np_.surname.strip(), given_name=np_.given_name.strip(),
                               hospital_id=hc, dob=np_.dob, sex=np_.sex,
                               created_by=current_user.id if current_user else None)

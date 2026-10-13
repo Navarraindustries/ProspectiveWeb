@@ -28,6 +28,13 @@ vi.mock("../../api/client", () => ({
 
 vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 
+// La cuenta con la que se abre el pedido: solo médico o residente con nombre
+// salen propuestos como cirujano (F1b-2, misma regla que el informe).
+const auth: { user: { username: string; full_name: string; role: string } | null } = {
+  user: { username: "admin", full_name: "Administrador", role: "admin" },
+};
+vi.mock("../../store/auth", () => ({ useAuth: () => ({ user: auth.user }) }));
+
 import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
 import { ApiError } from "../../api/client";
 import type { ClipOrderPrefill } from "../../api/types";
@@ -371,5 +378,24 @@ describe("la lista de pedidos (F1-219)", () => {
     render(<ClipOrderList sessionId="viva" caseId={null} refreshKey={0} />);
     expect(await screen.findByText("Pedidos de esta sesión")).toBeTruthy();
     expect(screen.queryByText("Pedidos de este caso")).toBeNull();
+  });
+});
+
+describe("quién sale propuesto como cirujano responsable (F1b-2)", () => {
+  it("con la cuenta admin el campo arranca vacío aunque pueda firmar", async () => {
+    auth.user = { username: "admin", full_name: "Administrador", role: "admin" };
+    clipOrderPrefill.mockResolvedValue(prefill({ can_sign: true, requester_name: "Administrador" }));
+    draw();
+    const campo = await screen.findByLabelText("Cirujano responsable") as HTMLInputElement;
+    await waitFor(() => expect(clipOrderPrefill).toHaveBeenCalled());
+    expect(campo.value).toBe("");
+  });
+
+  it("con una médica con nombre el campo arranca con su nombre", async () => {
+    auth.user = { username: "navarro", full_name: "Dra. Navarro", role: "medico" };
+    clipOrderPrefill.mockResolvedValue(prefill());
+    draw();
+    const campo = await screen.findByLabelText("Cirujano responsable") as HTMLInputElement;
+    await waitFor(() => expect(campo.value).toBe("Dra. Navarro"));
   });
 });

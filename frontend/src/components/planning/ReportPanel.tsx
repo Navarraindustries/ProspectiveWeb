@@ -17,6 +17,7 @@ import { usePlanning } from "../../store/planning";
 import { STEPS } from "../../pipeline/steps";
 import { approachSummary } from "./approachSummary";
 import { captureFramed } from "../../vtk/captureRenderWindow";
+import { surgeonPrefill } from "../../lib/cirujano";
 
 /** F1-220: las palabras del informe para la decisión del equipo y la estrategia. */
 const TEAM_LABEL: Record<string, string> = {
@@ -45,14 +46,6 @@ function teamSummary(t: TeamDecision | null): string {
 // Por su clave, no por un número: era un 6 fijo, y desde que «Fabricación»
 // entró antes del informe el 6 es Fabricación.
 const REPORT_STEP = STEPS.findIndex((s) => s.key === "report");
-
-/** F1-221: el campo arrancaba con el nombre de la cuenta, y la del
- *  administrador firmaba los informes como «Administrador». Solo se propone
- *  el nombre de quien puede ser el cirujano (médico o residente) y lo tiene. */
-function surgeonPrefill(user: { role?: string | null; full_name?: string | null } | null): string {
-  const name = user?.full_name?.trim() ?? "";
-  return name && (user?.role === "medico" || user?.role === "residente") ? name : "";
-}
 
 /** A download link that stops offering a file once the plan has moved on.
  *

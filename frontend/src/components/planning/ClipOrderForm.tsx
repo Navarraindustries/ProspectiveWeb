@@ -28,6 +28,8 @@ import { Select } from "../Select";
 import { Slider } from "../Slider";
 import { seriesAndShape, shapeLabel } from "./clipShape";
 import { forceWithBand } from "./clipForce";
+import { surgeonPrefill } from "../../lib/cirujano";
+import { useAuth } from "../../store/auth";
 
 const STATUS_VARIANT: Record<OrderStatus, "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive"> = {
   borrador: "outline",
@@ -168,6 +170,7 @@ export function ClipOrderForm({
   const [marking, setMarking] = useState<ClipOrderIn["marking"]>("cuerpo");
   const [notes, setNotes] = useState("");
   const [authRef, setAuthRef] = useState("");
+  const { user } = useAuth();
   const [surgeon, setSurgeon] = useState("");
 
   // El taller: uno guardado, o uno nuevo que queda guardado al usarlo.
@@ -190,7 +193,9 @@ export function ClipOrderForm({
         setShape(p.advised_navarro_shape);
         setWindow(p.advised_window_mm);
         setExtras(p.suggest_extra_sizes);
-        setSurgeon((s) => s || (p.can_sign ? p.requester_name : ""));
+        // F1b-2: no el nombre de quien pide (el admin también puede firmar),
+        // sino el de quien puede ser el cirujano: la regla de lib/cirujano.ts.
+        setSurgeon((s) => s || surgeonPrefill(user));
         // Sin talleres registrados, la única opción del desplegable es «registrar
         // uno nuevo». Con el estado vacío el navegador la enseñaba elegida pero
         // el formulario no se abría, y al ser la única no había forma de

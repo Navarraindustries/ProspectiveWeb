@@ -72,7 +72,7 @@ export function NuevoEstudioSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // El error de validación va junto al campo y le da el foco (F2-41).
-  // Casos antiguos con «Panangiografía»: se conserva su marca; los nuevos nunca la ponen.
+  // Casos antiguos con «Panangiografía»: se conserva su marca; los nuevos nunca la ponen y desmarcar la casilla la apaga.
   const [pangioPrevio, setPangioPrevio] = useState(false);
   const dxBox = useRef<HTMLDivElement>(null);
   const [dxError, setDxError] = useState<string | null>(null);
@@ -138,7 +138,7 @@ export function NuevoEstudioSheet({
       tipo_aneurisma: joinTipo(f.morfologia, f.tamano), region_anatomica: f.region_anatomica, lateralidad: f.lateralidad,
       tratamiento_propuesto: TRATAMIENTOS.filter((t) => trat[t]).join(", "),
       angiographer: [f.angio_marca.trim(), f.angio_tipo].filter(Boolean).join(" | "),
-      mod_tac: mods.tac, mod_angio: mods.angio, mod_rm: mods.rm, mod_pangio: pangioPrevio,
+      mod_tac: mods.tac, mod_angio: mods.angio, mod_rm: mods.rm, mod_pangio: pangioPrevio && mods.angio,
     };
     setBusy(true);
     try {

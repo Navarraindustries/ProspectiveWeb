@@ -5,7 +5,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createStudy = vi.fn();
-vi.mock("../api/client", () => ({ api: { createStudy: (...a: unknown[]) => createStudy(...a), updateStudy: vi.fn() } }));
+const updateStudy = vi.fn();
+vi.mock("../api/client", () => ({ api: { createStudy: (...a: unknown[]) => createStudy(...a), updateStudy: (...a: unknown[]) => updateStudy(...a) } }));
 
 import { NuevoEstudioSheet } from "./NuevoCaso";
 import { hoyLocal } from "../lib/fecha";
@@ -133,9 +134,8 @@ describe("el formulario del caso (F2)", () => {
 
 describe("marca antigua de panangiografía", () => {
   it("al editar un caso antiguo con mod_pangio la conserva y la casilla sale marcada", async () => {
-    const updateStudy = vi.fn().mockResolvedValue({});
-    const { api } = await import("../api/client");
-    (api as unknown as { updateStudy: unknown }).updateStudy = updateStudy;
+    updateStudy.mockReset();
+    updateStudy.mockResolvedValue({});
     render(
       <NuevoEstudioSheet open patientId={1} onClose={onClose} onCreated={() => {}}
         study={{ id: 3, dx_principal: "X", mod_pangio: true } as never} />,
@@ -144,5 +144,22 @@ describe("marca antigua de panangiografía", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     await waitFor(() => expect(updateStudy).toHaveBeenCalled());
     expect(updateStudy.mock.calls[0][2].mod_pangio).toBe(true);
+  });
+});
+
+describe("al desmarcar la angiografía de un caso antiguo", () => {
+  it("la casilla única apaga también la marca antigua", async () => {
+    updateStudy.mockReset();
+    updateStudy.mockResolvedValue({});
+    render(
+      <NuevoEstudioSheet open patientId={1} onClose={onClose} onCreated={() => {}}
+        study={{ id: 3, dx_principal: "X", mod_pangio: true } as never} />,
+    );
+    fireEvent.click(screen.getByLabelText("Angiografía por catéter"));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(updateStudy).toHaveBeenCalled());
+    const p = updateStudy.mock.calls[0][2];
+    expect(p.mod_angio).toBe(false);
+    expect(p.mod_pangio).toBe(false);
   });
 });

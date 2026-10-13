@@ -35,16 +35,17 @@ function sinComentarios(src: string): string {
    ninguna regla lo miraba. */
 const archivos = [
   ...tsx(join(SRC, "pages")),
-  join(SRC, "components", "planning", "ClipOrderForm.tsx"),
-  join(SRC, "components", "Topbar.tsx"),
   /* Los textos compartidos de `lib/` también se pintan (la línea del rol del
      administrador, en Topbar y Usuarios, decía «solicitudes» y esta prueba no
      la miraba porque vivía en roles.ts). */
   ...tsx(join(SRC, "lib"), ".ts"),
-  /* El shell (barra lateral, menú de usuario, secciones) pinta los nombres de
-     las secciones de administración en todas las pantallas. */
-  ...tsx(join(SRC, "components", "shell")),
-  ...tsx(join(SRC, "components", "shell"), ".ts"),
+  /* Todos los componentes: el shell (barra lateral, menú de usuario, secciones)
+     pinta los nombres de las secciones en todas las pantallas, y el formulario de
+     pedido y el menú de usuario también nombraban cosas que ninguna regla miraba.
+     Los .ts de los componentes (p. ej. las escenas de la landing) no llevan texto
+     de interfaz, pero el glosario no les sobra. */
+  ...tsx(join(SRC, "components")),
+  ...tsx(join(SRC, "components"), ".ts"),
 ];
 
 /* Palabras retiradas en cualquier pantalla. «Estudios» (galería de DICOM

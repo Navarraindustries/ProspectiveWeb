@@ -30,7 +30,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
       color: "var(--foreground)",
       fontFamily: "var(--font-sans)",
       fontSize: 14,
-      ...(multiline ? { resize: "vertical" as const, minHeight: 68, lineHeight: 1.45 } : {}),
+      ...(multiline ? { resize: "vertical" as const, minHeight: "calc(var(--control-md) * 2)", lineHeight: 1.45 } : {}),
       ...style,
     },
   };
@@ -48,7 +48,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
         style={{
           display: "flex",
           gap: 8,
-          ...(multiline ? { minHeight: 84, padding: "8px 12px", alignItems: "flex-start" } : { height: "var(--control-md)", padding: "0 12px", alignItems: "center" }),
+          ...(multiline ? { minHeight: "calc(var(--control-md) * 2 + 16px)", padding: "8px 12px", alignItems: "flex-start" } : { height: "var(--control-md)", padding: "0 12px", alignItems: "center" }),
           borderRadius: "var(--radius-md)",
           background: "var(--background)",
           border: `1px solid ${invalid ? "var(--destructive)" : "var(--input)"}`,

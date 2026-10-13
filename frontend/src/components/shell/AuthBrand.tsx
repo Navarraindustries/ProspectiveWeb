@@ -4,12 +4,17 @@
    fijos y nombres de librerías en el pie (F2-10). Ahora es uno solo: el logotipo
    y el lema único de la portada. Sin vídeo: el degradado sale de los tokens, así
    que sigue legible en los dos temas, y un vídeo de fondo obligaría a fijar el
-   color del texto en blanco. */
+   color del texto en blanco.
+
+   Las frases de aprobación de «Entrar» y de «Crear cuenta» difieren a propósito:
+   quien entra ya pidió su cuenta y solo necesita saber que no habrá aviso;
+   quien se registra necesita saber que quedará pendiente hasta que alguien la
+   active. Por eso no se unifican en este panel. */
 
 import { useNavigate } from "react-router-dom";
 import { Logo } from "./Logo";
 
-export const LEMA = "Planificación neurovascular con datos";
+const LEMA = "Planificación neurovascular con datos";
 
 export function AuthBrand({ flex }: { flex: string }) {
   const navigate = useNavigate();
@@ -26,7 +31,7 @@ export function AuthBrand({ flex }: { flex: string }) {
         borderRight: "1px solid var(--border)",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
+        justifyContent: "flex-start",
         padding: "48px 56px",
       }}
     >
@@ -38,10 +43,9 @@ export function AuthBrand({ flex }: { flex: string }) {
       >
         <Logo size={32} />
       </button>
-      <div style={{ color: "var(--foreground)", fontSize: 38, fontWeight: 700, letterSpacing: "var(--tracking-title)", lineHeight: 1.1, maxWidth: 460 }}>
+      <div style={{ margin: "auto 0", color: "var(--foreground)", fontSize: 38, fontWeight: 700, letterSpacing: "var(--tracking-title)", lineHeight: 1.1, maxWidth: 460 }}>
         {LEMA}
       </div>
-      <div aria-hidden />
     </div>
   );
 }

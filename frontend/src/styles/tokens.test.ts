@@ -45,12 +45,17 @@ describe("tokens de la identidad A", () => {
     expect(fonts).toMatch(/font-family:\s*"Geist Mono"/);
     expect(fonts).not.toMatch(/googleapis|Inter|JetBrains|Space Grotesk|Plus Jakarta/);
   });
-  // se activa en la Tarea 17
-  it.skip("ninguna pantalla de gestión usa un color literal", () => {
-    const dir = join(__dirname, "../pages");
+  it("ninguna pantalla de gestión ni el shell usa un color literal", () => {
+    /* Workspace.tsx no es una pantalla de gestión: es el visor, que pertenece a F3
+       y conserva sus colores por ahora. */
+    const EXCLUIDOS = ["Workspace.tsx"];
     const literal = /#[0-9a-f]{3,8}\b|rgba?\(/i;
-    for (const f of readdirSync(dir).filter((f) => f.endsWith(".tsx") && !f.includes(".test."))) {
-      const src = readFileSync(join(dir, f), "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
+    const dirs = [join(__dirname, "../pages"), join(__dirname, "../components/shell")];
+    const archivos = dirs.flatMap((d) =>
+      readdirSync(d).filter((f) => f.endsWith(".tsx") && !f.includes(".test.") && !EXCLUIDOS.includes(f)).map((f) => join(d, f)));
+    expect(archivos.length).toBeGreaterThan(15);
+    for (const f of archivos) {
+      const src = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\/|(^|\s)\/\/.*$/gm, "$1");
       expect(src.match(literal), `${f} lleva un color escrito a mano`).toBeNull();
     }
   });

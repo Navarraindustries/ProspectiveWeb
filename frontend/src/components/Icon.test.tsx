@@ -35,6 +35,10 @@ describe("Icon", () => {
     for (const n of ["PATIENTS", "STUDIES", "ORDER", "WORKSHOP", "PENDING", "SHARE", "RESUME", "OPEN", "DELETE", "RENAME", "UPLOAD", "LOGOUT", "PASSWORD", "MENU", "FILTER", "EXPORT", "PLUS", "CLOSE", "BACK", "CHEVRON_RIGHT", "CHEVRON_DOWN", "PIN"])
       expect(ICON_NAMES).toContain(n);
   });
+  it("PENDING tiene su propio trazo, distinto del de WAIT", () => {
+    const d = (n: string) => render(<Icon name={n as never} />).container.querySelector("path")!.getAttribute("d");
+    expect(d("PENDING")).not.toBe(d("WAIT"));
+  });
   it("respeta size, color y style", () => {
     const { container } = render(<Icon name="HOME" size={24} color="red" style={{ opacity: 0.5 }} />);
     const svg = container.querySelector("svg")!;

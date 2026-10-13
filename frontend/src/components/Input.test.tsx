@@ -46,4 +46,9 @@ describe("Input", () => {
     expect(field.style.boxShadow).toBe("");
     expect(wrapper.style.boxShadow).not.toContain("--ring");
   });
+
+  it("la altura mínima del área de texto sale del token de control, no de píxeles fijos", () => {
+    const { container } = render(<Input label="Notas" multiline />);
+    expect(container.querySelector("textarea")!.style.minHeight).toContain("--control-md");
+  });
 });

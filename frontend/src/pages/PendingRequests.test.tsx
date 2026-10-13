@@ -198,4 +198,27 @@ describe("«Rechazadas» (nota)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rechazadas" }));
     expect(await screen.findByText(/las anteriores no tenían fecha/)).toBeTruthy();
   });
+
+  it("la nota también sale con la lista vacía", async () => {
+    listPending.mockResolvedValue([]);
+    render(<PendingRequests />);
+    fireEvent.click(await screen.findByRole("button", { name: "Rechazadas" }));
+    expect(await screen.findByText("Ninguna cuenta rechazada.")).toBeTruthy();
+    expect(screen.getByText(/las anteriores no tenían fecha/)).toBeTruthy();
+  });
+
+  it("la respuesta tardía de la pestaña anterior no pinta la actual", async () => {
+    listPending.mockResolvedValue([]);
+    let soltar: (v: unknown[]) => void = () => {};
+    listUsers.mockImplementation((st: string) =>
+      st === "approved" ? new Promise((r) => { soltar = r; }) : Promise.resolve([]));
+    render(<PendingRequests />);
+    fireEvent.click(await screen.findByRole("button", { name: "Aprobadas" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazadas" }));
+    expect(await screen.findByText("Ninguna cuenta rechazada.")).toBeTruthy();
+    soltar([{ id: 5, username: "tarde", full_name: "Cuenta Tardía", role: "medico", status: "approved", is_active: true, specialty: "", hospital: "", created_at: "2026-10-01T00:00:00+00:00", rejected_at: null }]);
+    await Promise.resolve();
+    expect(screen.queryByText("Cuenta Tardía")).toBeNull();
+    expect(screen.getByText("Ninguna cuenta rechazada.")).toBeTruthy();
+  });
 });

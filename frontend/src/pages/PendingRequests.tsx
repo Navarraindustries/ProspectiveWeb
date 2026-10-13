@@ -23,6 +23,16 @@ type Pestana = (typeof TABS)[number];
 /** Rol con el que entra una cuenta aprobada: el servidor no lo cambia al aprobar. */
 const ROL_AL_APROBAR = "medico";
 
+/** Aviso de la pestaña «Rechazadas». También con la lista vacía: justo ahí es
+ *  donde alguien se pregunta por qué no sale una solicitud antigua. */
+function RechazadasNota() {
+  return (
+    <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+      Solo salen las solicitudes rechazadas desde esta versión; las anteriores no tenían fecha y no se listan.
+    </div>
+  );
+}
+
 /** Historial: cuentas aprobadas o rechazadas, de las que el listado de
  *  pendientes ya no sabe nada. */
 function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
@@ -49,18 +59,17 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
   if (loading) return <LoadState state="cargando" mensaje="" onRetry={load} />;
   if (rows.length === 0) {
     return (
-      <Card style={{ padding: "28px 20px", textAlign: "center", color: "var(--muted-foreground)", fontSize: 13 }}>
-        {tab === "Aprobadas" ? "Ninguna cuenta aprobada todavía." : "Ninguna cuenta rechazada."}
-      </Card>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {tab === "Rechazadas" && <RechazadasNota />}
+        <Card style={{ padding: "28px 20px", textAlign: "center", color: "var(--muted-foreground)", fontSize: 13 }}>
+          {tab === "Aprobadas" ? "Ninguna cuenta aprobada todavía." : "Ninguna cuenta rechazada."}
+        </Card>
+      </div>
     );
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {tab === "Rechazadas" && (
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-          Solo salen las solicitudes rechazadas desde esta versión; las anteriores no tenían fecha y no se listan.
-        </div>
-      )}
+      {tab === "Rechazadas" && <RechazadasNota />}
       {tab === "Aprobadas" && (
         <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
           Cuentas activas que no son de administrador, con su fecha de alta. El servidor no distingue las
@@ -190,7 +199,7 @@ export function PendingRequests() {
             <Tabs tabs={TABS} value={tab} onChange={(t) => setTab(t as Pestana)} />
           </div>
 
-          {tab !== "Pendientes" && <History tab={tab} />}
+          {tab !== "Pendientes" && <History key={tab} tab={tab} />}
 
           <ErrorNote>{error}</ErrorNote>
 

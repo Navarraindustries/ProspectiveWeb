@@ -96,7 +96,8 @@ const PATHS = {
   STUDIES: "M2.5 2.5h11v11h-11zM2.5 6h11M6 6v7.5",
   ORDER: "M4 2.5h8v11H4zM6.5 2.5v-1h3v1M6 7h4M6 10h2.5",
   WORKSHOP: "M13 3.5a3.2 3.2 0 01-4.3 3.8L4 12a1.4 1.4 0 01-2-2l4.7-4.7A3.2 3.2 0 0110.5 1.5L8.7 3.3l.8 1.9 1.9.8z",
-  PENDING: `${c(8, 8, 6)}M8 4.5V8l2.2 1.5`,
+  // Reloj de arena: «cuenta por revisar», distinto del reloj de WAIT (espera de una tarea).
+  PENDING: "M4 2.5h8M4 13.5h8M4.5 2.5c0 3 3.5 3.5 3.5 5.5S4.5 10.5 4.5 13.5M11.5 2.5c0 3-3.5 3.5-3.5 5.5s3.5 2.5 3.5 5.5",
   SHARE: `${c(4, 8, 1.7)}${c(12, 3.8, 1.7)}${c(12, 12.2, 1.7)}M5.5 7.1l5-2.4M5.5 8.9l5 2.4`,
   RESUME: "M4.5 3l8 5-8 5z",
   OPEN: "M9 2.5h4.5V7M13.5 2.5l-6 6M11 9.5v4H2.5V5h4",

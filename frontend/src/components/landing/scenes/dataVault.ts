@@ -12,13 +12,14 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandColor } from "./brandColor";
 
 export const dataVaultScene: SceneFactory = ({ scene, pointer }) => {
   const mainGroup = new THREE.Group();
   scene.add(mainGroup);
 
   scene.add(new THREE.AmbientLight(0x091c33, 2.5));
-  const cyanLight = new THREE.DirectionalLight(0x00f0ff, 3.2);
+  const cyanLight = new THREE.DirectionalLight(brandColor(), 3.2);
   cyanLight.position.set(6, 6, 6);
   scene.add(cyanLight);
   const blueLight = new THREE.DirectionalLight(0x38bdf8, 2.5);
@@ -32,7 +33,7 @@ export const dataVaultScene: SceneFactory = ({ scene, pointer }) => {
   vault.add(new THREE.Mesh(
     new THREE.CylinderGeometry(1.2, 1.2, 2.6, 32, 1, true),
     new THREE.MeshBasicMaterial({
-      color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.22, side: THREE.DoubleSide })));
+      color: brandColor(), wireframe: true, transparent: true, opacity: 0.22, side: THREE.DoubleSide })));
 
   vault.add(new THREE.Mesh(
     new THREE.CylinderGeometry(0.9, 0.9, 2.8, 32),
@@ -42,7 +43,7 @@ export const dataVaultScene: SceneFactory = ({ scene, pointer }) => {
 
   // Anillos de cifrado, cada uno con sus bloques y su plano de giro
   const RADII = [1.6, 2.1, 2.6];
-  const COLORS = [0x00f0ff, 0x38bdf8, 0x0ea5e9];
+  const COLORS = [brandColor(), 0x38bdf8, 0x0ea5e9];
   const rings = RADII.map((radius, r) => {
     const g = new THREE.Group();
     const ring = new THREE.Mesh(
@@ -53,7 +54,7 @@ export const dataVaultScene: SceneFactory = ({ scene, pointer }) => {
 
     const blocks = 8 + r * 4;
     const blockGeom = new THREE.BoxGeometry(0.12, 0.08, 0.12);
-    const blockMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+    const blockMat = new THREE.MeshBasicMaterial({ color: brandColor() });
     for (let b = 0; b < blocks; b++) {
       const angle = (b / blocks) * Math.PI * 2;
       const block = new THREE.Mesh(blockGeom, blockMat);
@@ -71,7 +72,7 @@ export const dataVaultScene: SceneFactory = ({ scene, pointer }) => {
   const shieldGeom = new THREE.PlaneGeometry(0.7, 0.45);
   const shieldMat = new THREE.MeshBasicMaterial({
     color: 0x112d4a, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
-  const shieldEdgeMat = new THREE.LineBasicMaterial({ color: 0x00f0ff });
+  const shieldEdgeMat = new THREE.LineBasicMaterial({ color: brandColor() });
   const shields = Array.from({ length: SHIELDS }, (_, s) => {
     const g = new THREE.Group();
     g.add(new THREE.Mesh(shieldGeom, shieldMat));
@@ -91,7 +92,7 @@ export const dataVaultScene: SceneFactory = ({ scene, pointer }) => {
   }
   pGeom.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
   mainGroup.add(new THREE.Points(pGeom, new THREE.PointsMaterial({
-    color: 0x00f0ff, size: 0.05, transparent: true, opacity: 0.65 })));
+    color: brandColor(), size: 0.05, transparent: true, opacity: 0.65 })));
 
   return (t) => {
     mainGroup.rotation.y = t * 0.2 + pointer.x * 0.45;

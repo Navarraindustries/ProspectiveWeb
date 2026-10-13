@@ -10,13 +10,14 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandColor } from "./brandColor";
 
 export const endovascularScene: SceneFactory = ({ scene, pointer }) => {
   const root = new THREE.Group();
   scene.add(root);
 
   scene.add(new THREE.AmbientLight(0x0f2338, 2.5));
-  const light1 = new THREE.PointLight(0x00f0ff, 3, 20);
+  const light1 = new THREE.PointLight(brandColor(), 3, 20);
   light1.position.set(4, 5, 4);
   scene.add(light1);
   const light2 = new THREE.PointLight(0x38bdf8, 2, 20);
@@ -36,7 +37,7 @@ export const endovascularScene: SceneFactory = ({ scene, pointer }) => {
   for (let i = -3; i <= 3; i += 0.75) {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(1.59, 1.61, 32),
-      new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.18, side: THREE.DoubleSide }));
+      new THREE.MeshBasicMaterial({ color: brandColor(), transparent: true, opacity: 0.18, side: THREE.DoubleSide }));
     ring.position.set(0, i, 0);
     ring.rotation.x = Math.PI / 2;
     vessel.add(ring);
@@ -49,7 +50,7 @@ export const endovascularScene: SceneFactory = ({ scene, pointer }) => {
   const strandMatA = new THREE.MeshStandardMaterial({
     color: 0x38bdf8, metalness: 0.85, roughness: 0.25, emissive: 0x033055 });
   const strandMatB = new THREE.MeshStandardMaterial({
-    color: 0x00f0ff, metalness: 0.9, roughness: 0.2, emissive: 0x04466b });
+    color: brandColor(), metalness: 0.9, roughness: 0.2, emissive: 0x04466b });
 
   const STRANDS = 14, R = 1.55, H = 5.2, TURNS = 3.5, STEPS = 90;
   for (let s = 0; s < STRANDS; s++) {
@@ -106,7 +107,7 @@ export const endovascularScene: SceneFactory = ({ scene, pointer }) => {
   }
   pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
   vessel.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
-    color: 0x00f0ff, size: 0.08, transparent: true, opacity: 0.7 })));
+    color: brandColor(), size: 0.08, transparent: true, opacity: 0.7 })));
 
   return (t) => {
     root.rotation.y = t * 0.35 + pointer.x * 0.6;

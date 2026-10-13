@@ -11,6 +11,7 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandRgba } from "./brandColor";
 
 /** Textura radial para que cada vóxel se lea como un punto de luz, no un cuadro. */
 function glowSprite(): THREE.CanvasTexture {
@@ -19,7 +20,7 @@ function glowSprite(): THREE.CanvasTexture {
   const ctx = canvas.getContext("2d")!;
   const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
   grad.addColorStop(0, "rgba(255,255,255,1)");
-  grad.addColorStop(0.3, "rgba(0,240,255,0.8)");
+  grad.addColorStop(0.3, brandRgba(0.8));
   grad.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 64, 64);

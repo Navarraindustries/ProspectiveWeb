@@ -9,6 +9,7 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandColor } from "./brandColor";
 
 export const morphometryScene: SceneFactory = ({ scene, pointer }) => {
   const mainGroup = new THREE.Group();
@@ -16,7 +17,7 @@ export const morphometryScene: SceneFactory = ({ scene, pointer }) => {
 
   // Iluminación clínica de contraste
   scene.add(new THREE.AmbientLight(0x0a1c30, 2.5));
-  const dirLight1 = new THREE.DirectionalLight(0x00f0ff, 3.2);
+  const dirLight1 = new THREE.DirectionalLight(brandColor(), 3.2);
   dirLight1.position.set(6, 8, 7);
   scene.add(dirLight1);
   const dirLight2 = new THREE.DirectionalLight(0xff3366, 2.5);
@@ -46,18 +47,18 @@ export const morphometryScene: SceneFactory = ({ scene, pointer }) => {
   // Malla alámbrica perimetral (lectura de WSS sobre la superficie)
   mainGroup.add(new THREE.LineSegments(
     new THREE.WireframeGeometry(domeGeom),
-    new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.38 }),
+    new THREE.LineBasicMaterial({ color: brandColor(), transparent: true, opacity: 0.38 }),
   ));
 
   // Anillo y disco del plano del cuello
   const neckCurve = new THREE.EllipseCurve(0, 0, 1.05, 0.9, 0, 2 * Math.PI, false, 0);
   const neckGeom = new THREE.BufferGeometry().setFromPoints(
     neckCurve.getPoints(50).map((p) => new THREE.Vector3(p.x, -1.75, p.y)));
-  mainGroup.add(new THREE.LineLoop(neckGeom, new THREE.LineBasicMaterial({ color: 0x00f0ff })));
+  mainGroup.add(new THREE.LineLoop(neckGeom, new THREE.LineBasicMaterial({ color: brandColor() })));
 
   const neckDisc = new THREE.Mesh(
     new THREE.CircleGeometry(1.0, 32),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide, transparent: true, opacity: 0.25 }));
+    new THREE.MeshBasicMaterial({ color: brandColor(), side: THREE.DoubleSide, transparent: true, opacity: 0.25 }));
   neckDisc.rotation.x = Math.PI / 2;
   neckDisc.position.y = -1.75;
   mainGroup.add(neckDisc);
@@ -100,7 +101,7 @@ export const morphometryScene: SceneFactory = ({ scene, pointer }) => {
     const tangent = new THREE.Vector3(-dir.z, dir.y * 0.5, dir.x).normalize();
     // Carmesí donde el cizallamiento es alto; cian en el resto.
     const highStress = dir.y > 0.2 && dir.x > 0.0;
-    const col = highStress ? 0xff3366 : (a % 2 === 0 ? 0x00f0ff : 0x38bdf8);
+    const col = highStress ? 0xff3366 : (a % 2 === 0 ? brandColor() : 0x38bdf8);
 
     const arrow = new THREE.ArrowHelper(tangent, origin, 0.65, col, 0.18, 0.1);
     const lineMat = arrow.line.material as THREE.LineBasicMaterial;
@@ -111,7 +112,7 @@ export const morphometryScene: SceneFactory = ({ scene, pointer }) => {
   }
 
   // Retícula estereotáxica de referencia
-  const grid = new THREE.GridHelper(5, 10, 0x00f0ff, 0x112d4a);
+  const grid = new THREE.GridHelper(5, 10, brandColor(), 0x112d4a);
   grid.position.y = -2.4;
   const gridMat = grid.material as THREE.LineBasicMaterial;
   gridMat.transparent = true;

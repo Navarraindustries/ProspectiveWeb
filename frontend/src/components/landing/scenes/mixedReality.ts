@@ -9,13 +9,14 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandColor } from "./brandColor";
 
 export const mixedRealityScene: SceneFactory = ({ scene, pointer }) => {
   const arGroup = new THREE.Group();
   scene.add(arGroup);
 
   scene.add(new THREE.AmbientLight(0x071526, 2.5));
-  const lightCyan = new THREE.DirectionalLight(0x00f0ff, 3.8);
+  const lightCyan = new THREE.DirectionalLight(brandColor(), 3.8);
   lightCyan.position.set(5, 6, 6);
   scene.add(lightCyan);
   const lightMagenta = new THREE.PointLight(0xff3366, 2.8, 20);
@@ -25,7 +26,7 @@ export const mixedRealityScene: SceneFactory = ({ scene, pointer }) => {
   // Matriz estereotáxica del cráneo
   arGroup.add(new THREE.Mesh(
     new THREE.IcosahedronGeometry(2.3, 3),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.16 })));
+    new THREE.MeshBasicMaterial({ color: brandColor(), wireframe: true, transparent: true, opacity: 0.16 })));
 
   // Ventana de craneotomía: anillo de resección orientado hacia el centro
   const craniotomyRing = new THREE.Mesh(
@@ -37,7 +38,7 @@ export const mixedRealityScene: SceneFactory = ({ scene, pointer }) => {
 
   // Cono del proyector sobre la ventana
   const beamMat = new THREE.MeshBasicMaterial({
-    color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.22, side: THREE.DoubleSide });
+    color: brandColor(), wireframe: true, transparent: true, opacity: 0.22, side: THREE.DoubleSide });
   const arBeam = new THREE.Mesh(new THREE.ConeGeometry(1.04, 2.2, 32, 1, true), beamMat);
   arBeam.position.set(1.4, 0.6, 1.4);
   arBeam.lookAt(0, 0, 0);
@@ -73,9 +74,9 @@ export const mixedRealityScene: SceneFactory = ({ scene, pointer }) => {
     const g = new THREE.Group();
     g.position.set(x, y, z);
     g.add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0x00f0ff })));
+      new THREE.MeshBasicMaterial({ color: brandColor() })));
     g.add(new THREE.Mesh(new THREE.RingGeometry(0.12, 0.15, 16),
-      new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide, transparent: true, opacity: 0.7 })));
+      new THREE.MeshBasicMaterial({ color: brandColor(), side: THREE.DoubleSide, transparent: true, opacity: 0.7 })));
     g.add(new THREE.Mesh(new THREE.RingGeometry(0.20, 0.22, 16),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })));
     trackingGroup.add(g);
@@ -88,7 +89,7 @@ export const mixedRealityScene: SceneFactory = ({ scene, pointer }) => {
   for (let i = 0; i < COUNT * 3; i++) pPos[i] = (Math.random() - 0.5) * 6;
   pGeom.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
   arGroup.add(new THREE.Points(pGeom, new THREE.PointsMaterial({
-    color: 0x00f0ff, size: 0.05, transparent: true, opacity: 0.6 })));
+    color: brandColor(), size: 0.05, transparent: true, opacity: 0.6 })));
 
   return (t) => {
     arGroup.rotation.y = t * 0.2 + pointer.x * 0.45;

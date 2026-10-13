@@ -13,6 +13,7 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandColor } from "./brandColor";
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
@@ -21,7 +22,7 @@ export const stlPrintingScene: SceneFactory = ({ scene, pointer }) => {
   scene.add(root);
 
   scene.add(new THREE.AmbientLight(0x0a1e35, 2.5));
-  const lightTop = new THREE.DirectionalLight(0x00f0ff, 3.5);
+  const lightTop = new THREE.DirectionalLight(brandColor(), 3.5);
   lightTop.position.set(4, 6, 5);
   scene.add(lightTop);
   const lightSide = new THREE.DirectionalLight(0x38bdf8, 2.0);
@@ -36,7 +37,7 @@ export const stlPrintingScene: SceneFactory = ({ scene, pointer }) => {
   plate.position.y = -2.2;
   root.add(plate);
 
-  const grid = new THREE.GridHelper(4.0, 16, 0x00f0ff, 0x1d3d63);
+  const grid = new THREE.GridHelper(4.0, 16, brandColor(), 0x1d3d63);
   grid.position.y = -2.12;
   const gridMat = grid.material as THREE.LineBasicMaterial;
   gridMat.transparent = true;
@@ -49,11 +50,11 @@ export const stlPrintingScene: SceneFactory = ({ scene, pointer }) => {
 
   const laserRing = new THREE.Mesh(
     new THREE.RingGeometry(1.8, 1.85, 48),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+    new THREE.MeshBasicMaterial({ color: brandColor(), side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
   laserRing.rotation.x = Math.PI / 2;
   laserFrame.add(laserRing);
 
-  const crossMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.4 });
+  const crossMat = new THREE.LineBasicMaterial({ color: brandColor(), transparent: true, opacity: 0.4 });
   laserFrame.add(new THREE.Line(
     new THREE.BufferGeometry().setFromPoints([V(-1.8, 0, 0), V(1.8, 0, 0)]), crossMat));
   laserFrame.add(new THREE.Line(
@@ -84,7 +85,7 @@ export const stlPrintingScene: SceneFactory = ({ scene, pointer }) => {
 
   // Contorno de las facetas sobre la pieza
   const wireMat = new THREE.MeshBasicMaterial({
-    color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.3 });
+    color: brandColor(), wireframe: true, transparent: true, opacity: 0.3 });
   const sacWire = new THREE.Mesh(sacGeom, wireMat);
   sacWire.position.set(0.1, 0.2, 0.25);
   stlGroup.add(new THREE.Mesh(geomL, wireMat), new THREE.Mesh(geomR, wireMat), sacWire);
@@ -100,7 +101,7 @@ export const stlPrintingScene: SceneFactory = ({ scene, pointer }) => {
   }
   pGeom.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
   laserFrame.add(new THREE.Points(pGeom, new THREE.PointsMaterial({
-    color: 0x00f0ff, size: 0.06, transparent: true, opacity: 0.8,
+    color: brandColor(), size: 0.06, transparent: true, opacity: 0.8,
     blending: THREE.AdditiveBlending })));
 
   return (t) => {

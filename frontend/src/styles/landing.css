@@ -70,7 +70,7 @@
 }
 
 /* ---- Panel de instrumental (elevación 2) --------------------------------
-   Vidrio translúcido sobre el fondo, borde cian tenue, desenfoque detrás. */
+   Vidrio translúcido sobre el fondo, borde azul tenue, desenfoque detrás. */
 .landing-stitch .stitch-glass {
   background: color-mix(in srgb, var(--card) 65%, transparent);
   border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
@@ -123,7 +123,7 @@
   height: 340px;
   overflow: hidden;
   pointer-events: none;
-  /* Halo cian tenue desde el centro: asienta la escena sobre el panel. */
+  /* Halo azul tenue desde el centro: asienta la escena sobre el panel. */
   background:
     radial-gradient(60% 70% at 50% 50%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 70%),
     color-mix(in srgb, var(--card) 55%, transparent);
@@ -165,7 +165,7 @@
   -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 75%);
 }
 
-/* ---- CTA primaria: cian sólido con resplandor especular ---------------- */
+/* ---- CTA primaria: azul sólido con resplandor especular ---------------- */
 .landing-stitch .stitch-cta {
   font-family: var(--font-display);
   font-weight: 700;
@@ -177,7 +177,7 @@
   box-shadow: 0 0 16px color-mix(in srgb, var(--primary) 60%, transparent);
 }
 
-/* Secundaria / fantasma: relleno de vidrio y filo cian. */
+/* Secundaria / fantasma: relleno de vidrio y filo azul. */
 .landing-stitch .stitch-ghost {
   background: color-mix(in srgb, var(--card) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);

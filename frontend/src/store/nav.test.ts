@@ -35,6 +35,12 @@ describe("screen ↔ URL", () => {
     expect(screenFromPath("/app/")).toBe("patients");
   });
 
+  it("reconoce la ruta antigua /app/solicitudes como «Cuentas pendientes» (F2)", () => {
+    // Marcadores y enlaces enviados antes del cambio de nombre siguen llegando.
+    expect(screenFromPath("/app/solicitudes")).toBe("pending");
+    expect(SCREEN_PATH.pending).toBe("/app/cuentas-pendientes");
+  });
+
   it("falls back to the patient list for an unknown path", () => {
     // A stale bookmark should land somewhere usable, not on a blank screen.
     expect(screenFromPath("/app/no-existe")).toBe("patients");

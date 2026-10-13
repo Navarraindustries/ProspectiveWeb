@@ -19,14 +19,24 @@ export const SCREEN_PATH: Record<Screen, string> = {
   orders: "/app/pedidos",
   workshops: "/app/talleres",
   workspace: "/app/sesion",
-  pending: "/app/solicitudes",
+  pending: "/app/cuentas-pendientes",
   users: "/app/usuarios",
   audit: "/app/auditoria",
 };
 
-const PATH_SCREEN: Record<string, Screen> = Object.fromEntries(
-  Object.entries(SCREEN_PATH).map(([s, p]) => [p, s as Screen]),
-) as Record<string, Screen>;
+/* Rutas antiguas que siguen en marcadores y enlaces enviados. Se reconocen
+   aquí; el Router, al ver que el camino no es el de la pantalla, lo corrige con
+   `replace` (F2: «Solicitudes» pasó a llamarse «Cuentas pendientes»). */
+const LEGACY_PATH: Record<string, Screen> = {
+  "/app/solicitudes": "pending",
+};
+
+const PATH_SCREEN: Record<string, Screen> = {
+  ...LEGACY_PATH,
+  ...(Object.fromEntries(
+    Object.entries(SCREEN_PATH).map(([s, p]) => [p, s as Screen]),
+  ) as Record<string, Screen>),
+};
 
 /** Which screen a pathname names; `patients` is the landing screen of /app. */
 export function screenFromPath(pathname: string): Screen {

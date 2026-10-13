@@ -72,3 +72,11 @@ describe("errores del servidor en el cambio (F1-51)", () => {
     expect(screen.queryByText("Error 500")).toBeNull();
   });
 });
+
+describe("de dónde viene la contraseña que hay que cambiar (F1b-4)", () => {
+  it("no afirma que sea la del alta: también llega así tras un restablecimiento", () => {
+    render(<ForcePasswordChange />);
+    expect(screen.getByText(/asignó un administrador/)).toBeInTheDocument();
+    expect(screen.queryByText(/se creó/)).toBeNull();
+  });
+});

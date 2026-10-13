@@ -50,13 +50,21 @@ def stored_decision(session_id: str) -> TreatmentDecisionResult | None:
     Lleva la decisión del equipo (`team`) leída aparte, así que reanudar la
     devuelve sin más (routers/session_state.py usa esta función)."""
     raw = read_state(session_id, RESULT_KEY, "")
-    if not raw:
-        return None
-    try:
-        result = TreatmentDecisionResult.model_validate_json(raw)
-    except ValueError:
-        logger.warning("Decisión guardada ilegible en %s", session_id)
-        return None
+    if raw:
+        try:
+            result = TreatmentDecisionResult.model_validate_json(raw)
+        except ValueError:
+            logger.warning("Decisión guardada ilegible en %s", session_id)
+            return None
+    else:
+        # F1b-1: un guardado anterior a F1-27 no tiene el blob, pero sí las
+        # claves sueltas que escribe `decide` (las que lee el informe). Con
+        # ellas se rehace la decisión y se guarda el blob para la próxima vez;
+        # sin ellas, no hubo decisión.
+        result = _decision_from_split_keys(session_id)
+        if result is None:
+            return None
+        write_state(session_id, RESULT_KEY, result.model_dump_json())
     result.team = stored_team(session_id)
     # Los textos de una decisión guardada antes de F1-225/F1-227 se leen con
     # los vigentes: reanudar y GET /treatment-decision no enseñan «Ya no vota…».
@@ -67,6 +75,53 @@ def stored_decision(session_id: str) -> TreatmentDecisionResult | None:
     result.clip_factors = [modern_factor_name(n) for n in result.clip_factors]
     result.endo_factors = [modern_factor_name(n) for n in result.endo_factors]
     return result
+
+
+def _decision_from_split_keys(session_id: str) -> TreatmentDecisionResult | None:
+    """Rehace la decisión desde `treatment.recommendation`, `factors_json`,
+    `notes_json`, `endovascular_json`, `perforators_json` y `jsdb_json`.
+
+    Los factores viajan sin `detail` (nunca se guardó): queda vacío. La
+    cobertura y los datos que faltaban tampoco se guardaban: se asume el
+    100 % y ninguno, que es lo que esa pantalla enseñaba entonces."""
+    recommendation = read_state(session_id, "treatment.recommendation", "")
+    key = read_state(session_id, "treatment.recommendation_key", "")
+    confidence = read_state(session_id, "treatment.confidence", "")
+    if not (recommendation and key and confidence):
+        return None
+
+    def _json(k: str, default):
+        raw = read_state(session_id, k, "")
+        if not raw:
+            return default
+        try:
+            return json.loads(raw)
+        except ValueError:
+            logger.warning("Clave %s ilegible en %s", k, session_id)
+            return default
+
+    factors = [
+        {"name": f.get("name", ""), "detail": "", "direction": f.get("direction", "neutral"),
+         "source": f.get("source", ""), "votes": bool(f.get("votes", True))}
+        for f in _json("treatment.factors_json", []) if isinstance(f, dict)
+    ]
+    data = {
+        "recommendation": recommendation,
+        "recommendation_key": key,
+        "confidence": confidence,
+        "factors": factors,
+        "clip_factors": [f["name"] for f in factors if f["direction"] == "clip"],
+        "endo_factors": [f["name"] for f in factors if f["direction"] == "endo"],
+        "notes": [n for n in _json("treatment.notes_json", []) if isinstance(n, str)],
+        "endovascular": _json("treatment.endovascular_json", None) or None,
+        "perforators": _json("treatment.perforators_json", None) or None,
+        "jsdb": _json("treatment.jsdb_json", None) or None,
+    }
+    try:
+        return TreatmentDecisionResult.model_validate(data)
+    except ValueError as exc:
+        logger.warning("Decisión antigua irreconstruible en %s: %s", session_id, exc)
+        return None
 
 
 def stored_inputs(session_id: str) -> TreatmentDecisionRequest | None:

@@ -582,3 +582,64 @@ class TestGetDevuelveLosTextosVigentes:
         assert "Ya no" not in texto and "Aspect Ratio" not in texto
         factores = {f["name"]: f["source"] for f in got.json()["factors"]}
         assert factores[nombre_nuevo] == _SOURCE["ar"]
+
+
+# ── 7. Un guardado anterior a F1a reanuda con su decisión ─────────────────── #
+
+class TestAnOldSaveStillBringsItsDecisionBack:
+    """F1b-1: antes de F1-27 la decisión se guardaba solo en claves sueltas
+    (`treatment.recommendation`, `factors_json`, `notes_json`…). `stored_decision`
+    leía solo el blob nuevo, así que esos guardados reanudaban sin decisión y
+    sin decirlo. Las claves sueltas bastan para rehacer la pantalla."""
+
+    def _session(self) -> str:
+        sid = create_session()
+        for k, v in (("morpho.neck_mm", "2.0"), ("morpho.ar", "1.8"),
+                     ("morpho.dnr", "2.2"), ("morpho.max_diameter_mm", "8.0"),
+                     ("morpho.bf", "1.9"), ("morpho.ui", "0.08")):
+            write_state(sid, k, v)
+        write_state(sid, "phases.json", json.dumps(HIGH))
+        r = client.post("/api/treatment-decision", json={
+            "session_id": sid, "location": LOCATION_ACA_ACOA,
+            "is_ruptured": False, "patient_age": 45, "has_comorbidities": False})
+        assert r.status_code == 200, r.text
+        return sid
+
+    def test_without_the_blob_the_split_keys_rebuild_the_decision(self):
+        from routers.treatment import RESULT_KEY, stored_decision
+        sid = self._session()
+        fresh = stored_decision(sid)
+        assert fresh is not None
+        write_state(sid, RESULT_KEY, "")          # como un guardado antiguo
+        old = stored_decision(sid)
+        assert old is not None, "las claves sueltas bastan para rehacer la decisión"
+        assert old.recommendation_key == fresh.recommendation_key
+        assert old.recommendation == fresh.recommendation
+        assert old.confidence == fresh.confidence
+        assert [f.name for f in old.factors] == [f.name for f in fresh.factors]
+        assert old.notes == fresh.notes
+        assert old.clip_factors == fresh.clip_factors
+        assert old.endo_factors == fresh.endo_factors
+        assert old.jsdb == fresh.jsdb
+        assert old.endovascular == fresh.endovascular
+        assert old.perforators == fresh.perforators
+
+    def test_the_rebuilt_decision_is_written_back_once(self):
+        from routers.treatment import RESULT_KEY, stored_decision
+        sid = self._session()
+        write_state(sid, RESULT_KEY, "")
+        stored_decision(sid)
+        assert read_state(sid, RESULT_KEY, ""), "se guarda el blob para no rehacerlo cada vez"
+
+    def test_a_session_that_never_decided_has_no_decision(self):
+        from routers.treatment import stored_decision
+        assert stored_decision(create_session()) is None
+
+    def test_the_rebuilt_factors_carry_the_current_texts(self):
+        from routers.treatment import RESULT_KEY, stored_decision
+        sid = self._session()
+        write_state(sid, RESULT_KEY, "")
+        old = stored_decision(sid)
+        assert old is not None
+        for f in old.factors:
+            assert "Ya no" not in f.name and "Ya no" not in f.source

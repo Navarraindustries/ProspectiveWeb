@@ -30,6 +30,15 @@ describe("tokens de la identidad A", () => {
     expect(r).toMatch(/--destructive:\s*#FF5A5F/i);
     expect(r).toMatch(/--warning:\s*#F5B942/i);
   });
+  it("el oscuro declara color-scheme: dark y el claro color-scheme: light", () => {
+    // Sin esto los controles nativos y las barras de desplazamiento salen con el estilo claro del navegador.
+    expect(block(DARK)).toMatch(/color-scheme:\s*dark;/);
+    expect(block('[data-theme="light"]')).toMatch(/color-scheme:\s*light;/);
+  });
+  it("la sombra oscura también se declara bajo data-theme=dark (la landing la fija)", () => {
+    const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8").replace(/\r\n/g, "\n");
+    expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-lg:/);
+  });
   it("las fuentes son Geist y Geist Mono, autoalojadas", () => {
     const fonts = readFileSync(join(__dirname, "tokens/fonts.css"), "utf8");
     expect(fonts).toMatch(/font-family:\s*"Geist"/);

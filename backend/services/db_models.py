@@ -43,6 +43,9 @@ class User(Base):
     # la cambie no puede hacer nada más. Ver auth_service.require_user.
     must_change_password = Column(Boolean, nullable=False, default=False)
     created_at      = Column(DateTime, nullable=False, default=func.now())
+    # Cuándo se rechazó la solicitud (F2-51): la pestaña «Rechazadas» la muestra.
+    # Nulo si nunca se rechazó; una desactivación manual no lo rellena.
+    rejected_at     = Column(DateTime, nullable=True)
 
     # Professional profile (filled during self-registration, reviewed by admin)
     national_id     = Column(String(64),  nullable=False, default="")

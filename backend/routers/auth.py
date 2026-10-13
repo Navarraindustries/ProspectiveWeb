@@ -5,9 +5,9 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -379,6 +379,9 @@ def _user_to_admin(u: User) -> UserAdminInfo:
         has_photo=bool(u.photo_path),
         has_cv=bool(u.cv_path),
         created_at=_utc_iso(u.created_at),
+        university=u.university,
+        position=u.position,
+        rejected_at=_utc_iso(u.rejected_at) if u.rejected_at else None,
     )
 
 
@@ -386,12 +389,21 @@ def _user_to_admin(u: User) -> UserAdminInfo:
     "/users",
     response_model=list[UserAdminInfo],
     summary="List all users (admin)",
+    description=(
+        "`status=pending|approved|rejected` filtra por estado de la cuenta "
+        "(`approved` = activas). Sin filtro devuelve todas."
+    ),
 )
 async def list_users(
     _admin: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
+    status_filter: Annotated[Literal["pending", "approved", "rejected"] | None, Query(alias="status")] = None,
 ) -> list[UserAdminInfo]:
-    users = db.query(User).order_by(User.created_at.desc()).all()
+    q = db.query(User)
+    if status_filter is not None:
+        # «approved» es el estado interno «active».
+        q = q.filter(User.status == (User.STATUS_ACTIVE if status_filter == "approved" else status_filter))
+    users = q.order_by(User.created_at.desc()).all()
     return [_user_to_admin(u) for u in users]
 
 
@@ -496,12 +508,41 @@ async def update_user(
         user.full_name = req.full_name.strip()
     if req.role is not None:
         user.role = req.role
+    # Los campos profesionales del alta también se corrigen después (F2-45).
+    if req.specialty is not None:
+        user.specialty = req.specialty.strip()
+    if req.hospital is not None:
+        user.hospital = req.hospital.strip()
+    if req.university is not None:
+        user.university = req.university.strip()
+    if req.position is not None:
+        user.position = req.position.strip()
     if req.is_active is not None:
         user.is_active = req.is_active
         user.status = User.STATUS_ACTIVE if req.is_active else User.STATUS_REJECTED
     db.commit()
     db.refresh(user)
     logger.info("User updated by admin — id=%d role=%s active=%s", user.id, user.role, user.is_active)
+    return _user_to_admin(user)
+
+
+@router.post(
+    "/users/{user_id}/photo",
+    response_model=UserAdminInfo,
+    summary="Replace a user's profile photo (admin)",
+)
+async def set_user_photo(
+    user_id: int,
+    _admin: Annotated[User, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+    photo: UploadFile = File(...),
+) -> UserAdminInfo:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
+    user.photo_path = await _save_user_upload(photo, "photos", user.id)
+    db.commit()
+    db.refresh(user)
     return _user_to_admin(user)
 
 

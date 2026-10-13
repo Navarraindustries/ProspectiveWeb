@@ -718,6 +718,20 @@
     "title": "Body_measure_before_import_api_clip_library_measure_post",
     "type": "object"
    },
+   "Body_set_user_photo_api_auth_users__user_id__photo_post": {
+    "properties": {
+     "photo": {
+      "contentMediaType": "application/octet-stream",
+      "title": "Photo",
+      "type": "string"
+     }
+    },
+    "required": [
+     "photo"
+    ],
+    "title": "Body_set_user_photo_api_auth_users__user_id__photo_post",
+    "type": "object"
+   },
    "Body_signup_api_auth_signup_post": {
     "properties": {
      "cv": {
@@ -10748,6 +10762,23 @@
       "title": "Is Active",
       "type": "boolean"
      },
+     "position": {
+      "default": "",
+      "title": "Position",
+      "type": "string"
+     },
+     "rejected_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "ISO UTC; solo si la solicitud se rechazó",
+      "title": "Rejected At"
+     },
      "role": {
       "enum": [
        "admin",
@@ -10767,6 +10798,11 @@
       "default": "",
       "description": "active | pending | rejected",
       "title": "Status",
+      "type": "string"
+     },
+     "university": {
+      "default": "",
+      "title": "University",
       "type": "string"
      },
      "username": {
@@ -10891,6 +10927,17 @@
       ],
       "title": "Full Name"
      },
+     "hospital": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Hospital"
+     },
      "is_active": {
       "anyOf": [
        {
@@ -10901,6 +10948,17 @@
        }
       ],
       "title": "Is Active"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
      },
      "role": {
       "anyOf": [
@@ -10918,6 +10976,28 @@
        }
       ],
       "title": "Role"
+     },
+     "specialty": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Specialty"
+     },
+     "university": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "University"
      }
     },
     "title": "UserUpdate",
@@ -12059,7 +12139,31 @@
   },
   "/api/auth/users": {
    "get": {
+    "description": "`status=pending|approved|rejected` filtra por estado de la cuenta (`approved` = activas). Sin filtro devuelve todas.",
     "operationId": "list_users_api_auth_users_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "enum": [
+          "pending",
+          "approved",
+          "rejected"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "content": {
@@ -12074,6 +12178,16 @@
        }
       },
       "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
      }
     },
     "security": [
@@ -12269,6 +12383,63 @@
      }
     ],
     "summary": "Update a user (admin)",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/auth/users/{user_id}/photo": {
+   "post": {
+    "operationId": "set_user_photo_api_auth_users__user_id__photo_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_set_user_photo_api_auth_users__user_id__photo_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserAdminInfo"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Replace a user's profile photo (admin)",
     "tags": [
      "auth"
     ]

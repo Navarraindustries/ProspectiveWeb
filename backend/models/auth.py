@@ -131,6 +131,9 @@ class UserAdminInfo(BaseModel):
     has_photo: bool = False
     has_cv: bool = False
     created_at: str = ""
+    university: str = ""
+    position: str = ""
+    rejected_at: str | None = Field(None, description="ISO UTC; solo si la solicitud se rechazó")
 
 
 class UserUpdate(BaseModel):
@@ -139,3 +142,7 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+    specialty: str | None = None
+    hospital: str | None = None
+    university: str | None = None
+    position: str | None = None

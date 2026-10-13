@@ -328,7 +328,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List all users (admin) */
+        /**
+         * List all users (admin)
+         * @description `status=pending|approved|rejected` filtra por estado de la cuenta (`approved` = activas). Sin filtro devuelve todas.
+         */
         get: operations["list_users_api_auth_users_get"];
         put?: never;
         /**
@@ -375,6 +378,23 @@ export interface paths {
         post?: never;
         /** Delete a user (admin) */
         delete: operations["delete_user_api_auth_users__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/users/{user_id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace a user's profile photo (admin) */
+        post: operations["set_user_photo_api_auth_users__user_id__photo_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3338,6 +3358,11 @@ export interface components {
         Body_measure_before_import_api_clip_library_measure_post: {
             /** File */
             file: string;
+        };
+        /** Body_set_user_photo_api_auth_users__user_id__photo_post */
+        Body_set_user_photo_api_auth_users__user_id__photo_post: {
+            /** Photo */
+            photo: string;
         };
         /** Body_signup_api_auth_signup_post */
         Body_signup_api_auth_signup_post: {
@@ -10019,6 +10044,16 @@ export interface components {
              */
             is_active: boolean;
             /**
+             * Position
+             * @default
+             */
+            position: string;
+            /**
+             * Rejected At
+             * @description ISO UTC; solo si la solicitud se rechazó
+             */
+            rejected_at?: string | null;
+            /**
              * Role
              * @enum {string}
              */
@@ -10034,6 +10069,11 @@ export interface components {
              * @default
              */
             status: string;
+            /**
+             * University
+             * @default
+             */
+            university: string;
             /** Username */
             username: string;
         };
@@ -10104,10 +10144,18 @@ export interface components {
         UserUpdate: {
             /** Full Name */
             full_name?: string | null;
+            /** Hospital */
+            hospital?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Position */
+            position?: string | null;
             /** Role */
             role?: ("admin" | "medico" | "residente" | "viewer") | null;
+            /** Specialty */
+            specialty?: string | null;
+            /** University */
+            university?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -10855,7 +10903,9 @@ export interface operations {
     };
     list_users_api_auth_users_get: {
         parameters: {
-            query?: never;
+            query?: {
+                status?: ("pending" | "approved" | "rejected") | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -10869,6 +10919,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserAdminInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -10980,6 +11039,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_user_photo_api_auth_users__user_id__photo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_set_user_photo_api_auth_users__user_id__photo_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAdminInfo"];
+                };
             };
             /** @description Validation Error */
             422: {

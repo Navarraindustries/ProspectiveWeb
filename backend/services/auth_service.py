@@ -209,6 +209,7 @@ def reject_user(db: Session, user_id: int) -> tuple[bool, str]:
         return False, "Usuario no encontrado."
     user.status = User.STATUS_REJECTED
     user.is_active = False
+    user.rejected_at = datetime.now(timezone.utc).replace(tzinfo=None)  # UTC sin zona, como created_at
     db.commit()
     logger.info("User rejected: %s", user.username)
     return True, ""

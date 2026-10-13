@@ -292,6 +292,10 @@ def purge_saved_session(session_id: str) -> None:
     if valid_session_id(session_id):
         try:
             _repoint_marker(session_id).unlink(missing_ok=True)
+            # Las marcas que apuntaban a ella ya no llevan a ningún sitio.
+            for m in SAVES_ROOT.glob("*.reapuntada"):
+                if m.read_text(encoding="utf-8").strip() == session_id:
+                    m.unlink(missing_ok=True)
         except OSError:
             pass
 
@@ -318,6 +322,10 @@ def saved_session_size(session_id: str) -> int:
 def size_of_row(db, ps) -> int:
     """`size_bytes` de una fila; si es nula (fila anterior) la calcula y la guarda."""
     if ps.size_bytes is None:
+        # Carpeta ausente: se devuelve 0 pero no se guarda, para no fijar un
+        # tamaño falso si la carpeta reaparece.
+        if not has_saved_session(ps.session_id):
+            return 0
         ps.size_bytes = saved_session_size(ps.session_id)
         db.commit()
     return ps.size_bytes
@@ -331,8 +339,18 @@ def live_sessions_from(saved_session_id: str) -> list[str]:
     for d in SESSIONS_ROOT.iterdir():
         estado = d / "state.txt"
         if d.is_dir() and estado.is_file():
-            if _read_state_map(estado).get("origin.saved_session_id", "") == saved_session_id:
-                vivas.append(d.name)
+            if d.name == saved_session_id:
+                continue   # la viva que ES esta guardada (guardó sobre su origen)
+            origen = _read_state_map(estado).get("origin.saved_session_id", "")
+            # Si el origen se reapuntó (otra pestaña guardó encima), la viva
+            # sigue apoyándose en la guardada que lo heredó: se sigue la cadena.
+            for _ in range(20):
+                if not origen:
+                    break
+                if origen == saved_session_id:
+                    vivas.append(d.name)
+                    break
+                origen = repointed_to(origen)
     return vivas
 
 

@@ -143,3 +143,20 @@ def test_sesion_suelta_solo_el_administrador():
     sid = _guardada(admin, None)  # sin paciente
     assert m.patch(f"/api/sessions/saved/{sid}", json={"label": "x"}).status_code == 403
     assert admin.delete(f"/api/sessions/saved/{sid}").status_code == 204
+
+
+def test_la_pestana_hermana_con_origen_reapuntado_bloquea_el_borrado():
+    from services.sessions import delete_session
+    uid, m = _medico(); pid = _paciente_de(uid); a = _guardada(m, pid)
+    l1 = m.post(f"/api/sessions/{a}/restore").json()["session_id"]
+    l2 = m.post(f"/api/sessions/{a}/restore").json()["session_id"]
+    # Guardar sobre el origen desde l1: la fila pasa a l1 y A queda reapuntada.
+    r = m.post("/api/sessions/save", json={"session_id": l1, "current_step": 3, "patient_id": pid})
+    assert r.status_code == 200, r.text
+    assert (SAVES_ROOT / f"{a}.reapuntada").read_text(encoding="utf-8").strip() == l1
+    delete_session(l1)
+    r = m.delete(f"/api/sessions/saved/{l1}")
+    assert r.status_code == 409 and (SAVES_ROOT / l1).is_dir()
+    delete_session(l2)
+    assert m.delete(f"/api/sessions/saved/{l1}").status_code == 204
+    assert not (SAVES_ROOT / f"{a}.reapuntada").exists()

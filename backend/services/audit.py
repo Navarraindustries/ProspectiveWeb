@@ -50,6 +50,14 @@ ACT_SAVED_SESSION_RENAMED = "SAVED_SESSION_RENAMED"
 ACT_USER_DELETED = "USER_DELETED"
 # Borrar el DICOM archivado de un caso no se deshace: queda quién y cuántos ficheros.
 ACT_STUDY_DELETED = "STUDY_DELETED"
+# Altas, aprobaciones, rechazos, cambios de rol y (des)activaciones de cuentas (F1-102).
+ACT_USER_SIGNUP_REQUESTED = "USER_SIGNUP_REQUESTED"
+ACT_USER_APPROVED = "USER_APPROVED"
+ACT_USER_REJECTED = "USER_REJECTED"
+ACT_USER_CREATED = "USER_CREATED"
+ACT_USER_ROLE_CHANGED = "USER_ROLE_CHANGED"
+ACT_USER_DEACTIVATED = "USER_DEACTIVATED"
+ACT_USER_REACTIVATED = "USER_REACTIVATED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a

@@ -7,6 +7,8 @@ describe("etiquetaAccion", () => {
     expect(etiquetaAccion("password_change")).toBe("Cambio de contraseña");
     expect(etiquetaAccion("TREATMENT_DECISION")).toBe("Decisión de tratamiento");
     expect(etiquetaAccion("INTEGRITY_CHECK")).toBe("Verificación de integridad");
+    expect(etiquetaAccion("USER_ROLE_CHANGED")).toBe("Rol cambiado");
+    expect(etiquetaAccion("USER_APPROVED")).toBe("Cuenta aprobada");
   });
   it("deja tal cual un código desconocido", () => {
     expect(etiquetaAccion("ALGO_NUEVO")).toBe("ALGO_NUEVO");

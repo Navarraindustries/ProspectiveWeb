@@ -95,6 +95,18 @@ describe("F2 (16)", () => {
     expect((await screen.findAllByText("Ana Pérez")).length).toBeGreaterThan(0);
   });
 
+  it("con el filtro activo, un bloque sin huella muestra «—» y no el nombre", async () => {
+    auditBlocks.mockResolvedValue([bloque({ patient_hash: "" })]);
+    render(<AuditTrail onBack={() => {}} />);
+    await screen.findByText("Inicio de sesión");
+    await screen.findByRole("option", { name: "Ana Pérez · H-7" });
+    fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "7" } });
+    await waitFor(() => expect(auditBlocks).toHaveBeenLastCalledWith({ patientId: 7 }));
+    await screen.findByText("Inicio de sesión");
+    expect(screen.queryByText("Ana Pérez")).toBeNull();
+    expect(screen.getByText("—", { selector: "td" })).toBeTruthy();
+  });
+
   it("un 404 del servidor muestra su detalle", async () => {
     auditBlocks.mockResolvedValueOnce([bloque()]);
     render(<AuditTrail onBack={() => {}} />);

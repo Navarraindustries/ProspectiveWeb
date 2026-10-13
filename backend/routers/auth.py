@@ -245,6 +245,10 @@ async def signup(
     if user is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
 
+    from services.audit import ACT_USER_SIGNUP_REQUESTED, audit_append
+    audit_append(ACT_USER_SIGNUP_REQUESTED, {"username": user.username, "role": user.role},
+                 username=user.username)
+
     # Store the optional profile photo / CV named by the new user's id.
     changed = False
     if photo is not None and photo.filename:
@@ -345,6 +349,9 @@ async def approve(
     ok, err = approve_user(db, user_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err)
+    from services.audit import ACT_USER_APPROVED, audit_append
+    audit_append(ACT_USER_APPROVED, {"target": db.get(User, user_id).username},
+                 username=_admin.username)
     return {"status": "active"}
 
 
@@ -361,6 +368,9 @@ async def reject(
     ok, err = reject_user(db, user_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err)
+    from services.audit import ACT_USER_REJECTED, audit_append
+    audit_append(ACT_USER_REJECTED, {"target": db.get(User, user_id).username},
+                 username=_admin.username)
     return {"status": "rejected"}
 
 
@@ -481,6 +491,9 @@ async def create_user(
         db.commit()
         db.refresh(user)
 
+    from services.audit import ACT_USER_CREATED, audit_append
+    audit_append(ACT_USER_CREATED, {"target": user.username, "role": user.role},
+                 username=_admin.username)
     logger.info("Admin %s created active user %s (role=%s)", _admin.username, user.username, user.role)
     return _user_to_admin(user)
 
@@ -510,6 +523,7 @@ async def update_user(
 
     if req.full_name is not None:
         user.full_name = req.full_name.strip()
+    role_before, active_before = user.role, user.is_active
     if req.role is not None:
         user.role = req.role
     # Los campos profesionales del alta también se corrigen después (F2-45).
@@ -528,6 +542,16 @@ async def update_user(
             user.rejected_at = None
     db.commit()
     db.refresh(user)
+    # Solo lo que cambia de verdad: corregir el nombre no deja bloque (F1-102).
+    from services.audit import (ACT_USER_DEACTIVATED, ACT_USER_REACTIVATED,
+                                ACT_USER_ROLE_CHANGED, audit_append)
+    if user.role != role_before:
+        audit_append(ACT_USER_ROLE_CHANGED,
+                     {"target": user.username, "role_from": role_before, "role_to": user.role},
+                     username=admin.username)
+    if user.is_active != active_before:
+        audit_append(ACT_USER_REACTIVATED if user.is_active else ACT_USER_DEACTIVATED,
+                     {"target": user.username}, username=admin.username)
     logger.info("User updated by admin — id=%d role=%s active=%s", user.id, user.role, user.is_active)
     return _user_to_admin(user)
 

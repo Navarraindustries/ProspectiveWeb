@@ -1,11 +1,9 @@
 /* Signup — professional self-registration. Creates a pending account that an
-   admin must approve. Shares the two-column identity of the Login page: a
-   cinematic brand panel on the left and a theme-aware form panel on the right. */
+   admin must approve. Comparte con «Entrar» el panel de marca y el formulario
+   a dos columnas. */
 
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import logo from "../assets/logo.png";
 import { api } from "../api/client";
 import { serverErrorText } from "../api/errorText";
 import { CONTACTO_ADMIN } from "../lib/contacto";
@@ -13,6 +11,7 @@ import { Button } from "../components/Button";
 import { FileField } from "../components/FileField";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
+import { AuthBrand } from "../components/shell/AuthBrand";
 import { ThemeToggle } from "../components/ThemeToggle";
 
 const SPECIALTIES = [
@@ -45,8 +44,25 @@ const GROUP_LABEL: React.CSSProperties = {
   margin: "22px 0 2px",
 };
 
+/** F2-11: la frase de la aprobación es la misma que en «Entrar». Se escribe aquí
+ *  y no se toma de la respuesta del servidor: el texto es de la interfaz. */
+export const AVISO_SOLICITUD =
+  "Un administrador revisará la solicitud. No recibirás ningún aviso: vuelve a intentar entrar en unos días.";
+
+type Campo = "full_name" | "username" | "password" | "confirm";
+
+/** Un error por campo, calculado a la vez (F1-49): quien se equivoca en varios
+ *  campos los ve todos, cada uno junto al suyo, sin ir de uno en uno. */
+function validar(f: { full_name: string; username: string; password: string; confirm: string }): Partial<Record<Campo, string>> {
+  const e: Partial<Record<Campo, string>> = {};
+  if (!f.full_name.trim()) e.full_name = "El nombre completo es obligatorio.";
+  if (f.username.trim().length < 3) e.username = "El usuario debe tener al menos 3 caracteres.";
+  if (f.password.length < 8) e.password = "La contraseña debe tener al menos 8 caracteres.";
+  if (f.password !== f.confirm) e.confirm = "Las contraseñas no coinciden.";
+  return e;
+}
+
 export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: string) => void }) {
-  const navigate = useNavigate();
   const [form, setForm] = useState({
     full_name: "", national_id: "", professional_id: "",
     specialty: SPECIALTIES[0], university: "", hospital: "",
@@ -57,21 +73,33 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
   const [cv, setCv] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [intentado, setIntentado] = useState(false);
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Los errores de nombre y usuario aparecen al pulsar enviar (un campo vacío no
+  // nace en rojo). Los de contraseña y repetición avisan en vivo en cuanto se
+  // escribe en ellos (F1-47), porque ahí el fallo se ve mientras se teclea.
+  const errores = validar(form);
+  const visible = (c: Campo): string | undefined => {
+    if (!errores[c]) return undefined;
+    if (intentado) return errores[c];
+    if (c === "password") return form.password ? errores[c] : undefined;
+    if (c === "confirm") return form.confirm ? errores[c] : undefined;
+    return undefined;
+  };
+  const props = (c: Campo) => ({ invalid: !!visible(c), hint: visible(c) });
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!form.full_name.trim()) return setError("El nombre completo es obligatorio.");
-    if (form.username.trim().length < 3) return setError("El usuario debe tener al menos 3 caracteres.");
-    if (form.password.length < 8) return setError("La contraseña debe tener al menos 8 caracteres.");
-    if (form.password !== form.confirm) return setError("Las contraseñas no coinciden.");
+    setIntentado(true);
+    if (Object.keys(errores).length > 0) return;
 
     setBusy(true);
     try {
-      const res = await api.signup({
+      await api.signup({
         username: form.username.trim(),
         password: form.password,
         full_name: form.full_name.trim(),
@@ -83,7 +111,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
         position: form.position,
         orcid: form.orcid.trim(),
       }, photo, cv);
-      onDone(res.message);
+      onDone(AVISO_SOLICITUD);
     } catch (err) {
       // F1-50: el mismo aviso de falta de conexión que «Entrar», sin «backend»;
       // con el ApiError 0 del cliente se enseñaba «Sin conexión con el servidor»
@@ -96,57 +124,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
 
   return (
     <div style={{ display: "flex", height: "100%", background: "var(--canvas)" }}>
-      {/* Brand panel — same cinematic identity as the login. */}
-      <div
-        className="login-media"
-        style={{
-          flex: "1 1 56%",
-          position: "relative",
-          overflow: "hidden",
-          background: "radial-gradient(130% 100% at 30% 20%, #16222e 0%, #0a121c 55%, #05090f 100%)",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "48px 56px",
-        }}
-      >
-        <video
-          src="/media/intro.mp4"
-          autoPlay
-          muted
-          loop
-          playsInline
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.4 }}
-        />
-        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 100% at 30% 20%, rgba(22,34,46,0.55) 0%, rgba(10,18,28,0.82) 55%, rgba(5,9,15,0.92) 100%)" }} />
-        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(55% 55% at 65% 60%, rgba(78,102,120,0.22), transparent 72%)" }} />
-        <button
-          onClick={() => navigate("/")}
-          title="Ir a la página principal"
-          style={{ position: "relative", display: "flex", alignItems: "center", gap: 12, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
-        >
-          <img src={logo} alt="SkullApp" style={{ height: 30, filter: "invert(1) brightness(1.7)" }} />
-          <span style={{ color: "#fff", fontWeight: 800, fontSize: 20, letterSpacing: "-0.02em" }}>PROSPECTIVE</span>
-        </button>
-        <div style={{ position: "relative" }}>
-          <div style={{ color: "rgba(168,184,198,0.75)", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 14 }}>
-            Registro profesional
-          </div>
-          <div style={{ color: "#fff", fontSize: 38, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1, maxWidth: 460 }}>
-            Únete al equipo clínico de PROSPECTIVE
-          </div>
-          <div style={{ color: "rgba(235,235,235,0.6)", fontSize: 14, marginTop: 18, maxWidth: 440, lineHeight: 1.6 }}>
-            Crea tu cuenta profesional para planificar cirugías de aneurisma con datos objetivos y modelos 3D. Un administrador la revisará antes de darte acceso.
-          </div>
-        </div>
-        <div style={{ position: "relative", display: "flex", gap: 26, color: "rgba(168,184,198,0.8)", fontSize: 12, fontFamily: "var(--font-mono)" }}>
-          <span>Acceso revisado</span>
-          <span>·</span>
-          <span>Datos cifrados</span>
-          <span>·</span>
-          <span>SKULLAPP</span>
-        </div>
-      </div>
+      <AuthBrand flex="1 1 56%" />
 
       {/* Form panel — theme-aware, scrollable (the form is long). */}
       <div className="login-form" style={{ flex: "1 1 44%", display: "flex", flexDirection: "column", minWidth: 340, overflowY: "auto" }}>
@@ -155,35 +133,35 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
             onClick={onBack}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)", padding: 0 }}
           >
-            ← Volver al login
+            ← Volver a Entrar
           </button>
           <ThemeToggle />
         </div>
 
         <div style={{ maxWidth: 480, width: "100%", margin: "0 auto", padding: "18px clamp(24px, 3.5vw, 60px) 40px" }}>
           <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
-            Crear cuenta profesional
+            Crear cuenta
           </div>
           <div style={{ fontSize: 14, color: "var(--muted-foreground)", marginTop: 6 }}>
             Regístrate para acceder a PROSPECTIVE.
           </div>
 
           <form onSubmit={submit}>
-            <div style={GROUP_LABEL}>Datos personales</div>
+            <div style={GROUP_LABEL}>Tus datos</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Input label="Nombre completo *" value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" />
-              <Input label="Cédula o ID" value={form.national_id} onChange={set("national_id")} />
+              <Input label="Nombre completo *" value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
+              <Input label="DNI / NIE (opcional)" hint="Solo si tu centro lo pide" value={form.national_id} onChange={set("national_id")} />
               <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
             </div>
 
             <div style={GROUP_LABEL}>Datos profesionales</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Input label="ID profesional" value={form.professional_id} onChange={set("professional_id")} />
+              <Input label="Número de colegiado (opcional)" value={form.professional_id} onChange={set("professional_id")} />
               <Select label="Especialidad" options={SPECIALTIES} value={form.specialty} onChange={set("specialty")} />
               <Input label="Universidad" value={form.university} onChange={set("university")} />
               <Input label="Hospital / Centro" value={form.hospital} onChange={set("hospital")} />
               <Select label="Cargo" options={POSITIONS} value={form.position} onChange={set("position")} />
-              <Input label="ORCID" value={form.orcid} onChange={set("orcid")} placeholder="0000-0002-1825-0097" />
+              <Input label="ORCID (opcional)" hint="Identificador de investigador, si lo tienes" value={form.orcid} onChange={set("orcid")} placeholder="0000-0000-0000-0000" />
             </div>
             <div style={{ marginTop: 12 }}>
               <FileField label="Currículum (CV)" accept=".pdf,.doc,.docx" file={cv} onPick={setCv} />
@@ -191,27 +169,24 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
 
             <div style={GROUP_LABEL}>Credenciales de acceso</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Input label="Usuario *" value={form.username} onChange={set("username")} autoComplete="username" />
+              <Input label="Usuario * (mín. 3)" value={form.username} onChange={set("username")} autoComplete="username" {...props("username")} />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Input label="Contraseña *" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" />
-                <Input label="Confirmar *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" />
+                <Input label="Contraseña * (mín. 8)" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" {...props("password")} />
+                <Input label="Repite la contraseña *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" {...props("confirm")} />
               </div>
             </div>
 
             <div style={{ marginTop: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", color: "var(--warning)", fontSize: 12 }}>
               Tu cuenta quedará <b>pendiente de aprobación</b> hasta que un administrador la active.
-              {" "}No recibirás aviso: prueba a entrar más adelante o escribe a{" "}
+              {" "}No recibirás ningún aviso: vuelve a intentar entrar en unos días. Para consultas, escribe a{" "}
               <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "inherit", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
             </div>
 
             {error && (
-              <div style={{ marginTop: 12, fontSize: 12, color: "var(--destructive, #f87171)" }}>{error}</div>
+              <div style={{ marginTop: 12, fontSize: 12, color: "var(--destructive)" }}>{error}</div>
             )}
 
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-              <Button type="button" variant="outline" onClick={onBack}>
-                Cancelar
-              </Button>
               <Button type="submit" style={{ flex: 1 }} disabled={busy}>
                 {busy ? "Enviando…" : "Enviar solicitud de registro"}
               </Button>
@@ -219,7 +194,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
           </form>
 
           <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--muted-foreground)" }}>
-            PROSPECTIVE™ Web · SkullApp — Laboratorio de Imagen Médica
+            PROSPECTIVE™ Web — Laboratorio de Imagen Médica
           </div>
         </div>
       </div>

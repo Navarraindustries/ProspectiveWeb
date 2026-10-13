@@ -149,3 +149,42 @@ describe("el temblor del formulario", () => {
     clear.mockRestore();
   });
 });
+
+describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
+  const montar = () => render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+
+  it("el panel de marca lleva el logotipo y el lema único, sin nombres de librerías (F2-10)", () => {
+    const { container } = montar();
+    expect(screen.getByText("Planificación neurovascular con datos")).toBeInTheDocument();
+    expect(screen.getByText("PROSPECTIVE")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/VTK|SimpleITK/);
+    expect(container.textContent).not.toMatch(/SKULLAPP/);
+  });
+
+  it("dice, bajo el formulario, que nadie avisa de la aprobación (F2-11)", () => {
+    montar();
+    expect(screen.getByText("Si tu cuenta aún no está aprobada, no recibirás ningún aviso: vuelve a intentar entrar más tarde.")).toBeInTheDocument();
+  });
+
+  it("no hay pantalla de carga tras entrar (F2-12)", () => {
+    const { container } = montar();
+    expect(container.textContent).not.toMatch(/Preparando el espacio/);
+  });
+
+  it("el campo de usuario no trae «admin» de marcador (F1-39)", () => {
+    montar();
+    expect(screen.getByLabelText("Usuario")).toHaveAttribute("placeholder", "tu usuario");
+  });
+
+  it("el enlace al registro dice «Crear cuenta», sin «profesional»", () => {
+    montar();
+    expect(screen.getByRole("button", { name: "Crear cuenta" })).toBeInTheDocument();
+    expect(screen.queryByText(/profesional/i)).toBeNull();
+  });
+
+  it("el error de credenciales marca el campo de contraseña (aria-invalid)", async () => {
+    await attempt(new ApiError(401, "Credenciales incorrectas"));
+    await screen.findByText("Credenciales incorrectas");
+    expect(screen.getByLabelText("Contraseña")).toHaveAttribute("aria-invalid", "true");
+  });
+});

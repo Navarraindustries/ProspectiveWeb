@@ -47,6 +47,27 @@ class PatientSummary(BaseModel):
     institution: str
     study_count: int = Field(0, description="Number of associated studies")
     created_at: datetime
+    # Compartir (F2-75): de quién es y con cuántas cuentas está compartido, para
+    # que la lista distinga lo propio de lo que otro ha compartido conmigo.
+    owner_id: int | None = Field(None, description="Cuenta que creó al paciente")
+    shared_with_count: int = Field(0, description="Cuentas con las que está compartido")
+    is_shared_with_me: bool = Field(False, description="Lo ve porque se lo compartieron, no porque lo creó")
+
+
+class PatientShareOut(BaseModel):
+    """Una cuenta con la que está compartido un paciente."""
+
+    user_id: int
+    username: str
+    full_name: str
+    role: str
+    shared_at: datetime
+
+
+class PatientSharesIn(BaseModel):
+    """La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior)."""
+
+    user_ids: list[int] = Field(default_factory=list)
 
 
 class StudySummary(BaseModel):

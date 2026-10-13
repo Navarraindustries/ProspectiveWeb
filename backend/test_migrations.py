@@ -114,3 +114,22 @@ def test_a_una_base_antigua_se_le_pone_la_clave_foranea_sin_perder_sesiones(tmp_
     # Las tres siguen; la que apuntaba a un estudio que no existe pierde el enlace.
     assert filas == {"con-estudio": 7, "estudio-borrado": None, "sin-estudio": None}
     assert diff == [], diff
+
+
+def test_a_una_base_sin_compartir_se_le_crea_la_tabla_como_en_el_modelo(tmp_path):
+    # Una base de antes de F2: todo menos `patient_shares`, marcada en la 0003.
+    e = create_engine(f"sqlite:///{tmp_path / 'sin_compartir.db'}")
+    Base.metadata.create_all(bind=e)
+    with e.begin() as c:
+        c.execute(text("DROP TABLE patient_shares"))
+    from alembic import command
+    with e.connect() as c:
+        command.stamp(_alembic_config(c), "0003_fk_estudio_sesion")
+        c.commit()
+
+    run_migrations(bind=e, fresh=False)
+
+    assert _version(e) == _head()
+    with e.connect() as c:
+        diff = compare_metadata(MigrationContext.configure(c), Base.metadata)
+    assert diff == [], diff

@@ -104,6 +104,19 @@ class PendingUser(BaseModel):
     created_at: str = Field(..., description="ISO-8601 timestamp of the request")
 
 
+class UserBrief(BaseModel):
+    """Una cuenta activa, lo justo para elegir con quién compartir un paciente.
+
+    `/users` es solo del administrador y trae el perfil entero; para compartir,
+    cualquier profesional necesita ver nombre y rol de los demás, nada más.
+    """
+
+    id: int
+    username: str
+    full_name: str
+    role: UserRole
+
+
 class UserAdminInfo(BaseModel):
     """Full user record for the admin user-management panel."""
 

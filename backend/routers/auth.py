@@ -15,7 +15,7 @@ from models import (
     ChangePasswordRequest, ResetPasswordRequest,
     LoginRequest, LoginResponse, UserInfo,
     SignupRequest, SignupResponse, PendingUser,
-    UserAdminInfo, UserUpdate,
+    UserAdminInfo, UserBrief, UserUpdate,
 )
 from services.database import get_db
 from services.auth_service import (
@@ -393,6 +393,28 @@ async def list_users(
 ) -> list[UserAdminInfo]:
     users = db.query(User).order_by(User.created_at.desc()).all()
     return [_user_to_admin(u) for u in users]
+
+
+@router.get(
+    "/users/brief",
+    response_model=list[UserBrief],
+    summary="Cuentas activas, en breve (para compartir)",
+    description=(
+        "Id, usuario, nombre y rol de las cuentas activas. Para cualquier sesión: "
+        "elegir con quién compartir un paciente no es cosa solo del administrador."
+    ),
+)
+async def list_users_brief(
+    _user: Annotated[User, Depends(require_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[UserBrief]:
+    users = (
+        db.query(User)
+        .filter(User.is_active == True, User.status == User.STATUS_ACTIVE)  # noqa: E712
+        .order_by(User.full_name, User.username)
+        .all()
+    )
+    return [UserBrief(id=u.id, username=u.username, full_name=u.full_name or "", role=u.role) for u in users]
 
 
 @router.post(

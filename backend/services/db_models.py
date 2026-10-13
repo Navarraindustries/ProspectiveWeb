@@ -13,7 +13,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey,
-    Integer, String, Text, func,
+    Integer, String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import relationship
 
@@ -89,6 +89,8 @@ class Patient(Base):
     creator  = relationship("User", back_populates="patients", foreign_keys=[created_by])
     studies  = relationship("Study", back_populates="patient", cascade="all, delete-orphan")
     sessions = relationship("PlanningSession", back_populates="patient")
+    shares   = relationship("PatientShare", back_populates="patient",
+                            cascade="all, delete-orphan", passive_deletes=True)
 
     @property
     def full_name(self) -> str:
@@ -102,6 +104,36 @@ class Patient(Base):
 
     def __repr__(self) -> str:
         return f"<Patient id={self.id} surname={self.surname!r}>"
+
+
+# ── Compartir un paciente ──────────────────────────────────────────────────── #
+
+class PatientShare(Base):
+    """Una cuenta con la que se ha compartido un paciente (F2-75).
+
+    Antes un no administrador solo veía lo que él creó: si el caso lo abría
+    radiología o un residente, el cirujano no lo encontraba. Quien creó al
+    paciente (o un administrador) elige con quién lo comparte; el compartido lo
+    ve entero (ficha, casos, estudios, sesiones, pedidos) pero no puede volver
+    a compartirlo. La regla vive en `services/access.py`.
+    """
+    __tablename__ = "patient_shares"
+    __table_args__ = (UniqueConstraint("patient_id", "user_id", name="uq_patient_shares_patient_user"),)
+
+    id         = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Quién lo compartió. Nulo si esa cuenta se borra: el permiso sigue siendo
+    # del paciente, no de quien lo dio (y sin SET NULL borrar la cuenta fallaba
+    # con las claves foráneas activas).
+    shared_by  = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+
+    patient = relationship("Patient", back_populates="shares")
+    user    = relationship("User", foreign_keys=[user_id])
+
+    def __repr__(self) -> str:
+        return f"<PatientShare patient={self.patient_id} user={self.user_id}>"
 
 
 # ── Study = CASO CLÍNICO ───────────────────────────────────────────────────── #

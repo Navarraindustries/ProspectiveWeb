@@ -9,6 +9,7 @@ from .auth import (
     SignupRequest,
     SignupResponse,
     UserAdminInfo,
+    UserBrief,
     UserCreateRequest,
     UserInfo,
     UserRole,
@@ -45,7 +46,7 @@ from .detection import (
 )
 from .dicom import SeriesInfo, SpacingXYZ, UploadResult
 from .longitudinal import LongitudinalDelta, LongitudinalEntry, LongitudinalResult
-from .patient import CaseCreate, PatientCreate, PatientDetail, PatientSessionInfo, PatientSummary, PlanningSessionSummary, StudyCreate, StudySummary
+from .patient import CaseCreate, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut, PatientSharesIn, PatientSummary, PlanningSessionSummary, StudyCreate, StudySummary
 from .perforators import PerforatorCandidate, PerforatorsResult, RiskLevel
 from .plan import PlanRequest, PlanResult, StentLibraryItem, StentParams
 from .report import ExportRequest, ReportRequest, ReportResult
@@ -77,7 +78,7 @@ from .treatment import (
 __all__ = [
     # auth
     "ChangePasswordRequest", "ResetPasswordRequest", "LoginRequest", "LoginResponse",
-    "UserCreateRequest", "UserInfo", "UserRole", "UserAdminInfo", "UserUpdate",
+    "UserCreateRequest", "UserInfo", "UserRole", "UserAdminInfo", "UserBrief", "UserUpdate",
     "SignupRequest", "SignupResponse", "PendingUser",
     # clips
     "ClipLibraryItem", "ClipPlacement", "ClipPlanRequest",
@@ -93,7 +94,7 @@ __all__ = [
     # longitudinal
     "LongitudinalDelta", "LongitudinalEntry", "LongitudinalResult",
     # patient
-    "CaseCreate", "PatientCreate", "PatientDetail", "PatientSessionInfo", "PatientSummary", "PlanningSessionSummary", "StudyCreate", "StudySummary",
+    "CaseCreate", "PatientCreate", "PatientDetail", "PatientSessionInfo", "PatientShareOut", "PatientSharesIn", "PatientSummary", "PlanningSessionSummary", "StudyCreate", "StudySummary",
     # perforators
     "PerforatorCandidate", "PerforatorsResult", "RiskLevel",
     # plan (stent)

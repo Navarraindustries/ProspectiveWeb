@@ -342,6 +342,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/users/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cuentas activas, en breve (para compartir)
+         * @description Id, usuario, nombre y rol de las cuentas activas. Para cualquier sesión: elegir con quién compartir un paciente no es cosa solo del administrador.
+         */
+        get: operations["list_users_brief_api_auth_users_brief_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/users/{user_id}": {
         parameters: {
             query?: never;
@@ -1844,7 +1864,7 @@ export interface paths {
         };
         /**
          * List all patients
-         * @description Returns all patient records.  When authenticated, patients are filtered to those created by the current user (or all patients for admins).  Works without authentication for development convenience.
+         * @description Returns all patient records.  Non-admin users see the patients they created plus the ones shared with them (admins see all). Each row says who owns it, with how many accounts it is shared and whether it is shared with the caller.
          */
         get: operations["list_patients_api_patients_get"];
         put?: never;
@@ -1914,6 +1934,30 @@ export interface paths {
         /** List planning sessions done on a patient */
         get: operations["list_patient_sessions_api_patients__patient_id__sessions_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patients/{patient_id}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cuentas con las que está compartido un paciente
+         * @description La ve cualquiera que vea al paciente (creador, compartidos y administrador).
+         */
+        get: operations["list_patient_shares_api_patients__patient_id__shares_get"];
+        /**
+         * Fijar con qué cuentas se comparte un paciente
+         * @description Sustituye la lista entera por `user_ids`. Solo quien creó al paciente o un administrador; el creador y quien comparte se ignoran si vienen en la lista. Una cuenta que no existe o no está activa es un 422. Deja un bloque `PATIENT_SHARED` en la auditoría.
+         */
+        put: operations["set_patient_shares_api_patients__patient_id__shares_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -7297,6 +7341,33 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * PatientShareOut
+         * @description Una cuenta con la que está compartido un paciente.
+         */
+        PatientShareOut: {
+            /** Full Name */
+            full_name: string;
+            /** Role */
+            role: string;
+            /**
+             * Shared At
+             * Format: date-time
+             */
+            shared_at: string;
+            /** User Id */
+            user_id: number;
+            /** Username */
+            username: string;
+        };
+        /**
+         * PatientSharesIn
+         * @description La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior).
+         */
+        PatientSharesIn: {
+            /** User Ids */
+            user_ids?: number[];
+        };
         /** PatientSuggestion */
         PatientSuggestion: {
             /**
@@ -7346,8 +7417,25 @@ export interface components {
             id: number;
             /** Institution */
             institution: string;
+            /**
+             * Is Shared With Me
+             * @description Lo ve porque se lo compartieron, no porque lo creó
+             * @default false
+             */
+            is_shared_with_me: boolean;
+            /**
+             * Owner Id
+             * @description Cuenta que creó al paciente
+             */
+            owner_id?: number | null;
             /** Sex */
             sex: string;
+            /**
+             * Shared With Count
+             * @description Cuentas con las que está compartido
+             * @default 0
+             */
+            shared_with_count: number;
             /**
              * Study Count
              * @description Number of associated studies
@@ -9865,6 +9953,26 @@ export interface components {
             username: string;
         };
         /**
+         * UserBrief
+         * @description Una cuenta activa, lo justo para elegir con quién compartir un paciente.
+         *
+         *     `/users` es solo del administrador y trae el perfil entero; para compartir,
+         *     cualquier profesional necesita ver nombre y rol de los demás, nada más.
+         */
+        UserBrief: {
+            /** Full Name */
+            full_name: string;
+            /** Id */
+            id: number;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "medico" | "residente" | "viewer";
+            /** Username */
+            username: string;
+        };
+        /**
          * UserInfo
          * @description Public user data returned after login and in /me endpoint.
          */
@@ -10698,6 +10806,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_brief_api_auth_users_brief_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBrief"][];
                 };
             };
         };
@@ -13605,6 +13733,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PatientSessionInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_patient_shares_api_patients__patient_id__shares_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientShareOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_patient_shares_api_patients__patient_id__shares_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatientSharesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientShareOut"][];
                 };
             };
             /** @description Validation Error */

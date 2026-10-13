@@ -55,6 +55,14 @@ export interface PendingUser {
   created_at: string;
 }
 
+/** Una cuenta activa, lo justo para elegir con quién compartir. */
+export interface UserBrief {
+  id: number;
+  username: string;
+  full_name: string;
+  role: string;
+}
+
 export interface UserAdminInfo {
   id: number;
   username: string;
@@ -200,6 +208,26 @@ export interface PatientSummary {
   institution: string;
   study_count: number;
   created_at: string;
+  /** Cuenta que creó al paciente (F2-75). */
+  owner_id: number | null;
+  /** Con cuántas cuentas está compartido. */
+  shared_with_count: number;
+  /** Lo veo porque me lo compartieron, no porque lo creé. */
+  is_shared_with_me: boolean;
+}
+
+/** Una cuenta con la que está compartido un paciente. */
+export interface PatientShareOut {
+  user_id: number;
+  username: string;
+  full_name: string;
+  role: string;
+  shared_at: string;
+}
+
+/** La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior). */
+export interface PatientSharesIn {
+  user_ids: number[];
 }
 
 /** Clinical study/case for an existing patient (sections 3-5 of Nuevo Caso). */

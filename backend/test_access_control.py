@@ -173,3 +173,69 @@ class TestRutasDeReanudar:
         assert a.put(f"/api/volume/{sid}/window", json={"wc": 40, "ww": 400}).status_code == 200
         assert a.post("/api/treatment-decision", json={"session_id": sid}).status_code == 200
         assert a.get(f"/api/treatment-decision/{sid}").status_code == 200
+
+
+@pytest.fixture(scope="module")
+def compartido(caso):
+    """El paciente de A compartido con C; D es un tercero sin invitación."""
+    from services import clip_orders as store
+    a, _b, ids = caso
+    c_id, c = _medico()
+    _d_id, d = _medico()
+    r = a.put(f"/api/patients/{ids['patient']}/shares", json={"user_ids": [c_id]})
+    assert r.status_code == 200
+    o = store.create_order(
+        session_id=ids["sid"], case_id=ids["case"], patient="DeA", case_label="Caso de A",
+        patient_id=ids["patient"], requested_by="otra", requested_by_name="otra", institution="",
+        series="Navarro", angle_deg=0.0, jaw_mm=5.0, is_drawn_size=True,
+        quantity=1, extra_sizes_mm=[], intended_use="research", needed_by="", urgency="normal",
+        steriliser="", marking="", notes="", authorization_ref="", workshop=None,
+        accepts_measurements=False, accepts_force_is_target=False, accepts_not_approved_device=False,
+        spec_snapshot={}, case_snapshot={},
+    )
+    return c, d, dict(ids, part_no=o.part_no)
+
+
+class TestPacienteCompartido:
+    """F2-75: compartir abre TODO lo del paciente (ficha, casos, estudios,
+    sesiones, pedidos) a la cuenta invitada por la misma regla de
+    services/access.py, y nada a un tercero."""
+
+    def test_ve_la_ficha_y_los_casos(self, compartido):
+        c, d, ids = compartido
+        pid = ids["patient"]
+        assert c.get(f"/api/patients/{pid}").status_code == 200
+        assert c.get(f"/api/patients/{pid}/studies").status_code == 200
+        assert pid in [p["id"] for p in c.get("/api/patients").json()]
+        assert d.get(f"/api/patients/{pid}").status_code == 403
+        assert d.get(f"/api/patients/{pid}/studies").status_code == 403
+        assert pid not in [p["id"] for p in d.get("/api/patients").json()]
+
+    def test_ve_los_estudios_de_imagen(self, compartido):
+        c, d, ids = compartido
+        assert ids["img"] in [s["id"] for s in c.get("/api/studies").json()]
+        assert c.get(f"/api/studies/{ids['img']}/thumbnail").status_code != 403
+        assert ids["img"] not in [s["id"] for s in d.get("/api/studies").json()]
+        assert d.get(f"/api/studies/{ids['img']}/thumbnail").status_code == 403
+
+    def test_ve_las_sesiones(self, compartido):
+        c, d, ids = compartido
+        pid = ids["patient"]
+        assert c.get(f"/api/patients/{pid}/sessions").status_code == 200
+        assert ids["sid"] in [s["session_id"] for s in c.get("/api/sessions").json()]
+        assert d.get(f"/api/patients/{pid}/sessions").status_code == 403
+        assert ids["sid"] not in [s["session_id"] for s in d.get("/api/sessions").json()]
+
+    def test_ve_los_pedidos(self, compartido):
+        c, d, ids = compartido
+        assert c.get(f"/api/clip-orders/{ids['part_no']}").status_code == 200
+        assert ids["part_no"] in [o["part_no"] for o in c.get("/api/clip-orders").json()]
+        assert d.get(f"/api/clip-orders/{ids['part_no']}").status_code == 403
+        assert ids["part_no"] not in [o["part_no"] for o in d.get("/api/clip-orders").json()]
+
+    def test_ve_la_lista_de_compartidos_pero_no_la_cambia(self, compartido):
+        c, d, ids = compartido
+        pid = ids["patient"]
+        assert c.get(f"/api/patients/{pid}/shares").status_code == 200
+        assert d.get(f"/api/patients/{pid}/shares").status_code == 403
+        assert c.put(f"/api/patients/{pid}/shares", json={"user_ids": []}).status_code == 403

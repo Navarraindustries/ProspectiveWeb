@@ -39,6 +39,9 @@ ACT_LESION_RETRACTED   = "LESION_RETRACTED"
 ACT_SESSION_ATTACHED   = "SESSION_ATTACHED"
 ACT_SEG_GENERATED      = "DICOM_SEG_GENERATED"
 ACT_ANNOTATIONS_DELETED = "ANNOTATIONS_DELETED"
+# Quién ve a un paciente es parte de su historia: cada cambio de la lista de
+# cuentas con las que se comparte deja su bloque.
+ACT_PATIENT_SHARED     = "PATIENT_SHARED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a

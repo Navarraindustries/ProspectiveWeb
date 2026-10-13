@@ -5,9 +5,11 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import CaseCreate, PatientCreate, PatientDetail, PatientSessionInfo, PatientSummary, StudyCreate, StudySummary
+from models import (CaseCreate, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut,
+                    PatientSharesIn, PatientSummary, StudyCreate, StudySummary)
 
 # Study clinical-case fields copied from a CaseCreate payload.
 _STUDY_CASE_FIELDS = (
@@ -16,11 +18,11 @@ _STUDY_CASE_FIELDS = (
     "mod_tac", "mod_angio", "mod_rm", "mod_pangio",
 )
 from services.database import get_db
-from services.access import require_patient
+from services.access import own_patient_ids, require_patient, require_share_right
 from services.auth_service import get_current_user
-from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, audit_append,
-                            audit_patient)
-from services.db_models import Patient, PlanningSession, Study, User
+from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, ACT_PATIENT_SHARED,
+                            audit_append, audit_patient)
+from services.db_models import Patient, PatientShare, PlanningSession, Study, User
 
 # Patient demographic + history fields copied on create / update.
 _PATIENT_FIELDS = (
@@ -42,7 +44,13 @@ router = APIRouter(prefix="/api/patients", tags=["patients"])
 
 # ── Mappers ────────────────────────────────────────────────────────────────── #
 
-def _patient_to_summary(p: Patient) -> PatientSummary:
+def _patient_to_summary(p: Patient, shared_with_count: int | None = None,
+                        is_shared_with_me: bool = False) -> PatientSummary:
+    # La lista pasa el recuento ya calculado (una sola consulta agrupada, no una
+    # por paciente); crear, editar o adjuntar devuelven UN paciente y lo cuentan
+    # aquí. Quien llama sabe si el paciente le llega compartido (adjuntar).
+    if shared_with_count is None:
+        shared_with_count = len(p.shares)
     return PatientSummary(
         id=p.id,
         full_name=p.full_name,
@@ -52,6 +60,9 @@ def _patient_to_summary(p: Patient) -> PatientSummary:
         institution=p.institution,
         study_count=p.study_count,
         created_at=p.created_at,
+        owner_id=p.created_by,
+        shared_with_count=shared_with_count,
+        is_shared_with_me=is_shared_with_me,
     )
 
 
@@ -87,9 +98,9 @@ def _study_to_summary(s: Study) -> StudySummary:
     summary="List all patients",
     description=(
         "Returns all patient records.  "
-        "When authenticated, patients are filtered to those created by the "
-        "current user (or all patients for admins).  "
-        "Works without authentication for development convenience."
+        "Non-admin users see the patients they created plus the ones shared "
+        "with them (admins see all). Each row says who owns it, with how many "
+        "accounts it is shared and whether it is shared with the caller."
     ),
 )
 async def list_patients(
@@ -97,13 +108,30 @@ async def list_patients(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> list[PatientSummary]:
     query = db.query(Patient)
+    shares = db.query(PatientShare.patient_id, func.count(PatientShare.id))
 
-    # Admins see everything; other authenticated users see only their patients
-    if current_user is not None and current_user.role != "admin":
-        query = query.filter(Patient.created_by == current_user.id)
+    # La misma regla que el resto de rutas (services/access.py): antes este
+    # filtro iba aparte y solo miraba al creador.
+    visibles = own_patient_ids(db, current_user)
+    if visibles is not None:
+        query = query.filter(Patient.id.in_(visibles))
+        shares = shares.filter(PatientShare.patient_id.in_(visibles))
 
     patients = query.order_by(Patient.created_at.desc()).all()
-    return [_patient_to_summary(p) for p in patients]
+    counts = dict(shares.group_by(PatientShare.patient_id).all())
+    mine_by_share: set[int] = set()
+    if current_user is not None:
+        mine_by_share = {pid for (pid,) in db.query(PatientShare.patient_id)
+                         .filter(PatientShare.user_id == current_user.id)}
+    return [
+        _patient_to_summary(
+            p,
+            shared_with_count=counts.get(p.id, 0),
+            is_shared_with_me=(p.id in mine_by_share
+                               and (current_user is None or p.created_by != current_user.id)),
+        )
+        for p in patients
+    ]
 
 
 # ── POST /patients ─────────────────────────────────────────────────────────── #
@@ -473,3 +501,95 @@ async def list_patient_sessions(
         )
         for s in sessions
     ]
+
+
+# ── Compartir (F2-75) ──────────────────────────────────────────────────────── #
+
+def _shares_out(db: Session, patient_id: int) -> list[PatientShareOut]:
+    rows = (
+        db.query(PatientShare, User)
+        .join(User, User.id == PatientShare.user_id)
+        .filter(PatientShare.patient_id == patient_id)
+        .order_by(PatientShare.id)
+        .all()
+    )
+    return [
+        PatientShareOut(user_id=u.id, username=u.username, full_name=u.full_name or "",
+                        role=u.role, shared_at=sh.created_at)
+        for sh, u in rows
+    ]
+
+
+@router.get(
+    "/{patient_id}/shares",
+    response_model=list[PatientShareOut],
+    summary="Cuentas con las que está compartido un paciente",
+    description="La ve cualquiera que vea al paciente (creador, compartidos y administrador).",
+)
+async def list_patient_shares(
+    patient_id:   int,
+    db:           Annotated[Session,     Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> list[PatientShareOut]:
+    if db.get(Patient, patient_id) is None:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    require_patient(db, current_user, patient_id)
+    return _shares_out(db, patient_id)
+
+
+@router.put(
+    "/{patient_id}/shares",
+    response_model=list[PatientShareOut],
+    summary="Fijar con qué cuentas se comparte un paciente",
+    description=(
+        "Sustituye la lista entera por `user_ids`. Solo quien creó al paciente o un "
+        "administrador; el creador y quien comparte se ignoran si vienen en la lista. "
+        "Una cuenta que no existe o no está activa es un 422. Deja un bloque "
+        "`PATIENT_SHARED` en la auditoría."
+    ),
+)
+async def set_patient_shares(
+    patient_id:   int,
+    req:          PatientSharesIn,
+    db:           Annotated[Session,     Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> list[PatientShareOut]:
+    patient = db.get(Patient, patient_id)
+    if patient is None:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    require_share_right(db, current_user, patient_id)
+
+    # El creador ya lo ve, y quien comparte (creador o administrador) también:
+    # una fila suya solo engordaría el contador de «compartido con».
+    fuera = {patient.created_by, current_user.id if current_user else None}
+    wanted = [uid for uid in dict.fromkeys(req.user_ids) if uid not in fuera]
+
+    if wanted:
+        activos = {uid for (uid,) in db.query(User.id).filter(
+            User.id.in_(wanted), User.is_active == True,  # noqa: E712
+            User.status == User.STATUS_ACTIVE,
+        )}
+        faltan = [uid for uid in wanted if uid not in activos]
+        if faltan:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No se puede compartir con la cuenta {faltan[0]}: no existe o no está activa.",
+            )
+
+    actuales = {sh.user_id: sh for sh in db.query(PatientShare).filter(PatientShare.patient_id == patient_id)}
+    for uid, sh in actuales.items():
+        if uid not in wanted:
+            db.delete(sh)
+    for uid in wanted:
+        # Quien ya estaba conserva su fecha: «compartido el» no cambia por
+        # volver a guardar la misma lista.
+        if uid not in actuales:
+            db.add(PatientShare(patient_id=patient_id, user_id=uid,
+                                shared_by=current_user.id if current_user else None))
+    db.commit()
+
+    logger.info("Patient shares set — patient=%d users=%s by=%s", patient_id, wanted,
+                current_user.username if current_user else "anonymous")
+    audit_append(ACT_PATIENT_SHARED, {"patient_id": patient_id, "user_ids": wanted},
+                 username=current_user.username if current_user else "", **audit_patient(patient))
+    return _shares_out(db, patient_id)

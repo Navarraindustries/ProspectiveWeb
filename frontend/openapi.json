@@ -6843,6 +6843,55 @@
     "title": "PatientSessionInfo",
     "type": "object"
    },
+   "PatientShareOut": {
+    "description": "Una cuenta con la que está compartido un paciente.",
+    "properties": {
+     "full_name": {
+      "title": "Full Name",
+      "type": "string"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "shared_at": {
+      "format": "date-time",
+      "title": "Shared At",
+      "type": "string"
+     },
+     "user_id": {
+      "title": "User Id",
+      "type": "integer"
+     },
+     "username": {
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "user_id",
+     "username",
+     "full_name",
+     "role",
+     "shared_at"
+    ],
+    "title": "PatientShareOut",
+    "type": "object"
+   },
+   "PatientSharesIn": {
+    "description": "La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior).",
+    "properties": {
+     "user_ids": {
+      "items": {
+       "type": "integer"
+      },
+      "title": "User Ids",
+      "type": "array"
+     }
+    },
+    "title": "PatientSharesIn",
+    "type": "object"
+   },
    "PatientSuggestion": {
     "properties": {
      "dob": {
@@ -6903,9 +6952,33 @@
       "title": "Institution",
       "type": "string"
      },
+     "is_shared_with_me": {
+      "default": false,
+      "description": "Lo ve porque se lo compartieron, no porque lo creó",
+      "title": "Is Shared With Me",
+      "type": "boolean"
+     },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Cuenta que creó al paciente",
+      "title": "Owner Id"
+     },
      "sex": {
       "title": "Sex",
       "type": "string"
+     },
+     "shared_with_count": {
+      "default": 0,
+      "description": "Cuentas con las que está compartido",
+      "title": "Shared With Count",
+      "type": "integer"
      },
      "study_count": {
       "default": 0,
@@ -10631,6 +10704,41 @@
     "title": "UserAdminInfo",
     "type": "object"
    },
+   "UserBrief": {
+    "description": "Una cuenta activa, lo justo para elegir con quién compartir un paciente.\n\n`/users` es solo del administrador y trae el perfil entero; para compartir,\ncualquier profesional necesita ver nombre y rol de los demás, nada más.",
+    "properties": {
+     "full_name": {
+      "title": "Full Name",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "role": {
+      "enum": [
+       "admin",
+       "medico",
+       "residente",
+       "viewer"
+      ],
+      "title": "Role",
+      "type": "string"
+     },
+     "username": {
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "username",
+     "full_name",
+     "role"
+    ],
+    "title": "UserBrief",
+    "type": "object"
+   },
    "UserInfo": {
     "description": "Public user data returned after login and in /me endpoint.",
     "properties": {
@@ -11912,6 +12020,37 @@
      }
     ],
     "summary": "Create a user (admin)",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/auth/users/brief": {
+   "get": {
+    "description": "Id, usuario, nombre y rol de las cuentas activas. Para cualquier sesión: elegir con quién compartir un paciente no es cosa solo del administrador.",
+    "operationId": "list_users_brief_api_auth_users_brief_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/UserBrief"
+         },
+         "title": "Response List Users Brief Api Auth Users Brief Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Cuentas activas, en breve (para compartir)",
     "tags": [
      "auth"
     ]
@@ -16386,7 +16525,7 @@
   },
   "/api/patients": {
    "get": {
-    "description": "Returns all patient records.  When authenticated, patients are filtered to those created by the current user (or all patients for admins).  Works without authentication for development convenience.",
+    "description": "Returns all patient records.  Non-admin users see the patients they created plus the ones shared with them (admins see all). Each row says who owns it, with how many accounts it is shared and whether it is shared with the caller.",
     "operationId": "list_patients_api_patients_get",
     "responses": {
      "200": {
@@ -16695,6 +16834,118 @@
      }
     ],
     "summary": "List planning sessions done on a patient",
+    "tags": [
+     "patients"
+    ]
+   }
+  },
+  "/api/patients/{patient_id}/shares": {
+   "get": {
+    "description": "La ve cualquiera que vea al paciente (creador, compartidos y administrador).",
+    "operationId": "list_patient_shares_api_patients__patient_id__shares_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "patient_id",
+      "required": true,
+      "schema": {
+       "title": "Patient Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/PatientShareOut"
+         },
+         "title": "Response List Patient Shares Api Patients  Patient Id  Shares Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Cuentas con las que está compartido un paciente",
+    "tags": [
+     "patients"
+    ]
+   },
+   "put": {
+    "description": "Sustituye la lista entera por `user_ids`. Solo quien creó al paciente o un administrador; el creador y quien comparte se ignoran si vienen en la lista. Una cuenta que no existe o no está activa es un 422. Deja un bloque `PATIENT_SHARED` en la auditoría.",
+    "operationId": "set_patient_shares_api_patients__patient_id__shares_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "patient_id",
+      "required": true,
+      "schema": {
+       "title": "Patient Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PatientSharesIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/PatientShareOut"
+         },
+         "title": "Response Set Patient Shares Api Patients  Patient Id  Shares Put",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Fijar con qué cuentas se comparte un paciente",
     "tags": [
      "patients"
     ]

@@ -31,7 +31,7 @@ from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import (ImagingStudy, LesionConfirmation, Patient,
                                 PlanningSession, Study, User)
-from services.access import require_patient, session_row
+from services.access import own_patient_ids, require_patient, session_row
 from services.sessions import read_state, session_exists, session_lineage, session_subdir
 
 logger = logging.getLogger(__name__)
@@ -133,9 +133,12 @@ def read_dicom_identity(session_id: str) -> tuple[PatientSuggestion, str, str]:
 
 
 def _visible(db: Session, user: User | None):
+    # La regla de services/access.py (creados + compartidos): adjuntar a un
+    # paciente compartido es trabajar en su caso, como abrir su ficha.
     q = db.query(Patient)
-    if user is not None and user.role != "admin":
-        q = q.filter(Patient.created_by == user.id)
+    visibles = own_patient_ids(db, user)
+    if visibles is not None:
+        q = q.filter(Patient.id.in_(visibles))
     return q
 
 
@@ -303,6 +306,9 @@ async def attach_session(
         "new_case": req.new_case is not None, "relinked_confirmations": n,
     }, username=current_user.username if current_user else "", **audit_patient(patient))
     logger.info("Session %s attached to patient %d case %d study %d", session_id, patient.id, case.id, img.id)
-    return AttachResult(patient=_patient_to_summary(patient), case_id=case.id,
+    # Si llegó hasta aquí sin crearlo ni ser administrador, lo ve porque se lo compartieron.
+    compartido = (current_user is not None and current_user.role != "admin"
+                  and patient.created_by != current_user.id)
+    return AttachResult(patient=_patient_to_summary(patient, is_shared_with_me=compartido), case_id=case.id,
                         case_label=case.dx_principal or case.description or "Caso",
                         imaging_study_id=img.id, relinked_confirmations=n)

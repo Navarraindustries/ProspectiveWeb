@@ -4,7 +4,7 @@
    duplicaba pacientes que ya existían. El flujo vivo es CasePatientPicker →
    NuevoEstudioSheet, que adjunta el caso a un paciente existente. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api/client";
 import type { PatientSummary, StudyCreate, StudySummary } from "../api/types";
@@ -16,46 +16,36 @@ import { Select } from "../components/Select";
 import { Sheet } from "../components/Sheet";
 import { ErrorNote } from "../components/PanelHead";
 import { hoyLocal } from "../lib/fecha";
+import { MORFOLOGIAS, TAMANOS, joinTipo, splitTipo } from "../lib/tipoAneurisma";
 
-const TIPOS = ["", "Sacular", "Fusiforme", "Disecante", "Blíster", "Gigante (> 25 mm)", "Grande (10-25 mm)", "Pequeño (< 10 mm)", "Otro"];
+// Marcador de los menús sin valor: el dato queda vacío en vez de inventar una opción.
+const SIN_DATO = "— sin dato —";
 const REGIONES = [
   "", "Arteria cerebral media (ACM)", "Arteria comunicante anterior (AComA)",
   "Arteria comunicante posterior (AComP)", "Arteria carótida interna (ACI)", "Arteria basilar",
   "Arteria cerebelosa posteroinferior (PICA)", "Arteria cerebral anterior (ACA)",
-  "Arteria cerebral posterior (ACP)", "Bifurcación carotídea", "Otra",
+  "Arteria cerebral posterior (ACP)", "Arteria vertebral", "Arteria cerebelosa superior (SCA)",
+  "Arteria cerebelosa anteroinferior (AICA)", "Arteria pericallosa", "Bifurcación carotídea", "Otra",
 ];
 const LATERALIDAD = ["", "Derecha", "Izquierda", "Bilateral", "Línea media"];
-const TRATAMIENTOS = ["Clipaje", "Diversor de flujo + Clip", "Coils + Clips"];
+const TRATAMIENTOS = [
+  "Clipaje", "Diversor de flujo + Clip", "Coils + Clips",
+  "Embolización con coils", "Stent + coils", "Diversor de flujo", "Observación",
+];
 const ANGIO_TIPO = ["", "BIPLANO", "MONOPLANO"];
+// «Angiografía» y «Panangiografía» se solapaban (F2-40): una sola casilla. El backend
+// conserva las dos columnas, así que se guardan iguales y al leer vale cualquiera.
 const MODALIDADES: [keyof Mods, string][] = [
-  ["tac", "Tomografía (TAC)"], ["angio", "Angiografía"], ["rm", "Resonancia Magnética"], ["pangio", "Panangiografía"],
+  ["tac", "TAC"], ["angio", "Angiografía por catéter"], ["rm", "Resonancia"],
 ];
 
-type Mods = { tac: boolean; angio: boolean; rm: boolean; pangio: boolean };
+type Mods = { tac: boolean; angio: boolean; rm: boolean };
 
 const SECTION: React.CSSProperties = {
   fontSize: 12, fontWeight: 800, letterSpacing: ".03em", color: "var(--foreground)",
   margin: "20px 0 10px", paddingBottom: 6, borderBottom: "1px solid var(--border)",
 };
 const SUBTLE: React.CSSProperties = { fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 };
-
-function textarea(value: string, onChange: (v: string) => void, ph: string, disabled = false, rows = 2): React.ReactNode {
-  return (
-    <textarea
-      value={value}
-      disabled={disabled}
-      rows={rows}
-      placeholder={ph}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: "100%", resize: "vertical", fontFamily: "var(--font-sans)", fontSize: 13,
-        color: "var(--foreground)", background: disabled ? "var(--muted)" : "var(--card)",
-        border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "8px 10px",
-        opacity: disabled ? 0.6 : 1,
-      }}
-    />
-  );
-}
 
 function checkRow(label: string, checked: boolean, onToggle: (v: boolean) => void, extra?: React.ReactNode): React.ReactNode {
   return (
@@ -75,12 +65,15 @@ export function NuevoEstudioSheet({
   const today = hoyLocal();
   const [f, setF] = useState({
     study_date: today, sintomas_positivos: "", dx_principal: "", dx_secundario: "",
-    tipo_aneurisma: "", region_anatomica: "", lateralidad: "", angio_marca: "", angio_tipo: "",
+    morfologia: "", tamano: "", region_anatomica: "", lateralidad: "", angio_marca: "", angio_tipo: "",
   });
   const [trat, setTrat] = useState<Record<string, boolean>>(Object.fromEntries(TRATAMIENTOS.map((t) => [t, false])));
-  const [mods, setMods] = useState<Mods>({ tac: false, angio: false, rm: false, pangio: false });
+  const [mods, setMods] = useState<Mods>({ tac: false, angio: false, rm: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // El error de validación va junto al campo y le da el foco (F2-41).
+  const dxBox = useRef<HTMLDivElement>(null);
+  const [dxError, setDxError] = useState<string | null>(null);
   // F1-81: «Cancelar», Escape o el clic fuera tiraban el caso a medio escribir.
   // Lo que había al abrir, para saber si hay algo que perder.
   const [initial, setInitial] = useState("");
@@ -103,7 +96,7 @@ export function NuevoEstudioSheet({
         sintomas_positivos: study.sintomas_positivos || "",
         dx_principal: study.dx_principal || "",
         dx_secundario: study.dx_secundario || "",
-        tipo_aneurisma: study.tipo_aneurisma || "",
+        ...splitTipo(study.tipo_aneurisma),
         region_anatomica: study.region_anatomica || "",
         lateralidad: study.lateralidad || "",
         angio_marca: marca || "",
@@ -111,11 +104,11 @@ export function NuevoEstudioSheet({
       };
       const chosen = (study.tratamiento_propuesto || "").split(",").map((s) => s.trim());
       nt = Object.fromEntries(TRATAMIENTOS.map((t) => [t, chosen.includes(t)]));
-      nm = { tac: study.mod_tac, angio: study.mod_angio, rm: study.mod_rm, pangio: study.mod_pangio };
+      nm = { tac: study.mod_tac, angio: study.mod_angio || study.mod_pangio, rm: study.mod_rm };
     } else {
-      nf = { study_date: today, sintomas_positivos: "", dx_principal: "", dx_secundario: "", tipo_aneurisma: "", region_anatomica: "", lateralidad: "", angio_marca: "", angio_tipo: "" };
+      nf = { study_date: today, sintomas_positivos: "", dx_principal: "", dx_secundario: "", morfologia: "", tamano: "", region_anatomica: "", lateralidad: "", angio_marca: "", angio_tipo: "" };
       nt = Object.fromEntries(TRATAMIENTOS.map((t) => [t, false]));
-      nm = { tac: false, angio: false, rm: false, pangio: false };
+      nm = { tac: false, angio: false, rm: false };
     }
     setF(nf);
     setTrat(nt);
@@ -123,6 +116,7 @@ export function NuevoEstudioSheet({
     // La foto de partida sale de los mismos valores que se acaban de poner.
     setInitial(JSON.stringify({ f: nf, trat: nt, mods: nm }));
     setError(null);
+    setDxError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, patientId, study]);
 
@@ -130,14 +124,18 @@ export function NuevoEstudioSheet({
     e.preventDefault();
     setError(null);
     if (patientId === null) return;
-    if (!f.dx_principal.trim()) return setError("El diagnóstico principal es obligatorio.");
+    if (!f.dx_principal.trim()) {
+      setDxError("El diagnóstico es obligatorio.");
+      dxBox.current?.querySelector("input")?.focus();
+      return;
+    }
     const payload: StudyCreate = {
       study_date: f.study_date, sintomas_positivos: f.sintomas_positivos.trim(),
       dx_principal: f.dx_principal.trim(), dx_secundario: f.dx_secundario.trim(),
-      tipo_aneurisma: f.tipo_aneurisma, region_anatomica: f.region_anatomica, lateralidad: f.lateralidad,
+      tipo_aneurisma: joinTipo(f.morfologia, f.tamano), region_anatomica: f.region_anatomica, lateralidad: f.lateralidad,
       tratamiento_propuesto: TRATAMIENTOS.filter((t) => trat[t]).join(", "),
       angiographer: [f.angio_marca.trim(), f.angio_tipo].filter(Boolean).join(" | "),
-      mod_tac: mods.tac, mod_angio: mods.angio, mod_rm: mods.rm, mod_pangio: mods.pangio,
+      mod_tac: mods.tac, mod_angio: mods.angio, mod_rm: mods.rm, mod_pangio: mods.angio,
     };
     setBusy(true);
     try {
@@ -161,16 +159,24 @@ export function NuevoEstudioSheet({
         <Input label="Fecha del caso" hint="Fecha del diagnóstico" type="date" value={f.study_date} onChange={set("study_date")} />
 
         <div style={SECTION}>Datos clínicos</div>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Síntomas positivos</div>
-        {textarea(f.sintomas_positivos, (v) => setF((s) => ({ ...s, sintomas_positivos: v })), "Síntomas actuales, cefalea, déficit neurológico…", false, 3)}
+        <Input label="Clínica" multiline value={f.sintomas_positivos} onChange={set("sintomas_positivos")} placeholder="Síntomas actuales, cefalea, déficit neurológico…" />
         <div style={{ height: 12 }} />
-        <Input label="Diagnóstico principal *" value={f.dx_principal} onChange={set("dx_principal")} placeholder="Diagnóstico principal" />
+        <div ref={dxBox}>
+          <Input label="Diagnóstico *" value={f.dx_principal}
+                 onChange={(e) => { set("dx_principal")(e); setDxError(null); }}
+                 placeholder="Aneurisma basilar sacular"
+                 hint={dxError ?? "Da nombre al caso en toda la aplicación"} invalid={!!dxError} />
+        </div>
         <div style={{ height: 12 }} />
         <Input label="Diagnóstico secundario" value={f.dx_secundario} onChange={set("dx_secundario")} placeholder="Diagnóstico secundario (opcional)" />
 
         <div style={SECTION}>Caracterización aneurismática</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Select label="Tipo de aneurisma" options={TIPOS.map((t) => t || "— seleccionar —")} value={f.tipo_aneurisma || "— seleccionar —"} onChange={(e) => setF((s) => ({ ...s, tipo_aneurisma: e.target.value === "— seleccionar —" ? "" : e.target.value }))} />
+          <Select label="Morfología" options={[SIN_DATO, ...MORFOLOGIAS]} value={f.morfologia || SIN_DATO} onChange={(e) => setF((s) => ({ ...s, morfologia: e.target.value === SIN_DATO ? "" : e.target.value }))} />
+          <Select label="Tamaño" options={[SIN_DATO, ...TAMANOS]} value={f.tamano || SIN_DATO} onChange={(e) => setF((s) => ({ ...s, tamano: e.target.value === SIN_DATO ? "" : e.target.value }))} />
+        </div>
+        <div style={{ height: 12 }} />
+        <div>
           <Select label="Lateralidad" options={LATERALIDAD.map((t) => t || "—")} value={f.lateralidad || "—"} onChange={(e) => setF((s) => ({ ...s, lateralidad: e.target.value === "—" ? "" : e.target.value }))} />
         </div>
         <div style={{ height: 12 }} />
@@ -182,7 +188,7 @@ export function NuevoEstudioSheet({
         </div>
 
         <div style={SECTION}>Imágenes diagnósticas</div>
-        <div style={SUBTLE}>Indique las modalidades del caso. El DICOM se carga en el paso 1 del pipeline al abrir el caso.</div>
+        <div style={SUBTLE}>El DICOM se sube en el paso 1 al abrir el caso.</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {MODALIDADES.map(([k, label]) => checkRow(label, mods[k], (on) => setMods((s) => ({ ...s, [k]: on }))))}
         </div>

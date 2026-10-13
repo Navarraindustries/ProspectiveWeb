@@ -238,6 +238,11 @@ function Router() {
       <ClipOrdersPage
         patientFilter={ordersPatient}
         onClearPatient={() => setOrdersPatient(null)}
+        // F2-27: se llega aquí desde la ficha con el paciente fijado; la vuelta
+        // reabre esa ficha (?paciente=<id>), no la lista.
+        onBackToPatient={ordersPatient
+          ? () => navigate(`${SCREEN_PATH.patients}?paciente=${ordersPatient.id}`)
+          : undefined}
       />
     );
   else if (effective === "workshops") view = <WorkshopsPage />;

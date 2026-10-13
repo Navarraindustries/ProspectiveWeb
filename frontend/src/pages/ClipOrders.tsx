@@ -340,10 +340,13 @@ function Detail({ order, onChanged, onClose }: {
 
 const ALL = "todos";
 
-export function ClipOrdersPage({ patientFilter, onClearPatient }: {
+export function ClipOrdersPage({ patientFilter, onClearPatient, onBackToPatient }: {
   /** Cuando llega desde la ficha de un paciente, la vista abre ya filtrada. */
   patientFilter?: PatientSummary | null;
   onClearPatient?: () => void;
+  /** Vuelve a la ficha de la que se vino. Sin él no hay botón: desde la barra
+   *  lateral no se viene de ninguna ficha. */
+  onBackToPatient?: () => void;
 }) {
   const [orders, setOrders] = useState<ClipOrder[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -397,6 +400,13 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
   return (
     <AppShell crumbs={[{ label: "Pedidos de clips" }]}>
       <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+        {/* F2-27: «Pedidos» cerraba la ficha y esta pantalla no tenía camino de
+            vuelta al paciente; solo «Ver todos», que tampoco lleva a él. */}
+        {onBackToPatient && (
+          <div style={{ marginBottom: 8 }}>
+            <Button size="sm" variant="ghost" onClick={onBackToPatient}>← Volver a la ficha</Button>
+          </div>
+        )}
         <PanelHead
           title="Pedidos de clips"
           desc="Todos los pedidos de fabricación, con su estado y lo que falta por hacer."

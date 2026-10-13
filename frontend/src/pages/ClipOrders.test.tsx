@@ -332,3 +332,19 @@ describe("el glosario de pedidos (F1-93)", () => {
     expect(container.textContent).not.toMatch(/solicitud|encargad/i);
   });
 });
+
+/* F2-27: «Pedidos» desde la ficha llevaba aquí sin camino de vuelta al paciente. */
+describe("la vuelta a la ficha", () => {
+  it("«← Volver a la ficha» solo sale cuando se llega desde una ficha, y vuelve a ella", async () => {
+    listClipOrders.mockResolvedValue([]);
+    const volver = vi.fn();
+    const r = render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} onBackToPatient={volver} />);
+    fireEvent.click(await screen.findByRole("button", { name: "← Volver a la ficha" }));
+    expect(volver).toHaveBeenCalledTimes(1);
+    r.unmount();
+
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(listClipOrders).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: /Volver a la ficha/ })).toBeNull();
+  });
+});

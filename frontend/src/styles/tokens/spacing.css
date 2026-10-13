@@ -46,3 +46,8 @@
 [data-theme="light"] {
   --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.12);
 }
+
+/* La landing fija data-theme="dark" bajo un documento que puede ser claro. */
+[data-theme="dark"] {
+  --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.45);
+}

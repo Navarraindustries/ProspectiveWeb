@@ -4,7 +4,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const css = readFileSync(join(__dirname, "tokens/colors.css"), "utf8");
+// El selector oscuro se declara una sola vez junto a :root (ver colors.css).
+const css = readFileSync(join(__dirname, "tokens/colors.css"), "utf8").replace(/\r\n/g, "\n");
+const DARK = ":root,\n[data-theme=\"dark\"]";
 const block = (sel: string) => {
   const i = css.indexOf(sel + " {");
   return css.slice(i, css.indexOf("}", i));
@@ -13,12 +15,12 @@ const names = (b: string) => new Set([...b.matchAll(/--([a-z0-9-]+)\s*:/g)].map(
 
 describe("tokens de la identidad A", () => {
   it("el claro define exactamente los mismos nombres que el oscuro", () => {
-    const dark = names(block(":root")), light = names(block('[data-theme="light"]'));
+    const dark = names(block(DARK)), light = names(block('[data-theme="light"]'));
     expect([...dark].filter((n) => !light.has(n))).toEqual([]);
     expect([...light].filter((n) => !dark.has(n))).toEqual([]);
   });
   it("el oscuro es el de la identidad A", () => {
-    const r = block(":root");
+    const r = block(DARK);
     expect(r).toMatch(/--canvas:\s*#0B0C0F/i);
     expect(r).toMatch(/--background:\s*#141519/i);
     expect(r).toMatch(/--card:\s*#1C1D22/i);

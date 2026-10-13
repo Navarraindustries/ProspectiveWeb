@@ -2,7 +2,7 @@
    identidad A se diseñó oscura y solo una elección guardada por la persona
    puede cambiarlo. */
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTheme } from "./useTheme";
 
 function systemPrefers(scheme: "light" | "dark") {
@@ -19,6 +19,8 @@ describe("useTheme", () => {
     localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it("sin nada guardado es oscuro aunque el sistema prefiera claro", () => {
     systemPrefers("light");

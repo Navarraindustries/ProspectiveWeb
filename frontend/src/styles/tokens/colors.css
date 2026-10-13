@@ -1,6 +1,9 @@
 /* ============================================================================
    PROSPECTIVE — Color tokens · identidad A (grafito + azul eléctrico)
-   El oscuro es el tema por defecto y vive en :root; el claro se aplica bajo
+   El oscuro es el tema por defecto y vive en :root junto a [data-theme="dark"]
+   (la landing fija ese atributo en su contenedor y, sin él, heredaría el claro
+   elegido para la aplicación; una sola declaración evita que las copias se separen);
+   el claro se aplica bajo
    [data-theme="light"]. Los dos bloques definen EXACTAMENTE los mismos nombres
    (lo vigila tokens.test.ts): un token que solo exista en un tema dejaría una
    superficie transparente en el otro.
@@ -8,7 +11,8 @@
    estado clínico lo usa, y los estados clínicos no usan el acento.
    ============================================================================ */
 
-:root {
+:root,
+[data-theme="dark"] {
   /* ---- Escala de marca (alias del acento; se conservan por los usos antiguos) ---- */
   --brand-smoke:        #3B8BFF;
   --brand-mist:         #8CBBFF;
@@ -153,87 +157,4 @@
   --hud-line:   1px;
 
   color-scheme: light;
-}
-
-/* Tema oscuro explícito: la landing es dark-only y fija data-theme="dark" en su
-   contenedor; sin este bloque heredaría el claro si la persona lo eligió para
-   la aplicación, porque :root solo cubre el documento entero. */
-[data-theme="dark"] {
-  /* ---- Escala de marca (alias del acento; se conservan por los usos antiguos) ---- */
-  --brand-smoke:        #3B8BFF;
-  --brand-mist:         #8CBBFF;
-  --brand-slate:        #8CBBFF;
-  --brand-steel:        #2F6FD0;
-  --brand-deep:         #8CBBFF;
-  --brand-ink:          #141519;
-
-  /* ---- Superficies ---- */
-  --canvas:             #0B0C0F;   /* lienzo de la aplicación */
-  --background:         #141519;   /* paneles, barra lateral */
-  --foreground:         #F2F3F5;
-  --card:               #1C1D22;   /* tarjetas, hojas */
-  --card-foreground:    #F2F3F5;
-  --popover:            #1C1D22;
-  --popover-foreground: #F2F3F5;
-
-  /* ---- Acento / interacción ---- */
-  --primary:            #3B8BFF;
-  --primary-foreground: #FFFFFF;
-  --primary-hover:      #5A9DFF;
-  --secondary:          #1C1D22;
-  --secondary-foreground: #F2F3F5;
-  --muted:              #141519;
-  --muted-foreground:   #9AA3AF;
-  --accent:             rgba(59, 139, 255, 0.16);
-  --accent-foreground:  #8CBBFF;
-
-  /* Estado activo / selección */
-  --brand-subtle:       rgba(59, 139, 255, 0.16);
-  --brand-subtle-foreground: #8CBBFF;
-
-  /* ---- Estado clínico ---- */
-  --destructive:        #FF5A5F;
-  --destructive-bg:     rgba(255, 90, 95, 0.14);
-  --destructive-foreground: #0B0C0F;
-  --success:            #2ECC8A;
-  --success-bg:         rgba(46, 204, 138, 0.14);
-  --warning:            #F5B942;
-  --warning-bg:         rgba(245, 185, 66, 0.14);
-  --info:               #9AA3AF;
-
-  /* ---- Estructura ---- */
-  --border:             rgba(255, 255, 255, 0.08);
-  --input:              rgba(255, 255, 255, 0.08);
-  --ring:               #3B8BFF;
-
-  /* ---- Cristal: hojas, menús y barra superior ---- */
-  --glass:              rgba(28, 29, 34, 0.72);
-  --glass-blur:         18px;
-
-  /* ---- Gráficos: derivados del acento y de los grises ---- */
-  --chart-1:            #3B8BFF;
-  --chart-2:            #8CBBFF;
-  --chart-3:            #9AA3AF;
-  --chart-4:            #5B6470;
-  --chart-5:            #2F6FD0;
-
-  /* ---- Visor clínico (superficie de imagen médica, siempre oscura) ---- */
-  --viewer-bg:          #000000;
-  --viewer-foreground:  #EBEBEB;
-
-  /* HUD del visor: un solo acento fosforescente sobre negro. Se queda en el verde
-     de siempre porque vtk/planeColors.ts (HUD_HEX) lo replica y una prueba vigila
-     que coincidan; cambiarlo es cosa del visor, no de la identidad de gestión. */
-  --hud:        #8CFF9E;
-  --hud-dim:    rgba(140, 255, 158, 0.55);
-  --hud-amber:  #FFC857;
-  /* Un color por plano de corte (rótulo, líneas de referencia, traza del MIP, 3D). */
-  --plane-axial:   #4cc9f0;
-  --plane-coronal: #80ed99;
-  --plane-sagital: #f4a261;
-  --plane-libre:   #c77dff;
-  --hud-red:    #FF5A5A;
-  --hud-line:   1px;
-
-  color-scheme: dark;
 }

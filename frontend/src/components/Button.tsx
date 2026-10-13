@@ -94,6 +94,8 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
         textDecoration: hover ? "underline" : "none",
         height: "auto",
         padding: 0,
+        // El contorno de foco sigue el radio del elemento; sin él, el del enlace sería recto.
+        borderRadius: "var(--radius-sm)",
       };
   }
 }

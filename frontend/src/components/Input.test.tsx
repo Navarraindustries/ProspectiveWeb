@@ -36,15 +36,14 @@ describe("Input", () => {
     expect(seen).toEqual(["hola"]);
   });
 
-  // Un solo anillo de foco: lo dibuja el contenedor y el campo interior no añade otro.
-  it.each([false, true])("draws one focus ring on the wrapper only (multiline=%s)", (multiline) => {
+  // El anillo lo pone el :focus-visible global sobre el propio campo: nada en línea lo anula ni lo duplica.
+  it.each([false, true])("leaves the focus ring to the global rule (multiline=%s)", (multiline) => {
     render(<Input label="Nombre" multiline={multiline} />);
     const field = screen.getByLabelText("Nombre");
     const wrapper = field.parentElement as HTMLElement;
-    expect(wrapper.style.boxShadow).not.toContain("--ring");
     fireEvent.focus(field);
-    expect(wrapper.style.boxShadow).toContain("--ring");
-    expect(field.style.outline).toBe("none");
+    expect(field.style.outline).toBe("");
     expect(field.style.boxShadow).toBe("");
+    expect(wrapper.style.boxShadow).not.toContain("--ring");
   });
 });

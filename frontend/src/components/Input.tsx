@@ -1,6 +1,6 @@
 /* Input — labelled text field with optional leading icon, hint and invalid state. */
 
-import { useId, useState } from "react";
+import { useId } from "react";
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 // Los manejadores se tipan como los de <input>: los consumidores existentes no cambian
@@ -16,10 +16,9 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export function Input({ label, icon, hint, invalid, multiline, style, ...rest }: InputProps) {
   const id = useId();
-  const [focus, setFocus] = useState(false);
   // aria-invalid solo cuando el llamador lo pide: un campo vacío no nace en rojo (F2-63).
-  // El anillo de foco lo dibuja el contenedor (el campo va sin borde); el elemento interior
-  // lleva outline:none en línea para que no se vea un segundo anillo del :focus-visible global.
+  // El anillo de foco lo dibuja el propio campo con el :focus-visible global (base.css):
+  // un solo mecanismo, y solo con teclado.
   const common = {
     id,
     ...(invalid ? { "aria-invalid": true as const } : {}),
@@ -27,7 +26,6 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
       flex: 1,
       minWidth: 0,
       border: "none",
-      outline: "none",
       background: "transparent",
       color: "var(--foreground)",
       fontFamily: "var(--font-sans)",
@@ -54,10 +52,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
           borderRadius: "var(--radius-md)",
           background: "var(--background)",
           border: `1px solid ${invalid ? "var(--destructive)" : "var(--input)"}`,
-          boxShadow: focus
-            ? "0 0 0 2px var(--ring)"
-            : "var(--shadow-xs)",
-          transition: "box-shadow 120ms var(--ease-out), border-color 120ms var(--ease-out)",
+          boxShadow: "var(--shadow-xs)",
         }}
       >
         {icon && <span style={{ color: "var(--muted-foreground)", display: "flex" }}>{icon}</span>}
@@ -66,15 +61,11 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
             rows={3}
             {...(rest as TextareaHTMLAttributes<HTMLTextAreaElement>)}
             {...common}
-            onFocus={(e) => { setFocus(true); rest.onFocus?.(e as never); }}
-            onBlur={(e) => { setFocus(false); rest.onBlur?.(e as never); }}
           />
         ) : (
           <input
             {...rest}
             {...common}
-            onFocus={(e) => { setFocus(true); rest.onFocus?.(e); }}
-            onBlur={(e) => { setFocus(false); rest.onBlur?.(e); }}
           />
         )}
       </div>

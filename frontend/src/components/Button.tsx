@@ -120,7 +120,6 @@ export function Button({
   const btn = (
     <button
       {...rest}
-      className={["ui-btn", rest.className].filter(Boolean).join(" ")}
       data-variant={variant}
       data-size={size}
       disabled={disabled}

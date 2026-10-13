@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Input } from "./Input";
 
@@ -27,5 +27,24 @@ describe("Input", () => {
     render(<Input label="Notas" multiline invalid hint="Demasiado corto" />);
     expect(screen.getByLabelText("Notas")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText("Demasiado corto")).toBeInTheDocument();
+  });
+
+  it("typing in the textarea calls onChange with the value", () => {
+    const seen: string[] = [];
+    render(<Input label="Notas" multiline onChange={(e) => seen.push(e.target.value)} />);
+    fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "hola" } });
+    expect(seen).toEqual(["hola"]);
+  });
+
+  // Un solo anillo de foco: lo dibuja el contenedor y el campo interior no añade otro.
+  it.each([false, true])("draws one focus ring on the wrapper only (multiline=%s)", (multiline) => {
+    render(<Input label="Nombre" multiline={multiline} />);
+    const field = screen.getByLabelText("Nombre");
+    const wrapper = field.parentElement as HTMLElement;
+    expect(wrapper.style.boxShadow).not.toContain("--ring");
+    fireEvent.focus(field);
+    expect(wrapper.style.boxShadow).toContain("--ring");
+    expect(field.style.outline).toBe("none");
+    expect(field.style.boxShadow).toBe("");
   });
 });

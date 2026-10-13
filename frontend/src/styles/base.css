@@ -45,9 +45,10 @@ a:hover {
 }
 
 :focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
-  border-radius: var(--radius-md);
+  /* Una sola política de foco para toda la interfaz: anillo de 2 px en --ring. */
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 code, kbd, samp, .mono {

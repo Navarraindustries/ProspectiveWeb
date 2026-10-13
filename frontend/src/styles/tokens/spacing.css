@@ -35,7 +35,7 @@
   --control-lg: 40px;
 
   /* ---- Motion ---- */
-  --dur-fast:    150ms;
+  --dur-fast:    120ms;
   --dur-base:    300ms;
   --dur-slow:    500ms;
   --dur-slowest: 700ms;

@@ -1,12 +1,2 @@
-/* Componentes base (identidad A). Lo que los estilos en línea no pueden decir:
-   el anillo de foco con teclado y el estado deshabilitado de los controles. */
-
-/* Anillo de 2 px en --ring solo con :focus-visible (teclado), no al hacer clic. */
-.ui-btn:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  box-shadow: none;
-}
-.ui-btn[data-variant="link"]:focus-visible {
-  border-radius: var(--radius-sm);
-}
+/* Componentes base (identidad A). El anillo de foco es global (base.css,
+   :focus-visible); aquí solo van reglas que los estilos en línea no pueden decir. */

@@ -17,6 +17,25 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 export function Input({ label, icon, hint, invalid, multiline, style, ...rest }: InputProps) {
   const id = useId();
   const [focus, setFocus] = useState(false);
+  // aria-invalid solo cuando el llamador lo pide: un campo vacío no nace en rojo (F2-63).
+  // El anillo de foco lo dibuja el contenedor (el campo va sin borde); el elemento interior
+  // lleva outline:none en línea para que no se vea un segundo anillo del :focus-visible global.
+  const common = {
+    id,
+    ...(invalid ? { "aria-invalid": true as const } : {}),
+    style: {
+      flex: 1,
+      minWidth: 0,
+      border: "none",
+      outline: "none",
+      background: "transparent",
+      color: "var(--foreground)",
+      fontFamily: "var(--font-sans)",
+      fontSize: 14,
+      ...(multiline ? { resize: "vertical" as const, minHeight: 68, lineHeight: 1.45 } : {}),
+      ...style,
+    },
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
       {label && (
@@ -42,41 +61,22 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
         }}
       >
         {icon && <span style={{ color: "var(--muted-foreground)", display: "flex" }}>{icon}</span>}
-        {(() => {
-          // aria-invalid solo cuando el llamador lo pide: un campo vacío no nace en rojo (F2-63).
-          const common = {
-            id,
-            ...(invalid ? { "aria-invalid": true as const } : {}),
-            style: {
-              flex: 1,
-              minWidth: 0,
-              border: "none",
-              outline: "none",
-              background: "transparent",
-              color: "var(--foreground)",
-              fontFamily: "var(--font-sans)",
-              fontSize: 14,
-              ...(multiline ? { resize: "vertical" as const, minHeight: 68, lineHeight: 1.45 } : {}),
-              ...style,
-            },
-          };
-          return multiline ? (
-            <textarea
-              rows={3}
-              {...(rest as TextareaHTMLAttributes<HTMLTextAreaElement>)}
-              {...common}
-              onFocus={(e) => { setFocus(true); rest.onFocus?.(e as never); }}
-              onBlur={(e) => { setFocus(false); rest.onBlur?.(e as never); }}
-            />
-          ) : (
-            <input
-              {...(rest as InputHTMLAttributes<HTMLInputElement>)}
-              {...common}
-              onFocus={(e) => { setFocus(true); rest.onFocus?.(e as never); }}
-              onBlur={(e) => { setFocus(false); rest.onBlur?.(e as never); }}
-            />
-          );
-        })()}
+        {multiline ? (
+          <textarea
+            rows={3}
+            {...(rest as TextareaHTMLAttributes<HTMLTextAreaElement>)}
+            {...common}
+            onFocus={(e) => { setFocus(true); rest.onFocus?.(e as never); }}
+            onBlur={(e) => { setFocus(false); rest.onBlur?.(e as never); }}
+          />
+        ) : (
+          <input
+            {...rest}
+            {...common}
+            onFocus={(e) => { setFocus(true); rest.onFocus?.(e); }}
+            onBlur={(e) => { setFocus(false); rest.onBlur?.(e); }}
+          />
+        )}
       </div>
       {hint && <span style={{ fontSize: 12, color: invalid ? "var(--destructive)" : "var(--muted-foreground)" }}>{hint}</span>}
     </div>

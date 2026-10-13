@@ -8,7 +8,7 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { fechaHora } from "../lib/fecha";
@@ -35,7 +35,11 @@ function PendingAvatar({ user }: { user: PendingUser }) {
   );
 }
 
-export function PendingRequests({ onBack }: { onBack: () => void }) {
+/* Solo lo que existe: «Administración» no es un destino (vive en el grupo de
+   la barra lateral). */
+const PENDING_CRUMBS = [{ label: "Cuentas pendientes" }];
+
+export function PendingRequests() {
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
   // El fallo de aprobar o rechazar va en su nota; el de cargar sustituye a la lista.
@@ -74,7 +78,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
+    <AppShell crumbs={PENDING_CRUMBS}>
       <ConfirmDialog
         open={toReject !== null}
         title="¿Rechazar la solicitud?"
@@ -86,12 +90,6 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
         La solicitud de <b style={{ color: "var(--foreground)" }}>{toReject?.full_name || toReject?.username}</b> se
         rechaza y sale de esta lista; no podrá entrar con esa cuenta.
       </ConfirmDialog>
-      <Topbar crumbs={[{ label: "Pacientes", onClick: onBack }, { label: "Administración" }, { label: "Cuentas pendientes" }]}>
-        <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>
-          Pacientes
-        </Button>
-      </Topbar>
-
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }} className="fade-rise">
           <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 22 }}>
@@ -196,6 +194,6 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
           </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

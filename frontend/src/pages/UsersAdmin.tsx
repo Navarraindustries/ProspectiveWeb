@@ -12,7 +12,7 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { Sheet } from "../components/Sheet";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
 import { ErrorNote } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
@@ -197,11 +197,16 @@ export function UsersAdmin({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   // La guarda va antes de montar la página: sus llamadas y sus botones no
   // tienen sentido para quien no es administrador.
-  if (user?.role !== "admin") return <AdminOnlyCard onBack={onBack} />;
-  return <UsersAdminPage onBack={onBack} />;
+  // La tarjeta va dentro del shell: la barra lateral es la salida (F1b-3).
+  if (user?.role !== "admin") return <AppShell crumbs={USERS_CRUMBS}><AdminOnlyCard onBack={onBack} /></AppShell>;
+  return <UsersAdminPage />;
 }
 
-function UsersAdminPage({ onBack }: { onBack: () => void }) {
+/* Solo lo que existe: «Administración» no es un destino (vive en el grupo de
+   la barra lateral). */
+const USERS_CRUMBS = [{ label: "Usuarios" }];
+
+function UsersAdminPage() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<UserAdminInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -279,13 +284,14 @@ function UsersAdminPage({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
-      <Topbar crumbs={[{ label: "Pacientes", onClick: onBack }, { label: "Administración" }, { label: "Usuarios" }]}>
-        <div style={{ width: 220, marginRight: 8 }}>
+    <AppShell
+      crumbs={USERS_CRUMBS}
+      actions={
+        <div style={{ width: 220 }}>
           <Input icon={<Icon name="SEARCH" />} placeholder="Buscar usuario…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>Pacientes</Button>
-      </Topbar>
+      }
+    >
 
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }} className="fade-rise">
@@ -458,6 +464,6 @@ function UsersAdminPage({ onBack }: { onBack: () => void }) {
           Contraseña de @{resetDone} restablecida
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }

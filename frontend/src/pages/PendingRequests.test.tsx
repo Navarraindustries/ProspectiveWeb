@@ -17,7 +17,11 @@ vi.mock("../api/client", () => ({
   },
   ApiError: class ApiError extends Error {},
 }));
-vi.mock("../components/Topbar", () => ({ Topbar: () => null }));
+// El shell (barra lateral y superior) se sustituye por su contenido y sus
+// acciones: lo que se prueba aquí es la página.
+vi.mock("../components/shell/AppShell", () => ({
+  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+}));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 
 import { PendingRequests } from "./PendingRequests";
@@ -28,7 +32,7 @@ describe("«Solicitudes» con el API fallando", () => {
   it("muestra el error sin la marca verde ni el vacío, y «Reintentar» vuelve a llamar", async () => {
     listPending.mockRejectedValueOnce(Object.assign(new Error("El servidor no responde"),
       { status: 0, fromServer: false }));
-    render(<PendingRequests onBack={() => {}} />);
+    render(<PendingRequests />);
 
     expect(await screen.findByText("El servidor no responde")).toBeTruthy();
     expect(screen.queryByText("No hay solicitudes pendientes.")).toBeNull();
@@ -45,7 +49,7 @@ describe("«Solicitudes» con el API fallando", () => {
 
   it("sin solicitudes y sin error sigue mostrando el vacío", async () => {
     listPending.mockResolvedValueOnce([]);
-    render(<PendingRequests onBack={() => {}} />);
+    render(<PendingRequests />);
     expect(await screen.findByText("No hay solicitudes pendientes.")).toBeTruthy();
   });
 });
@@ -57,7 +61,7 @@ describe("«Rechazar» una solicitud", () => {
       id: 5, username: "nuevo", full_name: "Nuevo Residente", has_photo: false, has_cv: false,
       created_at: "2026-10-01T00:00:00Z",
     }]);
-    render(<PendingRequests onBack={() => {}} />);
+    render(<PendingRequests />);
     fireEvent.click(await screen.findByRole("button", { name: "Rechazar" }));
     const dialogo = screen.getByRole("alertdialog", { name: "¿Rechazar la solicitud?" });
     expect(dialogo.textContent).toContain("Nuevo Residente");

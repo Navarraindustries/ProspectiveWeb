@@ -1,4 +1,6 @@
-/* PROSPECTIVE Web — root: splash → Login/Signup → Pacientes → Sesión → Solicitudes. */
+/* PROSPECTIVE Web — root: splash → Login/Signup → Pacientes → Sesión → administración.
+   Las pantallas de gestión se envuelven cada una en el shell (barra lateral y
+   superior, components/shell); el espacio de trabajo conserva su Topbar en F2. */
 
 import { ForcePasswordChange } from "./components/ForcePasswordChange";
 import { useCallback, useEffect, useState } from "react";
@@ -14,7 +16,6 @@ import { PendingRequests } from "./pages/PendingRequests";
 import { UsersAdmin } from "./pages/UsersAdmin";
 import { AuditTrail } from "./pages/AuditTrail";
 import { VideoSplash } from "./components/VideoSplash";
-import { LoadingScreen } from "./components/LoadingScreen";
 import { UnsavedExitDialog } from "./components/UnsavedExitDialog";
 import { AuthProvider, useAuth } from "./store/auth";
 import { PlanningProvider, usePlanning } from "./store/planning";
@@ -49,7 +50,6 @@ function Router() {
   // Solo vale para el aviso al que pertenece: otro aviso posterior no lo hereda.
   const retryHere = toastRetry && toastRetry.forText === toast ? toastRetry.run : null;
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
-  const [loadingIn, setLoadingIn] = useState(false);
   const [resumeStep, setResumeStep] = useState(0);
   // Leaving the pipeline throws the session away: the store resets on the next
   // patient. Saving is manual, so an accidental click on the logo — or on the
@@ -75,7 +75,9 @@ function Router() {
   const effective: Screen = user ? (screen === "login" || screen === "signup" ? "patients" : screen) : loggedOut;
 
   // Keep the URL honest when the effective screen differs from the one the path
-  // names — a logged-out visitor deep-linking to /app/sesion, or bare /app.
+  // names — a logged-out visitor deep-linking to /app/sesion, bare /app, or a
+  // ruta antigua que screenFromPath aún reconoce (/app/solicitudes →
+  // /app/cuentas-pendientes, F2).
   // `replace`, not push: this correction must not become a Back destination.
   useEffect(() => {
     if (!ready) return;
@@ -211,7 +213,7 @@ function Router() {
     // A session that expired mid-study explains itself on the login screen.
     view = (
       <Login
-        onLogin={() => { setLoadingIn(true); setScreen("patients"); }}
+        onLogin={() => setScreen("patients")}
         onSignup={() => setScreen("signup")}
         notice={loginNotice ?? expiredNotice}
       />
@@ -240,7 +242,6 @@ function Router() {
       <Studies
         onOpen={(s) => void openStudy(s)}
         onResume={(s) => void resumeStudySession(s)}
-        onBack={() => setScreen("patients")}
       />
     );
   else if (effective === "orders")
@@ -251,7 +252,7 @@ function Router() {
       />
     );
   else if (effective === "workshops") view = <WorkshopsPage />;
-  else if (effective === "pending") view = <PendingRequests onBack={() => setScreen("patients")} />;
+  else if (effective === "pending") view = <PendingRequests />;
   else if (effective === "users") view = <UsersAdmin onBack={() => setScreen("patients")} />;
   else if (effective === "audit") view = <AuditTrail onBack={() => setScreen("patients")} />;
   else
@@ -269,7 +270,6 @@ function Router() {
     <NavProvider value={{ screen: effective, go: setScreen }}>
     <div style={{ height: "100%", position: "relative" }}>
       {view}
-      {loadingIn && <LoadingScreen onDone={() => setLoadingIn(false)} />}
       <UnsavedExitDialog
         open={blocker.state === "blocked"}
         hasPatient={!!(planning.patient ?? patient)}

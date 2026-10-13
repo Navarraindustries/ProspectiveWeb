@@ -9,7 +9,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
 import { PanelHead, SectionLabel, Card, ErrorNote } from "../components/PanelHead";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -23,11 +23,16 @@ export function AuditTrail({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   // La guarda va antes de montar la página: sus llamadas y sus botones no
   // tienen sentido para quien no es administrador.
-  if (user?.role !== "admin") return <AdminOnlyCard onBack={onBack} />;
-  return <AuditTrailPage onBack={onBack} />;
+  // La tarjeta va dentro del shell: la barra lateral es la salida (F1b-3).
+  if (user?.role !== "admin") return <AppShell crumbs={AUDIT_CRUMBS}><AdminOnlyCard onBack={onBack} /></AppShell>;
+  return <AuditTrailPage />;
 }
 
-function AuditTrailPage({ onBack }: { onBack: () => void }) {
+/* Solo lo que existe: «Administración» no es un destino (vive en el grupo de
+   la barra lateral). */
+const AUDIT_CRUMBS = [{ label: "Auditoría" }];
+
+function AuditTrailPage() {
   const [blocks, setBlocks] = useState<AuditBlock[]>([]);
   const [verify, setVerify] = useState<AuditVerifyResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,10 +95,7 @@ function AuditTrailPage({ onBack }: { onBack: () => void }) {
   useEffect(() => setShown(PAGE), [q, action]);
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
-      <Topbar crumbs={[{ label: "Pacientes", onClick: onBack }, { label: "Auditoría · SkullChain" }]}>
-        <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>Pacientes</Button>
-      </Topbar>
+    <AppShell crumbs={AUDIT_CRUMBS}>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", maxWidth: 1100, width: "100%", margin: "0 auto" }}>
         <PanelHead
@@ -199,6 +201,6 @@ function AuditTrailPage({ onBack }: { onBack: () => void }) {
           </div>
         )}
       </div>
-    </div>
+    </AppShell>
   );
 }

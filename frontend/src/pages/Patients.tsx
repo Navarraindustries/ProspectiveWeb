@@ -16,7 +16,7 @@ import { Select } from "../components/Select";
 import { Sheet } from "../components/Sheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DiscardChanges } from "../components/DiscardChanges";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
@@ -541,12 +541,14 @@ export function Patients({
   };
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
-      <Topbar>
-        <div style={{ width: 240, marginRight: 8 }}>
+    <AppShell
+      crumbs={[{ label: "Pacientes" }]}
+      actions={
+        <div style={{ width: 240 }}>
           <Input icon={<Icon name="SEARCH" />} placeholder="Buscar paciente o HC…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-      </Topbar>
+      }
+    >
 
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }} className="fade-rise">
@@ -734,6 +736,6 @@ export function Patients({
         onCreated={() => { setCasePatient(null); load(); }}
       />
       {toDelete && <DeleteConfirm patient={toDelete} onCancel={() => setToDelete(null)} onConfirm={confirmDelete} />}
-    </div>
+    </AppShell>
   );
 }

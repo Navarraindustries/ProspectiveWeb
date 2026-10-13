@@ -17,16 +17,14 @@ vi.mock("../api/client", () => ({
     listUsers: () => listUsers(),
     auditBlocks: () => auditBlocks(),
     auditVerify: () => Promise.resolve({ ok: true, total_blocks: 0, broken: [] }),
+    listPending: () => Promise.resolve([]),
   },
   ApiError: class ApiError extends Error {},
 }));
-// La barra se sustituye por sus migas: lo que importa es que exista y lleve
-// «Pacientes» (F1b-3: la tarjeta sola, sin barra, era un callejón sin salida).
-vi.mock("../components/Topbar", () => ({
-  Topbar: ({ crumbs }: { crumbs?: { label: string }[] }) => (
-    <div data-testid="topbar">{(crumbs ?? []).map((c) => c.label).join(" / ")}</div>
-  ),
-}));
+// El shell se monta de verdad: lo que importa es que la tarjeta esté dentro de
+// él y la barra lateral lleve a «Pacientes» (F1b-3: la tarjeta sola, sin
+// barra, era un callejón sin salida).
+vi.mock("../store/nav", async (orig) => ({ ...(await orig<object>()), useNav: () => ({ screen: "users", go: vi.fn() }) }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 
@@ -65,9 +63,12 @@ describe("rutas de administración para un Médico", () => {
 });
 
 describe("la tarjeta no es un callejón sin salida (F1b-3)", () => {
-  it("lleva la barra superior con la miga «Pacientes»", () => {
+  it("va dentro del shell: la barra lateral lleva a «Pacientes» y la miga es solo la página", () => {
     render(<AuditTrail onBack={() => {}} />);
-    expect(screen.getByTestId("topbar").textContent).toContain("Pacientes");
+    expect(screen.getByRole("link", { name: /Pacientes/ }).getAttribute("href")).toBe("/app/pacientes");
+    expect(screen.getByRole("navigation", { name: "Miga de pan" }).textContent).toBe("Auditoría");
+    // «Administración» no es un destino: la miga no lo lleva.
+    expect(screen.queryByText("Administración")).toBeNull();
   });
 
   it("«Volver a pacientes» vuelve, en las dos páginas", () => {

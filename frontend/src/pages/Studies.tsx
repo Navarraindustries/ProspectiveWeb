@@ -9,10 +9,9 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { StudyCard } from "../api/types";
 import { Badge, riskVariant } from "../components/Badge";
-import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 
 import { STEP_LABELS } from "../pipeline/steps";
@@ -239,19 +238,14 @@ export function StudyGallery({
 }
 
 export function Studies({
-  onOpen, onResume, onBack,
+  onOpen, onResume,
 }: {
   onOpen: (study: StudyCard) => void;
   onResume: (study: StudyCard) => void;
-  onBack: () => void;
 }) {
+  // Sección de primer nivel, como Pacientes: la miga es solo ella.
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
-      <Topbar crumbs={[{ label: "Pacientes", onClick: onBack }, { label: "Estudios" }]}>
-        <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>
-          Pacientes
-        </Button>
-      </Topbar>
+    <AppShell crumbs={[{ label: "Estudios" }]}>
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 24px 40px" }}>
           <div style={{ marginBottom: 18 }}>
@@ -263,6 +257,6 @@ export function Studies({
           <StudyGallery onOpen={onOpen} onResume={onResume} />
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

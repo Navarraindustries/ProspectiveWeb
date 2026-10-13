@@ -1,18 +1,26 @@
-/* Topbar — translucent app header.
-   Left: clickable logo (→ home) + PROSPECTIVE + WEB chip + breadcrumb.
-   Right: slot, theme toggle, user menu (dropdown with profile + admin + logout). */
+/* Topbar — cabecera translúcida del espacio de trabajo (/app/sesion).
+
+   Desde F2 las pantallas de gestión usan el shell (components/shell/AppShell)
+   y esta barra queda solo para el visor, que en F2 no lleva barra lateral. Por
+   eso su menú de usuario ya no enumera las secciones: «Pacientes» es la vuelta
+   a la gestión, y desde allí la barra lateral llega a todo lo demás.
+   Izquierda: logotipo (→ pacientes) + PROSPECTIVE + chip WEB + miga.
+   Derecha: hueco para acciones, conmutador de tema y menú de usuario. */
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import logo from "../assets/logo.png";
 import { ThemeToggle } from "./ThemeToggle";
 import { Icon } from "./Icon";
-import { Badge } from "./Badge";
 import { useAuth } from "../store/auth";
 import { ChangePasswordSheet } from "./ChangePasswordSheet";
 import { useNav } from "../store/nav";
 import { api } from "../api/client";
 import { ROLE_LABEL, ROLE_PERMITE } from "../lib/roles";
+import type { Crumb } from "./shell/TopBar";
+
+/** La miga vive en el shell; se reexporta para quien aún importa de aquí. */
+export type { Crumb } from "./shell/TopBar";
 
 /** Circular avatar: the user's uploaded photo (auth'd blob) or their initials. */
 function Avatar({ url, initials, size, fontSize }: { url: string | null; initials: string; size: number; fontSize: number }) {
@@ -28,10 +36,8 @@ function UserMenu() {
   const nav = useNav();
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
-  const [pending, setPending] = useState(0);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const isAdmin = user?.role === "admin";
 
   // Load the logged-in user's own profile photo (auth'd blob → object URL).
   useEffect(() => {
@@ -58,11 +64,6 @@ function UserMenu() {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-
-  // Refresh the pending-requests badge whenever the menu opens (admin only).
-  useEffect(() => {
-    if (open && isAdmin) api.listPending().then((p) => setPending(p.length)).catch(() => setPending(0));
-  }, [open, isAdmin]);
 
   if (!user) return null;
 
@@ -97,7 +98,6 @@ function UserMenu() {
         <span style={{ fontWeight: 600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {user.username}
         </span>
-        {isAdmin && pending > 0 && <Badge variant="destructive">{pending}</Badge>}
         <span style={{ color: "var(--muted-foreground)", fontSize: 10, transform: open ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast)" }}>▾</span>
       </button>
 
@@ -140,29 +140,12 @@ function UserMenu() {
 
           <div style={{ height: 1, background: "var(--border)", margin: "2px 0" }} />
 
-          <MenuItem icon="STEP_PATIENT" label="Pacientes" onClick={() => { setOpen(false); nav.go("patients"); }} />
-          <MenuItem icon="SETTINGS" label="Pedidos de clips" onClick={() => { setOpen(false); nav.go("orders"); }} />
-          <MenuItem icon="CLIPS" label="Talleres" onClick={() => { setOpen(false); nav.go("workshops"); }} />
-          {isAdmin && (
-            <MenuItem
-              icon="USERS"
-              label="Cuentas pendientes"
-              badge={pending > 0 ? pending : undefined}
-              onClick={() => { setOpen(false); nav.go("pending"); }}
-            />
-          )}
-          {isAdmin && (
-            <MenuItem
-              icon="SHIELD"
-              label="Auditoría (SkullChain)"
-              onClick={() => { setOpen(false); nav.go("audit"); }}
-            />
-          )}
+          <MenuItem icon="PATIENTS" label="Pacientes" onClick={() => { setOpen(false); nav.go("patients"); }} />
 
           <div style={{ height: 1, background: "var(--border)", margin: "2px 0" }} />
 
-          <MenuItem icon="LOCK" label="Cambiar contraseña" onClick={() => { setOpen(false); setPwOpen(true); }} />
-          <MenuItem icon="LOCK" label="Cerrar sesión" danger onClick={doLogout} />
+          <MenuItem icon="PASSWORD" label="Cambiar contraseña" onClick={() => { setOpen(false); setPwOpen(true); }} />
+          <MenuItem icon="LOGOUT" label="Cerrar sesión" danger onClick={doLogout} />
         </div>
       )}
 
@@ -175,13 +158,11 @@ function MenuItem({
   icon,
   label,
   onClick,
-  badge,
   danger,
 }: {
   icon: Parameters<typeof Icon>[0]["name"];
   label: string;
   onClick: () => void;
-  badge?: number;
   danger?: boolean;
 }) {
   const [hover, setHover] = useState(false);
@@ -209,15 +190,8 @@ function MenuItem({
     >
       <Icon name={icon} size={15} color={danger ? "var(--destructive)" : "var(--muted-foreground)"} />
       <span style={{ flex: 1 }}>{label}</span>
-      {badge !== undefined && <Badge variant="destructive">{badge}</Badge>}
     </button>
   );
-}
-
-/** One breadcrumb segment: a label plus, optionally, where clicking it goes. */
-export interface Crumb {
-  label: string;
-  onClick?: () => void;
 }
 
 export function Topbar({

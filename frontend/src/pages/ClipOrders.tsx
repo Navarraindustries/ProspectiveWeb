@@ -23,7 +23,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { shapeLabel } from "../components/planning/clipShape";
 import { useAuth } from "../store/auth";
@@ -395,9 +395,8 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
   const needAttention = sorted.filter((o) => attention(o) !== null).length;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)" }}>
-      <Topbar />
-      <div style={{ maxWidth: "var(--content-max)", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+    <AppShell crumbs={[{ label: "Pedidos de clips" }]}>
+      <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
         <PanelHead
           title="Pedidos de clips"
           desc="Todos los pedidos de fabricación, con su estado y lo que falta por hacer."
@@ -506,7 +505,7 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
           )}
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 

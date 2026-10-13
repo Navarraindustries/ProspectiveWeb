@@ -32,7 +32,11 @@ vi.mock("../api/client", () => {
     },
   };
 });
-vi.mock("../components/Topbar", () => ({ Topbar: () => null }));
+// El shell (barra lateral y superior) se sustituye por su contenido y sus
+// acciones: lo que se prueba aquí es la página.
+vi.mock("../components/shell/AppShell", () => ({
+  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+}));
 vi.mock("../components/CaptureGallery", () => ({ CaptureGallery: () => null }));
 vi.mock("./NuevoCaso", () => ({ CasePatientPicker: () => null, NuevoEstudioSheet: () => null }));
 vi.mock("./Studies", () => ({ StudyGallery: () => null }));

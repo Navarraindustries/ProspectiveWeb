@@ -25,7 +25,7 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 
@@ -168,9 +168,8 @@ export function WorkshopsPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)" }}>
-      <Topbar />
-      <div style={{ maxWidth: "var(--content-max)", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+    <AppShell crumbs={[{ label: "Talleres" }]}>
+      <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <PanelHead
@@ -296,6 +295,6 @@ export function WorkshopsPage() {
         pedidos nuevos. Los pedidos ya cursados conservan su propia copia de los
         datos, así que no se pierde a dónde se mandó ninguno.
       </ConfirmDialog>
-    </div>
+    </AppShell>
   );
 }

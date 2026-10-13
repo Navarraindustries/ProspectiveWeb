@@ -14,7 +14,11 @@ vi.mock("../api/client", () => ({
     studyThumbnailObjectUrl: () => Promise.reject(new Error("sin imagen")),
   },
 }));
-vi.mock("../components/Topbar", () => ({ Topbar: () => null }));
+// El shell (barra lateral y superior) se sustituye por su contenido y sus
+// acciones: lo que se prueba aquí es la página.
+vi.mock("../components/shell/AppShell", () => ({
+  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+}));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 
 import { Studies } from "./Studies";
@@ -34,7 +38,7 @@ beforeEach(() => { listStudies.mockReset(); });
 describe("«Estudios» con el API fallando", () => {
   it("muestra el error sin el texto de vacío y «Reintentar» vuelve a llamar", async () => {
     listStudies.mockRejectedValueOnce(new FakeApiError(500, "Error 500", false));
-    render(<Studies onOpen={noop} onResume={noop} onBack={noop} />);
+    render(<Studies onOpen={noop} onResume={noop} />);
 
     expect(await screen.findByText("El servidor no responde")).toBeTruthy();
     expect(screen.queryByText(/Aún no hay estudios archivados/)).toBeNull();
@@ -51,7 +55,7 @@ describe("«Estudios» con el API fallando", () => {
 
   it("sin estudios y sin error sigue diciendo que no hay", async () => {
     listStudies.mockResolvedValueOnce([]);
-    render(<Studies onOpen={noop} onResume={noop} onBack={noop} />);
+    render(<Studies onOpen={noop} onResume={noop} />);
     expect(await screen.findByText(/Aún no hay estudios archivados/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
   });

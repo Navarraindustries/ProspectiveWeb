@@ -38,6 +38,8 @@ a:hover {
   text-decoration: underline;
 }
 
+/* El oscuro es el defecto: vale antes de que useTheme estampe data-theme. */
+:root:not([data-theme="light"]) a,
 [data-theme="dark"] a {
   color: var(--brand-mist);
 }
@@ -53,6 +55,7 @@ code, kbd, samp, .mono {
 }
 
 /* Logo mark (black on transparent) is tinted per theme */
+:root:not([data-theme="light"]) .logo-mark,
 [data-theme="dark"] .logo-mark {
   filter: invert(1) brightness(1.7);
 }

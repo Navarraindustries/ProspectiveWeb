@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useTheme } from "../hooks/useTheme";
 
 const ThemeContext = createContext<{ theme: "light" | "dark"; toggle: () => void }>({
-  theme: "light",
+  theme: "dark",
   toggle: () => {},
 });
 

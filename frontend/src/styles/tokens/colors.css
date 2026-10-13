@@ -1,69 +1,79 @@
 /* ============================================================================
-   PROSPECTIVE — Color tokens
-   Brand: smoke gray / cloud (#8B9BAA, hue 210). Clinical, sober, neutral.
-   Light is the default; dark applies under [data-theme="dark"].
-   Source of truth: resources/IDENTIDAD_VISUAL.md §2 + prospective/ui/themes.py
+   PROSPECTIVE — Color tokens · identidad A (grafito + azul eléctrico)
+   El oscuro es el tema por defecto y vive en :root; el claro se aplica bajo
+   [data-theme="light"]. Los dos bloques definen EXACTAMENTE los mismos nombres
+   (lo vigila tokens.test.ts): un token que solo exista en un tema dejaría una
+   superficie transparente en el otro.
+   El azul es solo de interacción (foco, botón principal, enlace, activo): ningún
+   estado clínico lo usa, y los estados clínicos no usan el acento.
    ============================================================================ */
 
 :root {
-  /* ---- Brand scale (theme-independent reference) ---- */
-  --brand-smoke:        #8B9BAA;   /* primary / ring — smoke gray */
-  --brand-mist:         #A8B8C6;   /* lighter — dark-theme primary */
-  --brand-slate:        #6A8399;   /* primary hover (light) */
-  --brand-steel:        #4E6678;   /* pressed / hover (dark) */
-  --brand-deep:         #2E4A5F;   /* accent foreground */
-  --brand-ink:          #1C303F;   /* deep panel bg (dark) */
+  /* ---- Escala de marca (alias del acento; se conservan por los usos antiguos) ---- */
+  --brand-smoke:        #3B8BFF;
+  --brand-mist:         #8CBBFF;
+  --brand-slate:        #8CBBFF;
+  --brand-steel:        #2F6FD0;
+  --brand-deep:         #8CBBFF;
+  --brand-ink:          #141519;
 
-  /* ---- Surfaces ---- */
-  --background:         #FFFFFF;   /* elevated window / heroic surfaces */
-  --canvas:             #F4F7FA;   /* app canvas behind cards */
-  --foreground:         #0D0D0D;
-  --card:               #F7F7F7;
-  --card-foreground:    #0D0D0D;
-  --popover:            #FFFFFF;
-  --popover-foreground: #0D0D0D;
+  /* ---- Superficies ---- */
+  --canvas:             #0B0C0F;   /* lienzo de la aplicación */
+  --background:         #141519;   /* paneles, barra lateral */
+  --foreground:         #F2F3F5;
+  --card:               #1C1D22;   /* tarjetas, hojas */
+  --card-foreground:    #F2F3F5;
+  --popover:            #1C1D22;
+  --popover-foreground: #F2F3F5;
 
-  /* ---- Brand / interaction ---- */
-  --primary:            #8B9BAA;
-  --primary-foreground: #1C1C1C;
-  --primary-hover:      #6A8399;
-  --secondary:          #F2F2F2;
-  --secondary-foreground: #1C1C1C;
-  --muted:              #F2F2F2;
-  --muted-foreground:   #6B6B6B;
-  --accent:             #DDE5EC;
-  --accent-foreground:  #2E4A5F;
+  /* ---- Acento / interacción ---- */
+  --primary:            #3B8BFF;
+  --primary-foreground: #FFFFFF;
+  --primary-hover:      #5A9DFF;
+  --secondary:          #1C1D22;
+  --secondary-foreground: #F2F3F5;
+  --muted:              #141519;
+  --muted-foreground:   #9AA3AF;
+  --accent:             rgba(59, 139, 255, 0.16);
+  --accent-foreground:  #8CBBFF;
 
-  /* Brand-subtle: filled primary panels / toggled state */
-  --brand-subtle:       #DDE5EC;
-  --brand-subtle-foreground: #2E4A5F;
+  /* Estado activo / selección */
+  --brand-subtle:       rgba(59, 139, 255, 0.16);
+  --brand-subtle-foreground: #8CBBFF;
 
-  /* ---- Status ---- */
-  --destructive:        #D7263D;
-  --destructive-foreground: #FFFFFF;
-  --success:            #15803D;
-  --success-bg:         #DCFCE7;
-  --warning:            #92400E;
-  --warning-bg:         #FEF3C7;
-  --info:               #4E6678;
+  /* ---- Estado clínico ---- */
+  --destructive:        #FF5A5F;
+  --destructive-bg:     rgba(255, 90, 95, 0.14);
+  --destructive-foreground: #0B0C0F;
+  --success:            #2ECC8A;
+  --success-bg:         rgba(46, 204, 138, 0.14);
+  --warning:            #F5B942;
+  --warning-bg:         rgba(245, 185, 66, 0.14);
+  --info:               #9AA3AF;
 
-  /* ---- Structure ---- */
-  --border:             #E5E5E5;
-  --input:              #E5E5E5;
-  --ring:               #8B9BAA;
+  /* ---- Estructura ---- */
+  --border:             rgba(255, 255, 255, 0.08);
+  --input:              rgba(255, 255, 255, 0.08);
+  --ring:               #3B8BFF;
 
-  /* ---- Charts / data viz ---- */
-  --chart-1:            #2A4C66;
-  --chart-2:            #3E6480;
-  --chart-3:            #8B9BAA;
-  --chart-4:            #A8B8C6;
-  --chart-5:            #305070;
+  /* ---- Cristal: hojas, menús y barra superior ---- */
+  --glass:              rgba(28, 29, 34, 0.72);
+  --glass-blur:         18px;
 
-  /* ---- Clinical viewer (always-dark medical imaging surface) ---- */
+  /* ---- Gráficos: derivados del acento y de los grises ---- */
+  --chart-1:            #3B8BFF;
+  --chart-2:            #8CBBFF;
+  --chart-3:            #9AA3AF;
+  --chart-4:            #5B6470;
+  --chart-5:            #2F6FD0;
+
+  /* ---- Visor clínico (superficie de imagen médica, siempre oscura) ---- */
   --viewer-bg:          #000000;
   --viewer-foreground:  #EBEBEB;
 
-  /* HUD del visor: un solo acento fosforescente sobre negro. */
+  /* HUD del visor: un solo acento fosforescente sobre negro. Se queda en el verde
+     de siempre porque vtk/planeColors.ts (HUD_HEX) lo replica y una prueba vigila
+     que coincidan; cambiarlo es cosa del visor, no de la identidad de gestión. */
   --hud:        #8CFF9E;
   --hud-dim:    rgba(140, 255, 158, 0.55);
   --hud-amber:  #FFC857;
@@ -75,58 +85,155 @@
   --hud-red:    #FF5A5A;
   --hud-line:   1px;
 
-  color-scheme: light;
+  color-scheme: dark;
 }
 
-[data-theme="dark"] {
-  --brand-smoke:        #8B9BAA;
-  --brand-mist:         #A8B8C6;
-  --brand-slate:        #A8B8C6;
-  --brand-steel:        #4E6678;
-  --brand-deep:         #A8B8C6;
-  --brand-ink:          #1C303F;
+[data-theme="light"] {
+  --brand-smoke:        #3B8BFF;
+  --brand-mist:         #8CBBFF;
+  --brand-slate:        #2F6FD0;
+  --brand-steel:        #2F6FD0;
+  --brand-deep:         #1F5FC0;
+  --brand-ink:          #FFFFFF;
 
-  --background:         #1F1F1F;
-  --canvas:             #1F1F1F;
-  --foreground:         #EBEBEB;
-  --card:               #2A2A2A;
-  --card-foreground:    #EBEBEB;
-  --popover:            #2A2A2A;
-  --popover-foreground: #EBEBEB;
+  --canvas:             #F4F5F7;
+  --background:         #FFFFFF;
+  --foreground:         #0B0C0F;
+  --card:               #FFFFFF;
+  --card-foreground:    #0B0C0F;
+  --popover:            #FFFFFF;
+  --popover-foreground: #0B0C0F;
 
-  --primary:            #A8B8C6;
-  --primary-foreground: #1C1C1C;
-  --primary-hover:      #4E6678;
-  --secondary:          #363636;
-  --secondary-foreground: #EBEBEB;
-  --muted:              #363636;
-  --muted-foreground:   #9B9B9B;
-  --accent:             #363636;
-  --accent-foreground:  #EBEBEB;
+  --primary:            #3B8BFF;
+  --primary-foreground: #FFFFFF;
+  --primary-hover:      #2F6FD0;
+  --secondary:          #F4F5F7;
+  --secondary-foreground: #0B0C0F;
+  --muted:              #F4F5F7;
+  --muted-foreground:   #5B6470;
+  --accent:             rgba(59, 139, 255, 0.12);
+  --accent-foreground:  #1F5FC0;
 
-  --brand-subtle:       #1C303F;
-  --brand-subtle-foreground: #A8B8C6;
+  --brand-subtle:       rgba(59, 139, 255, 0.12);
+  --brand-subtle-foreground: #1F5FC0;
 
-  --destructive:        #E85A6A;
-  --destructive-foreground: #1F1F1F;
-  --success:            #3FB950;
-  --success-bg:         #14351C;
-  --warning:            #E3B341;
-  --warning-bg:         #33280C;
-  --info:               #A8B8C6;
+  --destructive:        #D7263D;
+  --destructive-bg:     #FEE2E2;
+  --destructive-foreground: #FFFFFF;
+  --success:            #15803D;
+  --success-bg:         #DCFCE7;
+  --warning:            #92400E;
+  --warning-bg:         #FEF3C7;
+  --info:               #5B6470;
 
-  --border:             #363636;
-  --input:              #363636;
-  --ring:               #8B9BAA;
+  --border:             rgba(0, 0, 0, 0.08);
+  --input:              rgba(0, 0, 0, 0.08);
+  --ring:               #3B8BFF;
 
-  --chart-1:            #C0D2E0;
-  --chart-2:            #A4BCD0;
-  --chart-3:            #8B9BAA;
-  --chart-4:            #4E6A84;
-  --chart-5:            #305070;
+  --glass:              rgba(255, 255, 255, 0.72);
+  --glass-blur:         18px;
+
+  --chart-1:            #3B8BFF;
+  --chart-2:            #2F6FD0;
+  --chart-3:            #5B6470;
+  --chart-4:            #9AA3AF;
+  --chart-5:            #1F5FC0;
 
   --viewer-bg:          #000000;
   --viewer-foreground:  #EBEBEB;
+
+  --hud:        #8CFF9E;
+  --hud-dim:    rgba(140, 255, 158, 0.55);
+  --hud-amber:  #FFC857;
+  --plane-axial:   #4cc9f0;
+  --plane-coronal: #80ed99;
+  --plane-sagital: #f4a261;
+  --plane-libre:   #c77dff;
+  --hud-red:    #FF5A5A;
+  --hud-line:   1px;
+
+  color-scheme: light;
+}
+
+/* Tema oscuro explícito: la landing es dark-only y fija data-theme="dark" en su
+   contenedor; sin este bloque heredaría el claro si la persona lo eligió para
+   la aplicación, porque :root solo cubre el documento entero. */
+[data-theme="dark"] {
+  /* ---- Escala de marca (alias del acento; se conservan por los usos antiguos) ---- */
+  --brand-smoke:        #3B8BFF;
+  --brand-mist:         #8CBBFF;
+  --brand-slate:        #8CBBFF;
+  --brand-steel:        #2F6FD0;
+  --brand-deep:         #8CBBFF;
+  --brand-ink:          #141519;
+
+  /* ---- Superficies ---- */
+  --canvas:             #0B0C0F;   /* lienzo de la aplicación */
+  --background:         #141519;   /* paneles, barra lateral */
+  --foreground:         #F2F3F5;
+  --card:               #1C1D22;   /* tarjetas, hojas */
+  --card-foreground:    #F2F3F5;
+  --popover:            #1C1D22;
+  --popover-foreground: #F2F3F5;
+
+  /* ---- Acento / interacción ---- */
+  --primary:            #3B8BFF;
+  --primary-foreground: #FFFFFF;
+  --primary-hover:      #5A9DFF;
+  --secondary:          #1C1D22;
+  --secondary-foreground: #F2F3F5;
+  --muted:              #141519;
+  --muted-foreground:   #9AA3AF;
+  --accent:             rgba(59, 139, 255, 0.16);
+  --accent-foreground:  #8CBBFF;
+
+  /* Estado activo / selección */
+  --brand-subtle:       rgba(59, 139, 255, 0.16);
+  --brand-subtle-foreground: #8CBBFF;
+
+  /* ---- Estado clínico ---- */
+  --destructive:        #FF5A5F;
+  --destructive-bg:     rgba(255, 90, 95, 0.14);
+  --destructive-foreground: #0B0C0F;
+  --success:            #2ECC8A;
+  --success-bg:         rgba(46, 204, 138, 0.14);
+  --warning:            #F5B942;
+  --warning-bg:         rgba(245, 185, 66, 0.14);
+  --info:               #9AA3AF;
+
+  /* ---- Estructura ---- */
+  --border:             rgba(255, 255, 255, 0.08);
+  --input:              rgba(255, 255, 255, 0.08);
+  --ring:               #3B8BFF;
+
+  /* ---- Cristal: hojas, menús y barra superior ---- */
+  --glass:              rgba(28, 29, 34, 0.72);
+  --glass-blur:         18px;
+
+  /* ---- Gráficos: derivados del acento y de los grises ---- */
+  --chart-1:            #3B8BFF;
+  --chart-2:            #8CBBFF;
+  --chart-3:            #9AA3AF;
+  --chart-4:            #5B6470;
+  --chart-5:            #2F6FD0;
+
+  /* ---- Visor clínico (superficie de imagen médica, siempre oscura) ---- */
+  --viewer-bg:          #000000;
+  --viewer-foreground:  #EBEBEB;
+
+  /* HUD del visor: un solo acento fosforescente sobre negro. Se queda en el verde
+     de siempre porque vtk/planeColors.ts (HUD_HEX) lo replica y una prueba vigila
+     que coincidan; cambiarlo es cosa del visor, no de la identidad de gestión. */
+  --hud:        #8CFF9E;
+  --hud-dim:    rgba(140, 255, 158, 0.55);
+  --hud-amber:  #FFC857;
+  /* Un color por plano de corte (rótulo, líneas de referencia, traza del MIP, 3D). */
+  --plane-axial:   #4cc9f0;
+  --plane-coronal: #80ed99;
+  --plane-sagital: #f4a261;
+  --plane-libre:   #c77dff;
+  --hud-red:    #FF5A5A;
+  --hud-line:   1px;
 
   color-scheme: dark;
 }

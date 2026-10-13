@@ -15,6 +15,7 @@
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Running the App](#running-the-app)
+- [Identity and shell](#identity-and-shell)
 - [Atajos de teclado](#atajos-de-teclado)
 - [Herramientas del visor y de los paneles](#herramientas-del-visor-y-de-los-paneles)
 - [Environment Variables](#environment-variables)
@@ -27,6 +28,10 @@
 - [Pantalla limpia y controles](#pantalla-limpia-y-controles)
 - [Navigation & Unsaved Work](#navigation--unsaved-work)
 - [Roles y permisos](#roles-y-permisos)
+- [Saved sessions](#saved-sessions)
+- [Audit](#audit)
+- [Deleting an account](#deleting-an-account)
+- [Deleting an archived study](#deleting-an-archived-study)
 - [API Reference](#api-reference)
 - [Candidatos descartados y puesto](#candidatos-descartados-y-puesto)
 - [Banco de detección](#banco-de-detección)
@@ -286,6 +291,30 @@ images and checks they answer.
 
 ---
 
+## Identity and shell
+
+The application has one visual identity ("A": graphite surfaces, one blue
+accent) and one shell around every screen after sign-in.
+
+- **Tokens.** Every colour, radius, shadow, control height and font stack lives
+  in `frontend/src/styles/tokens/` (`colors.css`, `typography.css`,
+  `spacing.css`, `fonts.css`). Screens and the shell use `var(--…)` and never a
+  colour written by hand; `styles/tokens.test.ts` fails if a management page or
+  a shell component carries a literal. The viewer (`Workspace.tsx`) is the
+  exception until its own redesign.
+- **Dark by default.** The dark theme is the `:root` block; the light theme is
+  `[data-theme="light"]` and must define exactly the same names. The choice is
+  stored per browser. The public landing is always dark.
+- **Geist, self-hosted.** Geist and Geist Mono are served from
+  `frontend/src/assets/fonts/` (with their licence). Nothing is fetched from a
+  font CDN, so the app looks the same offline and on a hospital network.
+- **Shell.** A sidebar (sections by role), a top bar and a user menu. **Alt+B**
+  folds and unfolds the sidebar without taking focus from a field. The pin
+  button keeps it open; that choice is stored in `localStorage` under
+  `shell.sidebar` (`pinned` or `collapsed`).
+
+---
+
 ## Atajos de teclado
 
 Una sola tabla (`frontend/src/vtk/shortcuts.ts`) decide qué hace cada tecla y
@@ -295,6 +324,7 @@ Ningún atajo actúa con el cursor en un campo de texto.
 | Tecla | Acción | Ámbito |
 |---|---|---|
 | ? | Abrir o cerrar la hoja de atajos | Visor |
+| Alt+B | Plegar o desplegar la barra lateral | Aplicación |
 | Alt+1 · Alt+2 · Alt+3 · Alt+4 | Distribución SOLA · DERECHA · ABAJO · CUATRO | Visor |
 | S | Encender o apagar VINCULAR | Visor |
 | L | Centrar en la lesión (3D y cortes) | Visor |
@@ -2504,6 +2534,80 @@ Médico cuando un administrador la aprueba.
 Para problemas con la cuenta (aprobación, rol, contraseña olvidada) el
 contacto es **ingprospective@skullapp.tech** (`frontend/src/lib/contacto.ts`).
 
+### Compartir un paciente
+
+Un paciente lo ve quien lo creó, las cuentas con las que se compartió y
+cualquier administrador (`services/access.py`). Compartir y dejar de compartir
+(`PUT /api/patients/{id}/shares`, la lista completa de cuentas) es solo de quien
+creó al paciente o de un administrador: si el compartido pudiera volver a
+compartir, el creador perdería el control de quién ve a su paciente. La hoja
+«Compartir» elige entre las cuentas activas (`GET /api/auth/users/brief`, para
+cualquier sesión).
+
+Una cuenta con la que se comparte **puede**: ver el paciente, crear y editar
+casos, y trabajar en sesiones (cargar, planificar, guardar, reanudar, capturar,
+anotar). **No puede**: editar ni borrar al paciente, borrar casos, compartirlo,
+renombrar ni borrar sesiones guardadas, ni borrar un estudio archivado.
+
+---
+
+## Saved sessions
+
+A saved session is a resumable snapshot of a planning run, linked to its case
+and patient. From the patient sheet and the sessions list:
+
+- **Rename** (`PATCH /api/sessions/saved/{id}`) changes only the label.
+- **Delete** (`DELETE /api/sessions/saved/{id}`) removes the snapshot, its
+  database row and its repoint marker. Both actions belong to whoever created
+  the patient or an administrator; an account the patient is shared with can see
+  and resume the session but not rename or delete it.
+- **Size.** Each row reports the space it takes on disk (`size_bytes`), so it is
+  clear what deleting frees.
+- **The 409 rule.** A saved session that an open session was resumed from cannot
+  be deleted: the open one still leans on its row and lineage. The answer is 409
+  with "ciérrala antes de borrarla"; close the open session and delete again.
+
+Both actions are written to the audit chain.
+
+---
+
+## Audit
+
+The SkullChain audit trail is admin-only (`/audit` in the app).
+
+- **Per-patient filter.** `GET /api/audit/blocks?patient_id=…` returns only the
+  blocks of that patient; the server derives the patient hash itself, so the
+  client never sends one.
+- **Spanish export.** `GET /api/audit/export` produces the text export in Spanish
+  (headings, "Exportado el … por …", the integrity verdict) with times in the
+  server's local zone, so it can be compared with a clock on paper.
+- **Account events.** Signup requests, approvals, rejections, creation, role
+  changes, deactivation and reactivation, and deletion of accounts are chained
+  like clinical events. Verifying the chain is itself recorded.
+
+---
+
+## Deleting an account
+
+`DELETE /api/auth/users/{id}?reassign_to={user_id}` (admin). Deleting an account
+never leaves patients without a creator, because without one only an
+administrator would see them: its patients pass to the account named in
+`reassign_to` (the administrator who deletes, by default). What it had shared
+stays shared, now "by" the destination. The destination must be active and not
+the deleted account. You cannot delete yourself or the last active
+administrator. The event records the destination and how many patients moved.
+
+---
+
+## Deleting an archived study
+
+`DELETE /api/studies/{id}` removes an archived imaging study: its stored objects
+first and its row after, so a storage failure can be retried. It belongs to
+whoever created the patient or an administrator. If the study has viewer
+captures attached the answer is **409** ("Bórralas antes de borrar el
+estudio"): captures are the professional's work and are never deleted behind
+their back. Delete the captures from the gallery, then the study.
+
 ---
 
 ## API Reference
@@ -2563,8 +2667,10 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 | `GET` | `/api/auth/pending` | Pending signup requests (admin) |
 | `POST` | `/api/auth/pending/{id}/approve` · `/reject` | Approve or reject (admin) |
 | `GET` | `/api/auth/pending/{id}/photo` · `/cv` | Download applicant documents (admin) |
-| `GET` `POST` | `/api/auth/users` | List / create users (admin) |
-| `PUT` `DELETE` | `/api/auth/users/{id}` | Edit / delete, with anti-lockout guards (admin) |
+| `GET` `POST` | `/api/auth/users` | List (`?status=` pending · approved · rejected) / create users (admin) |
+| `GET` | `/api/auth/users/brief` | Active accounts in brief (id, username, name, role), for the sharing sheet (any session) |
+| `PUT` `DELETE` | `/api/auth/users/{id}` | Edit / delete, with anti-lockout guards (admin); `DELETE` takes `?reassign_to=` for the account's patients |
+| `POST` | `/api/auth/users/{id}/photo` | Replace a user's profile photo (admin) |
 
 ### Patients, cases & imaging studies
 
@@ -2575,11 +2681,13 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 | `POST` | `/api/patients/case` | Create patient + clinical case in one step |
 | `GET` `POST` | `/api/patients/{id}/studies` | List / add clinical cases |
 | `PUT` `DELETE` | `/api/patients/{id}/studies/{sid}` | Edit / delete a case |
+| `GET` `PUT` | `/api/patients/{id}/shares` | Accounts a patient is shared with · replace the list (creator or admin) |
 | `GET` | `/api/patients/{id}/sessions` | Saved planning sessions of a patient |
 | `GET` | `/api/studies` | Gallery: archived imaging studies (`q`, `patient_id`, `case_id`) |
 | `GET` | `/api/studies/{id}/thumbnail` | Rendered preview PNG |
 | `POST` | `/api/studies/cases/{case_id}/archive` | Archive a session's DICOM under a case |
 | `POST` | `/api/studies/{id}/open` | Restore an archived study into a new session |
+| `DELETE` | `/api/studies/{id}` | Delete an archived study (creator or admin); 409 while it has captures |
 
 ### DICOM, viewers & sessions
 
@@ -2592,6 +2700,7 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 | `GET` | `/api/slice-oblique/{sid}` | Oblique reslice PNG |
 | `POST` | `/api/sessions/save` · `/{sid}/restore` | Durable snapshot · rehydrate |
 | `GET` | `/api/sessions` | List saved sessions |
+| `PATCH` `DELETE` | `/api/sessions/saved/{id}` | Rename · delete a saved session (creator or admin); delete is 409 while an open session came from it |
 
 ### Processing pipeline
 
@@ -2713,7 +2822,7 @@ of leaving it in the state.
 | `POST` | `/api/export/dicom-seg/{sid}` | Vessel and aneurysm as DICOM SEG on the original series, for the PACS |
 | `GET` `POST` | `/api/followup/{sid}/studies` · `/api/followup/{sid}` | Other studies of the patient · overlay one and map where the aneurysm changed |
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
-| `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
+| `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail (admin); `/blocks?patient_id=` filters to one patient |
 | `POST` `GET` | `/api/captures` · `/api/captures/{id}/image` | Viewer capture (PNG) attached to the imaging study · list · serve |
 | `POST` `GET` | `/api/captures/video` · `/api/captures/{id}/video` | Viewer recording (MP4/WebM, ≤ 80 MB, checked by its bytes) · serve |
 | `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |

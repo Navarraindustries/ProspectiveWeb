@@ -104,7 +104,7 @@ export function ConfirmDialog({
         aria-label={title}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        style={{ outline: "none", width: 420, maxWidth: "90%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: "22px 24px" }}
+        style={{ outline: "none", width: 420, maxWidth: "90%", background: "var(--glass)", backdropFilter: "blur(var(--glass-blur))", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: "22px 24px" }}
       >
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--foreground)" }}>{title}</div>
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.55 }}>

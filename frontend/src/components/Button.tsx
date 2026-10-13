@@ -68,8 +68,10 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
     case "secondary":
       return {
         ...base,
-        background: hover && !disabled ? "var(--accent)" : "var(--secondary)",
-        color: "var(--secondary-foreground)",
+        background: hover && !disabled ? "var(--accent)" : "var(--glass)",
+        backdropFilter: "blur(var(--glass-blur))",
+        color: "var(--foreground)",
+        border: "1px solid var(--border)",
       };
     case "ghost":
       return {
@@ -118,6 +120,9 @@ export function Button({
   const btn = (
     <button
       {...rest}
+      className={["ui-btn", rest.className].filter(Boolean).join(" ")}
+      data-variant={variant}
+      data-size={size}
       disabled={disabled}
       onMouseEnter={(e) => { setHover(true); rest.onMouseEnter?.(e); }}
       onMouseLeave={(e) => { setHover(false); rest.onMouseLeave?.(e); }}
@@ -135,7 +140,7 @@ export function Button({
         fontWeight: 600,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.55 : 1,
-        transition: "background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), filter var(--dur-fast) var(--ease-out)",
+        transition: "background 120ms var(--ease-out), color 120ms var(--ease-out), filter 120ms var(--ease-out), box-shadow 120ms var(--ease-out)",
         ...variantStyle(variant, hover, !!disabled),
         ...inner,
       }}

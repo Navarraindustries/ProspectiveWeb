@@ -52,12 +52,13 @@ export function ForcePasswordChange() {
                  borderRadius: "var(--radius-lg)", background: "var(--card)" }}
       >
         <h1 style={{ fontSize: 18, margin: "0 0 6px" }}>Cambia la contraseña asignada</h1>
-        {/* F1b-4: aquí se llega tras el alta por un administrador y también tras
-            un restablecimiento; el servidor no distingue los dos casos (solo
-            guarda que hay que cambiarla), así que el texto vale para ambos. */}
+        {/* F1b-4: aquí se llega tras el alta por un administrador, tras un
+            restablecimiento y, en la cuenta admin de serie, con la contraseña
+            de instalación; el servidor no distingue los casos (solo guarda que
+            hay que cambiarla), así que el texto vale para todos. */}
         <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "0 0 16px" }}>
           La cuenta <b style={{ color: "var(--foreground)" }}>{user?.username}</b> tiene una contraseña que
-          asignó un administrador y que conoce otra persona. Hasta que la cambies no se puede usar la aplicación.
+          no eligió y que conoce otra persona. Hasta que la cambies no se puede usar la aplicación.
         </p>
         <Input label="Contraseña actual" type="password" value={current}
                onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />

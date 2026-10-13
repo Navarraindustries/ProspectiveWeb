@@ -636,10 +636,21 @@ class TestAnOldSaveStillBringsItsDecisionBack:
         assert stored_decision(create_session()) is None
 
     def test_the_rebuilt_factors_carry_the_current_texts(self):
+        # Un guardado de antes de F1-227 trae las fuentes antiguas en
+        # `factors_json`: se leen con el texto vigente y el blob que se guarda
+        # tampoco las lleva.
         from routers.treatment import RESULT_KEY, stored_decision
+        from services.treatment import _LEGACY_SOURCE_TEXTS
+        legacy_source = next(iter(_LEGACY_SOURCE_TEXTS))
         sid = self._session()
         write_state(sid, RESULT_KEY, "")
+        factors = json.loads(read_state(sid, "treatment.factors_json", "[]"))
+        assert factors
+        factors[0]["source"] = legacy_source
+        write_state(sid, "treatment.factors_json", json.dumps(factors))
         old = stored_decision(sid)
         assert old is not None
+        assert old.factors[0].source == _LEGACY_SOURCE_TEXTS[legacy_source]
         for f in old.factors:
             assert "Ya no" not in f.name and "Ya no" not in f.source
+        assert "Ya no" not in read_state(sid, RESULT_KEY, ""), "el blob guardado tampoco lleva el texto antiguo"

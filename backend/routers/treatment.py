@@ -64,8 +64,6 @@ def stored_decision(session_id: str) -> TreatmentDecisionResult | None:
         result = _decision_from_split_keys(session_id)
         if result is None:
             return None
-        write_state(session_id, RESULT_KEY, result.model_dump_json())
-    result.team = stored_team(session_id)
     # Los textos de una decisión guardada antes de F1-225/F1-227 se leen con
     # los vigentes: reanudar y GET /treatment-decision no enseñan «Ya no vota…».
     from services.treatment import modern_factor_name, modern_factor_source
@@ -74,6 +72,11 @@ def stored_decision(session_id: str) -> TreatmentDecisionResult | None:
         f.source = modern_factor_source(f.source)
     result.clip_factors = [modern_factor_name(n) for n in result.clip_factors]
     result.endo_factors = [modern_factor_name(n) for n in result.endo_factors]
+    if not raw:
+        # El blob rehecho se guarda ya con los textos vigentes (sin `team`,
+        # que va aparte, igual que en `decide`).
+        write_state(session_id, RESULT_KEY, result.model_dump_json())
+    result.team = stored_team(session_id)
     return result
 
 

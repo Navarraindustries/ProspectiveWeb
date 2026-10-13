@@ -15,7 +15,7 @@ import { Topbar } from "./Topbar";
 
 export function AdminOnlyCard({ onBack }: { onBack: () => void }) {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
       <Topbar crumbs={[{ label: "Pacientes", onClick: onBack }, { label: "Administración" }]} />
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Card style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>

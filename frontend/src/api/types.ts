@@ -1671,6 +1671,8 @@ export interface StudyCard {
   id: number;            // ImagingStudy id
   case_id: number;       // clinical case it belongs to
   patient_id: number;
+  /** Cuenta que creó al paciente: la única (con el administrador) que puede borrar el estudio. */
+  owner_id?: number | null;
   patient_name: string;
   hospital_id: string;
   description: string;

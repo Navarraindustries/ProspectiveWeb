@@ -1,14 +1,18 @@
 /* Estudios — galería de los estudios cargados.
 
    Rejilla de tarjetas con vista previa (una imagen del estudio) y buscador por
-   nombre de paciente o cédula. Al clicar una tarjeta se abre el estudio
-   completo. El mismo componente `StudyGallery` se reutiliza dentro de la ficha
+   paciente, HC (el dato que el resto de la aplicación llama así) o diagnóstico.
+   Cada tarjeta abre el estudio, reanuda su sesión, salta a la ficha del paciente
+   y, para quien creó al paciente o un administrador, lo borra. El mismo componente `StudyGallery` se reutiliza dentro de la ficha
    del paciente pasando `patientId`. */
 
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { StudyCard } from "../api/types";
 import { Badge, riskVariant } from "../components/Badge";
+import { Button } from "../components/Button";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useAuth } from "../store/auth";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { AppShell } from "../components/shell/AppShell";
@@ -32,7 +36,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
   }, [study.id, study.has_thumbnail]);
 
   const box: React.CSSProperties = {
-    width: "100%", aspectRatio: "1 / 1", background: "#000",
+    width: "100%", aspectRatio: "1 / 1", background: "var(--viewer-bg)",
     display: "flex", alignItems: "center", justifyContent: "center",
     borderTopLeftRadius: "var(--radius-lg)", borderTopRightRadius: "var(--radius-lg)",
     overflow: "hidden", position: "relative",
@@ -59,6 +63,7 @@ export function StudyGallery({
   caseId,
   onOpen,
   onResume,
+  onOpenPatient,
   compact = false,
   emptyHint,
 }: {
@@ -69,6 +74,8 @@ export function StudyGallery({
   onOpen: (study: StudyCard) => void;
   /** Restore the study's saved session instead of starting a new one. */
   onResume?: (study: StudyCard) => void;
+  /** Ir a la ficha del paciente de la tarjeta. Dentro de la propia ficha no se pasa. */
+  onOpenPatient?: (patientId: number) => void;
   compact?: boolean;
   /** Message shown when this scope has no imaging studies yet. */
   emptyHint?: string;
@@ -78,6 +85,32 @@ export function StudyGallery({
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [q, setQ] = useState("");
+  const { user } = useAuth();
+  const [toDelete, setToDelete] = useState<StudyCard | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // El servidor es quien decide (solo el creador o un administrador); esto solo
+  // evita ofrecer un botón que acabaría en 403.
+  const canDelete = (s: StudyCard) =>
+    !!user && (user.role === "admin" || (s.owner_id != null && s.owner_id === user.id));
+
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      await api.deleteImagingStudy(toDelete.id);
+      setStudies((all) => all.filter((x) => x.id !== toDelete.id));
+      setToDelete(null);
+      setDeleteError(null);
+    } catch (e) {
+      // La tarjeta se queda: nada se ha borrado y el motivo (p. ej. capturas) se lee.
+      setToDelete(null);
+      setDeleteError(loadErrorText(e));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // The search goes to the server (debounced). Filtering only on the client
   // searched whatever page happened to be loaded, so on a real archive an older
@@ -104,10 +137,16 @@ export function StudyGallery({
       {!compact && (
         <div style={{ maxWidth: 420, marginBottom: 18 }}>
           <Input
-            placeholder="Buscar por paciente, cédula o diagnóstico…"
+            placeholder="Buscar por paciente, HC o diagnóstico…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+        </div>
+      )}
+
+      {deleteError && (
+        <div role="alert" style={{ color: "var(--destructive)", fontSize: 13, marginBottom: 12 }}>
+          {deleteError}
         </div>
       )}
 
@@ -119,7 +158,7 @@ export function StudyGallery({
         <div style={{ color: "var(--muted-foreground)", fontSize: compact ? 11 : 13, padding: compact ? "6px 0" : "24px 0", textAlign: compact ? "left" : "center" }}>
           {q.trim()
             ? `Ningún estudio coincide con «${q.trim()}».`
-            : (emptyHint ?? "Aún no hay estudios archivados. Carga un DICOM en el pipeline y pulsa «Guardar estudio».")}
+            : (emptyHint ?? "Aún no hay estudios archivados. Abre un caso con «Planificar este caso», carga el DICOM y pulsa «Guardar estudio» en el Paso 1.")}
         </div>
       ) : (
         <div style={{
@@ -194,54 +233,73 @@ export function StudyGallery({
                 </div>
 
                 {/* The card advertises progress, so the primary action has to be
-                    the one that keeps it. «Abrir» starts a fresh session at step 1
-                    and says so, instead of doing it silently behind one click. */}
-                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    the one that keeps it. «Nueva sesión» empieza desde el paso 1 y
+                    dice que la anterior no se pierde. */}
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                   {canResume && (
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
                       onClick={() => onResume?.(s)}
                       title={s.last_step != null ? `Reanudar en «${STEP_LABELS[s.last_step] ?? s.last_step}»` : "Reanudar la sesión guardada"}
-                      style={{
-                        flex: 1, padding: "5px 8px", fontSize: 11, fontWeight: 700,
-                        borderRadius: "var(--radius-md)", border: "none", cursor: "pointer",
-                        background: "var(--brand-deep)", color: "#fff",
-                        fontFamily: "var(--font-sans)", whiteSpace: "nowrap",
-                      }}
+                      style={{ flex: 1 }}
                     >
                       Reanudar
-                    </button>
+                    </Button>
                   )}
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant={canResume ? "outline" : "default"}
                     onClick={() => onOpen(s)}
-                    title={canResume ? "Empezar una sesión nueva desde el paso 1" : undefined}
-                    style={{
-                      flex: canResume ? "0 0 auto" : 1, padding: "5px 10px", fontSize: 11,
-                      fontWeight: 600, borderRadius: "var(--radius-md)",
-                      border: "1px solid var(--border)", cursor: "pointer",
-                      background: "transparent", color: "var(--foreground)",
-                      fontFamily: "var(--font-sans)", whiteSpace: "nowrap",
-                    }}
+                    title={canResume ? "La sesión anterior se conserva en la ficha" : undefined}
+                    style={{ flex: canResume ? "0 0 auto" : 1 }}
                   >
-                    {canResume ? "De cero" : "Abrir"}
-                  </button>
+                    {canResume ? "Nueva sesión" : "Abrir"}
+                  </Button>
                 </div>
+                {((onOpenPatient && !compact) || canDelete(s)) && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {onOpenPatient && !compact && (
+                      <Button size="sm" variant="ghost" leadingIcon={<Icon name="OPEN" size={12} />}
+                              onClick={() => onOpenPatient(s.patient_id)}>
+                        Abrir ficha
+                      </Button>
+                    )}
+                    {canDelete(s) && (
+                      <Button size="sm" variant="ghost" leadingIcon={<Icon name="DELETE" size={12} />}
+                              onClick={() => { setDeleteError(null); setToDelete(s); }}>
+                        Borrar estudio
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             );
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={toDelete !== null}
+        title="¿Borrar el estudio archivado?"
+        confirmLabel="Borrar estudio"
+        destructive
+        busy={deleting}
+        onCancel={() => setToDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      >
+        Se borra el DICOM archivado de este caso. Las sesiones guardadas conservan su copia y siguen abriéndose.
+      </ConfirmDialog>
     </div>
   );
 }
 
 export function Studies({
-  onOpen, onResume,
+  onOpen, onResume, onOpenPatient,
 }: {
   onOpen: (study: StudyCard) => void;
   onResume: (study: StudyCard) => void;
+  onOpenPatient: (patientId: number) => void;
 }) {
   // Sección de primer nivel, como Pacientes: la miga es solo ella.
   return (
@@ -251,10 +309,10 @@ export function Studies({
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: "var(--foreground)" }}>Estudios</div>
             <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
-              Estudios cargados y archivados · haz clic en uno para abrirlo
+              Estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo
             </div>
           </div>
-          <StudyGallery onOpen={onOpen} onResume={onResume} />
+          <StudyGallery onOpen={onOpen} onResume={onResume} onOpenPatient={onOpenPatient} />
         </div>
       </div>
     </AppShell>

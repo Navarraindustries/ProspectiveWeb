@@ -889,6 +889,10 @@ export const api = {
     const qs = p.toString();
     return get<StudyCard[]>(`/api/studies${qs ? `?${qs}` : ""}`);
   },
+  /** Borra el DICOM archivado de un estudio de imagen (no un caso: para eso
+   *  está `deleteStudy`). Solo el creador del paciente o un administrador. */
+  deleteImagingStudy: (studyId: number) =>
+    request<void>(`/api/studies/${studyId}`, { method: "DELETE" }),
   /** Preview image; needs the JWT, so fetch as a blob and use an object URL. */
   studyThumbnailObjectUrl: async (studyId: number) =>
     URL.createObjectURL(await getBlob(`/api/studies/${studyId}/thumbnail`)),

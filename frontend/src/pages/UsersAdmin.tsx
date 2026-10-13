@@ -197,7 +197,7 @@ export function UsersAdmin({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   // La guarda va antes de montar la página: sus llamadas y sus botones no
   // tienen sentido para quien no es administrador.
-  if (user?.role !== "admin") return <AdminOnlyCard />;
+  if (user?.role !== "admin") return <AdminOnlyCard onBack={onBack} />;
   return <UsersAdminPage onBack={onBack} />;
 }
 

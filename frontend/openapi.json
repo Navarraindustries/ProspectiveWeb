@@ -11462,8 +11462,26 @@
   },
   "/api/audit/blocks": {
    "get": {
-    "description": "Returns every block of the tamper-evident SkullChain audit trail, oldest first.",
+    "description": "Returns the blocks of the tamper-evident audit trail, oldest first. With `patient_id`, only the blocks of that patient (the server derives the patient hash itself; the chain never stores the id).",
     "operationId": "list_blocks_api_audit_blocks_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "patient_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Patient Id"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "content": {
@@ -11478,6 +11496,16 @@
        }
       },
       "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
      }
     },
     "security": [
@@ -11485,7 +11513,7 @@
       "HTTPBearer": []
      }
     ],
-    "summary": "List all audit-trail blocks",
+    "summary": "List audit-trail blocks",
     "tags": [
      "audit"
     ]
@@ -12091,6 +12119,22 @@
       "schema": {
        "title": "User Id",
        "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "reassign_to",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Reassign To"
       }
      }
     ],

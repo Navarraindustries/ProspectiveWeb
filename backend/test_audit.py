@@ -72,7 +72,7 @@ class TestAuditEndpoints:
     def test_export_txt(self):
         r = client.get("/api/audit/export")
         assert r.status_code == 200
-        assert "SkullChain Audit Trail" in r.text
+        assert "Registro de auditoría de PROSPECTIVE Web" in r.text
 
 
 class TestTwoWritersDoNotForkTheChain:

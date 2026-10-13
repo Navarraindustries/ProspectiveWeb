@@ -46,6 +46,8 @@ ACT_PATIENT_SHARED     = "PATIENT_SHARED"
 # reconoce en la ficha. Ambas dejan bloque.
 ACT_SAVED_SESSION_DELETED = "SAVED_SESSION_DELETED"
 ACT_SAVED_SESSION_RENAMED = "SAVED_SESSION_RENAMED"
+# Borrar una cuenta traspasa sus pacientes a otra: quién, a quién y cuántos.
+ACT_USER_DELETED = "USER_DELETED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a
@@ -68,6 +70,17 @@ CREATE TABLE IF NOT EXISTS blocks (
     block_hash   TEXT    NOT NULL
 )
 """
+
+
+def patient_hash_for(patient_id: str, dob: str) -> str:
+    """El hash de paciente que guarda cada bloque; vacío si no hay paciente.
+
+    Una sola función para `append` y para el filtro por paciente: si cada uno
+    lo calculara por su cuenta, un cambio en uno dejaría al otro sin encontrar
+    nada y sin avisar."""
+    if not (patient_id or dob):
+        return ""
+    return sha256((patient_id + dob).encode("utf-8")).hexdigest()
 
 
 class SkullChain:
@@ -125,10 +138,7 @@ class SkullChain:
 
     def append(self, action: str, payload: dict, username: str = "",
                patient_id: str = "", patient_dob: str = "") -> str:
-        patient_hash = (
-            sha256((patient_id + patient_dob).encode("utf-8")).hexdigest()
-            if (patient_id or patient_dob) else ""
-        )
+        patient_hash = patient_hash_for(patient_id, patient_dob)
         now = datetime.now(timezone.utc)
         iso_ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
         payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True)
@@ -189,33 +199,42 @@ class SkullChain:
             prev_block_hash = row["block_hash"]
         return (len(broken) == 0), broken
 
-    def get_all_blocks(self) -> list[dict]:
-        rows = self._conn.execute(
-            "SELECT id, iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash"
-            " FROM blocks ORDER BY id ASC"
-        ).fetchall()
+    def get_blocks(self, patient_hash: str | None = None) -> list[dict]:
+        """Los bloques, del más antiguo al más reciente; con `patient_hash`, solo los de ese paciente."""
+        sql = ("SELECT id, iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash"
+               " FROM blocks")
+        args: tuple = ()
+        if patient_hash is not None:
+            sql += " WHERE patient_hash = ?"
+            args = (patient_hash,)
+        rows = self._conn.execute(sql + " ORDER BY id ASC", args).fetchall()
         return [dict(r) for r in rows]
 
-    def export_txt(self) -> str:
+    def get_all_blocks(self) -> list[dict]:
+        return self.get_blocks()
+
+    def export_txt(self, exported_by: str = "") -> str:
         blocks = self.get_all_blocks()
         all_ok, broken = self.verify_integrity()
+        # Hora local, no UTC: quien lo lee en papel la compara con su reloj.
+        ahora = datetime.now().astimezone().isoformat(timespec="seconds")
         lines = [
             "=" * 100,
-            "  PROSPECTIVE — SkullChain Audit Trail Export",
-            f"  Generated: {datetime.now(timezone.utc).isoformat(timespec='seconds')}Z",
+            "  Registro de auditoría de PROSPECTIVE Web",
+            f"  Exportado el {ahora} por {exported_by or '—'}",
             "=" * 100, "",
-            f"{'#':>4}  {'Fecha/Hora':<26} {'Usuario':<14} {'Acción':<24} {'Hash bloque':<16}",
+            f"{'Nº':>4}  {'Fecha y hora':<26} {'Usuario':<14} {'Acción':<24} {'Hash':<16}",
             "-" * 100,
         ]
         for b in blocks:
             lines.append(f"{b['id']:>4}  {b['iso_ts']:<26} {(b['username'] or '—'):<14} {b['action']:<24} {b['block_hash'][:12]}…")
-        lines += ["-" * 100, "", f"Total blocks: {len(blocks)}"]
+        lines += ["-" * 100, "", f"Bloques: {len(blocks)}"]
         if all_ok:
-            lines.append(f"Integrity: OK — all {len(blocks)} blocks verified.")
+            lines.append(f"Integridad: correcta — {len(blocks)} bloques verificados.")
         else:
-            lines.append(f"Integrity: WARNING — {len(broken)} corrupted block(s)!")
+            lines.append(f"Integridad: ROTA — bloques afectados: {', '.join(str(b['id']) for b in broken)}")
             for b in broken:
-                lines.append(f"  Block #{b['id']} ({b['iso_ts']}) {b['action']}: {b['reason']}")
+                lines.append(f"  Bloque {b['id']} ({b['iso_ts']}) {b['action']}: {b['reason']}")
         lines.append("=" * 100)
         return "\n".join(lines) + "\n"
 

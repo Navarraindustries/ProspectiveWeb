@@ -4,13 +4,15 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 from fastapi.responses import PlainTextResponse
 
 from models.audit import AuditAppendRequest, AuditBlock, AuditVerifyResult
-from services.audit import SkullChain, ACT_INTEGRITY_CHECK
+from services.audit import SkullChain, ACT_INTEGRITY_CHECK, audit_patient, patient_hash_for
+from services.database import get_db
 from services.auth_service import require_admin
-from services.db_models import User
+from services.db_models import Patient, User
 
 logger = logging.getLogger(__name__)
 # Solo el administrador: el router estaba montado con `require_user`, así que
@@ -40,11 +42,26 @@ async def append_event(req: AuditAppendRequest,
 @router.get(
     "/blocks",
     response_model=list[AuditBlock],
-    summary="List all audit-trail blocks",
-    description="Returns every block of the tamper-evident SkullChain audit trail, oldest first.",
+    summary="List audit-trail blocks",
+    description=(
+        "Returns the blocks of the tamper-evident audit trail, oldest first. "
+        "With `patient_id`, only the blocks of that patient (the server derives "
+        "the patient hash itself; the chain never stores the id)."
+    ),
 )
-async def list_blocks() -> list[AuditBlock]:
-    return [AuditBlock(**b) for b in SkullChain.instance().get_all_blocks()]
+async def list_blocks(db: Annotated[Session, Depends(get_db)],
+                      patient_id: int | None = None) -> list[AuditBlock]:
+    chain = SkullChain.instance()
+    if patient_id is None:
+        return [AuditBlock(**b) for b in chain.get_all_blocks()]
+    patient = db.get(Patient, patient_id)
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
+    # Con los mismos argumentos que usan los routers al escribir el bloque
+    # (historia clínica o `id:N`, y fecha de nacimiento), no con el id a secas.
+    args = audit_patient(patient)
+    return [AuditBlock(**b) for b in
+            chain.get_blocks(patient_hash_for(args["patient_id"], args["patient_dob"]))]
 
 
 @router.get(
@@ -65,5 +82,5 @@ async def verify_chain() -> AuditVerifyResult:
 
 
 @router.get("/export", response_class=PlainTextResponse, summary="Export the audit trail as text")
-async def export_txt() -> str:
-    return SkullChain.instance().export_txt()
+async def export_txt(admin: Annotated[User, Depends(require_admin)]) -> str:
+    return SkullChain.instance().export_txt(admin.username)

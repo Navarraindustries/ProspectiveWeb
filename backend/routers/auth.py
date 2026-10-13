@@ -514,6 +514,7 @@ async def delete_user(
     user_id: int,
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
+    reassign_to: int | None = None,
 ) -> None:
     user = db.get(User, user_id)
     if user is None:
@@ -527,13 +528,31 @@ async def delete_user(
         ).count()
         if other_admins == 0:
             raise HTTPException(status_code=400, detail="No puedes eliminar al último administrador.")
-    # Patients created by this user are kept (created_by → dangling is tolerated;
-    # the FK is nullable). Detach them to be clean.
-    from services.db_models import Patient
-    db.query(Patient).filter(Patient.created_by == user_id).update({"created_by": None})
+    # Sus pacientes pasan a otra cuenta: ninguno queda sin creador (sin dueño
+    # solo el administrador los vería). Por defecto, quien borra.
+    from services.audit import ACT_USER_DELETED, audit_append
+    from services.db_models import Patient, PatientShare
+    target = admin if reassign_to is None else db.get(User, reassign_to)
+    if target is None or not target.is_active:
+        raise HTTPException(status_code=400, detail="La cuenta de destino no existe o está inactiva.")
+    if target.id == user.id:
+        raise HTTPException(status_code=400, detail="Los pacientes no pueden pasar a la cuenta que se borra.")
+    mine = [pid for (pid,) in db.query(Patient.id).filter(Patient.created_by == user_id).all()]
+    if mine:
+        db.query(Patient).filter(Patient.id.in_(mine)).update({"created_by": target.id}, synchronize_session=False)
+        # Quien crea al paciente ya lo ve: su fila de compartido sobra.
+        db.query(PatientShare).filter(PatientShare.patient_id.in_(mine),
+                                      PatientShare.user_id == target.id).delete(synchronize_session=False)
+    # Lo que esta cuenta compartió sigue compartido, ahora «por» el destino.
+    db.query(PatientShare).filter(PatientShare.shared_by == user_id).update(
+        {"shared_by": target.id}, synchronize_session=False)
+    deleted_name = user.username
     db.delete(user)
     db.commit()
-    logger.info("User deleted by admin — id=%d username=%s", user_id, user.username)
+    audit_append(ACT_USER_DELETED,
+                 {"deleted": deleted_name, "reassigned_to": target.username, "patients": len(mine)},
+                 username=admin.username)
+    logger.info("User deleted by admin — id=%d username=%s", user_id, deleted_name)
 
 
 # ── POST /auth/change-password ─────────────────────────────────────────────── #

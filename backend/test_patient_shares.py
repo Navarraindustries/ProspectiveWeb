@@ -102,7 +102,7 @@ def test_paciente_que_no_existe_es_404():
 
 def test_borrar_cuentas_no_choca_con_lo_compartido():
     # Con las claves foráneas activas: la cuenta invitada se lleva su fila
-    # (CASCADE) y la que compartió deja `shared_by` en nulo (SET NULL).
+    # (CASCADE) y lo que compartió la otra pasa a quien la borra (F2-60).
     from services.db_models import PatientShare
     a_id, a = _medico(); b_id, _b = _medico(); c_id, _c = _medico()
     pid = _paciente_de(a_id)
@@ -112,7 +112,7 @@ def test_borrar_cuentas_no_choca_con_lo_compartido():
     db = SessionLocal()
     filas = [(s.user_id, s.shared_by) for s in db.query(PatientShare).filter_by(patient_id=pid)]
     db.close()
-    assert filas == [(c_id, None)]
+    assert filas == [(c_id, admin.get("/api/auth/me").json()["id"])]
 
 
 # ── Ronda 1 de revisión: regla T7 de derechos y bordes ─────────────────────── #

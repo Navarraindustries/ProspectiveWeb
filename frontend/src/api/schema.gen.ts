@@ -53,8 +53,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List all audit-trail blocks
-         * @description Returns every block of the tamper-evident SkullChain audit trail, oldest first.
+         * List audit-trail blocks
+         * @description Returns the blocks of the tamper-evident audit trail, oldest first. With `patient_id`, only the blocks of that patient (the server derives the patient hash itself; the chain never stores the id).
          */
         get: operations["list_blocks_api_audit_blocks_get"];
         put?: never;
@@ -10427,7 +10427,9 @@ export interface operations {
     };
     list_blocks_api_audit_blocks_get: {
         parameters: {
-            query?: never;
+            query?: {
+                patient_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -10441,6 +10443,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditBlock"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -10906,7 +10917,9 @@ export interface operations {
     };
     delete_user_api_auth_users__user_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                reassign_to?: number | null;
+            };
             header?: never;
             path: {
                 user_id: number;

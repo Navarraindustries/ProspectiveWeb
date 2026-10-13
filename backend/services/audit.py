@@ -48,6 +48,8 @@ ACT_SAVED_SESSION_DELETED = "SAVED_SESSION_DELETED"
 ACT_SAVED_SESSION_RENAMED = "SAVED_SESSION_RENAMED"
 # Borrar una cuenta traspasa sus pacientes a otra: quién, a quién y cuántos.
 ACT_USER_DELETED = "USER_DELETED"
+# Borrar el DICOM archivado de un caso no se deshace: queda quién y cuántos ficheros.
+ACT_STUDY_DELETED = "STUDY_DELETED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a

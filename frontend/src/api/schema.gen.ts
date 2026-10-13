@@ -2535,6 +2535,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/studies/{study_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an archived imaging study
+         * @description Borra el DICOM archivado y la vista previa de un estudio de imagen. Solo quien creó al paciente o un administrador. Las sesiones que apuntaban al estudio se desligan pero se conservan: tienen su propia copia del DICOM.
+         */
+        delete: operations["delete_imaging_study_api_studies__study_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/studies/{study_id}/open": {
         parameters: {
             query?: never;
@@ -9395,6 +9415,11 @@ export interface components {
              * @default 0
              */
             n_slices: number;
+            /**
+             * Owner Id
+             * @description Cuenta que creó al paciente: quien puede borrar el estudio archivado
+             */
+            owner_id?: number | null;
             /** Patient Id */
             patient_id: number;
             /**
@@ -14907,6 +14932,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StudyCard"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_imaging_study_api_studies__study_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

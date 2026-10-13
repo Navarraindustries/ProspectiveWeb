@@ -9744,6 +9744,18 @@
       "title": "N Slices",
       "type": "integer"
      },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Cuenta que creó al paciente: quien puede borrar el estudio archivado",
+      "title": "Owner Id"
+     },
      "patient_id": {
       "title": "Patient Id",
       "type": "integer"
@@ -18841,6 +18853,47 @@
      }
     ],
     "summary": "Archive a session's DICOM as a new imaging study of a case",
+    "tags": [
+     "studies"
+    ]
+   }
+  },
+  "/api/studies/{study_id}": {
+   "delete": {
+    "description": "Borra el DICOM archivado y la vista previa de un estudio de imagen. Solo quien creó al paciente o un administrador. Las sesiones que apuntaban al estudio se desligan pero se conservan: tienen su propia copia del DICOM.",
+    "operationId": "delete_imaging_study_api_studies__study_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "study_id",
+      "required": true,
+      "schema": {
+       "title": "Study Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Delete an archived imaging study",
     "tags": [
      "studies"
     ]

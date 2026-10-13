@@ -192,6 +192,9 @@ class StudyCard(BaseModel):
     id: int = Field(..., description="ImagingStudy id")
     case_id: int = Field(0, description="Clinical case this imaging belongs to")
     patient_id: int
+    owner_id: int | None = Field(
+        None, description="Cuenta que creó al paciente: quien puede borrar el estudio archivado"
+    )
     patient_name: str = ""
     hospital_id: str = Field("", description="Cédula / N.º de historia clínica")
     description: str = ""

@@ -39,12 +39,6 @@
   letter-spacing: -0.02em;
 }
 
-/* El logotipo del escritorio es negro sobre transparente: sobre obsidiana hay
-   que invertirlo igual que hace el tema oscuro de la app. */
-.landing-stitch .logo-mark {
-  filter: invert(1) brightness(1.7);
-}
-
 .landing-stitch a {
   color: var(--brand-deep);
 }

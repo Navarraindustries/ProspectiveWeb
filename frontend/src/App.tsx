@@ -15,7 +15,6 @@ import { Workspace } from "./pages/Workspace";
 import { PendingRequests } from "./pages/PendingRequests";
 import { UsersAdmin } from "./pages/UsersAdmin";
 import { AuditTrail } from "./pages/AuditTrail";
-import { VideoSplash } from "./components/VideoSplash";
 import { UnsavedExitDialog } from "./components/UnsavedExitDialog";
 import { AuthProvider, useAuth } from "./store/auth";
 import { PlanningProvider, usePlanning } from "./store/planning";
@@ -324,24 +323,12 @@ function Router() {
   );
 }
 
-const SPLASH_KEY = "prospective.splashShown";
-
 export default function App() {
-  // El splash de intro se ve una sola vez por sesión, en la primera página que se
-  // cargue (la landing lo muestra si entras por "/"; aquí si entras directo a /app).
-  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem(SPLASH_KEY) === "1");
-
+  // Sin vídeo de marca al entrar (F2-1): volvía en cada pestaña nueva y también
+  // al abrir /app directo, y para quien entra a diario era solo espera.
   return (
     <AuthProvider>
       <PlanningProvider>
-        {!dismissed && (
-          <VideoSplash
-            onDone={() => {
-              sessionStorage.setItem(SPLASH_KEY, "1");
-              setDismissed(true);
-            }}
-          />
-        )}
         <Router />
       </PlanningProvider>
     </AuthProvider>

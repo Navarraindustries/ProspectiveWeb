@@ -41,6 +41,10 @@ const archivos = [
      administrador, en Topbar y Usuarios, decía «solicitudes» y esta prueba no
      la miraba porque vivía en roles.ts). */
   ...tsx(join(SRC, "lib"), ".ts"),
+  /* El shell (barra lateral, menú de usuario, secciones) pinta los nombres de
+     las secciones de administración en todas las pantallas. */
+  ...tsx(join(SRC, "components", "shell")),
+  ...tsx(join(SRC, "components", "shell"), ".ts"),
 ];
 
 /* Palabras retiradas en cualquier pantalla. «Estudios» (galería de DICOM
@@ -109,6 +113,7 @@ describe("el glosario en las pantallas", () => {
     expect(archivos.length).toBeGreaterThan(10);
     expect(archivos.some((a) => a.endsWith("Topbar.tsx"))).toBe(true);
     expect(archivos.some((a) => a.endsWith("roles.ts") && a.includes("lib"))).toBe(true);
+    expect(archivos.some((a) => a.endsWith("SideNav.tsx"))).toBe(true);
   });
 
   it("no queda ninguna palabra retirada", () => {

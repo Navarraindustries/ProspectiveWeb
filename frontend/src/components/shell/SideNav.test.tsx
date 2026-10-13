@@ -11,6 +11,7 @@ vi.mock("../../store/nav", async (orig) => ({ ...(await orig<object>()), useNav:
 vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "dark", toggle: vi.fn() }) }));
 vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([]) } }));
 
+import { api } from "../../api/client";
 import { SideNav } from "./SideNav";
 import { useShellState } from "./useShellState";
 
@@ -81,5 +82,17 @@ describe("SideNav", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fijar la barra lateral" }));
     expect(screen.getByText("Administración")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Cuentas pendientes/ }).getAttribute("href")).toBe("/app/cuentas-pendientes");
+  });
+
+  it("la insignia de Cuentas pendientes se pone al día con el aviso de la página", async () => {
+    const lista = vi.mocked(api.listPending);
+    lista.mockResolvedValueOnce([]);
+    render(<Host />);
+    await act(async () => {});
+    expect(screen.queryByText("2")).toBeNull();
+
+    lista.mockResolvedValueOnce([{ id: 1 }, { id: 2 }] as never);
+    await act(async () => { window.dispatchEvent(new Event("prospective:pending-changed")); });
+    expect(await screen.findByText("2")).toBeTruthy();
   });
 });

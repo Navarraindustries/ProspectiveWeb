@@ -75,12 +75,20 @@ export interface UserAdminInfo {
   has_photo: boolean;
   has_cv: boolean;
   created_at: string;
+  university: string;
+  position: string;
+  /** ISO UTC; solo si la solicitud se rechazó (F2-51). */
+  rejected_at: string | null;
 }
 
 export interface UserUpdate {
   full_name?: string;
   role?: string;
   is_active?: boolean;
+  specialty?: string;
+  hospital?: string;
+  university?: string;
+  position?: string;
 }
 
 /* ── PHASES score ──────────────────────────────────────────────────────── */

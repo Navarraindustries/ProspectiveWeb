@@ -432,7 +432,15 @@ export const api = {
   },
   approvePending: (id: number) => post<{ status: string }>(`/api/auth/pending/${id}/approve`),
   rejectPending: (id: number) => post<{ status: string }>(`/api/auth/pending/${id}/reject`),
-  listUsers: () => get<UserAdminInfo[]>("/api/auth/users"),
+  /** `status` filtra por estado de la cuenta: pending | approved | rejected (F2-51). */
+  listUsers: (status?: "pending" | "approved" | "rejected") =>
+    get<UserAdminInfo[]>(`/api/auth/users${status ? `?status=${status}` : ""}`),
+  /** Cambia la foto de perfil de una cuenta (F2-45). */
+  setUserPhoto: (id: number, photo: File) => {
+    const fd = new FormData();
+    fd.append("photo", photo, photo.name);
+    return post<UserAdminInfo>(`/api/auth/users/${id}/photo`, fd);
+  },
   createUser: (fields: Record<string, string>, photo?: File | null, cv?: File | null) => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.append(k, v ?? "");
@@ -442,8 +450,9 @@ export const api = {
   },
   updateUser: (id: number, u: UserUpdate) =>
     request<UserAdminInfo>(`/api/auth/users/${id}`, { method: "PUT", body: JSON.stringify(u), headers: { "Content-Type": "application/json" } }),
-  deleteUser: (id: number) =>
-    request<void>(`/api/auth/users/${id}`, { method: "DELETE" }),
+  /** `reassignTo`: cuenta que hereda sus pacientes; sin él, quien borra (F2-46). */
+  deleteUser: (id: number, reassignTo?: number) =>
+    request<void>(`/api/auth/users/${id}${reassignTo != null ? `?reassign_to=${reassignTo}` : ""}`, { method: "DELETE" }),
 
   /* patients */
   listPatients: () => get<PatientSummary[]>("/api/patients"),

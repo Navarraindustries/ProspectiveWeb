@@ -38,6 +38,18 @@ describe("AppShell", () => {
     fireEvent.keyDown(document, { key: "b", altKey: true });
     expect(screen.getByRole("navigation", { name: "Secciones" }).getAttribute("data-expanded")).toBe("false");
   });
+  it("un keydown sin `key` (el autocompletado de Chrome) no lanza", () => {
+    render(<AppShell><input aria-label="campo" /></AppShell>);
+    const errores: unknown[] = [];
+    const alFallar = (e: ErrorEvent) => { errores.push(e.error); e.preventDefault(); };
+    window.addEventListener("error", alFallar);
+    try {
+      document.dispatchEvent(new Event("keydown")); // sin key, sin altKey
+    } finally {
+      window.removeEventListener("error", alFallar);
+    }
+    expect(errores).toEqual([]);
+  });
   it("la miga solo lleva lo que existe y las acciones del contexto", () => {
     render(<AppShell crumbs={[{ label: "Pacientes", onClick: () => {} }, { label: "segura, Juan" }]} actions={<button>Nuevo caso</button>}><p>x</p></AppShell>);
     expect(screen.getByText("segura, Juan")).toBeTruthy();

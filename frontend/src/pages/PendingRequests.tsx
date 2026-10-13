@@ -1,17 +1,81 @@
-/* Solicitudes — admin-only review of pending account requests.
-   Lists self-registrations with their professional profile and approve/reject. */
+/* Cuentas pendientes — admin-only review of pending account requests.
+   Lists self-registrations with their professional profile and approve/reject;
+   «Aprobadas» y «Rechazadas» guardan el historial que antes desaparecía (F2-51). */
 
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { PendingUser } from "../api/types";
+import type { PendingUser, UserAdminInfo } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
+import { Tabs } from "../components/Tabs";
 import { AppShell } from "../components/shell/AppShell";
+import { PENDING_CHANGED_EVENT } from "../components/shell/pendingEvents";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { fechaHora } from "../lib/fecha";
+import { ROLE_LABEL } from "../lib/roles";
+
+const TABS = ["Pendientes", "Aprobadas", "Rechazadas"] as const;
+type Pestana = (typeof TABS)[number];
+
+/** Rol con el que entra una cuenta aprobada: el servidor no lo cambia al aprobar. */
+const ROL_AL_APROBAR = "medico";
+
+/** Historial: cuentas aprobadas o rechazadas, de las que el listado de
+ *  pendientes ya no sabe nada. */
+function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
+  const [rows, setRows] = useState<UserAdminInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const load = () => {
+    setLoading(true);
+    setLoadError(null);
+    api
+      .listUsers(tab === "Aprobadas" ? "approved" : "rejected")
+      // Los administradores no pasaron por una solicitud: fuera de «Aprobadas».
+      .then((l) => setRows(tab === "Aprobadas" ? l.filter((u) => u.role !== "admin") : l))
+      .catch((e) => setLoadError(loadErrorText(e)))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [tab]);
+
+  if (loadError) return <Card style={{ padding: "8px 20px" }}><LoadState state="error" mensaje={loadError} onRetry={load} /></Card>;
+  if (loading) return <LoadState state="cargando" mensaje="" onRetry={load} />;
+  if (rows.length === 0) {
+    return (
+      <Card style={{ padding: "28px 20px", textAlign: "center", color: "var(--muted-foreground)", fontSize: 13 }}>
+        {tab === "Aprobadas" ? "Ninguna cuenta aprobada todavía." : "Ninguna cuenta rechazada."}
+      </Card>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {tab === "Aprobadas" && (
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+          Cuentas activas que no son de administrador, con su fecha de alta. El servidor no distingue las
+          aprobadas desde una solicitud de las que creó un administrador.
+        </div>
+      )}
+      {rows.map((u) => (
+        <Card key={u.id} style={{ padding: "14px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--foreground)" }}>{u.full_name || u.username}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</span>
+            {u.specialty && <Badge variant="subtle">{u.specialty}</Badge>}
+            {tab === "Aprobadas" && <Badge variant="muted">{ROLE_LABEL[u.role] || u.role}</Badge>}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 6 }}>
+            {tab === "Rechazadas" && u.rejected_at
+              ? `Rechazada: ${fechaHora(u.rejected_at)} · Solicitada: ${fechaHora(u.created_at)}`
+              : `${tab === "Aprobadas" ? "Alta" : "Solicitada"}: ${fechaHora(u.created_at)}`}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 /** Avatar that loads the pending user's uploaded photo (auth'd blob) or falls
  *  back to initials. */
@@ -40,6 +104,7 @@ function PendingAvatar({ user }: { user: PendingUser }) {
 const PENDING_CRUMBS = [{ label: "Cuentas pendientes" }];
 
 export function PendingRequests() {
+  const [tab, setTab] = useState<Pestana>("Pendientes");
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
   // El fallo de aprobar o rechazar va en su nota; el de cargar sustituye a la lista.
@@ -70,6 +135,7 @@ export function PendingRequests() {
       if (action === "approve") await api.approvePending(id);
       else await api.rejectPending(id);
       setPending((p) => p.filter((u) => u.id !== id));
+      window.dispatchEvent(new Event(PENDING_CHANGED_EVENT));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error procesando la solicitud");
     } finally {
@@ -88,7 +154,7 @@ export function PendingRequests() {
         onConfirm={() => { const u = toReject; setToReject(null); if (u) void act(u.id, "reject"); }}
       >
         La solicitud de <b style={{ color: "var(--foreground)" }}>{toReject?.full_name || toReject?.username}</b> se
-        rechaza y sale de esta lista; no podrá entrar con esa cuenta.
+        rechaza y pasa a «Rechazadas»; no podrá entrar con esa cuenta.
       </ConfirmDialog>
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }} className="fade-rise">
@@ -98,36 +164,46 @@ export function PendingRequests() {
                 Cuentas pendientes
               </div>
               <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
-                {loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`}
+                {tab !== "Pendientes"
+                  ? (tab === "Aprobadas" ? "Cuentas que ya pueden entrar" : "Solicitudes que no se aceptaron")
+                  : loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`}
               </div>
             </div>
             <div style={{ flex: 1 }} />
-            <Button variant="outline" leadingIcon={<Icon name="REFRESH" />} onClick={load}>
-              Actualizar
-            </Button>
+            {tab === "Pendientes" && (
+              <Button variant="outline" leadingIcon={<Icon name="REFRESH" />} onClick={load}>
+                Actualizar
+              </Button>
+            )}
           </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <Tabs tabs={TABS} value={tab} onChange={(t) => setTab(t as Pestana)} />
+          </div>
+
+          {tab !== "Pendientes" && <History tab={tab} />}
 
           <ErrorNote>{error}</ErrorNote>
 
-          {loadError && (
+          {tab === "Pendientes" && loadError && (
             <Card style={{ padding: "8px 20px" }}>
               <LoadState state="error" mensaje={loadError} onRetry={load} />
             </Card>
           )}
 
-          {!loading && !loadError && pending.length === 0 && (
+          {tab === "Pendientes" && !loading && !loadError && pending.length === 0 && (
             <Card style={{ padding: "28px 20px", textAlign: "center" }}>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 8, color: "var(--muted-foreground)" }}>
                 <Icon name="STATUS_OK" size={26} />
               </div>
               <div style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
-                No hay solicitudes pendientes.
+                No hay cuentas pendientes.
               </div>
             </Card>
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {!loadError && pending.map((u) => (
+            {tab === "Pendientes" && !loadError && pending.map((u) => (
               <Card key={u.id} style={{ padding: "18px 20px" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
                   <PendingAvatar user={u} />
@@ -167,6 +243,10 @@ export function PendingRequests() {
                       <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                         Solicitado: {fechaHora(u.created_at)}
                       </span>
+                    </div>
+                    {/* F1-90: quien aprueba no ve con qué rol entra la cuenta. */}
+                    <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8 }}>
+                      Entrará como {ROLE_LABEL[ROL_AL_APROBAR]}; cambia el rol en Usuarios.
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>

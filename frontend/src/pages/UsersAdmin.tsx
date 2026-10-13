@@ -1,11 +1,13 @@
 /* Usuarios — admin-only management of all accounts: list, edit role / name /
    status (active), and delete. Mirrors the desktop user-admin panel.
-   Backed by GET/PUT/DELETE /api/auth/users. */
+   Backed by GET/PUT/DELETE /api/auth/users. Al borrar una cuenta sus pacientes
+   pasan a la cuenta que se elige (por defecto, quien borra). */
 
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { UserAdminInfo } from "../api/types";
+import type { UserAdminInfo, UserBrief } from "../api/types";
 import { Badge } from "../components/Badge";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Button } from "../components/Button";
 import { FileField } from "../components/FileField";
 import { Icon } from "../components/Icon";
@@ -13,7 +15,7 @@ import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { Sheet } from "../components/Sheet";
 import { AppShell } from "../components/shell/AppShell";
-import { ErrorNote } from "../components/PanelHead";
+import { Collapsible, ErrorNote } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 import { AdminOnlyCard } from "../components/AdminOnly";
@@ -34,13 +36,45 @@ const POSITIONS = [
   "Residente de Radiología", "Fellow", "Médico adjunto",
   "Estudiante de medicina", "Investigador/a", "Otro",
 ];
-const GROUP_LABEL: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-  color: "var(--muted-foreground)", margin: "20px 0 2px",
-};
 
-const roleVariant = (r: string): "destructive" | "default" | "secondary" | "subtle" =>
-  r === "admin" ? "destructive" : r === "medico" ? "default" : r === "residente" ? "secondary" : "subtle";
+/* Lista de un desplegable opcional: la primera opción es «sin indicar» y no hay
+   nada preseleccionado (F2-47: «Neurocirugía» quedaba puesta sin que nadie la
+   eligiera). Si la cuenta trae un valor que no está en la lista (alta antigua,
+   registro propio), se añade para no perderlo al guardar. */
+function opcionales(lista: readonly string[], actual: string) {
+  const valores = actual && !lista.includes(actual) ? [...lista, actual] : lista;
+  return [{ value: "", label: "Sin indicar" }, ...valores.map((v) => ({ value: v, label: v }))];
+}
+
+/* Los insignias de rol no usan el color de error (F2-44): el administrador en
+   rojo se leía como alarma. Solo el administrador se distingue, en el acento. */
+const roleVariant = (r: string): "brand" | "muted" => (r === "admin" ? "brand" : "muted");
+
+/* F1-82: la columna dice lo que el servidor sabe, no solo activo o no. Una
+   desactivación a mano deja `status = rejected` igual que un rechazo; solo el
+   rechazo de una solicitud trae `rejected_at`, así que ese es el desempate. */
+function estadoCuenta(u: Pick<UserAdminInfo, "status" | "is_active" | "rejected_at">): string {
+  if (u.status === "pending") return "Pendiente";
+  if (u.status === "rejected" && u.rejected_at) return "Rechazada";
+  return u.is_active ? "Activo" : "Desactivada";
+}
+
+function EstadoCuenta({ u }: { u: UserAdminInfo }) {
+  const t = estadoCuenta(u);
+  return <Badge variant={t === "Activo" ? "success" : t === "Pendiente" ? "warning" : "muted"}>{t}</Badge>;
+}
+
+type CampoAlta = "full_name" | "username" | "password" | "confirm";
+
+/* Un error por campo, calculado a la vez, igual que «Crear cuenta» (F2-48). */
+function validarAlta(f: { full_name: string; username: string; password: string; confirm: string }): Partial<Record<CampoAlta, string>> {
+  const e: Partial<Record<CampoAlta, string>> = {};
+  if (!f.full_name.trim()) e.full_name = "El nombre completo es obligatorio.";
+  if (f.username.trim().length < 3) e.username = "El usuario debe tener al menos 3 caracteres.";
+  if (f.password.length < 8) e.password = "La contraseña debe tener al menos 8 caracteres.";
+  if (f.password !== f.confirm) e.confirm = "Las contraseñas no coinciden.";
+  return e;
+}
 
 function EditUserSheet({
   open, user, onClose, onSaved,
@@ -48,6 +82,11 @@ function EditUserSheet({
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("viewer");
   const [active, setActive] = useState(true);
+  const [specialty, setSpecialty] = useState("");
+  const [hospital, setHospital] = useState("");
+  const [university, setUniversity] = useState("");
+  const [position, setPosition] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +95,11 @@ function EditUserSheet({
     setFullName(user.full_name || "");
     setRole(user.role || "viewer");
     setActive(user.is_active);
+    setSpecialty(user.specialty || "");
+    setHospital(user.hospital || "");
+    setUniversity(user.university || "");
+    setPosition(user.position || "");
+    setPhoto(null);
     setError(null);
   }, [open, user]);
 
@@ -64,7 +108,14 @@ function EditUserSheet({
     setBusy(true);
     setError(null);
     try {
-      await api.updateUser(user.id, { full_name: fullName.trim(), role, is_active: active });
+      await api.updateUser(user.id, {
+        full_name: fullName.trim(), role, specialty, hospital: hospital.trim(),
+        university: university.trim(), position,
+        // F1-84: solo si la casilla cambió; si no, guardar otro dato reactivaba
+        // (o desactivaba) una cuenta que otro administrador acababa de tocar.
+        ...(active !== user.is_active ? { is_active: active } : {}),
+      });
+      if (photo) await api.setUserPhoto(user.id, photo);
       onSaved();
       onClose();
     } catch (e) {
@@ -84,6 +135,11 @@ function EditUserSheet({
           <Input label="Nombre completo" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nombre y apellidos" />
           <Select label="Rol" options={ROLE_OPTS} value={role} onChange={(e) => setRole(e.target.value)} />
           <RolePermite role={role} />
+          <Select label="Especialidad" options={opcionales(SPECIALTIES, user.specialty)} value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
+          <Input label="Hospital / Centro" value={hospital} onChange={(e) => setHospital(e.target.value)} />
+          <Input label="Universidad" value={university} onChange={(e) => setUniversity(e.target.value)} />
+          <Select label="Cargo" options={opcionales(POSITIONS, user.position)} value={position} onChange={(e) => setPosition(e.target.value)} />
+          <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer" }}>
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
             Cuenta activa (puede iniciar sesión)
@@ -99,13 +155,14 @@ function EditUserSheet({
   );
 }
 
-/* Admin-created account — same professional fields as self-registration, plus a
-   role selector. The account is created ACTIVE (no approval step). */
+/* Alta de una cuenta por el administrador: nombre, usuario, rol y contraseña
+   bastan para dar de alta a un colega (F2-47); el resto del perfil va plegado.
+   La cuenta se crea ACTIVA (sin aprobación). */
 function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const BLANK = {
     full_name: "", national_id: "", professional_id: "",
-    specialty: SPECIALTIES[0], university: "", hospital: "",
-    position: POSITIONS[0], orcid: "", role: "medico",
+    specialty: "", university: "", hospital: "",
+    position: "", orcid: "", role: "medico",
     username: "", password: "", confirm: "",
   };
   const [form, setForm] = useState({ ...BLANK });
@@ -113,21 +170,33 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
   const [cv, setCv] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [intentado, setIntentado] = useState(false);
 
   useEffect(() => {
-    if (open) { setForm({ ...BLANK }); setPhoto(null); setCv(null); setError(null); }
+    if (open) { setForm({ ...BLANK }); setPhoto(null); setCv(null); setError(null); setIntentado(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Cada error junto a su campo, como en «Crear cuenta»: nombre y usuario al
+  // pulsar «Crear usuario» (un campo vacío no nace en rojo); contraseña y
+  // repetición avisan en cuanto se escribe en ellas.
+  const errores = validarAlta(form);
+  const visible = (c: CampoAlta): string | undefined => {
+    if (!errores[c]) return undefined;
+    if (intentado) return errores[c];
+    if (c === "password") return form.password ? errores[c] : undefined;
+    if (c === "confirm") return form.confirm ? errores[c] : undefined;
+    return undefined;
+  };
+  const props = (c: CampoAlta) => ({ invalid: !!visible(c), hint: visible(c) });
+
   const submit = async () => {
     setError(null);
-    if (!form.full_name.trim()) return setError("El nombre completo es obligatorio.");
-    if (form.username.trim().length < 3) return setError("El usuario debe tener al menos 3 caracteres.");
-    if (form.password.length < 8) return setError("La contraseña debe tener al menos 8 caracteres.");
-    if (form.password !== form.confirm) return setError("Las contraseñas no coinciden.");
+    setIntentado(true);
+    if (Object.keys(errores).length > 0) return;
     setBusy(true);
     try {
       await api.createUser({
@@ -147,41 +216,37 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
 
   return (
     <Sheet open={open} onClose={onClose} title="Nuevo usuario" width={480}>
-      <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 4 }}>
+      <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 12 }}>
         La cuenta se crea <b style={{ color: "var(--foreground)" }}>activa</b> (sin aprobación) y podrá iniciar sesión de inmediato.
       </div>
 
-      <div style={GROUP_LABEL}>Datos personales</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Input label="Nombre completo *" value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" />
-        <Input label="Cédula o ID" value={form.national_id} onChange={set("national_id")} />
-        <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
-      </div>
-
-      <div style={GROUP_LABEL}>Datos profesionales</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Input label="ID profesional" value={form.professional_id} onChange={set("professional_id")} />
-        <Select label="Especialidad" options={SPECIALTIES} value={form.specialty} onChange={set("specialty")} />
-        <Input label="Universidad" value={form.university} onChange={set("university")} />
-        <Input label="Hospital / Centro" value={form.hospital} onChange={set("hospital")} />
-        <Select label="Cargo" options={POSITIONS} value={form.position} onChange={set("position")} />
-        <Input label="ORCID" value={form.orcid} onChange={set("orcid")} placeholder="0000-0002-1825-0097" />
-      </div>
-      <div style={{ marginTop: 12 }}>
-        <FileField label="Currículum (CV)" accept=".pdf,.doc,.docx" file={cv} onPick={setCv} />
-      </div>
-
-      <div style={GROUP_LABEL}>Acceso y rol</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Input label="Nombre completo *" value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Input label="Usuario *" value={form.username} onChange={set("username")} autoComplete="off" />
+          <Input label="Usuario *" value={form.username} onChange={set("username")} autoComplete="off" {...props("username")} />
           <Select label="Rol" options={ROLE_OPTS} value={form.role} onChange={set("role")} />
         </div>
         <RolePermite role={form.role} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Input label="Contraseña * (mín. 8)" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" />
-          <Input label="Confirmar *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" />
+          <Input label="Contraseña * (mín. 8)" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" {...props("password")} />
+          <Input label="Confirmar *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" {...props("confirm")} />
         </div>
+
+        <Collapsible title="Más datos (opcional)" storageKey="prospective.usuarios.alta.mas-datos">
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Select label="Especialidad" options={opcionales(SPECIALTIES, "")} value={form.specialty} onChange={set("specialty")} />
+              <Select label="Cargo" options={opcionales(POSITIONS, "")} value={form.position} onChange={set("position")} />
+              <Input label="Universidad" value={form.university} onChange={set("university")} />
+              <Input label="Hospital / Centro" value={form.hospital} onChange={set("hospital")} />
+              <Input label="Cédula o ID" value={form.national_id} onChange={set("national_id")} />
+              <Input label="ID profesional" value={form.professional_id} onChange={set("professional_id")} />
+              <Input label="ORCID" value={form.orcid} onChange={set("orcid")} placeholder="0000-0002-1825-0097" />
+            </div>
+            <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
+            <FileField label="Currículum (CV)" accept=".pdf,.doc,.docx" file={cv} onPick={setCv} />
+          </div>
+        </Collapsible>
       </div>
 
       <ErrorNote>{error}</ErrorNote>
@@ -219,6 +284,10 @@ function UsersAdminPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [toDelete, setToDelete] = useState<UserAdminInfo | null>(null);
   const [delBusy, setDelBusy] = useState(false);
+  // Cuentas activas que pueden heredar los pacientes de la que se borra (F2-46).
+  // «» = quien borra, que es lo que hace el servidor sin `reassign_to`.
+  const [heirs, setHeirs] = useState<UserBrief[]>([]);
+  const [heir, setHeir] = useState("");
   // Admin reset for the clinician who forgot theirs — parity with the desktop
   // user manager. No current password is needed, so the event is audited.
   const [toReset, setToReset] = useState<UserAdminInfo | null>(null);
@@ -263,11 +332,21 @@ function UsersAdminPage() {
       u.username.toLowerCase().includes(q.toLowerCase())
   );
 
+  // Al abrir el diálogo se piden las cuentas activas: no hace falta antes, y
+  // así la lista no envejece mientras la página está abierta.
+  useEffect(() => {
+    setHeir("");
+    if (!toDelete) return;
+    let alive = true;
+    api.usersBrief().then((l) => { if (alive) setHeirs(l); }).catch(() => { if (alive) setHeirs([]); });
+    return () => { alive = false; };
+  }, [toDelete]);
+
   const confirmDelete = async () => {
     if (!toDelete) return;
     setDelBusy(true);
     try {
-      await api.deleteUser(toDelete.id);
+      await api.deleteUser(toDelete.id, heir ? Number(heir) : undefined);
       setToDelete(null);
       load();
     } catch (e) {
@@ -355,9 +434,7 @@ function UsersAdminPage() {
                         {[u.specialty, u.hospital].filter(Boolean).join(" · ") || "—"}
                       </td>
                       <td style={{ padding: "12px 16px" }}>
-                        {u.is_active
-                          ? <Badge variant="subtle">Activo</Badge>
-                          : <span style={{ fontSize: 12, color: "var(--destructive, #ef4444)", fontWeight: 600 }}>Inactivo</span>}
+                        <EstadoCuenta u={u} />
                       </td>
                       <td style={{ padding: "12px 16px", color: "var(--muted-foreground)" }}>
                         {fechaHora(u.created_at)}
@@ -386,7 +463,7 @@ function UsersAdminPage() {
                             disabled={isMe}
                             onClick={() => !isMe && setToDelete(u)}
                           >
-                            <span style={{ fontSize: 14, color: "var(--destructive, #ef4444)", lineHeight: 1 }}>✕</span>
+                            <Icon name="DELETE" size={14} color="var(--destructive)" />
                           </button>
                         </span>
                       </td>
@@ -402,62 +479,56 @@ function UsersAdminPage() {
       <EditUserSheet open={editOpen} user={editUser} onClose={() => { setEditOpen(false); setEditUser(null); }} onSaved={load} />
       <NewUserSheet open={newOpen} onClose={() => setNewOpen(false)} onCreated={load} />
 
-      {toDelete && (
-        <div
-          onClick={() => setToDelete(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 320, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: 380, maxWidth: "90%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: "22px 24px" }}
-          >
-            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--foreground)" }}>Eliminar usuario</div>
-            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
-              ¿Seguro que quieres eliminar la cuenta de <b style={{ color: "var(--foreground)" }}>{toDelete.full_name || toDelete.username}</b>?
-              Sus pacientes se conservarán pero quedarán sin propietario. Esta acción no se puede deshacer.
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-              <Button variant="outline" onClick={() => setToDelete(null)} disabled={delBusy}>Cancelar</Button>
-              <Button variant="destructive" disabled={delBusy} onClick={confirmDelete}>{delBusy ? "Eliminando…" : "Eliminar"}</Button>
-            </div>
-          </div>
+      <ConfirmDialog
+        open={toDelete !== null}
+        title="Eliminar usuario"
+        confirmLabel={delBusy ? "Eliminando…" : "Eliminar"}
+        destructive
+        busy={delBusy}
+        onCancel={() => setToDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      >
+        ¿Seguro que quieres eliminar la cuenta de <b style={{ color: "var(--foreground)" }}>{toDelete?.full_name || toDelete?.username}</b>?
+        Sus pacientes pasarán a la cuenta elegida. Esta acción no se puede deshacer.
+        <div style={{ marginTop: 14 }}>
+          <Select
+            label="Reasignar sus pacientes a…"
+            value={heir}
+            onChange={(e) => setHeir(e.target.value)}
+            options={[
+              { value: "", label: "A mí (admin)" },
+              ...heirs
+                .filter((h) => h.id !== toDelete?.id && h.id !== me?.id)
+                .map((h) => ({ value: String(h.id), label: `${h.full_name || h.username} (@${h.username})` })),
+            ]}
+          />
         </div>
-      )}
+      </ConfirmDialog>
 
-      {toReset && (
-        <div
-          onClick={() => setToReset(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 320, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: 400, maxWidth: "90%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: "22px 24px" }}
-          >
-            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--foreground)" }}>Restablecer contraseña</div>
-            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
-              Asigna una contraseña nueva a <b style={{ color: "var(--foreground)" }}>{toReset.full_name || toReset.username}</b>.
-              Queda registrado en la auditoría; comunícasela por un canal seguro y pídele que la cambie al entrar.
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <Input
-                label="Nueva contraseña (mín. 8)"
-                type="password"
-                value={resetPw}
-                onChange={(e) => setResetPw(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void confirmReset(); }}
-                autoComplete="new-password"
-              />
-            </div>
-            <ErrorNote>{resetErr}</ErrorNote>
-            <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-              <Button variant="outline" onClick={() => setToReset(null)} disabled={resetBusy}>Cancelar</Button>
-              <Button disabled={resetBusy || resetPw.length < 8} onClick={() => void confirmReset()}>
-                {resetBusy ? "Guardando…" : "Restablecer"}
-              </Button>
-            </div>
-          </div>
+      <ConfirmDialog
+        open={toReset !== null}
+        title="Restablecer contraseña"
+        confirmLabel={resetBusy ? "Guardando…" : "Restablecer"}
+        // Con menos de 8 caracteres confirmReset no hace nada y el campo lo dice.
+        busy={resetBusy}
+        onCancel={() => setToReset(null)}
+        onConfirm={() => void confirmReset()}
+      >
+        Asigna una contraseña nueva a <b style={{ color: "var(--foreground)" }}>{toReset?.full_name || toReset?.username}</b>.
+        Queda registrado en la auditoría; comunícasela por un canal seguro y pídele que la cambie al entrar.
+        <div style={{ marginTop: 14 }}>
+          <Input
+            label="Nueva contraseña (mín. 8)"
+            type="password"
+            value={resetPw}
+            onChange={(e) => setResetPw(e.target.value)}
+            autoComplete="new-password"
+            invalid={resetPw.length > 0 && resetPw.length < 8}
+            hint={resetPw.length > 0 && resetPw.length < 8 ? "Mínimo 8 caracteres." : undefined}
+          />
         </div>
-      )}
+        <ErrorNote>{resetErr}</ErrorNote>
+      </ConfirmDialog>
 
       {resetDone && (
         <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 330, background: "var(--foreground)", color: "var(--background)", padding: "10px 18px", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-lg)", fontSize: 13, fontWeight: 600 }}>

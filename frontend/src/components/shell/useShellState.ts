@@ -86,9 +86,12 @@ export function useShellState(): ShellState {
   current.current = { expanded, pinned, setPinned };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Antes que nada Alt, y `key` solo si es texto: el autocompletado de
+      // Chrome lanza keydown sin `key` y `toLowerCase` de undefined rompía el oyente.
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
       // `code` para teclados en los que Alt cambia la letra (Option en Mac).
-      const isB = e.code === "KeyB" || e.key.toLowerCase() === "b";
-      if (!e.altKey || e.ctrlKey || e.metaKey || !isB) return;
+      const isB = e.code === "KeyB" || (typeof e.key === "string" && e.key.toLowerCase() === "b");
+      if (!isB) return;
       if (window.location.pathname === SCREEN_PATH.workspace) return;
       e.preventDefault();
       const s = current.current;

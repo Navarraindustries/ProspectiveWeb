@@ -1,8 +1,9 @@
 /* Barra lateral de iconos (shell C, F2): 40 px plegada, 220 px expandida.
 
-   Un solo acceso a cada sección, también a las de administración (fusiones 7,
-   10, 11, 12, 14 y 25: antes había menú de usuario, botón de casa, acceso a
-   «Solicitudes» desde pacientes y otro desde el menú). Los enlaces llevan la
+   Un solo acceso a cada sección, también a las de administración: antes había
+   menú de usuario, botón de casa, acceso a «Solicitudes» desde pacientes y otro
+   desde el menú. Las migas de pan y los botones de casa de cada página los
+   resolvió esa página al entrar en el shell, no esta barra. Los enlaces llevan la
    ruta real en `href` —se puede abrir en otra pestaña o copiar— pero el clic
    normal navega por el router, que es quien sabe de trabajo sin guardar. */
 
@@ -16,6 +17,7 @@ import { useAuth } from "../../store/auth";
 import { SCREEN_PATH, useNav } from "../../store/nav";
 import type { Screen } from "../../store/nav";
 import { Logo } from "./Logo";
+import { PENDING_CHANGED_EVENT } from "./pendingEvents";
 import { UserMenu } from "./UserMenu";
 import { ADMIN_GROUP_LABEL, SECTIONS } from "./sections";
 import type { Section } from "./sections";
@@ -40,7 +42,13 @@ function usePendingCount(enabled: boolean): number {
     };
     refresh();
     const id = window.setInterval(refresh, PENDING_POLL_MS);
-    return () => { alive = false; window.clearInterval(id); };
+    // Aprobar o rechazar en «Cuentas pendientes» la pone al día sin esperar al minuto.
+    window.addEventListener(PENDING_CHANGED_EVENT, refresh);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+      window.removeEventListener(PENDING_CHANGED_EVENT, refresh);
+    };
   }, [enabled]);
   return enabled ? count : 0;
 }

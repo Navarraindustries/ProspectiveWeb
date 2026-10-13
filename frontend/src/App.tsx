@@ -90,14 +90,6 @@ function Router() {
   // pantalla que lo dice, en vez de un error en cada panel.
   if (user?.must_change_password) return <ForcePasswordChange />;
 
-  const openPatient = (p: PatientSummary) => {
-    planning.reset();
-    planning.setPatient(p);
-    setPatient(p);
-    setResumeStep(0);
-    setScreen("workspace");
-  };
-
   // Empezar sin paciente: subir el DICOM y usar el pipeline ya, y decidir
   // después si se guarda («Adjuntar a un caso», en la barra del pipeline).
   const startWithoutPatient = () => {
@@ -227,12 +219,10 @@ function Router() {
   else if (effective === "patients")
     view = (
       <Patients
-        onOpenPatient={openPatient}
         onResume={resumeSession}
         onPlanCase={planCase}
         onStartWithoutPatient={startWithoutPatient}
         onOpenStudy={(s) => void openStudy(s)}
-        onOpenPending={() => setScreen("pending")}
         onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}
       />
     );

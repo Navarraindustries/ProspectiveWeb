@@ -69,7 +69,7 @@ function checkRow(label: string, checked: boolean, onToggle: (v: boolean) => voi
 
 export function NuevoEstudioSheet({
   open, patientId, patientName, study, onClose, onCreated,
-}: { open: boolean; patientId: number | null; patientName?: string; study?: StudySummary | null; onClose: () => void; onCreated: () => void }) {
+}: { open: boolean; patientId: number | null; patientName?: string; study?: StudySummary | null; onClose: () => void; onCreated: (created?: StudySummary) => void }) {
   const editing = !!study;
   // Día local: con toISOString (UTC) pasadas las 19:00 en UTC−5 proponía el de mañana.
   const today = hoyLocal();
@@ -141,9 +141,10 @@ export function NuevoEstudioSheet({
     };
     setBusy(true);
     try {
-      if (study) await api.updateStudy(patientId, study.id, payload);
-      else await api.createStudy(patientId, payload);
-      onCreated();
+      // El caso recién creado vuelve a quien abrió el formulario, que puede
+      // ofrecer planificarlo (F2-22); al editar no hay nada nuevo que ofrecer.
+      if (study) { await api.updateStudy(patientId, study.id, payload); onCreated(); }
+      else onCreated(await api.createStudy(patientId, payload));
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar el caso");

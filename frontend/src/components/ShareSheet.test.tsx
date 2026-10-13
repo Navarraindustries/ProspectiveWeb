@@ -6,7 +6,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const usersBrief = vi.fn();
 const setPatientShares = vi.fn();
-const user = { id: 1, role: "medico" };
+const user = { id: 1, role: "medico" as string };
 
 vi.mock("../api/client", () => {
   class ApiError extends Error {
@@ -35,8 +35,11 @@ const CUENTAS = [
 
 const onSaved = vi.fn();
 const onClose = vi.fn();
-const abrir = (current: number[] = [4]) =>
-  render(<ShareSheet open patientId={7} patientName="Segura, Juan" current={current} onClose={onClose} onSaved={onSaved} />);
+const compartida = (user_id: number, full_name: string, role = "medico") =>
+  ({ user_id, username: full_name.toLowerCase(), full_name, role, shared_at: "2026-10-12T10:00:00" });
+const abrir = (current = [compartida(4, "Luis Pérez")], ownerId: number | null = 1) =>
+  render(<ShareSheet open patientId={7} patientName="Segura, Juan" current={current} ownerId={ownerId}
+                     onClose={onClose} onSaved={onSaved} />);
 
 beforeEach(() => {
   usersBrief.mockReset().mockResolvedValue(CUENTAS);
@@ -86,5 +89,24 @@ describe("ShareSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
     expect(await screen.findByText("Solo quien creó al paciente o un administrador puede compartirlo.")).toBeTruthy();
     expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("una cuenta compartida que ya no está activa se ve como desactivada y no se reenvía", async () => {
+    setPatientShares.mockResolvedValue([]);
+    abrir([compartida(4, "Luis Pérez"), compartida(8, "Eva Gil")]);
+    await screen.findByRole("checkbox", { name: /Ana Ruiz/ });
+    const eva = screen.getByText("Eva Gil").closest("li")!;
+    expect(eva.textContent).toContain("cuenta desactivada");
+    expect(screen.queryByRole("checkbox", { name: /Eva Gil/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(setPatientShares).toHaveBeenCalledWith(7, [4]));
+  });
+
+  it("quien creó al paciente no sale entre las cuentas (lo comparte un administrador)", async () => {
+    user.id = 2; user.role = "admin";
+    abrir([], 3);
+    await screen.findByRole("checkbox", { name: /Luis Pérez/ });
+    expect(screen.queryByRole("checkbox", { name: /Ana Ruiz/ })).toBeNull();
+    user.id = 1; user.role = "medico";
   });
 });

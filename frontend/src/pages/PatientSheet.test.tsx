@@ -302,3 +302,60 @@ describe("eliminar el paciente desde la ficha", () => {
     expect(onDeleted).toHaveBeenCalled();
   });
 });
+
+/* Ronda de arreglos 1 de la revisión de la Tarea 11. */
+describe("salir de la ficha con cambios sin guardar", () => {
+  it("«Planificar este caso» con «Notas» editado pregunta antes, y solo planifica al descartar", async () => {
+    patientStudies.mockResolvedValue([caso({ id: 9, dx_principal: "Aneurisma ACM" })]);
+    abrir();
+    fireEvent.change(await screen.findByLabelText("Notas"), { target: { value: "Cefalea en trueno" } });
+    fireEvent.click(screen.getByRole("button", { name: "Planificar este caso" }));
+    expect(onPlanCase).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
+    expect(onClose).toHaveBeenCalled();
+    expect(onPlanCase).toHaveBeenCalledWith(expect.objectContaining({ id: 9 }));
+  });
+
+  it("«Seguir editando» no ejecuta la salida pendiente", async () => {
+    patientSessions.mockResolvedValue([guardada({ session_id: "s1", label: "Antes de medir" })]);
+    abrir();
+    fireEvent.change(await screen.findByLabelText("Notas"), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reanudar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+    expect(onResume).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Notas") as HTMLTextAreaElement).value).toBe("x");
+    // Y cerrar después con «Cancelar» y descartar cierra, sin reanudar.
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
+    expect(onClose).toHaveBeenCalled();
+    expect(onResume).not.toHaveBeenCalled();
+  });
+});
+
+describe("derechos sobre los guardados (spec §6.2)", () => {
+  it("una cuenta compartida reanuda, pero no ve el lápiz ni «Borrar»", async () => {
+    user.id = 3;
+    patientSessions.mockResolvedValue([guardada({ session_id: "s1", label: "Antes de medir" })]);
+    abrir(resumen({ is_shared_with_me: true }));
+    expect(await screen.findByRole("button", { name: "Reanudar" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Renombrar/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Borrar/ })).toBeNull();
+  });
+});
+
+describe("restos de F2-30 y acciones sin la fila de la lista", () => {
+  it("si el nombre ya es el paso, la línea no lo repite", async () => {
+    patientSessions.mockResolvedValue([guardada({ session_id: "s1", label: "Segura, Juan · Detección" })]);
+    abrir();
+    expect(await screen.findByText(`Paso 3 · ${fechaHora("2026-10-11T05:05:09")} · 342 MB`)).toBeTruthy();
+  });
+
+  it("sin la fila de la lista no salen «Planificar» ni «Subir DICOM» (no tendrían a quién llevar)", async () => {
+    patientStudies.mockResolvedValue([caso({ id: 9, dx_principal: "Aneurisma ACM" })]);
+    abrir(null);
+    await screen.findByText("Casos (1)");
+    expect(screen.queryByRole("button", { name: "Planificar este caso" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Subir DICOM de este paciente" })).toBeNull();
+  });
+});

@@ -133,6 +133,9 @@ export function PatientSheet({
   // escrito sin preguntar (F1-60, F1-71). Contra esto se mide si hay cambios.
   const [initial, setInitial] = useState({ ...BLANK });
   const [askDiscard, setAskDiscard] = useState(false);
+  // La salida que espera a «Descartar cambios» (planificar, reanudar, pedidos,
+  // abrir un estudio o cerrar). En una ref: es una función, no algo que pintar.
+  const pendingExitRef = useRef<(() => void) | null>(null);
   const [sessions, setSessions] = useState<PatientSessionInfo[]>([]);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [studies, setStudies] = useState<StudySummary[]>([]);
@@ -248,7 +251,15 @@ export function PatientSheet({
   // no hay nada escrito que perder.
   const dirty = !loading && !denied && !loadError
     && (Object.keys(form) as (keyof typeof form)[]).some((k) => form[k] !== initial[k]);
-  const requestClose = () => (dirty ? setAskDiscard(true) : onClose());
+  // Toda salida de la ficha pasa por aquí. «Planificar», «Subir DICOM»,
+  // «Pedidos», «Reanudar» y los estudios llamaban a onClose directamente y
+  // tiraban lo escrito en Antecedentes o Notas sin preguntar.
+  const leaveWith = (action: () => void) => {
+    if (!dirty) return action();
+    pendingExitRef.current = action;
+    setAskDiscard(true);
+  };
+  const requestClose = () => leaveWith(onClose);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -283,7 +294,7 @@ export function PatientSheet({
   // caso más reciente (el id más alto) y, si hay varios, un selector.
   const recientes = [...studies].sort((a, b) => b.id - a.id);
   const planCase = recientes.find((s) => s.id === planId) ?? recientes[0] ?? null;
-  const planificar = (st: StudySummary) => { onClose(); onPlanCase?.(st); };
+  const planificar = (st: StudySummary) => leaveWith(() => { onClose(); onPlanCase?.(st); });
   // F2-72: la ficha no tenía cómo subir un DICOM. El paso 1 es donde se sube y
   // ya sabe a qué caso archivarlo; sin caso, se crea primero.
   const subirDicom = () => {
@@ -345,8 +356,10 @@ export function PatientSheet({
         <LoadState state="error" mensaje={loadError} onRetry={() => setAttempt((n) => n + 1)} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-          {ready && (
+          {ready && summary && (
             // F2-29, F2-72, F2-27: lo que se viene a hacer a la ficha, arriba.
+            // Sin la fila de la lista (aún cargando, o ?paciente= de alguien que
+            // no está en ella) la página no sabría a qué paciente llevarlos.
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {recientes.length > 1 && planCase && (
                 <Select
@@ -367,7 +380,7 @@ export function PatientSheet({
                   Subir DICOM de este paciente
                 </Button>
                 {onOpenOrders && (
-                  <Button size="sm" variant="outline" leadingIcon={<Icon name="ORDER" />} onClick={onOpenOrders}
+                  <Button size="sm" variant="outline" leadingIcon={<Icon name="ORDER" />} onClick={() => leaveWith(onOpenOrders)}
                           title="Pedidos de clips de este paciente">
                     Pedidos
                   </Button>
@@ -483,11 +496,11 @@ export function PatientSheet({
                           caseId={st.id}
                           compact
                           emptyHint="Sin imágenes archivadas todavía."
-                          onOpen={(img) => { onClose(); onOpenStudy?.(img); }}
+                          onOpen={(img) => leaveWith(() => { onClose(); onOpenStudy?.(img); })}
                           onResume={(img) => {
-                            if (!img.resumable_session_id) return;
-                            onClose();
-                            onResume?.(img.resumable_session_id);
+                            const sid = img.resumable_session_id;
+                            if (!sid) return;
+                            leaveWith(() => { onClose(); onResume?.(sid); });
                           }}
                         />
                       </div>
@@ -574,30 +587,34 @@ export function PatientSheet({
                                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
                                   {label}
                                 </span>
-                                <Button type="button" size="icon" variant="ghost" title="Cambiar el nombre"
+                                {/* Spec §6.2: renombrar y borrar es de quien lo creó o
+                                    de un administrador; el servidor da 403 al resto. */}
+                                {canShare && <Button type="button" size="icon" variant="ghost" title="Cambiar el nombre"
                                         aria-label={`Renombrar «${label}»`} onClick={() => startRename(s)}>
                                   <Icon name="RENAME" size={13} />
-                                </Button>
+                                </Button>}
                               </>
                             )}
                             {/* F1-68: «Alto» a secas se leía como riesgo de rotura. */}
                             {s.rupture_risk_label && <MorphoRiskBadge label={s.rupture_risk_label} />}
                           </div>
-                          {/* F2-30, F2-73: paso, hora local y lo que ocupa en disco. */}
+                          {/* F2-30, F2-73: paso (sin repetirlo si ya es el nombre), hora local y lo que ocupa en disco. */}
                           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
-                            {`Paso ${step + 1} · ${paso} · ${fechaHora(s.updated_at)} · ${formatBytes(s.size_bytes)}${diametro}`}
+                            {`Paso ${step + 1}${label === paso ? "" : ` · ${paso}`} · ${fechaHora(s.updated_at)} · ${formatBytes(s.size_bytes)}${diametro}`}
                           </div>
                           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                             {onResume && (
                               <Button type="button" size="sm" variant="outline" leadingIcon={<Icon name="RESUME" />}
-                                      title={reanudarTitle(paso)} onClick={() => onResume(s.session_id)}>
+                                      title={reanudarTitle(paso)} onClick={() => leaveWith(() => onResume(s.session_id))}>
                                 Reanudar
                               </Button>
                             )}
-                            <Button type="button" size="sm" variant="ghost" leadingIcon={<Icon name="DELETE" />}
-                                    aria-label={`Borrar «${label}»`} onClick={() => setDelSession(s)}>
-                              Borrar
-                            </Button>
+                            {canShare && (
+                              <Button type="button" size="sm" variant="ghost" leadingIcon={<Icon name="DELETE" />}
+                                      aria-label={`Borrar «${label}»`} onClick={() => setDelSession(s)}>
+                                Borrar
+                              </Button>
+                            )}
                           </div>
                           {rowErrors[s.session_id] && (
                             <div role="alert"><ErrorNote>{rowErrors[s.session_id]}</ErrorNote></div>
@@ -632,8 +649,13 @@ export function PatientSheet({
     </Sheet>
     <DiscardChanges
       open={askDiscard}
-      onKeep={() => setAskDiscard(false)}
-      onDiscard={() => { setAskDiscard(false); onClose(); }}
+      onKeep={() => { pendingExitRef.current = null; setAskDiscard(false); }}
+      onDiscard={() => {
+        const salir = pendingExitRef.current ?? onClose;
+        pendingExitRef.current = null;
+        setAskDiscard(false);
+        salir();
+      }}
     />
     <NuevoEstudioSheet
       open={studyOpen}
@@ -654,7 +676,8 @@ export function PatientSheet({
         open={shareOpen}
         patientId={patientId}
         patientName={nombre || undefined}
-        current={shares.map((s) => s.user_id)}
+        current={shares}
+        ownerId={summary?.owner_id ?? null}
         onClose={() => setShareOpen(false)}
         onSaved={(nuevas) => { setShares(nuevas); onChanged?.(); }}
       />

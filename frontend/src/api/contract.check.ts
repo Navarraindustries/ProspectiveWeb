@@ -95,6 +95,7 @@ export type Contrato = [
   Cabe<Completo<S["PatientSummary"]>, ui.PatientSummary>,
   Cabe<Completo<S["PendingUser"]>, ui.PendingUser>,
   Cabe<Completo<S["SavedSessionRenameIn"]>, ui.SavedSessionRenameIn>,
+  Cabe<Completo<S["SessionListItem"]>, ui.SessionListItem>,
   Cabe<Completo<S["PerforatorCandidate"]>, ui.PerforatorCandidate>,
   Cabe<Completo<S["PerforatorsResult"]>, ui.PerforatorsResult>,
   Cabe<Completo<S["PhasesRequest"]>, ui.PhasesRequest>,

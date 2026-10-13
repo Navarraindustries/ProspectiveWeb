@@ -289,6 +289,19 @@ export interface PatientSessionInfo {
   size_bytes: number;
 }
 
+/** Una sesión guardada tal como la devuelve renombrarla (PATCH /api/sessions/saved/{id}). */
+export interface SessionListItem {
+  id: number;
+  session_id: string;
+  label: string;
+  current_step: number;
+  patient_name: string;
+  created_at: string;
+  updated_at: string;
+  file_size_kb: number;
+  size_bytes: number;
+}
+
 /** Nuevo nombre de una sesión guardada (1–256 caracteres, sin espacios en los extremos). */
 export interface SavedSessionRenameIn {
   label: string;

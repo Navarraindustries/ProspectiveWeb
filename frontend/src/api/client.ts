@@ -77,6 +77,8 @@ import type {
   PatientCreate,
   PatientDetail,
   PatientSessionInfo,
+  PatientShareOut,
+  PatientSharesIn,
   PatientSummary,
   PendingUser,
   PerforatorsResult,
@@ -97,6 +99,9 @@ import type {
   SegmentResult,
   SeriesInfo,
   SessionRestoreResult,
+  SessionListItem,
+  SavedSessionRenameIn,
+  UserBrief,
   SessionSaveRequest,
   SessionSaveResult,
   SignupRequest,
@@ -462,6 +467,14 @@ export const api = {
     request<void>(`/api/patients/${id}`, { method: "DELETE" }),
   patientSessions: (id: number) =>
     get<PatientSessionInfo[]>(`/api/patients/${id}/sessions`),
+  /** Cuentas con las que está compartido el paciente (spec §6.1). */
+  patientShares: (id: number) =>
+    get<PatientShareOut[]>(`/api/patients/${id}/shares`),
+  /** Sustituye la lista ENTERA de cuentas; solo el creador o un administrador (403 si no). */
+  setPatientShares: (id: number, user_ids: number[]) =>
+    request<PatientShareOut[]>(`/api/patients/${id}/shares`, { method: "PUT", body: JSON.stringify({ user_ids } satisfies PatientSharesIn), headers: { "Content-Type": "application/json" } }),
+  /** Las cuentas activas, lo justo para elegir con quién compartir. */
+  usersBrief: () => get<UserBrief[]>("/api/auth/users/brief"),
 
   /* dicom pipeline */
   upload: (files: File[]) => {
@@ -857,6 +870,12 @@ export const api = {
    *  para siempre (F1-25); pasado el límite es un ApiError 0. */
   restoreSession: (sessionId: string) =>
     request<SessionRestoreResult>(`/api/sessions/${sessionId}/restore`, { method: "POST" }, RESTORE_TIMEOUT_MS),
+  /** Cambia el nombre de una sesión guardada (spec §6.2). */
+  renameSavedSession: (sessionId: string, label: string) =>
+    request<SessionListItem>(`/api/sessions/saved/${encodeURIComponent(sessionId)}`, { method: "PATCH", body: JSON.stringify({ label } satisfies SavedSessionRenameIn), headers: { "Content-Type": "application/json" } }),
+  /** Borra la copia guardada; 409 si es el origen de la sesión abierta de quien borra. */
+  deleteSavedSession: (sessionId: string) =>
+    request<void>(`/api/sessions/saved/${encodeURIComponent(sessionId)}`, { method: "DELETE" }),
   /** Switch which DICOM series of the study the session works on. */
   setActiveSeries: (sessionId: string, seriesId: string) =>
     post<SeriesInfo>(`/api/upload/${sessionId}/series/${encodeURIComponent(seriesId)}`),

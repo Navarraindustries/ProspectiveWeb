@@ -142,7 +142,9 @@ function Router() {
   // workspace at the step it was saved on.
   // Devuelve el fallo (o null) además de avisarlo en el aviso flotante: «Abrir
   // el caso» de Pedidos lo enseña también junto al botón (F2-54).
-  const resumeSession = async (sessionId: string, p: PatientSummary): Promise<unknown> => {
+  const resumeSession = async (
+    sessionId: string, p: PatientSummary, quiet = false,
+  ): Promise<unknown> => {
     setToastRetry(null);
     setToast("Restaurando sesión…");
     try {
@@ -168,6 +170,8 @@ function Router() {
     } catch (e) {
       // Sin respuesta (pasado el límite del cliente) o con la copia caída en
       // el servidor, la guardada sigue en disco: se dice y se ofrece repetir.
+      // «Abrir el caso» de Pedidos enseña el 404 junto a su botón: sin aviso doble.
+      if (quiet && (e as { status?: number })?.status === 404) { setToast(null); return e; }
       const { text, retry } = restoreFailure(e);
       setToast(text);
       if (retry) setToastRetry({ forText: text, run: () => void resumeSession(sessionId, p) });
@@ -185,7 +189,7 @@ function Router() {
     const patients = await api.listPatients();
     const p = patients.find((x) => x.id === patientId);
     if (!p) throw new Error("No se encontró el paciente de este pedido");
-    const failure = await resumeSession(sessionId, p);
+    const failure = await resumeSession(sessionId, p, true);
     if (failure) throw failure;
   };
 
@@ -281,7 +285,12 @@ function Router() {
     );
 
   return (
-    <NavProvider value={{ screen: effective, go: setScreen }}>
+    <NavProvider value={{
+      screen: effective,
+      // F1-94: la entrada del menú abre la lista entera; el filtro por paciente
+      // solo lo fija «Pedidos» de la ficha, que no pasa por aquí.
+      go: (s) => { if (s === "orders") setOrdersPatient(null); setScreen(s); },
+    }}>
     <div style={{ height: "100%", position: "relative" }}>
       {view}
       <UnsavedExitDialog

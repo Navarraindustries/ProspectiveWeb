@@ -166,7 +166,6 @@ describe("filtering", () => {
 
   it("says where orders come from when there are none", async () => {
     listClipOrders.mockResolvedValue([]);
-    clipOrdersSummary.mockResolvedValue({ counts: {}, labels: {} });
     render(<ClipOrdersPage />);
     expect(await screen.findByText(/paso/)).toBeInTheDocument();
     expect(screen.getByText("Fabricación")).toBeInTheDocument();
@@ -257,7 +256,8 @@ describe("con el API fallando (F1-99)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     await waitFor(() => expect(rows()).toHaveLength(1));
     expect(rows()[0]).toHaveTextContent("PR-0009");
-    expect(listClipOrders).toHaveBeenCalledTimes(2);
+    // Cada carga pide la lista y la base de los recuentos.
+    expect(listClipOrders).toHaveBeenCalledTimes(4);
   });
 });
 
@@ -271,7 +271,7 @@ describe("un Médico filtrando por un paciente ajeno", () => {
   it("con la lista vacía del servidor no hay tabla ni pedidos", async () => {
     listClipOrders.mockResolvedValue([]);
     render(<ClipOrdersPage patientFilter={{ id: 99, full_name: "Ajeno, Paciente" } as never} />);
-    expect(await screen.findByText(/Ningún pedido encaja con este filtro/)).toBeTruthy();
+    expect(await screen.findByText(/Este paciente aún no tiene pedidos/)).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
   });
 
@@ -366,17 +366,16 @@ describe("la vuelta a la ficha", () => {
 describe("empty states (F2-53)", () => {
   it("says there are no orders yet when none exist", async () => {
     listClipOrders.mockResolvedValue([]);
-    clipOrdersSummary.mockResolvedValue({ counts: {}, labels: { enviado: "Enviado al taller" } });
     render(<ClipOrdersPage />);
     expect(await screen.findByText(/No hay pedidos todavía/)).toBeInTheDocument();
     expect(screen.queryByText(/Ningún pedido encaja/)).toBeNull();
   });
 
   it("says nothing matches when a filter excludes everything", async () => {
-    listClipOrders.mockResolvedValueOnce([order()]);
+    // El recuento base (sin búsqueda) sigue teniendo el pedido; la búsqueda no.
+    listClipOrders.mockImplementation(async (o: { q?: string }) => (o.q ? [] : [order()]));
     render(<ClipOrdersPage />);
     await waitFor(() => expect(rows()).toHaveLength(1));
-    listClipOrders.mockResolvedValue([]);
     fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "zzz" } });
     expect(await screen.findByText("Ningún pedido encaja con este filtro.")).toBeInTheDocument();
     expect(screen.queryByText(/No hay pedidos todavía/)).toBeNull();
@@ -442,5 +441,48 @@ describe("Abrir el caso (F2-54)", () => {
     render(<ClipOrdersPage />);
     await select();
     expect(screen.queryByRole("button", { name: "Abrir el caso" })).toBeNull();
+  });
+});
+
+
+describe("chip counts over the filtered list (F1-95)", () => {
+  it("counts only the patient's orders and gives «Todos» its count", async () => {
+    listClipOrders.mockImplementation(async (o: { patientId?: number }) =>
+      o.patientId === 7
+        ? [order({ part_no: "A", status: "enviado" }), order({ part_no: "B", status: "enviado" }),
+           order({ part_no: "C", status: "recibida", status_label: "Recibida" })]
+        : []);
+    render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} />);
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    // El resumen global dice 2 enviados y 1 recibida de TODOS; aquí, de este paciente.
+    expect(screen.getByRole("button", { name: /^Todos\s*3$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Enviado al taller\s*2/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Recibida\s*1/ })).toBeInTheDocument();
+  });
+});
+
+describe("closed states (F1-96)", () => {
+  it("unticks «Solo los abiertos» when choosing Verificada or Rechazada", async () => {
+    clipOrdersSummary.mockResolvedValue({
+      counts: {}, labels: { verificada: "Verificada", rechazada: "Rechazada" },
+    });
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage />);
+    const box = await screen.findByLabelText("Solo los abiertos") as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    fireEvent.click(await screen.findByRole("button", { name: /Verificada/ }));
+    await waitFor(() => expect(box.checked).toBe(false));
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: /Rechazada/ }));
+    await waitFor(() => expect(box.checked).toBe(false));
+  });
+});
+
+describe("a patient without orders (F2-53)", () => {
+  it("says so, not the global or the filter text", async () => {
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} />);
+    expect(await screen.findByText(/Este paciente aún no tiene pedidos/)).toBeInTheDocument();
+    expect(screen.queryByText(/Ningún pedido encaja/)).toBeNull();
   });
 });

@@ -362,6 +362,8 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
 /* ── La pantalla ─────────────────────────────────────────────────────────── */
 
 const ALL = "todos";
+/** Los estados que «Solo los abiertos» oculta (lo mismo que `is_open` en el servidor). */
+const CLOSED: string[] = ["verificada", "rechazada"];
 
 export function ClipOrdersPage({
   patientFilter, onClearPatient, onBackToPatient, onCrumbPatients, onOpenSession,
@@ -379,7 +381,9 @@ export function ClipOrdersPage({
   onOpenSession?: (sessionId: string, patientId: number | null) => Promise<void>;
 }) {
   const [orders, setOrders] = useState<ClipOrder[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  // Todo lo del paciente y la búsqueda actuales, sin estado ni «solo abiertos»:
+  // de ahí salen los recuentos de las pastillas (F1-95) y el «no hay ninguno».
+  const [base, setBase] = useState<ClipOrder[]>([]);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<string>(ALL);
   const [q, setQ] = useState("");
@@ -398,11 +402,12 @@ export function ClipOrdersPage({
         openOnly,
         patientId: patientFilter?.id,
       }),
+      api.listClipOrders({ q: q.trim() || undefined, patientId: patientFilter?.id }),
       api.clipOrdersSummary(),
     ])
-      .then(([rows, sum]) => {
+      .then(([rows, all, sum]) => {
         setOrders(rows);
-        setCounts(sum.counts);
+        setBase(all);
         setLabels(sum.labels);
         setError("");
       })
@@ -425,11 +430,14 @@ export function ClipOrdersPage({
   }, [orders]);
 
   const selected = sorted.find((o) => o.part_no === sel) ?? null;
-  // «Ninguno todavía» se decide con el recuento global del registro, no con los
-  // criterios: por defecto «Solo los abiertos» está marcado y una lista vacía
-  // puede deberse a eso. Con pedidos en el registro, vacío = filtro.
-  const noOrdersAtAll = Object.values(counts).reduce((a, b) => a + b, 0) === 0
-    && !patientFilter;
+  // «Ninguno todavía» se decide con el registro del paciente (o el global) sin
+  // estado ni «solo abiertos»: por defecto esa casilla está marcada y una lista
+  // vacía puede deberse a ella. Con una búsqueda activa, vacío = filtro.
+  const noOrdersAtAll = base.length === 0 && !q.trim();
+  // F1-95: los recuentos son los de lo que se está mirando, no los globales.
+  const counts: Record<string, number> = {};
+  for (const o of base) counts[o.status] = (counts[o.status] ?? 0) + 1;
+  const todosCount = openOnly ? base.filter((o) => !CLOSED.includes(o.status)).length : base.length;
   const needAttention = sorted.filter((o) => attention(o) !== null).length;
 
   return (
@@ -472,10 +480,15 @@ export function ClipOrdersPage({
             onClick={() => setStatus(ALL)}
             style={chip(status === ALL)}
           >
-            Todos
+            Todos <span style={{ fontFamily: "var(--font-mono)", opacity: .7 }}>{todosCount}</span>
           </button>
           {Object.entries(labels).map(([key, label]) => (
-            <button key={key} onClick={() => setStatus(key)} style={chip(status === key)}>
+            <button key={key} style={chip(status === key)}
+                    onClick={() => {
+                      setStatus(key);
+                      // F1-96: con «solo los abiertos» puesto, estas dos darían siempre vacío.
+                      if (CLOSED.includes(key)) setOpenOnly(false);
+                    }}>
               {label} <span style={{ fontFamily: "var(--font-mono)", opacity: .7 }}>{counts[key] ?? 0}</span>
             </button>
           ))}
@@ -518,7 +531,7 @@ export function ClipOrdersPage({
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
                   {/* F2-53: «este filtro» se decía aunque no hubiese ningún pedido. */}
                   {noOrdersAtAll
-                    ? <>No hay pedidos todavía. Los pedidos se crean en el paso <b>Fabricación</b> de un caso.</>
+                    ? <>{patientFilter ? "Este paciente aún no tiene pedidos." : "No hay pedidos todavía."} Los pedidos se crean en el paso <b>Fabricación</b> de un caso.</>
                     : "Ningún pedido encaja con este filtro."}
                 </div>
               </Card>

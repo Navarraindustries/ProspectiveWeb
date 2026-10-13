@@ -31,6 +31,7 @@ import { formatBytes } from "../lib/tamano";
 import { STEP_LABELS, clampStep } from "../pipeline/steps";
 import { useAuth } from "../store/auth";
 import { NuevoEstudioSheet } from "./NuevoCaso";
+import { modalidadesDe } from "../lib/modalidades";
 import { StudyGallery } from "./Studies";
 
 const BLANK = {
@@ -463,7 +464,7 @@ export function PatientSheet({
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {studies.map((st) => {
-                  const mods = [st.mod_tac && "TAC", st.mod_angio && "Angio", st.mod_rm && "RM", st.mod_pangio && "Pangio"].filter(Boolean).join(" · ");
+                  const mods = modalidadesDe(st);
                   return (
                     <Card key={st.id} style={{ padding: "10px 12px" }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -481,7 +482,7 @@ export function PatientSheet({
                       </div>
                       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.6 }}>
                         {st.acquired_at && <>Fecha: {st.acquired_at}<br /></>}
-                        {st.tipo_aneurisma && <>Tipo: {st.tipo_aneurisma} · </>}
+                        {st.tipo_aneurisma && <>Tipo: {st.tipo_aneurisma}{(st.region_anatomica || st.lateralidad) && " · "}</>}
                         {st.region_anatomica && <>{st.region_anatomica} </>}
                         {st.lateralidad && <>({st.lateralidad}) </>}
                         {st.tratamiento_propuesto && <><br />Tratamiento: {st.tratamiento_propuesto}</>}

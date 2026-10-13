@@ -116,7 +116,7 @@ describe("el formulario del caso (F2)", () => {
     await waitFor(() => expect(createStudy).toHaveBeenCalled());
     const p = createStudy.mock.calls[0][1];
     expect(p.mod_angio).toBe(true);
-    expect(p.mod_pangio).toBe(true);
+    expect(p.mod_pangio).toBe(false);
   });
 
   it("sin diagnóstico, el error sale junto al campo, lo marca y le da el foco", () => {
@@ -128,5 +128,21 @@ describe("el formulario del caso (F2)", () => {
     expect(screen.getByText("El diagnóstico es obligatorio.")).toBeInTheDocument();
     expect(document.activeElement).toBe(campo);
     expect(createStudy).not.toHaveBeenCalled();
+  });
+});
+
+describe("marca antigua de panangiografía", () => {
+  it("al editar un caso antiguo con mod_pangio la conserva y la casilla sale marcada", async () => {
+    const updateStudy = vi.fn().mockResolvedValue({});
+    const { api } = await import("../api/client");
+    (api as unknown as { updateStudy: unknown }).updateStudy = updateStudy;
+    render(
+      <NuevoEstudioSheet open patientId={1} onClose={onClose} onCreated={() => {}}
+        study={{ id: 3, dx_principal: "X", mod_pangio: true } as never} />,
+    );
+    expect((screen.getByLabelText("Angiografía por catéter") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(updateStudy).toHaveBeenCalled());
+    expect(updateStudy.mock.calls[0][2].mod_pangio).toBe(true);
   });
 });

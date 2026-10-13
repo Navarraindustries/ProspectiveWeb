@@ -359,3 +359,17 @@ describe("restos de F2-30 y acciones sin la fila de la lista", () => {
     expect(screen.queryByRole("button", { name: "Subir DICOM de este paciente" })).toBeNull();
   });
 });
+
+describe("imágenes diagnósticas del caso (F2-40)", () => {
+  it("con angio y pangio muestra «Angiografía por catéter» una vez y nunca «Pangio»", async () => {
+    patientStudies.mockResolvedValue([caso({ id: 9, dx_principal: "A", mod_angio: true, mod_pangio: true })]);
+    abrir();
+    expect(await screen.findByText(/Imágenes: Angiografía por catéter$/)).toBeTruthy();
+    expect(screen.queryByText(/Pangio/)).toBeNull();
+  });
+  it("un caso antiguo con solo pangio también la muestra", async () => {
+    patientStudies.mockResolvedValue([caso({ id: 9, dx_principal: "A", mod_pangio: true })]);
+    abrir();
+    expect(await screen.findByText(/Imágenes: Angiografía por catéter/)).toBeTruthy();
+  });
+});

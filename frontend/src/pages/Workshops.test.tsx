@@ -71,12 +71,34 @@ describe("registering a workshop without opening an order", () => {
     });
   });
 
-  it("will not save one without a name", async () => {
+  it("will not save one without a name, and says so only after trying", async () => {
     listWorkshops.mockResolvedValue([]);
     render(<WorkshopsPage />);
     fireEvent.click(await screen.findByRole("button", { name: /Nuevo taller/ }));
-    const save = screen.getByRole("button", { name: /Registrar taller/ }) as HTMLButtonElement;
-    expect(save.disabled).toBe(true);
+    // F2-63: antes de escribir nada el campo no nace en rojo.
+    expect(screen.getByLabelText("Nombre")).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(screen.getByRole("button", { name: /Registrar taller/ }));
+    expect(addWorkshop).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Nombre")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("flags the name when it is cleared after typing", async () => {
+    listWorkshops.mockResolvedValue([]);
+    render(<WorkshopsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Nuevo taller/ }));
+    const name = screen.getByLabelText("Nombre");
+    fireEvent.change(name, { target: { value: "X" } });
+    fireEvent.change(name, { target: { value: "" } });
+    fireEvent.blur(name);
+    expect(name).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("states the copy rule once, under «Cómo se usa» (F2-64)", async () => {
+    listWorkshops.mockResolvedValue([]);
+    render(<WorkshopsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Nuevo taller/ }));
+    expect(screen.queryByText(/guardan su propia copia/)).toBeNull();
+    expect(screen.getAllByText(/sigue diciendo a dónde se mandó/)).toHaveLength(1);
   });
 
   it("says where a registered workshop shows up", async () => {
@@ -94,14 +116,6 @@ describe("correcting one", () => {
     expect((screen.getByLabelText("Nombre") as HTMLInputElement).value).toBe("Taller Mecánico Sur");
     expect((screen.getByLabelText(/NIF/) as HTMLInputElement).value).toBe("B12345678");
   });
-
-  it("warns that a past order keeps its own copy", async () => {
-    // Corregir una dirección no puede reescribir a dónde se mandó un pedido.
-    listWorkshops.mockResolvedValue([shop()]);
-    render(<WorkshopsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: /Editar/ }));
-    expect(screen.getByText(/no cambia a dónde se mandó un pedido antiguo/)).toBeInTheDocument();
-  });
 });
 
 describe("who may delete", () => {
@@ -118,7 +132,7 @@ describe("who may delete", () => {
     listWorkshops.mockResolvedValue([shop()]);
     render(<WorkshopsPage />);
     fireEvent.click(await screen.findByRole("button", { name: /Borrar/ }));
-    expect(screen.getByText(/no se pierde a dónde se mandó ninguno/)).toBeInTheDocument();
+    expect(screen.getByText(/Deja de poder elegirse en\s+pedidos nuevos/)).toBeInTheDocument();
     expect(deleteWorkshop).not.toHaveBeenCalled();
   });
 });

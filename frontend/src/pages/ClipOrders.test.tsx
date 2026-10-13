@@ -28,7 +28,19 @@ vi.mock("../api/client", () => ({
 // El shell (barra lateral y superior) se sustituye por su contenido y sus
 // acciones: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+  AppShell: (p: {
+    actions?: import("react").ReactNode; children?: import("react").ReactNode;
+    crumbs?: { label: string; onClick?: () => void }[];
+  }) => (
+    <>
+      <nav aria-label="Miga">
+        {p.crumbs?.map((c) => c.onClick
+          ? <button key={c.label} onClick={c.onClick}>{c.label}</button>
+          : <span key={c.label}>{c.label}</span>)}
+      </nav>
+      {p.actions}{p.children}
+    </>
+  ),
 }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => auth }));
@@ -142,7 +154,7 @@ describe("filtering", () => {
     render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} />);
     await waitFor(() => expect(listClipOrders).toHaveBeenCalled());
     expect(listClipOrders.mock.calls[0][0]).toMatchObject({ patientId: 7 });
-    expect(screen.getByText("Navarro, Ana")).toBeInTheDocument();
+    expect(screen.getAllByText("Navarro, Ana").length).toBeGreaterThan(0);
   });
 
   it("hides closed orders by default", async () => {
@@ -154,6 +166,7 @@ describe("filtering", () => {
 
   it("says where orders come from when there are none", async () => {
     listClipOrders.mockResolvedValue([]);
+    clipOrdersSummary.mockResolvedValue({ counts: {}, labels: {} });
     render(<ClipOrdersPage />);
     expect(await screen.findByText(/paso/)).toBeInTheDocument();
     expect(screen.getByText("Fabricación")).toBeInTheDocument();
@@ -239,7 +252,7 @@ describe("con el API fallando (F1-99)", () => {
     render(<ClipOrdersPage />);
 
     expect(await screen.findByText("No se pudo leer el registro: Sin conexión con el servidor")).toBeTruthy();
-    expect(screen.queryByText(/No hay pedidos que encajen/)).toBeNull();
+    expect(screen.queryByText(/Ningún pedido encaja con este filtro/)).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     await waitFor(() => expect(rows()).toHaveLength(1));
@@ -258,7 +271,7 @@ describe("un Médico filtrando por un paciente ajeno", () => {
   it("con la lista vacía del servidor no hay tabla ni pedidos", async () => {
     listClipOrders.mockResolvedValue([]);
     render(<ClipOrdersPage patientFilter={{ id: 99, full_name: "Ajeno, Paciente" } as never} />);
-    expect(await screen.findByText(/No hay pedidos que encajen/)).toBeTruthy();
+    expect(await screen.findByText(/Ningún pedido encaja con este filtro/)).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
   });
 
@@ -268,7 +281,7 @@ describe("un Médico filtrando por un paciente ajeno", () => {
     render(<ClipOrdersPage patientFilter={{ id: 99, full_name: "Ajeno, Paciente" } as never} />);
     expect(await screen.findByText("No se pudo leer el registro: No autorizado sobre este paciente.")).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.queryByText(/No hay pedidos que encajen/)).toBeNull();
+    expect(screen.queryByText(/Ningún pedido encaja con este filtro/)).toBeNull();
   });
 });
 
@@ -346,5 +359,88 @@ describe("la vuelta a la ficha", () => {
     render(<ClipOrdersPage />);
     await waitFor(() => expect(listClipOrders).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: /Volver a la ficha/ })).toBeNull();
+  });
+});
+
+
+describe("empty states (F2-53)", () => {
+  it("says there are no orders yet when none exist", async () => {
+    listClipOrders.mockResolvedValue([]);
+    clipOrdersSummary.mockResolvedValue({ counts: {}, labels: { enviado: "Enviado al taller" } });
+    render(<ClipOrdersPage />);
+    expect(await screen.findByText(/No hay pedidos todavía/)).toBeInTheDocument();
+    expect(screen.queryByText(/Ningún pedido encaja/)).toBeNull();
+  });
+
+  it("says nothing matches when a filter excludes everything", async () => {
+    listClipOrders.mockResolvedValueOnce([order()]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    listClipOrders.mockResolvedValue([]);
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "zzz" } });
+    expect(await screen.findByText("Ningún pedido encaja con este filtro.")).toBeInTheDocument();
+    expect(screen.queryByText(/No hay pedidos todavía/)).toBeNull();
+  });
+});
+
+describe("crumbs with a patient filter (F2-52)", () => {
+  const patient = { id: 7, full_name: "segura, Juan" } as never;
+
+  it("shows Pacientes / name / Pedidos and navigates", async () => {
+    listClipOrders.mockResolvedValue([]);
+    const onCrumbPatients = vi.fn();
+    const onBackToPatient = vi.fn();
+    render(<ClipOrdersPage patientFilter={patient} onBackToPatient={onBackToPatient}
+                           onCrumbPatients={onCrumbPatients} />);
+    const nav = screen.getByRole("navigation", { name: "Miga" });
+    expect(nav).toHaveTextContent("Pacientes");
+    expect(nav).toHaveTextContent("segura, Juan");
+    expect(nav).toHaveTextContent("Pedidos");
+    fireEvent.click(within(nav).getByRole("button", { name: "Pacientes" }));
+    expect(onCrumbPatients).toHaveBeenCalled();
+    fireEvent.click(within(nav).getByRole("button", { name: "segura, Juan" }));
+    expect(onBackToPatient).toHaveBeenCalled();
+  });
+
+  it("is just «Pedidos de clips» without a filter", async () => {
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage />);
+    expect(screen.getByRole("navigation", { name: "Miga" })).toHaveTextContent(/^Pedidos de clips$/);
+  });
+});
+
+describe("Abrir el caso (F2-54)", () => {
+  const select = async () => {
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    fireEvent.click(rows()[0]);
+  };
+
+  it("resumes the session that raised the order", async () => {
+    listClipOrders.mockResolvedValue([order({ session_id: "s9", patient_id: 4 })]);
+    const onOpenSession = vi.fn().mockResolvedValue(undefined);
+    render(<ClipOrdersPage onOpenSession={onOpenSession} />);
+    await select();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir el caso" }));
+    expect(onOpenSession).toHaveBeenCalledWith("s9", 4);
+  });
+
+  it("shows the failure inline when the session cannot be resumed", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    const onOpenSession = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Sesión no encontrada"), { status: 404 }));
+    render(<ClipOrdersPage onOpenSession={onOpenSession} />);
+    await select();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir el caso" }));
+    expect(await screen.findByText("Sesión no encontrada")).toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: "Abrir el caso" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("title", "La sesión de este pedido ya no existe");
+  });
+
+  it("is absent when the page has no way to open a session", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    render(<ClipOrdersPage />);
+    await select();
+    expect(screen.queryByRole("button", { name: "Abrir el caso" })).toBeNull();
   });
 });

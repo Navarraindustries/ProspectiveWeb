@@ -144,10 +144,14 @@ function Row({ order, onOpen, selected }: {
 
 /* ── Detalle ─────────────────────────────────────────────────────────────── */
 
-function Detail({ order, onChanged, onClose }: {
+function Detail({ order, onChanged, onClose, onOpenSession }: {
   order: ClipOrder; onChanged: () => void; onClose: () => void;
+  onOpenSession?: (sessionId: string, patientId: number | null) => Promise<void>;
 }) {
   const [error, setError] = useState("");
+  // El servidor dijo que la sesión ya no existe: no tiene sentido reintentar.
+  const [sessionGone, setSessionGone] = useState(false);
+  useEffect(() => { setSessionGone(false); }, [order.part_no]);
   const [busy, setBusy] = useState(false);
   const [jaw, setJaw] = useState(order.jaw_mm);
   const [force, setForce] = useState(0);
@@ -267,6 +271,25 @@ function Detail({ order, onChanged, onClose }: {
         </div>
       )}
 
+      {onOpenSession && (
+        <div style={{ marginTop: 12 }}>
+          <Button size="sm" variant="secondary" disabled={busy || sessionGone}
+                  title={sessionGone ? "La sesión de este pedido ya no existe" : undefined}
+                  onClick={() => {
+                    setBusy(true);
+                    setError("");
+                    onOpenSession(order.session_id, order.patient_id)
+                      .catch((e) => {
+                        if ((e as { status?: number })?.status === 404) setSessionGone(true);
+                        setError(e instanceof Error ? e.message : "No se pudo abrir el caso");
+                      })
+                      .finally(() => setBusy(false));
+                  }}>
+            Abrir el caso
+          </Button>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
         {order.next_states.filter((s) => ADVANCE_LABEL[s]).map((s) => (
           s === "recibida" ? (
@@ -340,13 +363,20 @@ function Detail({ order, onChanged, onClose }: {
 
 const ALL = "todos";
 
-export function ClipOrdersPage({ patientFilter, onClearPatient, onBackToPatient }: {
+export function ClipOrdersPage({
+  patientFilter, onClearPatient, onBackToPatient, onCrumbPatients, onOpenSession,
+}: {
   /** Cuando llega desde la ficha de un paciente, la vista abre ya filtrada. */
   patientFilter?: PatientSummary | null;
   onClearPatient?: () => void;
   /** Vuelve a la ficha de la que se vino. Sin él no hay botón: desde la barra
    *  lateral no se viene de ninguna ficha. */
   onBackToPatient?: () => void;
+  /** Primer tramo de la miga cuando llega filtrado: la lista de pacientes. */
+  onCrumbPatients?: () => void;
+  /** Reabre la sesión que creó un pedido. Rechaza con el motivo si no puede
+   *  (sesión borrada, sin paciente): «Abrir el caso» lo enseña junto al botón. */
+  onOpenSession?: (sessionId: string, patientId: number | null) => Promise<void>;
 }) {
   const [orders, setOrders] = useState<ClipOrder[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -395,10 +425,21 @@ export function ClipOrdersPage({ patientFilter, onClearPatient, onBackToPatient 
   }, [orders]);
 
   const selected = sorted.find((o) => o.part_no === sel) ?? null;
+  // «Ninguno todavía» se decide con el recuento global del registro, no con los
+  // criterios: por defecto «Solo los abiertos» está marcado y una lista vacía
+  // puede deberse a eso. Con pedidos en el registro, vacío = filtro.
+  const noOrdersAtAll = Object.values(counts).reduce((a, b) => a + b, 0) === 0
+    && !patientFilter;
   const needAttention = sorted.filter((o) => attention(o) !== null).length;
 
   return (
-    <AppShell crumbs={[{ label: "Pedidos de clips" }]}>
+    <AppShell crumbs={patientFilter
+      ? [
+          { label: "Pacientes", onClick: onCrumbPatients },
+          { label: patientFilter.full_name, onClick: onBackToPatient },
+          { label: "Pedidos" },
+        ]
+      : [{ label: "Pedidos de clips" }]}>
       <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
         {/* F2-27: «Pedidos» cerraba la ficha y esta pantalla no tenía camino de
             vuelta al paciente; solo «Ver todos», que tampoco lleva a él. */}
@@ -475,8 +516,10 @@ export function ClipOrdersPage({ patientFilter, onClearPatient, onBackToPatient 
             {!error && !loading && sorted.length === 0 && (
               <Card>
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-                  No hay pedidos que encajen con este filtro. Los pedidos se crean en el
-                  paso <b>Fabricación</b> de un caso.
+                  {/* F2-53: «este filtro» se decía aunque no hubiese ningún pedido. */}
+                  {noOrdersAtAll
+                    ? <>No hay pedidos todavía. Los pedidos se crean en el paso <b>Fabricación</b> de un caso.</>
+                    : "Ningún pedido encaja con este filtro."}
                 </div>
               </Card>
             )}
@@ -510,7 +553,8 @@ export function ClipOrdersPage({ patientFilter, onClearPatient, onBackToPatient 
           {selected && (
             <div style={{ width: 340, flexShrink: 0 }}>
               <SectionLabel>Detalle</SectionLabel>
-              <Detail order={selected} onChanged={load} onClose={() => setSel(null)} />
+              <Detail order={selected} onChanged={load} onClose={() => setSel(null)}
+                      onOpenSession={onOpenSession} />
             </div>
           )}
         </div>
@@ -524,7 +568,7 @@ function chip(active: boolean): React.CSSProperties {
     padding: "5px 11px", borderRadius: "var(--radius-full)", cursor: "pointer",
     border: "1px solid " + (active ? "transparent" : "var(--border)"),
     background: active ? "var(--brand-deep)" : "var(--card)",
-    color: active ? "#fff" : "var(--foreground)",
+    color: active ? "var(--primary-foreground)" : "var(--foreground)",
     fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: active ? 700 : 500,
     whiteSpace: "nowrap",
   };

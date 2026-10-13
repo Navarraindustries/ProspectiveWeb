@@ -140,7 +140,9 @@ function Router() {
   // Resume a saved study session: restore its files into a fresh live session,
   // rehydrate the store from what came back (src/resume.ts), and open the
   // workspace at the step it was saved on.
-  const resumeSession = async (sessionId: string, p: PatientSummary) => {
+  // Devuelve el fallo (o null) además de avisarlo en el aviso flotante: «Abrir
+  // el caso» de Pedidos lo enseña también junto al botón (F2-54).
+  const resumeSession = async (sessionId: string, p: PatientSummary): Promise<unknown> => {
     setToastRetry(null);
     setToast("Restaurando sesión…");
     try {
@@ -162,6 +164,7 @@ function Router() {
         setToast(null);
       }
       setScreen("workspace");
+      return null;
     } catch (e) {
       // Sin respuesta (pasado el límite del cliente) o con la copia caída en
       // el servidor, la guardada sigue en disco: se dice y se ofrece repetir.
@@ -169,7 +172,21 @@ function Router() {
       setToast(text);
       if (retry) setToastRetry({ forText: text, run: () => void resumeSession(sessionId, p) });
       else setTimeout(() => setToast(null), 3000);
+      return e;
     }
+  };
+
+  // F2-54: reabre la sesión que generó un pedido. resumeSession necesita el
+  // registro del paciente; una sesión suelta (sin paciente) no tiene a quién
+  // abrirse y no existe otro camino de reanudación, así que se dice.
+  const openOrderSession = async (sessionId: string, patientId: number | null) => {
+    if (patientId == null)
+      throw new Error("Esta sesión no tiene paciente: ábrela desde Estudios");
+    const patients = await api.listPatients();
+    const p = patients.find((x) => x.id === patientId);
+    if (!p) throw new Error("No se encontró el paciente de este pedido");
+    const failure = await resumeSession(sessionId, p);
+    if (failure) throw failure;
   };
 
   // Resuming straight from a gallery card: the card knows its session, but
@@ -239,6 +256,8 @@ function Router() {
       <ClipOrdersPage
         patientFilter={ordersPatient}
         onClearPatient={() => setOrdersPatient(null)}
+        onCrumbPatients={() => navigate(SCREEN_PATH.patients)}
+        onOpenSession={openOrderSession}
         // F2-27: se llega aquí desde la ficha con el paciente fijado; la vuelta
         // reabre esa ficha (?paciente=<id>), no la lista.
         onBackToPatient={ordersPatient

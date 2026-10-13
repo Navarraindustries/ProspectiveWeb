@@ -126,8 +126,11 @@ export async function rehydrateSession(
     .filter((c): c is PlacedClip => c !== null)
     .map((c) => ({ ...c, ...clampTilt(c) }));
   const plan = r.placed_clips?.plan ?? null;
+  // F1b-5: una lista sin verificación (guardado anterior a F1a, rehecha desde
+  // los clips del informe) vuelve como fila editable «sin verificar»: nada
+  // planificado ni malla, y «Colocar y verificar» ya está encendido.
+  if (clips.length) planning.setPlacedClips(clips);
   if (clips.length && plan) {
-    planning.setPlacedClips(clips);
     planning.setPlannedClips(clips);
     planning.setClipPlan(plan);
     planning.restoreDeviceMesh("clips", plan.clips_mesh_url);

@@ -102,6 +102,20 @@ describe("Reanudar rellena el store con lo guardado", () => {
     expect(p.dirty).toBe(false);
   });
 
+  it("una lista de clips sin verificación vuelve editable, sin plan ni malla (F1b-5)", async () => {
+    const { result } = montar();
+    await act(async () => {
+      await rehydrateSession(result.current, restored({ placed_clips: { clips: [clip], plan: null } }));
+    });
+    const p = result.current;
+    expect(p.placedClips).toEqual([clip]);
+    expect(p.plannedClips).toBeNull();
+    expect(p.clipPlan).toBeNull();
+    expect(p.deviceMeshes.clips ?? null).toBeNull();
+    expect(api.clipField).not.toHaveBeenCalled();
+    expect(p.dirty).toBe(false);
+  });
+
   it("la detección se pide guardada, no se rehace (F1-246)", async () => {
     const { result } = montar();
     await act(async () => { await rehydrateSession(result.current, restored()); });

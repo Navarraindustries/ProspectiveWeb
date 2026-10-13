@@ -245,6 +245,51 @@ class TestClipEditable:
         assert got["clips"] == self._LISTA and got["plan"] is None
 
 
+class TestUnGuardadoAntiguoRecuperaSusClips:
+    """F1b-5: los guardados con clips colocados antes de F1a traen
+    `devices.clips` (lo que imprime el informe) pero no la lista editable.
+    Reanudar decía «Todavía no hay ningún clip en el plan» mientras el informe
+    listaba el clip. La lista se rehace desde `devices.clips`, sin
+    verificación: basta «Colocar y verificar» para tenerla."""
+
+    _INFORME = [{"index": 0, "clip_id": "navarro:t1:0:13.0", "name": "NAVARRO™ T1 Recto 13.0 mm",
+                 "position": [60.04, 64.02, 67.57], "orientation": [0.0, 0.0, 35.0],
+                 "is_custom": False},
+                {"index": 1, "clip_id": "c2", "name": "Clip 2",
+                 "position": [1.0, 2.0, 3.0], "orientation": [0.0, 0.0, 0.0]}]
+
+    def test_sin_lista_editable_se_rehace_desde_los_clips_del_informe(self):
+        sid = _session_with_volume()
+        save_clips(sid, self._INFORME)
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert got is not None, "el informe lista clips: la pestaña también"
+        assert got["plan"] is None, "sin verificación guardada: hay que volver a colocar"
+        assert [c["clip_id"] for c in got["clips"]] == ["navarro:t1:0:13.0", "c2"]
+        assert got["clips"][0]["name"] == "NAVARRO™ T1 Recto 13.0 mm"
+        assert got["clips"][0]["position"] == [60.04, 64.02, 67.57]
+        assert got["clips"][0]["rotation_deg"] == 35.0
+        assert len({c["key"] for c in got["clips"]}) == 2, "claves estables y distintas"
+
+    def test_la_lista_guardada_gana_a_la_del_informe(self):
+        sid = _session_with_volume()
+        save_clips(sid, self._INFORME)
+        lista = [{"key": 7, "clip_id": "c9", "name": "Clip 9", "position": [9.0, 9.0, 9.0],
+                  "rotation_deg": 0.0, "azimuthDeg": 0.0, "elevationDeg": 0.0}]
+        client.put(f"/api/devices/{sid}/placed-clips", json={"clips": lista, "plan": None})
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert [c["clip_id"] for c in got["clips"]] == ["c9"]
+
+    def test_un_clip_del_informe_sin_posicion_se_salta(self):
+        sid = _session_with_volume()
+        save_clips(sid, [{"index": 0, "clip_id": "c1", "name": "Clip 1"}, self._INFORME[1]])
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert [c["clip_id"] for c in got["clips"]] == ["c2"]
+
+    def test_sin_nada_sigue_sin_lista(self):
+        sid = _session_with_volume()
+        assert client.get(f"/api/devices/{sid}").json()["placed_clips"] is None
+
+
 class TestLaEstrategiaDelEquipo:
     """F1-188: «En el plan (n)» listaba lo colocado, pero nada decía cuál de
     esas familias era la estrategia elegida. El informe las daba todas como

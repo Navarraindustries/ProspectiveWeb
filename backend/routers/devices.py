@@ -22,7 +22,7 @@ from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import User
 
-from models.clips import PlacedClipsState
+from models.clips import PlacedClipState, PlacedClipsState
 from models.plan import DeviceClearResult, DeviceStrategyState
 from services.device_state import (
     DEVICE_KINDS, clear_device, read_clips, read_coils, read_placed_clips, read_stent,
@@ -79,6 +79,27 @@ def _mesh_urls(session_id: str, kinds: list[str]) -> dict[str, str]:
     return urls
 
 
+def _placed_clips_from_report(session_id: str) -> PlacedClipsState | None:
+    """La lista editable rehecha desde `devices.clips` (posición y giro; la
+    inclinación no se guardaba y queda a 0). None si no hay clips con sitio."""
+    clips: list[PlacedClipState] = []
+    for i, c in enumerate(read_clips(session_id)):
+        pos = c.get("position") if isinstance(c, dict) else None
+        if not (isinstance(pos, list) and len(pos) == 3
+                and all(isinstance(v, (int, float)) for v in pos)):
+            continue
+        ori = c.get("orientation") or [0.0, 0.0, 0.0]
+        clip_id = str(c.get("clip_id") or c.get("name") or "")
+        if not clip_id:
+            continue
+        clips.append(PlacedClipState(
+            key=i, clip_id=clip_id, name=str(c.get("name") or clip_id),
+            position=[float(v) for v in pos],
+            rotation_deg=float(ori[2]) if len(ori) > 2 else 0.0,
+        ))
+    return PlacedClipsState(clips=clips, plan=None) if clips else None
+
+
 def stored_placed_clips(session_id: str) -> PlacedClipsState | None:
     """La lista editable de clips guardada, con la URL de la malla de ESTA sesión.
 
@@ -87,7 +108,12 @@ def stored_placed_clips(session_id: str) -> PlacedClipsState | None:
     """
     raw = read_placed_clips(session_id)
     if raw is None:
-        return None
+        # F1b-5: un guardado con clips colocados antes de F1a trae lo que
+        # imprime el informe (`devices.clips`) pero no la lista editable, y
+        # reanudar decía «Todavía no hay ningún clip» con el clip en el PDF.
+        # La lista se rehace desde ahí, sin verificación: «Colocar y
+        # verificar» la vuelve a dar.
+        return _placed_clips_from_report(session_id)
     try:
         state = PlacedClipsState.model_validate(raw)
     except ValueError:

@@ -160,3 +160,26 @@ def test_a_una_base_de_la_0004_con_filas_se_le_anaden_las_columnas_sin_perderlas
         assert c.execute(text("SELECT username, rejected_at FROM users")).fetchall() == [("antes", None)]
         diff = compare_metadata(MigrationContext.configure(c), Base.metadata)
     assert diff == [], diff
+
+
+def test_a_una_base_de_la_0006_con_filas_se_le_marca_la_etiqueta_como_automatica(tmp_path):
+    # Sin `planning_sessions.label_custom` (0007): las filas siguen y su
+    # etiqueta cuenta como automática, que es lo que ha sido hasta ahora.
+    e = create_engine(f"sqlite:///{tmp_path / 'en_0006.db'}")
+    Base.metadata.create_all(bind=e)
+    with e.begin() as c:
+        c.execute(text("PRAGMA foreign_keys=OFF"))
+        _fila(c, "planning_sessions", session_id="guardada-antes")
+        c.execute(text("ALTER TABLE planning_sessions DROP COLUMN label_custom"))
+    from alembic import command
+    with e.connect() as c:
+        command.stamp(_alembic_config(c), "0006_users_rejected_at")
+        c.commit()
+
+    run_migrations(bind=e, fresh=False)
+
+    assert _version(e) == _head()
+    with e.connect() as c:
+        assert c.execute(text("SELECT session_id, label_custom FROM planning_sessions")).fetchall() == [("guardada-antes", 0)]
+        diff = compare_metadata(MigrationContext.configure(c), Base.metadata)
+    assert diff == [], diff

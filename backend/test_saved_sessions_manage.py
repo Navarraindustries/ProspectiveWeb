@@ -243,3 +243,26 @@ def test_un_compartido_reanuda_pero_no_renombra_ni_borra():
     assert (SAVES_ROOT / sid).is_dir()
     lista = b.get(f"/api/patients/{pid}/sessions")
     assert lista.status_code == 200 and any(s["session_id"] == sid for s in lista.json())
+
+
+def _reanudar_y_guardar(m, sid: str, pid: int, label: str) -> None:
+    viva = m.post(f"/api/sessions/{sid}/restore").json()["session_id"]
+    r = m.post("/api/sessions/save",
+               json={"session_id": viva, "current_step": 3, "label": label,
+                     "patient_id": pid, "overwrite_origin": True})
+    assert r.status_code == 200, r.text
+
+
+def test_guardar_progreso_respeta_el_nombre_puesto_a_mano():
+    uid, m = _medico(); pid = _paciente_de(uid); sid = _guardada(m, pid, "Juan · Detección")
+    assert m.patch(f"/api/sessions/saved/{sid}", json={"label": "Caso 3 · revisión"}).status_code == 200
+    _reanudar_y_guardar(m, sid, pid, "Juan · Morfometría")
+    filas = _lista(m, pid)
+    assert [s["label"] for s in filas] == ["Caso 3 · revisión"]
+    assert filas[0]["current_step"] == 3
+
+
+def test_guardar_progreso_refresca_la_etiqueta_automatica():
+    uid, m = _medico(); pid = _paciente_de(uid); sid = _guardada(m, pid, "Juan · Detección")
+    _reanudar_y_guardar(m, sid, pid, "Juan · Morfometría")
+    assert [s["label"] for s in _lista(m, pid)] == ["Juan · Morfometría"]

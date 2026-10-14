@@ -230,7 +230,9 @@ async def save_session(
         ps = PlanningSession(session_id=req.session_id, created_at=now)
         db.add(ps)
 
-    ps.label                = req.label or ps.label
+    # El nombre puesto a mano es trabajo del usuario: la etiqueta automática
+    # («<nombre> · <paso>») solo rellena cuando nadie eligió una.
+    ps.label                = ps.label if ps.label_custom else (req.label or ps.label)
     ps.current_step         = req.current_step
     ps.study_id             = req.study_id   if req.study_id   is not None else ps.study_id
     ps.patient_id           = req.patient_id if req.patient_id is not None else ps.patient_id
@@ -365,7 +367,8 @@ async def rename_saved_session(
     # Renombrar no es actividad clínica: updated_at (orden de la lista y
     # «Última sesión») se conserva; onupdate lo movería salvo que vaya explícito.
     db.execute(update(PlanningSession).where(PlanningSession.id == ps.id)
-               .values(label=req.label, updated_at=PlanningSession.updated_at))
+               .values(label=req.label, label_custom=True,
+                       updated_at=PlanningSession.updated_at))
     db.commit()
     db.refresh(ps)
     audit_append(ACT_SAVED_SESSION_RENAMED,

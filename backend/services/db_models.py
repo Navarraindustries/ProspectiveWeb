@@ -13,7 +13,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey,
-    Integer, String, Text, UniqueConstraint, func,
+    Integer, String, Text, UniqueConstraint, false, func,
 )
 from sqlalchemy.orm import relationship
 
@@ -257,6 +257,9 @@ class PlanningSession(Base):
     imaging_study_id = Column(Integer, ForeignKey("imaging_studies.id"), nullable=True, index=True)
     patient_id   = Column(Integer, ForeignKey("patients.id"), nullable=True, index=True)
     label        = Column(String(256), nullable=False, default="")
+    # True cuando alguien puso el nombre a mano (renombrar): «Guardar progreso»
+    # ya no lo pisa con la etiqueta automática «<nombre> · <paso>».
+    label_custom = Column(Boolean, nullable=False, default=False, server_default=false())
     current_step = Column(Integer, nullable=False, default=0)
 
     # Morphometry snapshot for longitudinal comparison

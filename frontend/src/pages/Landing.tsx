@@ -518,9 +518,9 @@ function Security() {
 const es = (n: number, d: number): string => n.toFixed(d).replace(".", ",");
 
 function Indices() {
-  // Los cortes salen de morphometry/thresholds.ts, con coma decimal. El BF decía
-  // «cuello ancho si > 1.5», al revés: un BF alto es un cuello relativamente
-  // estrecho (F1-162). El NSI no tiene corte y la tarjeta lo dice.
+  // Los cortes salen de morphometry/thresholds.ts, con coma decimal. El texto
+  // del BF estaba invertido (F1-162): un BF alto es un cuello relativamente
+  // estrecho, nunca lo contrario. El NSI no tiene corte y la tarjeta lo dice.
   const metrics: [string, string, string][] = [
     ["DNR", "Relación domo-cuello (DNR)", `Ø máx / cuello · riesgo ↑ si ≥ ${es(DNR_HIGH, 1)}`],
     ["AR", "Relación de aspecto (AR)", `altura de domo / cuello · riesgo ↑ si ≥ ${es(AR_HIGH, 1)}`],

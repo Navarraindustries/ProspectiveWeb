@@ -4,8 +4,11 @@ Patrón de clientes con rol de test_access_control.py (`_medico`, `admin`,
 `anonymous_client`)."""
 import json
 import uuid
+from datetime import datetime
 
 from main import app
+from sqlalchemy import update
+
 from services.database import SessionLocal
 from services.db_models import Patient, PlanningSession
 from services.sessions import SAVES_ROOT, create_session, session_subdir, write_state
@@ -130,6 +133,48 @@ def test_fila_antigua_sin_tamano_se_calcula_y_se_guarda():
         assert db.query(PlanningSession).filter_by(session_id=sid).first().size_bytes == _suma(sid)
     finally:
         db.close()
+
+
+def _fijar_antigua(sid: str, **extra) -> datetime:
+    """Deja la fila con un updated_at antiguo conocido (explícito, para que onupdate no actúe)."""
+    antigua = datetime(2026, 9, 25, 10, 0, 0)
+    db = SessionLocal()
+    db.execute(update(PlanningSession).where(PlanningSession.session_id == sid)
+               .values(updated_at=antigua, **extra))
+    db.commit(); db.close()
+    return antigua
+
+
+def _updated_at(sid: str) -> datetime:
+    db = SessionLocal()
+    try:
+        return db.query(PlanningSession).filter_by(session_id=sid).first().updated_at
+    finally:
+        db.close()
+
+
+def test_cachear_el_tamano_no_toca_updated_at():
+    uid, m = _medico(); pid = _paciente_de(uid); sid = _guardada(m, pid)
+    antigua = _fijar_antigua(sid, size_bytes=None)
+    for _ in range(2):
+        item = next(s for s in _lista(m, pid) if s["session_id"] == sid)
+        assert item["size_bytes"] > 0
+    assert _updated_at(sid) == antigua
+    db = SessionLocal()
+    try:
+        assert db.query(PlanningSession).filter_by(session_id=sid).first().size_bytes > 0
+    finally:
+        db.close()
+
+
+def test_renombrar_no_toca_updated_at():
+    uid, m = _medico(); pid = _paciente_de(uid); sid = _guardada(m, pid)
+    antigua = _fijar_antigua(sid)
+    r = m.patch(f"/api/sessions/saved/{sid}", json={"label": "Otro nombre"})
+    assert r.status_code == 200, r.text
+    assert r.json()["label"] == "Otro nombre"
+    assert _updated_at(sid) == antigua
+    assert next(s for s in _lista(m, pid) if s["session_id"] == sid)["label"] == "Otro nombre"
 
 
 def test_sin_acceso_403_anonimo_401_y_404():

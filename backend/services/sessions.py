@@ -330,8 +330,17 @@ def size_of_row(db, ps) -> int:
         # tamaño falso si la carpeta reaparece.
         if not has_saved_session(ps.session_id):
             return 0
-        ps.size_bytes = saved_session_size(ps.session_id)
+        from sqlalchemy import update
+        from services.db_models import PlanningSession  # local: evita el ciclo con db_models
+        n = saved_session_size(ps.session_id)
+        # Solo es una caché: el primer listado tras F2 no debe reescribir la
+        # historia de las filas antiguas. `onupdate=now()` de updated_at actúa
+        # también en un UPDATE de Core, salvo que la columna vaya explícita;
+        # se reasigna a sí misma.
+        db.execute(update(PlanningSession).where(PlanningSession.id == ps.id)
+                   .values(size_bytes=n, updated_at=PlanningSession.updated_at))
         db.commit()
+        db.refresh(ps)
     return ps.size_bytes
 
 

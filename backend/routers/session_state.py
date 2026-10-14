@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from models import (
@@ -361,7 +362,10 @@ async def rename_saved_session(
 ) -> SessionListItem:
     ps = _saved_row_or_404(db, current_user, session_id)
     antes = ps.label or ""
-    ps.label = req.label
+    # Renombrar no es actividad clínica: updated_at (orden de la lista y
+    # «Última sesión») se conserva; onupdate lo movería salvo que vaya explícito.
+    db.execute(update(PlanningSession).where(PlanningSession.id == ps.id)
+               .values(label=req.label, updated_at=PlanningSession.updated_at))
     db.commit()
     db.refresh(ps)
     audit_append(ACT_SAVED_SESSION_RENAMED,

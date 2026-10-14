@@ -1,5 +1,6 @@
 /* Barra superior del shell (F2): 48 px en vidrio con la miga de pan a la
-   izquierda y, a la derecha, las acciones que declara la pantalla.
+   izquierda y, a la derecha, las acciones que declara la pantalla y, siempre,
+   «Cerrar sesión» (el menú del avatar no se encontraba).
 
    La miga solo lleva destinos reales («Pacientes / segura, Juan», «Usuarios»):
    «Administración» no es una pantalla y no aparece; ese rótulo vive en el grupo
@@ -8,6 +9,7 @@
 
 import type { ReactNode } from "react";
 import { Icon } from "../Icon";
+import { LogoutButton } from "./LogoutButton";
 
 /** Un segmento de la miga: rótulo y, si lleva destino, adónde va. */
 export interface Crumb {
@@ -45,7 +47,10 @@ export function TopBar({ crumbs, actions }: { crumbs?: Crumb[]; actions?: ReactN
           </ol>
         </nav>
       )}
-      <div className="shell-actions">{actions}</div>
+      <div className="shell-actions">
+        {actions}
+        <LogoutButton />
+      </div>
     </header>
   );
 }

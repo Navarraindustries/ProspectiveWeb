@@ -166,7 +166,7 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
     expect(screen.getByText("Si tu cuenta aún no está aprobada, no recibirás ningún aviso: vuelve a intentar entrar más tarde.")).toBeInTheDocument();
   });
 
-  it("no hay pantalla de carga tras entrar (F2-12)", () => {
+  it("la pantalla de entrada no pinta la transición de carga: la monta la raíz tras entrar", () => {
     const { container } = montar();
     expect(container.textContent).not.toMatch(/Preparando el espacio/);
   });

@@ -16,6 +16,7 @@ import { PendingRequests } from "./pages/PendingRequests";
 import { UsersAdmin } from "./pages/UsersAdmin";
 import { AuditTrail } from "./pages/AuditTrail";
 import { UnsavedExitDialog } from "./components/UnsavedExitDialog";
+import { LoadingScreen } from "./components/LoadingScreen";
 import { AuthProvider, useAuth } from "./store/auth";
 import { PlanningProvider, usePlanning } from "./store/planning";
 import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
@@ -49,6 +50,9 @@ function Router() {
   // Solo vale para el aviso al que pertenece: otro aviso posterior no lo hereda.
   const retryHere = toastRetry && toastRetry.forText === toast ? toastRetry.run : null;
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  // Transición de marca tras un login correcto (vídeo de carga, 2,2 s): solo
+  // al entrar, no al recargar con sesión abierta.
+  const [loadingIn, setLoadingIn] = useState(false);
   const [resumeStep, setResumeStep] = useState(0);
   // Leaving the pipeline throws the session away: the store resets on the next
   // patient. Saving is manual, so an accidental click on the logo — or on the
@@ -225,7 +229,7 @@ function Router() {
     // A session that expired mid-study explains itself on the login screen.
     view = (
       <Login
-        onLogin={() => setScreen("patients")}
+        onLogin={() => { setLoadingIn(true); setScreen("patients"); }}
         onSignup={() => setScreen("signup")}
         notice={loginNotice ?? expiredNotice}
       />
@@ -293,6 +297,7 @@ function Router() {
     }}>
     <div style={{ height: "100%", position: "relative" }}>
       {view}
+      {loadingIn && <LoadingScreen onDone={() => setLoadingIn(false)} />}
       <UnsavedExitDialog
         open={blocker.state === "blocked"}
         hasPatient={!!(planning.patient ?? patient)}

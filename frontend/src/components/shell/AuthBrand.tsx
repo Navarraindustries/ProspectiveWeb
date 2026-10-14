@@ -3,7 +3,8 @@
    Antes cada pantalla llevaba su copia del panel, con nombres de librerías en
    el pie (F2-10). Ahora es uno solo: el logotipo y el lema único de la portada
    sobre el vídeo quirúrgico de la casa (`intro.mp4`, en bucle y silenciado
-   para que el navegador permita el autoplay), atenuado bajo un viñeteado.
+   para que el navegador permita el autoplay), bajo un viñeteado suave: al 40 %
+   con viñeteado denso el dueño no lo veía.
 
    El vídeo es siempre oscuro, así que el texto del panel va fijo en blanco en
    los dos temas: el tema solo cambia el formulario de al lado. El dueño pidió
@@ -50,7 +51,7 @@ export function AuthBrand({ flex }: { flex: string }) {
         loop
         playsInline
         aria-hidden
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.4 }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.75 }}
       />
       <div
         aria-hidden

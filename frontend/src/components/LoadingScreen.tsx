@@ -48,7 +48,7 @@ export function LoadingScreen({ onDone, label = "Preparando el espacio de trabaj
         loop
         playsInline
         aria-hidden
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.45 }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }}
       />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "var(--media-vignette-centro)" }} />
 

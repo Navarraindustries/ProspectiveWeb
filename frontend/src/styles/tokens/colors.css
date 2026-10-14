@@ -64,14 +64,15 @@
   --glass:              rgba(28, 29, 34, 0.72);
 
   /* Sobre vídeo (panel de marca de «Entrar», transición de carga): el vídeo es
-     siempre oscuro, así que estos valen igual en los dos temas. */
+     siempre oscuro, así que estos valen igual en los dos temas. El viñeteado es
+     suave a propósito: con uno denso el dueño no veía el vídeo. */
   --media-bg:           #05090F;
   --on-media:           #FFFFFF;
   --on-media-muted:     rgba(255, 255, 255, 0.72);
   --on-media-shadow:    0 2px 18px rgba(0, 0, 0, 0.5);
   --media-track:        rgba(255, 255, 255, 0.18);
-  --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.45) 0%, rgba(11, 12, 15, 0.78) 55%, rgba(5, 9, 15, 0.92) 100%);
-  --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.55), rgba(5, 9, 15, 0.9));
+  --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
+  --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
   --glass-blur:         18px;
 
   /* ---- Gráficos: derivados del acento y de los grises ---- */
@@ -147,14 +148,15 @@
   --glass:              rgba(255, 255, 255, 0.72);
 
   /* Sobre vídeo (panel de marca de «Entrar», transición de carga): el vídeo es
-     siempre oscuro, así que estos valen igual en los dos temas. */
+     siempre oscuro, así que estos valen igual en los dos temas. El viñeteado es
+     suave a propósito: con uno denso el dueño no veía el vídeo. */
   --media-bg:           #05090F;
   --on-media:           #FFFFFF;
   --on-media-muted:     rgba(255, 255, 255, 0.72);
   --on-media-shadow:    0 2px 18px rgba(0, 0, 0, 0.5);
   --media-track:        rgba(255, 255, 255, 0.18);
-  --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.45) 0%, rgba(11, 12, 15, 0.78) 55%, rgba(5, 9, 15, 0.92) 100%);
-  --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.55), rgba(5, 9, 15, 0.9));
+  --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
+  --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
   --glass-blur:         18px;
 
   --chart-1:            #3B8BFF;

@@ -133,3 +133,30 @@ def test_a_una_base_sin_compartir_se_le_crea_la_tabla_como_en_el_modelo(tmp_path
     with e.connect() as c:
         diff = compare_metadata(MigrationContext.configure(c), Base.metadata)
     assert diff == [], diff
+
+
+def test_a_una_base_de_la_0004_con_filas_se_le_anaden_las_columnas_sin_perderlas(tmp_path):
+    # Una base marcada en la 0004 con datos: sin `planning_sessions.size_bytes`
+    # (0005) ni `users.rejected_at` (0006). Las filas siguen y las columnas
+    # nuevas nacen nulas (el tamaño se calcula al listar).
+    e = create_engine(f"sqlite:///{tmp_path / 'en_0004.db'}")
+    Base.metadata.create_all(bind=e)
+    with e.begin() as c:
+        c.execute(text("PRAGMA foreign_keys=OFF"))
+        _fila(c, "users", username="antes", status="active")
+        _fila(c, "planning_sessions", session_id="guardada-antes")
+        c.execute(text("ALTER TABLE planning_sessions DROP COLUMN size_bytes"))
+        c.execute(text("ALTER TABLE users DROP COLUMN rejected_at"))
+    from alembic import command
+    with e.connect() as c:
+        command.stamp(_alembic_config(c), "0004_patient_shares")
+        c.commit()
+
+    run_migrations(bind=e, fresh=False)
+
+    assert _version(e) == _head()
+    with e.connect() as c:
+        assert c.execute(text("SELECT session_id, size_bytes FROM planning_sessions")).fetchall() == [("guardada-antes", None)]
+        assert c.execute(text("SELECT username, rejected_at FROM users")).fetchall() == [("antes", None)]
+        diff = compare_metadata(MigrationContext.configure(c), Base.metadata)
+    assert diff == [], diff

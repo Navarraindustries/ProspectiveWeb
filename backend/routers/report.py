@@ -42,6 +42,23 @@ logger  = logging.getLogger(__name__)
 router  = APIRouter(prefix="/api", tags=["report"])
 
 
+def _paciente_auditoria(db: Session, session_id: str, hospital_id: str) -> dict:
+    """Los argumentos de paciente del bloque de un informe o un SR.
+
+    Se escribían con la historia clínica del formulario y sin fecha de
+    nacimiento, así que el filtro de auditoría por paciente (que hashea
+    historia + fecha, `audit_patient`) nunca los encontraba. Con la sesión
+    adjunta a un paciente se usa su fila; sin ella, lo único que hay es el
+    formulario. Los bloques ya escritos no se pueden reparar: la cadena es
+    inmutable."""
+    from services.access import session_row
+    from services.audit import audit_patient
+    ps = session_row(db, session_id)
+    if ps is not None and ps.patient is not None:
+        return audit_patient(ps.patient)
+    return {"patient_id": hospital_id or ""}
+
+
 def _quien(user: "User | None", req: ReportRequest) -> str:
     """Quién firma en la auditoría: el usuario que ha iniciado sesión.
 
@@ -163,7 +180,8 @@ async def generate_report(
 
     from services.audit import audit_append, ACT_REPORT_GENERATED
     audit_append(ACT_REPORT_GENERATED, {"session_id": req.session_id, "pages": page_count},
-                 username=_quien(current_user, req), patient_id=req.hospital_id or "")
+                 username=_quien(current_user, req),
+                 **_paciente_auditoria(db, req.session_id, req.hospital_id))
 
     logger.info(
         "Report generated — session=%s  pages=%s  size=%.1f KB",
@@ -286,7 +304,8 @@ async def generate_dicom_sr(
 
     from services.audit import audit_append, ACT_SR_GENERATED
     audit_append(ACT_SR_GENERATED, {"session_id": req.session_id},
-                 username=_quien(current_user, req), patient_id=req.hospital_id or "")
+                 username=_quien(current_user, req),
+                 **_paciente_auditoria(db, req.session_id, req.hospital_id))
 
     logger.info("DICOM SR generated — session=%s  size=%.1f KB",
                 req.session_id, sr_path.stat().st_size / 1024)

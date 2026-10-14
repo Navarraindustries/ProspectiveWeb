@@ -194,3 +194,16 @@ def test_dos_guardados_a_la_vez_dan_409(monkeypatch):
     monkeypatch.undo()
     assert r.status_code == 409 and "Otra persona" in r.json()["detail"]
     assert a.get(f"/api/patients/{pid}/shares").json() == []
+
+
+def test_los_404_de_la_ficha_van_en_castellano_y_sin_ids():
+    # Llegan a la ficha por `loadErrorText`: «Patient 999 not found» salía tal cual.
+    no = "/api/patients/999999999"
+    for r in (admin.get(no), admin.get(f"{no}/studies"), admin.get(f"{no}/sessions"),
+              admin.put(no, json={"surname": "X"}), admin.delete(no),
+              admin.post(f"{no}/studies", json={})):
+        assert r.status_code == 404, r.request.url
+        assert r.json()["detail"] == "Paciente no encontrado.", r.request.url
+    pid = _paciente_de(_medico()[0])
+    r = admin.put(f"/api/patients/{pid}/studies/999999999", json={})
+    assert r.status_code == 404 and r.json()["detail"] == "Caso no encontrado."

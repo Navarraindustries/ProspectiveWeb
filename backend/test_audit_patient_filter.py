@@ -82,3 +82,32 @@ def test_export_en_espanol():
     assert "Bloques:" in txt
     assert "Integridad: correcta" in txt
     assert "SkullChain" not in txt
+
+
+def test_informe_de_una_sesion_adjunta_sale_al_filtrar_por_su_paciente():
+    # REPORT_GENERATED / SR_GENERATED se escribían con la historia clínica del
+    # formulario y sin fecha de nacimiento: el hash nunca coincidía con el del
+    # filtro. Generar el PDF en test es caro: se prueba el helper que da los
+    # argumentos de paciente del bloque.
+    from routers.report import _paciente_auditoria
+    from services.db_models import PlanningSession
+    p = _paciente(dob="1975-03-03")
+    sid = uuid.uuid4().hex
+    db = SessionLocal()
+    try:
+        db.add(PlanningSession(session_id=sid, patient_id=p.id)); db.commit()
+        args = _paciente_auditoria(db, sid, "HC-DEL-FORMULARIO")
+    finally:
+        db.close()
+    assert args == audit_patient(p)
+    SkullChain.instance().append("REPORT_GENERATED", {"session_id": sid}, "admin", **args)
+    assert [x["action"] for x in admin.get(f"/api/audit/blocks?patient_id={p.id}").json()] == ["REPORT_GENERATED"]
+
+
+def test_informe_sin_sesion_adjunta_usa_la_historia_del_formulario():
+    from routers.report import _paciente_auditoria
+    db = SessionLocal()
+    try:
+        assert _paciente_auditoria(db, uuid.uuid4().hex, "HC-9") == {"patient_id": "HC-9"}
+    finally:
+        db.close()

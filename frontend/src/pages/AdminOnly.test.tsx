@@ -10,6 +10,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 const listUsers = vi.fn();
 const auditBlocks = vi.fn();
+const listPending = vi.fn();
 const user = { role: "medico" as string, username: "med" };
 
 vi.mock("../api/client", () => ({
@@ -18,7 +19,7 @@ vi.mock("../api/client", () => ({
     auditBlocks: () => auditBlocks(),
     listPatients: () => Promise.resolve([]),
     auditVerify: () => Promise.resolve({ ok: true, total_blocks: 0, broken: [] }),
-    listPending: () => Promise.resolve([]),
+    listPending: () => listPending(),
   },
   ApiError: class ApiError extends Error {},
 }));
@@ -31,10 +32,12 @@ vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 
 import { UsersAdmin } from "./UsersAdmin";
 import { AuditTrail } from "./AuditTrail";
+import { PendingRequests } from "./PendingRequests";
 
 beforeEach(() => {
   listUsers.mockReset().mockResolvedValue([]);
   auditBlocks.mockReset().mockResolvedValue([]);
+  listPending.mockReset().mockResolvedValue([]);
   user.role = "medico";
 });
 
@@ -51,6 +54,24 @@ describe("rutas de administración para un Médico", () => {
     expect(screen.getByText("Solo para administradores")).toBeTruthy();
     expect(screen.queryByText(/Verificar integridad/)).toBeNull();
     expect(auditBlocks).not.toHaveBeenCalled();
+  });
+
+  it("«Cuentas pendientes» es solo la tarjeta, sin el 403 ni «Reintentar»", () => {
+    const back = vi.fn();
+    render(<PendingRequests onBack={back} />);
+    expect(screen.getByText("Solo para administradores")).toBeTruthy();
+    expect(screen.queryByText(/Reintentar/)).toBeNull();
+    expect(listPending).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Volver a pacientes"));
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it("el administrador sigue viendo «Cuentas pendientes»", async () => {
+    user.role = "admin";
+    render(<PendingRequests onBack={() => {}} />);
+    expect(await screen.findByText("Cuentas pendientes", { selector: "div" })).toBeTruthy();
+    expect(listPending).toHaveBeenCalled();
+    expect(screen.queryByText("Solo para administradores")).toBeNull();
   });
 
   it("el administrador sigue viendo las dos páginas", async () => {

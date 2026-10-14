@@ -74,7 +74,7 @@ const tarjeta = (over: Record<string, unknown> = {}) => ({
   id: 5, case_id: 2, patient_id: 9, owner_id: 7, patient_name: "Restrepo, María",
   hospital_id: "HC-1", description: "Angio-TC", modality: "CT", n_slices: 200,
   has_thumbnail: false, archived: true, last_step: 3, rupture_risk_label: null,
-  resumable_session_id: "abc", acquired_at: null, ...over,
+  resumable_session_id: "abc", acquired_at: null, n_files: 120, session_count: 1, ...over,
 });
 
 describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
@@ -119,7 +119,11 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
     deleteImagingStudy.mockResolvedValue(undefined);
     render(<Studies onOpen={noop} onResume={noop} onOpenPatient={noop} />);
     fireEvent.click(await screen.findByRole("button", { name: "Borrar estudio" }));
-    expect(screen.getByText(/Se borra el DICOM archivado de este caso\. Las sesiones guardadas conservan su copia y siguen abriéndose\./)).toBeTruthy();
+    // Un borrado irreversible elegido entre tarjetas parecidas: el diálogo dice cuál.
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo.textContent).toContain("Restrepo, María · Angio-TC · sin fecha · 120 archivos");
+    expect(dialogo.textContent).toContain("Las sesiones guardadas de este estudio conservan su copia y siguen abriéndose.");
+    expect(dialogo.textContent).toContain("No se puede deshacer.");
 
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(deleteImagingStudy).not.toHaveBeenCalled();
@@ -131,9 +135,18 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
     await waitFor(() => expect(screen.queryByText("Restrepo, María")).toBeNull());
   });
 
+  it("sin sesión guardada que conserve copia, avisa de que el DICOM se pierde del todo", async () => {
+    listStudies.mockResolvedValue([tarjeta({ resumable_session_id: null, session_count: 0, acquired_at: "2026-09-30" })]);
+    render(<Studies onOpen={noop} onResume={noop} onOpenPatient={noop} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Borrar estudio" }));
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo.textContent).toContain("Restrepo, María");
+    expect(dialogo.textContent).toContain("Ninguna sesión guardada conserva copia: las imágenes se pierden del todo.");
+  });
+
   it("si el servidor rechaza el borrado, dice por qué y la tarjeta se queda", async () => {
     listStudies.mockResolvedValue([tarjeta()]);
-    deleteImagingStudy.mockRejectedValue(new FakeApiError(409, "Este estudio tiene capturas guardadas. Bórralas antes de borrar el estudio."));
+    deleteImagingStudy.mockRejectedValue(new FakeApiError(409, "Este estudio tiene capturas guardadas. Bórralas desde la ficha del paciente antes de borrar el estudio."));
     render(<Studies onOpen={noop} onResume={noop} onOpenPatient={noop} />);
     fireEvent.click(await screen.findByRole("button", { name: "Borrar estudio" }));
     const dlg = screen.getByRole("alertdialog");

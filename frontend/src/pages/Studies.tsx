@@ -288,7 +288,22 @@ export function StudyGallery({
         onCancel={() => setToDelete(null)}
         onConfirm={() => void confirmDelete()}
       >
-        Se borra el DICOM archivado de este caso. Las sesiones guardadas conservan su copia y siguen abriéndose.
+        {/* Un borrado irreversible elegido entre tarjetas parecidas: se nombra
+            el estudio y se dice si queda alguna copia de sus imágenes. */}
+        {toDelete && (
+          <>
+            <b style={{ color: "var(--foreground)" }}>
+              {[toDelete.patient_name, toDelete.description || toDelete.dx_principal || "sin descripción",
+                toDelete.acquired_at || "sin fecha", `${toDelete.n_files} archivos`].join(" · ")}
+            </b>
+            <br />
+            {"Se borra el DICOM archivado de este estudio. "}
+            {toDelete.resumable_session_id
+              ? "Las sesiones guardadas de este estudio conservan su copia y siguen abriéndose. "
+              : "Ninguna sesión guardada conserva copia: las imágenes se pierden del todo. "}
+            {"No se puede deshacer."}
+          </>
+        )}
       </ConfirmDialog>
     </div>
   );

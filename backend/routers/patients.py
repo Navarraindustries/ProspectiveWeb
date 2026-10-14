@@ -314,7 +314,7 @@ async def list_studies(
 ) -> list[StudySummary]:
     patient = db.get(Patient, patient_id)
     if patient is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     require_patient(db, current_user, patient_id)  # misma regla que la ficha
 
     studies = (
@@ -342,7 +342,7 @@ async def create_study(
 ) -> StudySummary:
     patient = db.get(Patient, patient_id)
     if patient is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     # Crear un caso es trabajo clínico: lo puede el compartido (regla T7), como
     # al adjuntar una sesión con «caso nuevo».
     require_patient(db, current_user, patient_id)
@@ -371,14 +371,14 @@ def _get_owned_study(db: Session, patient_id: int, study_id: int, user: User | N
     al paciente; borrar (`owner_only`), solo su creador o un administrador."""
     patient = db.get(Patient, patient_id)
     if patient is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     if owner_only:
         _require_owner_or_admin(patient, user)
     else:
         require_patient(db, user, patient_id)
     study = db.get(Study, study_id)
     if study is None or study.patient_id != patient_id:
-        raise HTTPException(status_code=404, detail=f"Study {study_id} not found for patient {patient_id}")
+        raise HTTPException(status_code=404, detail="Caso no encontrado.")
     return study
 
 
@@ -450,7 +450,7 @@ async def get_patient(
 ) -> PatientDetail:
     patient = db.get(Patient, patient_id)
     if patient is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     # Editar y borrar ya comprobaban al dueño, pero leer no: un Médico abría la
     # ficha de otro profesional con solo cambiar el id en la URL (?paciente=1).
     require_patient(db, current_user, patient_id)
@@ -473,7 +473,7 @@ async def update_patient(
 ) -> PatientSummary:
     patient = db.get(Patient, patient_id)
     if patient is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     _require_owner_or_admin(patient, current_user)
 
     # Medical-record number stays unique (excluding this patient).
@@ -513,7 +513,7 @@ async def delete_patient(
 ) -> None:
     patient = db.get(Patient, patient_id)
     if patient is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     _require_owner_or_admin(patient, current_user)
 
     paciente = audit_patient(patient)
@@ -543,7 +543,7 @@ async def list_patient_sessions(
 ) -> list[PatientSessionInfo]:
     patient = db.get(Patient, patient_id)
     if patient is None:
-        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     require_patient(db, current_user, patient_id)  # misma regla que la ficha
 
     sessions = (

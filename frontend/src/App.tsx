@@ -270,7 +270,7 @@ function Router() {
       />
     );
   else if (effective === "workshops") view = <WorkshopsPage />;
-  else if (effective === "pending") view = <PendingRequests />;
+  else if (effective === "pending") view = <PendingRequests onBack={() => setScreen("patients")} />;
   else if (effective === "users") view = <UsersAdmin onBack={() => setScreen("patients")} />;
   else if (effective === "audit") view = <AuditTrail onBack={() => setScreen("patients")} />;
   else

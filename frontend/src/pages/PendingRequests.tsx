@@ -10,7 +10,9 @@ import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Tabs } from "../components/Tabs";
+import { AdminOnlyCard } from "../components/AdminOnly";
 import { AppShell } from "../components/shell/AppShell";
+import { useAuth } from "../store/auth";
 import { PENDING_CHANGED_EVENT } from "../components/shell/pendingEvents";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -121,7 +123,15 @@ function PendingAvatar({ user }: { user: PendingUser }) {
    la barra lateral). */
 const PENDING_CRUMBS = [{ label: "Cuentas pendientes" }];
 
-export function PendingRequests() {
+export function PendingRequests({ onBack }: { onBack: () => void }) {
+  const { user } = useAuth();
+  // Como Usuarios y Auditoría: quien no es administrador escribía la ruta y
+  // veía la página con un 403 y «Reintentar», que nunca iba a funcionar.
+  if (user?.role !== "admin") return <AppShell crumbs={PENDING_CRUMBS}><AdminOnlyCard onBack={onBack} /></AppShell>;
+  return <PendingRequestsPage />;
+}
+
+function PendingRequestsPage() {
   const [tab, setTab] = useState<Pestana>("Pendientes");
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);

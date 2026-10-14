@@ -326,7 +326,7 @@ async def delete_imaging_study(
     if db.query(CaseCapture.id).filter(CaseCapture.imaging_study_id == img.id).first() is not None:
         raise HTTPException(
             status_code=409,
-            detail="Este estudio tiene capturas guardadas. Bórralas antes de borrar el estudio.",
+            detail="Este estudio tiene capturas guardadas. Bórralas desde la ficha del paciente antes de borrar el estudio.",
         )
     detalle = {"study_id": img.id, "case_id": img.case_id, "n_files": img.n_files or 0}
     paciente = audit_patient(db.get(Patient, img.patient_id))

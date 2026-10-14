@@ -290,6 +290,12 @@ export function PatientSheet({
   const isOwner = !!user && !!summary && summary.owner_id === user.id;
   const canShare = isAdmin || isOwner;
   const canDelete = !!summary && canShare;
+  // T7-rights: quien lo tiene compartido trabaja en sus casos y sesiones, pero
+  // no cambia sus datos ni borra casos; el servidor lo rechazaba con un 403
+  // después de dejarle escribir. Sin la fila de la lista no se sabe quién lo
+  // creó: se deja editar y decide el servidor, para no bloquear al dueño.
+  const canEditPatient = !summary || canShare;
+  const ro = canEditPatient ? {} : { readOnly: true, style: { cursor: "default" } };
 
   // F2-29: «Planificar este caso» vivía al fondo de cada tarjeta. Arriba va el
   // caso más reciente (el id más alto) y, si hay varios, un selector.
@@ -392,20 +398,25 @@ export function PatientSheet({
 
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {editing && <SectionLabel style={{ marginBottom: 0 }}>Datos del paciente</SectionLabel>}
+            {!canEditPatient && (
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                Solo lectura: los cambia quien lo creó o un administrador.
+              </div>
+            )}
             <div style={fila}>
-              <Input label="Apellidos" placeholder="Restrepo" value={form.surname} onChange={set("surname")} required
+              <Input {...ro} label="Apellidos" placeholder="Restrepo" value={form.surname} onChange={set("surname")} required
                      hint="Puedes usar iniciales o un código en lugar del nombre real" />
-              <Input label="Nombre" placeholder="María" value={form.given_name} onChange={set("given_name")} />
+              <Input {...ro} label="Nombre" placeholder="María" value={form.given_name} onChange={set("given_name")} />
             </div>
             <div style={fila}>
-              <Input label="N.º historia clínica" placeholder="HC-00000" value={form.hospital_id} onChange={set("hospital_id")} />
-              <Select label="Sexo" options={SEXO_OPTS} value={form.sex} onChange={set("sex")} />
+              <Input {...ro} label="N.º historia clínica" placeholder="HC-00000" value={form.hospital_id} onChange={set("hospital_id")} />
+              <Select disabled={!canEditPatient} label="Sexo" options={SEXO_OPTS} value={form.sex} onChange={set("sex")} />
             </div>
             <div style={fila}>
-              <Input label="Fecha de nacimiento" type="date" value={form.dob} onChange={set("dob")} hint={fechaNac} />
-              <Input label="Institución" placeholder="Hospital…" value={form.institution} onChange={set("institution")} />
+              <Input {...ro} label="Fecha de nacimiento" type="date" value={form.dob} onChange={set("dob")} hint={fechaNac} />
+              <Input {...ro} label="Institución" placeholder="Hospital…" value={form.institution} onChange={set("institution")} />
             </div>
-            <Input label="Ocupación" placeholder="—" value={form.ocupacion} onChange={set("ocupacion")} />
+            <Input {...ro} label="Ocupación" placeholder="—" value={form.ocupacion} onChange={set("ocupacion")} />
             <div style={{ marginTop: 6 }}>
               <SectionLabel style={{ marginBottom: 2 }}>Antecedentes</SectionLabel>
               {/* F1-63: se rellenaban creyendo que alimentaban el riesgo o el informe. */}
@@ -413,19 +424,19 @@ export function PatientSheet({
                 Solo para consulta: no entran en el cálculo de riesgo ni en el informe.
               </div>
             </div>
-            <Input label="Patológicos" placeholder="HTA, tabaquismo…" value={form.antecedentes_patologicos} onChange={set("antecedentes_patologicos")} />
-            <Input label="Toxicológicos" placeholder="Tabaco, alcohol…" value={form.antecedentes_toxicologicos} onChange={set("antecedentes_toxicologicos")} />
-            <Input label="Quirúrgicos" placeholder="—" value={form.antecedentes_quirurgicos} onChange={set("antecedentes_quirurgicos")} />
-            <Input label="Alérgicos" placeholder="—" value={form.antecedentes_alergicos} onChange={set("antecedentes_alergicos")} />
-            <Input label="Farmacológicos" placeholder="—" value={form.antecedentes_farmacologicos} onChange={set("antecedentes_farmacologicos")} />
+            <Input {...ro} label="Patológicos" placeholder="HTA, tabaquismo…" value={form.antecedentes_patologicos} onChange={set("antecedentes_patologicos")} />
+            <Input {...ro} label="Toxicológicos" placeholder="Tabaco, alcohol…" value={form.antecedentes_toxicologicos} onChange={set("antecedentes_toxicologicos")} />
+            <Input {...ro} label="Quirúrgicos" placeholder="—" value={form.antecedentes_quirurgicos} onChange={set("antecedentes_quirurgicos")} />
+            <Input {...ro} label="Alérgicos" placeholder="—" value={form.antecedentes_alergicos} onChange={set("antecedentes_alergicos")} />
+            <Input {...ro} label="Farmacológicos" placeholder="—" value={form.antecedentes_farmacologicos} onChange={set("antecedentes_farmacologicos")} />
             {/* F2-26: una nota clínica de varias frases no cabía en una línea. */}
-            <Input label="Notas" placeholder="Notas clínicas libres…" multiline value={form.notes} onChange={set("notes")} />
+            <Input {...ro} label="Notas" placeholder="Notas clínicas libres…" multiline value={form.notes} onChange={set("notes")} />
 
             {/* F2-31: «Guardar cambios» estaba al final de un panel de casi dos
                 pantallas, debajo de sesiones y capturas. Ahora se pega al pie
                 visible mientras se editan los datos y se queda al final del
                 bloque, antes de las secciones que tienen sus propios botones. */}
-            <div style={{
+            {canEditPatient && <div style={{
               position: "sticky", bottom: 0, zIndex: 1, margin: "0 -22px", padding: "12px 22px",
               background: "var(--card)", borderTop: "1px solid var(--border)",
             }}>
@@ -441,7 +452,7 @@ export function PatientSheet({
                 </Button>
                 <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
               </div>
-            </div>
+            </div>}
           </form>
 
           {ready && (
@@ -474,10 +485,12 @@ export function PatientSheet({
                                   onClick={() => { setUploadAfterCreate(false); setEditStudy(st); setStudyOpen(true); }}>
                             <Icon name="EDIT" size={13} />
                           </Button>
-                          <Button type="button" size="icon" variant="outline" title="Eliminar caso" aria-label={`Eliminar caso «${nombreCaso(st)}»`}
-                                  onClick={() => setDelStudy(st)}>
-                            <Icon name="DELETE" size={13} color="var(--destructive)" />
-                          </Button>
+                          {canEditPatient && (
+                            <Button type="button" size="icon" variant="outline" title="Eliminar caso" aria-label={`Eliminar caso «${nombreCaso(st)}»`}
+                                    onClick={() => setDelStudy(st)}>
+                              <Icon name="DELETE" size={13} color="var(--destructive)" />
+                            </Button>
+                          )}
                         </span>
                       </div>
                       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.6 }}>
@@ -537,7 +550,7 @@ export function PatientSheet({
               )}
               {summary?.is_shared_with_me && (
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6 }}>
-                  Te lo han compartido: puedes trabajar con él, pero no compartirlo con otras cuentas.
+                  Te lo han compartido: puedes trabajar con él y crear o editar casos, pero no cambiar sus datos, borrar casos ni compartirlo con otras cuentas.
                 </div>
               )}
             </section>
@@ -711,7 +724,7 @@ export function PatientSheet({
       onConfirm={confirmDeleteSession}
     >
       ¿Borrar <b style={{ color: "var(--foreground)" }}>«{delSession ? etiquetaGuardada(delSession, nombre) : ""}»</b>?{" "}
-      {"Se borra la copia guardada; las sesiones abiertas no se tocan."}
+      {"Se borra la copia guardada y no se puede deshacer. Si la acabas de reanudar, no se podrá borrar hasta que esa sesión abierta caduque sola."}
     </ConfirmDialog>
     {askDelete && summary && (
       <DeleteConfirm

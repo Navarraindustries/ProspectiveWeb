@@ -87,8 +87,16 @@ def test_el_origen_de_una_sesion_viva_no_se_borra():
     viva = m.post(f"/api/sessions/{sid}/restore").json()["session_id"]
     r = m.delete(f"/api/sessions/saved/{sid}")
     assert r.status_code == 409
-    assert r.json()["detail"] == ("Esta sesión guardada es el origen de una sesión abierta: "
-                                  "ciérrala antes de borrarla.")
+    # La aplicación no puede cerrar una sesión abierta: el detail dice cuándo
+    # caduca sola (su .created_at + TTL), no una instrucción imposible.
+    from datetime import datetime
+    from services.sessions import SESSIONS_ROOT, SESSION_TTL_SEC
+    creada = float((SESSIONS_ROOT / viva / ".created_at").read_text())
+    caduca = datetime.fromtimestamp(creada + SESSION_TTL_SEC)
+    detail = r.json()["detail"]
+    assert "caduca sola" in detail
+    assert caduca.strftime("%H:%M") in detail and caduca.strftime("%d/%m") in detail
+    assert "ciérrala" not in detail
     assert (SAVES_ROOT / sid).is_dir()
     assert any(s["session_id"] == sid for s in _lista(m, pid))
     # Al cerrar la viva ya se puede borrar.

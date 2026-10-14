@@ -5,6 +5,8 @@ import asyncio
 import json
 import re
 import logging
+import math
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -28,6 +30,7 @@ from services.sessions import (
     snapshot_session, rehydrate_session, has_saved_session, mesh_url as mesh_url_for,
     delete_saved_session, session_lineage, LINEAGE_KEY, record_repoint, session_ttl_hours,
     saved_session_size, size_of_row, live_sessions_from, purge_saved_session,
+    live_session_expires_at,
 )
 
 logger = logging.getLogger(__name__)
@@ -373,6 +376,20 @@ async def rename_saved_session(
     )
 
 
+def _detail_origen_vivo(vivas: list[str]) -> str:
+    """El 409 de borrar el origen de una sesión abierta, con cuándo se desbloquea.
+
+    La aplicación no tiene forma de cerrar una sesión abierta (caducan solas por
+    TTL), así que decir «ciérrala» era una instrucción imposible: se dice cuándo
+    caduca la que más tarde lo haga, que es cuando el borrado vuelve a ser posible."""
+    fin = max(live_session_expires_at(v) for v in vivas)
+    horas = max(0, math.ceil((fin - time.time()) / 3600))
+    cuando = datetime.fromtimestamp(fin).strftime("%H:%M del %d/%m")
+    plazo = "en menos de 1 h" if horas <= 1 else f"en unas {horas} h"
+    return (f"Esta sesión guardada es el origen de una sesión abierta que caduca sola "
+            f"a las {cuando} ({plazo}): hasta entonces no se puede borrar.")
+
+
 @router.delete(
     "/saved/{session_id}",
     status_code=204,
@@ -387,12 +404,9 @@ async def delete_saved(
     ps = _saved_row_or_404(db, current_user, session_id)
     # Una sesión abierta reanudada de esta guardada sigue apoyándose en ella
     # (su fila, su paciente, su linaje): borrarla la dejaría huérfana.
-    if live_sessions_from(session_id):
-        raise HTTPException(
-            status_code=409,
-            detail="Esta sesión guardada es el origen de una sesión abierta: "
-                   "ciérrala antes de borrarla.",
-        )
+    vivas = live_sessions_from(session_id)
+    if vivas:
+        raise HTTPException(status_code=409, detail=_detail_origen_vivo(vivas))
     etiqueta = ps.label or ""
     paciente = _audit_patient_of(ps)
     db.delete(ps)

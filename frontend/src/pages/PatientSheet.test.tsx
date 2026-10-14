@@ -267,7 +267,7 @@ describe("sesiones guardadas (F2-30, F2-73, F2-74, F1-69)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Borrar «Antes de medir»" }));
     const dialogo = screen.getByRole("alertdialog", { name: "Borrar la sesión guardada" });
     expect(dialogo.textContent).toContain("Antes de medir");
-    expect(dialogo.textContent).toContain("Se borra la copia guardada; las sesiones abiertas no se tocan.");
+    expect(dialogo.textContent).toContain("Se borra la copia guardada y no se puede deshacer. Si la acabas de reanudar, no se podrá borrar hasta que esa sesión abierta caduque sola.");
     patientSessions.mockResolvedValueOnce([guardada({ session_id: "s2", label: "Otra" })]);
     fireEvent.click(within(dialogo).getByRole("button", { name: "Borrar" }));
     await waitFor(() => expect(deleteSavedSession).toHaveBeenCalledWith("s1"));
@@ -330,6 +330,30 @@ describe("salir de la ficha con cambios sin guardar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
     expect(onClose).toHaveBeenCalled();
     expect(onResume).not.toHaveBeenCalled();
+  });
+});
+
+describe("derechos sobre los datos del paciente (T7-rights)", () => {
+  it("una cuenta compartida ve los datos de solo lectura, sin «Guardar cambios» ni «Eliminar caso»", async () => {
+    user.id = 3;
+    patientStudies.mockResolvedValue([caso({ id: 9, dx_principal: "Aneurisma ACM" })]);
+    abrir(resumen({ owner_id: 1, is_shared_with_me: true }));
+    expect(await screen.findByRole("button", { name: "Nuevo caso" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Editar caso «Aneurisma ACM»" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Guardar cambios" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Eliminar caso/ })).toBeNull();
+    expect((screen.getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(true);
+    expect((screen.getByLabelText("Notas") as HTMLTextAreaElement).readOnly).toBe(true);
+    expect((screen.getByLabelText("Sexo") as HTMLSelectElement).disabled).toBe(true);
+    expect(screen.getByText(/puedes trabajar con él y crear o editar casos, pero no cambiar sus datos, borrar casos ni compartirlo/)).toBeTruthy();
+  });
+
+  it("quien lo creó sigue viendo «Guardar cambios» y «Eliminar caso»", async () => {
+    patientStudies.mockResolvedValue([caso({ id: 9, dx_principal: "Aneurisma ACM" })]);
+    abrir();
+    expect(await screen.findByRole("button", { name: "Eliminar caso «Aneurisma ACM»" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeTruthy();
+    expect((screen.getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(false);
   });
 });
 

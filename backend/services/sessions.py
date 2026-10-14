@@ -356,6 +356,19 @@ def live_sessions_from(saved_session_id: str) -> list[str]:
     return vivas
 
 
+def live_session_expires_at(session_id: str) -> float:
+    """Hora (epoch) a la que el barrido borrará la sesión viva `session_id`.
+
+    Es la misma cuenta que `purge_expired_sessions` (`.created_at` + TTL), para
+    que lo que se le dice a la persona coincida con lo que hará el barrido. Sin
+    marca legible devuelve ahora: el siguiente barrido ya la borra."""
+    try:
+        creada = float((SESSIONS_ROOT / session_id / ".created_at").read_text())
+    except (ValueError, OSError):
+        return time.time()
+    return creada + SESSION_TTL_SEC
+
+
 # ── State helpers ──────────────────────────────────────────────────────────── #
 
 # The state file has to be read and written as UTF-8 explicitly. Without it

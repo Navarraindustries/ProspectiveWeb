@@ -143,3 +143,5 @@ backend/db_backups/
 
 # ── Superpowers scratch (brainstorm mockups, SDD ledgers) ─────────────────── #
 .superpowers/
+
+PROSPECTIVE-brochure.pdf

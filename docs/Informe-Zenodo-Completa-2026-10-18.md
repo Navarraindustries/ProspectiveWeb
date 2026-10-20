@@ -47,6 +47,13 @@ no cambian, la pasada queda en **31 de 122 entre los 5** (de 23), **52 en la lis
 y **163 candidatos en hueso de 860** (de 206). La regla está aplicada en el código
 (§4.1); las cifras de la tabla y de §3 son las de la pasada del 18-10, anteriores a ella.
 
+**Actualización 2026-10-20.** Con el recorte intracraneal de §4.4 (la malla se queda con sus
+140 mm altos antes de detectar) la pasada medida de los 172 da **44 de 122 entre los 5** (de
+31), **53 entre los 10**, **70 en la lista** y **36 de 82 estudios** con la lesión entre los
+5; ganan 17 lesiones, pierden 4. Los controles siguen dando 5 candidatos (el hueso en
+controles vuelve a 126 de 450): el recorte mejora el puesto, no da el «no hay nada». Siguiente
+medida medida y sin aplicar: un suelo de HU (§4.4).
+
 ## 2. Cómo se ha medido
 
 `backend/scripts/eval_zenodo.py` recorre el mismo camino que la API (carga, umbrales
@@ -277,7 +284,138 @@ miliares fuera de malla y para el cuello que compite por los puestos (089, 028).
   (upload, segmentación, detección), para ver que la pantalla cuenta lo mismo que el banco.
 - **Commit**: decisión del usuario; por lista explícita de ficheros, nada de `data/`.
 
-## 5. Código y datos de esta pasada (sin commit)
+### 4.3 Criterio absoluto en controles (2026-10-19): medido, y no lo hay
+
+Pregunta: ¿algún umbral sobre lo que trae cada candidato permitiría decir «ninguno» en un
+control sin perder lesiones? Medido desde los JSON sobre el estado «regla nueva» (40 árbol +
+132 del experimento): 860 candidatos, 28 de ellos aciertos (lesión entre los 5), 450 en los
+90 controles.
+
+| Lo que trae el candidato | Aciertos (28) | Controles (450) |
+|---|---|---|
+| Diámetro, mediana | 9,4 mm | 12,8 mm |
+| HU en el sitio / HU máx., mediana | 181 / 352 | 200 / 504 |
+| Tejido hueso | 5 | 91 |
+| Puntuación de la región de curvatura, mediana | 0,49 | 0,46 |
+| Dos o más canales coinciden | **17 (61 %)** | **56 (12 %)** |
+| · curvatura + canal geométrico | 7 | 11 |
+| · calibre + cociente | 10 | 45 |
+
+Ningún umbral de diámetro, HU, tejido o puntuación separa: las distribuciones se solapan
+en todos. Lo único que separa es la coincidencia de canales, y como criterio de estudio no
+llega: 51 de 90 controles no tienen ningún candidato con dos canales, pero 47 de los 82
+estudios con aneurisma sí lo tienen y solo en 16 es la lesión. Filtrar por coincidencia
+dejaría 15 de 28 aciertos.
+
+También se simuló reordenar la lista poniendo primero los sitios con dos familias de
+canales: entre los 5 bajan de 31 a 25 (027, 036, 086, 095, 115, 126 salen). Ordenar por
+número de canales deja 30 entre los 5 y sube los primeros puestos de 4 a 11, pero saca a
+095 y 116_1 y mete a 006 y 116_2: cambia qué lesiones salen, no cuántas. No se adopta.
+
+Decisión: la pantalla sigue enseñando los 5 con la confianza por puesto más 0,10 por
+familia que coincide (`hit_confidence`), que es lo que los datos sostienen: la coincidencia
+es una señal por candidato (5 veces más frecuente en un acierto), no un veredicto por
+estudio. Un «ninguno» fiable necesitaría otra señal, no otro umbral sobre estas.
+
+### 4.4 Recorte intracraneal (2026-10-19): medido desde los JSON, en pasada
+
+Dónde están las cosas a lo alto de la malla (eje z, el de corte de la serie; identidad en
+los 172 estudios), medido desde el techo de la malla:
+
+| mm por debajo del techo | n | mín | p5 | mediana | p95 | máx |
+|---|---|---|---|---|---|---|
+| Las 122 lesiones anotadas | 122 | 9 | 19 | 85 | 112 | **121** |
+| Aciertos (lesión entre los 5) | 28 | 17 | 21 | 84 | 114 | 115 |
+| Candidatos en los 90 controles | 450 | 42 | 123 | **284** | 354 | 424 |
+| Candidatos falsos en estudios con aneurisma | 382 | 4 | 55 | 190 | 345 | 388 |
+
+Alto de la malla: cabeza sola 141 mm de mediana (91–229); cabeza y cuello 351 (96–432):
+llevan el cuello entero y a menudo el cayado. Las dos lesiones más hondas (087, RMCA, y 098,
+RICA, a 120–121 mm) son de estudios de cabeza y cuello. A menos de 130 mm del techo hay solo 26 de los 450
+candidatos de control; a más de 140 mm están 415 de 450 (92 %) y 239 de los 382 falsos de
+los estudios con aneurisma (63 %).
+
+Simulación desde las listas largas de 40 (quitar los candidatos a más de D mm del techo, sin
+volver a detectar), estado «regla nueva»:
+
+| D | entre los 5 | entre los 10 | 1.º | perdidas | controles con < 5 candidatos |
+|---|---|---|---|---|---|
+| hoy | 31 | 38 | 4 | – | 0 de 90 |
+| 130 mm | 40 | 47 | 16 | 0 | 56 |
+| **140 mm** | **39** | **47** | **13** | **0** | **47** (1 sin ninguno) |
+| 150 mm | 39 | 47 | 12 | 0 | 37 |
+| 170 mm | 36 | 47 | 9 | 0 | 23 |
+
+Entran en los 5 con 140 mm: 006 (10.ª → 1.ª), 110 (18.ª → 1.ª), 089 (13.ª → 2.ª), 099_1
+(9.ª → 2.ª), 087 (22.ª → 3.ª), 035_4 (25.ª → 4.ª), 090_4 (40.ª → 4.ª), 091 (14.ª → 4.ª): las
+que el cuello desplazaba. 140 mm deja 19 mm de margen sobre la lesión más honda; 130 daba un
+puesto más con 9 mm de margen y no se toma.
+
+**Cambio aplicado:** `backend/services/head_crop.py` (`crop_to_head`): antes de detectar, la
+malla se recorta a los 140 mm altos, medidos desde el percentil 99,5 de z (una mota de ruido
+por encima de la cabeza no sube el corte; errar el techo por abajo es seguro, por arriba no).
+Si la malla no llega a esa altura (3DRA, cabeza sola) es el mismo objeto y la detección es la
+de antes (regresión XA verde). Lo aplica `routers/detect.py::_detect_hits`, así que vale para
+la API y para el banco; el registro del banco guarda `head_crop`. Tests en
+`backend/test_head_crop.py` (5). Asume que el eje z de la malla es el superior-inferior
+(serie axial), documentado en el módulo.
+
+**Pasada hecha (20-10, 12:00):** los 172 con la regla de los canales y el recorte, sobre
+las mallas guardadas (`backend/data/run_crop_p3.ps1` → `zenodo_eval_full_p3_crop`; ~14 h con
+un apagado del PC por medio; detección 44 s de mediana frente a 132, porque queda el 27 % de
+los puntos de mediana). Es una pasada medida, no una suma. Comparada con la del 18-10 y con
+el estado «regla nueva» (18-10 más el experimento de §4.1, que es lo que había antes del
+recorte):
+
+| | Pasada 18-10 | Regla nueva (suma) | **Regla nueva + recorte** |
+|---|---|---|---|
+| Lesiones entre los 5 (de 122) | 23 | 31 | **44** |
+| Entre los 10 | 29 | 38 | **53** |
+| En la lista de 40 | 43 | 52 | **70** |
+| En primer puesto | 4 | 4 | 6 |
+| Estudios IA con la lesión entre los 5 (de 82) | 22 | 27 | **36** |
+| Medianas entre los 5 (de 56) | 10 | 12 | 19 |
+| Grandes (de 20) | 9 | 12 | 15 |
+| Gigantes (de 16) | 4 | 6 | 8 |
+| Miliares (de 30) | 0 | 1 | 2 |
+| Blister entre los 5 (de 39) | 1 | – | 4 |
+| Candidatos en hueso (de 860) | 206 | 163 | 224 |
+| Hueso en controles (de 450) | 124 | 91 | 126 |
+| Controles con menos de 5 candidatos | 0 | 0 | 0 |
+
+Ganan 17 lesiones y pierden 4. Ocho de las que entran no estaban ni en la lista de 40 (002,
+014, 083 → 1.ª, 093_2, 105 gigante calcificada, 116_3, 130, 163 miliar → 1.ª); el resto
+eran las que el cuello desplazaba (006 10.ª → 2.ª, 087 22.ª → 3.ª, 089 13.ª → 3.ª, 091 14.ª →
+2.ª, 099_1, 110 18.ª → 3.ª, 116_2, 120, 093_3). Pierden 028 (2.ª → 10.ª), 084 (1.ª → 9.ª),
+095 (3.ª → 9.ª) y 086_1 (5.ª → 7.ª).
+
+**Por qué pierden las que pierden.** No es el corte: en las cuatro la lesión queda dentro de
+la ventana con margen (028 a 29 mm del corte, 084 a 60 mm; 086 mide 141 mm y el recorte quita
+0,4 mm, es ruido de orden). Lo que cambia es la detección de curvatura: la copia de curvatura
+se diezma a 80 000 vértices desde la malla recortada, así que la cabeza se ve con 3–4 veces
+más resolución (028: 1,05 M → 262 k puntos, diezmado 13× → 3×) y los percentiles de Gauss
+(85) y de curvatura media (75) se recalculan solo sobre cabeza. Ese mismo efecto es el que
+hace que la curvatura vea 30 lesiones en lista en vez de 24, así que es neto positivo y el
+diezmado no se toca.
+
+**Lo que la simulación no veía: los controles siguen con 5 candidatos.** El detector rellena
+los cinco huecos con lo que queda de malla, que es cabeza con hueso, y por eso el hueso en
+controles vuelve a 126 (la regla nueva lo había bajado a 91). El recorte mejora el puesto de
+las lesiones y no da la señal de «aquí no hay nada». Medido sobre los 860 candidatos de esta
+pasada, sí hay un suelo que no pierde aciertos: ningún acierto tiene HU medio por debajo de
+−74 ni HU máximo por debajo de 251, mientras que 38 candidatos de control y 12 falsos de
+estudios IA están por debajo de −100 HU medio (aire, grasa) y 6 + 9 por debajo de 200 HU
+máximo. Quitar «HU medio < −100 o HU máximo < 200» deja 30 de los 90 controles con menos de
+5 candidatos sin perder ningún acierto; es una señal modesta y es la siguiente medida a probar
+(queda sin aplicar). El tejido no separa: 45 de los 51 aciertos están en «vaso», pero
+también 251 de los 450 candidatos de control.
+
+**Decisión:** el recorte se queda (ya está en la API y en el banco). La cifra de referencia
+pasa a ser **44 de 122 entre los 5, 53 entre los 10, 70 en la lista, 36 de 82 estudios** con
+la lesión entre los 5, 224 candidatos en hueso de 860; la pasada de confirmación de la regla
+de los canales sola ya no hace falta, esta la incluye.
+
+## 5. Código y datos de esta pasada
 
 - `backend/scripts/zenodo_lesiones.py`: tabla por lesión y recuentos de una pasada a partir
   de los JSON (`--out`, `--sin-tabla`).

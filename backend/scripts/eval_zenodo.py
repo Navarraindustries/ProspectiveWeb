@@ -512,6 +512,7 @@ def evaluate_study(sid: str, dataset: Path, out: Path, meta: dict[str, StudyMeta
     t0 = time.perf_counter()
     hits, det = detect_long(poly, modality, LONG_LIST, overrides)
     rec["detect_seconds"] = round(time.perf_counter() - t0, 1)
+    rec["head_crop"] = getattr(det, "head_crop", None)
     rec["status"] = detection_status(det)
     if det.geometric_error:
         rec["error"] = det.geometric_error

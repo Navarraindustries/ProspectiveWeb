@@ -354,10 +354,16 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     una sola instancia por petición.
     """
     from services.aneurysm_consensus import consensus
+    from services.head_crop import crop_to_head
     from services.segmentation import decimate_to
 
     if detector is None:
         detector = _detector_for_modality(modality)
+    # Lo alto de la malla: en una angio-TC de cabeza y cuello el cuello y el
+    # cayado daban 424 de los 450 candidatos de los controles de Zenodo y
+    # ninguna de las 122 lesiones (services/head_crop.py). En 3DRA y cabeza
+    # sola la malla no llega a los 140 mm y es el mismo objeto.
+    poly, crop = crop_to_head(poly)
     n = poly.GetNumberOfPoints()
     curv = decimate_to(poly, _CURVATURE_MAX_VERTS)
     # Por debajo del tope no se toca: la copia ES la malla (mismo objeto), y el
@@ -391,6 +397,8 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     # (Zenodo 026).
     hits = consensus(curv, detector, top=_MAX_CANDIDATES,
                      geometric_poly=small, curvature_result=det_result, tree_poly=poly)
+    # Para el registro del banco y el diagnóstico, como `geometric_error`.
+    det_result.head_crop = crop.as_dict()
     return hits, det_result
 
 

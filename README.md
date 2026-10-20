@@ -2710,6 +2710,19 @@ largest piece under 20 mm; the tree test still governs "keep main tree" in the m
 With the 40 tree studies unchanged the whole pass sums to 31 of 122 in the top 5, 52 in the
 list and 163 bone candidates of 860. XA regression unchanged.
 
+**Intracranial crop (2026-10-20; §4.4 of the same report).** Measured on the saved results,
+all 122 lesions sit 9–121 mm below the top of the mesh while the control candidates sit
+284 mm below it (neck and arch). `backend/services/head_crop.py` now keeps the top 140 mm
+of the mesh (measured from the 99.5th percentile of z) before detection, in the API and in
+the bench alike; a mesh shorter than that (3DRA, head-only) is returned untouched. The
+measured pass of the 172 (`zenodo_eval_full_p3_crop`, detection 44 s median instead of
+132) gives **44 of 122 lesions in the top 5** (from 31), 53 in the top 10, 70 in the list,
+36 of 82 aneurysm studies with the lesion in the top 5; 17 lesions gain, 4 lose (the
+curvature copy is decimated from a smaller mesh, so its percentiles move). Controls still
+get 5 candidates each, now filled with head bone (126 of 450): the crop improves rank, not
+the "nothing here" verdict. Next measure, measured and not applied: an HU floor (no hit has
+mean HU under −74 or max HU under 251; 50 false candidates do).
+
 ---
 
 ## Relationship to the Desktop App

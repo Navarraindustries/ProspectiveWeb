@@ -460,6 +460,46 @@ del 10.º al 7.º puesto. La cifra oficial sigue siendo la de la pasada medida d
 122); la del suelo (45, 8 en primer puesto) es simulación sobre los mismos volúmenes y listas,
 exacta salvo el redondeo de posiciones, y una pasada completa la confirmaría en ~3 h.
 
+### 4.6 El «H·r negativo» de los sacos grandes (2026-10-20): comprobado, no es un fallo de signo
+
+Hipótesis pendiente desde §3.4: 18 lesiones, casi todas grandes o gigantes, tenían como
+región más cercana una con curvatura media negativa (H·r de −0,8 a −0,9), y se sospechó del
+cuello cóncavo o de normales invertidas. Medido sobre las mallas de curvatura reales de 096
+(saco de 21 mm, trombosado y calcificado) y 110 (25 mm, ídem; vóxel de 1,5 × 2,6 mm), por
+el mismo camino que el detector (recorte, diezmado a 80 000, 10 pasadas de suavizado,
+normales, `vtkCurvatures`), y una esfera de referencia:
+
+| | Esfera r = 10 | 096, puntos del saco (994) | 110, puntos del saco (1 909) |
+|---|---|---|---|
+| H mediana | +0,101 (1/r = 0,100) | +0,21 (1/R = 0,094) | 0,00 (1/R = 0,079) |
+| H > 0 | 100 % | 87 % | 50 % |
+| Normales hacia fuera | 100 % | 83 % | 88 % |
+| K mediana | 0,0101 (1/r² = 0,0100) | 0,0012 | −0,013 |
+| Puntos con K ≥ percentil 85 | – | **2 %** | **6 %** |
+| Umbral K del percentil 85 | – | 0,28 (radio ≈ 1,9 mm) | 0,22 (radio ≈ 2,1 mm) |
+
+El signo está bien (la esfera da +1/r y +1/r²) y las normales apuntan hacia fuera. Lo que
+pasa es de escala: la puerta de Gauss del percentil 85 solo deja pasar lo que tiene un radio
+de unos 2 mm, y una cúpula de 10 mm de radio tiene K = 0,009, treinta veces por debajo. Del
+saco de 096 solo pasan el 2 % de los puntos: motas de 20 puntos en las irregularidades de la
+luz trombosada, que son tanto cóncavas como convexas, y la mota más cercana a la lesión
+resultó cóncava. En 110 la luz segmentada de un saco trombosado con vóxel grueso ni siquiera
+es convexa (la mitad de los puntos con H < 0). El H·r negativo es el síntoma, no la causa.
+
+**Decisión:** la curvatura no se toca para esto. Esos sacos son de calibre y cociente, que ya
+los dan (con el recorte, 096 es 2.ª por calibre y 110 3.ª por calibre y cociente). Bajar el
+percentil de Gauss para que entre la cúpula ya se midió en §4.2 (`min_gauss_curvature`) y
+abre la puerta a todo el vaso.
+
+### 4.7 Aviso de `vtkMassProperties` (2026-10-20): quitado
+
+`vtkCleanPolyData` fusiona los puntos coincidentes de cada región y convierte el triángulo
+que se queda sin área en una línea; `vtkMassProperties` avisaba «Input data type must be
+VTK_TRIANGLE not 3» una vez por región (cientos por detección en una angio-TC). Ahora la
+región se queda solo con sus polígonos (`aneurysm_detector._clean_region`): los puntos, sus
+arrays y el área son los mismos; los avisos, cero. Test `backend/test_region_sin_lineas.py`
+(2); detector (23) y regresión XA (6) sin cambio.
+
 ## 5. Código y datos de esta pasada
 
 - `backend/scripts/zenodo_lesiones.py`: tabla por lesión y recuentos de una pasada a partir

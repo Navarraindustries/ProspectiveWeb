@@ -119,6 +119,30 @@ class DetectionResult:
 # Detector                                                                      #
 # ──────────────────────────────────────────────────────────────────────────── #
 
+def _clean_region(region: vtk.vtkPolyData) -> vtk.vtkPolyData:
+    """La región de una componente, con puntos fusionados y SOLO triángulos.
+
+    `vtkCleanPolyData` fusiona los puntos coincidentes y, por defecto, convierte
+    el triángulo que se queda sin área en una línea (`ConvertPolysToLines`).
+    Esas líneas llegaban a `vtkMassProperties`, que avisaba «Input data type
+    must be VTK_TRIANGLE not 3» una vez por región (cientos por detección en
+    una angio-TC) y no las contaba. Se quitan aquí: el área y los puntos son
+    los mismos, los avisos no.
+    """
+    cl = vtk.vtkCleanPolyData()
+    cl.SetInputData(region)
+    cl.Update()
+    limpia = cl.GetOutput()
+    if limpia.GetNumberOfLines() == 0 and limpia.GetNumberOfVerts() == 0:
+        return limpia
+    # Solo los polígonos: los puntos y sus arrays se quedan como están.
+    solo_polys = vtk.vtkPolyData()
+    solo_polys.SetPoints(limpia.GetPoints())
+    solo_polys.GetPointData().ShallowCopy(limpia.GetPointData())
+    solo_polys.SetPolys(limpia.GetPolys())
+    return solo_polys
+
+
 def _dome_radius_mm(region: "vtk.vtkPolyData", area: float) -> tuple[float, str]:
     """Radio de la CÚPULA, no del parche.
 
@@ -442,10 +466,7 @@ class AneurysmDetector:
             sel.AddSpecifiedRegion(i)
             sel.Update()
 
-            _cl = vtk.vtkCleanPolyData()
-            _cl.SetInputConnection(sel.GetOutputPort())
-            _cl.Update()
-            region = _cl.GetOutput()
+            region = _clean_region(sel.GetOutput())
 
             n_pts = region.GetNumberOfPoints()
             bounds = region.GetBounds()

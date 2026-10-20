@@ -54,6 +54,7 @@ from scripts.ingest_zenodo import (
     patient_to_mesh,
     study_ids,
 )
+from services.hu_floor import HU_BALL_MM, hu_stats  # noqa: F401  (los usan otros scripts)
 
 logger = logging.getLogger("eval_zenodo")
 
@@ -67,7 +68,6 @@ SAVES_ROOT = Path(__file__).resolve().parents[1] / "data" / "session_saves"
 #: HU media alrededor del candidato a partir de la cual se cuenta como hueso.
 BONE_HU = 700.0
 #: Radio de la bola donde se promedia la HU de un candidato.
-HU_BALL_MM = 2.0
 #: Lista larga del banco: hasta dónde se busca la lesión más allá de los 5.
 LONG_LIST = 40
 
@@ -199,30 +199,6 @@ def hu_around(volume: np.ndarray, spacing, point: Point, radius_mm: float) -> fl
     return None if r is None else r[0]
 
 
-def hu_stats(volume: np.ndarray, spacing, point: Point, radius_mm: float) -> tuple[float, float] | None:
-    """(media, máximo) de HU en la bola; None si cae fuera del volumen."""
-    sz, sy, sx = (float(v) for v in spacing)
-    x, y, z = point
-    ci = (z / sz, y / sy, x / sx)
-    rad = (radius_mm / sz, radius_mm / sy, radius_mm / sx)
-    lo = [int(math.floor(c - r)) for c, r in zip(ci, rad)]
-    hi = [int(math.ceil(c + r)) + 1 for c, r in zip(ci, rad)]
-    if any(h <= 0 for h in hi) or any(l >= n for l, n in zip(lo, volume.shape)):
-        return None
-    lo = [max(0, v) for v in lo]
-    hi = [min(n, v) for v, n in zip(hi, volume.shape)]
-    sub = volume[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]]
-    if sub.size == 0:
-        return None
-    zz, yy, xx = np.mgrid[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]]
-    d2 = ((zz - ci[0]) * sz) ** 2 + ((yy - ci[1]) * sy) ** 2 + ((xx - ci[2]) * sx) ** 2
-    inside = d2 <= radius_mm ** 2 + 1e-9
-    if not inside.any():
-        return None
-    vals = sub[inside]
-    return float(vals.mean()), float(vals.max())
-
-
 def tissue_label(hu_mean: float | None, hu_max: float | None) -> str | None:
     """Qué hay alrededor de un candidato: hueso, vaso con contraste, u otra cosa."""
     if hu_mean is None or hu_max is None:
@@ -315,12 +291,15 @@ def _components_info(poly) -> dict:
 
 # ── Detección ──────────────────────────────────────────────────────────────── #
 
-def detect_long(poly, modality: str = "CT", top: int = LONG_LIST, overrides=None):
+def detect_long(poly, modality: str = "CT", top: int = LONG_LIST, overrides=None,
+                volume=None):
     """La lista larga del banco: los `top` primeros del MISMO orden que la API.
 
     Los cinco primeros son exactamente la lista oficial de `POST /detect`:
     el tope solo recorta la lista ya ordenada y los puestos de los que no
-    tocan el borde no cambian con él.
+    tocan el borde no cambian con él. *volume* es ``(volumen, espaciado)``
+    de la segmentación: con él la API aplica el suelo de HU, como en
+    producción.
     """
     import routers.detect as rd
     det = build_detector(modality, overrides)
@@ -329,7 +308,7 @@ def detect_long(poly, modality: str = "CT", top: int = LONG_LIST, overrides=None
     old = rd._MAX_CANDIDATES
     rd._MAX_CANDIDATES = top
     try:
-        return rd._detect_hits(poly, modality, det)
+        return rd._detect_hits(poly, modality, det, volume=volume)
     finally:
         rd._MAX_CANDIDATES = old
 
@@ -510,9 +489,10 @@ def evaluate_study(sid: str, dataset: Path, out: Path, meta: dict[str, StudyMeta
     # 4. Detección: la lista larga, cuyos 5 primeros son la oficial
     log(f"[{sid}] detección ({poly.GetNumberOfPoints()} vértices)")
     t0 = time.perf_counter()
-    hits, det = detect_long(poly, modality, LONG_LIST, overrides)
+    hits, det = detect_long(poly, modality, LONG_LIST, overrides, volume=(seg_volume, seg_spacing))
     rec["detect_seconds"] = round(time.perf_counter() - t0, 1)
     rec["head_crop"] = getattr(det, "head_crop", None)
+    rec["hu_floor"] = getattr(det, "hu_floor", None)
     rec["status"] = detection_status(det)
     if det.geometric_error:
         rec["error"] = det.geometric_error

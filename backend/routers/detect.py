@@ -333,8 +333,15 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
 
 def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
                  detector: AneurysmDetector | None = None,
-                 session_id: str | None = None):
+                 session_id: str | None = None,
+                 volume: "tuple[np.ndarray, tuple[float, float, float]] | None" = None):
     """Los candidatos: curvatura sobre ≤ 80 000 vértices, calibre sobre ≤ 40 000.
+
+    *volume*, si se da, es ``(volumen (z, y, x), espaciado)`` con el que se
+    segmentó, en el marco de la malla: el suelo de HU (`services.hu_floor`)
+    quita de la lista los candidatos en aire o sin contraste. Sin él, y con
+    `session_id`, se toma el volumen cacheado de la sesión; en 3DRA no se
+    mira (los valores no son HU).
 
     La malla completa (107 000 vértices en Case 3 a resolución nativa) hace que
     `consensus` apague sus canales de calibre por encima de 40 000; decimarla
@@ -355,6 +362,7 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     """
     from services.aneurysm_consensus import consensus
     from services.head_crop import crop_to_head
+    from services.hu_floor import HuFloor, drop_air
     from services.segmentation import decimate_to
 
     if detector is None:
@@ -395,11 +403,37 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     # tree_poly=poly: la pieza mayor se mide sobre la malla completa, no
     # sobre la copia de 40 000, que en una cabeza entera se fragmenta
     # (Zenodo 026).
-    hits = consensus(curv, detector, top=_MAX_CANDIDATES,
+    # Se piden el doble de sitios de los que se dan: el suelo de HU quita los
+    # que están en aire y los siguientes de la misma lista ordenada ocupan su
+    # sitio. Recortar la lista ya ordenada no cambia el puesto de nadie.
+    hits = consensus(curv, detector, top=2 * _MAX_CANDIDATES,
                      geometric_poly=small, curvature_result=det_result, tree_poly=poly)
+    floor = HuFloor(applied=False)
+    if modality.upper().startswith("CT"):
+        if volume is None and session_id:
+            volume = _session_volume(session_id)
+        if volume is not None:
+            hits, floor = drop_air(hits, volume[0], volume[1])
+    hits = hits[:_MAX_CANDIDATES]
     # Para el registro del banco y el diagnóstico, como `geometric_error`.
     det_result.head_crop = crop.as_dict()
+    det_result.hu_floor = floor.as_dict()
     return hits, det_result
+
+
+def _session_volume(session_id: str):
+    """``(volumen, espaciado)`` cacheado de la sesión, o None si no lo hay.
+
+    Es el mismo volumen (y el mismo marco: índice × espaciado) con el que la
+    morfometría aísla el saco (`_SacInputs`).
+    """
+    try:
+        from services.mpr import _get_volume, ensure_volume_cached
+        meta = ensure_volume_cached(session_id)
+        return _get_volume(session_id), tuple(float(v) for v in meta["spacing"])
+    except Exception as exc:
+        logger.warning("Suelo de HU sin volumen para la sesión %s: %s", session_id, exc)
+        return None
 
 
 def _run_detection_sync(

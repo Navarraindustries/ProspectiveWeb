@@ -52,7 +52,9 @@ y **163 candidatos en hueso de 860** (de 206). La regla está aplicada en el có
 31), **53 entre los 10**, **70 en la lista** y **36 de 82 estudios** con la lesión entre los
 5; ganan 17 lesiones, pierden 4. Los controles siguen dando 5 candidatos (el hueso en
 controles vuelve a 126 de 450): el recorte mejora el puesto, no da el «no hay nada». Siguiente
-medida medida y sin aplicar: un suelo de HU (§4.4).
+medida, aplicada el mismo día: un suelo de HU (§4.5; ningún acierto por debajo de −100 HU de
+media ni de 200 de máximo; simulado 44 → 45 entre los 5 y 6 → 8 en primer puesto, sin
+perder ninguno).
 
 ## 2. Cómo se ha medido
 
@@ -414,6 +416,49 @@ también 251 de los 450 candidatos de control.
 pasa a ser **44 de 122 entre los 5, 53 entre los 10, 70 en la lista, 36 de 82 estudios** con
 la lesión entre los 5, 224 candidatos en hueso de 860; la pasada de confirmación de la regla
 de los canales sola ya no hace falta, esta la incluye.
+
+### 4.5 Suelo de HU (2026-10-20): aplicado
+
+Medido sobre los 860 candidatos de la pasada con recorte (§4.4), en una bola de 2 mm del
+volumen con el que se segmentó:
+
+| | Aciertos (a < 10 mm de una lesión) | Falsos en estudios IA | Candidatos de control |
+|---|---|---|---|
+| n | 51 | 359 | 450 |
+| HU medio mínimo | **−74** (086_1, gigante trombosada) | | |
+| HU máximo mínimo | **251** | | |
+| HU medio < −100 | 0 | 12 | 38 |
+| HU máximo < 200 | 0 | 9 | 6 |
+
+Lo que está por debajo de −100 HU de media es aire de los senos o grasa orbitaria; lo que no
+llega a 200 HU de máximo son partes blandas sin contraste. Ni el tejido (45 de 51 aciertos en
+«vaso», pero también 251 de 450 candidatos de control) ni ningún otro umbral separan (§4.3).
+
+Simulado con los volúmenes guardados sobre las listas de 40 de la pasada con recorte, dos
+formas de aplicar el suelo «HU medio < −100 o HU máximo < 200»:
+
+| | Entre los 5 | 1.º | Controles con < 5 | Aciertos perdidos |
+|---|---|---|---|---|
+| Hoy (§4.4) | 44 | 6 | 0 de 90 | – |
+| Quitar de la lista y rellenar los 5 | 45 | 8 | 0 | 0 |
+| Quitar solo de los 5, sin rellenar | 44 | 6 | 30 | 0 |
+
+Rellenar es lo honesto: un candidato en aire no es un aneurisma, y el siguiente de la misma
+lista ordenada ocupa su sitio (017_1 entra 5.ª; 088_1 y 083 ganan el primer puesto). No
+rellenar daría «menos de 5» en 30 controles, pero sería un artefacto de la lista, no una
+señal de que no hay nada: el veredicto por estudio sigue sin existir.
+
+**Cambio aplicado:** `backend/services/hu_floor.py` (`drop_air`, `HU_FLOOR_MEAN = −100`,
+`HU_FLOOR_MAX = 200`, bola de 2 mm o 1,5 espaciados). `routers/detect.py::_detect_hits` pide
+al consenso el doble de sitios, quita los que están en aire con el volumen de la sesión (el
+cacheado de la morfometría, mismo marco índice × espaciado) y se queda con los 5 primeros; el
+banco le pasa el volumen de la segmentación. Solo en TC: en 3DRA los valores no son HU. Sin
+volumen no cambia nada. El registro del banco guarda `hu_floor` (cuántos miró, cuántos quitó
+y sus HU). Tests `backend/test_hu_floor.py` (6); regresión XA sin cambio (6). Comprobado por
+el camino real en 028: de 23 sitios salen 7 (de −168 a −433 HU de media) y la lesión sube
+del 10.º al 7.º puesto. La cifra oficial sigue siendo la de la pasada medida de §4.4 (44 de
+122); la del suelo (45, 8 en primer puesto) es simulación sobre los mismos volúmenes y listas,
+exacta salvo el redondeo de posiciones, y una pasada completa la confirmaría en ~3 h.
 
 ## 5. Código y datos de esta pasada
 

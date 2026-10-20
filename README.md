@@ -2720,8 +2720,17 @@ measured pass of the 172 (`zenodo_eval_full_p3_crop`, detection 44 s median inst
 36 of 82 aneurysm studies with the lesion in the top 5; 17 lesions gain, 4 lose (the
 curvature copy is decimated from a smaller mesh, so its percentiles move). Controls still
 get 5 candidates each, now filled with head bone (126 of 450): the crop improves rank, not
-the "nothing here" verdict. Next measure, measured and not applied: an HU floor (no hit has
-mean HU under −74 or max HU under 251; 50 false candidates do).
+the "nothing here" verdict.
+
+**HU floor (2026-10-20; §4.5 of the same report).** Of the 860 candidates of that pass, no
+hit has a mean HU under −74 or a max HU under 251 in a 2 mm ball of the segmentation
+volume, while 50 false candidates sit under −100 mean (sinus air, orbital fat) and 15 more
+under 200 max (soft tissue without contrast). `backend/services/hu_floor.py` drops those
+from the consensus list before the top 5 are taken (`_detect_hits` asks for twice as many
+sites and refills), using the session's cached volume in the API and the segmentation
+volume in the bench; CT only. Simulated on the saved volumes and lists: 44 → 45 lesions in
+the top 5, 6 → 8 in first place, none lost; controls still get 5 candidates, so this is a
+cleaner list, not a per-study verdict. XA regression unchanged.
 
 ---
 

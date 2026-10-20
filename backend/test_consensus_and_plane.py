@@ -43,7 +43,9 @@ from services.aneurysm_consensus import (CH_CALIBRE, CH_CURVATURE, CH_RATIO,
                                          consensus, hit_confidence,
                                          hit_diameter_mm, hit_patch,
                                          local_calibre, order_hits,
-                                         region_on_border)
+                                         region_on_border,
+    _geometric_channels_apply,
+)
 from services.aneurysm_detector import AneurysmDetector
 from services.database import Base, engine
 from services.mesh_crop import clip_plane
@@ -371,13 +373,21 @@ class TestWhatTheBlueRegionMeans:
 # ── 3. Dónde los canales geométricos NO se ejecutan ──────────────────────── #
 
 class TestItSkipsTheChannelsWhereTheyMeanNothing:
-    def test_a_block_of_tissue_gets_curvature_only(self):
-        # En angio-TC la malla es la cabeza entera: «lo más grueso» son 12,6 mm
-        # de radio de cráneo, y además tardaba 52 s.
+    def test_a_block_of_tissue_keeps_the_channels(self):
+        # Hasta 2026-10-19 un bloque (> 100 cm³, > 3 mm) solo obtenía curvatura:
+        # con el cráneo en la máscara, «lo más grueso» eran 12,6 mm de radio de
+        # cráneo. Con el hueso fuera (paso 2), medido en 132 angio-TC de Zenodo,
+        # calibre y cociente encuentran los sacos grandes y no añaden hueso.
         bloque = _bola((0, 0, 0), 40.0, res=60)
+        assert _geometric_channels_apply(bloque)
+
+    def test_a_speck_gets_curvature_only(self):
+        # Lo que sigue apagándolos: una pieza mayor demasiado pequeña para ser
+        # un vaso (menos de 20 mm de diagonal).
+        mota = _bola((0, 0, 0), 4.0, res=30)
         det = AneurysmDetector(min_radius_mm=0.8, min_positive_gauss_frac=0.40,
                                min_sphericity=0.25, pre_smooth_iterations=10)
-        hits = consensus(bloque, det, top=5)
+        hits = consensus(mota, det, top=5)
         for h in hits:
             assert h.channels == [CH_CURVATURE] or not h.channels
 

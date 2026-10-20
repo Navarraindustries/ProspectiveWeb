@@ -19,7 +19,7 @@ from services.database import get_db
 from services.auth_service import get_current_user
 from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, audit_append,
                             audit_patient)
-from services.db_models import Patient, PlanningSession, Study, User
+from services.db_models import LesionConfirmation, Patient, PlanningSession, Study, User
 
 # Patient demographic + history fields copied on create / update.
 _PATIENT_FIELDS = (
@@ -335,6 +335,10 @@ async def delete_study(
     # Its planning sessions have a study_id FK without cascade — detach them so
     # the saved planning work survives under the patient.
     db.query(PlanningSession).filter(PlanningSession.study_id == study_id).update({"study_id": None})
+    # Las confirmaciones de lesión apuntan al caso y a sus estudios de imagen
+    # sin cascada: sin esto, borrar un caso confirmado daba un 500 (FOREIGN KEY).
+    # Se van con él: una verdad de terreno sin su estudio no se puede reproducir.
+    db.query(LesionConfirmation).filter(LesionConfirmation.case_id == study_id).delete()
     db.delete(study)
     db.commit()
     logger.info("Study deleted — patient=%d study=%d", patient_id, study_id)
@@ -423,6 +427,8 @@ async def delete_patient(
     # Planning sessions carry a patient_id FK without cascade — remove them first
     # (studies are removed by the ORM cascade on Patient.studies).
     n_sesiones = db.query(PlanningSession).filter(PlanningSession.patient_id == patient_id).delete()
+    # Y sus confirmaciones de lesión (misma razón que en delete_study).
+    db.query(LesionConfirmation).filter(LesionConfirmation.patient_id == patient_id).delete()
     db.delete(patient)
     db.commit()
     logger.info("Patient deleted — id=%d", patient_id)

@@ -58,6 +58,34 @@ class AneurysmCandidate:
     #: "sphere_fit" (esfera ajustada a los puntos) o "area" (estimación por
     #: área, usada cuando el parche es casi plano y el ajuste se dispara).
     radius_method: str = "area"
+    #: Área de la región (mm²). Con `order_by="area"` es la clave del orden.
+    area_mm2: float = 0.0
+
+
+@dataclass
+class RegionTrace:
+    """Una región de curvatura alta y lo que el detector decidió sobre ella.
+
+    Solo se rellena con `AneurysmDetector.trace_regions = True` (el banco de
+    medida, `scripts/bench_detector.py`): con 46 lesiones anotadas, saber qué
+    puerta rechaza la región de la lesión es lo que permite reajustarla.
+    `gate` es la primera puerta que no pasa ("points", "size", "mean_curv",
+    "pgf", "compactness", "sphericity"), "merged" o "cap" si pasó todas pero
+    no llegó a la lista, y "ok" si está en ella (con su `rank`).
+    """
+
+    centroid: tuple[float, float, float]
+    n_points: int
+    gate: str = "ok"
+    rank: int | None = None
+    radius_mm: float = 0.0
+    mean_curvature: float = 0.0
+    mean_curv_x_radius: float = 0.0
+    positive_gauss_frac: float = 0.0
+    compactness: float = 0.0
+    sphericity: float = 0.0
+    score: float = 0.0
+    area_mm2: float = 0.0
 
 
 @dataclass
@@ -77,6 +105,14 @@ class DetectionResult:
     n_removed_components:  int   = 0
     gauss_threshold:       float = 0.0
     mean_curv_gate:        float = 0.0
+    #: Traza por región (vacía salvo con `trace_regions`).
+    regions: list[RegionTrace] = field(default_factory=list)
+    #: Lo rellena `aneurysm_consensus.consensus` si los canales de calibre y
+    #: cociente tenían que correr y no pudieron (p. ej. sin memoria para la
+    #: rasterización). La lista sale solo de la curvatura y quien mide tiene
+    #: que saberlo: en el banco Zenodo un «Unable to allocate» dejaba el
+    #: estudio como válido con un canal menos.
+    geometric_error: str = ""
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -177,6 +213,8 @@ class AneurysmDetector:
         min_sphericity:            float = 0.28,
         pre_smooth_iterations:     int   = 0,
         min_mean_curv_radius:      float | None = None,
+        order_by:                  str = "score",
+        min_gauss_curvature:       float | None = None,
     ) -> None:
         self.min_mean_curv_radius      = min_mean_curv_radius
         self.gauss_percentile          = gauss_percentile
@@ -190,10 +228,39 @@ class AneurysmDetector:
         self.min_compactness           = min_compactness
         self.min_sphericity            = min_sphericity
         self.pre_smooth_iterations     = pre_smooth_iterations
+        #: Rellenar `DetectionResult.regions`. Solo lo pide el banco de medida.
+        self.trace_regions: bool       = False
+        #: "score" (la puntuación compuesta) o "area" (la región convexa más
+        #: grande primero). Ver `_order_key`.
+        self.order_by                  = order_by
+        #: Si se da, sustituye al percentil de Gauss por un suelo ABSOLUTO en
+        #: mm⁻²: K ≥ 1/r² deja pasar toda cúpula de radio ≤ r. El percentil es
+        #: relativo a la malla y en un árbol de vasos finos sube hasta K ≈ 0,6
+        #: (radio ≤ 1,3 mm): un saco de 12–21 mm es plano para él (paso 3).
+        self.min_gauss_curvature       = min_gauss_curvature
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #
     # ------------------------------------------------------------------ #
+
+    def _order_key(self, c: AneurysmCandidate) -> float:
+        """Mayor = antes. Ver `order_by`.
+
+        Por qué «área» en TC (paso 3 Zenodo, medido sobre 13 lesiones en 10
+        angio-TC): la puntuación compuesta prima un radio de 4 mm (su
+        `size_factor` vale 0,43 a 1,9 mm y 0,87 a 3,2 mm) y entierra sacos de
+        5 mm con regiones perfectas (106: H·r 1,0, compacidad 0,6, esfericidad
+        0,98, 14.ª). En un árbol vascular limpio las regiones convexas son
+        bultos de bifurcación y curvas (pequeñas) y cúpulas (grandes): la
+        región convexa MÁS GRANDE primero es una regla sin pesos que sube las
+        lesiones entre los 5 de 2 a 4 y entre los 10 de 6 a 8 sobre las mismas
+        mallas. En 3DRA (XA) se mide aparte con la regresión de Case 3 e IM_0055.
+        """
+        if self.order_by == "area":
+            return c.area_mm2
+        if self.order_by == "score":
+            return c.score
+        raise ValueError(f"order_by desconocido: {self.order_by!r}")
 
     def detect(self, poly_data: vtk.vtkPolyData) -> DetectionResult:
         """Run detection.  Returns DetectionResult (never raises)."""
@@ -309,7 +376,10 @@ class AneurysmDetector:
         mean_poly.GetPointData().AddArray(gauss_vtk)
 
         # ── 3. Threshold on GAUSSIAN curvature (primary gate) ──────────── #
-        thresh_gauss = float(np.percentile(gauss_arr, self.gauss_percentile))
+        if self.min_gauss_curvature is not None:
+            thresh_gauss = float(self.min_gauss_curvature)
+        else:
+            thresh_gauss = float(np.percentile(gauss_arr, self.gauss_percentile))
         thresh_gauss = max(thresh_gauss, 0.0)
 
         mean_curv_gate = float(np.percentile(mean_arr, self.mean_curv_gate_percentile))
@@ -361,6 +431,9 @@ class AneurysmDetector:
         n_fail_compact= 0
         n_fail_sph    = 0
 
+        traces: list[RegionTrace] = []
+        trace_of: dict[int, RegionTrace] = {}     # id(candidate) -> su traza
+
         for i in range(n_regions):
             sel = vtk.vtkPolyDataConnectivityFilter()
             sel.SetInputData(high_gauss)
@@ -375,24 +448,28 @@ class AneurysmDetector:
             region = _cl.GetOutput()
 
             n_pts = region.GetNumberOfPoints()
+            bounds = region.GetBounds()
+            cx = (bounds[0] + bounds[1]) / 2.0
+            cy = (bounds[2] + bounds[3]) / 2.0
+            cz = (bounds[4] + bounds[5]) / 2.0
+            trace = RegionTrace(centroid=(cx, cy, cz), n_points=n_pts) if self.trace_regions else None
+            if trace is not None:
+                traces.append(trace)
+
             if n_pts < self.min_points:
                 n_fail_pts += 1
+                if trace is not None:
+                    trace.gate = "points"
                 continue
 
+            # Todas las métricas antes que las puertas: cada una vale lo mismo
+            # que cuando se calculaba justo antes de su puerta, y así la traza
+            # las tiene también para las regiones rechazadas.
             mass = vtk.vtkMassProperties()
             mass.SetInputData(region)
             mass.Update()
             area   = mass.GetSurfaceArea()
             radius, radius_method = _dome_radius_mm(region, area)
-
-            if radius < self.min_radius_mm or radius > self.max_radius_mm:
-                n_fail_size += 1
-                continue
-
-            bounds = region.GetBounds()
-            cx = (bounds[0] + bounds[1]) / 2.0
-            cy = (bounds[2] + bounds[3]) / 2.0
-            cz = (bounds[4] + bounds[5]) / 2.0
 
             r_mean_arr  = ns.vtk_to_numpy(
                 region.GetPointData().GetArray("Mean_Curvature")
@@ -404,14 +481,6 @@ class AneurysmDetector:
             mean_curv_region  = float(np.mean(r_mean_arr))
             gauss_curv_region = float(np.mean(r_gauss_arr))
 
-            if self.min_mean_curv_radius is not None:
-                convexa = mean_curv_region * radius >= self.min_mean_curv_radius
-            else:
-                convexa = mean_curv_region >= mean_curv_gate
-            if not convexa:
-                n_fail_mean += 1
-                continue
-
             dx = bounds[1] - bounds[0]
             dy = bounds[3] - bounds[2]
             dz = bounds[5] - bounds[4]
@@ -420,10 +489,6 @@ class AneurysmDetector:
 
             positive_gauss_frac = float(np.mean(r_gauss_arr > 0))
 
-            if positive_gauss_frac < self.min_positive_gauss_frac:
-                n_fail_pgf += 1
-                continue
-
             r_bbox = max_dim / 2.0 if max_dim > 0 else 0.0
             sphere_area_bbox = 4.0 * math.pi * r_bbox ** 2
             compactness = (
@@ -431,15 +496,48 @@ class AneurysmDetector:
                 if sphere_area_bbox > 0
                 else 0.0
             )
+            sphericity = (dims[0] / dims[2]) if dims[2] > 0 else 0.0
+
+            if trace is not None:
+                trace.radius_mm = radius
+                trace.mean_curvature = mean_curv_region
+                trace.mean_curv_x_radius = mean_curv_region * radius
+                trace.positive_gauss_frac = positive_gauss_frac
+                trace.compactness = compactness
+                trace.sphericity = sphericity
+
+            if radius < self.min_radius_mm or radius > self.max_radius_mm:
+                n_fail_size += 1
+                if trace is not None:
+                    trace.gate = "size"
+                continue
+
+            if self.min_mean_curv_radius is not None:
+                convexa = mean_curv_region * radius >= self.min_mean_curv_radius
+            else:
+                convexa = mean_curv_region >= mean_curv_gate
+            if not convexa:
+                n_fail_mean += 1
+                if trace is not None:
+                    trace.gate = "mean_curv"
+                continue
+
+            if positive_gauss_frac < self.min_positive_gauss_frac:
+                n_fail_pgf += 1
+                if trace is not None:
+                    trace.gate = "pgf"
+                continue
 
             if compactness < self.min_compactness:
                 n_fail_compact += 1
+                if trace is not None:
+                    trace.gate = "compactness"
                 continue
-
-            sphericity = (dims[0] / dims[2]) if dims[2] > 0 else 0.0
 
             if sphericity < self.min_sphericity:
                 n_fail_sph += 1
+                if trace is not None:
+                    trace.gate = "sphericity"
                 continue
 
             # v5: cv_gauss
@@ -489,8 +587,7 @@ class AneurysmDetector:
                           + 0.30 * size_factor)
             score = float(np.clip(base_score * (1.0 - 0.20 * cv_penalty), 0.0, 1.0))
 
-            candidates.append(
-                AneurysmCandidate(
+            cand = AneurysmCandidate(
                     index=0,
                     centroid=(cx, cy, cz),
                     radius_mm=radius,
@@ -506,11 +603,16 @@ class AneurysmDetector:
                     poly_data=region,
                     cv_gauss=cv_gauss,
                     normal_isotropy=normal_isotropy,
+                    area_mm2=float(area),
                 )
-            )
+            candidates.append(cand)
+            if trace is not None:
+                trace.score = score
+                trace.area_mm2 = float(area)
+                trace_of[id(cand)] = trace
 
         # ── 6. Sort by score ───────────────────────────────────────────── #
-        candidates.sort(key=lambda c: c.score, reverse=True)
+        candidates.sort(key=self._order_key, reverse=True)
 
         # ── 7. Merge spatial duplicates ────────────────────────────────── #
         n_merged = 0
@@ -523,12 +625,19 @@ class AneurysmDetector:
             )
             if duplicate:
                 n_merged += 1
+                if self.trace_regions:
+                    trace_of[id(c)].gate = "merged"
             else:
                 merged.append(c)
         candidates = merged[: self.max_candidates]
+        if self.trace_regions:
+            for c in merged[self.max_candidates:]:
+                trace_of[id(c)].gate = "cap"
 
         for rank, c in enumerate(candidates, start=1):
             c.index = rank
+            if self.trace_regions:
+                trace_of[id(c)].rank = rank
 
         logger.info(
             "Detection done — %d candidates | %d regions | "
@@ -552,4 +661,5 @@ class AneurysmDetector:
             n_removed_components=n_removed_components,
             gauss_threshold=thresh_gauss,
             mean_curv_gate=mean_curv_gate,
+            regions=traces,
         )

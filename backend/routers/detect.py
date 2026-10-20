@@ -76,6 +76,12 @@ _DETECT_TARGET_VERTS = int(_DETECT_MAX_VERTS * 0.95)
 #: del tope no se toca: `decimate_to` devuelve la misma malla.
 _CURVATURE_MAX_VERTS = 80_000
 
+#: Por encima de este número de vértices la copia de calibre se decima desde la
+#: copia de curvatura y no desde la malla completa (ver `_detect_hits`). El
+#: doble del tope de curvatura: Case 3 e IM_0055 (104 000–107 000) quedan
+#: debajo y su resultado es el de siempre.
+_CHAIN_DECIMATION_FROM = 2 * _CURVATURE_MAX_VERTS
+
 
 def _detector_for_modality(modality: str) -> AneurysmDetector:
     """Build the detector with the modality preset.
@@ -144,6 +150,19 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         min_positive_gauss_frac   = 0.50,
         min_sphericity            = 0.35,
         pre_smooth_iterations     = 10,
+        # La misma puerta absoluta que XA (ver arriba). Con el cráneo fuera de
+        # la malla (paso 2) el percentil 75 de la curvatura media sube y
+        # tiraba 8 de 13 lesiones con H·r entre 0,81 y 1,22; con 0,7 vuelven
+        # (en lista 4 → 9 sobre las mismas mallas).
+        min_mean_curv_radius      = 0.7,
+        # Paso 3 Zenodo, medido sobre las mallas limpias de los pasos 1 y 2
+        # (13 lesiones en 10 angio-TC, mismas mallas): la puntuación compuesta
+        # prima un radio de 4 mm y dejaba 14.ª un par de sacos de 5 mm con
+        # regiones perfectas (106). Con «la región convexa más grande
+        # primero» las lesiones entre los 5 pasan de 2 a 4 y entre los 10 de
+        # 6 a 8. En 3DRA el mismo orden deja la lesión 1.ª en Case 3 e
+        # IM_0055, pero mueve a los otros cuatro: XA se queda como estaba.
+        order_by                  = "area",
     )
 
 
@@ -339,19 +358,27 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
 
     if detector is None:
         detector = _detector_for_modality(modality)
+    n = poly.GetNumberOfPoints()
+    curv = decimate_to(poly, _CURVATURE_MAX_VERTS)
     # Por debajo del tope no se toca: la copia ES la malla (mismo objeto), y el
     # resultado es exactamente el de antes de existir esta función.
-    if poly.GetNumberOfPoints() <= _DETECT_MAX_VERTS:
+    if n <= _DETECT_MAX_VERTS:
         small = poly
     else:
-        small = decimate_to(poly, _DETECT_TARGET_VERTS)
+        # La copia de calibre sale de la malla completa salvo cuando esta es
+        # mucho mayor que la de curvatura (`_CHAIN_DECIMATION_FROM`): entonces
+        # sale de la copia de curvatura. Decimar dos veces una malla de 2 M de
+        # vértices (angio-TC con banda nativa) costaba 200 s por copia y era
+        # casi toda la detección; de 80 000 a 38 000 son segundos. Las mallas
+        # de 3DRA (≈ 105 000 vértices) quedan por debajo y no cambian.
+        src = curv if n > _CHAIN_DECIMATION_FROM else poly
+        small = decimate_to(src, _DETECT_TARGET_VERTS)
         if small.GetNumberOfPoints() > _DETECT_MAX_VERTS:
             # El margen no bastó: otra pasada, ya sobre la copia, antes que
             # dejar que el consenso apague calibre y cociente sin decir nada.
             logger.warning("Decimated copy overshot the cap (%d > %d) — decimating again",
                            small.GetNumberOfPoints(), _DETECT_MAX_VERTS)
             small = decimate_to(small, int(_DETECT_TARGET_VERTS * 0.9))
-    curv = decimate_to(poly, _CURVATURE_MAX_VERTS)
     logger.info("Detection mesh: %d vertices for curvature, %d for calibre/ratio",
                 curv.GetNumberOfPoints(), small.GetNumberOfPoints())
     if session_id:
@@ -359,8 +386,11 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     det_result = detector.detect(curv)
     if session_id:
         progress.update(session_id, "calibre y cociente", 45)
+    # tree_poly=poly: la pieza mayor se mide sobre la malla completa, no
+    # sobre la copia de 40 000, que en una cabeza entera se fragmenta
+    # (Zenodo 026).
     hits = consensus(curv, detector, top=_MAX_CANDIDATES,
-                     geometric_poly=small, curvature_result=det_result)
+                     geometric_poly=small, curvature_result=det_result, tree_poly=poly)
     return hits, det_result
 
 

@@ -43,6 +43,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const [upper, setUpper] = useState(SEG_UPPER_DEFAULT);
   // Sin techo: el backend lo desactiva cuando upper <= lower.
   const [sinTecho, setSinTecho] = useState(false);
+  // Techo que aplicará el método tubular (0 = ninguno), decidido por el
+  // backend según la modalidad: 700 HU en TC, ninguno en 3DRA.
+  const [tubularUpper, setTubularUpper] = useState(0);
   // Comparar el techo: la casilla no puede tener un valor por defecto —los dos
   // casos anotados piden lo contrario— y tampoco se puede decidir sola: se
   // midió la regla evidente (quitarlo cuando corta el árbol) y no separa, el
@@ -97,6 +100,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     api.suggestedBand(sessionId).then((b) => {
       if (!alive) return;
       suggested.current = { lower: b.lower, upper: b.upper };
+      setTubularUpper(b.tubular_upper ?? 0);
       // Los límites del slider salen del volumen siempre. El valor elegido
       // sólo se pisa si el usuario no lo ha tocado —sigue en la reserva—,
       // para no deshacer un ajuste deliberado al volver al paso.
@@ -110,19 +114,25 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
   /** Lo que se manda al backend: 0 desactiva el techo. */
   const upperEfectivo = sinTecho ? 0 : upper;
-  /** El método tubular no usa el techo. La vista previa tampoco puede usarlo:
-   *  con él enseñaba la banda intermedia —hueso y bordes— y dejaba fuera los
-   *  vasos, que son lo más brillante y justo lo que la segmentación va a
-   *  sacar. Visto en una 3D-RA: la previa eran cuatro trozos sueltos. */
-  const previaSinTecho = sinTecho || method === "tubular";
+  /** El techo del método tubular no sale del slider: lo decide el backend por
+   *  modalidad (`suggested-band.tubular_upper`), 700 HU en TC para dejar el
+   *  hueso fuera y ninguno en 3DRA, y la vista previa enseña esa misma banda
+   *  para que previa y malla describan lo mismo. Sin techo (3DRA) la previa
+   *  tampoco puede usar el del slider: con él enseñaba la banda intermedia
+   *  —hueso y bordes— y dejaba fuera los vasos, que son lo más brillante y
+   *  justo lo que la segmentación va a sacar. Visto en una 3D-RA: la previa
+   *  eran cuatro trozos sueltos. */
+  const techoTubular = method === "tubular" ? tubularUpper : 0;
+  const previaSinTecho = method === "tubular" ? techoTubular <= 0 : sinTecho;
+  const previaUpper = method === "tubular" ? techoTubular : upper;
 
   // Live 2D tint on the MPR slices (fast, debounced). Only while tuning the
   // initial threshold — after segmenting, the grow panel drives the tint.
   useEffect(() => {
     if (segmentation) return;
-    const t = setTimeout(() => setPreviewBand([lower, previaSinTecho ? Number.MAX_SAFE_INTEGER : upper]), 140);
+    const t = setTimeout(() => setPreviewBand([lower, previaSinTecho ? Number.MAX_SAFE_INTEGER : previaUpper]), 140);
     return () => clearTimeout(t);
-  }, [lower, upper, previaSinTecho, segmentation, setPreviewBand]);
+  }, [lower, previaUpper, previaSinTecho, segmentation, setPreviewBand]);
 
   // Vista previa 3D en dos etapas.
   //
@@ -154,7 +164,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       setPreviewing(true);
       try {
         const res = await api.segmentPreview(sessionId, {
-          lower, upper: previaSinTecho ? 0 : upper, cleanup, downsample,
+          lower, upper: previaSinTecho ? 0 : previaUpper, cleanup, downsample,
         });
         if (!cancelled && mio === previaPedida.current) setPreviewMeshUrl(res.mesh_url);
       } catch {
@@ -167,7 +177,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     const borrador = setTimeout(() => void pedir(PREVIA_BORRADOR_DS), PREVIA_BORRADOR_MS);
     const afinado = setTimeout(() => void pedir(PREVIA_AFINADO_DS), PREVIA_AFINADO_MS);
     return () => { cancelled = true; clearTimeout(borrador); clearTimeout(afinado); };
-  }, [lower, upper, previaSinTecho, cleanup, sessionId, segmentation, setPreviewMeshUrl]);
+  }, [lower, previaUpper, previaSinTecho, cleanup, sessionId, segmentation, setPreviewMeshUrl]);
 
   // Clear the previews when leaving the segmentation step.
   useEffect(() => () => { setPreviewBand(null); setPreviewMeshUrl(null); }, [setPreviewBand, setPreviewMeshUrl]);
@@ -325,7 +335,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         </label>
         {method === "tubular" && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
-            El método tubular nunca usa el límite superior; la vista previa tampoco.
+            {techoTubular > 0
+              ? `En TC el método tubular aplica un techo de ${Math.round(techoTubular)} HU para dejar el hueso fuera: se aplica después de rellenar, así que un vaso cuyo centro lo supere sigue macizo. La vista previa enseña esa misma banda; el slider superior no manda aquí.`
+              : "El método tubular no usa el límite superior en esta modalidad (en 3DRA no hay hueso que quitar y el techo partía los vasos más llenos); la vista previa tampoco."}
           </div>
         )}
         {sinTecho && method !== "tubular" && (

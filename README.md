@@ -2542,6 +2542,174 @@ cd ../frontend && npm run gen:api
 A backend test fails if the saved schema is stale, and CI fails if the
 generated types are.
 
+**Feeding the detector with a public dataset.** `backend/scripts/ingest_zenodo.py`
+pushes the Zenodo 15697196 head-CTA dataset (CC-BY: `Studies/<id>/*.dcm` plus
+`Annotations/an_<id>[_n].stl` for the aneurysm cases) through the API exactly as
+a user would: upload → attach to a new patient `ZENODO <id>` (hospital id
+`ZENODO-15697196-<id>`) → auto thresholds → tubular segmentation in the
+background → detection → ground truth (`marked` at the centroid of the largest
+STL, converted from patient to mesh coordinates, or `no_lesion` for controls) →
+save the session at the detection step. One JSON record per study lands in
+`backend/data/ingest_zenodo.json` (gitignored) and the run resumes where it
+stopped; an existing hospital id is skipped, not duplicated. Measured on a
+621-slice CTA: upload 12 s, segmentation 55 s (downsampled ×3 by the memory
+budget), detection 25 s.
+
+```bash
+cd backend && .venv/Scripts/python scripts/ingest_zenodo.py            # all studies, local server
+.venv/Scripts/python scripts/ingest_zenodo.py --studies 002,008 --redo  # just these, again
+```
+
+Without `--user`/`--token` it signs an admin token with the server's own secret,
+so it only works on the machine that runs the backend.
+
+**Measuring the detector against those lesions.** `backend/scripts/bench_detector.py`
+reads the ingest report, loads each saved mesh and runs the same path as
+`POST /detect` with the detector's optional per-region trace switched on
+(`AneurysmDetector.trace_regions`, which does not change the result). Per lesion
+it reports the rank in the consensus list, the rank in each channel and, when
+the lesion is missing, the gate that rejected the nearest curvature region
+(`size`, `mean_curv`, `pgf`, `compactness`, `sphericity`, `merged`, `cap`) or
+`sin_region` when no high-curvature region came within the lesion's diameter.
+`--set key=value` overrides a detector parameter for the run, `--roi-mm R` crops
+an oracle sphere around each lesion to measure the ceiling of a region-of-interest
+approach, and `--top` lengthens the list. Output goes to
+`backend/data/bench_detector.json` (gitignored).
+
+```bash
+cd backend && .venv/Scripts/python scripts/bench_detector.py                     # the 46 lesions, current preset
+.venv/Scripts/python scripts/bench_detector.py --set min_positive_gauss_frac=0.3  # try a gate
+.venv/Scripts/python scripts/bench_detector.py --roi-mm 40                        # ROI ceiling
+```
+
+**Evaluating the whole dataset without the server.** `backend/scripts/eval_zenodo.py`
+covers all 172 studies (82 with aneurysm, 122 STL; 90 controls) where the
+ingest cannot: a study ingested through the API leaves 1.8 GB on disk (live
+session, saved snapshot with `_volume.npy`, DICOM archive) and the full set
+does not fit. The evaluator walks the same path as `_run_segmentation_sync`
+(tubular method, auto thresholds, the same downsampling rule: a volume over
+90 M voxels is subsampled so its longest axis fits in 256, which for a
+1 171-slice CTA means a factor of 5 on every axis) and `_detect_hits`, with
+the same functions and defaults, but keeps only the mesh and a reduced int16
+volume per study under `backend/data/zenodo_eval/` (gitignored). Meshes the
+server already produced during the ingest are reused as they are. Per study it
+records the segmentation (factor, vertices, pieces, volume of the largest
+piece, which is what switches the calibre channels off), per lesion the rank
+in the official list and in a list of 40, the channel, the rejecting gate and
+the fraction of the STL surface the mesh recovers, and per candidate the mean
+and maximum HU around it (bone / vessel / other) and the distance to the
+nearest lesion. `Metadata.csv` (size class, type, artery, neck, thrombus,
+calcification, slice thickness) is joined to every lesion. A second pass with
+`--set key=value --meshes-from data/zenodo_eval --out data/zenodo_eval_v1`
+reuses the meshes and volumes, so trying a detector setting costs detection
+only (about a minute per study).
+
+```bash
+cd backend && .venv/Scripts/python -u scripts/eval_zenodo.py --shard 0/2   # half the studies (run two)
+.venv/Scripts/python scripts/eval_zenodo.py --summary                      # tables from what is done
+.venv/Scripts/python scripts/eval_zenodo.py --set min_mean_curv_radius=0.7 --meshes-from data/zenodo_eval --out data/zenodo_eval_v1
+```
+
+**One recipe for the API, the bench and the regression.** The tubular path of
+`POST /segment` lives in `routers.segment.segment_tubular(dcm, …)`; `eval_zenodo.py`
+and `scripts/regresion_xa.py` call the same function, so a change in the recipe is
+measured exactly as the user will get it. Two things in that recipe are routed by
+modality or by volume size, after the Zenodo evaluation showed that the pipeline had
+been calibrated on one 3DRA (Case 3) and measured on 172 CTAs:
+
+- Bone out, on CT only. `MaskParams.bone_hu` (700 HU via `CT_BONE_HU`, 0 on XA)
+  removes from the mask the components above that value of at least 500 mm³ (the
+  skull, never a calcified sac wall), dilated 1.5 mm to take their partial-volume
+  shell with them. The HU ceiling (`tubular_ceiling`: none on XA/3DRA, where a
+  ceiling hollowed Case 3's vessels; `CT_TUBULAR_CEILING_HU` = 700 on CT) stays, and
+  `GET /segment/suggested-band` returns it as `tubular_upper` so the panel says which
+  band the preview and the mesh use. Why both and in that order, measured on Zenodo 027
+  with `scripts/exp_hueso_ct.py`: the post-fill ceiling alone leaves 200 cm³ of mask
+  (cortical bone is wrapped in its own 150–700 HU shell and is kept as if it were a
+  vessel core), 4 of 5 candidates on bone and the lesion out; the bone mask leaves
+  20.7 cm³, a 16 cm³ tree with calibre and ratio back on, no candidate on bone and the
+  lesion 2nd. A 1.0 mm margin brings the bone back (4 of 5), the ceiling on top changes
+  nothing. Known cost: a calcified sac wall that touches the skull goes with it (096,
+  a 21 mm thrombosed sac whose only bright part is that wall: recall 1.0 → 0). Eroding
+  the bone mask 1 mm before dilating keeps that wall but also keeps every thin bone as
+  "no core" (027 native: mask 25 → 101 cm³, 3 of 5 on bone), so `MaskParams.bone_erode_mm`
+  exists but ships at 0.
+- `services/band_refine.py`: when the volume is above `_TUBULAR_MAX_VOXELS` and is
+  segmented reduced (factor 2–6 on 157 of 172 Zenodo studies), the reduced mask only
+  locates the tree; `refine_in_band` re-segments a 5 mm band around it at native
+  resolution, tile by tile (128³ + 12 halo, ~140 MB peak per tile whatever the volume
+  size), seeding each tile with the coarse tube (`build_vascular_mask(seed_mask=)`).
+  The mesh comes from that native mask, in whole-volume coordinates. At factor 1
+  (every 3DRA so far) nothing changes. `eval_zenodo.py --no-band` turns it off.
+  The coarse pass uses its own bone rule (`CT_BONE_HU_COARSE` = 1200 HU, no margin, and
+  no HU ceiling, because once the bone core is gone the hole's edge counts as "outside"
+  and the 700 HU ceiling took the mixed vessel voxels touching it):
+  at 1.4–2.3 mm per voxel the carotid in the petrous canal mixes with bone and exceeds
+  700 HU, so the native rule cut it and left the anterior circulation without seeds
+  (Zenodo 016: both MCA lesions out of the coarse mask and therefore out of the band;
+  with 1200 HU they are back and the skull still goes, 136 cm³ instead of 582).
+- `consensus(..., tree_poly=)`: whether the mesh is a vascular tree (which switches
+  the calibre and ratio channels on) is decided on the full mesh, not on the 40 000
+  vertex copy, which fragments on a whole head (Zenodo 026 turned the channels on
+  over skull).
+
+The XA safety net is `scripts/regresion_xa.py` (Case 3 and IM_0055 through that
+recipe, baseline in `backend/data/regresion_xa/base.json`: lesion 1st in both) and
+`test_regresion_xa.py` (slow; lesion among the 5 and in the top 3). Run
+`regresion_xa.py --label <name> --compare base` after touching the recipe; it exits 1
+if a lesion drops rank. `--set key=value` overrides a detector parameter for that run,
+to measure a detector variant against the baseline without touching the code.
+
+**The detector on the clean mesh (step 3).** On that bone-free tree the CT preset
+(`routers.detect._detector_for_modality`) changes two things, both measured on the same
+16 studies with `scripts/exp_p3_detector.py` (`dump` decimates each mesh once and dumps
+every curvature region with its metrics; `eval` replays gates, order and consensus as
+pure rules in seconds, and its `v1` variant reproduces the bench's ranks):
+
+- `min_mean_curv_radius=0.7`, the absolute mean-curvature gate XA already used. The
+  percentile-75 gate moved with the mesh: once the skull was out it rose and rejected 8
+  of 13 lesions with H·r between 0.81 and 1.22.
+- `order_by="area"`: the curvature channel ranks its regions by surface area (largest
+  convex patch first) instead of the composite score, whose size term peaks at a 4 mm
+  radius and buried 5 mm sacs with perfect regions (106: H·r 1.0, compactness 0.6,
+  sphericity 0.98, 14th). On a vascular tree the other convex patches are bifurcation
+  bumps and bends, small. Lesions in the top 5 went 2 → 4, top 10 6 → 8, in the list of
+  40 9 → 10, bone in controls unchanged (8/30). Rejected after measuring: compactness
+  0.10/0.15 (worse order), Gauss percentile 75 (large sacs appear whole but the 5 mm
+  ones merge with the neighbouring vessel and fail the Gauss+ gate), dropping
+  calibre-only sites (the only channel that sees sacs ≥ 10 mm), ratio ring scaled by
+  radius (neutral). Known limit: the Gauss percentile gate is blind to large sacs (p85 on
+  027 is K ≥ 0.58 mm⁻², a radius ≤ 1.3 mm; a 12–21 mm sac is flat for it), which calibre
+  and ratio place 2nd–5th behind the carotid. XA keeps `order_by="score"`: with "area"
+  the lesion stays 1st in Case 3 and IM_0055 but the other four places move.
+
+**The full pass (172 studies, 2026-10-18;
+`docs/Informe-Zenodo-Completa-2026-10-18.md`).** Steps 1–3 on the whole dataset
+(`backend/data/run_full_p3.ps1` → `zenodo_eval_full_p3`): lesions in the top 5 went from
+4 to 23 of 122 (first place 0 → 4), in the list of 40 from 17 to 43, studies with a lesion
+in the top 5 from 3 to 22 of 82, candidates on bone from 560 to 206 of 860 (no control
+with all five on bone any more), lesions missing from the mesh from 31 to 16. Two
+populations remain: the 40 studies whose mesh passes the tree test (49 lesions, 18 in the
+top 5) and the 132 that do not (126 of them head-and-neck CTA, 73 lesions, 5 in the top
+5), where only curvature runs. Large sacs now appear, always through calibre or ratio;
+blister and miliary lesions still do not (1 of 39 and 0 of 30 in the top 5). The next
+measurement, `scripts/exp_tree_gate.py` on the saved meshes, turns calibre and ratio on
+in those 132 studies to tell whether the tree cap or the whole-neck mesh is the cause.
+
+**Tree gate experiment (2026-10-19; §4.1 of the same report).** The 132 studies whose
+largest piece fails the tree test (≤ 100 cm³, ≤ 3 mm) were re-detected on the saved meshes
+with calibre and ratio switched on (`backend/scripts/exp_tree_gate.py` →
+`zenodo_eval_full_p3_tree`, 7.6 h): lesions in the top 5 went from 5 to 13 of 73, in the
+list from 15 to 24, bone candidates in controls from 112 to 79 of 415, detection ~35 %
+slower on controls. The gains are large and fusiform sacs the curvature never saw (025,
+088, 095, 099, 116, 154 enter 2nd–3rd); the losses are small curvature-only lesions that now
+share the five places (089 leaves the top 5). Applied: `_geometric_channels_apply` in
+`services/aneurysm_consensus.py` no longer switches the geometric channels off by volume or
+thickness of the largest piece, only by vertex count (40 000 on the decimated copy) and a
+largest piece under 20 mm; the tree test still governs "keep main tree" in the mesh editor.
+With the 40 tree studies unchanged the whole pass sums to 31 of 122 in the top 5, 52 in the
+list and 163 bone candidates of 860. XA regression unchanged.
+
 ---
 
 ## Relationship to the Desktop App

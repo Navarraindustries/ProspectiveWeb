@@ -155,3 +155,29 @@ class TestResumenYExport:
 
     def test_el_export_es_solo_para_administradores(self):
         assert anonymous_client(app).get("/api/ground-truth/export").status_code == 401
+
+
+class TestBorrarConConfirmaciones:
+    """La confirmación apunta al paciente, al caso y al estudio de imagen con
+    claves foráneas sin cascada: borrar cualquiera de los tres daba un 500
+    (FOREIGN KEY constraint failed) en vez de borrar. Visto el 2026-10-09 al
+    limpiar un piloto del dataset de Zenodo."""
+
+    def test_borrar_el_paciente_se_lleva_sus_confirmaciones(self):
+        pid, _caso, img = _estudio("BorraPaciente")
+        sid = _sesion_con_candidatos()
+        j = _confirmar(session_id=sid, imaging_study_id=img, source="candidate",
+                       candidate_id="cand-001").json()
+        assert client.delete(f"/api/patients/{pid}").status_code == 204
+        assert client.get(f"/api/patients/{pid}").status_code == 404
+        assert client.delete(f"/api/ground-truth/{j['id']}").status_code == 404
+        assert client.get(f"/api/ground-truth/current?session_id={sid}&imaging_study_id={img}").json() is None
+
+    def test_borrar_el_caso_se_lleva_las_confirmaciones_de_sus_estudios(self):
+        pid, caso, img = _estudio("BorraCaso")
+        sid = _sesion_con_candidatos()
+        j = _confirmar(session_id=sid, imaging_study_id=img, source="no_lesion").json()
+        assert client.delete(f"/api/patients/{pid}/studies/{caso}").status_code == 204
+        assert client.delete(f"/api/ground-truth/{j['id']}").status_code == 404
+        # El paciente sigue, sin casos.
+        assert client.get(f"/api/patients/{pid}").status_code == 200

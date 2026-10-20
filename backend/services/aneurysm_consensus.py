@@ -77,7 +77,7 @@ from scipy import ndimage, spatial
 from services.aneurysm_detector import (AneurysmCandidate, AneurysmDetector,
                                        DetectionResult)
 from services.branch_origins import _fit_voxel_size, _rasterise
-from services.mesh_components import describe_components, looks_like_tree
+from services.mesh_components import MIN_TREE_EXTENT_MM, describe_components
 
 logger = logging.getLogger(__name__)
 
@@ -118,8 +118,8 @@ BORDER_TOL_MM: float = 1.0
 _CHANNEL_ORDER = {"curvatura": 0, "calibre": 1, "cociente": 2}
 
 #: Por encima de esto los canales geométricos no se ejecutan. En una malla de
-#: 79 000 vértices tardaban 52 s, y ese tamaño solo lo alcanza una angio-TC —
-#: donde además no significan nada, porque la malla es la cabeza entera.
+#: 79 000 vértices tardaban 52 s; `routers.detect` les pasa una copia decimada
+#: por debajo de este tope cuando la malla es mayor (angio-TC).
 MAX_VERTS_GEOMETRIC: int = 40_000
 
 CH_CURVATURE = "curvatura"
@@ -244,7 +244,8 @@ def _peaks(pts: np.ndarray, value: np.ndarray, radius: np.ndarray,
 def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
               top: int = 5, *,
               geometric_poly: vtk.vtkPolyData | None = None,
-              curvature_result: "DetectionResult | None" = None) -> list[ConsensusHit]:
+              curvature_result: "DetectionResult | None" = None,
+              tree_poly: vtk.vtkPolyData | None = None) -> list[ConsensusHit]:
     """Los `top` sitios mejor puntuados por el consenso de los tres canales.
 
     La curvatura se busca sobre `poly`. Calibre y cociente, sobre
@@ -259,6 +260,12 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
     `curvature_result`, si se da, es `detector.detect(poly)` ya calculado:
     quien necesita también los diagnósticos no tiene por qué pagar la
     curvatura dos veces.
+
+    `tree_poly`, si se da, es la malla COMPLETA sobre la que se decide si hay
+    algo que medir (una pieza mayor de al menos 20 mm). Sin ella se decide
+    sobre `geometric_poly`, y una copia decimada a 40 000 vértices de una
+    malla grande se fragmenta (Zenodo 026): la pieza mayor de la copia no es
+    la de la malla entera.
     """
     hits: list[ConsensusHit] = []
     geo = poly if geometric_poly is None else geometric_poly
@@ -281,14 +288,20 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
 
     # ── Canales 2 y 3: calibre y cociente ─────────────────────────────── #
     #
-    # Solo si la malla es un árbol vascular. En angio-TC el contraste toca el
-    # hueso y la malla es la cabeza entera: allí «lo más grueso» son 12,6 mm de
-    # radio de cráneo, no un saco. Y encima tarda 52 s.
-    if _geometric_channels_apply(geo):
+    # Hasta 2026-10-19 solo corrían si la malla pasaba la prueba de árbol de
+    # `mesh_components` (≤ 100 cm³ y ≤ 3 mm): en angio-TC con el cráneo dentro
+    # de la máscara, «lo más grueso» eran 12,6 mm de radio de cráneo. Con el
+    # hueso fuera de la máscara (paso 2 del plan Zenodo) ya no: en los 132
+    # estudios de Zenodo que no pasan la prueba, encenderlos subió las lesiones
+    # entre los 5 de 5 a 13 (de 73) y bajó el hueso en controles de 112 a 79
+    # candidatos de 415, a un 35 % más de tiempo. Lo que sigue apagándolos es
+    # el tamaño de la copia y una pieza mayor demasiado pequeña.
+    if _geometric_channels_apply(geo, tree_poly):
         try:
             pts, rad = local_calibre(geo)
         except Exception as exc:  # noqa: BLE001 — sin calibre queda la curvatura
             logger.warning("Canal de calibre no disponible: %s", exc)
+            det.geometric_error = f"{type(exc).__name__}: {exc}"
             pts = rad = None
 
         if pts is not None and len(pts):
@@ -373,24 +386,34 @@ def region_on_border(region: vtk.vtkPolyData, mesh_bounds,
                for k in range(3))
 
 
-def _geometric_channels_apply(poly: vtk.vtkPolyData) -> bool:
+def _geometric_channels_apply(poly: vtk.vtkPolyData,
+                              tree_poly: vtk.vtkPolyData | None = None) -> bool:
     """¿Tiene sentido medir calibre en esta malla?
 
-    Dos motivos para que no: que sea enorme (una angio-TC, donde tarda casi un
-    minuto) o que no sea un árbol vascular (la misma angio-TC, donde la malla
-    es un bloque de cabeza y el calibre mide cráneo).
+    Dos motivos para que no: que sea enorme (en 79 000 vértices tardaba casi
+    un minuto) o que su pieza mayor sea demasiado pequeña para ser un vaso
+    (menos de `MIN_TREE_EXTENT_MM` de diagonal). El tamaño se mira en `poly`
+    (donde correrá el calibre); la pieza mayor, en `tree_poly`, la malla
+    completa, porque la copia decimada se fragmenta (ver consensus).
+
+    El volumen y el espesor de la pieza mayor (la prueba de árbol de
+    `mesh_components`, que sigue mandando en «quedarse con el árbol») ya no
+    apagan los canales: medido en los 132 estudios de Zenodo que no la pasan,
+    con el hueso fuera de la máscara, calibre y cociente encuentran los sacos
+    grandes que la curvatura no ve y no añaden hueso (ver `consensus`).
     """
     n = poly.GetNumberOfPoints()
     if n == 0 or n > MAX_VERTS_GEOMETRIC:
         logger.info("Canales geométricos omitidos: %d vértices", n)
         return False
-    comps = describe_components(poly)
+    comps = describe_components(poly if tree_poly is None else tree_poly)
     if not comps:
         return False
-    ok, motivo = looks_like_tree(comps[0])
-    if not ok:
-        logger.info("Canales geométricos omitidos: %s", motivo)
-    return ok
+    if comps[0].extent_mm < MIN_TREE_EXTENT_MM:
+        logger.info("Canales geométricos omitidos: la pieza mayor mide %.0f mm",
+                    comps[0].extent_mm)
+        return False
+    return True
 
 
 def _merge(hits: list[ConsensusHit], position, channel: str, rank: int,

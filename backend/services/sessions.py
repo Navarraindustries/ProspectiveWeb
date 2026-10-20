@@ -18,12 +18,18 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ─────────────────────────────────────────────────────────── #
 
-SESSIONS_ROOT = Path(__file__).resolve().parents[1] / "data" / "sessions"
+_DATA = Path(__file__).resolve().parents[1] / "data"
+
+# Ambas raíces admiten una variable de entorno: la suite de tests las manda a
+# un temporal (conftest.py). Sin eso cada test que creaba una sesión dejaba su
+# carpeta en `data/session_saves` y `data/sessions` de verdad: 4 000 carpetas
+# vacías en dos semanas, mezcladas con las sesiones del usuario.
+SESSIONS_ROOT = Path(os.environ.get("PROSPECTIVE_SESSIONS_ROOT") or _DATA / "sessions")
 
 # Durable store for SAVED sessions. Unlike SESSIONS_ROOT this is never purged by
 # the TTL sweep, so a saved study (volume + meshes + state) survives indefinitely
 # and can be rehydrated into a fresh live session on resume.
-SAVES_ROOT = Path(__file__).resolve().parents[1] / "data" / "session_saves"
+SAVES_ROOT = Path(os.environ.get("PROSPECTIVE_SAVES_ROOT") or _DATA / "session_saves")
 
 # Sessions older than this are purged. Configurable via SESSION_TTL_HOURS
 # (defaults to 24 h, matching the documented env var in the README).

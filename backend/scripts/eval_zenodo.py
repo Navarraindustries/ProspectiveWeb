@@ -193,9 +193,10 @@ def lesion_for_stl(study: StudyMeta, filename: str) -> LesionMeta | None:
 
 # ── Medidas ────────────────────────────────────────────────────────────────── #
 
-def hu_around(volume: np.ndarray, spacing, point: Point, radius_mm: float) -> float | None:
+def hu_around(volume: np.ndarray, spacing, point: Point, radius_mm: float,
+              origin=(0.0, 0.0, 0.0)) -> float | None:
     """HU media del volumen (z, y, x) en una bola alrededor de un punto de malla (x, y, z)."""
-    r = hu_stats(volume, spacing, point, radius_mm)
+    r = hu_stats(volume, spacing, point, radius_mm, origin)
     return None if r is None else r[0]
 
 
@@ -276,6 +277,9 @@ def segment_like_server(dcm, *, on_progress=None) -> tuple[object, dict]:
 #: Opciones extra para `segment_tubular` (la CLI las rellena: `--no-band`).
 SEGMENT_OPTS: dict = {}
 
+#: Tope del volumen que se guarda por estudio para medir HU (int16: 80 MB).
+HU_VOLUME_MAX_VOX = 40_000_000
+
 
 def _components_info(poly) -> dict:
     from services.mesh_components import describe_components, looks_like_tree
@@ -315,7 +319,8 @@ def detection_status(det) -> str:
     return "incomplete" if getattr(det, "geometric_error", "") else "ok"
 
 
-def _hit_dict(rank: int, hit, lesions_mesh: list[Point], volume, spacing) -> dict:
+def _hit_dict(rank: int, hit, lesions_mesh: list[Point], volume, spacing,
+              origin=(0.0, 0.0, 0.0)) -> dict:
     from services.aneurysm_consensus import hit_confidence, hit_diameter_mm
     pos = tuple(float(v) for v in hit.position)
     d = {
@@ -332,7 +337,7 @@ def _hit_dict(rank: int, hit, lesions_mesh: list[Point], volume, spacing) -> dic
                        "pgf": round(c.positive_gauss_frac, 3), "compactness": round(c.compactness, 3),
                        "sphericity": round(c.sphericity, 3), "score": round(c.score, 3)}
     if volume is not None:
-        r = hu_stats(volume, spacing, pos, max(HU_BALL_MM, 1.5 * max(spacing)))
+        r = hu_stats(volume, spacing, pos, max(HU_BALL_MM, 1.5 * max(spacing)), origin)
         if r is not None:
             d["hu"], d["hu_max"] = round(r[0], 0), round(r[1], 0)
             d["tissue"] = tissue_label(*r)
@@ -408,7 +413,9 @@ def evaluate_study(sid: str, dataset: Path, out: Path, meta: dict[str, StudyMeta
         prev = cache["record"]
         poly = read_vtp(cache["vtp"])
         seg_volume = np.load(cache["vol"]).astype(np.float32)
-        seg_spacing = tuple(float(v) for v in prev["segment"]["seg_spacing_mm"])
+        hv = prev["segment"].get("hu_volume") or {}
+        seg_spacing = tuple(float(v) for v in hv.get("spacing_mm") or prev["segment"]["seg_spacing_mm"])
+        hu_origin = tuple(float(v) for v in hv.get("origin_mm") or (0.0, 0.0, 0.0))
         origin = tuple(prev["frame"]["origin_mm"]); direction = tuple(prev["frame"]["direction"])
         rec["series"] = prev.get("series"); rec["frame"] = prev["frame"]
         seg = dict(prev["segment"]); seg["source"] = f"cache:{seg.get('source', '?')}"
@@ -439,19 +446,36 @@ def evaluate_study(sid: str, dataset: Path, out: Path, meta: dict[str, StudyMeta
         else:
             log(f"[{sid}] segmentación tubular ({dcm.volume.shape}, factor {server_downsample_factor(dcm.volume.shape)})")
             poly, seg = segment_like_server(dcm)
-            seg = {k: v for k, v in seg.items() if k not in ("seg_volume", "seg_spacing")}
+            seg_volume, seg_spacing = seg.pop("seg_volume"), tuple(seg.pop("seg_spacing"))
+            hu_origin = tuple(float(v) for v in seg.pop("seg_origin_mm", (0.0, 0.0, 0.0)))
             seg["source"] = "eval"
             factor = int(seg["downsample_factor"])
             write_vtp(poly, vtp_path)
-        # El volumen con el que se mide la HU: el reducido, que es el que vio la malla.
-        from routers.segment import _downsample_by
-        if factor > 1:
-            seg_volume, seg_spacing, _ = _downsample_by(dcm.volume, dcm.spacing, factor)
-        else:
-            seg_volume, seg_spacing = dcm.volume, tuple(dcm.spacing)
+        if src:
+            # El volumen con el que se mide la HU: el reducido entero, como la malla del servidor.
+            from routers.segment import _downsample_by
+            if factor > 1:
+                seg_volume, seg_spacing, _ = _downsample_by(dcm.volume, dcm.spacing, factor)
+            else:
+                seg_volume, seg_spacing = dcm.volume, tuple(dcm.spacing)
+            hu_origin = (0.0, 0.0, 0.0)
         del dcm
+        # Lo que se guarda para medir HU: el volumen que vio la máscara (la banda
+        # de la cabeza, si la hubo), reducido si hace falta para que ningún
+        # estudio pase de `HU_VOLUME_MAX_VOX` (54 estudios a resolución nativa
+        # serían 260 MB cada uno).
         seg["downsample_factor"] = factor
-        seg["seg_spacing_mm"] = [round(float(v), 4) for v in seg_spacing]
+        seg.setdefault("seg_spacing_mm", [round(float(v), 4) for v in seg_spacing])
+        hu_factor = 1
+        while int(np.prod(seg_volume.shape)) / hu_factor ** 3 > HU_VOLUME_MAX_VOX:
+            hu_factor += 1
+        if hu_factor > 1:
+            from routers.segment import _downsample_by
+            seg_volume, seg_spacing, _ = _downsample_by(seg_volume, seg_spacing, hu_factor)
+        seg["hu_volume"] = {"shape": [int(v) for v in seg_volume.shape],
+                            "spacing_mm": [round(float(v), 4) for v in seg_spacing],
+                            "origin_mm": [round(float(v), 3) for v in hu_origin],
+                            "factor_extra": hu_factor}
         np.save(vol_path, np.clip(np.rint(seg_volume), -32768, 32767).astype(np.int16))
     seg["components_info"] = _components_info(poly)
     rec["segment"] = seg
@@ -477,21 +501,22 @@ def evaluate_study(sid: str, dataset: Path, out: Path, meta: dict[str, StudyMeta
             "surface_recall": surface_recall(pts, poly, tol),
             "surface_tol_mm": round(tol, 2),
             "hu": (lambda h: None if h is None else round(h, 0))(
-                hu_around(seg_volume, seg_spacing, pos, max(HU_BALL_MM, a.diameter_mm / 4))),
+                hu_around(seg_volume, seg_spacing, pos, max(HU_BALL_MM, a.diameter_mm / 4), hu_origin)),
         })
     lesion_pts = [tuple(l["position"]) for l in lesions]
 
     # 4. Detección: la lista larga, cuyos 5 primeros son la oficial
     log(f"[{sid}] detección ({poly.GetNumberOfPoints()} vértices)")
     t0 = time.perf_counter()
-    hits, det = detect_long(poly, modality, LONG_LIST, overrides, volume=(seg_volume, seg_spacing))
+    hits, det = detect_long(poly, modality, LONG_LIST, overrides,
+                            volume=(seg_volume, seg_spacing, hu_origin))
     rec["detect_seconds"] = round(time.perf_counter() - t0, 1)
     rec["head_crop"] = getattr(det, "head_crop", None)
     rec["hu_floor"] = getattr(det, "hu_floor", None)
     rec["status"] = detection_status(det)
     if det.geometric_error:
         rec["error"] = det.geometric_error
-    rec["candidates"] = [_hit_dict(i, h, lesion_pts, seg_volume, seg_spacing)
+    rec["candidates"] = [_hit_dict(i, h, lesion_pts, seg_volume, seg_spacing, hu_origin)
                          for i, h in enumerate(hits[:5], start=1)]
     rec["n_candidates"] = len(rec["candidates"])
     rec["long_list"] = [_hit_dict(i, h, lesion_pts, None, None)

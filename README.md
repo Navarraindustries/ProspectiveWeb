@@ -3490,6 +3490,18 @@ first place, 70 → 71 in the list of 40, 36 → 37 of 82 studies, and no lesion
 the floor checked 7 647 sites and dropped 1 148 (median −212 HU). Controls still get 5
 candidates, so this is a cleaner list, not a per-study verdict. XA regression unchanged.
 
+**Head band before segmenting (2026-10-20; §4.8 of the same report).** 145 of the 172
+studies are head-and-neck CTAs 350 mm tall, 157 exceed the 90 M voxel cap and are
+segmented downsampled by 2–6 (the factor is the tallest axis / 256), and 16 lesions never
+reach the mesh. All 122 lesions lie 54–120 mm below the skull top. `backend/services/head_band.py`
+keeps the 150 mm below the first slice (from the top) with ≥ 2 cm² of bone (> 200 HU), CT
+only; `segment_tubular` segments that band and translates the mesh back to the full
+volume frame, so the viewer, morphometry and HU floor see what they always did
+(`info["head_band"]` records it). Measured on the saved records: 48 % of the voxels, the
+factor distribution goes from {1: 15, 2: 28, 3: 29, 4: 16, 5: 68, 6: 16} to {1: 54, 2: 97,
+3: 21}, and 13 of the 16 missing lesions are in studies that gain resolution. The full
+segmentation pass with the band is the next measurement.
+
 ---
 
 ## Relationship to the Desktop App

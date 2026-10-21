@@ -404,8 +404,8 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
                  volume: "tuple[np.ndarray, tuple[float, float, float]] | None" = None):
     """Los candidatos: curvatura sobre ≤ 80 000 vértices, calibre sobre ≤ 40 000.
 
-    *volume*, si se da, es ``(volumen (z, y, x), espaciado)`` con el que se
-    segmentó, en el marco de la malla: el suelo de HU (`services.hu_floor`)
+    *volume*, si se da, es ``(volumen (z, y, x), espaciado[, origen])`` con el
+    que se segmentó, en el marco de la malla: el suelo de HU (`services.hu_floor`)
     quita de la lista los candidatos en aire o sin contraste. Sin él, y con
     `session_id`, se toma el volumen cacheado de la sesión; en 3DRA no se
     mira (los valores no son HU).
@@ -482,7 +482,7 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
         if volume is None and session_id:
             volume = _session_volume(session_id)
         if volume is not None:
-            hits, floor = drop_air(hits, volume[0], volume[1])
+            hits, floor = drop_air(hits, *volume)
     hits = hits[:top]
     # Para el registro del banco y el diagnóstico, como `geometric_error`.
     det_result.head_crop = crop.as_dict()

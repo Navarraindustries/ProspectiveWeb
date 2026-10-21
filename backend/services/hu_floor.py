@@ -38,14 +38,15 @@ Point = tuple[float, float, float]
 
 
 def hu_stats(volume: np.ndarray, spacing: Sequence[float], point: Point,
-             radius_mm: float) -> tuple[float, float] | None:
+             radius_mm: float, origin: Sequence[float] = (0.0, 0.0, 0.0)) -> tuple[float, float] | None:
     """(media, máximo) de HU en la bola alrededor de un punto de malla (x, y, z).
 
     El volumen es (z, y, x) y el punto está en el marco de la malla: índice ×
-    espaciado. None si la bola cae fuera del volumen.
+    espaciado, más *origin* (x, y, z en mm) si el volumen es un trozo del
+    entero (la banda de la cabeza). None si la bola cae fuera del volumen.
     """
     sz, sy, sx = (float(v) for v in spacing)
-    x, y, z = point
+    x, y, z = (float(p) - float(o) for p, o in zip(point, origin))
     ci = (z / sz, y / sy, x / sx)
     rad = (radius_mm / sz, radius_mm / sy, radius_mm / sx)
     lo = [math.floor(c - r) for c, r in zip(ci, rad)]
@@ -86,16 +87,18 @@ class HuFloor:
         return asdict(self)
 
 
-def drop_air(hits: list, volume: np.ndarray, spacing: Sequence[float]):
+def drop_air(hits: list, volume: np.ndarray, spacing: Sequence[float],
+             origin: Sequence[float] = (0.0, 0.0, 0.0)):
     """Los candidatos que no están en aire, en el mismo orden; y lo que se quitó.
 
     Cada `hit` tiene `.position` (x, y, z) de mundo. La bola es de `HU_BALL_MM`
-    o 1,5 espaciados, lo mismo que mide el banco.
+    o 1,5 espaciados, lo mismo que mide el banco. *origin* es el del volumen
+    en ese marco (ver `hu_stats`).
     """
     radius = max(HU_BALL_MM, 1.5 * max(float(v) for v in spacing))
     kept, dropped = [], []
     for h in hits:
-        r = hu_stats(volume, spacing, tuple(float(v) for v in h.position), radius)
+        r = hu_stats(volume, spacing, tuple(float(v) for v in h.position), radius, origin)
         if r is not None and in_air(*r):
             dropped.append((round(r[0], 1), round(r[1], 1)))
         else:

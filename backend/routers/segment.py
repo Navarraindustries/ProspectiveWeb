@@ -319,6 +319,14 @@ def segment_tubular(
     nativa en una banda a su alrededor (`services.band_refine`), y la malla
     sale de esa máscara nativa. A factor 1 no cambia nada: la malla es la de
     siempre, por el mismo camino (Case 3, IM_0055).
+
+    En TC se segmenta solo la banda de la cabeza (`services.head_band`: 150 mm
+    bajo el techo del cráneo). El cuello no tiene nada que buscar y era lo que
+    obligaba a reducir por 5 ó 6 en cabeza y cuello. La malla vuelve al marco
+    del volumen entero (traslación en z): el visor, la morfometría y el suelo
+    de HU ven lo de siempre; `info["head_band"]` dice qué se recortó y, con
+    `keep_volume`, `info["seg_origin_mm"]` es el origen del volumen reducido
+    en ese marco.
     """
     from services.segmentation import mask_to_surface, surface_quality
     from services.vascular_mask import MaskParams, build_vascular_mask
@@ -335,21 +343,30 @@ def segment_tubular(
         strategy = auto_strategy if strategy is None else strategy
     upper = tubular_ceiling(dcm.modality, upper, lower)
 
+    # ── Banda de la cabeza ─────────────────────────────────────────────────── #
+    from services.head_band import head_band
+    band = head_band(dcm.volume, dcm.spacing, dcm.modality)
+    volume = dcm.volume[band.z0:] if band.applied else dcm.volume
+    if band.applied:
+        logger.info("Banda de la cabeza: %d de %d cortes (techo del cráneo a %.0f mm, "
+                    "fuera %.0f mm por abajo)", band.slices_kept, band.slices_total,
+                    band.top_mm, band.cut_mm)
+
     # ── Resolución ─────────────────────────────────────────────────────────── #
     # El método tubular no rechaza un volumen grande: lo baja a media
     # resolución y lo dice, porque una malla algo más tosca sirve y un
     # proceso muerto por falta de memoria no (ver _tubular_guard).
     t_start = time.perf_counter()
-    n_voxels = int(np.prod(dcm.volume.shape))
+    n_voxels = int(np.prod(volume.shape))
     fallback_note = ""
     if not half_resolution:
         fallback_note = _tubular_guard(n_voxels, memory=memory_guard)
         half_resolution = bool(fallback_note)
     if half_resolution:
         seg_volume, seg_spacing, factor = _downsample_by(
-            dcm.volume, dcm.spacing, _half_factor(dcm.volume.shape))
+            volume, dcm.spacing, _half_factor(volume.shape))
     else:
-        seg_volume = np.ascontiguousarray(dcm.volume, dtype=np.float32)
+        seg_volume = np.ascontiguousarray(volume, dtype=np.float32)
         seg_spacing, factor = tuple(dcm.spacing), 1
     logger.info("Segmenting (tubular): lower=%.0f upper=%.0f smooth=%d shape=%s (ds=%d)",
                 lower, upper, smooth_iters, seg_volume.shape, factor)
@@ -422,7 +439,7 @@ def segment_tubular(
     if refine and not mr.fallback:
         from services.band_refine import refine_in_band
         native_spacing = tuple(float(v) for v in dcm.spacing)
-        rr = refine_in_band(dcm.volume, native_spacing, mr.mask, factor, native_params,
+        rr = refine_in_band(volume, native_spacing, mr.mask, factor, native_params,
                             on_progress=lambda f, p: _say(f, 45 + 0.4 * p))
         band_stats = rr.stats
         if rr.stats["mask_vox"] > 0:
@@ -448,10 +465,16 @@ def segment_tubular(
         from services.band_refine import translate_poly
         z0, y0, x0 = mesh_offset
         poly = translate_poly(poly, (x0 * mesh_spacing[2], y0 * mesh_spacing[1], z0 * mesh_spacing[0]))
+    if band.applied:
+        # De la banda al volumen entero: el marco de la malla sigue siendo
+        # índice × espaciado del volumen cargado.
+        from services.band_refine import translate_poly
+        poly = translate_poly(poly, (0.0, 0.0, band.cut_mm))
     q = surface_quality(poly)
     info = {
         "thresholds": {"lower": float(lower), "upper": float(upper), "strategy": strategy},
         "voxels": n_voxels, "downsample_factor": int(factor), "fallback_note": fallback_note,
+        "head_band": band.as_dict(),
         "shape": [int(v) for v in dcm.volume.shape],
         "spacing_mm": [round(float(v), 4) for v in dcm.spacing],
         "seg_spacing": tuple(float(v) for v in seg_spacing),
@@ -471,6 +494,7 @@ def segment_tubular(
     }
     if keep_volume:
         info["seg_volume"] = seg_volume
+        info["seg_origin_mm"] = (0.0, 0.0, float(band.cut_mm) if band.applied else 0.0)
     return poly, info
 
 

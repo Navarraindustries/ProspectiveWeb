@@ -107,3 +107,24 @@ class TestLaDeteccionLoUsa:
         out, det = rd._detect_hits(_tubo(), "CT", top=2)
         assert out == hits[:2]
         assert det.hu_floor["applied"] is False
+
+
+class TestElOrigenDelVolumen:
+    """La banda de la cabeza guarda un trozo del volumen: el punto de malla se
+    lleva a ese trozo restando el origen, y la bola es la misma."""
+
+    def test_hu_stats_con_origen_mide_lo_mismo(self):
+        vol = _volumen(-1000.0, shape=(80, 40, 40))        # 40 × 20 × 20 mm a 0,5 mm
+        _bola(vol, (10.0, 10.0, 30.0), 3.0, 400.0)
+        entero = hu_stats(vol, SP, (10.0, 10.0, 30.0), 2.0)
+        trozo = vol[40:]                                   # empieza en z = 40 × 0,5 = 20 mm
+        assert hu_stats(trozo, SP, (10.0, 10.0, 30.0), 2.0, origin=(0.0, 0.0, 20.0)) == entero
+        assert hu_stats(trozo, SP, (10.0, 10.0, 30.0), 2.0) != entero
+
+    def test_drop_air_con_origen(self):
+        vol = _volumen(-1000.0, shape=(80, 40, 40))
+        _bola(vol, (10.0, 10.0, 30.0), 3.0, 400.0)
+        hits = [ConsensusHit(position=(10.0, 10.0, 30.0), ranks={"curvatura": 1}),
+                ConsensusHit(position=(10.0, 10.0, 36.0), ranks={"curvatura": 2})]
+        kept, floor = drop_air(hits, vol[40:], SP, origin=(0.0, 0.0, 20.0))
+        assert kept == [hits[0]] and floor.dropped == 1

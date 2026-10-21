@@ -524,6 +524,44 @@ región se queda solo con sus polígonos (`aneurysm_detector._clean_region`): lo
 arrays y el área son los mismos; los avisos, cero. Test `backend/test_region_sin_lineas.py`
 (2); detector (23) y regresión XA (6) sin cambio.
 
+### 4.8 La banda de la cabeza antes de segmentar (2026-10-20): medida y aplicada
+
+Con el recorte (§4.4) y el suelo (§4.5) el detector ya trabaja solo sobre la cabeza, pero la
+segmentación seguía mirando el volumen entero: 145 de los 172 estudios son angio-TC de
+cabeza y cuello de 350 mm de alto, 157 superan el tope de 90 millones de vóxeles y se
+segmentan reducidos por 2 a 6 (`_half_factor`: eje mayor / 256, y el eje mayor es el alto),
+y 16 lesiones no llegan a la malla (superficie recuperada < 50 %). Medido sobre los
+registros y los volúmenes reducidos guardados:
+
+| | |
+|---|---|
+| Techo del cráneo en el volumen (primer corte desde arriba con ≥ 2 cm² > 200 HU) | coincide con la piel: mediana 0 mm, máximo 14 |
+| Profundidad de las 122 lesiones bajo ese techo | mínima 54 mm, mediana 94, **máxima 120** (098, 110, 011) |
+| Estudios en los que el vaso más alto queda > 40 mm bajo el cráneo | 17 (hasta 106 mm: solo se segmentó el polígono) |
+| Banda de 150 mm bajo el techo: vóxeles a segmentar | 39,1 G → 18,8 G (**48 %**), ninguna lesión fuera |
+| Factor de reducción, hoy → con la banda | {1: 15, 2: 28, 3: 29, 4: 16, 5: 68, 6: 16} → **{1: 54, 2: 97, 3: 21}** |
+| Lesiones fuera de la malla cuyo estudio gana resolución | **13 de 16** |
+
+La banda de 150 mm no es casual: a 0,3 mm de corte son 500 cortes, por debajo de los 512
+del plano, así que el factor lo decide el plano (2) y no el alto; con 160 mm, 101 estudios
+pasarían a factor 3. El techo se busca por hueso y no por piel porque un reposacabezas o
+una espuma pasan de −300 HU; medido, hueso y piel coinciden.
+
+**Cambio aplicado:** `backend/services/head_band.py` (`head_band`: solo TC, 150 mm bajo el
+techo del cráneo, sin efecto si el volumen es más bajo o no hay hueso) y
+`routers/segment.py::segment_tubular`: segmenta `volume[z0:]`, decide la resolución con los
+vóxeles de la banda y devuelve la malla trasladada al marco del volumen entero, así que el
+visor, la morfometría y el suelo de HU no cambian; `info["head_band"]` lo registra y, con
+`keep_volume`, `info["seg_origin_mm"]` dice dónde empieza el volumen reducido. El suelo de HU
+y el banco aceptan ese origen (`hu_stats(..., origin)`, `drop_air(..., origin)`,
+`_detect_hits(volume=(vol, esp, origen))`); el banco guarda por estudio el volumen de la banda
+a ≤ 40 millones de vóxeles (`segment.hu_volume`) en vez del reducido entero. Tests
+`backend/test_head_band.py` (10, con la malla en el mismo sitio con y sin banda),
+`test_hu_floor.py` (8), tubular (33) sin cambio. La pasada completa con la banda es de
+segmentación (la cara, 11 min por estudio hasta ahora): `backend/data/run_band_p4.ps1` →
+`data/zenodo_eval_full_p4_band`; lo que se mide es lesiones fuera de la malla (16 → ?),
+superficie recuperada, factor y minutos por estudio, y los puestos.
+
 ## 5. Código y datos de esta pasada
 
 - `backend/scripts/zenodo_lesiones.py`: tabla por lesión y recuentos de una pasada a partir

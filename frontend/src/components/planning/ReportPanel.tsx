@@ -1,8 +1,8 @@
 /* Paso 7 — Informe y exportación. POST /api/report · /api/export/stl · /api/export/glb · /api/sessions/save. */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
-import type { DicomSegResult, GlbExportResult, ReportResult } from "../../api/types";
+import type { DeviceClearResult, DicomSegResult, GlbExportResult, ReportResult, TeamDecision } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
@@ -15,6 +15,32 @@ import { PrintPrepPanel } from "./PrintPrepPanel";
 import { useAuth } from "../../store/auth";
 import { usePlanning } from "../../store/planning";
 import { STEPS } from "../../pipeline/steps";
+import { approachSummary } from "./approachSummary";
+import { captureFramed } from "../../vtk/captureRenderWindow";
+import { surgeonPrefill } from "../../lib/cirujano";
+
+/** F1-220: las palabras del informe para la decisión del equipo y la estrategia. */
+const TEAM_LABEL: Record<string, string> = {
+  clipaje: "Clipaje", endovascular: "Endovascular", vigilar: "Vigilar", otra: "Otra",
+};
+const STRATEGY_LABEL: Record<string, string> = {
+  clips: "Clips", coils: "Coils", stent: "Stent recto", stent_cl: "Stent sobre la línea central", web: "WEB",
+};
+
+/** «Coils · 3 en el plan». El WEB se dimensiona pero no se coloca: sin cuenta. */
+function strategySummary(d: DeviceClearResult | null): string {
+  const s = d?.strategy;
+  if (!s) return "—";
+  if (s === "web") return STRATEGY_LABEL.web!;
+  const n = d.placed_counts?.[s] ?? 0;
+  return `${STRATEGY_LABEL[s]} · ${n > 0 ? `${n} en el plan` : "ninguno en el plan"}`;
+}
+
+function teamSummary(t: TeamDecision | null): string {
+  if (!t?.team_decision) return "—";
+  const what = t.team_decision === "otra" && t.other_text ? `Otra: ${t.other_text}` : TEAM_LABEL[t.team_decision]!;
+  return t.decided_by ? `${what} · por ${t.decided_by}` : what;
+}
 
 /** Index of this step in the workspace rail — what a session saved here resumes at. */
 // Por su clave, no por un número: era un 6 fijo, y desde que «Fabricación»
@@ -48,12 +74,12 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const planning = usePlanning();
   const {
     sessionId, patient, caseId, imagingStudyId, morphometry, treatment,
-    captureViewport, markSaved,
+    captureViewport, markSaved, reportUrls,
   } = planning;
   const [includeShot, setIncludeShot] = useState(true);
   // Cuáles de las capturas guardadas entran, en el orden en que se marcan.
   const [captureIds, setCaptureIds] = useState<number[]>([]);
-  const [surgeon, setSurgeon] = useState(user?.full_name ?? "");
+  const [surgeon, setSurgeon] = useState(() => surgeonPrefill(user));
   const [notes, setNotes] = useState("");
   const [report, setReport] = useState<ReportResult | null>(null);
   const [stl, setStl] = useState<ReportResult | null>(null);
@@ -62,6 +88,18 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const [sr, setSr] = useState<ReportResult | null>(null);
   const [busy, setBusy] = useState<"pdf" | "stl" | "glb" | "seg" | "sr" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // F1-220: lo que el equipo decidió y la estrategia marcada viven en el
+  // servidor (se registran en Decisión y en Dispositivos); el resumen los pide
+  // al abrir para no decir otra cosa que el PDF.
+  const [devices, setDevices] = useState<DeviceClearResult | null>(null);
+  const [team, setTeam] = useState<TeamDecision | null>(treatment?.team ?? null);
+  useEffect(() => {
+    if (!sessionId) return;
+    let alive = true;
+    api.placedDevices(sessionId).then((d) => { if (alive) setDevices(d); }).catch(() => {});
+    api.getTeamDecision(sessionId).then((t) => { if (alive) setTeam(t); }).catch(() => {});
+    return () => { alive = false; };
+  }, [sessionId]);
 
   // What the outputs describe. A PDF is a snapshot of the mesh, the measurements
   // and the devices at the moment it was generated; editing any of them left a
@@ -74,7 +112,18 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
     devices: planning.deviceMeshes,
   }), [planning.segmentation?.mesh_url, morphometry, treatment, planning.deviceMeshes]);
 
-  const generatedFrom = useRef<Record<string, string>>({});
+  // Los documentos que volvieron con una sesión reanudada (F1-249). El backend
+  // dice si se generaron con el plan que se guardó; si no, o si algo ha
+  // cambiado desde que se reanudó (`dirty`), salen desfasados con
+  // «Regenerar…». Antes se daban siempre por actuales, aunque el plan hubiera
+  // cambiado después de generarlos.
+  const restoredFrom = (current: boolean | undefined) => (current && !planning.dirty ? planSignature : "desfasado");
+  const generatedFrom = useRef<Record<string, string>>({
+    ...(reportUrls?.pdf_url ? { pdf: restoredFrom(reportUrls.pdf_current) } : {}),
+    ...(reportUrls?.dicom_sr_url ? { sr: restoredFrom(reportUrls.sr_current) } : {}),
+  });
+  const pdfUrl = report?.pdf_url ?? reportUrls?.pdf_url ?? null;
+  const srUrl = sr?.dicom_sr_url ?? reportUrls?.dicom_sr_url ?? null;
   const stale = (kind: "pdf" | "stl" | "glb" | "seg" | "sr") =>
     generatedFrom.current[kind] !== undefined && generatedFrom.current[kind] !== planSignature;
 
@@ -84,10 +133,12 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
     setError(null);
     try {
       // Capture the live 3D scene (data URL → base64 payload) when available.
+      // F1-222: con la lesión encuadrada, no con la vista que hubiera; después
+      // la cámara vuelve a donde la tenía el profesional.
       let shotB64: string | null = null;
       if (includeShot && captureViewport) {
         try {
-          const dataUrl = await captureViewport();
+          const dataUrl = await captureFramed(captureViewport, planning.sceneFramer);
           if (dataUrl && dataUrl.startsWith("data:image")) shotB64 = dataUrl.split(",")[1] ?? null;
         } catch { /* screenshot is best-effort */ }
       }
@@ -219,8 +270,16 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
               value=""
               badge={[morphometry.rupture_risk_label, riskVariant(morphometry.rupture_risk_label)]}
             />
+            {/* Se leía como el riesgo de rotura del PHASES; es una etiqueta de
+                forma. La misma distinción que hace el PDF (F1-234). */}
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", padding: "4px 0 6px", lineHeight: 1.45 }}>
+              Índice de forma (AR, BF, UI); no es el PHASES, que está en Morfometría
+            </div>
           </>
         )}
+        <Metric label="Abordaje" value={planning.trajSaved ? approachSummary(planning.trajSaved) : "—"} />
+        <Metric label="Dispositivo elegido" value={strategySummary(devices)} />
+        <Metric label="Decisión del equipo" value={teamSummary(team)} />
         {treatment && (
           <div style={{ padding: "9px 0" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -235,7 +294,8 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
       </Card>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
-        <Input label="Cirujano responsable" value={surgeon} onChange={(e) => setSurgeon(e.target.value)} placeholder="Dr. …" />
+        <Input label="Cirujano responsable" value={surgeon} onChange={(e) => setSurgeon(e.target.value)} placeholder="Dr. …"
+          invalid={!surgeon.trim()} />
         <Input label="Notas clínicas" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones para el informe…" />
       </div>
 
@@ -248,12 +308,20 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
             guardando durante la planificación. */}
         <CapturePicker caseId={caseId} imagingStudyId={imagingStudyId}
           value={captureIds} onChange={setCaptureIds} />
-        <Button leadingIcon={<Icon name="DOC" />} onClick={() => void genPdf()} disabled={busy !== null}>
+        {/* El cirujano es obligatorio: un PDF clínico sin responsable, o con
+            el nombre de la cuenta que lo generó, no sirve (F1-221). */}
+        <Button leadingIcon={<Icon name="DOC" />} onClick={() => void genPdf()}
+          disabled={busy !== null || !surgeon.trim()}>
           {busy === "pdf" ? "Generando…" : stale("pdf") ? "Regenerar informe PDF" : "Generar informe PDF"}
         </Button>
-        {report?.pdf_url && (
-          <OutputLink href={report.pdf_url} stale={stale("pdf")}>
-            Descargar PDF {report.page_count ? `(${report.page_count} páginas)` : ""} →
+        {!surgeon.trim() && (
+          <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", textAlign: "center" }}>
+            Escribe el cirujano responsable
+          </div>
+        )}
+        {pdfUrl && (
+          <OutputLink href={pdfUrl} stale={stale("pdf")}>
+            Descargar PDF {report?.page_count ? `(${report.page_count} páginas)` : ""} →
           </OutputLink>
         )}
         <Button variant="outline" leadingIcon={<Icon name="SAVE" />} onClick={() => void genStl()} disabled={busy !== null}>
@@ -275,8 +343,8 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         <Button variant="outline" leadingIcon={<Icon name="DATABASE" />} onClick={() => void genSr()} disabled={busy !== null}>
           {busy === "sr" ? "Generando…" : stale("sr") ? "Regenerar DICOM SR" : "Generar DICOM SR"}
         </Button>
-        {sr?.dicom_sr_url && (
-          <OutputLink href={sr.dicom_sr_url} stale={stale("sr")}>
+        {srUrl && (
+          <OutputLink href={srUrl} stale={stale("sr")}>
             Descargar informe estructurado DICOM (.dcm) →
           </OutputLink>
         )}
@@ -295,7 +363,9 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         )}
         <Separator style={{ margin: "6px 0" }} />
         <Button variant="secondary" leadingIcon={<Icon name="SAVE" />} onClick={() => void save()} disabled={busy !== null}>
-          {busy === "save" ? "Guardando…" : "Guardar sesión"}
+          {/* Guarda Y sale del caso (llama a onFinish): «Guardar sesión»
+              prometía lo primero y hacía también lo segundo (F1-239). */}
+          {busy === "save" ? "Guardando…" : "Guardar y cerrar"}
         </Button>
       </div>
 
@@ -305,8 +375,12 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         <PrintPrepPanel />
       </div>
 
+      {/* F1-240: lo prometía siempre, también en una sesión sin caso, que se
+          guarda suelta y no queda ligada a ningún paciente. */}
       <div style={{ marginTop: 14, textAlign: "center", fontSize: 11, color: "var(--muted-foreground)" }}>
-        La sesión se vincula al paciente y estudio en la base de datos.
+        {caseId != null
+          ? "La sesión se vincula al paciente y estudio en la base de datos."
+          : "Sin caso, la sesión se guarda suelta: con «Adjuntar a un caso» queda ligada al paciente"}
       </div>
     </div>
   );

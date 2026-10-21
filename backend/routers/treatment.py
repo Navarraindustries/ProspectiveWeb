@@ -1,20 +1,148 @@
 """Treatment decision router — CLIP vs ENDOVASCULAR."""
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 import json
 
-from models import TreatmentDecisionRequest, TreatmentDecisionResult, DecisionFactor
+from models import (DecisionFactor, TeamDecision, TeamDecisionRequest,
+                    TreatmentDecisionRequest, TreatmentDecisionResult)
 from services.audit import ACT_TREATMENT_DECISION, audit_append
+from services.access import require_session
 from services.auth_service import get_current_user
+from services.database import get_db
 from services.db_models import User
 from services.treatment import compute_decision
 from services.sessions  import read_state, write_state, session_exists
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["treatment"])
+
+#: La respuesta del motor tal cual (la devuelve GET y vuelve al reanudar).
+RESULT_KEY = "treatment.result_json"
+#: Las entradas clínicas con que se pidió.
+INPUTS_KEY = "clinical.decision_inputs_json"
+
+
+#: F1-176: la decisión del equipo. Claves propias y fuera de RESULT_KEY porque
+#: no sale del motor: re-evaluar, cambiar la localización o re-medir tiran la
+#: recomendación, y nada de eso dice nada de lo que el equipo decidió.
+TEAM_KEYS = ("treatment.team_decision", "treatment.decided_by", "treatment.team_other")
+
+
+def stored_team(session_id: str) -> TeamDecision | None:
+    """La decisión del equipo guardada, o None si no se ha registrado."""
+    key = read_state(session_id, "treatment.team_decision", "")
+    if key not in ("clipaje", "endovascular", "vigilar", "otra"):
+        return None
+    return TeamDecision(team_decision=key,
+                        decided_by=read_state(session_id, "treatment.decided_by", ""),
+                        other_text=read_state(session_id, "treatment.team_other", ""))
+
+
+def stored_decision(session_id: str) -> TreatmentDecisionResult | None:
+    """La última recomendación guardada en la sesión, o None si no la hay.
+
+    Lleva la decisión del equipo (`team`) leída aparte, así que reanudar la
+    devuelve sin más (routers/session_state.py usa esta función)."""
+    raw = read_state(session_id, RESULT_KEY, "")
+    if raw:
+        try:
+            result = TreatmentDecisionResult.model_validate_json(raw)
+        except ValueError:
+            logger.warning("Decisión guardada ilegible en %s", session_id)
+            return None
+    else:
+        # F1b-1: un guardado anterior a F1-27 no tiene el blob, pero sí las
+        # claves sueltas que escribe `decide` (las que lee el informe). Con
+        # ellas se rehace la decisión y se guarda el blob para la próxima vez;
+        # sin ellas, no hubo decisión.
+        result = _decision_from_split_keys(session_id)
+        if result is None:
+            return None
+    # Los textos de una decisión guardada antes de F1-225/F1-227 se leen con
+    # los vigentes: reanudar y GET /treatment-decision no enseñan «Ya no vota…».
+    from services.treatment import modern_factor_name, modern_factor_source
+    for f in result.factors:
+        f.name = modern_factor_name(f.name)
+        f.source = modern_factor_source(f.source)
+    result.clip_factors = [modern_factor_name(n) for n in result.clip_factors]
+    result.endo_factors = [modern_factor_name(n) for n in result.endo_factors]
+    if not raw:
+        # El blob rehecho se guarda ya con los textos vigentes (sin `team`,
+        # que va aparte, igual que en `decide`).
+        write_state(session_id, RESULT_KEY, result.model_dump_json())
+    result.team = stored_team(session_id)
+    return result
+
+
+def _decision_from_split_keys(session_id: str) -> TreatmentDecisionResult | None:
+    """Rehace la decisión desde `treatment.recommendation`, `factors_json`,
+    `notes_json`, `endovascular_json`, `perforators_json` y `jsdb_json`.
+
+    Los factores viajan sin `detail` (nunca se guardó): queda vacío. La
+    cobertura y los datos que faltaban tampoco se guardaban: se asume el
+    100 % y ninguno, que es lo que esa pantalla enseñaba entonces."""
+    recommendation = read_state(session_id, "treatment.recommendation", "")
+    key = read_state(session_id, "treatment.recommendation_key", "")
+    confidence = read_state(session_id, "treatment.confidence", "")
+    if not (recommendation and key and confidence):
+        return None
+
+    def _json(k: str, default):
+        raw = read_state(session_id, k, "")
+        if not raw:
+            return default
+        try:
+            return json.loads(raw)
+        except ValueError:
+            logger.warning("Clave %s ilegible en %s", k, session_id)
+            return default
+
+    factors = [
+        {"name": f.get("name", ""), "detail": "", "direction": f.get("direction", "neutral"),
+         "source": f.get("source", ""), "votes": bool(f.get("votes", True))}
+        for f in _json("treatment.factors_json", []) if isinstance(f, dict)
+    ]
+    data = {
+        "recommendation": recommendation,
+        "recommendation_key": key,
+        "confidence": confidence,
+        "factors": factors,
+        "clip_factors": [f["name"] for f in factors if f["direction"] == "clip"],
+        "endo_factors": [f["name"] for f in factors if f["direction"] == "endo"],
+        "notes": [n for n in _json("treatment.notes_json", []) if isinstance(n, str)],
+        "endovascular": _json("treatment.endovascular_json", None) or None,
+        "perforators": _json("treatment.perforators_json", None) or None,
+        "jsdb": _json("treatment.jsdb_json", None) or None,
+    }
+    try:
+        return TreatmentDecisionResult.model_validate(data)
+    except ValueError as exc:
+        logger.warning("Decisión antigua irreconstruible en %s: %s", session_id, exc)
+        return None
+
+
+def stored_inputs(session_id: str) -> TreatmentDecisionRequest | None:
+    """Las entradas clínicas de la última decisión, con este session_id."""
+    raw = read_state(session_id, INPUTS_KEY, "")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        # La localización vigente es la elegida en Morfometría, que puede
+        # haber cambiado después de decidir.
+        site = read_state(session_id, "clinical.site", "")
+        if site:
+            data["location"] = site
+        return TreatmentDecisionRequest(session_id=session_id, **data)
+    except (ValueError, TypeError):
+        logger.warning("Entradas de la decisión ilegibles en %s", session_id)
+        return None
 
 
 def _load_float(session_id: str, key: str, default: float) -> float:
@@ -74,8 +202,13 @@ async def compute_treatment_decision(
         except (ValueError, TypeError):
             pass
 
+    # El saco que llegó al límite del recorte en Morfometría: el Ø con que se
+    # calculó el PHASES mide también vaso padre, y la nota que lo cita lo dice.
+    parent_in_sac = read_state(req.session_id, "morpho.sac_hit_crop", "0") == "1"
+
     result = compute_decision(
         phases=phases,
+        parent_in_sac=parent_in_sac,
         neck_mm=neck_mm,
         aspect_ratio=aspect_ratio,
         dnr=dnr,
@@ -94,6 +227,9 @@ async def compute_treatment_decision(
     write_state(req.session_id, "treatment.recommendation",     result["recommendation"])
     write_state(req.session_id, "treatment.recommendation_key", result["recommendation_key"])
     write_state(req.session_id, "treatment.confidence",         result["confidence"])
+    # Con qué localización se decidió: cambiarla en Morfometría solo invalida la
+    # decisión si es otra (routers/detect.py, set_clinical_site).
+    write_state(req.session_id, "treatment.location",           req.location)
     # El sumatorio ya no se guarda: no se enseña en pantalla ni se imprime, y
     # dejarlo en el estado era dejar la puerta abierta a que volviera por el
     # informe. El motor lo sigue calculando por dentro, que es de donde sale la
@@ -134,6 +270,15 @@ async def compute_treatment_decision(
     write_state(req.session_id, "clinical.has_comorbidities",
                 "1" if req.has_comorbidities else "0")
 
+    # La respuesta entera y lo que se pidió. Reanudar volvía sin decisión
+    # (F1-27): las claves de arriba son las que lee el informe, no bastan para
+    # rehacer la pantalla (faltan la cobertura, las notas, los factores con su
+    # fuente…), y sin decisión «Planificar dispositivos» quedaba apagado. Las
+    # entradas van en `clinical.*` porque son lo escrito a mano: cambiar la
+    # localización borra la decisión, no lo que la persona tecleó.
+    write_state(req.session_id, RESULT_KEY, TreatmentDecisionResult(**result).model_dump_json())
+    write_state(req.session_id, INPUTS_KEY, req.model_dump_json(exclude={"session_id"}))
+
     # La recomendación es lo que el informe imprime y lo que se lleva a la
     # sesión multidisciplinar: queda quién la pidió y con qué salió. La
     # constante existía y nadie la usaba.
@@ -144,7 +289,98 @@ async def compute_treatment_decision(
         "ruptured": bool(req.is_ruptured),
     }, username=current_user.username if current_user else "")
 
-    return TreatmentDecisionResult(**result)
+    out = TreatmentDecisionResult(**result)
+    out.team = stored_team(req.session_id)
+    return out
+
+
+# ── PUT/GET /treatment-decision/{session_id}/team ─────────────────────────── #
+
+@router.put(
+    "/treatment-decision/{session_id}/team",
+    response_model=TeamDecision,
+    summary="Record the team's decision",
+    description=(
+        "What the team decided (clipaje, endovascular, vigilar u otra) and who "
+        "decided it, kept apart from the engine's recommendation: the report "
+        "prints it first, under «Plan elegido». It survives re-evaluating or "
+        "changing the location; only clearing the decision step removes it. "
+        "`team_decision: null` removes it."
+    ),
+)
+async def set_team_decision(
+    session_id: str,
+    req: TeamDecisionRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> TeamDecision:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    require_session(db, current_user, session_id)
+    if req.team_decision is None:
+        for key in TEAM_KEYS:
+            write_state(session_id, key, "")
+    else:
+        write_state(session_id, "treatment.team_decision", req.team_decision)
+        write_state(session_id, "treatment.decided_by", req.decided_by.strip())
+        write_state(session_id, "treatment.team_other",
+                    req.other_text.strip() if req.team_decision == "otra" else "")
+    team = stored_team(session_id) or TeamDecision()
+    # Es lo que se lleva a la historia: queda quién la registró y qué puso.
+    audit_append(ACT_TREATMENT_DECISION, {
+        "session_id": session_id, "team": team.model_dump(),
+    }, username=current_user.username if current_user else "")
+    return team
+
+
+@router.get(
+    "/treatment-decision/{session_id}/team",
+    response_model=TeamDecision,
+    summary="The team's recorded decision",
+    description=(
+        "The team's decision on its own, also when no recommendation was "
+        "computed (the team can decide without the engine). "
+        "`team_decision` is null when none was recorded."
+    ),
+)
+async def get_team_decision(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> TeamDecision:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    require_session(db, current_user, session_id)
+    return stored_team(session_id) or TeamDecision()
+
+
+# ── GET /treatment-decision/{session_id} ──────────────────────────────────── #
+
+@router.get(
+    "/treatment-decision/{session_id}",
+    response_model=TreatmentDecisionResult,
+    summary="The stored CLIP vs ENDOVASCULAR recommendation",
+    description=(
+        "Returns the last recommendation computed in this session, exactly as "
+        "POST /treatment-decision returned it, without recomputing. 404 when "
+        "none was computed (or it was cleared). A resumed session needs it: "
+        "without it the decision step came back empty and device planning "
+        "stayed disabled."
+    ),
+)
+async def get_treatment_decision(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> TreatmentDecisionResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
+    require_session(db, current_user, session_id)
+    stored = stored_decision(session_id)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="Esta sesión no tiene una decisión guardada.")
+    return stored
 
 
 # ── DELETE /treatment-decision/{session_id} ───────────────────────────────── #
@@ -162,19 +398,40 @@ TREATMENT_STATE_KEYS = (
     "treatment.clip_points", "treatment.endo_points",
     "treatment.factors_json", "treatment.notes_json",
     "treatment.endovascular_json", "treatment.perforators_json",
-    "treatment.jsdb_json",
+    "treatment.jsdb_json", "treatment.location", RESULT_KEY,
     "clinical.patient_age", "clinical.has_comorbidities",
     "clinical.wfns_grade", "clinical.fisher_grade", "clinical.prior_stroke",
+    INPUTS_KEY,
 )
 
 #: The PHASES score is a rupture risk built on the same morphometry, so it goes
 #: whenever the decision does.
 PHASES_STATE_KEYS = ("phases.json",)
 
+#: Las entradas que una puntuación aparta cuando la localización elegida no
+#: tiene categoría en su escala (PUT /morphometry/{sid}/site). Si se quedaban al
+#: limpiar, un cambio de localización posterior las recuperaba y resucitaba una
+#: puntuación que se había borrado a propósito.
+PENDING_INPUT_KEYS = ("phases.pending_inputs", "elapss.pending_inputs",
+                      "uiats.pending_inputs")
+
+
+def clear_decision_only(session_id: str) -> None:
+    """La recomendación y nada más: ni el contexto clínico escrito a mano
+    (`clinical.*`) ni las puntuaciones. Lo usa el cambio de localización, que
+    deja la decisión de otro sitio pero no toca la edad ni el WFNS."""
+    for key in TREATMENT_STATE_KEYS:
+        if key.startswith("treatment."):
+            write_state(session_id, key, "")
+
 
 def clear_treatment_state(session_id: str) -> None:
-    """Forget the recommendation, its clinical context and the PHASES score."""
-    for key in (*TREATMENT_STATE_KEYS, *PHASES_STATE_KEYS):
+    """Forget the recommendation, its clinical context and the PHASES score.
+
+    Never the team's decision (TEAM_KEYS): it is typed by hand, and losing it
+    without anyone asking is what the F1 audit blocks. It goes only when the
+    team chooses «Sin registrar» in its own card (PUT …/team with null)."""
+    for key in (*TREATMENT_STATE_KEYS, *PHASES_STATE_KEYS, *PENDING_INPUT_KEYS):
         write_state(session_id, key, "")
 
 
@@ -186,11 +443,18 @@ def clear_treatment_state(session_id: str) -> None:
         "recorded alongside it and the PHASES score, so none of them reach the "
         "PDF or the DICOM SR.\n\n"
         "Called on its own from the decision step, and automatically whenever the "
-        "morphometry underneath is discarded. Idempotent."
+        "morphometry underneath is discarded. Idempotent. The team's decision "
+        "(PUT …/team) is kept: it is removed only from its own card."
     ),
 )
-async def clear_treatment(session_id: str) -> dict:
+async def clear_treatment(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> dict:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Borra trabajo de una sesión ligada a un paciente: solo quien lo ve.
+    require_session(db, current_user, session_id)
     clear_treatment_state(session_id)
     return {"status": "cleared"}

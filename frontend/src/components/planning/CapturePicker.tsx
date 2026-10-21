@@ -14,6 +14,7 @@ import { api } from "../../api/client";
 import { isRecording, type CaptureOut } from "../../api/types";
 import { SectionLabel } from "../PanelHead";
 import { STEPS } from "../../pipeline/steps";
+import { fecha } from "../../lib/fecha";
 
 export function CapturePicker({
   imagingStudyId, caseId, value, onChange,
@@ -72,6 +73,15 @@ export function CapturePicker({
 
   if (rows === null) return <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Cargando capturas…</div>;
   if (rows.length === 0) {
+    // Sin caso ni estudio no es «un caso vacío»: no hay a dónde guardar, y decirlo
+    // evita buscar capturas que no pueden existir.
+    if (caseId == null && imagingStudyId == null) {
+      return (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+          Adjunta la sesión a un caso para guardar capturas
+        </div>
+      );
+    }
     return (
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
         No hay capturas guardadas en este caso. Se hacen con el botón «Captura» del visor,
@@ -116,7 +126,7 @@ export function CapturePicker({
                   {c.label}
                 </span>
                 <span style={{ display: "block", fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
-                  {STEPS.find((p) => p.key === c.step)?.label ?? c.step} · {new Date(c.created_at).toLocaleDateString()}
+                  {STEPS.find((p) => p.key === c.step)?.label ?? c.step} · {fecha(c.created_at)}
                 </span>
               </span>
             </label>

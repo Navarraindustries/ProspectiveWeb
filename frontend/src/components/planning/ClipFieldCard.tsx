@@ -1,0 +1,118 @@
+/* La tarjeta de idoneidad del clip: lo que el mapa de calor pinta, dicho en
+   cifras. Cuánto del cuello cierran las hojas, qué fuerza tiene cada clip frente
+   a la ventana de fuerza de ese cuello, y de dónde sale esa fuerza.
+
+   La fuerza se da en gramos y el área pinzada aparte. La «presión» en g/mm²
+   dividía fuerza y ventana por la misma área: el veredicto no podía moverse con
+   la pose mientras la cifra saltaba un orden de magnitud, y un número con
+   unidades físicas invita a compararlo con presiones de la literatura que no
+   mide. Sigue en la API y en el .vtp para la fase mecánica. */
+
+import type { ClipFieldSummary, ClipForceVerdict } from "../../api/types";
+import { forceValue, isProvisionalVerdict, neckPct } from "../../vtk/clipFieldLegend";
+import { Badge } from "../Badge";
+import { Metric } from "../Metric";
+import { Card, SectionLabel } from "../PanelHead";
+import { CriterionChip } from "./ClipSelection";
+
+type BadgeVariant = "success" | "warning" | "destructive";
+
+const FORCE_BADGE: Record<ClipForceVerdict, [string, BadgeVariant]> = {
+  optima: ["Óptima", "success"],
+  aceptable: ["Aceptable", "warning"],
+  insuficiente: ["Insuficiente", "destructive"],
+  exceso: ["Exceso", "destructive"],
+  sin_contacto: ["Sin contacto", "destructive"],
+  // Sin ficha no hay fuerza que juzgar: se dice, en vez de pintar un veredicto
+  // sobre un número que no existe.
+  sin_fuerza: ["Sin fuerza de catálogo", "warning"],
+};
+
+const g0 = (n: number) => `${n.toFixed(0)} g`;
+
+/** El distintivo de la fuerza: la regla es la de la leyenda del visor
+ *  (`isProvisionalVerdict`), para que las dos no puedan decir cosas distintas. */
+export function forceBadge(verdict: ClipForceVerdict, provisional: boolean): [string, BadgeVariant] {
+  return isProvisionalVerdict(verdict, provisional) ? ["Provisional", "warning"] : FORCE_BADGE[verdict];
+}
+
+export function ClipFieldCard({
+  summary, show, onToggle, stale = false,
+}: {
+  summary: ClipFieldSummary;
+  show: boolean;
+  onToggle: (v: boolean) => void;
+  /** El clip se ha movido desde el plan con el que se calcularon estas cifras:
+   *  siguen siendo las de la pose anterior hasta que llegue el plan nuevo. */
+  stale?: boolean;
+}) {
+  const s = summary;
+  const [accLo, optLo, optHi, accHi] = s.force_window_g;
+  const sinFuerza = s.pressure_verdict === "sin_fuerza";
+  // La frase de la fuerza viene del backend (`navarro.force_statement`), la
+  // misma que imprime el dossier; sin ella, la explicación de siempre.
+  const matiz = s.force_statement || [
+    s.force_is_band_min && "fuerza mínima de la banda",
+    s.force_provisional && "provisional",
+  ].filter(Boolean).join(", ");
+
+  return (
+    <Card style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <SectionLabel style={{ flex: 1 }}>Mapa de calor del clip</SectionLabel>
+        {/* Mientras se arrastra el clip las cifras son de la pose de antes: que
+            se lea, en vez de dejar creer que describen lo que se ve. */}
+        {stale && (
+          <span title="El clip se ha movido; el mapa se recalcula al soltar" style={{ display: "inline-flex" }}>
+            <Badge variant="warning">DESFASADO</Badge>
+          </span>
+        )}
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+          <input type="checkbox" aria-label="Mapa de calor" checked={show} onChange={(e) => onToggle(e.target.checked)} />
+          Mostrar en el visor
+        </label>
+      </div>
+
+      {/* El valor y su unidad en un solo texto: así se lee (y se busca) «92.0 %».
+          Sin cuello a la altura de las hojas los tres son «—», no 0/0/0. */}
+      <Metric label="Cuello cubierto" value={neckPct(s, s.covered_pct, 1)} />
+      <Metric label="Cuello residual" value={neckPct(s, s.residual_pct, 1)} />
+      <Metric label="Cuello no alcanzado" value={neckPct(s, s.unreached_pct, 1)} />
+      <Metric wrapLabel label="Fuerza de cierre" value={forceValue(s)} badge={forceBadge(s.pressure_verdict, s.force_provisional)} />
+      {/* La ventana en gramos sirve incluso sin ficha: quien conozca la fuerza de
+          su clip importado puede compararla. */}
+      <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
+        Ventana del cuello: óptima {optLo.toFixed(0)}–{g0(optHi)} · aceptable {accLo.toFixed(0)}–{g0(accHi)}
+      </div>
+      {s.clips.length > 1 && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+          {s.clips.map((c, i) => (
+            <div key={i}>{c.name}: {c.force_g > 0 ? g0(c.force_g) : "—"} · {forceBadge(c.verdict, s.force_provisional)[0]}</div>
+          ))}
+        </div>
+      )}
+      {!sinFuerza && matiz && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+          {matiz.charAt(0).toUpperCase() + matiz.slice(1)}
+        </div>
+      )}
+      <div title="Incluye la pared de vaso que queda entre las hojas, dentro de su banda de profundidad: es una cota amplia, no el contacto real hoja-tejido.">
+        <Metric
+          wrapLabel
+          label="Área pinzada estimada"
+          value={s.contact_area_mm2 > 0 ? `${s.contact_area_mm2.toFixed(1)} mm²` : "—"}
+        />
+      </div>
+
+      {s.criteria.length > 0 && (
+        <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--border)" }}>
+          {s.criteria.map((c) => <CriterionChip key={c.key} c={c} />)}
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
+        {s.note}
+      </div>
+    </Card>
+  );
+}

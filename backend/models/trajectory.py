@@ -68,6 +68,16 @@ class TrajectoryResult(BaseModel):
             "ella no hay contra qué cruzar la trayectoria."
         ),
     )
+    stale: bool = Field(
+        False,
+        description=(
+            "True cuando hay malla pero el análisis guardado ya no vale: la malla "
+            "cambió después de guardar la trayectoria (resegmentar, recortar, "
+            "borrar) o la sesión se guardó antes de que se guardara el análisis. "
+            "Los puntos siguen; hay que volver a guardar la trayectoria para "
+            "medir el corredor sobre la malla de ahora."
+        ),
+    )
 
 
 class SuggestCorridorsRequest(BaseModel):

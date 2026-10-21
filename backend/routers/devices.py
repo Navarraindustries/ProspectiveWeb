@@ -12,14 +12,46 @@ from __future__ import annotations
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
 
-from models.plan import DeviceClearResult
-from services.device_state import DEVICE_KINDS, clear_device, read_clips, read_coils, read_stent
-from services.sessions import mesh_url, session_exists, session_subdir
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from services.access import require_session
+from services.auth_service import get_current_user
+from services.database import get_db
+from services.db_models import User
+
+from models.clips import PlacedClipState, PlacedClipsState
+from models.plan import DeviceClearResult, DeviceStrategyState
+from services.device_state import (
+    DEVICE_KINDS, clear_device, read_clips, read_coils, read_placed_clips, read_stent,
+    save_placed_clips,
+)
+from services.sessions import (mesh_url, read_state, session_exists, session_subdir,
+                               write_state)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["devices"])
+
+
+#: F1-188: la estrategia marcada como la del equipo. No la borra «Limpiar»:
+#: limpiar es probar otra colocación, no cambiar de estrategia.
+STRATEGY_KEY = "devices.strategy"
+_STRATEGIES = ("clips", "coils", "stent", "stent_cl", "web")
+
+
+def stored_strategy(session_id: str) -> str | None:
+    value = read_state(session_id, STRATEGY_KEY, "")
+    return value if value in _STRATEGIES else None
+
+
+def _counts(session_id: str) -> dict[str, int]:
+    """Cuántos hay de cada familia. El stent es uno, recto o de línea central."""
+    stent = read_stent(session_id)
+    cl = stent.get("kind") == "centerline" if stent else False
+    return {"clips": len(read_clips(session_id)), "coils": len(read_coils(session_id)),
+            "stent": int(bool(stent) and not cl), "stent_cl": int(cl)}
 
 
 def _placed(session_id: str) -> list[str]:
@@ -47,6 +79,82 @@ def _mesh_urls(session_id: str, kinds: list[str]) -> dict[str, str]:
     return urls
 
 
+def _placed_clips_from_report(session_id: str) -> PlacedClipsState | None:
+    """La lista editable rehecha desde `devices.clips` (posición y giro; la
+    inclinación no se guardaba y queda a 0). None si no hay clips con sitio."""
+    clips: list[PlacedClipState] = []
+    for i, c in enumerate(read_clips(session_id)):
+        pos = c.get("position") if isinstance(c, dict) else None
+        if not (isinstance(pos, list) and len(pos) == 3
+                and all(isinstance(v, (int, float)) for v in pos)):
+            continue
+        ori = c.get("orientation") or [0.0, 0.0, 0.0]
+        clip_id = str(c.get("clip_id") or c.get("name") or "")
+        if not clip_id:
+            continue
+        clips.append(PlacedClipState(
+            key=i, clip_id=clip_id, name=str(c.get("name") or clip_id),
+            position=[float(v) for v in pos],
+            rotation_deg=float(ori[2]) if len(ori) > 2 else 0.0,
+        ))
+    return PlacedClipsState(clips=clips, plan=None) if clips else None
+
+
+def stored_placed_clips(session_id: str) -> PlacedClipsState | None:
+    """La lista editable de clips guardada, con la URL de la malla de ESTA sesión.
+
+    La verificación guardada lleva la URL de la sesión en la que se colocó;
+    tras reanudar, la sesión viva tiene otro id y el fichero se copió a ella.
+    """
+    raw = read_placed_clips(session_id)
+    if raw is None:
+        # F1b-5: un guardado con clips colocados antes de F1a trae lo que
+        # imprime el informe (`devices.clips`) pero no la lista editable, y
+        # reanudar decía «Todavía no hay ningún clip» con el clip en el PDF.
+        # La lista se rehace desde ahí, sin verificación: «Colocar y
+        # verificar» la vuelve a dar.
+        return _placed_clips_from_report(session_id)
+    try:
+        state = PlacedClipsState.model_validate(raw)
+    except ValueError:
+        logger.warning("Lista de clips guardada ilegible en %s", session_id)
+        return None
+    if state.plan is not None:
+        url = _mesh_urls(session_id, ["clips"]).get("clips")
+        if url is None:
+            # Sin malla de clips la verificación no describe nada en pantalla.
+            state.plan = None
+        else:
+            state.plan.clips_mesh_url = url
+    return state
+
+
+@router.put(
+    "/devices/{session_id}/placed-clips",
+    response_model=PlacedClipsState,
+    summary="Store the editable list of placed clips",
+    description=(
+        "Stores the clip list as the devices panel edits it (pose and tilt of "
+        "each clip) together with the verification of its last placement. The "
+        "panel sends it after each successful placement. GET /devices and a "
+        "session restore return it, so a resumed session gets editable clips "
+        "back instead of bare meshes."
+    ),
+)
+async def put_placed_clips(
+    session_id: str,
+    req: PlacedClipsState,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> PlacedClipsState:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
+    require_session(db, current_user, session_id)
+    save_placed_clips(session_id, req.model_dump(mode="json"))
+    return req
+
+
 @router.get(
     "/devices/{session_id}",
     response_model=DeviceClearResult,
@@ -64,7 +172,35 @@ async def list_placed_devices(session_id: str) -> DeviceClearResult:
     return DeviceClearResult(
         cleared=[], remaining=remaining, meshes_removed=0,
         mesh_urls=_mesh_urls(session_id, remaining),
+        placed_clips=stored_placed_clips(session_id),
+        strategy=stored_strategy(session_id),
+        placed_counts=_counts(session_id),
     )
+
+
+@router.put(
+    "/devices/{session_id}/strategy",
+    response_model=DeviceStrategyState,
+    summary="Mark a device family as the team's strategy",
+    description=(
+        "Marks which device family (clips, coils, stent, stent_cl, web) is the "
+        "strategy the team chose. GET /devices and a session restore return it, "
+        "and the report lists that family under «Plan elegido» and the others "
+        "as evaluated alternatives. `null` removes the mark. Clearing devices "
+        "does not touch it."
+    ),
+)
+async def put_device_strategy(
+    session_id: str,
+    req: DeviceStrategyState,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> DeviceStrategyState:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    require_session(db, current_user, session_id)
+    write_state(session_id, STRATEGY_KEY, req.strategy or "")
+    return DeviceStrategyState(strategy=stored_strategy(session_id))
 
 
 @router.delete(

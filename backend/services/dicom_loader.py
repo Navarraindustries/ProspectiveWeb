@@ -435,6 +435,34 @@ def _orientation_known(ref_file: Path) -> bool:
     return False
 
 
+def _first(read, *tags: str) -> str:
+    """El primer valor no vacío de *tags* (orden de preferencia)."""
+    for tag in tags:
+        v = read(tag)
+        if v:
+            return v
+    return ""
+
+
+def _iso_date(raw: str) -> str:
+    """DICOM DA «YYYYMMDD» → «YYYY-MM-DD»; vacío si no es una fecha.
+
+    F1-127: dos adquisiciones del mismo protocolo solo se distinguen por la
+    fecha y la hora; en crudo («20260714») nadie las lee de un vistazo."""
+    d = raw.strip().replace("-", "").replace(".", "")
+    if len(d) >= 8 and d[:8].isdigit():
+        return f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+    return ""
+
+
+def _iso_time(raw: str) -> str:
+    """DICOM TM «HHMMSS.frac» → «HH:MM»; vacío si no es una hora."""
+    t = raw.strip().replace(":", "")
+    if len(t) >= 4 and t[:4].isdigit():
+        return f"{t[:2]}:{t[2:4]}"
+    return ""
+
+
 def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
     """Read DICOM tags from *dcm_path* using pydicom.
 
@@ -449,6 +477,8 @@ def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
         study_date="",
         study_description="",
         series_description="",
+        acquisition_date="",
+        acquisition_time="",
         modality="CT",
         spacing_x=1.0,
         spacing_y=1.0,
@@ -549,6 +579,8 @@ def _extract_metadata(dcm_path: Path, n_slices: int) -> dict:
         study_date=         _str("StudyDate"),
         study_description=  _str("StudyDescription"),
         series_description= _str("SeriesDescription"),
+        acquisition_date=   _iso_date(_first(_str, "AcquisitionDate", "SeriesDate", "ContentDate", "StudyDate")),
+        acquisition_time=   _iso_time(_first(_str, "AcquisitionTime", "SeriesTime", "ContentTime")),
         modality=           _str("Modality", "CT"),
         spacing_x=          sx,
         spacing_y=          sy,

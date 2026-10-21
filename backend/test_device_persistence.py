@@ -168,9 +168,12 @@ class TestStentReachesTheReport:
 
         section = ReportGenerator(data)._section_stent()
         assert "línea central" in section[0].text
-        cells = [str(c) for row in section[1]._cellvalues for c in row]
+        # F1-233: la tabla va junta (KeepTogether) y cada valor lleva su
+        # referencia en la misma celda, debajo.
+        tabla = section[1]._content[0]
+        cells = [getattr(c, "text", str(c)) for row in tabla._cellvalues for c in row]
         assert any("Ø stent / Ø vaso" in c for c in cells)
-        assert "1.01" in cells              # ratio, not "101.0 %"
+        assert any(c.startswith("1.01<br/>") for c in cells)   # ratio, not "101.0 %"
         assert not any("Cobertura del cuello" in c for c in cells)
 
     def test_empty_session_has_no_stent(self):
@@ -209,3 +212,162 @@ class TestDicomSrCarriesDevices:
         assert "Pipeline Flex" in text
         assert "Clip Model" in text, "el SR no lleva los clips"
         assert "Coil Model" in text, "el SR no lleva los coils"
+
+
+class TestClipEditable:
+    """F1-28: reanudar devolvía los clips como malla y nada más. La lista que
+    edita el panel (pose e inclinación de cada clip) y su verificación se
+    guardan aparte y vuelven con GET /devices."""
+
+    _LISTA = [{"key": 3, "clip_id": "c1", "name": "Clip 1", "position": [1.0, 2.0, 3.0],
+               "rotation_deg": 20.0, "azimuthDeg": 15.0, "elevationDeg": -10.0}]
+
+    def test_la_lista_vuelve_y_limpiar_la_borra(self):
+        sid = _session_with_volume()
+        (session_subdir(sid, "meshes") / "clips_placed.vtp").write_text("x")
+        plan = {"clips_mesh_url": "/data/sessions/OTRA/meshes/clips_placed.vtp",
+                "neck_coverage_pct": 88.0}
+        r = client.put(f"/api/devices/{sid}/placed-clips", json={"clips": self._LISTA, "plan": plan})
+        assert r.status_code == 200, r.text
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert got["clips"] == self._LISTA
+        # La malla es la de esta sesión, no la de la que colocó.
+        assert got["plan"]["clips_mesh_url"].startswith(f"/data/sessions/{sid}/meshes/clips_placed.vtp")
+        client.delete(f"/api/devices/{sid}")
+        assert client.get(f"/api/devices/{sid}").json()["placed_clips"] is None
+
+    def test_sin_malla_de_clips_la_verificacion_no_vuelve(self):
+        sid = _session_with_volume()
+        client.put(f"/api/devices/{sid}/placed-clips", json={
+            "clips": self._LISTA,
+            "plan": {"clips_mesh_url": "x", "neck_coverage_pct": 88.0}})
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert got["clips"] == self._LISTA and got["plan"] is None
+
+
+class TestUnGuardadoAntiguoRecuperaSusClips:
+    """F1b-5: los guardados con clips colocados antes de F1a traen
+    `devices.clips` (lo que imprime el informe) pero no la lista editable.
+    Reanudar decía «Todavía no hay ningún clip en el plan» mientras el informe
+    listaba el clip. La lista se rehace desde `devices.clips`, sin
+    verificación: basta «Colocar y verificar» para tenerla."""
+
+    _INFORME = [{"index": 0, "clip_id": "navarro:t1:0:13.0", "name": "NAVARRO™ T1 Recto 13.0 mm",
+                 "position": [60.04, 64.02, 67.57], "orientation": [0.0, 0.0, 35.0],
+                 "is_custom": False},
+                {"index": 1, "clip_id": "c2", "name": "Clip 2",
+                 "position": [1.0, 2.0, 3.0], "orientation": [0.0, 0.0, 0.0]}]
+
+    def test_sin_lista_editable_se_rehace_desde_los_clips_del_informe(self):
+        sid = _session_with_volume()
+        save_clips(sid, self._INFORME)
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert got is not None, "el informe lista clips: la pestaña también"
+        assert got["plan"] is None, "sin verificación guardada: hay que volver a colocar"
+        assert [c["clip_id"] for c in got["clips"]] == ["navarro:t1:0:13.0", "c2"]
+        assert got["clips"][0]["name"] == "NAVARRO™ T1 Recto 13.0 mm"
+        assert got["clips"][0]["position"] == [60.04, 64.02, 67.57]
+        assert got["clips"][0]["rotation_deg"] == 35.0
+        assert len({c["key"] for c in got["clips"]}) == 2, "claves estables y distintas"
+
+    def test_la_lista_guardada_gana_a_la_del_informe(self):
+        sid = _session_with_volume()
+        save_clips(sid, self._INFORME)
+        lista = [{"key": 7, "clip_id": "c9", "name": "Clip 9", "position": [9.0, 9.0, 9.0],
+                  "rotation_deg": 0.0, "azimuthDeg": 0.0, "elevationDeg": 0.0}]
+        client.put(f"/api/devices/{sid}/placed-clips", json={"clips": lista, "plan": None})
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert [c["clip_id"] for c in got["clips"]] == ["c9"]
+
+    def test_un_clip_del_informe_sin_posicion_se_salta(self):
+        sid = _session_with_volume()
+        save_clips(sid, [{"index": 0, "clip_id": "c1", "name": "Clip 1"}, self._INFORME[1]])
+        got = client.get(f"/api/devices/{sid}").json()["placed_clips"]
+        assert [c["clip_id"] for c in got["clips"]] == ["c2"]
+
+    def test_sin_nada_sigue_sin_lista(self):
+        sid = _session_with_volume()
+        assert client.get(f"/api/devices/{sid}").json()["placed_clips"] is None
+
+
+class TestLaEstrategiaDelEquipo:
+    """F1-188: «En el plan (n)» listaba lo colocado, pero nada decía cuál de
+    esas familias era la estrategia elegida. El informe las daba todas como
+    planificadas."""
+
+    def test_la_estrategia_elegida_se_guarda_y_vuelve_en_get(self):
+        sid = create_session()
+        assert client.get(f"/api/devices/{sid}").json()["strategy"] is None
+        r = client.put(f"/api/devices/{sid}/strategy", json={"strategy": "coils"})
+        assert r.status_code == 200, r.text
+        assert r.json() == {"strategy": "coils"}
+        assert client.get(f"/api/devices/{sid}").json()["strategy"] == "coils"
+        assert build_report_data_from_session(sid).device_strategy == "coils"
+
+    def test_null_la_quita_y_un_valor_fuera_de_la_lista_es_422(self):
+        sid = create_session()
+        client.put(f"/api/devices/{sid}/strategy", json={"strategy": "web"})
+        assert client.put(f"/api/devices/{sid}/strategy", json={"strategy": None}).json() == {"strategy": None}
+        assert client.get(f"/api/devices/{sid}").json()["strategy"] is None
+        assert client.put(f"/api/devices/{sid}/strategy", json={"strategy": "balon"}).status_code == 422
+        assert client.put("/api/devices/no-existe/strategy", json={"strategy": "clips"}).status_code == 404
+
+    def test_limpiar_los_dispositivos_no_borra_la_estrategia(self):
+        # La estrategia es del equipo; limpiar es probar otra colocación.
+        sid = create_session()
+        client.put(f"/api/devices/{sid}/strategy", json={"strategy": "clips"})
+        client.delete(f"/api/devices/{sid}")
+        assert client.get(f"/api/devices/{sid}").json()["strategy"] == "clips"
+
+    def test_get_cuenta_lo_colocado_por_familia(self):
+        # F1-220: el resumen del informe dice «Clips · 2 en el plan».
+        from services.device_state import save_coils, save_stent
+        sid = create_session()
+        save_coils(sid, [{"name": "a"}, {"name": "b"}])
+        save_stent(sid, {"name": "Pipeline", "kind": "centerline"})
+        counts = client.get(f"/api/devices/{sid}").json()["placed_counts"]
+        assert counts == {"clips": 0, "coils": 2, "stent": 0, "stent_cl": 1}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Otro profesional (ola final F1a): la sesión de un paciente ajeno es 403.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _dos_medicos_y_sesion_de_a():
+    """Dos médicos y una sesión ligada a un paciente creado por el primero.
+
+    Mismo patrón que `test_team_decision.py::TestOtroProfesional`: con solo el
+    login global, cualquiera que supiera la UUID tocaba la sesión de otro.
+    """
+    import uuid
+
+    from conftest import anonymous_client
+    from services.auth_service import create_access_token, get_password_hash
+    from services.database import Base, SessionLocal, engine
+    from services.db_models import Patient, PlanningSession, User
+
+    Base.metadata.create_all(bind=engine)
+    clientes = []
+    db = SessionLocal()
+    for _ in range(2):
+        nombre = f"med-{uuid.uuid4().hex[:8]}"
+        u = User(username=nombre, hashed_password=get_password_hash("x" * 12), role="medico",
+                 full_name=nombre)
+        db.add(u); db.commit()
+        c = anonymous_client(app)
+        c.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
+        clientes.append((u.id, c))
+    p = Patient(surname="DeA", hospital_id=f"HC-{uuid.uuid4().hex[:6]}", created_by=clientes[0][0])
+    db.add(p); db.commit()
+    return db, p.id, clientes[0][1], clientes[1][1]
+
+
+class TestOtroProfesional:
+    def test_no_marca_la_estrategia_de_otro(self):
+        from services.db_models import PlanningSession
+        db, pid, a, b = _dos_medicos_y_sesion_de_a()
+        sid = create_session()
+        db.add(PlanningSession(session_id=sid, patient_id=pid)); db.commit(); db.close()
+        assert b.put(f"/api/devices/{sid}/strategy", json={"strategy": "coils"}).status_code == 403
+        r = a.put(f"/api/devices/{sid}/strategy", json={"strategy": "coils"})
+        assert r.status_code == 200 and r.json() == {"strategy": "coils"}

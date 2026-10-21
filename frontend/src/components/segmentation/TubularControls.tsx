@@ -1,7 +1,20 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Slider } from "../Slider";
 
 export type SegmentMethod = "tubular" | "threshold";
+
+/** El techo del umbral (deslizador, casilla y su ayuda) solo con el umbral
+ *  clásico. F1-132, decisión 17: en tubular el backend ignora `upper`, y el
+ *  panel enseñaba el deslizador apagado, la casilla apagada y dos párrafos
+ *  explicando que no mandaban. Ahora queda una sola línea en su sitio. */
+export function CeilingControls({ method, children }: { method: SegmentMethod; children: ReactNode }) {
+  if (method !== "tubular") return <>{children}</>;
+  return (
+    <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+      Sin techo en el método tubular
+    </div>
+  );
+}
 
 /** Qué método segmenta, y cuánta pared y saco se recupera alrededor del tubo. */
 export function TubularControls({ method, reclaimMm, onMethod, onReclaim }: {
@@ -29,11 +42,6 @@ export function TubularControls({ method, reclaimMm, onMethod, onReclaim }: {
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -2, lineHeight: 1.45 }}>
             El filtro de tubularidad adelgaza la pared y no ve los sacos, que no son tubos. Este radio devuelve
             lo que queda a esa distancia del vaso; el hueso en forma de lámina no vuelve.
-          </div>
-          {/* El backend ignora `upper` en este método: sin decirlo, el
-              deslizador del techo parece que manda y no manda. */}
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
-            El método tubular no usa el techo; el hueso se descarta por forma.
           </div>
         </div>
       )}

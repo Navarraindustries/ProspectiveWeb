@@ -153,3 +153,32 @@ class TestCrossSection:
     def test_missing_session(self):
         r = client.post("/api/cross-section/nope", json={"session_id": "x", "n_samples": 30})
         assert r.status_code == 404
+
+
+class TestGradeStenosis:
+    """F1-169: los saltos de rama no se gradúan como estenosis."""
+
+    def test_perfil_con_salto_de_rama_no_da_significativa(self):
+        from services.cross_section import grade_stenosis
+        # Un escalón: el vaso pasa de 10 mm² a 3 mm² tras una bifurcación.
+        # min/mediana ≈ 0,46 → antes daba «Significativa» (54 %).
+        areas = np.array([10.0] * 10 + [3.0] * 10)
+        g = grade_stenosis(areas, float(areas.min() / np.median(areas)))
+        assert g.label != "Significativa"
+        assert g.label == "Perfil irregular"
+        assert g.warning is None
+        assert g.note == ("El perfil tiene saltos (ramas o artefactos): "
+                          "la estenosis no se gradúa")
+
+    def test_minimo_aislado_es_perfil_irregular(self):
+        from services.cross_section import grade_stenosis
+        areas = np.array([10.0, 10.2, 9.8, 10.1, 4.0, 10.0, 9.9, 10.1, 10.0])
+        g = grade_stenosis(areas, float(areas.min() / np.median(areas)))
+        assert g.label == "Perfil irregular"
+
+    def test_perfil_uniforme_sigue_graduando(self):
+        from services.cross_section import grade_stenosis
+        areas = np.array([10.0, 10.1, 9.9, 10.0, 9.7, 10.2, 10.0, 9.8])
+        g = grade_stenosis(areas, float(areas.min() / np.median(areas)))
+        assert g.label == "Sin estenosis"
+        assert g.note == ""

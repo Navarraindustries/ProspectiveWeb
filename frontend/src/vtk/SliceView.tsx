@@ -14,13 +14,21 @@ import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import { SlicingMode } from "@kitware/vtk.js/Rendering/Core/ImageMapper/Constants";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
-import type { VolumeMeta } from "../api/types";
+import type { AnnotationKind, VolumeMeta } from "../api/types";
 import { captureRenderWindow, type CaptureFn } from "./captureRenderWindow";
-import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane } from "./geometry";
+import { edgeLabels, screenAxes, sliceCamera, type Orientation, type Plane, type Vec3 } from "./geometry";
+import { mmToUv, uvToMm } from "./sliceCoords";
+import { closesRegion } from "./annotationDraft";
+import type { Box, Shape } from "./annotationOverlay";
+import { HudAnnotations } from "./hud/HudAnnotations";
+import { PLANE_CSS_VAR, referencePlanes } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
+import { applyStep, isNativeKeyTarget, stepFromKey } from "./cine";
 import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudReticle } from "./hud/HudReticle";
+import { unitFor } from "./modality";
+import { WL_TITLE, type WindowPreset } from "./windowPresets";
 
 const MODE: Record<Plane, SlicingMode> = { axial: SlicingMode.K, coronal: SlicingMode.J, sagital: SlicingMode.I };
 const LABEL: Record<Plane, string> = { axial: "AXIAL", coronal: "CORONAL", sagital: "SAGITAL" };
@@ -42,16 +50,43 @@ export interface SliceViewProps {
   crosshair: { u: number; v: number } | null;
   onPlaneClick: (u: number, v: number) => void;
   referenceLines?: { u: number | null; v: number | null } | null;
+  /** Traza del plano libre en este corte, en fracciones (u, v) del rectángulo
+   *  del corte; null si no se enseña o no lo corta. */
+  freeSegment?: [[number, number], [number, number]] | null;
   band?: [number, number] | null;
   orientation: Orientation;
-  levelNote?: string | null;
   active?: boolean;
   compact?: boolean;
   /** Publica la captura de este panel en PNG mientras su escena viva.
    *  Sin esto el panel no puede salir en una captura del visor: el lienzo
    *  de vtk.js se lee negro si no se pide la imagen del siguiente render. */
   registerCapture?: (fn: CaptureFn | null) => void;
+  /** Publica el reencuadre de esta celda (la tecla C) mientras su escena viva,
+   *  como `registerCapture`: el visor no ve la cámara de cada celda. */
+  registerFit?: (fn: (() => void) | null) => void;
+  /** true: hay un modo de anotación armado y el clic marca un punto en vez de
+   *  mover el crosshair. */
+  annotationMode?: boolean;
+  /** Tipo que se está marcando: la región se cierra aquí, que es donde se sabe
+   *  a cuántos px queda el primer punto. */
+  annotationKind?: AnnotationKind | null;
+  /** Borrador en mm del marco del volumen, para proyectarlo a px de la celda. */
+  annotationDraft?: Vec3[];
+  /** En modo anotación sustituye a onPlaneClick: el punto exacto en mm, sin
+   *  redondear a vóxel, y el clic en px de la celda. */
+  onPlaneClickMm?: (p: Vec3, px: { x: number; y: number }) => void;
+  onAnnotationKey?: (key: "Enter" | "Backspace" | "Escape") => void;
+  /** Formas de las anotaciones en este corte. Función y no lista: el
+   *  rectángulo de la imagen (`box`) solo lo conoce esta vista. */
+  annotationShapes?: (box: Box) => Shape[];
+  /** Doble clic en la lectura W/L: vuelve a la ventana del estudio. */
+  onWindowLevelReset?: () => void;
+  /** Preajustes de ventana; el selector solo se monta en la celda no compacta. */
+  presets?: WindowPreset[];
+  onPreset?: (preset: WindowPreset) => void;
 }
+
+const ANNOTATION_KEYS = new Set(["Enter", "Backspace", "Escape"]);
 
 interface Scene {
   grw: vtkGenericRenderWindow;
@@ -74,6 +109,8 @@ export function SliceView(p: SliceViewProps) {
   // Por ref: cambiar de destinatario no puede rehacer la escena.
   const registerCaptureRef = useRef(p.registerCapture);
   registerCaptureRef.current = p.registerCapture;
+  const registerFitRef = useRef(p.registerFit);
+  registerFitRef.current = p.registerFit;
   // Rectángulo de la imagen en px del contenedor, para retícula y clics.
   const [box, setBox] = useState<{ left: number; top: number; w: number; h: number; mmPerPx: number } | null>(null);
   const count = planeCount(p.meta, p.plane);
@@ -178,8 +215,19 @@ export function SliceView(p: SliceViewProps) {
     measure();
     rw.render();
     registerCaptureRef.current?.(captureRenderWindow(grw, () => rw.render()));
+    // C: el mismo encuadre que al montar sin cámara guardada (foco en el centro
+    // del volumen y el corte entero), que deshace desplazamiento y zoom.
+    registerFitRef.current?.(() => {
+      cam.setFocalPoint(c[0], c[1], c[2]);
+      cam.setPosition(c[0] - direction[0] * 1000, c[1] - direction[1] * 1000, c[2] - direction[2] * 1000);
+      cam.setViewUp(viewUp[0], viewUp[1], viewUp[2]);
+      fit();
+      renderer.resetCameraClippingRange();
+      measure(); rw.render();
+    });
     return () => {
       registerCaptureRef.current?.(null);
+      registerFitRef.current?.(null);
       ro.disconnect();
       savedCam.current = { plane: p.plane, focal: cam.getFocalPoint(), position: cam.getPosition(), scale: cam.getParallelScale() };
       scene.current = null;
@@ -291,29 +339,66 @@ export function SliceView(p: SliceViewProps) {
     const k = span / 400;   // arrastrar 400 px recorre todo el rango
     p.onWindowLevel(d.wc - dy * k, Math.max(1, d.ww + dx * k));
   };
+  const annotating = !!p.annotationMode && !!p.onPlaneClickMm;
+  const isRegion = annotating && p.annotationKind === "region";
+  const annotationClick = (e: React.MouseEvent, f: { u: number; v: number }) => {
+    const r = containerRef.current!.getBoundingClientRect();
+    const px = { x: e.clientX - r.left, y: e.clientY - r.top };
+    if (isRegion && box) {
+      const draftPx = (p.annotationDraft ?? []).map((m) => {
+        const uv = mmToUv(p.plane, m, p.meta);
+        return { x: box.left + uv.u * box.w, y: box.top + uv.v * box.h };
+      });
+      if (closesRegion(draftPx, px)) { p.onAnnotationKey?.("Enter"); return; }
+      // WHY: el segundo clic de un doble clic (o un temblor) cae sobre el último
+      // punto; añadirlo dejaría un vértice repetido en el contorno.
+      const last = draftPx[draftPx.length - 1];
+      if (last && Math.hypot(px.x - last.x, px.y - last.y) <= 8) return;
+    }
+    p.onPlaneClickMm!(uvToMm(p.plane, p.index, f.u, f.v, p.meta), px);
+  };
   const onMouseUp = (e: React.MouseEvent) => {
     const d = drag.current; drag.current = null;
-    if (d && !d.moved) { const f = frac(e); if (f) p.onPlaneClick(f.u, f.v); }
+    // Soltar sobre la lectura W/L o el selector acaba el arrastre pero no es
+    // un clic en la imagen: ni crosshair ni punto de anotación.
+    if ((e.target as Element).closest(".hud-wl, .hud-wl-presets")) return;
+    if (!d || d.moved) return;
+    const f = frac(e); if (!f) return;
+    if (annotating) annotationClick(e, f);
+    else p.onPlaneClick(f.u, f.v);
+  };
+  // WHY: marcando, un doble clic (o dos clics rápidos de una regla) no puede
+  // llegar a la rejilla, que maximizaría la celda a mitad de la anotación.
+  const onDoubleClick = (e: React.MouseEvent) => {
+    if (!annotating) return;
+    e.stopPropagation();
+    if (isRegion) p.onAnnotationKey?.("Enter");
   };
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowUp" || e.key === "ArrowRight") { e.preventDefault(); p.onIndexChange(Math.min(count - 1, p.index + 1)); }
-    if (e.key === "ArrowDown" || e.key === "ArrowLeft") { e.preventDefault(); p.onIndexChange(Math.max(0, p.index - 1)); }
-    if (e.key === "Home") p.onIndexChange(0);
-    if (e.key === "End") p.onIndexChange(count - 1);
+    if (isNativeKeyTarget(e.target)) return;
+    if (annotating && ANNOTATION_KEYS.has(e.key)) {
+      e.preventDefault();
+      p.onAnnotationKey?.(e.key as "Enter" | "Backspace" | "Escape");
+      return;
+    }
+    const step = stepFromKey(e.key); if (step === null) return;
+    e.preventDefault();
+    p.onIndexChange(applyStep(p.index, step, count));
   };
 
   const labels = edgeLabels(p.plane, p.orientation);
   const fs = p.compact ? 9.5 : 10.5;
+  const unit = unitFor(p.meta.modality);
   return (
     <div
       ref={containerRef}
       tabIndex={0}
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
-      onMouseLeave={() => { drag.current = null; }} onKeyDown={onKey}
+      onMouseLeave={() => { drag.current = null; }} onKeyDown={onKey} onDoubleClick={onDoubleClick}
       style={{ position: "relative", width: "100%", height: "100%", background: "#000", overflow: "hidden", cursor: "crosshair", outline: "none" }}
-      title="Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · Clic: centrar"
+      title={"Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · " + (annotating ? "Clic: punto" : "Clic: centrar")}
     >
-      <HudFrame active={p.active} label={LABEL[p.plane]}>
+      <HudFrame active={p.active} label={LABEL[p.plane]} labelPlane={p.plane}>
         <span className="hud-edge top">{labels.top}</span>
         <span className="hud-edge bottom">{labels.bottom}</span>
         <span className="hud-edge left">{labels.left}</span>
@@ -322,19 +407,58 @@ export function SliceView(p: SliceViewProps) {
           <HudReticle cx={box.left + p.crosshair.u * box.w} cy={box.top + p.crosshair.v * box.h} mmPerPx={box.mmPerPx} />
         )}
         {box && p.referenceLines?.u != null && (
-          <div className="hud-decor" style={{ position: "absolute", left: box.left + p.referenceLines.u * box.w, top: box.top, width: 1, height: box.h, background: "var(--hud-amber)", opacity: 0.5 }} />
+          <div className="hud-decor" data-plane={referencePlanes(p.plane).u} style={{ position: "absolute", left: box.left + p.referenceLines.u * box.w, top: box.top, width: 1, height: box.h, background: PLANE_CSS_VAR[referencePlanes(p.plane).u], opacity: 0.7 }} />
         )}
         {box && p.referenceLines?.v != null && (
-          <div className="hud-decor" style={{ position: "absolute", top: box.top + p.referenceLines.v * box.h, left: box.left, height: 1, width: box.w, background: "var(--hud-amber)", opacity: 0.5 }} />
+          <div className="hud-decor" data-plane={referencePlanes(p.plane).v} style={{ position: "absolute", top: box.top + p.referenceLines.v * box.h, left: box.left, height: 1, width: box.w, background: PLANE_CSS_VAR[referencePlanes(p.plane).v], opacity: 0.7 }} />
         )}
-        <HudLadder count={count} index={p.index} />
+        {box && p.freeSegment && (
+          // Oblicua: no cabe en un div de 1 px como las de referencia, así que va en SVG.
+          <svg className="hud-decor" data-plane="libre" width={box.w} height={box.h}
+            style={{ position: "absolute", left: box.left, top: box.top, pointerEvents: "none", overflow: "visible" }}>
+            <line x1={p.freeSegment[0][0] * box.w} y1={p.freeSegment[0][1] * box.h}
+              x2={p.freeSegment[1][0] * box.w} y2={p.freeSegment[1][1] * box.h}
+              stroke={PLANE_CSS_VAR.libre} strokeWidth={1} strokeOpacity={0.85} />
+          </svg>
+        )}
+        {box && p.annotationShapes && <HudAnnotations shapes={p.annotationShapes(box)} />}
+        <HudLadder count={count} index={p.index} onIndexChange={p.onIndexChange} />
         <HudReadout at="bl" lines={[`${String(p.index + 1).padStart(3, " ")}/${count}`]} />
-        {/* En la celda estrecha de la franja solo cabe el índice: W/L y la
-            barra de 10 mm se pisaban con él. Se leen al maximizar la celda. */}
-        {!p.compact && <HudReadout at="br" lines={[`W ${Math.round(p.ww)}  L ${Math.round(p.wc)}`]} />}
-        {p.levelNote && <HudReadout at="tr" lines={[p.levelNote]} tone="warn" />}
+        {/* Botón y no lectura muda: dice que arrastrar cambia W/L y el doble
+            clic vuelve a la ventana del estudio. En la celda estrecha va en
+            forma corta (la larga se pisaba con el índice). Los gestos se
+            paran aquí: llegar al contenedor empezaría un arrastre, y a la
+            rejilla, maximizaría la celda. El mouseup sí sube: un arrastre
+            empezado en la imagen y soltado aquí tiene que acabar. */}
+        <button type="button" className="hud-readout br hud-wl" title={WL_TITLE}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => { e.stopPropagation(); p.onWindowLevelReset?.(); }}>
+          {p.compact
+            ? `W ${Math.round(p.ww)} L ${Math.round(p.wc)}`
+            : `W ${Math.round(p.ww)}${unit}  L ${Math.round(p.wc)}${unit}`}
+        </button>
+        {/* Preajustes en toda celda no compacta, bajo su lectura: antes solo
+            en la principal, y una lateral no tenía cómo cambiar la ventana
+            salvo arrastrando. El select es transparente para no tapar la
+            imagen; las opciones llevan fondo propio porque lo heredan. */}
+        {!p.compact && !!p.presets?.length && (
+          <select className="hud-toggle hud-wl-presets" title="Preajuste de ventana/nivel" value=""
+            onChange={(e) => {
+              const preset = p.presets!.find((x) => x.name === e.target.value);
+              if (preset) p.onPreset?.(preset);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}>
+            <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
+            {p.presets.map((x) => (
+              <option key={x.name} value={x.name} style={{ background: "#000", color: "var(--hud)" }}>
+                {x.reset ? x.name : `${x.name} · ${Math.round(x.wc)}/${Math.round(x.ww)}`}
+              </option>
+            ))}
+          </select>
+        )}
         {!p.compact && box && box.mmPerPx > 0 && (
-          <div style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
+          <div className="hud-scale" style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
             <span style={{ position: "absolute", right: 0, top: -12, fontSize: fs - 1, color: "var(--hud-dim)" }}>10 mm</span>
           </div>
         )}

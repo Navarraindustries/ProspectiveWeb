@@ -10,3 +10,10 @@ export function ladderTicks(count: number, index: number, heightPx: number, pxPe
   }
   return out;
 }
+
+/** Inversa de `ladderTicks`: el corte que queda a la altura `y` de la escalera,
+ *  con el índice actual en el centro. Acotado al rango de cortes. */
+export function indexAtY(y: number, count: number, index: number, heightPx: number, pxPerTick = 8): number {
+  const i = Math.round(index + (heightPx / 2 - y) / pxPerTick);
+  return Math.max(0, Math.min(count - 1, i));
+}

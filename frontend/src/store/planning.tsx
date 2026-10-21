@@ -1,31 +1,64 @@
 /* PlanningContext — state shared across the 7-step workspace:
    session id, DICOM series, thresholds, segmentation, detection, morphometry… */
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import type { ReactNode, RefObject } from "react";
 import type { PartsHandle } from "../vtk/MeshView";
 import type { FrameSource } from "../vtk/viewerRecorder";
+import type { SceneFramer } from "../vtk/captureRenderWindow";
+
+/** Un clip de la lista de colocación. La normal no se guarda: se deriva del eje
+ *  del cuello y de los dos ángulos (placedClips.clipNormal), así no puede
+ *  quedarse describiendo un cuello que la morfometría ya no tiene. */
+export interface PlacedClip {
+  key: number;
+  clip_id: string;
+  name: string;
+  position: Vec3;
+  rotation_deg: number;
+  azimuthDeg: number;
+  elevationDeg: number;
+}
 
 /** Lo que el visor le da al grabador del topbar. */
 export interface ViewerRecordingSource extends FrameSource {
   /** El estado que se guarda con el vídeo, como con una captura. */
   state: () => Record<string, unknown>;
 }
-import { loadLayout, saveLayout, type ViewerLayout } from "../vtk/layout";
-import { mmToVoxel, type ManualOrientation } from "../vtk/geometry";
+import { loadLayout, saveLayout, type PaneId, type ViewerLayout } from "../vtk/layout";
+import { mmToVoxel, type ManualOrientation, type Plane } from "../vtk/geometry";
+import type { VolumePreset } from "../vtk/volumePresets";
+import { clampPlane, DEFAULT_FREE_PLANE, type FreePlane } from "../vtk/freePlane";
+import { clampTilt } from "../vtk/clipPose";
+import type { Annotation } from "../vtk/annotations";
+import type { CenterlineTrack } from "../vtk/centerlineWalk";
 import type {
   AneurysmCandidate,
+  AneurysmLocation,
+  AnnotationKind,
   DeviceKind,
   MorphometryResult,
   PatientSummary,
   ClipAnimationResult,
+  ClipFieldResult,
   PerforatorCandidate,
   SegmentResult,
   SeriesInfo,
   TreatmentDecisionRequest,
   TreatmentDecisionResult,
+  ClipPlanResult,
+  TrajectoryResult,
   VolumeMeta,
 } from "../api/types";
+
+/** Los documentos ya generados que volvieron con una sesión reanudada. */
+export interface ReportUrls {
+  pdf_url?: string | null;
+  dicom_sr_url?: string | null;
+  /** Se generó con el plan guardado; false = hay que regenerarlo. */
+  pdf_current?: boolean;
+  sr_current?: boolean;
+}
 
 interface PlanningState {
   patient: PatientSummary | null;
@@ -49,8 +82,22 @@ interface PlanningState {
   previewMeshUrl: string | null;
   segmentation: SegmentResult | null;
   candidates: AneurysmCandidate[];
+  /** Sitios que un veto descartó; se listan aparte pero se pueden elegir. */
+  rejectedCandidates: AneurysmCandidate[];
+  /** Aceptados seguidos de descartados: `selectedCandidate` indexa ESTA lista. */
+  allCandidates: AneurysmCandidate[];
   selectedCandidate: number;
+  /** El backend limpió la morfometría al re-detectar (el sitio medido ya no
+   *  está). En el store y no en el panel porque «Reanudar» también lo recibe y
+   *  el panel de detección tiene que poder decirlo después. */
+  morphoInvalidatedNotice: boolean;
   morphometry: MorphometryResult | null;
+  /** La localización del aneurisma, elegida UNA vez en Morfometría (F1-165,
+   *  fusión nº 21). La heredan PHASES, ELAPSS, UIATS y Decisión, cada uno
+   *  traducido a su escala (morphometry/thresholds.ts, siteFor). Antes se
+   *  pedía cuatro veces con cuatro valores por defecto. Se guarda en
+   *  `clinical.site` y vuelve con la morfometría al reanudar. */
+  aneurysmSite: AneurysmLocation | null;
   treatment: TreatmentDecisionResult | null;
   /** Placed device meshes by family, shown together in the viewer. One slot per
    *  family because that is how the backend records them: planning a stent after
@@ -61,6 +108,13 @@ interface PlanningState {
   deviceMeshes: Record<DeviceKind, string | null>;
   /** URL of the extracted vessel centreline tube mesh, shown in the viewer. */
   centerlineMesh: string | null;
+  /** Los puntos de la línea central (spec §7): la gráfica de calibre lleva a
+   *  ellos y el cine del Oblicuo los recorre. null hasta que se piden. */
+  centerline: CenterlineTrack | null;
+  setCenterline: (t: CenterlineTrack | null) => void;
+  /** Qué recorre el cine del Oblicuo: el desplazamiento del plano o los puntos de la línea central (spec §7.3). */
+  obliqueWalk: "plano" | "vaso";
+  setObliqueWalk: (m: "plano" | "vaso") => void;
   /** Total arc length (mm) of the extracted centreline — feeds the cl-stent range sliders. */
   centerlineArcMm: number | null;
   /** Qué se pinta sobre el stent de la línea central: a qué distancia queda
@@ -69,19 +123,40 @@ interface PlanningState {
   /** Window/level shared by every MPR view (strip, main preview and oblique).
       Null until the volume metadata arrives, then seeded from the DICOM. */
   mprWl: { wc: number; ww: number } | null;
+  /** La ventana que volvió con una sesión reanudada. El visor siembra la del
+   *  DICOM al llegar la meta del volumen, DESPUÉS de reanudar; esta la gana una
+   *  vez y se consume (`takeRestoredWl`). Sin ella la ventana guardada se
+   *  perdía nada más abrir el visor (F1-248). */
+  restoreWl: (w: { wc: number; ww: number } | null) => void;
+  takeRestoredWl: () => { wc: number; ww: number } | null;
   /** Crosshair voxel shared by every MPR view, so navigating in one moves all. */
   mprVoxel: { x: number; y: number; z: number };
-  /** Active 3D-pick mode: centreline endpoints, a measurement, or the neck plane. */
+  /** Active pick mode: centreline endpoints, the neck plane, an annotation… */
   pickMode: PickMode;
   clSource: Vec3 | null;
   clTarget: Vec3 | null;
   /** Semi-automatic neck plane: a point on the neck and the dome apex (click on the mesh). */
   neckOrigin: Vec3 | null;
   neckDome: Vec3 | null;
-  /** 3D caliper measurements (distance between two picked points). */
-  measurements: Measurement[];
-  /** First endpoint of an in-progress measurement (waiting for the second click). */
-  measurePending: Vec3 | null;
+  /** Anotaciones del estudio (reglas, ángulos, regiones, marcadores); se guardan con la sesión. */
+  annotations: Annotation[];
+  /** Puntos ya pinchados de la anotación en curso, a la espera de los que faltan. */
+  annotationDraft: Vec3[];
+  selectedAnnotation: string | null;
+  /** Estado del guardado de anotaciones en el servidor (lo escribe el hook de guardado). */
+  annotationsSync: "guardado" | "guardando" | "error";
+  /** El hook de guardado deja aquí su «guarda ya»; saveProgress lo espera antes de guardar. */
+  annotationsFlushRef: RefObject<(() => Promise<boolean>) | null>;
+  /** Si la lista del servidor ya está en el store. «error»: la lectura al
+   *  reanudar falló y lo que hay ([]) NO es la sesión; el guardado automático
+   *  no escribe hasta que una lectura salga bien, o pisaría el archivo. */
+  annotationsLoadState: "pendiente" | "cargado" | "error";
+  /** Id del marcador recién puesto cuya nota espera el foco; el panel se abre,
+   *  enfoca el campo y lo vuelve a null. */
+  noteFocusRequest: string | null;
+  /** La última lista que llegó del servidor (setAnnotationsLoaded). El hook de
+   *  guardado la compara por referencia: no hace PUT de lo que acaba de leer. */
+  annotationsLoadedRef: RefObject<Annotation[] | null>;
   /** Seed points placed on the volume for grow-from-seeds segmentation. */
   /** Points marked around the neck rim. With three or more the neck plane is
    *  fitted to them instead of assuming it is perpendicular to the dome axis. */
@@ -103,6 +178,36 @@ interface PlanningState {
   /** Clip rehearsal in progress: the three meshes the viewer must draw instead
    *  of the placed clip while the manoeuvre plays. Null when not rehearsing. */
   clipRehearsal: ClipAnimationResult | null;
+  /** Mapa de calor del clip colocado y su veredicto; null si aún no se ha pedido. */
+  clipField: ClipFieldResult | null;
+  showClipField: boolean;
+  /** Los clips de la lista de colocación. Viven aquí y no en el panel para que
+   *  el manipulador del visor pueda editarlos. */
+  placedClips: PlacedClip[];
+  /** La lista con la que se cocieron las mallas vigentes; null sin plan. */
+  plannedClips: PlacedClip[] | null;
+  /** La verificación de la última colocación (cobertura, contacto, ramas).
+   *  Vivía en la pestaña y se perdía al desmontarla o al reanudar (F1-28). */
+  clipPlan: ClipPlanResult | null;
+  setClipPlan: (p: ClipPlanResult | null) => void;
+  /** La lista para la que se calculó el mapa de calor vigente; null sin campo.
+   *  El plan llega antes que el campo: «DESFASADO» y el mapa atenuado siguen
+   *  hasta que llega ESTE, porque hasta entonces el veredicto es el de antes. */
+  fieldClips: PlacedClip[] | null;
+  /** Qué enseña el 3D del mapa de calor: si la capa está en un 3D montado y
+   *  qué fichero tiene puesto. Lo escribe el visor. La respuesta del campo
+   *  llega antes que su malla, así que «DESFASADO» sigue hasta que `url` es la
+   *  del campo vigente (ver fieldColoursOnScreen). Se guarda la URL y no un
+   *  «ya está»: la tarjeta la compara con el campo nuevo en el mismo render en
+   *  que este llega, sin esperar a que el visor reaccione. */
+  fieldMeshOnScreen: { shown: boolean; url: string | null };
+  setFieldMeshShown: (v: boolean) => void;
+  setFieldMeshUrl: (url: string | null) => void;
+  /** La pestaña de clips está montada. Ella es la que recoloca tras mover el
+   *  clip: sin ella, el manipulador del 3D dejaría un delta que nadie replanea. */
+  clipsTabActive: boolean;
+  setClipsTabActive: (v: boolean) => void;
+  selectedClipKey: number | null;
   /** Índice del fotograma del saco constreñido que toca enseñar, o null para el
    *  saco sin deformar. Lo escribe el ensayo en cada cuadro y lo lee el visor:
    *  la deformación es geometría calculada en el backend, no una matriz que la
@@ -134,11 +239,28 @@ interface PlanningState {
   /** Mesh-crop ROI shape/size/mode — shared with the viewer so it can draw a
    *  translucent preview of exactly what the crop will keep/remove. */
   cropRadius: number;
-  cropShape: "sphere" | "box";
   cropInvert: boolean;
   /** Surgical approach trajectory: entry point and aneurysm target (mm). */
   trajEntry: Vec3 | null;
   trajTarget: Vec3 | null;
+  /** La trayectoria guardada con su ángulo y su corredor. En el store y no en
+   *  el panel para que «Reanudar» la devuelva y el botón diga «Guardada ✓»
+   *  (F1-247). */
+  trajSaved: TrajectoryResult | null;
+  setTrajSaved: (t: TrajectoryResult | null) => void;
+  /** Cuándo se guardó y analizó el corredor por última vez (Date.now()). La
+   *  selección de clip depende del ángulo de abordaje y se cargaba una sola
+   *  vez: guardar el corredor no la cambiaba hasta pulsar «Recalcular»
+   *  (F1-193). Quien la muestra relanza la selección cuando cambia. */
+  trajectorySavedAt: number;
+  setTrajectorySavedAt: (t: number) => void;
+  /** El último clic de marcado cayó fuera de la malla. Vivía solo en el visor,
+   *  y el panel de abordaje no podía decirlo junto a «Entrada»/«Diana» (F1-185). */
+  pickMiss: boolean;
+  setPickMiss: (v: boolean) => void;
+  /** Enlaces al PDF y al SR que volvieron con la sesión reanudada (F1-249). */
+  reportUrls: ReportUrls | null;
+  setReportUrls: (u: ReportUrls | null) => void;
   /** Show the 3D morphometric overlay (neck disc, dome/max-diameter lines, labels). */
   morphoOverlay: boolean;
   /** Capture the live 3D viewport as a PNG data URL (set by MeshView while mounted). */
@@ -155,11 +277,15 @@ interface PlanningState {
   /** Encuadra el 3D y los cortes en la lesión (cuello medido o candidato
    *  elegido). Lo registra el visor; los paneles solo lo llaman. */
   centerOnLesion: (() => void) | null;
+  /** F1-222: encuadra la lesión en el 3D para la foto del informe y devuelve
+   *  cómo dejar la cámara como estaba. Lo registra el visor; null sin lesión. */
+  sceneFramer: SceneFramer | null;
   /** True when results exist that have not been written to a saved session.
    *  Saving is a manual action, so without this a click on the logo threw away
    *  an afternoon's analysis with no warning at all. */
   dirty: boolean;
-  /** Distribución del visor: panel principal + franja de cuatro. */
+  /** Distribución del visor: la vista principal y las otras cuatro (en columna,
+   *  en franja o ocultas), y qué vista ocupa cada sitio. */
   viewerLayout: ViewerLayout;
   setViewerLayout: (l: ViewerLayout) => void;
   /** Punto (mm de mundo) en el que se centran todas las vistas cuando
@@ -175,11 +301,57 @@ interface PlanningState {
   setMipMode: (m: "acumulado" | "lamina") => void;
   mipSlabMm: number;
   setMipSlabMm: (mm: number) => void;
+  /** Eje en el que acumula el MIP, elegido en su propio HUD. `null`: sigue a
+   *  la vista principal (coronal o sagital; si no, axial), como antes. */
+  mipPlane: Plane | null;
+  setMipPlane: (p: Plane | null) => void;
+  /** Cómo pinta la vista VOLUMEN: proyección de máxima intensidad o
+   *  composición por tejidos con el preajuste de abajo. */
+  volumeMode: "mip" | "compuesto";
+  setVolumeMode: (m: "mip" | "compuesto") => void;
+  volumePreset: VolumePreset;
+  setVolumePreset: (p: VolumePreset) => void;
+  /** Plano de corte libre del volumen unificado (azimut, elevación, desplazamiento). */
+  freePlane: FreePlane;
+  /** Guarda el plano ya acotado (clampPlane), para que ningún consumidor reciba ángulos fuera de rango. */
+  setFreePlane: (p: FreePlane) => void;
+  /** Si el recorte sigue los ejes de la rejilla o el plano libre. */
+  clipMode: "eje" | "libre";
+  setClipMode: (m: "eje" | "libre") => void;
+  /** Si la cara del corte se dibuja rellena o se deja abierta. */
+  cutFaceVisible: boolean;
+  setCutFaceVisible: (v: boolean) => void;
+  /** Si la malla se ve (translúcida) en el modo «Cortes 3D» de la escena. */
+  slices3dMeshVisible: boolean;
+  setSlices3dMeshVisible: (v: boolean) => void;
+  /** Reproductor de cortes de UNA celda (null = parado). Siempre con ida y
+   *  vuelta: saltar del último al primero desorienta al recorrer un vaso. */
+  cine: { pane: PaneId; fps: number; bounce: true } | null;
+  setCine: (c: { pane: PaneId; fps: number; bounce: true } | null) => void;
+  /** La celda con el foco de teclado (la última pulsada o enfocada): a ella
+   *  van el espacio, +/− y la barra del cine. */
+  focusedPane: PaneId | null;
+  setFocusedPane: (p: PaneId | null) => void;
+  /** Ventana (nivel y anchura) elegida por preajuste; sin entrada, rige la del rango completo. */
+  volumeWindows: Partial<Record<VolumePreset, { wc: number; ww: number }>>;
+  /** null borra la entrada del preajuste y devuelve su ventana por defecto. */
+  setVolumeWindow: (preset: VolumePreset, w: { wc: number; ww: number } | null) => void;
+  /** Ventana del modo MIP movida a mano; null = la derivada del umbral (la rampa de siempre). */
+  mipWindow: { wc: number; ww: number } | null;
+  setMipWindow: (w: { wc: number; ww: number } | null) => void;
+  /** Acotar VOLUMEN a la caja de la lesión (spec §6). */
+  mipLocal: boolean;
+  setMipLocal: (v: boolean) => void;
   /** Sube cada vez que el volumen de la sesión cambia en el servidor sin que
    *  cambie la sesión (otra serie, preproceso o su reversión): el visor vuelve
    *  a pedir la meta y, con su cache_key nuevo, el volumen del navegador. */
   volumeVersion: number;
   bumpVolumeVersion: () => void;
+  /** El volumen de la serie actual está en el visor (su meta ha llegado). Lo
+   *  escribe el visor; lo lee «Continuar a segmentación» (F1-130), que se
+   *  encendía con la serie, antes de que hubiera nada que ver. */
+  volumeReady: boolean;
+  setVolumeReady: (v: boolean) => void;
 
   setPatient: (p: PatientSummary | null) => void;
   setCase: (id: number | null, label?: string) => void;
@@ -191,9 +363,16 @@ interface PlanningState {
   setPreviewMeshUrl: (u: string | null) => void;
   setSegmentation: (s: SegmentResult | null) => void;
   setCandidates: (c: AneurysmCandidate[]) => void;
+  setRejectedCandidates: (c: AneurysmCandidate[]) => void;
   setSelectedCandidate: (i: number) => void;
   setMorphometry: (m: MorphometryResult | null) => void;
+  /** Solo el store: el panel de Morfometría hace el PUT a `clinical.site`. */
+  setAneurysmSite: (s: AneurysmLocation | null) => void;
   setTreatment: (t: TreatmentDecisionResult | null) => void;
+  setMorphoInvalidatedNotice: (v: boolean) => void;
+  /** Olvida la medida y todo lo que cuelga de ella: cifras, recomendación y
+   *  las marcas del cuello que se pusieron para ese sitio. */
+  clearMorphometry: () => void;
   /** Con qué datos se pidió la última decisión. El formulario los tenía en
    *  su estado local: al salir del paso y volver salía en blanco
    *  («Desconocida») junto a un resultado calculado con otra localización,
@@ -203,6 +382,9 @@ interface PlanningState {
   setDeviceMesh: (kind: DeviceKind, url: string | null) => void;
   /** Forget placed devices locally (the API call is the panel's job). */
   clearDeviceMeshes: (kind?: DeviceKind) => void;
+  /** Pone la malla de un dispositivo que ya estaba en el plan guardado. No
+   *  marca cambios: reponer lo que hay en disco no es un cambio (F1-250). */
+  restoreDeviceMesh: (kind: DeviceKind, url: string) => void;
   setCenterlineMesh: (url: string | null) => void;
   setCenterlineArcMm: (v: number | null) => void;
   setStentMap: (m: StentMap) => void;
@@ -213,14 +395,29 @@ interface PlanningState {
   setClTarget: (p: Vec3 | null) => void;
   setNeckOrigin: (p: Vec3 | null) => void;
   setNeckDome: (p: Vec3 | null) => void;
-  setMeasurements: (m: Measurement[]) => void;
-  setMeasurePending: (p: Vec3 | null) => void;
+  setAnnotations: (a: Annotation[] | ((prev: Annotation[]) => Annotation[])) => void;
+  setAnnotationDraft: (p: Vec3[] | ((prev: Vec3[]) => Vec3[])) => void;
+  setSelectedAnnotation: (id: string | null) => void;
+  setAnnotationsSync: (s: "guardado" | "guardando" | "error") => void;
+  /** Lo que llega del servidor al reanudar: no es un cambio del usuario, no ensucia. */
+  setAnnotationsLoaded: (a: Annotation[]) => void;
+  setAnnotationsLoadState: (s: "pendiente" | "cargado" | "error") => void;
+  /** Vacía las anotaciones (lista, borrador y elección). Solo cuando cambia
+   *  aquello a lo que apuntan: otra malla, otro volumen u otro estudio. */
+  clearAnnotations: () => void;
+  setNoteFocusRequest: (id: string | null) => void;
   setNeckRim: (s: Vec3[]) => void;
   setScissorsPoints: (p: Vec3[]) => void;
   setScissorsPreview: (url: string | null) => void;
   setScissorsKeepSide: (s: number) => void;
   setPerforators: (p: PerforatorCandidate[], zones?: [number, number, number] | null) => void;
   setClipRehearsal: (a: ClipAnimationResult | null) => void;
+  /** `forClips`: la lista para la que se calculó el campo (queda en `fieldClips`). */
+  setClipField: (f: ClipFieldResult | null, forClips?: PlacedClip[] | null) => void;
+  setShowClipField: (v: boolean) => void;
+  setPlacedClips: (u: PlacedClip[] | ((p: PlacedClip[]) => PlacedClip[])) => void;
+  setPlannedClips: (p: PlacedClip[] | null) => void;
+  setSelectedClipKey: (k: number | null) => void;
   /** Handle the viewer publishes for moving the rehearsal's parts, and the
    *  panel consumes to drive the motion. Imperative on purpose: a matrix per
    *  frame through React would re-render the workspace 60 times a second. */
@@ -235,20 +432,27 @@ interface PlanningState {
   setFollowup: (f: FollowupOverlay | null) => void;
   setErasePick: (p: Vec3 | null) => void;
   setCropRadius: (r: number) => void;
-  setCropShape: (s: "sphere" | "box") => void;
   setCropInvert: (v: boolean) => void;
   setTrajEntry: (p: Vec3 | null) => void;
   setTrajTarget: (p: Vec3 | null) => void;
   setMorphoOverlay: (v: boolean) => void;
   setCaptureViewport: (fn: (() => Promise<string | null>) | null) => void;
   setCenterOnLesion: (fn: (() => void) | null) => void;
+  registerSceneFramer: (fn: SceneFramer | null) => void;
   /** Called after a successful save — the session on disk now matches the store. */
   markSaved: () => void;
+  /** «Guardar progreso» de Workspace, prestado mientras está montado: el aviso
+   *  de salida de App («Guardar y salir», F1-110) guarda con él sin duplicar
+   *  qué se guarda. null al desmontarse. */
+  registerSaver: (fn: (() => Promise<boolean>) | null) => void;
+  /** Guarda con el guardado registrado; false si no hay ninguno o falló. */
+  saveNow: () => Promise<boolean>;
   reset: () => void;
   resetDownstream: () => void;
 }
 
 export type Vec3 = [number, number, number];
+export type { CenterlineTrack };
 export interface FollowupOverlay {
   mapUrl: string;
   ghostUrl: string | null;
@@ -257,19 +461,21 @@ export interface FollowupOverlay {
   noise: number;
 }
 export type PickMode =
-  | "cl_source" | "cl_target" | "measure" | "neck_origin" | "neck_dome"
+  | "cl_source" | "cl_target" | "neck_origin" | "neck_dome"
   | "neck_rim"
   | "scissors"
   | "crop_center" | "erase_piece" | "traj_entry" | "traj_target"
-  | "lesion_mark" | null;
+  | "lesion_mark"
+  | "anot_regla" | "anot_angulo" | "anot_region" | "anot_marcador" | null;
 
-export interface Measurement {
-  id: number;
-  a: Vec3;
-  b: Vec3;
-  distance: number; // mm
-  label: string;
-  visible: boolean;
+export const ANNOTATION_MODES: Record<AnnotationKind, PickMode> = {
+  regla: "anot_regla", angulo: "anot_angulo", region: "anot_region", marcador: "anot_marcador",
+};
+
+/** El tipo de anotación que arma un modo de pinchado, o null si no es de anotación. */
+export function kindOfMode(m: PickMode): AnnotationKind | null {
+  const hit = (Object.keys(ANNOTATION_MODES) as AnnotationKind[]).find((k) => ANNOTATION_MODES[k] === m);
+  return hit ?? null;
 }
 
 export type StentMap = "apposition" | "coverage";
@@ -289,31 +495,94 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [previewMeshUrl, setPreviewMeshUrl] = useState<string | null>(null);
   const [segmentation, _setSegmentation] = useState<SegmentResult | null>(null);
   const [candidates, _setCandidates] = useState<AneurysmCandidate[]>([]);
+  const [rejectedCandidates, _setRejectedCandidates] = useState<AneurysmCandidate[]>([]);
+  // Memoizada para que los efectos que dependen de ella no se disparen en
+  // cada render; con `candidates` vacío (reanudar una sesión donde todo se
+  // descartó) es simplemente la lista de descartados.
+  const allCandidates = useMemo(() => [...candidates, ...rejectedCandidates], [candidates, rejectedCandidates]);
   const [selectedCandidate, _setSelectedCandidate] = useState(0);
   const selectedRef = useRef(0);
   const [morphometry, _setMorphometry] = useState<MorphometryResult | null>(null);
+  const [aneurysmSite, _setAneurysmSite] = useState<AneurysmLocation | null>(null);
+  const [morphoInvalidatedNotice, setMorphoInvalidatedNotice] = useState(false);
   const [treatment, _setTreatment] = useState<TreatmentDecisionResult | null>(null);
   const [treatmentInputs, setTreatmentInputs] = useState<TreatmentDecisionRequest | null>(null);
   const [deviceMeshes, _setDeviceMeshes] = useState<Record<DeviceKind, string | null>>(
     { clips: null, coils: null, stent: null },
   );
   const [centerlineMesh, _setCenterlineMesh] = useState<string | null>(null);
+  const [centerline, _setCenterline] = useState<CenterlineTrack | null>(null);
+  const [obliqueWalk, setObliqueWalk] = useState<"plano" | "vaso">("plano");
+  // Sin puntos no hay vaso que recorrer: VASO se quedaría marcado sin efecto.
+  // Estable: los efectos que piden los puntos la llevan en sus dependencias.
+  const setCenterline = useCallback((t: CenterlineTrack | null) => { _setCenterline(t); if (!t) setObliqueWalk("plano"); }, []);
   const [centerlineArcMm, setCenterlineArcMm] = useState<number | null>(null);
   const [stentMap, setStentMap] = useState<StentMap>("apposition");
   const [mprWl, setMprWl] = useState<{ wc: number; ww: number } | null>(null);
+  const restoredWlRef = useRef<{ wc: number; ww: number } | null>(null);
+  const restoreWl = useCallback((w: { wc: number; ww: number } | null) => {
+    restoredWlRef.current = w;
+    if (w) setMprWl(w);
+  }, []);
+  const takeRestoredWl = useCallback(() => {
+    const w = restoredWlRef.current;
+    restoredWlRef.current = null;
+    return w;
+  }, []);
+  const [trajSaved, setTrajSaved] = useState<TrajectoryResult | null>(null);
+  const [trajectorySavedAt, setTrajectorySavedAt] = useState(0);
+  const [pickMiss, setPickMiss] = useState(false);
+  const [reportUrls, setReportUrls] = useState<ReportUrls | null>(null);
+  const [clipPlan, setClipPlan] = useState<ClipPlanResult | null>(null);
   const [mprVoxel, setMprVoxel] = useState({ x: 0, y: 0, z: 0 });
-  const [pickMode, setPickMode] = useState<PickMode>(null);
+  const [pickMode, _setPickMode] = useState<PickMode>(null);
+  const [annotationDraft, setAnnotationDraft] = useState<Vec3[]>([]);
+  // WHY: un borrador a medias pertenece al modo que lo empezó; si el modo
+  // cambia (otro tipo, otra herramienta o ninguno), sus puntos ya no cierran
+  // nada y se quedarían pintados en el visor. Con ref para comparar con el
+  // modo vigente aunque haya dos llamadas en el mismo tick.
+  const pickModeRef = useRef<PickMode>(null);
+  const setPickMode = useCallback((m: PickMode) => {
+    if (m !== pickModeRef.current) setAnnotationDraft([]);
+    pickModeRef.current = m;
+    _setPickMode(m);
+  }, []);
   const [clSource, setClSource] = useState<Vec3 | null>(null);
   const [clTarget, setClTarget] = useState<Vec3 | null>(null);
   const [neckOrigin, setNeckOrigin] = useState<Vec3 | null>(null);
   const [neckDome, setNeckDome] = useState<Vec3 | null>(null);
-  const [measurements, _setMeasurements] = useState<Measurement[]>([]);
-  const [measurePending, setMeasurePending] = useState<Vec3 | null>(null);
+  const [annotations, _setAnnotations] = useState<Annotation[]>([]);
+  const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
+  const [annotationsSync, setAnnotationsSync] = useState<"guardado" | "guardando" | "error">("guardado");
+  const annotationsFlushRef = useRef<(() => Promise<boolean>) | null>(null);
+  const [annotationsLoadState, setAnnotationsLoadState] = useState<"pendiente" | "cargado" | "error">("cargado");
+  const [noteFocusRequest, setNoteFocusRequest] = useState<string | null>(null);
+  const annotationsLoadedRef = useRef<Annotation[] | null>(null);
   const [neckRim, setNeckRim] = useState<Vec3[]>([]);
   const [scissorsPoints, setScissorsPoints] = useState<Vec3[]>([]);
   const [scissorsPreview, setScissorsPreview] = useState<string | null>(null);
   const [scissorsKeepSide, setScissorsKeepSide] = useState(0);
   const [clipRehearsal, setClipRehearsal] = useState<ClipAnimationResult | null>(null);
+  const [clipField, _setClipField] = useState<ClipFieldResult | null>(null);
+  const [fieldClips, setFieldClips] = useState<PlacedClip[] | null>(null);
+  // Campo y lista van juntos: sin campo no hay lista de la que hablar.
+  const setClipField = useCallback((f: ClipFieldResult | null, forClips: PlacedClip[] | null = null) => {
+    _setClipField(f);
+    setFieldClips(f ? forClips : null);
+  }, []);
+  const [clipsTabActive, setClipsTabActive] = useState(false);
+  const [fieldMeshOnScreen, setFieldMeshOnScreen] = useState<{ shown: boolean; url: string | null }>({ shown: false, url: null });
+  const setFieldMeshShown = useCallback((shown: boolean) => setFieldMeshOnScreen((o) => (o.shown === shown ? o : { ...o, shown })), []);
+  const setFieldMeshUrl = useCallback((url: string | null) => setFieldMeshOnScreen((o) => (o.url === url ? o : { ...o, url })), []);
+  const [showClipField, setShowClipField] = useState(true);
+  const [placedClips, _setPlacedClips] = useState<PlacedClip[]>([]);
+  const [plannedClips, setPlannedClips] = useState<PlacedClip[] | null>(null);
+  const [selectedClipKey, setSelectedClipKey] = useState<number | null>(null);
+  // Cualquier escritura pasa por el tope de inclinación: el campo numérico, el
+  // manipulador y lo que venga después escriben ángulos, y solo aquí se acotan.
+  const setPlacedClips = useCallback((u: PlacedClip[] | ((p: PlacedClip[]) => PlacedClip[])) => {
+    _setPlacedClips((prev) => (typeof u === "function" ? u(prev) : u).map((c) => ({ ...c, ...clampTilt(c) })));
+  }, []);
   const [sacFrame, setSacFrame] = useState<number | null>(null);
   const [clipParts, registerClipParts] = useState<PartsHandle | null>(null);
   const [perforators, _setPerforators] = useState<PerforatorCandidate[]>([]);
@@ -335,7 +604,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [erasePick, setErasePick] = useState<Vec3 | null>(null);
   const [boxCut, setBoxCut] = useState<{ min: [number, number, number]; max: [number, number, number] } | null>(null);
   const [cropRadius, setCropRadius] = useState(10);
-  const [cropShape, setCropShape] = useState<"sphere" | "box">("sphere");
   const [cropInvert, setCropInvert] = useState(false);
   const [trajEntry, setTrajEntry] = useState<Vec3 | null>(null);
   const [trajTarget, setTrajTarget] = useState<Vec3 | null>(null);
@@ -351,8 +619,18 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const setCaptureViewport = useCallback((fn: (() => Promise<string | null>) | null) => _setCaptureViewport(() => fn), []);
   const [centerOnLesion, _setCenterOnLesion] = useState<(() => void) | null>(null);
   const setCenterOnLesion = useCallback((fn: (() => void) | null) => _setCenterOnLesion(() => fn), []);
+  const [sceneFramer, _setSceneFramer] = useState<SceneFramer | null>(null);
+  const registerSceneFramer = useCallback((fn: SceneFramer | null) => _setSceneFramer(() => fn), []);
   const [dirty, setDirty] = useState(false);
   const markSaved = () => setDirty(false);
+  // En un ref: cambiar de guardado no tiene que repintar nada.
+  const saverRef = useRef<(() => Promise<boolean>) | null>(null);
+  const registerSaver = useCallback((fn: (() => Promise<boolean>) | null) => { saverRef.current = fn; }, []);
+  const saveNow = useCallback(async () => {
+    const fn = saverRef.current;
+    if (!fn) return false;
+    try { return await fn(); } catch { return false; }
+  }, []);
   const [viewerLayout, _setViewerLayout] = useState<ViewerLayout>(() => loadLayout());
   const setViewerLayout = (l: ViewerLayout) => { _setViewerLayout(l); saveLayout(l); };
   const [focusPoint, setFocusPoint] = useState<Vec3 | null>(null);
@@ -360,8 +638,32 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [orientationManual, setOrientationManual] = useState<ManualOrientation | null>(null);
   const [mipMode, setMipMode] = useState<"acumulado" | "lamina">("acumulado");
   const [mipSlabMm, setMipSlabMm] = useState(10);
+  const [mipPlane, setMipPlane] = useState<Plane | null>(null);
+  const [volumeMode, setVolumeMode] = useState<"mip" | "compuesto">("mip");
+  const [volumePreset, setVolumePreset] = useState<VolumePreset>("Vasos");
+  const [freePlane, setFreePlaneState] = useState<FreePlane>(DEFAULT_FREE_PLANE);
+  const setFreePlane = (p: FreePlane) => setFreePlaneState(clampPlane(p));
+  const [clipMode, setClipMode] = useState<"eje" | "libre">("eje");
+  const [cutFaceVisible, setCutFaceVisible] = useState(true);
+  const [slices3dMeshVisible, setSlices3dMeshVisible] = useState(true);
+  const [cine, setCine] = useState<{ pane: PaneId; fps: number; bounce: true } | null>(null);
+  const [focusedPane, setFocusedPane] = useState<PaneId | null>(null);
+  const [volumeWindows, setVolumeWindows] = useState<Partial<Record<VolumePreset, { wc: number; ww: number }>>>({});
+  const setVolumeWindow = (k: VolumePreset, w: { wc: number; ww: number } | null) =>
+    setVolumeWindows((m) => { const n = { ...m }; if (w) n[k] = w; else delete n[k]; return n; });
+  const [mipWindow, setMipWindow] = useState<{ wc: number; ww: number } | null>(null);
+  const [mipLocal, setMipLocal] = useState(false);
   const [volumeVersion, setVolumeVersion] = useState(0);
-  const bumpVolumeVersion = useCallback(() => setVolumeVersion((v) => v + 1), []);
+  const [volumeReady, setVolumeReady] = useState(false);
+  // Un volumen nuevo dentro de la sesión (otra serie, recorte HU, remuestreo)
+  // no pasa por reset(): la ventana del MIP y LOCAL describían el volumen
+  // anterior y se limpian aquí (spec §3.3, §6). Son setters de useState,
+  // estables, así que las dependencias vacías siguen valiendo.
+  const bumpVolumeVersion = useCallback(() => {
+    setVolumeVersion((v) => v + 1);
+    setMipWindow(null);
+    setMipLocal(false);
+  }, []);
   const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
     setFocusPoint(mm);
     setMprVoxel(mmToVoxel(mm, meta));
@@ -371,9 +673,28 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   // Wrapping them here rather than at each call site means a panel added later
   // cannot forget to do it.
   const touch = <T,>(set: (v: T) => void) => (v: T) => { set(v); setDirty(true); };
-  const setSegmentation = touch(_setSegmentation);
+  // Otra malla (resegmentar, recortar, borrar, deshacer): el corredor guardado
+  // se midió contra la de antes. El backend borra su análisis; aquí la
+  // trayectoria guardada deja de decir «Guardada ✓» y pide volver a guardarla.
+  const segUrlRef = useRef<string | null>(null);
+  const setSegmentation = touch((s: SegmentResult | null) => {
+    const url = s?.mesh_url ?? null;
+    if (segUrlRef.current !== null && url !== segUrlRef.current) {
+      setTrajSaved((t) => (t && !t.stale ? { ...t, corridor: null, stale: true } : t));
+    }
+    segUrlRef.current = url;
+    _setSegmentation(s);
+  });
   const setCandidates = touch(_setCandidates);
-  const setMorphometry = touch(_setMorphometry);
+  const setRejectedCandidates = touch(_setRejectedCandidates);
+  // La morfometría trae la localización guardada (`site`): así «Reanudar», que
+  // vuelve a pedir la medida, la recupera sin otra llamada. Una medida sin ella
+  // no borra la elegida en esta sesión.
+  const setMorphometry = touch((m: MorphometryResult | null) => {
+    _setMorphometry(m);
+    if (m?.site) _setAneurysmSite(m.site);
+  });
+  const setAneurysmSite = touch(_setAneurysmSite);
   const setTreatment = touch(_setTreatment);
   // La morfometría automática mide el candidato elegido: si la elección
   // cambia, la medida (y la recomendación calculada con ella) es de otro
@@ -388,14 +709,50 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     selectedRef.current = i;
     _setSelectedCandidate(i);
   };
-  const setCenterlineMesh = touch(_setCenterlineMesh);
-  const setMeasurements = touch(_setMeasurements);
+  // Cuando el backend invalida la medida, `setSelectedCandidate(0)` no basta:
+  // si el elegido ya era el 0 no cambia nada y las cifras viejas seguían en
+  // Morfometría y Tratamiento describiendo un sitio que ya no existe.
+  const clearMorphometry = () => {
+    setMorphometry(null);
+    setTreatment(null);
+    setNeckOrigin(null);
+    setNeckDome(null);
+    setNeckRim([]);
+  };
+  // Sin tubo no hay puntos: quien quita la malla (descartar, recortar, resegmentar) quita el recorrido.
+  const setCenterlineMesh = touch((url: string | null) => { _setCenterlineMesh(url); if (!url) setCenterline(null); });
+  const setAnnotations = useCallback((a: Annotation[] | ((prev: Annotation[]) => Annotation[])) => {
+    _setAnnotations((prev) => (typeof a === "function" ? a(prev) : a));
+    setDirty(true);
+  }, []);
+  const setAnnotationsLoaded = useCallback((a: Annotation[]) => {
+    annotationsLoadedRef.current = a;
+    _setAnnotations(a);
+    setAnnotationsLoadState("cargado");
+  }, []);
+  const clearAnnotations = useCallback(() => {
+    _setAnnotations([]);
+    setAnnotationDraft([]);
+    setSelectedAnnotation(null);
+    setNoteFocusRequest(null);
+  }, []);
   const setDeviceMesh = (kind: DeviceKind, url: string | null) => {
     _setDeviceMeshes((d) => ({ ...d, [kind]: url }));
     setDirty(true);
   };
+  const restoreDeviceMesh = (kind: DeviceKind, url: string) =>
+    _setDeviceMeshes((d) => ({ ...d, [kind]: url }));
   const clearDeviceMeshes = (kind?: DeviceKind) => {
     _setDeviceMeshes((d) => (kind ? { ...d, [kind]: null } : { clips: null, coils: null, stent: null }));
+    // El campo describe un plan de clips concreto; sin clips no hay nada que describa.
+    if (!kind || kind === "clips") {
+      setClipField(null);
+      // Sin malla de clips la lista ya no describe nada del plan.
+      _setPlacedClips([]);
+      setPlannedClips(null);
+      setClipPlan(null);
+      setSelectedClipKey(null);
+    }
     setDirty(true);
   };
 
@@ -405,14 +762,19 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setPreviewBand(null);
     setPreviewMeshUrl(null);
     _setSegmentation(null);
+    segUrlRef.current = null;
     _setCandidates([]);
+    _setRejectedCandidates([]);
     selectedRef.current = 0;
     _setSelectedCandidate(0);
     _setMorphometry(null);
+    _setAneurysmSite(null);
     _setTreatment(null);
+    setMorphoInvalidatedNotice(false);
     setTreatmentInputs(null);
     _setDeviceMeshes({ clips: null, coils: null, stent: null });
     _setCenterlineMesh(null);
+    setCenterline(null);
     setCenterlineArcMm(null);
     setPickMode(null);
     setClSource(null);
@@ -421,17 +783,28 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setNeckDome(null);
     setNeckRim([]);
     setClipRehearsal(null);
+    // Un campo de otra sesión no describe los clips de la nueva.
+    setClipField(null);
+    _setPlacedClips([]);
+    setPlannedClips(null);
+    setClipPlan(null);
+    setSelectedClipKey(null);
     _setPerforators([]);
     setPerforatorZones(null);
     setVisiblePerforators([]);
-    _setMeasurements([]);
-    setMeasurePending(null);
+    // Las anotaciones NO van aquí: también se toman sobre los cortes antes de
+    // que haya malla, y la primera segmentación o «Descartar» las borraría (en
+    // el store y, por el guardado automático, en disco). Quien cambia aquello
+    // a lo que apuntan llama a clearAnnotations().
     setCropCenter(null);
     setLesionMark(null);
     setFollowup(null);
     setErasePick(null);
     setTrajEntry(null);
     setTrajTarget(null);
+    setTrajSaved(null);
+    // Un PDF de otro volumen no describe nada de lo nuevo.
+    setReportUrls(null);
     setMorphoOverlay(false);
     setFocusPoint(null);
     // La orientación fijada a mano NO es «aguas abajo»: es del volumen, no de
@@ -442,31 +815,66 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
 
   const reset = () => {
     setDirty(false);
+    restoredWlRef.current = null;
     setCase(null);
     setImagingStudyId(null);
     setSession(null);
     setSeries(null);
     setSeriesList([]);
     setOrientationManual(null);
+    // El eje del MIP se eligió para el estudio anterior: el nuevo vuelve a
+    // seguir a la vista principal.
+    setMipPlane(null);
+    // El modo y el preajuste de VOLUMEN también son de la sesión: el estudio
+    // nuevo abre en MIP y con «Vasos»; si es TC, el visor lo cambia al primer
+    // preajuste de tejido al llegar la meta.
+    setVolumeMode("mip");
+    setVolumePreset("Vasos");
+    // El plano libre, el modo de recorte y las ventanas se ajustaron sobre el
+    // volumen anterior: el estudio nuevo abre con el recorte por ejes.
+    setFreePlaneState(DEFAULT_FREE_PLANE);
+    setClipMode("eje");
+    setCutFaceVisible(true);
+    // WHY: quitar la malla en Cortes 3D era una decisión sobre el estudio
+    // anterior; el nuevo abre con ella a la vista.
+    setSlices3dMeshVisible(true);
+    setVolumeWindows({});
+    setMipWindow(null);
+    setMipLocal(false);
+    // WHY: un cine que siguiera corriendo movería los cortes del estudio nuevo
+    // sin que nadie lo pidiera; la celda enfocada era de la sesión anterior.
+    setCine(null);
+    setFocusedPane(null);
+    setObliqueWalk("plano");
     resetDownstream();
+    clearAnnotations();
+    // WHY: un «sin guardar» o una lectura fallida eran de la sesión anterior;
+    // la siguiente (nueva o reanudada) parte limpia. Una sesión nueva no tiene
+    // archivo: vacía ES su lista, así que cuenta como cargada.
+    setAnnotationsSync("guardado");
+    annotationsLoadedRef.current = null;
+    setAnnotationsLoadState("cargado");
   };
 
   return (
     <PlanningContext.Provider
       value={{
-        patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates,
-        selectedCandidate, morphometry, treatment, deviceMeshes,
-        centerlineMesh, centerlineArcMm, stentMap, setStentMap, mprWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        measurements, measurePending, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropShape, cropInvert, trajEntry, trajTarget, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, dirty,
-        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, volumeVersion,
+        patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
+        selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
+        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, sceneFramer, dirty,
+        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
+        freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
-        setCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,
-        setDeviceMesh, clearDeviceMeshes, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
-        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, registerClipParts,
+        setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,
+        setMorphoInvalidatedNotice, clearMorphometry,
+        setDeviceMesh, clearDeviceMeshes, restoreDeviceMesh, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
+        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setMeasurements, setMeasurePending, setCropCenter, setErasePick, setCropRadius, setCropShape, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
-        setCaptureViewport, setCenterOnLesion, markSaved,
-        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, bumpVolumeVersion,
+        setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, registerSaver, saveNow,
+        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
+        setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setMipLocal, setCine, setFocusedPane,
         reset, resetDownstream,
       }}
     >

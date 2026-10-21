@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from main import app
 from services.database import Base, engine
 from services.sessions import create_session, session_subdir
-from services.mpr import get_volume_raw_uint8, render_oblique_png, _downsampled_volume
+from services.mpr import render_oblique_png, _downsampled_volume
 
 Base.metadata.create_all(bind=engine)
 client = TestClient(app, raise_server_exceptions=True)
@@ -38,22 +38,10 @@ def _session_with_volume(nz=48, ny=80, nx=80) -> str:
     return sid
 
 
-class TestVolumeRaw:
-    def test_raw_dims_and_size(self):
-        sid = _session_with_volume(48, 80, 80)
-        data, dims, spacing = get_volume_raw_uint8(sid, max_dim=64)
-        assert len(data) == dims[0] * dims[1] * dims[2]
-        assert max(dims) <= 64
-        assert len(spacing) == 3
-
-    def test_raw_endpoint_headers(self):
-        sid = _session_with_volume()
-        r = client.get(f"/api/volume/{sid}/raw")
-        assert r.status_code == 200
-        assert r.headers["content-type"] == "application/octet-stream"
-        dims = [int(x) for x in r.headers["x-dims"].split(",")]
-        assert len(r.content) == dims[0] * dims[1] * dims[2]
-        assert "x-spacing" in r.headers
+def test_volume_raw_route_is_gone():
+    # La ruta se retiró en D2: aun con una sesión válida responde 404.
+    sid = _session_with_volume()
+    assert client.get(f"/api/volume/{sid}/raw").status_code == 404
 
 
 class TestOblique:
@@ -75,5 +63,4 @@ class TestOblique:
         assert r.status_code == 200
 
     def test_missing_session(self):
-        assert client.get("/api/volume/nope/raw").status_code == 404
         assert client.get("/api/slice-oblique/nope").status_code == 404

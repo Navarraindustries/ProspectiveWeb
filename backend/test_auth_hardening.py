@@ -118,3 +118,48 @@ class TestLimiteDeIntentos:
         assert login_throttle.blocked_for(k) > 0
         t[0] += login_throttle.WINDOW_S + 1
         assert login_throttle.blocked_for(k) == 0
+
+
+class TestContactoYIntentosRestantes:
+    """F1-40, F1-42, F1-43: quien no puede entrar debe saber a quién escribir,
+    y quien se acerca al bloqueo debe saberlo antes de quedarse fuera."""
+
+    def test_el_401_dice_cuantos_intentos_quedan(self):
+        nombre, _c = _usuario(must_change=False, password="la-buena-123")
+        anon = anonymous_client(app)
+        r = anon.post("/api/auth/login", json={"username": nombre, "password": "incorrecta-000"})
+        assert r.status_code == 401
+        d = r.json()["detail"]
+        assert d["message"] == "Credenciales incorrectas"
+        assert d["remaining_attempts"] == login_throttle.MAX_FAILURES - 1
+        for _ in range(login_throttle.MAX_FAILURES - 2):
+            r = anon.post("/api/auth/login", json={"username": nombre, "password": "incorrecta-000"})
+        assert r.json()["detail"]["remaining_attempts"] == 1
+
+    def test_el_429_lleva_el_contacto_por_si_no_recuerda_la_contrasena(self):
+        nombre, _c = _usuario(must_change=False, password="la-buena-123")
+        anon = anonymous_client(app)
+        for _ in range(login_throttle.MAX_FAILURES):
+            anon.post("/api/auth/login", json={"username": nombre, "password": "incorrecta-000"})
+        r = anon.post("/api/auth/login", json={"username": nombre, "password": "la-buena-123"})
+        assert r.status_code == 429
+        assert "pide a un administrador que la restablezca" in r.json()["detail"]
+
+    @pytest.mark.parametrize("estado,activo", [("pending", False), ("rejected", False), ("active", False)])
+    def test_los_tres_403_llevan_el_correo_del_administrador(self, estado, activo):
+        nombre = f"b-{uuid.uuid4().hex[:8]}"
+        db = SessionLocal()
+        db.add(User(username=nombre, hashed_password=get_password_hash("la-buena-123"), role="medico",
+                    full_name=nombre, status=estado, is_active=activo))
+        db.commit(); db.close()
+        r = anonymous_client(app).post("/api/auth/login", json={"username": nombre, "password": "la-buena-123"})
+        assert r.status_code == 403
+        assert "ingprospective@skullapp.tech" in r.json()["detail"]
+
+    def test_el_registro_avisa_de_que_no_habra_aviso(self):
+        nombre = f"r-{uuid.uuid4().hex[:8]}"
+        r = anonymous_client(app).post("/api/auth/signup", data={
+            "username": nombre, "password": "la-buena-123", "full_name": "Nueva Persona"})
+        assert r.status_code in (200, 201), r.text
+        assert "no recibirás aviso" in r.json()["message"]
+        assert "ingprospective@skullapp.tech" in r.json()["message"]

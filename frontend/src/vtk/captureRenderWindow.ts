@@ -99,3 +99,36 @@ export function captureRenderWindow(win: CapturableWindow | (() => CapturableWin
   };
   return capture;
 }
+
+/** Encuadra la escena para una foto y devuelve con qué deshacerlo.
+ *  Lo registra el visor en el store (`registerSceneFramer`): es el mismo
+ *  encuadre que «Centrar en la lesión», sin mover los cortes. */
+export type SceneFramer = () => (() => void) | void;
+
+const dosFotogramas = () =>
+  new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
+/** La foto del informe con la lesión encuadrada (F1-222).
+ *
+ *  La captura cogía lo que la cámara 3D enseñara en ese momento: si el
+ *  profesional se había alejado o mirado otra rama, el PDF llevaba esa vista.
+ *  Aquí se encuadra la lesión, se deja dibujar (dos fotogramas, como en
+ *  `captureScene`: el redimensionado llega después del primero), se captura y
+ *  se devuelve la cámara como estaba, también si la captura falla. Sin
+ *  encuadrador (no hay lesión ubicada) es la captura de siempre. */
+export async function captureFramed(
+  capture: () => Promise<string | null>,
+  frame?: SceneFramer | null,
+  nextFrame: () => Promise<void> = dosFotogramas,
+): Promise<string | null> {
+  let restaurar: (() => void) | void = undefined;
+  try {
+    if (frame) {
+      restaurar = frame();
+      await nextFrame();
+    }
+    return await capture();
+  } finally {
+    try { restaurar?.(); } catch { /* devolver la cámara nunca tumba el informe */ }
+  }
+}

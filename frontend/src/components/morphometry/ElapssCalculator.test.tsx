@@ -13,6 +13,10 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
+// La localización llega de Morfometría (F1-165): ELAPSS ya no la pregunta.
+let planning: Record<string, unknown> = { aneurysmSite: "ACA / ACoA — Arteria Comunicante Anterior" };
+vi.mock("../../store/planning", () => ({ usePlanning: () => planning }));
+
 import { api } from "../../api/client";
 import { ElapssCalculator } from "./ElapssCalculator";
 
@@ -32,8 +36,53 @@ describe("ELAPSS", () => {
   });
 
   it("si la morfometría sugiere contorno irregular, lo dice pero no lo marca", () => {
-    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" irregularHint />);
-    expect(screen.getByText(/contorno ondulado/)).toBeInTheDocument();
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" measuredUi={0.3} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(/contradice el UI medido/);
     expect((screen.getByLabelText(/Forma irregular/) as HTMLInputElement).checked).toBe(false);
+  });
+
+  /* F1-235: el PDF decía «Forma (S) Regular» con un UI de 0,50. */
+  it("UI 0,5 con «Regular» muestra el aviso", () => {
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" measuredUi={0.5} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "La forma elegida (regular) contradice el UI medido (0,50): revisa el contorno en el visor");
+    // Al marcarla irregular deja de contradecir.
+    fireEvent.click(screen.getByText(/Forma irregular/));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("con UI bajo o sin volumen válido no avisa", () => {
+    const { unmount } = render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" measuredUi={0.08} />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    unmount();
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" measuredUi={null} />);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+/* F1-14: ELAPSS no decía qué Ø tomaba, ni que el del cuerpo lo cambiaba de tramo. */
+describe("ELAPSS y el diámetro", () => {
+  it("dice qué diámetro toma y avisa si el del cuerpo cambia de tramo", () => {
+    render(<ElapssCalculator maxDiameterMm={10.9} bodyDiameterMm={9.5} sessionId="s1" />);
+    expect(screen.getByText(/Ø máximo medido 10,9 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/cambia de tramo/).textContent).toContain("corte de 10 mm");
+  });
+});
+
+describe("ELAPSS con la localización de Morfometría", () => {
+  it("traduce la localización elegida y no tiene selector propio", async () => {
+    planning = { aneurysmSite: "ACoP — Arteria Comunicante Posterior" };
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" dob="1950-01-01" />);
+    expect(screen.queryByLabelText("Localización")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Calcular ELAPSS"));
+    await waitFor(() => expect(api.elapss).toHaveBeenLastCalledWith(
+      expect.objectContaining({ location: "pcom_posterior" })));
+  });
+
+  it("sin localización lo dice y no calcula", () => {
+    planning = { aneurysmSite: null };
+    render(<ElapssCalculator maxDiameterMm={6} sessionId="s1" dob="1950-01-01" />);
+    expect(screen.getByText("Elige la localización en Morfometría")).toBeInTheDocument();
+    expect(screen.getByText("Calcular ELAPSS").closest("button")).toBeDisabled();
   });
 });

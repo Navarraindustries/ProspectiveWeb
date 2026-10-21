@@ -5,27 +5,85 @@
    surface (for centreline endpoints) and small sphere markers. */
 
 import { followContainer } from "./followContainer";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { toPixels } from "./planeTrace";
 import { geometryKey, sceneKey } from "./sceneKeys";
+import type { PlaneOutline } from "./planeOutlines";
 import { markerRadiusMm, RULER_BEAD_RATIO, RULER_TUBE_RATIO } from "./markerSize";
 
 import "@kitware/vtk.js/Rendering/Profiles/Geometry";
+// Los cortes de «Cortes 3D» usan el mapper de reslice, que registra este perfil.
+import "@kitware/vtk.js/Rendering/Profiles/Volume";
+import vtkImageResliceMapper from "@kitware/vtk.js/Rendering/Core/ImageResliceMapper";
+import vtkImageSlice from "@kitware/vtk.js/Rendering/Core/ImageSlice";
+import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
+import vtkPolyData from "@kitware/vtk.js/Common/DataModel/PolyData";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+import vtkRenderer from "@kitware/vtk.js/Rendering/Core/Renderer";
 import vtkLight from "@kitware/vtk.js/Rendering/Core/Light";
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
 import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 import vtkCubeSource from "@kitware/vtk.js/Filters/Sources/CubeSource";
 import vtkLineSource from "@kitware/vtk.js/Filters/Sources/LineSource";
 import vtkTubeFilter from "@kitware/vtk.js/Filters/General/TubeFilter";
-import type { Vector3 } from "@kitware/vtk.js/types";
+import type { Bounds, Vector3 } from "@kitware/vtk.js/types";
 import { createOrientationInset, type OrientationInset } from "./OrientationInset";
 import { captureRenderWindow, type CapturableWindow, type CaptureFn } from "./captureRenderWindow";
-import { standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
+import { lookAlongUp, resolveView, standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
+import { IDENTITY } from "./clipPose";
+import { matrixAfterSwap, shouldApplyMatrix, toColumnMajor } from "./layerMatrix";
+import { chooseHandle, nextDrag, type DragEvent, type DragState } from "./handleDrag";
+import { cameraLike, type CameraLike, type Viewport } from "./dragController";
+import type { SlicePlaneSpec } from "./slicePlanes";
+
+/** Un asa que se puede agarrar con el ratón (el clip, sus planos). Se dibuja en
+ *  la capa superior, encima de la malla, porque el asa suele quedar dentro del
+ *  vaso o detrás del saco y con prueba de profundidad no se podría coger. */
+export interface Handle {
+  id: string;
+  kind: "sphere" | "ring" | "square";
+  pos: Vec3;
+  /** Normal del plano del anillo; las esferas y los cuadrados no la usan. */
+  normal?: Vec3;
+  radiusMm: number;
+  color: [number, number, number];
+  /** Segmento guía de `pos` a este punto (el asa unida a lo que mueve). */
+  lineTo?: Vec3;
+}
+
+export interface HandleDragEvent {
+  id: string;
+  phase: "start" | "move" | "end" | "cancel";
+  /** Píxel CSS respecto a la esquina superior izquierda del lienzo. */
+  px: number;
+  py: number;
+  shift: boolean;
+  camera: CameraLike;
+  viewport: Viewport;
+}
+
+const NO_HANDLES: Handle[] = [];
+const NO_LABELS: MeshLabel[] = [];
+
+/** Los tres cortes de índice en gris dentro de la escena (modo «Cortes 3D»):
+ *  dónde va cada uno, el volumen que remuestrean y la ventana de los cortes. */
+export interface SlicePlanesProp {
+  specs: SlicePlaneSpec[];
+  image: vtkImageData;
+  wc: number;
+  ww: number;
+}
+
+interface SliceActor {
+  plane: ReturnType<typeof vtkPlane.newInstance>;
+  mapper: ReturnType<typeof vtkImageResliceMapper.newInstance>;
+  actor: ReturnType<typeof vtkImageSlice.newInstance>;
+}
 
 export interface MeshLayer {
   url: string;
@@ -43,13 +101,23 @@ export interface MeshLayer {
    *  aspecto. Sin esto, al medir el saco la vista saltaba al árbol entero
    *  justo cuando hay que mirar lo que se acaba de medir. */
   frame?: boolean;
-  /** Colorea por un campo de puntos en vez de un color liso: azul (negativo),
-   *  gris (0) y rojo (positivo), saturando en ±`range`. Lo usa el mapa de
-   *  cambio del seguimiento. Por debajo de `deadband` en valor absoluto se
-   *  pinta gris: es ruido de la comparación, no cambio. */
-  scalars?: { name: string; range: number; deadband?: number;
-              /** Rojo para lo negativo y azul para lo positivo. */
-              invert?: boolean };
+  /** Color por vértice en vez del color sólido de la capa, de dos maneras:
+   *  - `{ array }`: color directo RGB (uint8×3) que ya trae el .vtp. Lo pide
+   *    el mapa de calor del clip: el servidor decide el color de cada punto.
+   *  - `{ name, range }`: un campo de puntos pasado por una escala azul
+   *    (negativo) · gris (0) · rojo (positivo) que satura en ±`range`. Lo usan
+   *    los mapas de cambio del seguimiento, aposición y cobertura. Por debajo
+   *    de `deadband` en valor absoluto se pinta gris: es ruido de la
+   *    comparación, no cambio. */
+  scalars?: { array: string } | {
+    name: string; range: number; deadband?: number;
+    /** Rojo para lo negativo y azul para lo positivo. */
+    invert?: boolean };
+  /** Matriz de usuario 4×4 (16 números, la convención de vtk.js) que mueve el
+   *  actor sin recargar la malla: el clip colocado sigue al arrastre así.
+   *  undefined = identidad. Solo la admiten las capas con `id`, que son las
+   *  que tienen actor con nombre; en una capa sin `id` se ignora. */
+  userMatrix?: number[];
 }
 
 /** Imperative handle for moving named layers, published while the scene lives.
@@ -70,6 +138,17 @@ export interface MeshMarker {
   scale?: number;
 }
 
+/** El punto compartido de los cortes. No es un marcador más: se dibuja en una
+ *  capa propia encima de la malla (ver el efecto de escena), porque el punto
+ *  que se busca suele estar DENTRO del vaso o del saco, y una esfera con
+ *  prueba de profundidad quedaba tapada justo ahí. Radio fijo en mm: debe
+ *  verse igual aunque cambie el tamaño de la escena. */
+export interface MeshFocus {
+  pos: Vec3;
+  color: Vector3;
+  radiusMm: number;
+}
+
 export interface MeshLine {
   a: [number, number, number];
   b: [number, number, number];
@@ -80,7 +159,13 @@ export interface MeshLine {
   radiusMm?: number;
   /** Translúcido para el corredor, que si no tapa la malla que hay detrás. */
   opacity?: number;
+  /** Multiplica el grosor de regla por defecto (sin `radiusMm`): la anotación
+   *  seleccionada destaca sin que el visor tenga que saber la escala de la escena. */
+  scale?: number;
 }
+
+/** Rótulo en pantalla anclado a un punto de la escena (mm). */
+export interface MeshLabel { pos: Vec3; text: string; color: string }
 
 /** Standard viewpoints, named for the MPR planes the rest of the app uses.
  *  They are defined in patient (LPS) terms and mapped into mesh coordinates
@@ -96,6 +181,21 @@ export interface CameraController {
   focus(p: Vec3): void;
   /** Encuadra un cubo de lado 2·radiusMm centrado en `p`. */
   frame(p: Vec3, radiusMm: number): void;
+  /** Mira a lo largo de `dir` hacia `focal`, encuadrando un cubo de lado 2·radiusMm (spec §4.2). */
+  lookAlong(dir: Vec3, focal: Vec3, radiusMm: number): void;
+  /** La cámara tal como está, para devolverla luego (F1-222: la foto del
+   *  informe encuadra la lesión y deja la vista como el profesional la tenía). */
+  getState(): CameraState | null;
+  setState(s: CameraState): void;
+}
+
+/** Lo que hace falta para devolver la cámara exactamente a donde estaba. */
+export interface CameraState {
+  position: Vec3;
+  focalPoint: Vec3;
+  viewUp: Vec3;
+  viewAngle: number;
+  parallelScale: number;
 }
 
 export interface CropPreview {
@@ -108,6 +208,12 @@ export interface CropPreview {
 interface Handles {
   fsrw: vtkFullScreenRenderWindow;
   renderer: ReturnType<vtkFullScreenRenderWindow["getRenderer"]>;
+  /** Capa 1, sin prueba de profundidad contra la malla: solo el punto del foco. */
+  overlay: vtkRenderer;
+  focusActor: vtkActor;
+  focusSphere: ReturnType<typeof vtkSphereSource.newInstance>;
+  /** Copia la cámara principal a la de la capa y ajusta su recorte al punto. */
+  syncOverlay: () => void;
   renderWindow: ReturnType<vtkFullScreenRenderWindow["getRenderWindow"]>;
   actors: vtkActor[];
   actorByUrl: Map<string, vtkActor>;   // for incremental opacity/color updates
@@ -126,7 +232,10 @@ function outlineOpacity(layerOpacity: number): number {
 export function MeshView({
   layers,
   markers = [],
+  focus = null,
+  planes = [],
   lines = [],
+  labels = NO_LABELS,
   cropPreview = null,
   boxPreview = null,
   referenceDiameterMm = null,
@@ -141,10 +250,23 @@ export function MeshView({
   orientation,
   onCameraChange,
   insetRaised = false,
+  showInset = true,
+  handles: handleList = NO_HANDLES,
+  onHandleDrag,
+  onHandleDoubleClick,
+  onLayerLoaded,
+  slicePlanes = null,
 }: {
   layers: MeshLayer[];
   markers?: MeshMarker[];
+  /** El punto compartido de los cortes, visible siempre encima de la malla. */
+  focus?: MeshFocus | null;
   lines?: MeshLine[];
+  /** Rótulos de las anotaciones: texto HTML/SVG encima del lienzo, no actores,
+   *  para que se lean igual a cualquier zoom. Se recolocan con cada cambio de cámara. */
+  labels?: MeshLabel[];
+  /** Los planos de corte como rectángulos sin iluminación y no seleccionables. */
+  planes?: PlaneOutline[];
   /** Translucent sphere/box preview of the crop ROI (null to hide). */
   cropPreview?: CropPreview | null;
   /** Caja de recorte: los seis límites, en mm de mundo. Recorta EN VIVO por sus
@@ -185,12 +307,34 @@ export function MeshView({
   /** Sube el recuadro del maniquí por encima de la leyenda de abajo a la
    *  derecha (dispositivos, bandas de perforantes) para no taparla. */
   insetRaised?: boolean;
+  /** El recuadro del maniquí; false con el HUD limpio (el CSS no llega a vtk). */
+  showInset?: boolean;
+  /** Asas agarrables en la capa superior. Con la lista vacía el ratón es todo
+   *  de la cámara, igual que antes de que existieran. */
+  handles?: Handle[];
+  /** Ciclo de arrastre de un asa: start al pulsar encima con el botón
+   *  izquierdo, move mientras se arrastra, end al soltar y cancel con Escape.
+   *  Durante el arrastre la cámara no se mueve. */
+  onHandleDrag?: (e: HandleDragEvent) => void;
+  /** Doble clic sobre un asa. No llega a la celda (que si no promovería la vista). */
+  onHandleDoubleClick?: (id: string) => void;
+  /** Una capa con nombre ya ENSEÑA este fichero: se llama tras ponerle la
+   *  geometría y pintar, al montar la escena y en cada cambio de geometría.
+   *  El visor lo usa para saber cuándo están en pantalla los colores nuevos
+   *  del mapa de calor, que llegan después de la respuesta del campo. */
+  onLayerLoaded?: (id: string, url: string) => void;
+  /** Modo «Cortes 3D»: los tres cortes de índice remuestreados en gris en su
+   *  posición real. null = escena normal, sin cortes. */
+  slicePlanes?: SlicePlanesProp | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handles = useRef<Handles | null>(null);
   // Set once the geometry is on screen; markers re-render at the new size.
   const [sceneDiagonal, setSceneDiagonal] = useState(0);
   const markerActors = useRef<vtkActor[]>([]);
+  const planeActors = useRef<vtkActor[]>([]);
+  // Los tres cortes del modo «Cortes 3D», con el volumen para el que se crearon.
+  const sliceActors = useRef<{ image: vtkImageData; items: SliceActor[] } | null>(null);
   // Actors that carry a layer id, so the rehearsal can move them by name.
   const namedActors = useRef<Map<string, vtkActor>>(new Map());
   // El contorno de cada capa que lo pide, por id (o URL), para que siga los
@@ -199,6 +343,14 @@ export function MeshView({
   // Qué fichero tiene cargado ahora mismo cada capa CON NOMBRE. Una capa con
   // nombre puede cambiar de geometría sin reconstruir la escena.
   const loadedUrlById = useRef<Map<string, string>>(new Map());
+  // Las capas del último render: el cambio de geometría es asíncrono y, al
+  // terminar, tiene que aplicar la matriz de ESE momento, no la de cuando
+  // empezó la descarga (el arrastre pudo seguir mientras tanto).
+  const latestLayers = useRef(layers);
+  latestLayers.current = layers;
+  // Capas con nombre a las que el efecto de la matriz puso una matriz propia
+  // (ver ese efecto); el cambio de geometría también la consulta.
+  const matrixIds = useRef<Set<string>>(new Set());
   // Sube al terminar de cargar la escena: el cambio de geometría en sitio se
   // reintenta entonces, porque hasta ese momento no hay actores que tocar.
   const [sceneEpoch, setSceneEpoch] = useState(0);
@@ -223,6 +375,46 @@ export function MeshView({
   onCameraChangeRef.current = onCameraChange;
   const insetRef = useRef<OrientationInset | null>(null);
 
+  // Asas: sus actores en la capa superior y, para resolver el pick, de qué asa
+  // es cada actor. Los límites de todas juntas los lee `syncOverlay` para que
+  // el recorte de la capa las abarque (ver allí).
+  const handleActors = useRef<vtkActor[]>([]);
+  const handleIdByActor = useRef<Map<vtkActor, string>>(new Map());
+  const handleKindByActor = useRef<Map<vtkActor, string>>(new Map());
+  const handleBounds = useRef<number[] | null>(null);
+  // Lo último que llegó por props, leído desde los oyentes del puntero, que
+  // viven mientras el componente y no se rehacen en cada render.
+  const onHandleDragRef = useRef(onHandleDrag);
+  onHandleDragRef.current = onHandleDrag;
+  const onHandleDoubleClickRef = useRef(onHandleDoubleClick);
+  onHandleDoubleClickRef.current = onHandleDoubleClick;
+  const onLayerLoadedRef = useRef(onLayerLoaded);
+  onLayerLoadedRef.current = onLayerLoaded;
+
+  // Rótulos: se escriben en el DOM a mano en cada cambio de cámara. Con estado
+  // de React, girar la escena repintaría el componente entero en cada fotograma.
+  const labelSvg = useRef<SVGSVGElement>(null);
+  const labelsRef = useRef(labels);
+  labelsRef.current = labels;
+  const placeLabels = useRef(() => {
+    const svg = labelSvg.current, h = handles.current, el = containerRef.current;
+    if (!svg || !h || !el) return;
+    const w = el.clientWidth, ht = el.clientHeight;
+    const list = labelsRef.current;
+    svg.querySelectorAll("text").forEach((t, i) => {
+      const l = list[i];
+      if (!l || w < 1 || ht < 1) { t.setAttribute("display", "none"); return; }
+      const d = h.renderer.worldToNormalizedDisplay(l.pos[0], l.pos[1], l.pos[2], w / ht);
+      // Fuera de [0, 1] en profundidad: detrás de la cámara (o fuera de su recorte).
+      if (!(d[2] >= 0 && d[2] <= 1)) { t.setAttribute("display", "none"); return; }
+      const p = toPixels([d[0], d[1]], w, ht);
+      t.setAttribute("x", (p.x + 6).toFixed(1));
+      t.setAttribute("y", (p.y - 6).toFixed(1));
+      t.removeAttribute("display");
+    });
+  }).current;
+  const labelKey = labels.map((l) => `${l.pos.join(",")}|${l.text}|${l.color}`).join(";");
+
   // Latest pick config, read inside the vtk interactor callback without
   // forcing the scene to rebuild when the pick mode toggles.
   const pickModeRef = useRef(pickMode);
@@ -245,9 +437,15 @@ export function MeshView({
   const geoKey = geometryKey(layers);
   const appearanceKey = layers.map((l) => `${l.id ?? l.url}|${l.color.join(",")}|${l.opacity ?? 1}`).join(";");
   const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}`).join(";");
+  const focusKey = focus ? `${focus.pos.join(",")}|${focus.color.join(",")}|${focus.radiusMm}` : "";
+  const planeKey = planes.map((p) => p.corners.flat().join(",") + "|" + p.color.join(",")).join(";");
   const lineKey = lines
-    .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}`)
+    .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}|${l.scale ?? 1}`)
     .join(";");
+  const handleKey = handleList
+    .map((g) => `${g.id}|${g.kind}|${g.pos.join(",")}|${g.normal?.join(",") ?? ""}|${g.radiusMm}|${g.color.join(",")}|${g.lineTo?.join(",") ?? ""}`)
+    .join(";");
+  const userMatrixKey = layers.map((l) => l.userMatrix?.join(",") ?? "").join(";");
   const cropKey = cropPreview
     ? `${cropPreview.center.join(",")}|${cropPreview.radius}|${cropPreview.shape}|${cropPreview.invert}`
     : "";
@@ -264,7 +462,68 @@ export function MeshView({
     });
     const renderer = fsrw.getRenderer();
     const renderWindow = fsrw.getRenderWindow();
-    handles.current = { fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map() };
+
+    // Capa del punto compartido. Un segundo renderer en la capa 1 conserva el
+    // color de la escena (setLayer(1) ya lo pide) pero NO su profundidad: lo
+    // que dibuja queda encima de la malla aunque el punto esté dentro del vaso.
+    // No es interactivo, así que el interactor, la rotación y la selección de
+    // puntos siguen yendo al renderer principal; y su actor no está en este,
+    // así que no cuenta para ENCUADRAR ni para la escala de los marcadores.
+    // Cámara: una propia que copia la principal en cada cambio (como el
+    // recuadro del maniquí) en vez de compartir la misma. Compartida, el
+    // recorte cercano/lejano lo fijaría solo la malla, y un punto fuera de
+    // sus límites en profundidad (hueso, otra rama) quedaría recortado. Con
+    // cámara propia la capa ajusta su recorte al punto sin tocar la escena.
+    if (renderWindow.getNumberOfLayers() < 2) renderWindow.setNumberOfLayers(2);
+    const overlay = vtkRenderer.newInstance();
+    overlay.setLayer(1);
+    overlay.setPreserveColorBuffer(true);
+    overlay.setPreserveDepthBuffer(false);
+    overlay.setInteractive(false);
+    renderWindow.addRenderer(overlay);
+    const focusSphere = vtkSphereSource.newInstance({ radius: 0.6, thetaResolution: 16, phiResolution: 16 });
+    const focusMapper = vtkMapper.newInstance();
+    focusMapper.setInputConnection(focusSphere.getOutputPort());
+    const focusActor = vtkActor.newInstance();
+    focusActor.setMapper(focusMapper);
+    // Sin luz: un punto de color plano se lee como punto, no como otra bola.
+    focusActor.getProperty().setLighting(false);
+    focusActor.setPickable(false);
+    focusActor.setVisibility(false);
+    overlay.addActor(focusActor);
+    const syncOverlay = () => {
+      const src = renderer.getActiveCamera(), dst = overlay.getActiveCamera();
+      dst.setPosition(...(src.getPosition() as Vector3));
+      dst.setFocalPoint(...(src.getFocalPoint() as Vector3));
+      dst.setViewUp(...(src.getViewUp() as Vector3));
+      dst.setViewAngle(src.getViewAngle());
+      dst.setParallelProjection(src.getParallelProjection());
+      dst.setParallelScale(src.getParallelScale());
+      // El recorte se ajusta a lo que la capa dibuja: el punto y las asas. Las
+      // asas no cuentan para los límites (setUseBounds(false)), así que entran
+      // aquí a mano; si no, un asa lejos del punto en profundidad quedaría
+      // recortada, y tampoco se podría pinchar (el rayo del picker va del
+      // plano cercano al lejano). Sin nada visible el recorte queda como esté.
+      let b: Bounds | null = focusActor.getVisibility() ? [...focusActor.getBounds()] as Bounds : null;
+      const hb = handleBounds.current;
+      if (hb) {
+        b = b
+          ? [Math.min(b[0], hb[0]), Math.max(b[1], hb[1]), Math.min(b[2], hb[2]), Math.max(b[3], hb[3]), Math.min(b[4], hb[4]), Math.max(b[5], hb[5])]
+          : [...hb] as Bounds;
+      }
+      if (b) overlay.resetCameraClippingRange(b);
+    };
+    const overlaySub = renderer.getActiveCamera().onModified(syncOverlay);
+    syncOverlay();
+    const labelSub = renderer.getActiveCamera().onModified(placeLabels);
+
+    handles.current = {
+      fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map(),
+      overlay, focusActor, focusSphere, syncOverlay,
+    };
+    // La rejilla del visor mueve la escena entre la principal y una celda
+    // lateral sin remontarla, así que el lienzo tiene que seguir a su celda
+    // (y no tocarse con el recuadro a 0: ver followContainer).
     const stopFollowing = followContainer(container, fsrw);
 
     // Dos luces que siguen la cámara: una principal y un relleno opuesto al 35 %.
@@ -333,8 +592,10 @@ export function MeshView({
       if (!h) return;
       const cam = h.renderer.getActiveCamera();
       if (view !== "fit") {
+        // Segundo clic en la misma vista: la cara contraria (spec §5).
+        const target = resolveView(view, cam.getDirectionOfProjection() as Vec3, orientationRef.current);
         // La cámara se pone del lado contrario a donde mira.
-        const { direction: dop, viewUp: up } = standardViewInVolume(view, orientationRef.current);
+        const { direction: dop, viewUp: up } = standardViewInVolume(target, orientationRef.current);
         const dir: Vec3 = [-dop[0], -dop[1], -dop[2]];
         cam.setFocalPoint(0, 0, 0);
         cam.setPosition(dir[0], dir[1], dir[2]);
@@ -369,6 +630,43 @@ export function MeshView({
         h.renderer.updateLightsGeometryToFollowCamera();
         h.renderWindow.render();
       },
+      getState: () => {
+        const h = handles.current; if (!h) return null;
+        const cam = h.renderer.getActiveCamera();
+        return {
+          position: [...cam.getPosition()] as Vec3,
+          focalPoint: [...cam.getFocalPoint()] as Vec3,
+          viewUp: [...cam.getViewUp()] as Vec3,
+          viewAngle: cam.getViewAngle(),
+          parallelScale: cam.getParallelScale(),
+        };
+      },
+      setState: (st: CameraState) => {
+        const h = handles.current; if (!h) return;
+        const cam = h.renderer.getActiveCamera();
+        cam.setPosition(...st.position);
+        cam.setFocalPoint(...st.focalPoint);
+        cam.setViewUp(...st.viewUp);
+        cam.setViewAngle(st.viewAngle);
+        cam.setParallelScale(st.parallelScale);
+        h.renderer.resetCameraClippingRange();
+        h.renderer.updateLightsGeometryToFollowCamera();
+        h.renderWindow.render();
+      },
+      // Vista de abordaje: desde fuera, por el corredor, hacia la diana.
+      lookAlong: (dir: Vec3, focal: Vec3, r: number) => {
+        const h = handles.current; if (!h) return;
+        const cam = h.renderer.getActiveCamera();
+        const up = lookAlongUp(dir, orientationRef.current);
+        cam.setFocalPoint(focal[0], focal[1], focal[2]);
+        cam.setPosition(focal[0] - dir[0], focal[1] - dir[1], focal[2] - dir[2]);
+        cam.setViewUp(up[0], up[1], up[2]);
+        // resetCamera(bounds) conserva dirección y arriba: solo aleja la cámara hasta encuadrar el cubo.
+        h.renderer.resetCamera([focal[0] - r, focal[0] + r, focal[1] - r, focal[1] + r, focal[2] - r, focal[2] + r]);
+        h.renderer.resetCameraClippingRange();
+        h.renderer.updateLightsGeometryToFollowCamera();
+        h.renderWindow.render();
+      },
     };
 
     (async () => {
@@ -386,7 +684,13 @@ export function MeshView({
 
           const mapper = vtkMapper.newInstance();
           mapper.setInputData(poly);
-          if (layer.scalars && poly.getPointData().getArrayByName(layer.scalars.name)) {
+          if (layer.scalars && "array" in layer.scalars) {
+            // Color directo por vértice: el servidor ya decidió el color de cada punto
+            // (categoría y presión), así la leyenda y la malla no pueden discrepar.
+            poly.getPointData().setActiveScalars(layer.scalars.array);
+            mapper.setScalarVisibility(true);
+            mapper.setColorModeToDirectScalars();
+          } else if (layer.scalars && poly.getPointData().getArrayByName(layer.scalars.name)) {
             mapper.setLookupTable(divergingLut(layer.scalars.range, layer.scalars.deadband ?? 0, layer.scalars.invert));
             mapper.setUseLookupTableScalarRange(true);
             mapper.setScalarModeToUsePointFieldData();
@@ -403,6 +707,9 @@ export function MeshView({
           if (layer.id) {
             namedActors.current.set(layer.id, actor);
             loadedUrlById.current.set(layer.id, layer.url);
+            // Nace ya en su sitio: sin esto el clip aparecería un fotograma en
+            // la pose del fichero antes de que el efecto de la matriz lo mueva.
+            actor.setUserMatrix(toColumnMajor(layer.userMatrix ?? IDENTITY) as never);   // por columnas, como lee vtk.js; el .d.ts pide mat4 y copia cualquier array de 16
           }
           const prop = actor.getProperty();
           prop.setColor(...layer.color);
@@ -503,9 +810,9 @@ export function MeshView({
         renderer.updateLightsGeometryToFollowCamera();
       }
       renderWindow.render();
+      for (const [id, url] of loadedUrlById.current) onLayerLoadedRef.current?.(id, url);
       // Captura y cámara se publican cuando la escena ya está en pantalla, no
-      // al montar: capturar antes daba un lienzo negro (el informe espera a
-      // este registro tras subir la escena al principal), y un foco aplicado
+      // al montar: capturar antes daba un lienzo negro, y un foco aplicado
       // antes lo pisaba el encuadre inicial de arriba.
       registerCaptureRef.current?.(capture);
       registerCameraRef.current?.(controller);
@@ -530,17 +837,30 @@ export function MeshView({
       stopFollowing();
       pickSub.unsubscribe();
       camSub.unsubscribe();
+      overlaySub.unsubscribe();
+      labelSub.unsubscribe();
       inset.dispose();
       insetRef.current = null;
       registerCaptureRef.current?.(null);
       // La cámara NO se anula al rehacer la escena (otro candidato, un
-      // dispositivo, la vista previa del umbral): el grupo AJUSTAR·AX·…·LESIÓN
+      // dispositivo, la vista previa del umbral): el grupo ENCUADRAR·AX·…·LESIÓN
       // desaparecía y los conmutadores de debajo saltaban. Sus métodos ya
       // miran handles.current; se anula solo al desmontar (efecto de abajo).
       registerPartsRef.current?.(null);
       namedActors.current.clear();
       outlineActors.current.clear();
       markerActors.current = [];
+      planeActors.current = [];
+      const sl = sliceActors.current;
+      if (sl) {
+        for (const it of sl.items) { renderer.removeActor(it.actor); it.actor.delete(); it.mapper.delete(); }
+        sliceActors.current = null;
+      }
+      // Las asas se van con la capa superior que se borra aquí; el efecto de las
+      // asas las vuelve a poner en la capa nueva.
+      handleActors.current = [];
+      handleIdByActor.current.clear();
+      handleKindByActor.current.clear();
       const h = handles.current;
       if (h) {
         // Remember the camera so a preview refresh can restore the viewpoint.
@@ -558,6 +878,8 @@ export function MeshView({
           savedCamera.current = null;
         }
         h.actors.forEach((a) => h.renderer.removeActor(a));
+        h.renderWindow.removeRenderer(h.overlay);
+        h.overlay.delete();
         // Unbind the interactor's DOM listeners BEFORE delete(). vtk.js does not
         // release them on delete(), so a rebuilt scene (new step / mesh) would
         // leave a "zombie" interactor firing pointer events on a torn-down
@@ -593,6 +915,9 @@ export function MeshView({
   useEffect(() => {
     insetRef.current?.setRaised(insetRaised);
   }, [key, insetRaised]);
+  useEffect(() => {
+    insetRef.current?.setVisible(showInset);
+  }, [key, showInset]);
 
   // ── Appearance (opacity/color): update actors in place, never rebuild the ──
   //    scene — so dimming a heavy mesh (e.g. entering a pick mode) is instant. ─ #
@@ -629,7 +954,6 @@ export function MeshView({
     if (!handles.current) return;
     let cancelled = false;
     (async () => {
-      let cambiado = false;
       for (const l of layers) {
         if (!l.id || loadedUrlById.current.get(l.id) === l.url) continue;
         const actor = namedActors.current.get(l.id);
@@ -640,7 +964,21 @@ export function MeshView({
           if (cancelled) return;
           const poly = reader.getOutputData();
           if (!poly || poly.getNumberOfPoints() === 0) continue;
+          // Un campo del clip recalculado llega como fichero nuevo de la misma
+          // capa: su array de color tiene que volver a ser el escalar activo.
+          if (l.scalars && "array" in l.scalars) poly.getPointData().setActiveScalars(l.scalars.array);
           (actor.getMapper() as vtkMapper).setInputData(poly);
+          // La matriz va con la geometría: el efecto de la matriz dejó de
+          // tocar este actor mientras se descargaba el fichero (conservaba el
+          // delta que casa con la malla vieja), así que es aquí, justo con la
+          // malla nueva puesta, donde le toca la matriz ACTUAL de la capa. Si
+          // se aplicara antes, el clip volvería a su pose previa al arrastre
+          // hasta que llegara el fichero.
+          const cur = latestLayers.current.find((x) => x.id === l.id);
+          const m = matrixAfterSwap(cur?.userMatrix, matrixIds.current.has(l.id));
+          if (m) actor.setUserMatrix(toColumnMajor(m) as never);   // por columnas, como lee vtk.js; el .d.ts pide mat4
+          if (cur?.userMatrix) matrixIds.current.add(l.id);
+          else matrixIds.current.delete(l.id);
           // El casco comparte el mapper, así que ya tiene la geometría nueva,
           // pero su centro de escala se fijó con los límites de la primera
           // carga: si el saco se desplaza o cambia de tamaño en el ensayo, el
@@ -652,13 +990,16 @@ export function MeshView({
             outline.setOrigin((b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2);
           }
           loadedUrlById.current.set(l.id, l.url);
-          cambiado = true;
+          // Se pinta y se avisa por capa, no al final del bucle: si no, el
+          // mapa de calor nuevo esperaría a que bajara también la malla del
+          // clip (segundos con mala red) para decir que ya está en pantalla.
+          handles.current?.renderWindow.render();
+          onLayerLoadedRef.current?.(l.id, l.url);
         } catch (err) {
           // Un fotograma que no llega no puede dejar la escena a medias.
           console.warn("MeshView: no se pudo cambiar la geometría de", l.id, err);
         }
       }
-      if (cambiado && !cancelled) handles.current?.renderWindow.render();
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -692,7 +1033,7 @@ export function MeshView({
       if (Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1], l.b[2] - l.a[2]) < 1e-6) continue;
       const lineSrc = vtkLineSource.newInstance({ point1: l.a, point2: l.b, resolution: 1 });
       const tube = vtkTubeFilter.newInstance({
-        radius: l.radiusMm ?? rMarker * RULER_TUBE_RATIO,
+        radius: l.radiusMm ?? rMarker * RULER_TUBE_RATIO * (l.scale ?? 1),
         numberOfSides: l.radiusMm ? 24 : 10, capping: true,
       });
       tube.setInputConnection(lineSrc.getOutputPort());
@@ -722,6 +1063,438 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, markerKey, lineKey, sceneDiagonal, referenceDiameterMm]);
+
+  // ── Rótulos: al cambiar la lista (antes de pintar, para que un rótulo nuevo
+  //    no asome un fotograma en la esquina) y al cambiar el tamaño de la celda.
+  useLayoutEffect(() => { placeLabels(); }, [key, labelKey, placeLabels]);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => placeLabels());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [placeLabels]);
+
+  // ── Punto compartido: solo se mueve su actor en la capa de encima ──────── #
+  //
+  // Va aparte de los marcadores: cada paso de rueda en un corte mueve el
+  // punto, y si estuviera en `markers` se rehacían todas las esferas y tubos
+  // de regla en cada paso. Aquí solo cambian la posición y, si hace falta,
+  // el radio o el color de un único actor.
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    if (focus) {
+      h.focusSphere.setRadius(focus.radiusMm);
+      h.focusActor.setPosition(focus.pos[0], focus.pos[1], focus.pos[2]);
+      h.focusActor.getProperty().setColor(...focus.color);
+      h.focusActor.setVisibility(true);
+    } else {
+      h.focusActor.setVisibility(false);
+    }
+    h.syncOverlay();
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, focusKey]);
+
+  // ── Cortes 3D: los tres cortes de índice en gris en su posición real ──── #
+  //
+  // El patrón de la cara del corte de VOLUMEN (MipView): un mapper de reslice
+  // por plano sobre el MISMO vtkImageData de los cortes, así que la textura 3D
+  // del volumen se sube una vez y la comparten los tres. Van en el renderer
+  // principal, con prueba de profundidad: la malla translúcida se ve encima y
+  // detrás de ellos en su sitio, y los contornos y asas siguen en su capa.
+  // Mover el punto compartido solo mueve el origen de cada plano: nada se crea.
+  const sliceSpecKey = slicePlanes
+    ? slicePlanes.specs.map((p) => `${p.plane}|${p.normal.join(",")}|${p.originMm.join(",")}`).join(";")
+    : "";
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    const drop = () => {
+      const sl = sliceActors.current;
+      if (!sl) return;
+      for (const it of sl.items) { h.renderer.removeActor(it.actor); it.actor.delete(); it.mapper.delete(); }
+      sliceActors.current = null;
+    };
+    if (!slicePlanes) {
+      if (sliceActors.current) { drop(); h.renderWindow.render(); }
+      return;
+    }
+    // Otro volumen (otra serie, otro nivel de detalle): se rehacen sobre él.
+    if (sliceActors.current && sliceActors.current.image !== slicePlanes.image) drop();
+    if (!sliceActors.current) {
+      const items = slicePlanes.specs.map((): SliceActor => {
+        const plane = vtkPlane.newInstance();
+        const mapper = vtkImageResliceMapper.newInstance();
+        mapper.setInputData(slicePlanes.image);
+        mapper.setSlabThickness(0);
+        mapper.setSlicePlane(plane);
+        const actor = vtkImageSlice.newInstance();
+        actor.setMapper(mapper);
+        actor.getProperty().setInterpolationTypeToLinear();
+        // Fuera del picking (el clic en la malla y las asas no deben chocar
+        // con un corte) y del encuadre: ENCUADRAR sigue encuadrando la malla.
+        actor.setPickable(false);
+        actor.setUseBounds(false);
+        h.renderer.addActor(actor);
+        return { plane, mapper, actor };
+      });
+      sliceActors.current = { image: slicePlanes.image, items };
+    }
+    const ww = Math.max(1, slicePlanes.ww);
+    sliceActors.current.items.forEach((it, i) => {
+      const spec = slicePlanes.specs[i];
+      if (!spec) return;
+      it.plane.setNormal(...spec.normal);
+      it.plane.setOrigin(...spec.originMm);
+      it.actor.getProperty().setColorWindow(ww);
+      it.actor.getProperty().setColorLevel(slicePlanes.wc);
+    });
+    // WHY: los cortes no cuentan para los límites, así que el recorte
+    // cercano/lejano de la cámara lo fijaría solo la malla, y un corte que
+    // sobresale de ella en profundidad se vería truncado al girar. Cada vez
+    // que la cámara cambia (también tras el reajuste del interactor) el
+    // recorte se ensancha a la caja del volumen. Converge: el segundo ajuste
+    // da el mismo rango y ya no modifica la cámara.
+    const box = slicePlanes.image.getBounds();
+    const widen = () => {
+      if (!sliceActors.current) return;
+      const v = h.renderer.computeVisiblePropBounds();
+      const b = isFinite(v[0]) && v[1] >= v[0]
+        ? [Math.min(v[0], box[0]), Math.max(v[1], box[1]), Math.min(v[2], box[2]), Math.max(v[3], box[3]), Math.min(v[4], box[4]), Math.max(v[5], box[5])]
+        : [...box];
+      h.renderer.resetCameraClippingRange(b as Bounds);
+    };
+    const sub = h.renderer.getActiveCamera().onModified(widen);
+    widen();
+    h.renderWindow.render();
+    return () => sub.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, slicePlanes?.image, sliceSpecKey, slicePlanes?.wc, slicePlanes?.ww]);
+
+  // ── Matriz de usuario por capa: mover un actor sin recargar su malla ───── #
+  //
+  // Con la época también: si la matriz cambió mientras la escena cargaba, los
+  // actores aún no existían y hay que aplicarla al terminar. Solo capas con
+  // `id` (las únicas con actor por nombre). No compite con `registerParts`
+  // del ensayo: mientras hay ensayo el visor no manda `userMatrix`, así que
+  // esta clave no cambia y el efecto no pisa la animación.
+  //
+  // Solo vuelve a la identidad la capa que TUVO matriz y ya no la tiene. Las
+  // demás capas con nombre no se tocan: una pieza del ensayo en pausa lleva la
+  // pose que le puso `registerParts`, y devolverla a la identidad al cambiar
+  // la matriz de otra capa la sacaría de su sitio.
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    let changed = false;
+    const now = new Set<string>();
+    for (const l of layers) {
+      if (!l.id) continue;
+      // Cambio de geometría pendiente (llegó un plan nuevo y su malla aún se
+      // descarga): la matriz nueva es para la malla nueva. Se deja la que el
+      // actor tiene, que casa con la malla que se ve; el cambio de geometría
+      // aplica la actual en cuanto pone el fichero. Se conserva si la capa
+      // tuvo matriz, para que allí se sepa si hay que volver a la identidad.
+      if (!shouldApplyMatrix(loadedUrlById.current.get(l.id), l.url)) {
+        if (l.userMatrix || matrixIds.current.has(l.id)) now.add(l.id);
+        continue;
+      }
+      if (l.userMatrix) now.add(l.id);
+      const actor = namedActors.current.get(l.id);
+      if (!actor) continue;
+      // Las capas traen la matriz por filas (clipPose); vtk.js la lee por
+      // columnas. El .d.ts pide mat4 y declara void; vtk.js copia cualquier
+      // array de 16 y devuelve si cambió algo.
+      const set = (m: number[]) => Boolean(actor.setUserMatrix(toColumnMajor(m) as never) as unknown);
+      if (l.userMatrix) {
+        if (set(l.userMatrix)) changed = true;
+      } else if (matrixIds.current.has(l.id)) {
+        if (set(IDENTITY)) changed = true;
+      }
+    }
+    matrixIds.current = now;
+    if (changed) h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userMatrixKey, sceneEpoch]);
+
+  // ── Asas: actores agarrables en la capa superior ─────────────────────── #
+  //
+  // En la capa de encima por lo mismo que el punto compartido: el asa suele
+  // quedar dentro del vaso o detrás del saco. Son lo ÚNICO seleccionable de
+  // esa capa (el punto no), así que un pick allí devuelve un asa o nada.
+  // Sin luz: un asa es un mando de color plano, no otra superficie.
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    handleActors.current.forEach((a) => h.overlay.removeActor(a));
+    handleActors.current = [];
+    handleIdByActor.current.clear();
+    handleKindByActor.current.clear();
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    const grow = (p: Vec3, r: number) => {
+      for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], p[i] - r); hi[i] = Math.max(hi[i], p[i] + r); }
+    };
+    const add = (mapper: vtkMapper, color: Vector3, id: string | null, lineWidth?: number, kind = "") => {
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+      const prop = actor.getProperty();
+      prop.setColor(...color);
+      prop.setLighting(false);
+      if (lineWidth) prop.setLineWidth(lineWidth);
+      // Fuera del encuadre y de la escala de los marcadores, como los planos;
+      // el recorte de la capa las tiene en cuenta aparte (`handleBounds`).
+      actor.setUseBounds(false);
+      actor.setPickable(id !== null);
+      if (id !== null) { handleIdByActor.current.set(actor, id); handleKindByActor.current.set(actor, kind); }
+      h.overlay.addActor(actor);
+      handleActors.current.push(actor);
+    };
+    const polyline = (pts: number[], closed: boolean) => {
+      const n = pts.length / 3;
+      const ids = Array.from({ length: n }, (_, i) => i);
+      const pd = vtkPolyData.newInstance();
+      pd.getPoints().setData(new Float32Array(pts), 3);
+      pd.getLines().setData(new Uint32Array(closed ? [n + 1, ...ids, 0] : [n, ...ids]));
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputData(pd);
+      return mapper;
+    };
+    for (const g of handleList) {
+      const color = g.color as Vector3;
+      // La guía primero y NO seleccionable: es un hilo largo y, con la
+      // tolerancia del picker, robaría a la cámara las pulsaciones de toda una
+      // franja de pantalla. Se agarra el asa, no su hilo.
+      if (g.lineTo) {
+        add(polyline([...g.pos, ...g.lineTo], false), color, null, 1);
+        grow(g.lineTo, 0);
+      }
+      if (g.kind === "sphere") {
+        const src = vtkSphereSource.newInstance({ radius: g.radiusMm, thetaResolution: 16, phiResolution: 16 });
+        src.setCenter(g.pos[0], g.pos[1], g.pos[2]);
+        const mapper = vtkMapper.newInstance();
+        mapper.setInputConnection(src.getOutputPort());
+        add(mapper, color, g.id, undefined, "sphere");
+      } else if (g.kind === "square") {
+        const src = vtkCubeSource.newInstance({ center: g.pos, xLength: g.radiusMm, yLength: g.radiusMm, zLength: g.radiusMm });
+        const mapper = vtkMapper.newInstance();
+        mapper.setInputConnection(src.getOutputPort());
+        add(mapper, color, g.id, undefined, "square");
+      } else {
+        // Anillo: circunferencia de 48 puntos en el plano ⟂ a la normal por
+        // `pos`. La base (u, v) sale de cualquier eje que no sea paralelo a n.
+        const n0 = g.normal ?? [0, 0, 1];
+        const nl = Math.hypot(n0[0], n0[1], n0[2]) || 1;
+        const n: Vec3 = [n0[0] / nl, n0[1] / nl, n0[2] / nl];
+        const a: Vec3 = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+        const ad = a[0] * n[0] + a[1] * n[1] + a[2] * n[2];
+        const u0: Vec3 = [a[0] - ad * n[0], a[1] - ad * n[1], a[2] - ad * n[2]];
+        const ul = Math.hypot(u0[0], u0[1], u0[2]);
+        const u: Vec3 = [u0[0] / ul, u0[1] / ul, u0[2] / ul];
+        const v: Vec3 = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+        const pts: number[] = [];
+        for (let i = 0; i < 48; i++) {
+          const t = (2 * Math.PI * i) / 48, c = Math.cos(t) * g.radiusMm, s = Math.sin(t) * g.radiusMm;
+          pts.push(g.pos[0] + c * u[0] + s * v[0], g.pos[1] + c * u[1] + s * v[1], g.pos[2] + c * u[2] + s * v[2]);
+        }
+        add(polyline(pts, true), color, g.id, 2, "ring");
+      }
+      grow(g.pos, g.radiusMm);
+    }
+    handleBounds.current = handleList.length ? [lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]] : null;
+    h.syncOverlay();
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, handleKey]);
+
+  // ── Ciclo de arrastre de un asa ──────────────────────────────────────── #
+  //
+  // Oyentes en fase de captura sobre NUESTRO contenedor, que envuelve el de
+  // vtk.js: llegan antes que su interactor y, si el puntero cae en un asa,
+  // stopImmediatePropagation impide que la cámara empiece a girar (el mismo
+  // truco que MipView usa con el botón derecho). Fuera de las asas no se toca
+  // nada y la cámara funciona como siempre. Se montan una vez: el contenedor
+  // sobrevive a las reconstrucciones de la escena y todo se lee de refs.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const picker = vtkCellPicker.newInstance();
+    // ~0,5 % de la diagonal del lienzo: lo justo para coger un anillo de 2 px
+    // sin que un asa robe la pulsación a una zona amplia alrededor.
+    picker.setTolerance(0.005);
+    let drag: DragState = { id: null };
+    let pointerId: number | null = null;
+    let last = { px: 0, py: 0, vp: { width: 1, height: 1 } as Viewport };
+
+    // Píxel CSS respecto al lienzo y tamaño del lienzo, como los espera el
+    // controlador de arrastre (y desde arriba, como el puntero).
+    const where = (e: MouseEvent) => {
+      const h = handles.current;
+      if (!h) return null;
+      const canvas = (h.renderWindow.getViews()[0] as unknown as { getCanvas(): HTMLCanvasElement }).getCanvas();
+      const r = canvas.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return null;
+      return { h, canvas, r, px: e.clientX - r.left, py: e.clientY - r.top, vp: { width: r.width, height: r.height } };
+    };
+    // Qué asa hay bajo el puntero. vtk.js cuenta la pantalla en píxeles del
+    // lienzo (escalados por devicePixelRatio) y con la y desde ABAJO.
+    const pickAt = (w: NonNullable<ReturnType<typeof where>>): string | null => {
+      if (handleIdByActor.current.size === 0) return null;
+      w.h.syncOverlay();
+      const sx = w.canvas.width / w.r.width, sy = w.canvas.height / w.r.height;
+      picker.pick([w.px * sx, (w.r.height - w.py) * sy, 0], w.h.overlay);
+      // Todas las que toca, de la más cercana a la más lejana; chooseHandle
+      // da prioridad a las esferas sobre el anillo que las cruza.
+      const hits = (picker.getActors() as vtkActor[]).flatMap((a) => {
+        const id = handleIdByActor.current.get(a);
+        return id ? [{ id, kind: handleKindByActor.current.get(a) ?? "" }] : [];
+      });
+      return chooseHandle(hits);
+    };
+    const emit = (phase: HandleDragEvent["phase"], id: string, shift: boolean) => {
+      const h = handles.current;
+      if (!h) return;
+      onHandleDragRef.current?.({
+        id, phase, px: last.px, py: last.py, shift,
+        camera: cameraLike(h.renderer.getActiveCamera(), last.vp), viewport: last.vp,
+      });
+    };
+    const finish = () => {
+      window.removeEventListener("keydown", onKey, { capture: true });
+      window.removeEventListener("pointerup", onWindowUp, { capture: true });
+      window.removeEventListener("pointercancel", onWindowUp, { capture: true });
+      if (pointerId !== null) {
+        try { el.releasePointerCapture(pointerId); } catch { /* ya liberada */ }
+      }
+      pointerId = null;
+    };
+    const step = (ev: DragEvent, shift: boolean) => {
+      const id = drag.id;
+      const s = nextDrag(drag, ev);
+      drag = s.state;
+      if (s.emit && id) emit(s.emit, id, shift);
+      if (drag.id === null) finish();
+    };
+    const onDown = (e: PointerEvent) => {
+      // Un segundo dedo o botón durante un arrastre no empieza otro ni llega a la cámara.
+      if (drag.id !== null) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      if (handleIdByActor.current.size === 0) return;
+      const w = where(e);
+      if (!w) return;
+      const s = nextDrag(drag, { type: "down", id: pickAt(w), button: e.button });
+      if (s.emit !== "start" || !s.state.id) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      drag = s.state;
+      pointerId = e.pointerId;
+      last = { px: w.px, py: w.py, vp: w.vp };
+      // La captura sigue el arrastre aunque el puntero salga del lienzo. Si
+      // no se puede capturar (el puntero ya no existe, un navegador que no
+      // la admite), soltar FUERA del contenedor no llegaría a nadie y el
+      // arrastre quedaría enganchado con la cámara apagada: la ventana entera
+      // escucha entonces el final.
+      try { el.setPointerCapture(e.pointerId); } catch {
+        window.addEventListener("pointerup", onWindowUp, { capture: true });
+        window.addEventListener("pointercancel", onWindowUp, { capture: true });
+      }
+      window.addEventListener("keydown", onKey, { capture: true });
+      emit("start", s.state.id, e.shiftKey);
+    };
+    const onPointer = (e: PointerEvent) => {
+      if (drag.id === null || e.pointerId !== pointerId) return;
+      // Mientras dura el arrastre la cámara no ve nada de este puntero.
+      e.stopImmediatePropagation();
+      const w = where(e);
+      if (w) last = { px: w.px, py: w.py, vp: w.vp };
+      const type = e.type === "pointermove" ? "move" : e.type === "pointerup" ? "up"
+        : e.type === "pointercancel" ? "cancel" : "lost";
+      step({ type }, e.shiftKey);
+    };
+    function onWindowUp(e: PointerEvent) {
+      if (drag.id === null || e.pointerId !== pointerId) return;
+      step({ type: e.type === "pointerup" ? "up" : "cancel" }, e.shiftKey);
+    }
+    // Escape deshace el arrastre en curso y no le llega a nadie más (que, por
+    // ejemplo, no cierre además el panel de la herramienta).
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape" || drag.id === null) return;
+      e.preventDefault(); e.stopPropagation();
+      step({ type: "escape" }, e.shiftKey);
+    }
+    // Doble clic en un asa: es del asa, no de la celda. Parado aquí no llega
+    // al onDoubleClick de la rejilla, que promovería la vista a principal.
+    const onDbl = (e: MouseEvent) => {
+      if (handleIdByActor.current.size === 0) return;
+      const w = where(e);
+      const id = w ? pickAt(w) : null;
+      if (!id) return;
+      e.preventDefault(); e.stopPropagation();
+      onHandleDoubleClickRef.current?.(id);
+    };
+    const opts = { capture: true } as const;
+    el.addEventListener("pointerdown", onDown, opts);
+    el.addEventListener("pointermove", onPointer, opts);
+    el.addEventListener("pointerup", onPointer, opts);
+    el.addEventListener("pointercancel", onPointer, opts);
+    el.addEventListener("lostpointercapture", onPointer, opts);
+    el.addEventListener("dblclick", onDbl, opts);
+    return () => {
+      el.removeEventListener("pointerdown", onDown, opts);
+      el.removeEventListener("pointermove", onPointer, opts);
+      el.removeEventListener("pointerup", onPointer, opts);
+      el.removeEventListener("pointercancel", onPointer, opts);
+      el.removeEventListener("lostpointercapture", onPointer, opts);
+      el.removeEventListener("dblclick", onDbl, opts);
+      window.removeEventListener("keydown", onKey, opts);
+      window.removeEventListener("pointerup", onWindowUp, opts);
+      window.removeEventListener("pointercancel", onWindowUp, opts);
+      picker.delete();
+    };
+  }, []);
+
+  // ── Planos de corte: rectángulos sin iluminación, fuera del encuadre ────── #
+  //
+  // Se añaden después de encuadrar la cámara (igual que los marcadores) y no
+  // entran en sceneDiagonal, así que dibujarlos o quitarlos no mueve la vista.
+  // No se pueden seleccionar: el clic debe llegar a la malla que hay detrás.
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    planeActors.current.forEach((a) => h.renderer.removeActor(a));
+    planeActors.current = [];
+    for (const p of planes) {
+      const pts = new Float32Array(p.corners.flat());
+      const mk = (cells: "lines" | "polys", data: number[], opacity: number) => {
+        const pd = vtkPolyData.newInstance();
+        pd.getPoints().setData(pts, 3);
+        if (cells === "lines") pd.getLines().setData(new Uint32Array(data));
+        else pd.getPolys().setData(new Uint32Array(data));
+        const mapper = vtkMapper.newInstance();
+        mapper.setInputData(pd);
+        const actor = vtkActor.newInstance();
+        actor.setMapper(mapper);
+        const prop = actor.getProperty();
+        prop.setColor(...p.color);
+        prop.setOpacity(opacity);
+        prop.setLighting(false);
+        if (cells === "lines") prop.setLineWidth(1);
+        actor.setPickable(false);
+        // Los rectángulos abarcan todo el volumen: no deben dictar el encuadre
+        // ni la escala de los marcadores (computeVisiblePropBounds los ignora).
+        actor.setUseBounds(false);
+        h.renderer.addActor(actor);
+        planeActors.current.push(actor);
+      };
+      // N vértices: 4 en los planos de índice, de 3 a 6 en el plano libre
+      // (su corte con la caja). El polígono es convexo, así que una sola celda basta.
+      const n = p.corners.length;
+      const ids = Array.from({ length: n }, (_, i) => i);
+      mk("polys", [n, ...ids], 0.06);
+      mk("lines", [n + 1, ...ids, 0], 0.85);
+    }
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, planeKey]);
 
   // ── Previa del corte por plano: se recorta el render, no se dibuja nada ─── #
   //
@@ -826,7 +1599,18 @@ export function MeshView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, boxKey]);
 
-  return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
+  // El svg va al lado del contenedor y no dentro: vtk.js mete su lienzo en el
+  // contenedor y quedaría encima de los rótulos.
+  return (
+    <>
+      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+      {labels.length > 0 && (
+        <svg ref={labelSvg} className="hud-anot" aria-hidden="true">
+          {labels.map((l, i) => <text key={i} fill={l.color} display="none">{l.text}</text>)}
+        </svg>
+      )}
+    </>
+  );
 }
 
 

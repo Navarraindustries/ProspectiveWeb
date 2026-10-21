@@ -7,9 +7,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from .clips import PlacedClipsState
 from .dicom import SeriesInfo
+from .trajectory import TrajectoryResult
+from .treatment import TreatmentDecisionRequest, TreatmentDecisionResult
 
 
 #: Índice del último paso del flujo (el Informe). Va a la par de
@@ -30,6 +33,18 @@ class SessionSaveRequest(BaseModel):
     imaging_study_id: int | None = Field(
         None, description="Imaging study (acquisition) this session analysed"
     )
+    # «Reanudar» da a la sesión viva un id nuevo; guardar por ese id añadía una
+    # fila más en «Sesiones guardadas» cada vez (seis casi iguales en la ficha
+    # del paciente de prueba). Por defecto se guarda sobre la sesión de la que
+    # salió; `False` la guarda como una sesión nueva, como antes.
+    overwrite_origin: bool = Field(
+        True,
+        description=(
+            "If this live session was resumed from a saved one and has no record of "
+            "its own yet, update that saved record (it takes this session's id) "
+            "instead of adding a new one. False saves it as a new session."
+        ),
+    )
     # Ocho pasos desde que «Fabricación» entró antes del informe (índices 0–7).
     # El tope seguía en 6: guardar el progreso estando en el Informe se
     # rechazaba, y el botón del propio informe guardaba un 6, que ya es
@@ -46,6 +61,28 @@ class SessionSaveResult(BaseModel):
     file_path: str = Field(..., description="Server-side path of the saved .prospective file")
     download_url: str = Field(..., description="URL to download the session file")
     saved_at: datetime
+
+
+class ViewerWindow(BaseModel):
+    """Ventana y nivel de los cortes, tal como los dejó el profesional."""
+
+    wc: float = Field(..., description="Centro de la ventana (nivel)")
+    ww: float = Field(..., gt=0, description="Anchura de la ventana")
+
+
+class ReportUrls(BaseModel):
+    """Los documentos ya generados que siguen en disco."""
+
+    pdf_url: str | None = Field(None, description="Informe PDF, si existe el fichero")
+    dicom_sr_url: str | None = Field(None, description="DICOM SR, si existe el fichero")
+    pdf_current: bool = Field(
+        False,
+        description=(
+            "El PDF se generó con el plan que la sesión tiene ahora. False si el "
+            "plan cambió después o no se sabe con cuál se generó: hay que regenerarlo."
+        ),
+    )
+    sr_current: bool = Field(False, description="Lo mismo para el DICOM SR")
 
 
 class SessionRestoreResult(BaseModel):
@@ -97,6 +134,36 @@ class SessionRestoreResult(BaseModel):
     centerline_arc_mm: float = Field(
         0.0, description="Total arc length of the restored centreline (mm)"
     )
+    # ── Lo hecho a mano después de detectar (familia S) ──────────────────── #
+    # Reanudar volvía sin nada de esto aunque estuviera en el estado: la
+    # decisión (y con ella «Planificar dispositivos» apagado), el corredor, la
+    # lista editable de clips, la ventana y los enlaces del informe. Null =
+    # no se hizo (o se borró) en la sesión guardada.
+    treatment: TreatmentDecisionResult | None = Field(
+        None, description="La recomendación guardada, igual que la devolvió el motor"
+    )
+    treatment_inputs: TreatmentDecisionRequest | None = Field(
+        None, description="Las entradas clínicas con que se pidió (con el session_id nuevo)"
+    )
+    trajectory: TrajectoryResult | None = Field(
+        None, description="La trayectoria guardada con su ángulo, profundidad y corredor"
+    )
+    placed_clips: PlacedClipsState | None = Field(
+        None, description="La lista editable de clips colocados y su verificación"
+    )
+    window: ViewerWindow | None = Field(
+        None, description="Ventana y nivel de los cortes; null = la del DICOM"
+    )
+    report_urls: ReportUrls | None = Field(
+        None, description="Enlaces al PDF y al SR ya generados, si siguen en disco"
+    )
+    lesion_confirmed: bool = Field(
+        False,
+        description=(
+            "Hay una confirmación de lesión vigente para esta sesión (por su "
+            "estudio o por su linaje de sesiones)"
+        ),
+    )
 
 
 class SessionListItem(BaseModel):
@@ -110,3 +177,20 @@ class SessionListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     file_size_kb: float
+    size_bytes: int = 0
+
+
+class SavedSessionRenameIn(BaseModel):
+    """Nuevo nombre de una sesión guardada."""
+
+    label: str
+
+    @field_validator("label")
+    @classmethod
+    def _nombre(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("El nombre de la sesión no puede estar vacío.")
+        if len(v) > 256:
+            raise ValueError("El nombre de la sesión admite como máximo 256 caracteres.")
+        return v

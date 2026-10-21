@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -14,11 +15,12 @@ from models import (
     ChangePasswordRequest, ResetPasswordRequest,
     LoginRequest, LoginResponse, UserInfo,
     SignupRequest, SignupResponse, PendingUser,
-    UserAdminInfo, UserUpdate,
+    UserAdminInfo, UserBrief, UserUpdate,
 )
 from services.database import get_db
 from services.auth_service import (
     ACCESS_TOKEN_EXPIRE_MIN,
+    CONTACTO_ADMIN,
     COOKIE_NAME,
     AuthError,
     approve_user,
@@ -41,6 +43,14 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # (these are personal documents) and served only through admin-authenticated
 # endpoints below.
 _USER_FILES = Path("user_files")
+
+
+def _utc_iso(dt: datetime | None) -> str:
+    """SQLite guarda `created_at` como UTC sin zona; sin «+00:00» el navegador lo leía como hora local."""
+    if not dt:
+        return ""
+    return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).isoformat()
+
 _MAX_UPLOAD_BYTES = 6 * 1024 * 1024   # 6 MB
 
 
@@ -100,7 +110,10 @@ async def login(
     if espera > 0:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Demasiados intentos fallidos. Vuelve a probar en {int(espera // 60) + 1} min.",
+            detail=(
+                f"Demasiados intentos fallidos. Vuelve a probar en {int(espera // 60) + 1} min. "
+                "Si no recuerdas la contraseña, pide a un administrador que la restablezca."
+            ),
             headers={"Retry-After": str(int(espera) + 1)},
         )
     try:
@@ -115,7 +128,12 @@ async def login(
         login_throttle.record_failure(clave)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales incorrectas",
+            # Objeto y no texto: el aviso «te queda un intento» necesita el número.
+            # El cliente lee `message` como cualquier otro detalle (ApiError.fromServer).
+            detail={
+                "message": "Credenciales incorrectas",
+                "remaining_attempts": login_throttle.remaining(clave),
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
     login_throttle.clear(clave)
@@ -227,6 +245,10 @@ async def signup(
     if user is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
 
+    from services.audit import ACT_USER_SIGNUP_REQUESTED, audit_append
+    audit_append(ACT_USER_SIGNUP_REQUESTED, {"username": user.username, "role": user.role},
+                 username=user.username)
+
     # Store the optional profile photo / CV named by the new user's id.
     changed = False
     if photo is not None and photo.filename:
@@ -241,8 +263,9 @@ async def signup(
     return SignupResponse(
         status="pending",
         message=(
-            "Solicitud enviada. Un administrador revisará tu cuenta y podrás "
-            "iniciar sesión en cuanto sea aprobada."
+            "Solicitud enviada. Un administrador la revisará; no recibirás aviso, "
+            "así que vuelve a intentar entrar más adelante. "
+            f"Para consultas, {CONTACTO_ADMIN}."
         ),
     )
 
@@ -296,7 +319,7 @@ def _pending_to_api(u: User) -> PendingUser:
         orcid=u.orcid,
         has_photo=bool(u.photo_path),
         has_cv=bool(u.cv_path),
-        created_at=u.created_at.isoformat() if u.created_at else "",
+        created_at=_utc_iso(u.created_at),
     )
 
 
@@ -326,6 +349,9 @@ async def approve(
     ok, err = approve_user(db, user_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err)
+    from services.audit import ACT_USER_APPROVED, audit_append
+    audit_append(ACT_USER_APPROVED, {"target": db.get(User, user_id).username},
+                 username=_admin.username)
     return {"status": "active"}
 
 
@@ -342,6 +368,9 @@ async def reject(
     ok, err = reject_user(db, user_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err)
+    from services.audit import ACT_USER_REJECTED, audit_append
+    audit_append(ACT_USER_REJECTED, {"target": db.get(User, user_id).username},
+                 username=_admin.username)
     return {"status": "rejected"}
 
 
@@ -359,7 +388,10 @@ def _user_to_admin(u: User) -> UserAdminInfo:
         hospital=u.hospital,
         has_photo=bool(u.photo_path),
         has_cv=bool(u.cv_path),
-        created_at=u.created_at.isoformat() if u.created_at else "",
+        created_at=_utc_iso(u.created_at),
+        university=u.university,
+        position=u.position,
+        rejected_at=_utc_iso(u.rejected_at) if u.rejected_at else None,
     )
 
 
@@ -367,13 +399,48 @@ def _user_to_admin(u: User) -> UserAdminInfo:
     "/users",
     response_model=list[UserAdminInfo],
     summary="List all users (admin)",
+    description=(
+        "`status=pending|approved|rejected` filtra por estado de la cuenta "
+        "(`approved` = activas). Sin filtro devuelve todas."
+    ),
 )
 async def list_users(
     _admin: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
+    status_filter: Annotated[Literal["pending", "approved", "rejected"] | None, Query(alias="status")] = None,
 ) -> list[UserAdminInfo]:
-    users = db.query(User).order_by(User.created_at.desc()).all()
+    q = db.query(User)
+    if status_filter is not None:
+        # «approved» es el estado interno «active».
+        q = q.filter(User.status == (User.STATUS_ACTIVE if status_filter == "approved" else status_filter))
+        if status_filter == "rejected":
+            # Una desactivación a mano también deja status=rejected; solo el
+            # rechazo de una solicitud trae fecha.
+            q = q.filter(User.rejected_at.isnot(None))
+    users = q.order_by(User.created_at.desc()).all()
     return [_user_to_admin(u) for u in users]
+
+
+@router.get(
+    "/users/brief",
+    response_model=list[UserBrief],
+    summary="Cuentas activas, en breve (para compartir)",
+    description=(
+        "Id, usuario, nombre y rol de las cuentas activas. Para cualquier sesión: "
+        "elegir con quién compartir un paciente no es cosa solo del administrador."
+    ),
+)
+async def list_users_brief(
+    _user: Annotated[User, Depends(require_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[UserBrief]:
+    users = (
+        db.query(User)
+        .filter(User.is_active == True, User.status == User.STATUS_ACTIVE)  # noqa: E712
+        .order_by(User.full_name, User.username)
+        .all()
+    )
+    return [UserBrief(id=u.id, username=u.username, full_name=u.full_name or "", role=u.role) for u in users]
 
 
 @router.post(
@@ -424,6 +491,9 @@ async def create_user(
         db.commit()
         db.refresh(user)
 
+    from services.audit import ACT_USER_CREATED, audit_append
+    audit_append(ACT_USER_CREATED, {"target": user.username, "role": user.role},
+                 username=_admin.username)
     logger.info("Admin %s created active user %s (role=%s)", _admin.username, user.username, user.role)
     return _user_to_admin(user)
 
@@ -453,14 +523,56 @@ async def update_user(
 
     if req.full_name is not None:
         user.full_name = req.full_name.strip()
+    role_before, active_before = user.role, user.is_active
     if req.role is not None:
         user.role = req.role
+    # Los campos profesionales del alta también se corrigen después (F2-45).
+    if req.specialty is not None:
+        user.specialty = req.specialty.strip()
+    if req.hospital is not None:
+        user.hospital = req.hospital.strip()
+    if req.university is not None:
+        user.university = req.university.strip()
+    if req.position is not None:
+        user.position = req.position.strip()
     if req.is_active is not None:
         user.is_active = req.is_active
         user.status = User.STATUS_ACTIVE if req.is_active else User.STATUS_REJECTED
+        if req.is_active:
+            user.rejected_at = None
     db.commit()
     db.refresh(user)
+    # Solo lo que cambia de verdad: corregir el nombre no deja bloque (F1-102).
+    from services.audit import (ACT_USER_DEACTIVATED, ACT_USER_REACTIVATED,
+                                ACT_USER_ROLE_CHANGED, audit_append)
+    if user.role != role_before:
+        audit_append(ACT_USER_ROLE_CHANGED,
+                     {"target": user.username, "role_from": role_before, "role_to": user.role},
+                     username=admin.username)
+    if user.is_active != active_before:
+        audit_append(ACT_USER_REACTIVATED if user.is_active else ACT_USER_DEACTIVATED,
+                     {"target": user.username}, username=admin.username)
     logger.info("User updated by admin — id=%d role=%s active=%s", user.id, user.role, user.is_active)
+    return _user_to_admin(user)
+
+
+@router.post(
+    "/users/{user_id}/photo",
+    response_model=UserAdminInfo,
+    summary="Replace a user's profile photo (admin)",
+)
+async def set_user_photo(
+    user_id: int,
+    _admin: Annotated[User, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+    photo: UploadFile = File(...),
+) -> UserAdminInfo:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
+    user.photo_path = await _save_user_upload(photo, "photos", user.id)
+    db.commit()
+    db.refresh(user)
     return _user_to_admin(user)
 
 
@@ -473,6 +585,7 @@ async def delete_user(
     user_id: int,
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
+    reassign_to: int | None = None,
 ) -> None:
     user = db.get(User, user_id)
     if user is None:
@@ -486,13 +599,31 @@ async def delete_user(
         ).count()
         if other_admins == 0:
             raise HTTPException(status_code=400, detail="No puedes eliminar al último administrador.")
-    # Patients created by this user are kept (created_by → dangling is tolerated;
-    # the FK is nullable). Detach them to be clean.
-    from services.db_models import Patient
-    db.query(Patient).filter(Patient.created_by == user_id).update({"created_by": None})
+    # Sus pacientes pasan a otra cuenta: ninguno queda sin creador (sin dueño
+    # solo el administrador los vería). Por defecto, quien borra.
+    from services.audit import ACT_USER_DELETED, audit_append
+    from services.db_models import Patient, PatientShare
+    target = admin if reassign_to is None else db.get(User, reassign_to)
+    if target is None or not target.is_active:
+        raise HTTPException(status_code=400, detail="La cuenta de destino no existe o está inactiva.")
+    if target.id == user.id:
+        raise HTTPException(status_code=400, detail="Los pacientes no pueden pasar a la cuenta que se borra.")
+    mine = [pid for (pid,) in db.query(Patient.id).filter(Patient.created_by == user_id).all()]
+    if mine:
+        db.query(Patient).filter(Patient.id.in_(mine)).update({"created_by": target.id}, synchronize_session=False)
+        # Quien crea al paciente ya lo ve: su fila de compartido sobra.
+        db.query(PatientShare).filter(PatientShare.patient_id.in_(mine),
+                                      PatientShare.user_id == target.id).delete(synchronize_session=False)
+    # Lo que esta cuenta compartió sigue compartido, ahora «por» el destino.
+    db.query(PatientShare).filter(PatientShare.shared_by == user_id).update(
+        {"shared_by": target.id}, synchronize_session=False)
+    deleted_name = user.username
     db.delete(user)
     db.commit()
-    logger.info("User deleted by admin — id=%d username=%s", user_id, user.username)
+    audit_append(ACT_USER_DELETED,
+                 {"deleted": deleted_name, "reassigned_to": target.username, "patients": len(mine)},
+                 username=admin.username)
+    logger.info("User deleted by admin — id=%d username=%s", user_id, deleted_name)
 
 
 # ── POST /auth/change-password ─────────────────────────────────────────────── #
@@ -551,6 +682,9 @@ async def reset_password(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
     user.hashed_password = get_password_hash(req.new_password)
+    # F1-85: el administrador conoce esta contraseña; la persona elige la suya
+    # en el primer acceso.
+    user.must_change_password = True
     db.commit()
     logger.info("Password reset by admin — target=%s by=%s", user.username, admin.username)
 

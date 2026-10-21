@@ -312,3 +312,74 @@ class TestEndpoint:
 
     def test_an_unknown_session_is_a_404(self):
         assert client.post("/api/clips/manufacture/no-existe").status_code == 404
+
+
+# ── Catálogo vacío (F1-214) y una sola fuerza (F1-213) ────────────────────── #
+
+_SIN_CATALOGO = "No hay catálogo de clips de inventario cargado en esta instalación"
+
+
+@pytest.mark.skipif(not _HAS_NAVARRO, reason="biblioteca NAVARRO no instalada")
+class TestCatalogoVacio:
+    """Sin inventario, el motivo de fabricar no es el cuello: es que no hay estantería."""
+
+    def test_catalogo_vacio_no_da_el_motivo_del_cuello(self):
+        from services.clip_selection import select_clips
+
+        case = ClipCase(neck_mm=25.0, ar=1.5, dome_height_mm=30.0, neck_source="rim")
+        sel = select_clips(case)
+        assert sel.stock_count == 0
+        assert sel.manufacture.reasons == [_SIN_CATALOGO]
+        dossier = internal_dossier(resolve_perfect_clip(case, sel.manufacture), case,
+                                   part_no="PR-TEST-0002")
+        joined = " ".join(dossier["why_not_stock"])
+        assert "cubre este cuello" not in joined
+        assert _SIN_CATALOGO in joined
+
+    def test_con_catalogo_vacio_aunque_haya_disenos_que_sirven(self):
+        from services.clip_selection import select_clips
+
+        sel = select_clips(ClipCase(neck_mm=5.0, ar=1.2, dome_height_mm=6.0, neck_source="rim"))
+        assert sel.manufacture.reasons == [_SIN_CATALOGO]
+
+
+@pytest.mark.skipif(not _HAS_NAVARRO, reason="biblioteca NAVARRO no instalada")
+class TestUnaSolaFuerza:
+    """La fuerza de la pieza es UNA cifra con su banda, la del clip colocado."""
+
+    def _placed(self, sid, cid="navarro:t1:0:7.0"):
+        from services.device_state import save_clips
+
+        save_clips(sid, [{"index": 0, "name": "NAVARRO™ T1 Recto 7.0 mm", "clip_id": cid,
+                          "position": [0, 0, 0], "orientation": [0, 0, 0]}])
+
+    def test_la_fuerza_coincide_con_la_del_clip_colocado(self):
+        sid = _session(neck=12.0)
+        self._placed(sid)
+        colocado = navarro.to_spec(navarro.nearest_variant(0.0, 7.0, shape="straight"))
+        b = client.post(f"/api/clips/manufacture/{sid}").json()
+        assert b["closing_force_g"] == colocado.closing_force_g
+        assert b["force_band_g"] == [navarro.CLOSING_FORCE_MIN_G, navarro.CLOSING_FORCE_MAX_G]
+        assert b["force_statement"] == navarro.force_statement(colocado.closing_force_g)["text"]
+
+    def test_el_dossier_imprime_la_cifra_y_la_banda(self):
+        from services.clip_manufacture import perfect_from_id
+
+        case = ClipCase(neck_mm=12.0, ar=1.5, dome_height_mm=18.0, neck_source="rim")
+        spec = derive_manufacture_spec(case, [])
+        pc = perfect_from_id("navarro:t1:0:7.0", spec)
+        filas = {r[0]: r[1] for r in internal_dossier(pc, case, part_no="PR-X")["dimensions"]}
+        assert filas["Fuerza de cierre (objetivo)"] == "120 g · banda 120–200 g"
+
+    def test_sin_clip_colocado_el_centro_de_la_ventana_queda_dentro_de_la_banda(self):
+        for neck in (1.5, 3.0, 12.0, 25.0):
+            spec = derive_manufacture_spec(ClipCase(neck_mm=neck, neck_source="rim"), [])
+            assert navarro.CLOSING_FORCE_MIN_G <= spec.closing_force_g <= navarro.CLOSING_FORCE_MAX_G
+
+    def test_la_frase_de_la_fuerza(self):
+        st = navarro.force_statement(120.0)
+        assert st["target_g"] == 120.0 and st["band_g"] == [120.0, 200.0] and st["provisional"] is True
+        assert st["text"] == ("Fuerza objetivo 120 g dentro de la banda de diseño 120–200 g "
+                              "(sin caracterizar; se mide en la pieza)")
+        assert st["short"] == "120 g · banda 120–200 g"
+        assert navarro.force_statement(90.0)["target_g"] == 120.0

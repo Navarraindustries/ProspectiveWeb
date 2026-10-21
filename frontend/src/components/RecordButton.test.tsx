@@ -68,8 +68,21 @@ describe("el botón de grabar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Grabar/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Detener/ }));
     await waitFor(() => expect(onMessage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ tone: "err", text: expect.stringMatching(/descargado.*Adjuntar a un caso/) })));
+      expect.objectContaining({ tone: "info", text: expect.stringContaining("No queda en la ficha porque la sesión no tiene caso: «Archivar en un caso».") })));
     expect(saveRecording).not.toHaveBeenCalled();
+  });
+
+  it("el tooltip de parar solo promete el caso cuando lo hay", async () => {
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    planning.imagingStudyId = null;
+    const { unmount } = render(<RecordButton step="morpho" onMessage={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Grabar/ }));
+    expect((await screen.findByRole("button", { name: /Detener/ })).getAttribute("title")).toBe("Parar y descargar");
+    unmount();
+    planning.imagingStudyId = 5;
+    render(<RecordButton step="morpho" onMessage={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Grabar/ }));
+    expect((await screen.findByRole("button", { name: /Detener/ })).getAttribute("title")).toBe("Parar y descargar; queda también en el caso");
   });
 
   it("si el navegador no sabe grabar, lo dice", () => {

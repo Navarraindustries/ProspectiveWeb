@@ -2,46 +2,66 @@
    POST /api/elapss. Predice crecimiento, no rotura: orienta cada cuánto
    repetir la imagen. El tamaño se rellena desde la morfometría. */
 
-import { useState } from "react";
-import { edadDesde } from "./UiatsCalculator";
+import { useEffect, useRef, useState } from "react";
+import { ageFromDob } from "../patientAge";
 import { api } from "../../api/client";
-import type { ElapssLocation, ElapssPopulation, ElapssResult } from "../../api/types";
+import type { ElapssPopulation, ElapssResult } from "../../api/types";
+import { usePlanning } from "../../store/planning";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { Select } from "../Select";
 import { Metric } from "../Metric";
 import { ErrorNote, SectionLabel } from "../PanelHead";
+import { DiameterSource } from "./DiameterSource";
+import { ELAPSS_CUTS } from "./diameterCut";
+import { InheritedSite } from "./InheritedSite";
+import { isSiteKnown, siteFor, UI_HIGH } from "./thresholds";
 
 const POPULATIONS: { value: ElapssPopulation; label: string }[] = [
   { value: "other", label: "Norteamérica, China o Europa (salvo Finlandia)" },
   { value: "japan", label: "Japón" },
   { value: "finland", label: "Finlandia" },
 ];
-const LOCATIONS: { value: ElapssLocation; label: string }[] = [
-  { value: "ica_aca_acom", label: "ACI / ACA / AComA" },
-  { value: "mca", label: "ACM (cerebral media)" },
-  { value: "pcom_posterior", label: "AComP / circulación posterior" },
-];
 
 export function ElapssCalculator({
-  maxDiameterMm, sessionId, irregularHint, dob,
+  maxDiameterMm, sessionId, measuredUi, dob, bodyDiameterMm, provisional,
 }: {
   maxDiameterMm: number;
+  /** Ø del cuerpo sin ramas finas: si cae en otro tramo, se avisa (F1-14). */
+  bodyDiameterMm?: number | null;
+  /** El saco aislado llega al límite del recorte: el Ø mide también vaso padre. */
+  provisional?: boolean;
   sessionId: string | null;
-  /** La morfometría sugiere contorno irregular (UI alto): solo se avisa, no se marca. */
-  irregularHint?: boolean;
+  /** El índice de ondulación medido (null si el volumen no es válido). Con UI
+   *  alto se avisa de la contradicción con «regular», pero no se marca solo. */
+  measuredUi?: number | null;
   /** Fecha de nacimiento del paciente: rellena la edad, como en UIATS. */
   dob?: string;
 }) {
   const [population, setPopulation] = useState<ElapssPopulation>("other");
-  const [location, setLocation] = useState<ElapssLocation>("ica_aca_acom");
-  const [age, setAge] = useState(edadDesde(dob) || "60");
+  // F1-165: la localización se hereda de Morfometría; aquí arrancaba en
+  // «ACI / ACA / AComA» y, sin tocarla, restaba los puntos de una posterior.
+  const { aneurysmSite } = usePlanning();
+  const location = siteFor("elapss", aneurysmSite);
+  const siteKnown = isSiteKnown("elapss", aneurysmSite);
+  const [age, setAge] = useState(ageFromDob(dob));
   const [size, setSize] = useState(maxDiameterMm > 0 ? maxDiameterMm.toFixed(1) : "");
   const [earlierSah, setEarlierSah] = useState(false);
   const [irregular, setIrregular] = useState(false);
   const [result, setResult] = useState<ElapssResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Al cambiar la localización en Morfometría el servidor recalcula lo guardado
+  // con sus mismas entradas; aquí se recalcula lo que está en pantalla, para
+  // que la cifra que se ve sea la del informe. Sin categoría, no hay cifra.
+  const prevSite = useRef(location);
+  useEffect(() => {
+    if (prevSite.current === location) return;
+    prevSite.current = location;
+    if (result && siteKnown) void compute();
+    else setResult(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
 
   const compute = async () => {
     setBusy(true);
@@ -74,11 +94,13 @@ export function ElapssCalculator({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Select label="Población" options={POPULATIONS} value={population} onChange={(e) => setPopulation(e.target.value as ElapssPopulation)} />
-        <Select label="Localización" options={LOCATIONS} value={location} onChange={(e) => setLocation(e.target.value as ElapssLocation)} />
+        <InheritedSite site={aneurysmSite} known={siteKnown} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Input label="Edad (años)" type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
           <Input label="Tamaño (mm)" type="number" step="0.1" value={size} onChange={(e) => setSize(e.target.value)} />
         </div>
+        <DiameterSource maxMm={maxDiameterMm} sizeMm={Number(size) || 0} bodyMm={bodyDiameterMm} provisional={provisional}
+                        cuts={ELAPSS_CUTS} score="ELAPSS" />
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer" }}>
           <input type="checkbox" checked={earlierSah} onChange={(e) => setEarlierSah(e.target.checked)} />
           HSA previa (otro aneurisma)
@@ -87,15 +109,19 @@ export function ElapssCalculator({
           <input type="checkbox" checked={irregular} onChange={(e) => setIrregular(e.target.checked)} />
           Forma irregular (varios lóbulos, blebs o protrusiones)
         </label>
-        {irregularHint && !irregular && (
-          <div style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.5, marginTop: -6 }}>
-            La morfometría da un contorno ondulado (UI alto): mira en el visor si tiene
-            lóbulos o blebs antes de dejarlo como regular.
+        {/* F1-235: el PDF imprimía «Forma (S) Regular» junto a un UI de 0,50
+            sin que nada lo señalara. La nota suave pasaba desapercibida: ahora
+            es un aviso con la cifra. El corte es el «irregular» de la insignia
+            (UI_HIGH); la casilla no se marca sola, la forma la decide quien mira. */}
+        {measuredUi != null && measuredUi >= UI_HIGH && !irregular && (
+          <div role="alert" style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.5, marginTop: -6 }}>
+            La forma elegida (regular) contradice el UI medido ({measuredUi.toLocaleString("es-ES", {
+              minimumFractionDigits: 2, maximumFractionDigits: 2 })}): revisa el contorno en el visor
           </div>
         )}
       </div>
 
-      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy}>
+      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy || !age || !siteKnown}>
         {busy ? "Calculando…" : "Calcular ELAPSS"}
       </Button>
       <ErrorNote>{error}</ErrorNote>

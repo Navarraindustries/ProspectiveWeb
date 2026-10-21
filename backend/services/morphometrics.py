@@ -19,6 +19,8 @@ from typing import Optional
 import numpy as np
 import vtk
 
+from services import index_thresholds as T
+
 try:
     from vtkmodules.util import numpy_support as ns
 except ImportError:
@@ -89,18 +91,20 @@ class MorphometricResult:
         DNR 1,17 salía «Moderado» por su cociente de tamaño, y el texto decía
         que era por dos índices que no cumplía.
         """
+        # Los cortes son los de la insignia y los de Decisión (F1-160/161/163):
+        # antes aquí el AR moderado cortaba en 1,3 y la insignia en 1,2.
         alto = [
-            (self.aspect_ratio >= 1.6, f"AR {self.aspect_ratio:.2f} ≥ 1.6"),
-            (self.dome_to_neck_ratio >= 2.0, f"DNR {self.dome_to_neck_ratio:.2f} ≥ 2.0"),
-            (self.undulation_index >= 0.25, f"ondulación (UI) {self.undulation_index:.2f} ≥ 0.25"),
-            (self.size_ratio >= 3.0, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ 3.0"),
+            (self.aspect_ratio >= T.AR_HIGH, f"AR {self.aspect_ratio:.2f} ≥ {T.AR_HIGH:g}"),
+            (self.dome_to_neck_ratio >= T.DNR_HIGH, f"DNR {self.dome_to_neck_ratio:.2f} ≥ {T.DNR_HIGH:.1f}"),
+            (self.undulation_index >= T.UI_HIGH, f"ondulación (UI) {self.undulation_index:.2f} ≥ {T.UI_HIGH:.2f}"),
+            (self.size_ratio >= T.SR_HIGH, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ {T.SR_HIGH:.1f}"),
         ]
         moderado = [
-            (self.aspect_ratio >= 1.3, f"AR {self.aspect_ratio:.2f} ≥ 1.3"),
-            (self.dome_to_neck_ratio >= 1.6, f"DNR {self.dome_to_neck_ratio:.2f} ≥ 1.6"),
-            (self.ellipticity_index >= 0.35, f"elipticidad (EI) {self.ellipticity_index:.2f} ≥ 0.35"),
-            (self.undulation_index >= 0.10, f"ondulación (UI) {self.undulation_index:.2f} ≥ 0.10"),
-            (self.size_ratio >= 2.0, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ 2.0"),
+            (self.aspect_ratio >= T.AR_MOD, f"AR {self.aspect_ratio:.2f} ≥ {T.AR_MOD:g}"),
+            (self.dome_to_neck_ratio >= T.DNR_MOD, f"DNR {self.dome_to_neck_ratio:.2f} ≥ {T.DNR_MOD:g}"),
+            (self.ellipticity_index >= T.EI_MOD, f"elipticidad (EI) {self.ellipticity_index:.2f} ≥ {T.EI_MOD:.2f}"),
+            (self.undulation_index >= T.UI_MOD, f"ondulación (UI) {self.undulation_index:.2f} ≥ {T.UI_MOD:.2f}"),
+            (self.size_ratio >= T.SR_MOD, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ {T.SR_MOD:.1f}"),
         ]
         por_alto = [texto for cumple, texto in alto if cumple]
         if por_alto:
@@ -225,18 +229,23 @@ class MorphometricAnalyzer:
         neck_reliable   = (neck_plane is not None) or (watertight and 0.1 <= neck_diam <= max_diam)
         reliable        = volume_reliable and neck_reliable
 
+        # F1-152: la nota antes contaba «32 aristas de borde» y pedía «definir
+        # un plano de cuello»; la persona no sabe qué es una arista de borde ni
+        # qué botón es ese plano. Se dice qué pasa y qué hacer con los botones
+        # que tiene delante («Marcar cuello» / «Marcar ápice»). El recuento de
+        # aristas se queda en el log para quien depure la malla.
         reasons = []
-        if not watertight:
-            reasons.append(f"malla abierta ({n_boundary} aristas de borde)")
         if watertight and not vol_ok:
             reasons.append("volumen no plausible")
         if not neck_reliable and watertight:
             reasons.append("cuello no medible automáticamente")
         note = ""
         if not reliable:
-            note = ("Medición no fiable: " + "; ".join(reasons)
-                    + ". Define un plano de cuello para medir sobre un saco cerrado.")
-            logger.warning("Morphometry unreliable — %s", note)
+            note = "; ".join(
+                ["La medida automática no cierra el saco: marca cuello y ápice"]
+                + reasons)
+            logger.warning("Morphometry unreliable — %s (aristas de borde: %d)",
+                           note, n_boundary)
         if not volume_reliable:
             # Volume group depends on a closed, plausible mesh.
             volume_mm3  = 0.0

@@ -1,15 +1,17 @@
-/* LoadingScreen — brief branded transition shown right after a successful login,
-   while the patient workspace loads. Plays the surgical loading clip (looped,
-   muted) behind a progress indicator, then fades out.
+/* LoadingScreen — transición de marca tras entrar con éxito: el vídeo
+   quirúrgico de carga (`loading.mp4`, en bucle y silenciado) atenuado bajo un
+   viñeteado, el logotipo, una barra indeterminada y «Preparando el espacio de
+   trabajo…»; se funde a los 2,2 s.
 
-   Uses the second desktop video (Multimedia1.mov → loading.mp4), which in the
-   desktop app played during login. */
+   F2-12 la había quitado porque no espera a nada (la lista de pacientes ya
+   está debajo). El dueño la pidió de vuelta con la misma duración de antes:
+   es la firma de la aplicación de escritorio, no un indicador de progreso. */
 
 import { useEffect, useState } from "react";
-import logo from "../assets/logo.png";
+import { Logo } from "./shell/Logo";
 
-const SHOW_MS = 2200;
-const FADE_MS = 450;
+export const SHOW_MS = 2200;
+export const FADE_MS = 450;
 const VIDEO_SRC = "/media/loading.mp4";
 
 export function LoadingScreen({ onDone, label = "Preparando el espacio de trabajo…" }: { onDone: () => void; label?: string }) {
@@ -24,11 +26,14 @@ export function LoadingScreen({ onDone, label = "Preparando el espacio de trabaj
 
   return (
     <div
+      role="status"
+      aria-live="polite"
       style={{
         position: "fixed",
         inset: 0,
         zIndex: 900,
-        background: "#05090f",
+        background: "var(--media-bg)",
+        color: "var(--on-media)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -42,20 +47,21 @@ export function LoadingScreen({ onDone, label = "Preparando el espacio de trabaj
         muted
         loop
         playsInline
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.45 }}
+        aria-hidden
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }}
       />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 100% at 50% 40%, rgba(10,18,28,0.55), rgba(5,9,15,0.9))" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: "var(--media-vignette-centro)" }} />
 
       <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <img src={logo} alt="" style={{ height: 34, filter: "invert(1) brightness(1.7)" }} />
-          <span style={{ color: "#fff", fontWeight: 800, fontSize: 26, letterSpacing: "-0.02em", textShadow: "0 2px 18px rgba(0,0,0,0.5)" }}>
+          <Logo compact size={34} />
+          <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 26, letterSpacing: "0.04em", textShadow: "var(--on-media-shadow)" }}>
             PROSPECTIVE
           </span>
         </div>
 
-        {/* Indeterminate progress bar */}
-        <div style={{ position: "relative", width: 220, height: 4, borderRadius: 2, background: "rgba(139,155,170,0.25)", overflow: "hidden" }}>
+        {/* Barra indeterminada: barre con el azul de identidad. */}
+        <div style={{ position: "relative", width: 220, height: 4, borderRadius: 2, background: "var(--media-track)", overflow: "hidden" }}>
           <div
             style={{
               position: "absolute",
@@ -63,13 +69,13 @@ export function LoadingScreen({ onDone, label = "Preparando el espacio de trabaj
               bottom: 0,
               width: "35%",
               borderRadius: 2,
-              background: "linear-gradient(90deg, transparent, #A8B8C6, transparent)",
+              background: "linear-gradient(90deg, transparent, var(--primary), transparent)",
               animation: "progress-sweep 1.1s ease-in-out infinite",
             }}
           />
         </div>
 
-        <span style={{ color: "rgba(168,184,198,0.9)", fontSize: 13, letterSpacing: "0.04em" }}>{label}</span>
+        <span style={{ color: "var(--on-media)", fontSize: 13, letterSpacing: "0.04em" }}>{label}</span>
       </div>
     </div>
   );

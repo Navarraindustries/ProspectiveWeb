@@ -104,6 +104,19 @@ class PendingUser(BaseModel):
     created_at: str = Field(..., description="ISO-8601 timestamp of the request")
 
 
+class UserBrief(BaseModel):
+    """Una cuenta activa, lo justo para elegir con quién compartir un paciente.
+
+    `/users` es solo del administrador y trae el perfil entero; para compartir,
+    cualquier profesional necesita ver nombre y rol de los demás, nada más.
+    """
+
+    id: int
+    username: str
+    full_name: str
+    role: UserRole
+
+
 class UserAdminInfo(BaseModel):
     """Full user record for the admin user-management panel."""
 
@@ -118,6 +131,9 @@ class UserAdminInfo(BaseModel):
     has_photo: bool = False
     has_cv: bool = False
     created_at: str = ""
+    university: str = ""
+    position: str = ""
+    rejected_at: str | None = Field(None, description="ISO UTC; solo si la solicitud se rechazó")
 
 
 class UserUpdate(BaseModel):
@@ -126,3 +142,7 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+    specialty: str | None = None
+    hospital: str | None = None
+    university: str | None = None
+    position: str | None = None

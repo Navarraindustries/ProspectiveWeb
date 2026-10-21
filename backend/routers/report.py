@@ -30,14 +30,33 @@ from services.sessions import (
     session_exists, session_subdir, read_state, write_state,
 )
 from services.report_generator import (
-    ReportGenerator, build_report_data_from_session, read_trajectory_state,
+    ReportGenerator, build_report_data_from_session, clip_type_label, read_trajectory_state,
+    stent_geometry_label,
 )
 from services.dicom_sr import DicomSRGenerator
 from services.mesh_exporter import export_stl, merge_poly_datas, apply_scale
 from services.segmentation import read_vtp
+from services.isolated import CalculoCaido, run_isolated
 
 logger  = logging.getLogger(__name__)
 router  = APIRouter(prefix="/api", tags=["report"])
+
+
+def _paciente_auditoria(db: Session, session_id: str, hospital_id: str) -> dict:
+    """Los argumentos de paciente del bloque de un informe o un SR.
+
+    Se escribían con la historia clínica del formulario y sin fecha de
+    nacimiento, así que el filtro de auditoría por paciente (que hashea
+    historia + fecha, `audit_patient`) nunca los encontraba. Con la sesión
+    adjunta a un paciente se usa su fila; sin ella, lo único que hay es el
+    formulario. Los bloques ya escritos no se pueden reparar: la cadena es
+    inmutable."""
+    from services.access import session_row
+    from services.audit import audit_patient
+    ps = session_row(db, session_id)
+    if ps is not None and ps.patient is not None:
+        return audit_patient(ps.patient)
+    return {"patient_id": hospital_id or ""}
 
 
 def _quien(user: "User | None", req: ReportRequest) -> str:
@@ -59,6 +78,35 @@ def _versioned(url: str) -> str:
     reason; these did not.
     """
     return f"{url}?v={int(time.time() * 1000)}"
+
+#: Lo que el informe imprime vive bajo estos prefijos del estado.
+_PLAN_PREFIXES = ("seg.", "morpho.", "detect.selected_candidate", "treatment.", "clinical.",
+                  "devices.", "trajectory.", "phases.", "elapss.", "uiats.", "preprocess.")
+#: …salvo las URLs (llevan el id de la sesión, que cambia al reanudar) y la
+#: lista editable de clips (lo impreso es `devices.clips`).
+_PLAN_SKIP = ("devices.placed_clips.json",)
+#: Con qué plan se generó cada documento.
+PDF_SIGNATURE_KEY = "report.pdf_signature"
+SR_SIGNATURE_KEY = "report.sr_signature"
+
+
+def plan_signature(session_id: str) -> str:
+    """Huella de lo que el informe imprime, leída del estado de la sesión.
+
+    Se apunta al generar el PDF y el SR. Al reanudar, el enlace a un documento
+    solo se da por actual si el plan sigue siendo ese: un PDF generado y luego
+    un clip cambiado antes de guardar se ofrecía como vigente.
+    """
+    import hashlib
+    from services.sessions import _read_state_map, session_dir
+
+    estado = _read_state_map(session_dir(session_id) / "state.txt")
+    partes = sorted(
+        f"{k}={v}" for k, v in estado.items()
+        if v and k.startswith(_PLAN_PREFIXES) and k not in _PLAN_SKIP and "url" not in k
+    )
+    return hashlib.sha256("\n".join(partes).encode("utf-8")).hexdigest()
+
 
 # All CPU-bound reportlab / VTK work runs off the event loop
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="report-worker")
@@ -113,6 +161,8 @@ async def generate_report(
         gen = ReportGenerator(data)
         return gen.generate(out_path)
 
+    # Lo que el PDF va a imprimir, antes de imprimirlo.
+    firma = plan_signature(req.session_id)
     try:
         pdf_path: Path = await loop.run_in_executor(_executor, _generate_sync)
     except RuntimeError as exc:
@@ -124,12 +174,14 @@ async def generate_report(
     # Build the page count from the file (reportlab writes it as part of the PDF)
     # We can get an approximate page count by reading the PDF trailer — simpler:
     page_count = _pdf_page_count(pdf_path)
+    write_state(req.session_id, PDF_SIGNATURE_KEY, firma)
 
     pdf_url = _versioned(f"/data/sessions/{req.session_id}/reports/{req.session_id}_report.pdf")
 
     from services.audit import audit_append, ACT_REPORT_GENERATED
     audit_append(ACT_REPORT_GENERATED, {"session_id": req.session_id, "pages": page_count},
-                 username=_quien(current_user, req), patient_id=req.hospital_id or "")
+                 username=_quien(current_user, req),
+                 **_paciente_auditoria(db, req.session_id, req.hospital_id))
 
     logger.info(
         "Report generated — session=%s  pages=%s  size=%.1f KB",
@@ -212,9 +264,16 @@ async def generate_dicom_sr(
             risk_label    = data.risk_label,
             trajectory    = data.trajectory or None,
             clips = [
-                {"name": c.name, "is_custom": c.is_custom, "position_mm": c.position_mm}
+                {"name": c.name, "is_custom": c.is_custom, "position_mm": c.position_mm,
+                 # F1-238: el tipo real, el mismo que el PDF.
+                 "clip_type": clip_type_label(c.clip_id, c.is_custom)}
                 for c in data.clips
             ] or None,
+            # F1-238: el PDF lo imprimía y el SR no lo llevaba.
+            treatment   = data.treatment or None,
+            annotations = list(data.annotations or []),
+            elapss      = data.elapss or None,
+            uiats       = data.uiats or None,
             coils = [
                 {"name": c.name, "coil_type": c.coil_type, "diameter_mm": c.diameter_mm}
                 for c in data.coils
@@ -222,8 +281,8 @@ async def generate_dicom_sr(
             phases = data.phases or None,
             stents = [{
                 "name":        stent.name,
-                "stent_type":  "Guiado por línea central" if stent.kind == "centerline"
-                               else "Recto / catálogo",
+                # F1-206: la misma expresión que la pantalla y el PDF.
+                "stent_type":  stent_geometry_label(stent.kind, stent.follows_centerline),
                 "diameter_mm": stent.diameter_mm,
                 "length_mm":   stent.length_mm,
             }] if stent is not None else None,
@@ -232,6 +291,7 @@ async def generate_dicom_sr(
         return gen.generate(out_dir / f"{req.session_id}_sr.dcm")
 
     try:
+        firma = plan_signature(req.session_id)
         sr_path: Path = await loop.run_in_executor(_executor, _generate_sync)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -240,10 +300,12 @@ async def generate_dicom_sr(
         raise HTTPException(status_code=500, detail=f"DICOM SR error: {exc}") from exc
 
     sr_url = _versioned(f"/data/sessions/{req.session_id}/reports/{req.session_id}_sr.dcm")
+    write_state(req.session_id, SR_SIGNATURE_KEY, firma)
 
     from services.audit import audit_append, ACT_SR_GENERATED
     audit_append(ACT_SR_GENERATED, {"session_id": req.session_id},
-                 username=_quien(current_user, req), patient_id=req.hospital_id or "")
+                 username=_quien(current_user, req),
+                 **_paciente_auditoria(db, req.session_id, req.hospital_id))
 
     logger.info("DICOM SR generated — session=%s  size=%.1f KB",
                 req.session_id, sr_path.stat().st_size / 1024)
@@ -494,6 +556,11 @@ async def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryR
         write_state(session_id, "trajectory.verdict_reason", corridor.verdict_reason)
         write_state(session_id, "trajectory.findings",
                     " | ".join(corridor.findings))
+        # El análisis entero, para devolverlo al reanudar sin rehacerlo: volvían
+        # los puntos pero no el corredor ni «Guardada ✓» (F1-247).
+        write_state(session_id, CORRIDOR_KEY, corridor.model_dump_json())
+    else:
+        write_state(session_id, CORRIDOR_KEY, "")
     return TrajectoryResult(
         entry=tr["entry"], target=tr["target"],
         depth_mm=tr["depth_mm"], angle_deg=tr["angle_deg"],
@@ -595,9 +662,28 @@ async def clear_trajectory(session_id: str) -> None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     # El veredicto se borra con los puntos. Dejarlo dejaría en el informe un
     # «corredor bloqueado» de una trayectoria que ya no existe.
-    for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z",
-              "verdict", "verdict_reason", "findings"):
+    for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z"):
         write_state(session_id, f"trajectory.{k}", "")
+    clear_corridor_analysis(session_id)
+
+
+#: El análisis del corredor tal como se guardó con la trayectoria.
+CORRIDOR_KEY = "trajectory.corridor_json"
+#: Todo lo que se midió contra la malla al guardar la trayectoria.
+CORRIDOR_ANALYSIS_KEYS = (CORRIDOR_KEY, "trajectory.verdict",
+                          "trajectory.verdict_reason", "trajectory.findings")
+
+
+def clear_corridor_analysis(session_id: str) -> None:
+    """Olvida lo medido sobre la malla; los puntos (del cirujano) se quedan.
+
+    Lo llama quien cambia la malla (resegmentar, recortar, borrar): el
+    veredicto guardado describía la malla de antes, y una sesión reanudada lo
+    enseñaba como «Guardada ✓» —y el informe lo imprimía— aunque ahora un vaso
+    cruzara el corredor.
+    """
+    for key in CORRIDOR_ANALYSIS_KEYS:
+        write_state(session_id, key, "")
 
 
 # ── Proponer corredores de abordaje ─────────────────────────────────────────── #
@@ -627,10 +713,6 @@ async def suggest_corridors(
 ) -> SuggestCorridorsResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-
-    from services.approach import (FACE_MAX_ELEVATION_DEG, MAX_INFERIOR_DEG,
-                                   propose_corridors)
-    from services.head_axes import axes_from_dicom
 
     meshes = session_subdir(session_id, "meshes")
     vtp = meshes / "vessel_tree.vtp"
@@ -662,6 +744,51 @@ async def suggest_corridors(
                 detail=("No hay aneurisma al que apuntar: marca el cuello en "
                         "Morfometría, detecta un candidato, o pasa la diana."))
 
+    # El cálculo corre en un proceso hijo: VTK abortó el worker de uvicorn dos
+    # veces aquí, sin traza, sobre el Caso 3 a resolución completa, y con él se
+    # caía la sesión de todo el que estuviera trabajando. En un hijo solo falla
+    # esta petición, y la persona sabe que puede marcar el corredor a mano.
+    try:
+        return await asyncio.to_thread(
+            run_isolated, _suggest_for_session, session_id, objetivo,
+            req.radius_mm, req.top, timeout_s=SUGGEST_TIMEOUT_S,
+        )
+    except CalculoCaido as exc:
+        logger.error("Sugerir corredor: el proceso hijo cayó (%s): %s", session_id, exc)
+        raise HTTPException(status_code=500, detail=SUGGEST_FAILED_DETAIL) from exc
+
+
+#: Lo que ve la persona si el cálculo del corredor muere o no acaba.
+SUGGEST_FAILED_DETAIL = (
+    "El cálculo del corredor falló en el servidor; la sesión no se ha perdido. "
+    "Coloca la entrada y la diana a mano."
+)
+#: Un barrido sano tarda segundos; más de esto es un hijo colgado.
+SUGGEST_TIMEOUT_S = 300.0
+
+
+def _suggest_for_session(
+    session_id: str, objetivo: tuple[float, float, float],
+    radius_mm: float, top: int,
+) -> SuggestCorridorsResult:
+    """El barrido de corredores, tal como corre en el proceso hijo.
+
+    Recibe solo datos sencillos y vuelve a leer del disco la malla, el volumen
+    y la orientación: los objetos VTK no cruzan entre procesos.
+    """
+    from services.approach import (FACE_MAX_ELEVATION_DEG, MAX_INFERIOR_DEG,
+                                   propose_corridors)
+    from services.head_axes import axes_from_dicom
+
+    vtp = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
+
+    def _f(key: str, default: float = 0.0) -> float:
+        raw = read_state(session_id, key, "")
+        try:
+            return float(raw) if raw != "" else default
+        except ValueError:
+            return default
+
     ejes = axes_from_dicom(session_subdir(session_id, "dicom"),
                            read_state(session_id, "dicom.series_id", ""))
 
@@ -686,11 +813,11 @@ async def suggest_corridors(
     eje_cuello = (_f("morpho.axis_x"), _f("morpho.axis_y"), _f("morpho.axis_z", 1.0))
     clearance = max(6.0, _f("morpho.max_diameter_mm") / 2.0 + 2.0)
 
-    propuestas = await asyncio.to_thread(
-        propose_corridors, objetivo, read_vtp(vtp), ejes,
-        radius_mm=req.radius_mm, target_clearance_mm=clearance,
+    propuestas = propose_corridors(
+        objetivo, read_vtp(vtp), ejes,
+        radius_mm=radius_mm, target_clearance_mm=clearance,
         neck_axis=eje_cuello, branches=ramas, volume=volume, spacing=spacing,
-        top=req.top,
+        top=top,
     )
 
     return SuggestCorridorsResult(
@@ -727,9 +854,10 @@ async def suggest_corridors(
     response_model=TrajectoryResult | None,
     summary="The approach trajectory stored in this session, if any",
     description=(
-        "Returns the entry/target the surgeon established, with the corridor "
-        "assessment recomputed against the current mesh — or null when none was "
-        "marked.\n\n"
+        "Returns the entry/target the surgeon established, its depth and "
+        "incidence angle, and the corridor assessment stored when it was saved "
+        "(the one the report prints; recomputed only for sessions saved before "
+        "it was stored) — or null when none was marked.\n\n"
         "It exists because a resumed session used to come back WITHOUT it: the "
         "points were on disk and in the PDF, but the store was empty, so the "
         "viewer drew no corridor and the placement rehearsal silently fell back "
@@ -740,11 +868,31 @@ async def suggest_corridors(
 async def get_trajectory(session_id: str) -> "TrajectoryResult | None":
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    return stored_trajectory(session_id)
+
+
+def stored_trajectory(session_id: str) -> "TrajectoryResult | None":
+    """La trayectoria guardada con su ángulo, profundidad y corredor.
+
+    El corredor es el que se guardó con «Guardar trayectoria» —el mismo cuyo
+    veredicto imprime el informe—, sin volver a medirlo. Si hay malla y no hay
+    análisis (la malla cambió después, o la sesión es de antes de guardarlo),
+    vuelve sin corredor y con `stale`: medirlo aquí en silencio daría un
+    veredicto que el informe no tiene.
+    """
     tr = read_trajectory_state(session_id)
     if not tr:
         return None
+    corridor = None
+    raw = read_state(session_id, CORRIDOR_KEY, "")
+    if raw:
+        try:
+            corridor = CorridorAssessmentOut.model_validate_json(raw)
+        except ValueError:
+            logger.warning("Corredor guardado ilegible en %s", session_id)
+    hay_malla = (session_subdir(session_id, "meshes") / "vessel_tree.vtp").exists()
     return TrajectoryResult(
         entry=tr["entry"], target=tr["target"],
         depth_mm=tr["depth_mm"], angle_deg=tr["angle_deg"],
-        corridor=_assess_corridor_for(session_id, tr["entry"], tr["target"]),
+        corridor=corridor, stale=corridor is None and hay_malla,
     )

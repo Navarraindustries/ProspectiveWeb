@@ -1,22 +1,26 @@
 /* Landing — public marketing/onboarding page for PROSPECTIVE.
-   One long scroll: hero → what/why → pipeline video → features → use cases →
+   One long scroll: hero → what/why → vídeo del flujo → features → use cases →
    how it works → technology → security → team → disclaimer → CTA.
    "Entrar" routes to the app (/app).
 
-   Identidad propia, generada con Stitch y aislada en `styles/landing.css` bajo
-   `.landing-stitch`: glassmorphism cian sobre obsidiana. Es dark-only a
-   propósito —la paleta se calibró así y no tiene variante clara—, por eso la
-   página fija `data-theme="dark"` y no ofrece conmutador de tema; dentro de
-   /app siguen mandando los tokens grises del escritorio. */
+   Desde F2 usa la identidad de la aplicación (grafito y azul eléctrico, Geist):
+   solo tokens, sin colores escritos a mano; la maquetación y los efectos siguen
+   en `styles/landing.css` bajo `.landing-stitch`. Es dark-only: la página fija
+   `data-theme="dark"` y no ofrece conmutador de tema. */
 
 import { STEP_LABELS } from "../pipeline/steps";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BorderBeam } from "border-beam";
-import logo from "../assets/logo.png";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/Icon";
-import { VideoSplash } from "../components/VideoSplash";
+import { Logo } from "../components/shell/Logo";
+import { CONTACTO_ADMIN } from "../lib/contacto";
+/* Los cortes de las tarjetas de índices se importan, no se copian: la portada
+   no puede volver a decir un umbral distinto del que aplica la aplicación. */
+import {
+  AR_HIGH, BF_WIDE, DNR_HIGH, EI_MOD, SR_HIGH, UI_HIGH,
+} from "../components/morphometry/thresholds";
 /* Las dos escenas WebGL del hero van en carga diferida y a propósito: Three.js
    pesa medio megabyte y esta es la primera página que abre un desconocido. Así
    el titular y el botón pintan de inmediato con el resto del bundle, y el 3D
@@ -42,9 +46,8 @@ const Perforators = lazy(() => scenes().then((m) => ({ default: m.Perforators })
 const StlPrinting = lazy(() => scenes().then((m) => ({ default: m.StlPrinting })));
 
 const MAXW = 1320;
-/* Shown once per session (same key as the app) so the branded intro plays on the
-   first page loaded — landing or /app — and never twice in the same session. */
-const SPLASH_KEY = "prospective.splashShown";
+/* El lema único del producto (F2-2): el mismo texto en toda la aplicación. */
+const LEMA = "Planificación neurovascular con datos";
 
 /* Section content reveals with a fade + rise as it scrolls into view. Driven by
    the CSS `.reveal` class (scroll-driven animation, gated behind @supports) so
@@ -86,7 +89,7 @@ function Figure({ children, caption, dashed }: { children: React.ReactNode; capt
   return (
     <div
       className="stitch-glass landing-figure"
-      style={dashed ? { borderStyle: "dashed", borderColor: "rgba(0,240,255,0.28)" } : undefined}
+      style={dashed ? { borderStyle: "dashed", borderColor: "color-mix(in srgb, var(--primary) 28%, transparent)" } : undefined}
     >
       <Suspense fallback={null}>{children}</Suspense>
       <div className="stitch-label" style={{ position: "absolute", left: 16, bottom: 14, fontSize: 10, color: "var(--brand-slate)", zIndex: 1 }}>
@@ -106,7 +109,7 @@ function Nav({ onEnter }: { onEnter: () => void }) {
   }, []);
   const links = [
     ["Qué es", "que-es"],
-    ["Pipeline", "pipeline"],
+    ["Cómo funciona", "como-funciona"],
     ["Funcionalidades", "funcionalidades"],
     ["Índices", "indices"],
     ["Tecnología", "tecnologia"],
@@ -126,24 +129,14 @@ function Nav({ onEnter }: { onEnter: () => void }) {
         padding: "0 24px",
         // Fondo sólido SIEMPRE: así el contenido nunca se transparenta a través
         // del navbar (el bug del "remontado"). Al scrollear se opaca un poco más.
-        background: scrolled ? "rgba(6,14,29,0.97)" : "rgba(9,14,23,0.9)",
-        borderBottom: `1px solid ${scrolled ? "rgba(0,240,255,0.22)" : "rgba(27,42,74,0.45)"}`,
+        background: `color-mix(in srgb, var(--background) ${scrolled ? 97 : 90}%, transparent)`,
+        borderBottom: `1px solid color-mix(in srgb, ${scrolled ? "var(--primary) 22%" : "var(--border) 45%"}, transparent)`,
         boxShadow: scrolled ? "var(--shadow-sm)" : "none",
         transition: "background .2s, border-color .2s, box-shadow .2s",
       }}
     >
       <div style={{ maxWidth: MAXW, margin: "0 auto", width: "100%", display: "flex", alignItems: "center", gap: 14 }}>
-        <img className="logo-mark" src={logo} alt="" style={{ height: 42 }} />
-        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-          <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 20, letterSpacing: "-0.02em", color: "var(--foreground)" }}>PROSPECTIVE</span>
-          <span className="stitch-label" style={{ fontSize: 9, letterSpacing: "0.08em", color: "var(--muted-foreground)" }}>Neurovascular AI</span>
-        </div>
-        {/* Pip de sistema vivo: el equivalente al «ACTIVE AI CLINICAL SUITE» de
-            Stitch, sin inventar un número de versión que nadie mantiene. */}
-        <div className="landing-nav-links" style={{ display: "inline-flex", alignItems: "center", gap: 7, marginLeft: 6, padding: "4px 10px", borderRadius: "var(--radius-md)", background: "rgba(20,28,43,0.8)" }}>
-          <span className="stitch-pip" />
-          <span className="stitch-label" style={{ fontSize: 9, color: "var(--brand-slate)" }}>Suite clínica activa</span>
-        </div>
+        <Logo />
         <div style={{ flex: 1 }} />
         <nav className="landing-nav-links" style={{ display: "flex", gap: 20, marginRight: 8 }}>
           {links.map(([label, id]) => (
@@ -167,9 +160,9 @@ function Nav({ onEnter }: { onEnter: () => void }) {
 }
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
-function Hero({ onEnter }: { onEnter: () => void }) {
+function Hero({ onEnter, onSignup }: { onEnter: () => void; onSignup: () => void }) {
   return (
-    <div className="stitch-grid" style={{ position: "relative", overflow: "hidden", minHeight: "calc(100vh - 68px)", display: "flex", alignItems: "center", background: "#050913" }}>
+    <div className="stitch-grid" style={{ position: "relative", overflow: "hidden", minHeight: "calc(100vh - 68px)", display: "flex", alignItems: "center", background: "var(--canvas)" }}>
       {/* Fondo del hero, en tres capas: el shader de flujo neural pinta el telón,
           el modelo vascular ocupa el flanco derecho y el velo hunde el lado del
           texto para que el titular conserve contraste. */}
@@ -177,22 +170,22 @@ function Hero({ onEnter }: { onEnter: () => void }) {
         <NeuralShader style={{ position: "absolute", inset: 0, opacity: 0.85 }} />
         <VascularTree className="landing-hero-model" />
       </Suspense>
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(95deg, rgba(5,9,19,0.95) 0%, rgba(5,9,19,0.88) 30%, rgba(5,9,19,0.55) 50%, rgba(5,9,19,0.15) 74%, rgba(5,9,19,0.05) 100%)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(95deg, color-mix(in srgb, var(--canvas) 95%, transparent) 0%, color-mix(in srgb, var(--canvas) 88%, transparent) 30%, color-mix(in srgb, var(--canvas) 55%, transparent) 50%, color-mix(in srgb, var(--canvas) 15%, transparent) 74%, color-mix(in srgb, var(--canvas) 5%, transparent) 100%)" }} />
       <div style={{ position: "relative", zIndex: 1, maxWidth: MAXW, margin: "0 auto", padding: "0 24px", width: "100%" }}>
         {/* Columna estrecha: el modelo ocupa el hero entero por detrás, así que
             el texto se repliega a la izquierda y le deja el centro-derecha. */}
         <div style={{ maxWidth: 700 }}>
-          <div className="stitch-label" style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "7px 14px", borderRadius: "var(--radius-md)", border: "1px solid rgba(0,240,255,0.3)", background: "rgba(13,21,36,0.6)", color: "var(--brand-slate)", fontSize: 11, marginBottom: 26 }}>
+          <div className="stitch-label" style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "7px 14px", borderRadius: "var(--radius-md)", border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)", background: "color-mix(in srgb, var(--background) 60%, transparent)", color: "var(--brand-slate)", fontSize: 11, marginBottom: 26 }}>
             <span className="stitch-pip" />
-            Plataforma de planificación neurovascular · SkullApp
+            {LEMA}
           </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(38px, 6vw, 68px)", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.04, color: "#fff", margin: 0 }}>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(38px, 6vw, 68px)", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.04, color: "var(--foreground)", margin: 0 }}>
             Planificar la cirugía de un aneurisma cerebral, con datos y en 3D
           </h1>
-          <p style={{ fontSize: "clamp(16px, 2vw, 20px)", color: "rgba(219,226,248,0.74)", lineHeight: 1.55, marginTop: 22, maxWidth: 640 }}>
+          <p style={{ fontSize: "clamp(16px, 2vw, 20px)", color: "color-mix(in srgb, var(--foreground) 74%, transparent)", lineHeight: 1.55, marginTop: 22, maxWidth: 640 }}>
             A partir de la tomografía o angiografía del paciente, PROSPECTIVE reconstruye la arteria
             en 3D, localiza y mide el aneurisma, estima su riesgo de rotura y ayuda al médico a elegir
-            el mejor tratamiento. Todo en el navegador, sin instalar nada.
+            el mejor tratamiento. Todo en el navegador.
           </p>
           <div style={{ display: "flex", gap: 14, marginTop: 34, flexWrap: "wrap" }}>
             <BorderBeam size="sm" colorVariant="ocean" theme="dark" style={{ display: "inline-flex" }}>
@@ -201,18 +194,25 @@ function Hero({ onEnter }: { onEnter: () => void }) {
                 className="stitch-cta"
                 style={{ height: 50, padding: "0 28px", borderRadius: "var(--radius-md)", border: "none", background: "var(--primary)", color: "var(--primary-foreground)", fontSize: 15, cursor: "pointer" }}
               >
-                Iniciar sesión
+                Entrar
               </button>
             </BorderBeam>
+            <button
+              onClick={onSignup}
+              className="stitch-ghost"
+              style={{ height: 50, padding: "0 24px", borderRadius: "var(--radius-md)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, cursor: "pointer" }}
+            >
+              Crear cuenta
+            </button>
             <a
-              href="#pipeline"
+              href="#como-funciona"
               className="stitch-ghost"
               style={{ height: 50, display: "inline-flex", alignItems: "center", padding: "0 24px", borderRadius: "var(--radius-md)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, textDecoration: "none" }}
             >
-              Ver el pipeline ↓
+              Ver cómo funciona ↓
             </a>
           </div>
-          <div className="stitch-label" style={{ display: "flex", gap: 22, marginTop: 40, color: "rgba(185,202,203,0.85)", fontSize: 11, flexWrap: "wrap" }}>
+          <div className="stitch-label" style={{ display: "flex", gap: 22, marginTop: 40, color: "var(--muted-foreground)", fontSize: 11, flexWrap: "wrap" }}>
             <span>Sin instalar nada</span><span style={{ color: "var(--primary)", opacity: 0.55 }}>·</span>
             <span>Modelo 3D en el navegador</span><span style={{ color: "var(--primary)", opacity: 0.55 }}>·</span>
             <span>Medidas objetivas en milímetros</span>
@@ -232,29 +232,15 @@ function What() {
           <Kicker>Qué es</Kicker>
           <H2>Decisiones quirúrgicas con datos, no solo a ojo</H2>
           <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 18 }}>
-            Un <b style={{ color: "var(--foreground)" }}>aneurisma cerebral</b> es una dilatación en la
-            pared de una arteria del cerebro —como un pequeño globo— que puede romperse y causar una
-            hemorragia grave. Antes de tratarlo, el equipo médico debe decidir cómo hacerlo, y hacerlo
-            con precisión milimétrica.
+            El estudio de imagen se convierte en un{" "}
+            <b style={{ color: "var(--foreground)" }}>modelo 3D que se puede medir</b>: el aneurisma
+            se localiza, se mide y se compara con los umbrales publicados, con precisión milimétrica.
           </p>
           <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 14 }}>
-            Hoy esa decisión se apoya mucho en mirar las imágenes. PROSPECTIVE convierte el estudio en
-            un <b style={{ color: "var(--foreground)" }}>modelo 3D que se puede medir</b>, calcula
-            indicadores objetivos de riesgo y sugiere el tratamiento — para que el equipo decida con
-            datos y de forma reproducible.
+            La elección entre clipaje y tratamiento endovascular se apoya hoy sobre todo en mirar las
+            imágenes. PROSPECTIVE calcula indicadores objetivos de riesgo y sugiere el tratamiento,
+            para que el equipo decida con datos y de forma reproducible.
           </p>
-          {/* Glosario en lenguaje sencillo de los dos tratamientos posibles */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 22 }}>
-            {([
-              ["Clipaje quirúrgico", "Cirugía abierta: se coloca un pequeño clip metálico en la base del aneurisma para cerrarlo."],
-              ["Tratamiento endovascular", "Sin abrir el cráneo: por dentro de la arteria, con un catéter, se rellena o cubre el aneurisma."],
-            ] as [string, string][]).map(([t, d]) => (
-              <div key={t} style={{ background: "var(--muted)", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>{t}</div>
-                <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>{d}</div>
-              </div>
-            ))}
-          </div>
         </div>
         {/* La reconstrucción, al lado del párrafo que habla justo de eso: el
             estudio convertido en un modelo que se puede medir. */}
@@ -313,7 +299,7 @@ function PipelinePlayer({ src, label = "", note = "" }: { src: string; label?: s
           {note && <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{note}</span>}
         </figcaption>
       )}
-      <div style={{ position: "relative", borderRadius: "var(--radius-xl)", overflow: "hidden", border: "1px solid var(--border)", boxShadow: "var(--shadow-lg)", background: "#000", aspectRatio: "16 / 9" }}>
+      <div style={{ position: "relative", borderRadius: "var(--radius-xl)", overflow: "hidden", border: "1px solid var(--border)", boxShadow: "var(--shadow-lg)", background: "var(--canvas)", aspectRatio: "16 / 9" }}>
         <video
           ref={videoRef}
           src={src}
@@ -341,7 +327,7 @@ const spell = (n: number): string => NUM_WORD[n] ?? String(n);
 function Pipeline() {
   const steps = STEP_LABELS;
   return (
-    <Section id="pipeline" style={{ background: "var(--background)" }}>
+    <Section id="como-funciona" style={{ background: "var(--background)" }}>
       <div style={{ textAlign: "center", maxWidth: 720, margin: "0 auto 40px" }}>
         <Kicker>El proceso</Kicker>
         <H2>Del estudio de imagen al plan quirúrgico, en {spell(steps.length)} pasos</H2>
@@ -449,7 +435,7 @@ function HowItWorks() {
     <Section style={{ background: "var(--canvas)" }}>
       <div style={{ maxWidth: 680, margin: "0 auto 44px", textAlign: "center" }}>
         <Kicker>Cómo funciona</Kicker>
-        <H2>Tres pasos, sin instalar nada</H2>
+        <H2>Tres pasos</H2>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
         {steps.map(([n, t, d]) => (
@@ -466,9 +452,8 @@ function HowItWorks() {
 
 /* ── Technology ─────────────────────────────────────────────────────────── */
 function Technology() {
-  const stack = ["VTK", "SimpleITK", "pydicom", "scipy", "FastAPI", "React", "vtk.js", "SQLite"];
   const stats: [string, string][] = [
-    ["Web", "Funciona en el navegador, sin instalar nada"],
+    ["Web", "Funciona en el navegador"],
     ["Servidor", "El cálculo pesado corre en el servidor, no en tu equipo"],
     ["3D", "El modelo se explora en 3D en la propia página"],
     ["Seguro", "Acceso con inicio de sesión y cuentas aprobadas"],
@@ -481,17 +466,8 @@ function Technology() {
           <H2>La potencia de una estación de trabajo, en una página web</H2>
           <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 16 }}>
             El análisis pesado se hace en el servidor con las mismas herramientas de imagen médica que
-            un programa de escritorio profesional; tu navegador solo muestra el resultado en 3D. No hay
-            nada que instalar ni configurar.
+            un programa de escritorio profesional; tu navegador solo muestra el resultado en 3D.
           </p>
-          <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 22, marginBottom: 8 }}>
-            Construido sobre tecnologías estándar de la industria:
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {stack.map((s) => (
-              <span key={s} style={{ padding: "6px 12px", borderRadius: "var(--radius-full)", background: "var(--muted)", color: "var(--foreground)", fontSize: 12.5, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{s}</span>
-            ))}
-          </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {stats.map(([v, l]) => (
@@ -511,7 +487,7 @@ function Security() {
   const items: [IconName, string, string][] = [
     ["LOCK", "Acceso seguro", "Cada persona entra con su usuario y contraseña; la sesión queda protegida."],
     ["USER", "Cuentas verificadas", "El registro de un profesional queda pendiente hasta que un administrador lo aprueba."],
-    ["FOLDER", "Sin datos personales", "Los pacientes se registran sin nombre ni datos identificativos directos."],
+    ["FOLDER", "Identificación mínima", "Puedes registrar al paciente con iniciales o un código."],
     ["SAVE", "Cada caso, por separado", "El estudio de cada paciente vive en su propio espacio y no se mezcla con otros."],
   ];
   return (
@@ -522,7 +498,7 @@ function Security() {
       </div>
       {/* Era la única sección de contenido sin ningún apoyo visual. */}
       <div style={{ marginBottom: 18 }}>
-        <Figure caption="El estudio viaja protegido y sin datos del paciente"><DataVault /></Figure>
+        <Figure caption="El estudio viaja protegido"><DataVault /></Figure>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 18 }}>
         {items.map(([icon, t, d]) => (
@@ -538,15 +514,21 @@ function Security() {
 }
 
 /* ── Clinical indices / rigor ───────────────────────────────────────────── */
+/** Un número con coma decimal y los decimales del corte (2,0 y no 2). */
+const es = (n: number, d: number): string => n.toFixed(d).replace(".", ",");
+
 function Indices() {
+  // Los cortes salen de morphometry/thresholds.ts, con coma decimal. El texto
+  // del BF estaba invertido (F1-162): un BF alto es un cuello relativamente
+  // estrecho, nunca lo contrario. El NSI no tiene corte y la tarjeta lo dice.
   const metrics: [string, string, string][] = [
-    ["DNR", "Dome-to-Neck Ratio", "Ø máx / cuello · riesgo ↑ si ≥ 2.0"],
-    ["AR", "Aspect Ratio", "altura de domo / cuello · riesgo ↑ si ≥ 1.6"],
-    ["BF", "Bottleneck Factor", "Ø domo / cuello · cuello ancho si > 1.5"],
-    ["UI", "Undulation Index", "irregularidad del domo · alto si ≥ 0.25"],
-    ["EI", "Ellipticity Index", "desviación elíptica · moderado si ≥ 0.35"],
-    ["NSI", "Non-Sphericity Index", "1 − esfericidad de Wadell"],
-    ["SR", "Size Ratio", "Ø máx / arteria madre · alto si ≥ 3.0"],
+    ["DNR", "Relación domo-cuello (DNR)", `Ø máx / cuello · riesgo ↑ si ≥ ${es(DNR_HIGH, 1)}`],
+    ["AR", "Relación de aspecto (AR)", `altura de domo / cuello · riesgo ↑ si ≥ ${es(AR_HIGH, 1)}`],
+    ["BF", "Factor de cuello (BF)", `Ø domo / cuello · cuello estrecho si > ${es(BF_WIDE, 1)}`],
+    ["UI", "Índice de ondulación (UI)", `irregularidad del domo · alto si ≥ ${es(UI_HIGH, 2)}`],
+    ["EI", "Índice de elipticidad (EI)", `desviación elíptica · alto si ≥ ${es(EI_MOD, 2)}`],
+    ["NSI", "Índice de no esfericidad (NSI)", "1 − esfericidad de Wadell · sin corte"],
+    ["SR", "Relación de tamaño (SR)", `Ø máx / arteria madre · alto si ≥ ${es(SR_HIGH, 1)}`],
     ["PHASES", "Riesgo a 5 años", "escala de Greving et al., Lancet Neurology 2014"],
   ];
   return (
@@ -568,10 +550,10 @@ function Indices() {
             <Icon name="BOOK" size={17} color="var(--brand-slate)" />
             Referencias: Greving 2014 · Dhar 2008 · Raghavan 2005 · Wadell
           </div>
-          {/* El saco aislado con sus calibres y los vectores de cizallamiento:
-              la imagen de lo que miden las siglas de al lado. */}
+          {/* El saco aislado con sus calibres: la imagen de lo que miden las
+              siglas de al lado. */}
           <div style={{ marginTop: 24 }}>
-            <Figure caption="Cuello, altura máxima y cizallamiento de pared"><Morphometry /></Figure>
+            <Figure caption="Cuello, altura máxima y forma del saco"><Morphometry /></Figure>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -657,7 +639,7 @@ function Roadmap() {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
         {items.map(([icon, t, d]) => (
-          <div key={t} className="stitch-glass" style={{ position: "relative", borderStyle: "dashed", borderColor: "rgba(0,240,255,0.28)", padding: "24px 22px" }}>
+          <div key={t} className="stitch-glass" style={{ position: "relative", borderStyle: "dashed", borderColor: "color-mix(in srgb, var(--primary) 28%, transparent)", padding: "24px 22px" }}>
             <span style={{ position: "absolute", top: 16, right: 16, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, color: "var(--brand-slate)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               <Icon name="SPARKLE" size={12} /> Próximamente
             </span>
@@ -676,7 +658,7 @@ function Roadmap() {
 /* ── Contact ────────────────────────────────────────────────────────────── */
 function Contact() {
   const rows: [IconName, string, string, string | null][] = [
-    ["MAIL", "Correo", "ingprospective@skullapp.tech", "mailto:ingprospective@skullapp.tech"],
+    ["MAIL", "Correo", CONTACTO_ADMIN, `mailto:${CONTACTO_ADMIN}`],
     ["PIN", "Institución", "SkullApp", null],
     ["BRAIN", "Laboratorio", "Laboratorio de Imagen Médica", null],
   ];
@@ -717,7 +699,7 @@ function Contact() {
   );
 }
 
-function CTA({ onEnter }: { onEnter: () => void }) {
+function CTA({ onEnter, onSignup }: { onEnter: () => void; onSignup: () => void }) {
   return (
     <Section style={{ background: "var(--background)" }}>
       <div
@@ -727,26 +709,36 @@ function CTA({ onEnter }: { onEnter: () => void }) {
           borderRadius: "var(--radius-xl)",
           padding: "64px 32px",
           textAlign: "center",
-          background: "radial-gradient(120% 140% at 50% 0%, #16222e, #0a121c 70%)",
+          background: "radial-gradient(120% 140% at 50% 0%, var(--card), var(--canvas) 70%)",
           border: "1px solid var(--border)",
         }}
       >
         <div style={{ position: "relative", zIndex: 1, maxWidth: 640, margin: "0 auto" }}>
-          <img className="logo-mark" src={logo} alt="" style={{ height: 60, filter: "invert(1) brightness(1.7)" }} />
-          <h2 style={{ fontSize: "clamp(26px, 3.6vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", color: "#fff", margin: "18px 0 0", lineHeight: 1.12 }}>
+          <Logo size={48} />
+          <h2 style={{ fontSize: "clamp(26px, 3.6vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--foreground)", margin: "18px 0 0", lineHeight: 1.12 }}>
             Empieza a planificar con PROSPECTIVE
           </h2>
-          <p style={{ fontSize: 16, color: "rgba(235,235,235,0.72)", marginTop: 14, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 16, color: "var(--muted-foreground)", marginTop: 14, lineHeight: 1.6 }}>
             Accede con tu cuenta o solicita el registro profesional. La aprobación la gestiona el administrador.
           </p>
-          <BorderBeam size="sm" colorVariant="ocean" theme="dark" style={{ display: "inline-flex", marginTop: 28 }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: 14, marginTop: 28, flexWrap: "wrap" }}>
+            <BorderBeam size="sm" colorVariant="ocean" theme="dark" style={{ display: "inline-flex" }}>
+              <button
+                onClick={onEnter}
+                className="stitch-cta"
+                style={{ height: 50, padding: "0 32px", borderRadius: "var(--radius-md)", border: "none", background: "var(--primary)", color: "var(--primary-foreground)", fontSize: 15, cursor: "pointer" }}
+              >
+                Entrar
+              </button>
+            </BorderBeam>
             <button
-              onClick={onEnter}
-              style={{ height: 50, padding: "0 32px", borderRadius: "var(--radius-md)", border: "none", background: "var(--brand-mist)", color: "#1c1c1c", fontWeight: 700, fontSize: 15, cursor: "pointer" }}
+              onClick={onSignup}
+              className="stitch-ghost"
+              style={{ height: 50, padding: "0 28px", borderRadius: "var(--radius-md)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, cursor: "pointer" }}
             >
-              Entrar a la plataforma
+              Crear cuenta
             </button>
-          </BorderBeam>
+          </div>
         </div>
       </div>
     </Section>
@@ -757,10 +749,7 @@ function Footer() {
   return (
     <footer style={{ borderTop: "1px solid var(--border)", background: "var(--canvas)" }}>
       <div style={{ maxWidth: MAXW, margin: "0 auto", padding: "36px 24px", display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <img className="logo-mark" src={logo} alt="" style={{ height: 40 }} />
-          <span style={{ fontWeight: 800, fontSize: 17, color: "var(--foreground)" }}>PROSPECTIVE</span>
-        </div>
+        <Logo />
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", textAlign: "right" }}>
           <div>SkullApp · Laboratorio de Imagen Médica</div>
@@ -776,24 +765,16 @@ function Footer() {
 /* ── Page ───────────────────────────────────────────────────────────────── */
 export function Landing() {
   const navigate = useNavigate();
-  // Intro de marca: se ve la primera vez que se carga la página en la sesión.
-  const [showSplash, setShowSplash] = useState(() => sessionStorage.getItem(SPLASH_KEY) !== "1");
+  // Sin vídeo de marca al entrar (F2-1): para quien vuelve cada día era solo espera.
   const enter = () => navigate("/app");
+  const signup = () => navigate("/app/registro");
   return (
     /* `landing-stitch` trae la identidad de Stitch (styles/landing.css) y
        `data-theme="dark"` la ancla en oscuro: la paleta es dark-only por diseño
        y la landing no debe seguir el tema que el usuario eligió para /app. */
     <div className="landing-stitch" data-theme="dark" style={{ background: "var(--canvas)", minHeight: "100%" }}>
-      {showSplash && (
-        <VideoSplash
-          onDone={() => {
-            sessionStorage.setItem(SPLASH_KEY, "1");
-            setShowSplash(false);
-          }}
-        />
-      )}
       <Nav onEnter={enter} />
-      <Hero onEnter={enter} />
+      <Hero onEnter={enter} onSignup={signup} />
       <What />
       <Pipeline />
       <Features />
@@ -805,7 +786,7 @@ export function Landing() {
       <Security />
       <Roadmap />
       <Contact />
-      <CTA onEnter={enter} />
+      <CTA onEnter={enter} onSignup={signup} />
       <Footer />
     </div>
   );

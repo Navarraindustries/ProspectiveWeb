@@ -6,7 +6,7 @@ Tres cosas que estaban mal y no eran bugs de cálculo, sino de honestidad.
 1. **«Tratar o vigilar» se decidía sobre un milímetro.** El atajo de menos de
    3 mm devolvía «vigilancia activa» con confianza Alta sin mirar el PHASES que
    el paso de morfometría ya había calculado. Dos pacientes con el mismo
-   aneurisma de 2.8 mm y riesgos a cinco años de 17.0 % y 0.4 % —42 veces— salían
+   aneurisma de 2.8 mm y riesgos a cinco años de 7,2 % y 0,4 % —18 veces— salían
    con el mismo veredicto y la misma confianza.
 2. **Los pesos no decían de dónde venían.** Los umbrales están mayormente
    publicados; los números (25, 20, 15…) no los atribuye nada, y cuatro factores
@@ -51,15 +51,15 @@ def _phases(**over) -> dict:
 
 
 HIGH = _phases(population="finland", hypertension=True, earlier_sah=True,
-               site="aca_pcom_posterior")          # PHASES 14 → 17.0 %
-LOW = _phases()                                     # PHASES 0  → 0.4 %
+               site="aca_pcom_posterior")          # PHASES 11 → 7,2 % (Greving 2014)
+LOW = _phases()                                     # PHASES 0  → 0,4 %
 
 
 # ── 1. El riesgo de rotura entra en «tratar o vigilar» ────────────────────── #
 
 class TestSmallAneurysmConsultsThePhasesScore:
-    def test_the_premise_two_patients_forty_two_times_apart(self):
-        assert HIGH["risk_5yr_pct"] == pytest.approx(17.0)
+    def test_the_premise_two_patients_eighteen_times_apart(self):
+        assert HIGH["risk_5yr_pct"] == pytest.approx(7.2)
         assert LOW["risk_5yr_pct"] == pytest.approx(0.4)
         assert HIGH["risk_band"] == "high" and LOW["risk_band"] == "low"
 
@@ -67,13 +67,13 @@ class TestSmallAneurysmConsultsThePhasesScore:
         d = compute_decision(**SMALL, location=LOCATION_ACA_ACOA, phases=HIGH)
         assert d["recommendation_key"] == "mdt"
         assert d["confidence"] == "Baja"
-        assert any("17.0" in n for n in d["notes"]), d["notes"]
+        assert any("PHASES 11 · 7,2 % a 5 años (Greving 2014)" in n for n in d["notes"]), d["notes"]
 
     def test_a_low_rupture_risk_still_gets_surveillance(self):
         d = compute_decision(**SMALL, location=LOCATION_ACA_ACOA, phases=LOW)
         assert d["recommendation_key"] == "surveillance"
         assert d["confidence"] == "Alta"
-        assert any("0.4" in n for n in d["notes"]), d["notes"]
+        assert any("PHASES 0 · 0,4 % a 5 años (Greving 2014)" in n for n in d["notes"]), d["notes"]
 
     def test_the_two_patients_no_longer_get_the_same_answer(self):
         # El fallo, en una línea.
@@ -87,6 +87,19 @@ class TestSmallAneurysmConsultsThePhasesScore:
         assert d["recommendation_key"] == "surveillance"
         assert d["confidence"] == "Baja", "sin riesgo estimado no hay confianza alta"
         assert any("PHASES" in n for n in d["notes"])
+
+    def test_the_note_repeats_the_parent_vessel_warning(self):
+        # F1-17: con el saco aislado hasta el límite del recorte el Ø máximo
+        # mide también vaso padre, y el PHASES se calculó con ese Ø.
+        d = compute_decision(**SMALL, location=LOCATION_ACA_ACOA, phases=LOW,
+                             parent_in_sac=True)
+        assert any("vaso padre" in n and "PHASES" in n for n in d["notes"]), d["notes"]
+        big = dict(SMALL, max_diameter_mm=10.9, neck_mm=4.0)
+        d = compute_decision(**big, location=LOCATION_ACA_ACOA, phases=LOW,
+                             parent_in_sac=True)
+        assert any("vaso padre" in n and "PHASES" in n for n in d["notes"]), d["notes"]
+        d = compute_decision(**big, location=LOCATION_ACA_ACOA, phases=LOW)
+        assert not any("vaso padre" in n for n in d["notes"])
 
     def test_a_ruptured_aneurysm_is_never_a_surveillance_case(self):
         # PHASES está validado en aneurismas incidentales; sobre uno roto no dice
@@ -119,9 +132,10 @@ class TestEveryWeightCarriesItsProvenance:
         # AR, BF y UI vienen de literatura de riesgo de ROTURA, no de elección
         # de modalidad. Se enseñan —borrar una medida la esconde— pero no suman.
         for key in ("ar", "bf", "ui"):
-            assert "ROTURA" in _SOURCE[key]
-            assert "Ya no vota" in _SOURCE[key]
-            assert "sin validación para elegir modalidad" in _SOURCE[key]
+            assert "riesgo de rotura" in _SOURCE[key].lower()
+            # F1-227: la regla vigente, no la historia del programa.
+            assert "no vota" in _SOURCE[key]
+            assert "sin validación para elegir modalidad" in _SOURCE[key].lower()
         mudos = [f for f in self._factors() if not f["votes"]]
         # Cuatro: los tres índices de forma más el DNR, que desde que el cuello
         # y él son un solo criterio se enseña sin volver a puntuar.
@@ -145,12 +159,22 @@ class TestEveryWeightCarriesItsProvenance:
         # dos criterios: son las dos mitades de la definición de cuello ancho.
         assert "O DNR < 2" in _SOURCE["neck"]
         assert "una sola vez" in _SOURCE["neck"]
-        assert "Ya no es un factor propio" in _SOURCE["dnr"]
+        assert "otra mitad de la definición de cuello ancho" in _SOURCE["dnr"]
 
     def test_the_clinical_grades_say_who_scores_them_now(self):
         for key in ("wfns", "fisher"):
-            assert "Ya no puntúa aquí" in _SOURCE[key]
+            assert "Japan Stroke Data Bank" in _SOURCE[key]
             assert "JSDB" in _SOURCE[key]
+
+    def test_no_factor_text_tells_the_program_history(self):
+        # F1-227: el PDF decía «Ya no vota…», «Ya no es un factor propio… entre
+        # los dos se llevaban 40 puntos»: historia del programa, no la regla.
+        for key, text in _SOURCE.items():
+            assert "Ya no" not in text, key
+        for f in self._factors():
+            assert "Ya no" not in f["source"] and "Ya no" not in f.get("name", "")
+            # F1-225: el nombre del factor llega al PDF, en castellano.
+            assert "Aspect Ratio" not in f.get("name", "")
 
     def test_the_small_aneurysm_cutoff_does_not_pretend_to_be_a_guideline(self):
         assert "heurístico" in _SOURCE["small"].lower()
@@ -209,6 +233,13 @@ class TestThePhasesScoreTravelsFromTheMorphometryStep:
     def test_the_endpoint_reads_the_stored_score(self):
         assert self._decide(self._session(HIGH))["recommendation_key"] == "mdt"
         assert self._decide(self._session(LOW))["recommendation_key"] == "surveillance"
+
+    def test_the_endpoint_repeats_the_parent_vessel_warning(self):
+        sid = self._session(LOW)
+        write_state(sid, "morpho.sac_hit_crop", "1")
+        assert any("vaso padre" in n for n in self._decide(sid)["notes"])
+        write_state(sid, "morpho.sac_hit_crop", "0")
+        assert not any("vaso padre" in n for n in self._decide(sid)["notes"])
 
     def test_the_reasoning_is_persisted_and_the_sum_is_not(self):
         # Las notas son el razonamiento y viajan al informe. El sumatorio ya no
@@ -429,12 +460,22 @@ class TestTheExpectedPerforatorTerritory:
                                 location=location)["perforators"]
 
     def test_the_basilar_apex_names_what_costs_most(self):
-        from services.treatment import LOCATION_BASILAR
+        from services.treatment import LOCATION_BASILAR_TIP
 
-        t = self._perf(LOCATION_BASILAR)
+        t = self._perf(LOCATION_BASILAR_TIP)
         assert "alamoperforantes" in t["arteries"]
         assert "coma" in t["consequence"]
         assert t["sources"], "una tabla clínica sin fuente es una opinión"
+
+    def test_tronco_basilar_da_perforantes_pontinas(self):
+        # F1-174: la lista juntaba punta y tronco, y el tronco salía con las
+        # talamoperforantes de la punta. Case 3 es de tronco.
+        from services.treatment import LOCATION_BASILAR_TRUNK
+
+        t = self._perf(LOCATION_BASILAR_TRUNK)
+        assert "pontinas" in t["arteries"]
+        assert "alamoperforantes" not in t["arteries"]
+        assert t["notice"] == ""
 
     def test_the_acom_names_the_recurrent_artery(self):
         from services.treatment import LOCATION_ACA_ACOA
@@ -467,3 +508,149 @@ class TestTheExpectedPerforatorTerritory:
             if "Sin perforantes" in t.arteries:
                 continue          # la entrada que dice que aquí no aplica
             assert t.sources, f"{loc} afirma un riesgo sin fuente"
+
+
+class TestLowConfidenceSaysWhy:
+    """F1-177: «Confianza baja» tenía dos causas y la pantalla no decía cuál.
+
+    Con «100 % de los datos» al lado, una confianza baja parecía un error: lo
+    que pasaba es que los factores empujaban en sentidos opuestos. Con pocos
+    datos la causa es otra, y se dice otra cosa."""
+
+    def test_factores_opuestos_dan_su_motivo(self):
+        d = compute_decision(neck_mm=2.5, aspect_ratio=1.1, dnr=1.2,
+                             max_diameter_mm=14.0, bottleneck_factor=1.2,
+                             undulation_index=0.05, location=LOCATION_ACA_ACOA,
+                             patient_age=75)
+        assert d["coverage_pct"] == 100
+        assert d["confidence"] == "Baja"
+        assert d["confidence_reason"] == "los factores empujan en sentidos opuestos"
+
+    def test_faltan_datos_da_su_motivo(self):
+        d = compute_decision(neck_mm=6.5, aspect_ratio=0.0, dnr=0.0,
+                             max_diameter_mm=0.0, bottleneck_factor=0.0,
+                             undulation_index=0.0)
+        assert d["confidence"] == "Baja"
+        assert d["confidence_reason"] == f"faltan datos: evaluado el {d['coverage_pct']} % del caso"
+
+    def test_una_confianza_que_no_es_baja_no_lleva_motivo(self):
+        d = compute_decision(**TestTheScoreSaysHowMuchOfTheCaseItSaw.MORFO,
+                             location=LOCATION_MCA, patient_age=55)
+        assert d["confidence"] != "Baja"
+        assert d["confidence_reason"] == ""
+
+    def test_el_modelo_lo_publica(self):
+        from models.treatment import TreatmentDecisionResult
+        assert "confidence_reason" in TreatmentDecisionResult.model_fields
+
+
+# ── Decisiones guardadas antes de F1-225 / F1-227 ─────────────────────────── #
+
+class TestGetDevuelveLosTextosVigentes:
+    """Reanudar y GET /treatment-decision devuelven la decisión guardada: una
+    guardada antes de reescribir los textos seguía diciendo «Ya no vota…»."""
+
+    _VIEJO_AR = ("Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
+                 "modalidad. Un AR ≥ 1.6 se asocia a RECANALIZACIÓN tras coiling (OR "
+                 "4.15) — va al perfil endovascular.")
+
+    def test_una_decision_antigua_sale_con_los_textos_nuevos(self):
+        import json
+        from routers.treatment import RESULT_KEY
+        from services.sessions import create_session, read_state, write_state, write_states
+
+        sid = create_session()
+        # El motor lee la morfometría del estado de la sesión, no de la petición.
+        write_states(sid, {"morpho.neck_mm": "6.0", "morpho.ar": "1.1", "morpho.dnr": "1.2",
+                           "morpho.max_diameter_mm": "8.0", "morpho.bf": "1.1",
+                           "morpho.ui": "0.25"})
+        r = client.post("/api/treatment-decision", json={"session_id": sid})
+        assert r.status_code == 200, r.text
+        # La misma decisión, guardada como la guardaba 8d4c7e8.
+        guardada = json.loads(read_state(sid, RESULT_KEY, ""))
+        ar = next(f for f in guardada["factors"] if f["source"] == _SOURCE["ar"])
+        nombre_nuevo = ar["name"]
+        ar["source"] = self._VIEJO_AR
+        ar["name"] = nombre_nuevo.replace("Relación de aspecto (AR) baja", "Aspect Ratio bajo")
+        guardada["clip_factors"] = [ar["name"] if n == nombre_nuevo else n
+                                    for n in guardada["clip_factors"]]
+        write_state(sid, RESULT_KEY, json.dumps(guardada))
+
+        got = client.get(f"/api/treatment-decision/{sid}")
+        assert got.status_code == 200, got.text
+        texto = json.dumps(got.json(), ensure_ascii=False)
+        assert "Ya no" not in texto and "Aspect Ratio" not in texto
+        factores = {f["name"]: f["source"] for f in got.json()["factors"]}
+        assert factores[nombre_nuevo] == _SOURCE["ar"]
+
+
+# ── 7. Un guardado anterior a F1a reanuda con su decisión ─────────────────── #
+
+class TestAnOldSaveStillBringsItsDecisionBack:
+    """F1b-1: antes de F1-27 la decisión se guardaba solo en claves sueltas
+    (`treatment.recommendation`, `factors_json`, `notes_json`…). `stored_decision`
+    leía solo el blob nuevo, así que esos guardados reanudaban sin decisión y
+    sin decirlo. Las claves sueltas bastan para rehacer la pantalla."""
+
+    def _session(self) -> str:
+        sid = create_session()
+        for k, v in (("morpho.neck_mm", "2.0"), ("morpho.ar", "1.8"),
+                     ("morpho.dnr", "2.2"), ("morpho.max_diameter_mm", "8.0"),
+                     ("morpho.bf", "1.9"), ("morpho.ui", "0.08")):
+            write_state(sid, k, v)
+        write_state(sid, "phases.json", json.dumps(HIGH))
+        r = client.post("/api/treatment-decision", json={
+            "session_id": sid, "location": LOCATION_ACA_ACOA,
+            "is_ruptured": False, "patient_age": 45, "has_comorbidities": False})
+        assert r.status_code == 200, r.text
+        return sid
+
+    def test_without_the_blob_the_split_keys_rebuild_the_decision(self):
+        from routers.treatment import RESULT_KEY, stored_decision
+        sid = self._session()
+        fresh = stored_decision(sid)
+        assert fresh is not None
+        write_state(sid, RESULT_KEY, "")          # como un guardado antiguo
+        old = stored_decision(sid)
+        assert old is not None, "las claves sueltas bastan para rehacer la decisión"
+        assert old.recommendation_key == fresh.recommendation_key
+        assert old.recommendation == fresh.recommendation
+        assert old.confidence == fresh.confidence
+        assert [f.name for f in old.factors] == [f.name for f in fresh.factors]
+        assert old.notes == fresh.notes
+        assert old.clip_factors == fresh.clip_factors
+        assert old.endo_factors == fresh.endo_factors
+        assert old.jsdb == fresh.jsdb
+        assert old.endovascular == fresh.endovascular
+        assert old.perforators == fresh.perforators
+
+    def test_the_rebuilt_decision_is_written_back_once(self):
+        from routers.treatment import RESULT_KEY, stored_decision
+        sid = self._session()
+        write_state(sid, RESULT_KEY, "")
+        stored_decision(sid)
+        assert read_state(sid, RESULT_KEY, ""), "se guarda el blob para no rehacerlo cada vez"
+
+    def test_a_session_that_never_decided_has_no_decision(self):
+        from routers.treatment import stored_decision
+        assert stored_decision(create_session()) is None
+
+    def test_the_rebuilt_factors_carry_the_current_texts(self):
+        # Un guardado de antes de F1-227 trae las fuentes antiguas en
+        # `factors_json`: se leen con el texto vigente y el blob que se guarda
+        # tampoco las lleva.
+        from routers.treatment import RESULT_KEY, stored_decision
+        from services.treatment import _LEGACY_SOURCE_TEXTS
+        legacy_source = next(iter(_LEGACY_SOURCE_TEXTS))
+        sid = self._session()
+        write_state(sid, RESULT_KEY, "")
+        factors = json.loads(read_state(sid, "treatment.factors_json", "[]"))
+        assert factors
+        factors[0]["source"] = legacy_source
+        write_state(sid, "treatment.factors_json", json.dumps(factors))
+        old = stored_decision(sid)
+        assert old is not None
+        assert old.factors[0].source == _LEGACY_SOURCE_TEXTS[legacy_source]
+        for f in old.factors:
+            assert "Ya no" not in f.name and "Ya no" not in f.source
+        assert "Ya no" not in read_state(sid, RESULT_KEY, ""), "el blob guardado tampoco lleva el texto antiguo"

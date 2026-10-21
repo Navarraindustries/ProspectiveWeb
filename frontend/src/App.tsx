@@ -1,10 +1,11 @@
-/* PROSPECTIVE Web — root: splash → Login/Signup → Pacientes → Sesión → Solicitudes. */
+/* PROSPECTIVE Web — root: splash → Login/Signup → Pacientes → Sesión → administración.
+   Las pantallas de gestión se envuelven cada una en el shell (barra lateral y
+   superior, components/shell); el espacio de trabajo conserva su Topbar en F2. */
 
 import { ForcePasswordChange } from "./components/ForcePasswordChange";
 import { useCallback, useEffect, useState } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api/client";
-import { restoredSegmentation } from "./api/restoredSegmentation";
 import type { PatientSummary, StudyCard, StudySummary } from "./api/types";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
@@ -14,16 +15,18 @@ import { Workspace } from "./pages/Workspace";
 import { PendingRequests } from "./pages/PendingRequests";
 import { UsersAdmin } from "./pages/UsersAdmin";
 import { AuditTrail } from "./pages/AuditTrail";
-import { VideoSplash } from "./components/VideoSplash";
+import { UnsavedExitDialog } from "./components/UnsavedExitDialog";
 import { LoadingScreen } from "./components/LoadingScreen";
-import { ConfirmDialog } from "./components/ConfirmDialog";
 import { AuthProvider, useAuth } from "./store/auth";
 import { PlanningProvider, usePlanning } from "./store/planning";
 import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
 import { ClipOrdersPage } from "./pages/ClipOrders";
 import { WorkshopsPage } from "./pages/Workshops";
 import type { Screen } from "./store/nav";
-import { clampStep } from "./pipeline/steps";
+import { rehydrateSession } from "./resume";
+import { restoreFailure } from "./restoreFailure";
+import { ServerDownBanner } from "./components/ServerDownBanner";
+import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
 
 function Router() {
   const { user, ready, expiredNotice } = useAuth();
@@ -41,7 +44,14 @@ function Router() {
   // Paciente por el que se abre el registro de pedidos, cuando se llega desde su ficha.
   const [ordersPatient, setOrdersPatient] = useState<PatientSummary | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // «Reintentar» del aviso de una restauración fallida (F1-25): el aviso se
+  // queda hasta que se pulse, en vez de borrarse a los tres segundos.
+  const [toastRetry, setToastRetry] = useState<{ forText: string; run: () => void } | null>(null);
+  // Solo vale para el aviso al que pertenece: otro aviso posterior no lo hereda.
+  const retryHere = toastRetry && toastRetry.forText === toast ? toastRetry.run : null;
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  // Transición de marca tras un login correcto (vídeo de carga, 2,2 s): solo
+  // al entrar, no al recargar con sesión abierta.
   const [loadingIn, setLoadingIn] = useState(false);
   const [resumeStep, setResumeStep] = useState(0);
   // Leaving the pipeline throws the session away: the store resets on the next
@@ -68,7 +78,9 @@ function Router() {
   const effective: Screen = user ? (screen === "login" || screen === "signup" ? "patients" : screen) : loggedOut;
 
   // Keep the URL honest when the effective screen differs from the one the path
-  // names — a logged-out visitor deep-linking to /app/sesion, or bare /app.
+  // names — a logged-out visitor deep-linking to /app/sesion, bare /app, or a
+  // ruta antigua que screenFromPath aún reconoce (/app/solicitudes →
+  // /app/cuentas-pendientes, F2).
   // `replace`, not push: this correction must not become a Back destination.
   useEffect(() => {
     if (!ready) return;
@@ -81,14 +93,6 @@ function Router() {
   // Con la contraseña inicial el servidor responde 403 a todo: una sola
   // pantalla que lo dice, en vez de un error en cada panel.
   if (user?.must_change_password) return <ForcePasswordChange />;
-
-  const openPatient = (p: PatientSummary) => {
-    planning.reset();
-    planning.setPatient(p);
-    setPatient(p);
-    setResumeStep(0);
-    setScreen("workspace");
-  };
 
   // Empezar sin paciente: subir el DICOM y usar el pipeline ya, y decidir
   // después si se guarda («Adjuntar a un caso», en la barra del pipeline).
@@ -138,92 +142,59 @@ function Router() {
   };
 
   // Resume a saved study session: restore its files into a fresh live session,
-  // rehydrate the store (mesh + downstream results are re-derived deterministically),
-  // and open the workspace at the step it was saved on.
-  const resumeSession = async (sessionId: string, p: PatientSummary) => {
+  // rehydrate the store from what came back (src/resume.ts), and open the
+  // workspace at the step it was saved on.
+  // Devuelve el fallo (o null) además de avisarlo en el aviso flotante: «Abrir
+  // el caso» de Pedidos lo enseña también junto al botón (F2-54).
+  const resumeSession = async (
+    sessionId: string, p: PatientSummary, quiet = false,
+  ): Promise<unknown> => {
+    setToastRetry(null);
     setToast("Restaurando sesión…");
     try {
       const r = await api.restoreSession(sessionId);
       planning.reset();
+      // Hasta que llegue su lista, el [] del store no es el de la sesión.
+      planning.setAnnotationsLoadState("pendiente");
       planning.setPatient(p);
-      // A resumed session keeps planning the same case and acquisition, so the
-      // breadcrumb and the next "Guardar progreso" don't lose that link.
-      planning.setCase(r.study_id, r.study_label);
-      planning.setImagingStudyId(r.imaging_study_id);
       setPatient(p);
-      planning.setSession(r.session_id);
-      // The volume came back with the snapshot; mirror its series so step 1
-      // shows the study instead of an empty drop zone.
-      planning.setSeries(r.series);
-      if (r.has_segmentation && r.mesh_url) {
-        planning.setSegmentation(restoredSegmentation(r));
+      // Todo lo que vuelve con la sesión —también la decisión, el corredor, los
+      // clips editables, la ventana y los enlaces del informe— y sin rehacer la
+      // detección (familia S). Deja la sesión sin cambios pendientes.
+      const { step, invalidated } = await rehydrateSession(planning, r);
+      setResumeStep(step);
+      if (invalidated) {
+        setToast(MORPHO_INVALIDATED);
+        setTimeout(() => setToast(null), 5000);
+      } else {
+        setToast(null);
       }
-      // The centreline geometry comes back with the snapshot; without this the
-      // store stays empty and the centreline-guided stent asks to extract one
-      // that already exists (a ~30 s recomputation for nothing).
-      if (r.centerline_mesh_url) {
-        planning.setCenterlineMesh(r.centerline_mesh_url);
-        planning.setCenterlineArcMm(r.centerline_arc_mm || null);
-      }
-      // Replay downstream so the saved step shows its results (deterministic on
-      // the restored mesh). Failures are non-fatal — the user can re-run a step.
-      let restoredIds: string[] = [];
-      if (r.current_step >= 2) {
-        try {
-          const det = await api.detect(r.session_id);
-          planning.setCandidates(det.candidates);
-          planning.setSelectedCandidate(0);
-          restoredIds = det.candidates.map((c) => c.id);
-        } catch { /* leave candidates empty */ }
-      }
-      if (r.current_step >= 3) {
-        try {
-          // Sin id: el backend repite el candidato que se eligió al medir
-          // (detect.selected_candidate). La selección se lleva a ese mismo
-          // candidato ANTES de poner la medida, porque cambiar de selección
-          // vacía la morfometría del store.
-          const m = await api.morphometry(r.session_id);
-          const idx = m.candidate_id ? restoredIds.indexOf(m.candidate_id) : -1;
-          if (idx > 0) planning.setSelectedCandidate(idx);
-          planning.setMorphometry(m);
-          // Put the hand-marked neck back in the scene. The measurement is
-          // rebuilt from the stored plane either way, but the marks are what
-          // the user actually placed, and re-marking a rim is real work.
-          if (m.rim_points?.length) {
-            planning.setNeckRim(m.rim_points.map((p) => [p.x, p.y, p.z] as [number, number, number]));
-          }
-          // El ápice también, y el punto de cuello cuando se marcó uno solo:
-          // sin ellos «Medir saco cerrado» quedaba apagado tras reanudar y
-          // había que volver a marcar para corregir una medida.
-          if (m.dome_seed) planning.setNeckDome([m.dome_seed.x, m.dome_seed.y, m.dome_seed.z]);
-          if (m.neck_source === "manual" && m.plane_origin) {
-            planning.setNeckOrigin([m.plane_origin.x, m.plane_origin.y, m.plane_origin.z]);
-          }
-        } catch { /* leave morphometry empty */ }
-      }
-      // El abordaje establecido. Sin esto volvía la sesión sin él: los puntos
-      // estaban en disco y en el PDF, pero el store vacío, así que el visor no
-      // dibujaba corredor y el ensayo de colocación caía a su aproximación por
-      // defecto — el vídeo enseñaba una maniobra que nadie había planeado.
-      try {
-        const tr = await api.getTrajectory(r.session_id);
-        if (tr) {
-          planning.setTrajEntry([tr.entry[0], tr.entry[1], tr.entry[2]]);
-          planning.setTrajTarget([tr.target[0], tr.target[1], tr.target[2]]);
-        }
-      } catch { /* sin trayectoria guardada, se sigue igual */ }
-      setResumeStep(clampStep(r.current_step));
-      // The store now mirrors what is on disk, so the session is NOT dirty: it
-      // was, because rehydrating goes through the same setters a real edit does,
-      // and resuming then immediately asked "tienes cambios sin guardar" before
-      // the user had touched anything.
-      planning.markSaved();
-      setToast(null);
       setScreen("workspace");
+      return null;
     } catch (e) {
-      setToast(e instanceof Error ? e.message : "No se pudo restaurar la sesión");
-      setTimeout(() => setToast(null), 3000);
+      // Sin respuesta (pasado el límite del cliente) o con la copia caída en
+      // el servidor, la guardada sigue en disco: se dice y se ofrece repetir.
+      // «Abrir el caso» de Pedidos enseña el 404 junto a su botón: sin aviso doble.
+      if (quiet && (e as { status?: number })?.status === 404) { setToast(null); return e; }
+      const { text, retry } = restoreFailure(e);
+      setToast(text);
+      if (retry) setToastRetry({ forText: text, run: () => void resumeSession(sessionId, p) });
+      else setTimeout(() => setToast(null), 3000);
+      return e;
     }
+  };
+
+  // F2-54: reabre la sesión que generó un pedido. resumeSession necesita el
+  // registro del paciente; una sesión suelta (sin paciente) no tiene a quién
+  // abrirse y no existe otro camino de reanudación, así que se dice.
+  const openOrderSession = async (sessionId: string, patientId: number | null) => {
+    if (patientId == null)
+      throw new Error("Esta sesión no tiene paciente: ábrela desde Estudios");
+    const patients = await api.listPatients();
+    const p = patients.find((x) => x.id === patientId);
+    if (!p) throw new Error("No se encontró el paciente de este pedido");
+    const failure = await resumeSession(sessionId, p, true);
+    if (failure) throw failure;
   };
 
   // Resuming straight from a gallery card: the card knows its session, but
@@ -273,12 +244,10 @@ function Router() {
   else if (effective === "patients")
     view = (
       <Patients
-        onOpenPatient={openPatient}
         onResume={resumeSession}
         onPlanCase={planCase}
         onStartWithoutPatient={startWithoutPatient}
         onOpenStudy={(s) => void openStudy(s)}
-        onOpenPending={() => setScreen("pending")}
         onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}
       />
     );
@@ -287,7 +256,7 @@ function Router() {
       <Studies
         onOpen={(s) => void openStudy(s)}
         onResume={(s) => void resumeStudySession(s)}
-        onBack={() => setScreen("patients")}
+        onOpenPatient={(id) => navigate(`${SCREEN_PATH.patients}?paciente=${id}`)}
       />
     );
   else if (effective === "orders")
@@ -295,6 +264,13 @@ function Router() {
       <ClipOrdersPage
         patientFilter={ordersPatient}
         onClearPatient={() => setOrdersPatient(null)}
+        onCrumbPatients={() => navigate(SCREEN_PATH.patients)}
+        onOpenSession={openOrderSession}
+        // F2-27: se llega aquí desde la ficha con el paciente fijado; la vuelta
+        // reabre esa ficha (?paciente=<id>), no la lista.
+        onBackToPatient={ordersPatient
+          ? () => navigate(`${SCREEN_PATH.patients}?paciente=${ordersPatient.id}`)
+          : undefined}
       />
     );
   else if (effective === "workshops") view = <WorkshopsPage />;
@@ -313,29 +289,27 @@ function Router() {
     );
 
   return (
-    <NavProvider value={{ screen: effective, go: setScreen }}>
+    <NavProvider value={{
+      screen: effective,
+      // F1-94: la entrada del menú abre la lista entera; el filtro por paciente
+      // solo lo fija «Pedidos» de la ficha, que no pasa por aquí.
+      go: (s) => { if (s === "orders") setOrdersPatient(null); setScreen(s); },
+    }}>
     <div style={{ height: "100%", position: "relative" }}>
       {view}
       {loadingIn && <LoadingScreen onDone={() => setLoadingIn(false)} />}
-      <ConfirmDialog
+      <UnsavedExitDialog
         open={blocker.state === "blocked"}
-        title="Tienes cambios sin guardar"
-        destructive
-        cancelLabel="Seguir aquí"
-        confirmLabel="Salir sin guardar"
-        onCancel={() => blocker.reset?.()}
-        onConfirm={() => blocker.proceed?.()}
-      >
-        Esta sesión tiene resultados que no se han guardado. Si sales ahora se
-        perderán: usa <b style={{ color: "var(--foreground)" }}>Guardar progreso</b> en
-        la barra superior para poder reanudarla después.
-        {!planning.imagingStudyId && (
-          <> Además no está adjunta a ningún caso: con <b style={{ color: "var(--foreground)" }}>Adjuntar
-          a un caso</b> queda ligada a un paciente y su DICOM archivado.</>
-        )}
-      </ConfirmDialog>
+        hasPatient={!!(planning.patient ?? patient)}
+        attached={!!planning.imagingStudyId}
+        onStay={() => blocker.reset?.()}
+        onLeave={() => blocker.proceed?.()}
+        saveNow={planning.saveNow}
+      />
+      <ServerDownBanner />
       {toast && (
         <div
+          role={retryHere ? "alert" : undefined}
           style={{
             position: "fixed",
             top: 76,
@@ -352,6 +326,25 @@ function Router() {
           }}
         >
           {toast}
+          {retryHere && (
+            <>
+              <button
+                type="button"
+                onClick={() => { setToastRetry(null); retryHere(); }}
+                style={{ marginLeft: 14, background: "transparent", color: "inherit", border: "1px solid currentColor", borderRadius: "var(--radius-sm)", padding: "3px 10px", font: "inherit", cursor: "pointer" }}
+              >
+                Reintentar
+              </button>
+              <button
+                type="button"
+                aria-label="Cerrar aviso"
+                onClick={() => { setToastRetry(null); setToast(null); }}
+                style={{ marginLeft: 6, background: "transparent", color: "inherit", border: "none", font: "inherit", cursor: "pointer" }}
+              >
+                ×
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -359,24 +352,12 @@ function Router() {
   );
 }
 
-const SPLASH_KEY = "prospective.splashShown";
-
 export default function App() {
-  // El splash de intro se ve una sola vez por sesión, en la primera página que se
-  // cargue (la landing lo muestra si entras por "/"; aquí si entras directo a /app).
-  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem(SPLASH_KEY) === "1");
-
+  // Sin vídeo de marca al entrar (F2-1): volvía en cada pestaña nueva y también
+  // al abrir /app directo, y para quien entra a diario era solo espera.
   return (
     <AuthProvider>
       <PlanningProvider>
-        {!dismissed && (
-          <VideoSplash
-            onDone={() => {
-              sessionStorage.setItem(SPLASH_KEY, "1");
-              setDismissed(true);
-            }}
-          />
-        )}
         <Router />
       </PlanningProvider>
     </AuthProvider>

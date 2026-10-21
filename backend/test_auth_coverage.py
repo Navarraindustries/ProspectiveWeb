@@ -29,19 +29,41 @@ _PUBLIC = {
 _SAMPLE_BODY = {"session_id": "x"}
 
 
+def _api_routes(routes, prefix: str = ""):
+    """Las APIRoute reales, también las de los routers incluidos.
+
+    Desde FastAPI 0.141 `include_router` deja en `app.routes` un envoltorio
+    perezoso (`_IncludedRouter`) en lugar de copiar las rutas: el recorrido
+    plano veía solo 5 rutas, la prueba de 401 pasaba sin probar nada y la del
+    allowlist daba por desaparecidos login, signup y logout. Se baja a
+    `original_router` para que la cobertura sea la misma con 0.136 (lock) y
+    con 0.141 (venv local)."""
+    for r in routes:
+        if isinstance(r, APIRoute):
+            yield prefix + r.path, r
+        elif hasattr(r, "original_router"):
+            ctx_prefix = getattr(getattr(r, "include_context", None), "prefix", "") or ""
+            yield from _api_routes(r.original_router.routes, prefix + ctx_prefix)
+
+
 def _routes() -> list[tuple[str, str, str]]:
     out: list[tuple[str, str, str]] = []
-    for r in app.routes:
-        if not isinstance(r, APIRoute):
-            continue
+    for template, r in _api_routes(app.routes):
         # Fill path params with a value that will never match a real record, so
         # the request dies on auth rather than on a lookup.
-        path = r.path
+        path = template
         for name in r.param_convertors:
             path = path.replace("{" + name + "}", "999999")
         for method in sorted(r.methods - {"HEAD", "OPTIONS"}):
-            out.append((method, path, r.path))
+            out.append((method, path, template))
     return out
+
+
+def test_the_walk_sees_the_whole_route_table():
+    """Sin esto, un cambio de FastAPI vuelve a dejar la cobertura en vacío."""
+    real = {t for _m, _p, t in _routes()}
+    assert {"/api/patients", "/api/auth/login", "/api/clip-orders"} <= real
+    assert len(real) > 100
 
 
 def test_every_route_is_either_public_by_design_or_authenticated():

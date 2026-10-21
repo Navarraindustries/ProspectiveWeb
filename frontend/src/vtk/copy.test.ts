@@ -1,0 +1,153 @@
+import { readdirSync, readFileSync, statSync } from "fs";
+import { join } from "path";
+import { describe, expect, it } from "vitest";
+import { mainOptions, presetOptions } from "./mainOptions";
+
+// Los botones de reencuadre se llaman igual en toda la app: ENCUADRAR (la vista
+// entera) y AL PUNTO (el plano vuelve al punto compartido). CENTRAR y AJUSTAR
+// dejaron de existir como etiqueta.
+function tsxFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((n) => {
+    const p = join(dir, n);
+    if (statSync(p).isDirectory()) return tsxFiles(p);
+    return p.endsWith(".tsx") && !/\.test\./.test(n) ? [p] : [];
+  });
+}
+
+const root = join(__dirname, "..");
+const files = [...tsxFiles(join(root, "vtk")), ...tsxFiles(join(root, "components"))];
+const OLD = /(?:label\s*[:=]\s*\{?\s*["'`]|>\s*)(CENTRAR|AJUSTAR|Ajustar)(?:["'`]|\s*<)/;
+const NEW = /(?:label\s*[:=]\s*\{?\s*["'`]|>\s*|\[\s*"fit",\s*")ENCUADRAR(?:["'`]|\s*<)/; // Viewer la declara en CAMERA_BUTTONS
+
+describe("nombres de los botones", () => {
+  it("el 3D ofrece ABORDAJE junto a las vistas", () => {
+    expect(readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8")).toMatch(/label:\s*"ABORDAJE"/);
+  });
+  /* F1-150: «LESIÓN» acercaba la cámara al candidato elegido, que no tiene por
+     qué ser la lesión. */
+  it("la barra 3D dice «CANDIDATO», no «LESIÓN»", () => {
+    const src = readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8");
+    expect(src).toMatch(/\{ key: "lesion", label: "CANDIDATO", title: "Acercar la cámara al candidato elegido" \}/);
+    expect(src).not.toMatch(/label: "LESIÓN"/);
+  });
+  /* F1-116: «VISTA ▸ AX · COR · SAG» en el 3D se confundía con los cortes de
+     la cabecera; la cámara dice desde dónde se mira. */
+  it("la barra 3D no repite AX, COR, SAG: DESDE ▸ ARRIBA · DELANTE · LADO", () => {
+    const src = readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8");
+    const def = src.match(/const CAMERA_BUTTONS\b[^=]*=\s*([\s\S]*?);\r?\n/)![1];
+    const labels = [...def.matchAll(/\[\s*"\w+",\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(labels).toEqual(["ENCUADRAR", "ARRIBA", "DELANTE", "LADO"]);
+    expect(src).toMatch(/label="DESDE ▸"/);
+    expect(src).not.toMatch(/label="VISTA ▸"/);
+  });
+  it("VOLUMEN construye sus preajustes por modalidad (sin lista fija)", () => {
+    const src = readFileSync(join(root, "vtk", "MipView.tsx"), "utf8");
+    expect(src).toMatch(/volumePresetsFor\(meta\.modality\)/);
+    expect(src).not.toMatch(/VOLUME_PRESETS/);
+  });
+  it("en la celda compacta la lectura del VOLUMEN es inerte: el doble clic llega a la rejilla y la maximiza", () => {
+    const src = readFileSync(join(root, "vtk", "MipView.tsx"), "utf8");
+    // Compacta: la lectura de siempre (sin puntero). Solo ampliada es el botón que restablece.
+    expect(src).toMatch(/\{compact \? <HudReadout at="bl" lines=\{readout\} \/> : \(\s*<button type="button" className="hud-readout bl hud-wl"/);
+  });
+  it("ninguna etiqueta usa CENTRAR, AJUSTAR ni Ajustar", () => {
+    const bad = files.filter((f) => OLD.test(readFileSync(f, "utf8")));
+    expect(bad).toEqual([]);
+  });
+  it("la regex distingue etiquetas de comentarios", () => {
+    expect(OLD.test('<X label="CENTRAR" />')).toBe(true);
+    expect(OLD.test("{ key: 'a', label: 'AJUSTAR' }")).toBe(true);
+    expect(OLD.test("<b>Ajustar</b>")).toBe(true);
+    expect(OLD.test("// antes CENTRAR")).toBe(false);
+  });
+  it("ENCUADRAR está en MipView, Viewer y ObliqueView", () => {
+    for (const n of ["MipView.tsx", "Viewer.tsx", "ObliqueView.tsx"]) {
+      expect(readFileSync(join(root, "vtk", n), "utf8"), n).toMatch(NEW);
+    }
+  });
+});
+
+// Spec §4: «ninguna celda enseña dos grupos sin prefijo con las mismas
+// opciones». AX · COR aparecen en EJE (VOLUMEN), VISTA (3D) y PRINCIPAL
+// (cabecera): cada grupo que las lleve tiene que decir qué eje elige. El
+// prefijo va en `label=` (dentro del grupo, para que el nivel del HUD lo
+// oculte con los botones); la cabecera conserva «PRINCIPAL ▸» como rótulo
+// propio delante del grupo (spec §4: «se conserva»), fuera de `data-hud`.
+const OPTION_FNS: Record<string, () => { label: string }[]> = {
+  mainOptions: () => mainOptions(),
+  presetOptions: () => presetOptions(1200),
+};
+function unprefixedAxisGroups(src: string): string[] {
+  const strings = (t: string) => [...t.matchAll(/"([^"\\]*)"/g)].map((m) => m[1]);
+  const bad: string[] = [];
+  for (const m of src.matchAll(/<HudToggleGroup\b[\s\S]*?\/>/g)) {
+    const group = m[0];
+    const labels = new Set(strings(group));
+    // Constantes del mismo archivo (PLANE_OPTIONS, CAMERA_BUTTONS…).
+    for (const [, name] of group.matchAll(/\b([A-Z][A-Z0-9_]{2,})\b/g)) {
+      const def = src.match(new RegExp(`const ${name}\\b[^=]*=\\s*([\\s\\S]*?);\\r?\\n`));
+      if (def) strings(def[1]).forEach((s) => labels.add(s));
+    }
+    for (const [, fn] of group.matchAll(/\b(\w+)\(/g)) OPTION_FNS[fn]?.().forEach((o) => labels.add(o.label));
+    if (!(labels.has("AX") && labels.has("COR"))) continue;
+    if (/\blabel=/.test(group)) continue;
+    if (/mainCaption\}<\/span>\s*$/.test(src.slice(Math.max(0, m.index! - 160), m.index))) continue;
+    bad.push(group.slice(0, 80));
+  }
+  return bad;
+}
+
+describe("grupos con las mismas opciones (spec §4)", () => {
+  it("todo grupo con AX y COR lleva prefijo en MipView, Viewer y ViewerHeader", () => {
+    let seen = 0;
+    for (const n of ["MipView.tsx", "Viewer.tsx", "ViewerHeader.tsx"]) {
+      const src = readFileSync(join(root, "vtk", n), "utf8");
+      seen += (src.match(/<HudToggleGroup\b/g) ?? []).length;
+      expect(unprefixedAxisGroups(src), n).toEqual([]);
+    }
+    expect(seen).toBeGreaterThan(10);
+  });
+  it("el detector encuentra los grupos de ejes y ve un grupo sin prefijo", () => {
+    const src = 'const OPTS = [{ key: "axial", label: "AX" }, { key: "coronal", label: "COR" }];\n'
+      + "<HudToggleGroup options={OPTS} value={v} onChange={f} />\n"
+      + '<HudToggleGroup label="EJE ▸" options={OPTS} value={v} onChange={f} />\n'
+      + "<HudToggleGroup options={mainOptions()} value={v} onChange={f} />\n"
+      + '<HudToggleGroup options={[{ key: "a", label: "MIP" }]} value={v} onChange={f} />\n';
+    expect(unprefixedAxisGroups(src)).toHaveLength(2);
+  });
+});
+
+describe("recorrido del Oblicuo (spec §7.3)", () => {
+  it("el Oblicuo ofrece RECORRIDO ▸ PLANO · VASO", () => {
+    const src = readFileSync(join(root, "vtk", "ObliqueView.tsx"), "utf8");
+    expect(src).toMatch(/label="RECORRIDO ▸"/);
+    expect(src).toMatch(/label:\s*"VASO"/);
+  });
+});
+
+/* F1-158 / F1-156: la línea del candidato en el visor. */
+describe("la línea del candidato en el visor", async () => {
+  const { hudCandidateLine, hudManualTag } = await import("./hudCandidate");
+  const cand = { id: "cand-001", max_diameter_mm: 3.7, patch_kind: "curvature" } as never;
+  it("tras medir, el título lleva 10,9 mm", () => {
+    const m = { max_diameter_mm: 10.94, neck_source: "auto", candidate_id: "cand-001" } as never;
+    expect(hudCandidateLine(cand, m)).toBe("cand-001 · Ø 10,9 mm");
+  });
+  it("sin medida, la estimación lleva «est.»", () => {
+    expect(hudCandidateLine(cand, null)).toBe("cand-001 · Ø 3,7 mm est.");
+  });
+  it("la medida de otro candidato no se le atribuye", () => {
+    const m = { max_diameter_mm: 10.9, neck_source: "auto", candidate_id: "cand-002" } as never;
+    expect(hudCandidateLine(cand, m)).toBe("cand-001 · Ø 3,7 mm est.");
+  });
+  it("tras medir con marcas, el rótulo dice «medida manual»", () => {
+    expect(hudManualTag({ neck_source: "manual" } as never)).toBe("MEDIDA MANUAL");
+    expect(hudManualTag({ neck_source: "rim" } as never)).toBe("MEDIDA MANUAL");
+    expect(hudManualTag({ neck_source: "auto" } as never)).toBeNull();
+  });
+  it("el visor usa las dos", () => {
+    const src = readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8");
+    expect(src).toMatch(/hudCandidateLine\(candidate, morphometry\)/);
+    expect(src).toMatch(/hudManualTag\(morphometry\)/);
+  });
+});

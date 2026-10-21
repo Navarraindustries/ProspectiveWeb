@@ -34,7 +34,8 @@ from services.access import require_patient
 from services.auth_service import get_current_user, require_admin
 from services.database import get_db
 from services.db_models import ImagingStudy, LesionConfirmation, Patient, User
-from services.sessions import read_state, session_exists
+from services.sessions import read_state, session_exists, session_lineage
+from routers.detect import MANUAL_CHANNEL, add_manual_candidate
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ground-truth", tags=["ground-truth"])
@@ -46,14 +47,27 @@ router = APIRouter(prefix="/api/ground-truth", tags=["ground-truth"])
 MIN_MATCH_MM = 5.0
 
 
-def _candidates(session_id: str) -> list[dict]:
-    """La lista de la última detección, en su orden, desde el estado de la sesión."""
+def _int(session_id: str, key: str) -> int:
     try:
-        n = int(read_state(session_id, "detect.n_candidates", "0") or 0)
+        return int(read_state(session_id, key, "0") or 0)
     except ValueError:
-        n = 0
+        return 0
+
+
+def _candidates(session_id: str) -> list[dict]:
+    """Toda la lista de la sesión, en su orden: aceptados, descartados y marcados a mano.
+
+    Antes solo los aceptados: un descartado elegido en el panel no se podía
+    confirmar (F1-145), y un punto marcado sobre él contaba como un fallo
+    lejos de todo. `kind` dice de qué parte de la lista viene cada uno;
+    `rank` es el número de su id (`cand-00N`), que en los aceptados es su
+    puesto.
+    """
+    n_acc = _int(session_id, "detect.n_candidates")
+    n_rej = _int(session_id, "detect.n_rejected")
+    n_man = _int(session_id, "detect.n_manual")
     out = []
-    for rank in range(1, n + 1):
+    for rank in range(1, n_acc + n_rej + n_man + 1):
         p = f"detect.cand_{rank:03d}"
         try:
             pos = [float(read_state(session_id, f"{p}.centroid_{k}", "nan")) for k in "xyz"]
@@ -62,9 +76,24 @@ def _candidates(session_id: str) -> list[dict]:
             continue
         if any(math.isnan(v) for v in pos):
             continue
-        out.append({"rank": rank, "position": pos, "diameter_mm": diam,
+        kind = ("accepted" if rank <= n_acc else "rejected" if rank <= n_acc + n_rej
+                else "manual")
+        if read_state(session_id, f"{p}.patch_kind", "") == MANUAL_CHANNEL:
+            kind = "manual"
+        out.append({"rank": rank, "id": f"cand-{rank:03d}", "kind": kind,
+                    "position": pos, "diameter_mm": diam,
                     "channels": read_state(session_id, f"{p}.channels", "")})
     return out
+
+
+def _puesto(c: dict) -> Optional[int]:
+    """El puesto que cuenta para la estadística del detector.
+
+    Solo los aceptados lo tienen: un descartado o un marcado a mano no estaban
+    en la lista corta que el detector propuso, así que para medirlo son un
+    fallo (`missed`), aunque el profesional los confirme.
+    """
+    return c["rank"] if c["kind"] == "accepted" else None
 
 
 def match_rank(point: tuple[float, float, float], candidates: list[dict]) -> Optional[dict]:
@@ -93,6 +122,24 @@ def _seg_params(session_id: str) -> dict:
     return params
 
 
+def _confirmed_id(row: LesionConfirmation) -> Optional[str]:
+    """Qué candidato de la lista es la lesión confirmada.
+
+    Va marcado en la propia lista guardada (`candidates_json`, `confirmed`) y
+    no en una columna: es un dato de esa lista, y así el export lo lleva. Las
+    filas de antes no lo tienen y se reconstruyen con el puesto, que en los
+    aceptados es el número del id.
+    """
+    try:
+        lista = json.loads(row.candidates_json or "[]")
+    except ValueError:
+        lista = []
+    for c in lista:
+        if isinstance(c, dict) and c.get("confirmed") and c.get("id"):
+            return str(c["id"])
+    return f"cand-{row.candidate_rank:03d}" if row.candidate_rank else None
+
+
 def _out(row: LesionConfirmation, db: Session) -> LesionConfirmOut:
     pos = (Position3D(x=row.x_mm, y=row.y_mm, z=row.z_mm)
            if row.x_mm is not None else None)
@@ -100,6 +147,7 @@ def _out(row: LesionConfirmation, db: Session) -> LesionConfirmOut:
     return LesionConfirmOut(
         id=row.id, session_id=row.session_id, imaging_study_id=row.imaging_study_id,
         source=row.source, position=pos, candidate_rank=row.candidate_rank,
+        candidate_id=_confirmed_id(row),
         n_candidates=row.n_candidates, channels=row.channels, modality=row.modality,
         reproducible=bool(row.imaging_study_id), created_at=row.created_at,
         created_by=autor.username if autor else "",
@@ -111,7 +159,11 @@ def _active(db: Session, session_id: str, imaging_study_id: Optional[int]):
     if imaging_study_id:
         q = q.filter(LesionConfirmation.imaging_study_id == imaging_study_id)
     else:
-        q = q.filter(LesionConfirmation.session_id == session_id)
+        # Por el linaje y no por el id exacto: «Reanudar» da a la sesión viva un
+        # id nuevo, y la lesión confirmada antes de guardar dejaba de verse al
+        # volver (F1-246). Confirmar en la reanudada retira la del origen: una
+        # sola vigente por sesión, se mire desde donde se mire.
+        q = q.filter(LesionConfirmation.session_id.in_(sorted(session_lineage(session_id))))
     return q.order_by(LesionConfirmation.id.desc())
 
 
@@ -155,23 +207,32 @@ async def confirm_lesion(
     point = None
     rank = None
     channels = ""
+    chosen: Optional[dict] = None
     if req.source == "candidate":
-        try:
-            rank = int((req.candidate_id or "").removeprefix("cand-"))
-        except ValueError:
-            rank = None
-        c = next((c for c in cands if c["rank"] == rank), None)
-        if c is None:
+        chosen = next((c for c in cands if c["id"] == req.candidate_id), None)
+        if chosen is None:
             raise HTTPException(status_code=422,
                                 detail="Ese candidato no está en la última detección.")
-        point, channels = tuple(c["position"]), c["channels"]
+        point = tuple(chosen["position"])
     elif req.source == "marked":
         if req.position is None:
             raise HTTPException(status_code=422, detail="Falta el punto marcado.")
         point = (req.position.x, req.position.y, req.position.z)
-        hit = match_rank(point, cands)
-        if hit is not None:
-            rank, channels = hit["rank"], hit["channels"]
+        chosen = match_rank(point, cands)
+        if chosen is None:
+            # F1-146: el detector no la encontró. El punto pasa a la lista como
+            # candidato «marcado a mano», elegible en el panel; si no, en un
+            # fallo del detector no había nada que llevar a Morfometría.
+            new_id = add_manual_candidate(req.session_id, point)
+            if new_id is not None:
+                chosen = next((c for c in _candidates(req.session_id) if c["id"] == new_id), None)
+                if chosen is not None:
+                    cands = cands + [chosen]
+    if chosen is not None:
+        rank, channels = _puesto(chosen), chosen["channels"]
+    # La lista que se guarda con la confirmación marca cuál es la lesión.
+    guardada = [dict(c, confirmed=True) if chosen is not None and c["id"] == chosen["id"] else c
+                for c in cands]
 
     for old in _active(db, req.session_id, req.imaging_study_id).all():
         old.retracted = True
@@ -186,11 +247,13 @@ async def confirm_lesion(
         y_mm=point[1] if point else None,
         z_mm=point[2] if point else None,
         candidate_rank=rank,
-        n_candidates=len(cands),
+        # Los N de «no estaba entre los N candidatos»: la lista corta del
+        # detector, sin descartados ni marcados a mano.
+        n_candidates=sum(1 for c in cands if c["kind"] == "accepted"),
         channels=channels[:64],
         modality=(read_state(req.session_id, "dicom.modality", "") or "")[:16],
         seg_params_json=json.dumps(_seg_params(req.session_id), default=str),
-        candidates_json=json.dumps(cands),
+        candidates_json=json.dumps(guardada),
         created_by=current_user.id if current_user else None,
     )
     db.add(row)
@@ -248,14 +311,26 @@ async def retract_confirmation(
     response_model=LesionSummary,
     summary="Cómo le va al detector frente a lo confirmado",
     description=(
-        "Sobre las confirmaciones vigentes (una por estudio): en cuántas la "
+        "Sobre las confirmaciones vigentes, una por estudio (o por sesión si "
+        "no hay estudio archivado): en cuántas la "
         "lesión salió primera, entre las 3 y las 5 primeras, o no salió. Es lo "
         "que el panel de detección enseña en vez de una cifra fija."
     ),
 )
 async def summary(db: Annotated[Session, Depends(get_db)]) -> LesionSummary:
-    rows = (db.query(LesionConfirmation)
-            .filter(LesionConfirmation.retracted.is_(False)).all())
+    vigentes = (db.query(LesionConfirmation)
+                .filter(LesionConfirmation.retracted.is_(False))
+                .order_by(LesionConfirmation.id).all())
+    # F1-149: «Con 3 lesiones confirmadas» contaba filas. Confirmar por la API
+    # retira la anterior del mismo estudio (`_active`), pero el resumen es una
+    # cifra sobre ESTUDIOS y no puede fiarse de eso: se agrupa por estudio
+    # archivado, o por sesión si no lo hay, y vale la última de cada uno.
+    ultima: dict[tuple, LesionConfirmation] = {}
+    for r in vigentes:
+        clave = (("estudio", r.imaging_study_id) if r.imaging_study_id
+                 else ("sesion", r.session_id))
+        ultima[clave] = r
+    rows = list(ultima.values())
     con = [r for r in rows if r.source != "no_lesion"]
     by_mod: dict[str, int] = {}
     for r in con:

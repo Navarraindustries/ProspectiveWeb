@@ -14,6 +14,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from xml.sax.saxutils import escape as escape_xml
+
+from services import index_thresholds as IT
+from services.neck_provenance import neck_is_marked, neck_provenance_label
+from services.phases import phases_label
+
 logger = logging.getLogger(__name__)
 
 _MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
@@ -35,6 +41,28 @@ def _hora_local(d: datetime) -> datetime:
 
 
 _TIPO_COIL = {"framing": "Enmarcado", "filling": "Relleno", "finishing": "Acabado"}
+
+#: El veredicto del mapa de calor del clip, como lo dice su tarjeta.
+_VEREDICTO_CALOR = {"ok": "correcto", "warn": "con avisos", "fail": "no cubre lo necesario"}
+
+#: F1-176: la decisión del equipo tal como se lee en el informe.
+_DECISION_EQUIPO = {"clipaje": "Clipaje", "endovascular": "Endovascular",
+                    "vigilar": "Vigilar", "otra": "Otra"}
+#: F1-188: la estrategia de dispositivo marcada, con el nombre de su pestaña.
+_ESTRATEGIA = {"clips": "Clips", "coils": "Coils", "stent": "Stent recto",
+               "stent_cl": "Stent sobre la línea central", "web": "WEB"}
+
+
+def stent_geometry_label(kind: str, follows_centerline: bool) -> str:
+    """F1-206: la geometría del stent con UNA expresión en pantalla, PDF y SR.
+
+    Se decía de tres maneras («Sigue el vaso», «Guiado por línea central»,
+    «Recto / catálogo») y el SR llamaba «Recto» a un stent de la pestaña recta
+    que, con línea central extraída, la sigue (`routers/plan.py`). Lo que
+    cuenta es la forma de la malla, no la pestaña desde la que se colocó.
+    """
+    return ("Sigue la línea central"
+            if kind == "centerline" or follows_centerline else "Tubo recto")
 
 
 def _minuscula(texto: str) -> str:
@@ -88,6 +116,24 @@ class ClipEntry:
     position_mm: tuple[float, float, float]
     orientation_deg: tuple[float, float, float]
     is_custom: bool = False
+    #: El id con el que se colocó: dice si es un NAVARRO (pieza a medida).
+    clip_id: str = ""
+    #: Los ángulos clínicos de la fila editable (giro, acimut, elevación), si se
+    #: guardó; None cuando no hay lista editable para este clip.
+    clinical_angles_deg: tuple[float, float, float] | None = None
+
+
+def clip_type_label(clip_id: str, is_custom: bool) -> str:
+    """El tipo real del clip, el mismo en el PDF y en el SR (F1-229, F1-238).
+
+    Un NAVARRO se fabrica bajo pedido para el caso: llamarlo «Catálogo» decía
+    que se podía coger de una estantería.
+    """
+    if str(clip_id).startswith("navarro:"):
+        return "Pieza a medida"
+    if is_custom or str(clip_id).startswith("custom:"):
+        return "Personalizado"
+    return "Catálogo"
 
 
 @dataclass
@@ -178,6 +224,8 @@ class ReportData:
     coils: list[CoilEntry] = field(default_factory=list)
     stent: StentEntry | None = None
     trajectory: dict[str, Any] = field(default_factory=dict)
+    #: Las anotaciones tal como las guarda el servidor (annotations.json).
+    annotations: list[dict] = field(default_factory=list)
     screenshot_png: bytes | None = None
     #: Las capturas guardadas que el profesional eligió, en su orden. Son
     #: otra cosa que `screenshot_png`: esa es la vista que hubiera en
@@ -213,6 +261,16 @@ class ReportData:
     #: clip. La lista puede estar vacía; `branch_floor_mm` dice desde qué calibre.
     branches: list[dict[str, Any]] = field(default_factory=list)
     branch_floor_mm: float = 0.0
+    #: F1-229: la oclusión y el mapa de calor evaluados con los clips de ahora
+    #: ({} si no se evaluaron o los clips se movieron después).
+    clip_occlusion: dict[str, Any] = field(default_factory=dict)
+    clip_field: dict[str, Any] = field(default_factory=dict)
+    #: F1-176: lo que el equipo decidió ({team_decision, decided_by,
+    #: other_text}), vacío si no lo registró. Va antes de la recomendación.
+    team: dict[str, Any] = field(default_factory=dict)
+    #: F1-188: la familia marcada como estrategia (clips, coils, stent,
+    #: stent_cl, web) o "". Su sección es el plan; las demás, alternativas.
+    device_strategy: str = ""
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -268,7 +326,10 @@ def build_report_data_from_session(
         "undulation_index":   _rf("morpho.ui"),
         # El cuello lo marcó el profesional (uno o varios puntos) o lo estimó
         # el programa: el informe no puede llamar «estimado» a lo primero.
-        "neck_marked":        _rs("morpho.neck_source") in ("manual", "rim"),
+        # La regla es la del pedido de clip (services/neck_provenance): antes cada
+        # documento tenía la suya y el mismo cuello salía «marcado» y «estimado».
+        "neck_marked":        neck_is_marked(_rs("morpho.neck_source")),
+        "neck_source":        _rs("morpho.neck_source"),
     }
     try:
         risk_reasons = [str(x) for x in json.loads(_rs("morpho.rupture_risk_reasons") or "[]")]
@@ -290,7 +351,12 @@ def build_report_data_from_session(
         factors_raw = _rs("treatment.factors_json", "")
         if factors_raw:
             try:
-                treatment["factors"] = json.loads(factors_raw)
+                # Una decisión guardada antes de F1-225/F1-227 trae los textos
+                # de entonces («Ya no vota…», «Aspect Ratio bajo»): se leen con
+                # los vigentes, sin volver a decidir.
+                from services.treatment import modernize_factor
+                treatment["factors"] = [modernize_factor(f) if isinstance(f, dict) else f
+                                        for f in json.loads(factors_raw)]
             except ValueError as exc:
                 logger.warning("Informe: treatment.factors_json ilegible, la sección sale sin ello: %s", exc)
         # The engine's notes. The section has always been ready to print these;
@@ -322,6 +388,17 @@ def build_report_data_from_session(
             except ValueError as exc:
                 logger.warning("Informe: treatment.jsdb_json ilegible, la sección sale sin ello: %s", exc)
 
+    # La decisión del equipo y la estrategia marcada (F1-176, F1-188). Aparte
+    # de `treatment`: existen aunque no se haya pedido la recomendación.
+    team: dict[str, Any] = {}
+    if _rs("treatment.team_decision") in _DECISION_EQUIPO:
+        team = {"team_decision": _rs("treatment.team_decision"),
+                "decided_by": _rs("treatment.decided_by", ""),
+                "other_text": _rs("treatment.team_other", "")}
+    device_strategy = _rs("devices.strategy", "")
+    if device_strategy not in _ESTRATEGIA:
+        device_strategy = ""
+
     # ── 3. Patient info — request params > DB > defaults ─────────────── #
     db_patient_name  = ""
     db_hospital_id   = ""
@@ -335,14 +412,19 @@ def build_report_data_from_session(
             if pt is not None:
                 db_patient_name = pt.full_name
                 db_hospital_id  = pt.hospital_id or ""
-                db_dob          = pt.dob.isoformat() if pt.dob else ""
+                # WHY str(): la columna es texto (String(10)); .isoformat() daba 500
+                # en todo paciente con fecha. str() de un date también es ISO.
+                db_dob          = str(pt.dob) if pt.dob else ""
                 db_institution  = pt.institution or ""
 
     patient = PatientInfo(
         name        = patient_name  or db_patient_name  or "Anónimo",
         id          = hospital_id   or db_hospital_id   or "",
         dob         = patient_dob   or db_dob           or "",
-        study_date  = datetime.now().strftime("%Y-%m-%d"),
+        # La fecha del estudio es la de la adquisición DICOM (F1-224): antes se
+        # imprimía la de hoy y un estudio de hace un mes salía fechado el día
+        # del informe. Sin fecha en la cabecera DICOM, «—»; nunca hoy.
+        study_date  = _rs("dicom.acquisition_date") or _rs("dicom.study_date"),
         institution = institution   or db_institution   or "SkullApp",
         surgeon     = surgeon_name,
         notes       = clinical_notes,
@@ -360,6 +442,7 @@ def build_report_data_from_session(
 
     # ── 5. Surgical approach trajectory (persisted in session state) ──── #
     trajectory = read_trajectory_state(session_id)
+    annotations = read_annotations(session_id)
 
     # ── 6. Placed devices (persisted by the clip/coil/stent planners) ─── #
     from services.device_state import read_clips, read_coils, read_stent
@@ -368,6 +451,23 @@ def build_report_data_from_session(
         v = list(v or [])
         return tuple((v + [0.0] * n)[:n])
 
+    from services.device_state import read_clip_evaluation, read_placed_clips
+
+    # Los ángulos clínicos viven en la lista editable (giro, acimut, elevación);
+    # `orientation` solo guarda el giro, y el PDF imprimía «(0.0, 0.0, 0.0)».
+    # Se emparejan por orden y por id: si la lista no corresponde, no se inventa.
+    colocados = read_clips(session_id)
+    editables = (read_placed_clips(session_id) or {}).get("clips") or []
+    def _angulos(i: int, c: dict) -> tuple[float, float, float] | None:
+        if len(editables) != len(colocados) or i >= len(editables):
+            return None
+        e = editables[i]
+        if str(e.get("clip_id", "")) != str(c.get("clip_id", "")):
+            return None
+        return (float(e.get("rotation_deg", 0.0) or 0.0),
+                float(e.get("azimuthDeg", 0.0) or 0.0),
+                float(e.get("elevationDeg", 0.0) or 0.0))
+
     clips = [
         ClipEntry(
             index=int(c.get("index", i)),
@@ -375,9 +475,13 @@ def build_report_data_from_session(
             position_mm=_pos(c.get("position")),
             orientation_deg=_pos(c.get("orientation")),
             is_custom=bool(c.get("is_custom", False)),
+            clip_id=str(c.get("clip_id", "")),
+            clinical_angles_deg=_angulos(i, c),
         )
-        for i, c in enumerate(read_clips(session_id))
+        for i, c in enumerate(colocados)
     ]
+    clip_occlusion = read_clip_evaluation(session_id, "occlusion") or {}
+    clip_field = read_clip_evaluation(session_id, "field") or {}
     coils = [
         CoilEntry(
             index=int(c.get("index", i + 1)),
@@ -478,6 +582,10 @@ def build_report_data_from_session(
     clinical = {
         "patient_age":       int(raw_age) if raw_age.isdigit() else None,
         "has_comorbidities": (raw_comb == "1") if raw_comb else None,
+        # La localización que se eligió una vez en Morfometría (F1-165, F1-173).
+        # El informe no la imprimía en ningún sitio: solo salía, traducida, en
+        # las tablas de PHASES y ELAPSS, y cada una podía decir otra.
+        "site":              _rs("clinical.site") or None,
     }
 
     # ── 8. PHASES score (recorded by POST /api/phases) ─────────────────── #
@@ -517,6 +625,8 @@ def build_report_data_from_session(
         clips        = clips,
         branches     = branches,
         branch_floor_mm = branch_floor,
+        clip_occlusion  = clip_occlusion,
+        clip_field      = clip_field,
         manufacture  = manufacture,
         unordered_custom_piece = unordered_custom,
         coils        = coils,
@@ -526,12 +636,15 @@ def build_report_data_from_session(
         elapss       = elapss,
         uiats        = uiats,
         trajectory   = trajectory,
+        annotations  = annotations,
         screenshot_png = screenshot_bytes,
         captures     = capturas,
         plan_views   = _render_plan_views(session_id),
         risk_label   = risk_label,
         risk_reasons = risk_reasons,
         treatment    = treatment,
+        team         = team,
+        device_strategy = device_strategy,
     )
 
 
@@ -645,6 +758,32 @@ def _caption_captura(fila) -> str:
     return " · ".join(partes)
 
 
+def read_annotations(session_id: str) -> list[dict]:
+    """Las anotaciones de la sesión, o [] si no hay fichero o está corrupto.
+
+    Un annotations.json ilegible no debe costarle al cirujano su informe.
+    """
+    from services.sessions import session_dir
+
+    try:
+        raw = json.loads((session_dir(session_id) / "annotations.json").read_text(encoding="utf-8"))
+        items = raw.get("annotations", [])
+        return [a for a in items if isinstance(a, dict)]
+    except FileNotFoundError:
+        return []
+    except Exception:
+        logger.warning("annotations.json de %s ilegible: el informe sale sin anotaciones", session_id)
+        return []
+
+
+# Las mismas frases que el panel (angleReferenceLabel en el frontend): el PDF y
+# la pantalla no pueden contar referencias distintas para el mismo número.
+_ANGLE_LABELS = {
+    "aneurisma": "Ángulo respecto al eje del aneurisma",
+    "vertical": "Ángulo respecto al eje vertical del estudio (sin eje del aneurisma medido)",
+}
+
+
 def read_trajectory_state(session_id: str) -> dict:
     """Read the surgical approach trajectory from session state.
 
@@ -676,8 +815,16 @@ def read_trajectory_state(session_id: str) -> dict:
     ax = _f("morpho.axis_x")
     ay = _f("morpho.axis_y")
     az = _f("morpho.axis_z")
-    if None in (ax, ay, az) or (ax == 0 and ay == 0 and az == 0):
+    # El informe tiene que decir contra qué eje se midió: sin eje del saco el
+    # ángulo es contra z y nombrar el aneurisma sería afirmar algo que no se usó.
+    angle_ref = "aneurisma"
+    # axis_measured "0": detect.py escribió el (0,0,1) de reserva porque el PCA
+    # falló; es el eje vertical, no el del aneurisma. Las sesiones anteriores a
+    # la marca no la tienen y siguen la regla de antes.
+    unmeasured = read_state(session_id, "morpho.axis_measured", "") == "0"
+    if unmeasured or None in (ax, ay, az) or (ax == 0 and ay == 0 and az == 0):
         ax, ay, az = 0.0, 0.0, 1.0
+        angle_ref = "vertical"
     an = math.sqrt(ax * ax + ay * ay + az * az) or 1.0
     if depth > 1e-6:
         dot = (vx * ax + vy * ay + vz * az) / (depth * an)
@@ -689,6 +836,7 @@ def read_trajectory_state(session_id: str) -> dict:
     return {
         "entry": entry, "target": target,
         "depth_mm": round(depth, 1), "angle_deg": round(angle, 1),
+        "angle_ref": angle_ref,
         # Lo que el corredor atraviesa. Si la viabilidad del abordaje depende de
         # esto, el documento que se lleva a sesión tiene que llevarlo.
         "verdict": read_state(session_id, "trajectory.verdict", ""),
@@ -757,6 +905,8 @@ class ReportGenerator:
         story += self._section_screenshot()
         story += self._section_captures()
         story += self._section_morphometrics()
+        # F1-236: lo que se eligió, antes de lo que el algoritmo recomendó.
+        story += self._section_chosen_plan()
         story += self._section_treatment_decision()
         story += self._section_clips()
         story += self._section_branches()
@@ -764,6 +914,7 @@ class ReportGenerator:
         story += self._section_coils()
         story += self._section_stent()
         story += self._section_trajectory()
+        story += self._section_annotations()
         story += self._section_risk()
         story += self._section_phases()
         story += self._section_elapss()
@@ -832,6 +983,11 @@ class ReportGenerator:
             "ProspSmall", parent=base,
             fontSize=7.5, textColor=colors.HexColor("#6b7280"),
             leading=11,
+        )
+        # Una celda de tabla que puede partirse en líneas: un texto suelto en
+        # una celda de ReportLab no se parte y se sale de la columna.
+        self._style_cell = ParagraphStyle(
+            "ProspCell", parent=base, fontSize=8.5, leading=10.5,
         )
         self._style_center = ParagraphStyle(
             "ProspCenter", parent=base,
@@ -1067,8 +1223,14 @@ class ReportGenerator:
             return []
 
         elems = [Paragraph("Morfometría del aneurisma", self._style_h2)]
+        site = self._data.clinical.get("site")
         rows = [
             ["Parámetro", "Valor", "Referencia clínica"],
+            # La localización va con la morfometría porque es donde se elige; la
+            # heredan PHASES, ELAPSS, UIATS y la decisión.
+            ["Localización",
+             site if site and not site.startswith("Desconocida") else "Sin especificar",
+             "Elegida en Morfometría"],
             ["Volumen",
              f"{m.get('volume_mm3', 0):.2f} mm³", "—"],
             ["Área superficial",
@@ -1076,17 +1238,30 @@ class ReportGenerator:
             ["Diámetro máximo",
              f"{m.get('max_diameter_mm', 0):.2f} mm",
              "< 7 mm bajo riesgo"],
-            ["Diámetro del cuello (borde marcado)" if m.get("neck_marked") else "Diámetro cuello (estimado)",
+            # La procedencia con la misma frase que el pedido de clip (F1-215).
+            ["Diámetro del cuello (marcado)" if m.get("neck_marked") else "Diámetro del cuello (estimado)",
              f"{m.get('neck_diameter_mm', 0):.2f} mm",
-             "Guía selección clip"],
+             Paragraph(f"Cuello {neck_provenance_label(m.get('neck_source'))}; "
+                       "guía de selección del clip", self._style_cell)],
             ["Altura del domo",
              f"{m.get('dome_height_mm', 0):.2f} mm", "—"],
-            ["DNR (Dome/Neck ratio)",
+            # Los cortes de la etiqueta de riesgo y de la pantalla (F1-160/161):
+            # aquí el AR decía 1,3 mientras la insignia cortaba en 1,2.
+            # Rótulos en castellano y con BF y UI (F1-225): la pantalla de
+            # Morfometría los enseña y el informe los omitía. Los cortes son los
+            # de index_thresholds, los mismos que la insignia.
+            ["Relación domo/cuello (DNR)",
              f"{m.get('dome_to_neck_ratio', 0):.2f}",
-             "Riesgo ruptura si > 1.6"],
-            ["Aspect Ratio (AR)",
+             f"Moderado ≥ {IT.DNR_MOD:g} · alto ≥ {IT.DNR_HIGH:.1f}"],
+            ["Relación de aspecto (AR)",
              f"{m.get('aspect_ratio', 0):.2f}",
-             "Riesgo ruptura si > 1.3"],
+             f"Moderado ≥ {IT.AR_MOD:g} · alto ≥ {IT.AR_HIGH:g}"],
+            ["Factor de abultamiento (BF)",
+             f"{m.get('bottleneck_factor', 0):.2f}",
+             f"> {IT.BF_WIDE:g}: cuello estrecho respecto al domo"],
+            ["Índice de ondulación (UI)",
+             f"{m.get('undulation_index', 0):.3f}",
+             f"Moderado ≥ {IT.UI_MOD:g} · irregular ≥ {IT.UI_HIGH:g}"],
             ["Compacidad",
              f"{m.get('compactness', 0):.3f}",
              "1.0 = esfera perfecta"],
@@ -1110,22 +1285,90 @@ class ReportGenerator:
 
         dnr    = m.get("dome_to_neck_ratio", 0)
         ar     = m.get("aspect_ratio", 0)
-        dnr_row, ar_row = 6, 7
-        if dnr >= 2.0:
+        dnr_row, ar_row = 7, 8
+        if dnr >= IT.DNR_HIGH:
             ts.add("TEXTCOLOR", (1, dnr_row), (1, dnr_row), self._RED)
             ts.add("FONTNAME",  (1, dnr_row), (1, dnr_row), "Helvetica-Bold")
-        elif dnr >= 1.6:
+        elif dnr >= IT.DNR_MOD:
             ts.add("TEXTCOLOR", (1, dnr_row), (1, dnr_row), self._YELLOW)
             ts.add("FONTNAME",  (1, dnr_row), (1, dnr_row), "Helvetica-Bold")
-        if ar >= 1.6:
+        if ar >= IT.AR_HIGH:
             ts.add("TEXTCOLOR", (1, ar_row), (1, ar_row), self._RED)
             ts.add("FONTNAME",  (1, ar_row), (1, ar_row), "Helvetica-Bold")
-        elif ar >= 1.3:
+        elif ar >= IT.AR_MOD:
             ts.add("TEXTCOLOR", (1, ar_row), (1, ar_row), self._YELLOW)
             ts.add("FONTNAME",  (1, ar_row), (1, ar_row), "Helvetica-Bold")
 
         tbl.setStyle(ts)
         elems.append(tbl)
+        return elems
+
+    def _device_heading(self, family: str, base: str) -> str:
+        """El título de la sección de una familia de dispositivos (F1-236).
+
+        Antes todas decían «planificados», y un plan con clip y coils parecía
+        llevar los dos. Solo la familia marcada como estrategia es el plan; las
+        demás se probaron. Sin estrategia marcada no hay plan que nombrar.
+        """
+        chosen = self._data.device_strategy
+        if chosen == family:
+            return f"{base} planificados"
+        return f"{base} evaluados (alternativa)" if chosen else f"{base} evaluados"
+
+    def _chosen_devices(self) -> list[str]:
+        """Los dispositivos colocados de la familia elegida, por su nombre."""
+        d = self._data
+        fam = d.device_strategy
+        if fam == "clips":
+            return [c.name for c in d.clips]
+        if fam == "coils":
+            return [c.name for c in d.coils]
+        if fam in ("stent", "stent_cl") and d.stent is not None:
+            if (d.stent.kind == "centerline") == (fam == "stent_cl"):
+                return [d.stent.name]
+        return []
+
+    def _stent_heading(self, family: str, base: str) -> str:
+        """Como `_device_heading`, en singular: hay un solo stent."""
+        chosen = self._data.device_strategy
+        if chosen == family:
+            return f"{base} planificado"
+        return f"{base} evaluado (alternativa)" if chosen else base
+
+    def _section_chosen_plan(self) -> list:
+        """«Plan elegido»: la decisión del equipo y la estrategia marcada.
+
+        F1-236: el informe imprimía la recomendación del algoritmo y todos los
+        dispositivos como «planificados», sin decir qué había elegido el
+        equipo. Sin decisión registrada, se dice: lo que sigue NO es el plan.
+        """
+        d = self._data
+        elems = [Paragraph("Plan elegido", self._style_h2)]
+        team = d.team or {}
+        key = team.get("team_decision", "")
+        if key in _DECISION_EQUIPO:
+            # Texto tecleado a mano: un «<b>» o un «&» rompía el Paragraph de
+            # ReportLab y el PDF entero no salía. Escapado, como las anotaciones.
+            from xml.sax.saxutils import escape
+            texto = _DECISION_EQUIPO[key]
+            if key == "otra" and team.get("other_text"):
+                texto += f": {escape(str(team['other_text']))}"
+            quien = escape((team.get("decided_by") or "").strip())
+            elems.append(Paragraph(
+                f"Decisión del equipo: <b>{texto}</b>"
+                + (f" — por {quien}." if quien else "."), self._style_body))
+        else:
+            elems.append(Paragraph(
+                "El equipo no ha registrado su decisión; lo que sigue es la "
+                "recomendación del algoritmo y los dispositivos evaluados.",
+                self._style_body))
+        if d.device_strategy in _ESTRATEGIA:
+            nombres = self._chosen_devices()
+            elems.append(Paragraph(
+                f"Estrategia de dispositivo: <b>{_ESTRATEGIA[d.device_strategy]}</b>"
+                + (f". En el plan: {', '.join(nombres)}." if nombres
+                   else ". No hay dispositivos de esa familia colocados en el plan."),
+                self._style_body))
         return elems
 
     def _section_treatment_decision(self) -> list:
@@ -1162,14 +1405,16 @@ class ReportGenerator:
         factors = t.get("factors", [])
         if factors:
             elems.append(Paragraph("Factores determinantes:", self._style_h3))
-            rows = [["Factor y procedencia", "Estrategia"]]
+            # «Estrategia» se confundía con la estrategia de dispositivo del
+            # plan, y «Clipping» era el único rótulo en inglés (F1-226).
+            rows = [["Factor y procedencia", "Favorece"]]
             for f in factors:
                 direction = f.get("direction", "neutral")
-                dir_label = {"clip": "Clipping", "endo": "Endovascular"}.get(
+                dir_label = {"clip": "Clipaje", "endo": "Endovascular"}.get(
                     direction, "Neutro"
                 )
                 # Un factor que se enseña pero no vota no puede llevar
-                # «Clipping» al lado: se leía como un apoyo que no es.
+                # «Clipaje» al lado: se leía como un apoyo que no es.
                 if f.get("votes") is False:
                     dir_label = "No influye"
                 # El nombre y su origen en la misma celda: un peso sin su
@@ -1191,8 +1436,10 @@ class ReportGenerator:
                 ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE",   (0, 0), (-1, -1), 8),
                 ("GRID",       (0, 0), (-1, -1), 0.4, self._GREY_MED),
+                # Las dos columnas arriba: con la dirección centrada en vertical,
+                # un factor de tres líneas dejaba su «Clipaje» a la altura de la
+                # procedencia y se leía como del factor siguiente (F1-226).
                 ("VALIGN",     (0, 0), (-1, -1), "TOP"),
-                ("VALIGN",     (1, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LEFTPADDING",   (0, 0), (-1, -1), 5),
@@ -1251,8 +1498,10 @@ class ReportGenerator:
 
         elems.append(Spacer(1, 0.15*cm))
         elems.append(Paragraph(
+            # Una sola cita y la vigente (F1-228): la lista anterior mezclaba un
+            # ensayo de rotos, una escala de MAV y la guía de 2015, sustituida.
             "(*) Recomendación generada por algoritmo de soporte de decisión basado en "
-            "criterios morfométricos (ISAT 2002, Spetzler-BRAT 2013, AHA/ASA 2015). "
+            "criterios morfométricos (AHA/ASA 2023 (Hoh BL et al., Stroke 2023;54:e314–e370)). "
             "No sustituye el juicio clínico del equipo neurovascular tratante.",
             self._style_td_disclaimer,
         ))
@@ -1340,18 +1589,26 @@ class ReportGenerator:
                 ),
             ]
 
-        elems = [Paragraph("Clips quirúrgicos planificados", self._style_h2)]
-        rows  = [["#", "Nombre / Modelo", "Posición (mm)", "Orientación (°)", "Tipo"]]
+        heading = Paragraph(self._device_heading("clips", "Clips quirúrgicos"), self._style_h2)
+        # F1-229: la orientación era la terna cruda «(0.0, 0.0, 0.0)»; ahora los
+        # ángulos con los que se coloca el clip en el panel, o «—» si esa lista
+        # no se guardó. Y el tipo es el real: un NAVARRO es pieza a medida.
+        rows  = [["#", "Nombre / Modelo", "Posición (mm)",
+                  "Giro · acimut · elevación (°)", "Tipo"]]
         for c in clips:
             pos = f"({c.position_mm[0]:.1f}, {c.position_mm[1]:.1f}, {c.position_mm[2]:.1f})"
-            ori = f"({c.orientation_deg[0]:.1f}, {c.orientation_deg[1]:.1f}, {c.orientation_deg[2]:.1f})"
+            ang = c.clinical_angles_deg
+            ori = f"{ang[0]:.0f} · {ang[1]:.0f} · {ang[2]:.0f}" if ang else "—"
             rows.append([
-                str(c.index + 1), c.name, pos, ori,
-                "Personalizado" if c.is_custom else "Catálogo",
+                # El nombre es texto libre en el contrato (PlacedClipState.name):
+                # un «<» o un «&» sin escapar abortaba el PDF entero, como pasó
+                # con `decided_by`.
+                str(c.index + 1), Paragraph(escape_xml(c.name), self._style_cell), pos, ori,
+                clip_type_label(c.clip_id, c.is_custom),
             ])
 
-        col_w = [0.7*cm, 5.5*cm, 4.0*cm, 4.0*cm, 3.0*cm]
-        tbl   = Table(rows, colWidths=col_w)
+        col_w = [0.7*cm, 5.2*cm, 3.6*cm, 4.6*cm, 3.1*cm]
+        tbl   = Table(rows, colWidths=col_w, repeatRows=1)
         ts    = TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), self._BLUE_DARK),
             ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
@@ -1367,8 +1624,26 @@ class ReportGenerator:
             ts.add("BACKGROUND", (0, i), (-1, i),
                    colors.white if i % 2 else self._GREY_LIGHT)
         tbl.setStyle(ts)
-        elems.append(tbl)
-        return elems
+
+        # Lo que se comprobó con estos clips puestos. Se evaluaba en pantalla y
+        # el informe no decía ni que se hubiera hecho.
+        occ = self._data.clip_occlusion
+        fld = self._data.clip_field
+        oclusion = (escape_xml(str(occ.get("summary") or occ.get("outcome") or ""))
+                    if occ else "no evaluada")
+        if fld:
+            veredicto = _VEREDICTO_CALOR.get(str(fld.get("verdict", "")), "")
+            calor = (f"calculado: cubre {float(fld.get('covered_pct', 0)):.0f} % del cuello, "
+                     f"residuo {float(fld.get('residual_pct', 0)):.0f} %"
+                     + (f" ({veredicto})" if veredicto else ""))
+        else:
+            calor = "no calculado con estos clips"
+        notas = [
+            Paragraph(f"<b>Oclusión:</b> {oclusion}", self._style_body),
+            Paragraph(f"<b>Mapa de calor:</b> {calor}", self._style_body),
+        ]
+        heading.keepWithNext = True
+        return [heading, tbl, Spacer(1, 0.1*cm), *notas]
 
     def _section_branches(self) -> list:
         """Las ramas visibles alrededor del cuello.
@@ -1399,9 +1674,15 @@ class ReportGenerator:
                 f"una arteria perforante mide 0,1–0,5 mm.", self._style_body))
             return elems
 
-        rows = [["Distancia al cuello", "Calibre", "Nace de"]]
+        # F1-230: «3,7 mm» sin decir desde dónde se lee como distancia a la
+        # línea de cierre o al domo. Es la recta desde el centro del cuello (el
+        # punto `morpho.neck_origin_*`) hasta donde nace la rama.
+        elems.append(Paragraph(
+            "Distancia medida en línea recta desde el centro del plano del cuello "
+            "hasta el origen visible de la rama.", self._style_small))
+        rows = [["Distancia al cuello (mm)", "Calibre", "Nace de"]]
         for b in branches:
-            rows.append([f"{b['distance_mm']:.1f} mm",
+            rows.append([f"{b['distance_mm']:.1f}",
                          f"Ø {b['calibre_mm']:.1f} mm",
                          f"Ø {b['parent_calibre_mm']:.1f} mm"])
         tbl = Table(rows, colWidths=[5.4 * cm, 4.0 * cm, 4.0 * cm])
@@ -1444,6 +1725,10 @@ class ReportGenerator:
         # esperadas por la localización», que es decir lo mismo dos veces.
         out = [Paragraph("Perforantes esperadas por la localización",
                          self._style_h2 if standalone else self._style_h3)]
+        if t.get("notice"):
+            # F1-231: la localización antigua no dice punta o tronco; el PDF
+            # lo dice antes de la tarjeta para que no se lea como la exacta.
+            out.append(Paragraph(f"<b>{t['notice']}.</b>", self._style_body))
         out.append(Paragraph(
             f"<b>{t['arteries']}.</b> Irrigan: {_minuscula(t.get('supplies', ''))}. "
             f"Lesionarlas: {_minuscula(t.get('consequence', ''))}.", self._style_body))
@@ -1550,7 +1835,7 @@ class ReportGenerator:
         if not coils:
             return []
 
-        elems = [Paragraph("Coils de embolización planificados", self._style_h2)]
+        heading = Paragraph(self._device_heading("coils", "Coils de embolización"), self._style_h2)
         rows  = [["#", "Nombre / Modelo", "Tipo", "Ø (mm)", "Long. (cm)", "Fabricante", "Posición (mm)"]]
         for c in coils:
             pos = f"({c.position_mm[0]:.1f}, {c.position_mm[1]:.1f}, {c.position_mm[2]:.1f})"
@@ -1564,7 +1849,12 @@ class ReportGenerator:
             ])
 
         col_w = [0.6*cm, 4.2*cm, 2.4*cm, 1.4*cm, 1.6*cm, 2.8*cm, 4.7*cm]
-        tbl   = Table(rows, colWidths=col_w)
+        # F1-232: los datos no estaban mal; la tabla se partía. El título y la
+        # fila de cabecera se quedaban solos al pie de una página y los coils
+        # seguían en la siguiente sin cabecera: se leía una primera fila vacía y
+        # cada dato «una fila más abajo». Título y tabla van juntos y, si una
+        # tabla larga se parte, la cabecera se repite.
+        tbl   = Table(rows, colWidths=col_w, repeatRows=1)
         ts    = TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), self._BLUE_DARK),
             ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
@@ -1581,8 +1871,9 @@ class ReportGenerator:
             ts.add("BACKGROUND", (0, i), (-1, i),
                    colors.white if i % 2 else self._GREY_LIGHT)
         tbl.setStyle(ts)
-        elems.append(tbl)
-        return elems
+        # El título nunca se queda solo al pie de la página.
+        heading.keepWithNext = True
+        return [heading, tbl]
 
     def _section_stent(self) -> list:
         st = self._data.stent
@@ -1593,13 +1884,13 @@ class ReportGenerator:
         # labelling them identically would misread a 101 % fit ratio as neck
         # coverage. See StentEntry.
         if st.kind == "centerline":
-            title        = "Stent guiado por línea central"
+            title        = self._stent_heading("stent_cl", "Stent sobre la línea central")
             length_label = "Longitud desplegada"
             cov_label    = "Cobertura (Ø stent / Ø vaso)"
             cov_value    = f"{st.coverage_pct / 100.0:.2f}"
             cov_ref      = "0.90 – 1.15 = buen ajuste"
         else:
-            title        = "Stent / desviador de flujo planificado"
+            title        = self._stent_heading("stent", "Stent / desviador de flujo")
             length_label = "Longitud nominal"
             cov_label    = "Cuello cruzado por el dispositivo"
             cov_value    = f"{st.coverage_pct:.1f} %"
@@ -1612,28 +1903,35 @@ class ReportGenerator:
             "unknown":    "Sin medir la arteria portadora",
         }
 
-        elems = [Paragraph(title, self._style_h2)]
+        heading = Paragraph(title, self._style_h2)
+        # F1-233: cada referencia en la fila de su valor y ninguna «—» colgando.
+        # La tabla se partía entre páginas (la fila «Dimensionado» caía en la
+        # siguiente) y la columna de «—» hacía que la referencia que quedaba se
+        # leyera junto al valor de otra fila. Ahora la referencia va en la misma
+        # celda que su valor, debajo y en pequeño, y la tabla no se parte.
+        def _fila(etiqueta: str, valor: str, referencia: str = "") -> list:
+            celda = escape_xml(valor)
+            if referencia:
+                celda += f"<br/><font size='7' color='#6b7280'>{escape_xml(referencia)}</font>"
+            return [etiqueta, Paragraph(celda, self._style_cell)]
+
         rows = [
-            ["Modelo",        st.name,                        "—"],
-            ["Fabricante",    st.manufacturer or "—",         "—"],
-            ["Diámetro nominal", f"{st.diameter_mm:.2f} mm",  "—"],
-            [length_label,    f"{st.length_mm:.1f} mm",       "—"],
-            [cov_label,       cov_value,                      cov_ref],
+            _fila("Modelo",           st.name),
+            _fila("Fabricante",       st.manufacturer or "no consta"),
+            _fila("Diámetro nominal", f"{st.diameter_mm:.2f} mm"),
+            _fila(length_label,       f"{st.length_mm:.1f} mm"),
+            _fila(cov_label,          cov_value, cov_ref),
         ]
         # El dimensionado se juzga contra la arteria portadora, nunca contra el
         # cuello. Sobredimensionar baja la cobertura metálica (Sci Rep 2024).
         if st.parent_artery_mm > 0:
-            rows.append(["Arteria portadora", f"{st.parent_artery_mm:.2f} mm",
-                         "referencia de dimensionado"])
-            rows.append(["Dimensionado",
-                         _SIZING_ES.get(st.sizing, st.sizing),
-                         "sobredimensionar baja la cobertura metálica"])
-        if st.kind == "straight":
-            rows.append(["Geometría",
-                         "Sigue la línea central" if st.follows_centerline
-                         else "Tubo recto (sin línea central)",
-                         "—"])
-        tbl = Table(rows, colWidths=[5.5*cm, 4.0*cm, 8.4*cm])
+            rows.append(_fila("Arteria portadora", f"{st.parent_artery_mm:.2f} mm",
+                              "referencia de dimensionado"))
+            rows.append(_fila("Dimensionado", _SIZING_ES.get(st.sizing, st.sizing),
+                              "sobredimensionar baja la cobertura metálica"))
+        # Las dos pestañas dicen la geometría, con la misma expresión (F1-206).
+        rows.append(_fila("Geometría", stent_geometry_label(st.kind, st.follows_centerline)))
+        tbl = Table(rows, colWidths=[5.5*cm, 12.4*cm])
         ts  = TableStyle([
             ("BACKGROUND",    (0, 0), (0, -1), self._GREY_LIGHT),
             ("FONTNAME",      (0, 0), (0, -1), "Helvetica-Bold"),
@@ -1644,8 +1942,8 @@ class ReportGenerator:
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ])
         tbl.setStyle(ts)
-        elems.append(tbl)
-        return elems
+        heading.keepWithNext = True
+        return [heading, KeepTogether([tbl])]
 
     def _section_trajectory(self) -> list:
         tr = self._data.trajectory
@@ -1660,8 +1958,11 @@ class ReportGenerator:
              f"({entry[0]:.1f}, {entry[1]:.1f}, {entry[2]:.1f})"],
             ["Punto diana / aneurisma (mm)",
              f"({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f})"],
-            ["Profundidad de abordaje", f"{tr.get('depth_mm', 0):.1f} mm"],
-            ["Ángulo de incidencia",    f"{tr.get('angle_deg', 0):.1f} °"],
+            # «Profundidad» se leía como la del campo quirúrgico; es la recta
+            # entre los dos puntos marcados, como dice el panel (F1-186).
+            ["Distancia entrada–diana", f"{tr.get('depth_mm', 0):.1f} mm"],
+            [_ANGLE_LABELS.get(tr.get("angle_ref", ""), _ANGLE_LABELS["vertical"]),
+             f"{tr.get('angle_deg', 0):.1f} °"],
         ]
         tbl = Table(rows, colWidths=[7*cm, 10.9*cm])
         tbl.setStyle(TableStyle([
@@ -1700,12 +2001,69 @@ class ReportGenerator:
                 "corredor sin perforantes.", self._style_td_disclaimer))
         return elems
 
+    def _section_annotations(self) -> list:
+        from xml.sax.saxutils import escape
+
+        from services.annotations import format_measure, measure
+
+        elems = [Paragraph("Anotaciones", self._style_h2)]
+        anns = self._data.annotations
+        if not anns:
+            elems.append(Paragraph("Sin anotaciones.", self._style_body))
+            return elems
+
+        tipos = {"regla": "Regla", "angulo": "Ángulo", "region": "Región", "marcador": "Marcador"}
+        etiqueta_corte = {"axial": "AX", "coronal": "COR", "sagital": "SAG"}
+
+        def _corte(plano) -> str:
+            # Nunca lanza: un plano mal formado no puede tumbar el informe.
+            if plano is None:
+                return "3D"
+            try:
+                # Se numera desde 1, como el HUD y el panel del visor.
+                return f"{etiqueta_corte[plano['plane']]} {int(plano['index']) + 1}"
+            except Exception:
+                return "?"
+
+        def _xyz(p):
+            # El servidor guarda {x,y,z}; measure() trabaja con [x,y,z].
+            return [p["x"], p["y"], p["z"]] if isinstance(p, dict) else list(p)
+
+        rows = [["Nombre", "Tipo", "Valor", "Corte", "Nota"]]
+        for a in anns:
+            kind = str(a.get("kind", ""))
+            try:
+                valor = format_measure(measure(kind, [_xyz(p) for p in a.get("points", [])]))
+            except Exception:
+                valor = ""
+            rows.append([
+                Paragraph(escape(str(a.get("label", ""))), self._style_td_note),
+                escape(tipos.get(kind, kind)),
+                valor or "—",
+                _corte(a.get("plane")),
+                Paragraph(escape(str(a.get("note", ""))), self._style_td_note),
+            ])
+        tbl = Table(rows, colWidths=[2.8*cm, 2.6*cm, 2.8*cm, 2.2*cm, 7.5*cm], repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), self._GREY_LIGHT),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 8.5),
+            ("GRID",          (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elems.append(tbl)
+        return elems
+
     def _section_risk(self) -> list:
         risk = self._data.risk_label
         if not risk:
             return []
 
-        elems = [Paragraph("Evaluación de riesgo de ruptura", self._style_h2)]
+        # F1-234: «Evaluación de riesgo de ruptura · RIESGO: ALTO» se leía como
+        # el riesgo de rotura del PHASES, y es una etiqueta de forma.
+        elems = [Paragraph("Riesgo morfométrico (forma)", self._style_h2)]
 
         # El porqué son los índices que de verdad cruzaron su umbral en este
         # caso, con su cifra. Si la sesión es anterior a que se guardaran, se
@@ -1727,9 +2085,15 @@ class ReportGenerator:
             detail = ("Índices morfométricos dentro de rangos de bajo riesgo. "
                       "Seguimiento radiológico según protocolo.")
 
-        elems.append(Paragraph(f"RIESGO: {risk.upper()}", style))
+        elems.append(Paragraph(f"Riesgo morfométrico {risk.lower()}", style))
         elems.append(Spacer(1, 0.1*cm))
         elems.append(Paragraph(detail, self._style_body))
+        elems.append(Paragraph(
+            "Describe la forma del saco (índices AR, DNR, ondulación, elipticidad "
+            "y cociente de tamaño); no es el riesgo de rotura a 5 años, que es el "
+            "PHASES de su propia sección.",
+            self._style_td_disclaimer,
+        ))
         return elems
 
     _PHASES_POP  = {"other": "Otra población", "japan": "Japón", "finland": "Finlandia"}
@@ -1751,9 +2115,10 @@ class ReportGenerator:
         )
 
         elems = [Paragraph("PHASES — riesgo de rotura a 5 años", self._style_h2)]
+        # El mismo rótulo que la nota de Decisión (services/phases.py): el PDF
+        # decía «PHASES 9 — 5.9 %» sin fuente, con la columna de riesgo corrida.
         elems.append(Paragraph(
-            f"PHASES {ph.get('total_score', 0)} — "
-            f"{float(ph.get('risk_5yr_pct', 0.0)):.1f} % · "
+            f"{phases_label(ph.get('total_score', 0), ph.get('risk_5yr_pct', 0.0))} · "
             f"{self._PHASES_BAND.get(band, band)}",
             style,
         ))

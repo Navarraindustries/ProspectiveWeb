@@ -17,9 +17,14 @@ AneurysmLocation = Literal[
     "ACI proximal (segm. cavernoso / clinoideo)",
     "ACI distal (PCOM / oftálmica)",
     "ACoP — Arteria Comunicante Posterior",
-    "Basilar (punta, tronco o AICA)",
+    "Punta basilar",
+    "Tronco basilar",
+    "AICA",
     "PICA / Vertebral",
     "Otra localización",
+    # F1-174: la entrada antigua, que juntaba las tres. Sigue aceptada porque
+    # hay sesiones guardadas que la llevan; la interfaz ya no la ofrece.
+    "Basilar (punta, tronco o AICA)",
 ]
 
 RecommendationKey = Literal["clip", "endo", "mdt", "surveillance"]
@@ -141,6 +146,13 @@ class PerforatorTerritoryOut(BaseModel):
     supplies: str = ""
     consequence: str = ""
     surgical_note: str = ""
+    notice: str = Field(
+        "",
+        description=(
+            "Aviso que va antes de la tarjeta. Hoy solo para la localización "
+            "basilar antigua, que no dice si es punta o tronco."
+        ),
+    )
     sources: list[str] = Field(default_factory=list)
 
 
@@ -204,6 +216,35 @@ class TreatmentDecisionRequest(BaseModel):
     )
 
 
+#: F1-176: lo que el equipo decide, que no tiene por qué ser lo que el motor
+#: recomienda. «otra» lleva su texto (bypass, trapping, tratamiento combinado…).
+TeamDecisionKey = Literal["clipaje", "endovascular", "vigilar", "otra"]
+
+
+class TeamDecisionRequest(BaseModel):
+    """PUT /api/treatment-decision/{session_id}/team. `null` la borra."""
+
+    team_decision: TeamDecisionKey | None = Field(
+        ..., description="La decisión del equipo, o null para quitarla."
+    )
+    decided_by: str = Field(
+        "", max_length=120,
+        description=(
+            "Quién decide (persona o comité). No se rellena con el usuario "
+            "conectado: quien teclea no es necesariamente quien decide."
+        ),
+    )
+    other_text: str = Field("", max_length=200, description="Qué, cuando la decisión es «otra».")
+
+
+class TeamDecision(BaseModel):
+    """La decisión del equipo tal como está guardada (`treatment.team_*`)."""
+
+    team_decision: TeamDecisionKey | None = None
+    decided_by: str = ""
+    other_text: str = ""
+
+
 class TreatmentDecisionResult(BaseModel):
     """Full output of the CLIP vs ENDO decision engine."""
 
@@ -265,12 +306,28 @@ class TreatmentDecisionResult(BaseModel):
             "and what the engine could not settle."
         ),
     )
+    team: TeamDecision | None = Field(
+        None,
+        description=(
+            "La decisión del equipo, si se ha registrado. Va aparte de la "
+            "recomendación y no se borra con ella: re-evaluar o cambiar la "
+            "localización tira lo del motor, no lo que decidió el equipo."
+        ),
+    )
     # ── Recommendation ────────────────────────────────────────────────────── #
     recommendation: str = Field(..., description="Human-readable recommendation string")
     recommendation_key: RecommendationKey = Field(
         ..., description="Machine-readable recommendation key"
     )
     confidence: Confidence = Field(..., description="Confidence level of the recommendation")
+    confidence_reason: str = Field(
+        "",
+        description=(
+            "F1-177: why confidence is low — «los factores empujan en sentidos "
+            "opuestos» or «faltan datos: evaluado el N % del caso». Empty when "
+            "confidence is not low."
+        ),
+    )
 
     # ── Factors breakdown ─────────────────────────────────────────────────── #
     factors: list[DecisionFactor] = Field(
@@ -281,4 +338,37 @@ class TreatmentDecisionResult(BaseModel):
     )
     endo_factors: list[str] = Field(
         ..., description="Names of factors favouring endovascular"
+    )
+
+
+class ClinicalSiteRequest(BaseModel):
+    """La localización del aneurisma, elegida una vez en Morfometría (F1-165)."""
+
+    site: AneurysmLocation = Field(
+        ..., description="Una de las localizaciones de la lista clínica (ANEURYSM_LOCATIONS)."
+    )
+
+
+class ClinicalSiteResult(BaseModel):
+    site: AneurysmLocation = Field(..., description="La localización guardada en `clinical.site`.")
+    cleared: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Lo que se borró por describir otra localización. Solo puede ser "
+            "«Decisión»: la recomendación, no el contexto clínico escrito a mano."
+        ),
+    )
+    recalculated: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Puntuaciones guardadas («PHASES», «ELAPSS», «UIATS») cuya categoría "
+            "cambió y se volvieron a calcular con sus mismas entradas."
+        ),
+    )
+    pending: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Puntuaciones sin categoría para la nueva localización: salen del "
+            "informe y sus entradas se guardan aparte para recalcularlas al elegir una."
+        ),
     )

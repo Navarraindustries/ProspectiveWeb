@@ -25,7 +25,7 @@ vi.mock("../../api/client", () => ({
   ApiError: class ApiError extends Error {},
 }));
 
-import { ClipSelectionPanel } from "./ClipSelection";
+import { CatalogueToggle, ClipSelectionPanel } from "./ClipSelection";
 import type {
   ClipCandidateOut,
   ClipSelectionResult,
@@ -51,7 +51,7 @@ const candidate = (over: Partial<ClipCandidateOut> = {}): ClipCandidateOut => ({
   closing_force_max_g: 110,
   force_provisional: false,
   criteria: [
-    { key: "coverage", label: "Cobertura", verdict: "ok", detail: "Cubre el cuello con 3.0 mm de margen (×1.50)" },
+    { key: "coverage", label: "Longitud de hoja", verdict: "ok", detail: "Cubre el cuello con 3.0 mm de margen (×1.50)" },
     { key: "force", label: "Fuerza de cierre", verdict: "ok", detail: "110 g dentro de la ventana 100–150 g" },
   ],
   fit: null,
@@ -68,7 +68,8 @@ const spec: ManufactureSpecOut = {
   stl_url: null,
   part_no: "PR-TEST-0001",
   source: "navarro",
-  piece_label: "NAVARRO™ T3 Angulado 90°, mordaza 27.0 mm",
+  // Vacío: el servidor solo lo rellena cuando la pieza es el clip colocado (F1-198).
+  piece_label: "",
   commercial_name: "",
   fallback_reason: "",
   dossier_internal_url: null,
@@ -109,7 +110,7 @@ describe("showing the reasoning, not a score", () => {
     render(<ClipSelectionPanel sessionId="s1" />);
 
     expect(await screen.findByText("Yasargil Recto 9mm")).toBeInTheDocument();
-    // The number, not just the word "Cobertura".
+    // The number, not just the label «Longitud de hoja».
     expect(screen.getByText(/3\.0 mm de margen/)).toBeInTheDocument();
     expect(screen.getByText(/ventana 100–150 g/)).toBeInTheDocument();
   });
@@ -148,7 +149,7 @@ describe("when nothing in the inventory fits", () => {
     }));
     render(<ClipSelectionPanel sessionId="s1" />);
 
-    expect(await screen.findByText("Requiere fabricación")).toBeInTheDocument();
+    expect(await screen.findByText("Pieza a medida: se pide en Fabricación")).toBeInTheDocument();
     expect(screen.getByText(/paso/)).toBeInTheDocument();
     expect(screen.getByText("Fabricación")).toBeInTheDocument();
   });
@@ -172,7 +173,7 @@ describe("accountability for what was withheld", () => {
         clip_id: "mini", clip_name: "Yasargil Mini recto", verdict: "fail", score: 0,
         headline: "Hoja de 5 mm insuficiente para un cuello de 6.0 mm",
         criteria: [{
-          key: "coverage", label: "Cobertura", verdict: "fail",
+          key: "coverage", label: "Longitud de hoja", verdict: "fail",
           detail: "Hoja de 5 mm insuficiente para un cuello de 6.0 mm (hacen falta ≥ 7.0 mm)",
         }],
       })],
@@ -398,7 +399,7 @@ describe("el montaje de varios clips", () => {
     spring_length_mm: 27, shape: "Curvo", angle_deg: 0, closing_force_g: 180,
     fenestration_mm: 0, neck_mm: 20, label: "Curvo de 30.0 mm",
     reasons: [], confidence_notes: [], stl_url: null, part_no: "X-1",
-    source: "navarro" as const, piece_label: "Curvo de 30.0 mm",
+    source: "navarro" as const, piece_label: "",
     commercial_name: "", fallback_reason: "",
     dossier_internal_url: null, dossier_workshop_url: null,
   };
@@ -467,5 +468,138 @@ describe("lo que el corredor le pide a la pieza", () => {
     render(<ClipSelectionPanel sessionId="s1" />);
     await screen.findByText(/Clips recomendados/);
     expect(screen.queryByText(/acodadura/)).not.toBeInTheDocument();
+  });
+});
+
+
+/* ── Catálogo sin inventario (F1-190, F1-191, F1-197) ───────────────────────── */
+
+describe("sin clips de inventario cargados", () => {
+  const sinInventario = () => result({
+    outcome: "manufacture",
+    stock_count: 0,
+    summary: "No hay clips de inventario cargados. 6 diseños bajo pedido sirven para un cuello de 6.0 mm; la pieza se concreta en Fabricación.",
+    recommended: [candidate({ verdict: "warn", availability: "made_to_order" })],
+    manufacture: spec,
+  });
+
+  it("catálogo vacío no da «Utilizable con reservas»", async () => {
+    clipSelection.mockResolvedValue(sinInventario());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText("Pieza a medida: se pide en Fabricación")).toBeInTheDocument();
+    expect(screen.queryByText("Utilizable con reservas")).toBeNull();
+    expect(screen.getByText(/No hay clips de inventario cargados/)).toBeInTheDocument();
+    // Los diseños que sirven se siguen ofreciendo.
+    expect(screen.getByText("Yasargil Recto 9mm")).toBeInTheDocument();
+  });
+
+  it("veredicto nuevo y tono neutro, sin estilo de error", async () => {
+    clipSelection.mockResolvedValue(sinInventario());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    const badge = await screen.findByText("Pieza a medida: se pide en Fabricación");
+    const style = badge.getAttribute("style") ?? "";
+    expect(style).toMatch(/brand-subtle/);
+    expect(style).not.toMatch(/destructive/);
+  });
+
+  it("el panel avisa al padre de cuántos clips de inventario hay", async () => {
+    clipSelection.mockResolvedValue(sinInventario());
+    const onLoaded = vi.fn();
+    render(<ClipSelectionPanel sessionId="s1" onLoaded={onLoaded} />);
+    await screen.findByText("Pieza a medida: se pide en Fabricación");
+    expect(onLoaded).toHaveBeenCalledWith(expect.objectContaining({ stock_count: 0 }));
+  });
+});
+
+describe("la casilla «Ver todo el catálogo» (F1-197)", () => {
+  it("casilla con catálogo vacío muestra el texto", () => {
+    render(<CatalogueToggle stockCount={0} checked={false} onChange={vi.fn()} />);
+    expect(screen.getByText("No hay catálogo de clips cargado en esta instalación")).toBeInTheDocument();
+    expect(screen.queryByText("Ver todo el catálogo, no solo lo recomendado para este caso")).toBeNull();
+  });
+
+  it("con inventario la casilla es la de siempre", () => {
+    const onChange = vi.fn();
+    render(<CatalogueToggle stockCount={4} checked={false} onChange={onChange} />);
+    expect(screen.queryByText("No hay catálogo de clips cargado en esta instalación")).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ver todo el catálogo/ }));
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+});
+
+/* Filas F1-193, F1-194, F1-195 y F1-198 del paso Dispositivos. */
+describe("tarjetas de la selección (F1-194, F1-195)", () => {
+  const dos = () => result({
+    recommended: [
+      candidate(),
+      candidate({
+        clip_id: "sugita-curvo-12", clip_name: "Sugita Curvo 12mm", shape: "Curvo", blade_length_mm: 12,
+        criteria: [{ key: "coverage", label: "Longitud de hoja", verdict: "ok", detail: "Cubre el cuello con 6.0 mm de margen (×2.00)" }],
+      }),
+    ],
+  });
+
+  it("solo la primera tarjeta abierta", async () => {
+    clipSelection.mockResolvedValue(dos());
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/3\.0 mm de margen/)).toBeInTheDocument();
+    // La segunda se ve por su nombre y su forma, sin los criterios.
+    expect(screen.getByText("Sugita Curvo 12mm")).toBeInTheDocument();
+    expect(screen.getByText(/Curvo · mordaza 12\.0 mm/)).toBeInTheDocument();
+    expect(screen.queryByText(/6\.0 mm de margen/)).toBeNull();
+    const [primera, segunda] = screen.getAllByRole("button")
+      .filter((b) => b.hasAttribute("aria-expanded"));
+    expect(primera).toHaveAttribute("aria-expanded", "true");
+    expect(segunda).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("pulsar la cabecera despliega la tarjeta sin elegir el clip", async () => {
+    clipSelection.mockResolvedValue(dos());
+    const onPick = vi.fn();
+    render(<ClipSelectionPanel sessionId="s1" onPick={onPick} />);
+    fireEvent.click(await screen.findByText("Sugita Curvo 12mm"));
+    expect(screen.getByText(/6\.0 mm de margen/)).toBeInTheDocument();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("tarjeta sin ajuste dice «sin comprobar»", async () => {
+    clipSelection.mockResolvedValue(result({ recommended: [candidate({ fit: null })] }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/sin comprobar/)).toBeInTheDocument();
+    expect(screen.getByText("Ajuste real:")).toBeInTheDocument();
+  });
+
+  it("con el ajuste comprobado no dice «sin comprobar»", async () => {
+    clipSelection.mockResolvedValue(result({
+      recommended: [candidate({
+        fit: { collision: false, n_contacts: 0, span_mm: 7, neck_coverage_pct: 100, clean_rolls: 4, n_rolls: 6, note: "" },
+      })],
+    }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText("4/6")).toBeInTheDocument();
+    expect(screen.queryByText(/sin comprobar/)).toBeNull();
+  });
+});
+
+describe("guardar el corredor relanza la selección (F1-193)", () => {
+  it("guardar trayectoria relanza la selección", async () => {
+    clipSelection.mockResolvedValue(result());
+    const { rerender } = render(<ClipSelectionPanel sessionId="s1" reloadKey={0} />);
+    await waitFor(() => expect(clipSelection).toHaveBeenCalledTimes(1));
+    // El store sube `trajectorySavedAt` al guardar; el panel lo recibe aquí.
+    rerender(<ClipSelectionPanel sessionId="s1" reloadKey={1734000000000} />);
+    await waitFor(() => expect(clipSelection).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("la remisión a Fabricación (F1-198)", () => {
+  it("con un clip colocado nombra esa pieza", async () => {
+    clipSelection.mockResolvedValue(result({
+      manufacture: { ...spec, piece_label: "NAVARRO™ T2 Curvo, mordaza 7.0 mm" },
+    }));
+    render(<ClipSelectionPanel sessionId="s1" />);
+    expect(await screen.findByText(/Fabricación tomará el clip colocado/)).toBeInTheDocument();
+    expect(screen.getByText("NAVARRO™ T2 Curvo, mordaza 7.0 mm")).toBeInTheDocument();
+    expect(screen.queryByText(/pieza a medida especificada/)).toBeNull();
   });
 });

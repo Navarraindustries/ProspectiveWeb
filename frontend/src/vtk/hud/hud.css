@@ -8,13 +8,35 @@
 .hud-corner.br { bottom: 6px; right: 6px; border-bottom-width: var(--hud-line); border-right-width: var(--hud-line); }
 .hud.active .hud-corner { border-color: var(--hud); }
 .hud-label { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-dim); }
+.hud-label[data-plane="axial"] { color: var(--plane-axial); }
+.hud-label[data-plane="coronal"] { color: var(--plane-coronal); }
+.hud-label[data-plane="sagital"] { color: var(--plane-sagital); }
 .hud-readout { position: absolute; font-size: 10.5px; line-height: 1.5; letter-spacing: .04em; white-space: pre; }
 .hud-readout.tl { top: 22px; left: 14px; } .hud-readout.tr { top: 22px; right: 14px; text-align: right; }
 .hud-readout.bl { bottom: 22px; left: 14px; } .hud-readout.br { bottom: 22px; right: 14px; text-align: right; }
+/* Lectura W/L: botón (doble clic restablece) que se ve como las demás
+   lecturas; los niveles del HUD la tratan como `.hud-readout`. */
+.hud-wl { pointer-events: auto; background: none; border: none; padding: 0; margin: 0; font: inherit; font-size: 10.5px; color: inherit; cursor: pointer; }
+.hud-wl:hover { color: var(--hud); text-decoration: underline dotted; }
+.hud-wl:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
+/* Preajustes bajo la lectura W/L de cada celda, entre ella y la escuadra de la
+   esquina (más arriba pisaban la escala de 10 mm); transparente para no tapar la imagen. */
+.hud-wl-presets { position: absolute; bottom: 3px; right: 24px; z-index: 6; width: 96px; background: transparent; border: none; color: var(--hud-dim); font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; text-align: right; cursor: pointer; }
 .hud-toggle { display: inline-flex; gap: 10px; pointer-events: auto; }
 .hud-toggle button { background: none; border: none; padding: 2px 0; font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-dim); cursor: pointer; }
 .hud-toggle button[aria-pressed="true"] { color: var(--hud); border-bottom: var(--hud-line) solid var(--hud); }
 .hud-toggle button:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
+/* Cine de la celda: encima de la lectura de abajo a la izquierda. Sin
+   `hud-decor`: es un control y se ve en esencial; en limpio, solo reproduciendo. */
+.hud-cine { position: absolute; left: 14px; bottom: 40px; z-index: 6; display: inline-flex; align-items: center; gap: 8px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-dim); white-space: nowrap; }
+.hud-cine button { background: none; border: none; padding: 1px 2px; font: inherit; font-size: 11px; color: var(--hud-dim); cursor: pointer; }
+.hud-cine button:hover:not(:disabled), .hud-cine .hud-cine-play { color: var(--hud); }
+.hud-cine button:disabled { opacity: .4; cursor: default; }
+.hud-cine button:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
+.hud-cine .hud-cine-pos { color: var(--hud); }
+/* Dentro de una columna apilada (VOLUMEN) la barra sigue al flujo: la columna
+   ya la coloca encima de la fila de preajustes. */
+.hud-stack > .hud-cine { position: static; }
 .hud-edge { position: absolute; font-size: 10px; letter-spacing: .08em; color: var(--hud-dim); }
 .hud-edge.top { top: 22px; left: 50%; transform: translateX(-50%); } .hud-edge.bottom { bottom: 8px; left: 50%; transform: translateX(-50%); }
 .hud-edge.left { left: 8px; top: 50%; transform: translateY(-50%); } .hud-edge.right { right: 8px; top: 50%; transform: translateY(-50%); }
@@ -22,11 +44,62 @@
    opaco) la etiqueta derecha quedaba debajo del índice: va a su izquierda. */
 .hud-edge.right.beside-ladder { right: 48px; }
 .hud-warn { color: var(--hud-amber); } .hud-err { color: var(--hud-red); }
-.hud-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 10.5px; letter-spacing: .06em; color: var(--hud-dim); animation: hud-hint-fade 3s forwards; }
+/* Arriba y sin recibir clics: abajo tapaba la barra de cine y los botones.
+   top 36 y no 24: a 24 pisaba la cinta de rumbo de VOLUMEN (top 22) y la
+   letra de borde superior («INF»). */
+.hud-hint { position: absolute; top: 36px; bottom: auto; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .06em; color: var(--hud-dim); pointer-events: none; animation: hud-hint-fade 3s forwards; }
 @keyframes hud-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
-/* «REGLAS ○»: fuera la decoración —esquinas, cinta de rumbo, escalera de
-   cortes, retícula y líneas de referencia—. Se quedan el texto que sitúa la
-   imagen (letras de orientación, número de corte, medidas) y los avisos. */
-.hud-nodecor .hud-decor, .hud-nodecor .hud-corner { display: none !important; }
-/* Con la escalera oculta, la letra derecha vuelve a su sitio. */
-.hud-nodecor .hud-edge.right.beside-ladder { right: 8px; }
+/* La pista del cambio de nivel («HUD esencial»): arriba y breve. No es la
+   pista de la vista, así que los niveles no la esconden (si no, al pulsar H
+   no se vería a qué nivel se ha ido). */
+/* La del gesto está en top: 36px; rara vez coinciden, y esta queda debajo. */
+.hud-hint.hud-hint-level { top: 50px; bottom: auto; animation-duration: 1.2s; }
+/* Escena 3D como principal: la cinta de rumbo ocupa 24–46 px; a 36 la pista
+   cruzaba su línea base. La columna de botones de la izquierda no llega al
+   centro, así que basta con bajarla bajo la cinta. */
+.hud-hint.hud-hint-cinta { top: 50px; }
+.hud-hint.hud-hint-level.hud-hint-cinta { top: 66px; }
+/* VOLUMEN como principal: la cinta acaba a 46 px y la fila EJE · RECORTE ·
+   MIP empieza a 52 (dos líneas en una celda estrecha): no hay franja libre
+   entre ellas, así que las pistas van debajo de la fila. */
+.hud-hint.hud-hint-vol { top: 104px; }
+.hud-hint.hud-hint-level.hud-hint-vol { top: 120px; }
+
+/* Niveles del HUD (`data-hud` en la rejilla del visor; la banda de cabecera
+   queda fuera y sus botones siguen a la vista). Los maniquíes 3D/MIP son
+   viewports de vtk: los apaga `showInset`, no esta hoja.
+   Esencial: fuera la decoración y los botones; quedan rótulo, lecturas,
+   escalera, escala y barra de cine. `.hud-stack` no se esconde entero: es
+   solo la columna que apila los botones de VOLUMEN (ya `.hud-toggle`) con
+   la barra del cine, que tiene que seguir viéndose. `.hud-controls` es una
+   fila entera de controles fuera de la imagen (los deslizadores del Oblicuo):
+   se va con los botones; la lectura AZ · EL del marco sigue diciéndolo. */
+[data-hud="esencial"] .hud-decor:not(.hud-ladder), [data-hud="esencial"] .hud-corner,
+[data-hud="esencial"] .hud-toggle, [data-hud="esencial"] .hud-controls, [data-hud="esencial"] .hud-hint:not(.hud-hint-level):not(.hud-hint-aviso) { display: none !important; }
+[data-hud="esencial"] .hud-edge.right.beside-ladder { right: 48px; }   /* la escalera se queda */
+/* Limpio: la imagen, las anotaciones, la lateralidad (ANT/POST/IZQ/DER) y la
+   regla de 10 mm; el cine solo mientras reproduce, para poder pararlo con el
+   ratón. Lateralidad y regla se quedan (F1-118): sin ellas una captura limpia
+   no decía de qué lado estaba la lesión ni a qué escala. Los avisos
+   (`.hud-hint-aviso`) y la instrucción de la herramienta armada
+   (`.hud-prompt`) se quedan: las teclas siguen actuando y hay que ver qué
+   piden. Sin escalera, la lateralidad derecha vuelve a su borde. */
+[data-hud="limpio"] .hud-decor, [data-hud="limpio"] .hud-corner, [data-hud="limpio"] .hud-toggle, [data-hud="limpio"] .hud-controls,
+[data-hud="limpio"] .hud-hint:not(.hud-hint-level):not(.hud-hint-aviso), [data-hud="limpio"] .hud-label,
+[data-hud="limpio"] .hud-readout:not(.hud-prompt), [data-hud="limpio"] .hud-cine:not(.playing) { display: none !important; }
+[data-hud="limpio"] .hud-edge.right.beside-ladder { right: 8px; }
+
+/* Anotaciones (cortes y 3D). Sin `hud-decor`: son datos del caso y se ven
+   en cualquier nivel del HUD. Ancho y alto explícitos: un <svg> absoluto no se
+   estira con inset como un div, se queda en 300×150. */
+.hud-anot { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.hud-anot text { font: 10.5px var(--font-mono); paint-order: stroke; stroke: #000; stroke-width: 3px; stroke-linejoin: round; }
+
+/* Rejilla del visor (ViewerGrid). Una vista oculta en «sola» sigue montada a
+   1×1 px: vtk se queja de un lienzo de 0 px y remontarla perdería la cámara. */
+.viewer-cell--hidden { width: 1px !important; height: 1px !important; opacity: 0; pointer-events: none; left: 0; top: 0; }
+.viewer-cell--over { outline: 1px solid var(--hud); outline-offset: -1px; }
+.viewer-handle { position: absolute; top: 0; left: 0; right: 0; height: 14px; cursor: grab; touch-action: none; z-index: 7; }
+.viewer-handle:active { cursor: grabbing; }
+.viewer-splitter { background: var(--hud-dim); }
+.viewer-splitter:hover { background: var(--hud); opacity: .6; }

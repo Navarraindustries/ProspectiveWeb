@@ -72,7 +72,8 @@ AGE_COIL = 80
 LARGE_MM_CLIP = 15.0
 
 #: Localizaciones que cada vía penaliza, en los términos del propio modelo.
-VBA_LOCATIONS = ("Basilar (punta, tronco o AICA)", "PICA / Vertebral")
+VBA_LOCATIONS = ("Punta basilar", "Tronco basilar", "AICA",
+                 "Basilar (punta, tronco o AICA)", "PICA / Vertebral")
 ANTERIOR_LOCATIONS = ("ACM — Arteria Cerebral Media",
                       "ACA / ACoA — Arteria Comunicante Anterior")
 

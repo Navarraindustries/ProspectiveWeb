@@ -109,10 +109,12 @@ export function PerforatorsPanel() {
               key={p.id}
               type="button"
               aria-pressed={active}
+              // F1-167: «Mostrar/Ocultar» no decía que la fila encendía el
+              // marcador de esa rama en el 3D; es un resalte, y se llama así.
               title={
                 active
-                  ? `Ocultar ${p.id} en el visor 3D`
-                  : `Mostrar ${p.id} en el visor 3D (${p.distance_to_neck_mm.toFixed(1)} mm del cuello)`
+                  ? `Quitar el resalte de ${p.id} en el visor 3D`
+                  : `Resaltar ${p.id} en el visor 3D (${p.distance_to_neck_mm.toFixed(1)} mm del cuello)`
               }
               onClick={() => togglePerforator(p.id)}
               style={{
@@ -151,7 +153,11 @@ export function PerforatorsPanel() {
               >
                 {p.distance_to_neck_mm.toFixed(1)} mm
               </span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: p.risk_color }}>{p.risk_label}</span>
+              {/* F1-167: «Medio» solo no decía de qué: es el riesgo de
+                  pinzar esa rama con el clip, por su distancia al cuello. */}
+              <span style={{ fontSize: 11, fontWeight: 700, color: p.risk_color }}>
+                {`riesgo para el clip: ${p.risk_label.toLowerCase()}`}
+              </span>
             </button>
           );
         })}

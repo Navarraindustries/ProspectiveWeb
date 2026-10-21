@@ -14,6 +14,7 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandColor } from "./brandColor";
 
 /** Nodos repartidos por el globo. Solo coordenadas: no representan centros reales. */
 const NODES: [number, number][] = [
@@ -37,14 +38,14 @@ export const skullCloudScene: SceneFactory = ({ scene, pointer }) => {
   // Esfera de retícula
   globeGroup.add(new THREE.Mesh(
     new THREE.SphereGeometry(2.3, 24, 24),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.18 })));
+    new THREE.MeshBasicMaterial({ color: brandColor(), wireframe: true, transparent: true, opacity: 0.18 })));
 
   const vectors = NODES.map(([lat, lon]) => toVector(lat, lon, 2.32));
 
   const nodeMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
   const nodeAltMat = new THREE.MeshBasicMaterial({ color: 0xff3366 });
   const beaconMat = new THREE.MeshBasicMaterial({
-    color: 0x00f0ff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+    color: brandColor(), side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
   const dotGeom = new THREE.SphereGeometry(0.08, 12, 12);
   const beaconGeom = new THREE.RingGeometry(0.12, 0.16, 20);
 
@@ -60,7 +61,7 @@ export const skullCloudScene: SceneFactory = ({ scene, pointer }) => {
   });
 
   // Arcos elevados entre nodos
-  const arcMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.65 });
+  const arcMat = new THREE.LineBasicMaterial({ color: brandColor(), transparent: true, opacity: 0.65 });
   for (let i = 0; i < vectors.length; i++) {
     const v1 = vectors[i];
     const v2 = vectors[(i + 2) % vectors.length];

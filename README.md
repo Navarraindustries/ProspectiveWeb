@@ -15,13 +15,26 @@
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Running the App](#running-the-app)
+- [Identity and shell](#identity-and-shell)
+- [Atajos de teclado](#atajos-de-teclado)
+- [Herramientas del visor y de los paneles](#herramientas-del-visor-y-de-los-paneles)
 - [Environment Variables](#environment-variables)
 - [Data Model](#data-model)
 - [Session Lifecycle](#session-lifecycle)
 - [Undoing Work](#undoing-work)
 - [Choosing a Clip](#choosing-a-clip)
+- [Navegación y orientación del visor](#navegación-y-orientación-del-visor)
+- [Anotaciones del visor](#anotaciones-del-visor)
+- [Pantalla limpia y controles](#pantalla-limpia-y-controles)
 - [Navigation & Unsaved Work](#navigation--unsaved-work)
+- [Roles y permisos](#roles-y-permisos)
+- [Saved sessions](#saved-sessions)
+- [Audit](#audit)
+- [Deleting an account](#deleting-an-account)
+- [Deleting an archived study](#deleting-an-archived-study)
 - [API Reference](#api-reference)
+- [Candidatos descartados y puesto](#candidatos-descartados-y-puesto)
+- [Banco de detección](#banco-de-detección)
 - [Running Tests](#running-tests)
 - [Development Scripts](#development-scripts)
 - [Relationship to the Desktop App](#relationship-to-the-desktop-app)
@@ -65,7 +78,7 @@ approval, and a tamper-evident audit chain.
 |---|---|
 | Backend tests | **1594 passing** (`pytest`, 105 files) |
 | Frontend tests | **459 passing** (`vitest`, 65 files) · `tsc -b` clean · production build clean |
-| REST endpoints | **149** operations (28 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
+| REST endpoints | **160** operations (30 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
 | Feature parity with desktop | **Complete** |
 
 ---
@@ -175,7 +188,7 @@ El método tubular (`services/vascular_mask.py` + `mask_to_surface` en `services
 
 La variable de entorno `PROSPECTIVE_MEM_BUDGET_MB` fija el presupuesto de memoria por encima del cual el método tubular se fuerza a media resolución y lo dice. Si no está definida, el presupuesto es el 70 % de la RAM disponible que detecta el sistema (`/proc/meminfo` en Linux, `GlobalMemoryStatusEx` en Windows), y 1400 MB si no puede leerla.
 
-La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. Las regiones de curvatura que tocan una cara de la caja de la malla (las tapas de los vasos cortados por el borde del volumen) van al final de la lista. En Case 3 la lesión confirmada sale 2.ª, con «solo el árbol» y con la malla completa, y la detección tarda unos 10 s. Eso es **a resolución nativa**. A media resolución (10 594 vértices, «solo el árbol») la misma lesión sale 5.ª, el último puesto de la lista, y solo por el cociente: el objetivo «lesión ≤ 3» no se cumple ahí.
+La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. Las regiones de curvatura que tocan una cara de la caja de la malla (las tapas de los vasos cortados por el borde del volumen) van al final de la lista. En Case 3 (método tubular, 103 978 vértices, «solo el árbol») la lesión confirmada sale 1.ª, la encuentra el canal de curvatura y la detección tarda unos 11–13 s con los vetos incluidos. Eso es **a resolución nativa**. A media resolución (10 594 vértices, «solo el árbol») la misma lesión sale 5.ª, el último puesto de la lista, y solo por el cociente: el objetivo «lesión ≤ 3» no se cumple ahí.
 
 #### Despliegue
 
@@ -278,6 +291,144 @@ images and checks they answer.
 
 ---
 
+## Identity and shell
+
+The application has one visual identity ("A": graphite surfaces, one blue
+accent) and one shell around every screen after sign-in.
+
+- **Tokens.** Every colour, radius, shadow, control height and font stack lives
+  in `frontend/src/styles/tokens/` (`colors.css`, `typography.css`,
+  `spacing.css`, `fonts.css`). Screens and the shell use `var(--…)` and never a
+  colour written by hand; `styles/tokens.test.ts` fails if a management page or
+  a shell component carries a literal. The viewer (`Workspace.tsx`) is the
+  exception until its own redesign.
+- **Dark by default.** The dark theme is the `:root` block; the light theme is
+  `[data-theme="light"]` and must define exactly the same names. The choice is
+  stored per browser. The public landing is always dark.
+- **Geist, self-hosted.** Geist and Geist Mono are served from
+  `frontend/src/assets/fonts/` (with their licence). Nothing is fetched from a
+  font CDN, so the app looks the same offline and on a hospital network.
+- **Shell.** A sidebar (sections by role), a top bar and a user menu. **Alt+B**
+  folds and unfolds the sidebar without taking focus from a field. The pin
+  button keeps it open; that choice is stored in `localStorage` under
+  `shell.sidebar` (`pinned` or `collapsed`).
+
+---
+
+## Atajos de teclado
+
+Una sola tabla (`frontend/src/vtk/shortcuts.ts`) decide qué hace cada tecla y
+alimenta la hoja «Atajos» del visor (tecla **?** o el botón «?» de la banda).
+Ningún atajo actúa con el cursor en un campo de texto.
+
+| Tecla | Acción | Ámbito |
+|---|---|---|
+| ? | Abrir o cerrar la hoja de atajos | Visor |
+| Alt+B | Plegar o desplegar la barra lateral | Aplicación |
+| Alt+1 · Alt+2 · Alt+3 · Alt+4 | Distribución SOLA · DERECHA · ABAJO · CUATRO | Visor |
+| S | Encender o apagar VINCULAR | Visor |
+| L | Centrar en la lesión (3D y cortes) | Visor |
+| H | Nivel de textos: completo · esencial · limpio | Visor |
+| R · A · G · T | Armar o desarmar la herramienta Regla · Ángulo · Región · Marcador | Visor |
+| Supr | Borrar la anotación seleccionada | Visor |
+| Retroceso | Quitar el último punto de la anotación en curso | Visor |
+| C | Encuadrar la celda enfocada | Celda |
+| Espacio | Reproducir o parar el cine de la celda | Celda |
+| + / − | Cine un fotograma por segundo más rápido / lento | Celda |
+| ↑ / → · ↓ / ← | Corte siguiente · anterior | Celda |
+| Re Pág · Av Pág | Diez cortes adelante · atrás | Celda |
+| Inicio · Fin | Primer · último corte | Celda |
+| Esc | Cancelar el marcado, parar el cine o cerrar la hoja | Flujo |
+| P | Ocultar o mostrar el panel del paso | Flujo |
+| 1 … 8 | Ir a ese paso del flujo (si ya está disponible) | Flujo |
+
+### Ratón
+
+La hoja «Atajos» los lista en la columna «Ratón». Solo están los gestos que
+existen: la rueda y el arrastre son de las celdas de corte; el doble clic, el
+asa de la celda y el divisor, de la rejilla del visor.
+
+| Gesto | Acción |
+|---|---|
+| Rueda | Corte siguiente o anterior |
+| Ctrl+rueda | Acercar o alejar el corte |
+| Arrastrar | Ventana y nivel del corte |
+| Mayús+arrastrar o botón central | Desplazar el corte |
+| Doble clic en W/L | Volver a la ventana del estudio |
+| Doble clic | Hacer principal una vista pequeña |
+| Arrastrar la celda | Intercambiar dos vistas (desde el borde de arriba de la celda) |
+| Arrastrar el divisor | Repartir el sitio entre la principal y las demás |
+| Doble clic en el divisor | Volver al reparto por defecto |
+
+## Herramientas del visor y de los paneles
+
+Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
+
+### Banda de cabecera
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| PRINCIPAL ▸ 3D · AX · COR · SAG · VOLUMEN | Elige la celda grande; las pequeñas siguen siempre el orden 3D · AX · COR · SAG · VOLUMEN | Para trabajar en una vista |
+| Distribución (Alt+1…4) | SOLA · DERECHA · ABAJO · CUATRO | Según cuántas vistas quieras a la vez |
+| VINCULAR ●/○ (S) | Encendido: un clic en una vista centra las demás en ese punto | Casi siempre encendido |
+| PLANOS ●/○ | Dibuja los rectángulos de los cortes en el 3D | Para situar un corte en el árbol |
+| CALOR ●/○ | Mapa de calor del clip sobre la malla | En el paso de dispositivos |
+| TEXTOS ▸ COMPLETO · ESENCIAL · LIMPIO (H) | Cuánto texto se pinta sobre la imagen; limpio deja lateralidad y escala | Limpio para capturas y presentaciones |
+| ? | Hoja de atajos | — |
+
+### Celda 3D (malla)
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| DESDE ▸ ENCUADRAR · ARRIBA · DELANTE · LADO | Cámara estándar; un segundo clic mira desde el lado opuesto (abajo, detrás, derecha) | Perder la orientación al rotar |
+| DESDE ▸ LESIÓN (L) | El botón y L hacen lo mismo: acercan la cámara a la lesión y centran en ella los cortes | Al medir cuello y ápice, al colocar un dispositivo |
+| DESDE ▸ ABORDAJE | Mira a lo largo del corredor y pone el Oblicuo perpendicular a él | Con entrada y diana de la trayectoria marcadas |
+| CORTES 3D · MALLA ●/○ | Los tres cortes dentro del 3D, con o sin malla translúcida | Relacionar imagen y segmentación |
+| Marcado (clic) | Puntos de línea central, cuello, ápice, borde, tijera, recorte, lesión, trayectoria, anotaciones | Según el paso |
+
+### Cortes AX · COR · SAG
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| Rueda · flechas · escalera · cine (espacio) | Recorren los cortes | Siempre |
+| Arrastrar · W/L (doble clic restablece) · menú de preajustes | Ventana y nivel; «Vasos» sale de la banda de vasos del estudio | Ver el vaso con el contraste correcto |
+| R · A · G · T | Regla, ángulo, región, marcador | Medir y anotar; se guardan con la sesión |
+
+### Oblicuo
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| Arrastrar · botón derecho · rueda · Ctrl+rueda | Arrastrar con el izquierdo cambia ventana y nivel; botón derecho orienta el plano; rueda lo desplaza; Ctrl+rueda hace zoom | Ajustar el contraste y el corte sin salir de la vista |
+| Lectura W/L (doble clic restablece) | Muestra ventana y nivel; el doble clic vuelve a los de por defecto | — |
+| AZIMUT · ELEVACIÓN | Orientan el plano libre (compartido con VOLUMEN y el 3D) | Cortar el vaso en el ángulo que haga falta |
+| ENCUADRAR · AL PUNTO | Reencuadra; devuelve el plano al punto compartido | — |
+| RECORRIDO ▸ PLANO · VASO | El cine desplaza el plano o recorre la línea central perpendicular al vaso | Inspeccionar el vaso sección a sección |
+
+### VOLUMEN
+| Herramienta | Qué hace | Cuándo |
+|---|---|---|
+| Arrastrar · Shift o botón central · rueda · Ctrl+rueda | Rota; desplaza; recorre el corte; zoom | Mover la proyección |
+| Botón derecho (MIP y COMPUESTO) · doble clic en la lectura | Arrastrar cambia nivel y ventana; con la celda ampliada, el doble clic en la lectura restablece (en la celda compacta el doble clic la amplía) | Contraste de la proyección |
+| EJE ▸ AX · COR · SAG | Eje de acumulación | — |
+| RECORTE ▸ EJE · LIBRE · CARA ●/○ | Recorta por el eje o por el plano libre del Oblicuo; pinta la cara del corte | Ver el interior del árbol |
+| LOCAL ●/○ | Acota la proyección a la caja de la lesión; solo con RECORTE EJE (con LIBRE se atenúa) | Ver el cuello sin que lo tape el resto |
+| MIP · COMPUESTO | Proyección de máxima intensidad o composición por tejidos | — |
+| Preajustes (VASOS · TODO en angiografía; tejidos en TC) · RESTABLECER | Ventana de la rampa o del preajuste; RESTABLECER vuelve a la de por defecto | Contraste de la proyección |
+| ACUMULADO · LÁMINA · DESDE ▸ INICIO · FINAL | Acumula hasta el corte (desde un extremo u otro) o una lámina alrededor | — |
+| ENCUADRAR (C) | Reencuadra lo visible | — |
+
+### Paneles por paso
+| Paso | Herramientas |
+|---|---|
+| Cargar | Carga DICOM de paciente y caso |
+| Segmentar | Preprocesamiento avanzado (recorte HU, remuestreo), método tubular o umbral con vista previa, borrado por radio, pieza suelta y región pegada, tijera, recorte de malla por ROI esférico (radio), caja de recorte, historial de la malla |
+| Detectar | Candidatos y descartados, confirmación de la lesión |
+| Morfometría | Cuello y ápice (o borde), métricas e índices, PHASES · ELAPSS · UIATS (edad desde la ficha), seguimiento, ramas cerca del cuello, línea central y calibre (clic, arrastre o flechas en la gráfica llevan al sitio) |
+| Decisión | Factores y recomendación terapéutica |
+| Dispositivos | Clips (campo, ensayo de colocación), coils, stents, Stent CL, WEB, trayectoria de abordaje con valoración del corredor y su ángulo respecto al eje del aneurisma (sin morfometría, respecto al eje vertical del estudio) |
+| Fabricación | Fabricación de la pieza a medida y pedidos de clips |
+| Informe | Informe PDF, malla STL, escena GLB, DICOM SR, DICOM SEG, preparación de impresión, Guardar sesión |
+
+La captura y la grabación están en la barra superior y las anotaciones en la columna derecha, en cualquier paso.
+
+---
+
 ## Environment Variables
 
 The server runs out of the box with sensible defaults.
@@ -287,6 +438,8 @@ The server runs out of the box with sensible defaults.
 | `PROSPECTIVE_DB_URL` | `sqlite:///backend/data/prospective.db` | SQLAlchemy connection string |
 | `JWT_SECRET` | auto-generated into `backend/secrets/jwt_secret.txt` | HS256 signing key |
 | `SESSION_TTL_HOURS` | `24` | Age at which an idle working session is purged |
+| `PROSPECTIVE_SESSIONS_ROOT` | `backend/data/sessions` | Folder for working sessions (tests point it at a temp dir) |
+| `PROSPECTIVE_SAVES_ROOT` | `backend/data/session_saves` | Folder for saved sessions (tests point it at a temp dir) |
 | `STUDY_FILES_ROOT` | `backend/study_files` | Root of the durable study archive |
 | `STORAGE_BACKEND` | `local` | `local` (filesystem) or `s3` |
 | `STORAGE_S3_BUCKET` | — | Required when `STORAGE_BACKEND=s3`; bucket must be private |
@@ -453,7 +606,7 @@ aneurysm, and if not, what has to be made?**
 
    | Criterion | What it compares |
    |---|---|
-   | Cobertura | Blade length against the **flattened** neck (see below) |
+   | Longitud de hoja | Blade length against the **flattened** neck (see below). A blade shorter than that fails; one longer than ×3 the neck only warns (provisional rule, like the force band) |
    | Fenestración | Window calibre against the measured parent artery |
    | Alcance | Shape against dome depth (AR) |
    | Forma / localización | Shape against the anatomical region on the case |
@@ -2020,6 +2173,99 @@ because it looks automatable:
   bounding box — across that axis the envelope is two blades plus the gap — so
   the stored figures are named `envelope_*`.
 
+### The clip heat map: what the blades actually close
+
+Placing a clip («Colocar … y verificar») now also asks `POST /api/clips/field/{sid}`
+for a field over the closed sac and a ring of parent vessel around the neck, and
+moving or rotating a placed clip asks again 250 ms after the last edit. The
+viewer swaps the plain sac for that field, one colour per vertex:
+
+| Category | Colour | Meaning |
+|---|---|---|
+| Cuello cubierto | green, amber, red or blue | Between the blades; coloured by the force verdict of the clip that grips it (óptima · aceptable · exceso · insuficiente) |
+| Cubierto sin veredicto | slate grey | Between the blades, but no force to judge: «sin contacto» or «sin fuerza» (imported clip without a datasheet) |
+| Cuello residual | magenta | Neck inside the blades' band that they do not close: behind the hinge or beside the jaws. What stays open to flow |
+| Cuello no alcanzado | grey | Neck past the blade tip |
+| No evaluado | dark mauve grey | Outside the blades' band: most of the dome and of the vessel ring. Shown for context, not scored |
+
+The three percentages are shares of the **neck disc** (the neck's own outline
+plus 0.6 mm) inside the blades' band. Vessel wall the blades press outside that
+disc is still painted as covered, because that is what they squeeze, but it is
+not neck and never enters the percentages. A clip slid sideways across its jaws
+leaves the neck beside the blades, and that reads as residual (magenta), not as
+«no evaluado». When no neck lies in the band at all, the card and the legend
+show «—» instead of 0 %.
+
+Each clip is judged on its own: its catalogue minimum closing force in grams
+against the force window for this neck in grams. With several clips the worst
+verdict wins, and each covered zone takes the colour of the clip that grips it.
+Forces are not added: a tandem pair judged as one double-force clip read
+«exceso» every time. The card shows «Fuerza de cierre 120 g · Óptima» with the
+window («óptima 80–120 g · aceptable 70–150 g»), the force of each clip when
+there are several, and «Área pinzada estimada» as a separate figure (it includes
+vessel wall in the band, so it is a generous bound). The legend reads, for
+example, «FUERZA 120 g · ÓPTIMA (80–120 g)». The pressure in g/mm² stays in the
+API (`pressure_g_mm2`, `window_g_mm2`) and in the `.vtp` for the mechanical
+phase, but is not displayed: force and window were divided by the same area, so
+it only restated the force while jumping with the pose. The API also returns
+the window in grams (`force_window_g`), the per-clip list (`clips`) and
+`neck_evaluated`. A clip imported without a datasheet has no force: coverage
+still paints, the force reads «Sin fuerza de catálogo» next to the window in
+grams, and the verdict is `warn`. Without an isolated sac nothing paints and
+the panel says to mark the neck plane in Morfometría.
+
+The «Mapa de calor del clip» card under the placement repeats the neck
+percentages («Cuello cubierto», «Cuello residual», «Cuello no alcanzado»), the
+force against its window, the clamped area and the selection criteria (longitud
+de hoja, alcance, apertura de las hojas, fuerza de cierre). The placement card
+above it keeps a different figure, «Extensión de las hojas sobre el cuello»
+(Alcanza / No alcanza): blade span in the neck plane against the neck diameter,
+which says nothing about how much of the neck is closed. The card's «Mostrar en
+el visor» box and the viewer header's «CALOR» toggle switch the layer off and
+bring the plain sac back; «Limpiar clips colocados» removes layer, legend and
+card. Re-placing after an edit and toggling «CALOR» keep the camera where the
+user left it. During the placement rehearsal the animation frames take the
+viewer and «CALOR» shows ○; the field returns on leaving it.
+
+The card carries the full fixed note, «Estimación geométrica: fuerza de catálogo
+repartida sobre el área de contacto; no modela pared, deformación ni
+deslizamiento.», and the legend its short form, «ESTIMACIÓN GEOMÉTRICA». It is
+geometry, not mechanics: no wall thickness or stiffness, no deformation of the
+neck under the blades, no slip, and the force is the low end of a design band
+that has not been measured on a real spring.
+
+### Moving the clip in the 3D view
+
+In Dispositivos, with the Clips tab open, the 3D scene mounted and no rehearsal
+loaded, the clip carries three handles drawn on top of the meshes (they come
+back on «Salir del ensayo»); the Coils and Stents tabs hide them, since only the
+Clips tab re-places the set after a move. The green sphere moves it in the neck
+plane, or along its normal with Shift; either way a single drag moves it at most
+50 mm. When the neck plane is seen almost edge-on (the view ray within about 6°
+of the plane) the in-plane move holds the pose instead of throwing the clip;
+orbit a little or use Shift. The amber ring turns it about its normal. The
+lavender sphere at the tip of the arm tilts it, clamped to 60° by the client
+(the server sets no limit). Escape during a drag restores the pose it started
+from; a double click on the green sphere puts it back on the neck centre,
+untilted, keeping its roll; it never reaches the grid, so it does not promote
+the cell. The camera keeps orbiting when the press lands off the handles. Each
+row of «Clips colocados» shows X, Y, Z, Rot°, Azimut° and Elevación°: the fields
+follow a drag live, typing in them re-places and tilts the clip the same way
+(Elevación is clamped to 60°), and a click on the row's title selects that clip
+for the handles.
+
+While the clip moves, the baked clip mesh follows it through a delta matrix
+(planned pose to current pose), the heat map dims and its card reads
+«DESFASADO»; the usual 250 ms debounce re-places the set, and the new mesh and
+field replace both. The old mesh keeps its delta until the new one has loaded,
+and the dim and «DESFASADO» last until the new heat map arrives, not just the
+plan. The handles act on the clip selected in the «Clips colocados» list, or on
+the last one placed, and the rehearsal («Preparar ensayo») ends on that clip's
+pose as it was left by hand (position, tilt and roll); with no clip placed it
+uses the neck centre. There is no click-to-select on the clip body: the 3D view
+only picks surfaces while a pick mode is active. With several clips baked into
+one mesh, the delta matrix moves the whole mesh until the new plan arrives.
+
 ### What this is not
 
 The geometric criteria are arithmetic on measured quantities. The clinical
@@ -2032,6 +2278,187 @@ Whether a branch actually runs through the neck is not visible in the isolated
 sac mesh, so "consider a fenestrated clip" is raised once as a case-level
 caveat, never as a defect on each non-fenestrated clip. A warning that fires on
 almost the whole catalogue stops carrying information.
+
+---
+
+## Navegación y orientación del visor
+
+**VOLUMEN gira alrededor del punto compartido.** Antes giraba alrededor de
+(0,0,0), que es una esquina del volumen: en Case 3, tras un arrastre de 90° el
+centro del volumen quedaba a 124 mm del foco y fuera de la celda. Ahora el
+centro de giro es el punto del crosshair, en MIP y en COMPUESTO, recortando por
+EJE o LIBRE: al girar, ese punto se queda en el mismo píxel. Pasar cortes no
+mueve la cámara; el punto avanza con el corte. ENCUADRAR encuadra **lo que se ve**,
+no la caja entera: en acumulado, desde el principio (o el final) hasta el corte;
+en lámina, el corte ± el grosor; en LIBRE, la mitad que conserva el plano. Lo
+visible queda centrado y su lado mayor ocupa la celda; el giro posterior sigue
+siendo alrededor del punto. La escena 3D ya giraba alrededor de su foco, y
+«Centrar en la lesión» lleva ese foco a la lesión.
+
+**CUATRO** es una rejilla 2×2 de celdas iguales y siempre en el mismo orden:
+axial y coronal arriba, sagital y 3D abajo, sea cual sea la principal.
+VOLUMEN queda fuera; si era la principal, al entrar en CUATRO una pista lo
+dice («VOLUMEN queda fuera en CUATRO») y la 3D hace de principal hasta salir.
+Atajo Alt+4; bajo 800 px el rótulo es «4». El reparto del separador no aplica
+aquí y se conserva para volver a DERECHA o ABAJO.
+
+**Cortes 3D** es el tercer modo de la escena («3D · Cortes 3D · Oblicuo»). Pone
+los tres cortes (axial, coronal y sagital) como imágenes en su sitio dentro de
+la escena, con la ventana del MPR, cruzándose en el punto compartido. No se
+pueden seleccionar: el clic sigue siendo de la malla y de las asas. La malla
+pasa al 35 % para no tapar los cortes, y «MALLA ●/○» la quita del todo. Las asas
+cuadradas de cada plano mueven su corte (el 2D lo sigue) y la rueda en un corte
+2D mueve su imagen en el 3D. Los tres cortes salen del volumen que ya está en
+memoria: en Case 3 un fotograma cuesta menos de un milisegundo.
+
+**Recorrer cortes.** La escalera del borde derecho de cada celda se pulsa
+(salta a ese corte) o se arrastra (recorre los cortes bajo el puntero); se ve
+con el HUD en completo y en esencial, no en limpio. Con la celda enfocada, las flechas avanzan uno, Re Pág y
+Av Pág diez, Inicio y Fin van a los extremos. En VOLUMEN mueven el eje activo,
+o el plano libre en LIBRE; en Oblicuo, que no tiene escalera, desplazan el
+plano. Pinchar una celda le da el foco, así que las teclas funcionan tras un
+clic.
+
+**Cine por celda.** Espacio reproduce los cortes de la celda enfocada a 8 fps,
+con ida y vuelta al llegar a un extremo. Se para con espacio, ⏸, Esc, al
+arrastrar en esa celda, al enfocar otra o al cambiar de paso. La barra mínima
+de la esquina inferior (◀ ▶ ▶, el índice, − fps +) hace lo mismo con el ratón.
++ y − cambian la velocidad de uno en uno entre 1 y 30 fps, y la última se
+recuerda en este navegador (`viewer.cineFps`). Es un cine por celda: no hay un
+cine global sincronizado.
+
+**Atajos.** S enciende o apaga VINCULAR y C reencuadra la celda enfocada (en el
+3D, ENCUADRAR). La lista completa está en [Atajos de teclado](#atajos-de-teclado)
+y en la hoja que abre «?». Los presets (Alt+1…4) actúan con el foco dentro del
+visor, y ningún atajo actúa con el cursor en un campo de texto.
+
+**Lo que guarda una captura.** El estado que acompaña a una captura o a una
+grabación añade `scene_mode` (`mesh`, `slices3d` u `oblique`),
+`slices3d_mesh_visible` y `cine` (`{pane, fps}` mientras reproduce, si no
+`null`); el preset `cuatro` va en `layout.preset`. La captura compuesta recorre
+las cuatro celdas del 2×2 en su sitio, como en los demás presets.
+
+---
+
+## Anotaciones del visor
+
+**Cuatro herramientas.** Regla (**R**, dos puntos, distancia en mm), Ángulo
+(**A**, tres puntos con el vértice en el segundo, grados entre 0 y 180), Región
+(**G**, un polígono de tres o más puntos, área en mm² y perímetro) y Marcador
+(**T**, un punto con una nota). La tecla o el botón del panel arma la
+herramienta y la misma tecla la desarma; armar una desarma los demás modos de
+pinchado (cuello, tijeras…). Ninguna tecla actúa con el cursor en un campo.
+
+**Dónde se crean.** Regla, ángulo y marcador se ponen en un corte (axial,
+coronal o sagital) o sobre la malla en el 3D; la región solo en un corte, porque
+su área necesita un plano. En los cortes el clic es subvóxel y no mueve el
+crosshair. La región se cierra pinchando de nuevo el primer punto, con doble
+clic o con Intro. Esc cancela el borrador, Retroceso quita su último punto y
+Supr borra la anotación seleccionada. Al cerrarse, la anotación recibe un nombre
+(R1, A1, G1, M1…), queda seleccionada y la herramienta se desarma. Oblicuo y
+VOLUMEN no crean ni muestran anotaciones.
+
+**Dónde se ven.** En el 3D, todas las visibles, con tubos y bolas del color de
+su tipo (regla ámbar, ángulo cian, región verde, marcador magenta) y su rótulo.
+En un corte 2D se dibuja la que tenga algún punto a medio vóxel o menos de ese
+corte: una regla hecha en el 3D aparece en los cortes que pasan por sus
+extremos, y dos cortes más allá ya no está. La región solo se ve en su plano y
+su índice exactos. El rótulo lleva el valor («R1 · 12,4 mm», «A1 · 63°»,
+«G1 · 48 mm²»); en celdas pequeñas solo el nombre. Ningún nivel del HUD las
+oculta, tampoco limpio.
+
+**El panel «Anotaciones»** está en la columna derecha, plegado, con el número en
+el título y el estado del guardado («guardando…» o «sin guardar» si falla).
+Cada fila tiene el nombre (editable al pinchar), el valor con su unidad, el
+corte de origen («AX 153» o «3D»), el ojo de visibilidad, «Ir» (lleva el punto
+compartido al centro de la anotación y el corte a su índice) y borrar. Las notas
+de los marcadores se escriben en su fila. Hay «Ocultar todas / Mostrar todas» y
+«Exportar CSV» con los puntos en mm. Sustituye a «Mediciones 3D» de
+Morfometría.
+
+**Números de corte.** El panel, el CSV y el informe numeran los cortes desde 1,
+como la escalera y la lectura de la celda; en el fichero se guarda el índice
+desde 0.
+
+**Guardado.** Cada cambio (crear, renombrar, ocultar, borrar, escribir una
+nota) se guarda solo a los 600 ms en `data/sessions/<id>/annotations.json`
+(`GET`/`PUT /api/annotations/{session_id}`, con los permisos del paciente).
+«Guardar progreso» espera a que termine y se las lleva; «Reanudar» las trae con
+sus nombres. Resegmentar (cambiar de malla) las vacía. Solo el borrado queda en
+la auditoría (`ACT_ANNOTATIONS_DELETE`, con los ids borrados). Las medidas no se
+guardan: se recalculan, y el servidor usa las mismas fórmulas que el visor.
+
+**Capturas e informe.** Una captura pinta en cada celda las anotaciones que se
+ven en ella, recortadas a su panel, y el estado que la acompaña añade
+`annotations_visible`. El informe PDF tiene una sección «Anotaciones» con la
+tabla Nombre · Tipo · Valor · Corte · Nota, o «Sin anotaciones.».
+
+**Fuera de alcance.** Mover puntos arrastrando (una anotación mal puesta se
+borra y se rehace), coordenadas LPS del paciente, compartir anotaciones entre
+sesiones o usuarios, dibujarlas en la escena 3D que renderiza el servidor para
+el informe y medir sobre el volumen (densidad, perfiles).
+
+---
+
+## Pantalla limpia y controles
+
+**Tres niveles de textos.** La tecla **H** (o el grupo «TEXTOS ▸ COMPLETO · ESENCIAL ·
+LIMPIO» de la cabecera, «C · E · L» en pantallas estrechas) recorre completo →
+esencial → limpio. Al cambiar, una pista de poco más de un segundo arriba dice
+«TEXTOS esencial». El nivel se guarda en el navegador (`viewer.hudLevel`); quien ya
+había ocultado las esquinas parte de esencial.
+
+| Elemento | Completo | Esencial | Limpio |
+|---|---|---|---|
+| Esquinas, retícula, líneas de referencia, rumbo, traza del recorte | sí | no | no |
+| Grupos de botones del HUD y pista de gestos | sí | no | no |
+| Rótulo y lecturas | sí | sí | no |
+| Letras de borde (lateralidad) y barra de escala | sí | sí | sí |
+| Escalera de cortes, maniquí 3D, recuadro de orientación | sí | sí | no |
+| Barra de cine | enfocada o reproduciendo | igual | solo reproduciendo |
+| Anotaciones y asas de los planos | sí | sí | sí |
+
+Los botones ocultos siguen funcionando por teclado (S, C, espacio, R/A/G/T…).
+PLANOS es independiente: ya no depende de REGLAS, que desaparece de la cabecera.
+Las capturas y grabaciones siguen el nivel: en limpio salen sin rótulo, lecturas
+ni banda superior, pero con las anotaciones pintadas.
+
+**Panel del paso plegable.** **P**, o el botón «◧ Panel» de la barra superior
+(a la izquierda de «Guardar progreso»), pliega la columna derecha a una tira de
+28 px que dice «PANEL ▸ Morfometría» (el paso vigente) con la insignia de
+anotaciones; un clic en la tira, P o el botón la despliegan. El visor ocupa el
+ancho liberado. Plegar solo oculta: un formulario a medias o una nota de
+anotación sin terminar siguen escritos al desplegar. El estado se guarda en el
+navegador (`ws.panelCollapsed`).
+
+**Nombres y grupos.** Cada grupo de botones lleva su prefijo: «EJE ▸ AX · COR ·
+SAG» y «DESDE ▸ INICIO · FINAL» en VOLUMEN, «DESDE ▸ ENCUADRAR · ARRIBA · DELANTE ·
+LADO · LESIÓN» en el 3D. «CENTRAR» y «AJUSTAR» pasan a **ENCUADRAR** (lo que hace C), y
+en Oblicuo el desplazamiento a cero se llama **AL PUNTO**.
+
+**Pista de gestos.** Ahora va arriba, bajo el rótulo, sin fondo, y se enseña una
+vez por tipo de celda (corte, 3D, VOLUMEN…) y sesión del navegador, no cada vez
+que cambia la principal. Todos los gestos siguen en la hoja «?». En limpio no
+hay pista.
+
+**Ventana y nivel.** La lectura «W n · L n» es un botón: el doble clic
+restablece la ventana. El menú de preajustes está en toda celda de corte, no
+solo en la principal, con «Auto» en TC y «Restablecer» al final. Las lecturas
+llevan «HU» en TC, CTA y CTPA, y nada en el resto (la intensidad de una angio
+rotacional no es una unidad física).
+
+**UMBRAL con unidad.** El HUD dice «UMBRAL 220 HU» en TC y «UMBRAL 220» en el
+resto; lo mismo la vista previa de la captura. En el panel de segmentación los
+deslizadores muestran HU en TC y, en el resto, la ayuda «Intensidad del volumen,
+sin unidad física».
+
+**Lo que se quitó.** El botón «⤢» de cada celda: la principal se elige desde la
+cabecera o con doble clic en la celda. Y el aviso de nivel reducido repetido en
+cada corte y en el 3D: ahora es una sola lectura en la banda de cabecera, a la
+derecha de los grupos (la captura lo sigue llevando arriba).
+
+**Fuera de alcance.** Plegar el carril izquierdo (ya responde al ancho),
+herramientas nuevas, cambios de servidor y ocultar el HUD por celda.
 
 ---
 
@@ -2060,9 +2487,132 @@ so a panel added later cannot forget to do it.
 
 ---
 
+## Roles y permisos
+
+Cada cuenta tiene uno de cuatro roles. Las frases que ven la barra superior y
+«Usuarios» salen de `frontend/src/lib/roles.ts` (`ROLE_PERMITE`); lo que de
+verdad decide es el servidor, y la tabla dice dónde.
+
+| Rol | Qué ve | Qué puede hacer |
+|---|---|---|
+| **Administrador** (`admin`) | Todos los pacientes, sus casos, sesiones, capturas y pedidos; «Usuarios», «Cuentas pendientes» y «Auditoría». | Todo lo de un Médico, y además: aprobar o rechazar cuentas pendientes, crear, editar y borrar usuarios, restablecer contraseñas, añadir o quitar clips del catálogo de la institución, quitar talleres y verificar la cadena de auditoría. |
+| **Médico** (`medico`) | Solo los pacientes que ha creado, y los casos, sesiones, capturas, decisiones y pedidos de esos pacientes. | Crear y editar sus pacientes y casos, planificar y guardar sesiones, pedir clips y **firmar** pedidos. |
+| **Residente** (`residente`) | Lo mismo que un Médico: solo sus pacientes. | Lo mismo que un Médico salvo firmar: prepara el pedido, pero «Firmar» le sale apagado con el motivo y el servidor lo rechaza. |
+| **Observador** (`viewer`) | Lo mismo que un Médico: solo sus pacientes. | Lo mismo que un Residente: no firma pedidos. |
+
+Dónde lo comprueba el servidor:
+
+- **Pacientes propios.** `routers/patients.py` filtra la lista por `created_by`
+  salvo para el administrador, y abrir, editar o borrar un paciente ajeno da
+  403 «No autorizado sobre este paciente.». El mismo control
+  (`services/access.py`, `require_patient`) protege casos, sesiones, capturas,
+  ficheros de sesión, la decisión y los pedidos. Pedir los pedidos de un
+  paciente ajeno devuelve la lista vacía: nunca enseña los de otro profesional.
+- **Firma de pedidos.** `services/clip_orders.py` (`SIGNING_ROLES`): solo
+  `medico` y `admin` firman.
+- **Solo administrador.** `routers/audit.py` (toda la auditoría),
+  `routers/clip_library.py` (añadir, medir y quitar clips del catálogo; leerlo
+  puede cualquiera), `routers/auth.py` (cuentas pendientes, usuarios,
+  restablecer contraseña), quitar un taller en `routers/clip_orders.py` y
+  exportar las confirmaciones de lesión (`GET /api/ground-truth/export`, en
+  `routers/ground_truth.py`) dependen de `require_admin`. En la pantalla,
+  `/app/usuarios` y `/app/auditoria` escritas a mano por quien no es
+  administrador muestran solo la tarjeta «Solo para administradores» y no
+  piden nada al servidor.
+
+En «Pacientes», quien no es administrador lee «Ves los pacientes que
+creaste», el contador «Tus pacientes · creados por ti» y, con la lista vacía,
+«Solo ves los pacientes que has creado tú. Crea el primero para comenzar.»;
+sin eso, cero pacientes propios parecía una base de datos vacía.
+
+**Contraseñas.** Una cuenta creada por un administrador, y una a la que un
+administrador restablece la contraseña, queda marcada para cambiarla: hasta
+hacerlo, el servidor responde 403 a todo salvo cambiar la contraseña, leer la
+propia cuenta y cerrar sesión. Quien se registra por su cuenta ya eligió la suya y entra con rol
+Médico cuando un administrador la aprueba.
+
+Para problemas con la cuenta (aprobación, rol, contraseña olvidada) el
+contacto es **ingprospective@skullapp.tech** (`frontend/src/lib/contacto.ts`).
+
+### Compartir un paciente
+
+Un paciente lo ve quien lo creó, las cuentas con las que se compartió y
+cualquier administrador (`services/access.py`). Compartir y dejar de compartir
+(`PUT /api/patients/{id}/shares`, la lista completa de cuentas) es solo de quien
+creó al paciente o de un administrador: si el compartido pudiera volver a
+compartir, el creador perdería el control de quién ve a su paciente. La hoja
+«Compartir» elige entre las cuentas activas (`GET /api/auth/users/brief`, para
+cualquier sesión).
+
+Una cuenta con la que se comparte **puede**: ver el paciente, crear y editar
+casos, y trabajar en sesiones (cargar, planificar, guardar, reanudar, capturar,
+anotar). **No puede**: editar ni borrar al paciente, borrar casos, compartirlo,
+renombrar ni borrar sesiones guardadas, ni borrar un estudio archivado.
+
+---
+
+## Saved sessions
+
+A saved session is a resumable snapshot of a planning run, linked to its case
+and patient. From the patient sheet and the sessions list:
+
+- **Rename** (`PATCH /api/sessions/saved/{id}`) changes only the label.
+- **Delete** (`DELETE /api/sessions/saved/{id}`) removes the snapshot, its
+  database row and its repoint marker. Both actions belong to whoever created
+  the patient or an administrator; an account the patient is shared with can see
+  and resume the session but not rename or delete it.
+- **Size.** Each row reports the space it takes on disk (`size_bytes`), so it is
+  clear what deleting frees.
+- **The 409 rule.** A saved session that an open session was resumed from cannot
+  be deleted: the open one still leans on its row and lineage. The answer is 409
+  with "ciérrala antes de borrarla"; close the open session and delete again.
+
+Both actions are written to the audit chain.
+
+---
+
+## Audit
+
+The SkullChain audit trail is admin-only (`/audit` in the app).
+
+- **Per-patient filter.** `GET /api/audit/blocks?patient_id=…` returns only the
+  blocks of that patient; the server derives the patient hash itself, so the
+  client never sends one.
+- **Spanish export.** `GET /api/audit/export` produces the text export in Spanish
+  (headings, "Exportado el … por …", the integrity verdict) with times in the
+  server's local zone, so it can be compared with a clock on paper.
+- **Account events.** Signup requests, approvals, rejections, creation, role
+  changes, deactivation and reactivation, and deletion of accounts are chained
+  like clinical events. Verifying the chain is itself recorded.
+
+---
+
+## Deleting an account
+
+`DELETE /api/auth/users/{id}?reassign_to={user_id}` (admin). Deleting an account
+never leaves patients without a creator, because without one only an
+administrator would see them: its patients pass to the account named in
+`reassign_to` (the administrator who deletes, by default). What it had shared
+stays shared, now "by" the destination. The destination must be active and not
+the deleted account. You cannot delete yourself or the last active
+administrator. The event records the destination and how many patients moved.
+
+---
+
+## Deleting an archived study
+
+`DELETE /api/studies/{id}` removes an archived imaging study: its stored objects
+first and its row after, so a storage failure can be retried. It belongs to
+whoever created the patient or an administrator. If the study has viewer
+captures attached the answer is **409** ("Bórralas antes de borrar el
+estudio"): captures are the professional's work and are never deleted behind
+their back. Delete the captures from the gallery, then the study.
+
+---
+
 ## API Reference
 
-149 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
+160 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
 
 **Everything except `POST /api/auth/login`, `/signup` and `/logout` requires a
 token.** It travels as `Authorization: Bearer …` or as the `prospective_token`
@@ -2117,8 +2667,10 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 | `GET` | `/api/auth/pending` | Pending signup requests (admin) |
 | `POST` | `/api/auth/pending/{id}/approve` · `/reject` | Approve or reject (admin) |
 | `GET` | `/api/auth/pending/{id}/photo` · `/cv` | Download applicant documents (admin) |
-| `GET` `POST` | `/api/auth/users` | List / create users (admin) |
-| `PUT` `DELETE` | `/api/auth/users/{id}` | Edit / delete, with anti-lockout guards (admin) |
+| `GET` `POST` | `/api/auth/users` | List (`?status=` pending · approved · rejected) / create users (admin) |
+| `GET` | `/api/auth/users/brief` | Active accounts in brief (id, username, name, role), for the sharing sheet (any session) |
+| `PUT` `DELETE` | `/api/auth/users/{id}` | Edit / delete, with anti-lockout guards (admin); `DELETE` takes `?reassign_to=` for the account's patients |
+| `POST` | `/api/auth/users/{id}/photo` | Replace a user's profile photo (admin) |
 
 ### Patients, cases & imaging studies
 
@@ -2129,11 +2681,13 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 | `POST` | `/api/patients/case` | Create patient + clinical case in one step |
 | `GET` `POST` | `/api/patients/{id}/studies` | List / add clinical cases |
 | `PUT` `DELETE` | `/api/patients/{id}/studies/{sid}` | Edit / delete a case |
+| `GET` `PUT` | `/api/patients/{id}/shares` | Accounts a patient is shared with · replace the list (creator or admin) |
 | `GET` | `/api/patients/{id}/sessions` | Saved planning sessions of a patient |
 | `GET` | `/api/studies` | Gallery: archived imaging studies (`q`, `patient_id`, `case_id`) |
 | `GET` | `/api/studies/{id}/thumbnail` | Rendered preview PNG |
 | `POST` | `/api/studies/cases/{case_id}/archive` | Archive a session's DICOM under a case |
 | `POST` | `/api/studies/{id}/open` | Restore an archived study into a new session |
+| `DELETE` | `/api/studies/{id}` | Delete an archived study (creator or admin); 409 while it has captures |
 
 ### DICOM, viewers & sessions
 
@@ -2141,11 +2695,12 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 |---|---|---|
 | `POST` | `/api/upload` | Upload DICOM files/folder → session + series list |
 | `POST` | `/api/upload/{sid}/series/{series_id}` | Switch the active series |
-| `GET` | `/api/volume/{sid}/meta` · `/raw` | Volume metadata · raw uint8 volume |
+| `GET` | `/api/volume/{sid}/meta` | Volume metadata |
 | `GET` | `/api/slice/{sid}/{plane}/{index}` | MPR slice PNG (`wc`, `ww`, optional `lower`/`upper` tint) |
 | `GET` | `/api/slice-oblique/{sid}` | Oblique reslice PNG |
 | `POST` | `/api/sessions/save` · `/{sid}/restore` | Durable snapshot · rehydrate |
 | `GET` | `/api/sessions` | List saved sessions |
+| `PATCH` `DELETE` | `/api/sessions/saved/{id}` | Rename · delete a saved session (creator or admin); delete is 409 while an open session came from it |
 
 ### Processing pipeline
 
@@ -2199,6 +2754,7 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 | `GET` | `/api/clip-orders/{part}/packet` · `/files/{what}` | ZIP for the workshop · STL and dossiers |
 | `GET` | `/api/clip-orders/summary` | How many orders sit in each state |
 | `POST` | `/api/clips/plan` | Placement + real VTK collision |
+| `POST` | `/api/clips/field/{sid}` | Heat map of the placed clips over the closed sac: coverage, estimated pressure, verdict |
 | `GET` `POST` `DELETE` | `/api/clips/custom/{sid}` | Imported clip library: list · upload · remove one |
 | `POST` | `/api/coils/plan` · `/api/plan` | Coil packing · stent deployment |
 | `POST` | `/api/cl-stent/{sid}` | Centerline-guided stent along vessel curvature |
@@ -2266,7 +2822,7 @@ of leaving it in the state.
 | `POST` | `/api/export/dicom-seg/{sid}` | Vessel and aneurysm as DICOM SEG on the original series, for the PACS |
 | `GET` `POST` | `/api/followup/{sid}/studies` · `/api/followup/{sid}` | Other studies of the patient · overlay one and map where the aneurysm changed |
 | `GET` `POST` | `/api/print-prep/beds` · `/api/print-prep/{sid}` | 3D-print preparation |
-| `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail |
+| `POST` `GET` | `/api/audit` · `/blocks` · `/verify` · `/export` | SkullChain audit trail (admin); `/blocks?patient_id=` filters to one patient |
 | `POST` `GET` | `/api/captures` · `/api/captures/{id}/image` | Viewer capture (PNG) attached to the imaging study · list · serve |
 | `POST` `GET` | `/api/captures/video` · `/api/captures/{id}/video` | Viewer recording (MP4/WebM, ≤ 80 MB, checked by its bytes) · serve |
 | `PATCH` `DELETE` | `/api/captures/{id}` | Rename · delete (row and file) |
@@ -2408,10 +2964,114 @@ no archived study it only downloads, and says so. They live in the durable
 archive, never under `data/`, and are served only by the authenticated
 endpoints above. The PDF report offers and embeds captures only, not videos.
 
-The «CORTES» and «REGLAS» toggles hide the slice strip and the HUD decoration
-(corners, heading tape, slice ladder, reticle); orientation letters, slice
-number, measurements and safety warnings stay. They are per-browser view
-preferences, and captures and recordings follow what is on screen.
+**Viewer layout.** The five views (3D, axial, coronal, sagittal and VOLUMEN) share
+one grid in four presets, chosen in the header band above the grid or with
+**Alt+1 · Alt+2 · Alt+3 · Alt+4**: «SOLA» (the main view alone), «DERECHA» (main view
+plus a column of four, the default), «ABAJO» (main view plus a strip of
+four) and «CUATRO» (a 2×2 grid of equal cells, always axial and coronal on top,
+sagittal and 3D below; VOLUMEN is left out, and if it was the main view a hint
+says «VOLUMEN queda fuera en CUATRO» and the 3D acts as the main view until
+CUATRO is left). When the header band is narrower than 800 px the presets read
+«DER · ABA · 4 · SOLA» and «PRINCIPAL» shrinks to «▸». Plain digits keep jumping between pipeline steps, and no shortcut fires
+while typing in a field. The header selector «PRINCIPAL ▸ 3D · AX · COR · SAG · VOLUMEN»
+chooses the main view directly, and a double click on a secondary view promotes
+it (the «⤢» button each secondary view used to carry is gone). After a new main
+view is chosen the small views always read 3D · AX · COR · SAG · VOLUMEN, minus
+the main one. Dragging the thin handle along the top edge of a view
+onto another swaps them. The views are
+never remounted, so the 3D camera, slice positions and window/level survive
+every swap. The splitter between the main view and the others sets the share
+of the main view (50–85 %); a double click restores the preset's default. In a
+portrait window «DERECHA» is laid out as «ABAJO», and cells too small for the
+full HUD (narrower than 420 px or shorter than 260 px) show a compact one. Steps that pick on the model
+(neck, dome, centreline, crop centre) bring the 3D to main by themselves. The
+layout is remembered per browser; the older «CORTES» setting is migrated once.
+
+**MIP.** The MIP is built from the shared slice: the wheel moves that slice (the
+slice views follow it), Ctrl+wheel zooms, dragging rotates, Shift+drag or the
+middle button pans. «AX · COR · SAG» chooses the voxel axis it accumulates
+along, the same axes the slice views use, and an outline in that plane's colour
+traces the current plane. «ENCUADRAR» recentres pan and zoom without undoing the rotation.
+With «RECORTE ▸ LIBRE» (below) the wheel moves the free plane instead of the
+slice.
+
+**VOLUMEN.** The MIP cell is labelled «VOLUMEN» and has two render modes,
+switched with «MIP · COMPUESTO» next to the axis selector. MIP is the view
+described above. COMPUESTO is shaded compositing with the six tissue presets of
+the retired 3D «Volumen» mode (CTA, Vasos CTA, Cerebro, Hemorragia, Hueso,
+Tejido blando), mapped onto the volume's robust intensity range
+(p0.5–p99.9, close to the p1–p99 the old server used) of the copy already in
+the browser; clipping and plane trace are the same in both. In COMPUESTO a
+right-button drag sets the preset's level (vertical) and window (horizontal),
+as in the slices; the readout adds `NIV 1485 · VENT 6562`. Each preset keeps
+its own window, and «RESTABLECER» returns the current one to the default that
+spans the robust range. In MIP the right button does nothing. The 3D scene no
+longer has a «Volumen» mode, and `GET /api/volume/{sid}/raw` was retired in D2
+(it answers 404): the client loads the volume in chunks through
+`/api/volume/{sid}/chunk/...`.
+
+**«RECORTE ▸ EJE · LIBRE».** «EJE» clips along the chosen axis as described
+above. «LIBRE» clips by the shared free plane of the «Oblicuo» view instead
+(the axis selector dims): the wheel in VOLUMEN moves that plane and the
+«Oblicuo» view follows, and the other way round. «ACUMULADO» keeps one side of
+the plane, «DESDE ▸ INICIO · FINAL» keeps the other, and «LÁMINA» keeps a slab of ±N mm
+around it (2–40 mm). The cut face is painted in grey with the slices'
+window/level, so changing the window in a slice changes the face; vessels in
+front of it still cover it. «CARA ● / ○» shows or hides the face. «ENCUADRAR» in
+LIBRE also puts the plane back through the crosshair. Going back to «EJE»
+restores the axis clip and removes the face. The trace is lavender in LIBRE.
+
+**Plane colours and «PLANOS».** Each slice plane has one colour everywhere:
+axial cyan, coronal green, sagittal orange. It colours the slice label, the
+reference lines that other slices draw for it (the axial view shows a sagittal
+line and a coronal line) and the MIP trace. The 3D scene draws the three planes
+as rectangles in the same colours, plus a point where they meet; scrolling a
+slice moves its rectangle. The rectangles do not count for framing or for the
+scale of markers, so «ENCUADRAR» still frames the vessel tree. «PLANOS» in the
+header hides them without moving the camera (no HUD level hides them), and the
+choice is remembered per browser. The scene toggle offers «3D · Oblicuo».
+The shared free plane has its own colour, lavender: a polygon (the plane cut by
+the volume box) in the 3D scene and a segment on each slice. Both appear only
+while the scene shows «Oblicuo» or VOLUMEN clips by «LIBRE», where the plane
+means something, and «PLANOS» hides them with the rest. The VOLUMEN trace is
+not governed by «PLANOS», in either clip mode.
+
+**Plane handles.** While «PLANOS» shows the rectangles, a small square at the
+centre of each outline in the 3D scene drags that plane along its normal: the
+axial, coronal and sagittal squares move their slice one voxel step at a time
+and the slice views follow, and the free plane's square (only while the free
+plane is drawn) changes its offset. Escape during the drag puts the plane back.
+The squares are drawn on top like the clip handles, «PLANOS ○» removes them,
+and off the squares the camera behaves as usual.
+
+**The «Oblicuo» view.** The oblique slice is the shared free plane: the same
+plane that clips the volume and is drawn in the 3D scene and on the slices, so
+orienting it here orients it everywhere. It is set by azimuth, elevation and an
+offset along its normal from the crosshair. «AZIMUT» (−180° to 180°) and
+«ELEVACIÓN» (−89° to 89°) sliders set the angles, and a right-button drag on the
+slice does the same: half a degree per pixel, right turns the azimuth, up
+raises the elevation. The wheel moves the plane one step of the finest voxel
+spacing per notch and stops where the plane would leave the volume box.
+Ctrl+wheel zooms, and a left-button drag still sets window/level. «AL PUNTO»
+puts the plane back through the crosshair and reframes, «ENCUADRAR» only reframes.
+The readout reads like `AZ 20° · EL −10° · +3,3 mm`. Without WebGL2, or before
+the client copy of the volume is in, the scene falls back to the server-side
+oblique (a PNG with its own tilt, position and axis); that degraded mode does not read or
+move the shared plane.
+
+The header group «TEXTOS ▸ COMPLETO · ESENCIAL · LIMPIO» (or the H key) sets how
+much text is drawn over the image. Completo shows everything. Esencial drops the decoration
+(corners, heading tape, reticle), the button groups and the gesture hint; the
+view label, readouts, edge letters, scale bar and slice ladder stay. Limpio
+leaves the image, the annotations, the edge letters (laterality) and the scale
+bar, plus the cine bar while it plays, safety notices and the prompt of an
+armed tool. Hidden buttons still work from
+the keyboard. Layout, HUD level, «PLANOS» and the folded step panel (P) are
+per-browser view preferences, and captures and recordings follow what is on
+screen; their saved state includes `hud_level`, `panel_collapsed`,
+`planes_hidden`, `volume_mode`, `volume_preset`, `free_plane` (azimuth,
+elevation and offset), `clip_mode`, `cut_face_visible` and `volume_window` (the
+current preset's window, or null while it is the default).
 
 **Confirming the lesion («¿Cuál es la lesión?»).** The detector was tuned on
 two diagnosed cases and its ranking is unstable, so without more cases with a
@@ -2472,6 +3132,102 @@ the remedy: place the device and generate the report again.
 
 They are diagrams of the segmentation, not radiological images, and the caption
 under them says so.
+
+---
+
+## Candidatos descartados y puesto
+
+Tras el consenso de los tres canales, `backend/services/candidate_vetoes.py`
+mira cada sitio y, si una causa geométrica conocida lo explica, lo aparta con
+un motivo en vez de borrarlo. Se prueban en este orden y gana el primero que
+aplique:
+
+| Motivo | Etiqueta en pantalla | Cuándo se veta |
+|---|---|---|
+| `borde` | «Recorte de la malla» | El parche toca una cara de la caja de la malla (a menos de 1 mm) y lleva más de 3 mm de aristas abiertas del árbol: es la tapa de un vaso cortado por el borde del volumen. |
+| `isla` | «Resto de segmentación» | El sitio está en un trozo suelto que no es el mayor y tiene menos del 2 % de los vértices. |
+| `bifurcacion` | «Unión de ramas» | La malla sale por 3 o más sitios de una esfera de 1,5 radios (mínimo 3 mm) y no hay cuello: la sección mín./máx. no baja de 0,85. En un localizador decide solo el número de salidas. |
+| `forma` | «No es sacular» | Región de curvatura cuya sección apenas cambia (mín./máx. ≥ 0,85) a lo largo de al menos 1 mm: pared de tubo, no un saco. |
+
+`POST /api/detect/{sid}` devuelve los aceptados en `candidates` y los vetados
+en `rejected`, cada uno con `veto: {reason, label, detail}`. Ningún veto toca
+la lesión de Case 3: es una región de curvatura con una sola salida y cuello
+0,12, en el tronco basilar, lejos de la caja de la malla.
+
+El panel de detección enseña:
+
+- **«Puesto #n»** en cada aceptado, en lugar de un porcentaje: el orden es una
+  lista para recorrer, no una probabilidad. La nota «azul = dónde, no el saco»
+  sigue en los candidatos que son un localizador (una bola alrededor del punto
+  que marcaron calibre o cociente, no una región de curvatura).
+- **«Descartados (n)»**, plegado debajo de la lista, con la etiqueta del motivo
+  en cada uno. Se pueden elegir: el elegido se pinta en el 3D, la cabecera lo
+  nombra y el panel avisa «Descartado por «<motivo>»: compruébalo en el 3D
+  antes de medir.». «Analizar morfometría» funciona sobre él igual que sobre un
+  aceptado, también cuando todos los sitios se descartaron: el paso de
+  Morfometría sigue abierto y el panel lo dice en vez de explicar un vacío. Sin
+  ningún sitio no hay desplegable: el panel explica el vacío.
+
+**La morfometría se invalida si el elegido cambió.** Al re-detectar, el
+servidor busca el sitio medido por su posición, no por su id: los ids son
+puestos en la lista y un veto nuevo delante del medido los renumera. Si algún
+sitio nuevo (aceptado o descartado) cae a menos de 2 mm (`REDETECT_MOVE_MM`)
+del centro medido, la elección pasa a ese id y la medida se conserva. Si
+ninguno cae ahí o no se sabe dónde estaba, borra la morfometría y responde
+`morphometry_invalidated: true`; el panel avisa «La morfometría se ha limpiado:
+el candidato elegido cambió al re-detectar.» y el cliente olvida también las
+cifras, el tratamiento y las marcas del cuello. Al reanudar, ese aviso sale como
+mensaje, no se pide otra morfometría y la sesión abre en Detección para elegir.
+Re-detectar sobre la misma malla es determinista y conserva la medida.
+Re-segmentar ya limpia la detección y la morfometría por su cuenta, así que
+tras re-segmentar el aviso no aparece: no queda medida que limpiar.
+
+---
+
+## Banco de detección
+
+`backend/eval/detection_bench.py` mide la detección con métricas fijas sobre
+Case 3 (el único estudio anotado: lesión en el tronco basilar,
+`[62.1, 63.7, 62.9]` mm) y seis vasos sintéticos (`backend/eval/synthetic.py`).
+Existe para que ningún ajuste del detector se mida solo contra Case 3. Un
+candidato cuenta como la lesión si su centro queda a menos de 8 mm.
+
+```bash
+cd backend
+.venv\Scripts\python -m eval.detection_bench --no-vetoes --json eval/results/baseline.json
+.venv\Scripts\python -m eval.detection_bench --only case3_native   # un solo caso
+```
+
+La sesión de Case 3 se localiza por contenido, no por id: `state.txt` con
+`dicom.modality=XA` y `seg.downsample_factor=1` (nativa) o `=2` (media), y un
+`meshes/vessel_tree.vtp` de más de 1 MB. Si no hay ninguna, la fila no se
+mide y su test `slow` se salta. Hoy solo existe la nativa.
+
+**Sin vetos y con vetos** (2026-10-02, `backend/eval/results/baseline.json` y
+`with_vetoes.json`, regenerados con los generadores sintéticos actuales):
+
+| Caso | Puesto (sin vetos) | FP (sin vetos) | Puesto (con vetos) | FP (con vetos) | Descartados (motivos) |
+|---|---|---|---|---|---|
+| tubo_con_saco | 1 | 2 | 1 | 1 | 1 (forma) |
+| saco_en_borde | 1 | 2 | 1 | 0 | 2 (borde, forma) |
+| bifurcacion_con_saco_apical | 1 | 1 | 1 | 0 | 1 (forma) |
+| bifurcacion_sin_saco | sin lesión | 2 | sin lesión | 0 | 2 (bifurcacion, forma) |
+| tubo_curvo_sin_saco | sin lesión | 0 | sin lesión | 0 | 0 (—) |
+| tubo_mas_isla | sin lesión | 5 | sin lesión | 4 | 1 (isla) |
+| case3_native | 1 | 4 | 1 | 4 | 1 (bifurcacion) |
+
+Umbrales que fija `backend/test_detection_bench.py`: ningún veto descarta la
+lesión; los sintéticos con saco la sacan 1.ª; `bifurcacion_sin_saco` y
+`tubo_curvo_sin_saco` dejan como mucho un falso positivo; Case 3 nativa en
+puesto ≤ 2 y media ≤ 3. Un test compara ambos JSON: con vetos ningún puesto
+empeora, ningún falso positivo sube y nada verdadero se descarta. Los vetos
+cumplieron todo a la primera, así que no se ha tocado ninguna constante de
+`services/candidate_vetoes.py`.
+
+La fila `tubo_mas_isla` mide el veto de isla, no el ruido de calibre del tubo:
+exige que la isla salga descartada con motivo `isla` y como mucho los falsos
+positivos de sin vetos. Los picos de calibre en la pared de un tubo desnudo
+quedan para fuera de D4: un valor mínimo de pico en `_peaks`.
 
 ---
 

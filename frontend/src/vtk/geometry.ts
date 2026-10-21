@@ -141,6 +141,39 @@ export function standardViewInVolume(view: StandardView, o: Orientation): { dire
   return { direction: [-f[0], -f[1], -f[2]], viewUp: fromLps(d, up) };
 }
 
+/** La cara contraria de una vista estándar. */
+export function oppositeView(v: StandardView): StandardView {
+  const pair: Record<StandardView, StandardView> = {
+    axial: "axial_inf", axial_inf: "axial", coronal: "coronal_post", coronal_post: "coronal", sagital: "sagital_izq", sagital_izq: "sagital",
+  };
+  return pair[v];
+}
+
+/** Coseno mínimo para considerar que la cámara ya está en una vista. */
+export const SAME_VIEW_DOT = 0.99;
+
+/** Qué vista aplicar al pulsar `view`: la opuesta si la cámara ya mira así
+ *  (segundo clic), la pedida si no. Se decide por la dirección actual de la
+ *  cámara y no por el último botón: vale también tras girar a mano y volver. */
+export function resolveView(view: StandardView, currentDop: Vec3, o: Orientation): StandardView {
+  const want = standardViewInVolume(view, o).direction;
+  const c = currentDop[0] * want[0] + currentDop[1] * want[1] + currentDop[2] * want[2];
+  return c > SAME_VIEW_DOT ? oppositeView(view) : view;
+}
+
+/** «Arriba» de una cámara que mira a lo largo de `dir`: el superior del
+ *  paciente proyectado perpendicular a `dir`; si `dir` es casi vertical, el
+ *  anterior. Unitario siempre. */
+export function lookAlongUp(dir: Vec3, o: Orientation): Vec3 {
+  const { d } = effectiveDirection(o);
+  const unit = (v: Vec3): Vec3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  const dn = unit(dir);
+  const sup = unit(fromLps(d, [0, 0, 1]));
+  const ref = Math.abs(dn[0] * sup[0] + dn[1] * sup[1] + dn[2] * sup[2]) > 0.95 ? unit(fromLps(d, [0, -1, 0])) : sup;
+  const k = ref[0] * dn[0] + ref[1] * dn[1] + ref[2] * dn[2];
+  return unit([ref[0] - k * dn[0], ref[1] - k * dn[1], ref[2] - k * dn[2]]);
+}
+
 function lpsLabel(v: Vec3): string {
   const ax = [Math.abs(v[0]), Math.abs(v[1]), Math.abs(v[2])];
   const k = ax.indexOf(Math.max(...ax));

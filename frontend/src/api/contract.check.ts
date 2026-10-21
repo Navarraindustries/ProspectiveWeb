@@ -23,6 +23,9 @@ type Cabe<Servidor extends Interfaz, Interfaz> = [Servidor, Interfaz];
 export type Contrato = [
   Cabe<Completo<S["AneurysmCandidate"]>, ui.AneurysmCandidate>,
   Cabe<Completo<S["AneurysmDetectionResult"]>, ui.AneurysmDetectionResult>,
+  Cabe<Completo<S["Annotation"]>, ui.AnnotationWire>,
+  Cabe<Completo<S["AnnotationPlane"]>, ui.AnnotationPlane>,
+  Cabe<Completo<S["AnnotationsResult"]>, ui.AnnotationsResult>,
   Cabe<Completo<S["AttachResult"]>, ui.AttachResult>,
   Cabe<Completo<S["AuditBlock"]>, ui.AuditBlock>,
   Cabe<Completo<S["AuditVerifyResult"]>, ui.AuditVerifyResult>,
@@ -33,6 +36,7 @@ export type Contrato = [
   Cabe<Completo<S["CenterlineClearResult"]>, ui.CenterlineClearResult>,
   Cabe<Completo<S["CenterlineRequest"]>, ui.CenterlineRequest>,
   Cabe<Completo<S["CenterlineResult"]>, ui.CenterlineResult>,
+  Cabe<Completo<S["CenterlinePoints"]>, ui.CenterlinePoints>,
   Cabe<Completo<S["ClStentApposition"]>, ui.ClStentApposition>,
   Cabe<Completo<S["ClStentCoverage"]>, ui.ClStentCoverage>,
   Cabe<Completo<S["ClStentRequest"]>, ui.ClStentRequest>,
@@ -52,6 +56,8 @@ export type Contrato = [
   Cabe<Completo<S["CoilLibraryItem"]>, ui.CoilLibraryItem>,
   Cabe<Completo<S["CoilPlacement"]>, ui.CoilPlacement>,
   Cabe<Completo<S["CoilPlanResult"]>, ui.CoilPlanResult>,
+  Cabe<Completo<S["CoilPreviewResult"]>, ui.CoilPreviewResult>,
+  Cabe<Completo<S["CoilPreviewRow"]>, ui.CoilPreviewRow>,
   Cabe<Completo<S["ComparedCandidate"]>, ui.ComparedCandidate>,
   Cabe<Completo<S["CorridorAssessmentOut"]>, ui.CorridorAssessmentOut>,
   Cabe<Completo<S["CrossSectionRequest"]>, ui.CrossSectionRequest>,
@@ -76,6 +82,7 @@ export type Contrato = [
   Cabe<Completo<S["MeshCropResult"]>, ui.MeshCropResult>,
   Cabe<Completo<S["MeshRestoreResult"]>, ui.MeshRestoreResult>,
   Cabe<Completo<S["MorphometryResult"]>, ui.MorphometryResult>,
+  Cabe<Completo<S["ClinicalSiteResult"]>, ui.ClinicalSiteResult>,
   Cabe<Completo<S["MultiClipConstructOut"]>, ui.MultiClipConstructOut>,
   Cabe<Completo<S["NeckPlaneRequest"]>, ui.NeckPlaneRequest>,
   Cabe<Completo<S["OcclusionOut"]>, ui.OcclusionOut>,
@@ -83,8 +90,12 @@ export type Contrato = [
   Cabe<Completo<S["PatientDetail"]>, ui.PatientDetail>,
   Cabe<Completo<S["PatientSessionInfo"]>, ui.PatientSessionInfo>,
   Cabe<Completo<S["PatientSuggestion"]>, ui.PatientSuggestion>,
+  Cabe<Completo<S["PatientShareOut"]>, ui.PatientShareOut>,
+  Cabe<Completo<S["PatientSharesIn"]>, ui.PatientSharesIn>,
   Cabe<Completo<S["PatientSummary"]>, ui.PatientSummary>,
   Cabe<Completo<S["PendingUser"]>, ui.PendingUser>,
+  Cabe<Completo<S["SavedSessionRenameIn"]>, ui.SavedSessionRenameIn>,
+  Cabe<Completo<S["SessionListItem"]>, ui.SessionListItem>,
   Cabe<Completo<S["PerforatorCandidate"]>, ui.PerforatorCandidate>,
   Cabe<Completo<S["PerforatorsResult"]>, ui.PerforatorsResult>,
   Cabe<Completo<S["PhasesRequest"]>, ui.PhasesRequest>,
@@ -106,7 +117,9 @@ export type Contrato = [
   Cabe<Completo<S["ScissorsResult"]>, ui.ScissorsResult>,
   Cabe<Completo<S["SegmentRequest"]>, ui.SegmentRequest>,
   Cabe<Completo<S["SeriesInfo"]>, ui.SeriesInfo>,
-  Cabe<Completo<S["SessionRestoreResult"]>, ui.SessionRestoreResult>,
+  // Sin `treatment`: es un TreatmentDecisionResult, que la interfaz declara más
+  // estricto que la API (ver la lista de abajo).
+  Cabe<Completo<Omit<S["SessionRestoreResult"], "treatment">>, Omit<ui.SessionRestoreResult, "treatment">>,
   Cabe<Completo<S["SessionSaveRequest"]>, ui.SessionSaveRequest>,
   Cabe<Completo<S["SessionSaveResult"]>, ui.SessionSaveResult>,
   Cabe<Completo<S["SignupResponse"]>, ui.SignupResponse>,
@@ -121,10 +134,13 @@ export type Contrato = [
   Cabe<Completo<S["TrajectoryRequest"]>, ui.TrajectoryRequest>,
   Cabe<Completo<S["TrajectoryResult"]>, ui.TrajectoryResult>,
   Cabe<Completo<S["TreatmentDecisionRequest"]>, ui.TreatmentDecisionRequest>,
+  Cabe<Completo<S["TeamDecision"]>, ui.TeamDecision>,
+  Cabe<Completo<S["DeviceStrategyState"]>, ui.DeviceStrategyState>,
   Cabe<Completo<S["UiatsRequest"]>, ui.UiatsRequest>,
   Cabe<Completo<S["UiatsResult"]>, ui.UiatsResult>,
   Cabe<Completo<S["UploadResult"]>, ui.UploadResult>,
   Cabe<Completo<S["UserAdminInfo"]>, ui.UserAdminInfo>,
+  Cabe<Completo<S["UserBrief"]>, ui.UserBrief>,
   Cabe<Completo<S["UserInfo"]>, ui.UserInfo>,
   Cabe<Completo<S["VesselCrossingOut"]>, ui.VesselCrossingOut>,
   Cabe<Completo<S["WorkshopIn"]>, ui.WorkshopIn>,
@@ -141,5 +157,5 @@ export type Contrato = [
 
    - Son cuerpos de PETICIÓN, donde la dirección es la contraria (lo que la
      interfaz envía tiene que caber en lo que el servidor acepta):
-       AttachRequest, LesionConfirmIn, SuggestCorridorsRequest, UserUpdate
+       AnnotationsIn, AttachRequest, LesionConfirmIn, SuggestCorridorsRequest, UserUpdate
 */

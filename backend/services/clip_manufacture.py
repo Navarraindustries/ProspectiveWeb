@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 
 from services.clip_selection import ClipCase, ManufactureSpec
 from services.clips import ClipShape
+from services.neck_provenance import neck_provenance_label
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,23 @@ def placed_navarro_id(session_id: str) -> str | None:
     return None
 
 
+def pin_force(spec: ManufactureSpec, target_g: float, why: str) -> ManufactureSpec:
+    """La especificación con la fuerza objetivo fijada a `target_g`, y su nota.
+
+    La nota de fuerza de `derive_manufacture_spec` empieza por «Fuerza objetivo»
+    y explica de dónde sale la cifra derivada; con la cifra cambiada, esa nota
+    mentiría, así que se sustituye por la de la nueva y su porqué.
+    """
+    from dataclasses import replace
+
+    from services.navarro import force_statement
+
+    st = force_statement(target_g)
+    notes = [n for n in spec.confidence_notes if not n.startswith("Fuerza objetivo")]
+    notes.append(f"{st['text']}. {why}")
+    return replace(spec, closing_force_g=float(round(st["target_g"])), confidence_notes=notes)
+
+
 def perfect_from_id(clip_id: str, spec: ManufactureSpec) -> PerfectClip | None:
     """Build the piece named by a NAVARRO id, keeping the case's spec around it.
 
@@ -155,7 +173,8 @@ def perfect_from_id(clip_id: str, spec: ManufactureSpec) -> PerfectClip | None:
     """
     from dataclasses import replace
 
-    from services.navarro import SERIES_SHAPE, _shape_for, nearest_variant, parse_clip_id
+    from services.navarro import (SERIES_SHAPE, _shape_for, nearest_variant, parse_clip_id,
+                                  to_spec)
 
     parsed = parse_clip_id(clip_id)
     if parsed is None:
@@ -168,6 +187,11 @@ def perfect_from_id(clip_id: str, spec: ManufactureSpec) -> PerfectClip | None:
     pinned = replace(spec, blade_length_mm=float(jaw), angle_deg=float(angle),
                      shape=_shape_for(angle, shape),
                      fenestration_mm=float(window))
+    # La fuerza también es la de la pieza colocada, no el centro de la ventana
+    # del cuello: la tarjeta del mapa de calor decía 120 g y esta ficha 125 g
+    # para el mismo clip (F1-213).
+    pinned = pin_force(pinned, to_spec(src, float(jaw)).closing_force_g,
+                       "Es la del clip colocado en el plan.")
     return PerfectClip(
         source="navarro", spec=pinned,
         label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw:.1f} mm",
@@ -294,8 +318,14 @@ def _dimension_rows(spec: ManufactureSpec, perfect: PerfectClip) -> list[tuple[s
         rows.append(("Ventana (diámetro interior)", f"{spec.fenestration_mm:.1f} mm",
                      f"+{TOL_OTHER_MM:.2f} / −0.00 mm"))
     rows.append(("Apertura máxima de puntas", "10.0 mm", "máximo del mecanismo"))
-    rows.append(("Fuerza de cierre (objetivo)", f"{spec.closing_force_g:.0f} g",
-                 f"± {FORCE_TOLERANCE_G:.0f} g · VERIFICAR EN LA PIEZA"))
+    # La cifra y su banda, la misma cadena que la tarjeta del mapa de calor,
+    # Fabricación y el pedido (F1-202). La tolerancia es la que aplica la
+    # recepción (`clip_orders.receive`): la banda ± 15 g, no ± 15 g sobre una
+    # cifra que la pieza no promete.
+    from services.navarro import force_statement
+
+    rows.append(("Fuerza de cierre (objetivo)", force_statement(spec.closing_force_g)["short"],
+                 f"banda ± {FORCE_TOLERANCE_G:.0f} g · VERIFICAR EN LA PIEZA"))
     rows.append(("Material", MATERIAL, "—"))
     return rows
 
@@ -350,8 +380,8 @@ def internal_dossier(perfect: PerfectClip, case: ClipCase, *, part_no: str,
         # order cannot be re-derived or audited later.
         "derived_from": [
             ("Cuello medido", f"{case.neck_mm:.2f} mm"),
-            ("Procedencia del cuello", {"rim": "borde marcado", "manual": "punto marcado",
-                                        "auto": "detección automática"}.get(case.neck_source, case.neck_source)),
+            # La misma frase que el informe y el formulario (F1-215).
+            ("Procedencia del cuello", neck_provenance_label(case.neck_source)),
             ("Altura de domo", f"{case.dome_height_mm:.2f} mm"),
             ("Ø máximo del saco", f"{case.max_diameter_mm:.2f} mm"),
             ("Vaso padre", f"{case.parent_artery_mm:.2f} mm" if case.parent_artery_mm > 0 else "sin medir"),

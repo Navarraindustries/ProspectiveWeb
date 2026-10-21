@@ -4,6 +4,7 @@
 @import "./tokens/typography.css";
 @import "./tokens/spacing.css";
 @import "./base.css";
+@import "./components.css";
 @import "./responsive.css";
 @import "./landing.css";
 @import "../vtk/hud/hud.css";

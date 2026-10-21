@@ -131,17 +131,52 @@ def _ray_origins(entry: np.ndarray, axis: np.ndarray, radius_mm: float,
     return puntos
 
 
-def _segments_along_ray(tree: vtk.vtkOBBTree, p0: np.ndarray, p1: np.ndarray
-                        ) -> list[tuple[float, float]]:
+def _vessel_locator(poly: vtk.vtkPolyData) -> vtk.vtkCellLocator:
+    """El localizador para cruzar rayos con la malla de vasos.
+
+    No es un vtkOBBTree: en VTK 9.7.0 su IntersectWithLine no devuelve ningún
+    cruce (ni con una esfera) y, sobre la malla del Caso 3 a resolución
+    completa, escribe fuera de memoria y tumba el proceso sin traza: así caía
+    «Sugerir corredor». El de celdas da los mismos cruces que el OBB de 9.6.1.
+    """
+    loc = vtk.vtkCellLocator()
+    loc.SetDataSet(poly)
+    loc.BuildLocator()
+    return loc
+
+
+#: Dos impactos a menos de esto son el mismo punto de la malla.
+_HIT_TOL_MM = 1e-6
+
+
+def distinct_hit_distances(pts: vtk.vtkPoints, origin) -> list[float]:
+    """Distancias desde `origin` a los cruces, ordenadas y sin repetir.
+
+    vtkCellLocator da un impacto por celda: un rayo que pasa justo por un
+    vértice o una arista compartidos lo cuenta una vez por cada triángulo que
+    lo toca (64 en el polo de una esfera de 32×32). El vtkOBBTree los fundía;
+    sin fundirlos aquí, el tramo de dentro se partía en tramos de longitud cero
+    y la paridad dentro/fuera podía invertirse.
+    """
+    o = np.asarray(origin, dtype=float)
+    d = sorted(float(np.linalg.norm(np.asarray(pts.GetPoint(i)) - o))
+               for i in range(pts.GetNumberOfPoints()))
+    out: list[float] = []
+    for x in d:
+        if not out or x - out[-1] > _HIT_TOL_MM:
+            out.append(x)
+    return out
+
+
+def _segments_along_ray(tree: vtk.vtkAbstractCellLocator, p0: np.ndarray,
+                        p1: np.ndarray) -> list[tuple[float, float]]:
     """Tramos [t_entrada, t_salida] en mm donde el rayo va DENTRO de la malla."""
     pts = vtk.vtkPoints()
-    if tree.IntersectWithLine(p0.tolist(), p1.tolist(), pts, None) == 0:
+    if tree.IntersectWithLine(p0.tolist(), p1.tolist(), 0.0, pts, vtk.vtkIdList()) == 0:
         return []
-    n = pts.GetNumberOfPoints()
-    if n == 0:
+    d = distinct_hit_distances(pts, p0)
+    if not d:
         return []
-    d = [float(np.linalg.norm(np.asarray(pts.GetPoint(i)) - p0)) for i in range(n)]
-    d.sort()
     # Las intersecciones vienen en pares entrada/salida. Un número impar
     # significa que un extremo del rayo cae dentro de la malla; se cierra con el
     # extremo para no perder ese tramo.
@@ -190,7 +225,7 @@ def assess_corridor(
     spacing: tuple[float, float, float] | None = None,
     dense_threshold: float = 0.0,
     is_subtracted: bool = False,
-    obb_tree: "vtk.vtkOBBTree | None" = None,
+    obb_tree: "vtk.vtkAbstractCellLocator | None" = None,
 ) -> CorridorAssessment:
     """Mide el corredor y concluye si el abordaje es viable.
 
@@ -228,9 +263,7 @@ def assess_corridor(
     if vessel_poly is not None and vessel_poly.GetNumberOfPoints() > 0:
         tree = obb_tree
         if tree is None:
-            tree = vtk.vtkOBBTree()
-            tree.SetDataSet(vessel_poly)
-            tree.BuildLocator()
+            tree = _vessel_locator(vessel_poly)
         tramos: list[tuple[float, float]] = []
         for o in _ray_origins(p_in, eje, radius_mm):
             for t0, t1 in _segments_along_ray(tree, o, o + eje * largo):
@@ -514,9 +547,7 @@ def propose_corridors(
     # árbol nuevo por dirección, case 3 tardaba 100 s.
     tree = None
     if vessel_poly is not None and vessel_poly.GetNumberOfPoints() > 0:
-        tree = vtk.vtkOBBTree()
-        tree.SetDataSet(vessel_poly)
-        tree.BuildLocator()
+        tree = _vessel_locator(vessel_poly)
 
     # ── Primera pasada: un solo rayo por dirección ────────────────────────── #
     #

@@ -19,11 +19,14 @@ import { api } from "../api/client";
 import type { ClipOrder, OrderStatus, PatientSummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
+import { LoadState, loadErrorText } from "../components/LoadState";
 import { shapeLabel } from "../components/planning/clipShape";
+import { useAuth } from "../store/auth";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
 
@@ -42,6 +45,12 @@ const STATUS_VARIANT: Record<OrderStatus, Variant> = {
     tienen sus propios botones. Recorrer `next_states` sin filtrar pintaba dos
     botones idénticos —ambos caían en el `else` de la etiqueta— junto a los de
     aceptar y rechazar, que hacen lo mismo. */
+/** Quién puede firmar: lo mismo que exige el servidor (SIGNING_ROLES en
+    backend/services/clip_orders.py). Un residente o un observador veía «Firmar»
+    y solo al pulsarlo recibía el 403. */
+const SIGNING_ROLES = ["medico", "admin"];
+const SIGN_DENIED = "Solo un médico responsable puede firmar un pedido.";
+
 const ADVANCE_LABEL: Partial<Record<OrderStatus, string>> = {
   firmado: "Firmar",
   enviado: "Marcar enviado",
@@ -135,15 +144,25 @@ function Row({ order, onOpen, selected }: {
 
 /* ── Detalle ─────────────────────────────────────────────────────────────── */
 
-function Detail({ order, onChanged, onClose }: {
+function Detail({ order, onChanged, onClose, onOpenSession }: {
   order: ClipOrder; onChanged: () => void; onClose: () => void;
+  onOpenSession?: (sessionId: string, patientId: number | null) => Promise<void>;
 }) {
   const [error, setError] = useState("");
+  // El servidor dijo que la sesión ya no existe: no tiene sentido reintentar.
+  const [sessionGone, setSessionGone] = useState(false);
+  useEffect(() => { setSessionGone(false); }, [order.part_no]);
   const [busy, setBusy] = useState(false);
   const [jaw, setJaw] = useState(order.jaw_mm);
   const [force, setForce] = useState(0);
   const [deviation, setDeviation] = useState("");
   const [receiving, setReceiving] = useState(false);
+  // F1-97, F1-98: firmar y rechazar la pieza ocurrían al primer clic. Firmar
+  // genera la documentación y compromete al médico; rechazar cierra el pedido.
+  const [asking, setAsking] = useState<"firmar" | "rechazar" | null>(null);
+  const { user } = useAuth();
+  // Sin usuario conocido no se apaga nada: decide el servidor.
+  const cannotSign = !!user && !SIGNING_ROLES.includes(user.role);
   const r = order.reception;
   const outOfSpec = isOutOfSpec(order);
 
@@ -252,11 +271,36 @@ function Detail({ order, onChanged, onClose }: {
         </div>
       )}
 
+      {onOpenSession && (
+        <div style={{ marginTop: 12 }}>
+          <Button size="sm" variant="secondary" disabled={busy || sessionGone}
+                  title={sessionGone ? "La sesión de este pedido ya no existe" : undefined}
+                  onClick={() => {
+                    setBusy(true);
+                    setError("");
+                    onOpenSession(order.session_id, order.patient_id)
+                      .catch((e) => {
+                        if ((e as { status?: number })?.status === 404) setSessionGone(true);
+                        setError(e instanceof Error ? e.message : "No se pudo abrir el caso");
+                      })
+                      .finally(() => setBusy(false));
+                  }}>
+            Abrir el caso
+          </Button>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
         {order.next_states.filter((s) => ADVANCE_LABEL[s]).map((s) => (
           s === "recibida" ? (
             <Button key={s} size="sm" variant="outline" disabled={busy}
                     onClick={() => setReceiving(true)}>
+              {ADVANCE_LABEL[s]}
+            </Button>
+          ) : s === "firmado" ? (
+            <Button key={s} size="sm" variant="outline" disabled={busy || cannotSign}
+                    title={cannotSign ? SIGN_DENIED : undefined}
+                    onClick={() => setAsking("firmar")}>
               {ADVANCE_LABEL[s]}
             </Button>
           ) : (
@@ -273,12 +317,42 @@ function Detail({ order, onChanged, onClose }: {
               Aceptar la pieza
             </Button>
             <Button size="sm" variant="destructive" disabled={busy}
-                    onClick={() => act(api.rejectClipOrder(order.part_no, deviation || "Pieza no conforme"))}>
+                    onClick={() => setAsking("rechazar")}>
               Rechazar
             </Button>
           </>
         )}
       </div>
+      {cannotSign && order.next_states.includes("firmado") && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
+          {SIGN_DENIED}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={asking === "firmar"}
+        title={`¿Firmar el pedido ${order.part_no}?`}
+        confirmLabel="Firmar el pedido"
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); act(api.advanceClipOrder(order.part_no, "firmado")); }}
+      >
+        Firmas como médico responsable: se genera la documentación para el taller y el
+        pedido queda listo para enviar. Una vez firmado ya no es un borrador.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={asking === "rechazar"}
+        title={`¿Rechazar la pieza ${order.part_no}?`}
+        confirmLabel="Rechazar la pieza"
+        destructive
+        onCancel={() => setAsking(null)}
+        onConfirm={() => {
+          setAsking(null);
+          act(api.rejectClipOrder(order.part_no, deviation || "Pieza no conforme"));
+        }}
+      >
+        La pieza queda rechazada{deviation ? ` con el motivo «${deviation}»` : " como «Pieza no conforme»"} y
+        el pedido se cierra. No se puede aceptar después.
+      </ConfirmDialog>
 
       <ErrorNote>{error}</ErrorNote>
     </Card>
@@ -288,14 +362,28 @@ function Detail({ order, onChanged, onClose }: {
 /* ── La pantalla ─────────────────────────────────────────────────────────── */
 
 const ALL = "todos";
+/** Los estados que «Solo los abiertos» oculta (lo mismo que `is_open` en el servidor). */
+const CLOSED: string[] = ["verificada", "rechazada"];
 
-export function ClipOrdersPage({ patientFilter, onClearPatient }: {
+export function ClipOrdersPage({
+  patientFilter, onClearPatient, onBackToPatient, onCrumbPatients, onOpenSession,
+}: {
   /** Cuando llega desde la ficha de un paciente, la vista abre ya filtrada. */
   patientFilter?: PatientSummary | null;
   onClearPatient?: () => void;
+  /** Vuelve a la ficha de la que se vino. Sin él no hay botón: desde la barra
+   *  lateral no se viene de ninguna ficha. */
+  onBackToPatient?: () => void;
+  /** Primer tramo de la miga cuando llega filtrado: la lista de pacientes. */
+  onCrumbPatients?: () => void;
+  /** Reabre la sesión que creó un pedido. Rechaza con el motivo si no puede
+   *  (sesión borrada, sin paciente): «Abrir el caso» lo enseña junto al botón. */
+  onOpenSession?: (sessionId: string, patientId: number | null) => Promise<void>;
 }) {
   const [orders, setOrders] = useState<ClipOrder[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  // Todo lo del paciente y la búsqueda actuales, sin estado ni «solo abiertos»:
+  // de ahí salen los recuentos de las pastillas (F1-95) y el «no hay ninguno».
+  const [base, setBase] = useState<ClipOrder[]>([]);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<string>(ALL);
   const [q, setQ] = useState("");
@@ -306,6 +394,7 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
 
   const load = useCallback(() => {
     setLoading(true);
+    setError("");
     Promise.all([
       api.listClipOrders({
         status: status === ALL ? undefined : status,
@@ -313,15 +402,18 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
         openOnly,
         patientId: patientFilter?.id,
       }),
+      api.listClipOrders({ q: q.trim() || undefined, patientId: patientFilter?.id }),
       api.clipOrdersSummary(),
     ])
-      .then(([rows, sum]) => {
+      .then(([rows, all, sum]) => {
         setOrders(rows);
-        setCounts(sum.counts);
+        setBase(all);
         setLabels(sum.labels);
         setError("");
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo leer el registro"))
+      // F1-99: el error salía encima de «No hay pedidos que encajen con este
+      // filtro», y quien lo leía buscaba el fallo en el filtro, no en el servidor.
+      .catch((e) => setError(`No se pudo leer el registro: ${loadErrorText(e)}`))
       .finally(() => setLoading(false));
   }, [status, q, openOnly, patientFilter?.id]);
 
@@ -338,15 +430,35 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
   }, [orders]);
 
   const selected = sorted.find((o) => o.part_no === sel) ?? null;
+  // «Ninguno todavía» se decide con el registro del paciente (o el global) sin
+  // estado ni «solo abiertos»: por defecto esa casilla está marcada y una lista
+  // vacía puede deberse a ella. Con una búsqueda activa, vacío = filtro.
+  const noOrdersAtAll = base.length === 0 && !q.trim();
+  // F1-95: los recuentos son los de lo que se está mirando, no los globales.
+  const counts: Record<string, number> = {};
+  for (const o of base) counts[o.status] = (counts[o.status] ?? 0) + 1;
+  const todosCount = openOnly ? base.filter((o) => !CLOSED.includes(o.status)).length : base.length;
   const needAttention = sorted.filter((o) => attention(o) !== null).length;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)" }}>
-      <Topbar />
-      <div style={{ maxWidth: "var(--content-max)", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+    <AppShell crumbs={patientFilter
+      ? [
+          { label: "Pacientes", onClick: onCrumbPatients },
+          { label: patientFilter.full_name, onClick: onBackToPatient },
+          { label: "Pedidos" },
+        ]
+      : [{ label: "Pedidos de clips" }]}>
+      <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+        {/* F2-27: «Pedidos» cerraba la ficha y esta pantalla no tenía camino de
+            vuelta al paciente; solo «Ver todos», que tampoco lleva a él. */}
+        {onBackToPatient && (
+          <div style={{ marginBottom: 8 }}>
+            <Button size="sm" variant="ghost" onClick={onBackToPatient}>← Volver a la ficha</Button>
+          </div>
+        )}
         <PanelHead
           title="Pedidos de clips"
-          desc="Todo lo encargado a fabricación, con su estado y lo que falta por hacer."
+          desc="Todos los pedidos de fabricación, con su estado y lo que falta por hacer."
         />
 
         {patientFilter && (
@@ -368,10 +480,15 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
             onClick={() => setStatus(ALL)}
             style={chip(status === ALL)}
           >
-            Todos
+            Todos <span style={{ fontFamily: "var(--font-mono)", opacity: .7 }}>{todosCount}</span>
           </button>
           {Object.entries(labels).map(([key, label]) => (
-            <button key={key} onClick={() => setStatus(key)} style={chip(status === key)}>
+            <button key={key} style={chip(status === key)}
+                    onClick={() => {
+                      setStatus(key);
+                      // F1-96: con «solo los abiertos» puesto, estas dos darían siempre vacío.
+                      if (CLOSED.includes(key)) setOpenOnly(false);
+                    }}>
               {label} <span style={{ fontFamily: "var(--font-mono)", opacity: .7 }}>{counts[key] ?? 0}</span>
             </button>
           ))}
@@ -399,22 +516,27 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
           </div>
         )}
 
-        <ErrorNote>{error}</ErrorNote>
-
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
           <div style={{ flex: 1, minWidth: 0, overflowX: "auto" }}>
-            {loading && orders.length === 0 && (
+            {error && (
+              <Card>
+                <LoadState state="error" mensaje={error} onRetry={load} />
+              </Card>
+            )}
+            {!error && loading && orders.length === 0 && (
               <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Leyendo el registro…</div>
             )}
-            {!loading && sorted.length === 0 && (
+            {!error && !loading && sorted.length === 0 && (
               <Card>
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-                  No hay pedidos que encajen con este filtro. Los pedidos se crean en el
-                  paso <b>Fabricación</b> de un caso.
+                  {/* F2-53: «este filtro» se decía aunque no hubiese ningún pedido. */}
+                  {noOrdersAtAll
+                    ? <>{patientFilter ? "Este paciente aún no tiene pedidos." : "No hay pedidos todavía."} Los pedidos se crean en el paso <b>Fabricación</b> de un caso.</>
+                    : "Ningún pedido encaja con este filtro."}
                 </div>
               </Card>
             )}
-            {sorted.length > 0 && (
+            {!error && sorted.length > 0 && (
               <Card style={{ padding: "14px 16px 4px" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -444,12 +566,13 @@ export function ClipOrdersPage({ patientFilter, onClearPatient }: {
           {selected && (
             <div style={{ width: 340, flexShrink: 0 }}>
               <SectionLabel>Detalle</SectionLabel>
-              <Detail order={selected} onChanged={load} onClose={() => setSel(null)} />
+              <Detail order={selected} onChanged={load} onClose={() => setSel(null)}
+                      onOpenSession={onOpenSession} />
             </div>
           )}
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 
@@ -458,7 +581,7 @@ function chip(active: boolean): React.CSSProperties {
     padding: "5px 11px", borderRadius: "var(--radius-full)", cursor: "pointer",
     border: "1px solid " + (active ? "transparent" : "var(--border)"),
     background: active ? "var(--brand-deep)" : "var(--card)",
-    color: active ? "#fff" : "var(--foreground)",
+    color: active ? "var(--primary-foreground)" : "var(--foreground)",
     fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: active ? 700 : 500,
     whiteSpace: "nowrap",
   };

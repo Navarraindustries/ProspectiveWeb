@@ -83,6 +83,9 @@ def test_open_cap_flagged_unreliable():
     assert mr.volume_mm3 == 0.0           # open-mesh volume nulled
     assert mr.dome_to_neck_ratio == 0.0
     assert "cuello" in mr.reliability_note or "abierta" in mr.reliability_note
+    # F1-152: la nota dice qué hacer y no cuenta aristas de borde.
+    assert "aristas" not in mr.reliability_note
+    assert "marca cuello y ápice" in mr.reliability_note
 
 
 def test_closed_sphere_volume_survives_even_if_auto_neck_degenerates():
@@ -267,6 +270,27 @@ def test_morphometry_persists_every_field_the_report_reads():
     assert morpho["surface_area_mm2"] == pytest.approx(api["surface_area_mm2"], abs=0.01)
     assert morpho["compactness"] == pytest.approx(api["compactness"], abs=1e-4)
     assert 0.0 <= morpho["compactness"] <= 1.0     # PDF prints it as "1.0 = esfera"
+
+
+def test_parent_artery_is_exposed_as_the_stent_planner_reads_it():
+    """F1-205: el «Diámetro nominal» del stent recto empezaba en 4 mm, el valor
+    por defecto del catálogo, con la arteria portadora ya medida. La pantalla
+    no tenía la cifra hasta después de desplegar; ahora la morfometría la da,
+    la misma que lee el planificador (`morpho.parent_artery_mm`)."""
+    from services.sessions import read_state, write_state
+
+    client, sid = _session_with_synthetic_tree()
+    api = client.post(f"/api/morphometry/{sid}/neck-plane", json=_NECK_PLANE_BODY).json()
+    assert "parent_artery_mm" in api
+    raw = read_state(sid, "morpho.parent_artery_mm", "")
+    assert api["parent_artery_mm"] == (round(float(raw), 2) if raw else None)
+
+    # Y vuelve con GET /morphometry (reanudar), leída del mismo sitio.
+    write_state(sid, "morpho.parent_artery_mm", "4.83")
+    from routers.detect import _parent_artery_out
+    assert _parent_artery_out(sid) == 4.83
+    write_state(sid, "morpho.parent_artery_mm", "")
+    assert _parent_artery_out(sid) is None
 
 
 def test_neck_origin_is_exposed_and_sits_on_the_neck_plane():

@@ -4,9 +4,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
-import type { StudySummary, UploadResult } from "../../api/types";
+import type { SeriesInfo, StudySummary, UploadResult } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -42,6 +43,24 @@ function walkEntry(entry: FileSystemEntry, out: File[]): Promise<void> {
   });
 }
 
+/* F1-127: lo que distingue dos adquisiciones del mismo protocolo es cuándo se
+   hicieron; el backend manda ISO (YYYY-MM-DD, HH:MM) y aquí se lee en español. */
+function stampOf(s: SeriesInfo): string {
+  const [y, m, d] = (s.acquisition_date ?? "").split("-");
+  const fecha = y && m && d ? `${d}/${m}/${y}` : "";
+  return [fecha, s.acquisition_time ?? ""].filter(Boolean).join(" ");
+}
+
+function seriesLabel(s: SeriesInfo): string {
+  const stamp = stampOf(s);
+  return stamp ? `${s.description} · ${stamp}` : s.description;
+}
+
+/* F1-128: 24 → «24», 1.5 → «1,5»; el plazo es el del barrido del servidor. */
+function hoursEs(h: number): string {
+  return Number.isInteger(h) ? String(h) : String(Math.round(h * 10) / 10).replace(".", ",");
+}
+
 export function UploadPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -57,6 +76,12 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
   const [studyId, setStudyId] = useState<number | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [archived, setArchived] = useState(false);
+  // F1-9: soltar otra carpeta con trabajo hecho vaciaba la segmentación, la
+  // detección, la medida y las anotaciones sin preguntar. Los archivos
+  // esperan aquí a que se confirme.
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+  const hasWork = planning.segmentation !== null || planning.candidates.length > 0
+    || planning.morphometry !== null || planning.annotations.length > 0;
   // Already in the permanent archive — either opened from the gallery or just
   // saved. Offering "Guardar estudio" again would duplicate a ~1 GB study.
   const alreadyArchived = planning.imagingStudyId != null || archived;
@@ -70,6 +95,11 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
     el.setAttribute("directory", "");
     el.setAttribute("mozdirectory", "");
   }, []);
+
+  const requestUpload = (files: File[]) => {
+    if (files.length > 0 && hasWork) { setPendingFiles(files); return; }
+    void doUpload(files);
+  };
 
   const doUpload = async (files: File[]) => {
     if (files.length === 0) {
@@ -86,6 +116,11 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       const res = await api.upload(files);
       setResult(res);
       planning.setSession(res.session_id);
+      // Volumen nuevo, sesión nueva y sin archivo: su lista es la vacía. Va
+      // DESPUÉS de setSession, en el mismo render: vaciada antes, el guardado
+      // automático mandaba [] a la sesión anterior mientras se subía la nueva.
+      planning.clearAnnotations();
+      planning.setAnnotationsLoadState("cargado");
       // The backend ranks the series (real 3-D volume first, most slices) and
       // activates series[0]; mirror that choice here.
       const primary = res.series[0] ?? null;
@@ -151,6 +186,8 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       // anterior (la meta solo se pedía al cambiar de sesión).
       planning.bumpVolumeVersion();
       planning.resetDownstream();
+      // Otra serie, otro volumen: los cortes y mm de las anotaciones ya no caen ahí.
+      planning.clearAnnotations();
       planning.setSegmentation(null);
       planning.setSeries(s);
     } catch (err) {
@@ -171,21 +208,43 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       void (async () => {
         const files: File[] = [];
         for (const entry of entries) await walkEntry(entry, files);
-        await doUpload(files);
+        requestUpload(files);
       })();
     } else {
-      void doUpload(Array.from(e.dataTransfer.files));
+      requestUpload(Array.from(e.dataTransfer.files));
     }
+  };
+
+  // El selector no vuelve a disparar `change` con los mismos archivos: se
+  // vacía para que elegir otra vez la misma carpeta tras «Cancelar» funcione.
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    requestUpload(files);
   };
 
   const series = planning.series;
 
   return (
     <div className="fade-rise">
+      <ConfirmDialog
+        open={pendingFiles !== null}
+        title="¿Cargar otro estudio?"
+        confirmLabel="Cargar otro estudio"
+        destructive
+        onCancel={() => setPendingFiles(null)}
+        onConfirm={() => { const f = pendingFiles; setPendingFiles(null); if (f) void doUpload(f); }}
+      >
+        Esto descarta la segmentación, la detección y la medida. ¿Cargar otro estudio?
+      </ConfirmDialog>
       <PanelHead
         title="Carga DICOM"
         desc="Sube la serie del estudio (carpeta o arrastrando los archivos)."
-        right={series && <Badge variant="success">Cargado</Badge>}
+        // F1-126: «Cargado» salía con la serie, antes de que el visor tuviera el
+        // volumen; reutiliza la misma señal que enciende «Continuar» (F1-130).
+        right={series && (planning.volumeReady
+          ? <Badge variant="success">Cargado</Badge>
+          : <Badge>Subido</Badge>)}
       />
 
       <div
@@ -208,14 +267,14 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           type="file"
           multiple
           style={{ display: "none" }}
-          onChange={(e) => void doUpload(Array.from(e.target.files ?? []))}
+          onChange={onPick}
         />
         <input
           ref={dirInput}
           type="file"
           multiple
           style={{ display: "none" }}
-          onChange={(e) => void doUpload(Array.from(e.target.files ?? []))}
+          onChange={onPick}
         />
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, color: "var(--muted-foreground)" }}>
           <Icon name="FOLDER" size={30} />
@@ -272,7 +331,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
                     acquisitions): label each one so they can be told apart. */}
                 {planning.seriesList.map((s, i) => (
                   <option key={s.series_id} value={s.series_id}>
-                    {i + 1}. {s.description} · {s.slices} cortes · {s.spacing.z.toFixed(2)} mm
+                    {i + 1}. {seriesLabel(s)} · {s.slices} cortes · {s.spacing.z.toFixed(2)} mm
                     {s.is_projection ? " · ⚠ proyección 2D" : ""}
                   </option>
                 ))}
@@ -291,7 +350,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
             value={`${series.spacing.x.toFixed(2)} × ${series.spacing.y.toFixed(2)} × ${series.spacing.z.toFixed(2)}`}
             unit=" mm"
           />
-          <Metric label="Descripción" value={series.description} />
+          <Metric label="Descripción" value={seriesLabel(series)} />
           {result && <Metric label="Archivos subidos" value={result.total_files} />}
           {series.is_projection && (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--warning)", display: "flex", gap: 8, alignItems: "flex-start" }}>
@@ -310,7 +369,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "6px 0 10px", lineHeight: 1.5 }}>
             {alreadyArchived
               ? "Este DICOM ya está en el archivo permanente; puedes seguir con el pipeline sin volver a guardarlo."
-              : "Guarda este DICOM de forma permanente como un estudio del caso clínico elegido (un caso puede tener varios: TAC, angiografía, control) y genera su vista previa. Si no lo guardas, se borrará automáticamente."}
+              : `Guarda este DICOM de forma permanente como un estudio del caso clínico elegido (un caso puede tener varios: TAC, angiografía, control) y genera su vista previa. Si no lo guardas, la sesión se borra a las ${hoursEs(series.session_ttl_hours ?? 24)} horas de crearla.`}
           </div>
           {alreadyArchived ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--success)" }}>
@@ -328,7 +387,9 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           ) : studies.length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--warning)", display: "flex", gap: 6, alignItems: "flex-start" }}>
               <Icon name="STATUS_WARN" size={14} />
-              Este paciente no tiene ningún caso. Crea uno desde «Pacientes → Nuevo caso».
+              {/* F1-129: mandaba a «Pacientes», fuera del flujo; el caso se crea
+                  desde «Adjuntar a un caso» sin perder la carga. */}
+              Este paciente no tiene casos. Usa «Adjuntar a un caso» arriba para crear uno y archivar este DICOM
             </div>
           ) : (
             <>
@@ -377,14 +438,21 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
         </Card>
       )}
 
+      {/* F1-130: se encendía con la serie, antes de que el volumen estuviera
+          en el visor, y apagado no decía por qué. */}
       <Button
         style={{ marginTop: 18, width: "100%" }}
         onClick={onNext}
-        disabled={!series}
+        disabled={!series || !planning.volumeReady}
         trailingIcon={<Icon name="STEP_SEGMENT" />}
       >
         Continuar a segmentación
       </Button>
+      {(!series || !planning.volumeReady) && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, textAlign: "center" }}>
+          {!series ? "Carga una serie para continuar" : "Cargando el volumen…"}
+        </div>
+      )}
     </div>
   );
 }

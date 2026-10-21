@@ -14,12 +14,13 @@ from services.audit import audit_device
 from services.db_models import User
 
 from models.centerline import (
-    CenterlineClearResult, CenterlineRequest, CenterlineResult,
+    CenterlineClearResult, CenterlinePoints, CenterlineRequest, CenterlineResult,
     CrossSectionRequest, CrossSectionResult, ClStentApposition, ClStentCoverage, ClStentRequest, ClStentResult,
     FdSizingResult,
 )
+from models.detection import Position3D
 from services.centerline import extract_centerline
-from services.cross_section import compute_cross_sections
+from services.cross_section import compute_cross_sections, grade_stenosis
 from services.stent_deployment import deploy_stent_on_centerline
 from services.segmentation import read_vtp, write_vtp
 from services.sessions import mesh_url, session_exists, session_subdir
@@ -139,6 +140,43 @@ async def get_centerline(session_id: str) -> CenterlineResult | None:
     return _to_out(result, url)
 
 
+@router.get(
+    "/centerline/{session_id}/points",
+    response_model=CenterlinePoints,
+    summary="The centreline points, radii and arc positions",
+    description=(
+        "The medial-axis points `centerline_points.npz` holds, so the client can walk "
+        "the vessel section by section and the calibre chart can lead to a position. "
+        "404 when no centreline was extracted; 409 when the file is unreadable or degenerate."
+    ),
+)
+async def get_centerline_points(session_id: str) -> CenterlinePoints:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    points_path = session_subdir(session_id, "meshes") / "centerline_points.npz"
+    if not points_path.exists():
+        raise HTTPException(status_code=404, detail="No hay línea central extraída.")
+    try:
+        with np.load(points_path) as data:
+            pts = data["points"].astype(float)
+            radii = data["radii"].astype(float)
+    except Exception as exc:  # noqa: BLE001 — un fichero dañado no es un 500
+        # El detalle va al usuario: la excepción (rutas, internos de numpy) se
+        # queda en el log.
+        logger.warning("centerline_points.npz ilegible en %s: %s", session_id, exc)
+        raise HTTPException(status_code=409, detail="La línea central guardada no se puede leer.")
+    if len(radii) != len(pts):
+        raise HTTPException(status_code=409, detail="La línea central guardada es inconsistente.")
+    if len(pts) < 2:
+        raise HTTPException(status_code=409, detail="La línea central tiene menos de dos puntos.")
+    arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
+    return CenterlinePoints(
+        points=[Position3D(x=round(float(p[0]), 2), y=round(float(p[1]), 2), z=round(float(p[2]), 2)) for p in pts],
+        radii_mm=[round(float(r), 3) for r in radii],
+        arc_mm=[round(float(a), 2) for a in arc],
+    )
+
+
 def _run_cross_section(vessel_path, points_path, n_samples):
     vessel = read_vtp(vessel_path)
     data = np.load(points_path)
@@ -179,15 +217,8 @@ async def compute_cross_section(session_id: str, req: CrossSectionRequest) -> Cr
         raise HTTPException(status_code=500, detail=f"Error en sección transversal: {exc}")
 
     pct = (1.0 - result.stenosis_ratio) * 100.0
-    if pct < 20:
-        label = "Sin estenosis"
-    elif pct < 50:
-        label = "Leve"
-    else:
-        label = "Significativa"
-    warning = None
-    if pct >= 50:
-        warning = f"Estenosis significativa (~{pct:.0f}%) en el punto más estrecho."
+    # F1-169: con un perfil de saltos (bifurcaciones) no se pone grado.
+    grade = grade_stenosis(result.areas_mm2, result.stenosis_ratio)
 
     return CrossSectionResult(
         arc_positions_mm=[round(float(a), 2) for a in result.arc_positions_mm],
@@ -199,8 +230,9 @@ async def compute_cross_section(session_id: str, req: CrossSectionRequest) -> Cr
         mean_area_mm2=round(result.mean_area_mm2, 2),
         stenosis_ratio=round(result.stenosis_ratio, 3),
         stenosis_pct=round(pct, 1),
-        stenosis_label=label,
-        warning=warning,
+        stenosis_label=grade.label,
+        stenosis_note=grade.note,
+        warning=grade.warning,
     )
 
 
@@ -387,7 +419,7 @@ def _run_fd_sizing(session_id: str, vessel_path, points_path):
         read_vtp(vessel_path), np.load(points_path)["points"], neck, neck_mm,
         [s.model_dump() for s in _STENT_LIBRARY], rim_points=rim,
     )
-    # Dos medidas de la misma arteria que no casan: la pestaña «Stents»
+    # Dos medidas de la misma arteria que no casan: la pestaña «Stent recto»
     # dimensiona con la de la morfometría. En un caso real dio 1,67 mm donde
     # los cortes sobre la línea central miden 4–5 mm.
     parent = _load_float(session_id, "morpho.parent_artery_mm", 0.0)
@@ -400,7 +432,7 @@ def _run_fd_sizing(session_id: str, vessel_path, points_path):
             r.warnings.append(
                 f"La arteria madre de la morfometría ({parent:.2f} mm) no coincide con "
                 f"el calibre medido aquí sobre la línea central ({aqui:.2f} mm). La "
-                f"pestaña «Stents» dimensiona con la de la morfometría: "
+                f"pestaña «Stent recto» dimensiona con la de la morfometría: "
                 + ("es de una versión anterior del cálculo; vuelve a ejecutar la morfometría."
                    if vieja else "compruébala."))
     return r

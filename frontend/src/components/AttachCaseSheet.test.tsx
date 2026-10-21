@@ -22,7 +22,9 @@ const identidad = (over: Partial<SessionIdentity> = {}): SessionIdentity => ({
 });
 
 const resultado = {
-  patient: { id: 7, full_name: "Perez, Ana", hospital_id: "HC-9", dob: "", sex: "", institution: "", study_count: 1, created_at: "" },
+  patient: { id: 7, full_name: "Perez, Ana", hospital_id: "HC-9", dob: "", sex: "", institution: "", study_count: 1, created_at: "",
+             owner_id: 1, shared_with_count: 0, is_shared_with_me: false,
+             last_session_at: null, last_session_step: null, last_session_id: null, last_case_label: "" },
   case_id: 3, case_label: "Aneurisma basilar", imaging_study_id: 11, relinked_confirmations: 1,
 };
 

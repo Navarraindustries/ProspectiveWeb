@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/annotations/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Anotaciones guardadas en la sesión */
+        get: operations["get_annotations_api_annotations__session_id__get"];
+        /**
+         * Sustituir las anotaciones de la sesión
+         * @description Guarda la lista entera. `created_by` y `created_at` los pone el servidor: los guardados si la anotación ya existía, el usuario y la hora actuales si es nueva; lo que mande el cliente se ignora. Las anotaciones que desaparecen respecto a la lista anterior quedan registradas en la auditoría (ANNOTATIONS_DELETED).
+         */
+        put: operations["put_annotations_api_annotations__session_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/audit": {
         parameters: {
             query?: never;
@@ -13,7 +34,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Append an event to the audit chain */
+        /**
+         * Append an event to the audit chain
+         * @description Administrators only. The block is signed with the username of the authenticated administrator; the `username` field of the body is ignored.
+         */
         post: operations["append_event_api_audit_post"];
         delete?: never;
         options?: never;
@@ -29,8 +53,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List all audit-trail blocks
-         * @description Returns every block of the tamper-evident SkullChain audit trail, oldest first.
+         * List audit-trail blocks
+         * @description Returns the blocks of the tamper-evident audit trail, oldest first. With `patient_id`, only the blocks of that patient (the server derives the patient hash itself; the chain never stores the id).
          */
         get: operations["list_blocks_api_audit_blocks_get"];
         put?: never;
@@ -304,7 +328,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List all users (admin) */
+        /**
+         * List all users (admin)
+         * @description `status=pending|approved|rejected` filtra por estado de la cuenta (`approved` = activas). Sin filtro devuelve todas.
+         */
         get: operations["list_users_api_auth_users_get"];
         put?: never;
         /**
@@ -312,6 +339,26 @@ export interface paths {
          * @description Admin-only. Creates an **active** account with the full professional profile (same fields as self-registration) plus an explicit role and optional photo/CV. No approval step — the user can log in immediately.
          */
         post: operations["create_user_api_auth_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/users/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cuentas activas, en breve (para compartir)
+         * @description Id, usuario, nombre y rol de las cuentas activas. Para cualquier sesión: elegir con quién compartir un paciente no es cosa solo del administrador.
+         */
+        get: operations["list_users_brief_api_auth_users_brief_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -331,6 +378,23 @@ export interface paths {
         post?: never;
         /** Delete a user (admin) */
         delete: operations["delete_user_api_auth_users__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/users/{user_id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace a user's profile photo (admin) */
+        post: operations["set_user_photo_api_auth_users__user_id__photo_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -516,6 +580,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/centerline/{session_id}/points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The centreline points, radii and arc positions
+         * @description The medial-axis points `centerline_points.npz` holds, so the client can walk the vessel section by section and the calibre chart can lead to a position. 404 when no centreline was extracted; 409 when the file is unreadable or degenerate.
+         */
+        get: operations["get_centerline_points_api_centerline__session_id__points_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/cl-stent/{session_id}": {
         parameters: {
             query?: never;
@@ -652,7 +736,7 @@ export interface paths {
          * What the request form starts with for this case
          * @description Everything the system already knows: the advised series, bend and jaw, the measurements they came from, the family's fixed properties, and the workshops on file. The form asks the user only for what none of this can answer.
          *
-         *     `suggest_extra_sizes` is true when the neck was ESTIMATED rather than measured off a marked rim: the jaw is only as certain as the neck it was derived from, so the adjacent drawn sizes are worth having in theatre.
+         *     `suggest_extra_sizes` is true when the neck was ESTIMATED rather than marked by hand (rim or neck point): the jaw is only as certain as the neck it was derived from, so the adjacent drawn sizes are worth having in theatre.
          */
         get: operations["prefill_api_clip_orders_prefill__session_id__get"];
         put?: never;
@@ -969,6 +1053,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/clips/field/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mapa de calor del clip (estimación geométrica)
+         * @description Pinta el saco y el anillo de cuello según lo que cubren las hojas y la fuerza mínima de catálogo de cada clip frente a la ventana de fuerza del cuello (manda el peor clip). Los porcentajes son del disco del cuello. No modela pared ni deformación.
+         */
+        post: operations["clip_field_api_clips_field__session_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/clips/manufacture/{session_id}": {
         parameters: {
             query?: never;
@@ -1163,6 +1267,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/coils/{session_id}/construct/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Projected packing of an edited coil montage
+         * @description Takes the montage rows as the operator edited them (model and count per row) and returns the packing they would reach in the measured sac, read through the same rule as POST /coils/plan. Nothing is placed or persisted: it lets the montage card follow every edit before «Colocar el montaje».
+         */
+        post: operations["preview_coil_construct_api_coils__session_id__construct_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/cross-section/{session_id}": {
         parameters: {
             query?: never;
@@ -1234,6 +1358,46 @@ export interface paths {
          *     Idempotent: clearing a device that was never placed succeeds and reports nothing removed.
          */
         delete: operations["clear_devices_endpoint_api_devices__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/devices/{session_id}/placed-clips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Store the editable list of placed clips
+         * @description Stores the clip list as the devices panel edits it (pose and tilt of each clip) together with the verification of its last placement. The panel sends it after each successful placement. GET /devices and a session restore return it, so a resumed session gets editable clips back instead of bare meshes.
+         */
+        put: operations["put_placed_clips_api_devices__session_id__placed_clips_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/devices/{session_id}/strategy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a device family as the team's strategy
+         * @description Marks which device family (clips, coils, stent, stent_cl, web) is the strategy the team chose. GET /devices and a session restore return it, and the report lists that family under «Plan elegido» and the others as evaluated alternatives. `null` removes the mark. Clearing devices does not touch it.
+         */
+        put: operations["put_device_strategy_api_devices__session_id__strategy_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1428,7 +1592,7 @@ export interface paths {
         };
         /**
          * Cómo le va al detector frente a lo confirmado
-         * @description Sobre las confirmaciones vigentes (una por estudio): en cuántas la lesión salió primera, entre las 3 y las 5 primeras, o no salió. Es lo que el panel de detección enseña en vez de una cifra fija.
+         * @description Sobre las confirmaciones vigentes, una por estudio (o por sesión si no hay estudio archivado): en cuántas la lesión salió primera, entre las 3 y las 5 primeras, o no salió. Es lo que el panel de detección enseña en vez de una cifra fija.
          */
         get: operations["summary_api_ground_truth_summary_get"];
         put?: never;
@@ -1645,12 +1809,13 @@ export interface paths {
          * Compute aneurysm morphometry
          * @description Runs the full morphometric analysis on the best-scoring candidate mesh from the most recent detection run.
          *
-         *     Returns all clinical indices:
-         *     - **DNR** (Dome-to-Neck Ratio) — risk ↑ if > 2.0
-         *     - **AR** (Aspect Ratio) — risk ↑ if > 1.6
-         *     - **BF** (Bottleneck Factor) — wide neck if > 1.5
-         *     - **UI** (Undulation Index) — irregular dome if > 0.15
-         *     - **EI** (Ellipticity Index) — non-spherical if > 0.35
+         *     Returns all clinical indices (cuts in services/index_thresholds.py):
+         *     - **DNR** (Dome-to-Neck Ratio) — moderate ≥ 1.6, high ≥ 2.0
+         *     - **AR** (Aspect Ratio) — moderate ≥ 1.2, high ≥ 1.6
+         *     - **BF** (Bottleneck Factor) — > 1.5 = relatively NARROW neck
+         *     - **UI** (Undulation Index) — moderate ≥ 0.10, irregular ≥ 0.25
+         *     - **EI** (Ellipticity Index) — non-spherical if ≥ 0.35
+         *     - **site** — the location chosen in Morfometría (`clinical.site`)
          *     - **NSI** (Non-Sphericity Index)
          *
          *     Neck origin is saved to session state for the perforators endpoint.
@@ -1688,6 +1853,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/morphometry/{session_id}/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Guardar la localización del aneurisma
+         * @description La localización se elige UNA vez, en Morfometría, y la heredan PHASES, ELAPSS, UIATS, la decisión terapéutica, el WEB y el informe. Antes se preguntaba en cuatro sitios con cuatro listas, y dejar uno sin tocar cambiaba la cifra.
+         *
+         *     Al cambiarla nada escrito a mano se pierde. Cada puntuación guardada cuya categoría cambia se vuelve a calcular con sus mismas entradas (`recalculated`); si la nueva localización no tiene categoría en esa escala, sus entradas se apartan y se recalcula al elegir una (`pending`). La decisión solo se borra si se tomó con otra localización (`cleared`); el contexto clínico (`clinical.*`) no se toca.
+         */
+        put: operations["set_clinical_site_api_morphometry__session_id__site_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patients": {
         parameters: {
             query?: never;
@@ -1697,7 +1884,7 @@ export interface paths {
         };
         /**
          * List all patients
-         * @description Returns all patient records.  When authenticated, patients are filtered to those created by the current user (or all patients for admins).  Works without authentication for development convenience.
+         * @description Returns all patient records.  Non-admin users see the patients they created plus the ones shared with them (admins see all). Each row says who owns it, with how many accounts it is shared and whether it is shared with the caller.
          */
         get: operations["list_patients_api_patients_get"];
         put?: never;
@@ -1767,6 +1954,30 @@ export interface paths {
         /** List planning sessions done on a patient */
         get: operations["list_patient_sessions_api_patients__patient_id__sessions_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patients/{patient_id}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cuentas con las que está compartido un paciente
+         * @description La ve cualquiera que vea al paciente (creador, compartidos y administrador).
+         */
+        get: operations["list_patient_shares_api_patients__patient_id__shares_get"];
+        /**
+         * Fijar con qué cuentas se comparte un paciente
+         * @description Sustituye la lista entera por `user_ids`. Solo quien creó al paciente o un administrador; el creador, quien comparte y los administradores se ignoran si vienen en la lista. Una cuenta que no existe o no está activa es un 422; dos guardados a la vez, un 409. Cada cambio real deja un bloque `PATIENT_SHARED` en la auditoría (guardar la misma lista, no).
+         */
+        put: operations["set_patient_shares_api_patients__patient_id__shares_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2154,13 +2365,34 @@ export interface paths {
         put?: never;
         /**
          * Save current session state to database
-         * @description Persists the session's morphometry snapshot and metadata to the database. Subsequent calls update the same record (upsert on session_id). Optionally links the session to a patient and/or study record.
+         * @description Persists the session's morphometry snapshot and metadata to the database. Subsequent calls update the same record (upsert on session_id). A session resumed from a saved one updates that saved record (it takes the new session_id) unless `overwrite_origin` is false. Optionally links the session to a patient and/or study record.
          */
         post: operations["save_session_api_sessions_save_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/saved/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a saved session
+         * @description Removes the saved snapshot, its repoint marker and its database row.
+         */
+        delete: operations["delete_saved_api_sessions_saved__session_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a saved session */
+        patch: operations["rename_saved_session_api_sessions_saved__session_id__patch"];
         trace?: never;
     };
     "/api/sessions/{session_id}/attach": {
@@ -2323,6 +2555,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/studies/{study_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an archived imaging study
+         * @description Borra el DICOM archivado y la vista previa de un estudio de imagen. Solo quien creó al paciente o un administrador. Las sesiones que apuntaban al estudio se desligan pero se conservan: tienen su propia copia del DICOM.
+         */
+        delete: operations["delete_imaging_study_api_studies__study_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/studies/{study_id}/open": {
         parameters: {
             query?: never;
@@ -2396,7 +2648,7 @@ export interface paths {
         };
         /**
          * The approach trajectory stored in this session, if any
-         * @description Returns the entry/target the surgeon established, with the corridor assessment recomputed against the current mesh — or null when none was marked.
+         * @description Returns the entry/target the surgeon established, its depth and incidence angle, and the corridor assessment stored when it was saved (the one the report prints; recomputed only for sessions saved before it was stored) — or null when none was marked.
          *
          *     It exists because a resumed session used to come back WITHOUT it: the points were on disk and in the PDF, but the store was empty, so the viewer drew no corridor and the placement rehearsal silently fell back to its default approach. The established trajectory has to reach the rehearsal, or the video shows a manoeuvre nobody planned.
          */
@@ -2471,16 +2723,44 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The stored CLIP vs ENDOVASCULAR recommendation
+         * @description Returns the last recommendation computed in this session, exactly as POST /treatment-decision returned it, without recomputing. 404 when none was computed (or it was cleared). A resumed session needs it: without it the decision step came back empty and device planning stayed disabled.
+         */
+        get: operations["get_treatment_decision_api_treatment_decision__session_id__get"];
         put?: never;
         post?: never;
         /**
          * Clear the treatment recommendation
          * @description Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it and the PHASES score, so none of them reach the PDF or the DICOM SR.
          *
-         *     Called on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent.
+         *     Called on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent. The team's decision (PUT …/team) is kept: it is removed only from its own card.
          */
         delete: operations["clear_treatment_api_treatment_decision__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/treatment-decision/{session_id}/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The team's recorded decision
+         * @description The team's decision on its own, also when no recommendation was computed (the team can decide without the engine). `team_decision` is null when none was recorded.
+         */
+        get: operations["get_team_decision_api_treatment_decision__session_id__team_get"];
+        /**
+         * Record the team's decision
+         * @description What the team decided (clipaje, endovascular, vigilar u otra) and who decided it, kept apart from the engine's recommendation: the report prints it first, under «Plan elegido». It survives re-evaluating or changing the location; only clearing the decision step removes it. `team_decision: null` removes it.
+         */
+        put: operations["set_team_decision_api_treatment_decision__session_id__team_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2610,19 +2890,19 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/volume/{session_id}/raw": {
+    "/api/volume/{session_id}/window": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        get?: never;
         /**
-         * Get the downsampled volume as raw uint8 for 3D volume rendering
-         * @description Returns the DICOM volume as raw uint8 bytes (C-order, z·y·x), downsampled so the largest axis is ≤ 192 and rescaled over a robust intensity window. Dimensions and spacing are returned in the X-Dims / X-Spacing headers. Consumed by the client-side vtk.js volume renderer.
+         * Guardar la ventana y el nivel de los cortes
+         * @description El visor la manda al soltar un arrastre de ventana/nivel (con un rebote de 500 ms). Viaja con la sesión guardada y vuelve al reanudar: antes se volvía siempre a la ventana por defecto del DICOM.
          */
-        get: operations["get_volume_raw_api_volume__session_id__raw_get"];
-        put?: never;
+        put: operations["put_window_api_volume__session_id__window_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2705,17 +2985,24 @@ export interface components {
             max_diameter_mm: number;
             /**
              * Patch Kind
-             * @description Qué es la malla de `dome_mesh_url`. «region»: la región que el canal de curvatura detectó — el azul ES lo marcado. «locator»: una bola alrededor del punto que propusieron los canales geométricos, así que enseña DÓNDE mirar y no qué parte es la lesión; incluye pared de vaso alrededor. En ninguno de los dos casos afecta a la morfometría, que se mide sobre el saco aislado desde el volumen a partir del plano de cuello marcado.
+             * @description Qué es la malla de `dome_mesh_url`. «region»: la región que el canal de curvatura detectó — el azul ES lo marcado. «locator»: una bola alrededor del punto que propusieron los canales geométricos, así que enseña DÓNDE mirar y no qué parte es la lesión; incluye pared de vaso alrededor. En ninguno de los dos casos afecta a la morfometría, que se mide sobre el saco aislado desde el volumen a partir del plano de cuello marcado. «manual»: un punto que el profesional marcó y confirmó como la lesión sin que coincidiera con ningún candidato; no tiene malla (`dome_mesh_url` vacío) y se mide marcando cuello y ápice.
              * @default region
              * @enum {string}
              */
-            patch_kind: "region" | "locator";
+            patch_kind: "region" | "locator" | "manual";
+            /**
+             * Rank
+             * @description Posición 1-based dentro de su lista: los aceptados 1..n en el orden del consenso, los descartados 1..m en el suyo. 0 en un candidato marcado a mano: el detector no le dio puesto.
+             */
+            rank: number;
             /**
              * Selected
              * @description True when this candidate is the user-selected one
              * @default false
              */
             selected: boolean;
+            /** @description None si el sitio se acepta; el motivo si se descartó. */
+            veto?: components["schemas"]["Veto"] | null;
         };
         /**
          * AneurysmDetectionResult
@@ -2734,6 +3021,78 @@ export interface components {
              * @description True when at least one candidate was found
              */
             found: boolean;
+            /**
+             * Morphometry Invalidated
+             * @description True si esta detección borró la morfometría porque el candidato medido ya no está en la lista o se movió más de 2 mm.
+             * @default false
+             */
+            morphometry_invalidated: boolean;
+            /**
+             * Rejected
+             * @description Sitios que el consenso propuso y un veto apartó, cada uno con su `veto`. Sus ids siguen a los de `candidates` (cand-00N consecutivos) y su malla existe: GET /morphometry los mide igual.
+             */
+            rejected?: components["schemas"]["AneurysmCandidate"][];
+        };
+        /** Annotation */
+        Annotation: {
+            /**
+             * Created At
+             * @description ISO 8601; lo pone el servidor
+             * @default
+             */
+            created_at: string;
+            /**
+             * Created By
+             * @description Usuario; lo pone el servidor
+             * @default
+             */
+            created_by: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "regla" | "angulo" | "region" | "marcador";
+            /** Label */
+            label: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** @description Corte en el que se dibujó; obligatorio en una región */
+            plane?: components["schemas"]["AnnotationPlane"] | null;
+            /** Points */
+            points: components["schemas"]["Position3D"][];
+            /**
+             * Visible
+             * @default true
+             */
+            visible: boolean;
+        };
+        /** AnnotationPlane */
+        AnnotationPlane: {
+            /**
+             * Index
+             * @description Corte del plano en el que se dibujó
+             */
+            index: number;
+            /**
+             * Plane
+             * @enum {string}
+             */
+            plane: "axial" | "coronal" | "sagital";
+        };
+        /** AnnotationsIn */
+        AnnotationsIn: {
+            /** Annotations */
+            annotations: components["schemas"]["Annotation"][];
+        };
+        /** AnnotationsResult */
+        AnnotationsResult: {
+            /** Annotations */
+            annotations: components["schemas"]["Annotation"][];
         };
         /** AttachRequest */
         AttachRequest: {
@@ -2782,6 +3141,7 @@ export interface components {
             };
             /**
              * Username
+             * @description Ignored: the event is signed with the authenticated administrator's username. Kept so older clients that still send it are not rejected.
              * @default
              */
             username: string;
@@ -2998,6 +3358,11 @@ export interface components {
         Body_measure_before_import_api_clip_library_measure_post: {
             /** File */
             file: string;
+        };
+        /** Body_set_user_photo_api_auth_users__user_id__photo_post */
+        Body_set_user_photo_api_auth_users__user_id__photo_post: {
+            /** Photo */
+            photo: string;
         };
         /** Body_signup_api_auth_signup_post */
         Body_signup_api_auth_signup_post: {
@@ -3463,6 +3828,27 @@ export interface components {
             removed?: string[];
         };
         /**
+         * CenterlinePoints
+         * @description The resampled medial-axis points the extraction saved, for the client to walk along.
+         */
+        CenterlinePoints: {
+            /**
+             * Arc Mm
+             * @description Cumulative arc length at each point, starting at 0 (mm)
+             */
+            arc_mm: number[];
+            /**
+             * Points
+             * @description Centreline points (mm, volume frame), ~0.5 mm apart
+             */
+            points: components["schemas"]["Position3D"][];
+            /**
+             * Radii Mm
+             * @description Local vessel radius at each point (mm)
+             */
+            radii_mm: number[];
+        };
+        /**
          * CenterlineRequest
          * @description Request to extract the medial-axis centreline between two vessel points.
          */
@@ -3718,6 +4104,42 @@ export interface components {
              * @description Fit warning (over/undersized)
              */
             warning?: string | null;
+        };
+        /**
+         * ClinicalSiteRequest
+         * @description La localización del aneurisma, elegida una vez en Morfometría (F1-165).
+         */
+        ClinicalSiteRequest: {
+            /**
+             * Site
+             * @description Una de las localizaciones de la lista clínica (ANEURYSM_LOCATIONS).
+             * @enum {string}
+             */
+            site: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Punta basilar" | "Tronco basilar" | "AICA" | "PICA / Vertebral" | "Otra localización" | "Basilar (punta, tronco o AICA)";
+        };
+        /** ClinicalSiteResult */
+        ClinicalSiteResult: {
+            /**
+             * Cleared
+             * @description Lo que se borró por describir otra localización. Solo puede ser «Decisión»: la recomendación, no el contexto clínico escrito a mano.
+             */
+            cleared?: string[];
+            /**
+             * Pending
+             * @description Puntuaciones sin categoría para la nueva localización: salen del informe y sus entradas se guardan aparte para recalcularlas al elegir una.
+             */
+            pending?: string[];
+            /**
+             * Recalculated
+             * @description Puntuaciones guardadas («PHASES», «ELAPSS», «UIATS») cuya categoría cambió y se volvieron a calcular con sus mismas entradas.
+             */
+            recalculated?: string[];
+            /**
+             * Site
+             * @description La localización guardada en `clinical.site`.
+             * @enum {string}
+             */
+            site: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Punta basilar" | "Tronco basilar" | "AICA" | "PICA / Vertebral" | "Otra localización" | "Basilar (punta, tronco o AICA)";
         };
         /**
          * ClipAnimationResult
@@ -3994,6 +4416,104 @@ export interface components {
             verdict: "ok" | "warn" | "fail";
         };
         /**
+         * ClipFieldClip
+         * @description La fuerza de un clip frente a la ventana del cuello (cada clip se juzga solo).
+         */
+        ClipFieldClip: {
+            /** Force G */
+            force_g: number;
+            /** Name */
+            name: string;
+            /**
+             * Verdict
+             * @description Veredicto de fuerza de este clip (mismo vocabulario que pressure_verdict)
+             */
+            verdict: string;
+        };
+        /** ClipFieldResult */
+        ClipFieldResult: {
+            /** Field Mesh Url */
+            field_mesh_url: string;
+            /** Scalars */
+            scalars: {
+                [key: string]: string;
+            };
+            summary: components["schemas"]["ClipFieldSummary"];
+        };
+        /**
+         * ClipFieldSummary
+         * @description Lo que el campo mide: cobertura, presión estimada y veredicto. Estimación geométrica.
+         */
+        ClipFieldSummary: {
+            /**
+             * Clip Name
+             * @default
+             */
+            clip_name: string;
+            /** Clips */
+            clips?: components["schemas"]["ClipFieldClip"][];
+            /** Contact Area Mm2 */
+            contact_area_mm2: number;
+            /** Covered Pct */
+            covered_pct: number;
+            /** Criteria */
+            criteria?: components["schemas"]["ClipCriterion"][];
+            /**
+             * Force Band G
+             * @description Banda de diseño de esa fuerza
+             */
+            force_band_g?: number[];
+            /** Force G */
+            force_g: number;
+            /** Force Is Band Min */
+            force_is_band_min: boolean;
+            /** Force Provisional */
+            force_provisional: boolean;
+            /**
+             * Force Statement
+             * @description La frase de la fuerza, la misma del dossier
+             * @default
+             */
+            force_statement: string;
+            /**
+             * Force Target G
+             * @description Fuerza objetivo del clip (0 sin ficha o con varios)
+             * @default 0
+             */
+            force_target_g: number;
+            /**
+             * Force Window G
+             * @description Ventana de fuerza del cuello en gramos: aceptable mín, óptima mín, óptima máx, aceptable máx
+             */
+            force_window_g?: number[];
+            /**
+             * Neck Evaluated
+             * @description False si ningún vértice del cuello cae en la banda: los porcentajes no significan nada
+             * @default true
+             */
+            neck_evaluated: boolean;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** Pressure G Mm2 */
+            pressure_g_mm2: number;
+            /** Pressure Verdict */
+            pressure_verdict: string;
+            /** Residual Pct */
+            residual_pct: number;
+            /** Unreached Pct */
+            unreached_pct: number;
+            /**
+             * Verdict
+             * @description ok | warn | fail
+             */
+            verdict: string;
+            /** Window G Mm2 */
+            window_g_mm2: number[];
+        };
+        /**
          * ClipFitCheck
          * @description Result of posing the clip on the patient's measured neck plane.
          */
@@ -4218,6 +4738,12 @@ export interface components {
              * @description Near misses, each carrying the one criterion that disqualified it
              */
             rejected?: components["schemas"]["ClipCandidateOut"][];
+            /**
+             * Stock Count
+             * @description Clips de INVENTARIO en el catálogo juzgado. Con 0 todo es bajo pedido: el veredicto es 'manufacture' aunque haya diseños que sirvan, y nada se llama «del inventario».
+             * @default 0
+             */
+            stock_count: number;
             /** Summary */
             summary: string;
         };
@@ -4243,6 +4769,12 @@ export interface components {
              */
             feasible: boolean;
             /**
+             * Neck Mm
+             * @description Measured neck (morphometry), the montage card's first datum: a wide neck decides whether coils alone stay in the sac. 0 = not measured.
+             * @default 0
+             */
+            neck_mm: number;
+            /**
              * Note
              * @default
              */
@@ -4260,6 +4792,12 @@ export interface components {
              * @default 0
              */
             volume_mm3: number;
+            /**
+             * Wide Neck
+             * @description Neck ≥ 4 mm or dome-to-neck ratio < 2 — the same definition as the endovascular profile. When true, `note` starts with «cuello ancho: probable adyuvante».
+             * @default false
+             */
+            wide_neck: boolean;
         };
         /**
          * CoilConstructStep
@@ -4396,6 +4934,64 @@ export interface components {
              * @description Warning when the measured packing density is below `packing_min`.
              */
             warning?: string | null;
+        };
+        /**
+         * CoilPreviewRequest
+         * @description The montage as the operator edited it, before placing it.
+         */
+        CoilPreviewRequest: {
+            /** Rows */
+            rows?: components["schemas"]["CoilPreviewRow"][];
+        };
+        /**
+         * CoilPreviewResult
+         * @description Projected packing of the edited montage (decision nº 24).
+         *
+         *     Same arithmetic as the suggestion and as POST /coils/plan — catalogue wire
+         *     volume over the measured sac volume — read through the same packing rule.
+         *     Nothing is placed and nothing is persisted.
+         */
+        CoilPreviewResult: {
+            /**
+             * Durability
+             * @default
+             */
+            durability: string;
+            /**
+             * Meets Minimum
+             * @default false
+             */
+            meets_minimum: boolean;
+            /**
+             * N Coils
+             * @default 0
+             */
+            n_coils: number;
+            /**
+             * Packing Min
+             * @default 0.2
+             */
+            packing_min: number;
+            /**
+             * Projected Packing
+             * @default 0
+             */
+            projected_packing: number;
+            /** Warning */
+            warning?: string | null;
+        };
+        /**
+         * CoilPreviewRow
+         * @description One edited row of the montage: a catalogue model and how many of it.
+         */
+        CoilPreviewRow: {
+            /**
+             * Coil Id
+             * @description Catalogue id (`CoilLibraryItem.id`)
+             */
+            coil_id: string;
+            /** Count */
+            count: number;
         };
         /**
          * ComparedCandidate
@@ -4624,9 +5220,15 @@ export interface components {
             min_diameter_mm: number;
             /**
              * Stenosis Label
-             * @description 'Sin estenosis' | 'Leve' | 'Significativa'
+             * @description 'Sin estenosis' | 'Leve' | 'Significativa' | 'Perfil irregular'
              */
             stenosis_label: string;
+            /**
+             * Stenosis Note
+             * @description Why the stenosis is not graded (profile with branch jumps); '' when graded
+             * @default
+             */
+            stenosis_note: string;
             /**
              * Stenosis Pct
              * @description (1 − ratio) × 100 — narrowing at the tightest point
@@ -4767,11 +5369,24 @@ export interface components {
              */
             min_radius_mm: number;
             /**
+             * N Rejected
+             * @description Sitios del consenso apartados por un veto (ver `rejected`)
+             * @default 0
+             */
+            n_rejected: number;
+            /**
              * Regions Analyzed
              * @description High-curvature regions examined before the shape gates
              * @default 0
              */
             regions_analyzed: number;
+            /**
+             * Rejected By Reason
+             * @description Cuántos descartados por cada motivo (`Veto.reason`)
+             */
+            rejected_by_reason?: {
+                [key: string]: number;
+            };
             /**
              * Rejected Compactness
              * @default 0
@@ -4833,11 +5448,36 @@ export interface components {
              * @default 0
              */
             meshes_removed: number;
+            /** @description La lista editable de clips y su verificación, si se guardó (PUT /devices/{session_id}/placed-clips). Null sin clips colocados. */
+            placed_clips?: components["schemas"]["PlacedClipsState"] | null;
+            /**
+             * Placed Counts
+             * @description Cuántos dispositivos hay en el plan por familia (clips, coils, stent, stent_cl). El resumen del informe dice cuántos hay de la estrategia marcada.
+             */
+            placed_counts?: {
+                [key: string]: number;
+            };
             /**
              * Remaining
              * @description Device families that still hold a plan after the call
              */
             remaining?: string[];
+            /**
+             * Strategy
+             * @description La familia marcada como estrategia del equipo (PUT /devices/{session_id}/strategy), o null. El informe la pone en «Plan elegido» y el resto como alternativas evaluadas.
+             */
+            strategy?: ("clips" | "coils" | "stent" | "stent_cl" | "web") | null;
+        };
+        /**
+         * DeviceStrategyState
+         * @description PUT /api/devices/{session_id}/strategy: la estrategia, o null para quitarla.
+         */
+        DeviceStrategyState: {
+            /**
+             * Strategy
+             * @description clips | coils | stent | stent_cl | web, o null.
+             */
+            strategy: ("clips" | "coils" | "stent" | "stent_cl" | "web") | null;
         };
         /**
          * DicomSegResult
@@ -5300,6 +5940,11 @@ export interface components {
         /** LesionConfirmOut */
         LesionConfirmOut: {
             /**
+             * Candidate Id
+             * @description El candidato de la lista que es la lesión ('cand-003'), también si es un descartado o el marcado a mano que se acaba de crear con el punto (F1-146); None si no hay lesión.
+             */
+            candidate_id?: string | null;
+            /**
              * Candidate Rank
              * @description Puesto del candidato que ES la lesión; None si ninguno lo era.
              */
@@ -5661,6 +6306,17 @@ export interface components {
              */
             fenestration_mm: number;
             /**
+             * Force Band G
+             * @description Banda de diseño de la familia alrededor de `closing_force_g` (el objetivo)
+             */
+            force_band_g?: number[];
+            /**
+             * Force Statement
+             * @description «Fuerza objetivo X g dentro de la banda de diseño…», la frase del dossier
+             * @default
+             */
+            force_statement: string;
+            /**
              * Label
              * @description One-line summary of the part to order
              */
@@ -5878,7 +6534,7 @@ export interface components {
         MorphometryResult: {
             /**
              * Ar
-             * @description Aspect Ratio = dome_height / neck_mm  (risk ↑ if > 1.6)
+             * @description Aspect Ratio = dome_height / neck_mm  (moderate ≥ 1.2, high ≥ 1.6)
              */
             ar: number;
             /**
@@ -5893,7 +6549,7 @@ export interface components {
             bbox_w_mm: number;
             /**
              * Bf
-             * @description Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → wide neck)
+             * @description Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → relatively narrow neck)
              */
             bf: number;
             /**
@@ -5915,7 +6571,7 @@ export interface components {
             compactness: number;
             /**
              * Dnr
-             * @description Dome-to-Neck Ratio = max_diameter / neck_mm  (risk ↑ if > 2.0)
+             * @description Dome-to-Neck Ratio = max_diameter / neck_mm  (moderate ≥ 1.6, high ≥ 2.0)
              */
             dnr: number;
             /**
@@ -5978,6 +6634,11 @@ export interface components {
              * @default 0
              */
             nsi: number;
+            /**
+             * Parent Artery Mm
+             * @description Parent-artery diameter estimated at the neck from the vessel tree (`morpho.parent_artery_mm`, services/parent_artery.py) — the same figure the straight-stent planner sizes against. None when it could not be measured. The device panel seeds the stent's nominal diameter from it (F1-205).
+             */
+            parent_artery_mm?: number | null;
             /** @description Unit normal of that same plane, pointing at the dome. Sent because the 3D annotation used to rebuild a neck ring from the PCA axis instead, so on an oblique neck — the case the rim fit exists for — the ring drawn was NOT the plane that measured the neck, and the user had no way to see where their plane had landed. */
             plane_normal?: components["schemas"]["Position3D"] | null;
             /** @description Origin of the neck plane ACTUALLY used to isolate the sac, when one was placed by hand. Null for the automatic path. */
@@ -6011,6 +6672,11 @@ export interface components {
              */
             sac_mesh_url: string;
             /**
+             * Site
+             * @description Localización del aneurisma elegida en Morfometría (`clinical.site`, PUT /morphometry/{session_id}/site). La heredan PHASES, ELAPSS, UIATS, la decisión y el informe; viaja aquí para que «Reanudar» la recupere con la medida. None si no se eligió o es «Desconocida».
+             */
+            site?: ("Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Punta basilar" | "Tronco basilar" | "AICA" | "PICA / Vertebral" | "Otra localización" | "Basilar (punta, tronco o AICA)") | null;
+            /**
              * Sr
              * @description Size Ratio = max_diameter / parent_artery_diameter. 0 when parent artery not available (> 3.0 → elevated risk)
              * @default 0
@@ -6023,7 +6689,7 @@ export interface components {
             surface_area_mm2: number;
             /**
              * Ui
-             * @description Undulation Index = 1 − V_sac / V_convex_hull  (> 0.15 → irregular)
+             * @description Undulation Index = 1 − V_sac / V_convex_hull  (moderate ≥ 0.10, irregular ≥ 0.25)
              * @default 0
              */
             ui: number;
@@ -6101,6 +6767,11 @@ export interface components {
          *     measures the neck directly from the plane∩tree contour.
          */
         NeckPlaneRequest: {
+            /**
+             * Candidate Id
+             * @description Candidato al que corresponde esta medida (`cand-00N`). Se guarda como el elegido para que «Reanudar» la repita sobre él. Hace falta con un candidato marcado a mano: la morfometría automática no lo mide (no tiene malla), así que nada más lo deja elegido (F1-146).
+             */
+            candidate_id?: string | null;
             /** @description Optional point inside the dome to disambiguate the sac side. Defaults to origin + 3·normal. */
             dome_seed?: components["schemas"]["Position3D"] | null;
             /**
@@ -6731,10 +7402,42 @@ export interface components {
             /** Session Id */
             session_id: string;
             /**
+             * Size Bytes
+             * @default 0
+             */
+            size_bytes: number;
+            /**
              * Updated At
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * PatientShareOut
+         * @description Una cuenta con la que está compartido un paciente.
+         */
+        PatientShareOut: {
+            /** Full Name */
+            full_name: string;
+            /** Role */
+            role: string;
+            /**
+             * Shared At
+             * Format: date-time
+             */
+            shared_at: string;
+            /** User Id */
+            user_id: number;
+            /** Username */
+            username: string;
+        };
+        /**
+         * PatientSharesIn
+         * @description La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior).
+         */
+        PatientSharesIn: {
+            /** User Ids */
+            user_ids?: number[];
         };
         /** PatientSuggestion */
         PatientSuggestion: {
@@ -6785,8 +7488,46 @@ export interface components {
             id: number;
             /** Institution */
             institution: string;
+            /**
+             * Is Shared With Me
+             * @description Lo ve porque se lo compartieron, no porque lo creó
+             * @default false
+             */
+            is_shared_with_me: boolean;
+            /**
+             * Last Case Label
+             * @description Diagnóstico del caso más reciente; vacío si no hay casos
+             * @default
+             */
+            last_case_label: string;
+            /**
+             * Last Session At
+             * @description Última vez que se guardó una sesión del paciente
+             */
+            last_session_at?: string | null;
+            /**
+             * Last Session Id
+             * @description Sesión guardada más reciente, para reanudarla
+             */
+            last_session_id?: string | null;
+            /**
+             * Last Session Step
+             * @description Paso en que quedó esa sesión
+             */
+            last_session_step?: number | null;
+            /**
+             * Owner Id
+             * @description Cuenta que creó al paciente
+             */
+            owner_id?: number | null;
             /** Sex */
             sex: string;
+            /**
+             * Shared With Count
+             * @description Cuentas con las que está compartido
+             * @default 0
+             */
+            shared_with_count: number;
             /**
              * Study Count
              * @description Number of associated studies
@@ -6917,6 +7658,12 @@ export interface components {
              * @default
              */
             consequence: string;
+            /**
+             * Notice
+             * @description Aviso que va antes de la tarjeta. Hoy solo para la localización basilar antigua, que no dice si es punta o tronco.
+             * @default
+             */
+            notice: string;
             /** Sources */
             sources?: string[];
             /**
@@ -7064,6 +7811,60 @@ export interface components {
              * @description Sum of all PHASES factors
              */
             total_score: number;
+        };
+        /**
+         * PlacedClipState
+         * @description Un clip de la lista de colocación, tal como la edita el panel.
+         *
+         *     Es la fila editable (posición, giro y los dos ángulos de inclinación), no
+         *     la malla cocida: reanudar devolvía solo `clips_placed.vtp`, y sin la lista
+         *     el clip no se podía mover, ni verificar, ni volver a pedir su mapa de calor
+         *     (F1-28). Los nombres en camelCase son los de `PlacedClip` del frontend, que
+         *     se guarda tal cual.
+         */
+        PlacedClipState: {
+            /**
+             * Azimuthdeg
+             * @default 0
+             */
+            azimuthDeg: number;
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * Elevationdeg
+             * @default 0
+             */
+            elevationDeg: number;
+            /**
+             * Key
+             * @description Clave estable del clip dentro de la lista
+             */
+            key: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Position
+             * @description Centro del clip (mm, mundo)
+             */
+            position: number[];
+            /**
+             * Rotation Deg
+             * @default 0
+             */
+            rotation_deg: number;
+        };
+        /**
+         * PlacedClipsState
+         * @description La lista de clips colocados y la verificación con la que se colocó.
+         */
+        PlacedClipsState: {
+            /** Clips */
+            clips?: components["schemas"]["PlacedClipState"][];
+            /** @description El resultado de la última colocación de esta lista (cobertura del cuello, contacto, ramas bajo el clip). Vuelve con la sesión para que la tarjeta de verificación no exija volver a colocar. */
+            plan?: components["schemas"]["ClipPlanResult"] | null;
         };
         /**
          * PlanRequest
@@ -7243,6 +8044,16 @@ export interface components {
              * @default []
              */
             force_band_g: number[];
+            /**
+             * Force Statement
+             * @default
+             */
+            force_statement: string;
+            /**
+             * Force Target G
+             * @default 0
+             */
+            force_target_g: number;
             /**
              * Institution
              * @default
@@ -7775,12 +8586,48 @@ export interface components {
             stl_url?: string | null;
         };
         /**
+         * ReportUrls
+         * @description Los documentos ya generados que siguen en disco.
+         */
+        ReportUrls: {
+            /**
+             * Dicom Sr Url
+             * @description DICOM SR, si existe el fichero
+             */
+            dicom_sr_url?: string | null;
+            /**
+             * Pdf Current
+             * @description El PDF se generó con el plan que la sesión tiene ahora. False si el plan cambió después o no se sabe con cuál se generó: hay que regenerarlo.
+             * @default false
+             */
+            pdf_current: boolean;
+            /**
+             * Pdf Url
+             * @description Informe PDF, si existe el fichero
+             */
+            pdf_url?: string | null;
+            /**
+             * Sr Current
+             * @description Lo mismo para el DICOM SR
+             * @default false
+             */
+            sr_current: boolean;
+        };
+        /**
          * ResetPasswordRequest
          * @description Admin resetting someone else's password (no current password needed).
          */
         ResetPasswordRequest: {
             /** New Password */
             new_password: string;
+        };
+        /**
+         * SavedSessionRenameIn
+         * @description Nuevo nombre de una sesión guardada.
+         */
+        SavedSessionRenameIn: {
+            /** Label */
+            label: string;
         };
         /**
          * ScissorsRequest
@@ -8061,6 +8908,18 @@ export interface components {
          */
         SeriesInfo: {
             /**
+             * Acquisition Date
+             * @description Acquisition date as YYYY-MM-DD (AcquisitionDate, else SeriesDate, ContentDate, StudyDate); empty when the header has none
+             * @default
+             */
+            acquisition_date: string;
+            /**
+             * Acquisition Time
+             * @description Acquisition time as HH:MM (AcquisitionTime, else SeriesTime, ContentTime); empty when absent
+             * @default
+             */
+            acquisition_time: string;
+            /**
              * Description
              * @description Series description from DICOM header
              */
@@ -8091,6 +8950,12 @@ export interface components {
              * @description Unique session identifier (UUID)
              */
             session_id: string;
+            /**
+             * Session Ttl Hours
+             * @description Hours after creation at which an unsaved live session is purged (SESSION_TTL_HOURS on the server)
+             * @default 24
+             */
+            session_ttl_hours: number;
             /**
              * Size Mb
              * @description Estimated volume size in RAM (MB)
@@ -8166,6 +9031,11 @@ export interface components {
             /** Session Id */
             session_id: string;
             /**
+             * Size Bytes
+             * @default 0
+             */
+            size_bytes: number;
+            /**
              * Updated At
              * Format: date-time
              */
@@ -8221,6 +9091,12 @@ export interface components {
             /** Label */
             label: string;
             /**
+             * Lesion Confirmed
+             * @description Hay una confirmación de lesión vigente para esta sesión (por su estudio o por su linaje de sesiones)
+             * @default false
+             */
+            lesion_confirmed: boolean;
+            /**
              * Mesh Url
              * @description URL of the restored vessel mesh (empty if none)
              * @default
@@ -8255,6 +9131,10 @@ export interface components {
              * @description Patient this session belongs to
              */
             patient_id?: number | null;
+            /** @description La lista editable de clips colocados y su verificación */
+            placed_clips?: components["schemas"]["PlacedClipsState"] | null;
+            /** @description Enlaces al PDF y al SR ya generados, si siguen en disco */
+            report_urls?: components["schemas"]["ReportUrls"] | null;
             /**
              * Restored At
              * Format: date-time
@@ -8278,6 +9158,14 @@ export interface components {
              * @default
              */
             study_label: string;
+            /** @description La trayectoria guardada con su ángulo, profundidad y corredor */
+            trajectory?: components["schemas"]["TrajectoryResult"] | null;
+            /** @description La recomendación guardada, igual que la devolvió el motor */
+            treatment?: components["schemas"]["TreatmentDecisionResult"] | null;
+            /** @description Las entradas clínicas con que se pidió (con el session_id nuevo) */
+            treatment_inputs?: components["schemas"]["TreatmentDecisionRequest"] | null;
+            /** @description Ventana y nivel de los cortes; null = la del DICOM */
+            window?: components["schemas"]["ViewerWindow"] | null;
         };
         /**
          * SessionSaveRequest
@@ -8301,6 +9189,12 @@ export interface components {
              * @default
              */
             label: string;
+            /**
+             * Overwrite Origin
+             * @description If this live session was resumed from a saved one and has no record of its own yet, update that saved record (it takes this session's id) instead of adding a new one. False saves it as a new session.
+             * @default true
+             */
+            overwrite_origin: boolean;
             /**
              * Patient Id
              * @description Associate this session with a patient record
@@ -8546,6 +9440,11 @@ export interface components {
              * @default 0
              */
             n_slices: number;
+            /**
+             * Owner Id
+             * @description Cuenta que creó al paciente: quien puede borrar el estudio archivado
+             */
+            owner_id?: number | null;
             /** Patient Id */
             patient_id: number;
             /**
@@ -8823,6 +9722,47 @@ export interface components {
             vmin: number;
         };
         /**
+         * TeamDecision
+         * @description La decisión del equipo tal como está guardada (`treatment.team_*`).
+         */
+        TeamDecision: {
+            /**
+             * Decided By
+             * @default
+             */
+            decided_by: string;
+            /**
+             * Other Text
+             * @default
+             */
+            other_text: string;
+            /** Team Decision */
+            team_decision?: ("clipaje" | "endovascular" | "vigilar" | "otra") | null;
+        };
+        /**
+         * TeamDecisionRequest
+         * @description PUT /api/treatment-decision/{session_id}/team. `null` la borra.
+         */
+        TeamDecisionRequest: {
+            /**
+             * Decided By
+             * @description Quién decide (persona o comité). No se rellena con el usuario conectado: quien teclea no es necesariamente quien decide.
+             * @default
+             */
+            decided_by: string;
+            /**
+             * Other Text
+             * @description Qué, cuando la decisión es «otra».
+             * @default
+             */
+            other_text: string;
+            /**
+             * Team Decision
+             * @description La decisión del equipo, o null para quitarla.
+             */
+            team_decision: ("clipaje" | "endovascular" | "vigilar" | "otra") | null;
+        };
+        /**
          * TrajectoryRequest
          * @description Entry → target surgical approach corridor (mesh/world space, mm).
          */
@@ -8848,6 +9788,12 @@ export interface components {
             depth_mm: number;
             /** Entry */
             entry: number[];
+            /**
+             * Stale
+             * @description True cuando hay malla pero el análisis guardado ya no vale: la malla cambió después de guardar la trayectoria (resegmentar, recortar, borrar) o la sesión se guardó antes de que se guardara el análisis. Los puntos siguen; hay que volver a guardar la trayectoria para medir el corredor sobre la malla de ahora.
+             * @default false
+             */
+            stale: boolean;
             /** Target */
             target: number[];
         };
@@ -8879,7 +9825,7 @@ export interface components {
              * @default Desconocida / No especificada
              * @enum {string}
              */
-            location: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Basilar (punta, tronco o AICA)" | "PICA / Vertebral" | "Otra localización";
+            location: "Desconocida / No especificada" | "ACM — Arteria Cerebral Media" | "ACA / ACoA — Arteria Comunicante Anterior" | "ACI proximal (segm. cavernoso / clinoideo)" | "ACI distal (PCOM / oftálmica)" | "ACoP — Arteria Comunicante Posterior" | "Punta basilar" | "Tronco basilar" | "AICA" | "PICA / Vertebral" | "Otra localización" | "Basilar (punta, tronco o AICA)";
             /**
              * Patient Age
              * @description Patient age in years. Now scored: the validated Japan Stroke Data Bank model penalises clipping from 72 and coiling only from 80. Optional — the engine reports how much of the case it could see rather than refusing to answer.
@@ -8914,6 +9860,12 @@ export interface components {
              * @enum {string}
              */
             confidence: "Alta" | "Moderada" | "Baja";
+            /**
+             * Confidence Reason
+             * @description F1-177: why confidence is low — «los factores empujan en sentidos opuestos» or «faltan datos: evaluado el N % del caso». Empty when confidence is not low.
+             * @default
+             */
+            confidence_reason: string;
             /**
              * Coverage Pct
              * @description How much of the case the engine could actually evaluate, as a share of the weight available. Nothing is mandatory — and WFNS and Fisher cannot be, since they do not exist for an unruptured aneurysm — but confidence is capped by this, because agreement among the factors that were seen cannot make up for the ones that were not.
@@ -8957,6 +9909,8 @@ export interface components {
              * @enum {string}
              */
             recommendation_key: "clip" | "endo" | "mdt" | "surveillance";
+            /** @description La decisión del equipo, si se ha registrado. Va aparte de la recomendación y no se borra con ella: re-evaluar o cambiar la localización tira lo del motor, no lo que decidió el equipo. */
+            team?: components["schemas"]["TeamDecision"] | null;
         };
         /** UiatsItem */
         UiatsItem: {
@@ -9096,6 +10050,16 @@ export interface components {
              */
             is_active: boolean;
             /**
+             * Position
+             * @default
+             */
+            position: string;
+            /**
+             * Rejected At
+             * @description ISO UTC; solo si la solicitud se rechazó
+             */
+            rejected_at?: string | null;
+            /**
              * Role
              * @enum {string}
              */
@@ -9111,6 +10075,31 @@ export interface components {
              * @default
              */
             status: string;
+            /**
+             * University
+             * @default
+             */
+            university: string;
+            /** Username */
+            username: string;
+        };
+        /**
+         * UserBrief
+         * @description Una cuenta activa, lo justo para elegir con quién compartir un paciente.
+         *
+         *     `/users` es solo del administrador y trae el perfil entero; para compartir,
+         *     cualquier profesional necesita ver nombre y rol de los demás, nada más.
+         */
+        UserBrief: {
+            /** Full Name */
+            full_name: string;
+            /** Id */
+            id: number;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "medico" | "residente" | "viewer";
             /** Username */
             username: string;
         };
@@ -9161,10 +10150,18 @@ export interface components {
         UserUpdate: {
             /** Full Name */
             full_name?: string | null;
+            /** Hospital */
+            hospital?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Position */
+            position?: string | null;
             /** Role */
             role?: ("admin" | "medico" | "residente" | "viewer") | null;
+            /** Specialty */
+            specialty?: string | null;
+            /** University */
+            university?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -9204,6 +10201,47 @@ export interface components {
             /** Distance From Entry Mm */
             distance_from_entry_mm: number;
             position: components["schemas"]["Position3D"];
+        };
+        /**
+         * Veto
+         * @description Por qué un sitio propuesto se apartó de la lista (`candidate_vetoes`).
+         *
+         *     Se devuelve el motivo en vez de borrar el sitio: el veto es geométrico y
+         *     puede equivocarse, así que el clínico tiene que poder ver lo descartado.
+         */
+        Veto: {
+            /**
+             * Detail
+             * @description Una frase con la cifra que lo decidió
+             */
+            detail: string;
+            /**
+             * Label
+             * @description Motivo legible («Recorte de la malla», …)
+             */
+            label: string;
+            /**
+             * Reason
+             * @description Clave estable del motivo
+             * @enum {string}
+             */
+            reason: "borde" | "isla" | "bifurcacion" | "forma";
+        };
+        /**
+         * ViewerWindow
+         * @description Ventana y nivel de los cortes, tal como los dejó el profesional.
+         */
+        ViewerWindow: {
+            /**
+             * Wc
+             * @description Centro de la ventana (nivel)
+             */
+            wc: number;
+            /**
+             * Ww
+             * @description Anchura de la ventana
+             */
+            ww: number;
         };
         /** WebOption */
         WebOption: {
@@ -9386,6 +10424,72 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_annotations_api_annotations__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_annotations_api_annotations__session_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     append_event_api_audit_post: {
         parameters: {
             query?: never;
@@ -9423,7 +10527,9 @@ export interface operations {
     };
     list_blocks_api_audit_blocks_get: {
         parameters: {
-            query?: never;
+            query?: {
+                patient_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -9437,6 +10543,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditBlock"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -9794,7 +10909,9 @@ export interface operations {
     };
     list_users_api_auth_users_get: {
         parameters: {
-            query?: never;
+            query?: {
+                status?: ("pending" | "approved" | "rejected") | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -9808,6 +10925,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserAdminInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -9841,6 +10967,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_brief_api_auth_users_brief_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBrief"][];
                 };
             };
         };
@@ -9882,7 +11028,9 @@ export interface operations {
     };
     delete_user_api_auth_users__user_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                reassign_to?: number | null;
+            };
             header?: never;
             path: {
                 user_id: number;
@@ -9897,6 +11045,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_user_photo_api_auth_users__user_id__photo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_set_user_photo_api_auth_users__user_id__photo_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAdminInfo"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -10320,6 +11503,37 @@ export interface operations {
             };
         };
     };
+    get_centerline_points_api_centerline__session_id__points_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CenterlinePoints"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     deploy_cl_stent_api_cl_stent__session_id__post: {
         parameters: {
             query?: never;
@@ -10521,8 +11735,10 @@ export interface operations {
             query?: {
                 /** @description Filter by status */
                 status?: string | null;
-                /** @description Only orders raised from this session */
+                /** @description Only orders raised from this session or from the saved sessions it was resumed from */
                 session_id?: string;
+                /** @description Also the orders of this case, whichever session raised them */
+                case_id?: number | null;
                 /** @description Only orders for this patient */
                 patient_id?: number | null;
                 /** @description Free text over part number, patient, case, surgeon, workshop */
@@ -11187,6 +12403,41 @@ export interface operations {
             };
         };
     };
+    clip_field_api_clips_field__session_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClipPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClipFieldResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     clip_manufacture_spec_api_clips_manufacture__session_id__post: {
         parameters: {
             query?: {
@@ -11476,6 +12727,41 @@ export interface operations {
             };
         };
     };
+    preview_coil_construct_api_coils__session_id__construct_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoilPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoilPreviewResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     compute_cross_section_api_cross_section__session_id__post: {
         parameters: {
             query?: never;
@@ -11513,7 +12799,10 @@ export interface operations {
     };
     detect_aneurysm_api_detect__session_id__post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Devolver la última detección guardada en la sesión sin recalcular (lo usa «Reanudar»). 404 si no hay ninguna guardada o falta la malla de algún candidato: entonces hay que pedirla sin `cached`. */
+                cached?: boolean;
+            };
             header?: never;
             path: {
                 session_id: string;
@@ -11627,6 +12916,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceClearResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_placed_clips_api_devices__session_id__placed_clips_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlacedClipsState"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacedClipsState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_device_strategy_api_devices__session_id__strategy_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceStrategyState"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceStrategyState"];
                 };
             };
             /** @description Validation Error */
@@ -12338,6 +13697,41 @@ export interface operations {
             };
         };
     };
+    set_clinical_site_api_morphometry__session_id__site_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClinicalSiteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicalSiteResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_patients_api_patients_get: {
         parameters: {
             query?: never;
@@ -12537,6 +13931,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PatientSessionInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_patient_shares_api_patients__patient_id__shares_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientShareOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_patient_shares_api_patients__patient_id__shares_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatientSharesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientShareOut"][];
                 };
             };
             /** @description Validation Error */
@@ -13251,6 +14711,70 @@ export interface operations {
             };
         };
     };
+    delete_saved_api_sessions_saved__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_saved_session_api_sessions_saved__session_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedSessionRenameIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionListItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     attach_session_api_sessions__session_id__attach_post: {
         parameters: {
             query?: never;
@@ -13520,6 +15044,35 @@ export interface operations {
             };
         };
     };
+    delete_imaging_study_api_studies__study_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     open_study_api_studies__study_id__open_post: {
         parameters: {
             query?: never;
@@ -13777,6 +15330,37 @@ export interface operations {
             };
         };
     };
+    get_treatment_decision_api_treatment_decision__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TreatmentDecisionResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     clear_treatment_api_treatment_decision__session_id__delete: {
         parameters: {
             query?: never;
@@ -13797,6 +15381,72 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_team_decision_api_treatment_decision__session_id__team_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamDecision"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_team_decision_api_treatment_decision__session_id__team_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamDecision"];
                 };
             };
             /** @description Validation Error */
@@ -14007,7 +15657,7 @@ export interface operations {
             };
         };
     };
-    get_volume_raw_api_volume__session_id__raw_get: {
+    put_window_api_volume__session_id__window_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -14016,7 +15666,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewerWindow"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14024,7 +15678,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/octet-stream": unknown;
+                    "application/json": components["schemas"]["ViewerWindow"];
                 };
             };
             /** @description Validation Error */

@@ -1179,7 +1179,10 @@ def _run_segmentation_sync(
     # de la malla vieja, con sus .vtp de cinco minutos antes. Conclusión
     # razonable y equivocada: «no detecta el aneurisma».
     from routers.detect import _clear_detection_state
+    from routers.report import clear_corridor_analysis
     _clear_detection_state(session_id, meshes_dir, morphometry=True)
+    # El corredor guardado también se midió contra la malla vieja.
+    clear_corridor_analysis(session_id)
 
     # ── Persist metadata to session state ─────────────────────────────────── #
     # De una vez: diecisiete escrituras sueltas reescribían el fichero

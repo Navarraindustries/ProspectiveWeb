@@ -6,10 +6,11 @@ Ratios and indices    → dimensionless.
 Clinical reference ranges (Dhar 2008, Raghavan 2005, Greving 2014):
   dome_mm:            3–30 mm    (most 5–15 mm)
   neck_mm:            2–10 mm    (typical 3–6 mm)
-  ar:                 1.0–4.0    (> 1.6 → elevated rupture risk)
-  bf:                 0.5–3.0    (> 1.5 → wide neck)
-  dnr:                0.5–3.0
-  ui:                 0.0–0.5    (> 0.15 → irregular dome, higher risk)
+  (cuts: services/index_thresholds.py, the same in badge, risk label and decision)
+  ar:                 1.0–4.0    (≥ 1.2 moderate, ≥ 1.6 elevated rupture risk)
+  bf:                 0.5–3.0    (> 1.5 → relatively NARROW neck; ≤ 1.5 → relatively wide)
+  dnr:                0.5–3.0    (≥ 1.6 moderate, ≥ 2.0 high)
+  ui:                 0.0–0.5    (≥ 0.10 moderate, ≥ 0.25 irregular dome)
   ei:                 0.0–0.6    (> 0.35 → non-spherical, higher risk)
   nsi:                0.0–0.5
   sr:                 0.5–5.0    (> 3.0 → elevated risk)
@@ -21,11 +22,27 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .treatment import AneurysmLocation
+
 
 class Position3D(BaseModel):
     x: float = Field(..., description="X coordinate in mm (patient space)")
     y: float = Field(..., description="Y coordinate in mm (patient space)")
     z: float = Field(..., description="Z coordinate in mm (patient space)")
+
+
+class Veto(BaseModel):
+    """Por qué un sitio propuesto se apartó de la lista (`candidate_vetoes`).
+
+    Se devuelve el motivo en vez de borrar el sitio: el veto es geométrico y
+    puede equivocarse, así que el clínico tiene que poder ver lo descartado.
+    """
+
+    reason: Literal["borde", "isla", "bifurcacion", "forma"] = Field(
+        ..., description="Clave estable del motivo"
+    )
+    label: str = Field(..., description="Motivo legible («Recorte de la malla», …)")
+    detail: str = Field(..., description="Una frase con la cifra que lo decidió")
 
 
 class AneurysmCandidate(BaseModel):
@@ -41,7 +58,7 @@ class AneurysmCandidate(BaseModel):
     selected: bool = Field(
         False, description="True when this candidate is the user-selected one"
     )
-    patch_kind: Literal["region", "locator"] = Field(
+    patch_kind: Literal["region", "locator", "manual"] = Field(
         "region",
         description=(
             "Qué es la malla de `dome_mesh_url`. «region»: la región que el "
@@ -50,7 +67,10 @@ class AneurysmCandidate(BaseModel):
             "geométricos, así que enseña DÓNDE mirar y no qué parte es la "
             "lesión; incluye pared de vaso alrededor. En ninguno de los dos "
             "casos afecta a la morfometría, que se mide sobre el saco aislado "
-            "desde el volumen a partir del plano de cuello marcado."
+            "desde el volumen a partir del plano de cuello marcado. «manual»: "
+            "un punto que el profesional marcó y confirmó como la lesión sin "
+            "que coincidiera con ningún candidato; no tiene malla "
+            "(`dome_mesh_url` vacío) y se mide marcando cuello y ápice."
         ),
     )
     channels: list[str] = Field(
@@ -62,6 +82,18 @@ class AneurysmCandidate(BaseModel):
             "varios es información para el clínico; el ORDEN no está validado "
             "contra casos anotados y no debe leerse como un veredicto."
         ),
+    )
+    rank: int = Field(
+        ...,
+        description=(
+            "Posición 1-based dentro de su lista: los aceptados 1..n en el "
+            "orden del consenso, los descartados 1..m en el suyo. 0 en un "
+            "candidato marcado a mano: el detector no le dio puesto."
+        ),
+    )
+    veto: Veto | None = Field(
+        None,
+        description="None si el sitio se acepta; el motivo si se descartó.",
     )
 
 
@@ -91,6 +123,13 @@ class DetectionDiagnostics(BaseModel):
     )
     min_radius_mm: float = Field(0.0, description="Lower bound of the size gate")
     max_radius_mm: float = Field(0.0, description="Upper bound of the size gate")
+    n_rejected: int = Field(
+        0, description="Sitios del consenso apartados por un veto (ver `rejected`)"
+    )
+    rejected_by_reason: dict[str, int] = Field(
+        default_factory=dict,
+        description="Cuántos descartados por cada motivo (`Veto.reason`)",
+    )
 
 
 class AneurysmDetectionResult(BaseModel):
@@ -104,6 +143,21 @@ class AneurysmDetectionResult(BaseModel):
     diagnostics: DetectionDiagnostics = Field(
         default_factory=DetectionDiagnostics,
         description="Region counts per rejection reason — explains an empty result",
+    )
+    rejected: list[AneurysmCandidate] = Field(
+        default_factory=list,
+        description=(
+            "Sitios que el consenso propuso y un veto apartó, cada uno con su "
+            "`veto`. Sus ids siguen a los de `candidates` (cand-00N "
+            "consecutivos) y su malla existe: GET /morphometry los mide igual."
+        ),
+    )
+    morphometry_invalidated: bool = Field(
+        False,
+        description=(
+            "True si esta detección borró la morfometría porque el candidato "
+            "medido ya no está en la lista o se movió más de 2 mm."
+        ),
     )
 
 
@@ -134,13 +188,13 @@ class MorphometryResult(BaseModel):
 
     # ── Primary clinical ratios ───────────────────────────────────────────── #
     dnr: float = Field(
-        ..., description="Dome-to-Neck Ratio = max_diameter / neck_mm  (risk ↑ if > 2.0)"
+        ..., description="Dome-to-Neck Ratio = max_diameter / neck_mm  (moderate ≥ 1.6, high ≥ 2.0)"
     )
     ar: float = Field(
-        ..., description="Aspect Ratio = dome_height / neck_mm  (risk ↑ if > 1.6)"
+        ..., description="Aspect Ratio = dome_height / neck_mm  (moderate ≥ 1.2, high ≥ 1.6)"
     )
     bf: float = Field(
-        ..., description="Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → wide neck)"
+        ..., description="Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → relatively narrow neck)"
     )
     compactness: float = Field(
         ..., ge=0.0, le=1.0,
@@ -150,7 +204,7 @@ class MorphometryResult(BaseModel):
     # ── Shape-complexity indices (Ankyras-style) ──────────────────────────── #
     ui: float = Field(
         0.0, ge=0.0, le=1.0,
-        description="Undulation Index = 1 − V_sac / V_convex_hull  (> 0.15 → irregular)"
+        description="Undulation Index = 1 − V_sac / V_convex_hull  (moderate ≥ 0.10, irregular ≥ 0.25)"
     )
     ei: float = Field(
         0.0, ge=0.0, le=1.0,
@@ -165,6 +219,16 @@ class MorphometryResult(BaseModel):
         description=(
             "Size Ratio = max_diameter / parent_artery_diameter. "
             "0 when parent artery not available (> 3.0 → elevated risk)"
+        ),
+    )
+    parent_artery_mm: float | None = Field(
+        None, ge=0.0,
+        description=(
+            "Parent-artery diameter estimated at the neck from the vessel tree "
+            "(`morpho.parent_artery_mm`, services/parent_artery.py) — the same "
+            "figure the straight-stent planner sizes against. None when it could "
+            "not be measured. The device panel seeds the stent's nominal "
+            "diameter from it (F1-205)."
         ),
     )
 
@@ -217,6 +281,15 @@ class MorphometryResult(BaseModel):
             "la tiene CERO — validado con sacos sintéticos de 4, 6 y 8 mm, que "
             "devolvían los tres la misma región de 27,5 mm. Lo que delimita el "
             "saco es el cuello, y eso lo marca el clínico."
+        ),
+    )
+    site: AneurysmLocation | None = Field(
+        None,
+        description=(
+            "Localización del aneurisma elegida en Morfometría (`clinical.site`, "
+            "PUT /morphometry/{session_id}/site). La heredan PHASES, ELAPSS, "
+            "UIATS, la decisión y el informe; viaja aquí para que «Reanudar» la "
+            "recupere con la medida. None si no se eligió o es «Desconocida»."
         ),
     )
     candidate_id: str | None = Field(
@@ -331,6 +404,16 @@ class NeckPlaneRequest(BaseModel):
     """
 
     origin: Position3D = Field(..., description="A point on the neck plane (mm, patient space)")
+    candidate_id: str | None = Field(
+        None,
+        pattern=r"^cand-(\d{3})$",
+        description=(
+            "Candidato al que corresponde esta medida (`cand-00N`). Se guarda "
+            "como el elegido para que «Reanudar» la repita sobre él. Hace falta "
+            "con un candidato marcado a mano: la morfometría automática no lo "
+            "mide (no tiene malla), así que nada más lo deja elegido (F1-146)."
+        ),
+    )
     normal: list[float] = Field(
         ...,
         min_length=3,

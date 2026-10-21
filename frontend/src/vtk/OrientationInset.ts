@@ -78,14 +78,18 @@ export function createOrientationInset(rw: vtkRenderWindow, main: vtkRenderer, o
   /* Lo mismo cuando la que pinta es la escena: el cubo es translúcido y el
      pase de transparencia reserva texturas del tamaño del recuadro; con un
      lienzo a 0 (o tan pequeño que el recuadro no llega a un píxel) salen de
-     tamaño 0. El renderer se apaga (draw = false) mientras no quepa. */
+     tamaño 0. El renderer se apaga (draw = false) mientras no quepa, y
+     también con el HUD limpio (setVisible): el recuadro es un viewport de
+     vtk, el CSS del nivel no llega a él. */
+  let visible = true;
   const fitDraw = () => {
     const size = viewSize();
     const [x0, y0, x1, y1] = inset.getViewport();
     // Sin vista aún no se sabe: se deja encendido (apagarlo sin suscripción
     // lo dejaría apagado para siempre).
     const fits = !size || (size[0] * (x1 - x0) >= 1 && size[1] * (y1 - y0) >= 1);
-    if (inset.getDraw() !== fits) inset.setDraw(fits);
+    const draw = fits && visible;
+    if (inset.getDraw() !== draw) inset.setDraw(draw);
   };
   fitDraw();
   const viewSub = view()?.onModified?.(fitDraw);
@@ -190,6 +194,13 @@ export function createOrientationInset(rw: vtkRenderWindow, main: vtkRenderer, o
       inset.setViewport(...(raised ? INSET_VIEWPORT_RAISED : INSET_VIEWPORT));
       fitDraw();
       syncCamera();
+      render();
+    },
+    /** Fuera con el HUD limpio; se quita sin rehacer nada (cubo y maniquí siguen cargados). */
+    setVisible: (v: boolean) => {
+      if (v === visible) return;
+      visible = v;
+      fitDraw();
       render();
     },
     dispose: () => {

@@ -37,8 +37,12 @@ References
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
+
+from services import index_thresholds as T
+from services.phases import phases_label
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +54,26 @@ LOCATION_ACA_ACOA  = "ACA / ACoA — Arteria Comunicante Anterior"
 LOCATION_ICA_PROX  = "ACI proximal (segm. cavernoso / clinoideo)"
 LOCATION_ICA_DIST  = "ACI distal (PCOM / oftálmica)"
 LOCATION_PCOM      = "ACoP — Arteria Comunicante Posterior"
-LOCATION_BASILAR   = "Basilar (punta, tronco o AICA)"
+LOCATION_BASILAR_TIP   = "Punta basilar"
+LOCATION_BASILAR_TRUNK = "Tronco basilar"
+LOCATION_AICA          = "AICA"
+#: F1-174: la entrada única juntaba punta, tronco y AICA, y la tarjeta de
+#: perforantes era siempre la de la punta. Se separa en tres, pero el valor
+#: antiguo se sigue aceptando: hay sesiones guardadas que lo llevan (Case 3, de
+#: tronco). No se traduce a «punta» en silencio; la interfaz pide precisarlo.
+LOCATION_BASILAR_LEGACY = "Basilar (punta, tronco o AICA)"
+#: Las cuatro: puntúan igual (circulación posterior, alta complejidad quirúrgica).
+BASILAR_LOCATIONS = (LOCATION_BASILAR_TIP, LOCATION_BASILAR_TRUNK, LOCATION_AICA,
+                     LOCATION_BASILAR_LEGACY)
 LOCATION_PICA      = "PICA / Vertebral"
 LOCATION_OTHER     = "Otra localización"
 
 LOCATIONS: list[str] = [
     LOCATION_UNKNOWN, LOCATION_MCA, LOCATION_ACA_ACOA, LOCATION_ICA_PROX,
-    LOCATION_ICA_DIST, LOCATION_PCOM, LOCATION_BASILAR, LOCATION_PICA, LOCATION_OTHER,
+    LOCATION_ICA_DIST, LOCATION_PCOM, LOCATION_BASILAR_TIP, LOCATION_BASILAR_TRUNK,
+    LOCATION_AICA, LOCATION_PICA, LOCATION_OTHER,
+    # Al final y fuera del menú: solo para que validen las sesiones antiguas.
+    LOCATION_BASILAR_LEGACY,
 ]
 
 
@@ -114,6 +131,9 @@ class _Factor:
 
 #: Provenance per factor. Written out rather than inferred so that adding a
 #: factor without a source is a visible omission.
+#: F1-227: los textos llegan al PDF y dicen la regla VIGENTE. La historia
+#: (AR/BF/UI votaban; DNR y cuello sumaban 40 puntos entre los dos; WFNS y
+#: Fisher puntuaban aquí además de en el JSDB) se queda en este comentario.
 _SOURCE: dict[str, str] = {
     "neck": (
         "Umbral: cuello ancho = cuello ≥ 4 mm O DNR < 2 — las dos mitades de UNA "
@@ -121,26 +141,27 @@ _SOURCE: dict[str, str] = {
         "una sola vez. Peso: heurístico."
     ),
     "ar": (
-        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
-        "modalidad. Un AR ≥ 1.6 se asocia a RECANALIZACIÓN tras coiling "
-        "(OR 4.15) — va al perfil endovascular."
+        "Índice de riesgo de rotura: describe la vía endovascular, no vota. "
+        "Sin validación para elegir modalidad; un AR ≥ 1.6 se asocia a "
+        "RECANALIZACIÓN tras coiling (OR 4.15) y figura en el perfil endovascular."
     ),
     "dnr": (
-        "Ya no es un factor propio: el DNR es domo ÷ cuello, así que puntuaba la "
-        "misma medida que el factor del cuello y entre los dos se llevaban 40 "
-        "puntos. Ahora se evalúan como un solo criterio de cuello ancho."
+        "El DNR es la otra mitad de la definición de cuello ancho: se evalúa "
+        "con el cuello, en un solo criterio (domo ÷ cuello mide lo mismo que el "
+        "cuello y no se cuenta dos veces)."
     ),
     "size": (
         "Umbrales de tamaño de uso corriente; el corte de gigante es "
         "convencional. Peso: heurístico."
     ),
     "bf": (
-        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
-        "modalidad. Lo que sí predice va al perfil endovascular."
+        "Índice de riesgo de rotura: describe la vía endovascular, no vota. "
+        "Sin validación para elegir modalidad; lo que sí predice figura en el "
+        "perfil endovascular."
     ),
     "ui": (
-        "Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir "
-        "modalidad ni para el resultado del coiling."
+        "Índice de riesgo de rotura: describe la vía endovascular, no vota. "
+        "Sin validación para elegir modalidad ni para el resultado del coiling."
     ),
     "location": (
         "Dirección recogida en guía para circulación posterior (AHA/ASA 2023). "
@@ -159,18 +180,89 @@ _SOURCE: dict[str, str] = {
         "resultado demostrada en ≥60."
     ),
     "wfns": (
-        "Ya no puntúa aquí: se lo lleva el JSDB, que lo tiene ajustado en tres "
-        "niveles (II-III / IV / V) sobre 3 547 pacientes en vez de en dos a mano."
+        "WFNS/Fisher los evalúa el modelo del Japan Stroke Data Bank (JSDB), ajustado "
+        "en tres niveles (II-III / IV / V) sobre 3 547 pacientes; no puntúan "
+        "aparte."
     ),
     "fisher": (
-        "Ya no puntúa aquí: se lo lleva el JSDB. Sumarlo en los dos sitios sería "
-        "contar la misma variable dos veces."
+        "WFNS/Fisher los evalúa el modelo del Japan Stroke Data Bank (JSDB); no puntúa "
+        "aparte para no contar la misma variable dos veces."
     ),
     "small": (
         "Umbral heurístico, no de guía: ESO 2022 plantea comparar el riesgo de "
         "rotura contra el del procedimiento, no cortar por diámetro."
     ),
 }
+
+
+# ── Textos de decisiones guardadas antes de F1-227 / F1-225 ───────────────── #
+# Una decisión guarda el nombre y la procedencia de cada factor tal como eran
+# al decidir (`treatment.factors_json`, `treatment.result_json`). Las sesiones
+# decididas antes de reescribirlos —las de Case 3 entre ellas— seguían
+# imprimiendo «Ya no vota…» y «Aspect Ratio bajo…» hasta volver a decidir.
+# Volver a decidir al abrir cambiaría en silencio una decisión que el equipo
+# pudo haber revisado; aquí solo se traduce el TEXTO al leer. Las claves son los
+# textos exactos de 8d4c7e8 (y anteriores, que eran iguales): un texto que no
+# está en el mapa pasa sin tocar.
+_LEGACY_SOURCE_TEXTS: dict[str, str] = {
+    # ar
+    (
+        'Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir '
+        'modalidad. Un AR ≥ 1.6 se asocia a RECANALIZACIÓN tras coiling (OR '
+        '4.15) — va al perfil endovascular.'
+    ): _SOURCE['ar'],
+    # dnr
+    (
+        'Ya no es un factor propio: el DNR es domo ÷ cuello, así que puntuaba '
+        'la misma medida que el factor del cuello y entre los dos se llevaban '
+        '40 puntos. Ahora se evalúan como un solo criterio de cuello ancho.'
+    ): _SOURCE['dnr'],
+    # bf
+    (
+        'Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir '
+        'modalidad. Lo que sí predice va al perfil endovascular.'
+    ): _SOURCE['bf'],
+    # ui
+    (
+        'Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir '
+        'modalidad ni para el resultado del coiling.'
+    ): _SOURCE['ui'],
+    # wfns
+    (
+        'Ya no puntúa aquí: se lo lleva el JSDB, que lo tiene ajustado en tres '
+        'niveles (II-III / IV / V) sobre 3 547 pacientes en vez de en dos a '
+        'mano.'
+    ): _SOURCE['wfns'],
+    # fisher
+    (
+        'Ya no puntúa aquí: se lo lleva el JSDB. Sumarlo en los dos sitios '
+        'sería contar la misma variable dos veces.'
+    ): _SOURCE['fisher'],
+}
+
+_LEGACY_AR_NAME = re.compile(r"^Aspect Ratio (alto|moderado|bajo)(?= |$)")
+_AR_NAME_ES = {"alto": "alta", "moderado": "moderada", "bajo": "baja"}
+
+
+def modern_factor_name(name: str) -> str:
+    """«Aspect Ratio bajo (AR = …)» → «Relación de aspecto (AR) baja (AR = …)»."""
+    return _LEGACY_AR_NAME.sub(
+        lambda m: f"Relación de aspecto (AR) {_AR_NAME_ES[m.group(1)]}", name or "")
+
+
+def modern_factor_source(source: str) -> str:
+    """La procedencia vigente para un texto de procedencia antiguo exacto."""
+    return _LEGACY_SOURCE_TEXTS.get(source, source)
+
+
+def modernize_factor(f: dict) -> dict:
+    """Un factor guardado (dict) con los textos vigentes; el resto, igual."""
+    out = dict(f)
+    if "name" in out:
+        out["name"] = modern_factor_name(str(out["name"]))
+    if "source" in out:
+        out["source"] = modern_factor_source(str(out["source"]))
+    return out
 
 
 
@@ -189,10 +281,23 @@ class _Decision:
     #: Qué parte del caso se ha podido evaluar, y qué datos faltaban.
     coverage_pct:   int       = 100
     missing_inputs: list[str] = field(default_factory=list)
+    #: F1-177: por qué la confianza es baja; «» si no lo es.
+    confidence_reason: str = ""
+
+
+# F1-17: el aviso del saco que llega al límite del recorte se quedaba en
+# Morfometría, y aquí se citaba un PHASES calculado con ese mismo Ø —que mide
+# arteria además de aneurisma— como si fuera firme.
+_PARENT_IN_SAC_NOTE = (
+    " Ese PHASES es provisional: el saco aislado llega hasta el límite del "
+    "recorte y el plano de cuello dejó entrar vaso padre, así que el Ø máximo "
+    "con que se calculó mide arteria además de aneurisma. Vuelve a marcar el "
+    "cuello en Morfometría antes de apoyarte en la cifra."
+)
 
 
 def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
-                    ruptured: bool) -> dict[str, Any]:
+                    ruptured: bool, parent_in_sac: bool = False) -> dict[str, Any]:
     """«Tratar o vigilar» para un aneurisma menor de 3 mm.
 
     Esto no es la pregunta que responde el resto del módulo. El resto elige
@@ -201,9 +306,9 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
 
     Se contestaba con el diámetro y nada más, y con confianza «Alta». Dos
     pacientes con el mismo aneurisma de 2.8 mm —uno finlandés, hipertenso, con
-    HSA previa, PHASES 14 y 17 % de riesgo a cinco años; otro sin factores, con
-    PHASES 0 y 0.4 %— recibían el mismo veredicto y la misma confianza. Un
-    riesgo 42 veces mayor no movía nada, porque el PHASES lo calcula el paso de
+    HSA previa, PHASES 11 y 7,2 % de riesgo a cinco años; otro sin factores, con
+    PHASES 0 y 0,4 %— recibían el mismo veredicto y la misma confianza. Un
+    riesgo 18 veces mayor no movía nada, porque el PHASES lo calcula el paso de
     morfometría y este cálculo no lo miraba.
 
     ESO 2022 plantea la decisión como comparar el riesgo de rotura contra el del
@@ -232,12 +337,14 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
             coverage_pct=cov,
             recommendation="DISCUSIÓN MULTIDISCIPLINARIA",
             recommendation_key="mdt", confidence="Baja",
+            confidence_reason="el tamaño no basta para elegir vía en un aneurisma roto",
             factors=[], notes=notes,
         ))
 
     band = (phases or {}).get("risk_band", "")
     risk = (phases or {}).get("risk_5yr_pct")
     score = (phases or {}).get("total_score")
+    caveat = _PARENT_IN_SAC_NOTE if parent_in_sac and band else ""
 
     if not band:
         notes.append(
@@ -247,34 +354,37 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
             "es como plantea la decisión la guía ESO 2022— se pueda hacer."
         )
         confidence = "Baja"
+        reason = "faltan datos: no se ha estimado el riesgo de rotura"
     elif band == "high":
         # Las dos cifras se contradicen, y decirlo es más útil que elegir una.
         notes.append(
-            f"Pero el PHASES es {score} → {risk:.1f} % de riesgo de rotura a 5 "
-            f"años, que es una estimación ALTA. El tamaño sugiere vigilar y el "
+            f"Pero el riesgo de rotura estimado es {phases_label(score, risk)}, "
+            f"una estimación ALTA. El tamaño sugiere vigilar y el "
             f"riesgo estimado sugiere lo contrario: la decisión no se sostiene "
-            f"en el diámetro y corresponde a sesión multidisciplinar."
+            f"en el diámetro y corresponde a sesión multidisciplinar." + caveat
         )
         return _to_dict(_Decision(
             clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
             coverage_pct=cov,
             recommendation="DISCUSIÓN MULTIDISCIPLINARIA",
             recommendation_key="mdt", confidence="Baja",
+            confidence_reason="el tamaño y el riesgo de rotura empujan en sentidos opuestos",
             factors=[], notes=notes,
         ))
     else:
         notes.append(
-            f"El PHASES lo acompaña: {score} → {risk:.1f} % de riesgo de rotura "
-            f"a 5 años ({'moderado' if band == 'moderate' else 'bajo'}). "
-            f"Seguimiento con imagen."
+            f"El riesgo de rotura lo acompaña: {phases_label(score, risk)} "
+            f"({'moderado' if band == 'moderate' else 'bajo'}). "
+            f"Seguimiento con imagen." + caveat
         )
         confidence = "Alta" if band == "low" else "Moderada"
+        reason = ""
 
     return _to_dict(_Decision(
         clip_raw=0, endo_raw=0, balance=0, clip_pct=50, endo_pct=50,
         coverage_pct=cov,
         recommendation="VIGILANCIA ACTIVA", recommendation_key="surveillance",
-        confidence=confidence, factors=[], notes=notes,
+        confidence=confidence, confidence_reason=reason, factors=[], notes=notes,
     ))
 
 
@@ -294,6 +404,7 @@ def compute_decision(
     wfns_grade:        int | None = None,
     fisher_grade:      int | None = None,
     prior_stroke:      int | None = None,
+    parent_in_sac:     bool = False,
 ) -> dict[str, Any]:
     """Compute CLIP vs ENDOVASCULAR recommendation.
 
@@ -304,6 +415,10 @@ def compute_decision(
     one. It does not enter the clip-vs-endo arithmetic — it answers a different
     question — but it decides whether the small-aneurysm shortcut below is
     entitled to say «watch and wait».
+
+    `parent_in_sac` says the isolated sac reached the crop bound in Morfometría:
+    the diameter the PHASES was computed with is provisional, and the note that
+    cites the score says so.
 
     Returns a dict matching TreatmentDecisionResult Pydantic model fields.
     """
@@ -326,7 +441,7 @@ def compute_decision(
 
     # ── Special case: very small aneurysm (< 3 mm) ────────────────────── #
     if 0 < max_diameter_mm < 3.0:
-        return _small_aneurysm(max_diameter_mm, phases, ruptured)
+        return _small_aneurysm(max_diameter_mm, phases, ruptured, parent_in_sac)
 
     # ── Factor 1: Cuello ancho, en la definición de Brinjikji ──────────── #
     #
@@ -377,23 +492,29 @@ def compute_decision(
             )
 
     # ── Factor 2: Aspect Ratio (AR = dome_height / neck) ──────────────── #
+    # F1-225: el nombre llega a la tabla de factores del PDF; en castellano,
+    # como la fila de morfometría («Relación de aspecto (AR)»).
+    # Los cortes son los de la insignia y la etiqueta de riesgo (F1-161):
+    # aquí eran 1,3 y 2,0, y un AR de 1,25 salía «bajo» en Decisión y «Mod» en
+    # Morfometría.
     if aspect_ratio > 0:
-        if aspect_ratio > 2.0:
+        if aspect_ratio >= T.AR_HIGH:
             _add(
-                f"Aspect Ratio alto (AR = {aspect_ratio:.2f} > 2.0)",
-                "AR > 2: domo profundo relativo al cuello — geometría favorable para coiling.",
+                f"Relación de aspecto (AR) alta (AR = {aspect_ratio:.2f} ≥ {T.AR_HIGH:g})",
+                f"AR ≥ {T.AR_HIGH:g}: domo profundo relativo al cuello — retiene bien los "
+                f"coils, y se asocia a recanalización después.",
                 "endo", 20, "ar", votes=False,
             )
-        elif aspect_ratio > 1.3:
+        elif aspect_ratio >= T.AR_MOD:
             _add(
-                f"Aspect Ratio moderado (AR = {aspect_ratio:.2f}, 1.3–2.0)",
-                "AR 1.3–2.0: geometría ligeramente favorable para coiling.",
+                f"Relación de aspecto (AR) moderada (AR = {aspect_ratio:.2f}, {T.AR_MOD:g}–{T.AR_HIGH:g})",
+                f"AR {T.AR_MOD:g}–{T.AR_HIGH:g}: geometría ligeramente favorable para coiling.",
                 "endo", 10, "ar", votes=False,
             )
         else:
             _add(
-                f"Aspect Ratio bajo (AR = {aspect_ratio:.2f} < 1.3)",
-                "AR < 1.3: saco corto y ancho — acceso quirúrgico favorable.",
+                f"Relación de aspecto (AR) baja (AR = {aspect_ratio:.2f} < {T.AR_MOD:g})",
+                f"AR < {T.AR_MOD:g}: saco corto y ancho — acceso quirúrgico favorable.",
                 "clip", 10, "ar", votes=False,
             )
 
@@ -435,43 +556,56 @@ def compute_decision(
         # 5–12 mm: neutral (no factor added)
 
     # ── Factor 5: Bottleneck Factor (BF = max_dome_diam / neck) ──────── #
+    # La misma etiqueta que la insignia de Morfometría y con el sentido bueno
+    # (F1-162, F1-179): un BF alto es un domo mucho más ancho que su cuello, o
+    # sea un cuello relativamente ESTRECHO. La insignia decía «Cuello ancho» con
+    # un BF de 1,65 mientras aquí se leía «cuello moderadamente estrecho».
     if bottleneck_factor > 0:
-        if bottleneck_factor > 2.0:
+        etiqueta = T.bf_label(bottleneck_factor)
+        if bottleneck_factor > T.BF_WIDE:
             _add(
-                f"Bottleneck Factor alto (BF = {bottleneck_factor:.2f} > 2.0)",
-                "BF > 2: cuello muy estrecho relativo al domo — ideal para coiling.",
-                "endo", 12, "bf", votes=False,
-            )
-        elif bottleneck_factor > 1.5:
-            _add(
-                f"Bottleneck Factor moderado (BF = {bottleneck_factor:.2f}, 1.5–2.0)",
-                "BF 1.5–2.0: cuello moderadamente estrecho.",
+                f"Bottleneck Factor: {etiqueta} (BF = {bottleneck_factor:.2f} > {T.BF_WIDE:g})",
+                f"BF > {T.BF_WIDE:g}: el domo es bastante más ancho que el cuello — "
+                f"cuello relativamente estrecho, que retiene los coils.",
                 "endo", 6, "bf", votes=False,
             )
-        elif bottleneck_factor <= 1.2:
+        else:
             _add(
-                f"Bottleneck Factor bajo (BF = {bottleneck_factor:.2f} ≤ 1.2)",
-                "BF ≤ 1.2: domo ancho (no hay efecto de cuello) — clipping favorable.",
+                f"Bottleneck Factor: {etiqueta} (BF = {bottleneck_factor:.2f} ≤ {T.BF_WIDE:g})",
+                f"BF ≤ {T.BF_WIDE:g}: el domo apenas es más ancho que el cuello — "
+                f"cuello relativamente ancho; clipping favorable.",
                 "clip", 8, "bf", votes=False,
             )
 
     # ── Factor 6: Undulation Index (UI — dome irregularity) ───────────── #
+    # Un solo corte de UI, el de la etiqueta de riesgo (F1-163, F1-180): aquí
+    # «muy irregular» empezaba en 0,20 y allí «Alto» en 0,25. Y un UI muy alto
+    # sobre un saco que llegó al límite del recorte suele ser vaso padre medido
+    # como domo: se dice junto a la cifra (F1-180).
     if undulation_index > 0:
-        if undulation_index > 0.20:
+        aviso_padre = (
+            " El saco aislado llega al límite del recorte: parte de esta "
+            "ondulación puede ser vaso padre, no domo; revisa el saco en el visor."
+            if parent_in_sac else ""
+        )
+        if undulation_index >= T.UI_HIGH:
             _add(
-                f"Domo muy irregular (UI = {undulation_index:.3f} > 0.20)",
-                "UI > 0.20: morfología lobulada; riesgo de llenado incompleto con coils.",
+                f"Domo muy irregular (UI = {undulation_index:.3f} ≥ {T.UI_HIGH:.2f})",
+                f"UI ≥ {T.UI_HIGH:.2f}: morfología lobulada; riesgo de llenado incompleto "
+                f"con coils.{aviso_padre}",
                 "clip", 10, "ui", votes=False,
             )
-        elif undulation_index > 0.10:
+        elif undulation_index >= T.UI_MOD:
             _add(
-                f"Domo moderadamente irregular (UI = {undulation_index:.3f}, 0.10–0.20)",
-                "UI 0.10–0.20: cierta irregularidad; leve preferencia por clipping.",
+                f"Domo moderadamente irregular (UI = {undulation_index:.3f}, "
+                f"{T.UI_MOD:.2f}–{T.UI_HIGH:.2f})",
+                f"UI {T.UI_MOD:.2f}–{T.UI_HIGH:.2f}: cierta irregularidad; leve preferencia "
+                f"por clipping.{aviso_padre}",
                 "clip", 5, "ui", votes=False,
             )
-        elif undulation_index < 0.05:
+        else:
             _add(
-                f"Domo regular (UI = {undulation_index:.3f} < 0.05)",
+                f"Domo regular (UI = {undulation_index:.3f} < {T.UI_MOD:.2f})",
                 "Domo esférico regular — favorable para empaquetado con coils.",
                 "endo", 5, "ui", votes=False,
             )
@@ -508,10 +642,13 @@ def compute_decision(
             "PCOM: tratable por ambas vías; el tamaño y morfología determinan la estrategia.",
             "neutral", 0, "location",
         )
-    elif loc == LOCATION_BASILAR:
+    elif loc in BASILAR_LOCATIONS:
+        # El voto es el mismo en las cuatro; el texto nombra la que se eligió
+        # para que el factor no diga «punta, tronco o AICA» de un tronco.
+        sitio = "Basilar" if loc == LOCATION_BASILAR_LEGACY else loc
         _add(
-            "Localización Basilar (punta, tronco o AICA)",
-            "Basilar: acceso quirúrgico de alta complejidad — endovascular de elección.",
+            f"Localización {loc}",
+            f"{sitio}: acceso quirúrgico de alta complejidad — endovascular de elección.",
             "endo", 25, "location",
         )
     elif loc == LOCATION_PICA:
@@ -623,6 +760,16 @@ def compute_decision(
     elif coverage < 0.8 and confidence == "Alta":
         confidence = "Moderada"
 
+    # F1-177: «Confianza baja» junto a «100 % de los datos» parecía un error.
+    # Tiene dos causas y se dice cuál: faltan datos (manda, porque es el tope
+    # que se aplica aunque los factores coincidan) o los factores no coinciden.
+    confidence_reason = ""
+    if confidence == "Baja":
+        confidence_reason = (
+            f"faltan datos: evaluado el {round(coverage * 100)} % del caso"
+            if coverage < 0.5 else "los factores empujan en sentidos opuestos"
+        )
+
     if missing:
         notes.append(
             f"Evaluado el {round(coverage * 100)} % del caso: falta "
@@ -658,11 +805,11 @@ def compute_decision(
         else:
             notes.append(
                 f"Contesta POR QUÉ VÍA, no SI HAY QUE TRATAR. El riesgo de "
-                f"rotura estimado es PHASES {score} → {risk:.1f} % a 5 años "
+                f"rotura estimado es {phases_label(score, risk)} "
                 f"({'alto' if band == 'high' else 'moderado' if band == 'moderate' else 'bajo'}). "
                 f"El riesgo del procedimiento no lo calcula esta aplicación, así "
                 f"que la comparación que pide la guía ESO 2022 queda para la "
-                f"sesión clínica."
+                f"sesión clínica." + (_PARENT_IN_SAC_NOTE if parent_in_sac else "")
             )
 
     if balance >= 20:
@@ -688,7 +835,7 @@ def compute_decision(
         clip_raw=clip_pts, endo_raw=endo_pts, balance=balance,
         clip_pct=clip_pct, endo_pct=endo_pct,
         recommendation=rec, recommendation_key=rec_key,
-        confidence=confidence,
+        confidence=confidence, confidence_reason=confidence_reason,
         factors=factors, notes=notes,
         coverage_pct=round(coverage * 100), missing_inputs=missing,
     ))
@@ -775,6 +922,7 @@ def _to_dict(d: _Decision) -> dict[str, Any]:
         "recommendation":     d.recommendation,
         "recommendation_key": d.recommendation_key,
         "confidence":         d.confidence,
+        "confidence_reason":  d.confidence_reason,
         "factors":            factor_dicts,
         "clip_factors":       [f.name for f in d.factors if f.direction == "clip"],
         "endo_factors":       [f.name for f in d.factors if f.direction == "endo"],

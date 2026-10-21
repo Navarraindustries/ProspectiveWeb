@@ -15,6 +15,7 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandColor } from "./brandColor";
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
@@ -23,7 +24,7 @@ export const perforatorsScene: SceneFactory = ({ scene, pointer }) => {
   scene.add(mainGroup);
 
   scene.add(new THREE.AmbientLight(0x091c30, 2.5));
-  const keyLight = new THREE.DirectionalLight(0x00f0ff, 3.5);
+  const keyLight = new THREE.DirectionalLight(brandColor(), 3.5);
   keyLight.position.set(5, 7, 6);
   scene.add(keyLight);
   const redLight = new THREE.PointLight(0xff3366, 3.0, 15);
@@ -35,7 +36,7 @@ export const perforatorsScene: SceneFactory = ({ scene, pointer }) => {
     new THREE.TubeGeometry(
       new THREE.CatmullRomCurve3([V(0, -3.0, 0), V(0, 0, 0), V(-0.6, 2.8, 0.4)]), 32, 0.45, 16, false),
     new THREE.MeshPhongMaterial({
-      color: 0x122e4c, emissive: 0x051627, specular: 0x00f0ff,
+      color: 0x122e4c, emissive: 0x051627, specular: brandColor(),
       shininess: 70, transparent: true, opacity: 0.85 })));
 
   // Saco en la bifurcación
@@ -58,7 +59,7 @@ export const perforatorsScene: SceneFactory = ({ scene, pointer }) => {
   mainGroup.add(perforators);
 
   const matSafe = new THREE.MeshStandardMaterial({
-    color: 0x00f0ff, emissive: 0x024559, roughness: 0.3, metalness: 0.6 });
+    color: brandColor(), emissive: 0x024559, roughness: 0.3, metalness: 0.6 });
   const matCritical = new THREE.MeshStandardMaterial({
     color: 0xff3366, emissive: 0x540618, roughness: 0.2, metalness: 0.5 });
 
@@ -73,7 +74,7 @@ export const perforatorsScene: SceneFactory = ({ scene, pointer }) => {
   const ringGeom = new THREE.RingGeometry(0.12, 0.16, 20);
   const ringMat = new THREE.MeshBasicMaterial({
     color: 0xff3366, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
-  const dashMat = new THREE.LineDashedMaterial({ color: 0x00f0ff, dashSize: 0.1, gapSize: 0.06 });
+  const dashMat = new THREE.LineDashedMaterial({ color: brandColor(), dashSize: 0.1, gapSize: 0.06 });
 
   for (const branch of BRANCHES) {
     perforators.add(new THREE.Mesh(
@@ -100,7 +101,7 @@ export const perforatorsScene: SceneFactory = ({ scene, pointer }) => {
   // Retícula de radar que encuadra la zona
   const reticle = new THREE.Mesh(
     new THREE.RingGeometry(1.6, 1.63, 40),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide, transparent: true, opacity: 0.35 }));
+    new THREE.MeshBasicMaterial({ color: brandColor(), side: THREE.DoubleSide, transparent: true, opacity: 0.35 }));
   reticle.position.set(0.4, 0.2, 0);
   mainGroup.add(reticle);
 
@@ -115,7 +116,7 @@ export const perforatorsScene: SceneFactory = ({ scene, pointer }) => {
   }
   pGeom.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
   mainGroup.add(new THREE.Points(pGeom, new THREE.PointsMaterial({
-    color: 0x00f0ff, size: 0.05, transparent: true, opacity: 0.55 })));
+    color: brandColor(), size: 0.05, transparent: true, opacity: 0.55 })));
 
   return (t) => {
     mainGroup.rotation.y = t * 0.22 + pointer.x * 0.45;

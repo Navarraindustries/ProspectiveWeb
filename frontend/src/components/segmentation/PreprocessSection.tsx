@@ -6,23 +6,41 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { PreprocessResult } from "../../api/types";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { SectionLabel, ErrorNote } from "../PanelHead";
 import { Slider } from "../Slider";
 import { usePlanning } from "../../store/planning";
+import { isHuModality } from "../../vtk/modality";
 
-/** Modalities whose voxels are true Hounsfield units (mirrors the backend). */
-const HU_MODALITIES = ["CT", "CTA", "CTPA"];
+/** 0.32 → «0,32»; 0.5 → «0,5». */
+function mmEs(v: number): string {
+  return v.toLocaleString("es", { maximumFractionDigits: 2 });
+}
 
 export function PreprocessSection() {
-  const { sessionId, series, resetDownstream, bumpVolumeVersion } = usePlanning();
-  const isHu = HU_MODALITIES.includes((series?.modality ?? "").trim().toUpperCase());
+  const {
+    sessionId, series, resetDownstream, clearAnnotations, bumpVolumeVersion,
+    segmentation, candidates, morphometry, annotations,
+  } = usePlanning();
+  // F1-10: aplicar reinicia la segmentación y borra las anotaciones; lo hacía
+  // al primer clic. Solo se pregunta si hay algo que perder.
+  const hasWork = segmentation !== null || candidates.length > 0 || morphometry !== null || annotations.length > 0;
+  const [asking, setAsking] = useState(false);
+  const isHu = isHuModality(series?.modality);
   const [open, setOpen] = useState(false);
   // Only offered pre-ticked where it means something: on a 3DRA/XA volume the
   // HU clamp flattens everything above 3000, which is where the contrast is.
   const [clip, setClip] = useState(isHu);
   const [iso, setIso] = useState(false);
   const [target, setTarget] = useState(0.5);
+  // F1-135: se ofrecía remuestrear un volumen que ya es isotrópico y, con el
+  // objetivo por defecto (0,5 mm) sobre un vóxel de 0,32, bajaba la
+  // resolución sin decirlo. Un 2 % de diferencia entre ejes es redondeo.
+  const sp = series?.spacing;
+  const minSp = sp ? Math.min(sp.x, sp.y, sp.z) : null;
+  const alreadyIso = sp != null && minSp != null && minSp > 0 && Math.max(sp.x, sp.y, sp.z) / minSp <= 1.02;
+  const isoOn = iso && !alreadyIso;
   const [smooth, setSmooth] = useState(false);
   const [sigma, setSigma] = useState(0.5);
   const [busy, setBusy] = useState(false);
@@ -49,12 +67,15 @@ export function PreprocessSection() {
     setError(null);
     try {
       const r = await api.preprocess(sessionId, {
-        clip_hu: clip, resample_isotropic: iso, target_spacing_mm: target,
+        clip_hu: clip, resample_isotropic: isoOn, target_spacing_mm: target,
         smooth, smooth_sigma: sigma,
       });
       setRes(r);
       bumpVolumeVersion();  // el visor recarga el volumen reescrito
       resetDownstream();  // volume changed → mesh/metrics stale
+      // WHY: remuestrear cambia los índices de corte; una región se quedaría
+      // en un corte que ya no es el suyo.
+      clearAnnotations();
       setApplied(await api.preprocessStatus(sessionId).then((st) => st.ops).catch(() => "aplicado"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en el preprocesamiento");
@@ -75,6 +96,7 @@ export function PreprocessSection() {
       setApplied("");
       bumpVolumeVersion();
       resetDownstream();
+      clearAnnotations();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo restaurar el volumen");
     } finally {
@@ -110,12 +132,22 @@ export function PreprocessSection() {
               justo donde está el contraste.
             </div>
           )}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginBottom: iso ? 8 : 8 }}>
-            <input type="checkbox" checked={iso} onChange={(e) => setIso(e.target.checked)} /> Remuestreo isotrópico
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: alreadyIso ? "not-allowed" : "pointer", marginBottom: alreadyIso ? 4 : 8, opacity: alreadyIso ? 0.55 : 1 }}>
+            <input type="checkbox" checked={isoOn} disabled={alreadyIso} onChange={(e) => setIso(e.target.checked)} /> Remuestreo isotrópico
           </label>
-          {iso && (
+          {alreadyIso && minSp != null && (
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
+              El volumen ya es isotrópico ({mmEs(minSp)} mm)
+            </div>
+          )}
+          {isoOn && (
             <div style={{ marginBottom: 8 }}>
               <Slider label="Tamaño de vóxel objetivo" min={0.2} max={2} step={0.1} value={target} onChange={setTarget} unit=" mm" />
+              {minSp != null && target > minSp + 1e-6 && (
+                <div style={{ fontSize: 11, color: "var(--warning)", marginTop: -2, lineHeight: 1.45 }}>
+                  Baja la resolución de {mmEs(minSp)} a {mmEs(target)} mm
+                </div>
+              )}
             </div>
           )}
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginBottom: smooth ? 8 : 12 }}>
@@ -140,7 +172,18 @@ export function PreprocessSection() {
             </div>
           )}
           <ErrorNote>{error}</ErrorNote>
-          <Button variant="outline" style={{ width: "100%" }} disabled={busy || reverting || !sessionId || (!clip && !iso && !smooth)} onClick={() => void apply()}>
+          <ConfirmDialog
+            open={asking}
+            title="¿Aplicar el preprocesamiento?"
+            confirmLabel="Aplicar y reiniciar"
+            destructive
+            onCancel={() => setAsking(false)}
+            onConfirm={() => { setAsking(false); void apply(); }}
+          >
+            Se reinicia la segmentación y se borran las anotaciones.
+          </ConfirmDialog>
+          <Button variant="outline" style={{ width: "100%" }} disabled={busy || reverting || !sessionId || (!clip && !isoOn && !smooth)}
+                  onClick={() => (hasWork ? setAsking(true) : void apply())}>
             {busy ? "Procesando…" : "Aplicar preprocesamiento"}
           </Button>
           {applied && (

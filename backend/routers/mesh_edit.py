@@ -64,7 +64,10 @@ def _invalidate_derived(session_id: str) -> None:
     crop described an aneurysm from the mesh as it was before the crop.
     """
     from routers.detect import _clear_detection_state
+    from routers.report import clear_corridor_analysis
     _clear_detection_state(session_id, session_subdir(session_id, "meshes"), morphometry=True)
+    # Y el corredor: su veredicto se midió contra la malla de antes.
+    clear_corridor_analysis(session_id)
 
 
 # ── POST /mesh-crop/{session_id} ────────────────────────────────────────────── #

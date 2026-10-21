@@ -1,31 +1,34 @@
 /* ============================================================================
    PROSPECTIVE — Typography tokens
-   Family: Inter (bundled). Mono: JetBrains Mono for metrics/measurements.
-   Hierarchy is expressed with size + weight, never color. Titles use 800.
-   Source: resources/IDENTIDAD_VISUAL.md §3
+   Familia: Geist (autoalojada). Mono: Geist Mono para cifras, HUD, hashes y códigos.
+   La jerarquía se expresa con tamaño y peso, nunca con color. Pesos 400/500/600.
+   Escala: 12 / 13 / 14 (cuerpo), 16 / 20 (títulos de sección), 28 (título de página).
    ============================================================================ */
 
 :root {
   /* ---- Families ---- */
-  --font-sans: "Inter", "Segoe UI Symbol", "Segoe UI", "Helvetica Neue",
-    "Arial Unicode MS", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  /* La landing ya no tiene tipografía de titulares propia: alias de la sans. */
+  --font-display: var(--font-sans);
 
   /* ---- Weights ---- */
   --weight-regular:  400;
   --weight-medium:   500;
   --weight-semibold: 600;
-  --weight-bold:     700;
-  --weight-extra:    800;
+  /* Los usos antiguos de 700/800 se pliegan al más pesado de la identidad. */
+  --weight-bold:     600;
+  --weight-extra:    600;
 
-  /* ---- Type scale (px) — from the app's role scale ---- */
-  --text-hero:    22px;  /* login / hero title, weight 800 */
-  --text-page:    18px;  /* page title, weight 800 */
-  --text-section: 16px;  /* section title, weight 600 */
-  --text-body:    14px;  /* body / UI, weight 400 */
-  --text-desc:    13px;  /* description, muted */
-  --text-label:   11px;  /* small uppercase label, weight 600 */
-  --text-micro:    9px;  /* dock titles, badges, meta */
+  /* ---- Type scale (px) ---- */
+  --text-hero:    28px;  /* título de página, peso 600 */
+  --text-page:    28px;
+  --text-title:   20px;  /* título de sección, peso 600 */
+  --text-section: 16px;  /* subsección, peso 600 */
+  --text-body:    14px;  /* cuerpo / interfaz, peso 400 */
+  --text-desc:    13px;  /* descripción, apagada */
+  --text-label:   12px;  /* etiqueta pequeña, peso 500 */
+  --text-micro:   12px;  /* insignias y metadatos: el suelo de la escala es 12 */
 
   /* ---- Line heights ---- */
   --leading-tight:  1.15;

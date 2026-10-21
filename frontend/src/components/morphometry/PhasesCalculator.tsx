@@ -1,25 +1,28 @@
 /* PHASES calculator — 5-year rupture risk (Greving 2014). POST /api/phases.
    The Size factor auto-fills from the morphometric max diameter. */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
-import type { PhasesPopulation, PhasesResult, PhasesSite } from "../../api/types";
+import type { PhasesPopulation, PhasesResult } from "../../api/types";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { Select } from "../Select";
 import { Metric } from "../Metric";
 import { ErrorNote, SectionLabel } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
+import { ageFromDob } from "../patientAge";
+import { CUT_WARN, DiameterSource } from "./DiameterSource";
+import {
+  PHASES_AGE_MIN, PHASES_AGE_PTS, PHASES_CUTS, PHASES_HTN_PTS, PHASES_POP_PTS, PHASES_SAH_PTS,
+  PHASES_SITE_PTS, mm, nearCut, phasesLabel, phasesSizePoints,
+} from "./diameterCut";
+import { InheritedSite } from "./InheritedSite";
+import { isSiteKnown, siteFor } from "./thresholds";
 
 const POPULATIONS: { value: PhasesPopulation; label: string }[] = [
   { value: "other", label: "Otra población" },
   { value: "japan", label: "Japón" },
   { value: "finland", label: "Finlandia" },
-];
-const SITES: { value: PhasesSite; label: string }[] = [
-  { value: "ica", label: "ACI (carótida interna)" },
-  { value: "mca", label: "ACM (cerebral media)" },
-  { value: "aca_pcom_posterior", label: "ACA / ACoP / Posterior" },
 ];
 
 const BAND_COLOR: Record<PhasesResult["risk_band"], string> = {
@@ -39,20 +42,67 @@ const BAND_LABEL: Record<PhasesResult["risk_band"], string> = {
 export function PhasesCalculator({
   maxDiameterMm,
   sessionId,
+  bodyDiameterMm,
+  provisional,
 }: {
   maxDiameterMm: number;
   sessionId: string | null;
+  /** Ø del cuerpo sin ramas finas: el otro diámetro posible, si lo hay. */
+  bodyDiameterMm?: number | null;
+  /** El saco aislado llega al límite del recorte: el Ø mide también vaso padre. */
+  provisional?: boolean;
 }) {
   const planning = usePlanning();
   const [population, setPopulation] = useState<PhasesPopulation>("other");
   const [hypertension, setHypertension] = useState(false);
-  const [age, setAge] = useState("60");
+  const [age, setAge] = useState(ageFromDob(planning.patient?.dob));
   const [size, setSize] = useState(maxDiameterMm > 0 ? maxDiameterMm.toFixed(1) : "");
   const [earlierSah, setEarlierSah] = useState(false);
-  const [site, setSite] = useState<PhasesSite>("ica");
+  // F1-165: la localización ya no se elige aquí (arrancaba en «ACI» y, sin
+  // tocarla, quitaba los +4 de un aneurisma posterior). Se hereda de
+  // Morfometría y se traduce a la categoría de PHASES.
+  const site = siteFor("phases", planning.aneurysmSite);
+  const siteKnown = isSiteKnown("phases", planning.aneurysmSite);
   const [result, setResult] = useState<PhasesResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Al cambiar la localización en Morfometría el servidor recalcula lo guardado
+  // con sus mismas entradas; aquí se recalcula lo que está en pantalla, para
+  // que la cifra que se ve sea la del informe. Sin categoría, no hay cifra.
+  const prevSite = useRef(site);
+  useEffect(() => {
+    if (prevSite.current === site) return;
+    prevSite.current = site;
+    if (result && siteKnown) void compute();
+    else setResult(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site]);
+
+  // F1-15: a menos de 1 mm de un corte, decir cuántos puntos cambia, con los
+  // demás factores tal como están. Se enuncia siempre del lado alto al bajo,
+  // como la fila del anexo: «con 9,5 mm el PHASES baja de 10 a 7 puntos». El
+  // otro valor es el Ø del cuerpo si cae al otro lado; si no, el tamaño
+  // desplazado el margen de 1 mm.
+  const sizeNum = Number(size) || 0;
+  const corte = nearCut(sizeNum, PHASES_CUTS);
+  let avisoCorte: string | null = null;
+  if (corte != null) {
+    const resto = PHASES_POP_PTS[population] + (hypertension ? PHASES_HTN_PTS : 0)
+      + ((Number(age) || 0) >= PHASES_AGE_MIN ? PHASES_AGE_PTS : 0)
+      + (earlierSah ? PHASES_SAH_PTS : 0) + PHASES_SITE_PTS[site];
+    const body = bodyDiameterMm != null && bodyDiameterMm > 0 ? bodyDiameterMm : null;
+    let alto: number, bajo: number;
+    if (sizeNum >= corte) {
+      alto = sizeNum;
+      bajo = body != null && body < corte ? body : Math.round((sizeNum - 1) * 10) / 10;
+    } else {
+      bajo = sizeNum;
+      alto = body != null && body >= corte ? body : Math.round((sizeNum + 1) * 10) / 10;
+    }
+    avisoCorte =
+      `El tamaño (${mm(sizeNum)} mm) está junto al corte de ${corte} mm: con ${mm(bajo)} mm el PHASES ` +
+      `baja de ${resto + phasesSizePoints(alto)} a ${resto + phasesSizePoints(bajo)} puntos.`;
+  }
 
   const compute = async () => {
     setBusy(true);
@@ -98,11 +148,14 @@ export function PhasesCalculator({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Select label="Población" options={POPULATIONS} value={population} onChange={(e) => setPopulation(e.target.value as PhasesPopulation)} />
-        <Select label="Localización" options={SITES} value={site} onChange={(e) => setSite(e.target.value as PhasesSite)} />
+        <InheritedSite site={planning.aneurysmSite} known={siteKnown} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Input label="Edad (años)" type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
           <Input label="Tamaño (mm)" type="number" step="0.1" value={size} onChange={(e) => setSize(e.target.value)} />
         </div>
+        <DiameterSource maxMm={maxDiameterMm} sizeMm={sizeNum} bodyMm={bodyDiameterMm} provisional={provisional}
+                        cuts={PHASES_CUTS} score="PHASES" showTramo={false} />
+        {avisoCorte && <div style={CUT_WARN}>{avisoCorte}</div>}
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer" }}>
           <input type="checkbox" checked={hypertension} onChange={(e) => setHypertension(e.target.checked)} />
           Hipertensión arterial
@@ -113,7 +166,7 @@ export function PhasesCalculator({
         </label>
       </div>
 
-      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy}>
+      <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void compute()} disabled={busy || !age || !siteKnown}>
         {busy ? "Calculando…" : "Calcular PHASES"}
       </Button>
       <ErrorNote>{error}</ErrorNote>
@@ -140,7 +193,11 @@ export function PhasesCalculator({
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: BAND_COLOR[result.risk_band] }}>
-                {result.risk_5yr_pct.toFixed(1)}%
+                {mm(result.risk_5yr_pct)} %
+              </div>
+              {/* El mismo rótulo que Decisión y el PDF, con la tabla de la que sale. */}
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                {phasesLabel(result.total_score, result.risk_5yr_pct)}
               </div>
               <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
                 {BAND_LABEL[result.risk_band]} · rotura a 5 años

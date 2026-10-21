@@ -58,4 +58,14 @@ describe("dimensionado de flow-diverter", () => {
     fireEvent.click(screen.getByText("Dimensionar"));
     expect(await screen.findByText("Falta la morfometría")).toBeInTheDocument();
   });
+
+  it("el calibre lleva su referencia (F1-208)", async () => {
+    // Tres calibres en el mismo paso (arteria portadora, Ø medio del tramo y
+    // estos) y ninguno decía dónde se medía.
+    vi.mocked(api.fdSizing).mockResolvedValue(resultado);
+    render(<FdSizing sessionId="s1" onApply={() => {}} />);
+    fireEvent.click(screen.getByText("Dimensionar"));
+    expect(await screen.findByText("Ø mediano del vaso en el anclaje proximal")).toBeInTheDocument();
+    expect(screen.getByText("Ø mediano del vaso en el anclaje distal")).toBeInTheDocument();
+  });
 });

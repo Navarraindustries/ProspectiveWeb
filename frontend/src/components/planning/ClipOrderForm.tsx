@@ -1,4 +1,4 @@
-/* Solicitud de un clip NAVARRO™ — el formulario y el registro de pedidos.
+/* Pedido de un clip NAVARRO™ — el formulario y el registro de pedidos.
 
    La versión peligrosa de esta pantalla es un formulario en blanco donde el
    cirujano vuelve a teclear la mordaza: en cuanto el número escrito y el STL
@@ -27,6 +27,9 @@ import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { Slider } from "../Slider";
 import { seriesAndShape, shapeLabel } from "./clipShape";
+import { forceWithBand } from "./clipForce";
+import { surgeonPrefill } from "../../lib/cirujano";
+import { useAuth } from "../../store/auth";
 
 const STATUS_VARIANT: Record<OrderStatus, "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive"> = {
   borrador: "outline",
@@ -49,12 +52,15 @@ const NEXT_LABEL: Partial<Record<OrderStatus, string>> = {
   recibida: "Registrar recepción",
 };
 
-/** Cómo se obtuvo el cuello, para completar «El cuello se midió …». */
+/** Cómo se obtuvo el cuello, para completar «El cuello está …». Las mismas
+    tres frases que `backend/services/neck_provenance.py` (F1-215): el pedido y
+    el informe decían cosas distintas del mismo cuello. Lo que no está marcado a
+    mano —borde o punto— es una estimación a partir del saco. */
 const NECK_SOURCE: Record<string, string> = {
-  rim: "sobre el borde marcado a mano",
-  manual: "con un punto de cuello marcado a mano",
-  auto: "automáticamente, sin marcarlo",
+  rim: "medido sobre un borde marcado a mano",
+  manual: "medido con un punto de cuello marcado a mano",
 };
+const NECK_ESTIMATED = "estimado a partir del saco";
 
 /** El backend devuelve una lista de problemas en `detail`; el cliente la
     serializa a texto. Aquí se recupera para poder enseñarlos uno a uno. */
@@ -164,6 +170,7 @@ export function ClipOrderForm({
   const [marking, setMarking] = useState<ClipOrderIn["marking"]>("cuerpo");
   const [notes, setNotes] = useState("");
   const [authRef, setAuthRef] = useState("");
+  const { user } = useAuth();
   const [surgeon, setSurgeon] = useState("");
 
   // El taller: uno guardado, o uno nuevo que queda guardado al usarlo.
@@ -186,7 +193,9 @@ export function ClipOrderForm({
         setShape(p.advised_navarro_shape);
         setWindow(p.advised_window_mm);
         setExtras(p.suggest_extra_sizes);
-        setSurgeon((s) => s || (p.can_sign ? p.requester_name : ""));
+        // F1b-2: no el nombre de quien pide (el admin también puede firmar),
+        // sino el de quien puede ser el cirujano: la regla de lib/cirujano.ts.
+        setSurgeon((s) => s || surgeonPrefill(user));
         // Sin talleres registrados, la única opción del desplegable es «registrar
         // uno nuevo». Con el estado vacío el navegador la enseñaba elegida pero
         // el formulario no se abría, y al ser la única no había forma de
@@ -201,9 +210,9 @@ export function ClipOrderForm({
   useEffect(load, [load]);
 
   if (loading) {
-    return <Card><div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Preparando la solicitud…</div></Card>;
+    return <Card><div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Preparando el pedido…</div></Card>;
   }
-  if (!pre) return <ErrorNote>{problems[0] ?? "No se pudo preparar la solicitud."}</ErrorNote>;
+  if (!pre) return <ErrorNote>{problems[0] || "No se pudo preparar el pedido; vuelve a intentarlo"}</ErrorNote>;
 
   if (!pre.can_order) {
     return (
@@ -311,7 +320,7 @@ export function ClipOrderForm({
             />
           </div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
-            El cuello se midió <b>{NECK_SOURCE[pre.neck_source] ?? pre.neck_source}</b>. Toda la
+            El cuello está <b>{NECK_SOURCE[pre.neck_source] ?? NECK_ESTIMATED}</b>. Toda la
             pieza se deriva de esa medida: si no es correcta, corrígela en Morfometría
             antes de pedir nada.
           </div>
@@ -581,7 +590,10 @@ export function ClipOrderForm({
               He revisado las medidas del caso y las asumo.
             </Check>
             <Check checked={d2} onChange={setD2}>
-              Sé que la fuerza de cierre ({pre.force_band_g[0]}–{pre.force_band_g[1]} g) es
+              {/* La misma cifra que la tarjeta del mapa de calor y la ficha de
+                  Fabricación: el objetivo de la pieza y su banda. Aquí solo salía
+                  la banda, una tercera manera de decir la fuerza (F1-202). */}
+              Sé que la fuerza de cierre ({forceWithBand(pre.force_target_g ?? pre.force_band_g[0], pre.force_band_g)}) es
               un <b>objetivo</b>, no una propiedad del modelo, y hay que medirla en la
               pieza terminada.
             </Check>
@@ -784,22 +796,28 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
   );
 }
 
-export function ClipOrderList({ sessionId, refreshKey }: { sessionId: string; refreshKey: number }) {
+export function ClipOrderList({ sessionId, caseId, refreshKey }: {
+  sessionId: string; caseId?: number | null; refreshKey: number;
+}) {
   const [orders, setOrders] = useState<ClipOrder[]>([]);
   const [error, setError] = useState("");
 
+  // F1-219: el backend amplía la sesión a su cadena de reanudaciones y, con
+  // caso, a todos los pedidos del caso. Antes, tras reanudar, la lista salía
+  // vacía aunque el caso tuviera pedidos.
   const load = useCallback(() => {
-    api.listClipOrders({ sessionId })
+    api.listClipOrders({ sessionId, caseId })
       .then(setOrders)
       .catch((e) => setError(problemsFrom(e)[0]));
-  }, [sessionId]);
+  }, [sessionId, caseId]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
   if (!orders.length) return null;
   return (
     <div style={{ marginTop: 14 }}>
-      <SectionLabel>Pedidos de este caso</SectionLabel>
+      {/* Sin caso no hay «caso» que nombrar: son los de esta sesión. */}
+      <SectionLabel>{caseId != null ? "Pedidos de este caso" : "Pedidos de esta sesión"}</SectionLabel>
       <Card>
         {orders.map((o) => <OrderRow key={o.part_no} order={o} onChange={load} />)}
         <ErrorNote>{error}</ErrorNote>

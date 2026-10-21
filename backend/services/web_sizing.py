@@ -25,8 +25,8 @@ Reglas, y de dónde salen:
 
 Lo que NO hace: decidir la forma SL o SLS por el paciente, excluir lóbulos (la
 anchura de la guía es «sin incluir lóbulos donde el dispositivo no va a
-entrar»; aquí la malla entera cuenta), ni saber si la arteria es una
-bifurcación: eso lo sabe quien mira.
+entrar»; aquí la malla entera cuenta). Si es una bifurcación lo dice la
+localización elegida en Morfometría (`clinical.site`); sin ella, se pide.
 """
 from __future__ import annotations
 
@@ -170,9 +170,38 @@ def _candidates(shape: str, catalogue, W: float, H: float, volume: float) -> lis
     return out
 
 
+def _site_kind(site: str) -> tuple[str, str]:
+    """(tipo, nombre corto) de la localización clínica para la indicación del WEB.
+
+    tipo: «bifurcacion», «lateral» (fuera de la indicación), «dudosa» (la lista
+    junta punta y tronco de basilar) o vacío si no se eligió. Por palabras y no
+    por igualdad, para que «Tronco basilar» y «Punta basilar» —cuando la lista
+    las separe— caigan donde deben sin tocar esto.
+    """
+    s = (site or "").strip()
+    low = s.lower()
+    nombre = s.split(" — ")[0].split(" (")[0].strip()
+    if not low or low.startswith("desconocida") or low.startswith("otra"):
+        return "", nombre
+    if "basilar" in low:
+        punta, tronco = "punta" in low, ("tronco" in low or "aica" in low)
+        if punta and not tronco:
+            return "bifurcacion", nombre
+        if tronco and not punta:
+            return "lateral", nombre
+        return "dudosa", "Basilar"
+    if low.startswith("acm") or low.startswith("aca") or "acoa" in low:
+        return "bifurcacion", nombre
+    # ACI proximal o distal (oftálmica, comunicante posterior), ACoP, PICA o
+    # vertebral: aneurismas de pared lateral, fuera de la indicación.
+    return "lateral", nombre
+
+
 def size_web(dims: SacDims, neck_mm: float, volume_mm3: float = 0.0, top: int = 3,
-             dnr: float = 0.0) -> WebSizing:
-    """`dnr`, si llega, es el de la morfometría: el mismo que ya está en pantalla."""
+             dnr: float = 0.0, site: str = "") -> WebSizing:
+    """`dnr`, si llega, es el de la morfometría: el mismo que ya está en pantalla.
+
+    `site` es la localización elegida en Morfometría (`clinical.site`)."""
     W, H = dims.width_mm, dims.height_mm
     if dnr <= 0:
         dnr = round(dims.width_max_mm / neck_mm, 2) if neck_mm > 0 else 0.0
@@ -233,9 +262,25 @@ def size_web(dims: SacDims, neck_mm: float, volume_mm3: float = 0.0, top: int = 
             "DAV = volumen de la envolvente del dispositivo / volumen del aneurisma. "
             "Las franjas publicadas no coinciden entre sí y ninguna ha mejorado la "
             "regla clásica: es un dato, no un criterio.")
-    notes.append(
-        "La indicación es para aneurismas de BIFURCACIÓN (ACM, carótida terminal, "
-        "comunicante anterior, punta de basilar): eso no lo sabe la aplicación.")
+    # F1-210: «eso no lo sabe la aplicación» cuando la localización ya estaba
+    # elegida en Morfometría. Ahora se usa la registrada.
+    tipo, nombre = _site_kind(site)
+    if tipo == "lateral":
+        warnings.append(f"{nombre}: fuera de la indicación de bifurcación")
+        within = False
+    elif tipo == "bifurcacion":
+        notes.append(
+            f"{nombre}: localización de bifurcación, la de la indicación aprobada "
+            "(ACM, carótida terminal, comunicante anterior, punta de basilar).")
+    elif tipo == "dudosa":
+        notes.append(
+            f"{nombre}: la indicación cubre la punta de la basilar, no el tronco ni "
+            "la AICA. Comprueba cuál es antes de elegir un WEB.")
+    else:
+        notes.append(
+            "La indicación es para aneurismas de BIFURCACIÓN (ACM, carótida terminal, "
+            "comunicante anterior, punta de basilar). Elige la localización en "
+            "Morfometría para que se compruebe aquí.")
 
     return WebSizing(dims=dims, neck_mm=round(neck_mm, 2), dnr=dnr,
                      volume_mm3=round(volume_mm3, 1), within_indication=within,

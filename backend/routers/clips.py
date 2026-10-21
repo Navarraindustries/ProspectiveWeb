@@ -22,6 +22,9 @@ from models.clips import (
     ClipCandidateOut,
     ClipCaseOut,
     ClipCriterion,
+    ClipFieldClip,
+    ClipFieldResult,
+    ClipFieldSummary,
     ClipFitCheck,
     ClipSelectionResult,
     CustomJawOut,
@@ -38,6 +41,7 @@ from services.clip_selection import (
     ClipSelection,
     ManufactureSpec,
     derive_manufacture_spec,
+    evaluate_clip,
     select_clips,
 )
 from services.sessions import (
@@ -439,6 +443,10 @@ async def plan_clips(
                      else (index[pl.clip_id].name if pl.clip_id in index else pl.clip_id)),
             "position": [pl.position.x, pl.position.y, pl.position.z],
             "orientation": [0.0, 0.0, float(pl.rotation_deg)],
+            # La normal de la hoja: con el giro, es la pose que evalúa el mapa
+            # de calor, y su huella la necesita para no dar por buena una
+            # cobertura calculada con el clip orientado de otra manera.
+            "normal": list(pl.normal) if pl.normal else None,
             "is_custom": pl.clip_id.startswith("custom:"),
         }
         for i, pl in enumerate(req.placements)
@@ -479,9 +487,9 @@ async def plan_clips(
                    f"cuello: un clip bien puesto lo toca por definición. Ejecuta la "
                    f"morfometría para que esta comprobación distinga una cosa de la otra.")
     elif neck_mm <= 0.1:
-        warning = "Ejecuta la morfometría para calcular la cobertura del cuello."
+        warning = "Ejecuta la morfometría para medir la extensión de las hojas sobre el cuello."
     elif coverage < 95.0:
-        warning = "Cobertura parcial del cuello — considerar reposicionar o añadir un clip."
+        warning = "Las hojas no alcanzan toda la anchura del cuello — considerar reposicionar o añadir un clip."
 
     audit_device("clips", req.session_id, current_user, {
         "clips": [pl.clip_id for pl in req.placements],
@@ -736,7 +744,14 @@ def _candidate_out(cand: ClipCandidate) -> ClipCandidateOut:
 
 
 def _spec_out(spec: ManufactureSpec, stl_url: str | None = None) -> ManufactureSpecOut:
+    from services.navarro import force_statement
+
+    # La banda y la frase salen de la misma función que el dossier y la tarjeta
+    # del mapa de calor: una cifra de fuerza, dicha igual en todas partes.
+    fuerza = force_statement(spec.closing_force_g)
     return ManufactureSpecOut(
+        force_band_g     = list(fuerza["band_g"]),
+        force_statement  = fuerza["text"],
         blade_length_mm  = spec.blade_length_mm,
         blade_width_mm   = spec.blade_width_mm,
         blade_height_mm  = spec.blade_height_mm,
@@ -805,10 +820,30 @@ async def clip_selection(
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
     selection = _run_selection(session_id, case_id, verify)
+    # La pieza colocada manda también aquí, no solo en Fabricación y el pedido.
+    # La fijaba el frontend (`pinToPlaced`) con el prefill del pedido, pero el
+    # resumen seguía nombrando la pieza del selector: «La alternativa a medida
+    # sería: Curvo de 12.0 mm · 125 g» mientras Fabricación describía otra
+    # (F1-192). Es la misma sustitución que `_advice` y `clip_manufacture_spec`.
+    piece_label = ""
+    if selection.manufacture is not None:
+        from services.clip_manufacture import perfect_from_id, placed_navarro_id
+        from services.clip_selection import pin_manufacture
+
+        placed_id = placed_navarro_id(session_id)
+        pinned = perfect_from_id(placed_id, selection.manufacture) if placed_id else None
+        if pinned is not None:
+            pin_manufacture(selection, pinned.spec)
+            piece_label = pinned.label
     c = selection.case
+    manufacture_out = None
+    if selection.manufacture is not None:
+        manufacture_out = _spec_out(selection.manufacture)
+        manufacture_out.piece_label = piece_label
     return ClipSelectionResult(
         outcome     = selection.outcome,
         summary     = selection.summary,
+        stock_count = selection.stock_count or 0,
         case        = ClipCaseOut(
             neck_mm=c.neck_mm,
             required_jaw_mm=c.jaw_requirement.mm,
@@ -835,7 +870,7 @@ async def clip_selection(
         ),
         recommended = [_candidate_out(x) for x in selection.recommended],
         rejected    = [_candidate_out(x) for x in selection.rejected],
-        manufacture = None if selection.manufacture is None else _spec_out(selection.manufacture),
+        manufacture = manufacture_out,
         custom_jaw  = None if selection.custom_jaw is None else CustomJawOut(
             series=selection.custom_jaw.series,
             shape=selection.custom_jaw.shape,
@@ -1202,6 +1237,169 @@ async def clip_animation(
     )
 
 
+# ── Mapa de calor del clip: qué cubre y con qué presión ─────────────────────── #
+
+@router.post(
+    "/clips/field/{session_id}",
+    response_model=ClipFieldResult,
+    summary="Mapa de calor del clip (estimación geométrica)",
+    description=(
+        "Pinta el saco y el anillo de cuello según lo que cubren las hojas y la fuerza "
+        "mínima de catálogo de cada clip frente a la ventana de fuerza del cuello (manda "
+        "el peor clip). Los porcentajes son del disco del cuello. No modela pared ni deformación."
+    ),
+)
+def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
+    # `def`, no `async def`: son ~300 ms de VTK y el visor lo pide al arrastrar el
+    # clip; en el pool de hilos no bloquea el bucle de eventos.
+    # Manda la sesión de la ruta; `req.session_id` se ignora (el modelo es el
+    # mismo que el de /clips/plan y lo trae por compatibilidad).
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    if not req.placements:
+        raise HTTPException(status_code=409, detail="No hay ningún clip colocado que evaluar.")
+    import vtk
+    from services import devices
+    from services import clip_field as cf
+    from services.segmentation import read_vtp
+
+    meshes_dir = session_subdir(session_id, "meshes")
+    sac_name = read_state(session_id, "morpho.sac_vtp_name", "") or "aneurysm_sac.vtp"
+    sac_path = meshes_dir / sac_name
+    if not sac_path.exists():
+        raise HTTPException(status_code=409, detail=(
+            "No hay un saco aislado sobre el que pintar. Marca el plano del cuello en "
+            "Morfometría: sin el saco cerrado no se puede estimar la cobertura."))
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    if neck_mm <= 0.1:
+        raise HTTPException(status_code=409, detail=(
+            "No hay cuello medido: la ventana de fuerza depende de su anchura."))
+    neck_origin = tuple(_load_float(session_id, f"morpho.neck_origin_{a}", 0.0) for a in "xyz")
+    neck_axis = (
+        _load_float(session_id, "morpho.axis_x", 0.0),
+        _load_float(session_id, "morpho.axis_y", 0.0),
+        _load_float(session_id, "morpho.axis_z", 1.0),
+    )
+
+    sac = read_vtp(sac_path)
+    vessel_path = meshes_dir / "vessel_tree.vtp"
+    # Sin árbol de vasos se pinta solo el saco: el anillo es contexto, no requisito.
+    ring = (cf.vessel_ring(read_vtp(vessel_path), neck_origin, neck_axis, neck_mm)
+            if vessel_path.exists() else vtk.vtkPolyData())
+    mesh = cf.field_mesh(sac, ring)
+    pts = cf.points_of(mesh)
+
+    index = _catalogue_index()
+    per_clip: list = []
+    forces: list[float] = []
+    criteria: list[ClipCriterion] = []
+    names: list[str] = []
+    band_min, provisional, sin_ficha = False, False, False
+    # La fuerza objetivo del (primer) clip con ficha y su banda: la tarjeta la
+    # escribe igual que Fabricación y el pedido (F1-202).
+    fuerza: dict | None = None
+    for pl in req.placements:
+        local = _clip_geometry_for(pl.clip_id, meshes_dir)
+        t = devices.pose_transform(
+            (pl.position.x, pl.position.y, pl.position.z),
+            tuple(pl.normal) if pl.normal else (0.0, 0.0, 1.0), pl.rotation_deg)
+        world = devices.apply_transform(local, t)
+        spec = index.get(pl.clip_id)
+        if spec is None:
+            sin_ficha = True
+            # Sin ficha: la hoja se mide en la malla LOCAL (la caja de mundo de un clip
+            # girado no mide su largo); sin fuerza no hay presión.
+            b = local.GetBounds()
+            length = max(b[1] - b[0], b[3] - b[2], b[5] - b[4])
+            frame = cf.blade_frame(world, length_mm=length, blade_width_mm=0.5, blade_height_mm=1.4,
+                                   neck_mm=neck_mm, neck_axis=neck_axis, pose=t)
+            names.append(_custom_clip_name(session_id, pl.clip_id)
+                         if pl.clip_id.startswith("custom:") else pl.clip_id)
+            forces.append(0.0)
+        else:
+            frame = cf.blade_frame(world, length_mm=spec.blade_length_mm, blade_width_mm=spec.blade_width_mm,
+                                   blade_height_mm=spec.blade_height_mm, neck_mm=neck_mm,
+                                   neck_axis=neck_axis, pose=t)
+            # La fuerza es el mínimo de la banda: la presión estimada es una cota
+            # inferior, nunca una promesa de cierre.
+            lo, hi = spec.force_band
+            forces.append(float(lo))
+            band_min = band_min or hi > lo
+            provisional = provisional or spec.force_provisional
+            if fuerza is None and spec.force_provisional:
+                from services.navarro import force_statement
+                fuerza = force_statement(spec.closing_force_g)
+            names.append(spec.name)
+            # Los criterios son los del primer clip CON ficha: un importado delante no
+            # debe dejar el veredicto sin criterios (y salir «ok» sin evaluar nada).
+            if not criteria:
+                criteria = _criteria_out(evaluate_clip(spec, _build_case(session_id, None)))
+        per_clip.append(cf.classify(pts, frame, neck_origin=neck_origin, neck_axis=neck_axis, neck_mm=neck_mm))
+    coverage = cf.combine_coverage(per_clip)
+    # Cada clip se juzga con su propia fuerza frente a la ventana del cuello y manda
+    # el peor: sumar las fuerzas de un tándem lo pintaba siempre de «exceso».
+    loads = [cf.clip_load(mesh, cov, force_g=f, neck_mm=neck_mm) for cov, f in zip(per_clip, forces)]
+    in_neck = cf.neck_disc(pts, neck_origin=neck_origin, neck_axis=neck_axis, neck_mm=neck_mm)
+    s = cf.summarize(mesh, coverage, in_neck=in_neck, loads=loads, force_is_band_min=band_min,
+                     force_provisional=provisional, neck_mm=neck_mm)
+    vertex_verdicts, vertex_pressure = cf.vertex_loads(per_clip, loads)
+    colors = cf.colorize(coverage, vertex_verdicts)
+    force_total = sum(forces)
+    # Escritura atómica: dos peticiones solapadas (arrastre con debounce) no deben
+    # servir un .vtp a medio escribir ni mezclar el de otra.
+    import os
+    import uuid
+    tmp_path = meshes_dir / f"clip_field.{uuid.uuid4().hex}.tmp.vtp"
+    cf.write_field(mesh, coverage, vertex_pressure, colors, tmp_path)
+    os.replace(tmp_path, meshes_dir / "clip_field.vtp")
+
+    # Un clip que no toca el cuello («sin_contacto») no sirve: cuenta como fallo.
+    crit_verdicts = {c.verdict for c in criteria}
+    if ("fail" in crit_verdicts or s.pressure_verdict in ("insuficiente", "exceso", "sin_contacto")
+            or s.covered_pct < 50):
+        verdict = "fail"
+    # «sin_fuerza» (pinza pero sin fuerza conocida) avisa: lo desconocido no es malo.
+    elif ("warn" in crit_verdicts or s.pressure_verdict in ("aceptable", "sin_fuerza")
+          or s.residual_pct > 10):
+        verdict = "warn"
+    else:
+        verdict = "ok"
+    # La nota no debe contradecir las cifras: con algún clip con ficha sí hay presión,
+    # pero solo cuenta la fuerza de esos.
+    if sin_ficha and force_total > 0:
+        note = s.note + " Hay clips importados sin ficha: la presión solo cuenta la fuerza de los clips con ficha."
+    elif sin_ficha:
+        note = s.note + " Clip importado sin ficha: sin fuerza de catálogo, la presión no se puede estimar."
+    else:
+        note = s.note
+    # Para el informe (F1-229), con la huella de ESTA colocación: el visor lo
+    # pide también mientras se arrastra, y solo vale si coincide con la guardada.
+    from services.device_state import save_clip_evaluation
+    save_clip_evaluation(session_id, "field", {
+        "verdict": verdict, "covered_pct": s.covered_pct, "residual_pct": s.residual_pct,
+        "pressure_verdict": s.pressure_verdict,
+    }, clips=[(pl.clip_id, [pl.position.x, pl.position.y, pl.position.z],
+               float(pl.rotation_deg), list(pl.normal) if pl.normal else None)
+              for pl in req.placements])
+    return ClipFieldResult(
+        field_mesh_url=f"{mesh_url(session_id, 'clip_field.vtp')}?v={int(time.time() * 1000)}",
+        scalars={"coverage": "uint8", "pressure_g_mm2": "float32", "colors": "uint8x3"},
+        summary=ClipFieldSummary(
+            covered_pct=s.covered_pct, residual_pct=s.residual_pct, unreached_pct=s.unreached_pct,
+            contact_area_mm2=s.contact_area_mm2, force_g=s.force_g, force_is_band_min=s.force_is_band_min,
+            force_provisional=s.force_provisional, pressure_g_mm2=s.pressure_g_mm2,
+            force_target_g=(fuerza["target_g"] if fuerza and len(req.placements) == 1 else 0.0),
+            force_band_g=(list(fuerza["band_g"]) if fuerza and len(req.placements) == 1 else []),
+            force_statement=(fuerza["text"] if fuerza else ""),
+            window_g_mm2=list(s.window_g_mm2), pressure_verdict=s.pressure_verdict,
+            force_window_g=list(s.force_window_g), neck_evaluated=s.neck_evaluated,
+            clips=[ClipFieldClip(name=nm, force_g=ld.force_g, verdict=ld.verdict)
+                   for nm, ld in zip(names, loads)],
+            verdict=verdict,
+            criteria=criteria, clip_name=" + ".join(names), note=note),
+    )
+
+
 # ── Cómo queda el aneurisma con el clip puesto ──────────────────────────────── #
 
 @router.get(
@@ -1284,6 +1482,12 @@ async def clip_occlusion(session_id: str) -> OcclusionOut:
             f"Hay {len(colocados)} clips colocados y la medida usa la línea de "
             f"cierre del más proximal. Para un montaje en fila es una "
             f"aproximación del conjunto."))
+
+    # El informe dice si el clip se comprobó (F1-229): se guarda con la huella
+    # de los clips de ahora, y moverlos la invalida.
+    from services.device_state import save_clip_evaluation
+    save_clip_evaluation(session_id, "occlusion",
+                         {"outcome": res.outcome, "summary": res.summary})
 
     return OcclusionOut(
         outcome=res.outcome,

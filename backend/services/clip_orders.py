@@ -41,6 +41,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -336,16 +337,33 @@ def next_part_no(now: float | None = None) -> str:
 
 def list_orders(status: str | None = None, session_id: str = "",
                 open_only: bool = False, patient_id: int | None = None,
-                q: str = "", session_ids: set[str] | None = None) -> list[ClipOrder]:
+                q: str = "", session_ids: set[str] | None = None,
+                patient_ids: Iterable[int] | None = None,
+                owner: str = "", case_id: int | None = None) -> list[ClipOrder]:
     """Orders newest first, optionally filtered.
 
     `q` searches the fields someone actually has in hand when they come looking:
     a part number off a delivery note, a workshop's name, the surgeon who signed.
+
+    `patient_ids` (with `owner`) is what a non-admin may see: orders for those
+    patients, plus the orders without a patient that `owner` requested. None
+    means everything (the administrator).
     """
     out = [_from_dict(e) for e in _read(_ORDERS_FILE) if isinstance(e, dict)]
+    if patient_ids is not None:
+        # El registro era común a todas las cuentas: un Médico veía (y abría)
+        # los pedidos de los pacientes de otro, con nombre y caso.
+        propios = set(patient_ids)
+        out = [o for o in out if (o.patient_id in propios if o.patient_id is not None
+                                  else o.requested_by == owner)]
     if status:
         out = [o for o in out if o.status == status]
-    if session_ids:
+    if case_id is not None:
+        # F1-219: «Pedidos de este caso» son los del caso, se pidieran desde la
+        # sesión que fuera, más los de la cadena de sesiones de esta.
+        ids = session_ids or ({session_id} if session_id else set())
+        out = [o for o in out if o.case_id == case_id or o.session_id in ids]
+    elif session_ids:
         out = [o for o in out if o.session_id in session_ids]
     elif session_id:
         out = [o for o in out if o.session_id == session_id]
@@ -363,10 +381,12 @@ def list_orders(status: str | None = None, session_id: str = "",
     return out
 
 
-def status_counts() -> dict[str, int]:
-    """How many orders sit in each state. Zeroes included, so the UI is stable."""
+def status_counts(orders: list[ClipOrder] | None = None) -> dict[str, int]:
+    """How many orders sit in each state. Zeroes included, so the UI is stable.
+
+    `orders` lets the caller count only the orders the user may see."""
     counts = {s: 0 for s in STATUS_LABELS}
-    for o in list_orders():
+    for o in (list_orders() if orders is None else orders):
         counts[o.status] = counts.get(o.status, 0) + 1
     return counts
 

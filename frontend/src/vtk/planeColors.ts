@@ -1,0 +1,46 @@
+/* Un color por plano de corte, el mismo en todas partes: el rótulo del corte,
+   sus líneas de referencia en los otros cortes, la traza del MIP y su rectángulo
+   en el 3D. Elegidos para no chocar con los colores que ya significan algo:
+   ámbar (avisos), verde del HUD, magenta (cuello residual), gris (no alcanzado),
+   verde del saco y dorado del clip. El plano libre de la vista Oblicuo tiene
+   el suyo, lavanda, para no confundirse con ninguno de los tres. */
+import type { AnnotationKind } from "../api/types";
+import type { Plane } from "./geometry";
+export type { Plane };
+
+/** Un color por tipo de anotación, lejos de los de los planos y de los reservados. */
+export const ANNOTATION_HEX: Record<AnnotationKind, string> = {
+  regla: "#f5c02e", angulo: "#39c6e0", region: "#5fd38a", marcador: "#e06ad1",
+};
+
+/** Lo que puede dibujarse como contorno o traza: los tres cortes y el plano libre.
+ *  `Plane` sigue siendo solo los tres cortes, que son los únicos con celda propia. */
+export type OutlinePlane = Plane | "libre";
+
+export const PLANE_HEX: Record<OutlinePlane, string> = { axial: "#4cc9f0", coronal: "#80ed99", sagital: "#f4a261", libre: "#c77dff" };
+export const PLANE_CSS_VAR: Record<OutlinePlane, string> = {
+  axial: "var(--plane-axial)", coronal: "var(--plane-coronal)", sagital: "var(--plane-sagital)", libre: "var(--plane-libre)",
+};
+/** --hud: el verde del HUD, y del punto compartido de los cortes en el 3D.
+ *  Una sola fuente en TypeScript; la prueba lo ata a colors.css. */
+export const HUD_HEX = "#8cff9e";
+/** Ámbar y verde del HUD, magenta y gris del mapa de calor, verde del saco, dorado del clip. */
+export const RESERVED_HEX = ["#ffc857", HUD_HEX, "#d946ef", "#6b7280", "#40cc73", "#ebd173"];
+
+/** «#rrggbb» a RGB 0–1, lo que piden los colores de vtk.js. */
+export function hexToRgb01(hex: string): [number, number, number] {
+  const h = hex.slice(1);
+  return [parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255];
+}
+
+export function planeRgb01(p: OutlinePlane): [number, number, number] {
+  return hexToRgb01(PLANE_HEX[p]);
+}
+
+/** En un corte, la línea vertical (u) y la horizontal (v) son la huella de los
+ *  otros dos planos; ver `planeCfg` en Viewer.tsx. */
+export function referencePlanes(plane: Plane): { u: Plane; v: Plane } {
+  if (plane === "axial") return { u: "sagital", v: "coronal" };
+  if (plane === "coronal") return { u: "sagital", v: "axial" };
+  return { u: "coronal", v: "axial" };
+}

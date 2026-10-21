@@ -16,4 +16,12 @@ describe("HudToggleGroup", () => {
     fireEvent.click(screen.getByRole("button", { name: /VOLUMEN/ }));
     expect(on).toHaveBeenCalledWith("vol");
   });
+  it("pinta el prefijo antes de las opciones, dentro del grupo", () => {
+    const { container } = render(<HudToggleGroup label="EJE ▸" options={opts} value="3d" onChange={() => {}} />);
+    const group = container.querySelector(".hud-toggle")!;
+    const first = group.firstElementChild as HTMLElement;
+    expect(first.className).toBe("hud-toggle-label");
+    expect(first.textContent).toBe("EJE ▸");
+    expect(group.textContent).toBe("EJE ▸[ 3D ]VOLUMEN");
+  });
 });

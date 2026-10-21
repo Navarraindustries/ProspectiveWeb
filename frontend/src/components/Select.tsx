@@ -5,13 +5,14 @@ import type { SelectHTMLAttributes } from "react";
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
-  options: readonly string[] | { value: string; label: string }[];
+  /** `disabled`: un separador dentro de la lista («Otros del catálogo»). */
+  options: readonly string[] | { value: string; label: string; disabled?: boolean }[];
 }
 
 export function Select({ label, options, style, ...rest }: SelectProps) {
   const id = useId();
   const opts = options.map((o) =>
-    typeof o === "string" ? { value: o, label: o } : o
+    typeof o === "string" ? { value: o, label: o, disabled: false } : o
   );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
@@ -41,7 +42,7 @@ export function Select({ label, options, style, ...rest }: SelectProps) {
         }}
       >
         {opts.map((o) => (
-          <option key={o.value} value={o.value}>
+          <option key={o.value} value={o.value} disabled={o.disabled}>
             {o.label}
           </option>
         ))}

@@ -11,9 +11,8 @@
 
    Quién puede qué: cualquiera puede dar de alta y corregir —un cirujano que
    pide una pieza necesita poder hacerlo—; borrar es solo de admin, porque un
-   taller borrado desaparece de la lista de todos. Los pedidos ya cursados
-   guardan su propia copia de los datos, así que ni corregir ni borrar reescribe
-   a dónde se mandó nada. */
+   taller borrado desaparece de la lista de todos. (Que los pedidos ya cursados
+   conserven su copia se dice una sola vez, en «Cómo se usa»: F2-64.) */
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
@@ -25,7 +24,8 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
-import { Topbar } from "../components/Topbar";
+import { AppShell } from "../components/shell/AppShell";
+import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 
 const BLANK: WorkshopIn = {
@@ -51,9 +51,15 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
   const [form, setForm] = useState<WorkshopIn>(BLANK);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // F2-63: el campo no nace en rojo. Solo se marca tras intentar guardar sin
+  // nombre, o al salir de él habiendo escrito algo y vaciándolo.
+  const [flagName, setFlagName] = useState(false);
+  const [typedName, setTypedName] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setFlagName(false);
+    setTypedName(false);
     setForm(workshop
       ? {
           name: workshop.name, contact_name: workshop.contact_name,
@@ -67,7 +73,10 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
   const set = (k: keyof WorkshopIn) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [k]: e.target.value });
 
+  const nameMissing = !form.name.trim();
+
   const save = () => {
+    if (nameMissing) { setFlagName(true); return; }
     setBusy(true);
     setError("");
     const done = workshop
@@ -87,9 +96,13 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
       width={480}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Input label="Nombre" value={form.name} onChange={set("name")}
-               invalid={!form.name.trim()}
-               hint="Como aparecerá en el desplegable al pedir una pieza." />
+        <Input label="Nombre" value={form.name}
+               onChange={(e) => { setTypedName(true); set("name")(e); }}
+               onBlur={() => { if (typedName && nameMissing) setFlagName(true); }}
+               invalid={flagName && nameMissing}
+               hint={flagName && nameMissing
+                 ? "Escribe el nombre del taller."
+                 : "Como aparecerá en el desplegable al pedir una pieza."} />
         <div style={row}>
           <div style={cell}>
             <Input label="Persona de contacto" value={form.contact_name} onChange={set("contact_name")} />
@@ -110,16 +123,11 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
         <Input label="Notas" value={form.notes} onChange={set("notes")}
                hint="Plazos habituales, capacidades, lo que convenga recordar." />
 
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-          Los pedidos ya cursados guardan su propia copia de estos datos: corregirlos
-          aquí no cambia a dónde se mandó un pedido antiguo.
-        </div>
-
         <ErrorNote>{error}</ErrorNote>
 
         <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
-          <Button onClick={save} disabled={busy || !form.name.trim()} style={{ flex: 1 }}>
+          <Button onClick={save} disabled={busy} style={{ flex: 1 }}>
             {busy ? "Guardando…" : workshop ? "Guardar cambios" : "Registrar taller"}
           </Button>
         </div>
@@ -136,16 +144,21 @@ export function WorkshopsPage() {
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
+  // El fallo de borrar va en su nota; el de leer sustituye al directorio.
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Workshop | null>(null);
   const [toDelete, setToDelete] = useState<Workshop | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
+    setLoadError("");
     api.listWorkshops()
       .then((w) => { setWorkshops(w); setError(""); })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo leer el directorio"))
+      // F1-104: el error salía encima de «Todavía no hay talleres…», que
+      // invitaba a dar de alta otra vez talleres que ya estaban registrados.
+      .catch((e) => setLoadError(`No se pudo leer el directorio: ${loadErrorText(e)}`))
       .finally(() => setLoading(false));
   }, []);
 
@@ -162,9 +175,8 @@ export function WorkshopsPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)" }}>
-      <Topbar />
-      <div style={{ maxWidth: "var(--content-max)", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+    <AppShell crumbs={[{ label: "Talleres" }]}>
+      <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <PanelHead
@@ -182,11 +194,17 @@ export function WorkshopsPage() {
 
         <ErrorNote>{error}</ErrorNote>
 
-        {loading && workshops.length === 0 && (
+        {loadError && (
+          <Card>
+            <LoadState state="error" mensaje={loadError} onRetry={load} />
+          </Card>
+        )}
+
+        {!loadError && loading && workshops.length === 0 && (
           <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Leyendo el directorio…</div>
         )}
 
-        {!loading && workshops.length === 0 && (
+        {!loadError && !loading && workshops.length === 0 && (
           <Card>
             <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
               Todavía no hay talleres. Registra aquí los del convenio y aparecerán en el
@@ -196,7 +214,7 @@ export function WorkshopsPage() {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {workshops.map((w) => (
+          {!loadError && workshops.map((w) => (
             <Card key={w.id}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -281,9 +299,8 @@ export function WorkshopsPage() {
         onCancel={() => setToDelete(null)}
       >
         ¿Borrar «{toDelete?.name ?? ""}» del directorio? Deja de poder elegirse en
-        pedidos nuevos. Los pedidos ya cursados conservan su propia copia de los
-        datos, así que no se pierde a dónde se mandó ninguno.
+        pedidos nuevos.
       </ConfirmDialog>
-    </div>
+    </AppShell>
   );
 }

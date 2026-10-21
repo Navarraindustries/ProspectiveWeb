@@ -1,6 +1,6 @@
 /* Sesión de planificación — rail de flujo (7 pasos) · visor 3D + MPR · panel del paso. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AttachCaseSheet } from "../components/AttachCaseSheet";
 import type { AttachResult } from "../api/types";
 import { api } from "../api/client";
@@ -8,7 +8,7 @@ import type { PatientSummary } from "../api/types";
 import { Badge, riskVariant } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
-import { STEPS } from "../pipeline/steps";
+import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
 import { Topbar } from "../components/Topbar";
 import { SectionLabel, Card, Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -17,15 +17,26 @@ import { DetectPanel } from "../components/planning/DetectPanel";
 import { MorphometryPanel } from "../components/morphometry/MorphometryPanel";
 import { PerforatorsPanel } from "../components/perforators/PerforatorsPanel";
 import { CenterlinePanel } from "../components/vessels/CenterlinePanel";
-import { MeasurementPanel } from "../components/vessels/MeasurementPanel";
 import { TreatmentPanel } from "../components/planning/TreatmentPanel";
 import { DevicesPanel } from "../components/planning/DevicesPanel";
 import { ManufacturePanel } from "../components/planning/ManufacturePanel";
 import { ReportPanel } from "../components/planning/ReportPanel";
+import { AnnotationsPanel } from "../components/annotations/AnnotationsPanel";
+import { annotationsSubtitle, useAnnotationsSync } from "../components/annotations/useAnnotationsSync";
 import { ViewerWorkspace } from "../vtk/Viewer";
+import { matchShortcut } from "../vtk/shortcuts";
 import { RecordButton } from "../components/RecordButton";
+import { ARCHIVAR_EN_CASO, sinCasoAviso } from "../lib/textos";
+import { hora } from "../lib/fecha";
+import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
+import { useStoredFlag } from "../vtk/viewerPrefs";
 import { usePlanning } from "../store/planning";
+import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
+
+/** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
+const VIEWER_SHORTCUTS = new Set(["sync", "center-lesion", "hud-cycle", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
+  "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
 
 /** What each step needs before it can say anything true, or null when it's ready.
  *
@@ -35,14 +46,15 @@ import { usePlanning } from "../store/planning";
  *  turns the disabled state into an instruction instead of a dead end. */
 function missingFor(
   i: number,
-  p: Pick<ReturnType<typeof usePlanning>, "series" | "segmentation" | "candidates" | "morphometry">,
+  p: Pick<ReturnType<typeof usePlanning>, "series" | "segmentation" | "candidates" | "rejectedCandidates" | "morphometry">,
 ): string | null {
   switch (i) {
     case 0: return null;
     case 1: return p.series ? null : "Carga una serie DICOM primero";
     case 2: return p.segmentation ? null : "Segmenta el vaso primero";
-    case 3: return p.candidates.length > 0 ? null : "Detecta un candidato primero";
-    default: return p.morphometry ? null : "Calcula la morfometría primero";
+    // Un descartado también se mide: con todo vetado el paso sigue abierto.
+    case 3: return canAdvanceFromDetect(p.candidates, p.rejectedCandidates) ? null : "Detecta un candidato primero";
+    default: return p.morphometry ? null : NEEDS_MORPHOMETRY;
   }
 }
 
@@ -63,10 +75,32 @@ export function Workspace({
   const planning = usePlanning();
   const {
     morphometry, sessionId, caseId, caseLabel, imagingStudyId,
-    centerlineMesh, measurements, setPickMode, markSaved, captureCase,
+    centerlineMesh, setPickMode, markSaved, captureCase,
+    annotations, annotationsSync, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded, annotationsFlushRef,
+    annotationsLoadState, noteFocusRequest, dirty, registerSaver,
   } = planning;
+  // Las anotaciones se guardan solas en la sesión viva; «Guardar progreso»
+  // espera a que termine el PUT pendiente para no archivar una lista vieja.
+  const { flush: flushAnnotations } = useAnnotationsSync(
+    sessionId, annotations, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded, annotationsLoadState,
+  );
+  useEffect(() => {
+    annotationsFlushRef.current = flushAnnotations;
+    return () => { annotationsFlushRef.current = null; };
+  }, [flushAnnotations, annotationsFlushRef]);
   const [stepIdx, setStepIdx] = useState(initialStep);
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
+  // P pliega el panel del paso a una tira y el visor gana su ancho; se
+  // recuerda en este navegador, como el nivel del HUD.
+  const [panelCollapsed, setPanelCollapsed] = useStoredFlag(PREF_PANEL_COLLAPSED);
+  // Una nota de marcador pendiente despliega la columna (si no, su campo no
+  // puede tener el foco y lo tecleado dispararía atajos).
+  const columnCollapsed = useUnfoldForNote(panelCollapsed, setPanelCollapsed, noteFocusRequest);
+  const [saving, setSaving] = useState<"idle" | "saving">("idle");
+  // Hora del último guardado hecho en esta pantalla. El botón la enseña
+  // mientras no haya cambios nuevos (`dirty`); no hay temporizador que la
+  // borre: «Guardado ✓» desaparecía a los 1,8 s y no decía si lo de ahora
+  // estaba guardado o no (F1-109).
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   // La captura vive aquí arriba, al lado de «Guardar progreso», porque es
   // donde uno busca «guardar algo de este caso» — y porque está en todos los
   // pasos, que era la pregunta: «¿en qué momento puedo hacer una captura?».
@@ -83,7 +117,7 @@ export function Workspace({
       // Sin estudio archivado la imagen se descarga y NO queda en el caso: se
       // dice, igual que con la grabación, para que nadie crea que está guardada.
       if (destino === "downloaded") {
-        setRecMessage({ tone: "err", text: "Captura descargada, pero no guardada en el caso: usa «Adjuntar a un caso» para que las siguientes se guarden en él." });
+        setRecMessage({ tone: "info", text: sinCasoAviso("Captura descargada") });
       }
     } catch (e) {
       setShot("err");
@@ -92,7 +126,7 @@ export function Workspace({
     }
   };
   // Cómo terminó la última grabación: guardada, solo descargada o fallida.
-  const [recMessage, setRecMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const [recMessage, setRecMessage] = useState<{ tone: "ok" | "err" | "info"; text: string } | null>(null);
   // A failed save used to reset the button to "Guardar progreso" with no notice,
   // so the user believed their work was stored when it was not.
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -113,6 +147,7 @@ export function Workspace({
           label: `${r.patient.full_name} · ${STEPS[stepIdx].label}`,
         });
         markSaved();
+        setSavedAt(new Date());
       } catch { /* adjunto igualmente; «Guardar progreso» lo reintenta */ }
     }
     setAttachNote(`Adjunto a ${r.patient.full_name} · ${r.case_label}. El estudio está archivado`
@@ -121,11 +156,12 @@ export function Workspace({
   };
   const step = STEPS[stepIdx].key;
 
-  const saveProgress = async () => {
-    if (!sessionId) return;
+  const saveProgress = async (): Promise<boolean> => {
+    if (!sessionId) return false;
     setSaving("saving");
     setSaveError(null);
     try {
+      const annotationsOk = (await annotationsFlushRef.current?.()) ?? true;
       await api.saveSession({
         session_id: sessionId,
         patient_id: patient?.id ?? null,
@@ -135,15 +171,41 @@ export function Workspace({
         imaging_study_id: imagingStudyId,
         current_step: stepIdx,
         label: patient ? `${patient.full_name} · ${STEPS[stepIdx].label}` : STEPS[stepIdx].label,
+        // «Reanudar» da a la sesión un id nuevo y cada guardado añadía otra
+        // fila casi igual a «Sesiones guardadas»: se guarda sobre la de origen.
+        overwrite_origin: true,
       });
+      // WHY: la instantánea se guarda igual (el resto del trabajo sí está),
+      // pero sin las anotaciones en disco decir «guardado» y limpiar el aviso
+      // de cambios sin guardar sería mentir.
+      if (!annotationsOk) {
+        setSaving("idle");
+        setSaveError("Las anotaciones no se guardaron; vuelve a intentarlo");
+        return false;
+      }
       markSaved();
-      setSaving("saved");
-      setTimeout(() => setSaving("idle"), 1800);
+      setSavedAt(new Date());
+      setSaving("idle");
+      return true;
     } catch (e) {
       setSaving("idle");
       setSaveError(e instanceof Error ? e.message : "No se pudo guardar el progreso");
+      return false;
     }
   };
+  // El aviso de salida de App («Guardar y salir», F1-110) guarda con esta misma
+  // función: se presta al store mientras la pantalla está montada. Por ref, para
+  // registrar una sola vez y que siempre guarde con el estado del último render.
+  const saveRef = useRef(saveProgress);
+  saveRef.current = saveProgress;
+  useEffect(() => {
+    registerSaver(() => saveRef.current());
+    return () => registerSaver(null);
+  }, [registerSaver]);
+  const saveLabel = saving === "saving" ? "Guardando…"
+    : dirty ? "Guardar progreso •"
+    : savedAt ? `Guardado ${hora(savedAt)}`
+    : "Guardar progreso";
 
   const go = (i: number) => {
     // Cancel any active 3D/MPR pick mode so a tool armed on one step (e.g. the
@@ -153,32 +215,55 @@ export function Workspace({
   };
   const next = () => go(Math.min(stepIdx + 1, STEPS.length - 1));
 
-  // Teclado: Escape cancela el modo de marcado activo (antes había que volver al
-  // panel y pulsar el mismo botón otra vez, con el banner ocupando el visor), y
-  // los dígitos saltan de paso. Se ignora mientras se escribe en un campo.
+  // Teclado: la tabla única de atajos (vtk/shortcuts) decide qué pide cada
+  // tecla y no responde con el foco en un campo de texto. Aquí se atiende lo
+  // del flujo: Escape cancela el modo de marcado activo (antes había que volver
+  // al panel y pulsar el mismo botón otra vez, con el banner ocupando el visor)
+  // y los dígitos saltan de paso. Lo del visor (S, C, espacio, +/−, «?») se le
+  // reenvía por `viewer:shortcut`: el estado que tocan vive en el visor.
+  // Alt+1…4 no se atienden aquí: los atiende el visor por su único camino
+  // (presetForKey); hacerlo también aquí los dispararía dos veces. Las teclas de
+  // corte las atiende la celda con el foco.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
-      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
-      if (e.key === "Escape") {
+      const id = matchShortcut(e, e.target);
+      if (!id) return;
+      if (id === "escape") {
+        // Sin preventDefault. Escape también para el cine del visor: el
+        // espacio lo arranca con el foco en cualquier sitio y Escape tiene que
+        // pararlo igual. Con la hoja de atajos abierta no llega aquí: la hoja
+        // se queda la tecla (fase de captura) y solo se cierra ella.
         setPickMode(null);
+        window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: "escape" }));
         return;
       }
-      if (e.key === "?") {
-        window.dispatchEvent(new CustomEvent("viewer:hint"));
+      if (id === "anot-borrar" || id === "anot-deshacer-punto") {
+        // Supr y Retroceso valen en muchos sitios (la celda ya atiende Retroceso
+        // en modo anotación y lo marca con preventDefault): sin preventDefault
+        // aquí y sin repetir lo que ya se atendió.
+        if (!e.defaultPrevented) window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: id }));
         return;
       }
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
-      const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= STEPS.length) {
-        const i = n - 1;
-        if (i === stepIdx || !missingFor(i, planning)) { e.preventDefault(); go(i); }
+      if (VIEWER_SHORTCUTS.has(id)) {
+        // Que el espacio y +/− no desplacen ni amplíen la página.
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: id }));
+        return;
+      }
+      if (id === "panel-toggle") {
+        e.preventDefault();
+        setPanelCollapsed(!panelCollapsed);
+        return;
+      }
+      if (id.startsWith("step-")) {
+        const i = Number(id.slice(5)) - 1;
+        if (i < STEPS.length && (i === stepIdx || !missingFor(i, planning))) { e.preventDefault(); go(i); }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIdx, planning.series, planning.segmentation, planning.candidates, planning.morphometry]);
+  }, [stepIdx, panelCollapsed, planning.series, planning.segmentation, planning.candidates, planning.rejectedCandidates, planning.morphometry]);
 
   const panel = {
     upload: <UploadPanel onNext={next} />,
@@ -201,24 +286,19 @@ export function Workspace({
         >
           <CenterlinePanel />
         </Collapsible>
-        <Collapsible
-          title="Mediciones 3D"
-          subtitle="Distancia entre dos puntos del modelo"
-          storageKey="ws.morpho.measurements"
-          badge={measurements.length > 0 ? <Badge variant="subtle">{measurements.length}</Badge> : undefined}
-        >
-          <MeasurementPanel />
-        </Collapsible>
       </div>
     ),
-    treatment: <TreatmentPanel onNext={next} />,
+    treatment: <TreatmentPanel onNext={next} onChangeSite={() => go(STEPS.findIndex((st) => st.key === "morpho"))} />,
     devices: <DevicesPanel onNext={next} />,
     manufacture: <ManufacturePanel onNext={next} />,
     report: <ReportPanel onFinish={onFinish} />,
   }[step];
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
+    // `data-panel-collapsed`: el visor lo lee para su `estadoVisor` sin que
+    // el estado del panel tenga que pasar por el store.
+    <div data-panel-collapsed={columnCollapsed ? "true" : "false"}
+         style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
       <Topbar
         crumbs={[
           { label: "Pacientes", onClick: onBack },
@@ -252,27 +332,42 @@ export function Workspace({
             : shot === "err" ? "No se guardó" : "Captura"}
         </Button>
         <RecordButton step={step} onMessage={setRecMessage} />
-        {/* Sin estudio archivado: la sesión aún no es de nadie. */}
+        {/* Sin estudio archivado: la sesión aún no es de nadie. Con el
+            paciente ya fijado, «Adjuntar a un caso» sonaba a elegir paciente
+            otra vez; lo que falta es el caso donde archivar (F1-107). */}
         {sessionId && !imagingStudyId && (
           <Button
             size="sm"
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
             style={{ marginRight: 8 }}
-            title="Liga esta sesión a un paciente y un caso y archiva su DICOM"
+            title={patient
+              ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos"
+              : "Liga esta sesión a un paciente y un caso y archiva su DICOM"}
           >
-            Adjuntar a un caso
+            {patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso"}
           </Button>
         )}
         <Button
           variant="outline"
           size="sm"
-          onClick={saveProgress}
-          disabled={!sessionId || saving === "saving"}
-          leadingIcon={<Icon name={saving === "saved" ? "STATUS_OK" : "SAVE"} />}
+          onClick={() => setPanelCollapsed(!panelCollapsed)}
+          aria-pressed={!panelCollapsed}
+          title="Ocultar o mostrar el panel del paso (P)"
           style={{ marginRight: 8 }}
         >
-          {saving === "saving" ? "Guardando…" : saving === "saved" ? "Guardado ✓" : "Guardar progreso"}
+          ◧ Panel
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void saveProgress()}
+          disabled={!sessionId || saving === "saving"}
+          title="Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión"
+          leadingIcon={<Icon name={!dirty && savedAt && saving !== "saving" ? "STATUS_OK" : "SAVE"} />}
+          style={{ marginRight: 8 }}
+        >
+          {saveLabel}
         </Button>
         <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>
           Pacientes
@@ -337,14 +432,18 @@ export function Workspace({
           style={{
             display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
             padding: "8px 18px", fontSize: 12, fontWeight: 600,
+            // «info»: descargar sin caso es lo esperado, no un fallo; ni rojo ni verde.
             background: recMessage.tone === "err"
               ? "color-mix(in srgb, var(--destructive) 12%, transparent)"
-              : "color-mix(in srgb, var(--success, #2f7d5b) 12%, transparent)",
-            color: recMessage.tone === "err" ? "var(--destructive)" : "var(--success, #2f7d5b)",
+              : recMessage.tone === "info"
+                ? "color-mix(in srgb, var(--foreground) 6%, transparent)"
+                : "color-mix(in srgb, var(--success, #2f7d5b) 12%, transparent)",
+            color: recMessage.tone === "err" ? "var(--destructive)"
+              : recMessage.tone === "info" ? "var(--muted-foreground)" : "var(--success, #2f7d5b)",
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <Icon name={recMessage.tone === "err" ? "STATUS_WARN" : "STATUS_OK"} size={14} />
+          <Icon name={recMessage.tone === "err" ? "STATUS_WARN" : recMessage.tone === "info" ? "INFO" : "STATUS_OK"} size={14} />
           <span style={{ flex: 1, minWidth: 0 }}>{recMessage.text}</span>
           <span style={{ opacity: 0.7 }}>✕</span>
         </div>
@@ -485,10 +584,32 @@ export function Workspace({
           <ViewerWorkspace step={step} />
         </div>
 
-        {/* Panel del paso — ancho fluido con mínimo legible */}
-        <div style={{ width: "clamp(300px, 27vw, 384px)", flexShrink: 0, background: "var(--background)", borderLeft: "1px solid var(--border)", overflowY: "auto", padding: "20px 18px 40px" }}>
+        {/* Panel del paso — ancho fluido con mínimo legible; plegable con P. */}
+        <RightPanelColumn
+          collapsed={columnCollapsed}
+          onToggle={() => setPanelCollapsed(false)}
+          stepLabel={STEPS[stepIdx].label}
+          badge={sessionId && annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
+        >
           {panel}
-        </div>
+          {/* En todos los pasos con sesión: una medida se toma cuando hace falta,
+              no en un paso concreto del flujo. */}
+          {sessionId && (
+            <div style={{ marginTop: 16 }}>
+              <Collapsible
+                title="Anotaciones"
+                subtitle={annotationsSubtitle(annotationsLoadState, annotationsSync, annotations.length)}
+                storageKey="ws.annotations"
+                // Un marcador recién puesto espera su nota: el panel se abre
+                // para que el campo exista y reciba el foco.
+                forceOpen={noteFocusRequest !== null}
+                badge={annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
+              >
+                <AnnotationsPanel />
+              </Collapsible>
+            </div>
+          )}
+        </RightPanelColumn>
       </div>
     </div>
   );

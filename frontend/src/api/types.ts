@@ -55,6 +55,14 @@ export interface PendingUser {
   created_at: string;
 }
 
+/** Una cuenta activa, lo justo para elegir con quién compartir. */
+export interface UserBrief {
+  id: number;
+  username: string;
+  full_name: string;
+  role: string;
+}
+
 export interface UserAdminInfo {
   id: number;
   username: string;
@@ -67,12 +75,20 @@ export interface UserAdminInfo {
   has_photo: boolean;
   has_cv: boolean;
   created_at: string;
+  university: string;
+  position: string;
+  /** ISO UTC; solo si la solicitud se rechazó (F2-51). */
+  rejected_at: string | null;
 }
 
 export interface UserUpdate {
   full_name?: string;
   role?: string;
   is_active?: boolean;
+  specialty?: string;
+  hospital?: string;
+  university?: string;
+  position?: string;
 }
 
 /* ── PHASES score ──────────────────────────────────────────────────────── */
@@ -123,6 +139,13 @@ export interface CenterlineResult {
   warning: string | null;
 }
 
+/** Puntos de la línea central (marco del volumen, mm), con radio y arco acumulado. */
+export interface CenterlinePoints {
+  points: Position3D[];
+  radii_mm: number[];
+  arc_mm: number[];
+}
+
 export interface CrossSectionRequest {
   session_id: string;
   n_samples: number;
@@ -138,11 +161,14 @@ export interface CrossSectionResult {
   mean_area_mm2: number;
   stenosis_ratio: number;
   stenosis_pct: number;
+  /** 'Sin estenosis' | 'Leve' | 'Significativa' | 'Perfil irregular' */
   stenosis_label: string;
+  /** Por qué no se gradúa (perfil con saltos de rama, F1-169); «» si se gradúa. */
+  stenosis_note: string;
   warning: string | null;
 }
 
-/* ── audit (SkullChain) ─────────────────────────────────────────────────── */
+/* ── audit (cadena de bloques) ─────────────────────────────────────────────────── */
 export interface AuditBlock {
   id: number;
   iso_ts: string;
@@ -190,6 +216,34 @@ export interface PatientSummary {
   institution: string;
   study_count: number;
   created_at: string;
+  /** Cuenta que creó al paciente (F2-75). */
+  owner_id: number | null;
+  /** Con cuántas cuentas está compartido. */
+  shared_with_count: number;
+  /** Lo veo porque me lo compartieron, no porque lo creé. */
+  is_shared_with_me: boolean;
+  /** Última sesión guardada del paciente (F2-19, F2-24); null si no hay. Solo la lista la rellena. */
+  last_session_at: string | null;
+  /** Paso (índice del pipeline) en que quedó esa sesión. */
+  last_session_step: number | null;
+  /** Id de esa sesión, para «Reanudar» desde la lista. */
+  last_session_id: string | null;
+  /** Diagnóstico del caso más reciente; "" si no tiene casos. */
+  last_case_label: string;
+}
+
+/** Una cuenta con la que está compartido un paciente. */
+export interface PatientShareOut {
+  user_id: number;
+  username: string;
+  full_name: string;
+  role: string;
+  shared_at: string;
+}
+
+/** La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior). */
+export interface PatientSharesIn {
+  user_ids: number[];
 }
 
 /** Clinical study/case for an existing patient (sections 3-5 of Nuevo Caso). */
@@ -239,6 +293,26 @@ export interface PatientSessionInfo {
   rupture_risk_label: string | null;
   created_at: string;
   updated_at: string;
+  /** Lo que ocupa la sesión guardada en disco. */
+  size_bytes: number;
+}
+
+/** Una sesión guardada tal como la devuelve renombrarla (PATCH /api/sessions/saved/{id}). */
+export interface SessionListItem {
+  id: number;
+  session_id: string;
+  label: string;
+  current_step: number;
+  patient_name: string;
+  created_at: string;
+  updated_at: string;
+  file_size_kb: number;
+  size_bytes: number;
+}
+
+/** Nuevo nombre de una sesión guardada (1–256 caracteres, sin espacios en los extremos). */
+export interface SavedSessionRenameIn {
+  label: string;
 }
 
 /* ── dicom / upload ────────────────────────────────────────────────────── */
@@ -260,6 +334,12 @@ export interface SeriesInfo {
   is_projection: boolean;
   projection_warning: string | null;
   size_mb: number;
+  /** YYYY-MM-DD; vacío si la cabecera no trae fecha (F1-127). */
+  acquisition_date: string;
+  /** HH:MM; vacío si no hay hora. */
+  acquisition_time: string;
+  /** Horas tras crearla en que se borra una sesión sin guardar (F1-128). */
+  session_ttl_hours: number;
 }
 
 export interface UploadResult {
@@ -445,6 +525,38 @@ export interface DeviceClearResult {
   meshes_removed: number;
   /** Mesh URL per still-placed family — lets a resumed session redraw its devices. */
   mesh_urls: Partial<Record<DeviceKind, string>>;
+  /** La lista editable de clips y su verificación; null sin clips guardados. */
+  placed_clips?: PlacedClipsState | null;
+  /** F1-188: la familia marcada como estrategia del equipo, o null. */
+  strategy?: DeviceStrategy | null;
+  /** Cuántos dispositivos hay en el plan por familia (clips, coils, stent, stent_cl). */
+  placed_counts?: Record<string, number>;
+}
+
+/** Las pestañas de Dispositivos que pueden ser la estrategia del equipo. */
+export type DeviceStrategy = "clips" | "coils" | "stent" | "stent_cl" | "web";
+
+/** PUT /api/devices/{sid}/strategy. */
+export interface DeviceStrategyState {
+  strategy: DeviceStrategy | null;
+}
+
+/** Un clip de la lista de colocación tal como lo guarda el backend (mismo
+ *  dibujo que `PlacedClip` del store, con la posición como lista). */
+export interface PlacedClipState {
+  key: number;
+  clip_id: string;
+  name: string;
+  position: number[];
+  rotation_deg: number;
+  azimuthDeg: number;
+  elevationDeg: number;
+}
+
+export interface PlacedClipsState {
+  clips: PlacedClipState[];
+  /** La verificación de la última colocación de esta lista. */
+  plan?: ClipPlanResult | null;
 }
 
 export interface PreprocessStatus {
@@ -531,6 +643,9 @@ export interface TrajectoryResult {
   /** Null mientras no haya malla: sin ella no hay contra qué cruzar nada, y un
       «viable» sin haber mirado sería peor que no dar veredicto. */
   corridor: CorridorAssessmentOut | null;
+  /** Hay malla pero el corredor guardado ya no vale (la malla cambió después
+   *  de guardarlo): hay que volver a guardar la trayectoria. */
+  stale?: boolean;
 }
 
 /* ── DICOM volume preprocessing ────────────────────────────────────────── */
@@ -657,8 +772,24 @@ export interface AneurysmCandidate {
       «locator»: una bola alrededor del punto — enseña DÓNDE mirar, no qué
       parte es la lesión, e incluye pared de vaso. Ninguno de los dos afecta a
       la morfometría, que se mide sobre el saco aislado desde el volumen a
-      partir del plano de cuello marcado. */
-  patch_kind: "region" | "locator";
+      partir del plano de cuello marcado. «manual»: un punto que el profesional
+      marcó y confirmó como la lesión sin que coincidiera con ningún candidato
+      (F1-146); sin malla (`dome_mesh_url` vacío), se mide marcando cuello y
+      ápice. */
+  patch_kind: "region" | "locator" | "manual";
+  /** Posición entre los aceptados (1 = el primero). En un descartado numera
+      el orden en que se evaluó; 0 en un marcado a mano (sin puesto). */
+  rank: number;
+  /** null si el sitio pasó los vetos; si no, el motivo por el que se descartó.
+      Los descartados se listan igualmente para que el cirujano pueda verlos
+      y discrepar del detector. */
+  veto: Veto | null;
+}
+
+export interface Veto {
+  reason: "borde" | "isla" | "bifurcacion" | "forma";
+  label: string;
+  detail: string;
 }
 
 /** Why the detector kept or rejected what it did. An empty result used to be
@@ -675,11 +806,17 @@ export interface DetectionDiagnostics {
   removed_components: number;
   min_radius_mm: number;
   max_radius_mm: number;
+  n_rejected: number;
+  rejected_by_reason: Record<string, number>;
 }
 
 export interface AneurysmDetectionResult {
   found: boolean;
   candidates: AneurysmCandidate[];
+  /** Sitios descartados por un veto, con su motivo. */
+  rejected: AneurysmCandidate[];
+  /** true si el elegido cambió y la morfometría previa ya no le corresponde. */
+  morphometry_invalidated: boolean;
   diagnostics: DetectionDiagnostics;
 }
 
@@ -702,6 +839,10 @@ export interface MorphometryResult {
   ei: number;
   nsi: number;
   sr: number;
+  /** Arteria portadora estimada en el cuello (la que usa el planificador de
+   *  stent recto); null si no se pudo medir. F1-205: siembra el «Diámetro
+   *  nominal» del stent en vez del 4 del catálogo. */
+  parent_artery_mm?: number | null;
   rupture_risk_label: RiskLabel;
   reliable: boolean;
   /** El saco CERRADO aislado al marcar el cuello. Es la única malla que
@@ -722,6 +863,9 @@ export interface MorphometryResult {
    *  landed in the same place. */
   /** Candidato medido (`cand-00N`); solo lo trae GET /morphometry. */
   candidate_id?: string | null;
+  /** Localización elegida en Morfometría (`clinical.site`); vuelve al reanudar.
+   *  null si no se eligió o es «Desconocida». */
+  site?: AneurysmLocation | null;
   neck_tilt_deg: number;
   /** False when the sac mesh was open or its volume implausible: volume,
    *  equivalent sphere, compactness, UI, EI and NSI were nulled. Independent
@@ -755,6 +899,9 @@ export interface NeckPlaneRequest {
    *  and `origin`/`normal` are ignored — real necks are often oblique to the
    *  dome axis, and assuming perpendicularity overestimates the opening. */
   rim_points?: Position3D[];
+  /** Candidato al que corresponde la medida; queda como el elegido. Hace falta
+   *  con uno marcado a mano, que la morfometría automática no mide (F1-146). */
+  candidate_id?: string | null;
 }
 
 /* ── perforators ───────────────────────────────────────────────────────── */
@@ -794,12 +941,32 @@ export const ANEURYSM_LOCATIONS = [
   "ACI proximal (segm. cavernoso / clinoideo)",
   "ACI distal (PCOM / oftálmica)",
   "ACoP — Arteria Comunicante Posterior",
-  "Basilar (punta, tronco o AICA)",
+  "Punta basilar",
+  "Tronco basilar",
+  "AICA",
   "PICA / Vertebral",
   "Otra localización",
 ] as const;
 
-export type AneurysmLocation = (typeof ANEURYSM_LOCATIONS)[number];
+/** F1-174: la entrada que juntaba punta, tronco y AICA. El menú ya no la
+ *  ofrece, pero el servidor la sigue aceptando y devolviendo porque hay
+ *  sesiones guardadas que la llevan (Case 3, de tronco). No se traduce a
+ *  «punta» sin que nadie lo elija: se enseña como sin precisar. */
+export const LEGACY_BASILAR = "Basilar (punta, tronco o AICA)" as const;
+export const LEGACY_BASILAR_LABEL = "Basilar (sin precisar: elige punta, tronco o AICA)";
+
+export type AneurysmLocation = (typeof ANEURYSM_LOCATIONS)[number] | typeof LEGACY_BASILAR;
+
+/** PUT /api/morphometry/{sid}/site: la localización, elegida una vez (F1-165). */
+export interface ClinicalSiteResult {
+  site: AneurysmLocation;
+  /** Borrado por describir otra localización: solo puede ser «Decisión». */
+  cleared: string[];
+  /** Puntuaciones guardadas recalculadas con sus mismas entradas («PHASES», «ELAPSS», «UIATS»). */
+  recalculated: string[];
+  /** Sin categoría en la nueva localización: salen del informe hasta elegir una. */
+  pending: string[];
+}
 
 export interface DecisionFactor {
   name: string;
@@ -825,6 +992,8 @@ export interface PerforatorTerritory {
   consequence: string;
   surgical_note: string;
   sources: string[];
+  /** Aviso antes de la tarjeta: hoy solo con la localización basilar antigua. */
+  notice?: string;
 }
 
 /** Cómo sería la vía endovascular para esta geometría. No es una segunda
@@ -912,9 +1081,26 @@ export interface TreatmentDecisionResult {
   recommendation: string;
   recommendation_key: "clip" | "endo" | "mdt" | "surveillance";
   confidence: "Alta" | "Moderada" | "Baja";
+  /** F1-177: por qué la confianza es baja; «» si no lo es. */
+  confidence_reason: string;
   factors: DecisionFactor[];
   clip_factors: string[];
   endo_factors: string[];
+  /** F1-176: lo que decidió el equipo, aparte de lo que recomienda el motor.
+      No se borra al re-evaluar ni al cambiar la localización. */
+  team?: TeamDecision | null;
+}
+
+/** La decisión del equipo (PUT/GET /api/treatment-decision/{sid}/team). */
+export type TeamDecisionKey = "clipaje" | "endovascular" | "vigilar" | "otra";
+
+export interface TeamDecision {
+  /** null: no se ha registrado. */
+  team_decision: TeamDecisionKey | null;
+  /** Quién decide; no se rellena con el usuario conectado. */
+  decided_by: string;
+  /** Qué, cuando la decisión es «otra». */
+  other_text: string;
 }
 
 /* ── devices: clips ────────────────────────────────────────────────────── */
@@ -1001,6 +1187,12 @@ export interface ManufactureSpecOut {
   shape: string;
   angle_deg: number;
   closing_force_g: number;
+  /** La banda de diseño de la familia alrededor de `closing_force_g` (el
+   *  objetivo). Vacía si la fuerza no es una banda. */
+  force_band_g?: number[];
+  /** «Fuerza objetivo 120 g dentro de la banda de diseño 120–200 g (sin
+   *  caracterizar; se mide en la pieza)», la misma frase que el dossier. */
+  force_statement?: string;
   fenestration_mm: number;
   neck_mm: number;
   label: string;
@@ -1040,6 +1232,35 @@ export interface OcclusionOut {
   remnant_mesh_url: string | null;
   clip_name: string;
 }
+
+/** Veredicto del campo del clip: cuánto cuello cubre, qué presión estima y si cae
+ *  dentro de la ventana de fuerza. Es una estimación geométrica, no una medida. */
+export type ClipForceVerdict = "sin_contacto" | "sin_fuerza" | "insuficiente" | "optima" | "aceptable" | "exceso";
+/** Un clip juzgado con su propia fuerza frente a la ventana del cuello. */
+export interface ClipFieldClip { name: string; force_g: number; verdict: ClipForceVerdict }
+export interface ClipFieldSummary {
+  /** Porcentajes sobre el disco del cuello; sin sentido si `neck_evaluated` es false. */
+  covered_pct: number; residual_pct: number; unreached_pct: number;
+  contact_area_mm2: number;
+  /** Fuerza del peor clip (el que da `pressure_verdict`). */
+  force_g: number; force_is_band_min: boolean; force_provisional: boolean;
+  /** La cifra de fuerza de la pieza (el objetivo) y su banda: la misma que
+   *  Fabricación y el pedido. Opcionales: un backend anterior no las manda. */
+  force_target_g?: number; force_band_g?: number[]; force_statement?: string;
+  /** g/mm²: solo para la capa del .vtp y por compatibilidad. Presión y ventana se
+   *  dividen por la misma área, así que no se enseña: se enseña la fuerza en gramos. */
+  pressure_g_mm2: number; window_g_mm2: [number, number, number, number];
+  pressure_verdict: ClipForceVerdict;
+  /** Ventana de fuerza del cuello en gramos: aceptable mín, óptima mín, óptima máx, aceptable máx. */
+  force_window_g: [number, number, number, number];
+  /** False si ningún vértice del cuello cae en la banda (clip lejos a lo largo del eje). */
+  neck_evaluated: boolean;
+  /** Cada clip con su fuerza y su veredicto; `pressure_verdict` es el peor. */
+  clips: ClipFieldClip[];
+  verdict: "ok" | "warn" | "fail";
+  criteria: ClipCriterion[]; clip_name: string; note: string;
+}
+export interface ClipFieldResult { field_mesh_url: string; scalars: Record<string, string>; summary: ClipFieldSummary }
 
 export interface ClipCaseOut {
   neck_mm: number;
@@ -1146,6 +1367,9 @@ export interface ClipSelectionResult {
       cuello que el inventario no cubre. */
   multiclip: MultiClipConstructOut | null;
   caveats: string[];
+  /** Clips de INVENTARIO en el catálogo juzgado. Con 0 todo es bajo pedido: el
+   *  veredicto es «Pieza a medida» y nada se llama «del inventario». */
+  stock_count?: number;
 }
 
 /* ── Global clip library ────────────────────────────────────────────────── */
@@ -1252,6 +1476,28 @@ export interface CoilConstructResult {
   projected_packing: number;
   feasible: boolean;
   note: string;
+  /** F1-203: el cuello medido, primer dato del montaje. 0 = sin medir. */
+  neck_mm: number;
+  /** Cuello ≥ 4 mm o domo/cuello < 2 (la regla del perfil endovascular);
+   *  entonces `note` empieza con «cuello ancho: probable adyuvante». */
+  wide_neck: boolean;
+}
+
+/** Una fila del montaje editado: modelo del catálogo y cuántos. */
+export interface CoilPreviewRow {
+  coil_id: string;
+  count: number;
+}
+
+/** Empaquetamiento proyectado del montaje EDITADO, antes de colocarlo
+ *  (decisión nº 24). Misma cuenta que POST /coils/plan; no guarda nada. */
+export interface CoilPreviewResult {
+  projected_packing: number;
+  n_coils: number;
+  packing_min: number;
+  meets_minimum: boolean;
+  durability: string;
+  warning?: string | null;
 }
 
 export interface CoilPlanResult {
@@ -1349,6 +1595,9 @@ export interface SessionSaveRequest {
   study_id?: number | null;
   imaging_study_id?: number | null;
   current_step?: number;
+  /** Tras «Reanudar», guardar sobre la sesión de la que salió en vez de
+   *  añadir otra fila a «Sesiones guardadas» (por defecto, sí). */
+  overwrite_origin?: boolean;
 }
 
 export interface SessionSaveResult {
@@ -1381,6 +1630,19 @@ export interface SessionRestoreResult {
   fallback_note?: string;           // por qué se bajó a media resolución
   centerline_mesh_url: string;      // "" when the session had no centreline
   centerline_arc_mm: number;
+  /* Lo hecho después de detectar (familia S); null = no se hizo. */
+  treatment?: TreatmentDecisionResult | null;
+  treatment_inputs?: TreatmentDecisionRequest | null;
+  trajectory?: TrajectoryResult | null;
+  placed_clips?: PlacedClipsState | null;
+  /** Ventana y nivel de los cortes; null = la del DICOM. */
+  window?: { wc: number; ww: number } | null;
+  /** `*_current`: el documento se generó con el plan que la sesión tiene. */
+  report_urls?: {
+    pdf_url?: string | null; dicom_sr_url?: string | null;
+    pdf_current?: boolean; sr_current?: boolean;
+  } | null;
+  lesion_confirmed?: boolean;
 }
 
 /* ── longitudinal ──────────────────────────────────────────────────────── */
@@ -1419,6 +1681,8 @@ export interface StudyCard {
   id: number;            // ImagingStudy id
   case_id: number;       // clinical case it belongs to
   patient_id: number;
+  /** Cuenta que creó al paciente: la única (con el administrador) que puede borrar el estudio. */
+  owner_id?: number | null;
   patient_name: string;
   hospital_id: string;
   description: string;
@@ -1499,6 +1763,9 @@ export interface ClipOrderPrefill {
   extra_sizes_reason: string;
   stock_sizes_mm: number[];
   force_band_g: number[];
+  /** La fuerza objetivo de la pieza (la del clip colocado, si lo hay). */
+  force_target_g?: number;
+  force_statement?: string;
   max_tip_opening_mm: number;
   material: string;
   tolerance_jaw_mm: number;
@@ -1815,6 +2082,9 @@ export interface LesionConfirmation {
   position: Position3D | null;
   /** Puesto del candidato que ES la lesión; null si ninguno lo era. */
   candidate_rank: number | null;
+  /** El candidato de la lista que es la lesión ('cand-003'), también si es un
+      descartado o el marcado a mano recién creado con el punto (F1-146). */
+  candidate_id?: string | null;
   n_candidates: number;
   channels: string;
   modality: string;
@@ -2054,3 +2324,15 @@ export interface UiatsResult {
   notes: string[];
   sources: string[];
 }
+
+/** Anotaciones persistentes de la sesión (E2). Aquí va el formato del cable, con
+ *  los puntos como Position3D como el resto de la API; el tipo del almacén, con
+ *  tuplas, vive en vtk/annotations.ts y el cliente convierte entre ambos. */
+export type AnnotationKind = "regla" | "angulo" | "region" | "marcador";
+export interface AnnotationPlane { plane: "axial" | "coronal" | "sagital"; index: number }
+export interface AnnotationWire {
+  id: string; kind: AnnotationKind; points: Position3D[];
+  plane: AnnotationPlane | null; label: string; note: string; visible: boolean;
+  created_at: string; created_by: string;
+}
+export interface AnnotationsResult { annotations: AnnotationWire[] }

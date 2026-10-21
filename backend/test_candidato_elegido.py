@@ -44,3 +44,15 @@ def test_sin_deteccion_no_hay_diana():
 def test_perforantes_usan_el_elegido():
     from routers.perforators import _resolve_neck_origin
     assert _resolve_neck_origin(_sesion_con_dos_candidatos("cand-002")) == (40.0, 50.0, 60.0)
+
+
+def test_un_descartado_elegido_es_la_diana():
+    # Los descartados por un veto siguen a los aceptados (cand-003 aquí) y se
+    # pueden medir: si el clínico eligió uno, la diana es ese y no el primero.
+    sid = _sesion_con_dos_candidatos("cand-003")
+    write_states(sid, {
+        "detect.n_rejected": "1",
+        "detect.cand_003.centroid_x": "7", "detect.cand_003.centroid_y": "8",
+        "detect.cand_003.centroid_z": "9",
+    })
+    assert measured_candidate_centroid(sid) == (7.0, 8.0, 9.0)

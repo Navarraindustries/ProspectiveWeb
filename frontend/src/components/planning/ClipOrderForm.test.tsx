@@ -28,7 +28,15 @@ vi.mock("../../api/client", () => ({
 
 vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 
-import { ClipOrderForm } from "./ClipOrderForm";
+// La cuenta con la que se abre el pedido: solo médico o residente con nombre
+// salen propuestos como cirujano (F1b-2, misma regla que el informe).
+const auth: { user: { username: string; full_name: string; role: string } | null } = {
+  user: { username: "admin", full_name: "Administrador", role: "admin" },
+};
+vi.mock("../../store/auth", () => ({ useAuth: () => ({ user: auth.user }) }));
+
+import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
+import { ApiError } from "../../api/client";
 import type { ClipOrderPrefill } from "../../api/types";
 
 const prefill = (over: Partial<ClipOrderPrefill> = {}): ClipOrderPrefill => ({
@@ -111,9 +119,17 @@ describe("what the form already knows", () => {
   });
 
   it("says where the neck measurement came from, because everything derives from it", async () => {
+    // F1-215: la misma frase que el informe (backend/services/neck_provenance).
     clipOrderPrefill.mockResolvedValue(prefill({ neck_source: "auto" }));
     draw();
-    expect(await screen.findByText(/automáticamente, sin marcarlo/)).toBeTruthy();
+    expect(await screen.findByText("estimado a partir del saco")).toBeTruthy();
+  });
+
+  it("un punto de cuello marcado a mano es marcado, no estimado (F1-215)", async () => {
+    clipOrderPrefill.mockResolvedValue(prefill({ neck_source: "manual" }));
+    draw();
+    expect(await screen.findByText("medido con un punto de cuello marcado a mano")).toBeTruthy();
+    expect(screen.queryByText("estimado a partir del saco")).toBeNull();
   });
 
   it("pre-ticks the spare sizes only when the neck was estimated", async () => {
@@ -324,5 +340,62 @@ describe("switching series leaves every field valid for it", () => {
     fireEvent.change(screen.getByLabelText("Serie"), { target: { value: "curved" } });
     const jaw = await screen.findByLabelText(/Mordaza/) as HTMLSelectElement;
     expect([10, 13].map(String)).toContain(jaw.value);
+  });
+});
+
+describe("el glosario de pedidos en Fabricación (F1-93, F1-217, F1-218)", () => {
+  it("mientras prepara dice «Preparando el pedido…»", () => {
+    clipOrderPrefill.mockReturnValue(new Promise(() => {}));
+    draw();
+    expect(screen.getByText("Preparando el pedido…")).toBeInTheDocument();
+    expect(screen.queryByText(/solicitud/i)).toBeNull();
+  });
+
+  it("si no hay motivo del servidor, dice que no se pudo preparar el pedido y que se reintente", async () => {
+    clipOrderPrefill.mockRejectedValue(new ApiError(500, ""));
+    draw();
+    expect(await screen.findByText("No se pudo preparar el pedido; vuelve a intentarlo")).toBeInTheDocument();
+  });
+});
+
+describe("la lista de pedidos (F1-219)", () => {
+  const pedido = {
+    part_no: "PR-2026-0007", status: "firmado", status_label: "Firmado", series: "T1",
+    shape: "straight", angle_deg: 0, jaw_mm: 10, window_mm: 0, total_pieces: 1,
+    workshop_name: "Taller Sur", advised_label: "", override_reason: "", reception: null,
+    next_states: [], files: {},
+  } as never;
+
+  it("con caso dice «Pedidos de este caso» y pide los del caso", async () => {
+    listClipOrders.mockResolvedValueOnce([pedido] as never);
+    render(<ClipOrderList sessionId="viva" caseId={12} refreshKey={0} />);
+    expect(await screen.findByText("Pedidos de este caso")).toBeTruthy();
+    expect(listClipOrders).toHaveBeenLastCalledWith({ sessionId: "viva", caseId: 12 });
+  });
+
+  it("sin caso no habla de caso: «Pedidos de esta sesión»", async () => {
+    listClipOrders.mockResolvedValueOnce([pedido] as never);
+    render(<ClipOrderList sessionId="viva" caseId={null} refreshKey={0} />);
+    expect(await screen.findByText("Pedidos de esta sesión")).toBeTruthy();
+    expect(screen.queryByText("Pedidos de este caso")).toBeNull();
+  });
+});
+
+describe("quién sale propuesto como cirujano responsable (F1b-2)", () => {
+  it("con la cuenta admin el campo arranca vacío aunque pueda firmar", async () => {
+    auth.user = { username: "admin", full_name: "Administrador", role: "admin" };
+    clipOrderPrefill.mockResolvedValue(prefill({ can_sign: true, requester_name: "Administrador" }));
+    draw();
+    const campo = await screen.findByLabelText("Cirujano responsable") as HTMLInputElement;
+    await waitFor(() => expect(clipOrderPrefill).toHaveBeenCalled());
+    expect(campo.value).toBe("");
+  });
+
+  it("con una médica con nombre el campo arranca con su nombre", async () => {
+    auth.user = { username: "navarro", full_name: "Dra. Navarro", role: "medico" };
+    clipOrderPrefill.mockResolvedValue(prefill());
+    draw();
+    const campo = await screen.findByLabelText("Cirujano responsable") as HTMLInputElement;
+    await waitFor(() => expect(campo.value).toBe("Dra. Navarro"));
   });
 });

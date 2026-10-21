@@ -147,7 +147,8 @@ describe("una sesión reanudada", () => {
     expect(screen.queryByText("Estanca")).toBeNull();
     expect(screen.queryByText(/0 piezas/)).toBeNull();
     // Ni un «100 % conservado del umbral» que nadie midió en esta carga.
-    expect(screen.queryByText("Volumen conservado (del umbral)")).toBeNull();
+    expect(screen.queryByText("Volumen conservado")).toBeNull();
+    expect(screen.queryByText(/frente a la máscara del umbral/)).toBeNull();
   });
 });
 
@@ -256,7 +257,8 @@ describe("la banda del volumen, con una malla ya hecha", () => {
         </SessionOnly>
       </PlanningProvider>,
     );
-    const sup = (await screen.findByLabelText("Umbral superior")) as HTMLInputElement;
+    // El tubular (por defecto) ya no enseña el techo; el inferior comparte rango.
+    const sup = (await screen.findByLabelText("Umbral inferior")) as HTMLInputElement;
     await vi.waitFor(() => expect(Number(sup.max)).toBeGreaterThan(4450));
   });
 
@@ -265,6 +267,7 @@ describe("la banda del volumen, con una malla ya hecha", () => {
     // deja el techo donde estaba. Sin esta casilla no hay forma de pedir que
     // no haya límite superior.
     withResult(base);
+    fireEvent.click(await screen.findByRole("radio", { name: /Umbral clásico/ }));
     expect(await screen.findByText(/Sin límite superior/)).toBeInTheDocument();
   });
 });
@@ -500,6 +503,102 @@ describe("segmentar deja la malla y se lleva lo de la malla vieja", () => {
     await vi.waitFor(() => expect(visto.segmentation).not.toBeNull());
     expect(visto.candidates).toEqual([]);
   });
+
+  /* Las anotaciones se toman sobre los cortes desde el paso 1: la primera
+   * malla no las toca; resegmentar (otra malla) sí las vacía. */
+  it("la primera segmentación conserva las anotaciones y resegmentar las vacía", async () => {
+    const { api } = await import("../../api/client");
+    vi.mocked(api.segment).mockResolvedValue(base);
+    const regla = { id: "r1", kind: "regla" as const, points: [[0, 0, 3], [5, 0, 3]] as [number, number, number][],
+      plane: { plane: "axial" as const, index: 3 }, label: "R1", note: "", visible: true, created_at: "", created_by: "" };
+    const visto: { annotations: unknown[]; segmentation: unknown } = { annotations: [], segmentation: null };
+    function Sonda({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        p.setSession("sesion-run");
+        p.setSeries(serie as never);
+        p.setAnnotations([regla]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      visto.annotations = p.annotations;
+      visto.segmentation = p.segmentation;
+      return <>{p.sessionId && p.series ? children : null}</>;
+    }
+    render(<PlanningProvider><Sonda><SegmentPanel onNext={() => {}} /></Sonda></PlanningProvider>);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar/ }));
+    await vi.waitFor(() => expect(visto.segmentation).not.toBeNull());
+    expect(visto.annotations).toEqual([regla]);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Re-segmentar/ }));
+    // F1-11: con malla, re-segmentar pregunta antes de llevarse lo hecho.
+    fireEvent.click(await screen.findByRole("button", { name: "Re-segmentar y borrar" }));
+    await vi.waitFor(() => expect(api.segment).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(visto.annotations).toEqual([]));
+    expect(visto.segmentation).not.toBeNull();
+  });
+});
+
+/* F1-11, F1-141: re-segmentar y «Descartar malla» se llevaban los candidatos,
+   la medida y (al re-segmentar) las anotaciones al primer clic. */
+describe("confirmar antes de llevarse el trabajo de la malla", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const candidato = {
+    id: "cand_001", center_mm: { x: 1, y: 2, z: 3 }, max_diameter_mm: 6.4, confidence: 0.9,
+    dome_mesh_url: "/c1.vtp", selected: true, channels: ["curv"], patch_kind: "dome",
+  };
+
+  function conMalla(conCandidatos: boolean) {
+    const visto: { segmentation: unknown; candidates: unknown[] } = { segmentation: null, candidates: [] };
+    function Sonda({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        p.setSession("sesion-conf");
+        p.setSeries({ series_id: "1.2.3", modality: "XA" } as never);
+        p.setSegmentation(base);
+        if (conCandidatos) p.setCandidates([candidato] as never);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      visto.segmentation = p.segmentation;
+      visto.candidates = p.candidates;
+      return <>{p.sessionId && p.segmentation ? children : null}</>;
+    }
+    render(<PlanningProvider><Sonda><SegmentPanel onNext={() => {}} /></Sonda></PlanningProvider>);
+    return visto;
+  }
+
+  it("con malla, «Re-segmentar» abre la confirmación y no segmenta", async () => {
+    const { api } = await import("../../api/client");
+    conMalla(true);
+    fireEvent.click(await screen.findByRole("button", { name: /Re-segmentar/ }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Re-segmentar?" });
+    expect(dialogo).toHaveTextContent("los candidatos, la medida y las anotaciones");
+    expect(api.segment).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(api.segment).not.toHaveBeenCalled();
+  });
+
+  it("con candidatos, «Descartar malla» pide confirmación y solo confirmar descarta", async () => {
+    const { api } = await import("../../api/client");
+    const visto = conMalla(true);
+    fireEvent.click(await screen.findByRole("button", { name: /Descartar malla y volver a los umbrales/ }));
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar la malla?" })).toBeInTheDocument();
+    expect(api.clearDetection).not.toHaveBeenCalled();
+    expect(visto.segmentation).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Descartar malla" }));
+    await vi.waitFor(() => expect(api.clearDetection).toHaveBeenCalledWith("sesion-conf"));
+    await vi.waitFor(() => expect(visto.candidates).toEqual([]));
+  });
+
+  it("sin detección hecha, «Descartar malla» no pregunta", async () => {
+    const { api } = await import("../../api/client");
+    conMalla(false);
+    fireEvent.click(await screen.findByRole("button", { name: /Descartar malla y volver a los umbrales/ }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await vi.waitFor(() => expect(api.clearDetection).toHaveBeenCalled());
+  });
 });
 
 /* Método tubular: el panel lo manda por defecto, enseña el progreso por fases
@@ -636,7 +735,8 @@ describe("método tubular", () => {
     // getByText normaliza los espacios, así que el espacio duro se mira en el texto crudo.
     const fases = screen.getByText(/tubularidad 12 s · superficie 3 s · 1 fase <1 s/);
     expect(fases.textContent).toContain(`12${String.fromCharCode(160)}s`);
-    expect(screen.getByText("Volumen conservado (del umbral)")).toBeInTheDocument();
+    expect(screen.getByText("Volumen conservado")).toBeInTheDocument();
+    expect(screen.getByText("frente a la máscara del umbral, que incluía el hueso")).toBeInTheDocument();
     // El badge «Limpio/Revisar» mira el filtro de fragmentos, que el tubular no corre.
     expect(screen.queryByText("Limpio")).toBeNull();
     expect(screen.queryByText("Revisar")).toBeNull();
@@ -676,6 +776,91 @@ describe("método tubular", () => {
     expect(progreso.activos.at(-1)).toBe(false);
   });
 
+  /* F1-131: el valor del umbral inferior no decía de dónde salía. */
+  it("la línea de sugerido aparece junto al valor", async () => {
+    const { mockApi } = await mocks();
+    mockApi.suggestedBand.mockResolvedValue({ lower: 1470, upper: 4717, vmin: -20, vmax: 5000 });
+    renderPanel();
+    expect(await screen.findByText("1470 · sugerido por el histograma de este estudio")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Umbral inferior"), { target: { value: "1600" } });
+    expect(screen.getByText("1600 · sugerido: 1470")).toBeInTheDocument();
+    expect(screen.queryByText(/sugerido por el histograma/)).toBeNull();
+  });
+
+  /* F1-132 y decisión 17: en tubular el techo no manda; ni deslizador ni casilla. */
+  it("en tubular no hay techo: una sola línea; con el umbral clásico vuelve", async () => {
+    await mocks();
+    renderPanel();
+    await screen.findByLabelText("Umbral inferior");
+    expect(screen.queryByLabelText("Umbral superior")).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /Sin límite superior/ })).toBeNull();
+    expect(screen.getAllByText("Sin techo en el método tubular")).toHaveLength(1);
+    expect(screen.queryByText(/nunca usa el límite superior/)).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
+    expect(screen.getByLabelText("Umbral superior")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Sin límite superior/ })).toBeInTheDocument();
+    expect(screen.queryByText("Sin techo en el método tubular")).toBeNull();
+  });
+
+  /* F1-133 */
+  it("la ayuda del suavizado aparece", async () => {
+    await mocks();
+    renderPanel();
+    await screen.findByLabelText("Suavizado");
+    expect(screen.getByText("Iteraciones de suavizado de la superficie; valores altos redondean el cuello")).toBeInTheDocument();
+  });
+
+  /* F1-134: la previa gruesa enseñaba hueso que la segmentación tubular quita. */
+  it("en tubular la línea de la vista previa aparece", async () => {
+    await mocks();
+    renderPanel();
+    const linea = "La vista previa solo aplica el umbral; la forma tubular quitará el hueso";
+    expect(await screen.findByText(linea)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
+    expect(screen.queryByText(linea)).toBeNull();
+  });
+
+  /* F1-138: la nota de cambio iba al final de la tarjeta, bajo las cifras. */
+  it("con `fallback_note`, insignia nueva y aviso en la cabecera de la tarjeta", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue({ ...baseResult, fallback_note: "Se segmentó a media resolución por memoria." });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText("Malla lista con cambios")).toBeInTheDocument();
+    expect(screen.queryByText("Malla lista")).toBeNull();
+    const nota = screen.getByText("Se segmentó a media resolución por memoria.");
+    const vertices = screen.getByText("Vértices");
+    // La nota va antes que las cifras.
+    expect(nota.compareDocumentPosition(vertices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("sin `fallback_note`, «Malla lista»", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue(baseResult);
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText("Malla lista")).toBeInTheDocument();
+  });
+
+  /* Decisiones 18 y 19: «Salida vessel_tree.vtp» fuera; las cifras de
+     depuración plegadas en «Detalles»; a la vista, solo el tiempo. */
+  it("sin «Salida», y los mm³ no se ven hasta abrir «Detalles»", async () => {
+    const { mockApi } = await mocks();
+    mockApi.segment.mockResolvedValue(baseResult);
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
+    expect(screen.queryByText("Salida")).toBeNull();
+    expect(screen.queryByText(/vessel_tree\.vtp/)).toBeNull();
+    // 12,1 + 3,4 + 0,4 s sin «total» del servidor → 16 s.
+    expect(screen.getByText("Segmentada en 16 s")).toBeVisible();
+    const cifras = screen.getByText(/hueso vetado/);
+    expect(cifras).not.toBeVisible();
+    expect(screen.getByText(/tubularidad 12/)).not.toBeVisible();
+    fireEvent.click(screen.getByText("Detalles"));
+    expect(cifras).toBeVisible();
+  });
+
   it("enseña el detalle del 409 cuando ya hay otra segmentación tubular", async () => {
     const { mockApi } = await mocks();
     mockApi.segment.mockRejectedValue(new ApiError(409, "Ya hay una segmentación tubular en curso; espera a que termine"));
@@ -707,5 +892,66 @@ describe("método tubular", () => {
     const ultima = mockApi.segmentPreview.mock.calls.at(-1)?.[1] as { upper: number };
     expect(ultima.upper).toBe(0);
   });
+  });
+});
+
+/* La unidad del umbral depende de la modalidad: HU solo en TC; en el resto es
+ * intensidad cruda y el panel lo aclara una vez. */
+describe("unidad de los sliders de umbral", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function conModalidad(modality: string) {
+    const serie = {
+      session_id: "sesion-u", series_id: "1.2.3", description: "x",
+      modality, slices: 384, spacing: { x: 0.4, y: 0.4, z: 0.4 },
+      window_center: 40, window_width: 400,
+      is_projection: false, projection_warning: null, size_mb: 120,
+    };
+    function Sonda({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        p.setSession("sesion-u");
+        p.setSeries(serie as never);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      return <>{p.sessionId && p.series ? children : null}</>;
+    }
+    return render(
+      <PlanningProvider>
+        <Sonda><SegmentPanel onNext={() => {}} /></Sonda>
+      </PlanningProvider>,
+    );
+  }
+
+  const unidades = () =>
+    ["Umbral inferior", "Umbral superior"].map((n) => screen.getByLabelText(n).closest("div")!.parentElement!.textContent);
+
+  it("en TC los dos sliders dicen HU y no hay ayuda", async () => {
+    conModalidad("CT");
+    await screen.findByLabelText("Umbral inferior");
+    // El techo solo existe con el umbral clásico (decisión 17).
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
+    for (const t of unidades()) expect(t).toMatch(/ HU/);
+    expect(screen.queryByText("Intensidad del volumen, sin unidad física")).toBeNull();
+  });
+
+  it("en XA los sliders no llevan unidad y la ayuda sale una vez", async () => {
+    conModalidad("XA");
+    await screen.findByLabelText("Umbral inferior");
+    fireEvent.click(screen.getByRole("radio", { name: /Umbral clásico/ }));
+    for (const t of unidades()) expect(t).not.toMatch(/HU/);
+    expect(screen.getAllByText("Intensidad del volumen, sin unidad física")).toHaveLength(1);
+  });
+});
+
+/* F1-140: «Detectar» era el único botón de avance que no decía a dónde lleva.
+   Glosario: todo botón de avance dice «Continuar a …». */
+describe("el botón de avance", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("dice «Continuar a detección»", async () => {
+    withMeshReady(base, "s1");
+    expect(await screen.findByRole("button", { name: /Continuar a detección/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Detectar$/ })).toBeNull();
   });
 });

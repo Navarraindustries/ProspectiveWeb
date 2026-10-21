@@ -6,22 +6,44 @@
    es lo único que distingue esta pantalla de un listado cualquiera. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listClipOrders = vi.fn();
 const clipOrdersSummary = vi.fn();
+const advanceClipOrder = vi.fn();
+const rejectClipOrder = vi.fn();
+const auth = { user: null as null | { role: string } };
 
 vi.mock("../api/client", () => ({
   api: {
     listClipOrders: (...a: unknown[]) => listClipOrders(...(a as [])),
     clipOrdersSummary: (...a: unknown[]) => clipOrdersSummary(...(a as [])),
     downloadClipOrderFile: vi.fn(),
+    advanceClipOrder: (...a: unknown[]) => advanceClipOrder(...a),
+    rejectClipOrder: (...a: unknown[]) => rejectClipOrder(...a),
   },
   ApiError: class ApiError extends Error {},
 }));
 
-vi.mock("../components/Topbar", () => ({ Topbar: () => null }));
+// El shell (barra lateral y superior) se sustituye por su contenido y sus
+// acciones: lo que se prueba aquí es la página.
+vi.mock("../components/shell/AppShell", () => ({
+  AppShell: (p: {
+    actions?: import("react").ReactNode; children?: import("react").ReactNode;
+    crumbs?: { label: string; onClick?: () => void }[];
+  }) => (
+    <>
+      <nav aria-label="Miga">
+        {p.crumbs?.map((c) => c.onClick
+          ? <button key={c.label} onClick={c.onClick}>{c.label}</button>
+          : <span key={c.label}>{c.label}</span>)}
+      </nav>
+      {p.actions}{p.children}
+    </>
+  ),
+}));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
+vi.mock("../store/auth", () => ({ useAuth: () => auth }));
 
 import { ClipOrdersPage } from "./ClipOrders";
 import type { ClipOrder } from "../api/types";
@@ -51,6 +73,9 @@ const rows = () => within(screen.getByRole("table")).getAllByRole("row").slice(1
 beforeEach(() => {
   listClipOrders.mockReset();
   clipOrdersSummary.mockReset();
+  advanceClipOrder.mockReset().mockResolvedValue({});
+  rejectClipOrder.mockReset().mockResolvedValue({});
+  auth.user = null;
   clipOrdersSummary.mockResolvedValue({
     counts: { enviado: 2, recibida: 1 },
     labels: { enviado: "Enviado al taller", recibida: "Recibida" },
@@ -129,7 +154,7 @@ describe("filtering", () => {
     render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} />);
     await waitFor(() => expect(listClipOrders).toHaveBeenCalled());
     expect(listClipOrders.mock.calls[0][0]).toMatchObject({ patientId: 7 });
-    expect(screen.getByText("Navarro, Ana")).toBeInTheDocument();
+    expect(screen.getAllByText("Navarro, Ana").length).toBeGreaterThan(0);
   });
 
   it("hides closed orders by default", async () => {
@@ -215,5 +240,249 @@ describe("cómo se nombra la pieza en la lista", () => {
     const text = rows().map((r) => r.textContent).join(" | ");
     expect(text).toContain("T1 Recto");
     expect(text).toContain("T3 Angulado 60°");
+  });
+});
+
+describe("con el API fallando (F1-99)", () => {
+  it("muestra el error sin el texto de vacío y «Reintentar» vuelve a llamar", async () => {
+    listClipOrders.mockRejectedValueOnce(Object.assign(new Error("Sin conexión con el servidor"),
+      { status: 0, fromServer: false }));
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-0009" })]);
+    render(<ClipOrdersPage />);
+
+    expect(await screen.findByText("No se pudo leer el registro: Sin conexión con el servidor")).toBeTruthy();
+    expect(screen.queryByText(/Ningún pedido encaja con este filtro/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0]).toHaveTextContent("PR-0009");
+    // Cada carga pide la lista y la base de los recuentos.
+    expect(listClipOrders).toHaveBeenCalledTimes(4);
+  });
+});
+
+/* Verificación cruzada de la Tarea 3 desde un Médico: filtrar por un paciente
+   ajeno no enseña pedidos de otro profesional. El servidor devuelve la lista
+   vacía (los pedidos ajenos no se ven) o, si responde 403, la pantalla dice el
+   motivo en lugar de la tabla. */
+describe("un Médico filtrando por un paciente ajeno", () => {
+  beforeEach(() => { auth.user = { role: "medico" }; });
+
+  it("con la lista vacía del servidor no hay tabla ni pedidos", async () => {
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage patientFilter={{ id: 99, full_name: "Ajeno, Paciente" } as never} />);
+    expect(await screen.findByText(/Este paciente aún no tiene pedidos/)).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("con un 403 muestra el motivo y no la tabla", async () => {
+    listClipOrders.mockRejectedValue(Object.assign(new Error("No autorizado sobre este paciente."),
+      { status: 403, fromServer: true }));
+    render(<ClipOrdersPage patientFilter={{ id: 99, full_name: "Ajeno, Paciente" } as never} />);
+    expect(await screen.findByText("No se pudo leer el registro: No autorizado sobre este paciente.")).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText(/Ningún pedido encaja con este filtro/)).toBeNull();
+  });
+});
+
+/* F1-97, F1-98: «Firmar» se ofrecía a quien el servidor no deja firmar, y
+   firmar o rechazar la pieza ocurría al primer clic. */
+describe("firmar y rechazar", () => {
+  const borrador = () => order({ part_no: "PR-BOR", status: "borrador", status_label: "Borrador", next_states: ["firmado"] });
+
+  it("un residente ve «Firmar» apagado con el motivo", async () => {
+    auth.user = { role: "residente" };
+    listClipOrders.mockResolvedValue([borrador()]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-BOR")).click();
+    const firmar = await screen.findByRole("button", { name: "Firmar" });
+    expect(firmar).toBeDisabled();
+    expect(screen.getByText("Solo un médico responsable puede firmar un pedido.")).toBeInTheDocument();
+  });
+
+  it("un observador tampoco puede firmar", async () => {
+    auth.user = { role: "viewer" };
+    listClipOrders.mockResolvedValue([borrador()]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-BOR")).click();
+    expect(await screen.findByRole("button", { name: "Firmar" })).toBeDisabled();
+  });
+
+  it("un médico confirma la firma antes de que se mande", async () => {
+    auth.user = { role: "medico" };
+    listClipOrders.mockResolvedValue([borrador()]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-BOR")).click();
+    fireEvent.click(await screen.findByRole("button", { name: "Firmar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Firmar el pedido PR-BOR?" })).toBeInTheDocument();
+    expect(advanceClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Firmar el pedido" }));
+    await waitFor(() => expect(advanceClipOrder).toHaveBeenCalledWith("PR-BOR", "firmado"));
+  });
+
+  it("«Rechazar» la pieza abre la confirmación y no rechaza hasta confirmar", async () => {
+    listClipOrders.mockResolvedValue([order({
+      part_no: "PR-REC", status: "recibida", status_label: "Recibida",
+      next_states: ["verificada", "rechazada"],
+      reception: { measured_jaw_mm: 7, measured_force_g: 150, jaw_within_tolerance: true, force_within_band: true },
+    })]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-REC")).click();
+    fireEvent.click(await screen.findByRole("button", { name: "Rechazar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Rechazar la pieza PR-REC?" })).toBeInTheDocument();
+    expect(rejectClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar la pieza" }));
+    await waitFor(() => expect(rejectClipOrder).toHaveBeenCalledWith("PR-REC", "Pieza no conforme"));
+  });
+});
+
+describe("el glosario de pedidos (F1-93)", () => {
+  it("el subtítulo dice «pedidos» y ningún texto dice «solicitud» ni «encargado»", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    const { container } = render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.getByText("Todos los pedidos de fabricación, con su estado y lo que falta por hacer.")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/solicitud|encargad/i);
+  });
+});
+
+/* F2-27: «Pedidos» desde la ficha llevaba aquí sin camino de vuelta al paciente. */
+describe("la vuelta a la ficha", () => {
+  it("«← Volver a la ficha» solo sale cuando se llega desde una ficha, y vuelve a ella", async () => {
+    listClipOrders.mockResolvedValue([]);
+    const volver = vi.fn();
+    const r = render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} onBackToPatient={volver} />);
+    fireEvent.click(await screen.findByRole("button", { name: "← Volver a la ficha" }));
+    expect(volver).toHaveBeenCalledTimes(1);
+    r.unmount();
+
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(listClipOrders).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: /Volver a la ficha/ })).toBeNull();
+  });
+});
+
+
+describe("empty states (F2-53)", () => {
+  it("says there are no orders yet when none exist", async () => {
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage />);
+    expect(await screen.findByText(/No hay pedidos todavía/)).toBeInTheDocument();
+    expect(screen.queryByText(/Ningún pedido encaja/)).toBeNull();
+  });
+
+  it("says nothing matches when a filter excludes everything", async () => {
+    // El recuento base (sin búsqueda) sigue teniendo el pedido; la búsqueda no.
+    listClipOrders.mockImplementation(async (o: { q?: string }) => (o.q ? [] : [order()]));
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "zzz" } });
+    expect(await screen.findByText("Ningún pedido encaja con este filtro.")).toBeInTheDocument();
+    expect(screen.queryByText(/No hay pedidos todavía/)).toBeNull();
+  });
+});
+
+describe("crumbs with a patient filter (F2-52)", () => {
+  const patient = { id: 7, full_name: "segura, Juan" } as never;
+
+  it("shows Pacientes / name / Pedidos and navigates", async () => {
+    listClipOrders.mockResolvedValue([]);
+    const onCrumbPatients = vi.fn();
+    const onBackToPatient = vi.fn();
+    render(<ClipOrdersPage patientFilter={patient} onBackToPatient={onBackToPatient}
+                           onCrumbPatients={onCrumbPatients} />);
+    const nav = screen.getByRole("navigation", { name: "Miga" });
+    expect(nav).toHaveTextContent("Pacientes");
+    expect(nav).toHaveTextContent("segura, Juan");
+    expect(nav).toHaveTextContent("Pedidos");
+    fireEvent.click(within(nav).getByRole("button", { name: "Pacientes" }));
+    expect(onCrumbPatients).toHaveBeenCalled();
+    fireEvent.click(within(nav).getByRole("button", { name: "segura, Juan" }));
+    expect(onBackToPatient).toHaveBeenCalled();
+  });
+
+  it("is just «Pedidos de clips» without a filter", async () => {
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage />);
+    expect(screen.getByRole("navigation", { name: "Miga" })).toHaveTextContent(/^Pedidos de clips$/);
+  });
+});
+
+describe("Abrir el caso (F2-54)", () => {
+  const select = async () => {
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    fireEvent.click(rows()[0]);
+  };
+
+  it("resumes the session that raised the order", async () => {
+    listClipOrders.mockResolvedValue([order({ session_id: "s9", patient_id: 4 })]);
+    const onOpenSession = vi.fn().mockResolvedValue(undefined);
+    render(<ClipOrdersPage onOpenSession={onOpenSession} />);
+    await select();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir el caso" }));
+    expect(onOpenSession).toHaveBeenCalledWith("s9", 4);
+  });
+
+  it("shows the failure inline when the session cannot be resumed", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    const onOpenSession = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Sesión no encontrada"), { status: 404 }));
+    render(<ClipOrdersPage onOpenSession={onOpenSession} />);
+    await select();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir el caso" }));
+    expect(await screen.findByText("Sesión no encontrada")).toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: "Abrir el caso" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("title", "La sesión de este pedido ya no existe");
+  });
+
+  it("is absent when the page has no way to open a session", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    render(<ClipOrdersPage />);
+    await select();
+    expect(screen.queryByRole("button", { name: "Abrir el caso" })).toBeNull();
+  });
+});
+
+
+describe("chip counts over the filtered list (F1-95)", () => {
+  it("counts only the patient's orders and gives «Todos» its count", async () => {
+    listClipOrders.mockImplementation(async (o: { patientId?: number }) =>
+      o.patientId === 7
+        ? [order({ part_no: "A", status: "enviado" }), order({ part_no: "B", status: "enviado" }),
+           order({ part_no: "C", status: "recibida", status_label: "Recibida" })]
+        : []);
+    render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} />);
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    // El resumen global dice 2 enviados y 1 recibida de TODOS; aquí, de este paciente.
+    expect(screen.getByRole("button", { name: /^Todos\s*3$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Enviado al taller\s*2/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Recibida\s*1/ })).toBeInTheDocument();
+  });
+});
+
+describe("closed states (F1-96)", () => {
+  it("unticks «Solo los abiertos» when choosing Verificada or Rechazada", async () => {
+    clipOrdersSummary.mockResolvedValue({
+      counts: {}, labels: { verificada: "Verificada", rechazada: "Rechazada" },
+    });
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage />);
+    const box = await screen.findByLabelText("Solo los abiertos") as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    fireEvent.click(await screen.findByRole("button", { name: /Verificada/ }));
+    await waitFor(() => expect(box.checked).toBe(false));
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: /Rechazada/ }));
+    await waitFor(() => expect(box.checked).toBe(false));
+  });
+});
+
+describe("a patient without orders (F2-53)", () => {
+  it("says so, not the global or the filter text", async () => {
+    listClipOrders.mockResolvedValue([]);
+    render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} />);
+    expect(await screen.findByText(/Este paciente aún no tiene pedidos/)).toBeInTheDocument();
+    expect(screen.queryByText(/Ningún pedido encaja/)).toBeNull();
   });
 });

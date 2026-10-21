@@ -4,13 +4,19 @@
    diámetro de la morfometría; lo demás lo marca el profesional. Las pistas
    (SR/AR, cuello ancho) solo se enseñan: no se marcan solas. */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
+import { ageFromDob } from "../patientAge";
 import type { MorphometryResult, UiatsRequest, UiatsResult } from "../../api/types";
+import { usePlanning } from "../../store/planning";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { Select } from "../Select";
 import { ErrorNote, SectionLabel } from "../PanelHead";
+import { DiameterSource } from "./DiameterSource";
+import { UIATS_CUTS, isProvisional } from "./diameterCut";
+import { InheritedSite } from "./InheritedSite";
+import { AR_HIGH, SR_HIGH, isSiteKnown, siteFor } from "./thresholds";
 
 type Opt = [key: string, label: string, pts: number];
 
@@ -36,28 +42,12 @@ const COMORBID: Opt[] = [
   ["neurocognitive", "Trastorno neurocognitivo", 3], ["coagulopathy", "Coagulopatía o trombofilia", 2],
   ["psychiatric", "Trastorno psiquiátrico", 2],
 ];
-const LOCATIONS = [
-  { value: "other", label: "Otra localización (0)" },
-  { value: "acom_pcom", label: "AComA o AComP (+2)" },
-  { value: "vertebrobasilar", label: "Arteria vertebral o basilar (+4)" },
-  { value: "basilar_bifurcation", label: "Bifurcación basilar (+5)" },
-];
 const LIFE = [
   { value: "", label: "Sin enfermedad crónica o maligna que la limite" },
   { value: "gt10", label: "> 10 años (+1 vigilar)" },
   { value: "5to10", label: "5-10 años (+3 vigilar)" },
   { value: "lt5", label: "< 5 años (+4 vigilar)" },
 ];
-
-export function edadDesde(dob?: string): string {
-  if (!dob) return "";
-  const n = new Date(dob);
-  if (Number.isNaN(n.getTime())) return "";
-  const hoy = new Date();
-  let a = hoy.getFullYear() - n.getFullYear();
-  if (hoy < new Date(hoy.getFullYear(), n.getMonth(), n.getDate())) a--;
-  return a > 0 ? String(a) : "";
-}
 
 const REC: Record<UiatsResult["recommendation"], [string, string]> = {
   repair: ["A favor de tratar", "var(--warning)"],
@@ -68,15 +58,30 @@ const REC: Record<UiatsResult["recommendation"], [string, string]> = {
 export function UiatsCalculator({
   m, sessionId, dob,
 }: { m: MorphometryResult; sessionId: string | null; dob?: string }) {
-  const [age, setAge] = useState(edadDesde(dob));
+  const [age, setAge] = useState(ageFromDob(dob));
   const [diameter, setDiameter] = useState(m.max_diameter_mm > 0 ? m.max_diameter_mm.toFixed(1) : "");
   const [sel, setSel] = useState<Record<string, Set<string>>>({});
-  const [location, setLocation] = useState("other");
+  // F1-165: la localización se hereda de Morfometría; aquí arrancaba en
+  // «Otra localización (0)» y, sin tocarla, restaba hasta 5 puntos a tratar.
+  const { aneurysmSite } = usePlanning();
+  const location = siteFor("uiats", aneurysmSite);
+  const siteKnown = isSiteKnown("uiats", aneurysmSite);
   const [life, setLife] = useState("");
   const [complexity, setComplexity] = useState<"high" | "low">("low");
   const [r, setR] = useState<UiatsResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Al cambiar la localización en Morfometría el servidor recalcula lo guardado
+  // con sus mismas entradas; aquí se recalcula lo que está en pantalla, para
+  // que la cifra que se ve sea la del informe. Sin categoría, no hay cifra.
+  const prevSite = useRef(location);
+  useEffect(() => {
+    if (prevSite.current === location) return;
+    prevSite.current = location;
+    if (r && siteKnown) void calcular();
+    else setR(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
 
   const toggle = (grupo: string, k: string) => setSel((s) => {
     const n = new Set(s[grupo] ?? []);
@@ -95,7 +100,8 @@ export function UiatsCalculator({
 
   // Pistas que da la morfometría, sin marcar nada.
   const parent = m.sr > 0 ? m.max_diameter_mm / m.sr : 0;
-  const pistaSrAr = (m.sr > 3 || m.ar > 1.6) && (m.sr > 0 || m.ar > 0);
+  // Los cortes de UIATS («SR > 3 o AR > 1,6») coinciden con los de Morfometría.
+  const pistaSrAr = (m.sr > SR_HIGH || m.ar > AR_HIGH) && (m.sr > 0 || m.ar > 0);
   const pistaComplejo = (parent > 0 && m.neck_mm > parent) || (m.max_diameter_mm > 0 && m.max_diameter_mm < 3);
 
   const calcular = async () => {
@@ -105,7 +111,7 @@ export function UiatsCalculator({
       const req: UiatsRequest = {
         session_id: sessionId, age_years: Number(age) || 0, diameter_mm: Number(diameter) || 0,
         risk_factors: lista("risk"), symptoms: lista("symptoms"), patient_other: lista("patient_other"),
-        morphology: lista("morphology"), location: location as UiatsRequest["location"],
+        morphology: lista("morphology"), location,
         aneurysm_other: lista("aneurysm_other"),
         life_expectancy: (life || null) as UiatsRequest["life_expectancy"], comorbid: lista("comorbid"),
         complexity,
@@ -136,6 +142,11 @@ export function UiatsCalculator({
         <Input label="Edad (años)" type="number" min={18} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
         <Input label="Diámetro máximo (mm)" type="number" step="0.1" value={diameter} onChange={(e) => setDiameter(e.target.value)} />
       </div>
+      {/* F1-14: qué Ø se toma, y si el del cuerpo lo cambia de tramo. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "4px 0 10px" }}>
+        <DiameterSource maxMm={m.max_diameter_mm} sizeMm={Number(diameter) || 0} bodyMm={m.body_max_diameter_mm}
+                        provisional={isProvisional(m.warning)} cuts={UIATS_CUTS} score="UIATS" />
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
         {checks("risk", RISK)}
         <div style={{ height: 4 }} />
@@ -146,7 +157,7 @@ export function UiatsCalculator({
 
       <SectionLabel>Aneurisma</SectionLabel>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 10px" }}>
-        <Select label="Localización" options={LOCATIONS} value={location} onChange={(e) => setLocation(e.target.value)} />
+        <InheritedSite site={aneurysmSite} known={siteKnown} />
         {checks("morphology", MORPHOLOGY)}
         {pistaSrAr && !(sel.morphology?.has("sr_ar")) && (
           <div style={{ fontSize: 11, color: "var(--warning)" }}>
@@ -173,7 +184,7 @@ export function UiatsCalculator({
         </div>
       </div>
 
-      <Button style={{ width: "100%" }} onClick={() => void calcular()} disabled={busy || !age || !diameter}>
+      <Button style={{ width: "100%" }} onClick={() => void calcular()} disabled={busy || !age || !diameter || !siteKnown}>
         {busy ? "Calculando…" : "Calcular UIATS"}
       </Button>
       <ErrorNote>{error}</ErrorNote>

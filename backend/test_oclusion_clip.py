@@ -67,6 +67,23 @@ class TestLoQueQuedaDelSaco:
         assert r.remnant_mm3 <= NEGLIGIBLE_MM3
         assert r.excluded_mm3 == pytest.approx(VOLUMEN_TEORICO, rel=0.05)
 
+    def test_el_texto_no_dice_entero_con_119_de_128(self, monkeypatch):
+        """F1-201: sin muñón medible pero con 9 mm³ que no están a ningún lado
+        del corte (aplastados bajo las hojas), «el saco entero» se
+        contradecía con sus propias cifras."""
+        import services.clip_outcome as co
+        volumenes = iter([128.0, 119.0, 2.0])   # saco, fuera, muñón
+        monkeypatch.setattr(co, "_volume_mm3", lambda _p: next(volumenes))
+        r = occlusion_after_clip(_saco(), (0, 0, -RADIO - 0.5), (0, 0, 1))
+        assert r.outcome == "completa"
+        assert "entero" not in r.summary
+        assert r.summary.startswith(
+            "El 93 % del saco queda fuera de la circulación; el resto queda bajo las hojas")
+
+    def test_con_todo_el_saco_fuera_si_dice_entero(self):
+        r = occlusion_after_clip(_saco(), (0, 0, -RADIO - 0.5), (0, 0, 1))
+        assert "entero" in r.summary
+
     def test_un_corte_bajo_deja_un_resto_de_cuello(self):
         r = occlusion_after_clip(_saco(), (0, 0, -4.0), (0, 0, 1))
         assert r.outcome == "resto_de_cuello"

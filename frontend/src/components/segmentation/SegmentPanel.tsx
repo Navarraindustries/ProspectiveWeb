@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -19,9 +20,10 @@ import { Slider } from "../Slider";
 import { MeshEditTools } from "./MeshEditTools";
 import { PreprocessSection } from "./PreprocessSection";
 import { SegmentProgress } from "./SegmentProgress";
-import { TubularControls, type SegmentMethod } from "./TubularControls";
+import { CeilingControls, TubularControls, type SegmentMethod } from "./TubularControls";
 import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
+import { isHuModality } from "../../vtk/modality";
 import type { CeilingCompareResult } from "../../api/types";
 
 /* Fallback si aún no hay volumen para calcular la banda adaptativa. */
@@ -39,6 +41,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const { sessionId, series, segmentation, setPreviewBand, setPreviewMeshUrl } = planning;
 
+  // La unidad solo existe en TC; en el resto el umbral es intensidad cruda.
+  const isHu = isHuModality(series?.modality);
   const [lower, setLower] = useState(SEG_LOWER_DEFAULT);
   const [upper, setUpper] = useState(SEG_UPPER_DEFAULT);
   // Sin techo: el backend lo desactiva cuando upper <= lower.
@@ -70,6 +74,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const [mainTree, setMainTree] = useState(true);
   const [busy, setBusy] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  // F1-11, F1-141: re-segmentar y «Descartar malla» se llevaban al primer clic
+  // lo hecho sobre la malla. Qué confirmación hay abierta, si alguna.
+  const [asking, setAsking] = useState<"resegmentar" | "descartar" | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Slider range + suggested band, adapted to this volume's intensity scale.
   const [range, setRange] = useState<{ min: number; max: number }>({ min: -500, max: 3000 });
@@ -201,6 +208,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       /* Best effort: the next detection run overwrites this state anyway. */
     } finally {
       planning.setSegmentation(null);
+      // Las anotaciones se quedan: lo dibujado sobre los cortes sigue valiendo
+      // para la próxima malla del mismo volumen.
       planning.resetDownstream();
       setDiscarding(false);
     }
@@ -230,6 +239,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     if (!sessionId || !series) return;
     setBusy(true);
     setError(null);
+    // Solo resegmentar (ya había malla) cambia aquello a lo que apuntan las
+    // anotaciones 3D; la primera segmentación conserva lo medido en los cortes.
+    const hadMesh = planning.segmentation !== null;
     try {
       const res = await api.segment({
         session_id: sessionId,
@@ -261,6 +273,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       // pintar— volvía a la vista del DICOM. Lo vio el usuario: «al darle
       // Segmentar no se muestra la malla».
       planning.resetDownstream();
+      if (hadMesh) planning.clearAnnotations();
       planning.setSegmentation(res);
       setPreviewBand(null);       // final mesh now shows
       setPreviewMeshUrl(null);
@@ -284,13 +297,20 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const hasQuality = segmentation?.boundary_edges != null;
   const boundaryEdges = segmentation?.boundary_edges ?? 0;
   const phases = phaseSummary(segmentation?.phase_seconds);
+  const elapsed = elapsedSeconds(segmentation?.phase_seconds);
+  // Redondeado igual que el valor que se le pone al deslizador al llegar.
+  const suggestedLower = suggested.current ? Math.round(suggested.current.lower) : null;
 
   return (
     <div className="fade-rise">
       <PanelHead
         title="Segmentación vascular"
         desc="Aísla la vasculatura por su forma tubular (o por umbral) y reconstruye su superficie 3D."
-        right={segmentation && <Badge variant="success">Malla lista</Badge>}
+        // F1-138: con `fallback_note` la malla existe pero no es la pedida; la
+        // insignia verde decía lo contrario.
+        right={segmentation && (segmentation.fallback_note
+          ? <Badge variant="warning">Malla lista con cambios</Badge>
+          : <Badge variant="success">Malla lista</Badge>)}
       />
 
       {/* El método va primero: decide qué controles de abajo cuentan (el
@@ -311,28 +331,55 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           ? "Mueve el umbral y observa la vista previa; el método tubular decide luego qué es vaso por su forma, no solo por su brillo."
           : "Mueve los umbrales y observa la vista previa: la malla será lo que quede dentro de la banda."}
       </div>
+      {/* F1-134: la previa gruesa («3D · MALLA GRUESA») es solo el umbral y
+          enseña el hueso; sin decirlo parecía que la segmentación lo iba a
+          dejar. El visor no sabe del método, así que se dice aquí. */}
+      {method === "tubular" && !segmentation && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -6, marginBottom: 12, lineHeight: 1.45 }}>
+          La vista previa solo aplica el umbral; la forma tubular quitará el hueso
+        </div>
+      )}
       <div>
-        <Slider label="Umbral inferior" min={range.min} max={range.max} value={lower} onChange={setLower} unit="" />
+        <Slider label="Umbral inferior" min={range.min} max={range.max} value={lower} onChange={setLower} unit={isHu ? " HU" : ""} />
+        {/* F1-131: el número no decía de dónde salía; el arranque es el
+            percentil del propio volumen y conviene saber si se ha movido. */}
+        {suggestedLower !== null && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, lineHeight: 1.45 }}>
+            {lower === suggestedLower
+              ? `${lower} · sugerido por el histograma de este estudio`
+              : `${lower} · sugerido: ${suggestedLower}`}
+          </div>
+        )}
         <div style={{ height: 14 }} />
+        <CeilingControls method={method}>
         <Slider
           label="Umbral superior"
           min={range.min}
           max={range.max}
           value={upper}
           onChange={setUpper}
-          unit=""
-          disabled={sinTecho || method === "tubular"}
+          unit={isHu ? " HU" : ""}
+          disabled={sinTecho}
         />
+        </CeilingControls>
+        {/* Sin HU el número no es una magnitud física: se dice para que no se compare entre estudios. */}
+        {!isHu && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+            Intensidad del volumen, sin unidad física
+          </div>
+        )}
         {/* El tope del slider sale de `vmax`, que es el percentil 99.9 del
             volumen, así que subirlo «al máximo» NO quita el techo: lo deja
             justo donde estaba. En una 3DRA lo más brillante ES el contraste,
             y el techo corta el vaso donde más denso está. El backend ya sabe
             desactivarlo (`upper <= lower` → sin límite); faltaba poder pedirlo. */}
+        {method !== "tubular" && (
         <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
-          <input type="checkbox" checked={previaSinTecho} disabled={method === "tubular"}
+          <input type="checkbox" checked={sinTecho}
                  onChange={(e) => setSinTecho(e.target.checked)} />
           Sin límite superior — conserva todo lo más brillante que el umbral inferior
         </label>
+        )}
         {method === "tubular" && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
             {techoTubular > 0
@@ -414,6 +461,10 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         )}
         <div style={{ height: 14 }} />
         <Slider label="Suavizado" min={0} max={10} value={smoothing} onChange={setSmoothing} />
+        {/* F1-133: «Suavizado 3» no decía qué suaviza ni qué se arriesga. */}
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, lineHeight: 1.45 }}>
+          Iteraciones de suavizado de la superficie; valores altos redondean el cuello
+        </div>
         {/* La máscara tubular ya es un componente: el filtro de fragmentos no
             tiene nada que quitar, así que solo se ofrece con el umbral. */}
         {method === "threshold" ? (
@@ -524,9 +575,23 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
       {segmentation && (
         <Card style={{ marginTop: 16 }}>
+          {/* El servidor cambió algo de lo pedido (sin semillas → umbral;
+              media resolución forzada por memoria). No es un error: la malla
+              existe, pero no es la que se pidió. F1-138: iba al final, bajo
+              las cifras, y se leía como una nota más; va en cabeza. */}
+          {segmentation.fallback_note && (
+            <div style={{
+              fontSize: 11, lineHeight: 1.5, marginBottom: 10, padding: "8px 10px",
+              borderRadius: "var(--radius-md)", background: "var(--warning-bg)",
+              borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
+            }}>
+              {segmentation.fallback_note}
+            </div>
+          )}
           <Metric label="Vértices" value={segmentation.vertices.toLocaleString("es")} />
           <Metric label="Caras" value={segmentation.faces.toLocaleString("es")} />
-          <Metric label="Salida" value={segmentation.mesh_url.split("/").pop() ?? ""} />
+          {/* Decisión 18: «Salida vessel_tree.vtp» era el nombre del archivo
+              interno; no le dice nada al cirujano. */}
           {segmentation.voxel_fraction !== null && (
             <Metric
               label="Fracción de vóxeles"
@@ -556,11 +621,11 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               En tubular es la malla final sobre la máscara del umbral. */}
           {/* En tubular la cifra es malla final / máscara del umbral y el filtro
               de fragmentos no corre (`largest_removed_mm3` = 0): el badge
-              «Limpio» no diría nada. «del umbral» va en la etiqueta para que
-              la unidad no se parta bajo el valor. */}
+              «Limpio» no diría nada. F1-137: «(del umbral)» no explicaba por
+              qué un 35 % es normal; la línea de debajo lo dice. */}
           {(!tubular || hasQuality) && (
           <Metric
-            label={tubular ? "Volumen conservado (del umbral)" : "Volumen conservado"}
+            label="Volumen conservado"
             value={(segmentation.kept_fraction * 100).toFixed(1)}
             unit=" %"
             badge={
@@ -573,24 +638,25 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           />
           )}
           {tubular && hasQuality && (
-            <div style={hudLine}>
-              {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}
-              {pieces(segmentation.seeds ?? 0, "semilla", "semillas")} · recuperados{" "}
-              {mm3(segmentation.reclaimed_mm3)} mm³ · hueso vetado {mm3(segmentation.vetoed_mm3)} mm³
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -2, lineHeight: 1.45 }}>
+              frente a la máscara del umbral, que incluía el hueso
             </div>
           )}
-          {tubular && phases && <div style={hudLine}>{phases}</div>}
-          {/* El servidor cambió algo de lo pedido (sin semillas → umbral;
-              media resolución forzada por memoria). No es un error: la malla
-              existe, pero no es la que se pidió, y eso hay que verlo. */}
-          {segmentation.fallback_note && (
-            <div style={{
-              fontSize: 11, lineHeight: 1.5, marginTop: 8, padding: "8px 10px",
-              borderRadius: "var(--radius-md)", background: "var(--muted)",
-              borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
-            }}>
-              {segmentation.fallback_note}
-            </div>
+          {/* Decisión 19: piezas, semillas, mm³ y los segundos por fase son
+              cifras de depuración; a la vista queda solo cuánto tardó. */}
+          {elapsed !== null && <div style={hudLine}>Segmentada en {elapsed} s</div>}
+          {((tubular && hasQuality) || (tubular && phases)) && (
+            <details style={{ marginTop: 4, fontSize: 11, color: "var(--muted-foreground)" }}>
+              <summary style={{ cursor: "pointer" }}>Detalles</summary>
+              {tubular && hasQuality && (
+                <div style={hudLine}>
+                  {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}
+                  {pieces(segmentation.seeds ?? 0, "semilla", "semillas")} · recuperados{" "}
+                  {mm3(segmentation.reclaimed_mm3)} mm³ · hueso vetado {mm3(segmentation.vetoed_mm3)} mm³
+                </div>
+              )}
+              {tubular && phases && <div style={hudLine}>{phases}</div>}
+            </details>
           )}
           {segmentation.fragments_removed > 0 && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
@@ -629,7 +695,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
         <Button
           variant={segmentation ? "outline" : "default"}
-          onClick={() => void run()}
+          // La primera segmentación no pierde nada; re-segmentar sí.
+          onClick={() => (segmentation ? setAsking("resegmentar") : void run())}
           disabled={busy || discarding || !sessionId}
           leadingIcon={<Icon name="GROWTH" />}
           style={{ flex: 1 }}
@@ -637,8 +704,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {segmentation ? "Re-segmentar" : "Segmentar"}
         </Button>
         {segmentation && (
+          // F1-140: glosario, todo botón de avance dice «Continuar a …».
           <Button onClick={onNext} trailingIcon={<Icon name="STEP_DETECT" />}>
-            Detectar
+            Continuar a detección
           </Button>
         )}
       </div>
@@ -647,12 +715,33 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           variant="ghost"
           style={{ marginTop: 8, width: "100%" }}
           disabled={busy || discarding}
-          onClick={() => void discard()}
+          // Sin detección hecha solo se pierde la malla, que se rehace igual.
+          onClick={() => (planning.candidates.length > 0 || planning.morphometry ? setAsking("descartar") : void discard())}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {discarding ? "Descartando…" : "Descartar malla y volver a los umbrales"}
         </Button>
       )}
+      <ConfirmDialog
+        open={asking === "resegmentar"}
+        title="¿Re-segmentar?"
+        confirmLabel="Re-segmentar y borrar"
+        destructive
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); void run(); }}
+      >
+        La malla nueva sustituye a la actual: se pierden los candidatos, la medida y las anotaciones.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={asking === "descartar"}
+        title="¿Descartar la malla?"
+        confirmLabel="Descartar malla"
+        destructive
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); void discard(); }}
+      >
+        Se borran la malla, los candidatos detectados y la medida hecha sobre ellos. Las anotaciones de los cortes se conservan.
+      </ConfirmDialog>
     </div>
   );
 }
@@ -669,6 +758,16 @@ function pieces(n: number, one: string, many: string): string {
 
 function mm3(v: number | undefined): string {
   return Math.round(v ?? 0).toLocaleString("es");
+}
+
+/** Segundos de la segmentación: el «total» del servidor o, si no lo manda,
+ *  la suma de las fases. Null sin tiempos (p. ej. una sesión reanudada). */
+function elapsedSeconds(phases: Record<string, number> | undefined): number | null {
+  if (!phases) return null;
+  const vals = Object.values(phases);
+  if (vals.length === 0) return null;
+  const total = phases.total ?? vals.reduce((a, b) => a + b, 0);
+  return Math.round(total);
 }
 
 /** «total 40 s · tubularidad 13 s · laminaridad 14 s»: dónde se fue el

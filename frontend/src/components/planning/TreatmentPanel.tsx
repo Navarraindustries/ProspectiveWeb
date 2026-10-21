@@ -7,34 +7,46 @@
 
 import { useState } from "react";
 import { api } from "../../api/client";
-import { ANEURYSM_LOCATIONS } from "../../api/types";
-import type { AneurysmLocation } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Input } from "../Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
-
-/** Whole years from an ISO date of birth to today ("" when unknown/invalid). */
-function ageFromDob(dob?: string | null): string {
-  if (!dob) return "";
-  const born = new Date(dob);
-  if (Number.isNaN(born.getTime())) return "";
-  const today = new Date();
-  let years = today.getFullYear() - born.getFullYear();
-  const m = today.getMonth() - born.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < born.getDate())) years -= 1;
-  return years >= 0 && years <= 120 ? String(years) : "";
-}
+import { ageFromDob } from "../patientAge";
+import { InheritedSite } from "../morphometry/InheritedSite";
+import { NEEDS_MORPHOMETRY } from "../../pipeline/steps";
+import { TeamDecisionCard } from "./TeamDecisionCard";
+import type { DecisionFactor } from "../../api/types";
 
 /** La primera letra en minúscula, para una frase que sigue a dos puntos. */
 function minuscula(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
-export function TreatmentPanel({ onNext }: { onNext: () => void }) {
+/** Nombre, detalle y procedencia de un factor; la insignia de vía la pone
+ *  quien lo pinta, y solo a los que votan (F1-178). */
+function FactorText({ f, showSources }: { f: DecisionFactor; showSources: boolean }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{f.name}</div>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{f.detail}</div>
+      {showSources && f.source && (
+        <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45, opacity: 0.85 }}>
+          {f.source}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TreatmentPanel({ onNext, onChangeSite }: {
+  onNext: () => void;
+  /** Lleva a Morfometría, donde se elige la localización. */
+  onChangeSite?: () => void;
+}) {
   const planning = usePlanning();
   const { sessionId, treatment, patient } = planning;
 
@@ -42,7 +54,10 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
   // blanco: ver `treatmentInputs` en el store.
   const prev = planning.treatmentInputs;
   const txt = (n: number | null | undefined) => (n === null || n === undefined ? "" : String(n));
-  const [location, setLocation] = useState<AneurysmLocation>(prev?.location ?? ANEURYSM_LOCATIONS[0]);
+  // F1-173 / F1-165: la localización es la elegida en Morfometría. Aquí había
+  // otro selector que arrancaba en «Desconocida» aunque PHASES ya la tuviera, y
+  // la decisión podía salir con un sitio y el PHASES con otro.
+  const location = planning.aneurysmSite ?? "Desconocida / No especificada";
   const [ruptured, setRuptured] = useState(prev?.is_ruptured ?? false);
   // Pre-filled from the patient record — no reason to re-type what we know.
   const [age, setAge] = useState<string>(() => (prev ? txt(prev.patient_age) : ageFromDob(patient?.dob)));
@@ -53,12 +68,15 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
   // La procedencia importa y no es lo que se lee a diario: doce líneas de
   // fuentes bajo siete factores tapan los factores. Plegada por defecto.
   const [showSources, setShowSources] = useState(false);
+  // F1-178: los factores que no votan, plegados por defecto.
+  const [showDescriptive, setShowDescriptive] = useState(false);
   const [wfns, setWfns] = useState<string>(txt(prev?.wfns_grade));
   const [fisher, setFisher] = useState<string>(txt(prev?.fisher_grade));
   // La única variable del JSDB que la aplicación no recogía en ninguna parte.
   const [priorStroke, setPriorStroke] = useState<string>(txt(prev?.prior_stroke));
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [askingClear, setAskingClear] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const run = async () => {
@@ -106,15 +124,12 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
 
   return (
     <div className="fade-rise">
-      <PanelHead title="Decisión terapéutica" desc="Compara clipaje y tratamiento endovascular. Los índices de forma no puntúan: describen la vía endovascular, que es donde tienen respaldo." />
+      {/* F1-172: la entradilla decía cómo puntúa el motor y no qué hace el
+          paso ni quién decide. */}
+      <PanelHead title="Decisión terapéutica" desc="Propone una vía, clipaje o endovascular, a partir de la localización, el estado y la morfometría. La decisión es tuya" />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <Select
-          label="Localización"
-          options={ANEURYSM_LOCATIONS}
-          value={location}
-          onChange={(e) => setLocation(e.target.value as AneurysmLocation)}
-        />
+        <InheritedSite site={planning.aneurysmSite} known onChange={onChangeSite} />
         <Select
           label="Estado"
           options={[
@@ -201,17 +216,40 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
       <Button style={{ marginTop: 14, width: "100%" }} variant={t ? "outline" : "default"} onClick={() => void run()} disabled={busy || clearing || !sessionId}>
         {busy ? "Evaluando…" : t ? "Re-evaluar" : "Evaluar CLIP vs ENDOVASCULAR"}
       </Button>
+      {/* F1-175: sin WFNS el JSDB salía con «Rellenado el N % del modelo» en
+          letra pequeña al final de la tarjeta, después de evaluar. Se avisa
+          antes; el botón sigue encendido porque el dato es opcional. */}
+      {ruptured && wfns === "" && (
+        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 6, lineHeight: 1.5 }}>
+          Sin WFNS el modelo del Japan Stroke Data Bank pierde su variable de más peso: rellénalo antes de evaluar
+        </div>
+      )}
       {t && (
         <Button
           variant="ghost" style={{ marginTop: 8, width: "100%" }}
           disabled={busy || clearing}
-          onClick={() => void clear()}
+          onClick={() => setAskingClear(true)}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {clearing ? "Limpiando…" : "Limpiar decisión y PHASES"}
         </Button>
       )}
+      {/* F1-18: limpiar borraba la recomendación al primer clic. */}
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar la decisión y PHASES?"
+        confirmLabel="Limpiar"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => { setAskingClear(false); void clear(); }}
+      >
+        Se borran la recomendación, sus factores y la puntuación PHASES, también del informe.
+      </ConfirmDialog>
       <ErrorNote>{error}</ErrorNote>
+
+      {/* F1-176: sin recomendación también se registra; el equipo puede
+          decidir sin el motor. Con ella, va debajo de su porqué. */}
+      {!t && <TeamDecisionCard />}
 
       {t && (
         <>
@@ -227,10 +265,17 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
               {/* La cobertura al lado de la confianza, porque es lo que la
                   limita: antes la confianza medía cuántos factores había, y un
                   caso con un solo dato salía como «Moderada». */}
-              <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}>
+              <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}
+                     title="Parte de los datos del caso que este motor ha podido evaluar">
                 {t.coverage_pct} % de los datos
               </Badge>
-              <Badge variant="subtle">Confianza {t.confidence.toLowerCase()}</Badge>
+              {/* F1-177: «100 % de los datos» junto a «Confianza baja» parecía
+                  una contradicción. La baja tiene dos causas y se dice cuál. */}
+              <Badge variant="subtle" style={{ whiteSpace: "normal" }}>
+                {t.confidence === "Baja" && t.confidence_reason
+                  ? `Confianza baja: ${t.confidence_reason}`
+                  : `Confianza ${t.confidence.toLowerCase()}`}
+              </Badge>
             </div>
             {/* Aquí iban dos barras con los puntos de cada vía. Se retiran
                 enteras: una barra ES una puntuación dibujada, y lo que llevaba
@@ -271,6 +316,11 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                 Riesgo estimado por cada vía · Japan Stroke Data Bank
               </SectionLabel>
               <Card style={t.jsdb.both_poor ? { borderLeft: "3px solid var(--warning)" } : undefined}>
+                {/* F1-175: el veredicto iba al pie, tras la explicación del
+                    modelo y las dos vías; es lo que se busca al abrir la tarjeta. */}
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.45, marginBottom: 8 }}>
+                  {t.jsdb.verdict}
+                </div>
                 <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>
                   Modelo ajustado sobre 3 547 hemorragias. Estima el riesgo de mal
                   resultado al alta (mRS&nbsp;&gt;&nbsp;2) de <b>cada vía por separado</b>,
@@ -289,9 +339,6 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                     </div>
                   </div>
                 ))}
-                <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 12, lineHeight: 1.5 }}>
-                  {t.jsdb.verdict}
-                </div>
                 {t.jsdb.missing.length > 0 && (
                   <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
                     Rellenado el {t.jsdb.known_pct} % del modelo; falta{" "}
@@ -321,12 +368,17 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
               {showSources ? "Ocultar procedencia" : "Ver procedencia"}
             </button>
           </div>
+          {/* F1-178: los factores salían en el orden del motor, mezclados, y
+              los que no votan llevaban «CLIP ·», «ENDO ·» o «— ·» y un «no
+              influye»: una insignia de vía en algo que no empuja hacia
+              ninguna. Primero los que votan; los descriptivos aparte, plegados
+              y sin insignia, porque el título del grupo ya dice que no influyen. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {t.factors.map((f) => (
+            {t.factors.filter((f) => f.votes).map((f) => (
               /* Rejilla, no flex: la insignia se ajustaba a su contenido, así
-                 que «ENDO +25» y «CLIP ·» dejaban el texto arrancando en sitios
+                 que «ENDO» y «CLIP» dejaban el texto arrancando en sitios
                  distintos y el borde izquierdo quedaba dentado. Una columna fija
-                 alinea las seis filas por construcción. */
+                 alinea las filas por construcción. */
               <div key={f.name} style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 10, alignItems: "start" }}>
                 <span
                   style={{
@@ -342,29 +394,37 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
                   }}
                 >
                   {f.direction === "clip" ? "CLIP" : f.direction === "endo" ? "ENDO" : "—"}
-                  {f.votes ? "" : " ·"}
                 </span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-                    {f.name}
-                    {/* Lo que se mide, se enseña y NO influye. Sin esta marca
-                        el factor se lee como si estuviera empujando. */}
-                    {!f.votes && (
-                      <span style={{ fontSize: 10, fontWeight: 700, marginLeft: 6, padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", background: "var(--muted)", color: "var(--muted-foreground)", verticalAlign: "middle" }}>
-                        no influye
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{f.detail}</div>
-                  {showSources && f.source && (
-                    <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45, opacity: 0.85 }}>
-                      {f.source}
-                    </div>
-                  )}
-                </div>
+                <FactorText f={f} showSources={showSources} />
               </div>
             ))}
           </div>
+          {t.factors.some((f) => !f.votes) && (
+            <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+              <button
+                type="button"
+                aria-expanded={showDescriptive}
+                onClick={() => setShowDescriptive((v) => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px",
+                  background: "transparent", border: "none", cursor: "pointer", textAlign: "left",
+                  fontSize: 12, fontWeight: 600, color: "var(--muted-foreground)", fontFamily: "var(--font-sans)",
+                }}
+              >
+                <span style={{ flex: 1 }}>Descriptivos (no influyen)</span>
+                <span>{showDescriptive ? "▾" : "▸"}</span>
+              </button>
+              {showDescriptive && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 10px 10px" }}>
+                  {t.factors.filter((f) => !f.votes).map((f) => (
+                    <FactorText key={f.name} f={f} showSources={showSources} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <TeamDecisionCard />
 
           {/* Lo que la imagen no puede dar. Una perforante mide 0,1–0,5 mm y el
               vóxel de una angio-TC ronda 0,5–1,0 mm: no llega a la malla, así
@@ -374,6 +434,13 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
             <>
               <SectionLabel style={{ marginTop: 16 }}>Perforantes que esperar aquí</SectionLabel>
               <Card style={{ borderLeft: "3px solid var(--warning)" }}>
+                {/* F1-181: la basilar antigua no dice punta o tronco, y la
+                    tarjeta que sigue es la de la punta. Se dice antes de leerla. */}
+                {t.perforators.notice && (
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--warning)", marginBottom: 6, lineHeight: 1.5 }}>
+                    {t.perforators.notice}
+                  </div>
+                )}
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.4 }}>
                   {t.perforators.arteries}
                 </div>
@@ -431,9 +498,17 @@ export function TreatmentPanel({ onNext }: { onNext: () => void }) {
         </>
       )}
 
-      <Button style={{ marginTop: 18, width: "100%" }} onClick={onNext} disabled={!t} trailingIcon={<Icon name="CLIPS" />}>
-        Planificar dispositivos
+      {/* F1-183: se apagaba sin recomendación, aunque el carril deja entrar en
+          Dispositivos con la morfometría (Workspace.tsx, missingFor): el
+          equipo puede decidir sin el motor. Misma regla y mismo motivo. */}
+      <Button style={{ marginTop: 18, width: "100%" }} onClick={onNext} disabled={!planning.morphometry} trailingIcon={<Icon name="CLIPS" />}>
+        Continuar a dispositivos
       </Button>
+      {!planning.morphometry && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, textAlign: "center" }}>
+          {NEEDS_MORPHOMETRY}
+        </div>
+      )}
     </div>
   );
 }

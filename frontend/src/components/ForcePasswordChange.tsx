@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { api } from "../api/client";
+import { serverErrorText } from "../api/errorText";
 import { useAuth } from "../store/auth";
 import { Button } from "./Button";
 import { Input } from "./Input";
@@ -35,7 +36,9 @@ export function ForcePasswordChange() {
       await api.changePassword(current, next);
       await refreshUser();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cambiar la contraseña");
+      // F1-51: aquí llegaban «Failed to fetch» y «Error 500» tal cual; ahora
+      // dicen lo mismo que «Entrar» cuando el servidor no contesta o no explica.
+      setError(serverErrorText(e));
     } finally {
       setBusy(false);
     }
@@ -48,10 +51,14 @@ export function ForcePasswordChange() {
         style={{ width: "min(420px, 100%)", padding: 24, border: "1px solid var(--border)",
                  borderRadius: "var(--radius-lg)", background: "var(--card)" }}
       >
-        <h1 style={{ fontSize: 18, margin: "0 0 6px" }}>Cambia la contraseña inicial</h1>
+        <h1 style={{ fontSize: 18, margin: "0 0 6px" }}>Cambia la contraseña asignada</h1>
+        {/* F1b-4: aquí se llega tras el alta por un administrador, tras un
+            restablecimiento y, en la cuenta admin de serie, con la contraseña
+            de instalación; el servidor no distingue los casos (solo guarda que
+            hay que cambiarla), así que el texto vale para todos. */}
         <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "0 0 16px" }}>
-          La cuenta <b style={{ color: "var(--foreground)" }}>{user?.username}</b> sigue con la contraseña
-          con la que se creó, que es conocida. Hasta que la cambies no se puede usar la aplicación.
+          La cuenta <b style={{ color: "var(--foreground)" }}>{user?.username}</b> tiene una contraseña que
+          no eligió y que conoce otra persona. Hasta que la cambies no se puede usar la aplicación.
         </p>
         <Input label="Contraseña actual" type="password" value={current}
                onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />

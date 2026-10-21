@@ -3,24 +3,27 @@
 
 import type { CSSProperties, ReactNode } from "react";
 
-type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
+type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive" | "muted" | "brand";
 
 const STYLES: Record<Variant, CSSProperties> = {
   default: { background: "var(--primary)", color: "var(--primary-foreground)" },
   secondary: { background: "var(--secondary)", color: "var(--secondary-foreground)" },
   outline: { background: "transparent", color: "var(--foreground)", border: "1px solid var(--border)" },
   subtle: { background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)" },
+  muted: { background: "var(--muted)", color: "var(--muted-foreground)" },
+  brand: { background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)" },
   success: { background: "var(--success-bg)", color: "var(--success)" },
   warning: { background: "var(--warning-bg)", color: "var(--warning)" },
   destructive: {
-    background: "color-mix(in srgb, var(--destructive) 14%, transparent)",
+    background: "var(--destructive-bg)",
     color: "var(--destructive)",
   },
 };
 
-export function Badge({ variant = "default", children, style }: { variant?: Variant; children: ReactNode; style?: CSSProperties }) {
+export function Badge({ variant = "default", children, style, title }: { variant?: Variant; children: ReactNode; style?: CSSProperties; title?: string }) {
   return (
     <span
+      title={title}
       style={{
         display: "inline-flex",
         alignItems: "center",

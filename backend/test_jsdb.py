@@ -26,7 +26,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 from services.jsdb import (AGE_CLIP, AGE_COIL, MAX_CLIP, MAX_COIL,
                            POOR_THRESHOLD, jsdb_scores)
-from services.treatment import (LOCATION_BASILAR, LOCATION_MCA,
+from services.treatment import (LOCATION_BASILAR_TRUNK, LOCATION_MCA,
                                 LOCATION_PCOM, LOCATION_UNKNOWN,
                                 compute_decision)
 
@@ -101,7 +101,7 @@ class TestTheModelIsAsymmetricAndThatIsThePoint:
         assert r.clip.points == 1 and r.coil.points == 0
 
     def test_location_penalises_opposite_routes(self):
-        posterior = self._r(location=LOCATION_BASILAR)
+        posterior = self._r(location=LOCATION_BASILAR_TRUNK)
         anterior = self._r(location=LOCATION_MCA)
         assert posterior.clip.points == 1 and posterior.coil.points == 0
         assert anterior.coil.points == 1 and anterior.clip.points == 0
@@ -119,11 +119,11 @@ class TestTheModelIsAsymmetricAndThatIsThePoint:
 class TestItCanSayBothRoutesLookBad:
     def test_a_balance_of_zero_never_meant_both_bad(self):
         # El motor devuelve una resta. Ese es el límite, y es estructural.
-        d = compute_decision(**MORFO, location=LOCATION_BASILAR, ruptured=True,
+        d = compute_decision(**MORFO, location=LOCATION_BASILAR_TRUNK, ruptured=True,
                              patient_age=84, wfns_grade=5, fisher_grade=4,
                              prior_stroke=3)
         assert d["jsdb"]["both_poor"] is True
-        jr = jsdb_scores(ruptured=True, location=LOCATION_BASILAR, age=84,
+        jr = jsdb_scores(ruptured=True, location=LOCATION_BASILAR_TRUNK, age=84,
                          wfns_grade=5, fisher_grade=4, prior_stroke=3,
                          max_diameter_mm=MORFO["max_diameter_mm"])
         assert jr.clip.points >= POOR_THRESHOLD

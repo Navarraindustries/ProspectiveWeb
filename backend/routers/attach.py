@@ -31,7 +31,8 @@ from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import (ImagingStudy, LesionConfirmation, Patient,
                                 PlanningSession, Study, User)
-from services.sessions import read_state, session_exists, session_subdir
+from services.access import can_access_patient, own_patient_ids, require_patient, session_row
+from services.sessions import read_state, session_exists, session_lineage, session_subdir
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -132,14 +133,21 @@ def read_dicom_identity(session_id: str) -> tuple[PatientSuggestion, str, str]:
 
 
 def _visible(db: Session, user: User | None):
+    # La regla de services/access.py (creados + compartidos): adjuntar a un
+    # paciente compartido es trabajar en su caso, como abrir su ficha.
     q = db.query(Patient)
-    if user is not None and user.role != "admin":
-        q = q.filter(Patient.created_by == user.id)
+    visibles = own_patient_ids(db, user)
+    if visibles is not None:
+        q = q.filter(Patient.id.in_(visibles))
     return q
 
 
 def _session_row(db: Session, session_id: str) -> PlanningSession | None:
-    return db.query(PlanningSession).filter_by(session_id=session_id).first()
+    # Por el rastro de «Reanudar», como «Guardar progreso»: la sesión viva
+    # reanudada tiene otro id, y buscar por el exacto hacía que adjuntarla
+    # creara una segunda fila para la misma sesión guardada (y que una
+    # reanudada de una ya adjunta se pudiera adjuntar otra vez).
+    return session_row(db, session_id)
 
 
 @router.get(
@@ -203,6 +211,10 @@ async def attach_session(
     ps = _session_row(db, session_id)
     if ps is not None and ps.imaging_study_id:
         raise HTTPException(status_code=409, detail="Esta sesión ya está adjunta a un caso.")
+    if ps is not None:
+        # Se va a escribir sobre esa fila: tiene que ser de un paciente que
+        # esta persona ve, como al guardar sobre el origen.
+        require_patient(db, current_user, ps.patient_id)
     if (req.patient_id is None) == (req.new_patient is None):
         raise HTTPException(status_code=422, detail="Elige un paciente o crea uno nuevo (uno de los dos).")
     if (req.case_id is None) == (req.new_case is None):
@@ -226,11 +238,15 @@ async def attach_session(
             if hc:
                 dup = db.query(Patient).filter(Patient.hospital_id == hc).first()
                 if dup is not None:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"Ya existe un paciente con la historia clínica '{hc}' "
-                               f"({dup.full_name}). Elígelo en lugar de crear otro.",
-                    )
+                    # El nombre solo a quien ya ve a ese paciente: si no, bastaba
+                    # probar números de historia para leer pacientes ajenos.
+                    if can_access_patient(db, current_user, dup.id):
+                        detail = (f"Ya existe un paciente con la historia clínica '{hc}' "
+                                  f"({dup.full_name}). Elígelo en lugar de crear otro.")
+                    else:
+                        detail = ("Ya existe un paciente con ese número de historia que no está "
+                                  "entre los tuyos: pide a su responsable que lo comparta contigo.")
+                    raise HTTPException(status_code=409, detail=detail)
             patient = Patient(surname=np_.surname.strip(), given_name=np_.given_name.strip(),
                               hospital_id=hc, dob=np_.dob, sex=np_.sex,
                               created_by=current_user.id if current_user else None)
@@ -274,9 +290,14 @@ async def attach_session(
         ps = PlanningSession(session_id=session_id, study_id=case.id, patient_id=patient.id,
                              imaging_study_id=img.id, label=f"{patient.full_name}")
         db.add(ps)
-    # Lo que se hizo antes de adjuntar pasa a colgar del estudio.
+    else:
+        # La fila de la sesión guardada de la que salió esta (o la suya propia
+        # si ya se guardó): se liga esa, no se añade otra.
+        ps.study_id, ps.patient_id, ps.imaging_study_id = case.id, patient.id, img.id
+    # Lo que se hizo antes de adjuntar pasa a colgar del estudio, también lo
+    # confirmado en la sesión guardada antes de reanudar.
     n = (db.query(LesionConfirmation)
-         .filter(LesionConfirmation.session_id == session_id,
+         .filter(LesionConfirmation.session_id.in_(sorted(session_lineage(session_id))),
                  LesionConfirmation.imaging_study_id.is_(None))
          .update({"imaging_study_id": img.id, "case_id": case.id, "patient_id": patient.id},
                  synchronize_session=False))
@@ -289,6 +310,9 @@ async def attach_session(
         "new_case": req.new_case is not None, "relinked_confirmations": n,
     }, username=current_user.username if current_user else "", **audit_patient(patient))
     logger.info("Session %s attached to patient %d case %d study %d", session_id, patient.id, case.id, img.id)
-    return AttachResult(patient=_patient_to_summary(patient), case_id=case.id,
+    # Si llegó hasta aquí sin crearlo ni ser administrador, lo ve porque se lo compartieron.
+    compartido = (current_user is not None and current_user.role != "admin"
+                  and patient.created_by != current_user.id)
+    return AttachResult(patient=_patient_to_summary(patient, is_shared_with_me=compartido), case_id=case.id,
                         case_label=case.dx_principal or case.description or "Caso",
                         imaging_study_id=img.id, relinked_confirmations=n)

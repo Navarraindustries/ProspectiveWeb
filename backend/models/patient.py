@@ -47,6 +47,34 @@ class PatientSummary(BaseModel):
     institution: str
     study_count: int = Field(0, description="Number of associated studies")
     created_at: datetime
+    # Compartir (F2-75): de quién es y con cuántas cuentas está compartido, para
+    # que la lista distinga lo propio de lo que otro ha compartido conmigo.
+    owner_id: int | None = Field(None, description="Cuenta que creó al paciente")
+    shared_with_count: int = Field(0, description="Cuentas con las que está compartido")
+    is_shared_with_me: bool = Field(False, description="Lo ve porque se lo compartieron, no porque lo creó")
+    # Última actividad (F2-19, F2-24): quien vuelve cada día busca arriba al
+    # paciente con el que trabajó por última vez, y reanuda desde la lista sin
+    # abrir la ficha. Solo la lista los rellena; crear o editar devuelven vacío.
+    last_session_at: datetime | None = Field(None, description="Última vez que se guardó una sesión del paciente")
+    last_session_step: int | None = Field(None, description="Paso en que quedó esa sesión")
+    last_session_id: str | None = Field(None, description="Sesión guardada más reciente, para reanudarla")
+    last_case_label: str = Field("", description="Diagnóstico del caso más reciente; vacío si no hay casos")
+
+
+class PatientShareOut(BaseModel):
+    """Una cuenta con la que está compartido un paciente."""
+
+    user_id: int
+    username: str
+    full_name: str
+    role: str
+    shared_at: datetime
+
+
+class PatientSharesIn(BaseModel):
+    """La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior)."""
+
+    user_ids: list[int] = Field(default_factory=list)
 
 
 class StudySummary(BaseModel):
@@ -137,6 +165,7 @@ class PatientSessionInfo(BaseModel):
     rupture_risk_label: str | None = None
     created_at: datetime
     updated_at: datetime
+    size_bytes: int = 0
 
 
 class PlanningSessionSummary(BaseModel):
@@ -163,6 +192,9 @@ class StudyCard(BaseModel):
     id: int = Field(..., description="ImagingStudy id")
     case_id: int = Field(0, description="Clinical case this imaging belongs to")
     patient_id: int
+    owner_id: int | None = Field(
+        None, description="Cuenta que creó al paciente: quien puede borrar el estudio archivado"
+    )
     patient_name: str = ""
     hospital_id: str = Field("", description="Cédula / N.º de historia clínica")
     description: str = ""

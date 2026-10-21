@@ -13,18 +13,30 @@ import json
 import math
 import re
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from services.access import require_session
+from services.auth_service import get_current_user
+from services.database import get_db
+from services.db_models import User
 
 from models import (
     AneurysmCandidate as PydAneurysmCandidate,
     AneurysmDetectionResult,
+    ClinicalSiteRequest,
+    ClinicalSiteResult,
     DetectionDiagnostics,
     MorphometryResult,
     NeckPlaneRequest,
     Position3D,
+    Veto as PydVeto,
 )
 from services.sessions import (
-    read_state, session_exists, session_subdir, write_state, write_states, mesh_url,
+    listed_candidates, read_state, session_exists, session_subdir, write_state,
+    write_states, mesh_url,
 )
 from services.aneurysm_detector import AneurysmDetector, AneurysmCandidate as DetCandidate
 from services.aneurysm_consensus import MAX_VERTS_GEOMETRIC
@@ -81,6 +93,25 @@ _CURVATURE_MAX_VERTS = 80_000
 #: doble del tope de curvatura: Case 3 e IM_0055 (104 000–107 000) quedan
 #: debajo y su resultado es el de siempre.
 _CHAIN_DECIMATION_FROM = 2 * _CURVATURE_MAX_VERTS
+#: Cuántos sitios se piden al consenso antes de vetar. Los vetos se aplican
+#: ANTES del tope de 5: si se cortara primero, cada descartado dejaría un hueco
+#: en la lista corta en vez de dar paso al siguiente sitio. 30 es el margen
+#: con el que el banco (`eval/detection_bench.py`, `BENCH_TOP`) midió los vetos.
+_DETECT_TOP: int = 30
+
+#: Cuánto puede moverse el candidato medido entre dos detecciones sin que su
+#: morfometría deje de describirlo. Re-detectar sobre la misma malla da los
+#: mismos sitios (el pipeline es determinista); si el id medido cae ahora a
+#: más de 2 mm de donde estaba, las cifras guardadas son de otro sitio.
+REDETECT_MOVE_MM: float = 2.0
+
+#: Claves por candidato en el estado. Una sola lista para escribir y limpiar:
+#: una clave que se escribiera sin limpiarse sobreviviría a la re-detección
+#: describiendo un candidato que ya no existe.
+_CAND_STATE_SUFFIXES = (
+    "vtp_name", "url", "centroid_x", "centroid_y", "centroid_z",
+    "diameter_mm", "score", "channels", "patch_kind", "veto_reason", "veto_detail",
+)
 
 
 def _detector_for_modality(modality: str) -> AneurysmDetector:
@@ -179,7 +210,7 @@ _MORPHO_STATE_KEYS = (
     "morpho.plane_normal_x", "morpho.plane_normal_y", "morpho.plane_normal_z",
     "morpho.plane_seed_x", "morpho.plane_seed_y", "morpho.plane_seed_z",
     "morpho.neck_origin_x", "morpho.neck_origin_y", "morpho.neck_origin_z",
-    "morpho.axis_x", "morpho.axis_y", "morpho.axis_z",
+    "morpho.axis_x", "morpho.axis_y", "morpho.axis_z", "morpho.axis_measured",
     "morpho.max_diameter_mm", "morpho.neck_mm", "morpho.neck_perimeter_mm",
     "morpho.dome_height_mm",
     "morpho.volume_mm3", "morpho.surface_area_mm2",
@@ -195,6 +226,9 @@ _MORPHO_STATE_KEYS = (
     # Cuánto se movió el plano marcado para aislar el saco: describe esa
     # medida, así que se va con ella.
     "morpho.neck_shift_mm",
+    # La marca de saco hasta el límite del recorte describe esa medida: sin
+    # ella borrada, Decisión seguiría avisando de vaso padre sin medida detrás.
+    "morpho.sac_hit_crop",
 )
 
 
@@ -214,42 +248,59 @@ def _clear_detection_state(session_id: str, meshes_dir: Path, *, morphometry: bo
             logger.warning("Could not delete %s: %s", path.name, exc)
 
     # Candidate indices are 1-based and bounded by the previous run's count.
-    try:
-        previous = int(read_state(session_id, "detect.n_candidates", "0") or 0)
-    except ValueError:
-        previous = 0
+    # Los descartados llevan ids a continuación de los aceptados, así que el
+    # recorrido llega hasta aceptados + descartados.
+    previous = listed_candidates(session_id)
+    blank: dict[str, str] = {}
     for i in range(1, max(previous, removed) + 1):
         prefix = f"detect.cand_{i:03d}"
-        for suffix in ("vtp_name", "url", "centroid_x", "centroid_y", "centroid_z",
-                       "diameter_mm", "score", "channels", "patch_kind"):
-            write_state(session_id, f"{prefix}.{suffix}", "")
-    write_state(session_id, "detect.n_candidates", "0")
-    write_state(session_id, "detect.best_vtp_name", "")
+        for suffix in _CAND_STATE_SUFFIXES:
+            blank[f"{prefix}.{suffix}"] = ""
+    blank["detect.n_candidates"] = "0"
+    blank["detect.n_rejected"] = "0"
+    # Los marcados a mano (F1-146) se apuntaron sobre la lista anterior: una
+    # detección nueva es otra lista, y el punto sigue guardado en la
+    # confirmación de la lesión.
+    blank["detect.n_manual"] = "0"
+    blank["detect.best_vtp_name"] = ""
+    blank["detect.diagnostics_json"] = ""
+    write_states(session_id, blank)
 
     if morphometry:
         # La malla cambió (o se borra el análisis): el candidato elegido para
         # medir era de la detección anterior. Volver a detectar sobre la MISMA
-        # malla (morphometry=False, lo que hace «Reanudar») lo conserva, porque
-        # la detección es determinista y los ids vuelven a ser los mismos.
-        write_state(session_id, "detect.selected_candidate", "")
-        for key in _MORPHO_STATE_KEYS:
-            write_state(session_id, key, "")
-        # Y el fichero del saco, no solo su clave: dejarlo en disco hacía que
-        # una sesión reanudada volviera a pintarlo.
-        sac = meshes_dir / "aneurysm_sac.vtp"
-        if sac.exists():
-            try:
-                sac.unlink()
-                removed += 1
-            except OSError as exc:  # noqa: BLE001
-                logger.warning("Could not delete %s: %s", sac.name, exc)
-        # The recommendation and the PHASES score are computed FROM the
-        # morphometry, so they describe measurements that no longer exist.
-        # Leaving them behind made the PDF recommend a treatment for an
-        # aneurysm the same PDF reported as unmeasured.
-        from routers.treatment import clear_treatment_state
-        clear_treatment_state(session_id)
+        # malla (morphometry=False, lo que hace «Reanudar») lo conserva salvo
+        # que el elegido se haya movido (ver `_match_choice`).
+        removed += _clear_morphometry_state(session_id, meshes_dir)
 
+    return removed
+
+
+def _clear_morphometry_state(session_id: str, meshes_dir: Path) -> int:
+    """Borra la elección, la morfometría, el saco y el tratamiento.
+
+    Aparte de `_clear_detection_state` porque la re-detección la necesita
+    DESPUÉS de escribir los candidatos nuevos: solo entonces se sabe si el
+    candidato medido sigue en su sitio. Devuelve los ficheros borrados (0 o 1).
+    """
+    removed = 0
+    write_state(session_id, "detect.selected_candidate", "")
+    write_states(session_id, {key: "" for key in _MORPHO_STATE_KEYS})
+    # Y el fichero del saco, no solo su clave: dejarlo en disco hacía que
+    # una sesión reanudada volviera a pintarlo.
+    sac = meshes_dir / "aneurysm_sac.vtp"
+    if sac.exists():
+        try:
+            sac.unlink()
+            removed += 1
+        except OSError as exc:  # noqa: BLE001
+            logger.warning("Could not delete %s: %s", sac.name, exc)
+    # The recommendation and the PHASES score are computed FROM the
+    # morphometry, so they describe measurements that no longer exist.
+    # Leaving them behind made the PDF recommend a treatment for an
+    # aneurysm the same PDF reported as unmeasured.
+    from routers.treatment import clear_treatment_state
+    clear_treatment_state(session_id)
     return removed
 
 
@@ -288,9 +339,24 @@ async def clear_detection(session_id: str) -> dict:
         "**Prerequisite:** `POST /segment` must be called first."
     ),
 )
-async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
+async def detect_aneurysm(
+    session_id: str,
+    cached: bool = Query(
+        False,
+        description=(
+            "Devolver la última detección guardada en la sesión sin recalcular "
+            "(lo usa «Reanudar»). 404 si no hay ninguna guardada o falta la malla "
+            "de algún candidato: entonces hay que pedirla sin `cached`."
+        ),
+    ),
+) -> AneurysmDetectionResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    if cached:
+        stored = cached_detection(session_id)
+        if stored is None:
+            raise HTTPException(status_code=404, detail="Esta sesión no tiene una detección guardada.")
+        return stored
 
     meshes_dir = session_subdir(session_id, "meshes")
     vtp_path   = meshes_dir / "vessel_tree.vtp"
@@ -334,6 +400,7 @@ async def detect_aneurysm(session_id: str) -> AneurysmDetectionResult:
 def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
                  detector: AneurysmDetector | None = None,
                  session_id: str | None = None,
+                 top: int = _MAX_CANDIDATES,
                  volume: "tuple[np.ndarray, tuple[float, float, float]] | None" = None):
     """Los candidatos: curvatura sobre ≤ 80 000 vértices, calibre sobre ≤ 40 000.
 
@@ -358,7 +425,9 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     Devuelve ``(hits, det_result)``: el resultado de la curvatura, el mismo
     que alimenta el consenso, es el que dan los diagnósticos de la respuesta.
     *detector*, si se da, es el que usa quien llama para esos diagnósticos:
-    una sola instancia por petición.
+    una sola instancia por petición. *top* es el tope del consenso: el banco
+    de pruebas (`eval/detection_bench.py`) pide más de 5 para poder aplicar
+    los vetos antes de cortar.
     """
     from services.aneurysm_consensus import consensus
     from services.head_crop import crop_to_head
@@ -406,7 +475,7 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     # Se piden el doble de sitios de los que se dan: el suelo de HU quita los
     # que están en aire y los siguientes de la misma lista ordenada ocupan su
     # sitio. Recortar la lista ya ordenada no cambia el puesto de nadie.
-    hits = consensus(curv, detector, top=2 * _MAX_CANDIDATES,
+    hits = consensus(curv, detector, top=2 * top,
                      geometric_poly=small, curvature_result=det_result, tree_poly=poly)
     floor = HuFloor(applied=False)
     if modality.upper().startswith("CT"):
@@ -414,7 +483,7 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
             volume = _session_volume(session_id)
         if volume is not None:
             hits, floor = drop_air(hits, volume[0], volume[1])
-    hits = hits[:_MAX_CANDIDATES]
+    hits = hits[:top]
     # Para el registro del banco y el diagnóstico, como `geometric_error`.
     det_result.head_crop = crop.as_dict()
     det_result.hu_floor = floor.as_dict()
@@ -436,12 +505,61 @@ def _session_volume(session_id: str):
         return None
 
 
+def _previous_choice(session_id: str) -> tuple[str, np.ndarray | None] | None:
+    """El candidato medido en la detección anterior y dónde estaba.
+
+    Se lee ANTES de limpiar: la limpieza borra los centroides. None si no se
+    había elegido nada; el centroide es None si falta o no se lee.
+    """
+    chosen = read_state(session_id, "detect.selected_candidate", "") or ""
+    m = _CANDIDATE_ID.match(chosen)
+    if not m:
+        return None
+    prefix = f"detect.cand_{m.group(1)}"
+    try:
+        centroid = np.array([float(read_state(session_id, f"{prefix}.centroid_{a}", ""))
+                             for a in "xyz"])
+    except ValueError:
+        centroid = None
+    return chosen, centroid
+
+
+def _match_choice(previous: tuple[str, np.ndarray | None],
+                  new_positions: dict[str, np.ndarray]) -> str | None:
+    """El id que el sitio medido tiene en la lista nueva, o None si ya no está.
+
+    Se busca por SITIO, no por id: los ids son posiciones en la lista, y un
+    veto que ahora salta sobre un sitio anterior al medido (p. ej. una sesión
+    guardada antes de los vetos) renumera todos los de detrás sin moverlos.
+    Primero el mismo id si sigue a menos de `REDETECT_MOVE_MM`; si no, el sitio
+    nuevo (aceptado o descartado) más cercano al centroide anterior dentro de
+    ese radio. None si ninguno cae ahí o si no se sabe dónde estaba: sin el
+    centroide anterior no se puede afirmar que sea el mismo sitio, y una
+    medida de otro sitio que sigue en pantalla es peor que volver a medir.
+    """
+    chosen, old = previous
+    if old is None:
+        return None
+    same = new_positions.get(chosen)
+    if same is not None and float(np.linalg.norm(same - old)) <= REDETECT_MOVE_MM:
+        return chosen
+    best: tuple[float, str] | None = None
+    for cid, pos in new_positions.items():
+        d = float(np.linalg.norm(pos - old))
+        if d <= REDETECT_MOVE_MM and (best is None or d < best[0]):
+            best = (d, cid)
+    return best[1] if best is not None else None
+
+
 def _run_detection_sync(
     session_id: str,
     vtp_path:   Path,
     meshes_dir: Path,
 ) -> AneurysmDetectionResult:
-    """Load VTP → run AneurysmDetector → write candidate VTPs → update state."""
+    """Load VTP → run AneurysmDetector → vetoes → write candidate VTPs → update state."""
+    # Lo que se midió la vez anterior, antes de que la limpieza lo borre.
+    previous = _previous_choice(session_id)
+
     # Start from a clean slate: a run that finds fewer candidates than the last
     # one must not leave the extra domes on disk and in the report's state.
     _clear_detection_state(session_id, meshes_dir, morphometry=False)
@@ -466,6 +584,7 @@ def _run_detection_sync(
     # por grosor. Ver services/aneurysm_consensus.py.
     from services.aneurysm_consensus import (hit_confidence, hit_diameter_mm,
                                              hit_patch)
+    from services.candidate_vetoes import evaluate
 
     # La curvatura se busca sobre la malla (o una copia de 80 000 vértices si
     # es mayor), y calibre y cociente sobre una copia de como mucho 40 000
@@ -473,26 +592,48 @@ def _run_detection_sync(
     # localizador de un canal geométrico es una bola recortada de ella —su
     # posición es de mundo y vale igual en todas las copias—; la región de
     # curvatura es la que el detector encontró en su copia.
-    hits, det_result = _detect_hits(poly, modality, detector, session_id)
+    hits, det_result = _detect_hits(poly, modality, detector, session_id, top=_DETECT_TOP)
+
+    # ── Vetos antes del tope ──────────────────────────────────────────── #
+    # Cada sitio se juzga (borde, isla, bifurcación, forma). Los aceptados
+    # llenan la lista corta hasta `_MAX_CANDIDATES`; los que sobran del tope se
+    # tiran como siempre. Los vetados se devuelven TODOS con su motivo: el veto
+    # es geométrico y puede equivocarse, así que el clínico tiene que verlos.
+    accepted: list = []
+    rejected: list = []
+    for hit in hits:
+        patch, patch_kind = hit_patch(poly, hit)
+        veto = evaluate(poly, hit, patch, patch_kind)
+        if veto is not None:
+            rejected.append((hit, patch, patch_kind, veto))
+        elif len(accepted) < _MAX_CANDIDATES:
+            accepted.append((hit, patch, patch_kind, None))
 
     pyd_candidates: list[PydAneurysmCandidate] = []
+    pyd_rejected: list[PydAneurysmCandidate] = []
+    new_positions: dict[str, np.ndarray] = {}
 
-    for rank, hit in enumerate(hits, start=1):
-        progress.update(session_id, "regiones", 85 + 14 * (rank - 1) / max(1, len(hits)))
-        cand_name = f"aneurysm_cand_{rank:03d}.vtp"
-        patch, patch_kind = hit_patch(poly, hit)
+    # Ids consecutivos: aceptados cand-001.., descartados a continuación. Un
+    # solo espacio de ids porque GET /morphometry mide cualquiera de los dos.
+    # `rank` es la posición dentro de SU lista, en el orden del consenso.
+    groups = ([(item, False, k) for k, item in enumerate(accepted, start=1)]
+              + [(item, True, k) for k, item in enumerate(rejected, start=1)])
+    for idx, ((hit, patch, patch_kind, veto), is_rejected, rank) in enumerate(groups, start=1):
+        progress.update(session_id, "regiones", 85 + 14 * (idx - 1) / max(1, len(groups)))
+        cand_name = f"aneurysm_cand_{idx:03d}.vtp"
+        # La malla también para los descartados: sin ella no se pueden medir.
         write_vtp(patch, meshes_dir / cand_name)
         url = mesh_url(session_id, cand_name)
         diameter = hit_diameter_mm(hit)
         confidence = hit_confidence(hit)
 
         # Persist candidate metadata to session state.
-        # En UN lote: las nueve claves de un candidato describen el mismo
-        # objeto y no tiene sentido que puedan quedar a medias. Escritas de
-        # una en una, cada una reescribía el fichero entero, y en una sesión
-        # real eso dejó un candidato sin `centroid_x` —que se lee como 0.0,
-        # o sea desplazado al origen— y otro sin `score`.
-        prefix = f"detect.cand_{rank:03d}"
+        # En UN lote: las claves de un candidato describen el mismo objeto y
+        # no tiene sentido que puedan quedar a medias. Escritas de una en una,
+        # cada una reescribía el fichero entero, y en una sesión real eso dejó
+        # un candidato sin `centroid_x` —que se lee como 0.0, o sea desplazado
+        # al origen— y otro sin `score`.
+        prefix = f"detect.cand_{idx:03d}"
         write_states(session_id, {
             f"{prefix}.vtp_name":    cand_name,
             f"{prefix}.url":         url,
@@ -503,42 +644,69 @@ def _run_detection_sync(
             f"{prefix}.score":       str(confidence),
             f"{prefix}.channels":    ",".join(hit.channels),
             f"{prefix}.patch_kind":  patch_kind,
+            f"{prefix}.veto_reason": veto.reason if veto is not None else "",
+            # La frase con la cifra que decidió el veto: sin ella, la lista
+            # devuelta sin recalcular (?cached=true) no podría explicarlo.
+            f"{prefix}.veto_detail": veto.detail if veto is not None else "",
         })
 
-        pyd_candidates.append(
+        cand_id = f"cand-{idx:03d}"
+        new_positions[cand_id] = np.asarray(hit.position, dtype=float)
+        (pyd_rejected if is_rejected else pyd_candidates).append(
             PydAneurysmCandidate(
-                id=f"cand-{rank:03d}",
+                id=cand_id,
                 center_mm=Position3D(x=hit.position[0], y=hit.position[1],
                                      z=hit.position[2]),
                 max_diameter_mm=diameter,
                 confidence=round(confidence, 4),
                 dome_mesh_url=url,
-                selected=(rank == 1),
+                selected=(idx == 1 and not is_rejected),
                 channels=hit.channels,
                 patch_kind=patch_kind,
+                rank=rank,
+                veto=None if veto is None else PydVeto(
+                    reason=veto.reason, label=veto.label, detail=veto.detail),
             )
         )
 
     # Persist summary for downstream morphometry / perforators
-    write_state(session_id, "detect.n_candidates", str(len(pyd_candidates)))
-    if pyd_candidates:
-        write_state(session_id, "detect.best_vtp_name", f"aneurysm_cand_001.vtp")
-    else:
-        # No aneurysm found — clear any stale state from a previous run
-        write_state(session_id, "detect.best_vtp_name", "")
+    write_states(session_id, {
+        "detect.n_candidates": str(len(pyd_candidates)),
+        "detect.n_rejected": str(len(pyd_rejected)),
+        # El «mejor» es un aceptado: un descartado solo se mide si se elige.
+        "detect.best_vtp_name": "aneurysm_cand_001.vtp" if pyd_candidates else "",
+    })
+
+    # ── ¿Sigue valiendo la morfometría? ───────────────────────────────── #
+    # Re-detectar no la borraba nunca (morphometry=False), confiando en que los
+    # ids se repiten. Con los vetos los ids se reparten de otra forma, y una
+    # malla editada mueve los sitios. Si el sitio medido sigue ahí con otro id,
+    # la elección pasa a ese id y la medida se conserva: describe la misma
+    # anatomía. Solo si no queda ningún sitio a menos de 2 mm sus cifras
+    # describen otro sitio y se tiran con todo lo derivado.
+    invalidated = False
+    if previous is not None:
+        match = _match_choice(previous, new_positions)
+        if match is None:
+            _clear_morphometry_state(session_id, meshes_dir)
+            invalidated = True
+            logger.info("Chosen candidate %s moved or vanished — morphometry cleared "
+                        "for session %s", previous[0], session_id)
+        elif match != previous[0]:
+            write_state(session_id, "detect.selected_candidate", match)
+            logger.info("Chosen candidate %s renumbered to %s — morphometry kept "
+                        "for session %s", previous[0], match, session_id)
+
+    by_reason: dict[str, int] = {}
+    for c in pyd_rejected:
+        by_reason[c.veto.reason] = by_reason.get(c.veto.reason, 0) + 1
 
     logger.info(
-        "Detection complete — session=%s  candidates=%d",
-        session_id, len(pyd_candidates),
+        "Detection complete — session=%s  candidates=%d  rejected=%d %s",
+        session_id, len(pyd_candidates), len(pyd_rejected), by_reason,
     )
 
-    return AneurysmDetectionResult(
-        found=len(pyd_candidates) > 0,
-        candidates=pyd_candidates,
-        # Carried out so an empty result can explain itself. On a complete mesh
-        # the size gate rejects the vast majority: high-curvature patches merge
-        # across several vessels and their equivalent radius exceeds the bound.
-        diagnostics=DetectionDiagnostics(
+    diagnostics = DetectionDiagnostics(
             regions_analyzed        = det_result.n_regions_total,
             rejected_too_few_points = det_result.n_failed_points,
             rejected_size           = det_result.n_failed_size,
@@ -550,12 +718,211 @@ def _run_detection_sync(
             removed_components      = det_result.n_removed_components,
             min_radius_mm           = detector.min_radius_mm,
             max_radius_mm           = detector.max_radius_mm,
-        ),
+            n_rejected              = len(pyd_rejected),
+            rejected_by_reason      = by_reason,
+    )
+    # Con la lista, para devolverla tal cual al reanudar (?cached=true).
+    write_state(session_id, "detect.diagnostics_json", diagnostics.model_dump_json())
+
+    return AneurysmDetectionResult(
+        found=len(pyd_candidates) > 0,
+        candidates=pyd_candidates,
+        rejected=pyd_rejected,
+        morphometry_invalidated=invalidated,
+        # Carried out so an empty result can explain itself. On a complete mesh
+        # the size gate rejects the vast majority: high-curvature patches merge
+        # across several vessels and their equivalent radius exceeds the bound.
+        diagnostics=diagnostics,
+    )
+
+
+#: Canal y tipo de un candidato que no salió del detector sino de un punto
+#: marcado a mano (F1-146).
+MANUAL_CHANNEL = "manual"
+
+#: Lo que responde la morfometría automática sobre un marcado a mano: no hay
+#: región detectada que aislar como saco, pero sí la vía manual.
+MANUAL_NO_SAC = ("Candidato marcado a mano: no hay saco detectado que aislar. "
+                 "Mide en Morfometría marcando el cuello y el ápice.")
+
+
+def add_manual_candidate(session_id: str, point: tuple[float, float, float]) -> str | None:
+    """Apunta un punto marcado a mano como un candidato más; devuelve su id.
+
+    F1-146: cuando el detector no encontró la lesión, el profesional la marca
+    y la confirma, pero la lista seguía sin nada que elegir y Morfometría se
+    quedaba cerrada justo en el caso que más importa. El punto entra en el
+    estado con las mismas claves que un candidato detectado, `channels` y
+    `patch_kind` «manual», sin malla, diámetro ni puntuación (el detector no
+    midió nada ahí). Va detrás de aceptados y descartados para no mover sus
+    ids, con su propio contador (`detect.n_manual`): sumarlo a
+    `detect.n_candidates` haría pasar por aceptado al primer descartado.
+    Re-detectar lo borra con el resto (`_clear_detection_state`).
+
+    None si la sesión no tiene una detección guardada: sin lista no hay a qué
+    añadirlo, y crearla aquí haría que «Reanudar» diera por hecha una
+    detección que no se hizo.
+    """
+    if read_state(session_id, "detect.n_candidates", "") == "":
+        return None
+    idx = listed_candidates(session_id) + 1
+    prefix = f"detect.cand_{idx:03d}"
+    write_states(session_id, {
+        f"{prefix}.vtp_name":    "",
+        f"{prefix}.url":         "",
+        f"{prefix}.centroid_x":  str(float(point[0])),
+        f"{prefix}.centroid_y":  str(float(point[1])),
+        f"{prefix}.centroid_z":  str(float(point[2])),
+        f"{prefix}.diameter_mm": "0",
+        f"{prefix}.score":       "0",
+        f"{prefix}.channels":    MANUAL_CHANNEL,
+        f"{prefix}.patch_kind":  MANUAL_CHANNEL,
+        f"{prefix}.veto_reason": "",
+        f"{prefix}.veto_detail": "",
+        "detect.n_manual":       str(_int_state(session_id, "detect.n_manual") + 1),
+    })
+    return f"cand-{idx:03d}"
+
+
+def _is_manual(session_id: str, rank: int) -> bool:
+    return read_state(session_id, f"detect.cand_{rank:03d}.patch_kind", "") == MANUAL_CHANNEL
+
+
+async def _manual_morphometry(session_id: str, candidate_id: str) -> MorphometryResult:
+    """GET /morphometry sobre un candidato marcado a mano.
+
+    No hay región detectada que medir. Si ya se midió ESTE candidato marcando
+    cuello y ápice (`detect.selected_candidate` lo nombra y hay plano
+    guardado), se repite esa medida sobre la malla vascular, como hace la ruta
+    del plano de cuello: sin esto «Reanudar» perdía la medida hecha a mano. Si
+    no, el 422 que dice cómo medirlo. Un plano guardado de OTRO candidato no
+    sirve: mediría el sitio anterior bajo el nombre de este.
+    """
+    saved_plane = _read_saved_neck_plane(session_id)
+    if saved_plane is None or read_state(session_id, "detect.selected_candidate", "") != candidate_id:
+        raise HTTPException(status_code=422, detail=MANUAL_NO_SAC)
+    vessel = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
+    if not vessel.exists():
+        raise HTTPException(status_code=422, detail=MANUAL_NO_SAC)
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(
+            _executor,
+            partial(_run_morphometry_sync, session_id=session_id, vtp_path=vessel,
+                    neck_plane=saved_plane, replay=True),
+        )
+    except ValueError as exc:
+        # El plano ya no aísla un saco (malla rehecha): sin medida automática
+        # a la que caer, toca volver a marcar.
+        logger.warning("Saved neck plane no longer valid for manual %s in %s (%s)",
+                       candidate_id, session_id, exc)
+        raise HTTPException(status_code=422, detail=MANUAL_NO_SAC) from exc
+    result.candidate_id = candidate_id
+    result.site = clinical_site(session_id)
+    return result
+
+
+def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
+    """La última detección tal como quedó en el estado, sin recalcular.
+
+    «Reanudar» volvía a detectar, y el orden de la lista es inestable: salía
+    otra lista y la confirmación de lesión hecha sobre la anterior dejaba de
+    corresponder (F1-246). None si no hay detección guardada o si falta la
+    malla de algún candidato (entonces solo cabe recalcular).
+    """
+    raw_n = read_state(session_id, "detect.n_candidates", "")
+    if raw_n == "":
+        return None
+    try:
+        n_acc = int(raw_n)
+        n_rej = int(read_state(session_id, "detect.n_rejected", "0") or 0)
+    except ValueError:
+        return None
+    meshes_dir = session_subdir(session_id, "meshes")
+    from services.candidate_vetoes import LABELS as VETO_LABELS
+
+    accepted: list[PydAneurysmCandidate] = []
+    rejected: list[PydAneurysmCandidate] = []
+    for idx in range(1, n_acc + n_rej + 1):
+        p = f"detect.cand_{idx:03d}"
+        name = read_state(session_id, f"{p}.vtp_name", "") or f"aneurysm_cand_{idx:03d}.vtp"
+        if not (meshes_dir / name).exists():
+            return None
+        try:
+            center = [float(read_state(session_id, f"{p}.centroid_{a}", "")) for a in "xyz"]
+            diameter = float(read_state(session_id, f"{p}.diameter_mm", "0") or 0)
+            score = float(read_state(session_id, f"{p}.score", "0") or 0)
+        except ValueError:
+            return None
+        is_rejected = idx > n_acc
+        reason = read_state(session_id, f"{p}.veto_reason", "") or ""
+        veto = None
+        if is_rejected and reason in VETO_LABELS:
+            veto = PydVeto(reason=reason, label=VETO_LABELS[reason],
+                           detail=read_state(session_id, f"{p}.veto_detail", "") or "")
+        channels = [c for c in (read_state(session_id, f"{p}.channels", "") or "").split(",") if c]
+        kind = read_state(session_id, f"{p}.patch_kind", "") or "region"
+        (rejected if is_rejected else accepted).append(PydAneurysmCandidate(
+            id=f"cand-{idx:03d}",
+            center_mm=Position3D(x=center[0], y=center[1], z=center[2]),
+            max_diameter_mm=diameter,
+            confidence=round(_clamp01(score), 4),
+            # La URL de ESTA sesión: la guardada lleva el id de la que detectó.
+            dome_mesh_url=mesh_url(session_id, name),
+            selected=(idx == 1 and not is_rejected),
+            channels=channels,
+            patch_kind=kind if kind in ("region", "locator") else "region",
+            rank=idx - n_acc if is_rejected else idx,
+            veto=veto,
+        ))
+
+    # Los marcados a mano van con los aceptados, que es donde el panel los
+    # enseña; sin malla que comprobar (no la tienen).
+    n_man = _int_state(session_id, "detect.n_manual")
+    for idx in range(n_acc + n_rej + 1, n_acc + n_rej + n_man + 1):
+        p = f"detect.cand_{idx:03d}"
+        try:
+            center = [float(read_state(session_id, f"{p}.centroid_{a}", "")) for a in "xyz"]
+        except ValueError:
+            continue
+        accepted.append(PydAneurysmCandidate(
+            id=f"cand-{idx:03d}",
+            center_mm=Position3D(x=center[0], y=center[1], z=center[2]),
+            max_diameter_mm=0.0, confidence=0.0, dome_mesh_url="", selected=False,
+            channels=[MANUAL_CHANNEL], patch_kind="manual", rank=0, veto=None,
+        ))
+
+    diagnostics = DetectionDiagnostics(n_rejected=len(rejected))
+    raw_diag = read_state(session_id, "detect.diagnostics_json", "")
+    if raw_diag:
+        try:
+            diagnostics = DetectionDiagnostics.model_validate_json(raw_diag)
+        except ValueError:
+            pass
+    return AneurysmDetectionResult(
+        # «Encontró» lo dice el detector, no un punto marcado a mano.
+        found=n_acc > 0, candidates=accepted, rejected=rejected,
+        morphometry_invalidated=False, diagnostics=diagnostics,
     )
 
 
 #: Id de candidato que acepta GET /morphometry (el mismo que devuelve la detección).
 _CANDIDATE_ID = re.compile(r"^cand-(\d{3})$")
+
+
+def _parent_artery_out(session_id: str) -> float | None:
+    """La arteria portadora tal como la lee el planificador de stent.
+
+    F1-205: el panel de dispositivos arrancaba el «Diámetro nominal» en 4 mm
+    porque esta cifra solo volvía DESPUÉS de desplegar. Se lee del estado, no
+    de la variable local, para que sea exactamente la que usa `routers/plan.py`.
+    """
+    raw = read_state(session_id, "morpho.parent_artery_mm", "")
+    try:
+        v = float(raw) if raw else 0.0
+    except ValueError:
+        return None
+    return round(v, 2) if v > 0 else None
 
 
 # ── GET /morphometry/{session_id} ─────────────────────────────────────────── #
@@ -567,12 +934,13 @@ _CANDIDATE_ID = re.compile(r"^cand-(\d{3})$")
     description=(
         "Runs the full morphometric analysis on the best-scoring candidate "
         "mesh from the most recent detection run.\n\n"
-        "Returns all clinical indices:\n"
-        "- **DNR** (Dome-to-Neck Ratio) — risk ↑ if > 2.0\n"
-        "- **AR** (Aspect Ratio) — risk ↑ if > 1.6\n"
-        "- **BF** (Bottleneck Factor) — wide neck if > 1.5\n"
-        "- **UI** (Undulation Index) — irregular dome if > 0.15\n"
-        "- **EI** (Ellipticity Index) — non-spherical if > 0.35\n"
+        "Returns all clinical indices (cuts in services/index_thresholds.py):\n"
+        "- **DNR** (Dome-to-Neck Ratio) — moderate ≥ 1.6, high ≥ 2.0\n"
+        "- **AR** (Aspect Ratio) — moderate ≥ 1.2, high ≥ 1.6\n"
+        "- **BF** (Bottleneck Factor) — > 1.5 = relatively NARROW neck\n"
+        "- **UI** (Undulation Index) — moderate ≥ 0.10, irregular ≥ 0.25\n"
+        "- **EI** (Ellipticity Index) — non-spherical if ≥ 0.35\n"
+        "- **site** — the location chosen in Morfometría (`clinical.site`)\n"
         "- **NSI** (Non-Sphericity Index)\n\n"
         "Neck origin is saved to session state for the perforators endpoint.\n\n"
         "**Prerequisite:** `POST /detect/{session_id}` must be called first."
@@ -593,7 +961,9 @@ async def get_morphometry(
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
     best_vtp_name = read_state(session_id, "detect.best_vtp_name", "")
-    if not best_vtp_name:
+    # Aceptados + descartados: los dos tienen malla y cualquiera se puede medir.
+    n_candidates = listed_candidates(session_id)
+    if not best_vtp_name and n_candidates == 0:
         raise HTTPException(
             status_code=422,
             detail=(
@@ -606,23 +976,48 @@ async def get_morphometry(
     # Case 3 la lesión es cand-002 y la morfometría describía otro sitio a
     # 40–60 mm. El id se valida contra el patrón y contra el número de
     # candidatos, así que el nombre del fichero nunca sale de la entrada tal cual.
-    n_candidates = _int_state(session_id, "detect.n_candidates")
     if candidate_id is not None:
         rank = _candidate_rank(candidate_id)
         if rank is None or rank > n_candidates:
             raise HTTPException(
                 status_code=422,
-                detail=f"El candidato '{candidate_id}' no existe: la detección dio {n_candidates}.",
+                detail=(
+                    f"El candidato '{candidate_id}' no existe: la detección dio "
+                    f"{_int_state(session_id, 'detect.n_candidates')} aceptados y "
+                    f"{_int_state(session_id, 'detect.n_rejected')} descartados."
+                ),
             )
+        # Un marcado a mano no tiene malla que medir: o se repite la medida
+        # hecha marcando cuello y ápice, o el 422 que dice cómo hacerla. No se
+        # guarda aquí como elegido; lo guarda la ruta del plano de cuello.
+        if _is_manual(session_id, rank):
+            return await _manual_morphometry(session_id, candidate_id)
         write_state(session_id, "detect.selected_candidate", candidate_id)
     else:
         # Una repetición (p. ej. «Reanudar») mide lo que se eligió la última vez.
-        rank = _candidate_rank(read_state(session_id, "detect.selected_candidate", ""))
+        chosen = read_state(session_id, "detect.selected_candidate", "")
+        rank = _candidate_rank(chosen)
         if rank is not None and rank > n_candidates:
             rank = None
+        if rank is not None and _is_manual(session_id, rank):
+            return await _manual_morphometry(session_id, chosen)
     if rank is not None:
         best_vtp_name = f"aneurysm_cand_{rank:03d}.vtp"
+    elif not best_vtp_name:
+        # Solo hay descartados y no se eligió ninguno: medir uno por defecto
+        # sería tratar como lesión algo que la detección apartó.
+        raise HTTPException(
+            status_code=422,
+            detail="Todos los sitios se descartaron: elige uno para medirlo.",
+        )
     measured_id = f"cand-{rank if rank is not None else 1:03d}"
+    # Sin elección guardada se mide cand-001; se guarda como elegido para que
+    # una re-detección sepa qué sitio describe esta medida y lo siga. Solo si
+    # el fichero medido ES el de cand-001: con un `best_vtp_name` de otro
+    # nombre (sesiones antiguas), guardar el id haría que la siguiente
+    # repetición buscara `aneurysm_cand_001.vtp`, que no existe, y fallara.
+    if rank is None and best_vtp_name == f"aneurysm_cand_{1:03d}.vtp":
+        write_state(session_id, "detect.selected_candidate", measured_id)
 
     meshes_dir = session_subdir(session_id, "meshes")
     vtp_path   = meshes_dir / best_vtp_name
@@ -667,6 +1062,8 @@ async def get_morphometry(
         raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
 
     result.candidate_id = measured_id
+    # «Reanudar» repite esta ruta: la localización vuelve con la medida.
+    result.site = clinical_site(session_id)
     return result
 
 
@@ -781,6 +1178,15 @@ async def morphometry_neck_plane(
             detail="vessel_tree.vtp no encontrado. Ejecute la segmentación primero.",
         )
 
+    # El id se valida antes de medir; se guarda como elegido DESPUÉS (abajo).
+    if request.candidate_id is not None:
+        rank = _candidate_rank(request.candidate_id)
+        if rank is None or rank > listed_candidates(session_id):
+            raise HTTPException(
+                status_code=422,
+                detail=f"El candidato '{request.candidate_id}' no está en la lista.",
+            )
+
     loop = asyncio.get_event_loop()
     try:
         result = await loop.run_in_executor(
@@ -798,7 +1204,144 @@ async def morphometry_neck_plane(
         logger.error("Neck-plane morphometry failed for %s: %s", session_id, exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
 
+    # El candidato que mide este plano pasa a ser el elegido. Con uno
+    # detectado ya lo era (GET /morphometry lo guardó); con uno marcado a mano
+    # (F1-146) es la única ruta que lo mide, y sin guardarlo «Reanudar» no
+    # sabría a qué candidato pertenece la medida. Solo tras medir bien: el
+    # plano (`morpho.plane_*`) se guarda solo entonces, y guardar antes el
+    # elegido dejaba, tras un plano fallido, el plano de OTRO candidato bajo
+    # este nombre; GET /morphometry lo repetía como si fuera suyo.
+    if request.candidate_id is not None:
+        write_state(session_id, "detect.selected_candidate", request.candidate_id)
+        result.candidate_id = request.candidate_id
+    result.site = clinical_site(session_id)
     return result
+
+
+# ── Localización del aneurisma (clinical.site) ────────────────────────────── #
+
+#: (nombre en pantalla, escala, clave guardada, campo de la localización en sus entradas)
+_SITE_SCORES = (
+    ("PHASES", "phases", "phases.json", "site"),
+    ("ELAPSS", "elapss", "elapss.json", "location"),
+    ("UIATS", "uiats", "uiats.json", "location"),
+)
+
+
+def clinical_site(session_id: str) -> str | None:
+    """La localización elegida en Morfometría, o None si no hay o es «Desconocida»."""
+    site = read_state(session_id, "clinical.site", "") or ""
+    return site if site and not site.startswith("Desconocida") else None
+
+
+def _recompute_score(scale: str, inputs: dict) -> dict:
+    """Lo que se guarda de la escala, calculado otra vez con `inputs`."""
+    from models.elapss import ElapssRequest
+    from models.phases import PhasesRequest
+    from models.uiats import UiatsRequest
+    from routers.phases import elapss_record, phases_record, uiats_compute
+    from services.elapss import compute_elapss
+    from services.phases import compute_phases
+
+    if scale == "phases":
+        req = PhasesRequest(**inputs)
+        return phases_record(req, compute_phases(req))
+    if scale == "elapss":
+        req = ElapssRequest(**inputs)
+        return elapss_record(req, compute_elapss(req))
+    return uiats_compute(UiatsRequest(**inputs))[1]
+
+
+@router.put(
+    "/morphometry/{session_id}/site",
+    response_model=ClinicalSiteResult,
+    summary="Guardar la localización del aneurisma",
+    description=(
+        "La localización se elige UNA vez, en Morfometría, y la heredan PHASES, "
+        "ELAPSS, UIATS, la decisión terapéutica, el WEB y el informe. Antes se "
+        "preguntaba en cuatro sitios con cuatro listas, y dejar uno sin tocar "
+        "cambiaba la cifra.\n\n"
+        "Al cambiarla nada escrito a mano se pierde. Cada puntuación guardada cuya "
+        "categoría cambia se vuelve a calcular con sus mismas entradas "
+        "(`recalculated`); si la nueva localización no tiene categoría en esa "
+        "escala, sus entradas se apartan y se recalcula al elegir una (`pending`). "
+        "La decisión solo se borra si se tomó con otra localización (`cleared`); "
+        "el contexto clínico (`clinical.*`) no se toca."
+    ),
+)
+async def set_clinical_site(
+    session_id: str,
+    req: ClinicalSiteRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> ClinicalSiteResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # Cambiar la localización recalcula PHASES/ELAPSS/UIATS y puede borrar la
+    # decisión: sin esta guarda, cualquiera con la UUID tocaba el plan de otro.
+    require_session(db, current_user, session_id)
+    # Importado aquí: routers.treatment importa modelos que ya carga este módulo.
+    from routers.treatment import clear_decision_only
+    from services.clinical_site import site_category
+
+    previous = read_state(session_id, "clinical.site", "") or ""
+    cleared: list[str] = []
+    recalculated: list[str] = []
+    pending: list[str] = []
+    if previous == req.site:
+        return ClinicalSiteResult(site=req.site)
+
+    # La decisión puntúa la localización y elige las perforantes por ella: si se
+    # tomó con otra, describe otro aneurisma. Solo la recomendación; la edad, el
+    # WFNS y lo demás escrito a mano (`clinical.*`) se quedan.
+    if read_state(session_id, "treatment.recommendation_key", ""):
+        used = (read_state(session_id, "treatment.location", "")
+                or previous or "Desconocida / No especificada")
+        if used != req.site:
+            clear_decision_only(session_id)
+            cleared.append("Decisión")
+
+    # Antes se borraban las tres, también las que no cambiaban de categoría
+    # (ACoP → Basilar es «aca_pcom_posterior» igual) y con UIATS lo marcado a
+    # mano. Ahora cada una se recalcula con sus mismas entradas si su categoría
+    # cambia, y si la nueva no tiene categoría sus entradas esperan aparte.
+    for label, scale, key, field in _SITE_SCORES:
+        pending_key = f"{scale}.pending_inputs"
+        raw = read_state(session_id, key, "") or ""
+        inputs: dict | None = None
+        try:
+            if raw:
+                inputs = dict(json.loads(raw)["inputs"])
+            elif read_state(session_id, pending_key, ""):
+                inputs = dict(json.loads(read_state(session_id, pending_key, "")))
+        except (ValueError, TypeError, KeyError):
+            inputs = None
+        if inputs is None:
+            continue
+        new = site_category(scale, req.site)
+        if raw and inputs.get(field) == new:
+            continue
+        if new is None:
+            write_state(session_id, pending_key, json.dumps(inputs))
+            write_state(session_id, key, "")
+            pending.append(label)
+            continue
+        inputs[field] = new
+        try:
+            record = _recompute_score(scale, inputs)
+        except (ValueError, TypeError) as exc:
+            logger.warning("No se pudo recalcular %s para %s: %s", label, session_id, exc)
+            write_state(session_id, pending_key, json.dumps(inputs))
+            write_state(session_id, key, "")
+            pending.append(label)
+            continue
+        write_state(session_id, key, json.dumps(record))
+        write_state(session_id, pending_key, "")
+        recalculated.append(label)
+
+    write_state(session_id, "clinical.site", req.site)
+    return ClinicalSiteResult(site=req.site, cleared=cleared,
+                              recalculated=recalculated, pending=pending)
 
 
 #: Las medidas de las que dependen la recomendación, el perfil endovascular y el
@@ -1207,6 +1750,10 @@ def _run_morphometry_sync(
     write_state(session_id, "morpho.axis_x", str(axis[0]))
     write_state(session_id, "morpho.axis_y", str(axis[1]))
     write_state(session_id, "morpho.axis_z", str(axis[2]))
+    # El (0,0,1) de reserva sigue escrito porque clips, coils y plan leen esas
+    # claves; esta marca deja que el informe no lo presente como el eje del
+    # aneurisma cuando el PCA no dio eje (el panel ya dice «eje vertical»).
+    write_state(session_id, "morpho.axis_measured", "1" if mr.principal_axis else "0")
 
     # ── Persist key morphometry ───────────────────────────────────────── #
     # Consumed by the longitudinal comparison, the treatment engine and the
@@ -1230,6 +1777,9 @@ def _run_morphometry_sync(
     write_state(session_id, "morpho.rupture_risk_reasons", json.dumps(_motivos, ensure_ascii=False))
     write_state(session_id, "morpho.neck_source",      neck_source)
     write_state(session_id, "morpho.neck_tilt_deg",     str(round(neck_tilt_deg, 2)))
+    # Decisión repite el aviso del recorte junto al PHASES (F1-17); se escribe
+    # siempre para que una medida buena borre la marca de la anterior.
+    write_state(session_id, "morpho.sac_hit_crop",      "1" if sac_hit_crop else "0")
 
     # ── Reliability guard (Tier 1) ────────────────────────────────────── #
     # analyze() nulls volume/neck metrics when the mesh is an open patch or the
@@ -1351,6 +1901,7 @@ def _run_morphometry_sync(
         ei                = round(_clamp01(mr.ellipticity_index),  4),
         nsi               = round(_clamp01(mr.non_sphericity_idx), 4),
         sr                = round(max(0.0, mr.size_ratio),         3),
+        parent_artery_mm  = _parent_artery_out(session_id),
         rupture_risk_label= mr.rupture_risk_label,
         reliable          = mr.reliable,
         neck_source       = neck_source,

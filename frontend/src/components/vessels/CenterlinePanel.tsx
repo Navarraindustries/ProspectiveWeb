@@ -7,12 +7,17 @@ import { api } from "../../api/client";
 import type { CenterlineResult, CrossSectionResult } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, ErrorNote, SectionLabel } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { DiameterChart } from "./DiameterChart";
 import { usePlanning } from "../../store/planning";
+import { useVolumeMeta } from "../../vtk/useVolumeMeta";
+import { indexAtArc, nearestIndex, tangentAt } from "../../vtk/centerlineWalk";
+import { useCenterlineTrack } from "../../vtk/useCenterlineTrack";
+import { planeFromNormal } from "../../vtk/freePlane";
 
 const RESOLUTIONS = [
   { value: "1.0", label: "1.0 mm · rápida" },
@@ -34,12 +39,18 @@ export function CenterlinePanel() {
   const {
     sessionId, segmentation, pickMode, clSource, clTarget, centerlineMesh,
     setPickMode, setClSource, setClTarget, setCenterlineMesh, setCenterlineArcMm,
-    clearDeviceMeshes,
+    clearDeviceMeshes, centerline, setCenterline, focusPoint, setFocusMm, setFreePlane, volumeVersion,
+    deviceMeshes,
   } = usePlanning();
+  const { meta } = useVolumeMeta(sessionId, volumeVersion);
 
   const [voxel, setVoxel] = useState("0.8");
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
+  // F1-170: «Limpiar» borraba la línea central y, con ella, el stent guiado
+  // por ella, sin preguntar. Solo con dos puntos marcados no hay nada que
+  // perder y no se pregunta.
+  const [askingClear, setAskingClear] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CenterlineResult | null>(null);
 
@@ -62,6 +73,8 @@ export function CenterlinePanel() {
     return () => { vivo = false; };
   }, [sessionId, centerlineMesh, result]);
 
+  useCenterlineTrack();
+
   const extract = async () => {
     if (!sessionId || !clSource || !clTarget) return;
     setBusy(true);
@@ -76,6 +89,8 @@ export function CenterlinePanel() {
       setResult(res);
       setXs(null);
       setCenterlineMesh(res.centerline_mesh_url);
+      // Los puntos viejos son de otro trazado: vaciarlos fuerza a pedir los nuevos.
+      setCenterline(null);
       setCenterlineArcMm(res.arc_length_mm);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error extrayendo la línea central");
@@ -124,8 +139,24 @@ export function CenterlinePanel() {
     }
   };
 
-  const stenosisVariant = (label: string): "success" | "warning" | "destructive" =>
-    label === "Significativa" ? "destructive" : label === "Leve" ? "warning" : "success";
+  // Clic en la gráfica: el punto compartido va a esa sección y el Oblicuo
+  // queda perpendicular al vaso allí (spec §7.2).
+  const irA = (mm: number) => {
+    if (!centerline || !meta) return;
+    const i = indexAtArc(centerline.arcMm, mm);
+    setFocusMm(centerline.points[i], meta);
+    setFreePlane(planeFromNormal(tangentAt(centerline.points, i)));
+  };
+  const cursor = (() => {
+    if (!centerline || !focusPoint) return null;
+    const n = nearestIndex(centerline.points, focusPoint);
+    return n.distMm <= 2 ? centerline.arcMm[n.index] : null;
+  })();
+
+  const stenosisVariant = (label: string): "success" | "warning" | "destructive" | "outline" =>
+    label === "Significativa" ? "destructive" : label === "Leve" ? "warning"
+      // «Perfil irregular» no es un hallazgo (F1-169): ni verde ni rojo.
+      : label === "Perfil irregular" ? "outline" : "success";
 
   const pickBtn = (which: "cl_source" | "cl_target", label: string, done: boolean) => {
     const active = pickMode === which;
@@ -198,12 +229,23 @@ export function CenterlinePanel() {
         <Button
           variant="outline" style={{ flex: 1 }}
           disabled={busy || clearing || (!result && !clSource && !centerlineMesh)}
-          onClick={() => void clear()}
+          onClick={() => (result || centerlineMesh ? setAskingClear(true) : void clear())}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {clearing ? "…" : "Limpiar"}
         </Button>
       </div>
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar la línea central?"
+        confirmLabel="Limpiar línea central"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => { setAskingClear(false); void clear(); }}
+      >
+        Se borran la línea central y sus medidas.
+        {deviceMeshes?.stent && " Si el stent colocado está guiado por ella, el stent guiado se retira también."}
+      </ConfirmDialog>
 
       {busy && (
         <div style={{ marginTop: 12 }}>
@@ -220,11 +262,18 @@ export function CenterlinePanel() {
           <SectionLabel>Resultados</SectionLabel>
           <Metric label="Longitud de arco" value={result.arc_length_mm.toFixed(1)} unit=" mm" />
           <Metric label="Longitud recta" value={result.chord_length_mm.toFixed(1)} unit=" mm" />
-          <Metric label="Tortuosidad" value={result.tortuosity.toFixed(3)} badge={tortuosityBadge(result.tortuosity)} />
-          <Metric label="Índice de tortuosidad" value={result.tortuosity_index_pct.toFixed(1)} unit=" %" />
-          <Metric label="Ø medio" value={result.mean_diameter_mm.toFixed(2)} unit=" mm" />
-          <Metric label="Ø mínimo" value={result.min_diameter_mm.toFixed(2)} unit=" mm" />
-          <Metric label="Ø máximo" value={result.max_diameter_mm.toFixed(2)} unit=" mm" />
+          {/* Fusión nº 22: «Índice de tortuosidad» era la misma cifra que
+              «Tortuosidad» escrita como porcentaje (1,018 y 1,8 %). Queda una
+              fila, y el porcentaje en su tooltip. */}
+          <div title={`Longitud de arco ÷ longitud recta (1 = vaso recto): el eje es un ${result.tortuosity_index_pct.toFixed(1).replace(".", ",")} % más largo que la recta.`}>
+            <Metric label="Tortuosidad" value={result.tortuosity.toFixed(3)} badge={tortuosityBadge(result.tortuosity)} />
+          </div>
+          {/* F1-168: esta tabla y la de secciones decían las dos «Ø medio /
+              mínimo / máximo» con cifras distintas. Aquí es el Ø de la esfera
+              inscrita a lo largo del eje; abajo, el del círculo de igual área. */}
+          <Metric label="Ø inscrito medio" value={result.mean_diameter_mm.toFixed(2)} unit=" mm" />
+          <Metric label="Ø inscrito mínimo" value={result.min_diameter_mm.toFixed(2)} unit=" mm" />
+          <Metric label="Ø inscrito máximo" value={result.max_diameter_mm.toFixed(2)} unit=" mm" />
           {result.warning && (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--warning)", display: "flex", gap: 8 }}>
               <Icon name="STATUS_WARN" color="var(--warning)" size={16} />
@@ -255,16 +304,26 @@ export function CenterlinePanel() {
 
             {xs && (
               <div style={{ marginTop: 12 }}>
-                <Metric label="Ø medio" value={xs.mean_diameter_mm.toFixed(2)} unit=" mm" />
-                <Metric label="Ø mediana" value={xs.median_diameter_mm.toFixed(2)} unit=" mm" />
-                <Metric label="Ø mínimo" value={xs.min_diameter_mm.toFixed(2)} unit=" mm" />
-                <Metric label="Ø máximo" value={xs.max_diameter_mm.toFixed(2)} unit=" mm" />
+                <Metric label="Ø por área de sección medio" value={xs.mean_diameter_mm.toFixed(2)} unit=" mm" />
+                <Metric label="Ø por área de sección mediana" value={xs.median_diameter_mm.toFixed(2)} unit=" mm" />
+                <Metric label="Ø por área de sección mínimo" value={xs.min_diameter_mm.toFixed(2)} unit=" mm" />
+                <Metric label="Ø por área de sección máximo" value={xs.max_diameter_mm.toFixed(2)} unit=" mm" />
                 <div style={{ display: "flex", alignItems: "center", padding: "9px 0" }}>
                   <span style={{ fontSize: 13, color: "var(--muted-foreground)", flex: 1 }}>Estenosis</span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, marginRight: 10 }}>{xs.stenosis_pct.toFixed(0)} %</span>
+                  {/* F1-169: con un perfil de saltos de rama el porcentaje no es
+                      un estrechamiento; no se enseña cifra, solo la nota. */}
+                  {!xs.stenosis_note && (
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, marginRight: 10 }}>{xs.stenosis_pct.toFixed(0)} %</span>
+                  )}
                   <Badge variant={stenosisVariant(xs.stenosis_label)}>{xs.stenosis_label}</Badge>
                 </div>
-                <DiameterChart arc={xs.arc_positions_mm} diameters={xs.diameters_mm} meanDiameter={xs.mean_diameter_mm} />
+                {xs.stenosis_note && (
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "-4px 0 8px" }}>
+                    {xs.stenosis_note}
+                  </div>
+                )}
+                <DiameterChart arc={xs.arc_positions_mm} diameters={xs.diameters_mm} meanDiameter={xs.mean_diameter_mm}
+                  onPick={centerline && meta ? irA : undefined} cursorArcMm={cursor} />
               </div>
             )}
           </div>

@@ -87,26 +87,23 @@ class TestLaDeteccionLoUsa:
     def test_en_tc_con_volumen_quita_el_aire_y_rellena(self, monkeypatch):
         import routers.detect as rd
         hits = self._finge_consenso(monkeypatch)
-        monkeypatch.setattr(rd, "_MAX_CANDIDATES", 2)
         vol = _volumen(-1000.0, shape=(120, 60, 60))
         _bola(vol, (10.0, 10.0, 30.0), 5.0, 300.0)
         _bola(vol, (10.0, 10.0, 40.0), 5.0, 300.0)
-        out, det = rd._detect_hits(_tubo(), "CT", volume=(vol, SP))
+        out, det = rd._detect_hits(_tubo(), "CT", top=2, volume=(vol, SP))
         assert out == [hits[1], hits[2]], "el de aire sale y el tercero sube a la lista"
         assert det.hu_floor["applied"] and det.hu_floor["dropped"] == 1
 
     def test_en_xa_no_se_mira(self, monkeypatch):
         import routers.detect as rd
         hits = self._finge_consenso(monkeypatch)
-        monkeypatch.setattr(rd, "_MAX_CANDIDATES", 2)
-        out, det = rd._detect_hits(_tubo(), "XA", volume=(_volumen(-1000.0, (120, 60, 60)), SP))
+        out, det = rd._detect_hits(_tubo(), "XA", top=2, volume=(_volumen(-1000.0, (120, 60, 60)), SP))
         assert out == hits[:2]
         assert det.hu_floor["applied"] is False
 
     def test_sin_volumen_no_cambia_nada(self, monkeypatch):
         import routers.detect as rd
         hits = self._finge_consenso(monkeypatch)
-        monkeypatch.setattr(rd, "_MAX_CANDIDATES", 2)
-        out, det = rd._detect_hits(_tubo(), "CT")
+        out, det = rd._detect_hits(_tubo(), "CT", top=2)
         assert out == hits[:2]
         assert det.hu_floor["applied"] is False

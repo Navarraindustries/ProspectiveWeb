@@ -23,6 +23,7 @@ import type {
   CeilingCompareResult,
   CenterlineClearResult,
   CenterlineRequest,
+  CenterlinePoints,
   CenterlineResult,
   ClipAnimationResult,
   ClipOrder,
@@ -34,6 +35,7 @@ import type {
   Workshop,
   WorkshopIn,
   ClipLibraryItem,
+  ClipFieldResult,
   ClipPlanRequest,
   ClipPlanResult,
   ClipRecommendation,
@@ -45,11 +47,14 @@ import type {
   CoilLibraryItem,
   CoilPlacement,
   CoilPlanResult,
+  CoilPreviewResult,
+  CoilPreviewRow,
   CrossSectionRequest,
   CrossSectionResult,
   CustomClipInfo,
   CustomJawOut,
   DeviceClearResult,
+  PlacedClipsState,
   DeviceKind,
   ExportRequest,
   LibraryClip,
@@ -72,6 +77,8 @@ import type {
   PatientCreate,
   PatientDetail,
   PatientSessionInfo,
+  PatientShareOut,
+  PatientSharesIn,
   PatientSummary,
   PendingUser,
   PerforatorsResult,
@@ -92,6 +99,9 @@ import type {
   SegmentResult,
   SeriesInfo,
   SessionRestoreResult,
+  SessionListItem,
+  SavedSessionRenameIn,
+  UserBrief,
   SessionSaveRequest,
   SessionSaveResult,
   SignupRequest,
@@ -109,14 +119,23 @@ import type {
   TrajectoryResult,
   TreatmentDecisionRequest,
   TreatmentDecisionResult,
+  TeamDecision,
+  DeviceStrategy,
+  DeviceStrategyState,
+  AneurysmLocation,
+  ClinicalSiteResult,
   UploadResult,
   UserAdminInfo,
   UserInfo,
   UserUpdate,
   VolumeMeta,
   ManualOrientationBody,
+  AnnotationsResult,
 } from "./types";
+import type { Annotation } from "../vtk/annotations";
+import { fromWire, toWire } from "./annotationsWire";
 import { clearVolumeCache } from "../vtk/volume/volumeCache";
+import { NO_RESPONDE, SIN_CONEXION } from "./connectionText";
 
 /* La sesión va SOLO en la cookie `prospective_token`, que es httpOnly: el
    JavaScript de la página no puede leerla. Antes el JWT se guardaba además en
@@ -170,10 +189,24 @@ function isAuthAttempt(path: string): boolean {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, detail: string) {
+  /** ¿Contestó el backend? Falso sin conexión, al pasar el límite y en el 500
+   *  vacío que da el proxy de Vite con el backend caído: ahí «Error 500» no
+   *  explica nada y los paneles dicen que el servidor no responde. */
+  fromServer: boolean;
+  /** El `detail` tal como llegó cuando era un objeto (el 401 de «Entrar» trae
+   *  `remaining_attempts`); `undefined` si fue texto. */
+  data?: unknown;
+  constructor(status: number, detail: string, fromServer = status !== 0, data?: unknown) {
     super(detail);
     this.status = status;
+    this.fromServer = fromServer;
+    this.data = data;
   }
+}
+
+/** ¿Falló sin que el backend contestara? (sin conexión, colgado, o tras el proxy) */
+export function serverUnreachable(e: unknown): boolean {
+  return e instanceof ApiError && !e.fromServer;
 }
 
 /** La pareja del doble envío contra CSRF (backend/services/csrf.py): la cookie
@@ -184,7 +217,157 @@ function csrfToken(): string | null {
   return m ? decodeURIComponent(m[1]!) : null;
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+/* ── Servidor que cae o no responde (familia T: F1-24, F1-25, F1-26) ──────────
+   La auditoría vio morir el backend tras reanudar: `fetch` lanzaba un
+   TypeError que llegaba al panel como «Failed to fetch», o nada, y la persona
+   no sabía que el problema era el servidor ni que su sesión seguía en disco. */
+
+/** Los textos de «sin conexión» y «no responde» viven en api/connectionText.ts,
+ *  que LoadState también importa: un solo origen para los dos. */
+export const NO_CONNECTION = SIN_CONEXION;
+export const NO_ANSWER = NO_RESPONDE;
+/** Límites por defecto. Sin ellos, con el supervisor de `--reload` reteniendo
+ *  el puerto, las peticiones no volvían nunca y la banda no saltaba. Las
+ *  lecturas son rápidas; las escrituras incluyen los cálculos largos
+ *  (segmentar, detectar, informe, exportar, clips), y la subida del DICOM aún más. */
+export const GET_TIMEOUT_MS = 60_000;
+export const LONG_TIMEOUT_MS = 300_000;
+export const UPLOAD_TIMEOUT_MS = 900_000;
+/** Límite de «Reanudar»: por encima del del servidor (90 s,
+ *  routers/session_state.py), para que su explicación llegue antes que el corte. */
+export const RESTORE_TIMEOUT_MS = 120_000;
+
+let consecutiveFailures = 0;
+let serverDown = false;
+const downListeners = new Set<(down: boolean) => void>();
+let lastFailed: { method: string; replay: () => Promise<unknown> } | null = null;
+
+/** Avisa con `true` tras dos fallos de conexión seguidos y con `false` cuando
+ *  el servidor vuelve a contestar. Devuelve la función para darse de baja. */
+export function onServerDown(cb: (down: boolean) => void): () => void {
+  downListeners.add(cb);
+  return () => { downListeners.delete(cb); };
+}
+
+/** El «Reintentar» de la banda: un SONDEO, nunca una escritura repetida.
+ *
+ *  Repite la última llamada fallida solo si era una lectura. Una escritura no
+ *  se reenvía: tras el 500 vacío del proxy pudo haberse hecho ya en el backend
+ *  (una restauración copiada dos veces, un pedido duplicado), y su resultado
+ *  no volvería al panel que la hizo. En su lugar se pregunta `GET /api/auth/me`;
+ *  si contesta, la banda se retira y la persona repite la acción en su panel.
+ *  Devuelve "replayed" o "probed"; lanza si el servidor sigue sin contestar. */
+export async function retryLastFailed(): Promise<"replayed" | "probed"> {
+  const last = lastFailed;
+  if (last && (last.method === "GET" || last.method === "HEAD")) {
+    await last.replay();
+    return "replayed";
+  }
+  await request<unknown>("/api/auth/me");
+  return "probed";
+}
+
+/** Solo para las pruebas: vuelve al estado de arranque. */
+export function resetServerHealth() {
+  consecutiveFailures = 0;
+  serverDown = false;
+  lastFailed = null;
+  downListeners.clear();
+}
+
+function setServerDown(down: boolean) {
+  if (down === serverDown) return;
+  serverDown = down;
+  for (const cb of [...downListeners]) cb(down);
+}
+
+/** Un fallo de conexión: no llegó, o llegó al proxy de Vite y no más allá (su
+ *  500 viene sin cuerpo JSON). Un 5xx con `detail` es el servidor contestando
+ *  —p. ej. el corredor que falló en el proceso hijo— y no cuenta como caída. */
+function noteConnectionFailure(method: string, replay: () => Promise<unknown>) {
+  lastFailed = { method, replay };
+  consecutiveFailures += 1;
+  if (consecutiveFailures >= 2) setServerDown(true);
+}
+
+function noteServerAnswered() {
+  consecutiveFailures = 0;
+  setServerDown(false);
+}
+
+/** `fetch` con límite; lo que no llega o no contesta a tiempo es un ApiError 0. */
+async function send(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const ctrl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, timeoutMs);
+  // La señal de quien llama sigue mandando: se encadena a la del límite.
+  const outer = init.signal;
+  const onOuterAbort = () => ctrl.abort();
+  if (outer) {
+    if (outer.aborted) ctrl.abort();
+    else outer.addEventListener("abort", onOuterAbort);
+  }
+  try {
+    return await fetch(path, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    // Un abort pedido por quien llama (cambio de sesión, desmontaje) no es
+    // una caída del servidor: se propaga tal cual.
+    if (!timedOut && e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ApiError(0, timedOut ? NO_ANSWER : NO_CONNECTION, false);
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener("abort", onOuterAbort);
+  }
+}
+
+function defaultTimeout(method: string): number {
+  return method === "GET" || method === "HEAD" ? GET_TIMEOUT_MS : LONG_TIMEOUT_MS;
+}
+
+async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: number): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const limit = timeoutMs ?? defaultTimeout(method);
+  const retry = () => request<T>(path, init, timeoutMs);
+  let res: Response;
+  try {
+    res = await sendRequest(path, init, limit);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 0) noteConnectionFailure(method, retry);
+    throw e;
+  }
+  if (!res.ok) {
+    let detail = `Error ${res.status}`;
+    let fromServer = false;
+    let data: unknown;
+    try {
+      const body = await res.json();
+      if (typeof body.detail === "string") { detail = body.detail; fromServer = true; }
+      else if (body.detail && typeof body.detail === "object" && typeof body.detail.message === "string") {
+        // Detalle con forma de objeto (el 401 de «Entrar» lleva los intentos
+        // que quedan): el texto legible es `message`, y el objeto se conserva
+        // en `ApiError.data`. Sin esto saldría el JSON crudo en pantalla.
+        detail = body.detail.message; data = body.detail; fromServer = true;
+      }
+      else if (body.detail) { detail = JSON.stringify(body.detail); fromServer = true; }
+    } catch {
+      /* non-JSON error body */
+    }
+    // 4xx sin JSON también es el backend contestando; un 5xx sin `detail` es
+    // el proxy diciendo que detrás no hay nadie.
+    const answered = fromServer || res.status < 500;
+    if (answered) noteServerAnswered();
+    else noteConnectionFailure(method, retry);
+    throw new ApiError(res.status, detail, answered, data);
+  }
+  noteServerAnswered();
+  // 204 No Content (e.g. DELETE) has no body to parse.
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+  return res.json() as Promise<T>;
+}
+
+async function sendRequest(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const headers = new Headers(init.headers);
   const method = (init.method ?? "GET").toUpperCase();
   const csrf = method === "GET" || method === "HEAD" ? null : csrfToken();
@@ -193,28 +376,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  const res = await send(path, { ...init, headers, credentials: "same-origin" }, timeoutMs);
   if (res.status === 401 && !isAuthAttempt(path)) {
     // The token is gone or expired: drop it and let the app show the login
     // screen once, rather than surfacing an error in whichever panel asked.
     handleUnauthorized();
   }
-  if (!res.ok) {
-    let detail = `Error ${res.status}`;
-    try {
-      const body = await res.json();
-      if (typeof body.detail === "string") detail = body.detail;
-      else if (body.detail) detail = JSON.stringify(body.detail);
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, detail);
-  }
-  // 204 No Content (e.g. DELETE) has no body to parse.
-  if (res.status === 204 || res.headers.get("content-length") === "0") {
-    return undefined as T;
-  }
-  return res.json() as Promise<T>;
+  return res;
 }
 
 /** Authenticated fetch returning the raw Blob (for images / documents that an
@@ -227,11 +395,11 @@ async function getBlob(path: string): Promise<Blob> {
 }
 
 const get = <T>(path: string) => request<T>(path);
-const post = <T>(path: string, body?: unknown) =>
+const post = <T>(path: string, body?: unknown, timeoutMs?: number) =>
   request<T>(path, {
     method: "POST",
     body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  }, timeoutMs);
 
 export const api = {
   /* auth */
@@ -264,7 +432,15 @@ export const api = {
   },
   approvePending: (id: number) => post<{ status: string }>(`/api/auth/pending/${id}/approve`),
   rejectPending: (id: number) => post<{ status: string }>(`/api/auth/pending/${id}/reject`),
-  listUsers: () => get<UserAdminInfo[]>("/api/auth/users"),
+  /** `status` filtra por estado de la cuenta: pending | approved | rejected (F2-51). */
+  listUsers: (status?: "pending" | "approved" | "rejected") =>
+    get<UserAdminInfo[]>(`/api/auth/users${status ? `?status=${status}` : ""}`),
+  /** Cambia la foto de perfil de una cuenta (F2-45). */
+  setUserPhoto: (id: number, photo: File) => {
+    const fd = new FormData();
+    fd.append("photo", photo, photo.name);
+    return post<UserAdminInfo>(`/api/auth/users/${id}/photo`, fd);
+  },
   createUser: (fields: Record<string, string>, photo?: File | null, cv?: File | null) => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.append(k, v ?? "");
@@ -274,8 +450,9 @@ export const api = {
   },
   updateUser: (id: number, u: UserUpdate) =>
     request<UserAdminInfo>(`/api/auth/users/${id}`, { method: "PUT", body: JSON.stringify(u), headers: { "Content-Type": "application/json" } }),
-  deleteUser: (id: number) =>
-    request<void>(`/api/auth/users/${id}`, { method: "DELETE" }),
+  /** `reassignTo`: cuenta que hereda sus pacientes; sin él, quien borra (F2-46). */
+  deleteUser: (id: number, reassignTo?: number) =>
+    request<void>(`/api/auth/users/${id}${reassignTo != null ? `?reassign_to=${reassignTo}` : ""}`, { method: "DELETE" }),
 
   /* patients */
   listPatients: () => get<PatientSummary[]>("/api/patients"),
@@ -299,12 +476,20 @@ export const api = {
     request<void>(`/api/patients/${id}`, { method: "DELETE" }),
   patientSessions: (id: number) =>
     get<PatientSessionInfo[]>(`/api/patients/${id}/sessions`),
+  /** Cuentas con las que está compartido el paciente (spec §6.1). */
+  patientShares: (id: number) =>
+    get<PatientShareOut[]>(`/api/patients/${id}/shares`),
+  /** Sustituye la lista ENTERA de cuentas; solo el creador o un administrador (403 si no). */
+  setPatientShares: (id: number, user_ids: number[]) =>
+    request<PatientShareOut[]>(`/api/patients/${id}/shares`, { method: "PUT", body: JSON.stringify({ user_ids } satisfies PatientSharesIn), headers: { "Content-Type": "application/json" } }),
+  /** Las cuentas activas, lo justo para elegir con quién compartir. */
+  usersBrief: () => get<UserBrief[]>("/api/auth/users/brief"),
 
   /* dicom pipeline */
   upload: (files: File[]) => {
     const form = new FormData();
     for (const f of files) form.append("files", f, f.name);
-    return post<UploadResult>("/api/upload", form);
+    return post<UploadResult>("/api/upload", form, UPLOAD_TIMEOUT_MS);
   },
   /** Lanza la segmentación en segundo plano y espera su resultado preguntando
    *  cada poco. Antes era una sola petición de minutos, y detrás de un proxy
@@ -372,14 +557,20 @@ export const api = {
     post<MeshComponentDeleteResult>(`/api/mesh-component-delete/${sessionId}`, {
       point, max_distance_mm: maxDistanceMm,
     }),
-  detect: (sessionId: string) =>
-    post<AneurysmDetectionResult>(`/api/detect/${sessionId}`),
+  /** `cached`: la detección guardada en la sesión, sin recalcular (404 si no
+   *  hay). «Reanudar» la pide así: recalcular daba otra lista (F1-246). */
+  detect: (sessionId: string, opts: { cached?: boolean } = {}) =>
+    post<AneurysmDetectionResult>(`/api/detect/${sessionId}${opts.cached ? "?cached=true" : ""}`),
   /** Sin `candidateId`, el backend mide el que se eligió la última vez (o el mejor). */
   morphometry: (sessionId: string, candidateId?: string) =>
     get<MorphometryResult>(
       `/api/morphometry/${sessionId}${candidateId ? `?candidate_id=${encodeURIComponent(candidateId)}` : ""}`),
   morphometryNeckPlane: (sessionId: string, req: NeckPlaneRequest) =>
     post<MorphometryResult>(`/api/morphometry/${sessionId}/neck-plane`, req),
+  /** La localización del aneurisma, elegida una vez en Morfometría y guardada en `clinical.site`. */
+  setClinicalSite: (sessionId: string, site: AneurysmLocation) =>
+    request<ClinicalSiteResult>(`/api/morphometry/${sessionId}/site`,
+      { method: "PUT", body: JSON.stringify({ site }) }),
   perforators: (sessionId: string) =>
     get<PerforatorsResult>(`/api/perforators/${sessionId}`),
   longitudinal: (sessionId: string) =>
@@ -405,6 +596,9 @@ export const api = {
   /** La línea central ya extraída en la sesión (métricas incluidas), o null. */
   getCenterline: (sessionId: string) =>
     get<CenterlineResult | null>(`/api/centerline/${sessionId}`),
+  /** Los puntos de la línea central, para recorrerla y para que la gráfica lleve a ellos. */
+  centerlinePoints: (sessionId: string) =>
+    get<CenterlinePoints>(`/api/centerline/${sessionId}/points`),
   /** Discard the centreline, its cached points and any stent built along it. */
   clearCenterline: (sessionId: string) =>
     request<CenterlineClearResult>(`/api/centerline/${sessionId}`, { method: "DELETE" }),
@@ -434,6 +628,15 @@ export const api = {
     get<TrajectoryResult | null>(`/api/trajectory/${sessionId}`),
   clearTrajectory: (sessionId: string) =>
     request<void>(`/api/trajectory/${sessionId}`, { method: "DELETE" }),
+  /** Las anotaciones de la sesión, ya con los puntos como tuplas del visor. */
+  getAnnotations: async (sessionId: string): Promise<Annotation[]> =>
+    (await get<AnnotationsResult>(`/api/annotations/${sessionId}`)).annotations.map(fromWire),
+  /** Sustituye la lista entera; devuelve la guardada (con autor y fecha del servidor). */
+  putAnnotations: async (sessionId: string, list: Annotation[]): Promise<Annotation[]> =>
+    (await request<AnnotationsResult>(`/api/annotations/${sessionId}`, {
+      method: "PUT", body: JSON.stringify({ annotations: list.map(toWire) }),
+      headers: { "Content-Type": "application/json" },
+    })).annotations.map(fromWire),
   preprocess: (sessionId: string, req: PreprocessRequest) =>
     post<PreprocessResult>(`/api/preprocess/${sessionId}`, req),
   preprocessStatus: (sessionId: string) =>
@@ -448,10 +651,14 @@ export const api = {
 
   /* MPR / DICOM slice preview */
   volumeMeta: (sessionId: string) => get<VolumeMeta>(`/api/volume/${sessionId}/meta`),
+  /** Guarda la ventana y el nivel de los cortes con la sesión. */
+  putWindow: (sessionId: string, w: { wc: number; ww: number }) =>
+    request<{ wc: number; ww: number }>(`/api/volume/${sessionId}/window`, {
+      method: "PUT", body: JSON.stringify(w), headers: { "Content-Type": "application/json" },
+    }),
   /** Fija a mano la orientación de un volumen sin etiquetas; devuelve la meta. */
   setOrientation: (sessionId: string, body: ManualOrientationBody) =>
     request<VolumeMeta>(`/api/volume/${sessionId}/orientation`, { method: "PUT", body: JSON.stringify(body) }),
-  volumeRawUrl: (sessionId: string) => `/api/volume/${sessionId}/raw`,
   /** Un bloque del volumen para el visor en el cliente. `cacheKey` cambia con
    *  el .npy, así que una resegmentación o un preproceso invalidan la caché. */
   chunkUrl: (sessionId: string, level: "full" | "coarse", z0: number, z1: number, cacheKey: string) =>
@@ -478,10 +685,19 @@ export const api = {
     request<{ status: string }>(`/api/treatment-decision/${sessionId}`, { method: "DELETE" }),
   treatmentDecision: (req: TreatmentDecisionRequest) =>
     post<TreatmentDecisionResult>("/api/treatment-decision", req),
+  /** F1-176: la decisión del equipo, aparte de la recomendación. `team_decision: null` la quita. */
+  setTeamDecision: (sessionId: string, team: TeamDecision) =>
+    request<TeamDecision>(`/api/treatment-decision/${sessionId}/team`, {
+      method: "PUT", body: JSON.stringify(team), headers: { "Content-Type": "application/json" },
+    }),
+  getTeamDecision: (sessionId: string) =>
+    get<TeamDecision>(`/api/treatment-decision/${sessionId}/team`),
   listClips: () => get<ClipLibraryItem[]>("/api/clips"),
   clipRecommendations: (sessionId: string) =>
     get<ClipRecommendation[]>(`/api/clips/recommendations/${sessionId}`),
   planClips: (req: ClipPlanRequest) => post<ClipPlanResult>("/api/clips/plan", req),
+  clipField: (sessionId: string, req: ClipPlanRequest) =>
+    post<ClipFieldResult>(`/api/clips/field/${sessionId}`, req),
   listCustomClips: (sessionId: string) =>
     get<CustomClipInfo[]>(`/api/clips/custom/${sessionId}`),
   /** Remove an imported clip from the session catalogue (geometry included). */
@@ -564,10 +780,12 @@ export const api = {
   createClipOrder: (sessionId: string, req: ClipOrderIn) =>
     post<ClipOrder>(`/api/clip-orders/${sessionId}`, req),
   listClipOrders: (opts: {
-    sessionId?: string; openOnly?: boolean; patientId?: number; status?: string; q?: string;
+    sessionId?: string; caseId?: number | null; openOnly?: boolean; patientId?: number;
+    status?: string; q?: string;
   } = {}) => {
     const p = new URLSearchParams();
     if (opts.sessionId) p.set("session_id", opts.sessionId);
+    if (opts.caseId != null) p.set("case_id", String(opts.caseId));
     if (opts.openOnly) p.set("open_only", "true");
     if (opts.patientId != null) p.set("patient_id", String(opts.patientId));
     if (opts.status) p.set("status", opts.status);
@@ -616,12 +834,25 @@ export const api = {
    *  relleno → acabado. Sin morfometría devuelve `feasible: false`. */
   coilRecommendations: (sessionId: string) =>
     get<CoilConstructResult>(`/api/coils/recommendations/${sessionId}`),
+  /** Empaquetamiento proyectado de las filas del montaje tal como se editaron. */
+  coilConstructPreview: (sessionId: string, rows: CoilPreviewRow[]) =>
+    post<CoilPreviewResult>(`/api/coils/${sessionId}/construct/preview`, { rows }),
   planCoils: (sessionId: string, placements: CoilPlacement[]) =>
     post<CoilPlanResult>("/api/coils/plan", { session_id: sessionId, placements }),
   listStents: () => get<StentLibraryItem[]>("/api/stents"),
   /** Which device families still hold a plan (used after resuming a session). */
   placedDevices: (sessionId: string) =>
     get<DeviceClearResult>(`/api/devices/${sessionId}`),
+  /** Guarda la lista editable de clips y la verificación de su colocación. */
+  putPlacedClips: (sessionId: string, state: PlacedClipsState) =>
+    request<PlacedClipsState>(`/api/devices/${sessionId}/placed-clips`, {
+      method: "PUT", body: JSON.stringify(state), headers: { "Content-Type": "application/json" },
+    }),
+  /** F1-188: marca qué familia es la estrategia del equipo (null la quita). */
+  setDeviceStrategy: (sessionId: string, strategy: DeviceStrategy | null) =>
+    request<DeviceStrategyState>(`/api/devices/${sessionId}/strategy`, {
+      method: "PUT", body: JSON.stringify({ strategy }), headers: { "Content-Type": "application/json" },
+    }),
   /** Remove a placed device family — mesh AND the record the report reads — so
       another device can be planned on a clean scene. Omit `kind` to clear all. */
   clearDevices: (sessionId: string, kind?: DeviceKind) =>
@@ -644,8 +875,16 @@ export const api = {
   /* sessions */
   saveSession: (req: SessionSaveRequest) =>
     post<SessionSaveResult>("/api/sessions/save", req),
+  /** Con límite de tiempo: un servidor caído dejaba «Restaurando sesión…»
+   *  para siempre (F1-25); pasado el límite es un ApiError 0. */
   restoreSession: (sessionId: string) =>
-    post<SessionRestoreResult>(`/api/sessions/${sessionId}/restore`),
+    request<SessionRestoreResult>(`/api/sessions/${sessionId}/restore`, { method: "POST" }, RESTORE_TIMEOUT_MS),
+  /** Cambia el nombre de una sesión guardada (spec §6.2). */
+  renameSavedSession: (sessionId: string, label: string) =>
+    request<SessionListItem>(`/api/sessions/saved/${encodeURIComponent(sessionId)}`, { method: "PATCH", body: JSON.stringify({ label } satisfies SavedSessionRenameIn), headers: { "Content-Type": "application/json" } }),
+  /** Borra la copia guardada; 409 si es el origen de la sesión abierta de quien borra. */
+  deleteSavedSession: (sessionId: string) =>
+    request<void>(`/api/sessions/saved/${encodeURIComponent(sessionId)}`, { method: "DELETE" }),
   /** Switch which DICOM series of the study the session works on. */
   setActiveSeries: (sessionId: string, seriesId: string) =>
     post<SeriesInfo>(`/api/upload/${sessionId}/series/${encodeURIComponent(seriesId)}`),
@@ -659,6 +898,10 @@ export const api = {
     const qs = p.toString();
     return get<StudyCard[]>(`/api/studies${qs ? `?${qs}` : ""}`);
   },
+  /** Borra el DICOM archivado de un estudio de imagen (no un caso: para eso
+   *  está `deleteStudy`). Solo el creador del paciente o un administrador. */
+  deleteImagingStudy: (studyId: number) =>
+    request<void>(`/api/studies/${studyId}`, { method: "DELETE" }),
   /** Preview image; needs the JWT, so fetch as a blob and use an object URL. */
   studyThumbnailObjectUrl: async (studyId: number) =>
     URL.createObjectURL(await getBlob(`/api/studies/${studyId}/thumbnail`)),
@@ -715,7 +958,12 @@ export const api = {
   deleteCapture: (captureId: number) =>
     request<void>(`/api/captures/${captureId}`, { method: "DELETE" }),
 
-  /* audit (SkullChain) */
-  auditBlocks: () => get<AuditBlock[]>("/api/audit/blocks"),
+  /* audit (cadena de bloques) */
+  /** Con `patientId` el servidor calcula la huella del paciente y filtra: la
+   *  cadena solo guarda la huella, así que el navegador no puede buscarla. */
+  auditBlocks: (opts?: { patientId?: number }) =>
+    get<AuditBlock[]>(opts?.patientId != null
+      ? `/api/audit/blocks?patient_id=${encodeURIComponent(String(opts.patientId))}`
+      : "/api/audit/blocks"),
   auditVerify: () => get<AuditVerifyResult>("/api/audit/verify"),
 };

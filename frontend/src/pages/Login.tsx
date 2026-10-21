@@ -1,15 +1,17 @@
-/* Login — cinematic dark brand panel + form panel. Real JWT auth. */
+/* Login — panel de marca + formulario. Autenticación real con JWT. */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import logo from "../assets/logo.png";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Icon } from "../components/Icon";
+import { AuthBrand } from "../components/shell/AuthBrand";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../store/auth";
 import { ApiError } from "../api/client";
+import { serverErrorText } from "../api/errorText";
+import { CONTACTO_ADMIN } from "../lib/contacto";
 
 /** Qué decirle a quien no pudo entrar.
  *
@@ -19,16 +21,23 @@ import { ApiError } from "../api/client";
  *  falló): antes se enseñaba para cualquier código que no fuera 401 o 403, y
  *  decía «¿está el backend en marcha?» de un backend que acababa de contestar.
  *  Cuando el cuerpo no traía detalle, `ApiError.message` es «Error NNN»; eso
- *  no le dice nada a un médico, así que se reescribe. */
+ *  no le dice nada a un médico, así que se reescribe.
+ *
+ *  F1-41: sin respuesta (sin red, el límite, o el 500 vacío del proxy con el
+ *  backend caído) el aviso ya no habla de «backend»: dice que el servidor no
+ *  responde y a quién avisar. Desde la Tarea 6 el cliente lanza ApiError 0
+ *  en vez de TypeError, así que la clase sola ya no distingue el caso. */
 export function loginErrorMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) {
-    return "No se pudo conectar con el servidor. ¿Está el backend en marcha?";
+  if (err instanceof ApiError && err.status === 401) {
+    // Al quinto fallo se bloquea la entrada quince minutos; avisar del último
+    // intento evita que alguien que duda de su contraseña se quede fuera sin
+    // saber que estaba a uno.
+    const left = (err.data as { remaining_attempts?: number } | undefined)?.remaining_attempts;
+    return left === 1
+      ? "Credenciales incorrectas. Te queda un intento antes del bloqueo temporal."
+      : "Credenciales incorrectas";
   }
-  if (err.status === 401) return "Credenciales incorrectas";
-  if (/^Error \d+$/.test(err.message)) {
-    return `El servidor respondió con el error ${err.status} y sin más detalle. Inténtalo de nuevo en unos minutos.`;
-  }
-  return err.message;
+  return serverErrorText(err);
 }
 
 export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSignup: () => void; notice?: string | null }) {
@@ -39,6 +48,13 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
+  // El temporizador que quita el temblor sobrevivía a la pantalla: si se salía
+  // (o la prueba terminaba) antes de 500 ms, `setShake` caía sobre un componente
+  // desmontado y Vitest lo contaba como error sin manejar, a veces sí y a veces no.
+  const shakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (shakeTimer.current) clearTimeout(shakeTimer.current);
+  }, []);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -50,7 +66,8 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
     } catch (err) {
       setError(loginErrorMessage(err));
       setShake(true);
-      setTimeout(() => setShake(false), 500);
+      if (shakeTimer.current) clearTimeout(shakeTimer.current);
+      shakeTimer.current = setTimeout(() => setShake(false), 500);
     } finally {
       setBusy(false);
     }
@@ -58,57 +75,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
 
   return (
     <div style={{ display: "flex", height: "100%", background: "var(--canvas)" }}>
-      {/* Brand panel — cinematic dark backdrop with radial vignette.
-          Cede espacio y desaparece bajo 900px (ver styles/responsive.css). */}
-      <div
-        className="login-media"
-        style={{
-          flex: "1 1 62%",
-          position: "relative",
-          overflow: "hidden",
-          background: "radial-gradient(130% 100% at 30% 20%, #16222e 0%, #0a121c 55%, #05090f 100%)",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "48px 56px",
-        }}
-      >
-        {/* Looping surgical video — dimmed behind the vignette */}
-        <video
-          src="/media/intro.mp4"
-          autoPlay
-          muted
-          loop
-          playsInline
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.4 }}
-        />
-        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 100% at 30% 20%, rgba(22,34,46,0.55) 0%, rgba(10,18,28,0.82) 55%, rgba(5,9,15,0.92) 100%)" }} />
-        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(55% 55% at 65% 60%, rgba(78,102,120,0.22), transparent 72%)" }} />
-        <button
-          onClick={() => navigate("/")}
-          title="Ir a la página principal"
-          style={{ position: "relative", display: "flex", alignItems: "center", gap: 12, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
-        >
-          <img src={logo} alt="SkullApp" style={{ height: 30, filter: "invert(1) brightness(1.7)" }} />
-          <span style={{ color: "#fff", fontWeight: 800, fontSize: 20, letterSpacing: "-0.02em" }}>PROSPECTIVE</span>
-        </button>
-        <div style={{ position: "relative" }}>
-          <div style={{ color: "rgba(168,184,198,0.75)", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 14 }}>
-            Plataforma web de planificación
-          </div>
-          <div style={{ color: "#fff", fontSize: 38, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1, maxWidth: 460 }}>
-            Detección y simulación quirúrgica de aneurismas cerebrales
-          </div>
-          <div style={{ color: "rgba(235,235,235,0.6)", fontSize: 14, marginTop: 18, maxWidth: 440, lineHeight: 1.6 }}>
-            Carga DICOM, segmentación vascular 3D, morfometría, evaluación de riesgo y planificación de dispositivos — en el navegador.
-          </div>
-        </div>
-        <div style={{ position: "relative", display: "flex", gap: 26, color: "rgba(168,184,198,0.8)", fontSize: 12, fontFamily: "var(--font-mono)" }}>
-          <span>VTK · SimpleITK</span>
-          <span>·</span>
-          <span>SKULLAPP</span>
-        </div>
-      </div>
+      <AuthBrand flex="1 1 62%" />
 
       {/* Form panel */}
       <div className="login-form" style={{ flex: "1 1 38%", display: "flex", flexDirection: "column", padding: "0 clamp(24px, 4vw, 72px)", minWidth: 320 }}>
@@ -142,7 +109,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
               icon={<Icon name="USER" />}
               value={user}
               onChange={(e) => setUser(e.target.value)}
-              placeholder="admin"
+              placeholder="tu usuario"
               autoComplete="username"
               invalid={!!error}
             />
@@ -161,6 +128,17 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
               {busy ? "Verificando…" : "Entrar"}
             </Button>
           </form>
+          {/* F1-1: no hay recuperación automática de contraseña; sin esta línea
+              quien la olvida no sabe que existe un camino ni cuál. */}
+          <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
+            ¿Olvidaste la contraseña? Un administrador puede restablecerla: escribe a{" "}
+            <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "var(--brand-deep)", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
+          </p>
+          {/* F2-11: la misma frase, literal, en «Entrar» y tras «Crear cuenta»; el
+              servidor no envía notificaciones, así que se dice con claridad. */}
+          <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
+            Si tu cuenta aún no está aprobada, no recibirás ningún aviso: vuelve a intentar entrar más tarde.
+          </p>
           <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
             ¿No tienes cuenta?{" "}
             <button
@@ -168,12 +146,12 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
               onClick={onSignup}
               style={{ background: "transparent", border: "none", color: "var(--brand-deep)", fontWeight: 700, cursor: "pointer", fontSize: 13, padding: 0 }}
             >
-              Crear cuenta profesional
+              Crear cuenta
             </button>
           </div>
         </div>
         <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 11, color: "var(--muted-foreground)" }}>
-          PROSPECTIVE™ Web · SkullApp — Laboratorio de Imagen Médica
+          PROSPECTIVE™ Web — Laboratorio de Imagen Médica
         </div>
       </div>
     </div>

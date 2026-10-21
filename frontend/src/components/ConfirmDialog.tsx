@@ -9,6 +9,18 @@ import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 
+/* Cuántos diálogos de confirmación hay abiertos ahora mismo. Los atajos del
+   visor y del flujo (vtk/shortcuts) escuchan en `window` y el diálogo solo se
+   queda Escape e Intro: sin esto, un segundo Supr con la pregunta de borrar
+   delante llegaba al visor y apilaba otra pregunta igual, y P, los dígitos o
+   el espacio cambiaban la pantalla de detrás sin que se viera. */
+let openDialogs = 0;
+
+/** true mientras haya algún ConfirmDialog abierto: lo de detrás no atiende teclas. */
+export function isConfirmDialogOpen(): boolean {
+  return openDialogs > 0;
+}
+
 export function ConfirmDialog({
   open,
   title,
@@ -19,6 +31,8 @@ export function ConfirmDialog({
   busy = false,
   onCancel,
   onConfirm,
+  extraLabel,
+  onExtra,
 }: {
   open: boolean;
   title: string;
@@ -30,24 +44,63 @@ export function ConfirmDialog({
   busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Tercera acción, entre cancelar y confirmar (p. ej. «Guardar y salir»).
+   *  Nunca la dispara un Intro suelto: solo su clic, o Intro con el foco en ella. */
+  extraLabel?: string;
+  onExtra?: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Los manejadores van por ref: quien llama los pasa en línea y cambian en cada
+  // render. Si el efecto dependiera de ellos, cada letra tecleada en un campo
+  // del diálogo lo reejecutaba y devolvía el foco al panel.
+  const onCancelRef = useRef(onCancel);
+  const onConfirmRef = useRef(onConfirm);
+  onCancelRef.current = onCancel;
+  onConfirmRef.current = onConfirm;
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      // Escape siempre cancela; Enter confirma salvo mientras la acción corre.
-      if (e.key === "Escape") { e.stopPropagation(); onCancel(); }
-      else if (e.key === "Enter" && !busy) { e.preventDefault(); onConfirm(); }
+      // Escape siempre cancela. Se escucha en `window` en fase de captura y se
+      // corta ahí: escuchando en `document`, la ficha de debajo (Sheet) y los
+      // atajos del visor también recibían el mismo Escape, y cancelar «¿Descartar
+      // los cambios?» cerraba la ficha que se quería conservar.
+      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); onCancelRef.current(); return; }
+      if (e.key !== "Enter") return;
+      e.stopPropagation();
+      e.preventDefault();
+      // Intro sobre un botón del diálogo es pulsar ese botón, sea cual sea: con
+      // el foco en «Cancelar» (llegado con Tab), Intro confirmaba igual y
+      // firmaba el pedido o daba «sin aneurisma». El clic se lanza aquí a mano
+      // porque el preventDefault de arriba (que impide que el Intro llegue a lo
+      // de debajo) también anula el clic nativo; un botón deshabilitado no
+      // responde a click().
+      const target = e.target as HTMLElement | null;
+      if (target instanceof HTMLButtonElement && panelRef.current?.contains(target)) {
+        target.click();
+        return;
+      }
+      // F1-58: Intro no confirma un borrado. Un Intro de más, pensado para el
+      // campo de debajo, borraba un paciente con sus sesiones; lo destructivo
+      // se confirma solo con su botón (con el foco en él, Intro vale, ver arriba).
+      // Lo demás sigue aceptando Intro.
+      if (!destructive && !busy) onConfirmRef.current();
     };
-    document.addEventListener("keydown", onKey);
+    openDialogs += 1;
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      openDialogs -= 1;
+    };
+  }, [open, busy, destructive]);
+
+  // El foco solo se mueve al abrir y vuelve al cerrar, nunca por un re-render.
+  useEffect(() => {
+    if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      previous?.focus?.();
-    };
-  }, [open, busy, onCancel, onConfirm]);
+    return () => { previous?.focus?.(); };
+  }, [open]);
 
   if (!open) return null;
 
@@ -63,7 +116,7 @@ export function ConfirmDialog({
         aria-label={title}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        style={{ outline: "none", width: 420, maxWidth: "90%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: "22px 24px" }}
+        style={{ outline: "none", width: 420, maxWidth: "90%", background: "var(--glass)", backdropFilter: "blur(var(--glass-blur))", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: "22px 24px" }}
       >
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--foreground)" }}>{title}</div>
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.55 }}>
@@ -71,6 +124,9 @@ export function ConfirmDialog({
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
           <Button variant="outline" onClick={onCancel} disabled={busy}>{cancelLabel}</Button>
+          {extraLabel && onExtra && (
+            <Button variant="default" onClick={onExtra} disabled={busy}>{extraLabel}</Button>
+          )}
           <Button variant={destructive ? "destructive" : "default"} onClick={onConfirm} disabled={busy}>
             {confirmLabel}
           </Button>

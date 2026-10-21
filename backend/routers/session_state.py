@@ -1,26 +1,37 @@
 """Session save / restore router — real SQLite persistence (Session D)."""
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 import logging
+import math
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from models import (
     SessionSaveRequest, SessionSaveResult, SessionRestoreResult, SessionListItem,
-    SeriesInfo, SpacingXYZ,
+    SeriesInfo, SpacingXYZ, ReportUrls, SavedSessionRenameIn,
 )
 from services.database import get_db
-from services.access import own_patient_ids, require_patient
+from services.isolated import CalculoCaido, run_isolated
+from services.access import ORIGIN_KEY, can_share_patient, is_admin, own_patient_ids, require_patient, session_row
+from services.audit import (ACT_SAVED_SESSION_DELETED, ACT_SAVED_SESSION_RENAMED,
+                            audit_append, audit_patient)
 from services.auth_service import get_current_user
-from services.db_models import PlanningSession, Patient, User
+from services.db_models import LesionConfirmation, PlanningSession, Patient, User
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state, create_session,
     snapshot_session, rehydrate_session, has_saved_session, mesh_url as mesh_url_for,
+    delete_saved_session, session_lineage, LINEAGE_KEY, record_repoint, session_ttl_hours,
+    saved_session_size, size_of_row, live_sessions_from, purge_saved_session,
+    live_session_expires_at,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +78,24 @@ def _read_morpho(session_id: str) -> dict:
     }
 
 
+#: Antes de la Tarea 17 la carga guardaba como descripción «Serie <UID>» cuando
+#: la serie no traía SeriesDescription. Las sesiones guardadas entonces (las del
+#: Caso 3 en disco) devolvían ese UID al reanudar.
+_UID_COMO_DESCRIPCION = re.compile(r"^Serie \d+(\.\d+)+$")
+
+
+def _restored_description(raw: str | None) -> str:
+    """La descripción de la serie como la mostraría hoy la carga.
+
+    Una descripción con forma de UID es la antigua de relleno: se muestra
+    «Sin descripción», el mismo texto que da la carga de una serie sin ella.
+    """
+    desc = (raw or "").strip()
+    if _UID_COMO_DESCRIPCION.match(desc):
+        return "Sin descripción"
+    return desc or "Serie restaurada"
+
+
 def _restored_series(session_id: str) -> "SeriesInfo | None":
     """Rebuild the series card from the rehydrated volume cache.
 
@@ -87,13 +116,16 @@ def _restored_series(session_id: str) -> "SeriesInfo | None":
             size_mb=round(z * y * x * 4 / (1024 * 1024), 1),   # float32 volume
             session_id=session_id,
             series_id=read_state(session_id, "dicom.series_id", "") or "",
-            description=read_state(session_id, "dicom.description", "") or "Serie restaurada",
+            description=_restored_description(read_state(session_id, "dicom.description", "")),
             modality=meta.get("modality") or read_state(session_id, "dicom.modality", "") or "",
             slices=int(meta["shape"][0]),
             spacing=SpacingXYZ(x=float(sx), y=float(sy), z=float(sz)),
             window_center=float(meta.get("wc", 0.0)),
             window_width=float(meta.get("ww", 0.0)),
             is_projection=read_state(session_id, "dicom.is_projection", "0") == "1",
+            acquisition_date=read_state(session_id, "dicom.acquisition_date", "") or "",
+            acquisition_time=read_state(session_id, "dicom.acquisition_time", "") or "",
+            session_ttl_hours=session_ttl_hours(),
         )
     except (KeyError, ValueError, TypeError):
         logger.warning("No se pudo reconstruir la serie de la sesión %s", session_id)
@@ -135,6 +167,8 @@ def _restore_state(session_id: str, ps: PlanningSession) -> None:
     description=(
         "Persists the session's morphometry snapshot and metadata to the database. "
         "Subsequent calls update the same record (upsert on session_id). "
+        "A session resumed from a saved one updates that saved record "
+        "(it takes the new session_id) unless `overwrite_origin` is false. "
         "Optionally links the session to a patient and/or study record."
     ),
 )
@@ -147,6 +181,32 @@ async def save_session(
         raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
 
     require_patient(db, current_user, req.patient_id)
+
+    # Reanudar da a la sesión viva un id nuevo, y guardar por ese id dejaba una
+    # fila más en «Sesiones guardadas» en cada reanudar-y-guardar (seis casi
+    # iguales en la ficha del paciente de prueba). Quien pulsa «Guardar
+    # progreso» espera actualizar la sesión que abrió: si la viva todavía no
+    # tiene fila propia y salió de una guardada, se guarda sobre esa.
+    ps = db.query(PlanningSession).filter_by(session_id=req.session_id).first()
+    origen_id = ""
+    origen_ps: PlanningSession | None = None
+    if ps is None and req.overwrite_origin:
+        # session_row sigue el rastro si una hermana (otra pestaña reanudada de
+        # la misma guardada) ya guardó y la fila tomó su id.
+        origen_ps = session_row(db, req.session_id)
+        if origen_ps is not None and origen_ps.session_id != req.session_id:
+            origen_id = origen_ps.session_id
+        else:
+            origen_ps = None
+    if origen_ps is not None:
+        # Se va a escribir sobre esa fila: tiene que ser de un paciente que
+        # esta persona ve, no basta con conocer el id de la sesión viva.
+        require_patient(db, current_user, origen_ps.patient_id)
+        # El snapshot de origen se borra al final; su linaje (de dónde venía)
+        # se apunta aquí para que viaje en el snapshot nuevo y los pedidos de
+        # clip colgados de sesiones anteriores se sigan encontrando.
+        write_state(req.session_id, LINEAGE_KEY, ",".join(sorted(session_lineage(origen_id))))
+
     morpho      = _read_morpho(req.session_id)
     # Snapshot the whole session dir (volume + meshes + state) into the durable
     # store so it survives the TTL purge and can be rehydrated on resume.
@@ -157,13 +217,22 @@ async def save_session(
         raise HTTPException(status_code=500, detail=f"No se pudo guardar la sesión: {exc}")
     now         = datetime.now(timezone.utc)
 
-    # Upsert: update existing record or create new one
-    ps = db.query(PlanningSession).filter_by(session_id=req.session_id).first()
-    if ps is None:
+    # Upsert: update existing record, take over the origin's, or create a new one
+    if ps is None and origen_ps is not None:
+        ps = origen_ps
+        ps.session_id = req.session_id
+        # Sin estudio adjunto, la lesión confirmada se busca por el id de la
+        # sesión (seguimiento, verdad de referencia): acompaña a la fila.
+        (db.query(LesionConfirmation)
+           .filter(LesionConfirmation.session_id == origen_id)
+           .update({"session_id": req.session_id}, synchronize_session=False))
+    elif ps is None:
         ps = PlanningSession(session_id=req.session_id, created_at=now)
         db.add(ps)
 
-    ps.label                = req.label or ps.label
+    # El nombre puesto a mano es trabajo del usuario: la etiqueta automática
+    # («<nombre> · <paso>») solo rellena cuando nadie eligió una.
+    ps.label                = ps.label if ps.label_custom else (req.label or ps.label)
     ps.current_step         = req.current_step
     ps.study_id             = req.study_id   if req.study_id   is not None else ps.study_id
     ps.patient_id           = req.patient_id if req.patient_id is not None else ps.patient_id
@@ -180,10 +249,18 @@ async def save_session(
     ps.rupture_risk_label   = morpho["rupture_risk_label"]
     ps.dicom_modality       = morpho["dicom_modality"]
     ps.file_size_kb         = file_size
+    ps.size_bytes           = saved_session_size(req.session_id)
     ps.updated_at           = now
 
     db.commit()
     db.refresh(ps)
+
+    if origen_ps is not None:
+        # Solo cuando el snapshot nuevo y la fila ya están: si algo fallaba
+        # antes, la sesión de origen seguía entera y se podía reanudar.
+        record_repoint(origen_id, req.session_id)
+        delete_saved_session(origen_id)
+        logger.info("Session %s saved over its origin %s", req.session_id, origen_id)
 
     logger.info(
         "Session saved — id=%s  label=%r  step=%d  patient_id=%s",
@@ -235,12 +312,129 @@ async def list_sessions(
                 created_at=ps.created_at,
                 updated_at=ps.updated_at,
                 file_size_kb=ps.file_size_kb,
+                size_bytes=size_of_row(db, ps),
             )
         )
     return items
 
 
+# ── PATCH / DELETE /sessions/saved/{session_id} ────────────────────────────── #
+
+def _saved_row_or_404(db: Session, current_user: User | None, session_id: str) -> PlanningSession:
+    """La fila de una sesión guardada que se va a renombrar o borrar.
+
+    Spec §6.2: cambiar los guardados es de quien creó al paciente o de un
+    administrador. Quien lo tiene compartido los ve y los reanuda (la lista y
+    `restore` siguen con `require_patient`), pero no les cambia el nombre ni
+    los borra: son la historia del caso de otro profesional."""
+    ps = db.query(PlanningSession).filter_by(session_id=session_id).first()
+    if ps is None or not has_saved_session(session_id):
+        raise HTTPException(status_code=404, detail="Sesión guardada no encontrada.")
+    # `require_patient` deja pasar a cualquiera con patient_id nulo; una sesión
+    # suelta no tiene dueño conocido y, como en la lista, es solo del administrador.
+    if ps.patient_id is None:
+        if not is_admin(current_user):
+            raise HTTPException(status_code=403, detail="No autorizado sobre este paciente.")
+    else:
+        # Primero el acceso, con su 403 de siempre para quien no es nadie del
+        # paciente; después el derecho a cambiar, con su propio motivo.
+        require_patient(db, current_user, ps.patient_id)
+        if current_user is not None and not can_share_patient(db, current_user, ps.patient_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Solo quien creó al paciente o un administrador puede cambiar sus guardados.",
+            )
+    return ps
+
+
+def _audit_patient_of(ps: PlanningSession) -> dict:
+    return audit_patient(ps.patient) if ps.patient is not None else {}
+
+
+@router.patch(
+    "/saved/{session_id}",
+    response_model=SessionListItem,
+    summary="Rename a saved session",
+)
+async def rename_saved_session(
+    session_id:   str,
+    req:          SavedSessionRenameIn,
+    db:           Annotated[Session,    Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> SessionListItem:
+    ps = _saved_row_or_404(db, current_user, session_id)
+    antes = ps.label or ""
+    # Renombrar no es actividad clínica: updated_at (orden de la lista y
+    # «Última sesión») se conserva; onupdate lo movería salvo que vaya explícito.
+    db.execute(update(PlanningSession).where(PlanningSession.id == ps.id)
+               .values(label=req.label, label_custom=True,
+                       updated_at=PlanningSession.updated_at))
+    db.commit()
+    db.refresh(ps)
+    audit_append(ACT_SAVED_SESSION_RENAMED,
+                 {"session_id": session_id, "label_from": antes, "label_to": ps.label},
+                 username=current_user.username if current_user else "", **_audit_patient_of(ps))
+    return SessionListItem(
+        id=ps.id, session_id=ps.session_id, label=ps.label or ps.session_id[:12],
+        current_step=ps.current_step,
+        patient_name=ps.patient.full_name if ps.patient is not None else "",
+        created_at=ps.created_at, updated_at=ps.updated_at,
+        file_size_kb=ps.file_size_kb, size_bytes=size_of_row(db, ps),
+    )
+
+
+def _detail_origen_vivo(vivas: list[str]) -> str:
+    """El 409 de borrar el origen de una sesión abierta, con cuándo se desbloquea.
+
+    La aplicación no tiene forma de cerrar una sesión abierta (caducan solas por
+    TTL), así que decir «ciérrala» era una instrucción imposible: se dice cuándo
+    caduca la que más tarde lo haga, que es cuando el borrado vuelve a ser posible."""
+    fin = max(live_session_expires_at(v) for v in vivas)
+    horas = max(0, math.ceil((fin - time.time()) / 3600))
+    cuando = datetime.fromtimestamp(fin).strftime("%H:%M del %d/%m")
+    plazo = "en menos de 1 h" if horas <= 1 else f"en unas {horas} h"
+    return (f"Esta sesión guardada es el origen de una sesión abierta que caduca sola "
+            f"a las {cuando} ({plazo}): hasta entonces no se puede borrar.")
+
+
+@router.delete(
+    "/saved/{session_id}",
+    status_code=204,
+    summary="Delete a saved session",
+    description="Removes the saved snapshot, its repoint marker and its database row.",
+)
+async def delete_saved(
+    session_id:   str,
+    db:           Annotated[Session,    Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> None:
+    ps = _saved_row_or_404(db, current_user, session_id)
+    # Una sesión abierta reanudada de esta guardada sigue apoyándose en ella
+    # (su fila, su paciente, su linaje): borrarla la dejaría huérfana.
+    vivas = live_sessions_from(session_id)
+    if vivas:
+        raise HTTPException(status_code=409, detail=_detail_origen_vivo(vivas))
+    etiqueta = ps.label or ""
+    paciente = _audit_patient_of(ps)
+    db.delete(ps)
+    db.commit()
+    purge_saved_session(session_id)
+    audit_append(ACT_SAVED_SESSION_DELETED, {"session_id": session_id, "label": etiqueta},
+                 username=current_user.username if current_user else "", **paciente)
+
+
 # ── POST /sessions/{session_id}/restore ───────────────────────────────────── #
+
+#: Lo que ve la persona si la copia de la sesión muere o no acaba.
+RESTORE_FAILED_DETAIL = (
+    "No se pudo restaurar la sesión: el proceso que la copiaba se cayó. "
+    "La sesión guardada sigue en disco; pulsa «Reintentar»."
+)
+#: Copiar una sesión es copiar ficheros: segundos. Por debajo del límite del
+#: cliente (frontend/src/api/client.ts), para que llegue esta explicación y
+#: no un corte sin más.
+RESTORE_TIMEOUT_S = 90.0
+
 
 @router.post(
     "/{session_id}/restore",
@@ -276,15 +470,21 @@ async def restore_session(
         )
 
     # Rehydrate: copy the durable snapshot into a brand-new live session dir.
+    # La copia corre en un proceso hijo: la auditoría vio caer el worker de
+    # uvicorn al restaurar, sin traza de Python, y con él todo el servidor. En
+    # un hijo solo falla esta petición y la guardada sigue intacta en disco.
     try:
-        new_sid = rehydrate_session(session_id)
+        new_sid = await asyncio.to_thread(
+            run_isolated, rehydrate_session, session_id, timeout_s=RESTORE_TIMEOUT_S)
+    except CalculoCaido as exc:
+        logger.error("Restaurar %s: el proceso hijo cayó: %s", session_id, exc)
+        raise HTTPException(status_code=500, detail=RESTORE_FAILED_DETAIL) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Session rehydration failed")
         raise HTTPException(status_code=500, detail=f"No se pudo restaurar la sesión: {exc}")
 
     # La sesión viva recuerda de cuál salió: así sigue siendo del mismo
     # paciente antes de volver a guardarse (services/access.session_row).
-    from services.access import ORIGIN_KEY
     write_state(new_sid, ORIGIN_KEY, session_id)
 
     # Inspect the rehydrated dir to build a payload the frontend can hydrate from.
@@ -342,7 +542,82 @@ async def restore_session(
         series=_restored_series(new_sid),
         centerline_mesh_url=cl_url,
         centerline_arc_mm=cl_arc,
+        **_restored_work(new_sid, ps, db),
     )
+
+
+def _restored_work(session_id: str, ps: PlanningSession, db: Session) -> dict:
+    """Lo hecho después de detectar, leído del estado copiado (familia S).
+
+    Todo esto ya viajaba en la instantánea —el estado se copia entero— pero no
+    se devolvía: la sesión volvía sin decisión, sin corredor, con los clips
+    como mallas sueltas, con la ventana del DICOM y sin los enlaces del PDF y
+    del SR. Cada parte se lee por su lado: una ilegible vuelve como null y no
+    tumba la restauración entera.
+    """
+    from routers.devices import stored_placed_clips
+    from routers.mpr import stored_window
+    from routers.report import stored_trajectory
+    from routers.treatment import stored_decision, stored_inputs
+
+    out: dict = {}
+    for key, read in (
+        ("treatment", stored_decision),
+        ("treatment_inputs", stored_inputs),
+        ("trajectory", stored_trajectory),
+        ("placed_clips", stored_placed_clips),
+        ("window", stored_window),
+        ("report_urls", _restored_report_urls),
+    ):
+        try:
+            out[key] = read(session_id)
+        except Exception as exc:  # noqa: BLE001 — una parte no tumba las demás
+            logger.warning("No se pudo restaurar %s de %s: %s", key, session_id, exc)
+            out[key] = None
+    out["lesion_confirmed"] = _lesion_confirmed(db, session_id, ps.imaging_study_id)
+    return out
+
+
+def _restored_report_urls(session_id: str) -> ReportUrls | None:
+    """Enlaces al PDF y al SR que siguen en disco.
+
+    El fichero conserva el nombre de la sesión que lo generó (`<sid>_report.pdf`)
+    y la reanudada tiene otro id, así que se busca por el sufijo; si hay
+    varios, el más reciente.
+    """
+    from routers.report import PDF_SIGNATURE_KEY, SR_SIGNATURE_KEY, _versioned, plan_signature
+
+    reports = session_subdir(session_id, "reports")
+    firma = plan_signature(session_id)
+
+    def _al_dia(key: str) -> bool:
+        guardada = read_state(session_id, key, "")
+        return bool(guardada) and guardada == firma
+
+    def _newest(pattern: str) -> str | None:
+        files = sorted(reports.glob(pattern), key=lambda f: f.stat().st_mtime)
+        if not files:
+            return None
+        return _versioned(f"/data/sessions/{session_id}/reports/{files[-1].name}")
+
+    pdf, sr = _newest("*_report.pdf"), _newest("*_sr.dcm")
+    if pdf is None and sr is None:
+        return None
+    return ReportUrls(
+        pdf_url=pdf, dicom_sr_url=sr,
+        pdf_current=pdf is not None and _al_dia(PDF_SIGNATURE_KEY),
+        sr_current=sr is not None and _al_dia(SR_SIGNATURE_KEY),
+    )
+
+
+def _lesion_confirmed(db: Session, session_id: str, imaging_study_id: int | None) -> bool:
+    """¿Hay una confirmación de lesión vigente, por el estudio o por el linaje?"""
+    q = db.query(LesionConfirmation).filter(LesionConfirmation.retracted.is_(False))
+    if imaging_study_id:
+        q = q.filter(LesionConfirmation.imaging_study_id == imaging_study_id)
+    else:
+        q = q.filter(LesionConfirmation.session_id.in_(sorted(session_lineage(session_id))))
+    return q.first() is not None
 
 
 def _restored_centerline(session_id: str, stamp: int) -> tuple[str, float]:

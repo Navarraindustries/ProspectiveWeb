@@ -7,17 +7,22 @@ import math
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Annotated
 
+from sqlalchemy.orm import Session
+
+from services.access import require_session
 from services.auth_service import get_current_user
 from services.audit import audit_device
+from services.database import get_db
 from services.db_models import User
 
 from models import (
     CoilConstructResult, CoilConstructStep,
     CoilLibraryItem, CoilPlanRequest, CoilPlanResult,
+    CoilPreviewRequest, CoilPreviewResult,
 )
 from services.coils    import (
     catalogue_to_api, coils_for_aneurysm, estimate_coil_count, COIL_CATALOGUE,
-    packing_assessment, suggest_construct, _slug,
+    packing_assessment, project_packing, suggest_construct, _slug,
     PACKING_AIM, PACKING_MIN, PACKING_MAX,
 )
 from services.sessions import read_state, session_exists, session_subdir, mesh_url
@@ -61,13 +66,24 @@ async def get_coil_library() -> list[CoilLibraryItem]:
         "prescription: the operator chooses."
     ),
 )
-async def get_coil_recommendations(session_id: str) -> CoilConstructResult:
+async def get_coil_recommendations(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> CoilConstructResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # La propuesta lleva las medidas del saco de esa sesión: un profesional que no
+    # ve al paciente tampoco ve sus medidas por la puerta del montaje.
+    require_session(db, current_user, session_id)
 
     dome_mm = _load_float(session_id, "morpho.max_diameter_mm", 0.0)
     volume  = _load_float(session_id, "morpho.volume_mm3", 0.0)
-    c = suggest_construct(dome_mm, volume)
+    # F1-203: el cuello es el primer dato del montaje; con él se dice si hará
+    # falta adyuvante, con la misma regla que el perfil endovascular.
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    dnr     = _load_float(session_id, "morpho.dnr", 0.0)
+    c = suggest_construct(dome_mm, volume, neck_mm=neck_mm, dnr=dnr)
 
     return CoilConstructResult(
         steps=[
@@ -88,6 +104,56 @@ async def get_coil_recommendations(session_id: str) -> CoilConstructResult:
         projected_packing=c.projected_packing,
         feasible=c.feasible,
         note=c.note,
+        neck_mm=round(c.neck_mm, 2),
+        wide_neck=c.wide_neck,
+    )
+
+
+@router.post(
+    "/coils/{session_id}/construct/preview",
+    response_model=CoilPreviewResult,
+    summary="Projected packing of an edited coil montage",
+    description=(
+        "Takes the montage rows as the operator edited them (model and count "
+        "per row) and returns the packing they would reach in the measured sac, "
+        "read through the same rule as POST /coils/plan. Nothing is placed or "
+        "persisted: it lets the montage card follow every edit before "
+        "«Colocar el montaje»."
+    ),
+)
+async def preview_coil_construct(
+    session_id: str, req: CoilPreviewRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> CoilPreviewResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    # La proyección se calcula sobre el volumen medido de esa sesión: leerla es
+    # leer datos de su paciente, así que pide la misma propiedad que guardar.
+    require_session(db, current_user, session_id)
+
+    id_to_spec = {_slug(c.name): c for c in COIL_CATALOGUE}
+    desconocidos = [r.coil_id for r in req.rows if r.coil_id not in id_to_spec]
+    if desconocidos:
+        # Un id que no está en el catálogo no tiene volumen de hilo: sumarlo como
+        # cero bajaría la proyección sin decir por qué.
+        raise HTTPException(
+            status_code=422,
+            detail=f"Modelo de coil desconocido: {', '.join(desconocidos)}",
+        )
+
+    volume = _load_float(session_id, "morpho.volume_mm3", 0.0)
+    packing, n = project_packing(
+        [(id_to_spec[r.coil_id], r.count) for r in req.rows], volume,
+    )
+    a = packing_assessment(packing, n, volume_known=volume > 0)
+    return CoilPreviewResult(
+        projected_packing=packing,
+        n_coils=n,
+        packing_min=PACKING_MIN,
+        meets_minimum=a.meets_minimum,
+        durability=a.durability,
+        warning=a.warning,
     )
 
 

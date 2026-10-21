@@ -40,19 +40,36 @@
      },
      "patch_kind": {
       "default": "region",
-      "description": "Qué es la malla de `dome_mesh_url`. «region»: la región que el canal de curvatura detectó — el azul ES lo marcado. «locator»: una bola alrededor del punto que propusieron los canales geométricos, así que enseña DÓNDE mirar y no qué parte es la lesión; incluye pared de vaso alrededor. En ninguno de los dos casos afecta a la morfometría, que se mide sobre el saco aislado desde el volumen a partir del plano de cuello marcado.",
+      "description": "Qué es la malla de `dome_mesh_url`. «region»: la región que el canal de curvatura detectó — el azul ES lo marcado. «locator»: una bola alrededor del punto que propusieron los canales geométricos, así que enseña DÓNDE mirar y no qué parte es la lesión; incluye pared de vaso alrededor. En ninguno de los dos casos afecta a la morfometría, que se mide sobre el saco aislado desde el volumen a partir del plano de cuello marcado. «manual»: un punto que el profesional marcó y confirmó como la lesión sin que coincidiera con ningún candidato; no tiene malla (`dome_mesh_url` vacío) y se mide marcando cuello y ápice.",
       "enum": [
        "region",
-       "locator"
+       "locator",
+       "manual"
       ],
       "title": "Patch Kind",
       "type": "string"
+     },
+     "rank": {
+      "description": "Posición 1-based dentro de su lista: los aceptados 1..n en el orden del consenso, los descartados 1..m en el suyo. 0 en un candidato marcado a mano: el detector no le dio puesto.",
+      "title": "Rank",
+      "type": "integer"
      },
      "selected": {
       "default": false,
       "description": "True when this candidate is the user-selected one",
       "title": "Selected",
       "type": "boolean"
+     },
+     "veto": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Veto"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "None si el sitio se acepta; el motivo si se descartó."
      }
     },
     "required": [
@@ -60,7 +77,8 @@
      "center_mm",
      "max_diameter_mm",
      "confidence",
-     "dome_mesh_url"
+     "dome_mesh_url",
+     "rank"
     ],
     "title": "AneurysmCandidate",
     "type": "object"
@@ -84,12 +102,159 @@
       "description": "True when at least one candidate was found",
       "title": "Found",
       "type": "boolean"
+     },
+     "morphometry_invalidated": {
+      "default": false,
+      "description": "True si esta detección borró la morfometría porque el candidato medido ya no está en la lista o se movió más de 2 mm.",
+      "title": "Morphometry Invalidated",
+      "type": "boolean"
+     },
+     "rejected": {
+      "description": "Sitios que el consenso propuso y un veto apartó, cada uno con su `veto`. Sus ids siguen a los de `candidates` (cand-00N consecutivos) y su malla existe: GET /morphometry los mide igual.",
+      "items": {
+       "$ref": "#/components/schemas/AneurysmCandidate"
+      },
+      "title": "Rejected",
+      "type": "array"
      }
     },
     "required": [
      "found"
     ],
     "title": "AneurysmDetectionResult",
+    "type": "object"
+   },
+   "Annotation": {
+    "properties": {
+     "created_at": {
+      "default": "",
+      "description": "ISO 8601; lo pone el servidor",
+      "title": "Created At",
+      "type": "string"
+     },
+     "created_by": {
+      "default": "",
+      "description": "Usuario; lo pone el servidor",
+      "title": "Created By",
+      "type": "string"
+     },
+     "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "regla",
+       "angulo",
+       "region",
+       "marcador"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "label": {
+      "maxLength": 40,
+      "title": "Label",
+      "type": "string"
+     },
+     "note": {
+      "default": "",
+      "maxLength": 500,
+      "title": "Note",
+      "type": "string"
+     },
+     "plane": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AnnotationPlane"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Corte en el que se dibujó; obligatorio en una región"
+     },
+     "points": {
+      "items": {
+       "$ref": "#/components/schemas/Position3D"
+      },
+      "maxItems": 500,
+      "title": "Points",
+      "type": "array"
+     },
+     "visible": {
+      "default": true,
+      "title": "Visible",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "id",
+     "kind",
+     "points",
+     "label"
+    ],
+    "title": "Annotation",
+    "type": "object"
+   },
+   "AnnotationPlane": {
+    "properties": {
+     "index": {
+      "description": "Corte del plano en el que se dibujó",
+      "minimum": 0.0,
+      "title": "Index",
+      "type": "integer"
+     },
+     "plane": {
+      "enum": [
+       "axial",
+       "coronal",
+       "sagital"
+      ],
+      "title": "Plane",
+      "type": "string"
+     }
+    },
+    "required": [
+     "plane",
+     "index"
+    ],
+    "title": "AnnotationPlane",
+    "type": "object"
+   },
+   "AnnotationsIn": {
+    "properties": {
+     "annotations": {
+      "items": {
+       "$ref": "#/components/schemas/Annotation"
+      },
+      "maxItems": 200,
+      "title": "Annotations",
+      "type": "array"
+     }
+    },
+    "required": [
+     "annotations"
+    ],
+    "title": "AnnotationsIn",
+    "type": "object"
+   },
+   "AnnotationsResult": {
+    "properties": {
+     "annotations": {
+      "items": {
+       "$ref": "#/components/schemas/Annotation"
+      },
+      "title": "Annotations",
+      "type": "array"
+     }
+    },
+    "required": [
+     "annotations"
+    ],
+    "title": "AnnotationsResult",
     "type": "object"
    },
    "AttachRequest": {
@@ -197,6 +362,7 @@
      },
      "username": {
       "default": "",
+      "description": "Ignored: the event is signed with the authenticated administrator's username. Kept so older clients that still send it are not rejected.",
       "title": "Username",
       "type": "string"
      }
@@ -550,6 +716,20 @@
      "file"
     ],
     "title": "Body_measure_before_import_api_clip_library_measure_post",
+    "type": "object"
+   },
+   "Body_set_user_photo_api_auth_users__user_id__photo_post": {
+    "properties": {
+     "photo": {
+      "contentMediaType": "application/octet-stream",
+      "title": "Photo",
+      "type": "string"
+     }
+    },
+    "required": [
+     "photo"
+    ],
+    "title": "Body_set_user_photo_api_auth_users__user_id__photo_post",
     "type": "object"
    },
    "Body_signup_api_auth_signup_post": {
@@ -1147,6 +1327,42 @@
     "title": "CenterlineClearResult",
     "type": "object"
    },
+   "CenterlinePoints": {
+    "description": "The resampled medial-axis points the extraction saved, for the client to walk along.",
+    "properties": {
+     "arc_mm": {
+      "description": "Cumulative arc length at each point, starting at 0 (mm)",
+      "items": {
+       "type": "number"
+      },
+      "title": "Arc Mm",
+      "type": "array"
+     },
+     "points": {
+      "description": "Centreline points (mm, volume frame), ~0.5 mm apart",
+      "items": {
+       "$ref": "#/components/schemas/Position3D"
+      },
+      "title": "Points",
+      "type": "array"
+     },
+     "radii_mm": {
+      "description": "Local vessel radius at each point (mm)",
+      "items": {
+       "type": "number"
+      },
+      "title": "Radii Mm",
+      "type": "array"
+     }
+    },
+    "required": [
+     "points",
+     "radii_mm",
+     "arc_mm"
+    ],
+    "title": "CenterlinePoints",
+    "type": "object"
+   },
    "CenterlineRequest": {
     "description": "Request to extract the medial-axis centreline between two vessel points.",
     "properties": {
@@ -1554,6 +1770,87 @@
     "title": "ClStentResult",
     "type": "object"
    },
+   "ClinicalSiteRequest": {
+    "description": "La localización del aneurisma, elegida una vez en Morfometría (F1-165).",
+    "properties": {
+     "site": {
+      "description": "Una de las localizaciones de la lista clínica (ANEURYSM_LOCATIONS).",
+      "enum": [
+       "Desconocida / No especificada",
+       "ACM — Arteria Cerebral Media",
+       "ACA / ACoA — Arteria Comunicante Anterior",
+       "ACI proximal (segm. cavernoso / clinoideo)",
+       "ACI distal (PCOM / oftálmica)",
+       "ACoP — Arteria Comunicante Posterior",
+       "Punta basilar",
+       "Tronco basilar",
+       "AICA",
+       "PICA / Vertebral",
+       "Otra localización",
+       "Basilar (punta, tronco o AICA)"
+      ],
+      "title": "Site",
+      "type": "string"
+     }
+    },
+    "required": [
+     "site"
+    ],
+    "title": "ClinicalSiteRequest",
+    "type": "object"
+   },
+   "ClinicalSiteResult": {
+    "properties": {
+     "cleared": {
+      "description": "Lo que se borró por describir otra localización. Solo puede ser «Decisión»: la recomendación, no el contexto clínico escrito a mano.",
+      "items": {
+       "type": "string"
+      },
+      "title": "Cleared",
+      "type": "array"
+     },
+     "pending": {
+      "description": "Puntuaciones sin categoría para la nueva localización: salen del informe y sus entradas se guardan aparte para recalcularlas al elegir una.",
+      "items": {
+       "type": "string"
+      },
+      "title": "Pending",
+      "type": "array"
+     },
+     "recalculated": {
+      "description": "Puntuaciones guardadas («PHASES», «ELAPSS», «UIATS») cuya categoría cambió y se volvieron a calcular con sus mismas entradas.",
+      "items": {
+       "type": "string"
+      },
+      "title": "Recalculated",
+      "type": "array"
+     },
+     "site": {
+      "description": "La localización guardada en `clinical.site`.",
+      "enum": [
+       "Desconocida / No especificada",
+       "ACM — Arteria Cerebral Media",
+       "ACA / ACoA — Arteria Comunicante Anterior",
+       "ACI proximal (segm. cavernoso / clinoideo)",
+       "ACI distal (PCOM / oftálmica)",
+       "ACoP — Arteria Comunicante Posterior",
+       "Punta basilar",
+       "Tronco basilar",
+       "AICA",
+       "PICA / Vertebral",
+       "Otra localización",
+       "Basilar (punta, tronco o AICA)"
+      ],
+      "title": "Site",
+      "type": "string"
+     }
+    },
+    "required": [
+     "site"
+    ],
+    "title": "ClinicalSiteResult",
+    "type": "object"
+   },
    "ClipAnimationResult": {
     "description": "Everything a viewer needs to play the clip going on.\n\nThree meshes rather than one: the body never moves, and each blade turns\nabout the hinge. The viewer animates actor transforms, so the geometry is\nfetched once and the motion costs nothing per frame.",
     "properties": {
@@ -1921,6 +2218,182 @@
      "detail"
     ],
     "title": "ClipCriterion",
+    "type": "object"
+   },
+   "ClipFieldClip": {
+    "description": "La fuerza de un clip frente a la ventana del cuello (cada clip se juzga solo).",
+    "properties": {
+     "force_g": {
+      "title": "Force G",
+      "type": "number"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "verdict": {
+      "description": "Veredicto de fuerza de este clip (mismo vocabulario que pressure_verdict)",
+      "title": "Verdict",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "force_g",
+     "verdict"
+    ],
+    "title": "ClipFieldClip",
+    "type": "object"
+   },
+   "ClipFieldResult": {
+    "properties": {
+     "field_mesh_url": {
+      "title": "Field Mesh Url",
+      "type": "string"
+     },
+     "scalars": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "title": "Scalars",
+      "type": "object"
+     },
+     "summary": {
+      "$ref": "#/components/schemas/ClipFieldSummary"
+     }
+    },
+    "required": [
+     "field_mesh_url",
+     "scalars",
+     "summary"
+    ],
+    "title": "ClipFieldResult",
+    "type": "object"
+   },
+   "ClipFieldSummary": {
+    "description": "Lo que el campo mide: cobertura, presión estimada y veredicto. Estimación geométrica.",
+    "properties": {
+     "clip_name": {
+      "default": "",
+      "title": "Clip Name",
+      "type": "string"
+     },
+     "clips": {
+      "items": {
+       "$ref": "#/components/schemas/ClipFieldClip"
+      },
+      "title": "Clips",
+      "type": "array"
+     },
+     "contact_area_mm2": {
+      "title": "Contact Area Mm2",
+      "type": "number"
+     },
+     "covered_pct": {
+      "title": "Covered Pct",
+      "type": "number"
+     },
+     "criteria": {
+      "items": {
+       "$ref": "#/components/schemas/ClipCriterion"
+      },
+      "title": "Criteria",
+      "type": "array"
+     },
+     "force_band_g": {
+      "description": "Banda de diseño de esa fuerza",
+      "items": {
+       "type": "number"
+      },
+      "title": "Force Band G",
+      "type": "array"
+     },
+     "force_g": {
+      "title": "Force G",
+      "type": "number"
+     },
+     "force_is_band_min": {
+      "title": "Force Is Band Min",
+      "type": "boolean"
+     },
+     "force_provisional": {
+      "title": "Force Provisional",
+      "type": "boolean"
+     },
+     "force_statement": {
+      "default": "",
+      "description": "La frase de la fuerza, la misma del dossier",
+      "title": "Force Statement",
+      "type": "string"
+     },
+     "force_target_g": {
+      "default": 0.0,
+      "description": "Fuerza objetivo del clip (0 sin ficha o con varios)",
+      "title": "Force Target G",
+      "type": "number"
+     },
+     "force_window_g": {
+      "description": "Ventana de fuerza del cuello en gramos: aceptable mín, óptima mín, óptima máx, aceptable máx",
+      "items": {
+       "type": "number"
+      },
+      "title": "Force Window G",
+      "type": "array"
+     },
+     "neck_evaluated": {
+      "default": true,
+      "description": "False si ningún vértice del cuello cae en la banda: los porcentajes no significan nada",
+      "title": "Neck Evaluated",
+      "type": "boolean"
+     },
+     "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+     },
+     "pressure_g_mm2": {
+      "title": "Pressure G Mm2",
+      "type": "number"
+     },
+     "pressure_verdict": {
+      "title": "Pressure Verdict",
+      "type": "string"
+     },
+     "residual_pct": {
+      "title": "Residual Pct",
+      "type": "number"
+     },
+     "unreached_pct": {
+      "title": "Unreached Pct",
+      "type": "number"
+     },
+     "verdict": {
+      "description": "ok | warn | fail",
+      "title": "Verdict",
+      "type": "string"
+     },
+     "window_g_mm2": {
+      "items": {
+       "type": "number"
+      },
+      "title": "Window G Mm2",
+      "type": "array"
+     }
+    },
+    "required": [
+     "covered_pct",
+     "residual_pct",
+     "unreached_pct",
+     "contact_area_mm2",
+     "force_g",
+     "force_is_band_min",
+     "force_provisional",
+     "pressure_g_mm2",
+     "window_g_mm2",
+     "pressure_verdict",
+     "verdict"
+    ],
+    "title": "ClipFieldSummary",
     "type": "object"
    },
    "ClipFitCheck": {
@@ -2292,6 +2765,12 @@
       "title": "Rejected",
       "type": "array"
      },
+     "stock_count": {
+      "default": 0,
+      "description": "Clips de INVENTARIO en el catálogo juzgado. Con 0 todo es bajo pedido: el veredicto es 'manufacture' aunque haya diseños que sirvan, y nada se llama «del inventario».",
+      "title": "Stock Count",
+      "type": "integer"
+     },
      "summary": {
       "title": "Summary",
       "type": "string"
@@ -2318,6 +2797,13 @@
       "title": "Feasible",
       "type": "boolean"
      },
+     "neck_mm": {
+      "default": 0.0,
+      "description": "Measured neck (morphometry), the montage card's first datum: a wide neck decides whether coils alone stay in the sac. 0 = not measured.",
+      "minimum": 0.0,
+      "title": "Neck Mm",
+      "type": "number"
+     },
      "note": {
       "default": "",
       "title": "Note",
@@ -2342,6 +2828,12 @@
       "default": 0.0,
       "title": "Volume Mm3",
       "type": "number"
+     },
+     "wide_neck": {
+      "default": false,
+      "description": "Neck ≥ 4 mm or dome-to-neck ratio < 2 — the same definition as the endovascular profile. When true, `note` starts with «cuello ancho: probable adyuvante».",
+      "title": "Wide Neck",
+      "type": "boolean"
      }
     },
     "title": "CoilConstructResult",
@@ -2559,6 +3051,87 @@
      "total_packing_density"
     ],
     "title": "CoilPlanResult",
+    "type": "object"
+   },
+   "CoilPreviewRequest": {
+    "description": "The montage as the operator edited it, before placing it.",
+    "properties": {
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/CoilPreviewRow"
+      },
+      "title": "Rows",
+      "type": "array"
+     }
+    },
+    "title": "CoilPreviewRequest",
+    "type": "object"
+   },
+   "CoilPreviewResult": {
+    "description": "Projected packing of the edited montage (decision nº 24).\n\nSame arithmetic as the suggestion and as POST /coils/plan — catalogue wire\nvolume over the measured sac volume — read through the same packing rule.\nNothing is placed and nothing is persisted.",
+    "properties": {
+     "durability": {
+      "default": "",
+      "title": "Durability",
+      "type": "string"
+     },
+     "meets_minimum": {
+      "default": false,
+      "title": "Meets Minimum",
+      "type": "boolean"
+     },
+     "n_coils": {
+      "default": 0,
+      "title": "N Coils",
+      "type": "integer"
+     },
+     "packing_min": {
+      "default": 0.2,
+      "title": "Packing Min",
+      "type": "number"
+     },
+     "projected_packing": {
+      "default": 0.0,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Projected Packing",
+      "type": "number"
+     },
+     "warning": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Warning"
+     }
+    },
+    "title": "CoilPreviewResult",
+    "type": "object"
+   },
+   "CoilPreviewRow": {
+    "description": "One edited row of the montage: a catalogue model and how many of it.",
+    "properties": {
+     "coil_id": {
+      "description": "Catalogue id (`CoilLibraryItem.id`)",
+      "title": "Coil Id",
+      "type": "string"
+     },
+     "count": {
+      "maximum": 30.0,
+      "minimum": 1.0,
+      "title": "Count",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "coil_id",
+     "count"
+    ],
+    "title": "CoilPreviewRow",
     "type": "object"
    },
    "ComparedCandidate": {
@@ -2895,8 +3468,14 @@
       "type": "number"
      },
      "stenosis_label": {
-      "description": "'Sin estenosis' | 'Leve' | 'Significativa'",
+      "description": "'Sin estenosis' | 'Leve' | 'Significativa' | 'Perfil irregular'",
       "title": "Stenosis Label",
+      "type": "string"
+     },
+     "stenosis_note": {
+      "default": "",
+      "description": "Why the stenosis is not graded (profile with branch jumps); '' when graded",
+      "title": "Stenosis Note",
       "type": "string"
      },
      "stenosis_pct": {
@@ -3107,11 +3686,25 @@
       "title": "Min Radius Mm",
       "type": "number"
      },
+     "n_rejected": {
+      "default": 0,
+      "description": "Sitios del consenso apartados por un veto (ver `rejected`)",
+      "title": "N Rejected",
+      "type": "integer"
+     },
      "regions_analyzed": {
       "default": 0,
       "description": "High-curvature regions examined before the shape gates",
       "title": "Regions Analyzed",
       "type": "integer"
+     },
+     "rejected_by_reason": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "description": "Cuántos descartados por cada motivo (`Veto.reason`)",
+      "title": "Rejected By Reason",
+      "type": "object"
      },
      "rejected_compactness": {
       "default": 0,
@@ -3179,6 +3772,25 @@
       "title": "Meshes Removed",
       "type": "integer"
      },
+     "placed_clips": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PlacedClipsState"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La lista editable de clips y su verificación, si se guardó (PUT /devices/{session_id}/placed-clips). Null sin clips colocados."
+     },
+     "placed_counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "description": "Cuántos dispositivos hay en el plan por familia (clips, coils, stent, stent_cl). El resumen del informe dice cuántos hay de la estrategia marcada.",
+      "title": "Placed Counts",
+      "type": "object"
+     },
      "remaining": {
       "description": "Device families that still hold a plan after the call",
       "items": {
@@ -3186,9 +3798,57 @@
       },
       "title": "Remaining",
       "type": "array"
+     },
+     "strategy": {
+      "anyOf": [
+       {
+        "enum": [
+         "clips",
+         "coils",
+         "stent",
+         "stent_cl",
+         "web"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La familia marcada como estrategia del equipo (PUT /devices/{session_id}/strategy), o null. El informe la pone en «Plan elegido» y el resto como alternativas evaluadas.",
+      "title": "Strategy"
      }
     },
     "title": "DeviceClearResult",
+    "type": "object"
+   },
+   "DeviceStrategyState": {
+    "description": "PUT /api/devices/{session_id}/strategy: la estrategia, o null para quitarla.",
+    "properties": {
+     "strategy": {
+      "anyOf": [
+       {
+        "enum": [
+         "clips",
+         "coils",
+         "stent",
+         "stent_cl",
+         "web"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "clips | coils | stent | stent_cl | web, o null.",
+      "title": "Strategy"
+     }
+    },
+    "required": [
+     "strategy"
+    ],
+    "title": "DeviceStrategyState",
     "type": "object"
    },
    "DicomSegResult": {
@@ -4043,6 +4703,18 @@
    },
    "LesionConfirmOut": {
     "properties": {
+     "candidate_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "El candidato de la lista que es la lesión ('cand-003'), también si es un descartado o el marcado a mano que se acaba de crear con el punto (F1-146); None si no hay lesión.",
+      "title": "Candidate Id"
+     },
      "candidate_rank": {
       "anyOf": [
        {
@@ -4635,6 +5307,20 @@
       "title": "Fenestration Mm",
       "type": "number"
      },
+     "force_band_g": {
+      "description": "Banda de diseño de la familia alrededor de `closing_force_g` (el objetivo)",
+      "items": {
+       "type": "number"
+      },
+      "title": "Force Band G",
+      "type": "array"
+     },
+     "force_statement": {
+      "default": "",
+      "description": "«Fuerza objetivo X g dentro de la banda de diseño…», la frase del dossier",
+      "title": "Force Statement",
+      "type": "string"
+     },
      "label": {
       "description": "One-line summary of the part to order",
       "title": "Label",
@@ -4955,7 +5641,7 @@
     "description": "Full quantitative morphometry of the selected aneurysm.\n\nMatches MorphometricResult from prospective/processing/morphometrics.py.\nAll linear values in mm; ratios are dimensionless.",
     "properties": {
      "ar": {
-      "description": "Aspect Ratio = dome_height / neck_mm  (risk ↑ if > 1.6)",
+      "description": "Aspect Ratio = dome_height / neck_mm  (moderate ≥ 1.2, high ≥ 1.6)",
       "title": "Ar",
       "type": "number"
      },
@@ -4970,7 +5656,7 @@
       "type": "number"
      },
      "bf": {
-      "description": "Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → wide neck)",
+      "description": "Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → relatively narrow neck)",
       "title": "Bf",
       "type": "number"
      },
@@ -5017,7 +5703,7 @@
       "type": "number"
      },
      "dnr": {
-      "description": "Dome-to-Neck Ratio = max_diameter / neck_mm  (risk ↑ if > 2.0)",
+      "description": "Dome-to-Neck Ratio = max_diameter / neck_mm  (moderate ≥ 1.6, high ≥ 2.0)",
       "title": "Dnr",
       "type": "number"
      },
@@ -5107,6 +5793,19 @@
       "title": "Nsi",
       "type": "number"
      },
+     "parent_artery_mm": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Parent-artery diameter estimated at the neck from the vessel tree (`morpho.parent_artery_mm`, services/parent_artery.py) — the same figure the straight-stent planner sizes against. None when it could not be measured. The device panel seeds the stent's nominal diameter from it (F1-205).",
+      "title": "Parent Artery Mm"
+     },
      "plane_normal": {
       "anyOf": [
        {
@@ -5174,6 +5873,32 @@
       "title": "Sac Mesh Url",
       "type": "string"
      },
+     "site": {
+      "anyOf": [
+       {
+        "enum": [
+         "Desconocida / No especificada",
+         "ACM — Arteria Cerebral Media",
+         "ACA / ACoA — Arteria Comunicante Anterior",
+         "ACI proximal (segm. cavernoso / clinoideo)",
+         "ACI distal (PCOM / oftálmica)",
+         "ACoP — Arteria Comunicante Posterior",
+         "Punta basilar",
+         "Tronco basilar",
+         "AICA",
+         "PICA / Vertebral",
+         "Otra localización",
+         "Basilar (punta, tronco o AICA)"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Localización del aneurisma elegida en Morfometría (`clinical.site`, PUT /morphometry/{session_id}/site). La heredan PHASES, ELAPSS, UIATS, la decisión y el informe; viaja aquí para que «Reanudar» la recupere con la medida. None si no se eligió o es «Desconocida».",
+      "title": "Site"
+     },
      "sr": {
       "default": 0.0,
       "description": "Size Ratio = max_diameter / parent_artery_diameter. 0 when parent artery not available (> 3.0 → elevated risk)",
@@ -5188,7 +5913,7 @@
      },
      "ui": {
       "default": 0.0,
-      "description": "Undulation Index = 1 − V_sac / V_convex_hull  (> 0.15 → irregular)",
+      "description": "Undulation Index = 1 − V_sac / V_convex_hull  (moderate ≥ 0.10, irregular ≥ 0.25)",
       "maximum": 1.0,
       "minimum": 0.0,
       "title": "Ui",
@@ -5300,6 +6025,19 @@
    "NeckPlaneRequest": {
     "description": "User-defined neck plane for semi-automatic closed-sac morphometry.\n\nThe user places a point on the neck and a normal pointing toward the dome.\nThe backend clips the vessel tree at this plane, keeps the dome-side\nconnected component, caps the opening into a closed watertight sac, and\nmeasures the neck directly from the plane∩tree contour.",
     "properties": {
+     "candidate_id": {
+      "anyOf": [
+       {
+        "pattern": "^cand-(\\d{3})$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Candidato al que corresponde esta medida (`cand-00N`). Se guarda como el elegido para que «Reanudar» la repita sobre él. Hace falta con un candidato marcado a mano: la morfometría automática no lo mide (no tiene malla), así que nada más lo deja elegido (F1-146).",
+      "title": "Candidate Id"
+     },
      "dome_seed": {
       "anyOf": [
        {
@@ -6105,6 +6843,11 @@
       "title": "Session Id",
       "type": "string"
      },
+     "size_bytes": {
+      "default": 0,
+      "title": "Size Bytes",
+      "type": "integer"
+     },
      "updated_at": {
       "format": "date-time",
       "title": "Updated At",
@@ -6117,6 +6860,55 @@
      "updated_at"
     ],
     "title": "PatientSessionInfo",
+    "type": "object"
+   },
+   "PatientShareOut": {
+    "description": "Una cuenta con la que está compartido un paciente.",
+    "properties": {
+     "full_name": {
+      "title": "Full Name",
+      "type": "string"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "shared_at": {
+      "format": "date-time",
+      "title": "Shared At",
+      "type": "string"
+     },
+     "user_id": {
+      "title": "User Id",
+      "type": "integer"
+     },
+     "username": {
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "user_id",
+     "username",
+     "full_name",
+     "role",
+     "shared_at"
+    ],
+    "title": "PatientShareOut",
+    "type": "object"
+   },
+   "PatientSharesIn": {
+    "description": "La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior).",
+    "properties": {
+     "user_ids": {
+      "items": {
+       "type": "integer"
+      },
+      "title": "User Ids",
+      "type": "array"
+     }
+    },
+    "title": "PatientSharesIn",
     "type": "object"
    },
    "PatientSuggestion": {
@@ -6179,9 +6971,76 @@
       "title": "Institution",
       "type": "string"
      },
+     "is_shared_with_me": {
+      "default": false,
+      "description": "Lo ve porque se lo compartieron, no porque lo creó",
+      "title": "Is Shared With Me",
+      "type": "boolean"
+     },
+     "last_case_label": {
+      "default": "",
+      "description": "Diagnóstico del caso más reciente; vacío si no hay casos",
+      "title": "Last Case Label",
+      "type": "string"
+     },
+     "last_session_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Última vez que se guardó una sesión del paciente",
+      "title": "Last Session At"
+     },
+     "last_session_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Sesión guardada más reciente, para reanudarla",
+      "title": "Last Session Id"
+     },
+     "last_session_step": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Paso en que quedó esa sesión",
+      "title": "Last Session Step"
+     },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Cuenta que creó al paciente",
+      "title": "Owner Id"
+     },
      "sex": {
       "title": "Sex",
       "type": "string"
+     },
+     "shared_with_count": {
+      "default": 0,
+      "description": "Cuentas con las que está compartido",
+      "title": "Shared With Count",
+      "type": "integer"
      },
      "study_count": {
       "default": 0,
@@ -6348,6 +7207,12 @@
      "consequence": {
       "default": "",
       "title": "Consequence",
+      "type": "string"
+     },
+     "notice": {
+      "default": "",
+      "description": "Aviso que va antes de la tarjeta. Hoy solo para la localización basilar antigua, que no dice si es punta o tronco.",
+      "title": "Notice",
       "type": "string"
      },
      "sources": {
@@ -6565,6 +7430,82 @@
      "risk_band"
     ],
     "title": "PhasesResult",
+    "type": "object"
+   },
+   "PlacedClipState": {
+    "description": "Un clip de la lista de colocación, tal como la edita el panel.\n\nEs la fila editable (posición, giro y los dos ángulos de inclinación), no\nla malla cocida: reanudar devolvía solo `clips_placed.vtp`, y sin la lista\nel clip no se podía mover, ni verificar, ni volver a pedir su mapa de calor\n(F1-28). Los nombres en camelCase son los de `PlacedClip` del frontend, que\nse guarda tal cual.",
+    "properties": {
+     "azimuthDeg": {
+      "default": 0.0,
+      "title": "Azimuthdeg",
+      "type": "number"
+     },
+     "clip_id": {
+      "title": "Clip Id",
+      "type": "string"
+     },
+     "elevationDeg": {
+      "default": 0.0,
+      "title": "Elevationdeg",
+      "type": "number"
+     },
+     "key": {
+      "description": "Clave estable del clip dentro de la lista",
+      "title": "Key",
+      "type": "integer"
+     },
+     "name": {
+      "default": "",
+      "title": "Name",
+      "type": "string"
+     },
+     "position": {
+      "description": "Centro del clip (mm, mundo)",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "title": "Position",
+      "type": "array"
+     },
+     "rotation_deg": {
+      "default": 0.0,
+      "title": "Rotation Deg",
+      "type": "number"
+     }
+    },
+    "required": [
+     "key",
+     "clip_id",
+     "position"
+    ],
+    "title": "PlacedClipState",
+    "type": "object"
+   },
+   "PlacedClipsState": {
+    "description": "La lista de clips colocados y la verificación con la que se colocó.",
+    "properties": {
+     "clips": {
+      "items": {
+       "$ref": "#/components/schemas/PlacedClipState"
+      },
+      "title": "Clips",
+      "type": "array"
+     },
+     "plan": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ClipPlanResult"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "El resultado de la última colocación de esta lista (cobertura del cuello, contacto, ramas bajo el clip). Vuelve con la sesión para que la tarjeta de verificación no exija volver a colocar."
+     }
+    },
+    "title": "PlacedClipsState",
     "type": "object"
    },
    "PlanRequest": {
@@ -6789,6 +7730,16 @@
       },
       "title": "Force Band G",
       "type": "array"
+     },
+     "force_statement": {
+      "default": "",
+      "title": "Force Statement",
+      "type": "string"
+     },
+     "force_target_g": {
+      "default": 0.0,
+      "title": "Force Target G",
+      "type": "number"
      },
      "institution": {
       "default": "",
@@ -7570,6 +8521,49 @@
     "title": "ReportResult",
     "type": "object"
    },
+   "ReportUrls": {
+    "description": "Los documentos ya generados que siguen en disco.",
+    "properties": {
+     "dicom_sr_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "DICOM SR, si existe el fichero",
+      "title": "Dicom Sr Url"
+     },
+     "pdf_current": {
+      "default": false,
+      "description": "El PDF se generó con el plan que la sesión tiene ahora. False si el plan cambió después o no se sabe con cuál se generó: hay que regenerarlo.",
+      "title": "Pdf Current",
+      "type": "boolean"
+     },
+     "pdf_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Informe PDF, si existe el fichero",
+      "title": "Pdf Url"
+     },
+     "sr_current": {
+      "default": false,
+      "description": "Lo mismo para el DICOM SR",
+      "title": "Sr Current",
+      "type": "boolean"
+     }
+    },
+    "title": "ReportUrls",
+    "type": "object"
+   },
    "ResetPasswordRequest": {
     "description": "Admin resetting someone else's password (no current password needed).",
     "properties": {
@@ -7583,6 +8577,20 @@
      "new_password"
     ],
     "title": "ResetPasswordRequest",
+    "type": "object"
+   },
+   "SavedSessionRenameIn": {
+    "description": "Nuevo nombre de una sesión guardada.",
+    "properties": {
+     "label": {
+      "title": "Label",
+      "type": "string"
+     }
+    },
+    "required": [
+     "label"
+    ],
+    "title": "SavedSessionRenameIn",
     "type": "object"
    },
    "ScissorsRequest": {
@@ -7929,6 +8937,18 @@
    "SeriesInfo": {
     "description": "Metadata returned after uploading and reading a DICOM series.",
     "properties": {
+     "acquisition_date": {
+      "default": "",
+      "description": "Acquisition date as YYYY-MM-DD (AcquisitionDate, else SeriesDate, ContentDate, StudyDate); empty when the header has none",
+      "title": "Acquisition Date",
+      "type": "string"
+     },
+     "acquisition_time": {
+      "default": "",
+      "description": "Acquisition time as HH:MM (AcquisitionTime, else SeriesTime, ContentTime); empty when absent",
+      "title": "Acquisition Time",
+      "type": "string"
+     },
      "description": {
       "description": "Series description from DICOM header",
       "title": "Description",
@@ -7966,6 +8986,12 @@
       "description": "Unique session identifier (UUID)",
       "title": "Session Id",
       "type": "string"
+     },
+     "session_ttl_hours": {
+      "default": 24.0,
+      "description": "Hours after creation at which an unsaved live session is purged (SESSION_TTL_HOURS on the server)",
+      "title": "Session Ttl Hours",
+      "type": "number"
      },
      "size_mb": {
       "description": "Estimated volume size in RAM (MB)",
@@ -8076,6 +9102,11 @@
       "title": "Session Id",
       "type": "string"
      },
+     "size_bytes": {
+      "default": 0,
+      "title": "Size Bytes",
+      "type": "integer"
+     },
      "updated_at": {
       "format": "date-time",
       "title": "Updated At",
@@ -8158,6 +9189,12 @@
       "title": "Label",
       "type": "string"
      },
+     "lesion_confirmed": {
+      "default": false,
+      "description": "Hay una confirmación de lesión vigente para esta sesión (por su estudio o por su linaje de sesiones)",
+      "title": "Lesion Confirmed",
+      "type": "boolean"
+     },
      "mesh_url": {
       "default": "",
       "description": "URL of the restored vessel mesh (empty if none)",
@@ -8200,6 +9237,28 @@
       "description": "Patient this session belongs to",
       "title": "Patient Id"
      },
+     "placed_clips": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PlacedClipsState"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La lista editable de clips colocados y su verificación"
+     },
+     "report_urls": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ReportUrls"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Enlaces al PDF y al SR ya generados, si siguen en disco"
+     },
      "restored_at": {
       "format": "date-time",
       "title": "Restored At",
@@ -8238,6 +9297,50 @@
       "description": "Human label of that case, for the breadcrumb",
       "title": "Study Label",
       "type": "string"
+     },
+     "trajectory": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TrajectoryResult"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La trayectoria guardada con su ángulo, profundidad y corredor"
+     },
+     "treatment": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TreatmentDecisionResult"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La recomendación guardada, igual que la devolvió el motor"
+     },
+     "treatment_inputs": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TreatmentDecisionRequest"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Las entradas clínicas con que se pidió (con el session_id nuevo)"
+     },
+     "window": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ViewerWindow"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Ventana y nivel de los cortes; null = la del DICOM"
      }
     },
     "required": [
@@ -8281,6 +9384,12 @@
       "description": "Optional user label for this saved session",
       "title": "Label",
       "type": "string"
+     },
+     "overwrite_origin": {
+      "default": true,
+      "description": "If this live session was resumed from a saved one and has no record of its own yet, update that saved record (it takes this session's id) instead of adding a new one. False saves it as a new session.",
+      "title": "Overwrite Origin",
+      "type": "boolean"
      },
      "patient_id": {
       "anyOf": [
@@ -8649,6 +9758,18 @@
       "title": "N Slices",
       "type": "integer"
      },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Cuenta que creó al paciente: quien puede borrar el estudio archivado",
+      "title": "Owner Id"
+     },
      "patient_id": {
       "title": "Patient Id",
       "type": "integer"
@@ -8993,6 +10114,82 @@
     "title": "SuggestedBand",
     "type": "object"
    },
+   "TeamDecision": {
+    "description": "La decisión del equipo tal como está guardada (`treatment.team_*`).",
+    "properties": {
+     "decided_by": {
+      "default": "",
+      "title": "Decided By",
+      "type": "string"
+     },
+     "other_text": {
+      "default": "",
+      "title": "Other Text",
+      "type": "string"
+     },
+     "team_decision": {
+      "anyOf": [
+       {
+        "enum": [
+         "clipaje",
+         "endovascular",
+         "vigilar",
+         "otra"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Team Decision"
+     }
+    },
+    "title": "TeamDecision",
+    "type": "object"
+   },
+   "TeamDecisionRequest": {
+    "description": "PUT /api/treatment-decision/{session_id}/team. `null` la borra.",
+    "properties": {
+     "decided_by": {
+      "default": "",
+      "description": "Quién decide (persona o comité). No se rellena con el usuario conectado: quien teclea no es necesariamente quien decide.",
+      "maxLength": 120,
+      "title": "Decided By",
+      "type": "string"
+     },
+     "other_text": {
+      "default": "",
+      "description": "Qué, cuando la decisión es «otra».",
+      "maxLength": 200,
+      "title": "Other Text",
+      "type": "string"
+     },
+     "team_decision": {
+      "anyOf": [
+       {
+        "enum": [
+         "clipaje",
+         "endovascular",
+         "vigilar",
+         "otra"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La decisión del equipo, o null para quitarla.",
+      "title": "Team Decision"
+     }
+    },
+    "required": [
+     "team_decision"
+    ],
+    "title": "TeamDecisionRequest",
+    "type": "object"
+   },
    "TrajectoryRequest": {
     "description": "Entry → target surgical approach corridor (mesh/world space, mm).",
     "properties": {
@@ -9041,6 +10238,12 @@
       },
       "title": "Entry",
       "type": "array"
+     },
+     "stale": {
+      "default": false,
+      "description": "True cuando hay malla pero el análisis guardado ya no vale: la malla cambió después de guardar la trayectoria (resegmentar, recortar, borrar) o la sesión se guardó antes de que se guardara el análisis. Los puntos siguen; hay que volver a guardar la trayectoria para medir el corredor sobre la malla de ahora.",
+      "title": "Stale",
+      "type": "boolean"
      },
      "target": {
       "items": {
@@ -9098,9 +10301,12 @@
        "ACI proximal (segm. cavernoso / clinoideo)",
        "ACI distal (PCOM / oftálmica)",
        "ACoP — Arteria Comunicante Posterior",
-       "Basilar (punta, tronco o AICA)",
+       "Punta basilar",
+       "Tronco basilar",
+       "AICA",
        "PICA / Vertebral",
-       "Otra localización"
+       "Otra localización",
+       "Basilar (punta, tronco o AICA)"
       ],
       "title": "Location",
       "type": "string"
@@ -9177,6 +10383,12 @@
        "Baja"
       ],
       "title": "Confidence",
+      "type": "string"
+     },
+     "confidence_reason": {
+      "default": "",
+      "description": "F1-177: why confidence is low — «los factores empujan en sentidos opuestos» or «faltan datos: evaluado el N % del caso». Empty when confidence is not low.",
+      "title": "Confidence Reason",
       "type": "string"
      },
      "coverage_pct": {
@@ -9267,6 +10479,17 @@
       ],
       "title": "Recommendation Key",
       "type": "string"
+     },
+     "team": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TeamDecision"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La decisión del equipo, si se ha registrado. Va aparte de la recomendación y no se borra con ella: re-evaluar o cambiar la localización tira lo del motor, no lo que decidió el equipo."
      }
     },
     "required": [
@@ -9545,6 +10768,23 @@
       "title": "Is Active",
       "type": "boolean"
      },
+     "position": {
+      "default": "",
+      "title": "Position",
+      "type": "string"
+     },
+     "rejected_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "ISO UTC; solo si la solicitud se rechazó",
+      "title": "Rejected At"
+     },
      "role": {
       "enum": [
        "admin",
@@ -9566,6 +10806,11 @@
       "title": "Status",
       "type": "string"
      },
+     "university": {
+      "default": "",
+      "title": "University",
+      "type": "string"
+     },
      "username": {
       "title": "Username",
       "type": "string"
@@ -9578,6 +10823,41 @@
      "role"
     ],
     "title": "UserAdminInfo",
+    "type": "object"
+   },
+   "UserBrief": {
+    "description": "Una cuenta activa, lo justo para elegir con quién compartir un paciente.\n\n`/users` es solo del administrador y trae el perfil entero; para compartir,\ncualquier profesional necesita ver nombre y rol de los demás, nada más.",
+    "properties": {
+     "full_name": {
+      "title": "Full Name",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "role": {
+      "enum": [
+       "admin",
+       "medico",
+       "residente",
+       "viewer"
+      ],
+      "title": "Role",
+      "type": "string"
+     },
+     "username": {
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "username",
+     "full_name",
+     "role"
+    ],
+    "title": "UserBrief",
     "type": "object"
    },
    "UserInfo": {
@@ -9653,6 +10933,17 @@
       ],
       "title": "Full Name"
      },
+     "hospital": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Hospital"
+     },
      "is_active": {
       "anyOf": [
        {
@@ -9663,6 +10954,17 @@
        }
       ],
       "title": "Is Active"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
      },
      "role": {
       "anyOf": [
@@ -9680,6 +10982,28 @@
        }
       ],
       "title": "Role"
+     },
+     "specialty": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Specialty"
+     },
+     "university": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "University"
      }
     },
     "title": "UserUpdate",
@@ -9764,6 +11088,61 @@
      "calibre_mm"
     ],
     "title": "VesselCrossingOut",
+    "type": "object"
+   },
+   "Veto": {
+    "description": "Por qué un sitio propuesto se apartó de la lista (`candidate_vetoes`).\n\nSe devuelve el motivo en vez de borrar el sitio: el veto es geométrico y\npuede equivocarse, así que el clínico tiene que poder ver lo descartado.",
+    "properties": {
+     "detail": {
+      "description": "Una frase con la cifra que lo decidió",
+      "title": "Detail",
+      "type": "string"
+     },
+     "label": {
+      "description": "Motivo legible («Recorte de la malla», …)",
+      "title": "Label",
+      "type": "string"
+     },
+     "reason": {
+      "description": "Clave estable del motivo",
+      "enum": [
+       "borde",
+       "isla",
+       "bifurcacion",
+       "forma"
+      ],
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reason",
+     "label",
+     "detail"
+    ],
+    "title": "Veto",
+    "type": "object"
+   },
+   "ViewerWindow": {
+    "description": "Ventana y nivel de los cortes, tal como los dejó el profesional.",
+    "properties": {
+     "wc": {
+      "description": "Centro de la ventana (nivel)",
+      "title": "Wc",
+      "type": "number"
+     },
+     "ww": {
+      "description": "Anchura de la ventana",
+      "exclusiveMinimum": 0.0,
+      "title": "Ww",
+      "type": "number"
+     }
+    },
+    "required": [
+     "wc",
+     "ww"
+    ],
+    "title": "ViewerWindow",
     "type": "object"
    },
    "WebOption": {
@@ -10070,8 +11449,112 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/annotations/{session_id}": {
+   "get": {
+    "operationId": "get_annotations_api_annotations__session_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AnnotationsResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Anotaciones guardadas en la sesión",
+    "tags": [
+     "annotations"
+    ]
+   },
+   "put": {
+    "description": "Guarda la lista entera. `created_by` y `created_at` los pone el servidor: los guardados si la anotación ya existía, el usuario y la hora actuales si es nueva; lo que mande el cliente se ignora. Las anotaciones que desaparecen respecto a la lista anterior quedan registradas en la auditoría (ANNOTATIONS_DELETED).",
+    "operationId": "put_annotations_api_annotations__session_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AnnotationsIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AnnotationsResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Sustituir las anotaciones de la sesión",
+    "tags": [
+     "annotations"
+    ]
+   }
+  },
   "/api/audit": {
    "post": {
+    "description": "Administrators only. The block is signed with the username of the authenticated administrator; the `username` field of the body is ignored.",
     "operationId": "append_event_api_audit_post",
     "requestBody": {
      "content": {
@@ -10120,8 +11603,26 @@
   },
   "/api/audit/blocks": {
    "get": {
-    "description": "Returns every block of the tamper-evident SkullChain audit trail, oldest first.",
+    "description": "Returns the blocks of the tamper-evident audit trail, oldest first. With `patient_id`, only the blocks of that patient (the server derives the patient hash itself; the chain never stores the id).",
     "operationId": "list_blocks_api_audit_blocks_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "patient_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Patient Id"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "content": {
@@ -10136,6 +11637,16 @@
        }
       },
       "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
      }
     },
     "security": [
@@ -10143,7 +11654,7 @@
       "HTTPBearer": []
      }
     ],
-    "summary": "List all audit-trail blocks",
+    "summary": "List audit-trail blocks",
     "tags": [
      "audit"
     ]
@@ -10634,7 +12145,31 @@
   },
   "/api/auth/users": {
    "get": {
+    "description": "`status=pending|approved|rejected` filtra por estado de la cuenta (`approved` = activas). Sin filtro devuelve todas.",
     "operationId": "list_users_api_auth_users_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "enum": [
+          "pending",
+          "approved",
+          "rejected"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "content": {
@@ -10649,6 +12184,16 @@
        }
       },
       "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
      }
     },
     "security": [
@@ -10707,6 +12252,37 @@
     ]
    }
   },
+  "/api/auth/users/brief": {
+   "get": {
+    "description": "Id, usuario, nombre y rol de las cuentas activas. Para cualquier sesión: elegir con quién compartir un paciente no es cosa solo del administrador.",
+    "operationId": "list_users_brief_api_auth_users_brief_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/UserBrief"
+         },
+         "title": "Response List Users Brief Api Auth Users Brief Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Cuentas activas, en breve (para compartir)",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
   "/api/auth/users/{user_id}": {
    "delete": {
     "operationId": "delete_user_api_auth_users__user_id__delete",
@@ -10718,6 +12294,22 @@
       "schema": {
        "title": "User Id",
        "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "reassign_to",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Reassign To"
       }
      }
     ],
@@ -10797,6 +12389,63 @@
      }
     ],
     "summary": "Update a user (admin)",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/auth/users/{user_id}/photo": {
+   "post": {
+    "operationId": "set_user_photo_api_auth_users__user_id__photo_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_set_user_photo_api_auth_users__user_id__photo_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserAdminInfo"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Replace a user's profile photo (admin)",
     "tags": [
      "auth"
     ]
@@ -11467,6 +13116,54 @@
     ]
    }
   },
+  "/api/centerline/{session_id}/points": {
+   "get": {
+    "description": "The medial-axis points `centerline_points.npz` holds, so the client can walk the vessel section by section and the calibre chart can lead to a position. 404 when no centreline was extracted; 409 when the file is unreadable or degenerate.",
+    "operationId": "get_centerline_points_api_centerline__session_id__points_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CenterlinePoints"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "The centreline points, radii and arc positions",
+    "tags": [
+     "centerline"
+    ]
+   }
+  },
   "/api/cl-stent/{session_id}": {
    "post": {
     "description": "Sweeps a stent tube along the previously-extracted centreline between two arc-length positions (parallel-transport frames + optional helical braids), following the true vessel curvature — unlike the straight neck stent. Requires that the centreline was extracted first (POST /api/centerline/{session_id}).",
@@ -11795,15 +13492,33 @@
       }
      },
      {
-      "description": "Only orders raised from this session",
+      "description": "Only orders raised from this session or from the saved sessions it was resumed from",
       "in": "query",
       "name": "session_id",
       "required": false,
       "schema": {
        "default": "",
-       "description": "Only orders raised from this session",
+       "description": "Only orders raised from this session or from the saved sessions it was resumed from",
        "title": "Session Id",
        "type": "string"
+      }
+     },
+     {
+      "description": "Also the orders of this case, whichever session raised them",
+      "in": "query",
+      "name": "case_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Also the orders of this case, whichever session raised them",
+       "title": "Case Id"
       }
      },
      {
@@ -11888,7 +13603,7 @@
   },
   "/api/clip-orders/prefill/{session_id}": {
    "get": {
-    "description": "Everything the system already knows: the advised series, bend and jaw, the measurements they came from, the family's fixed properties, and the workshops on file. The form asks the user only for what none of this can answer.\n\n`suggest_extra_sizes` is true when the neck was ESTIMATED rather than measured off a marked rim: the jaw is only as certain as the neck it was derived from, so the adjacent drawn sizes are worth having in theatre.",
+    "description": "Everything the system already knows: the advised series, bend and jaw, the measurements they came from, the family's fixed properties, and the workshops on file. The form asks the user only for what none of this can answer.\n\n`suggest_extra_sizes` is true when the neck was ESTIMATED rather than marked by hand (rim or neck point): the jaw is only as certain as the neck it was derived from, so the adjacent drawn sizes are worth having in theatre.",
     "operationId": "prefill_api_clip_orders_prefill__session_id__get",
     "parameters": [
      {
@@ -12900,6 +14615,64 @@
     ]
    }
   },
+  "/api/clips/field/{session_id}": {
+   "post": {
+    "description": "Pinta el saco y el anillo de cuello según lo que cubren las hojas y la fuerza mínima de catálogo de cada clip frente a la ventana de fuerza del cuello (manda el peor clip). Los porcentajes son del disco del cuello. No modela pared ni deformación.",
+    "operationId": "clip_field_api_clips_field__session_id__post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ClipPlanRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ClipFieldResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Mapa de calor del clip (estimación geométrica)",
+    "tags": [
+     "clips"
+    ]
+   }
+  },
   "/api/clips/manufacture/{session_id}": {
    "post": {
     "description": "Builds the specified clip as a solid and writes it to the session's exports as a binary STL, ready to send to a workshop or a printer.\n\nThe geometry is an approximation of a machined clip: correct blade length, width, height, shape class and window calibre, but no fillets and no real spring. It is a specification to manufacture FROM, not a finished part.",
@@ -13418,6 +15191,64 @@
     ]
    }
   },
+  "/api/coils/{session_id}/construct/preview": {
+   "post": {
+    "description": "Takes the montage rows as the operator edited them (model and count per row) and returns the packing they would reach in the measured sac, read through the same rule as POST /coils/plan. Nothing is placed or persisted: it lets the montage card follow every edit before «Colocar el montaje».",
+    "operationId": "preview_coil_construct_api_coils__session_id__construct_preview_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CoilPreviewRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CoilPreviewResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Projected packing of an edited coil montage",
+    "tags": [
+     "coils"
+    ]
+   }
+  },
   "/api/cross-section/{session_id}": {
    "post": {
     "description": "Cuts the vessel with planes perpendicular to the extracted centreline and measures the cross-sectional area (shoelace) at each, yielding a diameter profile and a stenosis estimate. Requires that the centreline was extracted first (POST /api/centerline/{session_id}).",
@@ -13536,6 +15367,18 @@
       "schema": {
        "title": "Session Id",
        "type": "string"
+      }
+     },
+     {
+      "description": "Devolver la última detección guardada en la sesión sin recalcular (lo usa «Reanudar»). 404 si no hay ninguna guardada o falta la malla de algún candidato: entonces hay que pedirla sin `cached`.",
+      "in": "query",
+      "name": "cached",
+      "required": false,
+      "schema": {
+       "default": false,
+       "description": "Devolver la última detección guardada en la sesión sin recalcular (lo usa «Reanudar»). 404 si no hay ninguna guardada o falta la malla de algún candidato: entonces hay que pedirla sin `cached`.",
+       "title": "Cached",
+       "type": "boolean"
       }
      }
     ],
@@ -13679,6 +15522,122 @@
      }
     ],
     "summary": "Which devices are currently placed",
+    "tags": [
+     "devices"
+    ]
+   }
+  },
+  "/api/devices/{session_id}/placed-clips": {
+   "put": {
+    "description": "Stores the clip list as the devices panel edits it (pose and tilt of each clip) together with the verification of its last placement. The panel sends it after each successful placement. GET /devices and a session restore return it, so a resumed session gets editable clips back instead of bare meshes.",
+    "operationId": "put_placed_clips_api_devices__session_id__placed_clips_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlacedClipsState"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacedClipsState"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Store the editable list of placed clips",
+    "tags": [
+     "devices"
+    ]
+   }
+  },
+  "/api/devices/{session_id}/strategy": {
+   "put": {
+    "description": "Marks which device family (clips, coils, stent, stent_cl, web) is the strategy the team chose. GET /devices and a session restore return it, and the report lists that family under «Plan elegido» and the others as evaluated alternatives. `null` removes the mark. Clearing devices does not touch it.",
+    "operationId": "put_device_strategy_api_devices__session_id__strategy_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeviceStrategyState"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DeviceStrategyState"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Mark a device family as the team's strategy",
     "tags": [
      "devices"
     ]
@@ -14136,7 +16095,7 @@
   },
   "/api/ground-truth/summary": {
    "get": {
-    "description": "Sobre las confirmaciones vigentes (una por estudio): en cuántas la lesión salió primera, entre las 3 y las 5 primeras, o no salió. Es lo que el panel de detección enseña en vez de una cifra fija.",
+    "description": "Sobre las confirmaciones vigentes, una por estudio (o por sesión si no hay estudio archivado): en cuántas la lesión salió primera, entre las 3 y las 5 primeras, o no salió. Es lo que el panel de detección enseña en vez de una cifra fija.",
     "operationId": "summary_api_ground_truth_summary_get",
     "responses": {
      "200": {
@@ -14683,7 +16642,7 @@
   },
   "/api/morphometry/{session_id}": {
    "get": {
-    "description": "Runs the full morphometric analysis on the best-scoring candidate mesh from the most recent detection run.\n\nReturns all clinical indices:\n- **DNR** (Dome-to-Neck Ratio) — risk ↑ if > 2.0\n- **AR** (Aspect Ratio) — risk ↑ if > 1.6\n- **BF** (Bottleneck Factor) — wide neck if > 1.5\n- **UI** (Undulation Index) — irregular dome if > 0.15\n- **EI** (Ellipticity Index) — non-spherical if > 0.35\n- **NSI** (Non-Sphericity Index)\n\nNeck origin is saved to session state for the perforators endpoint.\n\n**Prerequisite:** `POST /detect/{session_id}` must be called first.",
+    "description": "Runs the full morphometric analysis on the best-scoring candidate mesh from the most recent detection run.\n\nReturns all clinical indices (cuts in services/index_thresholds.py):\n- **DNR** (Dome-to-Neck Ratio) — moderate ≥ 1.6, high ≥ 2.0\n- **AR** (Aspect Ratio) — moderate ≥ 1.2, high ≥ 1.6\n- **BF** (Bottleneck Factor) — > 1.5 = relatively NARROW neck\n- **UI** (Undulation Index) — moderate ≥ 0.10, irregular ≥ 0.25\n- **EI** (Ellipticity Index) — non-spherical if ≥ 0.35\n- **site** — the location chosen in Morfometría (`clinical.site`)\n- **NSI** (Non-Sphericity Index)\n\nNeck origin is saved to session state for the perforators endpoint.\n\n**Prerequisite:** `POST /detect/{session_id}` must be called first.",
     "operationId": "get_morphometry_api_morphometry__session_id__get",
     "parameters": [
      {
@@ -14806,9 +16765,67 @@
     ]
    }
   },
+  "/api/morphometry/{session_id}/site": {
+   "put": {
+    "description": "La localización se elige UNA vez, en Morfometría, y la heredan PHASES, ELAPSS, UIATS, la decisión terapéutica, el WEB y el informe. Antes se preguntaba en cuatro sitios con cuatro listas, y dejar uno sin tocar cambiaba la cifra.\n\nAl cambiarla nada escrito a mano se pierde. Cada puntuación guardada cuya categoría cambia se vuelve a calcular con sus mismas entradas (`recalculated`); si la nueva localización no tiene categoría en esa escala, sus entradas se apartan y se recalcula al elegir una (`pending`). La decisión solo se borra si se tomó con otra localización (`cleared`); el contexto clínico (`clinical.*`) no se toca.",
+    "operationId": "set_clinical_site_api_morphometry__session_id__site_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ClinicalSiteRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ClinicalSiteResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Guardar la localización del aneurisma",
+    "tags": [
+     "detection"
+    ]
+   }
+  },
   "/api/patients": {
    "get": {
-    "description": "Returns all patient records.  When authenticated, patients are filtered to those created by the current user (or all patients for admins).  Works without authentication for development convenience.",
+    "description": "Returns all patient records.  Non-admin users see the patients they created plus the ones shared with them (admins see all). Each row says who owns it, with how many accounts it is shared and whether it is shared with the caller.",
     "operationId": "list_patients_api_patients_get",
     "responses": {
      "200": {
@@ -15117,6 +17134,118 @@
      }
     ],
     "summary": "List planning sessions done on a patient",
+    "tags": [
+     "patients"
+    ]
+   }
+  },
+  "/api/patients/{patient_id}/shares": {
+   "get": {
+    "description": "La ve cualquiera que vea al paciente (creador, compartidos y administrador).",
+    "operationId": "list_patient_shares_api_patients__patient_id__shares_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "patient_id",
+      "required": true,
+      "schema": {
+       "title": "Patient Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/PatientShareOut"
+         },
+         "title": "Response List Patient Shares Api Patients  Patient Id  Shares Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Cuentas con las que está compartido un paciente",
+    "tags": [
+     "patients"
+    ]
+   },
+   "put": {
+    "description": "Sustituye la lista entera por `user_ids`. Solo quien creó al paciente o un administrador; el creador, quien comparte y los administradores se ignoran si vienen en la lista. Una cuenta que no existe o no está activa es un 422; dos guardados a la vez, un 409. Cada cambio real deja un bloque `PATIENT_SHARED` en la auditoría (guardar la misma lista, no).",
+    "operationId": "set_patient_shares_api_patients__patient_id__shares_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "patient_id",
+      "required": true,
+      "schema": {
+       "title": "Patient Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PatientSharesIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/PatientShareOut"
+         },
+         "title": "Response Set Patient Shares Api Patients  Patient Id  Shares Put",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Fijar con qué cuentas se comparte un paciente",
     "tags": [
      "patients"
     ]
@@ -16170,7 +18299,7 @@
   },
   "/api/sessions/save": {
    "post": {
-    "description": "Persists the session's morphometry snapshot and metadata to the database. Subsequent calls update the same record (upsert on session_id). Optionally links the session to a patient and/or study record.",
+    "description": "Persists the session's morphometry snapshot and metadata to the database. Subsequent calls update the same record (upsert on session_id). A session resumed from a saved one updates that saved record (it takes the new session_id) unless `overwrite_origin` is false. Optionally links the session to a patient and/or study record.",
     "operationId": "save_session_api_sessions_save_post",
     "requestBody": {
      "content": {
@@ -16210,6 +18339,102 @@
      }
     ],
     "summary": "Save current session state to database",
+    "tags": [
+     "sessions"
+    ]
+   }
+  },
+  "/api/sessions/saved/{session_id}": {
+   "delete": {
+    "description": "Removes the saved snapshot, its repoint marker and its database row.",
+    "operationId": "delete_saved_api_sessions_saved__session_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Delete a saved session",
+    "tags": [
+     "sessions"
+    ]
+   },
+   "patch": {
+    "operationId": "rename_saved_session_api_sessions_saved__session_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SavedSessionRenameIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionListItem"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Rename a saved session",
     "tags": [
      "sessions"
     ]
@@ -16810,6 +19035,47 @@
     ]
    }
   },
+  "/api/studies/{study_id}": {
+   "delete": {
+    "description": "Borra el DICOM archivado y la vista previa de un estudio de imagen. Solo quien creó al paciente o un administrador. Las sesiones que apuntaban al estudio se desligan pero se conservan: tienen su propia copia del DICOM.",
+    "operationId": "delete_imaging_study_api_studies__study_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "study_id",
+      "required": true,
+      "schema": {
+       "title": "Study Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Delete an archived imaging study",
+    "tags": [
+     "studies"
+    ]
+   }
+  },
   "/api/studies/{study_id}/open": {
    "post": {
     "description": "Materialises the archived DICOM into a new working session, scans its series and activates the best 3-D volume — exactly as a fresh upload would — so the pipeline can start straight away. Returns the same shape as `POST /api/upload`.",
@@ -16993,7 +19259,7 @@
     ]
    },
    "get": {
-    "description": "Returns the entry/target the surgeon established, with the corridor assessment recomputed against the current mesh — or null when none was marked.\n\nIt exists because a resumed session used to come back WITHOUT it: the points were on disk and in the PDF, but the store was empty, so the viewer drew no corridor and the placement rehearsal silently fell back to its default approach. The established trajectory has to reach the rehearsal, or the video shows a manoeuvre nobody planned.",
+    "description": "Returns the entry/target the surgeon established, its depth and incidence angle, and the corridor assessment stored when it was saved (the one the report prints; recomputed only for sessions saved before it was stored) — or null when none was marked.\n\nIt exists because a resumed session used to come back WITHOUT it: the points were on disk and in the PDF, but the store was empty, so the viewer drew no corridor and the placement rehearsal silently fell back to its default approach. The established trajectory has to reach the rehearsal, or the video shows a manoeuvre nobody planned.",
     "operationId": "get_trajectory_api_trajectory__session_id__get",
     "parameters": [
      {
@@ -17210,7 +19476,7 @@
   },
   "/api/treatment-decision/{session_id}": {
    "delete": {
-    "description": "Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it and the PHASES score, so none of them reach the PDF or the DICOM SR.\n\nCalled on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent.",
+    "description": "Removes the CLIP vs ENDOVASCULAR recommendation, the clinical context recorded alongside it and the PHASES score, so none of them reach the PDF or the DICOM SR.\n\nCalled on its own from the decision step, and automatically whenever the morphometry underneath is discarded. Idempotent. The team's decision (PUT …/team) is kept: it is removed only from its own card.",
     "operationId": "clear_treatment_api_treatment_decision__session_id__delete",
     "parameters": [
      {
@@ -17253,6 +19519,156 @@
      }
     ],
     "summary": "Clear the treatment recommendation",
+    "tags": [
+     "treatment"
+    ]
+   },
+   "get": {
+    "description": "Returns the last recommendation computed in this session, exactly as POST /treatment-decision returned it, without recomputing. 404 when none was computed (or it was cleared). A resumed session needs it: without it the decision step came back empty and device planning stayed disabled.",
+    "operationId": "get_treatment_decision_api_treatment_decision__session_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TreatmentDecisionResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "The stored CLIP vs ENDOVASCULAR recommendation",
+    "tags": [
+     "treatment"
+    ]
+   }
+  },
+  "/api/treatment-decision/{session_id}/team": {
+   "get": {
+    "description": "The team's decision on its own, also when no recommendation was computed (the team can decide without the engine). `team_decision` is null when none was recorded.",
+    "operationId": "get_team_decision_api_treatment_decision__session_id__team_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TeamDecision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "The team's recorded decision",
+    "tags": [
+     "treatment"
+    ]
+   },
+   "put": {
+    "description": "What the team decided (clipaje, endovascular, vigilar u otra) and who decided it, kept apart from the engine's recommendation: the report prints it first, under «Plan elegido». It survives re-evaluating or changing the location; only clearing the decision step removes it. `team_decision: null` removes it.",
+    "operationId": "set_team_decision_api_treatment_decision__session_id__team_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TeamDecisionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TeamDecision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Record the team's decision",
     "tags": [
      "treatment"
     ]
@@ -17607,10 +20023,10 @@
     ]
    }
   },
-  "/api/volume/{session_id}/raw": {
-   "get": {
-    "description": "Returns the DICOM volume as raw uint8 bytes (C-order, z·y·x), downsampled so the largest axis is ≤ 192 and rescaled over a robust intensity window. Dimensions and spacing are returned in the X-Dims / X-Spacing headers. Consumed by the client-side vtk.js volume renderer.",
-    "operationId": "get_volume_raw_api_volume__session_id__raw_get",
+  "/api/volume/{session_id}/window": {
+   "put": {
+    "description": "El visor la manda al soltar un arrastre de ventana/nivel (con un rebote de 500 ms). Viaja con la sesión guardada y vuelve al reanudar: antes se volvía siempre a la ventana por defecto del DICOM.",
+    "operationId": "put_window_api_volume__session_id__window_put",
     "parameters": [
      {
       "in": "path",
@@ -17622,10 +20038,24 @@
       }
      }
     ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ViewerWindow"
+       }
+      }
+     },
+     "required": true
+    },
     "responses": {
      "200": {
       "content": {
-       "application/octet-stream": {}
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ViewerWindow"
+        }
+       }
       },
       "description": "Successful Response"
      },
@@ -17645,7 +20075,7 @@
       "HTTPBearer": []
      }
     ],
-    "summary": "Get the downsampled volume as raw uint8 for 3D volume rendering",
+    "summary": "Guardar la ventana y el nivel de los cortes",
     "tags": [
      "mpr"
     ]

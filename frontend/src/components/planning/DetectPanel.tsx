@@ -1,9 +1,10 @@
 /* Paso 3 — Detección de candidatos. POST /api/detect/{session}. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
@@ -12,6 +13,17 @@ import { SegmentProgress } from "../segmentation/SegmentProgress";
 import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
+import {
+  ALL_REJECTED, DETECT_LINES, DETECT_MORE, MANUAL_BADGE, MORPHO_INVALIDATED, isManual,
+  rankLabel, rejectedSummary, thicknessLabel, vetoHint,
+} from "./detectCopy";
+import { canAdvanceFromDetect } from "./detectGate";
+
+/** Número de la última detección pedida. De módulo y no del componente: si el
+ *  panel se desmonta y se vuelve a montar con una detección en vuelo, la
+ *  respuesta vieja llegaría después y pisaría la nueva en el store. Solo la
+ *  respuesta de la última petición escribe. */
+let detectSeq = 0;
 
 /** Turn the rejection counts into the one sentence that matters.
  *
@@ -57,31 +69,59 @@ function explainEmpty(d: DetectionDiagnostics): { reason: string; advice: string
 
 export function DetectPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
-  const { sessionId, candidates, selectedCandidate } = planning;
+  const {
+    sessionId, candidates, rejectedCandidates, allCandidates, selectedCandidate,
+    morphoInvalidatedNotice,
+  } = planning;
   const [busy, setBusy] = useState(false);
   // Medio minuto en una malla real: la fase que va (curvatura, calibre y
   // cociente, regiones) en vez de una barra muda.
   const progress = useProgress(sessionId, busy);
   const [error, setError] = useState<string | null>(null);
-  const [ran, setRan] = useState(candidates.length > 0);
+  // Con solo descartados también hubo detección: no se repite al volver.
+  const [ran, setRan] = useState(allCandidates.length > 0);
   const [clearing, setClearing] = useState(false);
+  const [askingClear, setAskingClear] = useState(false);
   const [diag, setDiag] = useState<DetectionDiagnostics | null>(null);
+  // Los descartados empiezan plegados: están para poder discrepar del
+  // detector, no para recorrerlos primero.
+  const [showRejected, setShowRejected] = useState(false);
+  // F1-142: la explicación larga va plegada detrás de «Más».
+  const [showMore, setShowMore] = useState(false);
+  // «encontrados» es lo que encontró el detector: un punto marcado a mano y
+  // confirmado (F1-146) está en la lista, pero no lo encontró él.
+  const found = candidates.filter((c) => !isManual(c)).length;
+  // Índice combinado: los descartados van detrás de los aceptados.
+  const selectedRejected = selectedCandidate >= candidates.length
+    ? rejectedCandidates[selectedCandidate - candidates.length] ?? null
+    : null;
 
   const run = async () => {
     if (!sessionId) return;
+    const seq = ++detectSeq;
     setBusy(true);
     setError(null);
     try {
       const res = await api.detect(sessionId);
+      if (seq !== detectSeq) return;
+      const rejected = res.rejected ?? [];
       planning.setCandidates(res.candidates);
+      planning.setRejectedCandidates(rejected);
       planning.setSelectedCandidate(0);
+      // El backend ya borró la medida; el store tiene que olvidarla también.
+      // `setSelectedCandidate(0)` solo lo hace si el índice cambia.
+      if (res.morphometry_invalidated === true) planning.clearMorphometry();
+      planning.setMorphoInvalidatedNotice(res.morphometry_invalidated === true);
       setRan(true);
       setDiag(res.diagnostics ?? null);
-      if (!res.found) setError("No se encontraron candidatos aneurismáticos en la malla.");
+      if (!res.found && rejected.length === 0) {
+        setError("No se encontraron candidatos aneurismáticos en la malla.");
+      }
     } catch (err) {
+      if (seq !== detectSeq) return;
       setError(err instanceof Error ? err.message : "Error en la detección");
     } finally {
-      setBusy(false);
+      if (seq === detectSeq) setBusy(false);
     }
   };
 
@@ -96,10 +136,12 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     try {
       await api.clearDetection(sessionId);
       planning.setCandidates([]);
+      planning.setRejectedCandidates([]);
       planning.setSelectedCandidate(0);
       planning.setMorphometry(null);
       planning.setTreatment(null);
       setDiag(null);
+      planning.setMorphoInvalidatedNotice(false);
       setRan(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron limpiar los candidatos");
@@ -108,8 +150,14 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
     }
   };
 
-  // Run automatically the first time the step opens.
+  // Run automatically the first time the step opens. Once per mount: StrictMode
+  // runs mount effects twice, and two concurrent detections on one session
+  // race on the server (the second can read the first's half-cleared state and
+  // wrongly invalidate the morphometry).
+  const autoRan = useRef(false);
   useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
     if (!ran && sessionId && !busy) void run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -119,14 +167,18 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       <PanelHead
         title="Candidatos detectados"
         desc="Zonas de la vasculatura que merece la pena mirar, en una lista corta para recorrer."
-        right={ran && <Badge variant="subtle">{candidates.length} encontrados</Badge>}
+        right={ran && <Badge variant="subtle">{found} encontrados</Badge>}
       />
 
       {busy && (
         <div style={{ marginBottom: 14 }}>
           {progress === CONNECTION_LOST
             ? <ProgressBar />
-            : <SegmentProgress state={progress} slowNote="El servidor tarda: en una malla grande la detección pasa del minuto." />}
+            : <SegmentProgress
+                state={progress}
+                headline="Detectando… suele tardar alrededor de un minuto"
+                slowNote="El servidor tarda: en una malla grande la detección pasa del minuto."
+              />}
         </div>
       )}
 
@@ -147,29 +199,36 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         </div>
       )}
 
+      {/* F1-142: tres párrafos delante de la lista, con una cifra fija («los
+          dos casos con diagnóstico») que ya no era verdad. Tres líneas y el
+          resto plegado; la cifra viva la da «¿Cuál es la lesión?». */}
       {ran && candidates.length > 1 && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
-          Tres criterios buscan por separado: <b>curvatura</b> (la superficie se abomba),{" "}
-          <b>calibre</b> (más gruesa que el resto de la vasculatura) y <b>cociente</b> (más gruesa
-          que el vaso de al lado). Cada candidato dice cuáles lo encontraron.
-          <br />
-          Es una <b>lista para recorrer, no un veredicto</b>: el orden no está validado
-          contra casos anotados. En los dos casos con diagnóstico que tenemos la lesión
-          la encontró un criterio distinto en cada uno —en uno la curvatura, en el otro
-          el cociente—, así que ningún criterio basta por sí solo.
-          <br />
-          <b>Lo que se pinta de azul no es el saco.</b> Cuando lo encontró la curvatura
-          es la región detectada; cuando lo encontró el calibre es una bola alrededor del
-          punto, que incluye pared de vaso — señala dónde mirar. El diámetro es una
-          estimación del grosor ahí. <b>La medida real la da Morfometría</b>, marcando el
-          cuello y el ápice: se vuelve a aislar el saco desde el volumen, así que nada de
-          esto altera los números.
+        <div role="note" aria-label="Cómo leer la lista"
+             style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+          <ul style={{ margin: 0, paddingLeft: 16 }}>
+            {DETECT_LINES.map((t) => <li key={t}>{t}</li>)}
+          </ul>
+          {showMore && DETECT_MORE.map((t) => <p key={t} style={{ margin: "6px 0 0" }}>{t}</p>)}
+          <button
+            type="button"
+            aria-expanded={showMore}
+            onClick={() => setShowMore((v) => !v)}
+            style={{
+              background: "none", border: "none", padding: "4px 0 0", cursor: "pointer",
+              fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
+            }}
+          >
+            {showMore ? "Menos" : "Más"}
+          </button>
         </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {candidates.map((c, i) => {
           const on = selectedCandidate === i;
+          const rank = c.rank ?? i + 1;
+          // Un punto marcado a mano no tiene grosor medido ni puesto del detector.
+          const manual = isManual(c);
           return (
             <div
               key={c.id}
@@ -185,54 +244,150 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{c.id}</span>
-                {/* Antes decía «Principal» en verde. Con 38 % de confianza eso
-                    afirma más de lo que el dato sostiene, y en el único caso con
-                    diagnóstico médico el primero era el equivocado. Un número de
-                    orden dice lo mismo sin prometer nada. */}
-                <Badge variant="subtle">{`#${i + 1}`}</Badge>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}
-                {(c.channels ?? []).map((ch) => (
-                  <Badge key={ch} variant={ch === "curvatura" ? "subtle" : "success"}>
-                    {ch}
-                  </Badge>
-                ))}
-                {c.confidence < 0.5 && <Badge variant="warning">Baja confianza</Badge>}
+                {manual
+                  ? <Badge variant="subtle">{MANUAL_BADGE}</Badge>
+                  : (c.channels ?? []).map((ch) => (
+                    <Badge key={ch} variant={ch === "curvatura" ? "subtle" : "success"}>
+                      {ch}
+                    </Badge>
+                  ))}
+                {/* Decisión nº 20 (F1-144): sin «Puesto bajo». «Puesto #4» ya
+                    dice el orden, y la marca juzgaba con un orden que no está
+                    validado. */}
                 <div style={{ flex: 1 }} />
                 {on && <Icon name="STATUS_OK" size={15} color="var(--brand-deep)" />}
               </div>
               <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                  Ø{" "}
-                  <b style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
-                    {c.max_diameter_mm.toFixed(1)} mm
-                  </b>
-                  {" "}est.
-                </span>
+                {/* F1-143: «Ø 3.7 mm est.» se leía como el diámetro del
+                    aneurisma; es el grosor estimado en ese punto. */}
+                {!manual && (
+                  <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                    {thicknessLabel(c.max_diameter_mm)}
+                  </span>
+                )}
                 {c.patch_kind === "locator" && (
                   <span style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
                     azul = dónde, no el saco
                   </span>
                 )}
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)", flex: 1 }}>Confianza</span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)" }}>
-                  {(c.confidence * 100).toFixed(0)}%
-                </span>
+                <span style={{ flex: 1 }} />
+                {/* Antes decía «Principal» y luego un porcentaje de confianza.
+                    Ese número afirmaba más de lo que el dato sostiene, y en el
+                    único caso con diagnóstico médico el primero era el
+                    equivocado. El puesto dice el orden sin prometer nada; la
+                    barra sigue dando la puntuación relativa. */}
+                {!manual && (
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)", whiteSpace: "nowrap" }}>
+                    {rankLabel(rank)}
+                  </span>
+                )}
               </div>
-              <div style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${c.confidence * 100}%`, background: c.confidence < 0.5 ? "var(--warning)" : "var(--primary)" }} />
-              </div>
+              {!manual && (
+                <div style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${c.confidence * 100}%`, background: "var(--primary)" }} />
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
+      {rejectedCandidates.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            aria-expanded={showRejected}
+            onClick={() => setShowRejected((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, width: "100%",
+              background: "none", border: "none", padding: "4px 0", cursor: "pointer",
+              fontSize: 12, fontWeight: 700, color: "var(--muted-foreground)", textAlign: "left",
+            }}
+          >
+            <span aria-hidden style={{ display: "inline-block", width: 10 }}>{showRejected ? "▾" : "▸"}</span>
+            {rejectedSummary(rejectedCandidates.length)}
+          </button>
+          {showRejected && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                El detector los apartó por un criterio geométrico. Se listan para poder
+                discrepar: elegir uno lo pinta en el 3D.
+              </div>
+              {rejectedCandidates.map((c, i) => {
+                const idx = candidates.length + i;
+                const on = selectedCandidate === idx;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => planning.setSelectedCandidate(idx)}
+                    style={{
+                      cursor: "pointer",
+                      border: `1px ${on ? "solid var(--warning)" : "dashed var(--border)"}`,
+                      background: on ? "var(--warning-bg)" : "transparent",
+                      borderRadius: "var(--radius-md)",
+                      padding: "8px 12px",
+                      transition: "all var(--dur-fast) var(--ease-out)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
+                      <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                        {thicknessLabel(c.max_diameter_mm)}
+                      </span>
+                      <div style={{ flex: 1 }} />
+                      {c.veto && (
+                        <span title={c.veto.detail}>
+                          <Badge variant="warning">{c.veto.label}</Badge>
+                        </span>
+                      )}
+                      {on && <Icon name="STATUS_OK" size={15} color="var(--warning)" />}
+                    </div>
+                    {on && (
+                      <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 6 }}>
+                        {vetoHint(c.veto?.label)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Si el elegido es un descartado con el desplegable cerrado, la
+          advertencia no puede quedarse escondida dentro. */}
+      {selectedRejected && !showRejected && (
+        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8 }}>
+          {selectedRejected.id}: {vetoHint(selectedRejected.veto?.label)}
+        </div>
+      )}
+
+      {morphoInvalidatedNotice && (
+        <div role="status" style={{
+          marginTop: 10, padding: "8px 12px", borderRadius: "var(--radius-md)",
+          border: "1px solid var(--warning)", background: "var(--warning-bg)",
+          fontSize: 12, color: "var(--warning)",
+        }}>
+          {MORPHO_INVALIDATED}
+        </div>
+      )}
+
       <ErrorNote>{error}</ErrorNote>
+
+      {/* Todo vetado no es un vacío: hay sitios, y se pueden elegir y medir. */}
+      {ran && !busy && candidates.length === 0 && rejectedCandidates.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 10 }}>
+          {ALL_REJECTED}
+        </div>
+      )}
 
       {ran && !busy && <LesionConfirm />}
 
       {/* An empty result is a finding, not a failure — but only if it says why. */}
-      {ran && !busy && candidates.length === 0 && diag && (() => {
+      {ran && !busy && allCandidates.length === 0 && diag && (() => {
         const { reason, advice } = explainEmpty(diag);
         return (
           <div style={{
@@ -262,23 +417,35 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         <Button
           style={{ flex: 1 }}
           onClick={onNext}
-          disabled={candidates.length === 0}
+          disabled={!canAdvanceFromDetect(candidates, rejectedCandidates)}
           trailingIcon={<Icon name="STEP_MORPHO" />}
         >
           Analizar morfometría
         </Button>
       </div>
-      {(candidates.length > 0 || ran) && (
+      {(allCandidates.length > 0 || ran) && (
         <Button
           variant="ghost"
           style={{ marginTop: 8, width: "100%" }}
           disabled={busy || clearing || !sessionId}
-          onClick={() => void clear()}
+          onClick={() => setAskingClear(true)}
           leadingIcon={<Icon name="CLEAR" size={14} />}
         >
           {clearing ? "Limpiando…" : "Limpiar candidatos y morfometría"}
         </Button>
       )}
+      {/* F1-12: limpiar se llevaba la medida, el cuello marcado a mano y la
+          recomendación al primer clic, sin forma de recuperarlos. */}
+      <ConfirmDialog
+        open={askingClear}
+        title="¿Limpiar candidatos y morfometría?"
+        confirmLabel="Limpiar"
+        destructive
+        onCancel={() => setAskingClear(false)}
+        onConfirm={() => { setAskingClear(false); void clear(); }}
+      >
+        Se pierden los candidatos, la medida, el cuello marcado y la recomendación de tratamiento.
+      </ConfirmDialog>
     </div>
   );
 }

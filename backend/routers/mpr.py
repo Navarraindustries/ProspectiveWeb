@@ -6,17 +6,23 @@ import gzip
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from sqlalchemy.orm import Session
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from services.mpr import (
-    ensure_volume_cached, render_slice_png, render_oblique_png, get_volume_raw_uint8,
+    ensure_volume_cached, render_slice_png, render_oblique_png,
     volume_chunk_int16, volume_coarse_int16,
 )
-from services.sessions import session_exists, write_state
+from models.session_state import ViewerWindow
+from services.access import require_session
+from services.auth_service import get_current_user
+from services.database import get_db
+from services.db_models import User
+from services.sessions import read_state, session_exists, write_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["mpr"])
@@ -72,39 +78,41 @@ async def put_orientation(session_id: str, body: ManualOrientation) -> dict:
         raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
 
 
-@router.get(
-    "/volume/{session_id}/raw",
-    summary="Get the downsampled volume as raw uint8 for 3D volume rendering",
+@router.put(
+    "/volume/{session_id}/window",
+    response_model=ViewerWindow,
+    summary="Guardar la ventana y el nivel de los cortes",
     description=(
-        "Returns the DICOM volume as raw uint8 bytes (C-order, z·y·x), downsampled "
-        "so the largest axis is ≤ 192 and rescaled over a robust intensity window. "
-        "Dimensions and spacing are returned in the X-Dims / X-Spacing headers. "
-        "Consumed by the client-side vtk.js volume renderer."
+        "El visor la manda al soltar un arrastre de ventana/nivel (con un rebote "
+        "de 500 ms). Viaja con la sesión guardada y vuelve al reanudar: antes se "
+        "volvía siempre a la ventana por defecto del DICOM."
     ),
-    response_class=Response,
-    responses={200: {"content": {"application/octet-stream": {}}}},
 )
-async def get_volume_raw(session_id: str) -> Response:
+async def put_window(
+    session_id: str,
+    body: ViewerWindow,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> ViewerWindow:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-    loop = asyncio.get_event_loop()
+    # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
+    require_session(db, current_user, session_id)
+    write_state(session_id, "viewer.wc", repr(float(body.wc)))
+    write_state(session_id, "viewer.ww", repr(float(body.ww)))
+    return body
+
+
+def stored_window(session_id: str) -> ViewerWindow | None:
+    """La ventana guardada con la sesión, o None si nunca se tocó."""
     try:
-        data, dims, spacing = await loop.run_in_executor(
-            _executor, partial(get_volume_raw_uint8, session_id)
-        )
-    except Exception as exc:
-        logger.error("Volume raw failed for %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
-    return Response(
-        content=data,
-        media_type="application/octet-stream",
-        headers={
-            "X-Dims": ",".join(str(d) for d in dims),
-            "X-Spacing": ",".join(f"{s:.5f}" for s in spacing),
-            "Access-Control-Expose-Headers": "X-Dims, X-Spacing",
-            "Cache-Control": "public, max-age=3600",
-        },
-    )
+        wc = float(read_state(session_id, "viewer.wc", "") or "nan")
+        ww = float(read_state(session_id, "viewer.ww", "") or "nan")
+    except ValueError:
+        return None
+    if wc != wc or ww != ww or ww <= 0:          # NaN: no hay ventana guardada
+        return None
+    return ViewerWindow(wc=wc, ww=ww)
 
 
 @router.get(

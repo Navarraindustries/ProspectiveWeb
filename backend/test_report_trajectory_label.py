@@ -1,0 +1,98 @@
+"""El informe dice respecto a qué eje se midió el ángulo del corredor: el del
+aneurisma si la morfometría lo guardó, el vertical del estudio si no (spec §4.1).
+Las dos frases son las del panel (angleReferenceLabel en el frontend)."""
+from __future__ import annotations
+
+import os
+import tempfile
+
+_tmp = tempfile.mkdtemp(prefix="prospective_traj_label_")
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
+os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
+
+from services.database import Base, engine
+from services.sessions import create_session, write_state
+from services.report_generator import (
+    ReportGenerator, build_report_data_from_session, read_trajectory_state,
+)
+
+Base.metadata.create_all(bind=engine)
+
+ANEURISMA = "Ángulo respecto al eje del aneurisma"
+VERTICAL = "Ángulo respecto al eje vertical del estudio (sin eje del aneurisma medido)"
+
+
+def _session(axis: tuple[str, str, str] | None) -> str:
+    sid = create_session()
+    for k, v in zip("xyz", (0, 0, 0)):
+        write_state(sid, f"trajectory.entry_{k}", str(v))
+    for k, v in zip("xyz", (0, 0, 10)):
+        write_state(sid, f"trajectory.target_{k}", str(v))
+    if axis is not None:
+        for k, v in zip("xyz", axis):
+            write_state(sid, f"morpho.axis_{k}", v)
+    return sid
+
+
+def _label_row(sid: str) -> list[str]:
+    # La sección se construye sin renderizar el PDF: basta leer la tabla.
+    gen = ReportGenerator(build_report_data_from_session(sid))
+    tables = [e for e in gen._section_trajectory() if hasattr(e, "_cellvalues")]
+    return [row[0] for row in tables[0]._cellvalues if str(row[0]).startswith("Ángulo")]
+
+
+def test_con_eje_medido_la_referencia_es_el_aneurisma():
+    sid = _session(("1", "0", "0"))
+    assert read_trajectory_state(sid)["angle_ref"] == "aneurisma"
+    assert _label_row(sid) == [ANEURISMA]
+
+
+def test_sin_eje_la_referencia_es_el_eje_vertical():
+    sid = _session(None)
+    assert read_trajectory_state(sid)["angle_ref"] == "vertical"
+    assert _label_row(sid) == [VERTICAL]
+
+
+def test_eje_nulo_cuenta_como_sin_eje():
+    sid = _session(("0", "0", "0"))
+    assert read_trajectory_state(sid)["angle_ref"] == "vertical"
+    assert _label_row(sid) == [VERTICAL]
+
+
+def test_pca_fallido_cuenta_como_sin_eje():
+    # Lo que escribe detect.py cuando principal_axis es None: el (0,0,1) de
+    # reserva (lo leen clips, coils y plan) con la marca de no medido.
+    sid = _session(("0.0", "0.0", "1.0"))
+    write_state(sid, "morpho.axis_measured", "0")
+    assert read_trajectory_state(sid)["angle_ref"] == "vertical"
+    assert _label_row(sid) == [VERTICAL]
+
+
+def test_eje_medido_con_marca_es_el_aneurisma():
+    sid = _session(("1", "0", "0"))
+    write_state(sid, "morpho.axis_measured", "1")
+    assert read_trajectory_state(sid)["angle_ref"] == "aneurisma"
+
+
+def test_el_pdf_de_una_sesion_con_decision_del_equipo_la_pone_primero():
+    """F1-176/F1-236, de punta a punta: lo guardado en la sesión llega al PDF,
+    con «Plan elegido» delante del corredor y de la recomendación."""
+    sid = _session(("1", "0", "0"))
+    write_state(sid, "treatment.team_decision", "clipaje")
+    write_state(sid, "treatment.decided_by", "Comité neurovascular")
+    gen = ReportGenerator(build_report_data_from_session(sid))
+    textos = [f.text for f in gen._build_story() if hasattr(f, "text")]
+    plan = textos.index("Plan elegido")
+    assert "Comité neurovascular" in textos[plan + 1]
+    assert any(t.startswith("Trayectoria") or "corredor" in t.lower() for t in textos[plan:])
+
+
+def test_el_pdf_dice_distancia_entrada_diana():
+    """F1-186: «Profundidad de abordaje» se leía como la profundidad del campo
+    quirúrgico; es la recta entre la entrada y la diana marcadas."""
+    sid = _session(("1", "0", "0"))
+    gen = ReportGenerator(build_report_data_from_session(sid))
+    tables = [e for e in gen._section_trajectory() if hasattr(e, "_cellvalues")]
+    rotulos = [str(row[0]) for row in tables[0]._cellvalues]
+    assert "Distancia entrada–diana" in rotulos
+    assert not any("Profundidad" in r for r in rotulos)

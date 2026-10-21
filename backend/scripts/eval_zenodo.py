@@ -54,7 +54,7 @@ from scripts.ingest_zenodo import (
     patient_to_mesh,
     study_ids,
 )
-from services.hu_floor import HU_BALL_MM, hu_stats  # noqa: F401  (los usan otros scripts)
+from services.hu_floor import HU_BALL_MM, hu_stats  # los usan otros scripts
 
 logger = logging.getLogger("eval_zenodo")
 
@@ -305,12 +305,7 @@ def detect_long(poly, modality: str = "CT", top: int = LONG_LIST, overrides=None
     det = build_detector(modality, overrides)
     det.trace_regions = True
     det.max_candidates = max(det.max_candidates, top)
-    old = rd._MAX_CANDIDATES
-    rd._MAX_CANDIDATES = top
-    try:
-        return rd._detect_hits(poly, modality, det, volume=volume)
-    finally:
-        rd._MAX_CANDIDATES = old
+    return rd._detect_hits(poly, modality, det, top=top, volume=volume)
 
 
 def detection_status(det) -> str:

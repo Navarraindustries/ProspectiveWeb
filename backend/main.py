@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from services.sessions import InvalidSessionId
@@ -31,6 +34,7 @@ from routers import (
     report, session_state, mpr, phases, centerline, audit,
     mesh_edit, print_prep, preprocess, studies, devices, clip_library,
     clip_orders, progress, captures, ground_truth, attach, followup,
+    annotations,
 )
 
 logger = logging.getLogger(__name__)
@@ -192,6 +196,28 @@ async def invalid_session_id(_request: Request, exc: InvalidSessionId):
     return JSONResponse({"detail": str(exc)}, status_code=404)
 
 
+def _finitos(x):
+    """Cambia NaN/Infinity por su texto, en cualquier profundidad."""
+    if isinstance(x, float) and not math.isfinite(x):
+        return str(x)
+    if isinstance(x, dict):
+        return {k: _finitos(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_finitos(v) for v in x]
+    return x
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request: Request, exc: RequestValidationError):
+    """El 422 de siempre, pero sin reventar con NaN.
+
+    WHY: el JSON de Python acepta NaN e Infinity en la entrada, y el 422 por
+    defecto repite la entrada en `detail`; al serializarlo (allow_nan=False)
+    lanzaba y el cliente recibía un 500 en lugar del error de validación.
+    """
+    return JSONResponse({"detail": _finitos(jsonable_encoder(exc.errors()))}, status_code=422)
+
+
 @app.middleware("http")
 async def guard_csrf(request: Request, call_next):
     """Doble envío para lo que se autentica por cookie (services/csrf.py)."""
@@ -247,6 +273,18 @@ app.mount(
     StaticFiles(directory="static", html=False),
     name="static",
 )
+# /data/sessions sigue la raíz configurable (PROSPECTIVE_SESSIONS_ROOT): con la
+# montura relativa "data" las pruebas creaban sesiones en una carpeta temporal
+# y sus descargas daban 404; y una raíz de producción movida a otro disco
+# rompería las descargas igual. Va ANTES de la montura genérica de /data. El
+# guardián guard_private_static analiza la ruta URL, no el disco, y no cambia.
+from services.sessions import SESSIONS_ROOT  # noqa: E402
+SESSIONS_ROOT.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/data/sessions",
+    StaticFiles(directory=str(SESSIONS_ROOT), html=False),
+    name="data_sessions",
+)
 app.mount(
     "/data",
     StaticFiles(directory="data", html=False),
@@ -296,6 +334,7 @@ app.include_router(progress.router,      dependencies=_private)
 app.include_router(ground_truth.router,  dependencies=_private)
 app.include_router(attach.router,        dependencies=_private)
 app.include_router(followup.router,      dependencies=_private)
+app.include_router(annotations.router,   dependencies=_private)
 # El WebSocket no lleva la dependencia de arriba: un navegador no puede mandar
 # la cabecera Authorization en el handshake de un WS, así que el token viaja
 # en la query y `ws_progress` lo valida él mismo con `user_for_token`.

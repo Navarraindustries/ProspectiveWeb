@@ -110,6 +110,29 @@ class TestOtroProfesional:
         assert b.get(f"/api/ground-truth/current?imaging_study_id={ids['img']}").status_code == 403
 
 
+class TestFichaAjena:
+    """F1-33/F1-34: la ficha, los casos y las sesiones de un paciente ajeno se
+    abrían con solo poner su id en la URL; editar y borrar sí estaban cerrados."""
+
+    def test_no_abre_su_ficha(self, caso):
+        a, b, ids = caso
+        r = b.get(f"/api/patients/{ids['patient']}")
+        assert r.status_code == 403
+        assert r.json()["detail"] == "No autorizado sobre este paciente."
+        assert a.get(f"/api/patients/{ids['patient']}").status_code == 200
+
+    def test_no_ve_sus_casos(self, caso):
+        a, b, ids = caso
+        assert b.get(f"/api/patients/{ids['patient']}/studies").status_code == 403
+        assert a.get(f"/api/patients/{ids['patient']}/studies").status_code == 200
+
+    def test_no_ve_sus_sesiones(self, caso):
+        a, b, ids = caso
+        assert b.get(f"/api/patients/{ids['patient']}/sessions").status_code == 403
+        assert a.get(f"/api/patients/{ids['patient']}/sessions").status_code == 200
+        assert admin.get(f"/api/patients/{ids['patient']}/sessions").status_code == 200
+
+
 class TestDataNoEsUnaCarpetaPublica:
     @pytest.mark.parametrize("ruta", [
         "/data/prospective.db", "/data/prospective.db-wal", "/data/audit/chain.db",
@@ -127,3 +150,92 @@ class TestDataNoEsUnaCarpetaPublica:
 
     def test_sin_credenciales_sigue_siendo_401(self):
         assert anonymous_client(app).get("/data/prospective.db").status_code == 401
+
+
+class TestRutasDeReanudar:
+    """Las rutas nuevas de la familia S escriben y leen el trabajo de una sesión
+    ligada a un paciente: solo quien ve a ese paciente."""
+
+    _CLIPS = {"clips": [{"key": 1, "clip_id": "c1", "name": "C", "position": [0, 0, 0],
+                         "rotation_deg": 0, "azimuthDeg": 0, "elevationDeg": 0}], "plan": None}
+
+    def test_otro_profesional_no_escribe_clips_ni_ventana_ni_lee_la_decision(self, caso):
+        _a, b, ids = caso
+        sid = ids["sid"]
+        assert b.put(f"/api/devices/{sid}/placed-clips", json=self._CLIPS).status_code == 403
+        assert b.put(f"/api/volume/{sid}/window", json={"wc": 40, "ww": 400}).status_code == 403
+        assert b.get(f"/api/treatment-decision/{sid}").status_code == 403
+
+    def test_el_dueno_si(self, caso):
+        a, _b, ids = caso
+        sid = ids["sid"]
+        assert a.put(f"/api/devices/{sid}/placed-clips", json=self._CLIPS).status_code == 200
+        assert a.put(f"/api/volume/{sid}/window", json={"wc": 40, "ww": 400}).status_code == 200
+        assert a.post("/api/treatment-decision", json={"session_id": sid}).status_code == 200
+        assert a.get(f"/api/treatment-decision/{sid}").status_code == 200
+
+
+@pytest.fixture(scope="module")
+def compartido(caso):
+    """El paciente de A compartido con C; D es un tercero sin invitación."""
+    from services import clip_orders as store
+    a, _b, ids = caso
+    c_id, c = _medico()
+    _d_id, d = _medico()
+    r = a.put(f"/api/patients/{ids['patient']}/shares", json={"user_ids": [c_id]})
+    assert r.status_code == 200
+    o = store.create_order(
+        session_id=ids["sid"], case_id=ids["case"], patient="DeA", case_label="Caso de A",
+        patient_id=ids["patient"], requested_by="otra", requested_by_name="otra", institution="",
+        series="Navarro", angle_deg=0.0, jaw_mm=5.0, is_drawn_size=True,
+        quantity=1, extra_sizes_mm=[], intended_use="research", needed_by="", urgency="normal",
+        steriliser="", marking="", notes="", authorization_ref="", workshop=None,
+        accepts_measurements=False, accepts_force_is_target=False, accepts_not_approved_device=False,
+        spec_snapshot={}, case_snapshot={},
+    )
+    return c, d, dict(ids, part_no=o.part_no)
+
+
+class TestPacienteCompartido:
+    """F2-75: compartir abre TODO lo del paciente (ficha, casos, estudios,
+    sesiones, pedidos) a la cuenta invitada por la misma regla de
+    services/access.py, y nada a un tercero."""
+
+    def test_ve_la_ficha_y_los_casos(self, compartido):
+        c, d, ids = compartido
+        pid = ids["patient"]
+        assert c.get(f"/api/patients/{pid}").status_code == 200
+        assert c.get(f"/api/patients/{pid}/studies").status_code == 200
+        assert pid in [p["id"] for p in c.get("/api/patients").json()]
+        assert d.get(f"/api/patients/{pid}").status_code == 403
+        assert d.get(f"/api/patients/{pid}/studies").status_code == 403
+        assert pid not in [p["id"] for p in d.get("/api/patients").json()]
+
+    def test_ve_los_estudios_de_imagen(self, compartido):
+        c, d, ids = compartido
+        assert ids["img"] in [s["id"] for s in c.get("/api/studies").json()]
+        assert c.get(f"/api/studies/{ids['img']}/thumbnail").status_code != 403
+        assert ids["img"] not in [s["id"] for s in d.get("/api/studies").json()]
+        assert d.get(f"/api/studies/{ids['img']}/thumbnail").status_code == 403
+
+    def test_ve_las_sesiones(self, compartido):
+        c, d, ids = compartido
+        pid = ids["patient"]
+        assert c.get(f"/api/patients/{pid}/sessions").status_code == 200
+        assert ids["sid"] in [s["session_id"] for s in c.get("/api/sessions").json()]
+        assert d.get(f"/api/patients/{pid}/sessions").status_code == 403
+        assert ids["sid"] not in [s["session_id"] for s in d.get("/api/sessions").json()]
+
+    def test_ve_los_pedidos(self, compartido):
+        c, d, ids = compartido
+        assert c.get(f"/api/clip-orders/{ids['part_no']}").status_code == 200
+        assert ids["part_no"] in [o["part_no"] for o in c.get("/api/clip-orders").json()]
+        assert d.get(f"/api/clip-orders/{ids['part_no']}").status_code == 403
+        assert ids["part_no"] not in [o["part_no"] for o in d.get("/api/clip-orders").json()]
+
+    def test_ve_la_lista_de_compartidos_pero_no_la_cambia(self, compartido):
+        c, d, ids = compartido
+        pid = ids["patient"]
+        assert c.get(f"/api/patients/{pid}/shares").status_code == 200
+        assert d.get(f"/api/patients/{pid}/shares").status_code == 403
+        assert c.put(f"/api/patients/{pid}/shares", json={"user_ids": []}).status_code == 403

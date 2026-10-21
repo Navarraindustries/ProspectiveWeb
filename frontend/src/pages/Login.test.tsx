@@ -12,9 +12,11 @@ import { MemoryRouter } from "react-router-dom";
 const { login, ApiError } = vi.hoisted(() => {
   class ApiError extends Error {
     status: number;
-    constructor(status: number, detail: string) {
+    data?: unknown;
+    constructor(status: number, detail: string, _fromServer?: boolean, data?: unknown) {
       super(detail);
       this.status = status;
+      this.data = data;
     }
   }
   return { login: vi.fn(), ApiError };
@@ -26,7 +28,8 @@ vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
 import { Login } from "./Login";
 
-const CONNECTIVITY = /¿Está el backend en marcha\?/;
+// F1-41: el aviso de conexión ya no habla de «backend».
+const CONNECTIVITY = "El servidor no responde. Avisa al responsable de la instalación.";
 
 async function attempt(failure: unknown): Promise<void> {
   login.mockRejectedValueOnce(failure);
@@ -67,5 +70,121 @@ describe("el aviso bajo la contraseña", () => {
   it("solo habla de conexión cuando de verdad no hubo respuesta", async () => {
     await attempt(new TypeError("Failed to fetch"));
     expect(await screen.findByText(CONNECTIVITY)).toBeInTheDocument();
+    expect(screen.queryByText(/backend/)).toBeNull();
+  });
+
+  it("el fallo de red del cliente (ApiError 0) da el texto nuevo, sin «backend»", async () => {
+    // Desde la Tarea 6 el cliente lanza ApiError(0) y no TypeError: antes de
+    // este arreglo se veía «Sin conexión con el servidor» a secas.
+    await attempt(new ApiError(0, "Sin conexión con el servidor"));
+    expect(await screen.findByText(CONNECTIVITY)).toBeInTheDocument();
+  });
+
+  it("el 500 vacío del proxy con el servidor caído tampoco es «el servidor respondió»", async () => {
+    await attempt(Object.assign(new ApiError(500, "Error 500"), { fromServer: false }));
+    expect(await screen.findByText(CONNECTIVITY)).toBeInTheDocument();
+    expect(screen.queryByText(/respondió/)).toBeNull();
+  });
+});
+
+describe("contacto del administrador y último intento", () => {
+  it("con un intento restante avisa del bloqueo temporal (F1-40)", async () => {
+    await attempt(new ApiError(401, "Credenciales incorrectas", true, { message: "Credenciales incorrectas", remaining_attempts: 1 }));
+    expect(await screen.findByText("Credenciales incorrectas. Te queda un intento antes del bloqueo temporal.")).toBeInTheDocument();
+  });
+
+  it("con más intentos restantes no asusta", async () => {
+    await attempt(new ApiError(401, "Credenciales incorrectas", true, { message: "Credenciales incorrectas", remaining_attempts: 3 }));
+    expect(await screen.findByText("Credenciales incorrectas")).toBeInTheDocument();
+  });
+
+  it("la pantalla dice a quién escribir si se olvidó la contraseña (F1-1)", () => {
+    render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+    expect(screen.getByText(/¿Olvidaste la contraseña\? Un administrador puede restablecerla/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ingprospective@skullapp.tech" })).toHaveAttribute("href", "mailto:ingprospective@skullapp.tech");
+  });
+
+  it("los tres avisos de cuenta bloqueada se ven completos con el correo (F1-42)", async () => {
+    const textos = [
+      "Tu cuenta está pendiente de aprobación. Un administrador debe activarla antes de que puedas iniciar sesión. Para consultas, escribe a ingprospective@skullapp.tech.",
+      "Tu solicitud de registro fue rechazada. Para consultas, escribe a ingprospective@skullapp.tech.",
+      "Cuenta desactivada. Para consultas, escribe a ingprospective@skullapp.tech.",
+    ];
+    for (const t of textos) {
+      const { unmount } = render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+      login.mockRejectedValueOnce(new ApiError(403, t));
+      fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "ab" } });
+      fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: "12345" } });
+      fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+      expect(await screen.findByText(t)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("tras la solicitud, el aviso dice que nadie avisará (F1-43)", () => {
+    const aviso = "Solicitud enviada. Un administrador la revisará; no recibirás aviso, así que vuelve a intentar entrar más adelante. Para consultas, ingprospective@skullapp.tech.";
+    render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} notice={aviso} /></MemoryRouter>);
+    expect(screen.getByText(/no recibirás aviso/)).toBeInTheDocument();
+  });
+});
+
+describe("el temblor del formulario", () => {
+  it("al salir de la pantalla no deja el temporizador pendiente", async () => {
+    // Quedaba un `setTimeout` de 500 ms vivo tras desmontar: al cerrarse el
+    // entorno de pruebas caía sobre la nada y `vitest run` salía con 1 a ratos.
+    const set = vi.spyOn(globalThis, "setTimeout");
+    const clear = vi.spyOn(globalThis, "clearTimeout");
+    login.mockRejectedValueOnce(new ApiError(401, "Credenciales incorrectas"));
+    const { unmount } = render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "ab" } });
+    fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: "12345" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await screen.findByText("Credenciales incorrectas");
+    const i = set.mock.calls.findIndex((c) => c[1] === 500);
+    expect(i).toBeGreaterThanOrEqual(0);
+    const id = set.mock.results[i].value;
+    unmount();
+    expect(clear).toHaveBeenCalledWith(id);
+    set.mockRestore();
+    clear.mockRestore();
+  });
+});
+
+describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
+  const montar = () => render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+
+  it("el panel de marca lleva el logotipo y el lema único, sin nombres de librerías (F2-10)", () => {
+    const { container } = montar();
+    expect(screen.getByText("Planificación neurovascular con datos")).toBeInTheDocument();
+    expect(screen.getByText("PROSPECTIVE")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/VTK|SimpleITK/);
+    expect(container.textContent).not.toMatch(/SKULLAPP/);
+  });
+
+  it("dice, bajo el formulario, que nadie avisa de la aprobación (F2-11)", () => {
+    montar();
+    expect(screen.getByText("Si tu cuenta aún no está aprobada, no recibirás ningún aviso: vuelve a intentar entrar más tarde.")).toBeInTheDocument();
+  });
+
+  it("la pantalla de entrada no pinta la transición de carga: la monta la raíz tras entrar", () => {
+    const { container } = montar();
+    expect(container.textContent).not.toMatch(/Preparando el espacio/);
+  });
+
+  it("el campo de usuario no trae «admin» de marcador (F1-39)", () => {
+    montar();
+    expect(screen.getByLabelText("Usuario")).toHaveAttribute("placeholder", "tu usuario");
+  });
+
+  it("el enlace al registro dice «Crear cuenta», sin «profesional»", () => {
+    montar();
+    expect(screen.getByRole("button", { name: "Crear cuenta" })).toBeInTheDocument();
+    expect(screen.queryByText(/profesional/i)).toBeNull();
+  });
+
+  it("el error de credenciales marca el campo de contraseña (aria-invalid)", async () => {
+    await attempt(new ApiError(401, "Credenciales incorrectas"));
+    await screen.findByText("Credenciales incorrectas");
+    expect(screen.getByLabelText("Contraseña")).toHaveAttribute("aria-invalid", "true");
   });
 });

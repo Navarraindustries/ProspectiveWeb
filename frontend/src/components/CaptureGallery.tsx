@@ -17,15 +17,26 @@ import { isRecording, type CaptureOut } from "../api/types";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { Card, ErrorNote, SectionLabel } from "./PanelHead";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
+import { desdeServidor, fechaHora, type OpcionesFecha } from "../lib/fecha";
 
 /** Nombre del fichero al descargar: legible y sin datos del paciente. */
-export function downloadName(c: Pick<CaptureOut, "id" | "label" | "created_at" | "media_type">): string {
-  const fecha = new Date(c.created_at);
+export function downloadName(
+  c: Pick<CaptureOut, "id" | "label" | "created_at" | "media_type">,
+  o?: OpcionesFecha,
+): string {
+  // `created_at` llega sin zona y es UTC (lib/fecha). Leído con `new Date` y
+  // los getters locales, el fichero de una captura de las 22:31 en Bogotá
+  // decía 03:31 del día siguiente, distinto de la hora que enseña la galería.
+  const fecha = desdeServidor(c.created_at);
+  const zona = o?.timeZone ? { timeZone: o.timeZone } : {};
   const sello = Number.isNaN(fecha.getTime())
     ? String(c.id)
-    : `${fecha.getFullYear()}${String(fecha.getMonth() + 1).padStart(2, "0")}${String(fecha.getDate()).padStart(2, "0")}`
-      + `-${String(fecha.getHours()).padStart(2, "0")}${String(fecha.getMinutes()).padStart(2, "0")}`;
+    // «sv-SE» da AAAA-MM-DD y HH:MM en 24 h; se quitan los separadores.
+    : fecha.toLocaleDateString("sv-SE", zona).replace(/-/g, "")
+      + "-" + fecha.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", hour12: false, ...zona })
+        .replace(/:/g, "");
   const limpio = (c.label || "captura")
     .normalize("NFD").replace(/[̀-ͯ]/g, "")   // sin tildes: viaja mejor
     .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()
@@ -58,6 +69,9 @@ export function CaptureGallery({
   const [error, setError] = useState<string | null>(null);
   const [editando, setEditando] = useState<number | null>(null);
   const [borrador, setBorrador] = useState("");
+  // F1-3: la ✕ borraba al primer clic, sin aviso ni deshacer. La captura
+  // pendiente de confirmar vive aquí hasta que se dice que sí.
+  const [aBorrar, setABorrar] = useState<CaptureOut | null>(null);
   // Una URL de objeto por captura, revocadas al desmontar.
   const [urls, setUrls] = useState<Record<number, string>>({});
   const urlsRef = useRef<Record<number, string>>({});
@@ -151,13 +165,23 @@ export function CaptureGallery({
 
   return (
     <div style={{ marginTop: 14 }}>
+      <ConfirmDialog
+        open={aBorrar !== null}
+        title="¿Borrar la captura?"
+        confirmLabel="Borrar captura"
+        destructive
+        onCancel={() => setABorrar(null)}
+        onConfirm={() => { const c = aBorrar; setABorrar(null); if (c) void borrar(c); }}
+      >
+        «{aBorrar?.label ?? ""}» desaparece de la galería del caso y no se puede recuperar.
+      </ConfirmDialog>
       <SectionLabel>Capturas ({total})</SectionLabel>
       <ErrorNote>{error}</ErrorNote>
       {rows === null ? (
         <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Cargando…</div>
       ) : total === 0 ? (
         <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-          {emptyHint ?? "Todavía no hay capturas. En el visor, el botón «Captura» guarda aquí la vista que haya en pantalla."}
+          {emptyHint ?? "Todavía no hay capturas. El botón «Captura» del visor guarda aquí la vista cuando la sesión tiene un estudio archivado; si no, la descarga."}
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
@@ -220,7 +244,7 @@ export function CaptureGallery({
                             display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 {isRecording(c) && <Badge variant="outline">vídeo · {formatDuration(c.duration_s ?? 0)}</Badge>}
                 {c.step && <Badge variant="outline">{c.step}</Badge>}
-                <span>{new Date(c.created_at).toLocaleString()}</span>
+                <span>{fechaHora(c.created_at)}</span>
                 {c.width > 0 && <span>{c.width}×{c.height}</span>}
                 {c.size_bytes > 0 && <span>{humanSize(c.size_bytes)}</span>}
               </div>
@@ -232,7 +256,7 @@ export function CaptureGallery({
                   Descargar
                 </Button>
                 <Button size="sm" variant="ghost" title="Borrar esta captura"
-                  onClick={() => void borrar(c)}>
+                  onClick={() => setABorrar(c)}>
                   ✕
                 </Button>
               </div>

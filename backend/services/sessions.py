@@ -18,18 +18,16 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ─────────────────────────────────────────────────────────── #
 
-_DATA = Path(__file__).resolve().parents[1] / "data"
-
-# Ambas raíces admiten una variable de entorno: la suite de tests las manda a
-# un temporal (conftest.py). Sin eso cada test que creaba una sesión dejaba su
-# carpeta en `data/session_saves` y `data/sessions` de verdad: 4 000 carpetas
-# vacías en dos semanas, mezcladas con las sesiones del usuario.
-SESSIONS_ROOT = Path(os.environ.get("PROSPECTIVE_SESSIONS_ROOT") or _DATA / "sessions")
+# Las dos raíces se pueden mover con PROSPECTIVE_SESSIONS_ROOT / PROSPECTIVE_SAVES_ROOT.
+# Porqué: sin eso las pruebas escribían en el directorio real (1990 guardados
+# huérfanos en session_saves); conftest.py las apunta a carpetas temporales.
+_DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+SESSIONS_ROOT = Path(os.environ.get("PROSPECTIVE_SESSIONS_ROOT") or _DATA_DIR / "sessions")
 
 # Durable store for SAVED sessions. Unlike SESSIONS_ROOT this is never purged by
 # the TTL sweep, so a saved study (volume + meshes + state) survives indefinitely
 # and can be rehydrated into a fresh live session on resume.
-SAVES_ROOT = Path(os.environ.get("PROSPECTIVE_SAVES_ROOT") or _DATA / "session_saves")
+SAVES_ROOT = Path(os.environ.get("PROSPECTIVE_SAVES_ROOT") or _DATA_DIR / "session_saves")
 
 # Sessions older than this are purged. Configurable via SESSION_TTL_HOURS
 # (defaults to 24 h, matching the documented env var in the README).
@@ -38,6 +36,14 @@ try:
 except ValueError:
     _TTL_HOURS = 24.0
 SESSION_TTL_SEC = int(_TTL_HOURS * 3600)
+
+
+def session_ttl_hours() -> float:
+    """Plazo real de borrado de una sesión sin guardar, en horas.
+
+    F1-128: la carga decía «se borrará automáticamente» sin decir cuándo; la
+    pantalla lo lee de aquí para no inventarse un número distinto del barrido."""
+    return SESSION_TTL_SEC / 3600
 
 # Sub-directories created inside each session folder
 _SUBDIRS = ["dicom", "meshes", "reports", "exports", "screenshots"]
@@ -107,6 +113,46 @@ def session_subdir(session_id: str, sub: str) -> Path:
     return p
 
 
+#: Clave del estado: los ids guardados de los que viene la sesión, separados
+#: por comas. Guardar tras reanudar reutiliza la fila de origen y BORRA su
+#: snapshot; sin esta lista, el linaje —que se lee del `state.txt` de cada
+#: snapshot— se cortaba en ese hueco y un pedido de clip hecho dos reanudaciones
+#: atrás dejaba de verse.
+LINEAGE_KEY = "origin.lineage"
+
+
+def _repoint_marker(saved_session_id: str) -> Path:
+    # Un fichero, no una carpeta: `has_saved_session` mira carpetas, así que el
+    # id viejo no vuelve a parecer reanudable.
+    return SAVES_ROOT / f"{saved_session_id}.reapuntada"
+
+
+def record_repoint(old_id: str, new_id: str) -> None:
+    """Apunta que la sesión guardada `old_id` sigue ahora bajo `new_id`.
+
+    Guardar tras reanudar mueve la fila al id vivo y borra el snapshot viejo.
+    Otra sesión viva reanudada de la misma guardada (una segunda pestaña) solo
+    sabe de dónde salió: sin este rastro hacia delante se quedaba sin fila —sin
+    paciente, y sin paciente la regla de acceso dejaba entrar a cualquiera— y
+    sin linaje.
+    """
+    if valid_session_id(old_id) and valid_session_id(new_id):
+        SAVES_ROOT.mkdir(parents=True, exist_ok=True)
+        _repoint_marker(old_id).write_text(new_id, encoding="utf-8")
+
+
+def repointed_to(saved_session_id: str) -> str:
+    """El id que tomó la sesión guardada `saved_session_id`, o "" si no se movió."""
+    if not valid_session_id(saved_session_id):
+        return ""
+    f = _repoint_marker(saved_session_id)
+    try:
+        nuevo = f.read_text(encoding="utf-8").strip() if f.is_file() else ""
+    except OSError:
+        return ""
+    return nuevo if valid_session_id(nuevo) else ""
+
+
 def session_lineage(session_id: str) -> set[str]:
     """La sesión y las guardadas de las que viene, hacia atrás.
 
@@ -123,11 +169,16 @@ def session_lineage(session_id: str) -> set[str]:
         for raiz in (SESSIONS_ROOT, SAVES_ROOT):
             estado = raiz / actual / "state.txt"
             if estado.exists():
-                origen = _read_state_map(estado).get("origin.saved_session_id", "")
+                mapa = _read_state_map(estado)
+                origen = mapa.get("origin.saved_session_id", "")
+                ids.update(x for x in mapa.get(LINEAGE_KEY, "").split(",") if valid_session_id(x))
                 break
         else:
             origen = ""
-        actual = origen
+        # Si esta guardada pasó a otro id, la cadena sigue por ahí: el linaje de
+        # la nueva incluye el de esta (origin.lineage), y lo colgado de la
+        # hermana que guardó también es de esta sesión.
+        actual = repointed_to(actual) or origen
     return ids
 
 
@@ -231,6 +282,102 @@ def delete_saved_session(session_id: str) -> None:
         shutil.rmtree(d, ignore_errors=True)
 
 
+def purge_saved_session(session_id: str) -> None:
+    """Borrado definitivo pedido por la persona: la carpeta y su marca de reapuntado.
+
+    `delete_saved_session` se queda solo con la carpeta porque «guardar sobre
+    el origen» escribe la marca JUSTO antes de borrarla, y la necesita.
+    """
+    delete_saved_session(session_id)
+    if valid_session_id(session_id):
+        try:
+            _repoint_marker(session_id).unlink(missing_ok=True)
+            # Las marcas que apuntaban a ella ya no llevan a ningún sitio.
+            for m in SAVES_ROOT.glob("*.reapuntada"):
+                try:
+                    apunta = m.read_text(encoding="utf-8").strip()
+                except (OSError, ValueError):
+                    continue   # una marca ilegible no puede convertir el borrado en un 500
+                if apunta == session_id:
+                    m.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def saved_session_size(session_id: str) -> int:
+    """Bytes de la carpeta guardada (0 si no existe).
+
+    Los DICOM del snapshot son enlaces duros (`_clone_tree`): `st_size` los
+    cuenta enteros, que es lo que ocupa la sesión si se copia o se saca.
+    """
+    d = _saved(session_id) if valid_session_id(session_id) else None
+    if d is None or not d.is_dir():
+        return 0
+    total = 0
+    for f in d.rglob("*"):
+        try:
+            if f.is_file():
+                total += f.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def size_of_row(db, ps) -> int:
+    """`size_bytes` de una fila; si es nula (fila anterior) la calcula y la guarda."""
+    if ps.size_bytes is None:
+        # Carpeta ausente: se devuelve 0 pero no se guarda, para no fijar un
+        # tamaño falso si la carpeta reaparece.
+        if not has_saved_session(ps.session_id):
+            return 0
+        from sqlalchemy import update
+        from services.db_models import PlanningSession  # local: evita el ciclo con db_models
+        n = saved_session_size(ps.session_id)
+        # Solo es una caché: el primer listado tras F2 no debe reescribir la
+        # historia de las filas antiguas. `onupdate=now()` de updated_at actúa
+        # también en un UPDATE de Core, salvo que la columna vaya explícita;
+        # se reasigna a sí misma.
+        db.execute(update(PlanningSession).where(PlanningSession.id == ps.id)
+                   .values(size_bytes=n, updated_at=PlanningSession.updated_at))
+        db.commit()
+        db.refresh(ps)
+    return ps.size_bytes
+
+
+def live_sessions_from(saved_session_id: str) -> list[str]:
+    """Las sesiones vivas reanudadas de la guardada `saved_session_id`."""
+    if not valid_session_id(saved_session_id) or not SESSIONS_ROOT.is_dir():
+        return []
+    vivas: list[str] = []
+    for d in SESSIONS_ROOT.iterdir():
+        estado = d / "state.txt"
+        if d.is_dir() and estado.is_file():
+            origen = _read_state_map(estado).get("origin.saved_session_id", "")
+            # Si el origen se reapuntó (otra pestaña guardó encima), la viva
+            # sigue apoyándose en la guardada que lo heredó: se sigue la cadena.
+            for _ in range(20):
+                if not origen:
+                    break
+                if origen == saved_session_id:
+                    vivas.append(d.name)
+                    break
+                origen = repointed_to(origen)
+    return vivas
+
+
+def live_session_expires_at(session_id: str) -> float:
+    """Hora (epoch) a la que el barrido borrará la sesión viva `session_id`.
+
+    Es la misma cuenta que `purge_expired_sessions` (`.created_at` + TTL), para
+    que lo que se le dice a la persona coincida con lo que hará el barrido. Sin
+    marca legible devuelve ahora: el siguiente barrido ya la borra."""
+    try:
+        creada = float((SESSIONS_ROOT / session_id / ".created_at").read_text())
+    except (ValueError, OSError):
+        return time.time()
+    return creada + SESSION_TTL_SEC
+
+
 # ── State helpers ──────────────────────────────────────────────────────────── #
 
 # The state file has to be read and written as UTF-8 explicitly. Without it
@@ -319,6 +466,25 @@ def read_state(session_id: str, key: str, default: str = "") -> str:
     return default
 
 
+def listed_candidates(session_id: str) -> int:
+    """Cuántos `cand-00N` hay en la lista: aceptados + descartados + marcados a mano.
+
+    Los descartados por un veto llevan ids a continuación de los aceptados y
+    tienen malla, así que se pueden elegir y medir igual. Quien valide un id
+    contra `detect.n_candidates` solo dejaría fuera justo a esos. Los marcados
+    a mano (F1-146, `routers/detect.add_manual_candidate`) van detrás de los
+    descartados; no tienen malla, y quien la busque tiene que mirar
+    `patch_kind`.
+    """
+    total = 0
+    for key in ("detect.n_candidates", "detect.n_rejected", "detect.n_manual"):
+        try:
+            total += int(read_state(session_id, key, "0") or 0)
+        except ValueError:
+            pass
+    return total
+
+
 def measured_candidate_vtp_name(session_id: str) -> str:
     """Malla del candidato cuyas medidas lleva la sesión.
 
@@ -331,10 +497,7 @@ def measured_candidate_vtp_name(session_id: str) -> str:
     """
     import re
     m = re.fullmatch(r"cand-(\d{3})", read_state(session_id, "detect.selected_candidate", ""))
-    try:
-        n = int(read_state(session_id, "detect.n_candidates", "0") or 0)
-    except ValueError:
-        n = 0
+    n = listed_candidates(session_id)
     if m and 1 <= int(m.group(1)) <= n:
         return f"aneurysm_cand_{int(m.group(1)):03d}.vtp"
     return read_state(session_id, "detect.best_vtp_name", "")

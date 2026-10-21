@@ -4,7 +4,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
-import { PlanningProvider, usePlanning } from "./planning";
+import { PlanningProvider, usePlanning, type Vec3 } from "./planning";
 import type { MorphometryResult, SegmentResult, VolumeMeta } from "../api/types";
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -270,6 +270,132 @@ describe("volume version", () => {
     act(() => result.current.bumpVolumeVersion());
     expect(result.current.volumeVersion).toBe(before + 2);
   });
+
+  it("bumpVolumeVersion deja mipWindow en null y mipLocal en false", () => {
+    // Cambiar de serie o preprocesar no pasa por reset(): la ventana del MIP y
+    // LOCAL eran del volumen anterior (spec §3.3, §6).
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => {
+      result.current.setMipWindow({ wc: 300, ww: 600 });
+      result.current.setMipLocal(true);
+    });
+    expect(result.current.mipWindow).toEqual({ wc: 300, ww: 600 });
+    expect(result.current.mipLocal).toBe(true);
+    act(() => result.current.bumpVolumeVersion());
+    expect(result.current.mipWindow).toBeNull();
+    expect(result.current.mipLocal).toBe(false);
+  });
+});
+
+describe("modo y preajuste de la vista VOLUMEN", () => {
+  it("empieza en MIP con «Vasos» y los setters no tocan el modo del MIP", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.volumeMode).toBe("mip");
+    expect(result.current.volumePreset).toBe("Vasos");
+    act(() => {
+      result.current.setVolumeMode("compuesto");
+      result.current.setVolumePreset("Hueso");
+    });
+    expect(result.current.volumeMode).toBe("compuesto");
+    expect(result.current.volumePreset).toBe("Hueso");
+    expect(result.current.mipMode).toBe("acumulado");
+  });
+
+  it("vuelve a los valores por defecto al cambiar de estudio", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => {
+      result.current.setVolumeMode("compuesto");
+      result.current.setVolumePreset("Cerebro");
+    });
+    act(() => result.current.reset());
+    expect(result.current.volumeMode).toBe("mip");
+    expect(result.current.volumePreset).toBe("Vasos");
+  });
+});
+
+describe("plano libre, recorte y ventana por preajuste", () => {
+  it("arrancan en sus valores por defecto", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.freePlane).toEqual({ azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 });
+    expect(result.current.clipMode).toBe("eje");
+    expect(result.current.cutFaceVisible).toBe(true);
+    expect(result.current.volumeWindows).toEqual({});
+  });
+  it("setFreePlane acota los ángulos y setVolumeWindow guarda por preajuste y borra con null", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setFreePlane({ azimuthDeg: 400, elevationDeg: -95, offsetMm: 1 }));
+    expect(result.current.freePlane).toEqual({ azimuthDeg: 180, elevationDeg: -89, offsetMm: 1 });
+    act(() => result.current.setVolumeWindow("Hueso", { wc: 1, ww: 2 }));
+    expect(result.current.volumeWindows).toEqual({ Hueso: { wc: 1, ww: 2 } });
+    act(() => result.current.setVolumeWindow("Hueso", null));
+    expect(result.current.volumeWindows).toEqual({});
+  });
+  it("cambiar de estudio los devuelve a los valores por defecto", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => {
+      result.current.setClipMode("libre"); result.current.setCutFaceVisible(false);
+      result.current.setFreePlane({ azimuthDeg: 10, elevationDeg: 10, offsetMm: 2 });
+      result.current.setVolumeWindow("Hueso", { wc: 1, ww: 2 });
+    });
+    act(() => result.current.reset());
+    expect(result.current.clipMode).toBe("eje"); expect(result.current.cutFaceVisible).toBe(true);
+    expect(result.current.freePlane).toEqual({ azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 });
+    expect(result.current.volumeWindows).toEqual({});
+  });
+  it("slices3dMeshVisible arranca en true y se reinicia", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.slices3dMeshVisible).toBe(true);
+    act(() => result.current.setSlices3dMeshVisible(false));
+    act(() => result.current.reset());
+    expect(result.current.slices3dMeshVisible).toBe(true);
+  });
+});
+
+describe("clips colocados", () => {
+  it("arrancan vacíos, se escriben con función o lista y se reinician con la sesión", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.placedClips).toEqual([]); expect(result.current.selectedClipKey).toBeNull(); expect(result.current.plannedClips).toBeNull();
+    act(() => result.current.setPlacedClips([{ key: 1, clip_id: "a", name: "A", position: [0, 0, 0], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 }]));
+    act(() => result.current.setPlacedClips((p) => p.map((c) => ({ ...c, rotation_deg: 15 }))));
+    expect(result.current.placedClips[0].rotation_deg).toBe(15);
+    act(() => result.current.setSelectedClipKey(1));
+    act(() => result.current.reset());
+    expect(result.current.placedClips).toEqual([]); expect(result.current.selectedClipKey).toBeNull();
+  });
+  it("limpiar los clips vacía la lista y lo planificado", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => { result.current.setPlacedClips([{ key: 1, clip_id: "a", name: "A", position: [0, 0, 0], rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 }]); result.current.setPlannedClips(result.current.placedClips); });
+    act(() => result.current.clearDeviceMeshes("clips"));
+    expect(result.current.placedClips).toEqual([]); expect(result.current.plannedClips).toBeNull();
+  });
+});
+
+describe("candidatos descartados", () => {
+  it("los descartados se guardan aparte y el índice elegido recorre la lista combinada", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const c = (id: string) => ({ id, center_mm: { x: 0, y: 0, z: 0 }, max_diameter_mm: 3, confidence: 0.5, dome_mesh_url: "", selected: false, channels: [], patch_kind: "region" as const, rank: 1, veto: null });
+    act(() => { result.current.setCandidates([c("cand-001")]); result.current.setRejectedCandidates([{ ...c("cand-002"), veto: { reason: "borde", label: "Recorte de la malla", detail: "" } }]); });
+    expect(result.current.allCandidates.map((x) => x.id)).toEqual(["cand-001", "cand-002"]);
+    act(() => result.current.setSelectedCandidate(1));
+    expect(result.current.allCandidates[result.current.selectedCandidate!].id).toBe("cand-002");
+    act(() => result.current.reset());
+    expect(result.current.rejectedCandidates).toEqual([]);
+  });
+
+  it("con aceptados vacíos (reanudar) el índice recorre solo los descartados", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const r = { id: "cand-001", center_mm: { x: 0, y: 0, z: 0 }, max_diameter_mm: 3, confidence: 0.5, dome_mesh_url: "", selected: false, channels: [], patch_kind: "region" as const, rank: 1, veto: { reason: "isla" as const, label: "Isla", detail: "" } };
+    act(() => { result.current.setCandidates([]); result.current.setRejectedCandidates([r]); });
+    expect(result.current.allCandidates.map((x) => x.id)).toEqual(["cand-001"]);
+  });
+  it("cine y focusedPane arrancan vacíos y se reinician", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.cine).toBeNull(); expect(result.current.focusedPane).toBeNull();
+    act(() => { result.current.setCine({ pane: "axial", fps: 8, bounce: true }); result.current.setFocusedPane("axial"); });
+    act(() => result.current.reset());
+    expect(result.current.cine).toBeNull();
+    expect(result.current.focusedPane).toBeNull();
+  });
 });
 
 describe("superposición de seguimiento", () => {
@@ -279,5 +405,103 @@ describe("superposición de seguimiento", () => {
     expect(result.current.followup).not.toBeNull();
     act(() => result.current.resetDownstream());
     expect(result.current.followup).toBeNull();
+  });
+});
+
+describe("anotaciones", () => {
+  it("arrancan vacías, setAnnotations marca la sesión sucia y acepta función", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.annotations).toEqual([]); expect(result.current.annotationDraft).toEqual([]); expect(result.current.dirty).toBe(false);
+    const a = { id: "1", kind: "regla" as const, points: [[0, 0, 0], [1, 0, 0]] as Vec3[], plane: null, label: "R1", note: "", visible: true, created_at: "", created_by: "" };
+    act(() => result.current.setAnnotations([a]));
+    act(() => result.current.setAnnotations((p) => p.map((x) => ({ ...x, label: "cuello" }))));
+    expect(result.current.annotations[0].label).toBe("cuello"); expect(result.current.dirty).toBe(true);
+  });
+  it("resetDownstream las conserva, clearAnnotations las vacía; cambiar de modo vacía el borrador", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => { result.current.setPickMode("anot_regla"); result.current.setAnnotationDraft([[1, 1, 1]]); result.current.setSelectedAnnotation("x"); });
+    act(() => result.current.setPickMode("neck_rim"));
+    expect(result.current.annotationDraft).toEqual([]);
+    const m = { id: "1", kind: "marcador" as const, points: [[0, 0, 0]] as Vec3[], plane: null, label: "M1", note: "", visible: true, created_at: "", created_by: "" };
+    act(() => { result.current.setAnnotations([m]); result.current.setSelectedAnnotation("1"); });
+    // La primera segmentación, «Descartar»… pasan por aquí y no deben borrar
+    // lo medido sobre los cortes.
+    act(() => result.current.resetDownstream());
+    expect(result.current.annotations).toEqual([m]); expect(result.current.selectedAnnotation).toBe("1");
+    act(() => { result.current.setNoteFocusRequest("1"); result.current.clearAnnotations(); });
+    expect(result.current.annotations).toEqual([]); expect(result.current.selectedAnnotation).toBeNull();
+    expect(result.current.noteFocusRequest).toBeNull();
+  });
+  it("reset vacía la lista, el estado de guardado y la lectura fallida", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.annotationsLoadState).toBe("cargado");
+    act(() => {
+      result.current.setAnnotationsLoaded([{ id: "1", kind: "marcador", points: [[0, 0, 0]], plane: null, label: "M1", note: "", visible: true, created_at: "", created_by: "" }]);
+      result.current.setAnnotationsSync("error");
+      result.current.setAnnotationsLoadState("error");
+    });
+    act(() => result.current.reset());
+    expect(result.current.annotations).toEqual([]);
+    expect(result.current.annotationsSync).toBe("guardado");
+    expect(result.current.annotationsLoadedRef.current).toBeNull();
+    // Una sesión nueva no tiene archivo: vacía ES su lista.
+    expect(result.current.annotationsLoadState).toBe("cargado");
+    act(() => result.current.setAnnotationsLoadState("pendiente"));
+    act(() => result.current.setAnnotationsLoaded([]));
+    expect(result.current.annotationsLoadState).toBe("cargado");
+  });
+});
+
+describe("VOLUMEN abre en «Vasos»", () => {
+  it("el preajuste inicial y el de después de reset es Vasos", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    expect(result.current.volumePreset).toBe("Vasos");
+    act(() => result.current.setVolumePreset("Hueso"));
+    act(() => result.current.reset());
+    expect(result.current.volumePreset).toBe("Vasos");
+  });
+});
+
+describe("la línea central recorrible", () => {
+  const track = { points: [[0, 0, 0], [0, 0, 1]] as Vec3[], radiiMm: [1, 1], arcMm: [0, 1] };
+  it("se guarda y se va con el tubo", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => { result.current.setCenterlineMesh("/cl.vtp"); result.current.setCenterline(track); });
+    expect(result.current.centerline).toEqual(track);
+    act(() => result.current.setCenterlineMesh(null));
+    expect(result.current.centerline).toBeNull();
+  });
+  it("resetDownstream la olvida", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setCenterline(track));
+    act(() => result.current.resetDownstream());
+    expect(result.current.centerline).toBeNull();
+  });
+  it("al perder la línea central el recorrido vuelve a PLANO", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => { result.current.setCenterline(track); result.current.setObliqueWalk("vaso"); });
+    act(() => result.current.setCenterline(null));
+    expect(result.current.obliqueWalk).toBe("plano");
+  });
+});
+
+/* F1-165: la localización se elige una vez (Morfometría) y la heredan PHASES,
+   ELAPSS, UIATS y Decisión desde el store; vuelve con la medida al reanudar. */
+describe("la localización del aneurisma", () => {
+  it("vuelve con la morfometría al reanudar y no se pierde con una medida sin ella", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setMorphometry(
+      { ...fakeMorpho, site: "Basilar (punta, tronco o AICA)" } as MorphometryResult));
+    expect(result.current.aneurysmSite).toBe("Basilar (punta, tronco o AICA)");
+    act(() => result.current.setMorphometry(fakeMorpho));
+    expect(result.current.aneurysmSite).toBe("Basilar (punta, tronco o AICA)");
+  });
+
+  it("es del estudio: otro estudio arranca sin ella", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setAneurysmSite("ACM — Arteria Cerebral Media"));
+    expect(result.current.aneurysmSite).toBe("ACM — Arteria Cerebral Media");
+    act(() => result.current.reset());
+    expect(result.current.aneurysmSite).toBeNull();
   });
 });

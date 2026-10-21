@@ -175,7 +175,10 @@ def render_dossier(dossier: dict, output_path: str | Path,
                          [70 * mm, 90 * mm])]
 
     if not is_external and dossier.get("why_not_stock"):
-        story += [Paragraph("Por qué no sirve el inventario", st["h"]),
+        # F1-214: los motivos también dicen «no hay catálogo cargado»; con este
+        # título la hoja culpaba a un inventario que no existe. Mismo texto que
+        # ManufacturePanel cuando no hay inventario.
+        story += [Paragraph("Por qué se fabrica", st["h"]),
                   _bullets(dossier["why_not_stock"], st["p"])]
 
     # The verification block is the point of the external copy: what has to be

@@ -34,9 +34,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from services.treatment import (LOCATION_ACA_ACOA, LOCATION_BASILAR,
-                                LOCATION_ICA_DIST, LOCATION_ICA_PROX,
-                                LOCATION_MCA, LOCATION_PCOM, LOCATION_PICA)
+from dataclasses import replace
+
+from services.treatment import (LOCATION_ACA_ACOA, LOCATION_AICA,
+                                LOCATION_BASILAR_LEGACY, LOCATION_BASILAR_TIP,
+                                LOCATION_BASILAR_TRUNK, LOCATION_ICA_DIST,
+                                LOCATION_ICA_PROX, LOCATION_MCA, LOCATION_PCOM,
+                                LOCATION_PICA)
 
 
 @dataclass(frozen=True)
@@ -48,6 +52,9 @@ class PerforatorTerritory:
     consequence: str         # cómo se manifiesta lesionarlo
     surgical_note: str       # qué vigilar al cerrar
     sources: list[str] = field(default_factory=list)
+    #: Lo que hay que leer antes de la tarjeta. Solo lo lleva la localización
+    #: basilar antigua: no dice si es punta o tronco, y la tarjeta cambia.
+    notice: str = ""
 
 
 _SRC_MCA = "Estudios de clipaje perforator-sparing en M1 (PMC12610303)"
@@ -57,6 +64,13 @@ _SRC_PCOM = ("Revisión de aneurismas de ACoP en la era moderna "
              "(Surgical Neurology International)")
 _SRC_BASILAR = ("Clipaje de la punta de basilar: talamoperforantes posteriores "
                 "(Acta Neurochir 2025; PMC12500782)")
+# F1-181: el tronco y la AICA tenían la tarjeta de la punta. Citas dadas por el
+# encargo; no se añaden otras.
+_SRC_BASILAR_TRUNK = ("Marinković SV, Gibo H. The surgical anatomy of the "
+                      "perforating branches of the basilar artery. "
+                      "Neurosurgery 1993;33(1):80-87")
+_SRC_AICA = ("Rhoton AL Jr. The cerebellar arteries. "
+             "Neurosurgery 2000;47(3 Suppl):S29-68")
 _SRC_PICA = ("Aneurismas de PICA rotos: segmentos p1–p2 y perforantes bulbares "
              "(PMC12346941)")
 
@@ -112,7 +126,7 @@ TERRITORIES: dict[str, PerforatorTerritory] = {
         ),
         sources=[_SRC_PCOM],
     ),
-    LOCATION_BASILAR: PerforatorTerritory(
+    LOCATION_BASILAR_TIP: PerforatorTerritory(
         arteries=(
             "Talamoperforantes posteriores. Nacen de los segmentos P1 a entre "
             "0,4 y 4,7 mm del ápex, y pueden nacer DIRECTAMENTE del ápex"
@@ -125,6 +139,36 @@ TERRITORIES: dict[str, PerforatorTerritory] = {
             "que convierte el margen de la mordaza en el detalle decisivo."
         ),
         sources=[_SRC_BASILAR],
+    ),
+    LOCATION_BASILAR_TRUNK: PerforatorTerritory(
+        arteries=(
+            "Perforantes pontinas paramedianas y circunferenciales cortas, desde "
+            "la cara posterior y lateral del tronco"
+        ),
+        supplies="Protuberancia (base y tegmento)",
+        consequence=(
+            "Infarto pontino: paresia bilateral, afectación de pares craneales, "
+            "locked-in en los extensos"
+        ),
+        surgical_note=(
+            "Nacen de la pared posterior, la que no se ve desde el abordaje. Una "
+            "pala del clip paralela al tronco puede cerrarlas sin que se note: "
+            "comprobar que la pala posterior no las ocluye antes de soltar."
+        ),
+        sources=[_SRC_BASILAR_TRUNK],
+    ),
+    LOCATION_AICA: PerforatorTerritory(
+        arteries=(
+            "Perforantes pontinas laterales y arteria laberíntica (rama de la "
+            "AICA en la mayoría)"
+        ),
+        supplies="Protuberancia lateral, pedúnculo cerebeloso medio, oído interno",
+        consequence="Hipoacusia, parálisis facial periférica, ataxia ipsilateral",
+        surgical_note=(
+            "La arteria laberíntica es terminal: ocluirla cuesta el oído de ese "
+            "lado. Conservar la AICA y sus ramas proximales."
+        ),
+        sources=[_SRC_AICA],
     ),
     LOCATION_PICA: PerforatorTerritory(
         arteries="Perforantes bulbares de los segmentos proximales p1 y p2 de la PICA",
@@ -153,13 +197,23 @@ TERRITORIES: dict[str, PerforatorTerritory] = {
 }
 
 
+#: Aviso de la localización basilar antigua (F1-174/181).
+LEGACY_NOTICE = "Localización sin precisar: elige punta o tronco para la tarjeta exacta"
+
+
 def expected_perforators(location: str) -> PerforatorTerritory | None:
     """Lo que cabe esperar en esa localización, o None si no se sabe cuál es.
 
     Sin localización no hay tabla: inventar un territorio «por defecto» sería
     exactamente el tipo de relleno que esta aplicación lleva rato quitando.
     """
-    return TERRITORIES.get((location or "").strip())
+    loc = (location or "").strip()
+    if loc == LOCATION_BASILAR_LEGACY:
+        # Una sesión guardada antes de separar la lista. Se enseña la de la
+        # punta, que es la que salía, pero diciendo que no es seguro: Case 3 es
+        # de tronco y nadie lo ha vuelto a elegir, así que no se adivina.
+        return replace(TERRITORIES[LOCATION_BASILAR_TIP], notice=LEGACY_NOTICE)
+    return TERRITORIES.get(loc)
 
 
 def territory_to_dict(t: PerforatorTerritory) -> dict:
@@ -169,4 +223,5 @@ def territory_to_dict(t: PerforatorTerritory) -> dict:
         "consequence": t.consequence,
         "surgical_note": t.surgical_note,
         "sources": list(t.sources),
+        "notice": t.notice,
     }

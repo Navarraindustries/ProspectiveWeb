@@ -10,16 +10,26 @@ import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 
+/** Las fichas abiertas, de abajo arriba. La ficha del paciente abre encima la
+    del caso; con las dos escuchando Escape en `document`, una sola pulsación
+    cerraba las dos — y con cambios sin guardar, preguntaba dos veces. Solo la
+    de encima atiende la tecla. */
+const openSheets: object[] = [];
+
 export function Sheet({
   open,
   onClose,
   title,
+  eyebrow,
   width = 420,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Rótulo pequeño encima del título: qué es lo que se abre («Ficha de
+   *  paciente») cuando el título es el nombre de lo abierto. */
+  eyebrow?: string;
   width?: number;
   children: ReactNode;
 }) {
@@ -27,17 +37,27 @@ export function Sheet({
 
   // Escape closed the user menu but not this, so the only ways out were the ✕
   // and the scrim — and keyboard focus stayed behind on the page underneath.
+  // Por ref: el efecto corre solo al abrir y cerrar. Dependiendo de `onClose`
+  // (una flecha nueva en cada render del padre) se volvía a apilar al teclear,
+  // y la ficha de debajo pasaba a ser la de encima.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const token = {};
+    openSheets.push(token);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && openSheets[openSheets.length - 1] === token) onCloseRef.current();
+    };
     document.addEventListener("keydown", onKey);
     const previous = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
+      openSheets.splice(openSheets.indexOf(token), 1);
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return createPortal(
@@ -61,8 +81,8 @@ export function Sheet({
           bottom: 0,
           width,
           maxWidth: "94vw",
-          background: "color-mix(in srgb, var(--background) 88%, transparent)",
-          backdropFilter: "blur(12px)",
+          background: "var(--glass)",
+          backdropFilter: "blur(var(--glass-blur))",
           borderLeft: "1px solid var(--border)",
           borderRadius: "var(--radius-xl) 0 0 var(--radius-xl)",
           boxShadow: "var(--shadow-lg)",
@@ -71,8 +91,15 @@ export function Sheet({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
-          <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)", flex: 1 }}>
-            {title}
+          <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+            {eyebrow && (
+              <span style={{ fontSize: "var(--text-label)", fontWeight: 600, letterSpacing: "var(--tracking-label)", textTransform: "uppercase", color: "var(--muted-foreground)" }}>
+                {eyebrow}
+              </span>
+            )}
+            <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
+              {title}
+            </span>
           </span>
           <button
             onClick={onClose}

@@ -5,17 +5,18 @@
    descarga no lleva datos del paciente, y que las URL de objeto se sueltan
    al desmontar — son memoria del navegador y una lista abierta veinte veces
    las acumula. */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const listCaptures = vi.fn();
 const captureObjectUrl = vi.fn();
+const deleteCapture = vi.fn();
 vi.mock("../api/client", () => ({
   api: {
     listCaptures: (...a: unknown[]) => listCaptures(...a),
     captureObjectUrl: (...a: unknown[]) => captureObjectUrl(...a),
     renameCapture: vi.fn(),
-    deleteCapture: vi.fn(),
+    deleteCapture: (...a: unknown[]) => deleteCapture(...a),
   },
 }));
 
@@ -32,6 +33,7 @@ const fila = (over = {}) => ({
 beforeEach(() => {
   listCaptures.mockReset().mockResolvedValue([fila()]);
   captureObjectUrl.mockReset().mockResolvedValue("blob:captura-7");
+  deleteCapture.mockReset().mockResolvedValue(undefined);
 });
 
 describe("la galería", () => {
@@ -53,7 +55,9 @@ describe("la galería", () => {
   it("sin capturas explica cómo se hacen, en vez de quedarse en blanco", async () => {
     listCaptures.mockResolvedValue([]);
     render(<CaptureGallery patientId={4} />);
-    expect(await screen.findByText(/botón «Captura»/)).toBeInTheDocument();
+    expect(await screen.findByText(
+      "Todavía no hay capturas. El botón «Captura» del visor guarda aquí la vista cuando la sesión tiene un estudio archivado; si no, la descarga.",
+    )).toBeInTheDocument();
   });
 
   it("suelta las URL de objeto al desmontar", async () => {
@@ -76,9 +80,17 @@ describe("la galería", () => {
 describe("el nombre del fichero descargado", () => {
   it("lleva fecha y rótulo, y ni un dato del paciente", () => {
     // El PNG se reenvía sin pensarlo; el nombre del fichero viaja con él.
-    const n = downloadName({ id: 7, label: "Morfometría · plano de cuello", created_at: "2026-09-27T22:31:00" });
+    const n = downloadName({ id: 7, label: "Morfometría · plano de cuello", created_at: "2026-09-27T22:31:00" },
+      { timeZone: "UTC" });
     expect(n).toBe("prospective-20260927-2231-morfometria-plano-de-cuello.png");
     expect(n).not.toMatch(/hernandez|tannia|3245/i);
+  });
+
+  it("el sello es la hora de quien mira, no la del servidor leída como local", () => {
+    // El servidor manda UTC sin zona: las 03:31 del 28 en UTC son las 22:31 del
+    // 27 en Bogotá, la misma hora que enseña la galería.
+    expect(downloadName({ id: 7, label: "x", created_at: "2026-09-28T03:31:00" },
+      { timeZone: "America/Bogota" })).toBe("prospective-20260927-2231-x.png");
   });
 
   it("aguanta un rótulo raro o vacío", () => {
@@ -120,5 +132,28 @@ describe("grabaciones en la galería", () => {
     expect(downloadName({ ...video(), media_type: "video/mp4" })).toMatch(/\.mp4$/);
     expect(downloadName({ ...video(), media_type: "video/webm" })).toMatch(/\.webm$/);
     expect(downloadName(fila())).toMatch(/\.png$/);
+  });
+});
+
+/* F1-3: la ✕ borraba la captura al primer clic, sin aviso ni deshacer. */
+describe("«Borrar esta captura»", () => {
+  it("abre la confirmación y no borra hasta confirmar", async () => {
+    render(<CaptureGallery patientId={4} />);
+    fireEvent.click(await screen.findByTitle("Borrar esta captura"));
+    expect(screen.getByRole("alertdialog", { name: "¿Borrar la captura?" })).toBeInTheDocument();
+    expect(deleteCapture).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Borrar captura" }));
+    await waitFor(() => expect(deleteCapture).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(screen.queryByText("Morfometría · plano de cuello")).toBeNull());
+  });
+
+  it("«Cancelar» la deja donde estaba", async () => {
+    render(<CaptureGallery patientId={4} />);
+    fireEvent.click(await screen.findByTitle("Borrar esta captura"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(deleteCapture).not.toHaveBeenCalled();
+    expect(screen.getByText("Morfometría · plano de cuello")).toBeInTheDocument();
   });
 });

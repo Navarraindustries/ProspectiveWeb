@@ -11,6 +11,14 @@ import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 
 const mm = (v: number) => `${v.toFixed(1)} mm`;
 
+/** F1-209: el rango aprobado con el que se decide la línea de indicación. Es
+ *  el de backend/services/web_sizing.py (DOME_RANGE_MM, la regla de cuello
+ *  ancho y la localización de bifurcación), que lo cita de la PMA de la FDA. */
+const INDICACION_WEB =
+  "Indicación aprobada usada: aneurisma de bifurcación, domo de 3 a 10 mm " +
+  "(anchura máxima en el plano del cuello) y cuello ancho: cuello ≥ 4 mm o " +
+  "cociente domo/cuello entre 1 y 2.";
+
 export function WebSizing({ sessionId }: { sessionId: string }) {
   const [r, setR] = useState<WebSizingResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,6 +59,11 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
               <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
                 {r.dims.width_min_mm.toFixed(1)}–{r.dims.width_max_mm.toFixed(1)}
               </div>
+              {/* El «Domo de 11.7 mm» de los avisos es esta anchura máxima, y
+                  no coincide con el Ø máximo de Morfometría: se dice aquí. */}
+              <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", maxWidth: 180, lineHeight: 1.4 }}>
+                Domo {mm(r.dims.width_max_mm)}: anchura máxima en el plano del cuello, no el Ø máximo del saco
+              </div>
             </div>
             <div>
               <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>ALTURA</div>
@@ -62,7 +75,7 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
               <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>domo/cuello {r.dnr.toFixed(2)}</div>
             </div>
           </div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: r.within_indication ? "var(--success)" : "var(--warning)" }}>
+          <div title={INDICACION_WEB} style={{ fontSize: 12, fontWeight: 600, color: r.within_indication ? "var(--success)" : "var(--warning)" }}>
             {r.within_indication ? "Dentro de la indicación aprobada" : "Fuera de la indicación aprobada"}
           </div>
 

@@ -12,6 +12,7 @@
 
 import * as THREE from "three";
 import type { SceneFactory } from "../sceneHost";
+import { brandColor } from "./brandColor";
 
 export const clipKinematicsScene: SceneFactory = ({ scene, pointer }) => {
   const clip = new THREE.Group();
@@ -22,7 +23,7 @@ export const clipKinematicsScene: SceneFactory = ({ scene, pointer }) => {
   const keyLight = new THREE.DirectionalLight(0xffffff, 2.8);
   keyLight.position.set(5, 7, 6);
   scene.add(keyLight);
-  const cyanRim = new THREE.DirectionalLight(0x00f0ff, 3.5);
+  const cyanRim = new THREE.DirectionalLight(brandColor(), 3.5);
   cyanRim.position.set(-6, -4, 5);
   scene.add(cyanRim);
   const redAccent = new THREE.PointLight(0xff3366, 3.0, 15);
@@ -50,7 +51,7 @@ export const clipKinematicsScene: SceneFactory = ({ scene, pointer }) => {
 
   const pinRing = new THREE.Mesh(
     new THREE.RingGeometry(0.28, 0.32, 32),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide }));
+    new THREE.MeshBasicMaterial({ color: brandColor(), side: THREE.DoubleSide }));
   pinRing.position.set(-1.0, 0, 0.31);
   clip.add(pinRing);
 
@@ -85,7 +86,7 @@ export const clipKinematicsScene: SceneFactory = ({ scene, pointer }) => {
   clip.add(vessel);
 
   // Calibre milimétrico flotando sobre la pala
-  const rulerMat = new THREE.LineBasicMaterial({ color: 0x00f0ff });
+  const rulerMat = new THREE.LineBasicMaterial({ color: brandColor() });
   clip.add(new THREE.Line(
     new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0.2, 0.6, 0), new THREE.Vector3(3.4, 0.6, 0)]), rulerMat));
@@ -106,7 +107,7 @@ export const clipKinematicsScene: SceneFactory = ({ scene, pointer }) => {
   }
   pGeom.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
   clip.add(new THREE.Points(pGeom, new THREE.PointsMaterial({
-    color: 0x00f0ff, size: 0.06, transparent: true, opacity: 0.5 })));
+    color: brandColor(), size: 0.06, transparent: true, opacity: 0.5 })));
 
   clip.rotation.z = -0.25;
   clip.rotation.x = 0.35;

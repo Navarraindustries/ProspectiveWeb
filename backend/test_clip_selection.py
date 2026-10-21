@@ -37,6 +37,7 @@ from main import app
 from services.clip_fit import verify_all, vessel_beyond_neck
 from services.clip_selection import (
     ClipCase,
+    _coverage_criterion,
     derive_manufacture_spec,
     evaluate_clip,
     select_clips,
@@ -63,15 +64,24 @@ def _case(**kw) -> ClipCase:
 # ── 1. The answer is never empty ──────────────────────────────────────────── #
 
 class TestNeverSilent:
-    def test_a_neck_too_small_for_any_clip_yields_a_specification(self):
-        # 1 mm neck: the shortest blade in the catalogue is 5 mm, which is more
-        # than 3x the neck, so every clip is rejected as oversized.
+    def test_a_neck_too_small_for_any_blade_offers_clips_with_reservations(self):
+        # 1 mm neck: la hoja más corta (5 mm) pasa de ×3 el cuello. Antes eso
+        # descartaba todo y la salida era una especificación; ahora la hoja larga
+        # avisa, así que hay clips «con reservas» y el motivo va en su nota.
         sel = select_clips(_case(neck_mm=1.0))
+        # Todo el catálogo es la familia NAVARRO™, bajo pedido: sin inventario el
+        # veredicto es el de pieza a medida aunque haya diseños que sirvan
+        # (F1-190). Lo que fija este test —que se ofrecen con su reserva— sigue.
         assert sel.outcome == "manufacture"
-        assert sel.recommended == []
+        assert sel.recommended, "la hoja larga avisa, no descarta"
+        for cand in sel.recommended:
+            assert cand.verdict == "warn"
+            assert any(c.detail.startswith("Hoja larga para el cuello")
+                       for c in cand.warnings)
+        # Lo que motivó reescribir este test: con clips «con reservas» la
+        # alternativa a fabricar y la mordaza a medida siguen en la respuesta.
         assert sel.manufacture is not None
-        assert sel.manufacture.blade_length_mm >= 2.0
-        assert sel.manufacture.reasons, "a rejection has to say why"
+        assert sel.custom_jaw is not None
 
     def test_a_neck_too_large_for_any_clip_yields_a_specification(self):
         # 25 mm, not the 20 this used to use: the NAVARRO™ family reaches 22 mm
@@ -137,6 +147,19 @@ class TestFailuresDominate:
         assert cand.failures
         assert cand.score == 0.0
         assert cand.verdict == "fail"
+
+    def test_a_blade_much_longer_than_the_neck_warns_instead_of_failing(self):
+        # Case 3: cuello de 1,2 mm y la hoja más corta del catálogo (7 mm) pasa de
+        # ×3. Antes descartaba y no quedaba ningún clip que manipular.
+        crit = _coverage_criterion(_clip("Yasargil Recto 7mm"), _case(neck_mm=1.2))
+        assert crit.verdict == "warn"
+        assert crit.label == "Longitud de hoja"
+        assert crit.detail.startswith("Hoja larga para el cuello")
+        assert crit.score > 0
+
+    def test_a_blade_shorter_than_the_flattened_neck_still_fails(self):
+        crit = _coverage_criterion(_clip("Yasargil Mini recto"), _case(neck_mm=9.0))
+        assert crit.verdict == "fail"
 
     def test_rejected_clips_are_reported_with_their_reason(self):
         sel = select_clips(_case(neck_mm=9.0))
@@ -296,7 +319,9 @@ class TestEndpoint:
         r = client.get(f"/api/clips/selection/{sid}")
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["outcome"] in ("stock", "marginal")
+        # Sin inventario cargado (solo NAVARRO™, bajo pedido) el veredicto es el
+        # de pieza a medida, pero los diseños que sirven se recomiendan igual.
+        assert body["outcome"] == "manufacture" and body["stock_count"] == 0
         assert body["case"]["neck_mm"] == 5.0
         assert body["recommended"], "a 5 mm neck is well inside the catalogue"
         top = body["recommended"][0]
@@ -451,3 +476,69 @@ class TestTheSpecStaysManufacturable:
         small = derive_manufacture_spec(_case(neck_mm=2.5), [])
         big = derive_manufacture_spec(_case(neck_mm=12.0), [])
         assert small.blade_length_mm < big.blade_length_mm
+
+
+# ── Catálogo sin inventario (F1-190, F1-192) ──────────────────────────────── #
+
+class TestCatalogoSinInventario:
+    """Sin un solo clip de inventario cargado, nada se llama «del inventario».
+
+    En la instalación auditada el catálogo era la familia NAVARRO™ entera, todo
+    bajo pedido, y el resumen decía «6 clips del inventario son utilizables, pero
+    ninguno sin reservas». Ni eran de inventario ni la «alternativa a medida» que
+    nombraba era la pieza que Fabricación describía.
+    """
+
+    def test_con_catalogo_vacio_no_dice_del_inventario(self):
+        sel = select_clips(_case(neck_mm=5.0))
+        assert sel.stock_count == 0
+        # El veredicto es el de pieza a medida, aunque haya diseños que sirvan…
+        assert sel.outcome == "manufacture"
+        # …y esos diseños se siguen ofreciendo: son piezas reales.
+        assert sel.recommended
+        assert "del inventario" not in sel.summary
+        assert sel.summary.startswith("No hay clips de inventario cargados.")
+        assert "la pieza se concreta en Fabricación" in sel.summary
+
+    def test_sin_ningun_diseno_que_sirva_tampoco(self):
+        sel = select_clips(_case(neck_mm=25.0))
+        assert sel.outcome == "manufacture"
+        assert "inventario" not in sel.summary.replace("No hay clips de inventario cargados", "")
+
+    def test_tras_la_verificacion_tampoco(self):
+        from services.clip_selection import Criterion, repartition_after_verification
+
+        sel = select_clips(_case(neck_mm=5.0))
+        for cand in sel.recommended[1:]:
+            cand.criteria.append(Criterion("geometry", "Ajuste real", "fail", "colisiona", 0.0, weight=2.5))
+            cand.score = 0.0
+        repartition_after_verification(sel)
+        assert sel.outcome == "manufacture"
+        assert "del inventario" not in sel.summary
+        assert sel.summary.startswith("No hay clips de inventario cargados. 1 diseño bajo pedido sirve ")
+
+    def test_con_inventario_los_textos_siguen_como_estaban(self):
+        from services.clip_library import catalogue_with_library
+
+        catalogo = [_clip("Yasargil Recto 7mm")] + catalogue_with_library()
+        sel = select_clips(_case(neck_mm=5.0), catalogue=catalogo)
+        assert sel.stock_count == 1
+        assert sel.outcome in ("stock", "marginal")
+        assert "del inventario" in sel.summary
+
+    def test_la_pieza_del_resumen_es_la_de_fabricacion(self):
+        # Con un NAVARRO colocado, la selección describe ESA pieza —mordaza,
+        # forma y fuerza—, la misma que genera Fabricación.
+        from services.device_state import save_clips
+
+        sid = _session(neck_mm=6.0)
+        save_clips(sid, [{"index": 0, "name": "NAVARRO™ T1 Recto 7.0 mm",
+                          "clip_id": "navarro:t1:0:7.0",
+                          "position": [0, 0, 0], "orientation": [0, 0, 0]}])
+        sel = client.get(f"/api/clips/selection/{sid}?verify=false").json()
+        fab = client.post(f"/api/clips/manufacture/{sid}").json()
+        assert sel["stock_count"] == 0
+        assert sel["manufacture"]["blade_length_mm"] == 7.0
+        assert sel["manufacture"]["label"] == fab["label"]
+        assert sel["manufacture"]["piece_label"] == fab["piece_label"]
+        assert sel["manufacture"]["closing_force_g"] == fab["closing_force_g"]

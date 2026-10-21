@@ -57,7 +57,40 @@ _C = {
     "PHASES_TOTAL": ("99PRP071", "99PRP", "PHASES Total Score"),
     "PHASES_RISK":  ("99PRP072", "99PRP", "PHASES 5-Year Rupture Risk"),
     "PHASES_BAND":  ("99PRP073", "99PRP", "PHASES Risk Band"),
+    # F1-237: la trayectoria con conceptos propios. Iba como dos textos bajo
+    # «Clip Model»: un lector del SR veía «Clip Model: Entrada (67.0, …)».
+    "TRAJ_ENTRY":     ("99PRP080", "99PRP", "Approach Entry Point"),
+    "TRAJ_TARGET":    ("99PRP081", "99PRP", "Approach Target"),
+    "TRAJ_DISTANCE":  ("99PRP082", "99PRP", "Entry–target distance"),
+    "TRAJ_ANGLE":     ("99PRP083", "99PRP", "Incidence angle"),
+    "TRAJ_ANGLE_REF": ("99PRP084", "99PRP", "Incidence angle reference axis"),
+    # F1-238: lo que el PDF dice y el SR no llevaba.
+    "RECOMMENDATION": ("99PRP090", "99PRP", "Treatment Recommendation"),
+    "REC_KEY":        ("99PRP091", "99PRP", "Recommendation Key"),
+    "REC_TEXT":       ("99PRP092", "99PRP", "Recommendation Text"),
+    "REC_CONFIDENCE": ("99PRP093", "99PRP", "Recommendation Confidence"),
+    "ANNOTATIONS":    ("99PRP100", "99PRP", "Annotations"),
+    "ANN_COUNT":      ("99PRP101", "99PRP", "Annotation Count"),
+    "ANNOTATION":     ("99PRP102", "99PRP", "Annotation"),
+    "ANN_LABEL":      ("99PRP103", "99PRP", "Annotation Label"),
+    "ANN_KIND":       ("99PRP104", "99PRP", "Annotation Kind"),
+    "ANN_VALUE":      ("99PRP105", "99PRP", "Annotation Value"),
+    "ELAPSS":         ("99PRP110", "99PRP", "ELAPSS Score Assessment"),
+    "ELAPSS_TOTAL":   ("99PRP111", "99PRP", "ELAPSS Total Score"),
+    "ELAPSS_GROWTH_3Y": ("99PRP112", "99PRP", "ELAPSS 3-Year Growth Risk"),
+    "ELAPSS_GROWTH_5Y": ("99PRP113", "99PRP", "ELAPSS 5-Year Growth Risk"),
+    "ELAPSS_BAND":    ("99PRP114", "99PRP", "ELAPSS Score Band"),
+    "UIATS":          ("99PRP120", "99PRP", "UIATS Assessment"),
+    "UIATS_REPAIR":   ("99PRP121", "99PRP", "UIATS Score Favouring Repair"),
+    "UIATS_CONSERVATIVE": ("99PRP122", "99PRP", "UIATS Score Favouring Conservative Management"),
+    "UIATS_RECOMMENDATION": ("99PRP123", "99PRP", "UIATS Recommendation"),
 }
+
+#: Las mismas palabras que el PDF (report_generator._UIATS_REC).
+_UIATS_REC_ES = {"repair": "A favor de tratar", "conservative": "A favor de vigilar",
+                 "not_definitive": "No concluyente"}
+#: Los tipos de anotación como los dicen el panel y el PDF.
+_ANN_KIND_ES = {"regla": "Regla", "angulo": "Ángulo", "region": "Región", "marcador": "Marcador"}
 
 _U = {
     "mm":    ("mm",  "UCUM", "mm"),
@@ -143,6 +176,10 @@ class DicomSRGenerator:
         coils: list[dict[str, Any]] | None = None,
         risk_label: str = "",
         phases: dict[str, Any] | None = None,
+        treatment: dict[str, Any] | None = None,
+        annotations: list[dict[str, Any]] | None = None,
+        elapss: dict[str, Any] | None = None,
+        uiats: dict[str, Any] | None = None,
     ) -> None:
         self._meta = series_meta
         self._morpho = morphometrics
@@ -152,6 +189,10 @@ class DicomSRGenerator:
         self._coils = coils or []
         self._risk = risk_label
         self._phases = phases or {}
+        self._treatment = treatment or {}
+        self._annotations = annotations
+        self._elapss = elapss or {}
+        self._uiats = uiats or {}
 
     def generate(self, output_path: str | Path) -> Path:
         p = Path(output_path)
@@ -227,6 +268,15 @@ class DicomSRGenerator:
             root_items.append(self._build_trajectory_container())
         if self._phases:
             root_items.append(self._build_phases_container())
+        if self._elapss:
+            root_items.append(self._build_elapss_container())
+        if self._uiats:
+            root_items.append(self._build_uiats_container())
+        if self._treatment.get("recommendation_key"):
+            root_items.append(self._build_recommendation_container())
+        # Con cero anotaciones también: «0» dice que se miró y no había ninguna.
+        if self._annotations is not None:
+            root_items.append(self._build_annotations_container())
 
         ds.ContentSequence = Sequence(root_items)
         return ds
@@ -260,7 +310,9 @@ class DicomSRGenerator:
             pos = c.get("position_mm", (0, 0, 0))
             clip_items.append(_container("CLIP", [
                 _text_item("CLIP_MODEL", c.get("name", "—")),
-                _text_item("CLIP_TYPE", "Personalizado" if c.get("is_custom") else "Catálogo"),
+                # F1-238: el tipo real; un NAVARRO es pieza a medida, no catálogo.
+                _text_item("CLIP_TYPE", c.get("clip_type")
+                           or _clip_type(str(c.get("clip_id", "")), bool(c.get("is_custom")))),
                 _num_item("POS_X", float(pos[0]), "mm"),
                 _num_item("POS_Y", float(pos[1]), "mm"),
                 _num_item("POS_Z", float(pos[2]), "mm"),
@@ -309,7 +361,74 @@ class DicomSRGenerator:
         tr = self._traj
         entry = tr.get("entry", [0, 0, 0])
         target = tr.get("target", [0, 0, 0])
-        return _container("TRAJECTORY", [
-            _text_item("CLIP_MODEL", f"Entrada ({entry[0]:.1f}, {entry[1]:.1f}, {entry[2]:.1f})"),
-            _text_item("CLIP_MODEL", f"Diana ({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f})"),
-        ])
+        children = [
+            _text_item("TRAJ_ENTRY", f"({entry[0]:.1f}, {entry[1]:.1f}, {entry[2]:.1f}) mm"),
+            _text_item("TRAJ_TARGET", f"({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f}) mm"),
+        ]
+        if tr.get("depth_mm") is not None:
+            children.append(_num_item("TRAJ_DISTANCE", float(tr["depth_mm"]), "mm"))
+        if tr.get("angle_deg") is not None:
+            children.append(_num_item("TRAJ_ANGLE", float(tr["angle_deg"]), "deg"))
+            # Contra qué eje: el del aneurisma, o el vertical si no se midió.
+            ref = {"aneurisma": "Eje del aneurisma", "vertical": "Eje vertical (z)"}.get(
+                str(tr.get("angle_ref", "")), "")
+            if ref:
+                children.append(_text_item("TRAJ_ANGLE_REF", ref))
+        return _container("TRAJECTORY", children)
+
+    def _build_recommendation_container(self) -> Dataset:
+        t = self._treatment
+        children = [_text_item("REC_KEY", str(t.get("recommendation_key", "")))]
+        if t.get("recommendation"):
+            children.append(_text_item("REC_TEXT", str(t["recommendation"])))
+        if t.get("confidence"):
+            children.append(_text_item("REC_CONFIDENCE", str(t["confidence"])))
+        return _container("RECOMMENDATION", children)
+
+    def _build_annotations_container(self) -> Dataset:
+        from services.annotations import format_measure, measure
+
+        anns = self._annotations or []
+        children: list[Dataset] = [_num_item("ANN_COUNT", float(len(anns)), "ratio")]
+        for a in anns:
+            kind = str(a.get("kind", ""))
+            puntos = [[p["x"], p["y"], p["z"]] if isinstance(p, dict) else list(p)
+                      for p in a.get("points", [])]
+            try:
+                valor = format_measure(measure(kind, puntos))
+            except Exception:  # noqa: BLE001 — una anotación rara no tumba el SR
+                valor = ""
+            fila = [_text_item("ANN_LABEL", str(a.get("label", "")) or "—"),
+                    _text_item("ANN_KIND", _ANN_KIND_ES.get(kind, kind) or "—")]
+            if valor:
+                fila.append(_text_item("ANN_VALUE", valor))
+            children.append(_container("ANNOTATION", fila))
+        return _container("ANNOTATIONS", children)
+
+    def _build_elapss_container(self) -> Dataset:
+        el = self._elapss
+        children = [
+            _num_item("ELAPSS_TOTAL", float(el.get("total_score", 0)), "ratio"),
+            _num_item("ELAPSS_GROWTH_3Y", float(el.get("growth_3yr_pct", 0.0)), "pct"),
+            _num_item("ELAPSS_GROWTH_5Y", float(el.get("growth_5yr_pct", 0.0)), "pct"),
+        ]
+        if el.get("score_band"):
+            children.append(_text_item("ELAPSS_BAND", str(el["score_band"])))
+        return _container("ELAPSS", children)
+
+    def _build_uiats_container(self) -> Dataset:
+        u = self._uiats
+        children = [
+            _num_item("UIATS_REPAIR", float(u.get("repair", 0)), "ratio"),
+            _num_item("UIATS_CONSERVATIVE", float(u.get("conservative", 0)), "ratio"),
+        ]
+        rec = _UIATS_REC_ES.get(str(u.get("recommendation", "")), "")
+        if rec:
+            children.append(_text_item("UIATS_RECOMMENDATION", rec))
+        return _container("UIATS", children)
+
+
+def _clip_type(clip_id: str, is_custom: bool) -> str:
+    """El tipo de clip, con la regla del PDF (report_generator.clip_type_label)."""
+    from services.report_generator import clip_type_label
+    return clip_type_label(clip_id, is_custom)

@@ -29,18 +29,22 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from services import clip_orders as store
 from services.clip_manufacture import PerfectClip
 from services.audit import audit_append
+from services.access import is_admin, own_patient_ids, require_patient, session_patient_id
 from services.auth_service import require_admin, require_user
-from services.db_models import User
+from services.database import get_db
+from services.db_models import Study, User
 from services.sessions import session_exists
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["clip-orders"])
 
 CurrentUser = Annotated[User, Depends(require_user)]
+Db = Annotated[Session, Depends(get_db)]
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────── #
@@ -215,6 +219,11 @@ class PrefillOut(BaseModel):
     # Fixed properties of the family.
     stock_sizes_mm: list[int] = []
     force_band_g: list[float] = []
+    #: La fuerza objetivo de la pieza (la del clip colocado, si lo hay) y su
+    #: frase: la misma cifra que la tarjeta del mapa de calor y Fabricación
+    #: (F1-202). El pedido solo llevaba la banda, una tercera manera de decirla.
+    force_target_g: float = 0.0
+    force_statement: str = ""
     max_tip_opening_mm: float = 0.0
     material: str = ""
     tolerance_jaw_mm: float = 0.0
@@ -423,19 +432,26 @@ def _out(order: store.ClipOrder) -> OrderOut:
 
 def _patient_id_for(session_id: str, case_id: int | None) -> int | None:
     """Which patient this order is for. None when the case is not registered."""
+    from services.access import session_row
     from services.database import SessionLocal
-    from services.db_models import PlanningSession, Study
+    from services.db_models import Study
 
     db = SessionLocal()
     try:
         study = db.get(Study, int(case_id)) if case_id else None
-        if study is None:
-            ps = (db.query(PlanningSession)
-                    .filter(PlanningSession.session_id == session_id)
-                    .order_by(PlanningSession.id.desc()).first())
-            if ps is not None and ps.study_id:
-                study = db.get(Study, ps.study_id)
-        return int(study.patient_id) if study is not None and study.patient_id else None
+        if study is not None and study.patient_id:
+            return int(study.patient_id)
+        # Por el mismo rastro que la guarda (`_require_case_session`): una sesión
+        # reanudada y aún sin guardar tiene un id nuevo sin fila, y buscarla por
+        # id exacto dejaba el pedido sin paciente, fuera del filtro de «Pedidos».
+        ps = session_row(db, session_id)
+        if ps is None:
+            return None
+        if ps.study_id:
+            study = db.get(Study, ps.study_id)
+            if study is not None and study.patient_id:
+                return int(study.patient_id)
+        return int(ps.patient_id) if ps.patient_id else None
     except Exception as exc:  # noqa: BLE001 — an order must not fail on a DB hiccup
         logger.warning("Patient lookup failed for %s: %s", session_id, exc)
         return None
@@ -448,6 +464,44 @@ def _need(part_no: str) -> store.ClipOrder:
     if order is None:
         raise HTTPException(status_code=404, detail=f"No existe el pedido {part_no}.")
     return order
+
+
+def _need_own(part_no: str, user: User, db: Session) -> store.ClipOrder:
+    """El pedido, si es de un paciente de este usuario (o lo pidió él).
+
+    Las rutas por número de pedido no miraban de quién era: con números
+    correlativos, un Médico abría, firmaba, recibía, rechazaba o borraba el
+    pedido de cualquier paciente y descargaba sus ficheros.
+    """
+    order = _need(part_no)
+    if order.patient_id is not None:
+        require_patient(db, user, order.patient_id)
+    elif not is_admin(user) and order.requested_by != user.username:
+        # Sin paciente no hay dueño clínico; el número no es secreto, así que
+        # el pedido es de quien lo pidió (y del administrador).
+        raise HTTPException(status_code=403, detail="No autorizado sobre este pedido.")
+    return order
+
+
+def _visible(db: Session, user: User) -> dict:
+    """Los filtros de `store.list_orders` para lo que este usuario puede ver."""
+    propios = own_patient_ids(db, user)
+    if propios is None:
+        return {}
+    return {"patient_ids": [pid for (pid,) in propios.all()], "owner": user.username}
+
+
+def _require_case_session(db: Session, user: User, session_id: str, case_id: int | None) -> None:
+    """403 si la sesión o el caso nombrado son de un paciente ajeno.
+
+    «prefill» y la creación aceptaban cualquier sesión y cualquier `case_id`, y
+    el formulario devolvía el nombre del paciente y el caso de otro profesional.
+    """
+    require_patient(db, user, session_patient_id(db, session_id))
+    if case_id is not None:
+        study = db.get(Study, int(case_id))
+        if study is not None:
+            require_patient(db, user, study.patient_id)
 
 
 # ── Workshops ──────────────────────────────────────────────────────────────── #
@@ -519,11 +573,11 @@ async def remove_workshop(workshop_id: str, _admin: Annotated[User, Depends(requ
         "workshops on file. The form asks the user only for what none of this can "
         "answer.\n\n"
         "`suggest_extra_sizes` is true when the neck was ESTIMATED rather than "
-        "measured off a marked rim: the jaw is only as certain as the neck it was "
+        "marked by hand (rim or neck point): the jaw is only as certain as the neck it was "
         "derived from, so the adjacent drawn sizes are worth having in theatre."
     ),
 )
-async def prefill(session_id: str, user: CurrentUser,
+async def prefill(session_id: str, user: CurrentUser, db: Db,
                   case_id: int | None = Query(None)) -> PrefillOut:
     from dataclasses import asdict
 
@@ -531,18 +585,26 @@ async def prefill(session_id: str, user: CurrentUser,
                                            placed_navarro_id)
     from services.clip_animation import MAX_TIP_OPENING_MM
     from services.navarro import (CLOSING_FORCE_MAX_G, CLOSING_FORCE_MIN_G,
-                                  STOCK_JAW_MM, STOCK_WINDOW_MM, list_variants)
+                                  STOCK_JAW_MM, STOCK_WINDOW_MM, force_statement,
+                                  list_variants)
 
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    _require_case_session(db, user, session_id, case_id)
 
     case, spec, piece, caveats = _advice(session_id, case_id)
     from routers.clips import _case_identity
     patient, case_label = _case_identity(session_id, case_id)
 
     jaw = piece.navarro_jaw_mm or spec.blade_length_mm
+    fuerza = force_statement(spec.closing_force_g)
     neighbours = sorted(STOCK_JAW_MM, key=lambda s: abs(s - jaw))[1:3]
-    estimated = case.neck_source not in ("rim",)
+    # Una sola regla con el informe (F1-215): aquí solo el borde contaba como
+    # marcado, así que un punto puesto a mano salía «estimado» en el pedido y
+    # «marcado» en el PDF, y además se proponían tallas contiguas (F1-216).
+    from services.neck_provenance import neck_is_marked, neck_provenance_label
+    estimated = not neck_is_marked(case.neck_source)
+    procedencia = neck_provenance_label(case.neck_source)
 
     return PrefillOut(
         session_id=session_id,
@@ -571,15 +633,16 @@ async def prefill(session_id: str, user: CurrentUser,
         suggested_extra_sizes_mm=[float(x) for x in sorted(neighbours)],
         suggest_extra_sizes=estimated,
         extra_sizes_reason=(
-            "El cuello está ESTIMADO a partir del saco, no medido sobre un borde "
-            "marcado a mano: la mordaza hereda esa incertidumbre y conviene tener "
-            "las tallas contiguas en quirófano."
+            f"El cuello está {procedencia}: la mordaza hereda esa incertidumbre y "
+            "conviene tener las tallas contiguas en quirófano."
             if estimated else
-            "El cuello se midió sobre el borde marcado, así que la talla elegida es "
-            "la más fiable que puede darse; las contiguas son opcionales."
+            f"El cuello está {procedencia}, así que la talla elegida es la más "
+            "fiable que puede darse; las contiguas son opcionales."
         ),
         stock_sizes_mm=list(STOCK_JAW_MM),
         force_band_g=[CLOSING_FORCE_MIN_G, CLOSING_FORCE_MAX_G],
+        force_target_g=fuerza["target_g"],
+        force_statement=fuerza["text"],
         max_tip_opening_mm=MAX_TIP_OPENING_MM,
         material=MATERIAL, tolerance_jaw_mm=TOL_JAW_MM, tolerance_other_mm=TOL_OTHER_MM,
         requester_name=user.full_name or user.username,
@@ -605,11 +668,12 @@ async def prefill(session_id: str, user: CurrentUser,
         "afterwards cannot change what was ordered."
     ),
 )
-async def create_order(session_id: str, req: OrderIn, user: CurrentUser) -> OrderOut:
+async def create_order(session_id: str, req: OrderIn, user: CurrentUser, db: Db) -> OrderOut:
     from dataclasses import asdict
 
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    _require_case_session(db, user, session_id, req.case_id)
 
     case, advised, advised_piece, _caveats = _advice(session_id, req.case_id)
     # A caller that names neither the series nor a bend is asking for the advised
@@ -710,8 +774,11 @@ async def create_order(session_id: str, req: OrderIn, user: CurrentUser) -> Orde
     description="For the register's header. Every state is present, zeroes included, "
                 "so the row does not jump around as orders move.",
 )
-async def summary(_user: CurrentUser) -> dict:
-    return {"counts": store.status_counts(), "labels": store.STATUS_LABELS}
+async def summary(user: CurrentUser, db: Db) -> dict:
+    # Cuenta lo mismo que el registro deja ver: si no, la cabecera anunciaba
+    # pedidos de otros profesionales que la lista ya no muestra.
+    return {"counts": store.status_counts(store.list_orders(**_visible(db, user))),
+            "labels": store.STATUS_LABELS}
 
 
 @router.get(
@@ -725,9 +792,13 @@ async def summary(_user: CurrentUser) -> dict:
     ),
 )
 async def list_orders(
-    _user: CurrentUser,
+    user: CurrentUser,
+    db: Db,
     status: str | None = Query(None, description="Filter by status"),
-    session_id: str = Query("", description="Only orders raised from this session"),
+    session_id: str = Query("", description="Only orders raised from this session "
+                            "or from the saved sessions it was resumed from"),
+    case_id: int | None = Query(None, description="Also the orders of this case, "
+                                "whichever session raised them"),
     patient_id: int | None = Query(None, description="Only orders for this patient"),
     q: str = Query("", description="Free text over part number, patient, case, surgeon, workshop"),
     open_only: bool = Query(False, description="Hide verified and rejected orders"),
@@ -739,12 +810,13 @@ async def list_orders(
     return [_out(o) for o in store.list_orders(status=status, session_id=session_id,
                                                session_ids=linaje or None,
                                                patient_id=patient_id, q=q,
-                                               open_only=open_only)]
+                                               open_only=open_only, case_id=case_id,
+                                               **_visible(db, user))]
 
 
 @router.get("/clip-orders/{part_no}", response_model=OrderOut, summary="One order")
-async def get_order(part_no: str, _user: CurrentUser) -> OrderOut:
-    return _out(_need(part_no))
+async def get_order(part_no: str, user: CurrentUser, db: Db) -> OrderOut:
+    return _out(_need_own(part_no, user, db))
 
 
 @router.post(
@@ -756,8 +828,8 @@ async def get_order(part_no: str, _user: CurrentUser) -> OrderOut:
         "A jump the workflow does not allow is refused with the states that are."
     ),
 )
-async def advance(part_no: str, req: StatusIn, user: CurrentUser) -> OrderOut:
-    order = _need(part_no)
+async def advance(part_no: str, req: StatusIn, user: CurrentUser, db: Db) -> OrderOut:
+    order = _need_own(part_no, user, db)
     if req.status == store.SIGNED and user.role not in store.SIGNING_ROLES:
         raise HTTPException(status_code=403,
                             detail="Solo un médico responsable puede firmar un pedido.")
@@ -790,7 +862,8 @@ async def advance(part_no: str, req: StatusIn, user: CurrentUser) -> OrderOut:
         "the heat treatment, none of which an STL carries."
     ),
 )
-async def receive(part_no: str, req: ReceptionIn, user: CurrentUser) -> OrderOut:
+async def receive(part_no: str, req: ReceptionIn, user: CurrentUser, db: Db) -> OrderOut:
+    _need_own(part_no, user, db)
     try:
         order = store.receive(part_no, measured_jaw_mm=req.measured_jaw_mm,
                               measured_force_g=req.measured_force_g,
@@ -816,7 +889,8 @@ async def receive(part_no: str, req: ReceptionIn, user: CurrentUser) -> OrderOut
         "in writing and that justification stays with the order."
     ),
 )
-async def verify(part_no: str, req: VerifyIn, user: CurrentUser) -> OrderOut:
+async def verify(part_no: str, req: VerifyIn, user: CurrentUser, db: Db) -> OrderOut:
+    _need_own(part_no, user, db)
     try:
         order = store.verify(part_no, by=user.username,
                              accept_deviation_reason=req.accept_deviation_reason)
@@ -831,7 +905,8 @@ async def verify(part_no: str, req: VerifyIn, user: CurrentUser) -> OrderOut:
 
 @router.post("/clip-orders/{part_no}/reject", response_model=OrderOut,
              summary="Reject the received piece, with a reason")
-async def reject(part_no: str, req: RejectIn, user: CurrentUser) -> OrderOut:
+async def reject(part_no: str, req: RejectIn, user: CurrentUser, db: Db) -> OrderOut:
+    _need_own(part_no, user, db)
     try:
         order = store.reject(part_no, reason=req.reason, by=user.username)
     except store.OrderError as exc:
@@ -842,7 +917,8 @@ async def reject(part_no: str, req: RejectIn, user: CurrentUser) -> OrderOut:
 
 
 @router.delete("/clip-orders/{part_no}", summary="Delete a DRAFT (a signed order is a record)")
-async def delete_order(part_no: str, user: CurrentUser) -> dict:
+async def delete_order(part_no: str, user: CurrentUser, db: Db) -> dict:
+    _need_own(part_no, user, db)
     try:
         if not store.delete_order(part_no):
             raise HTTPException(status_code=404, detail=f"No existe el pedido {part_no}.")
@@ -867,8 +943,8 @@ _SERVED = {
     description="`stl` · `dossier_internal` · `dossier_workshop`. Authenticated: the "
                 "order directory is private, outside the public static mount.",
 )
-async def order_file(part_no: str, what: str, _user: CurrentUser) -> FileResponse:
-    order = _need(part_no)
+async def order_file(part_no: str, what: str, user: CurrentUser, db: Db) -> FileResponse:
+    order = _need_own(part_no, user, db)
     entry = _SERVED.get(what)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Documento «{what}» no reconocido.")
@@ -889,8 +965,8 @@ async def order_file(part_no: str, what: str, _user: CurrentUser) -> FileRespons
         "and sent by a person — this application does not mail anything itself."
     ),
 )
-async def packet(part_no: str, user: CurrentUser) -> FileResponse:
-    order = _need(part_no)
+async def packet(part_no: str, user: CurrentUser, db: Db) -> FileResponse:
+    order = _need_own(part_no, user, db)
     path = Path(store.order_dir(order.part_no)) / f"paquete_{order.part_no}.zip"
     if not path.exists():
         raise HTTPException(status_code=409,

@@ -18,10 +18,12 @@ from sqlalchemy.orm import Session
 
 from models.dicom import UploadResult
 from models.patient import StudyCard
-from services.access import own_patient_ids, require_patient
+from services.access import can_share_patient, own_patient_ids, require_patient
+from services.audit import ACT_STUDY_DELETED, audit_append, audit_patient
 from services.auth_service import get_current_user
 from services.database import get_db
-from services.db_models import ImagingStudy, PlanningSession, Patient, Study, User
+from services.db_models import (CaseCapture, ImagingStudy, LesionConfirmation, PlanningSession,
+                                Patient, Study, User)
 from services.sessions import create_session, has_saved_session, session_subdir
 from services.storage import get_storage
 from services.study_archive import archive_session_dicom, restore_study_to_session
@@ -38,6 +40,7 @@ def _to_card(img: ImagingStudy, latest: PlanningSession | None) -> StudyCard:
         id=img.id,
         case_id=img.case_id,
         patient_id=img.patient_id,
+        owner_id=(p.created_by if p else None),
         patient_name=(p.full_name if p else ""),
         hospital_id=(p.hospital_id if p else ""),
         description=img.description or (case.dx_principal if case else "") or "Estudio",
@@ -291,3 +294,62 @@ async def open_study(
 
     logger.info("Opened study %s into session %s: %d files, %d series", study_id, sid, n, len(series_list))
     return UploadResult(session_id=sid, series=series_list, total_files=n)
+
+
+@router.delete(
+    "/{study_id}",
+    status_code=204,
+    summary="Delete an archived imaging study",
+    description=(
+        "Borra el DICOM archivado y la vista previa de un estudio de imagen. Solo "
+        "quien creó al paciente o un administrador. Las sesiones que apuntaban al "
+        "estudio se desligan pero se conservan: tienen su propia copia del DICOM."
+    ),
+)
+async def delete_imaging_study(
+    study_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> Response:
+    img = db.query(ImagingStudy).filter_by(id=study_id).first()
+    if img is None:
+        raise HTTPException(status_code=404, detail="Estudio no encontrado.")
+    # Un ajeno recibe el mismo 403 que en miniatura y «abrir»: no se entera de si existe.
+    require_patient(db, current_user, img.patient_id)
+    if not can_share_patient(db, current_user, img.patient_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo quien creó al paciente o un administrador puede borrar un estudio archivado.",
+        )
+    # Las capturas cuelgan del estudio con clave obligatoria y son trabajo del
+    # profesional: no se borran por detrás, se le pide que decida.
+    if db.query(CaseCapture.id).filter(CaseCapture.imaging_study_id == img.id).first() is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Este estudio tiene capturas guardadas. Bórralas desde la ficha del paciente antes de borrar el estudio.",
+        )
+    detalle = {"study_id": img.id, "case_id": img.case_id, "n_files": img.n_files or 0}
+    paciente = audit_patient(db.get(Patient, img.patient_id))
+    storage = get_storage()
+    # Primero los objetos: si el almacén falla, la fila sigue y se puede reintentar;
+    # al revés quedarían ficheros de paciente huérfanos sin nadie que los apunte.
+    try:
+        if img.storage_prefix:
+            storage.delete_prefix(img.storage_prefix)
+        if img.thumb_key:
+            storage.delete_key(img.thumb_key)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Delete study objects failed")
+        raise HTTPException(status_code=500, detail=f"No se pudo borrar el estudio: {exc}")
+    db.query(PlanningSession).filter(PlanningSession.imaging_study_id == img.id).update(
+        {"imaging_study_id": None}
+    )
+    # La confirmación de lesión es un dato clínico propio: se queda, sin estudio.
+    db.query(LesionConfirmation).filter(LesionConfirmation.imaging_study_id == img.id).update(
+        {"imaging_study_id": None}
+    )
+    db.delete(img)
+    db.commit()
+    audit_append(ACT_STUDY_DELETED, detalle,
+                 username=current_user.username if current_user else "", **paciente)
+    return Response(status_code=204)

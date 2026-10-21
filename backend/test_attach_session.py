@@ -173,3 +173,94 @@ class TestAdjuntar:
         r = client.post(f"/api/sessions/{create_session()}/attach", json={
             "new_patient": {"surname": "X"}, "new_case": {"dx_principal": "X"}})
         assert r.status_code == 422 and "DICOM" in r.json()["detail"]
+
+
+class TestAdjuntarUnaSesionReanudada:
+    """Reanudar da a la sesión viva un id nuevo. Adjuntar buscaba la fila por
+    ese id exacto, no la encontraba y creaba otra: la sesión guardada salía dos
+    veces en «Sesiones guardadas», una de ellas sin instantánea que reanudar."""
+
+    def _guardada_y_reanudada(self) -> tuple[str, str]:
+        sid, _ = _sesion()
+        assert client.post("/api/sessions/save", json={
+            "session_id": sid, "current_step": 2, "label": "sin paciente"}).status_code == 200
+        r = client.post(f"/api/sessions/{sid}/restore")
+        assert r.status_code == 200, r.text
+        return sid, r.json()["session_id"]
+
+    def _filas(self, *ids: str):
+        from services.db_models import PlanningSession
+        db = SessionLocal()
+        try:
+            return db.query(PlanningSession).filter(PlanningSession.session_id.in_(ids)).all()
+        finally:
+            db.close()
+
+    def test_adjuntar_la_reanudada_reutiliza_la_fila_de_origen(self):
+        sid, vivo = self._guardada_y_reanudada()
+        id_fila = self._filas(sid)[0].id
+        r = client.post(f"/api/sessions/{vivo}/attach", json={
+            "new_patient": {"surname": "Reanudada"}, "new_case": {"dx_principal": "Control"}})
+        assert r.status_code == 200, r.text
+        filas = self._filas(sid, vivo)
+        assert len(filas) == 1 and filas[0].id == id_fila
+        assert filas[0].imaging_study_id == r.json()["imaging_study_id"]
+        assert filas[0].patient_id == r.json()["patient"]["id"]
+        # Y «Guardar progreso» después sigue cayendo en esa misma fila.
+        assert client.post("/api/sessions/save", json={
+            "session_id": vivo, "current_step": 3}).status_code == 200
+        assert [f.id for f in self._filas(sid, vivo)] == [id_fila]
+
+    def test_la_reanudada_de_una_adjunta_no_se_adjunta_otra_vez(self):
+        sid, vivo = self._guardada_y_reanudada()
+        assert client.post(f"/api/sessions/{vivo}/attach", json={
+            "new_patient": {"surname": "Primera"}, "new_case": {"dx_principal": "X"}}).status_code == 200
+        # Otra pestaña reanuda la misma guardada: ya está adjunta por su origen.
+        otra = client.post(f"/api/sessions/{sid}/restore").json()["session_id"]
+        assert client.get(f"/api/sessions/{otra}/identity").json()["attached"] is True
+        assert client.post(f"/api/sessions/{otra}/attach", json={
+            "new_patient": {"surname": "Segunda"}, "new_case": {"dx_principal": "Y"}}).status_code == 409
+
+
+class TestHistoriaDeOtroProfesional:
+    """Revisión T7: el 409 por historia repetida no nombra a un paciente que
+    quien adjunta no ve; al compartido sí, y puede adjuntar con caso nuevo."""
+
+    @staticmethod
+    def _medico():
+        from conftest import anonymous_client
+        from services.auth_service import create_access_token, get_password_hash
+        from services.db_models import User
+        nombre = f"med-{uuid.uuid4().hex[:8]}"
+        db = SessionLocal()
+        u = User(username=nombre, hashed_password=get_password_hash("x" * 12), role="medico", full_name=nombre)
+        db.add(u); db.commit(); uid = u.id; db.close()
+        c = anonymous_client(app)
+        c.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
+        return uid, c
+
+    def _de(self, uid: int, hc: str) -> int:
+        db = SessionLocal()
+        p = Patient(surname="Reservado", given_name="Nombre", hospital_id=hc, created_by=uid)
+        db.add(p); db.commit(); pid = p.id; db.close()
+        return pid
+
+    def test_no_dice_el_nombre_de_un_paciente_ajeno(self):
+        a_id, _a = self._medico(); _b_id, b = self._medico()
+        sid, hc = _sesion()
+        self._de(a_id, hc)
+        r = b.post(f"/api/sessions/{sid}/attach", json={
+            "new_patient": {"surname": "Otro", "hospital_id": hc}, "new_case": {"dx_principal": "X"}})
+        assert r.status_code == 409
+        assert "Reservado" not in r.json()["detail"] and "comparta contigo" in r.json()["detail"]
+
+    def test_al_compartido_si_y_adjunta_con_caso_nuevo(self):
+        a_id, a = self._medico(); b_id, b = self._medico()
+        sid, hc = _sesion()
+        pid = self._de(a_id, hc)
+        assert a.put(f"/api/patients/{pid}/shares", json={"user_ids": [b_id]}).status_code == 200
+        r = b.post(f"/api/sessions/{sid}/attach", json={
+            "new_patient": {"surname": "Otro", "hospital_id": hc}, "new_case": {"dx_principal": "X"}})
+        assert r.status_code == 409 and "Reservado" in r.json()["detail"]
+        r = b.post(f"/api/sessions/{sid}/attach", json={"patient_id": pid, "new_case": {"dx_principal": "X"}})
+        assert r.status_code == 200 and r.json()["patient"]["is_shared_with_me"] is True

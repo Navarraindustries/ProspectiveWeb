@@ -2728,9 +2728,11 @@ volume, while 50 false candidates sit under −100 mean (sinus air, orbital fat)
 under 200 max (soft tissue without contrast). `backend/services/hu_floor.py` drops those
 from the consensus list before the top 5 are taken (`_detect_hits` asks for twice as many
 sites and refills), using the session's cached volume in the API and the segmentation
-volume in the bench; CT only. Simulated on the saved volumes and lists: 44 → 45 lesions in
-the top 5, 6 → 8 in first place, none lost; controls still get 5 candidates, so this is a
-cleaner list, not a per-study verdict. XA regression unchanged.
+volume in the bench; CT only. Measured on the full pass over the saved meshes and volumes
+(`backend/data/zenodo_eval_full_p3_hu`, 172/172): 44 → 45 lesions in the top 5, 6 → 8 in
+first place, 70 → 71 in the list of 40, 36 → 37 of 82 studies, and no lesion moves down;
+the floor checked 7 647 sites and dropped 1 148 (median −212 HU). Controls still get 5
+candidates, so this is a cleaner list, not a per-study verdict. XA regression unchanged.
 
 ---
 

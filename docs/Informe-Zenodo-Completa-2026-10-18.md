@@ -52,9 +52,10 @@ y **163 candidatos en hueso de 860** (de 206). La regla está aplicada en el có
 31), **53 entre los 10**, **70 en la lista** y **36 de 82 estudios** con la lesión entre los
 5; ganan 17 lesiones, pierden 4. Los controles siguen dando 5 candidatos (el hueso en
 controles vuelve a 126 de 450): el recorte mejora el puesto, no da el «no hay nada». Siguiente
-medida, aplicada el mismo día: un suelo de HU (§4.5; ningún acierto por debajo de −100 HU de
-media ni de 200 de máximo; simulado 44 → 45 entre los 5 y 6 → 8 en primer puesto, sin
-perder ninguno).
+medida, aplicada y medida el mismo día: un suelo de HU (§4.5; ningún acierto por debajo de
+−100 HU de media ni de 200 de máximo). **Pasada completa con el suelo: 45 de 122 entre los
+5, 8 en primer puesto, 71 en la lista, 37 de 82 estudios; ninguna lesión baja de puesto.**
+Es la cifra oficial a día de hoy.
 
 ## 2. Cómo se ha medido
 
@@ -456,9 +457,32 @@ banco le pasa el volumen de la segmentación. Solo en TC: en 3DRA los valores no
 volumen no cambia nada. El registro del banco guarda `hu_floor` (cuántos miró, cuántos quitó
 y sus HU). Tests `backend/test_hu_floor.py` (6); regresión XA sin cambio (6). Comprobado por
 el camino real en 028: de 23 sitios salen 7 (de −168 a −433 HU de media) y la lesión sube
-del 10.º al 7.º puesto. La cifra oficial sigue siendo la de la pasada medida de §4.4 (44 de
-122); la del suelo (45, 8 en primer puesto) es simulación sobre los mismos volúmenes y listas,
-exacta salvo el redondeo de posiciones, y una pasada completa la confirmaría en ~3 h.
+del 10.º al 7.º puesto.
+
+**Pasada medida** (`backend/data/zenodo_eval_full_p3_hu`, 172/172, 0 errores, 20-10 de
+14:21 a 21:14 con el lanzador `run_hu_p3.ps1` sobre las mallas y volúmenes guardados;
+detección 42 s de mediana, 3 min por estudio con la carga). La cifra oficial pasa a ser esta:
+
+| | Recorte (§4.4) | Recorte + suelo de HU |
+|---|---|---|
+| Lesiones entre los 5 (de 122) | 44 | **45** |
+| Entre los 10 | 53 | 53 |
+| En la lista de 40 | 70 | 71 |
+| En primer puesto | 6 | **8** (025, 031 suben de 2.ª) |
+| Estudios con la lesión entre los 5 (de 82) | 36 | 37 |
+| Lesiones que bajan de puesto | | **0** |
+| Candidatos de control por estudio | 5 | 5 (90 de 90) |
+| Candidatos en hueso (de 860) | 224 | 230 |
+| Candidatos en «otro» tejido (de 860) | 118 | 82 |
+
+El suelo miró 7 647 sitios (el doble de la lista en cada estudio) y quitó 1 148 en 155 de los
+172 estudios: HU medio mediano de los quitados −212 (de −2 001 a 173). Exactamente la
+simulación: 22 lesiones suben de puesto y ninguna baja; 017_1 entra 5.ª y 082_3 entra en la
+lista. Por tamaño entre los 5: miliares 2/30, medianas 20/56, grandes 15/20, gigantes 8/16;
+por tipo: blister 4/39, saculares 22/36, fusiformes 13/26, otras 6/21. Los motivos de fallo
+de las 51 que siguen fuera de la lista no cambian (sin región 12, fusionadas 11, compacidad
+11, curvatura media 9, pocos puntos 6, tope 1), porque el suelo actúa después del detector.
+Los controles siguen con 5 candidatos: el suelo limpia la lista, no da el «no hay nada».
 
 ### 4.6 El «H·r negativo» de los sacos grandes (2026-10-20): comprobado, no es un fallo de signo
 

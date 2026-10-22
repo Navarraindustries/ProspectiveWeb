@@ -3499,8 +3499,24 @@ only; `segment_tubular` segments that band and translates the mesh back to the f
 volume frame, so the viewer, morphometry and HU floor see what they always did
 (`info["head_band"]` records it). Measured on the saved records: 48 % of the voxels, the
 factor distribution goes from {1: 15, 2: 28, 3: 29, 4: 16, 5: 68, 6: 16} to {1: 54, 2: 97,
-3: 21}, and 13 of the 16 missing lesions are in studies that gain resolution. The full
-segmentation pass with the band is the next measurement.
+3: 21}, and 13 of the 16 missing lesions are in studies that gain resolution.
+
+**Measured (2026-10-22, `backend/data/zenodo_eval_full_p4_band`, 172/172):** the factor
+distribution is {1: 54, 2: 103, 3: 15}, segmentation drops from 661 to 320 s per study,
+and lesions out of the mesh go from 16 to 8 (11 recovered; 024, 093_1 and 093_2 newly
+lost, 5 unchanged). Against the HU-floor pass: 45 → **52** lesions in the top 5, 53 → 61 in
+the top 10, 71 → 75 in the list, 8 → **12** in first place, 37 → **45** of 82 studies; 30
+lesions move up, 22 down. Thrombus explains the mesh (a thick thrombus hides the annotated
+wall; the coarse passes only "recovered" it through blur) but not the rank: the 12
+thrombosed lesions in the top 5 are the same in both passes. The lesions that drop
+(004, 019, 028, 030, 035, 083, 087, 098, 013) keep their surface recall; their curvature
+region shrinks because the head mesh now has 133 k–650 k vertices against the 80 k cap of
+the curvature copy (`_CURVATURE_MAX_VERTS`), which is the next experiment, on the saved
+meshes. Controls still get 5 candidates (88 of 450 on bone, from 131). Study 093 loses two
+11–15 mm sacs at the tubularity gate (9–11 % of their points pass V ≥ p40, none reach
+the tube, so the 3 mm reclaim never starts; `scratchpad diag_mask.py`); the coarse pass
+only had them because its 373 cm³ mask wrapped the skull base. A sac-reclaim rule for core
+components attached to the tube by the neck is step 2 of the plan.
 
 ---
 

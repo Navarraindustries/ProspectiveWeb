@@ -57,6 +57,15 @@ medida, aplicada y medida el mismo día: un suelo de HU (§4.5; ningún acierto 
 5, 8 en primer puesto, 71 en la lista, 37 de 82 estudios; ninguna lesión baja de puesto.**
 Es la cifra oficial a día de hoy.
 
+**Actualización 2026-10-22.** Con la banda de la cabeza también en la segmentación (§4.8;
+157 de los 172 estudios se segmentaban reducidos por 2 a 6, ahora por 1 a 3) la pasada
+completa da **52 de 122 entre los 5** (de 45), **61 entre los 10**, **75 en la lista**, **12 en
+primer puesto** (de 8), **45 de 82 estudios** (de 37) y **8 lesiones fuera de la malla** (de
+16), a la mitad de tiempo por estudio (661 → 320 s). Las que bajan de puesto lo hacen por el
+diezmado de la copia de curvatura sobre una malla de cabeza 2–8 veces mayor que su tope, no
+por la malla (§4.8, punto 3): es el siguiente experimento. Los controles siguen con 5
+candidatos. Es la cifra oficial a día de hoy.
+
 ## 2. Cómo se ha medido
 
 `backend/scripts/eval_zenodo.py` recorre el mismo camino que la API (carga, umbrales
@@ -561,6 +570,104 @@ a ≤ 40 millones de vóxeles (`segment.hu_volume`) en vez del reducido entero. 
 segmentación (la cara, 11 min por estudio hasta ahora): `backend/data/run_band_p4.ps1` →
 `data/zenodo_eval_full_p4_band`; lo que se mide es lesiones fuera de la malla (16 → ?),
 superficie recuperada, factor y minutos por estudio, y los puestos.
+
+**Pasada medida (2026-10-22, `data/zenodo_eval_full_p4_band`, 172/172, 0 errores).** La banda
+hace lo que se le pidió a la segmentación y, de paso, mejora los puestos. Frente a la pasada
+del suelo de HU (§4.5, la cifra oficial hasta hoy):
+
+| | Suelo de HU (20-10) | **Banda (22-10)** |
+|---|---|---|
+| Lesiones entre los 5 / entre los 10 / en la lista de 40 | 45 / 53 / 71 | **52 / 61 / 75** |
+| Lesiones en el primer puesto | 8 | **12** |
+| Estudios con alguna lesión entre los 5 (de 82) | 37 | **45** |
+| Lesiones fuera de la malla (superficie recuperada < 50 %) | 16 | **8** |
+| Superficie recuperada (mediana) | 0,997 | 0,997 |
+| Factor de reducción | {1: 15, 2: 28, 3: 29, 4: 16, 5: 68, 6: 16} | **{1: 54, 2: 103, 3: 15}** |
+| Segmentación por estudio (media / mediana) | 661 / 683 s | **320 / 340 s** |
+| Detección por estudio (media) | 44 s | 49 s |
+| Candidatos en hueso (HU máx ≥ 700), de 860 / en controles, de 450 | 230 / 131 | **167 / 88** |
+| Controles con 5 candidatos | 90 de 90 | 90 de 90 |
+
+Suben de puesto 30 lesiones y bajan 22; entran entre los 5 trece y salen seis. Por grupos
+(entre 5 · en lista · fuera de la malla, suelo → banda):
+
+| Grupo | n | Entre 5 | En lista | Fuera de la malla |
+|---|---|---|---|---|
+| Con trombo | 22 | 12 → 12 | 15 → 15 | 3 → 4 |
+| Sin trombo | 100 | 33 → **40** | 56 → 60 | 13 → **4** |
+| < 5 mm | 41 | 2 → 5 | 16 → 16 | 4 → 1 |
+| 5–10 mm | 32 | 13 → 12 | 20 → 21 | 5 → 1 |
+| 10–25 mm | 33 | 21 → **25** | 24 → 27 | 3 → 4 |
+| ≥ 25 mm | 16 | 9 → 10 | 11 → 11 | 4 → 2 |
+
+Y con las clases del conjunto (banda): medianas 22 de 56 entre 5 y 39 en lista; grandes 18
+de 20 y 18; gigantes 8 de 16 y 10; miliares 4 de 30 y 8. Saculares 20 de 36, fusiformes 15 de
+26, otras 12 de 21, blister 5 de 39. Los motivos de fallo que quedan: compacidad 12, curvatura
+media 8, puntos 7, tope 7, fusión 7, sin región 4, tamaño 2.
+
+Lo que la pasada enseña, lesión por lesión:
+
+1. **La malla recupera 11 de las 16 lesiones que faltaban** (015, 049, 050_2, 090_5, 093_4,
+   102, 105, 111, 117_2, 154_2, 161): todas en estudios que pasan de factor 4–6 a 2–3. Cinco
+   siguen fuera en las dos pasadas (026, gigante de 50 mm; 092 y 104, sacos de 4 y 8 mm con
+   el estudio a factor 2 o 3 también con la banda; 100 y 121, trombosados con 68 y 26 % de
+   pared por encima de 150 HU) y tres se pierden nuevas: 024, 093_1 y 093_2.
+2. **El trombo explica la malla, no el puesto.** En las 22 lesiones trombosadas la angio-TC
+   enseña solo la luz; medido el HU de la pared anotada en el volumen de la banda, la
+   fracción de pared por encima de 150 HU va del 26 % (121) al 87 % (099_1) y se correlaciona
+   0,48 con la fracción de pared que toca la malla. Las de trombo grueso se quedan fuera
+   (024: pared a 2,7 mm de la luz, más que la tolerancia), pero el puesto no depende del
+   trombo: 025 y 037, trombosadas con un 40 % de pared por encima de 150 HU, salen 1.ª y 2.ª,
+   y las 12 trombosadas entre los 5 son las mismas en las dos pasadas. Además, la superficie
+   «recuperada» de 024 y 093_1 en las pasadas gruesas (0,99 y 1,00) era un artefacto: a
+   factor 2–3 el desenfoque hacía que la malla siguiera la pared anotada; a nativo sigue la
+   luz, que es lo que la imagen tiene.
+3. **Las que bajan de puesto bajan por el diezmado de la copia de curvatura, no por la
+   malla.** 004 (7.º → fuera), 019 (5.º → 37.º), 028 (7.º → fuera), 030 (3.º → fuera), las tres
+   pequeñas de 035, 087 (3.º → fuera), 098 (15.º → fuera), 083 (1.º → 6.º) y 013 (1.º → 4.º)
+   tienen la superficie recuperada igual (≥ 0,98) en las dos pasadas. Lo que cambia es la
+   malla de la cabeza: con la banda tiene 133 000–650 000 vértices, de 2 a 8 veces el tope de
+   80 000 de la copia de curvatura (`_CURVATURE_MAX_VERTS`), y la región de la lesión se queda
+   con menos puntos (004: 42 → 14; 019: 79 → 25; 028: 177 → 82), que es justo lo que las
+   puertas de puntos, compacidad y tope penalizan. Es una sola hipótesis para las 9, y se
+   puede medir sobre las mallas guardadas sin volver a segmentar: siguiente experimento,
+   tope a 160 000 y a 240 000.
+4. **Los controles no cambian**: 90 de 90 siguen con 5 candidatos, con menos hueso (88 de 450).
+   La banda mejora dónde mira el detector, no da el «no hay nada» (§4.3).
+5. **093: dónde se pierden los dos sacos nuevos (medido fase a fase).** El estudio tiene cinco
+   lesiones; a nativo la malla pierde 093_1 (14,5 mm, trombosado) y 093_2 (11,3 mm, 235 HU),
+   que la pasada gruesa «tenía». Reproducidas las fases de `build_vascular_mask` sobre la
+   banda del 093 a nativo (252 × 512 × 512, mismos parámetros que `segment_tubular`), la
+   fracción de puntos de cada STL (pared y un 60 % hacia el centro) que cae en cada fase:
+
+   | Lesión | mm | Núcleo M0 | Puerta V ≥ p40 | Tubo | Final | Pasada |
+   |---|---|---|---|---|---|---|
+   | 093_1 | 14,5 | 54 % | 9 % | **0 %** | **0 %** | 0,00 |
+   | 093_3 | 13,2 | 57 % | 15 % | 15 % | 57 % | 0,99 (2.º) |
+   | 093_2 | 11,3 | 61 % | 11 % | **0 %** | **0 %** | 0,07 |
+   | 093_4 | 5,1 | 60 % | 58 % | 58 % | 60 % | 1,00 |
+   | 093_5 | 3,6 | 64 % | 60 % | 60 % | 64 % | 1,00 |
+
+   Los cinco sacos están en el núcleo (54–64 %, lo mismo que los que sí salen) y su
+   componente de M0 toca una semilla, así que ni el umbral ni la máscara de hueso los
+   quitan. Se pierden en la **puerta de tubularidad**: un saco de 11–15 mm es una bola, no
+   un tubo, y solo el 9–11 % de sus puntos pasa V ≥ p40; con ningún punto en el tubo, la
+   recuperación de 3 mm no llega (093_3 entra al tubo por un 15 % y de ahí la recuperación
+   lo completa). La pasada gruesa los «tenía» por otra razón: a factor 3 con la regla de
+   hueso gruesa (1 200 HU sin margen) la máscara del 093 era de 373 cm³ con 177 semillas
+   (27 cm³ y 17 a nativo), un bloque con la base del cráneo dentro, no un árbol; la
+   superficie recuperada venía de ese bloque. Es el mismo límite del paso 2 del plan (sacos
+   grandes y calcificados): la recuperación necesita una regla para componentes del núcleo
+   pegados al tubo por el cuello aunque superen los 3 mm, con el veto de lámina delante.
+   Candidatos del mismo tipo: 024 (trombosado, 0,33) y, de las cinco que faltan en las dos
+   pasadas, 026 (50 mm) y 121.
+
+Es la **cifra oficial a día de hoy: 52 de 122 entre los 5, 12 en primer puesto, 75 en la lista,
+45 de 82 estudios, 8 fuera de la malla.** La pasada se hizo en rondas de 6 estudios
+(`backend/data/run_band_p4.ps1`, logs `band_p4_runner.log` y `zenodo_eval_full_p4_band.r<n>.log`)
+y murió tres veces por la suspensión del PC (el proceso en segundo plano no sobrevive a la
+suspensión; el registro del sistema lo confirma), por lo que los segundos por estudio llevan
+algo de ruido de la reanudación; el runner continúa donde iba.
 
 ## 5. Código y datos de esta pasada
 

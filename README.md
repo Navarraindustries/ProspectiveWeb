@@ -3511,12 +3511,14 @@ wall; the coarse passes only "recovered" it through blur) but not the rank: the 
 thrombosed lesions in the top 5 are the same in both passes. The lesions that drop
 (004, 019, 028, 030, 035, 083, 087, 098, 013) keep their surface recall; their curvature
 region shrinks because the head mesh now has 133 k–650 k vertices against the 80 k cap of
-the curvature copy (`_CURVATURE_MAX_VERTS`), which is the next experiment, on the saved
-meshes. Controls still get 5 candidates (88 of 450 on bone, from 131). Study 093 loses two
+the curvature copy (`_CURVATURE_MAX_VERTS`), which was then measured on the saved
+meshes (next paragraph). Controls still get 5 candidates (88 of 450 on bone, from 131). Study 093 loses two
 11–15 mm sacs at the tubularity gate (9–11 % of their points pass V ≥ p40, none reach
 the tube, so the 3 mm reclaim never starts; `scratchpad diag_mask.py`); the coarse pass
 only had them because its 373 cm³ mask wrapped the skull base. A sac-reclaim rule for core
 components attached to the tube by the neck is step 2 of the plan.
+
+**Measured (2026-10-22/23, `zenodo_eval_curv_160000` and `_240000`, 172/172 each, same meshes):** raising `_CURVATURE_MAX_VERTS` to 160 k / 240 k (and `_CHAIN_DECIMATION_FROM` with it) gives **44 / 46** lesions in the top 5 against 52, 67 / 69 in the list, 9 / 12 in first place, 40 / 41 studies; 16 up / 28 down and 21 up / 30 down; detection 44 → 104 / 146 s per study. Segmentation and controls are identical by construction. The gains are the big thrombosed sacs (004, 020, 086, 116_1) and they come through the calibre/ratio channels, because the calibre copy stops being chained from the curvature copy for meshes under 2 × cap; the losses (< 10 mm: 5 → 1 / 4 under 5 mm, 12 → 9 / 8 at 5–10 mm) come from both channels, and a lesion's curvature region does not grow with the cap (018: 79 → 8 → 23 points; 089: 16 → 123 merged → 72). The cap stays at 80 k; next experiment on the saved meshes is the calibre copy from the full mesh with the curvature cap untouched (report §4.9).
 
 ---
 

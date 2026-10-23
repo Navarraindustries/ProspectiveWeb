@@ -66,6 +66,8 @@ diezmado de la copia de curvatura sobre una malla de cabeza 2–8 veces mayor qu
 por la malla (§4.8, punto 3): es el siguiente experimento. Los controles siguen con 5
 candidatos. Es la cifra oficial a día de hoy.
 
+**Actualización 2026-10-23.** El experimento del tope de la copia de curvatura (§4.9) está medido al doble y al triple sobre las mismas 172 mallas: **44 y 46 de 122 entre los 5** frente a 52, 67 y 69 en la lista, detección 104 y 146 s por estudio frente a 44. Recupera los sacos grandes por los canales de calibre (la copia de calibre cambia de fuente al subir el tope) y pierde los de menos de 10 mm por las dos vías; el tope se queda en 80 000 y la cifra oficial sigue siendo la del 22-10. Siguiente experimento sobre las mallas guardadas: la copia de calibre desde la malla completa con el tope de curvatura sin tocar.
+
 ## 2. Cómo se ha medido
 
 `backend/scripts/eval_zenodo.py` recorre el mismo camino que la API (carga, umbrales
@@ -668,6 +670,74 @@ Es la **cifra oficial a día de hoy: 52 de 122 entre los 5, 12 en primer puesto,
 y murió tres veces por la suspensión del PC (el proceso en segundo plano no sobrevive a la
 suspensión; el registro del sistema lo confirma), por lo que los segundos por estudio llevan
 algo de ruido de la reanudación; el runner continúa donde iba.
+
+### 4.9 El tope de la copia de curvatura (2026-10-22/23): medido al doble y al triple, descartado
+
+La hipótesis del §4.8 (punto 3) era que las 9 lesiones que bajan de puesto con la banda lo hacen
+porque la malla de la cabeza a nativo tiene de 133 000 a 650 000 vértices (tras el recorte
+intracraneal: 9 estudios por debajo de 80 000, 16 entre 80 000 y 160 000, 47 entre 160 000 y
+320 000, 100 por encima) y el detector calcula la curvatura sobre una copia diezmada a 80 000
+(`_CURVATURE_MAX_VERTS`), con lo que la región de cada lesión se queda con menos puntos. Se ha
+medido sin volver a segmentar: `scratchpad exp_curv_cap.py <tope>` fija `_CURVATURE_MAX_VERTS`
+y `_CHAIN_DECIMATION_FROM` (= 2 × tope) en `routers/detect.py` y lanza `eval_zenodo.py` con
+`--meshes-from zenodo_eval_full_p4_band --no-reuse`, en rondas de 12 (`backend/data/run_curv.ps1
+-Cap`), sobre las mismas 172 mallas y volúmenes de la pasada del 22-10. Salidas
+`backend/data/zenodo_eval_curv_160000` y `zenodo_eval_curv_240000` (172/172 cada una; la segunda
+murió una vez por la suspensión del PC y se reanudó). Segmentación idéntica por construcción
+(8 fuera de la malla, mismos factores) y controles idénticos (90 de 90 con 5 candidatos).
+
+| | Banda (80 000) | Tope ×2 (160 000) | Tope ×3 (240 000) |
+|---|---|---|---|
+| Lesiones entre los 5 | **52** | 44 | 46 |
+| Entre los 10 / en la lista de 40 | 61 / 75 | 53 / 67 | 51 / 69 |
+| En el primer puesto | 12 | 9 | 12 |
+| Estudios con alguna lesión entre los 5 (de 82) | 45 | 40 | 41 |
+| Suben / bajan de puesto respecto a la banda | — | 16 / 28 | 21 / 30 |
+| Entran / salen de los 5 | — | 5 / 13 | 6 / 12 |
+| Con trombo (22) / sin trombo (100), entre los 5 | 12 / 40 | 13 / 31 | 13 / 33 |
+| < 5 mm (41) / 5–10 (32) / 10–25 (33) / ≥ 25 (16), entre los 5 | 5 / 12 / 25 / 10 | 1 / 9 / 23 / 11 | 4 / 8 / 23 / 11 |
+| 5–10 mm en la lista de 40 | 21 | 16 | 18 |
+| Detección por estudio, mediana / media (s) | 44 / 49 | 104 / 108 | 146 / 157 |
+| Horas de máquina (solo detección) | 2,3 | 5,9 | 8,2 |
+
+**Resultado: pierde en los dos tamaños y el tope se queda en 80 000.** Lo que enseña, lesión a
+lesión (`scratchpad cmp_dirs.py zenodo_eval_full_p4_band zenodo_eval_curv_<tope>`):
+
+1. **Gana justo donde la hipótesis lo preveía, pero no por la curvatura.** Los sacos grandes y
+   trombosados entran: 004 (28,5 mm, trombo, calcificado) pasa de fuera de la lista al 4.º
+   (×2) y 5.º (×3); 020 (24,6 mm, trombo) de fuera al 1.º en los dos; 086 (30 mm) del 7.º al
+   4.º; 116_1 (32,8 mm) de fuera al 7.º. Pero el candidato que los coloca viene de los canales
+   de **calibre y cociente**, no de la curvatura (`candidates[].channels`), y la región de
+   curvatura de 004 tiene 14 puntos con la banda y 4 con los topes. La razón está en
+   `_CHAIN_DECIMATION_FROM`: la copia de calibre (38 000 vértices) sale de la copia de
+   curvatura cuando la malla supera 2 × tope y de la malla completa si no; al subir el tope,
+   los 47 estudios de 160 000–320 000 vértices (×2) y los 77 de 240 000–480 000 (×3) cambian
+   de fuente para el calibre. 086 (172 863 vértices tras el recorte) y 004 (300 287) están en
+   ese tramo. El experimento movía dos cosas a la vez; la que gana es la segunda.
+2. **Pierde en los sacos de menos de 10 mm, y por las dos vías.** Por la curvatura: la región no
+   crece con el tope, cambia de forma impredecible. 018 (9,6 mm, 5.º con la banda por
+   curvatura) tiene 79 puntos a 80 000, 8 a 160 000 y 23 a 240 000, y cae al 27.º y 21.º; 089
+   (7,7 mm, 1.º por los tres canales) pasa de 16 puntos a 123 (fundida con el vaso, motivo
+   `merged`) y a 72, y cae a fuera de la lista y al 13.º; 090 pierde sus dos sacos en lista;
+   017_2 y 022 caen por compacidad a ×2. Por el calibre: 116_3 (24 mm, 5.º por calibre) y 161
+   (27 mm, trombo, 5.º por calibre) salen de la lista con los dos topes. Entre 5 y 10 mm la
+   lista de 40 baja de 21 a 16 y 18.
+3. **El orden entre candidatos depende de cómo cae el diezmado sobre cada lesión**, no del
+   número de vértices: con la misma malla y tres diezmados, 16 suben y 28 bajan (×2),
+   21 y 30 (×3); 088 (20 mm) es 1.º con la banda, 7.º a ×2 y 1.º a ×3; 017_2 es 4.º,
+   fuera de la lista y 1.º. Es la misma inestabilidad medida en 3DRA (17 vértices de 12 776
+   mueven la lesión del puesto 1 al 4) y la razón de no prometer el primer puesto.
+4. **Coste.** La detección pasa de 44 a 104 y 146 s de mediana por estudio
+   (la copia de curvatura de 240 000 vértices sobre una malla de 500 000 llega a 15 GB de RAM
+   en este portátil), y el coste por estudio con todas las medidas subiría de 6,5 a 7,5 y 8 min.
+
+Lo que sigue de aquí, sin segmentar: (a) **aislar la segunda variable**: `_CURVATURE_MAX_VERTS`
+en 80 000 y la copia de calibre siempre desde la malla completa (o `_CHAIN_DECIMATION_FROM`
+muy alto), sobre las mismas mallas; si 004, 020 y 086 entran sin que salgan 116_3 y 161, es
+una medida que sí entra; (b) en el banco de puertas (paso 3 del plan), una fusión de regiones
+que dependa de la densidad de vértices de la copia, y un tope en función del tamaño de la
+pieza, medidos con la traza por región. La cifra oficial sigue siendo la de la banda
+(§4.8): 52 de 122 entre los 5.
 
 ## 5. Código y datos de esta pasada
 

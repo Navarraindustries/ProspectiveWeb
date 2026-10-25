@@ -19,7 +19,7 @@ client = TestClient(app, raise_server_exceptions=True)
 
 # Las fases que publica el método tubular, en su orden (contrato con la interfaz).
 FASES = ["carga", "núcleo", "tubularidad", "semillas", "crecimiento", "recuperación",
-         "laminaridad", "cierre", "superficie", "suavizado", "decimación", "normales",
+         "laminaridad", "cierre", "sacos", "superficie", "suavizado", "decimación", "normales",
          "islas", "guardado"]
 
 

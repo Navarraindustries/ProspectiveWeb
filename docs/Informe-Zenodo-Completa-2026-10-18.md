@@ -68,6 +68,14 @@ candidatos. Es la cifra oficial a día de hoy.
 
 **Actualización 2026-10-23.** El experimento del tope de la copia de curvatura (§4.9) está medido al doble y al triple sobre las mismas 172 mallas: **44 y 46 de 122 entre los 5** frente a 52, 67 y 69 en la lista, detección 104 y 146 s por estudio frente a 44. Recupera los sacos grandes por los canales de calibre (la copia de calibre cambia de fuente al subir el tope) y pierde los de menos de 10 mm por las dos vías; el tope se queda en 80 000 y la cifra oficial sigue siendo la del 22-10. Siguiente experimento sobre las mallas guardadas: la copia de calibre desde la malla completa con el tope de curvatura sin tocar.
 
+**Actualización 2026-10-23 (tarde).** La copia de calibre desde la malla completa, aislada (§4.10 a): **51 de 122 entre los 5** frente a 52, misma lista y mismo top 10, 46 estudios frente a 45; entran los sacos grandes y trombosados (004, 086, 116_1) y salen pequeños y medianos (116_2, 144, 109, 018, 185). Reparto, no mejora: no se adopta sola. La regla de sacos de la máscara (§4.10 b) está medida en 7 estudios a nativo (026 del 0 al 49 %, 024 del 4 al 35 %, controles sin cambio), codificada con tests, y la pasada de segmentación de los 172 está en marcha (`zenodo_eval_full_p5_sacos`).
+
+**Actualización 2026-10-24.** Pasada de segmentación de los 172 con la regla de sacos terminada (§4.10 b):
+**fuera de la malla 8 → 5** (entran 026, 121 y 024, los grandes trombosados), **52 de 122 entre los 5** (igual),
+entre 10 61 → 64, lista 75 → 78, 1.º 12 → 13, 46 de 82 estudios; controles 90/90 con 5; +6 % de segmentación.
+Entran 026 (1.º), 121 (2.º) y 019 (37 → 4); salen 027, 033, 088 y 109 por candidatos nuevos de calibre. **Entra**:
+cifra oficial 52 / 13 / 78 / 46 / 5 fuera. 093 sigue fuera (cáscaras parciales, máscara idéntica).
+
 ## 2. Cómo se ha medido
 
 `backend/scripts/eval_zenodo.py` recorre el mismo camino que la API (carga, umbrales
@@ -738,6 +746,140 @@ una medida que sí entra; (b) en el banco de puertas (paso 3 del plan), una fusi
 que dependa de la densidad de vértices de la copia, y un tope en función del tamaño de la
 pieza, medidos con la traza por región. La cifra oficial sigue siendo la de la banda
 (§4.8): 52 de 122 entre los 5.
+
+### 4.10 La copia de calibre desde la malla completa (2026-10-23): medida, neutra, no adoptada; y la regla de sacos
+
+**(a) La segunda variable del §4.9, aislada.** `scratchpad exp_calibre_full.py` deja
+`_CURVATURE_MAX_VERTS` en 80 000 y pone `_CHAIN_DECIMATION_FROM` fuera de alcance, de modo que
+la copia de calibre (38 000 vértices) sale siempre de la malla completa y nunca de la copia de
+curvatura; el resto del detector no cambia. Misma mecánica que el §4.9 (`--meshes-from
+zenodo_eval_full_p4_band --no-reuse`, rondas de 12 con el runner genérico `backend/data/run_exp.ps1`),
+salida `backend/data/zenodo_eval_calibre_full` (172/172, 9:46–13:43). Segmentación y controles
+idénticos por construcción (8 fuera de la malla, 90 de 90 controles con 5 candidatos).
+
+| | Banda (§4.8) | Calibre desde la malla completa |
+|---|---|---|
+| Lesiones entre los 5 | **52** | 51 |
+| Entre los 10 / en la lista de 40 | 61 / 75 | 61 / 75 |
+| En el primer puesto | 12 | 12 |
+| Estudios con alguna lesión entre los 5 (de 82) | 45 | 46 |
+| Suben / bajan de puesto | — | 9 / 17 |
+| Entran / salen de los 5 | — | 3 / 4 |
+| Con trombo (22) / sin trombo (100), entre los 5 | 12 / 40 | 14 / 37 |
+| < 5 mm (41) / 5–10 (32) / 10–25 (33) / ≥ 25 (16), entre los 5 | 5 / 12 / 25 / 10 | 3 / 12 / 24 / 12 |
+| ≥ 25 mm en la lista de 40 | 11 | 13 |
+| Detección por estudio, media (s) | 49 | 65 |
+| Horas de máquina (solo detección) | 2,3 | 3,1 |
+
+Lo que enseña (`scratchpad cmp_dirs.py zenodo_eval_full_p4_band zenodo_eval_calibre_full`):
+
+1. **La lectura del §4.9 era correcta: los sacos grandes entran por el calibre, con la curvatura
+   intacta.** 004 (28,5 mm, trombo, calcificado) pasa de fuera de la lista al 4.º; 086 (30 mm,
+   trombo) del 7.º al 5.º; 116_1 (32,8 mm) de fuera al 8.º; 161 (27 mm, trombo) del 5.º al 4.º;
+   082 (5,2 mm) del 38.º al 4.º. Con trombo pasan de 12 a 14 entre los 5 y los ≥ 25 mm de 10 a 12
+   (de 11 a 13 en la lista). 020 (24,6 mm), que entraba con los topes del §4.9, aquí no entra: su
+   ganancia venía del diezmado de curvatura, no del calibre.
+2. **Pero la copia de calibre nueva también cambia regiones que ya estaban bien.** 116_2 (24 mm,
+   5.º por calibre) sale de la lista (su región se queda sin puntos: motivo `points`) y 144
+   (4,9 mm, 14.º) sale por curvatura media; 018 (9,6 mm) baja del 5.º al 6.º, 109 (3,6 mm) del
+   5.º al 8.º, 185 (4,2 mm) del 5.º al 6.º; 011 (3 mm) del 8.º al 14.º, 083 del 6.º al 9.º, 090 del
+   9.º al 12.º, 110 (25 mm, trombo) del 2.º al 4.º. Los menores de 5 mm pasan de 5 a 3 entre los 5.
+3. **Neto: 52 → 51 entre los 5, misma lista y mismo top 10, un estudio más con lesión entre los 5
+   (45 → 46), 16 s más de detección por estudio.** Es un cambio de reparto (gana en grandes y
+   trombosados, pierde en pequeños), no una mejora, y **no se adopta sola**. Queda como pieza para
+   el banco de puertas (paso 3 del plan): conservar las dos copias de calibre y fundir sus
+   candidatos, de modo que 004/086/116_1 entren sin que 116_2/144/109 salgan; medido con la traza
+   por región antes de tocar `routers/detect.py`.
+
+**(b) La regla de sacos en la máscara (paso 2 del §4.8), medida y codificada.** El diagnóstico a
+resolución nativa sobre la máscara reproducida fase a fase (`scratchpad diag_sac.py`,
+`diag_blob.py`, `diag_geo.py`) dice qué son los sacos que se pierden:
+
+- Los de **093** (14,5 y 11,3 mm, trombo) no son bolas: están dentro de un mismo componente
+  ramificado de 5,8 cm³ del resto (M0 fuera de la máscara) que toca la máscara por el 1 % de su
+  superficie; la mitad de sus vóxeles pasan la puerta de tubularidad pero no conectan con ninguna
+  semilla. Un crecimiento geodésico por dentro de M0 desde la máscara los alcanza solo a 15–20 mm
+  (093_2: 53–61 % de sus puntos; 093_1 no se alcanza ni a 20 mm) y se trae 4–7 cm³ por estudio de
+  material con pinta de vaso en más de mil piezas. Descartado.
+- El gigante de **026** (50 mm, 11 cm³, recall 0,02) es una bola maciza a 3,1 mm de la máscara:
+  fuera del alcance de la recuperación de 3 mm y sin conexión por M0. El de **024** (20 mm, trombo,
+  recall 0,33) es una bola parcial. El de **121** (23 mm, trombo, recall 0,01) a nativo ya tiene el
+  46 % de sus puntos en la máscara: su pérdida es el factor 2 del banco, no la puerta.
+
+**Regla de bola**, fase 7 de `build_vascular_mask` (`services/vascular_mask.py`, tras el cierre):
+el resto se abre 1,5 mm por eje (`sac_open_mm`: quita láminas, pared fina y ramas finas), cada
+núcleo que sobrevive con diámetro equivalente ≥ 5 mm (`sac_min_d_mm`) se reconstruye dentro del
+resto y se pega si está a ≤ 5 mm de la máscara (`sac_reach_mm`) y menos de la mitad de sus
+vóxeles puntúan como lámina (`sac_plate_max`, con `PLATE_RATIO`). Todo se evalúa en la caja de
+cada bola, no en el volumen entero. Medida sobre las máscaras reales guardadas (3–16 s por
+estudio): 026 pasa del 0 al 49 % de los puntos del saco (+11,3 cm³), 024 del 4 al 35 % (+0,6 cm³),
+093 y 121 sin cambio, y en los controles 001, 003 y 045 no admite ninguna bola (0 cm³). Cuatro
+parámetros nuevos en `MaskParams` (a 0 apagan la fase), dos claves nuevas en las estadísticas
+(`sac_blobs`, `sac_vox`), fase «sacos» en el contrato de fases de la interfaz, tests en
+`backend/test_sacos_mascara.py` (bola a 2 mm entra, a 8 mm no, pequeña no, alcance, tubo solo
+no cambia, apagada reproduce la máscara anterior, fallback con claves). Suite de la máscara y del
+método tubular: 93 pasan.
+
+**Con la banda de la cabeza (factor > 1), la fase va en la pasada gruesa y las baldosas sólo rematan.**
+La primera versión corría la fase entera en cada baldosa nativa (`refine_in_band` llama a
+`build_vascular_mask` por baldosa con la máscara gruesa como semilla), y en cada baldosa el «resto»
+son todos los vasos que en esa baldosa no tienen semilla: decenas de candidatos por baldosa, cada
+uno con su transformada de distancia. Medido en Zenodo 010 (factor 2, 41 baldosas): 286 → 802 s de
+banda con la máscara idéntica al vóxel (881 365). Por eso, con semillas externas la fase sólo mira los
+núcleos que tocan las semillas (`_sac_blobs(..., within=seed_mask)`): la pasada gruesa, que ve el
+volumen entero, decide qué bolas entran, y la baldosa nativa las rehace a su resolución (sembradas,
+su parte tubular crece en la fase 4, la recuperación trae lo que está a 3 mm y la fase 7 remata).
+Comprobado con un fantasma a factor 2 (`TestConSemillasExternas`): la bola que decide la pasada gruesa
+vuelve a nativo con más del 85 % de sus vóxeles, y una bola sin semilla no se mira. Límite de la
+regla: la apertura es una caja de 1,5 mm de semilado, que a una esfera le quita unos 2,6 mm de radio;
+una bola de 10 mm deja un núcleo justo en los 5 mm de diámetro equivalente, así que la regla ve
+sacos de unos 11 mm en adelante (los perdidos que importan miden 20 y 50 mm).
+Pasada de segmentación de los 172 con la regla: `backend/data/run_sacos_p5.ps1` →
+`zenodo_eval_full_p5_sacos`, del 23-10 15:38 al 24-10 18:41 (20,9 h de máquina registradas; murió una
+vez con la suspensión del PC y se relanzó donde iba).
+
+**Resultado sobre los 172 (banda → sacos), misma herramienta de medida (`cmp_dirs.py`):**
+
+| | banda (22-10) | regla de sacos (24-10) |
+|---|---|---|
+| fuera de la malla (recall < 0,5) | 8 | **5** |
+| entre los 5 | 52 | **52** |
+| entre los 10 | 61 | **64** |
+| en la lista de 40 | 75 | **78** |
+| en primer puesto | 12 | **13** |
+| estudios con la lesión entre los 5 | 45 de 82 | **46** |
+| controles con 5 candidatos | 90/90 | 90/90 |
+| con trombo (22) entre 5 / en lista / fuera | 12 / 15 / 4 | 14 / 16 / 2 |
+| sin trombo (100) | 40 / 60 / 4 | 38 / 62 / 3 |
+| < 5 mm (41) | 5 / 16 / 1 | 4 / 17 / 1 |
+| 5–10 mm (32) | 12 / 21 / 1 | 12 / 21 / 1 |
+| 10–25 mm (33) | 25 / 27 / 4 | 25 / 28 / 2 |
+| ≥ 25 mm (16) | 10 / 11 / 2 | 11 / 12 / 1 |
+| factores | 54 × 1, 103 × 2, 15 × 3 | iguales |
+| segmentación / detección (s por estudio, mediana) | 320 / 49 | 339 / 57 |
+| candidatos en hueso (de 860) | 167 | 159 |
+
+Segmentación: ninguna lesión pierde cobertura; tres de las 8 que estaban fuera entran: **026 (50 mm,
+gigante) 0,02 → 0,91, 121 (23 mm, trombo) 0,01 → 1,00 y 024 (20 mm, trombo) 0,33 → 0,74**. Quedan
+fuera 5: 092 (4 mm), 093_1 (14 mm, trombo) y 093_2 (11 mm), 100 (42 mm, trombo) y 104 (8 mm). La máscara
+de 093 es idéntica a la de la banda (26 971 mm³): sus dos sacos son cáscaras parciales (§4.10 b,
+diagnóstico) y la regla no tiene bola que recuperar. La máscara no cambia en 79 estudios, crece una
+mediana de 0,12 cm³ y más de 5 cm³ en 6 (máximo 11,3): lo que entra son bolas sueltas, no vasos.
+
+Detección: 18 lesiones cambian de puesto (10 suben, 7 bajan). Entran entre los 5 **026 (fuera → 1.º),
+121 (fuera → 2.º) y 019 (21 mm, trombo, 37 → 4)**, y suben 161 (27 mm, trombo y calcio, 5 → 1), 116_3
+(24 mm, 5 → 2) y 163 (2,5 mm, 4 → 1); 024 entra en la malla pero su región cae por la curvatura media.
+Salen 027 (12 mm, 5 → 10), 033_2 (12 mm, 2 → 8), 088_2 (4 mm, 1 → 4) y 109_2 (3,6 mm, 5 → 8), y baja
+038 (1 → 2). En los cuatro que salen la máscara crece 0,6–3 cm³ y los candidatos nuevos de 8–10 mm
+ganan la copia de calibre en sitios sin lesión: es el mismo reparto grandes ↔ pequeños de la copia de
+calibre (§4.10 a), pero aquí viene con la segmentación a favor y con todas las cifras agregadas iguales
+o mejores. Coste: +6 % de segmentación (19 s por estudio) y +8 s de detección (mallas algo mayores).
+
+**Veredicto: entra.** Es la primera medida desde la banda que mueve la segmentación (8 → 5 fuera, y las
+tres que entran son las grandes trombosadas que el informe del 22 señalaba), no baja ninguna cifra
+agregada ni ningún grupo salvo < 5 mm entre 5 (5 → 4, por el orden de candidatos: 088 y 109 siguen en
+la lista con toda su superficie) y los controles no admiten ninguna bola. Cifra oficial: **52 de 122
+entre los 5, 13 en primer puesto, 78 en lista, 46 de 82 estudios, 5 fuera de la malla**.
 
 ## 5. Código y datos de esta pasada
 

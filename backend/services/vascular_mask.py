@@ -95,6 +95,25 @@ class MaskParams:
     reclaim_mm: float = 3.0
     plate_veto: bool = True
     closing_iter: int = 1
+    #: Fase 7, sacos: bolas de M0 que quedaron fuera de la máscara. La
+    #: recuperación (fase 5) devuelve lo que está a ≤ reclaim_mm del tubo Y
+    #: conectado a él por M0; un saco grande con cuello estrecho, trombo
+    #: parcial o volumen parcial en el cuello no cumple ninguna de las dos
+    #: (Zenodo 026: un saco de 50 mm, macizo, 11 cm³, a 3,1 mm de la máscara,
+    #: recall 0,02). Aquí se abre el resto (M0 fuera de la máscara) `sac_open_mm`
+    #: por eje, que quita láminas, pared fina y ramas finas; cada núcleo que
+    #: sobrevive con diámetro equivalente ≥ `sac_min_d_mm` se reconstruye
+    #: dentro del resto y se acepta si queda a ≤ `sac_reach_mm` de la máscara y
+    #: menos de `sac_plate_max` de sus vóxeles puntúan como lámina (PLATE_RATIO).
+    #: Medido a resolución nativa (2026-10-23, scratchpad diag_blob.py): 026
+    #: 2 → 49 % de los puntos del saco, 024 (20 mm, trombo) 4 → 35 %, 093 y 121
+    #: sin cambio (cáscaras parciales que no sobreviven a la apertura); en los
+    #: controles 001, 003 y 045 no admite ninguna bola (0 cm³). `sac_min_d_mm`
+    #: o `sac_reach_mm` a 0 apagan la fase.
+    sac_open_mm: float = 1.5
+    sac_min_d_mm: float = 5.0
+    sac_reach_mm: float = 5.0
+    sac_plate_max: float = 0.5
 
 
 @dataclass
@@ -119,7 +138,7 @@ def _fallback(m0: np.ndarray, stats: dict,
     """
     n = int(m0.sum())
     stats.update(seeds=0, grow_components=0, kept_components=0, tube_vox=0, reclaimed_vox=0,
-                 vetoed_vox=0, final_vox=n, kept_fraction=1.0 if n else 0.0)
+                 vetoed_vox=0, sac_blobs=0, sac_vox=0, final_vox=n, kept_fraction=1.0 if n else 0.0)
     stats.setdefault("core_vox", 0)
     stats.setdefault("thresholds", {"gate": 0.0, "seed": 0.0, "grow": 0.0})
     # También aquí se cierra el progreso: si no, la barra se queda en 2 o 50 %.
@@ -192,6 +211,81 @@ def _dilate_mm(mask: np.ndarray, spacing: tuple[float, float, float], mm: float)
         shape[axis] = 3
         out = ndimage.binary_dilation(out, structure=np.ones(shape, dtype=bool), iterations=r)
     return out
+
+
+def _erode_mm(mask: np.ndarray, spacing: tuple[float, float, float], mm: float) -> np.ndarray:
+    """Erosión de `mm` (caja, por ejes), la inversa de `_dilate_mm`."""
+    out = mask
+    for axis, sp in enumerate(spacing):
+        r = max(1, int(round(mm / float(sp))))
+        shape = [1, 1, 1]
+        shape[axis] = 3
+        out = ndimage.binary_erosion(out, structure=np.ones(shape, dtype=bool), iterations=r)
+    return out
+
+
+def _sac_blobs(m0: np.ndarray, final: np.ndarray, volume: np.ndarray,
+               spacing: tuple[float, float, float], vesselness: np.ndarray,
+               plateness: np.ndarray | None, params: MaskParams, stats: dict,
+               within: np.ndarray | None = None) -> np.ndarray:
+    """Bolas del resto (M0 fuera de `final`) que se pegan a la máscara. Ver MaskParams.
+
+    Todo se evalúa en la caja de cada bola (más `open + reach` de margen), no en
+    el volumen entero: la transformada de distancia completa costaba 1 GB en
+    `_near_tube` y aquí sólo importa la distancia desde la bola. Con `within`
+    sólo cuentan los núcleos que tocan esa máscara (las semillas externas).
+    """
+    added = np.zeros_like(final)
+    stats["sac_blobs"] = 0
+    rest = m0 & ~final
+    if not rest.any():
+        return added
+    core = _erode_mm(rest, spacing, params.sac_open_mm)
+    lab, n = ndimage.label(core)
+    del core
+    if n == 0:
+        return added
+    vox_mm3 = float(np.prod(spacing))
+    min_vox = (np.pi / 6.0 * params.sac_min_d_mm ** 3) / vox_mm3
+    ids, counts = np.unique(lab[lab > 0], return_counts=True)
+    big = ids[counts >= min_vox]
+    if within is not None and len(big):
+        seeded = np.unique(lab[within])
+        big = big[np.isin(big, seeded[seeded > 0])]
+    if len(big) == 0:
+        return added
+    objs = ndimage.find_objects(lab)
+    margin = [int(np.ceil((params.sac_open_mm + params.sac_reach_mm) / float(sp))) + 1 for sp in spacing]
+    for cid in big:
+        sl = tuple(slice(max(0, s.start - m), min(dim, s.stop + m))
+                   for s, m, dim in zip(objs[cid - 1], margin, lab.shape))
+        seedb = lab[sl] == cid
+        # reconstruir la bola dentro del resto, sólo lo conectado al propio núcleo
+        blob = _dilate_mm(seedb, spacing, params.sac_open_mm) & rest[sl]
+        lb, nb = ndimage.label(blob)
+        keep = np.unique(lb[seedb])
+        keep = keep[keep > 0]
+        blob = _pick(lb, nb, keep)
+        del lb, seedb
+        f = final[sl]
+        if not f.any():
+            continue
+        dist = ndimage.distance_transform_edt(~f, sampling=spacing)
+        if float(dist[blob].min()) > params.sac_reach_mm:
+            continue
+        del dist
+        if params.plate_veto and params.sac_plate_max < 1.0:
+            where = np.nonzero(blob)
+            p = plateness[sl] if plateness is not None else objectness_max(
+                np.ascontiguousarray(volume[sl], dtype=np.float32), spacing, dimension=2, slab=FRANGI_SLAB)
+            plate = float(np.mean(p[where] > PLATE_RATIO * vesselness[sl][where]))
+            del where, p
+            if plate >= params.sac_plate_max:
+                continue
+        added[sl] |= blob
+        stats["sac_blobs"] += 1
+    del lab, rest
+    return added
 
 
 def _near_tube(tube: np.ndarray, m0: np.ndarray, spacing: tuple[float, float, float],
@@ -326,14 +420,22 @@ def build_vascular_mask(
     # Un volumen mínimo en mm³ (no en vóxeles) hace el criterio independiente
     # de la resolución: 50 mm³ es un segmento de carótida o basilar, nunca ruido.
     _say(on_progress, "semillas", 50)
+    # Con semillas externas (las baldosas nativas de la banda) la fase 7 sólo
+    # mira las bolas que esas semillas tocan: la pasada gruesa ya decidió qué
+    # sacos entran, y mirar todo el resto de cada baldosa (vasos que en esa
+    # baldosa no tienen semilla) costaba 12 s por baldosa sin cambiar la máscara
+    # (Zenodo 010: 41 baldosas, 286 → 802 s, mismos vóxeles).
+    sac_within = None
     if seed_mask is not None:
         if np.shape(seed_mask) != volume.shape:
             raise ValueError(f"seed_mask tiene forma {np.shape(seed_mask)} y el volumen {volume.shape}")
         seed_mask = np.asarray(seed_mask, dtype=bool) & m0
+        sac_within = seed_mask
         n_seed_vox = int(np.count_nonzero(seed_mask))
         if n_seed_vox == 0:
             stats.update(seeds=0, seed_vox=0, grow_components=0, kept_components=0, tube_vox=0,
-                         reclaimed_vox=0, vetoed_vox=0, final_vox=0, kept_fraction=0.0)
+                         reclaimed_vox=0, vetoed_vox=0, sac_blobs=0, sac_vox=0, final_vox=0,
+                         kept_fraction=0.0)
             _say(on_progress, "hecho", 100)
             return MaskResult(np.zeros_like(m0), stats, fallback=False)
         stats["seeds"] = 1
@@ -413,6 +515,17 @@ def build_vascular_mask(
     if params.closing_iter > 0:
         final |= ndimage.binary_closing(final, iterations=params.closing_iter)
     final = ndimage.binary_fill_holes(final)
+
+    # 7 · sacos: bolas de M0 que la recuperación no alcanza (ver MaskParams.sac_*).
+    stats["sac_blobs"], stats["sac_vox"] = 0, 0
+    if params.sac_min_d_mm > 0 and params.sac_reach_mm > 0:
+        _say(on_progress, "sacos", 94)
+        sacs = _sac_blobs(m0, final, volume, spacing, vesselness, plateness, params, stats,
+                          within=sac_within)
+        stats["sac_vox"] = int(sacs.sum())
+        if stats["sac_vox"]:
+            final = ndimage.binary_fill_holes(final | sacs)
+        del sacs
     stats["final_vox"] = int(final.sum())
     stats["kept_fraction"] = float(stats["final_vox"] / max(1, stats["m0_vox"]))
     _say(on_progress, "hecho", 100)

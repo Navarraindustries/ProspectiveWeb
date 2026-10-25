@@ -70,6 +70,14 @@ candidatos. Es la cifra oficial a día de hoy.
 
 **Actualización 2026-10-23 (tarde).** La copia de calibre desde la malla completa, aislada (§4.10 a): **51 de 122 entre los 5** frente a 52, misma lista y mismo top 10, 46 estudios frente a 45; entran los sacos grandes y trombosados (004, 086, 116_1) y salen pequeños y medianos (116_2, 144, 109, 018, 185). Reparto, no mejora: no se adopta sola. La regla de sacos de la máscara (§4.10 b) está medida en 7 estudios a nativo (026 del 0 al 49 %, 024 del 4 al 35 %, controles sin cambio), codificada con tests, y la pasada de segmentación de los 172 está en marcha (`zenodo_eval_full_p5_sacos`).
 
+**Actualización 2026-10-25.** Banco de puertas sobre los 172 (§4.12): las puertas del paso 3 no mueven
+nada; el **suelo absoluto de curvatura gaussiana** (`min_gauss_curvature=0.028`, esfera de 6 mm, en lugar
+del percentil 85) confirmado con pasada real de detección sobre las mallas de sacos: **61 de 122 entre los
+5** (eran 52), 68 entre 10, **28 en 1.º** (eran 13), 81 en lista, **54 de 82 estudios**; controles 90/90 con 5;
+hueso 159 → 156 de 860; detección 57 → 52 s. Entran los grandes trombosados 004, 020 y 086; bajan 16
+pequeñas de 3–7 mm por fusión con la región del vaso vecino. **Entra** (pendiente de llevar al preset de TC
+tras el barrido de 5 y 7 mm, en marcha).
+
 **Actualización 2026-10-24.** Pasada de segmentación de los 172 con la regla de sacos terminada (§4.10 b):
 **fuera de la malla 8 → 5** (entran 026, 121 y 024, los grandes trombosados), **52 de 122 entre los 5** (igual),
 entre 10 61 → 64, lista 75 → 78, 1.º 12 → 13, 46 de 82 estudios; controles 90/90 con 5; +6 % de segmentación.
@@ -880,6 +888,138 @@ tres que entran son las grandes trombosadas que el informe del 22 señalaba), no
 agregada ni ningún grupo salvo < 5 mm entre 5 (5 → 4, por el orden de candidatos: 088 y 109 siguen en
 la lista con toda su superficie) y los controles no admiten ninguna bola. Cifra oficial: **52 de 122
 entre los 5, 13 en primer puesto, 78 en lista, 46 de 82 estudios, 5 fuera de la malla**.
+
+### 4.11 La puerta de curvatura media (2026-10-24, tarde): no es la que retiene a nadie
+
+Primera puerta del banco del paso 3, sobre los registros y las mallas de la pasada de sacos
+(§4.10 b). Ocho lesiones tienen «curvatura media» como primer motivo de rechazo (la región de
+curvatura más cercana cae en `H·r < 0,7`). Vistas una a una (`lesions[].region` del registro):
+
+| lesión | mm | trombo | H·r | puntos | área mm² | comp. | pgf | dist. mm |
+|---|---|---|---|---|---|---|---|---|
+| 004 | 28,5 | sí | 0,65 | 14 | 7,3 | 0,30 | 0,71 | 2,7 |
+| 024 | 20,4 | sí | 0,62 | 11 | — | 0,15 | 0,73 | 4,2 |
+| 029_2 | 5,6 | — | 0,68 | 11 | 2,6 | 0,32 | 0,91 | 2,0 |
+| 034 | 3,0 | — | 0,64 | 14 | 6,8 | 0,31 | 0,93 | 0,5 |
+| 085_3 | 3,3 | — | 0,41 | 9 | — | 0,23 | 0,22 | 1,0 |
+| 011_3 | 4,4 | — | −1,03 | 39 | — | 0,22 | 0,69 | 2,3 |
+| 116_4 | 32,8 | — | −2,45 | 15 | — | 0,16 | 0,60 | 5,1 |
+| 118 | 4,5 | — | −0,84 | 14 | — | 0,25 | 0,50 | 2,7 |
+
+Tres son inalcanzables por esta puerta porque la región más cercana es cóncava (H·r negativo:
+no es el saco, es el vaso de al lado) y 085_3 cae después por fracción gaussiana (0,22). Las
+cuatro restantes están entre 0,62 y 0,68, justo bajo el 0,7, y las 40 lesiones con puesto
+tienen H·r de 0,49 a 2 (percentil 10: 0,76): bajar a 0,6 parece gratis. **Medido con el banco
+(`--set min_mean_curv_radius=0.6`, mismas mallas, estudios 004, 029 y 034):** las tres pasan la
+puerta y mueren en la siguiente. 004 y 029_2 caen por el **tope de la lista** («cap»: la región
+pasa todas las puertas pero con 7,3 y 2,6 mm² queda detrás de 40 regiones mayores con
+`order_by="area"`); 034 se **fusiona** con una región vecina a menos de 10 mm. Con la fusión a
+5 mm además (`merge_dist_mm=5`): 004 y 029 siguen en el tope, 034 sigue fusionada, y en 004 el
+reparto cambia (dos candidatos nuevos de calibre a 10–11 mm de la lesión, sin acierto). 024
+pasaría la puerta y caería por compacidad (0,15 < 0,20).
+
+Lo que esto enseña es de dónde vienen esas regiones: en los sacos grandes (004 de 28 mm, 024 de
+20) la región de curvatura es un **parche de 11–14 puntos y 7 mm²** sobre un saco de cientos de
+mm², no el saco; el percentil de Gauss no forma regiones sobre cúpulas de ese radio (§4.6), y
+esos sacos los dan los canales de calibre (004 entró 4.º con la copia de calibre, §4.10 a). En
+los pequeños (029_2, 034) la región es correcta pero pequeña, y en la lista ordenada por área
+pierde contra el vaso. Las 13 lesiones que hoy caen por «cap» o «merged» son lo mismo: regiones
+válidas de 3,4 a 9,4 mm² con H·r 0,72–1,13 (029_1, 033_1, 035_2/3, 085_1, 090_2/4, 093_4, 097,
+103, 126_2/3, 154_2). **Veredicto: la puerta de curvatura media no se toca** (bajarla a 0,6 no
+mete ninguna lesión y añade regiones que compiten por los 40 puestos: en 004, 29 más). La
+palanca que sí tocaría a esas 16 lesiones es el orden y la fusión de las regiones pequeñas, y
+eso se mide con el banco de reglas puras (`scripts/exp_p3_detector.py`, volcado único de todas
+las regiones y evaluación en segundos), que hay que volver a apuntar a las mallas de la pasada
+de sacos y poner al día con el recorte (§4.4) y el suelo de HU (§4.5) antes de fiarse de él.
+Registros de las pruebas: `backend/data/zenodo_eval_mc06` y `zenodo_eval_mc06_m5` (3 estudios).
+
+### 4.12 El banco de puertas sobre los 172 (2026-10-25): la palanca es el umbral de Gauss, no las puertas
+
+El banco de reglas puras del paso 3 (`scripts/exp_p3_detector.py`) se ha reescrito como
+`scripts/gate_bench.py` y puesto al día con todo lo que la cadena de producción hace desde
+entonces: recorte intracraneal (§4.4), copia de calibre encadenada y tope de árbol (§4.3), suelo
+de HU (§4.5). `dump` recorre las mallas guardadas de una pasada una sola vez (diezmado idéntico
+al de `_detect_hits`, calibre local, y el detector con **todas las puertas abiertas** para guardar
+cada región con sus medidas, a dos escalas de Gauss: percentil 85 y suelo absoluto K ≥ 0,028
+mm⁻²); `eval` aplica después las puertas, el orden, la fusión, el tope, el consenso y el suelo
+de HU en segundos por variante. Volcado de los 172 estudios de la pasada de sacos (§4.10 b):
+7,5 h en rondas de 10 (`data/run_gates.ps1`); evaluación de 20 variantes, 25 min. Antes de
+fiarse de él: la variante `actual` reproduce los **122 de 122 puestos** de la pasada real
+(`eval --check`), y los 90 controles salen con 5 candidatos en todas las variantes.
+
+| variante | entre 5 | entre 10 | 1.º | lista | estudios | hueso ctl | hueso IA |
+|---|---|---|---|---|---|---|---|
+| actual (pasada de sacos) | 52 | 64 | 13 | 78 | 46 | 86/450 | 73/410 |
+| sin suelo de HU | 51 | 63 | 8 | 77 | 45 | 83 | 73 |
+| H·r ≥ 0,6 | 53 | 65 | 14 | 79 | 47 | 85 | 72 |
+| fusión 5 mm / 7 mm | 53 / 53 | 65 / 65 | 14 / 14 | 79 / 78 | 47 / 47 | 86 / 86 | 73 / 72 |
+| tope 60 / 80 | 52 / 52 | 63 / 63 | 13 / 13 | 77 / 77 | 46 / 46 | 87 / 87 | 72 / 71 |
+| orden score / sin tamaño | 51 / 46 | 62 / 57 | 13 / 6 | 80 / 77 | 46 / 40 | 80 / 69 | 72 / 57 |
+| orden n / H·r / pgf·comp | 51 / 48 / 50 | 60 / 57 / 58 | 12 / 8 / 9 | 72 / 72 / 76 | 45 / 42 / 44 | 83 / 82 / 81 | 65 / 58 / 64 |
+| compacidad 0,15 / 0,10 | 50 / 46 | 64 / 59 | 14 / 17 | 76 / 76 | 44 / 40 | 91 / 94 | 71 / 62 |
+| pgf ≥ 0,40 | 51 | 64 | 13 | 78 | 46 | 88 | 72 |
+| mínimo 4 puntos | 52 | 64 | 13 | 79 | 46 | 86 | 74 |
+| anillo del cociente por radio | 56 | 65 | 12 | 78 | 49 | 89 | 71 |
+| dos escalas (p85 + K como 2.º canal) | 56 | 66 | 25 | 81 | 49 | 89 | 76 |
+| **suelo absoluto K ≥ 0,028 (k6)** | **61** | **68** | **28** | **81** | **54** | 94 | **62** |
+
+Las puertas del paso 3 confirman §4.11: ninguna mueve más de una lesión en ningún sentido
+(H·r 0,6 mete la 020 en 1.º y nada más; fusión a 5 mm, la misma 020 y 14 puestos movidos), y los
+órdenes alternativos y la compacidad baja pierden. **Lo que cambia el cuadro es el umbral de la
+curvatura gaussiana.** El detector forma las regiones con un percentil de K sobre la malla
+(85 en el preset de TC): un umbral relativo que depende de cuánta malla haya y de cuánto vaso
+fino tenga. Sustituirlo por un suelo absoluto K ≥ 0,028 mm⁻² (la curvatura gaussiana de una
+esfera de 6 mm de radio) sube de 52 a 61 entre 5, de 64 a 68 entre 10, de 13 a 28 en primer
+puesto y de 46 a 54 estudios; la lista pasa de 78 a 81. La razón se ve en las regiones del
+volcado: con el percentil, en los sacos de 10–30 mm la región de curvatura era un parche de
+10–40 puntos y 7 mm² (§4.11); con el suelo absoluto es **el saco entero** (100–500 puntos,
+50–200 mm², a 0,3 mm de la lesión), y el canal de curvatura coincide con calibre y cociente,
+que es lo que el consenso premia. Es, de nuevo, la escala del percentil de Gauss (§4.6), ahora
+corregida en origen y no por el lado de la puerta de curvatura media.
+
+| k6 frente a actual | < 5 mm (40) | 5–10 mm (33) | 10–25 mm (32) | ≥ 25 mm (17) | con trombo (22) |
+|---|---|---|---|---|---|
+| entre 5 | 4 → 8 | 12 → 12 | 24 → 27 | 12 → 14 | 14 → 17 |
+| entre 10 | 8 → 12 | 16 → 13 | 27 → 29 | 13 → 14 | 16 → 18 |
+| en lista | 16 → 18 | 22 → 20 | 27 → 29 | 13 → 14 | 16 → 18 |
+
+Lesión a lesión: **ganan 15** (entran o suben a los 5): 004 (28 mm, trombo) → 5.º, 020 (25 mm,
+trombo) → 3.º, 086_1 (30 mm, trombo) 7.º → 1.º, 027 10.º → 1.º, 028 → 1.º, 090_2 → 1.º, 012_2 →
+2.º, 126_2 y 126_3 → 2.º, 107 10.º → 2.º, 050_2 6.º → 3.º, 030_2 → 4.º, 118 → 4.º, 034 → 7.º,
+085_1/085_3, 029_1, 090_4 y 154_2 entran en lista; y catorce que ya estaban entre los 5 suben al
+1.º (002, 013, 014, 023, 035_1, 036, 037, 038, 050_1, 093_3, 096, 102, 112, 121). **Pierden 16**,
+casi todas de 3–7 mm: 099_3 (2.º → fuera), 017_2 (3.º → fuera), 163 (1.º → 7.º), 126_1 (3.º →
+14.º), 106_1/106_2 (6.º → 28.º), y 012_1, 032, 035_4, 082_2/3/4, 090_3, 093_5, 117_2 y 144, que
+estaban entre el 9 y el 38 y salen de la lista. El motivo dominante es el reverso de la ganancia:
+con regiones más grandes, la de la lesión pequeña se **fusiona** con la vecina a menos de 10 mm
+(082_3, 090_3, 093_5, 106_1, a 0,2–0,7 mm de su lesión), deja de ser compacta (017_2, 082_4) o
+compite con más regiones válidas por los 40 puestos (082_2 pasa las puertas y no entra). El
+tramo 5–10 mm es el único que baja (16 → 13 entre 10). Hueso en los candidatos: controles 86 →
+94 de 450, estudios con lesión 73 → 62 de 410; controles siempre con 5 candidatos.
+
+**Combinaciones sobre k6** (mismo volcado, para recuperar las pequeñas): fusión a 5 o 7 mm
+60/68/30/83/53; tope 60, H·r 0,6 y 4 puntos no cambian nada; compacidad 0,15 → 61/69/34/88/52
+(mete 7 en lista y 6 más en 1.º, pero reparte: 019 4.º → 15.º, 017_1 1.º → 8.º, 113 y 085_2
+fuera); anillo por radio → 63/67/28/80/56 (030_2 y 033_2 suben, 109_2 sale); p85 como segundo
+canal → 61/72/26/83/52 (recupera 017_2 → 4.º, 106_1/2 → 9.º, 163 → 2.º y 126_1 → 5.º, pero 004
+baja a 6.º, 020 a 5.º y dos estudios pierden el top 5); orden por score, 51. Ninguna domina a k6
+en todas las medidas: la segunda escala y la compacidad 0,15 mejoran la cola (entre 10, lista) a
+costa de la cabeza (1.º, estudios), que es lo que el usuario mira. **k6 solo** es además un cambio
+de un parámetro con un significado físico (sacos de radio ≤ 6 mm forman región siempre; por
+encima, los dan calibre y cociente) y no una combinación ajustada a la muestra.
+
+**Confirmación con el detector real (25-10, 07:29–10:44):** pasada de detección sobre las 172 mallas
+guardadas con `--set min_gauss_curvature=0.028` (`zenodo_eval_k6`, 172/172, 3,2 h, 52 s de
+detección por estudio frente a 57 de la pasada de sacos). Coincide con el banco en **121 de 122
+puestos** (113: 19 en la pasada, 20 en el banco). **CIFRA OFICIAL: 61 de 122 entre 5, 68 entre
+10, 28 en 1.º, 81 en la lista, 54 de 82 estudios**; controles 90/90 con 5 candidatos; hueso
+156/860 (controles 94/450, con lesión 62/410). Por clase del dataset: miliares 5/30, medios
+24/56, grandes 19/20, gigantes 13/16; blister 7/39, saculares 22/36, fusiformes 19/26. Entran
+en los 5: 004, 020, 028, 012_2, 030_2, 118, 090_2, 126_2, 126_3 (de fuera de la lista) y 027,
+107, 086_1, 050_2 (suben); salen de los 5: 163, 126_1, 017_2, 099_3; bajan de tramo 16 en
+total. **Adoptado**: `min_gauss_curvature=0.028` en el preset de TC (el de XA no cambia). En
+marcha el barrido del suelo (volcado de `k0.02` y `k0.04`, esferas de 7 y 5 mm, encadenado tras
+la pasada; variantes `k7` y `k5` del banco).
 
 ## 5. Código y datos de esta pasada
 

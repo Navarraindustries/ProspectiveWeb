@@ -277,6 +277,15 @@ VARIANTS: dict[str, Variant] = {
     "k6_u160": Variant(gauss="k0.028", gauss_union="c160"),
     "k6_u160_mse": Variant(gauss="k0.028", gauss_union="c160", merge="suma_ext"),
     "k6_u160_m5": Variant(gauss="k0.028", gauss_union="c160", merge_mm=5.0),
+    # Dos escalas del suelo en la MISMA malla (26-10): esferas de 4,7 (k0.045) y 4,1 mm (k0.06),
+    # solas, como unión en un canal con k6, y como segundo canal.
+    "k45": Variant(gauss="k0.045"),
+    "k4": Variant(gauss="k0.06"),
+    "k6_u45": Variant(gauss="k0.028", gauss_union="k0.045"),
+    "k6_u4": Variant(gauss="k0.028", gauss_union="k0.06"),
+    "k6_u45_mse": Variant(gauss="k0.028", gauss_union="k0.045", merge="suma_ext"),
+    "k6_u4_mse": Variant(gauss="k0.028", gauss_union="k0.06", merge="suma_ext"),
+    "k6_p4": Variant(gauss="k0.028", gauss2="k0.06"),
 }
 
 

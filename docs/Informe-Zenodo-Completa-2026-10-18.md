@@ -1114,6 +1114,82 @@ no una palanca. Lo que sí deja claro el experimento es que la resolución repar
 (< 10 mm) quieren 160 000 y las grandes trombosadas 80 000, lo que vuelve a apuntar al tope según
 tamaño de pieza (§4.9), ahora medible en el banco con los dos volcados.
 
+**Tope según el tamaño de la pieza (26-10, 08:00): descartado sin volcar nada.** Con las filas por
+lesión de los dos volcados se simula elegir por estudio 80 000 o 160 000 según los vértices de la
+malla recortada (de 100 000 a 800 000, en los dos sentidos): ningún umbral pasa de 61 entre 5, y el
+mejor reparto posible por estudio (oráculo que elige en cada estudio la resolución que más lesiones
+mete entre 5, cota superior que ninguna regla alcanza) da 64 / 70 / 30 / 82 / 56. Los estudios que
+ganan a 160 000 (033 con 187 000 vértices, 109 con 316 000, 022 con 370 000) y los que pierden (120
+con 120 000, 086 con 173 000, 126 con 279 000, 004 con 300 000, 019 con 348 000, 090 con 480 000)
+están mezclados en tamaño: la resolución que conviene depende de la lesión, no de la pieza, y la
+pieza es lo único que el detector conoce antes de buscar. Script `cap_por_tamano.py` (scratchpad).
+
+### 4.14 Techo de HU sobre los candidatos (2026-10-26): el hueso entre los 5 no quita puestos a las lesiones
+
+Tras la máscara de hueso y el suelo de HU, 62 de los 410 candidatos entre los 5 de los estudios con
+lesión y 94 de 450 en controles siguen en hueso (máximo ≥ 700 HU en la bola de 2 mm). Se midió la
+HU de los 6 450 candidatos de la lista larga de k6 (media y máximo en bolas de 2 y 4 mm) y se
+simuló quitar los que superan un techo, recalculando los puestos (`techo_hu.py`,
+`techo_hu_eval.py`, scratchpad):
+
+| Techo (bola de 2 mm salvo indicación) | Entre 5 | Entre 10 | 1.º | Lista | Lesiones quitadas | Hueso entre 5 (IA / ctl) |
+|---|---|---|---|---|---|---|
+| ninguno | 58* | 65 | 28 | 77 | 0 | 62/410 · 94/450 |
+| máximo ≥ 700 (la etiqueta «hueso») | 58 | 64 | 29 | 74 | 3 (020 trombosado 3.º, 033_2, 163) | 0 · 0 |
+| máximo ≥ 1 200 | 58 | 66 | 28 | 77 | 0 | 53 · 85 |
+| media ≥ 400 | 53 | 59 | 26 | 70 | 7 | 43 · 75 |
+| media ≥ 600 | 57 | 63 | 27 | 74 | 3 | 58 · 91 |
+| bola de 4 mm, máximo ≥ 700 | 53 | 58 | 33 | 63 | 14 | 0 · 0 |
+| bola de 4 mm, media ≥ 500 | 58 | 65 | 28 | 77 | 0 | 60 · 93 |
+
+\* 58 y no 61 porque aquí cada candidato cuenta una vez aunque case con dos lesiones (106_1/106_2,
+126_2/126_3); la comparación es entre filas de esta tabla.
+
+Quitar todo lo etiquetado como hueso deja los 5 primeros sin hueso, pero **no sube ni una lesión
+entre los 5**: los candidatos que suben a ocupar los huecos son vaso, no lesión, porque las lesiones
+que faltan no están más abajo en la lista (41 de las 61 que faltan no tienen ningún candidato; de
+las 20 que sí, la mitad va del 11 en adelante). Y se lleva por delante a 020 (24,5 mm trombosado,
+3.º, máximo 1 176 HU por la calcificación de la pared), 033_2 y 163. Las HU de las lesiones se
+solapan con las del resto de candidatos (mediana del máximo 374 frente a 434 en los no-lesión):
+siete lesiones tienen media ≥ 400 HU en la bola. El único techo sin coste, máximo ≥ 1 200 HU,
+quita 9 candidatos de hueso entre los 5 en estudios con lesión y 9 en controles, cosmético.
+**No entra.** El hueso entre los 5 es un problema de presentación, no de puesto: lo que sube la
+cifra es formar la región de las 41 que no tienen candidato (compacidad 11, curvatura media 9,
+4–5 puntos 8, pgf 5, fusión 4), y eso es el umbral, no la lista.
+
+### 4.15 Dos escalas del suelo en la misma malla (2026-10-26, 12:30): sin pérdidas, sin subir la cifra
+
+La unión de resoluciones (§4.13) ganaba pequeñas y perdía grandes porque cambiaba la malla. La
+misma mecánica sin cambiar la malla: un segundo suelo de Gauss más alto (esfera de 4,7 mm,
+K ≥ 0,045, o de 4,1 mm, K ≥ 0,06) sobre la misma malla de 80 000 vértices, cuyas regiones son el
+núcleo más curvado de cada saco; donde la región de 6 mm se funde con el vaso y cae en compacidad,
+el núcleo fino sobrevive; donde la de 6 mm ya es buena, la fina se funde en ella (unión en un solo
+canal, §4.13). Volcado de las dos escalas sobre los 172 (`run_gates_k2.ps1`, 4 h con una
+suspensión del PC) y evaluación sobre los 172 (`exp_gates_eval_k2.out`):
+
+| Variante | Entre 5 | Entre 10 | 1.º | Lista | Estudios | Hueso ctl / IA |
+|---|---|---|---|---|---|---|
+| k6 (esfera de 6 mm, preset) | 61 | 68 | 28 | 81 | 54 | 94 / 62 |
+| esfera de 4,7 mm sola | 60 | 66 | 24 | 85 | 51 | 88 / 66 |
+| esfera de 4,1 mm sola | 51 | 60 | 15 | 84 | 45 | 94 / 72 |
+| 6 mm ∪ 4,7 mm, un canal | 60 | 70 | 29 | 88 | 53 | 95 / 66 |
+| 6 mm ∪ 4,1 mm, un canal | 61 | 68 | 29 | 85 | 54 | 91 / 66 |
+| 6 mm ∪ 4,7 mm + fusión por cajas | 60 | 70 | 30 | 90 | 53 | 91 / 65 |
+| **6 mm ∪ 4,1 mm + fusión por cajas** | **61** | **68** | **30** | **89** | **54** | 89 / 66 |
+| 4,1 mm como segundo canal | 61 | 69 | 27 | 86 | 53 | 95 / 65 |
+
+La unión 6 mm ∪ 4,1 mm con fusión por cajas es la primera variante del banco que **no baja ninguna
+lesión** y mejora algo: entre 5 y estudios iguales, 2 lesiones más en 1.º (012_2, 107), 8 más en
+lista (017_2 al 13, 087 al 17, 097 al 22, 033_1, 082_1, 082_3, 090_3, 090_5 del 33 al 38), hueso en
+controles 94 → 89. El motivo «compacidad» de la región más cercana baja de 11 a 9 y «fusión» de 4 a
+0: la mecánica es la prevista, pero el núcleo fino de las fundidas entra del 13 en adelante, no entre
+los 5, porque la región fina es pequeña y el orden es por área. Con 4,7 mm el núcleo es mayor y
+sube más (082_1 y 082_2 al 8), pero saca a 004 del top 5 (5 → 7). Coste: un segundo umbral y
+otra pasada de componentes sobre la misma malla, segundos por estudio, sin segmentar ni decimar.
+**Medida y sin adoptar como palanca** (no mueve la cifra principal); es candidata a entrar junto
+con la fusión por cajas (§4.12) si alguna vez se cambia el canal de curvatura, porque las dos son
+gratis y no pierden nada. Lesión a lesión: `k6_vs_actual.py k6 k6_u4_mse exp_gates_eval_k2.out`.
+
 ## 5. Código y datos de esta pasada
 
 - `backend/scripts/zenodo_lesiones.py`: tabla por lesión y recuentos de una pasada a partir

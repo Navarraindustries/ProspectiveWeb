@@ -172,6 +172,19 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         )
     return AneurysmDetector(
         gauss_percentile          = 85.0,
+        # Suelo absoluto de curvatura gaussiana en lugar del percentil (que
+        # queda como respaldo si el suelo se pone a None). El percentil 85 es
+        # relativo a la malla: en una cabeza entera llena de vasos finos sube
+        # tanto que sobre un saco de 10–30 mm solo forma un parche de 10–40
+        # puntos y 7 mm², y el canal de curvatura no lo ve. Con K ≥ 0.028 mm⁻²
+        # (la curvatura gaussiana de una esfera de 6 mm) la región es el
+        # saco entero y los tres canales coinciden en él. Medido con el banco
+        # de puertas sobre las 172 angio-TC de Zenodo y confirmado con una
+        # pasada real (2026-10-25): lesiones entre los 5 candidatos 52 → 61,
+        # en primer puesto 13 → 28, estudios 46 → 54 de 82; los 90 controles
+        # siguen con 5 candidatos. Las puertas de abajo no movían nada. XA se
+        # queda con su percentil (otra escala de malla, sin hueso).
+        min_gauss_curvature       = 0.028,
         mean_curv_gate_percentile = 75.0,
         min_radius_mm             = 1.0,
         max_radius_mm             = 20.0,

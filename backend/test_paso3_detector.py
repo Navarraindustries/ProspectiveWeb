@@ -83,6 +83,10 @@ class TestOrdenPorArea:
         ct = _detector_for_modality("CT")
         assert ct.order_by == "area"
         assert ct.min_mean_curv_radius == 0.7            # la puerta absoluta de XA, también en TC
+        # Suelo absoluto de Gauss (esfera de 6 mm), medido sobre los 172 de
+        # Zenodo el 25-10: 52 → 61 entre los 5. XA sigue con el percentil.
+        assert ct.min_gauss_curvature == 0.028
+        assert _detector_for_modality("XA").min_gauss_curvature is None
         # Medido con `scripts/regresion_xa.py --set order_by=area`: la lesión
         # sigue 1.ª en Case 3 e IM_0055, pero los otros cuatro puestos se
         # mueven; la 3DRA se queda con su orden de siempre.

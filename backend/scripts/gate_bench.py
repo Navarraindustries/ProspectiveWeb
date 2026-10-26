@@ -56,8 +56,15 @@ def _area(poly) -> float:
     return float(m.GetSurfaceArea())
 
 
-def dump_study(sid: str, src: Path, out: Path, gauss_list: list[str]) -> bool:
-    """True si ha hecho algo (decimar o volcar); False si ya estaba todo."""
+def dump_study(sid: str, src: Path, out: Path, gauss_list: list[str],
+               curv_cap: int | None = None, reuse: Path | None = None) -> bool:
+    """True si ha hecho algo (decimar o volcar); False si ya estaba todo.
+
+    `curv_cap` cambia el tope del diezmado de la malla de curvatura (por defecto el
+    del detector, 80 000); `reuse` toma la malla geométrica, el árbol y el calibre
+    de otro volcado para que solo cambie la malla de curvatura.
+    """
+    import shutil
     import routers.detect as rd
     from services.aneurysm_consensus import (_geometric_channels_apply,
                                              local_calibre, region_on_border)
@@ -86,18 +93,28 @@ def dump_study(sid: str, src: Path, out: Path, gauss_list: list[str]) -> bool:
         poly, crop = crop_to_head(poly)
         n = poly.GetNumberOfPoints()
         say(f"[{sid}] malla {n_full} vértices, {n} tras el recorte: decimando")
-        curv = decimate_to(poly, rd._CURVATURE_MAX_VERTS)
-        if n <= rd._DETECT_MAX_VERTS:
-            small = poly
+        cap = int(curv_cap or rd._CURVATURE_MAX_VERTS)
+        curv = decimate_to(poly, cap)
+        base_meta = reuse / "meshes" / f"{sid}.json" if reuse else None
+        if base_meta is not None and base_meta.exists() and (reuse / "meshes" / f"{sid}_geo.vtp").exists():
+            small = read_vtp(reuse / "meshes" / f"{sid}_geo.vtp")
+            tree = bool(json.loads(base_meta.read_text(encoding="utf-8"))["tree"])
+            base_cal = reuse / "calibre" / f"{sid}.npz"
+            if tree and base_cal.exists() and not cal_p.exists():
+                shutil.copyfile(base_cal, cal_p)
+            say(f"[{sid}] malla geométrica, árbol y calibre reutilizados de {reuse}")
         else:
-            src_poly = curv if n > rd._CHAIN_DECIMATION_FROM else poly
-            small = decimate_to(src_poly, rd._DETECT_TARGET_VERTS)
-            if small.GetNumberOfPoints() > rd._DETECT_MAX_VERTS:
-                small = decimate_to(small, int(rd._DETECT_TARGET_VERTS * 0.9))
-        tree = bool(_geometric_channels_apply(small, poly))
+            if n <= rd._DETECT_MAX_VERTS:
+                small = poly
+            else:
+                src_poly = curv if n > rd._CHAIN_DECIMATION_FROM else poly
+                small = decimate_to(src_poly, rd._DETECT_TARGET_VERTS)
+                if small.GetNumberOfPoints() > rd._DETECT_MAX_VERTS:
+                    small = decimate_to(small, int(rd._DETECT_TARGET_VERTS * 0.9))
+            tree = bool(_geometric_channels_apply(small, poly))
         del poly
         write_vtp(curv, curv_p); write_vtp(small, geo_p)
-        meta = {"study": sid, "n_full": n_full, "n_crop": n, "crop": crop.as_dict(),
+        meta = {"study": sid, "n_full": n_full, "n_crop": n, "crop": crop.as_dict(), "curv_cap": cap,
                 "n_curv": curv.GetNumberOfPoints(), "n_geo": small.GetNumberOfPoints(), "tree": tree,
                 "bounds": list(curv.GetBounds()), "seconds_decimate": round(time.perf_counter() - t0, 1)}
         meta_p.write_text(json.dumps(meta, indent=1), encoding="utf-8")
@@ -155,9 +172,12 @@ def dump_study(sid: str, src: Path, out: Path, gauss_list: list[str]) -> bool:
 
 def cmd_dump(args) -> None:
     n_done = 0
-    for sid in args.studies or study_ids(args.src):
+    ids = args.studies or study_ids(args.src)
+    if args.only_ia:
+        ids = [sid for sid in ids if json.loads((args.src / f"{sid}.json").read_text(encoding="utf-8")).get("has_ia")]
+    for sid in ids:
         try:
-            if dump_study(sid, args.src, args.out, list(args.gauss)):
+            if dump_study(sid, args.src, args.out, list(args.gauss), curv_cap=args.curv_cap, reuse=args.reuse):
                 n_done += 1
         except Exception as exc:  # noqa: BLE001 — un estudio roto no para el banco
             say(f"[{sid}] ERROR {exc!r}")
@@ -183,6 +203,11 @@ class Variant:
     r_min: float = 1.0
     r_max: float = 20.0
     merge_mm: float = 10.0
+    #: Fusión de duplicados: fijo (dist < merge_mm) | suma_r (dist < r_a + r_b, radios
+    #: ajustados) | suma_ext (dist < semiextensión mayor de caja de a + de b) |
+    #: max_ext (dist < extensión mayor de caja de la más grande). Con suelo merge_min.
+    merge: str = "fijo"
+    merge_min: float = 3.0
     #: Tope del canal de curvatura (el banco pide 40; la API, 8).
     cap: int = 40
     #: Orden del canal de curvatura: score | score_nosize | area | n | hr | pgf_comp
@@ -197,6 +222,9 @@ class Variant:
     gauss2: str | None = None
     #: Suelo de HU (§4.5) encendido.
     hu_floor: bool = True
+    #: Unión: las regiones de otro volcado (otra resolución) entran en el MISMO canal de
+    #: curvatura, pasan las mismas puertas, se ordenan juntas y se deduplican.
+    gauss_union: str | None = None
 
 
 VARIANTS: dict[str, Variant] = {
@@ -234,7 +262,35 @@ VARIANTS: dict[str, Variant] = {
     # Barrido del suelo de K (necesita volcados --gauss k0.02 k0.04): esfera de 7 y 5 mm.
     "k7": Variant(gauss="k0.02"),
     "k5": Variant(gauss="k0.04"),
+    # Fusión proporcional al tamaño de la región (25-10 tarde), sobre k6.
+    "k6_msr": Variant(gauss="k0.028", merge="suma_r"),
+    "k6_mse": Variant(gauss="k0.028", merge="suma_ext"),
+    "k6_mme": Variant(gauss="k0.028", merge="max_ext"),
+    "k6_mse5": Variant(gauss="k0.028", merge="suma_ext", merge_min=5.0),
+    "k6_mme5": Variant(gauss="k0.028", merge="max_ext", merge_min=5.0),
+    # Dos resoluciones de curvatura a la vez (26-10): k6 a 80 000 + k6 a 160 000 como segundo canal
+    # (regiones «c160» copiadas de exp_gates_c160, solo estudios con lesión), y al revés.
+    "k6_c160": Variant(gauss="k0.028", gauss2="c160"),
+    "c160_k6": Variant(gauss="c160", gauss2="k0.028"),
+    "c160": Variant(gauss="c160"),
+    # Unión de las dos resoluciones en un solo canal (sin repartir la evidencia de un sitio).
+    "k6_u160": Variant(gauss="k0.028", gauss_union="c160"),
+    "k6_u160_mse": Variant(gauss="k0.028", gauss_union="c160", merge="suma_ext"),
+    "k6_u160_m5": Variant(gauss="k0.028", gauss_union="c160", merge_mm=5.0),
 }
+
+
+def merge_radius_mm(a: dict, b: dict, v: Variant) -> float:
+    """Distancia por debajo de la cual b es un duplicado de a (a se quedó antes)."""
+    if v.merge == "fijo":
+        return v.merge_mm
+    if v.merge == "suma_r":
+        return max(v.merge_min, a["r"] + b["r"])
+    if v.merge == "suma_ext":
+        return max(v.merge_min, (a["dims"][2] + b["dims"][2]) / 2.0)
+    if v.merge == "max_ext":
+        return max(v.merge_min, max(a["dims"][2], b["dims"][2]))
+    raise ValueError(v.merge)
 
 
 # ── eval: carga ────────────────────────────────────────────────────────────── #
@@ -297,7 +353,10 @@ def curvature_channel(study: Study, v: Variant) -> tuple[list[dict], dict]:
     gauss_thr, mean_gate = dump["gauss_threshold"], dump["mean_curv_p75"]
     passed = []
     gates: list[str] = []
-    for reg in dump["regions"]:
+    pool = list(dump["regions"])
+    if v.gauss_union is not None:
+        pool += study.regions[v.gauss_union]["regions"]   # índices detrás de los del volcado principal
+    for reg in pool:
         hr = reg["H"] * reg["r"]
         if reg["n"] < v.min_points:
             gates.append("points"); continue
@@ -318,7 +377,7 @@ def curvature_channel(study: Study, v: Variant) -> tuple[list[dict], dict]:
     merged: list[dict] = []
     for r in passed:
         p = np.asarray(r["centroid"])
-        if any(float(np.linalg.norm(p - np.asarray(m["centroid"]))) < v.merge_mm for m in merged):
+        if any(float(np.linalg.norm(p - np.asarray(m["centroid"]))) < merge_radius_mm(m, r, v) for m in merged):
             gates[r["idx"]] = "merged"
             continue
         merged.append(r)
@@ -447,14 +506,16 @@ def _fmt_row(r: dict) -> str:
 
 def cmd_eval(args) -> None:
     names = args.variants or list(VARIANTS)
-    gauss_needed = sorted({VARIANTS[n].gauss for n in names} | {VARIANTS[n].gauss2 for n in names if VARIANTS[n].gauss2})
+    gauss_needed = sorted({VARIANTS[n].gauss for n in names} | {VARIANTS[n].gauss2 for n in names if VARIANTS[n].gauss2}
+                          | {VARIANTS[n].gauss_union for n in names if VARIANTS[n].gauss_union})
     studies = [s for s in (load_study(sid, args.src, args.out, gauss_needed) for sid in (args.studies or study_ids(args.src))) if s]
     print(f"{len(studies)} estudios cargados ({sum(s.has_ia for s in studies)} con lesión, "
           f"{sum(len(s.lesions) for s in studies)} lesiones)")
     base = None
     for name in names:
         v = VARIANTS[name]
-        missing = [s.sid for s in studies if v.gauss not in s.regions or (v.gauss2 and v.gauss2 not in s.regions)]
+        missing = [s.sid for s in studies if v.gauss not in s.regions or (v.gauss2 and v.gauss2 not in s.regions)
+                   or (v.gauss_union and v.gauss_union not in s.regions)]
         if missing:
             print(f"{name}: faltan volcados p{v.gauss} de {missing}")
             continue
@@ -485,6 +546,9 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("dump"); d.add_argument("--studies", nargs="*"); d.add_argument("--gauss", nargs="*", default=GAUSS_DEFAULT)
     d.add_argument("--limit", type=int, default=0, help="parar tras N estudios con trabajo (un proceso por ronda)")
+    d.add_argument("--curv-cap", type=int, default=None, help="tope del diezmado de la malla de curvatura (detector: 80 000)")
+    d.add_argument("--reuse", type=Path, default=None, help="volcado del que tomar malla geométrica, árbol y calibre")
+    d.add_argument("--only-ia", action="store_true", help="solo los estudios con lesión")
     d.set_defaults(fn=cmd_dump)
     e = sub.add_parser("eval"); e.add_argument("--variants", nargs="*"); e.add_argument("--studies", nargs="*")
     e.add_argument("--long", type=int, default=40); e.add_argument("--table", action="store_true")

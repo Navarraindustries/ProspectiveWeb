@@ -75,8 +75,8 @@ nada; el **suelo absoluto de curvatura gaussiana** (`min_gauss_curvature=0.028`,
 del percentil 85) confirmado con pasada real de detección sobre las mallas de sacos: **61 de 122 entre los
 5** (eran 52), 68 entre 10, **28 en 1.º** (eran 13), 81 en lista, **54 de 82 estudios**; controles 90/90 con 5;
 hueso 159 → 156 de 860; detección 57 → 52 s. Entran los grandes trombosados 004, 020 y 086; bajan 16
-pequeñas de 3–7 mm por fusión con la región del vaso vecino. **Entra** (pendiente de llevar al preset de TC
-tras el barrido de 5 y 7 mm, en marcha).
+pequeñas de 3–7 mm por fusión con la región del vaso vecino. **Entra**: en el preset de TC desde el 25-10 por la tarde; el barrido de 5 y 7 mm
+(ambas 58 entre 5) confirma que 6 mm es el óptimo de los tres.
 
 **Actualización 2026-10-24.** Pasada de segmentación de los 172 con la regla de sacos terminada (§4.10 b):
 **fuera de la malla 8 → 5** (entran 026, 121 y 024, los grandes trombosados), **52 de 122 entre los 5** (igual),
@@ -1017,9 +1017,102 @@ puestos** (113: 19 en la pasada, 20 en el banco). **CIFRA OFICIAL: 61 de 122 ent
 24/56, grandes 19/20, gigantes 13/16; blister 7/39, saculares 22/36, fusiformes 19/26. Entran
 en los 5: 004, 020, 028, 012_2, 030_2, 118, 090_2, 126_2, 126_3 (de fuera de la lista) y 027,
 107, 086_1, 050_2 (suben); salen de los 5: 163, 126_1, 017_2, 099_3; bajan de tramo 16 en
-total. **Adoptado**: `min_gauss_curvature=0.028` en el preset de TC (el de XA no cambia). En
-marcha el barrido del suelo (volcado de `k0.02` y `k0.04`, esferas de 7 y 5 mm, encadenado tras
-la pasada; variantes `k7` y `k5` del banco).
+total. **Barrido del suelo (25-10, 10:44–15:10 de volcado, evaluación en minutos):** esferas de 7 mm
+(`k0.02`) y 5 mm (`k0.04`) en el mismo banco, sobre los 172.
+
+| suelo de K | entre 5 | entre 10 | 1.º | lista | estudios | hueso ctl | hueso IA |
+|---|---|---|---|---|---|---|---|
+| percentil 85 (actual) | 52 | 64 | 13 | 78 | 46 | 86 | 73 |
+| 0,020 (esfera de 7 mm) | 58 | 66 | **32** | 80 | 50 | 90 | 63 |
+| **0,028 (esfera de 6 mm)** | **61** | **68** | 28 | 81 | **54** | 94 | **62** |
+| 0,040 (esfera de 5 mm) | 58 | 66 | 22 | **82** | 50 | **84** | 67 |
+
+La de 6 mm gana en las medidas de cabeza (entre 5, entre 10, estudios). Con 7 mm la región
+crece hasta comerse el cuello y los dos grandes trombosados que k6 había metido vuelven a caer
+(004 por compacidad, 019 por el tope), junto con 185, 113, 154_2 y 085_3; recupera 033_1, 082_3
+y 090_3 y sube cuatro más al 1.º (32), pero con trombo baja de 17 a 15 y ≥ 25 mm de 14 a 13. Con
+5 mm el umbral deja fuera también a 004 y 019 y a tres pequeñas que k6 ponía entre los 5 (028
+1.º → fuera, 118 4.º → fuera, 011_1); recupera 090_3 (1.º), 163 (1.º), 082_1/082_2 y 024 (29.º),
+alarga la lista a 82 y mete menos hueso en controles (84), pero pierde dos estudios. **Se queda
+0,028.** Por tamaño (k7 / k6 / k5, entre 5): < 5 mm 7 / 8 / 8; 5–10 mm 12 / 12 / 11; 10–25 mm 26 /
+27 / 26; ≥ 25 mm 13 / 14 / 13; con trombo 15 / 17 / 15. Salida: `backend/data/exp_gates_eval_sweep.out`.
+
+**Llevado al código (25-10, 15:30):** `min_gauss_curvature=0.028` en el preset de TC de
+`routers/detect.py::_detector_for_modality` (el percentil 85 queda como respaldo si el suelo se
+pone a None; XA sigue con su percentil), fijado en `test_paso3_detector.py` (el preset de TC lleva
+el suelo y el de XA no). Suites del detector: 83 verdes, 1 omitido. Regresión XA
+(`scripts/regresion_xa.py --label tras-suelo-gauss --compare final2`, 25-10 15:40): Case 3 e IM_0055
+segmentados de cero (107 186 y 104 841 vértices, umbrales 1471 y 1499, como en la línea base) y la lesión
+**1.ª de 5 en los dos**, malla entera y solo árbol, igual que en `final2` y `p3_final`. La única diferencia con
+esas líneas base (13–14 de octubre) es el número de candidatos devueltos, 14–17 → 5, que es el tope de la lista
+(`hits[:top]`) introducido el 20-10 con la fusión de los cambios del compañero (8704cd7), no el preset: XA sigue sin suelo de Gauss.
+
+**Fusión de duplicados proporcional al tamaño (25-10, 21:40, solo banco).** De las 16 que bajan con el
+suelo, el motivo de la región más cercana se reparte: 4 fusionadas con una región vecina mayor dentro de
+los 10 mm fijos (082_3, 090_3, 093_5, 106_1), 3 que pasan todas las puertas pero quedan tarde en la
+lista (082_2, 106_2, 126_1), 4 con una región de 4–5 puntos (012_1, 035_4, 117_2, 099_3), 2 que
+fallan compacidad porque el saco y el vaso forman una sola región al umbral (017_2, 082_4) y 3 la
+curvatura media (032, 144, 163). La fusión solo toca las 4 primeras, y la fija a 5 o 7 mm ya recuperó
+2 (puestos 31–36) perdiendo 185 (5 → 10). Se midieron en el banco cinco fusiones por tamaño de región
+(`gate_bench.py`, campo `merge`: suma de radios ajustados, suma de semiextensiones de caja, mayor
+extensión de caja, las dos últimas con suelo 3 y 5 mm) sobre k6:
+
+| Variante | Entre 5 | Entre 10 | 1.º | Lista | Estudios | Hueso ctl | Cambios respecto a k6 |
+|---|---|---|---|---|---|---|---|
+| k6 (fijo 10 mm) | 61 | 68 | 28 | 81 | 54 | 94 | — |
+| suma de radios ajustados | 60 | 68 | 30 | 84 | 53 | 96 | +032, 082_3, 090_3 (puestos 32–40); pierde 185 (5 → 10) |
+| **suma de semiextensiones (≥ 3 mm)** | **61** | **68** | **30** | **83** | **54** | **93** | 012_2 y 107 pasan de 2.º a 1.º; entran 082_3 (35) y 090_3 (32); **ninguna baja** |
+| suma de semiextensiones (≥ 5 mm) | 61 | 68 | 30 | 83 | 54 | 92 | igual que la anterior |
+| mayor extensión (≥ 3 o 5 mm) | 60 | 67 | 30 | 81 | 53 | 94 | pierde 019 (21 mm trombosado, 3 → fuera): el saco se funde con el vaso |
+
+La suma de semiextensiones de caja es la única que no pierde nada: mismos 61 entre 5, dos primeros
+puestos más y dos lesiones más en lista (al final), controles iguales (90 de 90 con 5, hueso 94 → 93).
+Es una mejora pequeña y geométricamente más limpia que los 10 mm fijos (dos regiones son la misma si
+sus cajas se solapan), pero **no mueve la cifra principal** y exigiría tocar `aneurysm_detector.py`
+(la deduplicación del paso 7) y una pasada real de 3 h para confirmarla. **Queda medida y sin adoptar
+por ahora**; si se adopta, que sea junto con la siguiente medida para confirmar las dos en una sola
+pasada. Las 12 restantes de las 16 no las toca ninguna fusión: las de 4–5 puntos y las de compacidad
+piden otra cosa (diezmado o umbral local), no una regla de lista. Salida:
+`backend/data/exp_gates_eval_merge.out`.
+
+### 4.13 La resolución de la malla de curvatura con el suelo absoluto (2026-10-26, solo banco)
+
+Con el percentil, subir el tope de la malla de curvatura de 80 000 a 160 000 vértices perdió
+(§4.9: 52 → 44) porque el umbral relativo subía con los vasos finos. Con el suelo absoluto el
+umbral no depende de la resolución, y las lesiones que quedan con regiones de 4–5 puntos o con el
+saco fundido con el vaso son las que más resolución piden; así que se volvió a medir, esta vez en
+el banco. `gate_bench.py dump --curv-cap 160000 --reuse data/exp_gates --only-ia` vuelca la malla
+de curvatura a 160 000 vértices para los 82 estudios con lesión reutilizando la malla geométrica,
+el árbol y el calibre del volcado base (solo cambia la curvatura): 2 min por estudio, 2,6 h
+(`data/run_gates_c160.ps1`, salida `data/exp_gates_c160/`). Las regiones se copian al volcado
+base como escala «c160» y el banco las combina de tres maneras (`exp_gates_eval_c160.out`,
+`exp_gates_eval_2res.out`, `exp_gates_eval_union.out`; controles no volcados, hueso solo en
+estudios con lesión):
+
+| Variante (todas con K ≥ 0,028) | Entre 5 | Entre 10 | 1.º | Lista | Estudios | Hueso IA | Cambios respecto a k6 |
+|---|---|---|---|---|---|---|---|
+| k6, curvatura a 80 000 (preset) | 61 | 68 | 28 | 81 | 54 | 62 | — |
+| curvatura a 160 000 en lugar de 80 000 | 57 | 64 | 26 | 77 | 50 | 70 | gana 9 (022 → 4, 033_1 → 1, 109_2 → 1, 087, 093_5, 116_4, 117_2, 144, 024) y pierde 14 (004 y 019 fuera, 086_1 1 → 7, 090_2 1 → fuera, 120, 126_2, 126_3…) |
+| 80 000 + 160 000 como segundo canal («forma») | 63 | 72 | 23 | 82 | 55 | 62 | el segundo canal reparte la evidencia de un mismo sitio entre dos candidatos: 1.º 28 → 23 |
+| 160 000 + 80 000 como segundo canal | 62 | 71 | 26 | 82 | 54 | 69 | ídem; pierde 004 (5 → 6) |
+| **unión en un solo canal** (regiones de las dos resoluciones, mismas puertas, orden por área, dedup) | 62 | 70 | 32 | 80 | 54 | 69 | gana 033_1 (→ 4), 109_2 (→ 4), 022 (→ 10), 087, 116_4; **019 (21 mm trombosado) 3 → 8**, 029_1, 085_2, 090_4 y 113 fuera |
+| unión + fusión por semiextensiones | 62 | 70 | 34 | 81 | 54 | 67 | como la anterior; 113 se queda (25); 6 lesiones más en 1.º (008_1, 012_2, 084, 107, 116_1/2/3, 118), 023 1 → 2, 090_2 1 → 4 |
+| unión + fusión fija 5 mm | 61 | 70 | 34 | 82 | 53 | 67 | pierde un estudio |
+
+Lectura. (a) A 160 000 solo, el suelo absoluto no basta: los sacos grandes trombosados (004, 019,
+086_1) pierden su región o su puesto, porque a más resolución la región del saco compite con más
+regiones de vaso de área parecida y la fusión de 10 mm la engulle (004: 4 puntos; 019: región
+correcta a 1,8 mm pero 4.ª del canal). (b) Como segundo canal, las dos resoluciones ganan entre
+5 y entre 10 pero destrozan el primer puesto: un candidato nuevo a 8 mm del sitio se lleva el pico
+de calibre o de cociente que antes sumaba al candidato de la lesión. (c) La unión en un solo canal
+es la combinación limpia y la única que mejora el primer puesto (28 → 34 con la fusión por
+semiextensiones), con +1 entre 5 y +2 entre 10, misma lista y mismos estudios; pero saca a 019 del
+top 5 y a tres pequeñas de la lista, sube el hueso entre los candidatos de los estudios con lesión
+(62 → 67 de 410) y costaría **el doble de tiempo de detección** (dos mallas de curvatura, 52 → ~110 s
+por estudio) y un cambio en `_detect_hits`. **Medida y sin adoptar**: es un reparto con saldo +1,
+no una palanca. Lo que sí deja claro el experimento es que la resolución reparte: las pequeñas
+(< 10 mm) quieren 160 000 y las grandes trombosadas 80 000, lo que vuelve a apuntar al tope según
+tamaño de pieza (§4.9), ahora medible en el banco con los dos volcados.
 
 ## 5. Código y datos de esta pasada
 

@@ -326,12 +326,19 @@ def build_vascular_mask(
     vesselness: np.ndarray | None = None,
     plateness: np.ndarray | None = None,
     seed_mask: np.ndarray | None = None,
+    within: np.ndarray | None = None,
     on_progress: Callable[[str, float], None] | None = None,
 ) -> MaskResult:
     """Máscara vascular de `volume` (z, y, x) con `spacing` (sz, sy, sx) en mm.
 
     `vesselness`/`plateness` permiten reutilizar un Frangi ya calculado; si
     faltan se calculan aquí por lonchas. `on_progress(fase, porcentaje)`.
+
+    `within`, si se da (bool, la forma del volumen), restringe M0 a lo que está
+    dentro, tras calcular los percentiles de tubularidad sobre todo M0: lo de
+    fuera no es semilla, ni crece, ni se recupera, ni es saco. Lo usa la
+    envolvente de la cabeza (`services.head_mask`): el soporte del escáner
+    queda fuera sin tocar los HU ni los umbrales de la receta.
 
     `seed_mask`, si se da, sustituye a las semillas por percentil (fase 3):
     las semillas son `seed_mask ∧ M0`, y si no queda ninguna la máscara vuelve
@@ -381,6 +388,8 @@ def build_vascular_mask(
         del bone
     m0 = ndimage.binary_fill_holes(above)
     del above
+    if within is not None and np.shape(within) != m0.shape:
+        raise ValueError(f"`within` tiene forma {np.shape(within)} y el volumen {m0.shape}")
     if params.upper > params.lower:
         cross = ndimage.generate_binary_structure(2, 1)
         for z in range(m0.shape[0]):
@@ -411,6 +420,15 @@ def build_vascular_mask(
     t_grow = float(np.percentile(vin, params.grow_pctl))
     del vin
     stats["thresholds"] = {"gate": t_gate, "seed": t_seed, "grow": t_grow}
+    if within is not None:
+        # DESPUÉS de los percentiles, a propósito: se toman de todo M0, como
+        # siempre, y solo entonces se descarta lo de fuera. Restringir antes
+        # cambia la población de la que salen (en Zenodo 004 el soporte era 112
+        # de los 146 cm³ de M0, con tubularidad baja; sin él p90 y p40 suben y
+        # las semillas pasan de 52 a 4, la máscara de 146 a 3 cm³). Así la
+        # receta es la de siempre menos lo que no está dentro de la cabeza.
+        stats["outside_vox"] = int(np.count_nonzero(m0 & ~within))
+        m0 &= within
     # La puerta (p60) sólo mide: cuánto de M0 es claramente tubular, la cifra
     # que se publica como núcleo. No filtra nada; semillas (p90) y crecimiento
     # (p40) umbralizan V por su cuenta dentro de M0.

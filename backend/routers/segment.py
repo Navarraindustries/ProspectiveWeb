@@ -351,6 +351,18 @@ def segment_tubular(
         logger.info("Banda de la cabeza: %d de %d cortes (techo del cráneo a %.0f mm, "
                     "fuera %.0f mm por abajo)", band.slices_kept, band.slices_total,
                     band.top_mm, band.cut_mm)
+    # ── Envolvente de la cabeza ────────────────────────────────────────────── #
+    # Lo que no está dentro de la cabeza no es vaso (services.head_mask): el
+    # soporte del escáner entraba en la malla y en 1 de cada 4 estudios de
+    # Zenodo era la pieza mayor. Se calcula aquí, sobre la banda; la máscara
+    # vascular (gruesa y cada baldosa nativa) restringe su M0 a ella. El volumen
+    # no se toca: poner aire fuera creaba un borde al que Frangi respondía y
+    # vaciaba las semillas (004: 146 → 3 cm³).
+    from services.head_mask import head_mask
+    head = head_mask(volume, dcm.spacing, dcm.modality)
+    if head.applied:
+        logger.info("Envolvente de la cabeza: %.0f cm³; fuera de ella %.0f cm³ de tejido",
+                    head.head_cm3, head.removed_cm3)
 
     # ── Resolución ─────────────────────────────────────────────────────────── #
     # El método tubular no rechaza un volumen grande: lo baja a media
@@ -368,6 +380,7 @@ def segment_tubular(
     else:
         seg_volume = np.ascontiguousarray(volume, dtype=np.float32)
         seg_spacing, factor = tuple(dcm.spacing), 1
+    within = head.inside(seg_volume.shape, factor) if head.applied else None
     logger.info("Segmenting (tubular): lower=%.0f upper=%.0f smooth=%d shape=%s (ds=%d)",
                 lower, upper, smooth_iters, seg_volume.shape, factor)
 
@@ -400,8 +413,9 @@ def segment_tubular(
                             bone_hu=CT_BONE_HU_COARSE if bone_hu else 0.0,
                             bone_margin_mm=0.0, bone_erode_mm=0.0)
     mr = build_vascular_mask(
-        seg_volume, seg_spacing, params,
+        seg_volume, seg_spacing, params, within=within,
         on_progress=lambda f, p: None if f == "hecho" else _say(f, 5 + span * p))
+    del within
     if mr.stats.get("m0_vox", 1) == 0:
         # Lo mismo que dice el umbral clásico: «la máscara no contiene
         # ninguna superficie» no le decía al usuario qué tocar.
@@ -440,6 +454,7 @@ def segment_tubular(
         from services.band_refine import refine_in_band
         native_spacing = tuple(float(v) for v in dcm.spacing)
         rr = refine_in_band(volume, native_spacing, mr.mask, factor, native_params,
+                            inside=head.inside_box if head.applied else None,
                             on_progress=lambda f, p: _say(f, 45 + 0.4 * p))
         band_stats = rr.stats
         if rr.stats["mask_vox"] > 0:
@@ -475,6 +490,7 @@ def segment_tubular(
         "thresholds": {"lower": float(lower), "upper": float(upper), "strategy": strategy},
         "voxels": n_voxels, "downsample_factor": int(factor), "fallback_note": fallback_note,
         "head_band": band.as_dict(),
+        "head_mask": head.as_dict(),
         "shape": [int(v) for v in dcm.volume.shape],
         "spacing_mm": [round(float(v), 4) for v in dcm.spacing],
         "seg_spacing": tuple(float(v) for v in seg_spacing),

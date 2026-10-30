@@ -109,8 +109,17 @@ def _measure(piece: vtk.vtkPolyData, index: int) -> ComponentInfo:
     tri = vtk.vtkTriangleFilter()
     tri.SetInputData(piece)
     tri.Update()
+    # `_extract` limpia la pieza y `vtkCleanPolyData` convierte el triángulo sin
+    # área en una línea (la malla guardada ya trae alguna); `vtkTriangleFilter`
+    # las deja pasar aunque se le pida que no (VTK 9.6) y `vtkMassProperties`
+    # avisaba por cada una («must be VTK_TRIANGLE not 3», cientos por detección
+    # en una angio-TC de 66 piezas). Se mide solo sobre los polígonos: el área y
+    # el volumen de una línea son cero, así que las cifras no cambian.
+    solo_polys = vtk.vtkPolyData()
+    solo_polys.SetPoints(tri.GetOutput().GetPoints())
+    solo_polys.SetPolys(tri.GetOutput().GetPolys())
     mp = vtk.vtkMassProperties()
-    mp.SetInputData(tri.GetOutput())
+    mp.SetInputData(solo_polys)
     try:
         volume = abs(float(mp.GetVolume()))
         area = float(mp.GetSurfaceArea())

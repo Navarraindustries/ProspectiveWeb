@@ -173,6 +173,14 @@ def _order_key(reg: dict, v: Variant, gauss_thr: float, mean_gate: float) -> flo
         return -abs(reg["H"] * reg["r"] - 1.0)
     if v.order == "pgf_comp":
         return reg["pgf"] * reg["comp"]
+    # Claves medidas el 26-10 sobre k6: las regiones de vaso que van por delante de una
+    # lesión tienen menos pgf (0,62 frente a 0,70) y menos esfericidad (0,65 frente a 0,77).
+    if v.order == "area_pgf":
+        return reg["area"] * reg["pgf"]
+    if v.order == "area_sph_pgf":
+        return reg["area"] * reg["sph"] * reg["pgf"]
+    if v.order == "sqa_sph_pgf":
+        return math.sqrt(max(reg["area"], 0.0)) * reg["sph"] * reg["pgf"]
     raise ValueError(v.order)
 
 

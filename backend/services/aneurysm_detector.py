@@ -14,7 +14,15 @@ Algorithm
    - compactness ≥ 0.20           (eliminates elongated vessel arcs)
    - sphericity ≥ 0.28            (eliminates curved vessel segments)
 7. Composite score with size-factor bias (peaks at Ø 8 mm).
-8. Spatial deduplication (merge_dist_mm = 10 mm).
+8. Spatial deduplication (merge_dist_mm = 10 mm, or the regions' own box
+   extent with merge_by="extent").
+
+TC (Zenodo, octubre de 2026): suelo ABSOLUTO de Gauss en vez del percentil
+(`min_gauss_curvature`), una segunda escala cuyas regiones se añaden detrás
+(`gauss_floor_2`), orden por área × fracción convexa (`order_by="area_pgf"`)
+y fusión por el tamaño de las cajas (`merge_by="extent"`). Cada una medida
+sobre los 172 estudios con `scripts/gate_bench.py` y confirmada con una
+pasada real; el preset está en `routers/detect._detector_for_modality`.
 """
 from __future__ import annotations
 
@@ -60,6 +68,9 @@ class AneurysmCandidate:
     radius_method: str = "area"
     #: Área de la región (mm²). Con `order_by="area"` es la clave del orden.
     area_mm2: float = 0.0
+    #: Lado mayor de la caja de la región (mm). Con `merge_by="extent"` fija
+    #: el radio de fusión de duplicados.
+    extent_mm: float = 0.0
 
 
 @dataclass
@@ -239,6 +250,13 @@ class AneurysmDetector:
         min_mean_curv_radius:      float | None = None,
         order_by:                  str = "score",
         min_gauss_curvature:       float | None = None,
+        merge_by:                  str = "fixed",
+        merge_min_mm:              float = 3.0,
+        gauss_floor_2:             float | None = None,
+        compactness_lax:           float | None = None,
+        compactness_lax_pgf:       float = 0.75,
+        compactness_lax_hr_max:    float = 1.5,
+        mean_curv_abs_pgf:         float | None = None,
     ) -> None:
         self.min_mean_curv_radius      = min_mean_curv_radius
         self.gauss_percentile          = gauss_percentile
@@ -262,10 +280,51 @@ class AneurysmDetector:
         #: relativo a la malla y en un árbol de vasos finos sube hasta K ≈ 0,6
         #: (radio ≤ 1,3 mm): un saco de 12–21 mm es plano para él (paso 3).
         self.min_gauss_curvature       = min_gauss_curvature
+        #: Fusión de duplicados (paso 7): "fixed" = dos candidatos son el mismo
+        #: si sus centros distan menos de `merge_dist_mm`; "extent" = menos
+        #: que la media del lado mayor de sus cajas (mínimo `merge_min_mm`).
+        #: Con 10 mm fijos, dos sacos vecinos (016, 050, 090) se comían entre
+        #: sí y una región de vaso a 9 mm se tragaba una cúpula pequeña; con la
+        #: caja el radio es el tamaño real de cada región. Ver `_merge_radius_mm`.
+        self.merge_by                  = merge_by
+        self.merge_min_mm              = merge_min_mm
+        #: Segunda escala del suelo de Gauss (mm⁻²), solo con `min_gauss_curvature`:
+        #: las regiones que forma el segundo suelo se añaden DETRÁS de las del
+        #: primero y pasan las mismas puertas, el mismo orden y la misma
+        #: fusión. Un suelo de 0,028 (esfera de 6 mm) recorta los sacos
+        #: grandes enteros pero une un saco de 3–4 mm a su vaso; 0,06 (esfera
+        #: de 4 mm) lo separa. Medido sobre los 172 de Zenodo (26-10): en
+        #: lista 82 → 88, ninguna lesión baja de tramo.
+        self.gauss_floor_2             = gauss_floor_2
+        #: Compacidad condicionada (29-10, banco de puertas sobre las mallas
+        #: limpias de los 172 de Zenodo): a una región muy convexa (pgf ≥
+        #: `compactness_lax_pgf`) con curvatura de esfera (H·r ≤
+        #: `compactness_lax_hr_max`) le basta `compactness_lax`. La cúpula de
+        #: un saco de 14–25 mm sale con compacidad 0,10–0,19 (038: 0,18 con
+        #: pgf 0,81 y H·r 1,0) y la puerta fija de 0,2 la tiraba; relajar la
+        #: compacidad a secas metía regiones de vaso de 100–230 mm² (pgf
+        #: 0,58–0,69) o con H·r 2,0–2,2 (085) por delante de lesiones.
+        self.compactness_lax           = compactness_lax
+        self.compactness_lax_pgf       = compactness_lax_pgf
+        self.compactness_lax_hr_max    = compactness_lax_hr_max
+        #: Curvatura media en valor absoluto si pgf ≥ este valor (solo con
+        #: `min_mean_curv_radius`): la luz interior de un saco trombosado es
+        #: una cúpula cóncava (037: 170 puntos, 109 mm², H·r = −1,34, pgf
+        #: 0,75) y con el signo la puerta la tiraba. Sin la condición de pgf
+        #: entran sillas cóncavas de bifurcación (109: pgf 0,58–0,72).
+        self.mean_curv_abs_pgf         = mean_curv_abs_pgf
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #
     # ------------------------------------------------------------------ #
+
+    def _merge_radius_mm(self, a: AneurysmCandidate, b: AneurysmCandidate) -> float:
+        """Distancia por debajo de la cual `b` duplica a `a` (que iba antes)."""
+        if self.merge_by == "fixed":
+            return self.merge_dist_mm
+        if self.merge_by == "extent":
+            return max(self.merge_min_mm, (a.extent_mm + b.extent_mm) / 2.0)
+        raise ValueError(f"merge_by desconocido: {self.merge_by!r}")
 
     def _order_key(self, c: AneurysmCandidate) -> float:
         """Mayor = antes. Ver `order_by`.
@@ -282,6 +341,13 @@ class AneurysmDetector:
         """
         if self.order_by == "area":
             return c.area_mm2
+        if self.order_by == "area_pgf":
+            # Área por fracción de curvatura gaussiana positiva (26-10, banco de
+            # puertas sobre los 172 de Zenodo con el suelo absoluto): las regiones
+            # de vaso que iban por delante de una lesión tienen menos pgf (mediana
+            # 0,62 frente a 0,70) y la cúpula de un saco es casi toda convexa.
+            # Entre 5: 61 → 63, en 1.º 28 → 30, estudios 54 → 56, ninguna baja.
+            return c.area_mm2 * c.positive_gauss_frac
         if self.order_by == "score":
             return c.score
         raise ValueError(f"order_by desconocido: {self.order_by!r}")
@@ -416,35 +482,51 @@ class AneurysmDetector:
 
         mean_poly.GetPointData().SetActiveScalars("Gauss_Curvature")
 
-        thresh = vtk.vtkThreshold()
-        thresh.SetInputData(mean_poly)
-        thresh.SetInputArrayToProcess(
-            0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "Gauss_Curvature"
-        )
-        thresh.SetThresholdFunction(vtk.vtkThreshold.THRESHOLD_UPPER)
-        thresh.SetUpperThreshold(thresh_gauss)
-        thresh.SetAllScalars(0)
-        thresh.Update()
+        def regions_above(floor: float) -> tuple["vtk.vtkPolyData", int]:
+            """Los vértices con K ≥ `floor` y sus componentes conexas (4)."""
+            thresh = vtk.vtkThreshold()
+            thresh.SetInputData(mean_poly)
+            thresh.SetInputArrayToProcess(
+                0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "Gauss_Curvature"
+            )
+            thresh.SetThresholdFunction(vtk.vtkThreshold.THRESHOLD_UPPER)
+            thresh.SetUpperThreshold(floor)
+            thresh.SetAllScalars(0)
+            thresh.Update()
 
-        geom = vtk.vtkGeometryFilter()
-        geom.SetInputConnection(thresh.GetOutputPort())
-        geom.Update()
-        high_gauss = geom.GetOutput()
+            geom = vtk.vtkGeometryFilter()
+            geom.SetInputConnection(thresh.GetOutputPort())
+            geom.Update()
+            high = geom.GetOutput()
+            if high.GetNumberOfPoints() == 0:
+                return high, 0
+            conn = vtk.vtkPolyDataConnectivityFilter()
+            conn.SetInputData(high)
+            conn.SetExtractionModeToAllRegions()
+            conn.Update()
+            return high, conn.GetNumberOfExtractedRegions()
 
-        if high_gauss.GetNumberOfPoints() == 0:
+        # ── 4. Connected components, en una o dos escalas ──────────────── #
+        # La segunda escala (`gauss_floor_2`) añade sus regiones detrás de las
+        # de la primera: mismas puertas, mismo orden, misma fusión. Solo tiene
+        # sentido con el suelo absoluto; con el percentil no hay segunda.
+        floors = [thresh_gauss]
+        if self.gauss_floor_2 is not None and self.min_gauss_curvature is not None:
+            floors.append(max(float(self.gauss_floor_2), 0.0))
+        work: list[tuple[float, "vtk.vtkPolyData", int]] = []
+        n_regions = 0
+        for floor in floors:
+            high_gauss, n_at = regions_above(floor)
+            logger.info("Gauss floor %.4f: %d connected regions", floor, n_at)
+            n_regions += n_at
+            work.extend((floor, high_gauss, i) for i in range(n_at))
+
+        if n_regions == 0:
             logger.info("No positive Gaussian curvature regions found")
             return DetectionResult(
                 candidates=[], gauss_threshold=thresh_gauss,
                 mean_curv_gate=mean_curv_gate,
             )
-
-        # ── 4. Connected components ────────────────────────────────────── #
-        conn = vtk.vtkPolyDataConnectivityFilter()
-        conn.SetInputData(high_gauss)
-        conn.SetExtractionModeToAllRegions()
-        conn.Update()
-        n_regions = conn.GetNumberOfExtractedRegions()
-        logger.info("Connected regions: %d", n_regions)
 
         # ── 5. Analyse each region ─────────────────────────────────────── #
         candidates: list[AneurysmCandidate] = []
@@ -458,7 +540,7 @@ class AneurysmDetector:
         traces: list[RegionTrace] = []
         trace_of: dict[int, RegionTrace] = {}     # id(candidate) -> su traza
 
-        for i in range(n_regions):
+        for pool_floor, high_gauss, i in work:
             sel = vtk.vtkPolyDataConnectivityFilter()
             sel.SetInputData(high_gauss)
             sel.SetExtractionModeToSpecifiedRegions()
@@ -533,8 +615,13 @@ class AneurysmDetector:
                     trace.gate = "size"
                 continue
 
+            hr = mean_curv_region * radius
             if self.min_mean_curv_radius is not None:
-                convexa = mean_curv_region * radius >= self.min_mean_curv_radius
+                hr_gate = hr
+                if (self.mean_curv_abs_pgf is not None
+                        and positive_gauss_frac >= self.mean_curv_abs_pgf):
+                    hr_gate = abs(hr)
+                convexa = hr_gate >= self.min_mean_curv_radius
             else:
                 convexa = mean_curv_region >= mean_curv_gate
             if not convexa:
@@ -549,7 +636,12 @@ class AneurysmDetector:
                     trace.gate = "pgf"
                 continue
 
-            if compactness < self.min_compactness:
+            comp_min = self.min_compactness
+            if (self.compactness_lax is not None
+                    and positive_gauss_frac >= self.compactness_lax_pgf
+                    and hr <= self.compactness_lax_hr_max):
+                comp_min = self.compactness_lax
+            if compactness < comp_min:
                 n_fail_compact += 1
                 if trace is not None:
                     trace.gate = "compactness"
@@ -586,7 +678,7 @@ class AneurysmDetector:
                 0.0, 1.0,
             ))
             norm_gauss = float(np.clip(
-                (gauss_curv_region - thresh_gauss) / (abs(thresh_gauss) + 1e-6) / 5.0,
+                (gauss_curv_region - pool_floor) / (abs(pool_floor) + 1e-6) / 5.0,
                 0.0, 1.0,
             ))
 
@@ -625,6 +717,7 @@ class AneurysmDetector:
                     cv_gauss=cv_gauss,
                     normal_isotropy=normal_isotropy,
                     area_mm2=float(area),
+                    extent_mm=float(max_dim),
                 )
             candidates.append(cand)
             if trace is not None:
@@ -641,7 +734,7 @@ class AneurysmDetector:
         for c in candidates:
             pt = np.array(c.centroid)
             duplicate = any(
-                float(np.linalg.norm(pt - np.array(m.centroid))) < self.merge_dist_mm
+                float(np.linalg.norm(pt - np.array(m.centroid))) < self._merge_radius_mm(m, c)
                 for m in merged
             )
             if duplicate:

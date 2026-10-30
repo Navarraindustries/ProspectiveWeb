@@ -286,6 +286,15 @@ VARIANTS: dict[str, Variant] = {
     "k6_u45_mse": Variant(gauss="k0.028", gauss_union="k0.045", merge="suma_ext"),
     "k6_u4_mse": Variant(gauss="k0.028", gauss_union="k0.06", merge="suma_ext"),
     "k6_p4": Variant(gauss="k0.028", gauss2="k0.06"),
+    # Orden del canal de curvatura con forma además de área (26-10).
+    "k6_o_apgf": Variant(gauss="k0.028", order="area_pgf"),
+    "k6_o_asp": Variant(gauss="k0.028", order="area_sph_pgf"),
+    "k6_o_sqa": Variant(gauss="k0.028", order="sqa_sph_pgf"),
+    "k6_o_sqa_mse": Variant(gauss="k0.028", order="sqa_sph_pgf", merge="suma_ext"),
+    "k6_o_sqa_u4_mse": Variant(gauss="k0.028", order="sqa_sph_pgf", merge="suma_ext", gauss_union="k0.06"),
+    "k6_o_apgf_mse": Variant(gauss="k0.028", order="area_pgf", merge="suma_ext"),
+    "k6_o_apgf_u4_mse": Variant(gauss="k0.028", order="area_pgf", merge="suma_ext", gauss_union="k0.06"),
+    "k6_o_apgf_u4": Variant(gauss="k0.028", order="area_pgf", gauss_union="k0.06"),
 }
 
 

@@ -81,7 +81,9 @@ class TestOrdenPorArea:
     def test_el_preset_de_tc_ordena_por_area_y_el_de_xa_no_cambia(self):
         from routers.detect import _detector_for_modality
         ct = _detector_for_modality("CT")
-        assert ct.order_by == "area"
+        # 26-10: área × pgf (banco y pasada real sobre los 172: 61 → 63 entre 5,
+        # ninguna baja). El orden «area» a secas sigue existiendo en el detector.
+        assert ct.order_by == "area_pgf"
         assert ct.min_mean_curv_radius == 0.7            # la puerta absoluta de XA, también en TC
         # Suelo absoluto de Gauss (esfera de 6 mm), medido sobre los 172 de
         # Zenodo el 25-10: 52 → 61 entre los 5. XA sigue con el percentil.
@@ -189,3 +191,109 @@ class TestSueloAbsolutoDeGauss:
 
     def test_por_defecto_no_hay_suelo(self):
         assert AneurysmDetector().min_gauss_curvature is None
+
+
+class TestFusionPorCajasYSegundaEscala:
+    """26-10: dos medidas adoptadas juntas en TC. La fusión de duplicados usa
+    el lado mayor de las cajas de los dos candidatos en vez de 10 mm fijos
+    (dos sacos vecinos ya no se comen entre sí), y una segunda escala del
+    suelo de Gauss (esfera de 4 mm) añade DETRÁS las regiones que el suelo de
+    6 mm deja pegadas a su vaso. Aquí se fija el mecanismo con dos esferas a
+    24 mm; la cifra (en lista 82 → 88 de 122, ninguna baja) está en el informe."""
+
+    def test_el_preset_de_tc_las_lleva_y_el_de_xa_no(self):
+        from routers.detect import _detector_for_modality
+        ct = _detector_for_modality("CT")
+        assert ct.merge_by == "extent" and ct.merge_min_mm == 3.0
+        assert ct.gauss_floor_2 == pytest.approx(0.06)
+        xa = _detector_for_modality("XA")
+        assert xa.merge_by == "fixed" and xa.gauss_floor_2 is None
+        assert AneurysmDetector().merge_by == "fixed" and AneurysmDetector().gauss_floor_2 is None
+
+    def test_el_radio_de_fusion_sale_de_las_cajas(self, vaso_con_dos_sacos):
+        det = _detector("area")
+        det.min_gauss_curvature = 1.0 / 36.0
+        det.merge_dist_mm = 30.0                 # fijo: la pequeña (a 24 mm) es «duplicado» de la grande
+        fijo = det.detect(vaso_con_dos_sacos)
+        assert not any(_cerca(c, PEQUENA) for c in fijo.candidates)
+        det.merge_by = "extent"                  # cajas de 7 y 3,6 mm: radio 5,3 mm, las dos se quedan
+        cajas = det.detect(vaso_con_dos_sacos)
+        assert any(_cerca(c, GRANDE) for c in cajas.candidates)
+        assert any(_cerca(c, PEQUENA) for c in cajas.candidates)
+        grande = next(c for c in cajas.candidates if _cerca(c, GRANDE))
+        assert grande.extent_mm == pytest.approx(7.0, abs=0.5)
+        assert det._merge_radius_mm(grande, grande) == pytest.approx(grande.extent_mm)
+        det.merge_min_mm = 20.0                  # el mínimo manda cuando las cajas son pequeñas
+        assert det._merge_radius_mm(grande, grande) == 20.0
+        det.merge_by = "cajas"
+        with pytest.raises(ValueError):
+            det.detect(vaso_con_dos_sacos)
+
+    def test_la_segunda_escala_anade_sus_regiones_detras(self, vaso_con_dos_sacos):
+        det = _detector("area")
+        det.min_gauss_curvature = 0.2            # solo la esfera pequeña (K = 0,31); la grande (0,08) no
+        una = det.detect(vaso_con_dos_sacos)
+        assert not any(_cerca(c, GRANDE) for c in una.candidates)
+        det.gauss_floor_2 = 0.05                 # la segunda escala la recoge
+        dos = det.detect(vaso_con_dos_sacos)
+        assert any(_cerca(c, GRANDE) for c in dos.candidates)
+        assert any(_cerca(c, PEQUENA) for c in dos.candidates)
+        assert dos.n_regions_total > una.n_regions_total
+        assert dos.gauss_threshold == pytest.approx(0.2)   # el umbral que se informa es el primero
+        # Con el percentil no hay segunda escala: el resultado es el de siempre.
+        det.min_gauss_curvature = None
+        det.gauss_percentile = 99.0
+        con = det.detect(vaso_con_dos_sacos)
+        det.gauss_floor_2 = None
+        sin = det.detect(vaso_con_dos_sacos)
+        assert [c.centroid for c in con.candidates] == [c.centroid for c in sin.candidates]
+
+
+class TestCompacidadCondicionadaYSignoDeLaCurvaturaMedia:
+    """29-10, banco de puertas sobre las mallas limpias de los 172 de Zenodo y
+    pasada real. Dos puertas que devuelven cúpulas grandes sin repartir:
+    a una región muy convexa (pgf ≥ 0,75) con curvatura de esfera (H·r ≤ 1,5)
+    le basta compacidad 0,10 (la fija de 0,2 tiraba la cúpula de sacos de
+    14–25 mm), y la curvatura media se mira en valor absoluto cuando pgf ≥
+    0,75 (la luz interior de un saco trombosado es una cúpula cóncava).
+    Aquí se fija el mecanismo con la esfera grande del vaso sintético."""
+
+    def test_el_preset_de_tc_las_lleva_y_el_de_xa_no(self):
+        from routers.detect import _detector_for_modality
+        ct = _detector_for_modality("CT")
+        assert ct.compactness_lax == pytest.approx(0.10)
+        assert ct.compactness_lax_pgf == pytest.approx(0.75)
+        assert ct.compactness_lax_hr_max == pytest.approx(1.5)
+        assert ct.mean_curv_abs_pgf == pytest.approx(0.75)
+        xa = _detector_for_modality("XA")
+        assert xa.compactness_lax is None and xa.mean_curv_abs_pgf is None
+        assert AneurysmDetector().compactness_lax is None and AneurysmDetector().mean_curv_abs_pgf is None
+
+    def test_la_compacidad_relajada_solo_para_regiones_convexas_de_esfera(self, vaso_con_dos_sacos):
+        det = _detector("area")
+        det.min_gauss_curvature = 1.0 / 36.0
+        det.min_compactness = 1.01                 # con la puerta fija no pasa ni una esfera entera (1,0)
+        assert not any(_cerca(c, GRANDE) for c in det.detect(vaso_con_dos_sacos).candidates)
+        det.compactness_lax = 0.5                  # muy convexa (pgf ≈ 1) y H·r ≈ 1: le basta 0,5
+        det.compactness_lax_pgf = 0.75
+        det.compactness_lax_hr_max = 1.5
+        assert any(_cerca(c, GRANDE) for c in det.detect(vaso_con_dos_sacos).candidates)
+        det.compactness_lax_hr_max = 0.5           # sin curvatura de esfera no hay relajación
+        assert not any(_cerca(c, GRANDE) for c in det.detect(vaso_con_dos_sacos).candidates)
+        det.compactness_lax_hr_max = 1.5
+        det.compactness_lax_pgf = 1.01             # ni sin convexidad suficiente
+        assert not any(_cerca(c, GRANDE) for c in det.detect(vaso_con_dos_sacos).candidates)
+
+    def test_la_curvatura_media_en_valor_absoluto_solo_si_es_muy_convexa(self, vaso_con_dos_sacos):
+        import vtk
+        rev = vtk.vtkReverseSense(); rev.SetInputData(vaso_con_dos_sacos)
+        rev.ReverseCellsOn(); rev.ReverseNormalsOn(); rev.Update()
+        concavo = rev.GetOutput()                  # la misma malla vista desde dentro: H < 0, K igual
+        det = _detector("area")
+        det.min_gauss_curvature = 1.0 / 36.0
+        det.min_mean_curv_radius = 0.7
+        assert not any(_cerca(c, GRANDE) for c in det.detect(concavo).candidates)
+        det.mean_curv_abs_pgf = 0.75
+        assert any(_cerca(c, GRANDE) for c in det.detect(concavo).candidates)
+        det.mean_curv_abs_pgf = 1.01
+        assert not any(_cerca(c, GRANDE) for c in det.detect(concavo).candidates)

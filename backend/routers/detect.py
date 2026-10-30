@@ -206,7 +206,37 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         # primero» las lesiones entre los 5 pasan de 2 a 4 y entre los 10 de
         # 6 a 8. En 3DRA el mismo orden deja la lesión 1.ª en Case 3 e
         # IM_0055, pero mueve a los otros cuatro: XA se queda como estaba.
-        order_by                  = "area",
+        # 26-10: área × fracción de curvatura gaussiana positiva. Con el suelo
+        # absoluto las regiones son sacos enteros y las de vaso que iban por
+        # delante de una lesión tienen menos pgf (0,62 frente a 0,70): la
+        # cúpula de un saco es casi toda convexa. Banco de puertas y pasada
+        # real sobre los 172 de Zenodo: entre 5 61 → 63, en 1.º 28 → 30,
+        # estudios 54 → 56, ninguna lesión baja, controles 90/90 con 5.
+        order_by                  = "area_pgf",
+        # 26-10, adoptadas juntas sobre el orden anterior (banco sobre los 172
+        # y pasada real): fusión de duplicados por el lado mayor de las cajas
+        # (media de los dos, mínimo 3 mm) en vez de 10 mm fijos, y una segunda
+        # escala del suelo (esfera de 4 mm) cuyas regiones van detrás de las
+        # de 6 mm. Dos sacos vecinos (016, 050, 090) ya no se comen entre sí y
+        # un saco de 3–4 mm pegado a su vaso sale como región propia. Entre 5
+        # 63 = 63, en 1.º 30 → 31, en lista 82 → 88; ninguna lesión baja de
+        # tramo (163 pasa de 1.º a 2.º y 012 y 107 suben a 1.º).
+        merge_by                  = "extent",
+        merge_min_mm              = 3.0,
+        gauss_floor_2             = 0.06,
+        # 29-10, banco de puertas sobre las mallas limpias (envolvente) de
+        # los 172 y pasada real: dos puertas que devuelven cúpulas grandes.
+        # La compacidad fija de 0,2 tiraba la cúpula de sacos de 14–25 mm
+        # (038: 0,18 con pgf 0,81 y H·r 1,0); a una región muy convexa y
+        # con curvatura de esfera le basta 0,10. Y la luz interior de un
+        # saco trombosado es cóncava (037: H·r −1,34, pgf 0,75): la puerta
+        # de curvatura media va en valor absoluto cuando pgf ≥ 0,75. Las
+        # versiones sin condición repartían (compacidad 0,15 a secas: 018
+        # 3.º → 9.º; signo sin pgf: 109_2 fuera de la lista).
+        compactness_lax           = 0.10,
+        compactness_lax_pgf       = 0.75,
+        compactness_lax_hr_max    = 1.5,
+        mean_curv_abs_pgf         = 0.75,
     )
 
 

@@ -70,6 +70,57 @@ candidatos. Es la cifra oficial a día de hoy.
 
 **Actualización 2026-10-23 (tarde).** La copia de calibre desde la malla completa, aislada (§4.10 a): **51 de 122 entre los 5** frente a 52, misma lista y mismo top 10, 46 estudios frente a 45; entran los sacos grandes y trombosados (004, 086, 116_1) y salen pequeños y medianos (116_2, 144, 109, 018, 185). Reparto, no mejora: no se adopta sola. La regla de sacos de la máscara (§4.10 b) está medida en 7 estudios a nativo (026 del 0 al 49 %, 024 del 4 al 35 %, controles sin cambio), codificada con tests, y la pasada de segmentación de los 172 está en marcha (`zenodo_eval_full_p5_sacos`).
 
+**Actualización 2026-10-27 (tarde).** Lo que no es de detección: las mallas de los 172 no son árboles limpios
+(mediana 66 piezas; el SOPORTE DE CABEZA del escáner es la pieza mayor en 1 de cada 4 estudios y en 016/017 está
+conectado al árbol). Regla de la ENVOLVENTE DE LA CABEZA (§4.18, `services/head_mask.py`): aire > −300 HU,
+apertura 4 mm, componente mayor, envolvente convexa por corte; lo de fuera pasa a aire antes de la máscara. En
+016 y 017 la máscara baja de 113 a 18 y de 150 a 31 cm³, la pieza mayor vuelve a ser árbol y las lesiones siguen
+al 98–100 %. Tests verdes (5 nuevos, 97 de la receta). Aplicarla poniendo aire fuera o restringiendo M0 antes de
+los percentiles vacía la máscara (004: 146 → 3 cm³; los percentiles de semillas estaban sostenidos por el
+soporte): se restringe M0 DESPUÉS de los percentiles (004: 30,7 cm³, lesión en 4.º, antes fuera). **Pasada
+completa de segmentación en marcha** desde las 14:37 (`zenodo_eval_full_p6_head`, ~20 h).
+
+**Actualización 2026-10-29.** Dos puertas del canal de curvatura medidas en el banco sobre las mallas de la
+envolvente y confirmadas con pasada real (§4.19): a una región muy convexa (pgf ≥ 0,75) con curvatura de esfera
+(H·r ≤ 1,5) le basta compacidad 0,10 (la fija de 0,2 tiraba la cúpula de sacos de 14–25 mm), y la curvatura
+media se mira en valor absoluto cuando pgf ≥ 0,75 (la luz interior de un saco trombosado es cóncava). Las
+versiones sin condición reparten; estas no bajan ninguna cifra en ninguna banda. **68 de 122 entre los 5** (de
+67), 74 entre 10, **24 en 1.º** (de 21), 96 en lista, 57 de 82 estudios; controles 90/90 con 5, hueso en
+controles 115 → 117 de 450; sin coste de tiempo. La hipótesis previa (radio de acuerdo del consenso, fusión de
+cúpulas partidas) se midió y no mueve nada. **Nueva referencia de detección 68 / 74 / 24 / 96 / 57, 5 fuera.**
+Regresión XA sin diferencias. Siguiente: fusión del consenso con el sitio más cercano (no el primero) y un canal
+propio para sacos pequeños con región a la escala de 4 mm que el tope de 40 corta.
+
+**Actualización 2026-10-28.** Pasada de segmentación de los 172 con la **envolvente de la cabeza** (§4.18)
+terminada: la máscara pasa de 111 a 34 cm³ de mediana, 80 estudios en 20–40 cm³ (eran 16), 15 por encima de 60
+(eran 128), «parece árbol» 126 → 169, pieza mayor > 60 cm³ 51 → 8, ningún recubrimiento de lesión baja, 5 fuera
+de malla (igual), segmentación 339 → 211 s. Detección sobre esas mallas: **67 de 122 entre los 5** (eran 63), 73
+entre 10, **21 en 1.º** (eran 31), 94 en lista, 56 de 82 estudios; controles 90/90 con 5, hueso en controles 92 →
+115. El primer puesto se pierde por la copia de curvatura (la malla tiene la mitad de vértices y el diezmado a
+80 000 es la mitad de fuerte: las cúpulas grandes se parten en 2–3 candidatos): experimento del tope a 40 000
+sobre estas mallas medido a 40 000 y 60 000 en los 28 estudios que se mueven: 40 000 devuelve los 13 primeros
+puestos pero pierde 3 entre 5 (pequeñas y trombosadas) y 4 en lista; 60 000 pierde por los dos lados. El tope se
+queda en 80 000. **La envolvente ENTRA; nueva referencia de detección 67 / 73 / 21 / 94 / 56, 5 fuera**, con el
+primer puesto como coste declarado. Las 4 máscaras que se vacían son controles con poco contraste cuyo «árbol»
+era soporte y tabiques; las 15 que siguen > 60 cm³ son cráneo dentro de la cabeza (siguiente frente). Regresión XA
+sin diferencias.
+
+**Actualización 2026-10-27.** Fusión por cajas y segunda escala del suelo (§4.17) adoptadas por decisión del
+usuario el 26 por la noche y confirmadas con pasada real de detección (`zenodo_eval_fusion`, 172/172, 5,5 h):
+**63 de 122 entre los 5** (igual), 69 entre 10 (igual), **31 en 1.º** (eran 30), **88 en lista** (eran 82),
+**56 de 82 estudios** (igual); 5 fuera de malla; controles 90/90 con 5 (hueso 92/450, era 94); 121/122 puestos
+iguales al banco. Entran 7 en la lista (017_2 al 10.º), 012_2 y 107 suben al 1.º, 163 baja del 1.º al 2.º,
+111 del 10.º al 11.º y 082_2 sale de la lista mientras entran 082_1 y 082_3. Detección 65 → 97 s por estudio.
+Cifra oficial: **63 / 69 / 31 / 88 / 56; 5 fuera de malla**. Regresión XA: sin diferencias (27-10, 11:42).
+
+**Actualización 2026-10-26.** Banco: fusión por tamaño (§4.12), resolución (§4.13), techo de HU (§4.14)
+y segunda escala del suelo (§4.15) medidas y no adoptadas (ninguna mueve los 61). **Orden del canal de
+curvatura por área × pgf** (§4.16): las regiones de vaso que van por delante de una lesión tienen menos pgf
+(0,62 frente a 0,70); confirmado con pasada real de detección sobre las mallas de sacos: **63 de 122 entre
+los 5** (eran 61), 69 entre 10, **30 en 1.º** (eran 28), 82 en lista, **56 de 82 estudios**; **ninguna lesión
+baja**; controles 90/90 con 5 (hueso 94/450 igual); 121/122 puestos iguales al banco. **Entra**: preset de TC
+`order_by="area_pgf"` desde el 26-10 por la tarde, con test (83 verdes) y regresión XA verde.
+
 **Actualización 2026-10-25.** Banco de puertas sobre los 172 (§4.12): las puertas del paso 3 no mueven
 nada; el **suelo absoluto de curvatura gaussiana** (`min_gauss_curvature=0.028`, esfera de 6 mm, en lugar
 del percentil 85) confirmado con pasada real de detección sobre las mallas de sacos: **61 de 122 entre los
@@ -1189,6 +1240,412 @@ otra pasada de componentes sobre la misma malla, segundos por estudio, sin segme
 **Medida y sin adoptar como palanca** (no mueve la cifra principal); es candidata a entrar junto
 con la fusión por cajas (§4.12) si alguna vez se cambia el canal de curvatura, porque las dos son
 gratis y no pierden nada. Lesión a lesión: `k6_vs_actual.py k6 k6_u4_mse exp_gates_eval_k2.out`.
+
+### 4.16 El orden del canal de curvatura: área × pgf (2026-10-26, 16:00): 61 → 63 sin bajar ninguna
+
+Con el suelo absoluto, 70 de las 122 lesiones tienen una región que pasa todas las puertas, pero
+solo 45 quedan entre las 5 primeras del canal (orden por área): delante van regiones de vaso con
+más área. Se compararon los rasgos de las 70 regiones de lesión con los de las 458 regiones que van
+por delante de alguna (`orden_curvatura.py`, scratchpad): la lesión tiene más fracción de curvatura
+gaussiana positiva (pgf, mediana 0,70 frente a 0,62), más esfericidad (0,77 frente a 0,65), menos
+alargamiento de caja (1,29 frente a 1,53), menor coeficiente de variación de K (2,7 frente a 4,0) y,
+curiosamente, **menos** H·r (1,34 frente a 1,66: los bultos de bifurcación son más convexos que la
+cúpula de un saco). El área sigue siendo el rasgo que más separa (mediana 56 frente a 47 mm²,
+p75 114 frente a 65). Doce claves de orden sobre el canal solo, y después las tres mejores en el
+banco completo (consenso y suelo de HU, 172 estudios, `exp_gates_eval_orden.out` y `_orden2.out`):
+
+| Orden del canal (sobre k6) | Entre 5 | Entre 10 | 1.º | Lista | Estudios | Hueso ctl / IA | Baja alguna |
+|---|---|---|---|---|---|---|---|
+| área (preset) | 61 | 68 | 28 | 81 | 54 | 94 / 62 | — |
+| **área × pgf** | **63** | **69** | **30** | **82** | **56** | 94 / 64 | **ninguna** |
+| área × esfericidad × pgf | 62 | 68 | 29 | 82 | 55 | 100 / 62 | 118 (4 → 13) |
+| √área × esfericidad × pgf | 61 | 70 | 31 | 84 | 54 | 99 / 63 | 004 (5 → 6) |
+| área × pgf + fusión por cajas | 63 | 68 | 32 | 83 | 56 | 95 / 65 | ninguna |
+| área × pgf + fusión por cajas + unión con 4,1 mm | 63 | 69 | 31 | 88 | 56 | 92 / 68 | ninguna |
+
+Área × pgf es la primera clave que gana sin perder: suben 034 (7 → 5) y 163 (7 → 1), 018 y 118
+pasan del 4.º al 1.º, 084 del 2.º al 1.º, 111 del 13 al 10, y las que bajan lo hacen un puesto
+dentro del top 5 (023 y 086_1 del 1.º al 2.º). La razón es la que decía el rasgo: la cúpula de un
+saco es casi toda convexa (pgf alto) y una curva o bifurcación de vaso, que también pasa el suelo,
+no. Esfericidad y raíz del área dan más primeros puestos pero mueven lesiones fuera del top 5. Con
+la fusión por cajas y la unión de escalas encima (§4.12, §4.15) se mantiene el 63 y crecen primeros
+puestos y lista. **Pasada real de confirmación en marcha desde las 16:02** (`exp_apgf.py`,
+`--set order_by=area_pgf` sobre las mallas de `zenodo_eval_full_p5_sacos`, salida
+`zenodo_eval_apgf`, ~3 h), con solo el cambio de orden para atribuirlo limpio; `order_by="area_pgf"`
+añadido a `AneurysmDetector._order_key` (el preset sigue en «area» hasta confirmar).
+
+**Confirmado (26-10, 20:07; 172/172, 4,0 h de reloj con la aplicación arrancada en el mismo portátil):**
+`zenodo_eval_apgf` = **63 de 122 entre los 5** (61), 69 entre 10 (68), **30 en 1.º** (28), 82 en lista (81),
+**56 de 82 estudios** (54); 5 fuera de malla (mismas mallas); controles 90/90 con 5 candidatos y hueso 94/450
+igual; en estudios con lesión 62 → 64 de 410. Suben 15, bajan 7 (todas un puesto dentro de su tramo: 023 y
+086_1 del 1.º al 2.º, 016_2 y 031 del 2.º al 3.º, 011_1 del 6.º al 7.º, 029_1 y 090_4 dos puestos en la cola);
+entran en el top 5 034 (7 → 5) y 163 (7 → 1); al 1.º 018 (4 → 1), 118 (4 → 1) y 084 (2 → 1); 082_2 entra en
+la lista (40). Por tamaño entre 5: < 5 mm 8 → 10, resto igual; miliares 5 → 7 de 30, blister 7 → 9 de 39;
+con trombo 17/22 igual. **121 de 122 puestos iguales a la predicción del banco** (113: 19 en la pasada, 20 en
+el banco). Detección 65 s de media por estudio (52 el día 25): el orden no añade cálculo; la diferencia es la
+carga del portátil durante la pasada (mediana 50 → 55 s). Lesión a lesión: `cmp_dirs.py zenodo_eval_k6
+zenodo_eval_apgf`.
+
+**Llevado al código (26-10, 20:30):** `order_by="area_pgf"` en el preset de TC de
+`routers/detect.py::_detector_for_modality` (XA sigue con «score»), fijado en `test_paso3_detector.py`;
+suites del detector 83 verdes, 1 omitido. Regresión XA (`scripts/regresion_xa.py --label tras-orden-apgf
+--compare tras-suelo-gauss`): Case 3 e IM_0055 con la lesión 1.ª de 5, malla entera y solo árbol, sin
+diferencias con la línea base del 25 (XA no usa el orden nuevo). Cifra oficial: **63 / 69 / 30 / 82 / 56; 5
+fuera de malla**.
+
+### 4.17 Fusión por cajas y segunda escala del suelo (2026-10-26/27): adoptadas, 63 / 69 / 31 / 88 / 56
+
+Decisión del usuario el 26-10 por la noche («adoptemos la medida en fusión»), sobre lo medido en
+§4.12 (fusión según el tamaño de las regiones: la de cajas no baja nada), §4.15 (segunda escala del
+suelo: la unión 6 mm + 4,1 mm no baja nada) y §4.16 (orden): la variante `k6_o_apgf_u4_mse` del banco
+(63 / 69 / 31 / 88 / 56) es la combinación de las tres que más alarga la lista sin tocar los 63 ni los
+56 estudios. Se adoptan las dos juntas porque la fusión sola (`k6_o_apgf_mse`) deja el top 10 en 68 (la
+111 pasa del 10.º al 11.º) y la escala sola (`k6_o_apgf_u4`) deja el 1.º en 30.
+
+**Lo que cambia en `services/aneurysm_detector.py` (y solo en el preset de TC de `routers/detect.py`):**
+
+- **Fusión por cajas** (`merge_by="extent"`, `merge_min_mm=3.0`; antes `merge_dist_mm=10` fijo): dos
+  candidatos se funden si distan menos que la media del lado mayor de sus dos cajas (`extent_mm`, nuevo en
+  `AneurysmCandidate`), con un mínimo de 3 mm. Una región de 4 mm ya no la engulle una de vaso a 9 mm;
+  dos regiones de 20 mm que se solapan siguen fundiéndose. XA conserva la fusión fija (`merge_by="fixed"`).
+- **Segunda escala** (`gauss_floor_2=0.06`, K de una esfera de 4,1 mm; solo cuando hay suelo absoluto):
+  las regiones conexas por encima del segundo suelo se añaden **detrás** de las del suelo principal en la
+  misma lista (`regions_above(floor)` por cada suelo; `n_regions_total` cuenta las dos), pasan las mismas
+  puertas, se ordenan con la misma clave (`area_pgf`) y se deduplican con la misma fusión. `gauss_threshold`
+  del resultado sigue siendo el suelo principal; con el percentil (XA) el segundo suelo se ignora.
+- Tests nuevos `TestFusionPorCajasYSegundaEscala` en `test_paso3_detector.py` (preset de TC y de XA; radio
+  de fusión por cajas frente a fijo; regiones de la segunda escala detrás y sin efecto con percentil):
+  86 verdes, 1 omitido en las seis suites del detector. Comprobación previa sobre 4 estudios (012, 107,
+  163, 016) idéntica al banco.
+
+**Pasada real de confirmación** (`exp_fusion.py` del scratchpad: `eval_zenodo --meshes-from
+zenodo_eval_full_p5_sacos`, preset tal cual, sin `--set`; salida `zenodo_eval_fusion`). Lanzada el 26-10
+a las 21:55, parada por la suspensión del portátil a los 100 estudios (~01:00), relanzada el 27-10 a las
+09:07 donde iba y terminada a las 11:32; 5,5 h de máquina registradas.
+
+| | Orden área × pgf (26-10) | **+ fusión por cajas + 4,1 mm (27-10)** | Banco `k6_o_apgf_u4_mse` |
+|---|---|---|---|
+| Entre los 5 | 63 | **63** | 63 |
+| Entre los 10 | 69 | **69** | 69 |
+| En primer puesto | 30 | **31** | 31 |
+| En la lista de 40 | 82 | **88** | 88 |
+| Estudios con la lesión entre 5 (de 82) | 56 | **56** | 56 |
+| Fuera de la malla | 5 | 5 (mismas mallas) | — |
+| Controles con 5 candidatos | 90 / 90 | **90 / 90** | — |
+| Hueso: controles / con lesión / total | 94 / 64 / 158 | 92 / 68 / 160 | 92 / 68 |
+| Detección, media / mediana por estudio | 65 / 55 s | **97 / 94 s** | — |
+
+**121 de 122 puestos iguales a la predicción del banco** (113: 19.º en la pasada, 20.º en el banco; mismo
+tramo). Cambian de puesto 22 lesiones (`cmp_dirs.py zenodo_eval_apgf zenodo_eval_fusion`):
+
+- **Entran en la lista 7**, todas con la región fina de la segunda escala: 017_2 (3,5 mm) al 10.º, 087
+  (7,5 mm) al 16.º, 097 (3,4 mm) al 20.º, 033_1 (5,5 mm) al 26.º, 082_1 (7,7 mm) y 090_3 (4,3 mm) al 29.º,
+  082_3 (5,2 mm) al 31.º. Por tamaño en lista: < 5 mm 20 → 22, 5–10 mm 19 → 23.
+- **Suben 5**: 012_2 (6 mm) y 107 (3,8 mm) del 2.º al 1.º, 004 (28 mm, trombo) del 5.º al 4.º, 115_1 del 4.º
+  al 3.º, 126_1 del 14.º al 13.º.
+- **Bajan 10**, dos de ellas cruzando una línea en el borde del tramo: 111 (5,6 mm) del 10.º al 11.º y 082_2
+  (4,7 mm) del 40.º fuera de la lista (su estudio pasa de 1 a 2 lesiones en lista con 082_1 y 082_3). Las
+  otras ocho, dentro del tramo: 163 (2,5 mm) del 1.º al 2.º, 083 del 6.º al 8.º, 022 23 → 24, 090_4 20 → 21,
+  085_3 22 → 24, 154_2 24 → 29, 085_2 30 → 35, 029_1 31 → 38. Ninguna sale del top 5 ni ningún estudio pierde
+  su lesión entre los 5.
+- Entre los 5 por grupo, idéntico al 26 (trombo 17/22, ≥ 25 mm 13/16, < 5 mm 10/41, miliares 7/30,
+  blister 9/39); entre los 10: < 5 mm 12 → 13 (017_2), 5–10 mm 14 → 13 (111).
+
+**Coste:** la detección pasa de 65 a 97 s de media por estudio (mediana 55 → 94; mediana de la diferencia
+por estudio +30 s, cuartiles +10 / +58). Es el segundo umbral con su conectividad sobre la copia de curvatura
+de 80 000 vértices y más regiones pasando las puertas; no es carga del portátil (la pasada corrió de noche y
+por la mañana sin la aplicación arrancada). Es el precio de 6 lesiones más en la lista larga y una más en
+primer puesto, con los 63 y los 56 intactos: unos 7 min por estudio en total (5,7 de segmentación).
+
+**Aviso `vtkMassProperties` (§4.7):** reaparece en 3 rondas de esta pasada y en 6 de la del 26 (164 avisos en
+una ronda), así que no lo trae la segunda escala; `_clean_region` quita las líneas pero algún camino sigue
+entregando celdas que no son triángulos. Inocuo para las cifras. LOCALIZADO y quitado el 27-10 (12:00): venía de `services/mesh_components.py::_measure` (prueba de árbol de `aneurysm_consensus` y `components_info` del banco), donde `vtkTriangleFilter` dejaba pasar las líneas que `vtkCleanPolyData` hace de los triángulos sin área; ahora se mide solo sobre los polígonos (`PassLinesOff` del filtro no las quita en VTK 9.6); 0 avisos en 146 (eran 92), suites del detector y de componentes verdes, sin cambio de cifras: área y volumen de una línea son 0.
+
+**Regresión XA** (`scripts/regresion_xa.py --label tras-fusion --compare tras-orden-apgf`): Case 3 e IM_0055 con la lesión 1.ª de 5, malla entera y solo árbol, sin diferencias con la línea base del 26 (XA conserva fusión fija y sin segunda escala); terminada el 27-10 a las 11:42.
+
+Cifra oficial desde el 27-10: **63 / 69 / 31 / 88 / 56; 5 fuera de malla**. Lo que sigue no es de detección:
+las mallas no son árboles limpios (mediana 66 piezas, soporte de cabeza del escáner como pieza mayor en 016 y
+017), y eso solo lo cambia la segmentación: hoja de contacto de las 172 mallas guardadas y la regla «lo que no
+está dentro de la cabeza no es vaso».
+
+### 4.18 La envolvente de la cabeza (2026-10-27/28): «lo que no está dentro de la cabeza no es vaso», aplicada y medida en los 172
+
+**De dónde sale.** El 26-10, al enseñar los casos en primer puesto, el usuario vio modelos ruidosos: «se ve hasta
+la placa del aparato que rodea la cabeza». Medido el 27-10 sobre lo guardado de la pasada de sacos, sin segmentar:
+
+- *Registros* (`components_info` de los 172): mediana 66 piezas por malla; la pieza mayor es el 56 % de los
+  vértices de mediana y menos de la mitad en 57 estudios; 46 de 172 con la pieza mayor que la propia app
+  diagnostica «no es un árbol» (espesor ≥ 3,4 mm o bloque ≥ 190 cm³); máscara mediana 111 cm³ (un árbol
+  intracraneal son 10–20).
+- *Renders* (`render_meshes.py`, tres vistas por malla, pieza mayor en rojo, 172 en 12 min; hojas de contacto
+  `hoja_01..18.png` en el scratchpad): el SOPORTE DE CABEZA del escáner (una cuna curva de 2–5 mm de grosor o dos
+  placas laterales, > 150 HU) está en la malla en la mayoría de los estudios y es la pieza MAYOR en 004, 005, 011,
+  015, 016, 017, 025, 039 y 041 (y a medias en 028, 038, 040). Con el soporte como pieza mayor, el prefiltro del
+  detector (componentes < 5 % de la mayor) borra ramas reales y la prueba de árbol falla.
+- *Mallas sobre volúmenes* (`head_mask_test.py`): en 016 el soporte está CONECTADO al árbol en la malla (una
+  misma pieza con el 33 % de sus puntos fuera de la piel), en 017 también (36 % de la segunda pieza). Y hay una
+  segunda contaminación, dentro de la cabeza: tabiques finos de los senos paranasales y las celdas mastoideas
+  (hueso de volumen parcial que la máscara de hueso no quita; en 036 el 10 % de la pieza mayor).
+
+**La regla** (`services/head_mask.py`, sin pesos): cabeza = todo lo que no es aire (> −300 HU) → apertura de 4 mm
+(separa una lámina de un bloque; en 016 las dos placas de 71 y 43 cm³ desaparecen y la cabeza queda en 2 532 cm³)
+→ componente mayor → envolvente CONVEXA corte a corte (los senos y las órbitas son aire abierto al exterior que
+el relleno de agujeros no cierra; la cabeza es convexa). Se calcula a ~3 mm de vóxel (décimas de segundo) en
+`segment_tubular`, tras la banda, y la máscara vascular se RESTRINGE a ella (`build_vascular_mask(within=…)`:
+M0 ∧ dentro, también en cada baldosa de la banda nativa vía `refine_in_band(inside=…)`), **después** de calcular
+los percentiles de tubularidad sobre todo M0. Solo en TC; no se aplica si la «cabeza» no llega a 400 cm³.
+`info["head_mask"]` guarda cabeza y tejido fuera en cm³; `stats["outside_vox"]`, lo que M0 pierde.
+
+**Dos formas de aplicarla que NO valen, medidas en 004 (14:00–14:30):** (a) poner aire (−1 024 HU) fuera de la
+envolvente en el volumen; (b) restringir M0 antes de los percentiles. Las dos dejan 004 en 2,9 cm³ con 4 semillas
+(era 146 cm³ con 52) y la lesión FUERA de la malla; con (a) la pasada completa se paró a los 18 estudios (003,
+004 y 005 a 3–7 cm³) y se borró. La causa es la misma en las dos: los umbrales de semilla (p90) y crecimiento
+(p40) son percentiles de la tubularidad DENTRO de M0, y en 004 el soporte era 112 de los 146 cm³ de M0, con
+tubularidad baja: mantenía los percentiles bajos y los vasos los superaban de sobra. Sin el soporte en la
+población, p90 y p40 suben y los vasos ya no los alcanzan. Es decir, hasta hoy la receta estaba calibrada en
+parte por la contaminación. Con los percentiles de siempre (sobre todo M0) y la restricción después, 004 queda
+en 30,7 cm³ con 47 semillas, pieza mayor árbol de 17,6 cm³ y la lesión en la malla (4.º puesto, antes fuera de
+la lista). Los percentiles como umbral relativo quedan apuntados como la siguiente cosa a revisar en la máscara.
+Tests `test_head_mask.py` (fantoma: esfera con cráneo, seno abierto, vaso, cuna separada y placa pegada; 5 verdes)
+y las 8 suites que usan la receta (97 verdes, regresión XA incluida).
+
+**Medida antes de la pasada.** Sobre las mallas guardadas, con la envolvente calculada de los volúmenes de la
+pasada (7 estudios, 12 lesiones): las 12 lesiones al 100 % dentro; pieza mayor de 036 (vasos) 1 % fuera, control
+001 1,5 % fuera; en 016 y 017 la parte de soporte de las piezas grandes, fuera. Segmentados desde el DICOM con la
+regla (`zenodo_eval_head_test`, 016 y 017):
+
+| | 016 sacos | **016 envolvente** | 017 sacos | **017 envolvente** |
+|---|---|---|---|---|
+| Máscara | 112,8 cm³ | **18,3 cm³** | 150,2 cm³ | **31,1 cm³** |
+| Piezas | 67 | 72 (más pequeñas) | 32 | **15** |
+| Pieza mayor | 57,7 cm³ · 3,45 mm · no árbol | **6,4 cm³ · 1,16 mm · árbol** | 114,4 cm³ · 1,84 mm · no árbol | **27,4 cm³ · 1,52 mm · árbol** |
+| Vértices | 421 980 | 150 319 | 656 245 | 176 912 |
+| Lesiones (recall) | 0,99 / 0,99 | 0,99 / 0,98 | 1,00 / 0,98 | 1,00 / 0,98 |
+| Puesto | 1.º / 2.º | 2.º / 3.º | 1.º / 3.º | 4.º / 1.º |
+| Cabeza / tejido fuera | — | 2 731 / 160 cm³ | — | 2 349 / 222 cm³ |
+| Segmentación | 371 s | 342 s | 270 s | 310 s |
+
+Los renders de 016 y 017 (`render_head_test/`) ya no tienen soporte: en 017 el árbol es el 92 % de la malla.
+Los puestos de las lesiones se mueven (la malla es otra y el detector compara contra otras regiones): eso lo
+decide la pasada de los 172, no dos estudios.
+
+**Pasada completa TERMINADA** (27-10 14:37 → 28-10 13:36, con una parada por apagado del PC de 00:50 a 08:08;
+`zenodo_eval_full_p6_head`, 172/172, segmentación desde el DICOM). Contraste estudio a estudio contra la pasada
+de sacos (segmentación) y contra la de fusión (detección: mismas mallas de sacos, mismo detector); la tabla de
+los 172 volúmenes está en `docs/zenodo-envolvente-volumenes-2026-10-28.csv` (máscara, pieza mayor, árbol,
+piezas, semillas, segundos, cabeza y tejido fuera, candidatos y puestos, antes y después).
+
+**Segmentación (172 estudios, sacos → envolvente).**
+
+| | Sacos | **Envolvente** |
+|---|---|---|
+| Máscara, mediana (media) | 111 (119) cm³ | **34 (38) cm³** |
+| Máscaras < 10 / 10–20 / 20–40 / 40–60 / > 60 cm³ | 0 / 8 / 16 / 20 / 128 | **6 / 25 / 80 / 46 / 15** |
+| Pieza mayor, mediana | 39 cm³ | **22 cm³** |
+| Pieza mayor > 60 cm³ / < 10 cm³ | 51 / 11 | **8 / 30** |
+| «Parece árbol» | 126 | **169** |
+| Piezas, mediana | 66 | 64 |
+| Semillas, mediana | 42 | 31 |
+| Vértices, mediana | 387 000 | **167 000** |
+| Lesiones cuyo recubrimiento baja > 5 % | — | **0** |
+| Lesiones fuera de la malla | 5 | 5 |
+| Segmentación, mediana | 339 s | **211 s** |
+| Envolvente aplicada; cabeza / tejido fuera, mediana | — | 172; 2 839 / 140 cm³ |
+
+Las máscaras convergen a la escala de un árbol: 80 de 172 en 20–40 cm³ (eran 16) y 15 por encima de 60 (eran
+128). Ninguna sube. Las 10 mayores bajadas son de 183–198 cm³ (134, 088, 124, 195, 078, 056, 077, 039, 148,
+186): soporte entero. Los 8 estudios con el soporte como pieza mayor de §4.18 pasan todos a árbol (015: 174 →
+15 cm³; 039: 194 → 27; 041: 140 → 8).
+
+*Las 15 que siguen por encima de 60 cm³* (022 79, 062 65, 066 63, 068 72, 072 126, 084 148, 085 75, 116 93,
+117 61, 123 159, 127 73, 138 66, 156 75, 157 70, 180 136; renders en `render_cmp/head/`): en 084, 123 y 180 la
+pieza mayor sigue siendo un bloque de 129–152 cm³ DENTRO de la cabeza, y es el cráneo entero (bóveda y base) que
+la máscara de hueso no quita, con el árbol dentro; en 072 es el macizo facial. Es el siguiente frente, hueso,
+no soporte: la envolvente no lo toca porque está dentro.
+
+*Las 6 que quedan por debajo de 10 cm³* (050 12,6 → 8,2; 078 205 → 9,7; 095 10,2 → 8,6; 141 74,5 → 9,2; 181
+92,5 → 0,3; 188 140 → 3,5). 050 y 095 ya eran pequeñas y sus lesiones siguen al 100 % y en 1.º–2.º / 1.º. Las
+otras cuatro son controles y se diagnosticaron reproduciendo la pasada gruesa de 181 sobre el volumen guardado
+(`diag_181.py`): de las 18 semillas de antes, 16 estaban enteras en el soporte y las dos de dentro dan 6,8 cm³;
+la «pieza mayor» de 54 cm³ de antes era el 90 % tabiques de la base del cráneo (senos, celdas mastoideas) y el
+resto soporte. Son estudios con poco contraste: tejido en 180–600 HU dentro de la cabeza y lejos del hueso
+5,7–11,9 cm³ (001, 003, 045 y 002: 15–22), percentil 99,5 de las partes blandas 178–240 HU (223–309). Lo que
+tenían antes no era árbol; la envolvente no ha quitado vaso.
+
+**Detección (122 lesiones, fusión → envolvente).**
+
+| | Fusión (mallas de sacos) | **Envolvente** |
+|---|---|---|
+| Entre los 5 | 63 | **67** |
+| Entre los 10 | 69 | **73** |
+| En 1.º | 31 | **21** |
+| En la lista | 88 | **94** |
+| Estudios con acierto (de 82) | 56 | 56 |
+| Fuera de la malla | 5 | 5 |
+| Controles con 5 candidatos | 90/90 | 90/90 |
+| Candidatos en hueso en controles (de 450) / sobre vaso | 92 / 321 | 115 / 293 |
+| Detección, mediana | 94 s | **60 s** |
+| < 5 mm (41): entre 5 / lista | 10 / 22 | **12 / 26** |
+| 5–10 mm (32) | 12 / 23 | **15 / 24** |
+| ≥ 10 mm (49) | 41 / 43 | 40 / 44 |
+| Miliares (30) / blister (39) / saculares (36) / fusiformes (26) / otros (21), entre 5 | 7 / 9 / 22 / 19 / 13 | 8 / 11 / 24 / 18 / 14 |
+| Gigantes (16) / grandes (20) / medianos (56), entre 5 | 13 / 19 / 24 | 11 / 19 / 29 |
+| Con trombo (22) / calcificados (20), entre 5 | 17 / 17 | 16 / 16 |
+
+Entran 9 entre los 5 (017_2 de 3,5 mm del 10.º al 3.º; 024, el gran trombosado, de «sin puntos» al 4.º; 033_2;
+035_4 y 115_2 de 3 mm, sin región antes; 082_1 y 082_2; 087; 099_3) y salen 5 (019, fusiforme trombosado de
+21 mm, 3.º → fuera por compacidad; 034, 3 mm, 5.º → 10.º; 086_1, fusiforme de 30 mm, 2.º → 9.º con la región
+reducida a 4 puntos; 090_2, 3 mm, 1.º → fuera por compacidad; 116_2, fusiforme de 20 mm, 2.º → 7.º). Los
+fusiformes grandes pierden: su región ya no es una cúpula.
+
+**El primer puesto baja de 31 a 21 y es un efecto del detector, no de la malla.** Pierden el 1.º 12 lesiones
+(017_1, 018, 037, 038, 051, 089, 090_2, 102, 105, 118, 121, 161) y lo ganan 2 (023 y 163). En 10 de las 12
+el nuevo 1.º es una región de **curvatura** sobre vaso a 31–86 mm de la lesión, y en 6 (037, 038, 102, 105,
+121, 161, lesiones de 14–30 mm) la cúpula de la lesión aparece **partida en 2–3 candidatos** (puestos 2 y 3,
+o 2, 3 y 5) donde antes era una sola región en 1.º. La causa está en la copia de curvatura: se diezma a 80 000
+vértices, y la malla tiene ahora la mitad de vértices (mediana 387 000 → 167 000) porque ya no lleva el
+soporte; el diezmado es la mitad de fuerte, las regiones de curvatura se afinan, las cúpulas grandes se parten
+y las curvas de vaso compiten. Es el mismo mecanismo que hizo perder al tope doble y triple (§4.9), al revés.
+Lo mismo explica el hueso en controles (92 → 115 de 450): con el soporte fuera y más detalle, los 5 candidatos
+de los controles caen más en cráneo. **Experimento en marcha** sobre las mallas de la envolvente, sin segmentar:
+tope de la copia de curvatura a 40 000 (`exp_curv_cap_head.py`, `data/run_head_cap.ps1` →
+`zenodo_eval_head_cap_40000`), que devuelve al árbol el diezmado relativo que tenía cuando la mitad de los
+vértices eran soporte. Primero sobre los 26 estudios que se mueven, luego los 172 si recupera.
+
+
+**El tope de la copia de curvatura sobre las mallas limpias, medido (28-10, 14:39–16:48).** Sobre los 28 estudios
+que se mueven (los 25 con lesiones que cambian de puesto entre fusión y envolvente, más los controles 001, 003
+y 045), detección sin segmentar con el tope a 40 000 y a 60 000 (`zenodo_eval_head_cap_40000` y `_60000`):
+
+| 28 estudios (45 lesiones) | Fusión (80 000, con soporte) | **Envolvente, 80 000** | Envolvente, 60 000 | Envolvente, 40 000 |
+|---|---|---|---|---|
+| Entre los 5 | 23 | **27** | 25 | 24 |
+| · < 10 mm / ≥ 10 mm | 9 / 14 | 14 / 13 | 11 / 14 | 10 / 14 |
+| Entre los 10 | 26 | **32** | 29 | 30 |
+| En 1.º | 13 | 3 | 9 | **13** |
+| En la lista | 33 | **40** | 36 | 36 |
+| Estudios con acierto | 21 | 21 | 19 | 20 |
+| Hueso en los 3 controles | 4 | 4 | 5 | 4 |
+| Detección, mediana | 87 s | 62 s | 58 s | 37 s |
+
+Es el reparto de §4.9, al revés y sin punto intermedio: con 40 000 vuelven al 1.º los sacos grandes (018, 033_2,
+037, 086_1, 089, 099_2, 102, 121, 161) y la detección baja a 37 s, pero las pequeñas y trombosadas que el modelo
+limpio había traído pierden su región (017_2 de 3,5 mm, 024 de 20 mm con trombo y 035_4 de 3 mm; 051 del 5.º
+al 13.º). Con 60 000 se pierde por los dos lados (25 entre 5, 9 en 1.º, 19 estudios) y los puestos saltan sin
+orden entre topes (087: 3.º → 19.º → 2.º; 115_2: 2.º → 24.º → 2.º): el puesto entre candidatos depende de
+unos cientos de vértices, como ya se sabía de los dos casos XA. **El tope se queda en 80 000.**
+
+**Veredicto.** La envolvente ENTRA. Como segmentación no baja nada y el modelo que ve el médico pasa a ser el
+árbol (169 de 172 «parece árbol»; 80 estudios entre 20 y 40 cm³). Como detección, sobre esos modelos: **67 de
+122 entre los 5** (de 63), **73 entre 10** (de 69), **94 en la lista** (de 88), **56 de 82 estudios** (igual),
+5 fuera de la malla (igual), controles 90/90 con 5, 60 s de detección (de 94); el coste es el **primer puesto, 31 →
+21**, que no se recupera con el tope sin perder entre 5, y que de todos modos nunca se ha podido prometer. El
+hueso en controles sube de 92 a 115 de 450 (de 321 a 293 sobre vaso): con el soporte fuera, los 5 candidatos
+de un control caen más en el cráneo que sigue dentro del modelo (084, 123, 180…), y ese es el siguiente frente.
+Nueva referencia de detección: **67 / 73 / 21 / 94 / 56; 5 fuera**. Regresión XA sin diferencias.
+
+### 4.19 Dos puertas del canal de curvatura sobre el modelo limpio (2026-10-29): 67 / 73 / 21 / 94 / 56 → 68 / 74 / 24 / 96 / 57
+
+**De dónde sale.** Con la envolvente adoptada (§4.18) quedaban 55 lesiones fuera de los 5 y el primer puesto había
+bajado de 31 a 21. El desglose de las 55 sobre la pasada: 27 en la lista pero atrás (6 en 6–10, 21 en 11–40, casi
+todas < 10 mm y por el canal de curvatura), 23 con región pero tirada por una puerta (tope 5, compacidad 7,
+curvatura media 6, puntos 3, fusión 1, sin región 1) y 5 fuera de la malla. Para medir reglas en minutos y no en
+horas se volcó el banco de puertas (§4.12) sobre las mallas de la envolvente: `data/run_gates.ps1 -Src
+zenodo_eval_full_p6_head -Out exp_gates_head` (172 estudios, tres escalas de Gauss: percentil 85, K ≥ 0,028 y
+K ≥ 0,06; 28-10 17:44 → 29-10 13:07, en rondas de 6 estudios porque el proceso de volcado retiene 1,5 GB por
+estudio). La variante que calca el detector real (K ≥ 0,028 + unión con 0,06, orden área × pgf, fusión por
+cajas) reproduce 89 de los 122 puestos de la pasada; las 33 diferencias son del diezmado no determinista de las
+dos copias (la copia de curvatura del volcado no es la de la pasada), y por eso cada regla se mide primero contra
+la referencia del propio banco y después con una pasada real.
+
+**Lo que NO era.** La hipótesis de la mañana era el radio de acuerdo del consenso: en 7 de las 12 lesiones que
+perdieron el 1.º (037, 038, 089, 102, 105, 121, 161, cúpulas de 8–30 mm) el sitio sigue siendo 1.º de calibre
+y de cociente pero sin la familia «forma», y el empate lo gana una región de curvatura del vaso a 36–86 mm. Un
+acuerdo proporcional al radio (máx(8 mm, k × radio mayor), k de 0,75 a 1,5) no mueve ni un puesto en los 172,
+ni la fusión de regiones por esfera (dos trozos de la misma cúpula tienen el mismo radio ajustado), ni la suma de
+claves al fundir (1.º +1 pero 3 lesiones fuera de la lista), ni el tope del canal a 60 (006 sale de la lista: más
+sitios de curvatura en el consenso empujan la cola de los 40). Lo que pasa de verdad se ve región a región:
+
+| Lesión | Región de curvatura de la cúpula (mallas limpias) | Puerta que la tira |
+|---|---|---|
+| 038 (14 mm) | 124 puntos, 64 mm², pgf 0,81, H·r 1,00, esfericidad 0,51, **compacidad 0,18** | compacidad (0,2) |
+| 051 (7,7 mm) | 14 puntos, pgf 0,86, H·r 0,96, **compacidad 0,19** | compacidad (0,2) |
+| 025 (25 mm) | 36 puntos, pgf 0,89, H·r ≈ 1, **compacidad 0,14–0,18** (tres trozos) | compacidad (0,2) |
+| 037 (21 mm, trombosado) | 170 puntos, 109 mm², pgf 0,75, **H·r = −1,34** | curvatura media (signo) |
+
+La cúpula de un saco grande sale con compacidad 0,10–0,19 (compacidad = área / esfera de la caja: una cúpula
+partida o alargada no llena su caja) y la puerta fija de 0,2 la tira. En el 037 la región es la **luz interior**
+del saco trombosado: en la malla de curvatura, alrededor de la lesión la curvatura media es negativa (mediana
+−0,27 a < 5 mm, 0,45 en el resto de la malla) y el 30 % de las normales apuntan hacia dentro: una cúpula cóncava.
+
+**Las dos puertas, y por qué condicionadas.** Relajar la compacidad a 0,15 a secas reparte (en 59 estudios: 1.º
+11 → 14 pero 018 del 3.º al 9.º y 016 del 1.º al 2.º): entran regiones de vaso de 100–230 mm² con pgf 0,58–0,69
+que, con el orden por área, adelantan a lesiones. Con compacidad 0,10 solo si pgf ≥ 0,80 entraban aún en 085
+regiones de 134–153 mm² con pgf 0,81–0,86 pero **H·r 2,0–2,2** (radio ajustado 7,7 mm, esfericidad 0,45: un
+tramo de vaso grueso, no una esfera) y la lesión de 085 pasaba del 7.º al 13.º. Una cúpula tiene H·r ≈ 1 (038:
+1,00; 051: 0,96; 025: ≈ 1). De ahí la regla: **a una región muy convexa (pgf ≥ 0,75) con curvatura de esfera
+(H·r ≤ 1,5) le basta compacidad 0,10**. Y para el signo: **la curvatura media se mira en valor absoluto cuando
+pgf ≥ 0,75**; sin la condición de pgf entran sillas cóncavas de bifurcación (109: tres regiones con pgf 0,58–0,72
+y H·r −1,1 a −3,0) y una lesión de 3 mm sale de la lista. Medido en el banco sobre los 172, contra su referencia
+(62 / 69 / 17 / 91 / 53; hueso en los 5 de los controles 108 de 450):
+
+| Variante (banco, 172) | Entre 5 | Entre 10 | 1.º | Lista | Estudios | Baja alguna banda |
+|---|---|---|---|---|---|---|
+| Referencia del banco | 62 | 69 | 17 | 91 | 53 | — |
+| Acuerdo ∝ radio (0,75–1,5) / fusión por esfera | 62 | 69 | 17 | 91 | 53 | no mueve nada |
+| Compacidad 0,10 si pgf ≥ 0,75 y H·r ≤ 1,5 | 62 | 69 | 22 | 92 | 53 | no |
+| \|H·r\| si pgf ≥ 0,75 | 63 | 70 | 19 | 92 | 53 | no |
+| **Las dos juntas** | **63** | **70** | **25** | **93** | 53 | **no** (hueso ctl 110) |
+| Las dos con pgf ≥ 0,70 en la compacidad | 64 | 70 | 27 | 94 | 54 | sí: 109_2 (3 mm) sale de la lista |
+| Las dos con pgf ≥ 0,80 en el signo | 63 | 70 | 23 | 93 | 53 | no, pero sin 037 |
+
+Entra la combinación con 0,75 en las dos: la de 0,70 gana dos primeros (035_1, 086_1) a cambio de una lesión
+fuera de la lista, y el criterio es que no baje nada en ninguna banda. Código: `AneurysmDetector(compactness_lax,
+compactness_lax_pgf, compactness_lax_hr_max, mean_curv_abs_pgf)` en `services/aneurysm_detector.py`, activadas
+solo en el preset de TC de `routers/detect.py` (XA y el detector por defecto siguen igual); tres tests en
+`test_paso3_detector.py` (preset; la compacidad relajada solo con convexidad y curvatura de esfera, probada con
+una esfera entera y una puerta fija de 1,01; el valor absoluto solo con convexidad alta, probado con la malla
+invertida con `vtkReverseSense`).
+
+**Pasada real** (`data/run_puertas.ps1` → `zenodo_eval_puertas`: detección sobre las mallas y volúmenes guardados
+de la envolvente, 29-10 13:20 → 17:47; tabla por lesión en `docs/zenodo-puertas-lesiones-2026-10-29.csv`), frente
+a la pasada de la envolvente (mismas mallas):
+
+| Medida | Envolvente (28-10) | Con las dos puertas (29-10) |
+|---|---|---|
+| Lesiones entre los 5 / entre los 10 | 67 / 73 | **68 / 74** |
+| En primer puesto | 21 | **24** |
+| En la lista de 40 | 94 | **96** |
+| Estudios con lesión entre los 5 | 56 de 82 | **57** |
+| Fuera de la malla | 5 | 5 |
+| < 5 mm: entre 5 / entre 10 / 1.º / lista | 12 / 15 / 3 / 26 | 12 / 15 / 3 / 26 |
+| 5–10 mm | 15 / 16 / 4 / 24 | 15 / 17 / 5 / 26 |
+| ≥ 10 mm | 40 / 42 / 14 / 44 | 41 / 42 / 16 / 44 |
+| Controles con 5 candidatos | 90 de 90 | 90 de 90 |
+| Hueso en los 5 de los controles | 115 de 450 | 117 de 450 |
+| Segundos de detección (mediana) | 60 (en la pasada completa) | 77 (en modo mallas guardadas; la de fusión, en ese mismo modo, 94) |
+
+Suben: 008_2 (9 mm) de fuera de la lista al 1.º, 037 (21 mm, trombosado) del 3.º al 1.º, 038 (14 mm) del 2.º
+al 1.º, 091 (30 mm) del 3.º al 1.º, 086_1 (30 mm) del 9.º al 2.º, 082_3 (5 mm) de fuera al 17.º. Bajan dos, y
+ninguna por las puertas: 025 (25 mm) del 1.º al 2.º porque ahora los **tres** primeros sitios están sobre el saco
+(a 9–13 mm de su centro, calibre 1.º + curvatura, cociente 1.º + curvatura, cociente 2.º) y el emparejamiento
+con la lesión escoge el segundo; y 115_1 (9,9 mm) del 3.º al 10.º porque su puesto de **calibre** pasa del 2.º al
+6.º y pierde el voto de cociente, canales que las puertas no tocan: es el diezmado no determinista de la copia
+geométrica, que en este modo se vuelve a calcular. El resto de movimientos son de uno o dos puestos en la cola de
+la lista. Las puertas son comparaciones sobre números que ya se calculaban: no añaden coste.
+
+**Veredicto.** Las dos puertas ENTRAN. Nueva referencia de detección: **68 / 74 / 24 / 96 / 57; 5 fuera**; controles
+90/90 con 5. Regresión XA (Case 3 e IM_0055, preset XA sin cambios): sin diferencias.
+
+**Lo que queda, visto desde el banco con las puertas puestas** (59 lesiones fuera de los 5 en la referencia del
+banco): 23 en la lista en puestos 11–40 (10 de < 5 mm, 11 de 5–10), 7 en 6–10, **4 con región propia de saco
+pequeño a la escala de 4 mm (029_1, 098, 101, 154_2: H·r ≈ 1, esfericidad 0,6–0,75) pero cortadas por el tope
+de 40 del canal de curvatura**, 7 con la región tirada por compacidad con pgf 0,64–0,71 (justo bajo el 0,75), 7 por
+curvatura media (planas con H·r 0,3–0,6, o cóncavas con pgf bajo), 6 regiones de 4–6 puntos y las 5 fuera de
+malla. Dos medidas concretas salen de aquí: (1) el consenso funde un pico de calibre con el **primer** sitio a
+≤ 8 mm en el orden de la lista, no con el más cercano, y reparte votos entre dos sitios vecinos; (2) los sacos
+pequeños que forman región propia quedan detrás por el orden por área: no es una puerta, es un canal propio
+(«saco pequeño»: región con H·r ≈ 1 y esfericidad alta, ordenada por esfericidad) con su cuota en el consenso.
 
 ## 5. Código y datos de esta pasada
 

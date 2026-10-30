@@ -124,6 +124,10 @@ class DetectionResult:
     #: que saberlo: en el banco Zenodo un «Unable to allocate» dejaba el
     #: estudio como válido con un canal menos.
     geometric_error: str = ""
+    #: Canal de «saco pequeño» (29-10): regiones que pasan las puertas con la
+    #: curvatura de una esfera, esféricas, compactas y de radio ≤ 3,5 mm, las
+    #: mejores primero (esfericidad × pgf). Vacío si el detector no lo lleva.
+    small_sacs: list[AneurysmCandidate] = field(default_factory=list)
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -257,6 +261,14 @@ class AneurysmDetector:
         compactness_lax_pgf:       float = 0.75,
         compactness_lax_hr_max:    float = 1.5,
         mean_curv_abs_pgf:         float | None = None,
+        small_sac_channel:         bool = False,
+        small_sac_top:             int = 10,
+        small_sac_quota:           int = 5,
+        small_sac_r_max:           float = 3.5,
+        small_sac_hr:              tuple[float, float] = (0.7, 1.3),
+        small_sac_sphericity:      float = 0.6,
+        small_sac_compactness:     float = 0.3,
+        small_sac_pgf:             float = 0.7,
     ) -> None:
         self.min_mean_curv_radius      = min_mean_curv_radius
         self.gauss_percentile          = gauss_percentile
@@ -313,6 +325,25 @@ class AneurysmDetector:
         #: 0,75) y con el signo la puerta la tiraba. Sin la condición de pgf
         #: entran sillas cóncavas de bifurcación (109: pgf 0,58–0,72).
         self.mean_curv_abs_pgf         = mean_curv_abs_pgf
+        #: Canal de «saco pequeño» (29-10, banco sobre las mallas limpias de los 172
+        #: y pasada real): los sacos de 3–5 mm forman región propia (a la escala de
+        #: 4 mm) con la curvatura de una esfera, pero el orden por área los deja
+        #: detrás del tope del canal de curvatura (029_1, 098, 101, 154_2) o en los
+        #: puestos 11–40. El canal los ordena por forma (esfericidad × pgf) y el
+        #: consenso les reserva el puesto `small_sac_quota` si no hay ninguno
+        #: entre los primeros: no vota ni cuenta como familia (con puestos propios
+        #: se metía en 1.º–2.º y, fundido con un sitio de solo calibre, le daba una
+        #: segunda familia que adelantaba a lesiones grandes: 126 y 154 perdían el
+        #: 1.º). Medido: entre 5 63 → 65, entre 10 70 → 74, estudios 53 → 55, sin
+        #: bajar ninguna banda; cuatro lesiones pasan del 5.º al 6.º.
+        self.small_sac_channel         = small_sac_channel
+        self.small_sac_top             = small_sac_top
+        self.small_sac_quota           = small_sac_quota
+        self.small_sac_r_max           = small_sac_r_max
+        self.small_sac_hr              = small_sac_hr
+        self.small_sac_sphericity      = small_sac_sphericity
+        self.small_sac_compactness     = small_sac_compactness
+        self.small_sac_pgf             = small_sac_pgf
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #
@@ -743,6 +774,7 @@ class AneurysmDetector:
                     trace_of[id(c)].gate = "merged"
             else:
                 merged.append(c)
+        small_sacs = self._small_sacs(candidates) if self.small_sac_channel else []
         candidates = merged[: self.max_candidates]
         if self.trace_regions:
             for c in merged[self.max_candidates:]:
@@ -776,4 +808,32 @@ class AneurysmDetector:
             gauss_threshold=thresh_gauss,
             mean_curv_gate=mean_curv_gate,
             regions=traces,
+            small_sacs=small_sacs,
         )
+
+    def _small_sacs(self, candidates: list[AneurysmCandidate]) -> list[AneurysmCandidate]:
+        """Las regiones con forma de saco pequeño, las mejores primero.
+
+        Sobre los candidatos que pasan las puertas y ANTES de la fusión de
+        duplicados: un saco de 3 mm pegado a una región de vaso mayor cae
+        dentro de su radio de fusión y desaparecería. Aquí se deduplican solo
+        entre sí, con la misma regla.
+        """
+        lo, hi = self.small_sac_hr
+        pool = [c for c in candidates
+                if c.radius_mm <= self.small_sac_r_max
+                and lo <= c.mean_curvature * c.radius_mm <= hi
+                and c.sphericity >= self.small_sac_sphericity
+                and c.compactness >= self.small_sac_compactness
+                and c.positive_gauss_frac >= self.small_sac_pgf]
+        pool.sort(key=lambda c: c.sphericity * c.positive_gauss_frac, reverse=True)
+        kept: list[AneurysmCandidate] = []
+        for c in pool:
+            pt = np.array(c.centroid)
+            if any(float(np.linalg.norm(pt - np.array(m.centroid))) < self._merge_radius_mm(m, c)
+                   for m in kept):
+                continue
+            kept.append(c)
+            if len(kept) >= self.small_sac_top:
+                break
+        return kept

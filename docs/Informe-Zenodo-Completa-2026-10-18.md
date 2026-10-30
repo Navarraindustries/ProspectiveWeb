@@ -80,6 +80,17 @@ los percentiles vacía la máscara (004: 146 → 3 cm³; los percentiles de semi
 soporte): se restringe M0 DESPUÉS de los percentiles (004: 30,7 cm³, lesión en 4.º, antes fuera). **Pasada
 completa de segmentación en marcha** desde las 14:37 (`zenodo_eval_full_p6_head`, ~20 h).
 
+**Actualización 2026-10-30.** Canal de «saco pequeño» con cuota del 5.º puesto, medido en el banco y confirmado
+con pasada real (§4.20): las regiones de 3–5 mm con curvatura de esfera, esfericidad y convexidad altas se ordenan
+por forma (no por área, que las deja en los puestos 11–40) y, si ninguna está entre los 5, la mejor pasa al 5.º.
+El canal no vota: con puestos propios ganaba entre 5 pero quitaba el 1.º a 105, 107, 108 y 126. **71 de 122 entre
+los 5** (de 68), **80 entre 10** (de 74), 24 en 1.º, 96 en lista, 59 de 82 estudios; ninguna banda baja; controles
+90/90 con 5, hueso en controles 117 → 111 de 450; sin coste de tiempo. Suben ocho (011_1, 022, 034, 083, 106_1/2,
+113, 115_1) y seis ceden un puesto (al 5.º o al 6.º); por banda de tamaño no baja nada, por grupo clínico un puesto:
+121 (23 mm, trombosado) y dos bifurcaciones sin tipo pasan del 5.º al 6.º (grandes 19 → 18, con trombo 17 → 16,
+tipo «otro» 14 → 11 entre los 5; las tres entre los 10). **Nueva referencia de detección 71 / 80 / 24 / 96 / 59, 5
+fuera.** Regresión XA sin diferencias. El 5.º candidato de la lista puede ser el sitio de la cuota.
+
 **Actualización 2026-10-29.** Dos puertas del canal de curvatura medidas en el banco sobre las mallas de la
 envolvente y confirmadas con pasada real (§4.19): a una región muy convexa (pgf ≥ 0,75) con curvatura de esfera
 (H·r ≤ 1,5) le basta compacidad 0,10 (la fija de 0,2 tiraba la cúpula de sacos de 14–25 mm), y la curvatura
@@ -1646,6 +1657,93 @@ malla. Dos medidas concretas salen de aquí: (1) el consenso funde un pico de ca
 ≤ 8 mm en el orden de la lista, no con el más cercano, y reparte votos entre dos sitios vecinos; (2) los sacos
 pequeños que forman región propia quedan detrás por el orden por área: no es una puerta, es un canal propio
 («saco pequeño»: región con H·r ≈ 1 y esfericidad alta, ordenada por esfericidad) con su cuota en el consenso.
+
+### 4.20 Canal de «saco pequeño» con cuota del 5.º puesto (2026-10-30): 68 / 74 / 24 / 96 / 57 → 71 / 80 / 24 / 96 / 59
+
+**De dónde sale.** El desglose de §4.19 dejaba dos grupos que no son de puertas: 23 lesiones en la lista pero en los
+puestos 11–40 (casi todas < 10 mm, por el canal de curvatura) y 4 sacos pequeños (029_1, 098, 101, 154_2) con
+región propia a la escala de 4 mm, H·r ≈ 1 y esfericidad 0,6–0,75, cortados por el tope de 40 del canal. Las dos
+cosas tienen la misma causa: el canal de curvatura ordena por área × pgf (§4.16), y un saco de 3–5 mm tiene
+10–30 mm² de cúpula frente a los 100–200 mm² de una región de vaso convexa. No es una puerta (la región existe y
+pasa las puertas): es el orden. Y cambiar el orden del canal reparte (§4.16 ya lo midió). De ahí un canal propio.
+
+**El canal.** Entre las regiones que ya pasan las puertas del canal de curvatura, antes de la fusión y del tope,
+«saco pequeño» es la que tiene radio ajustado ≤ 3,5 mm, curvatura de esfera (0,7 ≤ H·r ≤ 1,3), esfericidad
+≥ 0,6, compacidad ≥ 0,3 y pgf ≥ 0,7. Se ordenan por **esfericidad × pgf** (forma, no tamaño), se funden con la
+misma regla de cajas del canal y se quedan las 10 primeras (`AneurysmDetector(small_sac_channel, small_sac_top,
+small_sac_r_max, small_sac_hr, small_sac_sphericity, small_sac_compactness, small_sac_pgf)`;
+`DetectionResult.small_sacs`). En el consenso cada una se une al sitio ya existente a ≤ 8 mm o abre uno nuevo con
+la etiqueta `saco`. **El canal no vota**: no entra en el orden (el mejor puesto y la suma de puestos se calculan
+sin él), no cuenta como familia salvo que sea el único canal del sitio, y su confianza va detrás de cualquier
+canal que vote. Lo único que hace es la **cuota**: si entre los 5 primeros no hay ningún sitio del canal, el mejor
+que lleve la etiqueta pasa al 5.º puesto y los de detrás bajan uno (`_apply_small_sac_quota`, `small_sac_quota=5`,
+solo en el preset de TC). Es decir: el 5.º candidato de la lista puede ser «el mejor saco pequeño», y así hay que
+enseñarlo.
+
+**Por qué no vota.** Se midió en el banco de puertas (§4.19, variante `real_mix2` con las dos puertas como
+referencia: 63 / 70 / 25 / 93 / 53 en los 172):
+
+| Variante (banco, 172) | Entre 5 | Entre 10 | 1.º | Lista | Estudios | Qué pasa |
+|---|---|---|---|---|---|---|
+| Referencia (dos puertas) | 63 | 70 | 25 | 93 | 53 | — |
+| Fusión del consenso con el sitio más cercano (no el primero) | 63 | 71 | 25 | 93 | 53 | reparte: 110 2.º → 1.º pero 011_1 11.º → 29.º y 014 1.º → 3.º |
+| Canal con puestos propios y familia «saco» | 68 | 77 | 22 | 94 | 56 | reparte: 105, 107, 108, 126_2/3 pierden el 1.º |
+| Ídem con esfericidad ≥ 0,7 | 65 | 76 | 23 | 93 | 55 | ídem (126, 108) |
+| Puestos propios desde el 2.º / 3.º / 4.º | 63 | 76 / 74 / 70 | 23 | 94 | 53 | solo gana entre 10; 126 pierde el 1.º |
+| Cuota del 5.º, votando | 65 | 74 | 23 | 93 | 55 | 126_2/3 pierden el 1.º |
+| **Cuota del 5.º, sin votar** | **65** | **74** | **25** | **93** | **55** | **ninguna banda baja**; hueso en controles 110 → 111 |
+| Cuota del 4.º, sin votar | 65 | 74 | 25 | 93 | 55 | 016_2, 018, 030, 033_2, 087 bajan un puesto |
+| Cuota del 5.º sin votar, esfericidad ≥ 0,7 | 65 | 75 | 25 | 93 | 54 | 033_1 entra al 5.º pero 085_1 sale (7.º → 8.º), un estudio menos |
+
+Con puestos propios el canal gana entre 5 y entre 10 pero mueve el 1.º: un saco de 3 mm del vaso adelanta al
+sitio de la lesión en 105, 107, 108 y 126 porque suma una familia. Con la cuota sin voto el canal solo rellena el
+5.º: gana lo mismo entre 5 (+2 en el banco) y no toca los cuatro primeros. Entra esa. Tests en
+`test_saco_pequeno.py` (preset de TC lo lleva, XA y el detector por defecto no; el canal elige por forma y radio
+sobre un vaso con dos esferas; el canal no entra en el orden ni en las familias; la cuota garantiza el 5.º y no
+toca nada si ya hay uno; el consenso solo la aplica con el canal).
+
+**Pasada real** (`data/run_puertas.ps1 -Out zenodo_eval_saco` → `zenodo_eval_saco`: detección sobre las mallas y
+volúmenes guardados de la envolvente, 29-10 20:19 → 30-10 00:24; tabla por lesión en
+`docs/zenodo-saco-lesiones-2026-10-30.csv`), frente a la pasada de las dos puertas (mismas mallas):
+
+| Medida | Dos puertas (29-10) | Con el canal de saco pequeño (30-10) |
+|---|---|---|
+| Lesiones entre los 5 / entre los 10 | 68 / 74 | **71 / 80** |
+| En primer puesto | 24 | 24 |
+| En la lista de 40 | 96 | 96 |
+| Estudios con lesión entre los 5 | 57 de 82 | **59** |
+| Fuera de la malla | 5 | 5 |
+| < 5 mm: entre 5 / entre 10 / 1.º / lista | 12 / 15 / 3 / 26 | **13 / 17** / 3 / 26 |
+| 5–10 mm | 15 / 17 / 5 / 26 | **17 / 20** / 5 / 26 |
+| ≥ 10 mm | 41 / 42 / 16 / 44 | 41 / **43** / 16 / 44 |
+| Controles con 5 candidatos | 90 de 90 | 90 de 90 |
+| Hueso en los 5 de los controles | 117 de 450 | **111 de 450** |
+| Segundos de detección (mediana, modo mallas guardadas) | 77 | 73 |
+
+Suben ocho, todas por la cuota: 011_1 (3,0 mm) del 11.º al 4.º, 022 (9,8 mm) del 17.º al 5.º, 034 (3,0 mm) del
+10.º al 5.º, 083 (11,7 mm) del 34.º al 4.º, 106_1 y 106_2 (5,2 mm, el mismo sitio) del 22.º al 5.º, 113 (4,6 mm)
+del 17.º al 5.º y 115_1 (9,9 mm, la que §4.19 perdió por el calibre) del 10.º al 4.º. Ceden el 5.º puesto al 6.º
+cinco (017_1, 051, 118, 121, 185) y 004 pasa del 4.º al 5.º: es el precio de la cuota, un puesto, y ninguna sale
+de los 10 ni de la lista. Por banda de tamaño no baja ninguna cifra; **por grupo clínico sí, ese puesto**: 121
+(23 mm, trombosado, bifurcación sin tipo) deja «grandes» en 18 de 20 (de 19) y «con trombo» en 16 de 22 (de 17),
+y con 017_1 y 051 (bifurcaciones sin tipo de 8 mm) el tipo «otro» pasa de 14 a 11 entre los 5; las tres siguen
+entre los 10 y la cuota no las toca en la lista. El resto de movimientos son de un puesto en la cola. En los 172 estudios el 5.º sitio
+lleva la etiqueta del canal en 113; de los 168 sitios con etiqueta entre los 5, solo 8 son del canal a secas (los
+demás eran ya sitios de curvatura más atrás) y el tejido es vaso en 113, hueso en 40 y otro en 15: por eso el
+hueso en controles baja (el saco pequeño que sube al 5.º desplaza a un sitio de hueso que estaba ahí). Sin coste
+de tiempo (el canal filtra regiones ya calculadas).
+
+**Veredicto.** El canal con cuota ENTRA, con ese coste declarado (tres lesiones del 5.º al 6.º por el sitio de la
+cuota; a cambio, ocho del 10.º–34.º al 4.º–5.º y seis sitios de hueso menos en los controles). Nueva referencia de detección: **71 / 80 / 24 / 96 / 59; 5 fuera**;
+controles 90/90 con 5. Regresión XA (Case 3 e IM_0055, preset XA sin el canal): sin diferencias. Para la
+interfaz: el 5.º candidato puede ser el sitio de la cuota y debe decir «saco pequeño» en vez de prometer un voto
+que no tiene.
+
+**Lo que queda** (51 lesiones fuera de los 5): 25 en la lista en los puestos 6–40, 21 con región pero sin sitio
+en la lista (compacidad con pgf 0,64–0,71, regiones planas con H·r 0,3–0,6, regiones de 4–6 puntos) y las 5 fuera
+de la malla. La fusión del consenso con el sitio más cercano se midió aquí y reparte: no entra. Los frentes que
+siguen son de segmentación, no de orden: las 15 piezas > 60 cm³ con cráneo dentro del modelo (§4.18) y las 5
+lesiones fuera de la malla.
 
 ## 5. Código y datos de esta pasada
 

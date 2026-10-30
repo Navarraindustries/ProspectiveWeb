@@ -50,6 +50,28 @@ class V2(gb.Variant):
     #: H·r ≈ 1 (038: 1,0; 051: 0,96); las regiones de vaso grandes que entran en 085
     #: con pgf 0,81–0,86 tienen H·r 2,0–2,2 (r ajustado 7,7 mm, esfericidad 0,45).
     comp_lax_hr_max: float = 1e9
+    #: Canal de «saco pequeño» (29-10 tarde): regiones de las dos escalas con la curvatura
+    #: de una esfera (saco_hr_lo ≤ H·r ≤ saco_hr_hi), esféricas y compactas, de radio
+    #: ajustado ≤ saco_r_max, ordenadas por esfericidad × pgf; entran en el consenso como
+    #: canal propio (familia saco_family) con tope saco_top. Cuatro sacos pequeños del
+    #: banco (029_1, 098, 101, 154_2) forman región propia a 4 mm y el orden por área
+    #: los deja detrás del tope de 40 del canal de curvatura.
+    saco: bool = False
+    saco_top: int = 10
+    saco_hr_lo: float = 0.7
+    saco_hr_hi: float = 1.3
+    saco_sph: float = 0.6
+    saco_comp: float = 0.3
+    saco_pgf: float = 0.7
+    saco_r_max: float = 3.5
+    saco_family: str = "forma"
+    #: Medido 29-10 tarde: el canal con sus puestos tal cual gana 8 entre 10 y 3 entre 5
+    #: pero quita el 1.º a 108, 126 y 105 y baja un puesto a una docena de grandes: sus
+    #: sitios entran en los puestos 1–2. Dos formas de acotarlo: saco_offset suma un
+    #: desplazamiento al puesto del canal (1 → 1 + offset); saco_quota = k garantiza al
+    #: mejor sitio del canal el puesto k si no está ya entre los k (desplaza al k-ésimo).
+    saco_offset: int = 0
+    saco_quota: int = 0
 
 
 import services.aneurysm_consensus as ac  # noqa: E402
@@ -67,9 +89,25 @@ def _hit_radius(h) -> float:
 
 def _merge_agree(hits, position, channel, rank, radius_mm, ratio):
     v = _CURRENT[0]
-    if v is None or getattr(v, "agree", "fijo") == "fijo":
+    mode = getattr(v, "agree", "fijo") if v is not None else "fijo"
+    if mode == "fijo":
         return _orig_consensus_merge(hits, position, channel, rank, radius_mm, ratio)
     p = np.asarray(position)
+    if mode == "nearest":
+        # El consenso real funde con el PRIMER sitio a ≤ 8 mm en el orden de la lista;
+        # aquí con el MÁS CERCANO (115_1 repartía sus votos entre dos sitios vecinos).
+        best, best_d = None, None
+        for h in hits:
+            d = float(np.linalg.norm(p - np.asarray(h.position)))
+            if d <= ac.AGREE_MM and (best is None or d < best_d):
+                best, best_d = h, d
+        if best is not None:
+            best.ranks[channel] = min(rank, best.ranks.get(channel, rank))
+            best.radius_mm = max(best.radius_mm, radius_mm)
+            best.ratio = max(best.ratio, ratio)
+            return
+        hits.append(ac.ConsensusHit(position=position, ranks={channel: rank}, radius_mm=radius_mm, ratio=ratio))
+        return
     for h in hits:
         thr = max(ac.AGREE_MM, v.agree_k * max(_hit_radius(h), float(radius_mm)))
         if float(np.linalg.norm(p - np.asarray(h.position))) <= thr:
@@ -81,12 +119,122 @@ def _merge_agree(hits, position, channel, rank, radius_mm, ratio):
 
 
 ac._merge = _merge_agree
-_orig_consensus_list = gb.consensus_list
+CH_SACO = "saco"
+_orig_family_ranks = ac._family_ranks
+
+
+def _family_ranks(hit):
+    """Con saco_family == "ninguna" el canal de saco no cuenta como familia: medido el
+    29-10, al fundirse con un sitio de solo calibre le daba una segunda familia y ese
+    sitio adelantaba a la lesión (126, 154 pierden el 1.º aunque el canal vaya al final)."""
+    v = _CURRENT[0]
+    if v is not None and getattr(v, "saco_family", "forma") == "ninguna" and CH_SACO in hit.ranks:
+        ranks = {k: r for k, r in hit.ranks.items() if k != CH_SACO}
+        if not ranks:
+            return {"saco": hit.ranks[CH_SACO]}
+        from types import SimpleNamespace
+        return _orig_family_ranks(SimpleNamespace(ranks=ranks))
+    return _orig_family_ranks(hit)
+
+
+ac._family_ranks = _family_ranks
+
+
+def small_sac_regions(study, v) -> list[dict]:
+    """Regiones de las dos escalas con forma de saco pequeño, ordenadas (mejor primero)."""
+    pool = list(study.regions[v.gauss]["regions"])
+    if v.gauss_union is not None:
+        pool += study.regions[v.gauss_union]["regions"]
+    out = []
+    for reg in pool:
+        hr = reg["H"] * reg["r"]
+        if reg["n"] < v.min_points or reg["r"] < v.r_min or reg["r"] > v.saco_r_max:
+            continue
+        if not (v.saco_hr_lo <= hr <= v.saco_hr_hi):
+            continue
+        if reg["sph"] < v.saco_sph or reg["comp"] < v.saco_comp or reg["pgf"] < v.saco_pgf:
+            continue
+        out.append(dict(reg, key=reg["sph"] * reg["pgf"]))
+    out.sort(key=lambda r: -r["key"])
+    # duplicados entre escalas: misma regla de cajas que el canal de curvatura
+    kept: list[dict] = []
+    for r in out:
+        p = np.asarray(r["centroid"])
+        if any(float(np.linalg.norm(p - np.asarray(m["centroid"]))) < gb.merge_radius_mm(m, r, v) for m in kept):
+            continue
+        kept.append(r)
+    return kept
 
 
 def consensus_list(study, v, top):
+    """Como gb.consensus_list, con el canal de saco pequeño detrás de los de curvatura."""
+    from types import SimpleNamespace
+    from scripts.exp_p3_eval import _RATIO_CACHE, _ratio_radio
+    from services.aneurysm_consensus import (AGREE_MM, CH_CALIBRE, CH_CURVATURE, CH_RATIO,
+                                             ConsensusHit, _peaks, calibre_ratio, order_hits)
     _CURRENT[0] = v
-    return _orig_consensus_list(study, v, top)
+    cands, gates = gb.curvature_channel(study, v)
+    hits: list[ConsensusHit] = []
+    for r in cands:
+        fake = SimpleNamespace(diameter_mm=2.0 * r["r"], region=r)
+        hits.append(ConsensusHit(position=tuple(r["centroid"]), ranks={CH_CURVATURE: r["rank"]},
+                                 candidate=fake, on_border=r["border"]))
+    if v.gauss2 is not None:
+        ac._FAMILY.setdefault(gb.CH_GRUESA, "forma")
+        ac._CHANNEL_ORDER.setdefault(gb.CH_GRUESA, 0)
+        gruesa, _ = gb.curvature_channel(study, replace(v, gauss=v.gauss2, gauss2=None))
+        for r in gruesa:
+            p = np.asarray(r["centroid"])
+            for h in hits:
+                if float(np.linalg.norm(p - np.asarray(h.position))) <= AGREE_MM:
+                    h.ranks[gb.CH_GRUESA] = min(r["rank"], h.ranks.get(gb.CH_GRUESA, r["rank"]))
+                    break
+            else:
+                fake = SimpleNamespace(diameter_mm=2.0 * r["r"], region=r)
+                hits.append(ConsensusHit(position=tuple(r["centroid"]), ranks={gb.CH_GRUESA: r["rank"]},
+                                         candidate=fake, on_border=r["border"]))
+    if getattr(v, "saco", False):
+        ac._FAMILY[CH_SACO] = v.saco_family
+        ac._CHANNEL_ORDER.setdefault(CH_SACO, 3)
+        for rank, r in enumerate(small_sac_regions(study, v)[:v.saco_top], start=1 + v.saco_offset):
+            p = np.asarray(r["centroid"])
+            best, best_d = None, None
+            for h in hits:
+                d = float(np.linalg.norm(p - np.asarray(h.position)))
+                if d <= AGREE_MM and (best is None or d < best_d):
+                    best, best_d = h, d
+            if best is not None:
+                best.ranks[CH_SACO] = min(rank, best.ranks.get(CH_SACO, rank))
+            else:
+                fake = SimpleNamespace(diameter_mm=2.0 * r["r"], region=r)
+                hits.append(ConsensusHit(position=tuple(r["centroid"]), ranks={CH_SACO: rank},
+                                         candidate=fake, on_border=r["border"]))
+    if study.tree and study.calibre is not None:
+        pts, rad = study.calibre
+        if v.floor.startswith("mm:"):
+            floor = float(v.floor[3:])
+        else:
+            floor = max(0.8, float(np.percentile(rad, int(v.floor[1:]))))
+        key = (study.sid, v.ring, v.floor)
+        if key not in _RATIO_CACHE:
+            _RATIO_CACHE[key] = (_ratio_radio(pts, rad, floor) if v.ring == "radio"
+                                 else calibre_ratio(pts, rad, floor))
+        ratio = _RATIO_CACHE[key]
+        for channel, value in ((CH_CALIBRE, rad), (CH_RATIO, ratio)):
+            for rank, i in enumerate(_peaks(pts, value, rad, floor), start=1):
+                ac._merge(hits, tuple(float(x) for x in pts[i]), channel, rank, float(rad[i]), float(ratio[i]))
+    if v.consensus == "sin_calibre_solo":
+        hits = [h for h in hits if set(h.ranks) != {CH_CALIBRE}]
+    elif v.consensus != "actual":
+        raise ValueError(v.consensus)
+    ordered = order_hits(hits)
+    q = getattr(v, "saco_quota", 0)
+    if q and getattr(v, "saco", False):
+        k = next((i for i, h in enumerate(ordered) if CH_SACO in h.ranks), None)
+        if k is not None and k >= q:
+            h = ordered.pop(k)
+            ordered.insert(q - 1, h)
+    return ordered[:top], gates
 
 
 gb.consensus_list = consensus_list
@@ -206,6 +354,26 @@ VARIANTS = {
     "real_c10p75h20": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=2.0),
     "real_mix2": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75),
     "real_mix3": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.70, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75),
+    # 29-10 tarde, sobre lo adoptado (mix2): fusión del consenso con el sitio más cercano y canal de saco pequeño.
+    "mix2_near": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, agree="nearest"),
+    "mix2_saco": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True),
+    "mix2_saco5": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_top=5),
+    "mix2_saco20": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_top=20),
+    "mix2_sacoF": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_family="saco"),
+    "mix2_saco_sph7": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_sph=0.7),
+    "mix2_saco_near": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, agree="nearest"),
+    "mix2_saco_o2": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=2),
+    "mix2_saco_o3": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=3),
+    "mix2_saco_o4": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=4),
+    "mix2_saco_q5": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=40, saco_quota=5),
+    "mix2_saco_q4": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=40, saco_quota=4),
+    "mix2_saco_q5s7": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=40, saco_quota=5, saco_sph=0.7),
+    "mix2_saco_q5n": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=40, saco_quota=5, saco_family="ninguna"),
+    "mix2_saco_q4n": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=40, saco_quota=4, saco_family="ninguna"),
+    "mix2_saco_o2n": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=2, saco_family="ninguna"),
+    "mix2_saco_o3n": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=3, saco_family="ninguna"),
+    "mix2_saco_q5n_s7": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=40, saco_quota=5, saco_family="ninguna", saco_sph=0.7),
+    "mix2_saco_q5c4": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.75, saco=True, saco_offset=40, saco_quota=5, saco_comp=0.4),
     "real_mix2_p70": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.70),
     "real_mix2_p80": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.75, comp_lax_hr_max=1.5, hr_abs=True, hr_abs_pgf=0.80),
     "real_c10p80_hrabs": replace(REAL, comp_lax=0.10, comp_lax_pgf=0.80, hr_abs=True),

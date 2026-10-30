@@ -115,7 +115,7 @@ PEAKS_PER_CHANNEL: int = 6
 BORDER_TOL_MM: float = 1.0
 
 #: El 4.º desempate de `order_hits`: el canal más prioritario que encuentra el sitio.
-_CHANNEL_ORDER = {"curvatura": 0, "calibre": 1, "cociente": 2}
+_CHANNEL_ORDER = {"curvatura": 0, "calibre": 1, "cociente": 2, "saco": 3}
 
 #: Por encima de esto los canales geométricos no se ejecutan. En una malla de
 #: 79 000 vértices tardaban 52 s; `routers.detect` les pasa una copia decimada
@@ -125,6 +125,9 @@ MAX_VERTS_GEOMETRIC: int = 40_000
 CH_CURVATURE = "curvatura"
 CH_CALIBRE = "calibre"
 CH_RATIO = "cociente"
+#: Canal de «saco pequeño» (29-10): no vota. Sus puestos no entran en `best_rank`
+#: ni cuentan como familia; solo sirven para la cuota (`_apply_small_sac_quota`).
+CH_SACO = "saco"
 
 
 @dataclass
@@ -147,12 +150,19 @@ class ConsensusHit:
         return sorted(self.ranks)
 
     @property
+    def voting_ranks(self) -> dict[str, int]:
+        """Los puestos que ordenan: todos menos el canal de saco, que no vota."""
+        return {ch: r for ch, r in self.ranks.items() if ch != CH_SACO}
+
+    @property
     def best_rank(self) -> int:
-        return min(self.ranks.values()) if self.ranks else 10_000
+        v = self.voting_ranks
+        return min(v.values()) if v else 10_000
 
     @property
     def rank_sum(self) -> int:
-        return sum(self.ranks.values()) if self.ranks else 10_000
+        v = self.voting_ranks
+        return sum(v.values()) if v else 10_000
 
 
 def local_calibre(poly: vtk.vtkPolyData,
@@ -286,6 +296,21 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
                                  ranks={CH_CURVATURE: rank}, candidate=c,
                                  on_border=borde[k]))
 
+    # ── Canal de saco pequeño (no vota: ver `_apply_small_sac_quota`) ─── #
+    for rank, c in enumerate(det.small_sacs, start=1):
+        pt = np.asarray(c.centroid, dtype=float)
+        best, best_d = None, None
+        for h in hits:
+            d = float(np.linalg.norm(pt - np.asarray(h.position)))
+            if d <= AGREE_MM and (best is None or d < best_d):
+                best, best_d = h, d
+        if best is not None:
+            best.ranks[CH_SACO] = min(rank, best.ranks.get(CH_SACO, rank))
+        else:
+            hits.append(ConsensusHit(position=tuple(float(v) for v in c.centroid),
+                                     ranks={CH_SACO: rank}, candidate=c,
+                                     on_border=region_on_border(c.poly_data, bounds)))
+
     # ── Canales 2 y 3: calibre y cociente ─────────────────────────────── #
     #
     # Hasta 2026-10-19 solo corrían si la malla pasaba la prueba de árbol de
@@ -314,7 +339,31 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
                     _merge(hits, tuple(float(v) for v in pts[i]), channel, rank,
                            float(rad[i]), float(ratio[i]))
 
-    return order_hits(hits)[:top]
+    ordered = order_hits(hits)
+    if getattr(detector, "small_sac_channel", False):
+        ordered = _apply_small_sac_quota(ordered, int(getattr(detector, "small_sac_quota", 0)))
+    return ordered[:top]
+
+
+def _apply_small_sac_quota(ordered: list[ConsensusHit], quota: int) -> list[ConsensusHit]:
+    """Si entre los `quota` primeros no hay ningún sitio del canal de saco pequeño,
+    el mejor de ellos pasa al puesto `quota` (los de detrás bajan uno).
+
+    Es una cuota, no un voto: el canal ordena por forma (esfericidad × pgf) sacos
+    de ≤ 3,5 mm de radio que el orden por área del canal de curvatura deja en los
+    puestos 11–40 o fuera del tope. Medido sobre los 172 de Zenodo (29-10): con
+    puestos propios o como familia reparte (quita primeros puestos a 105, 108,
+    126, 154); como cuota del 5.º, entre 5 63 → 65 y entre 10 70 → 74 sin bajar
+    ninguna banda, a cambio de cuatro lesiones que pasan del 5.º al 6.º.
+    """
+    if quota <= 0:
+        return ordered
+    k = next((i for i, h in enumerate(ordered) if CH_SACO in h.ranks), None)
+    if k is None or k < quota:
+        return ordered
+    out = list(ordered)
+    out.insert(quota - 1, out.pop(k))
+    return out
 
 
 def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
@@ -353,13 +402,19 @@ def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
 
 
 #: Qué mide cada canal. Dos canales de la misma familia no son dos opiniones.
-_FAMILY = {CH_CURVATURE: "forma", CH_CALIBRE: "grosor", CH_RATIO: "grosor"}
+_FAMILY = {CH_CURVATURE: "forma", CH_CALIBRE: "grosor", CH_RATIO: "grosor", CH_SACO: "saco"}
 
 
 def _family_ranks(hit: ConsensusHit) -> dict[str, int]:
-    """Familia → mejor puesto que el sitio consigue en alguno de sus canales."""
+    """Familia → mejor puesto que el sitio consigue en alguno de sus canales.
+
+    El canal de saco pequeño no cuenta como familia salvo que sea el único:
+    fundido con un sitio de solo calibre le daba una segunda familia y ese sitio
+    adelantaba a la lesión (29-10: 126 y 154 perdían el primer puesto).
+    """
     out: dict[str, int] = {}
-    for ch, rank in hit.ranks.items():
+    ranks = hit.voting_ranks or hit.ranks
+    for ch, rank in ranks.items():
         fam = _FAMILY.get(ch, ch)
         out[fam] = min(rank, out.get(fam, rank))
     return out
@@ -578,7 +633,10 @@ def hit_confidence(hit: ConsensusHit) -> float:
     falsos positivos con 0,69 y 1,0. El acuerdo suma por familia, como en
     `order_hits`.
     """
-    base = 1.0 / (1.0 + 0.45 * (hit.best_rank - 1))
+    # Un sitio que solo ve el canal de saco no vota: su barra sale de su puesto en
+    # ese canal contado desde la cuota (el 1.º del canal vale como un 5.º).
+    rank = hit.best_rank if hit.voting_ranks else hit.ranks.get(CH_SACO, 10_000) + 4
+    base = 1.0 / (1.0 + 0.45 * (rank - 1))
     acuerdo = 0.10 * (len(_family_ranks(hit)) - 1)
     if hit.on_border:
         # Una tapa de borde va al final de la lista: que la barra no diga otra cosa.

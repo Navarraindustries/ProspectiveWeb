@@ -237,6 +237,14 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         compactness_lax_pgf       = 0.75,
         compactness_lax_hr_max    = 1.5,
         mean_curv_abs_pgf         = 0.75,
+        # 29-10 (noche), banco sobre los modelos limpios y pasada real: canal de
+        # «saco pequeño» como cuota del 5.º puesto. Los sacos de 3–5 mm forman
+        # región propia con la curvatura de una esfera pero el orden por área los
+        # deja detrás; el canal no vota (con puestos propios repartía) y solo
+        # garantiza al mejor el 5.º si no hay ninguno entre los 5. Entre 5 63 → 65,
+        # entre 10 70 → 74, estudios 53 → 55 en el banco; ninguna banda baja.
+        small_sac_channel         = True,
+        small_sac_quota           = 5,
     )
 
 

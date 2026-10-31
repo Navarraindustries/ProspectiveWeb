@@ -12,6 +12,7 @@ import type { PatientSummary, StudyCard, StudySummary } from "./api/types";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
 import { Patients } from "./pages/Patients";
+import { PatientPage } from "./pages/PatientPage";
 import { Studies } from "./pages/Studies";
 import { Workspace } from "./pages/Workspace";
 import { PendingRequests } from "./pages/PendingRequests";
@@ -21,7 +22,7 @@ import { UnsavedExitDialog } from "./components/UnsavedExitDialog";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { AuthProvider, useAuth } from "./store/auth";
 import { PlanningProvider, usePlanning } from "./store/planning";
-import { NavProvider, SCREEN_PATH, screenFromPath } from "./store/nav";
+import { NavProvider, SCREEN_PATH, patientIdFromPath, patientPath, screenFromPath } from "./store/nav";
 import { ClipOrdersPage } from "./pages/ClipOrders";
 import { WorkshopsPage } from "./pages/Workshops";
 import type { Screen } from "./store/nav";
@@ -81,6 +82,9 @@ function Router() {
   // When logged out, only login/signup are reachable.
   const loggedOut: Screen = screen === "signup" ? "signup" : "login";
   const effective: Screen = user ? (screen === "login" || screen === "signup" ? "patients" : screen) : loggedOut;
+  // La ficha lleva el id en la URL; el resto de pantallas, su ruta fija.
+  const patientId = effective === "patient" ? patientIdFromPath(location.pathname) : null;
+  const effectivePath = patientId !== null ? patientPath(patientId) : SCREEN_PATH[effective];
 
   // Keep the URL honest when the effective screen differs from the one the path
   // names — a logged-out visitor deep-linking to /app/sesion, bare /app, or a
@@ -89,10 +93,10 @@ function Router() {
   // `replace`, not push: this correction must not become a Back destination.
   useEffect(() => {
     if (!ready) return;
-    if (SCREEN_PATH[effective] !== location.pathname) {
-      navigate(SCREEN_PATH[effective], { replace: true });
+    if (effectivePath !== location.pathname) {
+      navigate(effectivePath, { replace: true });
     }
-  }, [ready, effective, location.pathname, navigate]);
+  }, [ready, effectivePath, location.pathname, navigate]);
 
   // Empezar sin paciente: subir el DICOM y usar el pipeline ya, y decidir
   // después si se guarda («Adjuntar a un caso», en la barra del pipeline).
@@ -270,12 +274,22 @@ function Router() {
         onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}
       />
     );
+  else if (effective === "patient" && patientId !== null)
+    view = (
+      <PatientPage
+        patientId={patientId}
+        onResume={resumeSession}
+        onPlanCase={planCase}
+        onOpenStudy={(s) => void openStudy(s)}
+        onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}
+      />
+    );
   else if (effective === "studies")
     view = (
       <Studies
         onOpen={(s) => void openStudy(s)}
         onResume={(s) => void resumeStudySession(s)}
-        onOpenPatient={(id) => navigate(`${SCREEN_PATH.patients}?paciente=${id}`)}
+        onOpenPatient={(id) => navigate(patientPath(id))}
         onNew={startWithoutPatient}
       />
     );
@@ -287,9 +301,9 @@ function Router() {
         onCrumbPatients={() => navigate(SCREEN_PATH.patients)}
         onOpenSession={openOrderSession}
         // F2-27: se llega aquí desde la ficha con el paciente fijado; la vuelta
-        // reabre esa ficha (?paciente=<id>), no la lista.
+        // reabre esa ficha (/app/pacientes/<id>), no la lista.
         onBackToPatient={ordersPatient
-          ? () => navigate(`${SCREEN_PATH.patients}?paciente=${ordersPatient.id}`)
+          ? () => navigate(patientPath(ordersPatient.id))
           : undefined}
       />
     );
@@ -303,14 +317,15 @@ function Router() {
         patient={patient}
         initialStep={resumeStep}
         onBack={() => setScreen("patients")}
-        onOpenPatient={() => navigate(`${SCREEN_PATH.patients}?paciente=${patient?.id ?? ""}`)}
+        onOpenPatient={() => navigate(patient ? patientPath(patient.id) : SCREEN_PATH.patients)}
         onFinish={finish}
       />
     );
 
   return (
     <NavProvider value={{
-      screen: effective,
+      // La ficha cuenta como «Pacientes» para el resalte de la barra lateral.
+      screen: effective === "patient" ? "patients" : effective,
       // F1-94: la entrada del menú abre la lista entera; el filtro por paciente
       // solo lo fija «Pedidos» de la ficha, que no pasa por aquí.
       go: (s) => { if (s === "orders") setOrdersPatient(null); setScreen(s); },
@@ -319,7 +334,7 @@ function Router() {
       {view}
       {user && (
         <CommandPalette
-          onOpenPatient={(id) => navigate(`${SCREEN_PATH.patients}?paciente=${id}`)}
+          onOpenPatient={(id) => navigate(patientPath(id))}
           onResume={(sid, p) => void resumeSession(sid, p)}
           reanudarBloqueado={bloqueoPipeline}
         />

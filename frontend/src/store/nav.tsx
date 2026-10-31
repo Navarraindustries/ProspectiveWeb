@@ -8,13 +8,16 @@
 
 import { createContext, useContext } from "react";
 
-export type Screen = "login" | "signup" | "patients" | "studies" | "workspace" | "orders" | "workshops" | "pending" | "audit" | "users";
+export type Screen = "login" | "signup" | "patients" | "patient" | "studies" | "workspace" | "orders" | "workshops" | "pending" | "audit" | "users";
 
 /** Screen → path segment under /app. Spanish, because the UI is. */
 export const SCREEN_PATH: Record<Screen, string> = {
   login: "/app/entrar",
   signup: "/app/registro",
   patients: "/app/pacientes",
+  // La ficha comparte el tramo con la lista y no se navega con este valor:
+  // su URL lleva el id (`patientPath`).
+  patient: "/app/pacientes",
   studies: "/app/estudios",
   orders: "/app/pedidos",
   workshops: "/app/talleres",
@@ -34,12 +37,29 @@ const LEGACY_PATH: Record<string, Screen> = {
 const PATH_SCREEN: Record<string, Screen> = {
   ...LEGACY_PATH,
   ...(Object.fromEntries(
-    Object.entries(SCREEN_PATH).map(([s, p]) => [p, s as Screen]),
+    Object.entries(SCREEN_PATH)
+      .filter(([s]) => s !== "patient")
+      .map(([s, p]) => [p, s as Screen]),
   ) as Record<string, Screen>),
 };
 
+/** URL de la ficha de un paciente: se recarga, se enlaza y se vuelve a ella con Atrás. */
+export function patientPath(id: number): string {
+  return `${SCREEN_PATH.patients}/${id}`;
+}
+
+/** El id de /app/pacientes/<id>; solo enteros positivos, el resto es `null`. */
+export function patientIdFromPath(pathname: string): number | null {
+  const clean = pathname.replace(/\/+$/, "");
+  const prefix = `${SCREEN_PATH.patients}/`;
+  if (!clean.startsWith(prefix)) return null;
+  const tail = clean.slice(prefix.length);
+  return /^[1-9]\d*$/.test(tail) ? Number(tail) : null;
+}
+
 /** Which screen a pathname names; `patients` is the landing screen of /app. */
 export function screenFromPath(pathname: string): Screen {
+  if (patientIdFromPath(pathname) !== null) return "patient";
   const clean = pathname.replace(/\/+$/, "") || "/app";
   return PATH_SCREEN[clean] ?? "patients";
 }

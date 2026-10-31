@@ -3,7 +3,7 @@
    sesión. Borrar un paciente está al pie de su ficha (PatientSheet.tsx). */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { ClipOrder, PatientSummary, StudyCard, StudySummary } from "../api/types";
 import { Button } from "../components/Button";
@@ -16,7 +16,7 @@ import { PatientsSidePanel } from "../components/patients/PatientsSidePanel";
 import "../components/patients/patients.css";
 import { useAuth } from "../store/auth";
 import { glass } from "../styles/glass";
-import { useNav } from "../store/nav";
+import { patientPath, useNav } from "../store/nav";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { PatientSheet } from "./PatientSheet";
 
@@ -94,32 +94,35 @@ export function Patients({
   };
   useEffect(load, []);
 
-  // ?paciente=<id> opens that patient's sheet on arrival, so the breadcrumb in
-  // the workspace can lead back to the case instead of just the list.
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  // ?paciente=<id> es el enlace antiguo a la ficha (marcadores, enlaces
+  // enviados): ahora la ficha tiene URL propia y se redirige a ella con
+  // `replace`, para que el enlace viejo no sea un destino de Atrás.
   // ?nuevo=paciente / ?nuevo=caso vienen de la paleta ⌘K. Cada parámetro se
   // consume una vez y se borra: recargar la página no vuelve a abrir la hoja.
   useEffect(() => {
     const id = Number(params.get("paciente"));
     const nuevo = params.get("nuevo");
-    const abreFicha = Number.isFinite(id) && id > 0;
+    const abreFicha = Number.isInteger(id) && id > 0;
     if (!abreFicha && nuevo !== "paciente" && nuevo !== "caso") return;
     if (abreFicha) {
-      setSheetPatientId(id);
-      setSheetOpen(true);
-    } else if (nuevo === "paciente") {
+      navigate(patientPath(id), { replace: true });
+      return;
+    }
+    if (nuevo === "paciente") {
       setSheetPatientId(null);
       setSheetOpen(true);
     } else {
       setCaseSheet(true);
     }
     setParams({}, { replace: true });
-  }, [params, setParams]);
+  }, [params, setParams, navigate]);
 
   const openCreate = () => { setSheetPatientId(null); setSheetOpen(true); };
   // Fusión nº 8: «Editar» era la única puerta a la ficha y se anunciaba como
   // una edición; ahora la abren el clic en la tarjeta y su Intro.
-  const openSheet = (id: number) => { setSheetPatientId(id); setSheetOpen(true); };
+  const openSheet = (id: number) => navigate(patientPath(id));
 
   const [pestana, setPestana] = useState<PestanaPacientes>("todos");
 

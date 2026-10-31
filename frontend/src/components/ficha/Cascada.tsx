@@ -32,7 +32,6 @@ export function Cascada({ columnas, onVolver }: { columnas: ColumnaCascada[]; on
   }, [total]);
 
   const alTeclear = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Escape") { e.stopPropagation(); return; }
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     const t = e.target as HTMLElement;
     if (t.closest("input, textarea, select") || t.isContentEditable) return;

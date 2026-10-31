@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createPortal } from "react-dom";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Cascada, type ColumnaCascada } from "./Cascada";
 
@@ -45,11 +46,27 @@ describe("Cascada", () => {
     expect(document.activeElement).toBe(campo);
   });
 
-  it("Esc dentro de la cascada no sube a quien escucha fuera", () => {
-    const fuera = vi.fn();
-    render(<div onKeyDown={fuera}><Cascada columnas={cols(2)} onVolver={() => {}} /></div>);
-    fireEvent.keyDown(screen.getByRole("button", { name: "Fila 1" }), { key: "Escape" });
-    expect(fuera).not.toHaveBeenCalled();
+  it("Esc llega al documento, también desde un hijo en portal (Sheet, menú de usuario)", () => {
+    const columnas = cols(2);
+    columnas[0].contenido = (
+      <>
+        <button type="button">Fila 1</button>
+        {createPortal(<input aria-label="En portal" />, document.body)}
+      </>
+    );
+    render(<Cascada columnas={columnas} onVolver={() => {}} />);
+    const escucha = vi.fn();
+    document.addEventListener("keydown", escucha);
+    try {
+      const enPortal = screen.getByLabelText("En portal");
+      enPortal.focus();
+      fireEvent.keyDown(enPortal, { key: "Escape" });
+      expect(escucha).toHaveBeenCalledTimes(1);
+      fireEvent.keyDown(screen.getByRole("button", { name: "Fila 1" }), { key: "Escape" });
+      expect(escucha).toHaveBeenCalledTimes(2);
+    } finally {
+      document.removeEventListener("keydown", escucha);
+    }
   });
 
   it("en pantalla estrecha solo se ven las dos últimas y las anteriores son migas", () => {

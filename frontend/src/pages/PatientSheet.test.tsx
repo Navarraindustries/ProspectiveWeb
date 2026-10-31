@@ -69,7 +69,7 @@ const caso = (o: Partial<StudySummary> & { id: number }): StudySummary => ({
 });
 const guardada = (o: Partial<PatientSessionInfo> & { session_id: string }): PatientSessionInfo => ({
   label: "", current_step: 2, max_diameter_mm: null, rupture_risk_label: null,
-  created_at: "2026-10-11T05:00:00", updated_at: "2026-10-11T05:05:09", size_bytes: 349927 * 1024, ...o,
+  created_at: "2026-10-11T05:00:00", updated_at: "2026-10-11T05:05:09", size_bytes: 349927 * 1024, case_id: null, imaging_study_id: null, ...o,
 });
 
 const onClose = vi.fn();

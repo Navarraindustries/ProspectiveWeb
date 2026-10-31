@@ -6841,6 +6841,17 @@
    "PatientSessionInfo": {
     "description": "One past planning session done on a patient, for the patient detail view.",
     "properties": {
+     "case_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Case Id"
+     },
      "created_at": {
       "format": "date-time",
       "title": "Created At",
@@ -6850,6 +6861,17 @@
       "default": 0,
       "title": "Current Step",
       "type": "integer"
+     },
+     "imaging_study_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Imaging Study Id"
      },
      "label": {
       "default": "",

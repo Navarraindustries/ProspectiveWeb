@@ -313,6 +313,10 @@ export interface PatientSessionInfo {
   updated_at: string;
   /** Lo que ocupa la sesión guardada en disco. */
   size_bytes: number;
+  /** Caso clínico al que pertenece (null si la sesión no está adjunta). */
+  case_id: number | null;
+  /** Estudio de imagen analizado (null si la sesión no tiene estudio archivado). */
+  imaging_study_id: number | null;
 }
 
 /** Una sesión guardada tal como la devuelve renombrarla (PATCH /api/sessions/saved/{id}). */

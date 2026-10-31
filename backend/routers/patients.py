@@ -650,6 +650,8 @@ async def list_patient_sessions(
             created_at=s.created_at,
             updated_at=s.updated_at,
             size_bytes=size_of_row(db, s),
+            case_id=s.study_id,
+            imaging_study_id=s.imaging_study_id,
         )
         for s in sessions
     ]

@@ -113,4 +113,11 @@ describe("tokens de la identidad A", () => {
       expect(src.match(literal), `${f} lleva un color escrito a mano`).toBeNull();
     }
   });
+  it("las superficies del navegador salen de la paleta", () => {
+    const base = readFileSync(join(__dirname, "base.css"), "utf8");
+    expect(base).toMatch(/::selection\s*\{[^}]*background:\s*var\(--accent\)/);
+    expect(base).toMatch(/caret-color:\s*var\(--primary\)/);
+    expect(base).toMatch(/scrollbar-color:\s*var\(--border\) transparent/);
+    expect(base).toMatch(/::-webkit-scrollbar-thumb\s*\{[^}]*border-radius:\s*var\(--radius-full\)/);
+  });
 });

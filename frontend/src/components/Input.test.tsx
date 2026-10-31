@@ -47,6 +47,43 @@ describe("Input", () => {
     expect(wrapper.style.boxShadow).not.toContain("--ring");
   });
 
+  it("la etiqueta va en minúscula, 13 px y peso 500", () => {
+    render(<Input label="Historia clínica" />);
+    const label = screen.getByText("Historia clínica");
+    expect(label.style.textTransform).toBe("");
+    expect(label.style.fontSize).toContain("--text-label");
+    expect(label.style.fontWeight).toContain("--weight-label");
+  });
+
+  it("al enfocar, el contorno toma el borde primario y el anillo de acento", () => {
+    render(<Input label="Nombre" />);
+    const field = screen.getByLabelText("Nombre");
+    const wrapper = field.parentElement as HTMLElement;
+    fireEvent.focus(field);
+    expect(wrapper.style.border).toContain("--primary");
+    expect(wrapper.style.boxShadow).toContain("--accent");
+    fireEvent.blur(field);
+    expect(wrapper.style.border).toContain("--input");
+  });
+
+  it("un campo inválido conserva el borde de error al enfocar y añade el anillo", () => {
+    render(<Input label="Nombre" invalid />);
+    const field = screen.getByLabelText("Nombre");
+    const wrapper = field.parentElement as HTMLElement;
+    fireEvent.focus(field);
+    expect(wrapper.style.border).toContain("--destructive");
+    expect(wrapper.style.boxShadow).toContain("--accent");
+  });
+
+  it("encadena los onFocus y onBlur del llamador", () => {
+    const calls: string[] = [];
+    render(<Input label="Nombre" onFocus={() => calls.push("f")} onBlur={() => calls.push("b")} />);
+    const field = screen.getByLabelText("Nombre");
+    fireEvent.focus(field);
+    fireEvent.blur(field);
+    expect(calls).toEqual(["f", "b"]);
+  });
+
   it("la altura mínima del área de texto sale del token de control, no de píxeles fijos", () => {
     const { container } = render(<Input label="Notas" multiline />);
     expect(container.querySelector("textarea")!.style.minHeight).toContain("--control-md");

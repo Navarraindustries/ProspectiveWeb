@@ -1,7 +1,7 @@
 /* Input — labelled text field with optional leading icon, hint and invalid state. */
 
-import { useId } from "react";
-import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import { useId, useState } from "react";
+import type { FocusEvent, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 // Los manejadores se tipan como los de <input>: los consumidores existentes no cambian
 // y, con multiline, el mismo manejador recibe el evento del <textarea> (mismo value).
@@ -17,10 +17,19 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 export function Input({ label, icon, hint, invalid, multiline, style, ...rest }: InputProps) {
   const id = useId();
   // aria-invalid solo cuando el llamador lo pide: un campo vacío no nace en rojo (F2-63).
-  // El anillo de foco lo dibuja el propio campo con el :focus-visible global (base.css):
-  // un solo mecanismo, y solo con teclado.
+  // El anillo de foco se dibuja en el contorno (no en el campo) mientras el campo tiene el foco.
+  const [focused, setFocused] = useState(false);
+  const { onFocus, onBlur, ...fieldRest } = rest;
   const common = {
     id,
+    onFocus: (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setFocused(true);
+      onFocus?.(e as FocusEvent<HTMLInputElement>);
+    },
+    onBlur: (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setFocused(false);
+      onBlur?.(e as FocusEvent<HTMLInputElement>);
+    },
     ...(invalid ? { "aria-invalid": true as const } : {}),
     style: {
       flex: 1,
@@ -39,7 +48,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
       {label && (
         <label
           htmlFor={id}
-          style={{ fontSize: "var(--text-label)", fontWeight: 600, letterSpacing: "var(--tracking-label)", textTransform: "uppercase", color: "var(--muted-foreground)" }}
+          style={{ fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" }}
         >
           {label}
         </label>
@@ -50,21 +59,21 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
           gap: 8,
           ...(multiline ? { minHeight: "calc(var(--control-md) * 2 + 16px)", padding: "8px 12px", alignItems: "flex-start" } : { height: "var(--control-md)", padding: "0 12px", alignItems: "center" }),
           borderRadius: "var(--radius-md)",
-          background: "var(--background)",
-          border: `1px solid ${invalid ? "var(--destructive)" : "var(--input)"}`,
-          boxShadow: "var(--shadow-xs)",
+          background: "var(--canvas)",
+          border: `1px solid ${invalid ? "var(--destructive)" : focused ? "var(--primary)" : "var(--input)"}`,
+          boxShadow: focused ? "0 0 0 4px var(--accent)" : "var(--shadow-xs)",
         }}
       >
         {icon && <span style={{ color: "var(--muted-foreground)", display: "flex" }}>{icon}</span>}
         {multiline ? (
           <textarea
             rows={3}
-            {...(rest as TextareaHTMLAttributes<HTMLTextAreaElement>)}
+            {...(fieldRest as TextareaHTMLAttributes<HTMLTextAreaElement>)}
             {...common}
           />
         ) : (
           <input
-            {...rest}
+            {...fieldRest}
             {...common}
           />
         )}

@@ -498,3 +498,15 @@ describe("a patient without orders (F2-53)", () => {
     expect(screen.queryByText(/Ningún pedido encaja/)).toBeNull();
   });
 });
+
+describe("cristal (fase 2)", () => {
+  it("la tabla de pedidos está dentro de un panel de cristal", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    const panel = screen.getByRole("table").closest("[data-glass]");
+    expect(panel).not.toBeNull();
+    // Panel denso: una sola superficie desenfocada por tabla, filas sin fondo propio.
+    expect(panel!.getAttribute("style")).toContain("--glass-dense");
+  });
+});

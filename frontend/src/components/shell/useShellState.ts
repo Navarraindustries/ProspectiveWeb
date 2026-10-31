@@ -1,5 +1,5 @@
-/* Estado de la barra lateral (shell C, F2): fijada a 220 px por defecto en
-   ventanas anchas (>= 1024 px) y plegada a 40 px en las estrechas; plegada se
+/* Estado de la barra lateral (shell C, F2): fijada a 240 px por defecto en
+   ventanas anchas (>= 1024 px) y plegada a 64 px en las estrechas; plegada se
    expande al pasar el ratón, con Alt+B o dejándola fija con la chincheta.
 
    Solo lo fijo se recuerda (`localStorage`, clave `shell.sidebar`): el paso del
@@ -29,7 +29,26 @@ export interface ShellState {
    («pinned» o «collapsed») manda siempre. localStorage puede no existir o estar
    vetado (modo privado, iframe): entonces también decide el ancho. */
 const WIDE_WINDOW_PX = 1024;
+/** A 1280 px o menos la barra arranca plegada aunque la preferencia diga
+    «fijada»: el contenido necesita el sitio. No se toca lo guardado. */
+const NARROW_QUERY = "(max-width: 1280px)";
+function isNarrow(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia(NARROW_QUERY)?.matches === true;
+}
+/* Lo elegido con la chincheta en esta carga de la página. Cada pantalla monta
+   su propio shell: sin esto, a 1280 px o menos `isNarrow()` volvía a plegar la
+   barra en cada cambio de pantalla aunque el usuario acabara de fijarla. */
+let sessionPinned: boolean | null = null;
+
+/** Olvida la elección de esta carga (para los tests, que montan shells limpios). */
+export function resetSessionPinned(): void {
+  sessionPinned = null;
+}
+
 function readPinned(): boolean {
+  if (sessionPinned !== null) return sessionPinned;
+  if (isNarrow()) return false;
   const wide = typeof window !== "undefined" && window.innerWidth >= WIDE_WINDOW_PX;
   try {
     const saved = localStorage.getItem(SIDEBAR_KEY);
@@ -79,6 +98,7 @@ export function useShellState(): ShellState {
 
   const setPinned = useCallback((next: boolean) => {
     setPinnedState(next);
+    sessionPinned = next;
     writePinned(next);
     if (!next) setOpened(false);
   }, []);

@@ -13,14 +13,16 @@ vi.mock("../../store/nav", async (orig) => ({ ...(await orig<object>()), useNav:
 vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "dark", toggle: vi.fn() }) }));
 vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([{ id: 9 }, { id: 10 }]) } }));
 
+import { ENTORNO_SRC } from "../Entorno";
 import { AppShell } from "./AppShell";
+import { resetSessionPinned } from "./useShellState";
 
 /** Pinta el shell con un hijo mínimo; las props son las del propio AppShell. */
 function renderShell(props: Omit<ComponentProps<typeof AppShell>, "children">) {
   return render(<AppShell {...props}><p>contenido</p></AppShell>);
 }
 
-beforeEach(() => { localStorage.clear(); localStorage.setItem("shell.sidebar", "collapsed"); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
+beforeEach(() => { resetSessionPinned(); localStorage.clear(); localStorage.setItem("shell.sidebar", "collapsed"); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
 
 describe("AppShell", () => {
   it("el administrador ve Administración con la insignia de pendientes", async () => {
@@ -72,6 +74,31 @@ describe("AppShell", () => {
     expect(within(header).getByRole("button", { name: /tema/i })).toBeInTheDocument();
     expect(within(header).getByRole("button", { name: "Menú de usuario" })).toBeInTheDocument();
     expect(within(header).queryByText("Cerrar sesión")).toBeNull();
+  });
+  it("se pinta sobre el Entorno: la imagen de fondo está en el árbol", () => {
+    const { container } = renderShell({});
+    expect(container.querySelector("[data-entorno] img")?.getAttribute("src")).toBe(ENTORNO_SRC);
+    expect(container.querySelector(".shell")).toBeTruthy();
+  });
+  it("fijada, la rejilla es de 240px y plegada de 64px", () => {
+    localStorage.setItem("shell.sidebar", "pinned");
+    const { container } = renderShell({});
+    expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "true");
+    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
+    expect(css).toMatch(/\.shell\[data-pinned="true"\]\s*\{[^}]*grid-template-columns:\s*240px 1fr/);
+    expect(css).toMatch(/\.shell\s*\{[^}]*grid-template-columns:\s*64px 1fr/);
+  });
+  it("a 1280 px o menos arranca plegada aunque la preferencia diga fijada, sin pisarla", () => {
+    localStorage.setItem("shell.sidebar", "pinned");
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ ...original(q), matches: q === "(max-width: 1280px)" })) as typeof window.matchMedia;
+    try {
+      const { container } = renderShell({});
+      expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "false");
+      expect(localStorage.getItem("shell.sidebar")).toBe("pinned");
+    } finally {
+      window.matchMedia = original;
+    }
   });
   it("la altura de la barra sale del CSS: la clase es shell-top y mide 56 px", () => {
     renderShell({ crumbs: [{ label: "Pacientes" }] });

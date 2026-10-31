@@ -1,6 +1,8 @@
 /* «Auditoría»: error de carga (F1-103), hora local (F1-101) y F2 (16):
    título, «Exportar» siempre, filtro por paciente, filas desplegables. */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -157,5 +159,28 @@ describe("la cabecera de «Auditoría» en la oficina", () => {
     expect(barra.getByRole("link", { name: /Exportar/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(screen.queryByText("Registro de auditoría")).toBeNull();
+  });
+});
+
+describe("cristal (fase 2)", () => {
+  it("la tabla de bloques está dentro de un panel denso", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    await screen.findByText(fechaHora("2026-10-11T03:01:00Z"));
+    const panel = screen.getByRole("table").closest("[data-glass]");
+    expect(panel).not.toBeNull();
+    expect(panel!.getAttribute("style")).toContain("--glass-dense");
+  });
+
+  it("la fila de detalle desplegada va sin línea arriba y con fondo --muted", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Inicio de sesión/ }));
+    expect(screen.getByText("Hash anterior").closest("tr")).toHaveClass("fila-detalle");
+    const css = readFileSync(join(__dirname, "..", "styles", "office.css"), "utf8");
+    const regla = css.match(/\.tabla-oficina tbody tr\.fila-detalle td\s*\{([^}]*)\}/);
+    expect(regla).not.toBeNull();
+    expect(regla![1]).toMatch(/border-top:\s*0/);
+    expect(regla![1]).toMatch(/background:\s*var\(--muted\)/);
   });
 });

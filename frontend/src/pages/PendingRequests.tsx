@@ -11,6 +11,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Tabs } from "../components/Tabs";
 import { AdminOnlyCard } from "../components/AdminOnly";
+import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { useAuth } from "../store/auth";
 import { PENDING_CHANGED_EVENT } from "../components/shell/pendingEvents";
@@ -78,8 +79,9 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
           aprobadas desde una solicitud de las que creó un administrador.
         </div>
       )}
-      {rows.map((u) => (
-        <Card key={u.id} style={{ padding: "14px 20px" }}>
+      <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", display: "flex", flexDirection: "column" }}>
+      {rows.map((u, i) => (
+        <div key={u.id} style={{ padding: "14px 20px", borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: "var(--foreground)" }}>{u.full_name || u.username}</span>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</span>
@@ -91,8 +93,9 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
               ? `Rechazada: ${fechaHora(u.rejected_at)} · Solicitada: ${fechaHora(u.created_at)}`
               : `${tab === "Aprobadas" ? "Alta" : "Solicitada"}: ${fechaHora(u.created_at)}`}
           </div>
-        </Card>
+        </div>
       ))}
+      </div>
     </div>
   );
 }

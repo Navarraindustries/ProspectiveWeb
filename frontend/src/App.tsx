@@ -29,6 +29,8 @@ import { rehydrateSession } from "./resume";
 import { restoreFailure } from "./restoreFailure";
 import { ServerDownBanner } from "./components/ServerDownBanner";
 import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
+import { CommandPalette } from "./components/CommandPalette";
+import { useRegisterCommands } from "./lib/commands";
 
 function Router() {
   const { user, ready, expiredNotice } = useAuth();
@@ -92,19 +94,33 @@ function Router() {
     }
   }, [ready, effective, location.pathname, navigate]);
 
-  if (!ready) return null; // restoring stored token
-  // Con la contraseña inicial el servidor responde 403 a todo: una sola
-  // pantalla que lo dice, en vez de un error en cada panel.
-  if (user?.must_change_password) return <ForcePasswordChange />;
-
   // Empezar sin paciente: subir el DICOM y usar el pipeline ya, y decidir
   // después si se guarda («Adjuntar a un caso», en la barra del pipeline).
-  const startWithoutPatient = () => {
+  const startWithoutPatient = useCallback(() => {
     planning.reset();
     setPatient(null);
     setResumeStep(0);
     setScreen("workspace");
-  };
+  }, [planning, setScreen]);
+
+  // «Prueba rápida» y «Reanudar · X» cambian de sesión sin cambiar de ruta: el
+  // bloqueador no las ve. Con el análisis sin guardar, la paleta las deshabilita.
+  const bloqueoPipeline = dirtyWorkspace ? "Guarda o descarta los cambios del análisis antes" : undefined;
+
+  // Mandos globales de la paleta ⌘K; los `run` se leen siempre de la última pasada.
+  useRegisterCommands("app", user ? [
+    { id: "nuevo-paciente", group: "acciones", label: "Nuevo paciente", run: () => navigate(`${SCREEN_PATH.patients}?nuevo=paciente`) },
+    { id: "nuevo-caso", group: "acciones", label: "Nuevo caso", run: () => navigate(`${SCREEN_PATH.patients}?nuevo=caso`) },
+    {
+      id: "prueba-rapida", group: "acciones", label: "Prueba rápida sin paciente",
+      hint: bloqueoPipeline, disabled: !!bloqueoPipeline, run: startWithoutPatient,
+    },
+  ] : []);
+
+  if (!ready) return null; // restoring stored token
+  // Con la contraseña inicial el servidor responde 403 a todo: una sola
+  // pantalla que lo dice, en vez de un error en cada panel.
+  if (user?.must_change_password) return <ForcePasswordChange />;
 
   // Enter the pipeline for a clinical case: patient + case are known upfront, so
   // the upload panel no longer has to ask which case the DICOM belongs to.
@@ -301,6 +317,13 @@ function Router() {
     }}>
     <div style={{ height: "100%", position: "relative" }}>
       {view}
+      {user && (
+        <CommandPalette
+          onOpenPatient={(id) => navigate(`${SCREEN_PATH.patients}?paciente=${id}`)}
+          onResume={(sid, p) => void resumeSession(sid, p)}
+          reanudarBloqueado={bloqueoPipeline}
+        />
+      )}
       {loadingIn && <LoadingScreen onDone={() => setLoadingIn(false)} />}
       <UnsavedExitDialog
         open={blocker.state === "blocked"}

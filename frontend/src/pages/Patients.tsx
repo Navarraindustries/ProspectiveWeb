@@ -10,12 +10,12 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { AppShell } from "../components/shell/AppShell";
-import { Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { PatientCard } from "../components/patients/PatientCard";
 import { PatientsSidePanel } from "../components/patients/PatientsSidePanel";
 import "../components/patients/patients.css";
 import { useAuth } from "../store/auth";
+import { glass } from "../styles/glass";
 import { useNav } from "../store/nav";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { PatientSheet } from "./PatientSheet";
@@ -97,11 +97,22 @@ export function Patients({
   // ?paciente=<id> opens that patient's sheet on arrival, so the breadcrumb in
   // the workspace can lead back to the case instead of just the list.
   const [params, setParams] = useSearchParams();
+  // ?nuevo=paciente / ?nuevo=caso vienen de la paleta ⌘K. Cada parámetro se
+  // consume una vez y se borra: recargar la página no vuelve a abrir la hoja.
   useEffect(() => {
     const id = Number(params.get("paciente"));
-    if (!Number.isFinite(id) || id <= 0) return;
-    setSheetPatientId(id);
-    setSheetOpen(true);
+    const nuevo = params.get("nuevo");
+    const abreFicha = Number.isFinite(id) && id > 0;
+    if (!abreFicha && nuevo !== "paciente" && nuevo !== "caso") return;
+    if (abreFicha) {
+      setSheetPatientId(id);
+      setSheetOpen(true);
+    } else if (nuevo === "paciente") {
+      setSheetPatientId(null);
+      setSheetOpen(true);
+    } else {
+      setCaseSheet(true);
+    }
     setParams({}, { replace: true });
   }, [params, setParams]);
 
@@ -154,14 +165,14 @@ export function Patients({
       // panel lateral; aquí quedan solo las acciones clínicas, la prueba rápida la última.
       actions={
         <span style={{ display: "inline-flex", gap: 8 }}>
-          <Button variant="outline" size="sm" leadingIcon={<Icon name="PLUS" />} onClick={openCreate}>
+          <Button size="sm" leadingIcon={<Icon name="PLUS" />} onClick={openCreate}>
             Nuevo paciente
           </Button>
-          <Button size="sm" leadingIcon={<Icon name="PLUS" />} onClick={() => setCaseSheet(true)}>
+          <Button variant="outline" size="sm" leadingIcon={<Icon name="PLUS" />} onClick={() => setCaseSheet(true)}>
             Nuevo caso
           </Button>
           {onStartWithoutPatient && (
-            <Button variant="outline" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
+            <Button variant="ghost" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
                     title="Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.">
               Prueba rápida sin paciente
             </Button>
@@ -174,31 +185,23 @@ export function Patients({
         {/* 1440: tres columnas de tarjetas más el panel lateral caben sin apretar. */}
         <div style={{ maxWidth: 1440, margin: "0 auto" }} className="fade-rise">
           {avisos.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
+            // Franja de chips: cada aviso es una pastilla de cristal, no una tarjeta de la rejilla.
+            <div role="list" aria-label="Avisos clínicos" className="pt-avisos">
               {avisos.map((av) => (
-                <Card key={av.titulo} style={{ padding: "14px 16px" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <span style={{
-                      width: 36, height: 36, borderRadius: "var(--radius-md)", flexShrink: 0,
-                      background: `color-mix(in srgb, var(--${av.tono}) 14%, transparent)`, color: `var(--${av.tono})`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      <Icon name={av.tono === "success" ? "STATUS_OK" : av.destino === "orders" ? "CLIPS" : "WAIT"} size={16} />
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{av.titulo}</div>
-                      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={av.detalle}>
-                        {av.detalle}
-                      </div>
-                    </div>
-                    {av.destino !== null && (
-                      <button type="button" onClick={() => nav.go(av.destino!)}
-                              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--data)" }}>
-                        Ver
-                      </button>
-                    )}
-                  </div>
-                </Card>
+                <div key={av.titulo} role="listitem" data-aviso={av.tono} data-glass className="pt-aviso" style={glass("normal")}>
+                  <span className="pt-aviso-icono" style={{
+                    background: `color-mix(in srgb, var(--${av.tono}) 14%, transparent)`, color: `var(--${av.tono})`,
+                  }}>
+                    <Icon name={av.tono === "success" ? "STATUS_OK" : av.destino === "orders" ? "CLIPS" : "WAIT"} size={14} />
+                  </span>
+                  <span className="pt-aviso-titulo">{av.titulo}</span>
+                  <span className="pt-aviso-detalle" title={av.detalle}>{av.detalle}</span>
+                  {av.destino !== null && (
+                    <button type="button" className="pt-aviso-ver" onClick={() => nav.go(av.destino!)}>
+                      Ver
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}

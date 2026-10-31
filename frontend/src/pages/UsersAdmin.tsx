@@ -14,6 +14,7 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { Sheet } from "../components/Sheet";
+import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { Collapsible, ErrorNote } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -63,13 +64,8 @@ function estadoCuenta(u: Pick<UserAdminInfo, "status" | "is_active" | "rejected_
 /* El estado va como punto de 7 px y texto, no como insignia. */
 function EstadoCuenta({ u }: { u: UserAdminInfo }) {
   const t = estadoCuenta(u);
-  const color = t === "Activo" ? "var(--success)" : t === "Pendiente" ? "var(--warning)" : "var(--muted-foreground)";
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-      <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
-      {t}
-    </span>
-  );
+  const variant = t === "Activo" ? "success" : t === "Pendiente" ? "warning" : "muted";
+  return <Badge variant={variant}>{t}</Badge>;
 }
 
 /* Iniciales del avatar: primeras letras de las dos primeras palabras del nombre
@@ -420,7 +416,7 @@ function UsersAdminPage() {
         <div style={{ maxWidth: 1000, margin: "0 auto" }} className="fade-rise">
           <ErrorNote>{error}</ErrorNote>
 
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
+          <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>
             <table className="tabla-oficina" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
@@ -428,7 +424,7 @@ function UsersAdminPage() {
                   {["Usuario", "Rol", "Especialidad / Hospital", "Estado", "Creado", "Acciones"].map((h, i) => (
                     <th
                       key={i}
-                      style={{ textAlign: i === 5 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}
+                      style={{ textAlign: i === 5 ? "right" : "left", padding: "12px 16px" }}
                     >
                       {h}
                     </th>
@@ -447,10 +443,10 @@ function UsersAdminPage() {
                     </td>
                   </tr>
                 )}
-                {!loadError && rows.map((u, i) => {
+                {!loadError && rows.map((u) => {
                   const isMe = me?.id === u.id;
                   return (
-                    <tr key={u.id} className={u.id === nuevaId ? "fila-nueva" : undefined} style={{ borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : "none" }}>
+                    <tr key={u.id} className={u.id === nuevaId ? "fila-nueva" : undefined}>
                       <td style={{ padding: "12px 16px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span aria-hidden style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-subtle)", color: "var(--brand-deep)", fontSize: 12, fontWeight: 700 }}>

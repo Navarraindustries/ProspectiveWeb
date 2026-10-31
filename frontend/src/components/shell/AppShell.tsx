@@ -1,12 +1,13 @@
 /* AppShell (shell C, F2): la única carcasa de las pantallas de gestión.
 
-   Barra lateral de iconos a la izquierda, barra superior de 56 px con la miga
-   y las acciones del contexto, y el contenido sobre `--canvas`. Cada pantalla
+   Barra lateral de cristal a la izquierda, barra superior de 56 px con la miga
+   y las acciones del contexto, y el contenido transparente sobre el `Entorno`. Cada pantalla
    se envuelve a sí misma (`<AppShell crumbs actions>…</AppShell>`) para que la
    acción viva junto al estado que la habilita. El espacio de trabajo no la usa
    en F2: conserva su barra superior y su carril. */
 
 import type { ReactNode } from "react";
+import { Entorno } from "../Entorno";
 import { SideNav } from "./SideNav";
 import { TopBar } from "./TopBar";
 import type { Crumb } from "./TopBar";
@@ -22,17 +23,19 @@ export function AppShell({ crumbs, subtitle, status, actions, children }: {
   children: ReactNode;
 }) {
   const state = useShellState();
-  // Fija, la barra ocupa su columna (220 px) y el contenido se reparte el
+  // Fija, la barra ocupa su columna (240 px) y el contenido se reparte el
   // resto; expandida solo por el ratón o Alt+B se superpone al contenido, para
   // que cruzarla no mueva la tabla que hay debajo. Por eso la rejilla mira
   // `pinned` y el ancho de la barra mira `expanded`.
   return (
-    <div className="shell" data-pinned={state.pinned ? "true" : "false"}>
-      <SideNav state={state} />
-      <div className="shell-body">
-        <TopBar crumbs={crumbs} subtitle={subtitle} status={status} actions={actions} />
-        <main className="shell-main">{children}</main>
+    <Entorno dense>
+      <div className="shell" data-pinned={state.pinned ? "true" : "false"}>
+        <SideNav state={state} />
+        <div className="shell-body">
+          <TopBar crumbs={crumbs} subtitle={subtitle} status={status} actions={actions} />
+          <main className="shell-main">{children}</main>
+        </div>
       </div>
-    </div>
+    </Entorno>
   );
 }

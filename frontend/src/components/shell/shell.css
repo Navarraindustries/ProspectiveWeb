@@ -4,15 +4,16 @@
 /* ── Rejilla ─────────────────────────────────────────────────────────────── */
 .shell {
   display: grid;
-  grid-template-columns: 40px 1fr;
-  height: 100%;
-  background: var(--canvas);
+  grid-template-columns: 64px 1fr;
+  /* El Entorno no da altura a sus hijos: la rejilla mide la ventana. */
+  height: 100vh;
+  height: 100dvh;
   transition: grid-template-columns var(--dur-fast) var(--ease-out);
 }
 /* Fija, la columna crece con la barra; expandida por el ratón o Alt+B la barra
    se superpone al contenido (ver AppShell.tsx). */
 .shell[data-pinned="true"] {
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 240px 1fr;
 }
 
 .shell-body {
@@ -30,7 +31,6 @@
   flex-direction: column;
   min-height: 0;
   overflow: auto;
-  background: var(--canvas);
 }
 
 /* ── Barra lateral ───────────────────────────────────────────────────────── */
@@ -39,18 +39,13 @@
   z-index: 20;
   display: flex;
   flex-direction: column;
-  width: 40px;
+  width: 64px;
   height: 100%;
-  background: var(--surface-2);
-  border-right: 1px solid var(--border);
+  /* Cristal, borde y sombra: en línea desde glass("normal") (SideNav.tsx). */
   transition: width var(--dur-fast) var(--ease-out);
 }
 .shell-nav[data-expanded="true"] {
-  width: 220px;
-  box-shadow: var(--shadow-lg);
-}
-.shell[data-pinned="true"] .shell-nav[data-expanded="true"] {
-  box-shadow: none;
+  width: 240px;
 }
 
 .shell-nav-head {
@@ -59,7 +54,7 @@
   gap: 8px;
   height: 56px;
   flex-shrink: 0;
-  padding: 0 8px;
+  padding: 0 20px;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -99,9 +94,8 @@
   overflow-y: auto;
 }
 
-/* El icono queda en el mismo sitio plegada y expandida. Plegada (carril de
-   40 px): 4 px de margen, 8 px de relleno y 16 px de icono, centrado. Expandida
-   (220 px): 8 px de margen y 10 px de relleno, que es la geometría nueva. */
+/* El icono queda en el mismo sitio plegada y expandida: 8 px de margen y 16 px
+   de relleno dejan el icono de 16 px centrado en el carril de 64 px. */
 .shell-nav-link {
   position: relative;
   display: flex;
@@ -109,7 +103,7 @@
   gap: 10px;
   height: 38px;
   margin: 2px 8px;
-  padding: 0 10px;
+  padding: 0 16px;
   border-radius: 10px;
   color: var(--muted-foreground);
   font-size: 13px;
@@ -117,10 +111,6 @@
   white-space: nowrap;
   text-decoration: none;
   transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
-}
-.shell-nav[data-expanded="false"] .shell-nav-link {
-  margin: 2px 4px;
-  padding: 0 8px;
 }
 .shell-nav-link:hover {
   background: var(--accent);
@@ -224,7 +214,7 @@
 .shell-nav[data-expanded="false"] .shell-nav-user {
   flex-direction: column;
   gap: 6px;
-  margin: 8px 2px;
+  margin: 8px 4px;
   padding: 6px 0;
   border-color: transparent;
   background: transparent;
@@ -250,11 +240,27 @@
   height: 56px;
   flex-shrink: 0;
   padding: 0 24px;
-  background: var(--glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border-bottom: 1px solid var(--border);
+  /* El material (fondo, desenfoque, borde) lo pone glass("normal") en línea;
+     TopBar lo deja en la arista inferior (borderWidth y sombra en línea). */
 }
+
+.shell-cmdk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-sm);
+  min-width: var(--control-sm);
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  cursor: pointer;
+}
+.shell-cmdk:hover { background: var(--glass-hover); }
+.shell-cmdk:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 
 .shell-crumbs {
   min-width: 0;

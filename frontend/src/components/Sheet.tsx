@@ -22,6 +22,11 @@ import { Icon } from "./Icon";
     de encima atiende la tecla. */
 const openSheets: object[] = [];
 
+/** true mientras haya alguna hoja abierta: la paleta ⌘K no se abre encima. */
+export function isSheetOpen(): boolean {
+  return openSheets.length > 0;
+}
+
 export function Sheet({
   open,
   onClose,

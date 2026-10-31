@@ -243,3 +243,25 @@ describe("la cabecera de «Cuentas pendientes» en la oficina", () => {
     expect(within(screen.getByRole("banner")).queryByRole("button", { name: "Actualizar" })).toBeNull();
   });
 });
+
+describe("cristal (fase 2)", () => {
+  it("la solicitud pendiente es un panel de cristal", async () => {
+    listPending.mockResolvedValueOnce([solicitud]);
+    render(<PendingRequests onBack={() => {}} />);
+    const nombre = await screen.findByText("Nuevo Residente");
+    expect(nombre.closest("[data-glass]")).not.toBeNull();
+  });
+
+  it("el historial de «Rechazadas» es una lista en un panel denso", async () => {
+    listPending.mockResolvedValue([]);
+    listUsers.mockImplementation((st: string) => Promise.resolve(st === "rejected" ? [{
+      id: 9, username: "rech", full_name: "Rita Rechazada", role: "medico", status: "rejected", is_active: false,
+      specialty: "", hospital: "", created_at: "2026-10-01T00:00:00+00:00", rejected_at: "2026-10-03T15:30:00+00:00",
+    }] : []));
+    render(<PendingRequests onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Rechazadas" }));
+    const panel = (await screen.findByText("Rita Rechazada")).closest("[data-glass]");
+    expect(panel).not.toBeNull();
+    expect(panel!.getAttribute("style")).toContain("--glass-dense");
+  });
+});

@@ -65,6 +65,11 @@ beforeEach(() => {
 afterEach(() => { cleanup(); delete (window as { matchMedia?: unknown }).matchMedia; });
 
 describe("PatientsSidePanel", () => {
+  it("es un inspector de cristal denso", () => {
+    montar();
+    expect(screen.getByRole("complementary", { name: "Resumen y accesos" }).hasAttribute("data-glass")).toBe(true);
+  });
+
   it("Hoy: pacientes, en curso, con informe, semana; «Compartidos contigo» solo si hay", async () => {
     const reciente = new Date(Date.now() - 3_600_000).toISOString();
     const ps = [

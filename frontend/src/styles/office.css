@@ -1,5 +1,18 @@
 /* Oficina (Pacientes y estudios): acciones de fila atenuadas, fila recién
-   creada, tarjetas de estudio con elevación y hoja a dos columnas. */
+   creada, tarjetas de estudio de cristal con lente y hoja a dos columnas. */
+
+/* Tabla de cristal: la cabecera es un rótulo mono; las filas no llevan fondo ni
+   desenfoque propios (los pone el panel glass("dense") que envuelve la tabla). */
+.tabla-oficina thead th {
+  font-family: var(--font-mono); font-size: var(--text-eyebrow); font-weight: 600;
+  letter-spacing: var(--tracking-eyebrow); text-transform: uppercase;
+  color: var(--muted-foreground); text-align: left; white-space: nowrap;
+}
+.tabla-oficina tbody tr { background: transparent; }
+.tabla-oficina tbody td { border-top: 1px solid var(--border); }
+/* El detalle desplegado de una fila (Auditoría) es parte de ella: sin línea
+   que lo separe y sobre un fondo apagado que lo distingue. */
+.tabla-oficina tbody tr.fila-detalle td { border-top: 0; background: var(--muted); }
 
 .tabla-oficina tbody tr .fila-acciones { opacity: .6; transition: opacity var(--dur-1) var(--ease-out); }
 .tabla-oficina tbody tr:hover .fila-acciones,
@@ -10,14 +23,21 @@
 @keyframes fila-nueva { from { background: var(--brand-subtle); } to { background: transparent; } }
 .fila-nueva { animation: fila-nueva 1.2s var(--ease-out) 1; }
 
-.tarjeta-estudio { box-shadow: var(--shadow-sm); transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
-.tarjeta-estudio:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.tarjeta-estudio {
+  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--glass-highlight);
+  transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.tarjeta-estudio:hover { border-color: var(--primary); box-shadow: var(--glass-highlight), var(--shadow-md); transform: scale(1.02); }
 .tarjeta-estudio img { transition: transform var(--dur-3) var(--ease-out); }
 .tarjeta-estudio:hover img { transform: scale(1.03); }
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-estudio, .tarjeta-estudio img { transition: none; }
+  .tarjeta-estudio:hover, .tarjeta-estudio:hover img { transform: none; }
+}
 
 .hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
 @media (max-width: 760px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
 
 /* Tarjeta punteada «Subir un estudio nuevo»: se enciende al apuntarla o enfocarla. */
-.tarjeta-nueva { border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.tarjeta-nueva { border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; border-radius: var(--radius-card-lg); transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
 .tarjeta-nueva:hover, .tarjeta-nueva:focus-visible { border-color: var(--data); background: color-mix(in srgb, var(--data) 8%, transparent); }

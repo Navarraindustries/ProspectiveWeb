@@ -75,7 +75,7 @@ describe("Input", () => {
     const wrapper = field.parentElement as HTMLElement;
     fireEvent.focus(field);
     expect(wrapper.style.border).toContain("--destructive");
-    expect(wrapper.style.boxShadow).toContain("--primary");
+    expect(wrapper.style.boxShadow).toContain("--destructive");
   });
 
   it("encadena los onFocus y onBlur del llamador", () => {
@@ -87,8 +87,25 @@ describe("Input", () => {
     expect(calls).toEqual(["f", "b"]);
   });
 
-  it("la altura mínima del área de texto sale del token de control, no de píxeles fijos", () => {
+  it("la altura mínima del área de texto sale del token de campo, no de píxeles fijos", () => {
     const { container } = render(<Input label="Notas" multiline />);
-    expect(container.querySelector("textarea")!.style.minHeight).toContain("--control-md");
+    expect(container.querySelector("textarea")!.style.minHeight).toContain("--field-h");
+  });
+
+  it("el contorno de un campo de una línea mide --field-h", () => {
+    render(<Input label="Nombre" />);
+    const wrapper = screen.getByLabelText("Nombre").parentElement as HTMLElement;
+    expect(wrapper.style.height).toBe("var(--field-h)");
+  });
+
+  it("con invalid, la pista pasa a mensaje de error con role alert", () => {
+    render(<Input label="Apellidos" invalid hint="Los apellidos son obligatorios." />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Los apellidos son obligatorios.");
+  });
+
+  it("sin invalid, la pista no es un alert", () => {
+    render(<Input label="Apellidos" hint="Como en el DNI." />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("Como en el DNI.")).toBeInTheDocument();
   });
 });

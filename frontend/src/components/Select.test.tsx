@@ -12,4 +12,11 @@ describe("Select", () => {
     expect(label.style.fontWeight).toContain("--weight-label");
     expect(screen.getByLabelText("Sexo").tagName).toBe("SELECT");
   });
+
+  it("usa appearance none y un chevron propio aria-hidden hermano", () => {
+    render(<Select label="Sexo" options={["Mujer", "Hombre"]} />);
+    const select = screen.getByLabelText("Sexo");
+    expect(select.style.appearance).toBe("none");
+    expect(select.parentElement!.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  });
 });

@@ -1,6 +1,7 @@
 /* Input — labelled text field with optional leading icon, hint and invalid state. */
 
 import { useId, useState } from "react";
+import { Icon } from "./Icon";
 import type { FocusEvent, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 // Los manejadores se tipan como los de <input>: los consumidores existentes no cambian
@@ -42,7 +43,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
       // Chromium aplica :focus-visible a los campos de texto también con ratón y con focus():
       // sin esto salía un doble anillo (el global de --ring sobre el campo + el del contorno).
       outline: "none",
-      ...(multiline ? { resize: "vertical" as const, minHeight: "calc(var(--control-md) * 2)", lineHeight: 1.45 } : {}),
+      ...(multiline ? { resize: "vertical" as const, minHeight: "calc(var(--field-h) * 2)", lineHeight: 1.45 } : {}),
       ...style,
     },
   };
@@ -60,11 +61,15 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
         style={{
           display: "flex",
           gap: 8,
-          ...(multiline ? { minHeight: "calc(var(--control-md) * 2 + 16px)", padding: "8px 12px", alignItems: "flex-start" } : { height: "var(--control-md)", padding: "0 12px", alignItems: "center" }),
+          ...(multiline ? { minHeight: "calc(var(--field-h) * 2)", padding: "8px 12px", alignItems: "flex-start" } : { height: "var(--field-h)", padding: "0 14px", alignItems: "center" }),
           borderRadius: "var(--radius-md)",
-          background: "var(--canvas)",
+          background: "var(--field-bg)",
           border: `1px solid ${invalid ? "var(--destructive)" : focused ? "var(--primary)" : "var(--input)"}`,
-          boxShadow: focused ? "0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent)" : "var(--shadow-xs)",
+          boxShadow: invalid
+            ? "0 0 0 3px color-mix(in srgb, var(--destructive) 22%, transparent)"
+            : focused
+              ? "0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent)"
+              : "none",
         }}
       >
         {icon && <span style={{ color: "var(--muted-foreground)", display: "flex" }}>{icon}</span>}
@@ -81,7 +86,16 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
           />
         )}
       </div>
-      {hint && <span style={{ fontSize: 12, color: invalid ? "var(--destructive)" : "var(--muted-foreground)" }}>{hint}</span>}
+      {hint && invalid && (
+        <span
+          role="alert"
+          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--destructive-text)" }}
+        >
+          <Icon name="STATUS_WARN" size={14} />
+          {hint}
+        </span>
+      )}
+      {hint && !invalid && <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{hint}</span>}
     </div>
   );
 }

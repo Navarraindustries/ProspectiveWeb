@@ -24,16 +24,19 @@ export function Select({ label, options, style, ...rest }: SelectProps) {
           {label}
         </label>
       )}
+      <div style={{ position: "relative", display: "flex", minWidth: 0 }}>
       <select
         id={id}
         {...rest}
         style={{
-          height: "var(--control-md)",
-          padding: "0 10px",
+          appearance: "none",
+          WebkitAppearance: "none",
+          width: "100%",
+          height: "var(--field-h)",
+          padding: "0 40px 0 14px",
           borderRadius: "var(--radius-md)",
-          background: "var(--canvas)",
+          background: "var(--field-bg)",
           border: "1px solid var(--input)",
-          boxShadow: "var(--shadow-xs)",
           color: "var(--foreground)",
           fontFamily: "var(--font-sans)",
           fontSize: 14,
@@ -47,6 +50,21 @@ export function Select({ label, options, style, ...rest }: SelectProps) {
           </option>
         ))}
       </select>
+      <svg
+        aria-hidden="true"
+        width={16}
+        height={16}
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--muted-foreground)" }}
+      >
+        <path d="M4 6.5l4 4 4-4" />
+      </svg>
+      </div>
     </div>
   );
 }

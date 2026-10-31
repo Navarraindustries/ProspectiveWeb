@@ -19,6 +19,7 @@ import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 
 import { STEP_LABELS } from "../pipeline/steps";
+import { conTransicion } from "../lib/viewTransition";
 
 /** Preview image of a study — fetched with the JWT, so it goes through a blob. */
 function Thumbnail({ study }: { study: StudyCard }) {
@@ -36,17 +37,40 @@ function Thumbnail({ study }: { study: StudyCard }) {
   }, [study.id, study.has_thumbnail]);
 
   const box: React.CSSProperties = {
-    width: "100%", aspectRatio: "1 / 1", background: "var(--viewer-bg)",
+    width: "100%", height: 170, background: "var(--viewer-bg)",
     display: "flex", alignItems: "center", justifyContent: "center",
     borderTopLeftRadius: "var(--radius-lg)", borderTopRightRadius: "var(--radius-lg)",
     overflow: "hidden", position: "relative",
   };
 
+  // Chip de modalidad arriba a la izquierda e insignia de riesgo arriba a la derecha.
+  const chipTexto = study.modality
+    ? (study.n_slices > 0 ? `${study.modality} · ${study.n_slices} cortes` : study.modality)
+    : (study.n_slices > 0 ? `${study.n_slices} cortes` : "");
+  const sobre = (
+    <>
+      {chipTexto && (
+        <span style={{
+          position: "absolute", top: 8, left: 8, fontSize: 11, padding: "2px 7px", borderRadius: 6,
+          background: "rgba(0,0,0,.6)", color: "var(--data)", fontFamily: "var(--font-mono)",
+        }}>
+          {chipTexto}
+        </span>
+      )}
+      {study.rupture_risk_label && (
+        <span style={{ position: "absolute", top: 8, right: 8 }}>
+          <Badge variant={riskVariant(study.rupture_risk_label as never)}>{study.rupture_risk_label}</Badge>
+        </span>
+      )}
+    </>
+  );
+
   if (url) {
     return (
       <div style={box}>
         <img src={url} alt={`Vista previa de ${study.description}`}
-             style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+             style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        {sobre}
       </div>
     );
   }
@@ -54,6 +78,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
     <div style={{ ...box, color: "var(--muted-foreground)", fontSize: 11, gap: 6, flexDirection: "column" }}>
       <Icon name="FOLDER" size={22} />
       {failed ? "Sin vista previa" : study.has_thumbnail ? "Cargando…" : "Sin archivar"}
+      {sobre}
     </div>
   );
 }
@@ -66,7 +91,13 @@ export function StudyGallery({
   onOpenPatient,
   compact = false,
   emptyHint,
+  onNew,
+  onCount,
 }: {
+  /** Pinta al final de la rejilla la tarjeta punteada «Subir un estudio nuevo». */
+  onNew?: () => void;
+  /** Avisa del número de estudios cargados (null mientras carga). */
+  onCount?: (n: number | null) => void;
   /** Restrict to one patient (used inside the patient sheet). */
   patientId?: number;
   /** Restrict to one clinical case — a case can hold several acquisitions. */
@@ -132,6 +163,8 @@ export function StudyGallery({
 
   const rows = studies;
 
+  useEffect(() => { onCount?.(loading || error ? null : studies.length); }, [onCount, loading, error, studies.length]);
+
   return (
     <div>
       {!compact && (
@@ -171,6 +204,7 @@ export function StudyGallery({
             return (
             <div
               key={s.id}
+              className="tarjeta-estudio"
               title={`${s.patient_name} · ${s.description}`}
               style={{
                 display: "flex", flexDirection: "column", textAlign: "left", padding: 0,
@@ -204,7 +238,7 @@ export function StudyGallery({
                   </>
                 ) : (
                   <>
-                    <div className="truncate" style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>
+                    <div className="truncate" style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
                       {s.patient_name || "—"}
                     </div>
                     <div className="truncate" style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
@@ -215,18 +249,7 @@ export function StudyGallery({
                     </div>
                   </>
                 )}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
-                  {s.modality && <Badge variant="subtle">{s.modality}</Badge>}
-                  {s.n_slices > 0 && (
-                    <span style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                      {s.n_slices} cortes
-                    </span>
-                  )}
-                  {s.rupture_risk_label && (
-                    <Badge variant={riskVariant(s.rupture_risk_label as never)}>{s.rupture_risk_label}</Badge>
-                  )}
-                </div>
-                <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                <div style={{ fontSize: compact ? 10 : 12, color: "var(--muted-foreground)", marginTop: 2 }}>
                   {s.last_step != null
                     ? `Último paso: ${STEP_LABELS[s.last_step] ?? s.last_step}`
                     : s.archived ? "Sin procesar" : "No archivado"}
@@ -276,6 +299,23 @@ export function StudyGallery({
             </div>
             );
           })}
+          {/* Última casilla de la rejilla: invita a subir un estudio. */}
+          {onNew && !compact && (
+            <button
+              type="button"
+              className="tarjeta-nueva"
+              onClick={onNew}
+              style={{
+                minHeight: 300, display: "flex", flexDirection: "column", alignItems: "center",
+                justifyContent: "center", gap: 8, background: "transparent", cursor: "pointer",
+                border: "1px dashed color-mix(in srgb, var(--foreground) 18%, transparent)",
+                borderRadius: 12, color: "var(--data)", fontFamily: "var(--font-sans)", fontSize: 14,
+              }}
+            >
+              <Icon name="UPLOAD" size={22} />
+              Subir un estudio nuevo
+            </button>
+          )}
         </div>
       )}
 
@@ -310,15 +350,20 @@ export function StudyGallery({
 }
 
 export function Studies({
-  onOpen, onResume, onOpenPatient,
+  onOpen, onResume, onOpenPatient, onNew,
 }: {
   onOpen: (study: StudyCard) => void;
   onResume: (study: StudyCard) => void;
   onOpenPatient: (patientId: number) => void;
+  onNew: () => void;
 }) {
+  const [count, setCount] = useState<number | null>(null);
   // Sección de primer nivel, como Pacientes: la miga es solo ella.
   return (
-    <AppShell crumbs={[{ label: "Estudios" }]}>
+    <AppShell
+      crumbs={[{ label: "Estudios" }]}
+      subtitle={count == null ? "Cargando…" : `${count} estudios de imagen archivados`}
+    >
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 24px 40px" }}>
           <div style={{ marginBottom: 18 }}>
@@ -327,7 +372,13 @@ export function Studies({
               Estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo
             </div>
           </div>
-          <StudyGallery onOpen={onOpen} onResume={onResume} onOpenPatient={onOpenPatient} />
+          <StudyGallery
+            onOpen={(s) => conTransicion(() => onOpen(s))}
+            onResume={(s) => conTransicion(() => onResume(s))}
+            onOpenPatient={onOpenPatient}
+            onNew={onNew}
+            onCount={setCount}
+          />
         </div>
       </div>
     </AppShell>

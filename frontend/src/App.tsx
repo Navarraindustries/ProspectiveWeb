@@ -257,6 +257,7 @@ function Router() {
         onOpen={(s) => void openStudy(s)}
         onResume={(s) => void resumeStudySession(s)}
         onOpenPatient={(id) => navigate(`${SCREEN_PATH.patients}?paciente=${id}`)}
+        onNew={startWithoutPatient}
       />
     );
   else if (effective === "orders")

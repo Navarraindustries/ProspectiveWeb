@@ -240,11 +240,28 @@
   height: 56px;
   flex-shrink: 0;
   padding: 0 24px;
-  background: var(--glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border-bottom: 1px solid var(--border);
+  /* El material (fondo, desenfoque, borde) lo pone glass("normal") en línea;
+     aquí solo se deja el borde en la arista inferior. */
+  border-width: 0 0 1px;
 }
+
+.shell-cmdk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-sm);
+  min-width: var(--control-sm);
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  cursor: pointer;
+}
+.shell-cmdk:hover { background: var(--glass-hover); }
+.shell-cmdk:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 
 .shell-crumbs {
   min-width: 0;

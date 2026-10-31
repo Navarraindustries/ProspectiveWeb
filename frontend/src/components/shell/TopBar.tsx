@@ -13,6 +13,8 @@ import { Icon } from "../Icon";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "../ThemeToggle";
 import { UserMenu } from "./UserMenu";
+import { glass } from "../../styles/glass";
+import { openCommandPalette } from "../../lib/commands";
 
 /** Un segmento de la miga: rótulo y, si lleva destino, adónde va. */
 export interface Crumb {
@@ -29,7 +31,7 @@ export function TopBar({ brand = false, crumbs, subtitle, status, actions }: {
   actions?: ReactNode;
 }) {
   return (
-    <header className="shell-top">
+    <header className="shell-top" style={glass("normal")} data-glass>
       {brand && (
         <span className="shell-brand">
           <Logo compact size={24} />
@@ -67,6 +69,9 @@ export function TopBar({ brand = false, crumbs, subtitle, status, actions }: {
       <div className="shell-actions">
         {status}
         {actions}
+        <button type="button" className="shell-cmdk" aria-label="Abrir la paleta de mandos (Ctrl+K)" title="Paleta de mandos (Ctrl+K)" onClick={openCommandPalette}>
+          ⌘K
+        </button>
         <ThemeToggle size="sm" />
         <UserMenu />
       </div>

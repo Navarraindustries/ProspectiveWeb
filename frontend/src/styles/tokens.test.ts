@@ -116,8 +116,10 @@ describe("tokens de la identidad A", () => {
   it("las superficies del navegador salen de la paleta", () => {
     const base = readFileSync(join(__dirname, "base.css"), "utf8");
     expect(base).toMatch(/::selection\s*\{[^}]*background:\s*var\(--accent\)/);
-    expect(base).toMatch(/caret-color:\s*var\(--primary\)/);
-    expect(base).toMatch(/scrollbar-color:\s*var\(--border\) transparent/);
+    expect(base).toMatch(/::selection\s*\{[^}]*color:\s*var\(--foreground\)/);
+    expect(base).toMatch(/input, textarea\s*\{[^}]*caret-color:\s*var\(--primary\)/);
+    expect(base).toMatch(/\*\s*\{[^}]*scrollbar-color:\s*var\(--border\) transparent/);
+    expect(base).toMatch(/@supports not \(scrollbar-color: auto\)\s*\{[\s\S]*::-webkit-scrollbar-thumb/);
     expect(base).toMatch(/::-webkit-scrollbar-thumb\s*\{[^}]*border-radius:\s*var\(--radius-full\)/);
   });
 });

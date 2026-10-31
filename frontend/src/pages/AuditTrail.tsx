@@ -9,6 +9,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
+import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { SectionLabel, Card, ErrorNote } from "../components/PanelHead";
 import { AdminOnlyCard } from "../components/AdminOnly";
@@ -34,11 +35,8 @@ export function AuditTrail({ onBack }: { onBack: () => void }) {
    la barra lateral). */
 const AUDIT_CRUMBS = [{ label: "Auditoría" }];
 
-/* Cabecera de tabla de la oficina: 11 px, 600, mayúsculas. */
-const ENCABEZADO: React.CSSProperties = {
-  padding: "8px 14px", fontSize: 11, fontWeight: 600, textTransform: "uppercase",
-  letterSpacing: "0.06em", color: "var(--muted-foreground)",
-};
+/* Cabecera de tabla de la oficina: el rótulo mono lo da office.css; aquí el relleno. */
+const ENCABEZADO: React.CSSProperties = { padding: "10px 14px" };
 
 function AuditTrailPage() {
   const [blocks, setBlocks] = useState<AuditBlock[]>([]);
@@ -195,7 +193,7 @@ function AuditTrailPage() {
         <SectionLabel style={{ marginTop: 14 }}>
           Bloques ({rows.length}{rows.length !== blocks.length ? ` de ${blocks.length}` : ""})
         </SectionLabel>
-        <div className="table-scroll" style={{ marginTop: 8 }}>
+        <div className="table-scroll" data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", marginTop: 8 }}>
           <table className="tabla-oficina" style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ textAlign: "left" }}>
@@ -211,7 +209,7 @@ function AuditTrailPage() {
                 const detalle = detalleDelBloque(b.payload_json);
                 return (
                   <Fragment key={b.id}>
-                    <tr style={{ borderTop: "1px solid var(--border)" }}>
+                    <tr>
                       {/* Hora local para leer; la UTC original, que es la que firma la cadena, queda en el tooltip. */}
                       <td style={{ padding: "13px 14px", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }} title={`UTC: ${b.iso_ts}`}>{fechaHora(b.iso_ts)}</td>
                       <td style={{ padding: "13px 14px" }}>{b.username || "—"}</td>
@@ -238,7 +236,7 @@ function AuditTrailPage() {
                     </tr>
                     {abierto && (
                       <tr>
-                        <td colSpan={4} style={{ padding: "6px 14px 12px 38px", background: "var(--muted)" }}>
+                        <td colSpan={4} style={{ padding: "6px 14px 12px 38px" }}>
                           <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 14px", margin: 0 }}>
                             {detalle.map(([k, v]) => (
                               <Fragment key={k}>

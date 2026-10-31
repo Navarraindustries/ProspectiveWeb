@@ -273,3 +273,16 @@ describe("la fila de «Usuarios» en la oficina", () => {
     expect(screen.queryByText("Gestión de usuarios")).toBeNull();
   });
 });
+
+describe("cristal (fase 2)", () => {
+  it("la tabla de usuarios está en un panel denso y el estado es una insignia", async () => {
+    listUsers.mockResolvedValueOnce([cuenta()]);
+    render(<UsersAdmin onBack={() => {}} />);
+    const tabla = await screen.findByRole("table");
+    const panel = tabla.closest("[data-glass]");
+    expect(panel).not.toBeNull();
+    expect(panel!.getAttribute("style")).toContain("--glass-dense");
+    // El estado de la cuenta es una insignia, no un punto suelto.
+    expect(within(tabla).getByText("Activo").getAttribute("style")).toContain("--radius-full");
+  });
+});

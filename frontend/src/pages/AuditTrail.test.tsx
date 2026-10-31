@@ -159,3 +159,14 @@ describe("la cabecera de «Auditoría» en la oficina", () => {
     expect(screen.queryByText("Registro de auditoría")).toBeNull();
   });
 });
+
+describe("cristal (fase 2)", () => {
+  it("la tabla de bloques está dentro de un panel denso", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    await screen.findByText(fechaHora("2026-10-11T03:01:00Z"));
+    const panel = screen.getByRole("table").closest("[data-glass]");
+    expect(panel).not.toBeNull();
+    expect(panel!.getAttribute("style")).toContain("--glass-dense");
+  });
+});

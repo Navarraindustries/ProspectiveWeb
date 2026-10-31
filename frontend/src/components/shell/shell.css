@@ -57,7 +57,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 48px;
+  height: 56px;
   flex-shrink: 0;
   padding: 0 8px;
   overflow: hidden;
@@ -243,9 +243,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 48px;
+  height: 56px;
   flex-shrink: 0;
-  padding: 0 16px;
+  padding: 0 24px;
   background: var(--glass);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -285,7 +285,13 @@
 }
 .shell-crumb[aria-current="page"] {
   color: var(--foreground);
+  font-size: 15px;
   font-weight: 600;
+}
+.shell-subtitle {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  white-space: nowrap;
 }
 .shell-crumb-link {
   padding: 0;
@@ -346,20 +352,21 @@
   object-fit: cover;
 }
 
-/* Se abre hacia la derecha del avatar, pegado al borde inferior del carril. */
+/* Se abre bajo el avatar de la barra superior, alineado a la derecha (hacia la
+   izquierda). Fondo sólido: el cristal queda para las cabeceras de barra. */
 .shell-user-menu {
   position: absolute;
-  left: calc(100% + 10px);
-  bottom: 0;
+  left: auto;
+  right: 0;
+  top: calc(100% + 8px);
+  bottom: auto;
   z-index: 300;
   width: 272px;
   padding: 8px;
-  background: var(--glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-sheet);
 }
 
 .shell-user-head {

@@ -38,6 +38,7 @@ describe("LogoutButton", () => {
     render(<AppShell crumbs={[{ label: "Pacientes" }]}><p>x</p></AppShell>);
     const barra = screen.getByRole("navigation", { name: "Secciones" });
     expect(within(barra).getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
-    // La barra superior aún lo repite hasta que la tarea 2 se lo quite.
+    // Y la barra superior ya no lo repite.
+    expect(within(screen.getByRole("banner")).queryByRole("button", { name: /Cerrar sesión/ })).toBeNull();
   });
 });

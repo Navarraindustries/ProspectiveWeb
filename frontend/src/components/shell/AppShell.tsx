@@ -1,6 +1,6 @@
 /* AppShell (shell C, F2): la única carcasa de las pantallas de gestión.
 
-   Barra lateral de iconos a la izquierda, barra superior de 48 px con la miga
+   Barra lateral de iconos a la izquierda, barra superior de 56 px con la miga
    y las acciones del contexto, y el contenido sobre `--canvas`. Cada pantalla
    se envuelve a sí misma (`<AppShell crumbs actions>…</AppShell>`) para que la
    acción viva junto al estado que la habilita. El espacio de trabajo no la usa
@@ -13,8 +13,11 @@ import type { Crumb } from "./TopBar";
 import { useShellState } from "./useShellState";
 import "./shell.css";
 
-export function AppShell({ crumbs, actions, children }: {
+export function AppShell({ crumbs, subtitle, status, actions, children }: {
   crumbs?: Crumb[];
+  subtitle?: ReactNode;
+  /** Hueco antes de las acciones (estado de guardado del pipeline, fase 3). */
+  status?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
 }) {
@@ -27,7 +30,7 @@ export function AppShell({ crumbs, actions, children }: {
     <div className="shell" data-pinned={state.pinned ? "true" : "false"}>
       <SideNav state={state} />
       <div className="shell-body">
-        <TopBar crumbs={crumbs} actions={actions} />
+        <TopBar crumbs={crumbs} subtitle={subtitle} status={status} actions={actions} />
         <main className="shell-main">{children}</main>
       </div>
     </div>

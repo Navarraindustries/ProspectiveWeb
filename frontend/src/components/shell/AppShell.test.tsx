@@ -1,6 +1,9 @@
 /* Shell C (F2): una sola barra lateral para todo; el administrador ve su
    grupo, el médico no; Alt+B pliega y despliega sin robar el foco. */
-import { fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import type { ComponentProps } from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = { user: { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" } as { role: string; [k: string]: unknown } | null };
@@ -11,6 +14,11 @@ vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "dark", t
 vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([{ id: 9 }, { id: 10 }]) } }));
 
 import { AppShell } from "./AppShell";
+
+/** Pinta el shell con un hijo mínimo; las props son las del propio AppShell. */
+function renderShell(props: Omit<ComponentProps<typeof AppShell>, "children">) {
+  return render(<AppShell {...props}><p>contenido</p></AppShell>);
+}
 
 beforeEach(() => { localStorage.clear(); localStorage.setItem("shell.sidebar", "collapsed"); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
 
@@ -55,5 +63,20 @@ describe("AppShell", () => {
     expect(screen.getByText("segura, Juan")).toBeTruthy();
     expect(screen.queryByText("Administración")).toBeNull();
     expect(screen.getByRole("button", { name: "Nuevo caso" })).toBeTruthy();
+  });
+  it("la barra superior lleva subtítulo, acciones, tema y avatar, y no «Cerrar sesión»", () => {
+    renderShell({ crumbs: [{ label: "Pacientes" }], subtitle: "14 pacientes", actions: <button>Nuevo caso</button> });
+    const header = screen.getByRole("banner");
+    expect(within(header).getByText("14 pacientes")).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "Nuevo caso" })).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: /tema/i })).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "Menú de usuario" })).toBeInTheDocument();
+    expect(within(header).queryByText("Cerrar sesión")).toBeNull();
+  });
+  it("la altura de la barra sale del CSS: la clase es shell-top y mide 56 px", () => {
+    renderShell({ crumbs: [{ label: "Pacientes" }] });
+    expect(screen.getByRole("banner")).toHaveClass("shell-top");
+    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
+    expect(css).toMatch(/\.shell-top\s*\{[^}]*height:\s*56px/);
   });
 });

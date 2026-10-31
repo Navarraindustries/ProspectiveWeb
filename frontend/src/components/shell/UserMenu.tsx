@@ -1,5 +1,5 @@
-/* Menú de usuario del shell (F2): el avatar, abajo en la barra lateral, abre
-   un menú en vidrio con la cuenta y lo que permite (F1-106, F1-251):
+/* Menú de usuario del shell (F2): el avatar, arriba en la barra superior, abre
+   un menú bajo él con la cuenta y lo que permite (F1-106, F1-251):
    nombre completo, @usuario · rol, institución si la hay, la línea del rol,
    «Cambiar contraseña» y «Cerrar sesión».
 

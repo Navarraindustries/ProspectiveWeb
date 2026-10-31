@@ -1,6 +1,6 @@
-/* Barra superior del shell (F2): 48 px en vidrio con la miga de pan a la
-   izquierda y, a la derecha, las acciones que declara la pantalla y, siempre,
-   «Cerrar sesión» (el menú del avatar no se encontraba).
+/* Barra superior del shell (F2): 56 px en vidrio con la miga de pan y el
+   subtítulo a la izquierda y, a la derecha, el estado, las acciones que declara
+   la pantalla, el tema y el avatar-menú. «Cerrar sesión» vive en la barra lateral.
 
    La miga solo lleva destinos reales («Pacientes / segura, Juan», «Usuarios»):
    «Administración» no es una pantalla y no aparece; ese rótulo vive en el grupo
@@ -9,7 +9,8 @@
 
 import type { ReactNode } from "react";
 import { Icon } from "../Icon";
-import { LogoutButton } from "./LogoutButton";
+import { ThemeToggle } from "../ThemeToggle";
+import { UserMenu } from "./UserMenu";
 
 /** Un segmento de la miga: rótulo y, si lleva destino, adónde va. */
 export interface Crumb {
@@ -17,7 +18,12 @@ export interface Crumb {
   onClick?: () => void;
 }
 
-export function TopBar({ crumbs, actions }: { crumbs?: Crumb[]; actions?: ReactNode }) {
+export function TopBar({ crumbs, subtitle, status, actions }: {
+  crumbs?: Crumb[];
+  subtitle?: ReactNode;
+  status?: ReactNode;
+  actions?: ReactNode;
+}) {
   return (
     <header className="shell-top">
       {crumbs && crumbs.length > 0 && (
@@ -47,9 +53,12 @@ export function TopBar({ crumbs, actions }: { crumbs?: Crumb[]; actions?: ReactN
           </ol>
         </nav>
       )}
+      {subtitle && <span className="shell-subtitle">{subtitle}</span>}
       <div className="shell-actions">
+        {status}
         {actions}
-        <LogoutButton />
+        <ThemeToggle size="sm" />
+        <UserMenu />
       </div>
     </header>
   );

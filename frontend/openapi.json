@@ -6977,11 +6977,47 @@
       "title": "Is Shared With Me",
       "type": "boolean"
      },
+     "last_capture_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Captura PNG más reciente del paciente, de cualquier caso",
+      "title": "Last Capture Id"
+     },
      "last_case_label": {
       "default": "",
       "description": "Diagnóstico del caso más reciente; vacío si no hay casos",
       "title": "Last Case Label",
       "type": "string"
+     },
+     "last_imaging_study_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Estudio de imagen más reciente con miniatura, para la vista previa",
+      "title": "Last Imaging Study Id"
+     },
+     "last_risk_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Riesgo de rotura de la última sesión; vacío si esa sesión no lo calculó",
+      "title": "Last Risk Label"
      },
      "last_session_at": {
       "anyOf": [

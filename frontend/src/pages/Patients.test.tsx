@@ -83,7 +83,7 @@ const renderAt = (url: string) =>
 const fila = (o: Partial<PatientSummary> & { id: number; full_name: string }): PatientSummary => ({
   hospital_id: `HC-${o.id}`, sex: "F", dob: "", institution: "", study_count: 0,
   created_at: "2026-10-01T00:00:00", owner_id: 1, shared_with_count: 0, is_shared_with_me: false,
-  last_session_at: null, last_session_step: null, last_session_id: null, last_case_label: "",
+  last_session_at: null, last_session_step: null, last_session_id: null, last_case_label: "", last_risk_label: null, last_capture_id: null, last_imaging_study_id: null,
   ...o,
 });
 

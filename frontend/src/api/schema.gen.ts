@@ -7495,11 +7495,26 @@ export interface components {
              */
             is_shared_with_me: boolean;
             /**
+             * Last Capture Id
+             * @description Captura PNG más reciente del paciente, de cualquier caso
+             */
+            last_capture_id?: number | null;
+            /**
              * Last Case Label
              * @description Diagnóstico del caso más reciente; vacío si no hay casos
              * @default
              */
             last_case_label: string;
+            /**
+             * Last Imaging Study Id
+             * @description Estudio de imagen más reciente con miniatura, para la vista previa
+             */
+            last_imaging_study_id?: number | null;
+            /**
+             * Last Risk Label
+             * @description Riesgo de rotura de la última sesión; vacío si esa sesión no lo calculó
+             */
+            last_risk_label?: string | null;
             /**
              * Last Session At
              * @description Última vez que se guardó una sesión del paciente

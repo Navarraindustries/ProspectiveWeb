@@ -59,7 +59,7 @@ const resumen = (o: Partial<PatientSummary> = {}): PatientSummary => ({
   id: 2, full_name: "Segura, Juan", hospital_id: "HC-2", dob: "1999-09-16", sex: "M", institution: "",
   study_count: 0, created_at: "2026-10-01T00:00:00", owner_id: 1, shared_with_count: 0,
   is_shared_with_me: false, last_session_at: null, last_session_step: null, last_session_id: null,
-  last_case_label: "", ...o,
+  last_case_label: "", last_risk_label: null, last_capture_id: null, last_imaging_study_id: null, ...o,
 });
 const caso = (o: Partial<StudySummary> & { id: number }): StudySummary => ({
   patient_id: 2, dicom_path: "", modality: "", description: "", acquired_at: "", session_count: 0,

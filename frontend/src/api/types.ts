@@ -230,6 +230,12 @@ export interface PatientSummary {
   last_session_id: string | null;
   /** Diagnóstico del caso más reciente; "" si no tiene casos. */
   last_case_label: string;
+  /** Riesgo de rotura de esa misma sesión; null si no lo calculó. Solo la lista lo rellena. */
+  last_risk_label: string | null;
+  /** Captura PNG más reciente del paciente, de cualquier caso; null si no hay. */
+  last_capture_id: number | null;
+  /** Estudio de imagen más reciente con miniatura, para la vista previa; null si no hay. */
+  last_imaging_study_id: number | null;
 }
 
 /** Una cuenta con la que está compartido un paciente. */

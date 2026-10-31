@@ -24,7 +24,8 @@ from services.auth_service import get_current_user
 from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, ACT_PATIENT_SHARED,
                             audit_append, audit_patient)
 from services.sessions import size_of_row
-from services.db_models import Patient, PatientShare, PlanningSession, Study, User
+from services.db_models import (CaseCapture, ImagingStudy, Patient, PatientShare,
+                                PlanningSession, Study, User)
 
 # Patient demographic + history fields copied on create / update.
 _PATIENT_FIELDS = (
@@ -55,7 +56,9 @@ router = APIRouter(prefix="/api/patients", tags=["patients"])
 def _patient_to_summary(p: Patient, shared_with_count: int | None = None,
                         is_shared_with_me: bool = False, study_count: int | None = None,
                         last_session: PlanningSession | None = None,
-                        last_case_label: str = "") -> PatientSummary:
+                        last_case_label: str = "",
+                        last_capture_id: int | None = None,
+                        last_imaging_study_id: int | None = None) -> PatientSummary:
     # La lista pasa los recuentos y la última actividad ya calculados (consultas
     # agrupadas, no una por paciente); crear, editar o adjuntar devuelven UN
     # paciente, lo cuentan aquí y dejan vacía la última actividad, que solo
@@ -81,6 +84,10 @@ def _patient_to_summary(p: Patient, shared_with_count: int | None = None,
         last_session_step=last_session.current_step if last_session else None,
         last_session_id=last_session.session_id if last_session else None,
         last_case_label=last_case_label,
+        # El riesgo es el de la misma sesión que el paso: no se hereda de otra anterior.
+        last_risk_label=last_session.rupture_risk_label if last_session else None,
+        last_capture_id=last_capture_id,
+        last_imaging_study_id=last_imaging_study_id,
     )
 
 
@@ -156,6 +163,19 @@ async def list_patients(
         n_casos = n_casos.filter(Study.patient_id.in_(visibles))
         ult_ses = ult_ses.filter(PlanningSession.patient_id.in_(visibles))
         ult_caso = ult_caso.filter(Study.patient_id.in_(visibles))
+    # Captura PNG (no vídeo) y estudio con miniatura más recientes, de cualquier
+    # caso: la tarjeta del panel los enseña sin abrir la ficha.
+    ult_cap = (db.query(CaseCapture.patient_id.label("pid"),
+                        func.max(CaseCapture.created_at).label("at"))
+               .filter(CaseCapture.patient_id.isnot(None), CaseCapture.media_type == "image/png"))
+    ult_img = (db.query(ImagingStudy.patient_id.label("pid"),
+                        func.max(ImagingStudy.created_at).label("at"))
+               .filter(ImagingStudy.thumb_key != ""))
+    if visibles is not None:
+        ult_cap = ult_cap.filter(CaseCapture.patient_id.in_(visibles))
+        ult_img = ult_img.filter(ImagingStudy.patient_id.in_(visibles))
+    ult_cap = ult_cap.group_by(CaseCapture.patient_id).subquery()
+    ult_img = ult_img.group_by(ImagingStudy.patient_id).subquery()
     studies_by_patient = dict(n_casos.group_by(Study.patient_id).all())
     ult_ses = ult_ses.group_by(PlanningSession.patient_id).subquery()
     ult_caso = ult_caso.group_by(Study.patient_id).subquery()
@@ -174,6 +194,20 @@ async def list_patients(
                           & (Study.created_at == ult_caso.c.at))
                     .order_by(Study.id)):
         last_case[pid] = dx or ""
+    last_capture: dict[int, int] = {}
+    for pid, cid in (db.query(CaseCapture.patient_id, CaseCapture.id)
+                     .join(ult_cap, (CaseCapture.patient_id == ult_cap.c.pid)
+                           & (CaseCapture.created_at == ult_cap.c.at)
+                           & (CaseCapture.media_type == "image/png"))
+                     .order_by(CaseCapture.id)):
+        last_capture[pid] = cid
+    last_image: dict[int, int] = {}
+    for pid, iid in (db.query(ImagingStudy.patient_id, ImagingStudy.id)
+                     .join(ult_img, (ImagingStudy.patient_id == ult_img.c.pid)
+                           & (ImagingStudy.created_at == ult_img.c.at)
+                           & (ImagingStudy.thumb_key != ""))
+                     .order_by(ImagingStudy.id)):
+        last_image[pid] = iid
 
     return [
         _patient_to_summary(
@@ -184,6 +218,8 @@ async def list_patients(
             study_count=studies_by_patient.get(p.id, 0),
             last_session=last_session.get(p.id),
             last_case_label=last_case.get(p.id, ""),
+            last_capture_id=last_capture.get(p.id),
+            last_imaging_study_id=last_image.get(p.id),
         )
         for p in patients
     ]

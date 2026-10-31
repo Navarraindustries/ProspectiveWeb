@@ -59,6 +59,11 @@ class PatientSummary(BaseModel):
     last_session_step: int | None = Field(None, description="Paso en que quedó esa sesión")
     last_session_id: str | None = Field(None, description="Sesión guardada más reciente, para reanudarla")
     last_case_label: str = Field("", description="Diagnóstico del caso más reciente; vacío si no hay casos")
+    # Panel de pacientes: la tarjeta enseña el riesgo, una captura y una vista
+    # previa. Solo la lista los rellena, igual que los last_session_*.
+    last_risk_label: str | None = Field(None, description="Riesgo de rotura de la última sesión; vacío si esa sesión no lo calculó")
+    last_capture_id: int | None = Field(None, description="Captura PNG más reciente del paciente, de cualquier caso")
+    last_imaging_study_id: int | None = Field(None, description="Estudio de imagen más reciente con miniatura, para la vista previa")
 
 
 class PatientShareOut(BaseModel):

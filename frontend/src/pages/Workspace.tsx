@@ -5,12 +5,13 @@ import { AttachCaseSheet } from "../components/AttachCaseSheet";
 import type { AttachResult } from "../api/types";
 import { api } from "../api/client";
 import type { PatientSummary } from "../api/types";
-import { Badge, riskVariant } from "../components/Badge";
+import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
 import { Topbar } from "../components/Topbar";
-import { SectionLabel, Card, Collapsible } from "../components/PanelHead";
+import { StepRail } from "../components/stepper/StepRail";
+import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
 import { SegmentPanel } from "../components/segmentation/SegmentPanel";
 import { DetectPanel } from "../components/planning/DetectPanel";
@@ -495,89 +496,14 @@ export function Workspace({
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {/* Rail de flujo — ancho fluido; en pantallas estrechas colapsa a iconos
             y bajo 820px se oculta (ver styles/responsive.css). */}
-        <div className="ws-rail" style={{ width: "clamp(176px, 15vw, 232px)", flexShrink: 0, background: "var(--background)", borderRight: "1px solid var(--border)", padding: "18px 12px", overflowY: "auto" }}>
-          <div title={`Atajos: 1–${STEPS.length} para cambiar de paso · Esc cancela el marcado`}>
-            <SectionLabel className="ws-rail-label" style={{ margin: "0 6px 14px" }}>
-              Flujo de planificación
-            </SectionLabel>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {STEPS.map((s, i) => {
-              const active = i === stepIdx;
-              const missing = missingFor(i, planning);
-              const done = !missing && i < stepIdx;
-              // Never lock the step the user is standing on — that would strand a
-              // resumed session whose replay came back empty.
-              const locked = !active && !!missing;
-              return (
-                <button
-                  key={s.key}
-                  disabled={locked}
-                  title={missing ?? s.label}
-                  onClick={() => !locked && go(i)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 11,
-                    padding: "9px 10px",
-                    borderRadius: "var(--radius-md)",
-                    border: "none",
-                    textAlign: "left",
-                    fontFamily: "var(--font-sans)",
-                    cursor: locked ? "not-allowed" : "pointer",
-                    background: active ? "var(--brand-subtle)" : "transparent",
-                    color: active
-                      ? "var(--brand-subtle-foreground)"
-                      : locked
-                        ? "var(--muted-foreground)"
-                        : "var(--foreground)",
-                    opacity: locked ? 0.5 : 1,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: active ? "var(--brand-deep)" : done ? "var(--success-bg)" : "var(--muted)",
-                      color: active ? "#fff" : done ? "var(--success)" : "var(--muted-foreground)",
-                    }}
-                  >
-                    {done ? <Icon name="STATUS_OK" size={13} /> : i + 1}
-                  </span>
-                  <div className="ws-rail-label" style={{ flex: 1, minWidth: 0 }}>
-                    <div className="truncate" style={{ fontSize: 13, fontWeight: active ? 700 : 500 }}>{s.label}</div>
-                    {s.optional && (
-                      <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>opcional</div>
-                    )}
-                  </div>
-                  <Icon name={s.icon} size={14} color={active ? "var(--brand-subtle-foreground)" : "var(--muted-foreground)"} />
-                </button>
-              );
-            })}
-          </div>
-
-          {patient && (
-            <Card className="ws-patient-card" style={{ marginTop: 22, padding: "12px 12px" }}>
-              <SectionLabel style={{ marginBottom: 6 }}>Paciente</SectionLabel>
-              <div className="truncate" style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>{patient.full_name}</div>
-              <div className="truncate" style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                {patient.hospital_id || "—"} · {patient.sex || "—"}
-              </div>
-              {morphometry && (
-                <div style={{ marginTop: 8 }}>
-                  <Badge variant={riskVariant(morphometry.rupture_risk_label)}>{morphometry.rupture_risk_label}</Badge>
-                </div>
-              )}
-            </Card>
-          )}
-        </div>
+        <StepRail
+          steps={STEPS}
+          activeIndex={stepIdx}
+          missingFor={(i) => missingFor(i, planning)}
+          onGo={go}
+          patient={patient}
+          riskLabel={morphometry?.rupture_risk_label ?? null}
+        />
 
         {/* Visor central */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>

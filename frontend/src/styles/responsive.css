@@ -36,6 +36,7 @@ html, body, #root {
 
 /* ── Workspace: el rail se estrecha y oculta textos; luego se oculta ────── */
 @media (max-width: 1024px) {
+  .ws-rail-progress { display: none; }
   .ws-rail { width: 62px !important; padding-left: 6px !important; padding-right: 6px !important; }
   .ws-rail .ws-rail-label { display: none !important; }
   .ws-rail .ws-patient-card { display: none !important; }

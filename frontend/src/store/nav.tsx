@@ -1,4 +1,4 @@
-/* Navigation context — lets any component (e.g. the Topbar) change the active
+/* Navigation context — lets any component (e.g. the top bar) change the active
    screen without prop-drilling.
 
    Every screen has a URL under /app. Before this the active screen lived in a

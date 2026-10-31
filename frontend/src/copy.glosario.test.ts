@@ -31,12 +31,12 @@ function sinComentarios(src: string): string {
 }
 
 /* Pantallas y componentes con rótulos de navegación. La lista de componentes es
-   explícita: el menú de usuario (Topbar) nombraba «Solicitudes de registro» y
+   explícita: el menú de usuario (barra superior) nombraba «Solicitudes de registro» y
    ninguna regla lo miraba. */
 const archivos = [
   ...tsx(join(SRC, "pages")),
   /* Los textos compartidos de `lib/` también se pintan (la línea del rol del
-     administrador, en Topbar y Usuarios, decía «solicitudes» y esta prueba no
+     administrador, en la barra superior y Usuarios, decía «solicitudes» y esta prueba no
      la miraba porque vivía en roles.ts). */
   ...tsx(join(SRC, "lib"), ".ts"),
   /* Todos los componentes: el shell (barra lateral, menú de usuario, secciones)

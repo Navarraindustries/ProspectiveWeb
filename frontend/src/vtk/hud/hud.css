@@ -43,7 +43,7 @@
 /* Con la escalera de cortes (44 px en el borde derecho, índice centrado y
    opaco) la etiqueta derecha quedaba debajo del índice: va a su izquierda. */
 .hud-edge.right.beside-ladder { right: 48px; }
-.hud-warn { color: var(--warning); } .hud-err { color: var(--destructive); }
+.hud-warn { color: var(--hud-amber); } .hud-err { color: var(--hud-red); }
 /* Arriba y sin recibir clics: abajo tapaba la barra de cine y los botones.
    top 36 y no 24: a 24 pisaba la cinta de rumbo de VOLUMEN (top 22) y la
    letra de borde superior («INF»). */
@@ -101,5 +101,5 @@
 .viewer-cell--over { outline: 1px solid var(--primary); outline-offset: -1px; }
 .viewer-handle { position: absolute; top: 0; left: 0; right: 0; height: 14px; cursor: grab; touch-action: none; z-index: 7; }
 .viewer-handle:active { cursor: grabbing; }
-.viewer-splitter { background: var(--primary); }
-.viewer-splitter:hover { background: var(--primary); opacity: .6; }
+.viewer-splitter { background: var(--primary); opacity: .5; }
+.viewer-splitter:hover { background: var(--primary); opacity: 1; }

@@ -343,7 +343,7 @@ export function Workspace({
             size="sm"
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
-              title={patient
+            title={patient
               ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos"
               : "Liga esta sesión a un paciente y un caso y archiva su DICOM"}
           >
@@ -500,7 +500,7 @@ export function Workspace({
         {/* Panel del paso — 380 px; 520 en Decisión e Informe; plegable con P. */}
         <RightPanelColumn
           collapsed={columnCollapsed}
-          onToggle={() => setPanelCollapsed(false)}
+          onToggle={() => setPanelCollapsed(!columnCollapsed)}
           stepLabel={STEPS[stepIdx].label}
           stepKey={step}
           wide={step === "treatment" || step === "report"}

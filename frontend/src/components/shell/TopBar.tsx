@@ -1,6 +1,7 @@
 /* Barra superior del shell (F2): 56 px en vidrio con la miga de pan y el
    subtítulo a la izquierda y, a la derecha, el estado, las acciones que declara
-   la pantalla, el tema y el avatar-menú. «Cerrar sesión» vive en la barra lateral.
+   la pantalla, el tema y el avatar-menú. «Cerrar sesión» vive en la barra lateral y también
+   en el menú del avatar.
 
    La miga solo lleva destinos reales («Pacientes / segura, Juan», «Usuarios»):
    «Administración» no es una pantalla y no aparece; ese rótulo vive en el grupo

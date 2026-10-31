@@ -9,7 +9,7 @@ describe("texto del HUD", () => {
     expect(css).not.toMatch(/var\(--hud\)/);
     expect(css).not.toMatch(/var\(--hud-dim\)/);
     expect(css).toMatch(/\.hud\s*\{[^}]*color:\s*var\(--hud-text\)/);
-    expect(css).toMatch(/\.hud-warn\s*\{[^}]*var\(--warning\)/);
+    expect(css).toMatch(/\.hud-warn\s*\{[^}]*var\(--hud-amber\)/);
   });
   it("los tokens de texto del HUD existen en los dos temas", () => {
     const colors = readFileSync(resolve(__dirname, "../styles/tokens/colors.css"), "utf8");

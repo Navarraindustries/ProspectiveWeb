@@ -39,6 +39,14 @@ describe("UserMenu", () => {
     expect(screen.getByText("Administrador: todos los pacientes, usuarios, cuentas pendientes, auditoría y catálogo de clips")).toBeInTheDocument();
   });
 
+  it("médico: institución y línea del rol propias", () => {
+    user = { ...base, role: "medico", institution: "Clínica Universidad de Navarra" };
+    abrir();
+    expect(screen.getByText("@admin · Médico")).toBeInTheDocument();
+    expect(screen.getByText("Clínica Universidad de Navarra")).toBeInTheDocument();
+    expect(screen.getByText("Médico: ves y editas los pacientes que creas; firmas pedidos")).toBeInTheDocument();
+  });
+
   it("sin institución no deja una línea vacía", () => {
     user = { ...base, role: "medico", institution: "" };
     abrir();

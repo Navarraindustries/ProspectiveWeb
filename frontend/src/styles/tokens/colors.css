@@ -187,8 +187,8 @@
   --hud-red:    #FF5A5A;
   --hud-line:   1px;
   /* Texto DOM del HUD: mono sobre tokens de datos; --hud* de arriba siguen para actores y captura */
-  --hud-text:     var(--data);
-  --hud-text-dim: var(--muted-foreground);
+  --hud-text:     #8CBBFF; /* el visor es negro en los dos temas: azul claro (≥ 4,5:1 sobre negro) */
+  --hud-text-dim: #9AA3AF;
 
   color-scheme: light;
 }

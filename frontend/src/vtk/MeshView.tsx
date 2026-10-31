@@ -162,6 +162,9 @@ export interface MeshLine {
   /** Multiplica el grosor de regla por defecto (sin `radiusMm`): la anotación
    *  seleccionada destaca sin que el visor tenga que saber la escala de la escena. */
   scale?: number;
+  /** Esferas («perlas») en los dos extremos. Por defecto sí, como siempre; el dial de
+   *  medida las apaga porque son cientos de líneas cortas y las perlas lo ensuciarían. */
+  beads?: boolean;
 }
 
 /** Rótulo en pantalla anclado a un punto de la escena (mm). */
@@ -440,7 +443,7 @@ export function MeshView({
   const focusKey = focus ? `${focus.pos.join(",")}|${focus.color.join(",")}|${focus.radiusMm}` : "";
   const planeKey = planes.map((p) => p.corners.flat().join(",") + "|" + p.color.join(",")).join(";");
   const lineKey = lines
-    .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}|${l.scale ?? 1}`)
+    .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}|${l.scale ?? 1}|${l.beads === false ? 0 : 1}`)
     .join(";");
   const handleKey = handleList
     .map((g) => `${g.id}|${g.kind}|${g.pos.join(",")}|${g.normal?.join(",") ?? ""}|${g.radiusMm}|${g.color.join(",")}|${g.lineTo?.join(",") ?? ""}`)
@@ -1045,8 +1048,8 @@ export function MeshView({
       if (l.opacity !== undefined) actor.getProperty().setOpacity(l.opacity);
       h.renderer.addActor(actor);
       markerActors.current.push(actor);
-      // Endpoint beads for the ruler.
-      for (const p of [l.a, l.b]) {
+      // Endpoint beads for the ruler (salvo `beads: false`).
+      for (const p of l.beads === false ? [] : [l.a, l.b]) {
         const bead = vtkSphereSource.newInstance({
           radius: rMarker * RULER_BEAD_RATIO, thetaResolution: 12, phiResolution: 12,
         });

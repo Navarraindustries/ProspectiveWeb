@@ -1,6 +1,6 @@
 /* PROSPECTIVE Web — root: splash → Login/Signup → Pacientes → Sesión → administración.
    Las pantallas de gestión se envuelven cada una en el shell (barra lateral y
-   superior, components/shell); el espacio de trabajo conserva su Topbar en F2. */
+   superior, components/shell); el espacio de trabajo conserva su barra superior propia. */
 
 import { ForcePasswordChange } from "./components/ForcePasswordChange";
 import { useCallback, useEffect, useState } from "react";

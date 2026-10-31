@@ -100,15 +100,18 @@ html, body, #root {
   min-height: 0;
   height: 100%;
   overflow-y: auto;
-  padding: 20px 18px 24px;
+  padding: 20px 18px 0;
 }
+/* Aire final bajo el pie, dentro del cuerpo: el pie no necesita margen negativo abajo. */
+.ws-panel-body::after { content: ""; display: block; height: 24px; }
+.ws-panel-body .fade-rise { animation: none; } /* una sola entrada: la de panelSwap */
 .ws-panel-footer {
   position: sticky;
   bottom: 0;
   background: var(--background);
   border-top: 1px solid var(--border);
   padding: 12px 18px;
-  margin: 0 -18px -24px;
+  margin: 16px -18px 0;
 }
 
 /* Resultado en dos columnas (p. ej. Decisión): una sola fuera del panel ancho. */

@@ -486,7 +486,7 @@ describe("el resultado en dos columnas", () => {
   afterEach(() => { morpho = { max_diameter_mm: 7 }; });
 
   it("riesgo y geometría en columnas y la vía debajo, a todo el ancho", () => {
-    morpho = { max_diameter_mm: 7, neck_mm: 4.1, dome_height_mm: 6, dnr: 1.5 };
+    morpho = { max_diameter_mm: 7, neck_mm: 4.1, dome_height_mm: 6, dnr: 1.5, reliable: true };
     stored = {
       ...RESULT,
       jsdb: {

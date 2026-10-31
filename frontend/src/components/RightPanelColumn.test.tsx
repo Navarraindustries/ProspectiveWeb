@@ -11,9 +11,12 @@ describe("RightPanelColumn", () => {
     expect(col.style.width).toBe("520px");
   });
 
-  it("plegado conserva el contenido montado al cambiar de paso", () => {
+  it("plegado conserva el contenido montado al cambiar de paso", async () => {
     const { rerender } = render(<RightPanelColumn collapsed onToggle={() => {}} stepLabel="A" stepKey="a" wide={false}><input aria-label="nota" defaultValue="x" /></RightPanelColumn>);
-    rerender(<RightPanelColumn collapsed onToggle={() => {}} stepLabel="A" stepKey="a" wide={false}><input aria-label="nota" defaultValue="x" /></RightPanelColumn>);
+    // El paso cambia de verdad: el contenido nuevo aparece aunque siga plegado.
+    rerender(<RightPanelColumn collapsed onToggle={() => {}} stepLabel="B" stepKey="b" wide={false}><input aria-label="nota" defaultValue="x" /><p>contenido nuevo</p></RightPanelColumn>);
+    // El cruce es «wait»: el contenido nuevo entra cuando acaba la salida del anterior.
+    expect(await screen.findByText("contenido nuevo")).toBeTruthy();
     expect((screen.getByLabelText("nota") as HTMLInputElement).value).toBe("x");
     expect((document.querySelector("[data-panel-column]") as HTMLElement).style.display).toBe("none");
   });

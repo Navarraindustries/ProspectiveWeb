@@ -4,7 +4,7 @@
    y las acciones del contexto, y el contenido sobre `--canvas`. Cada pantalla
    se envuelve a sí misma (`<AppShell crumbs actions>…</AppShell>`) para que la
    acción viva junto al estado que la habilita. El espacio de trabajo no la usa
-   en F2: conserva su Topbar y su carril. */
+   en F2: conserva su barra superior y su carril. */
 
 import type { ReactNode } from "react";
 import { SideNav } from "./SideNav";

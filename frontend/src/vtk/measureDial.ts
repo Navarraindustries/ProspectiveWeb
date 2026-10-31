@@ -34,7 +34,7 @@ export function measureDial(
     center[2] + r * (u[2] * Math.cos(t) + v[2] * Math.sin(t)),
   ];
   const out: MeshLine[] = [];
-  const line = (a: Vec3, b: Vec3): MeshLine => ({ a, b, color: DIAL_COLOR, radiusMm: DIAL_LINE_RADIUS_MM });
+  const line = (a: Vec3, b: Vec3): MeshLine => ({ a, b, color: DIAL_COLOR, radiusMm: DIAL_LINE_RADIUS_MM, beads: false });
 
   // Arco: tantos segmentos como cubra el progreso; el último, truncado.
   const covered = p * segments;

@@ -442,7 +442,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                     mismo: con una sola bandera combinada, un cuello perfectamente
                     medido se ocultaba en cuanto fallaba el volumen — mientras el
                     visor, que no consulta la bandera, seguía anotándolo en 3D. */}
-                <Metric label="Ø máximo" value={<Odometro value={m.max_diameter_mm} decimals={1} sep="." />} unit=" mm"
+                <Metric label="Ø máximo" value={(m.reliable ? <Odometro value={m.max_diameter_mm} decimals={1} sep="." /> : m.max_diameter_mm.toFixed(1))} unit=" mm"
                         badge={provisional ? ["provisional", "warning"] : undefined} />
                 {avisoCorte && (
                   <div style={{ fontSize: 11, lineHeight: 1.5, color: "var(--warning)", margin: "4px 0 6px" }}>
@@ -452,15 +452,15 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 {/* El mismo Ø sin ramas finas pegadas al saco: si se separa del de
                     arriba, el aviso explica por qué (services/sac_body.py). */}
                 {m.body_max_diameter_mm != null && (
-                  <Metric label="Ø máximo del cuerpo (sin ramas finas)" value={<Odometro value={m.body_max_diameter_mm} decimals={1} sep="." />} unit=" mm" />
+                  <Metric label="Ø máximo del cuerpo (sin ramas finas)" value={(m.reliable ? <Odometro value={m.body_max_diameter_mm} decimals={1} sep="." /> : m.body_max_diameter_mm.toFixed(1))} unit=" mm" />
                 )}
-                <Metric label="Cuello" value={neckOk ? <Odometro value={m.neck_mm} decimals={1} sep="." /> : "—"} unit={neckOk ? " mm" : ""} />
-                <Metric label="Altura de domo" value={neckOk ? <Odometro value={m.dome_height_mm} decimals={1} sep="." /> : "—"} unit={neckOk ? " mm" : ""} />
-                <Metric label="Volumen" value={volOk ? <Odometro value={m.volume_mm3} decimals={1} sep="." /> : "—"} unit={volOk ? " mm³" : ""}
+                <Metric label="Cuello" value={neckOk ? (m.reliable ? <Odometro value={m.neck_mm} decimals={1} sep="." /> : m.neck_mm.toFixed(1)) : "—"} unit={neckOk ? " mm" : ""} />
+                <Metric label="Altura de domo" value={neckOk ? (m.reliable ? <Odometro value={m.dome_height_mm} decimals={1} sep="." /> : m.dome_height_mm.toFixed(1)) : "—"} unit={neckOk ? " mm" : ""} />
+                <Metric label="Volumen" value={volOk ? (m.reliable ? <Odometro value={m.volume_mm3} decimals={1} sep="." /> : m.volume_mm3.toFixed(1)) : "—"} unit={volOk ? " mm³" : ""}
                         badge={provisional && volOk ? ["provisional", "warning"] : undefined} />
                 {/* F1-159: con la malla abierta el área es la del parche, no la del
                     saco, igual que el volumen: «—» como el resto del grupo. */}
-                <Metric label="Área superficie" value={volOk ? <Odometro value={m.surface_area_mm2} decimals={1} sep="." /> : "—"} unit={volOk ? " mm²" : ""} />
+                <Metric label="Área superficie" value={volOk ? (m.reliable ? <Odometro value={m.surface_area_mm2} decimals={1} sep="." /> : m.surface_area_mm2.toFixed(1)) : "—"} unit={volOk ? " mm²" : ""} />
                 {/* F1-160/161/162: un corte por índice, el mismo que la etiqueta de
                     riesgo y Decisión (thresholds.ts), con su fuente en el tooltip.
                     El BF decía «Cuello ancho» justo con el cuello estrecho. */}

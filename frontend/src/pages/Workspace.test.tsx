@@ -186,3 +186,18 @@ describe("guardado prestado al aviso de salida", () => {
     expect(ok).toBe(false);
   });
 });
+
+describe("pestaña de plegado del panel", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+
+  it("un clic en «Plegar el panel del paso (P)» oculta la columna", () => {
+    montar();
+    const col = document.querySelector("[data-panel-column]") as HTMLElement;
+    expect(col.style.display).not.toBe("none");
+    fireEvent.click(screen.getByRole("button", { name: "Plegar el panel del paso (P)" }));
+    expect((document.querySelector("[data-panel-column]") as HTMLElement).style.display).toBe("none");
+  });
+});

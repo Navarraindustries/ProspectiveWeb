@@ -45,7 +45,7 @@ export function SegmentProgress({
   }, [state?.phase]);
   // Fases vistas, en orden, con su último mensaje, y cuándo empezó la pasada.
   // Se derivan en render con el patrón de «estado derivado» (setState durante
-  // el render contra el estado previo): es puro y no le afecta el doble
+  // el render contra el estado previo): es determinista salvo por Date.now() y no le afecta el doble
   // render de StrictMode, y la lista sale al día en el mismo commit.
   const [track, setTrack] = useState<Track>(EMPTY_TRACK);
   const next = advance(track, state);
@@ -86,7 +86,7 @@ export function SegmentProgress({
                   <span
                     style={{
                       width: 6, height: 6, borderRadius: "50%", background: "var(--primary)",
-                      animation: "pulse 1.2s ease-in-out infinite",
+                      animation: "ws-pulse 1.2s ease-in-out infinite",
                     }}
                   />
                 ) : (

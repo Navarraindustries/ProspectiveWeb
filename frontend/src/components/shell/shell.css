@@ -492,11 +492,7 @@
 }
 .ws-save-status[data-state="dirty"] .ws-save-dot { background: var(--warning); }
 .ws-save-status[data-state="saved"] .ws-save-dot { background: var(--success); }
-.ws-save-status[data-state="saving"] .ws-save-dot { animation: pulse 1.2s ease-in-out infinite; }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
+.ws-save-status[data-state="saving"] .ws-save-dot { animation: ws-pulse 1.2s ease-in-out infinite; }
 
 /* ── Pestaña de plegado en el borde del panel del paso ──────────────────── */
 .ws-panel-fold {

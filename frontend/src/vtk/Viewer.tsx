@@ -1155,17 +1155,20 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // reducido se enciende todo de golpe. El rAF se cancela al limpiar.
   // La secuencia corre una vez por lista: volver al paso con la misma lista
   // la deja encendida del todo (`litListRef` recuerda la última lista completada).
-  const [lit, setLit] = useState(0);
+  // El progreso viaja con la lista a la que pertenece: una lista nueva no sale
+  // encendida con el `lit` de la anterior (se lee 0 hasta que el efecto la toma).
+  const [litState, setLitState] = useState<{ list: AneurysmCandidate[] | null; k: number }>({ list: null, k: 0 });
+  const lit = litState.list === allCandidates ? litState.k : 0;
   const litListRef = useRef<AneurysmCandidate[] | null>(null);
   useEffect(() => {
     const n = allCandidates.length;
     // Fuera de Detección los marcadores no se añaden, no hace falta tocar `lit`.
     if (step !== "detect" || n === 0) return;
-    if (!shouldReplay(litListRef.current, allCandidates)) { setLit(n); return; }
+    if (!shouldReplay(litListRef.current, allCandidates)) { setLitState({ list: allCandidates, k: n }); return; }
     const reduce = typeof window.matchMedia === "function"
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { setLit(n); litListRef.current = allCandidates; return; }
-    setLit(0);
+    if (reduce) { setLitState({ list: allCandidates, k: n }); litListRef.current = allCandidates; return; }
+    setLitState({ list: allCandidates, k: 0 });
     const instantes = litSequence(n);
     let t0: number | null = null;
     let raf = 0;
@@ -1174,7 +1177,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       const t = now - t0;
       let k = 0;
       while (k < n && t >= instantes[k]) k++;
-      setLit(k);
+      setLitState({ list: allCandidates, k });
       if (k < n) raf = requestAnimationFrame(tick);
       else litListRef.current = allCandidates;
     };
@@ -1185,21 +1188,27 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // Dial de medida en Morfometría: el progreso 0→1 corre en 800 ms con rAF,
   // una vez por identidad de la medida (`dialDoneRef`); con movimiento reducido,
   // entero de golpe. El rAF se cancela al limpiar.
-  const [dialProgress, setDialProgress] = useState(0);
+  // Igual que `lit`: el progreso lleva la medida a la que pertenece, y se
+  // cuantiza (16 escalones en 800 ms) para no rehacer el dial cada fotograma.
+  const [dialState, setDialState] = useState<{ m: typeof morphometry; k: number }>({ m: null, k: 0 });
+  const dialProgress = dialState.m === morphometry ? dialState.k : 0;
   const dialDoneRef = useRef<typeof morphometry>(null);
   useEffect(() => {
     if (step !== "morpho" || !morphometry) return;
-    if (dialDoneRef.current === morphometry) { setDialProgress(1); return; }
+    if (dialDoneRef.current === morphometry) { setDialState({ m: morphometry, k: 1 }); return; }
     const reduce = typeof window.matchMedia === "function"
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { setDialProgress(1); dialDoneRef.current = morphometry; return; }
-    setDialProgress(0);
+    if (reduce) { setDialState({ m: morphometry, k: 1 }); dialDoneRef.current = morphometry; return; }
+    setDialState({ m: morphometry, k: 0 });
     let t0: number | null = null;
     let raf = 0;
     const tick = (now: number) => {
       if (t0 === null) t0 = now;
       const k = Math.min((now - t0) / 800, 1);
-      setDialProgress(k);
+      setDialState((prev) => {
+        const q = Math.ceil(k * 16) / 16;
+        return prev.m === morphometry && prev.k === q ? prev : { m: morphometry, k: q };
+      });
       if (k < 1) raf = requestAnimationFrame(tick);
       else dialDoneRef.current = morphometry;
     };
@@ -1289,11 +1298,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
                  radiusMm: CORRIDOR_RADIUS_MM, opacity: 0.22 });
     }
     if (overlay) out.push(...overlay.lines);
-    if (overlay && step === "morpho") {
+    if (overlay && step === "morpho" && morphometry?.reliable) {
       out.push(...measureDial(overlay.dial.center, overlay.dial.axis, overlay.dial.radius, dialProgress));
     }
     return out;
-  }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay, step, dialProgress]);
+  }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay, step, dialProgress, morphometry?.reliable]);
 
   // Rótulos del 3D: nombre y valor siempre, que en la escena no hay celda estrecha.
   const meshLabels = useMemo<MeshLabel[]>(

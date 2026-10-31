@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PatientSummary } from "../api/types";
 import { INFORME_STEP, avisosOficina, casosParados, sesionesDeHoy } from "./avisosOficina";
 
-const p = (o: Partial<PatientSummary>): PatientSummary => ({ id: 1, full_name: "Segura, Prueba", hospital_id: "1", dob: "1999-01-01", sex: "", institution: "", study_count: 1, created_at: "2026-10-01T10:00:00", owner_id: 1, shared_with_count: 0, is_shared_with_me: false, last_session_at: null, last_session_step: null, last_session_id: null, last_case_label: "", ...o });
+const p = (o: Partial<PatientSummary>): PatientSummary => ({ id: 1, full_name: "Segura, Prueba", hospital_id: "1", dob: "1999-01-01", sex: "", institution: "", study_count: 1, created_at: "2026-10-01T10:00:00", owner_id: 1, shared_with_count: 0, is_shared_with_me: false, last_session_at: null, last_session_step: null, last_session_id: null, last_case_label: "", last_risk_label: null, last_capture_id: null, last_imaging_study_id: null, ...o });
 const ahora = new Date(2026, 9, 31, 12, 0); // 31-10-2026 12:00 local
 
 describe("avisos de la oficina", () => {

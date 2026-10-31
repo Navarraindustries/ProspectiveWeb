@@ -12,7 +12,7 @@ import { ANNOTATION_MODES, kindOfMode, usePlanning, type PickMode, type PlacedCl
 import { ANNOTATIONS_MAX, centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import { mainHintKind, shouldShowHint, type HintKind } from "./hint";
-import type { AneurysmCandidate, AnnotationPlane } from "../api/types";
+import type { AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
@@ -57,8 +57,6 @@ import { useAnnotationDelete } from "../components/annotations/useAnnotationDele
 import { cameraMayMove, focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
 import { hudCandidateLine, hudManualTag } from "./hudCandidate";
 // Cuello, ápice y borde: el panel de Morfometría pinta la misma muestra (F1-153).
-import { candidateMarkers, litSequence, shouldReplay } from "./candidateMarkers";
-import { markerRadiusMm } from "./markerSize";
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, NECK_RIM_COLOR } from "./markerColors";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { measureDial } from "./measureDial";
@@ -1161,46 +1159,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
     [onPlaneDrag, onHandleDrag],
   );
 
-  // Encendido de los candidatos tras la detección: una vez por identidad de la
-  // lista (no por selección), con la secuencia de `litSequence`; con movimiento
-  // reducido se enciende todo de golpe. El rAF se cancela al limpiar.
-  // La secuencia corre una vez por lista: volver al paso con la misma lista
-  // la deja encendida del todo (`litListRef` recuerda la última lista completada).
-  // El progreso viaja con la lista a la que pertenece: una lista nueva no sale
-  // encendida con el `lit` de la anterior (se lee 0 hasta que el efecto la toma).
-  const [litState, setLitState] = useState<{ list: AneurysmCandidate[] | null; k: number }>({ list: null, k: 0 });
-  const lit = litState.list === allCandidates ? litState.k : 0;
-  const litListRef = useRef<AneurysmCandidate[] | null>(null);
-  useEffect(() => {
-    const n = allCandidates.length;
-    // Fuera de Detección los marcadores no se añaden, no hace falta tocar `lit`.
-    if (step !== "detect" || n === 0) return;
-    if (!shouldReplay(litListRef.current, allCandidates)) { setLitState({ list: allCandidates, k: n }); return; }
-    const reduce = typeof window.matchMedia === "function"
-      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { setLitState({ list: allCandidates, k: n }); litListRef.current = allCandidates; return; }
-    setLitState({ list: allCandidates, k: 0 });
-    const instantes = litSequence(n);
-    let t0: number | null = null;
-    let raf = 0;
-    const tick = (now: number) => {
-      if (t0 === null) t0 = now;
-      const t = now - t0;
-      let k = 0;
-      while (k < n && t >= instantes[k]) k++;
-      setLitState({ list: allCandidates, k });
-      if (k < n) raf = requestAnimationFrame(tick);
-      else litListRef.current = allCandidates;
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [allCandidates, step]);
+  // Los candidatos de Detección los dibuja `candidateOverlay` (balizas numeradas
+  // en la capa superior, el elegido en acento y los descartados tenues).
 
   // Dial de medida en Morfometría: el progreso 0→1 corre en 800 ms con rAF,
   // una vez por identidad de la medida (`dialDoneRef`); con movimiento reducido,
   // entero de golpe. El rAF se cancela al limpiar.
-  // Igual que `lit`: el progreso lleva la medida a la que pertenece, y se
-  // cuantiza (16 escalones en 800 ms) para no rehacer el dial cada fotograma.
+  // El progreso lleva la medida a la que pertenece (una medida nueva no sale
+  // completa con el progreso de la anterior), y se cuantiza (16 escalones en
+  // 800 ms) para no rehacer el dial cada fotograma.
   const [dialState, setDialState] = useState<{ m: typeof morphometry; k: number }>({ m: null, k: 0 });
   const dialProgress = dialState.m === morphometry ? dialState.k : 0;
   const dialDoneRef = useRef<typeof morphometry>(null);
@@ -1245,15 +1212,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (trajEntry) out.push({ pos: trajEntry, color: TRAJ_ENTRY_COLOR });
     if (trajTarget) out.push({ pos: trajTarget, color: TRAJ_TARGET_COLOR });
     if (overlay) out.push(...overlay.markers);
-    // Candidatos encendiéndose (solo en Detección). El radio compartido que
-    // usará MeshView es markerRadiusMm(referenceDiameterMm, diagonal); con
-    // diámetro de referencia la diagonal no interviene. Sin él (MeshView usaría
-    // la diagonal de la escena, que aquí no se conoce) se deja la escala en 1
-    // en vez de adivinar un radio equivocado.
-    if (step === "detect") {
-      const shared = referenceDiameterMm ? markerRadiusMm(referenceDiameterMm, 0) : 1;
-      out.push(...candidateMarkers(allCandidates, selectedCandidate, lit, shared));
-    }
     // Where each perforator actually is — but only the ones switched on in the
     // list. The panel gave distances with nothing to say WHICH vessel a row
     // meant; the marker answers that, one at a time, on request.
@@ -1266,7 +1224,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators, step, allCandidates, selectedCandidate, lit, referenceDiameterMm]);
+  }, [clSource, clTarget, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
 
   // El punto compartido de los cortes, con radio fijo en mm (no depende de la
   // escena). Va aparte de `markers`: MeshView lo dibuja encima de la malla.

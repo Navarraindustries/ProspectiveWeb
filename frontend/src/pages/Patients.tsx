@@ -1,24 +1,26 @@
-/* Pacientes — panel de tarjetas por última actividad (GET /api/patients) con
-   panel lateral; crear, abrir la ficha y reanudar la última sesión. Borrar
-   un paciente está al pie de su ficha (PatientSheet.tsx). */
+/* Pacientes — avisos clínicos y panel de tarjetas por última actividad (GET
+   /api/patients) con panel lateral; crear, abrir la ficha y reanudar la última
+   sesión. Borrar un paciente está al pie de su ficha (PatientSheet.tsx). */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { PatientSummary, StudyCard, StudySummary } from "../api/types";
+import type { ClipOrder, PatientSummary, StudyCard, StudySummary } from "../api/types";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { AppShell } from "../components/shell/AppShell";
-import { PanelHead } from "../components/PanelHead";
+import { Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { PatientCard } from "../components/patients/PatientCard";
 import { PatientsSidePanel } from "../components/patients/PatientsSidePanel";
 import "../components/patients/patients.css";
 import { useAuth } from "../store/auth";
+import { useNav } from "../store/nav";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { PatientSheet } from "./PatientSheet";
 
+import { avisosOficina } from "../lib/avisosOficina";
 import { filtraPestana, hayCompartidos, recuentoPacientes, ultimaActividad, type PestanaPacientes } from "../lib/pacientes";
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
@@ -66,6 +68,9 @@ export function Patients({
   const [caseSheet, setCaseSheet] = useState(false);
   const [casePatient, setCasePatient] = useState<PatientSummary | null>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
+  // Pedidos de clip abiertos para el aviso de parados; null = sin acceso o fallo.
+  const [orders, setOrders] = useState<ClipOrder[] | null>(null);
+  const nav = useNav();
   const [q, setQ] = useState("");
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -83,6 +88,9 @@ export function Patients({
       // haber perdido a sus pacientes.
       .catch((e) => setLoadError(loadErrorText(e)))
       .finally(() => setLoading(false));
+    // Los avisos de pedidos son accesorios: si fallan (403 de un Médico sin
+    // acceso, servidor caído), simplemente no hay aviso de pedidos.
+    api.listClipOrders({ openOnly: true }).then(setOrders).catch(() => setOrders(null));
   };
   useEffect(load, []);
 
@@ -122,6 +130,17 @@ export function Patients({
     ? "No hay pacientes registrados. Crea el primero para comenzar."
     : "Solo ves tus pacientes y los que te han compartido. Crea el primero para comenzar.";
 
+  const avisos = useMemo(
+    () => avisosOficina({ patients, orders, ahora: new Date() }),
+    [patients, orders],
+  );
+
+  // F1-252: un Médico no ve la base entera, sino los suyos y los que le han
+  // compartido (F2-75); «en la base de datos» le hacía creer que estaba vacía.
+  // El título es la miga «Pacientes» de la barra; aquí solo queda el recuento.
+  const subtitulo = loading && patients.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista"
+    : `${recuentoPacientes(patients.length)} · ${isAdmin ? "en la base de datos" : "tuyos o compartidos contigo"}`;
+
   const iconBtn: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
     borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer",
@@ -130,22 +149,23 @@ export function Patients({
   return (
     <AppShell
       crumbs={[{ label: "Pacientes" }]}
-      // F2-20, F2-21: «Usuarios», «Cuentas pendientes» y «Estudios» están en la
-      // barra lateral; aquí quedan solo las acciones clínicas.
+      subtitle={subtitulo}
+      // F2-20, F2-21: «Usuarios», «Cuentas pendientes» y «Estudios» están en el
+      // panel lateral; aquí quedan solo las acciones clínicas, la prueba rápida la última.
       actions={
         <span style={{ display: "inline-flex", gap: 8 }}>
-          {onStartWithoutPatient && (
-            <Button variant="outline" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
-                    title="Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.">
-              Empezar sin paciente
-            </Button>
-          )}
           <Button variant="outline" size="sm" leadingIcon={<Icon name="PLUS" />} onClick={openCreate}>
             Nuevo paciente
           </Button>
           <Button size="sm" leadingIcon={<Icon name="PLUS" />} onClick={() => setCaseSheet(true)}>
             Nuevo caso
           </Button>
+          {onStartWithoutPatient && (
+            <Button variant="outline" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
+                    title="Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.">
+              Prueba rápida sin paciente
+            </Button>
+          )}
         </span>
       }
     >
@@ -153,10 +173,35 @@ export function Patients({
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         {/* 1440: tres columnas de tarjetas más el panel lateral caben sin apretar. */}
         <div style={{ maxWidth: 1440, margin: "0 auto" }} className="fade-rise">
-          <PanelHead
-            title="Pacientes"
-            desc={loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : recuentoPacientes(patients.length)}
-          />
+          {avisos.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
+              {avisos.map((av) => (
+                <Card key={av.titulo} style={{ padding: "14px 16px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <span style={{
+                      width: 36, height: 36, borderRadius: "var(--radius-md)", flexShrink: 0,
+                      background: `color-mix(in srgb, var(--${av.tono}) 14%, transparent)`, color: `var(--${av.tono})`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <Icon name={av.tono === "success" ? "STATUS_OK" : av.destino === "orders" ? "CLIPS" : "WAIT"} size={16} />
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{av.titulo}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={av.detalle}>
+                        {av.detalle}
+                      </div>
+                    </div>
+                    {av.destino !== null && (
+                      <button type="button" onClick={() => nav.go(av.destino!)}
+                              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--data)" }}>
+                        Ver
+                      </button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {aviso && (
             // F2-22 y spec §5: quien acaba de crear un paciente o un caso espera

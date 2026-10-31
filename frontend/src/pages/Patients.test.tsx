@@ -14,6 +14,7 @@ const patientSessions = vi.fn();
 const patientStudies = vi.fn();
 const deletePatient = vi.fn();
 const createPatient = vi.fn();
+const listClipOrders = vi.fn();
 const user = { id: 1, role: "medico" as string };
 
 vi.mock("../api/client", () => {
@@ -34,13 +35,15 @@ vi.mock("../api/client", () => {
       patientShares: () => Promise.resolve([]),
       deletePatient: (id: number) => deletePatient(id),
       createPatient: (body: unknown) => createPatient(body),
+      listClipOrders: (opts: unknown) => listClipOrders(opts),
     },
   };
 });
-// El shell (barra lateral y superior) se sustituye por su contenido y sus
-// acciones: lo que se prueba aquí es la página.
+// El shell (barra lateral y superior) se sustituye por su cabecera (subtítulo,
+// estado y acciones) y su contenido: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) =>
+    <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
 }));
 vi.mock("../components/CaptureGallery", () => ({ CaptureGallery: () => null }));
 // «Nuevo caso» se sustituye por botones que eligen el paciente y crean el caso:
@@ -59,7 +62,8 @@ vi.mock("./NuevoCaso", () => ({
     ) : null,
 }));
 vi.mock("./Studies", () => ({ StudyGallery: () => null }));
-vi.mock("../store/nav", () => ({ useNav: () => ({ go: vi.fn() }) }));
+const go = vi.fn();
+vi.mock("../store/nav", () => ({ useNav: () => ({ go }) }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 
@@ -94,6 +98,8 @@ beforeEach(() => {
   patientStudies.mockReset();
   deletePatient.mockReset().mockResolvedValue(undefined);
   createPatient.mockReset();
+  listClipOrders.mockReset().mockResolvedValue([]);
+  go.mockReset();
   onResume.mockReset();
   onPlanCase.mockReset();
   user.id = 1;
@@ -138,10 +144,27 @@ describe("vacío por rol (F1-252, F1-253)", () => {
     expect(screen.queryByText("No hay pacientes registrados. Crea el primero para comenzar.")).toBeNull();
   });
 
-  it("el administrador ve el vacío de siempre", async () => {
+  it("el administrador ve el vacío de siempre y «en la base de datos»", async () => {
     user.role = "admin";
     renderAt("/app/pacientes");
     expect(await screen.findByText("No hay pacientes registrados. Crea el primero para comenzar.")).toBeTruthy();
+    expect(screen.getByRole("banner").textContent).toContain("Ningún paciente · en la base de datos");
+    expect(screen.queryByText(/tuyos o compartidos contigo/)).toBeNull();
+  });
+
+  it("al Médico el subtítulo le dice que ve los suyos y los compartidos", async () => {
+    listPatients.mockResolvedValue(Array.from({ length: 7 }, (_, i) => fila({ id: i + 1, full_name: `P${i}, X` })));
+    renderAt("/app/pacientes");
+    await screen.findByText("P0, X");
+    expect(screen.getByRole("banner").textContent).toContain("7 pacientes · tuyos o compartidos contigo");
+    expect(screen.queryByText(/en la base de datos/)).toBeNull();
+  });
+
+  it("el título es la miga de la barra: la página no repite «Pacientes» como encabezado", async () => {
+    listPatients.mockResolvedValue([fila({ id: 1, full_name: "Uno" })]);
+    renderAt("/app/pacientes");
+    await screen.findByText("Uno");
+    expect(screen.queryByRole("heading", { name: "Pacientes" })).toBeNull();
   });
 });
 
@@ -303,17 +326,17 @@ describe("la lista de pacientes (F2)", () => {
 
   it("el recuento concuerda: «Ningún paciente», «1 paciente», «7 pacientes»", async () => {
     const r1 = renderAt("/app/pacientes");
-    expect(await screen.findByText("Ningún paciente")).toBeTruthy();
+    expect(await screen.findByText(/^Ningún paciente · /)).toBeTruthy();
     r1.unmount();
 
     listPatients.mockResolvedValue([fila({ id: 1, full_name: "Uno" })]);
     const r2 = renderAt("/app/pacientes");
-    expect(await screen.findByText("1 paciente")).toBeTruthy();
+    expect(await screen.findByText(/^1 paciente · /)).toBeTruthy();
     r2.unmount();
 
     listPatients.mockResolvedValue(Array.from({ length: 7 }, (_, i) => fila({ id: i + 1, full_name: `P${i}` })));
     renderAt("/app/pacientes");
-    expect(await screen.findByText("7 pacientes")).toBeTruthy();
+    expect(await screen.findByText(/^7 pacientes · /)).toBeTruthy();
     expect(screen.queryByText(/registros|ordenados por fecha de creación/)).toBeNull();
   });
 
@@ -429,8 +452,17 @@ describe("la lista de pacientes (F2)", () => {
     // Las tres acciones clínicas de la cabecera.
     expect(screen.getAllByRole("button", { name: /Nuevo paciente/ }).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Nuevo caso/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Empezar sin paciente/ }).getAttribute("title"))
+    expect(screen.getByRole("button", { name: /Prueba rápida sin paciente/ }).getAttribute("title"))
       .toBe("Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.");
+  });
+
+  it("las acciones de arriba: «Nuevo paciente», «Nuevo caso» y, la última, «Prueba rápida sin paciente»", async () => {
+    renderAt("/app/pacientes");
+    await screen.findByText(/^Ningún paciente · /);
+    const header = screen.getByRole("banner");
+    const nombres = within(header).getAllByRole("button").map((b) => b.textContent);
+    expect(nombres).toEqual(["Nuevo paciente", "Nuevo caso", "Prueba rápida sin paciente"]);
+    expect(within(header).queryByText("Empezar sin paciente")).toBeNull();
   });
 
   it("la búsqueda filtra por nombre y por HC sin distinguir mayúsculas", async () => {
@@ -455,7 +487,7 @@ describe("la lista de pacientes (F2)", () => {
     const nuevo = fila({ id: 7, full_name: "Restrepo, María" });
     createPatient.mockResolvedValue(nuevo);
     renderAt("/app/pacientes");
-    await screen.findByText("Ningún paciente");
+    await screen.findByText(/^Ningún paciente · /);
     listPatients.mockResolvedValue([nuevo]);
     fireEvent.click(screen.getAllByRole("button", { name: /Nuevo paciente/ })[0]);
     fireEvent.change(screen.getByLabelText("Apellidos"), { target: { value: "Restrepo" } });
@@ -475,5 +507,29 @@ describe("la lista de pacientes (F2)", () => {
     fireEvent.click(screen.getByRole("button", { name: "guardar el caso" }));
     fireEvent.click(await screen.findByRole("button", { name: "Planificar este caso" }));
     expect(onPlanCase).toHaveBeenCalledWith(expect.objectContaining({ id: 41 }), maria);
+  });
+});
+
+/* Los avisos clínicos de la oficina (rediseño, fase 2) encima de las tarjetas:
+   casos parados antes del informe y pedidos de clip parados. */
+describe("avisos clínicos sobre el panel de tarjetas", () => {
+  it("muestra los avisos clínicos y oculta el de pedidos si fallan", async () => {
+    listPatients.mockResolvedValue([fila({ id: 1, full_name: "Segura, Prueba", last_session_at: "2026-10-10T10:00:00", last_session_step: 2 })]);
+    listClipOrders.mockRejectedValue(new ApiError(403, "no"));
+    renderAt("/app/pacientes");
+    expect(await screen.findByText(/1 caso parado antes del informe/)).toBeTruthy();
+    expect(screen.queryByText(/pedidos? de clip parados?/)).toBeNull();
+    expect(listClipOrders).toHaveBeenCalledWith({ openOnly: true });
+  });
+
+  it("muestra el aviso de pedidos parados y «Ver» lleva a los pedidos", async () => {
+    listClipOrders.mockResolvedValue([
+      { part_no: "PR-2026-0002", status: "enviado", updated_at: Date.now() / 1000 - 60 * 86400 },
+    ]);
+    renderAt("/app/pacientes");
+    expect(await screen.findByText("1 pedido de clip parado")).toBeTruthy();
+    expect(screen.getByText("PR-2026-0002")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Ver" }));
+    expect(go).toHaveBeenCalledWith("orders");
   });
 });

@@ -79,7 +79,7 @@ const RutaActual = () => <output data-testid="ruta">{useLocation().pathname}</ou
 const renderAt = (url: string) =>
   render(
     <MemoryRouter initialEntries={[url]}>
-      <Patients onResume={onResume} onPlanCase={onPlanCase} onOpenStudy={noop} onOpenOrders={noop}
+      <Patients onResume={onResume} onPlanCase={onPlanCase}
                 onStartWithoutPatient={noop} />
       <RutaActual />
     </MemoryRouter>,
@@ -220,6 +220,15 @@ describe("la lista de pacientes (F2)", () => {
     fireEvent.click(tarjeta);
     expect(screen.getByTestId("ruta").textContent).toBe("/app/pacientes/2");
     expect(screen.queryByText("Guardar cambios")).toBeNull();
+  });
+
+  // F1-58: borrar un paciente se hace al pie de su ficha (columna Datos), no desde la tarjeta.
+  it("la tarjeta no tiene ✕ ni «Eliminar»", async () => {
+    listPatients.mockResolvedValue([fila({ id: 7, full_name: "Restrepo, María", study_count: 2 })]);
+    renderAt("/app/pacientes");
+    await screen.findByText("Restrepo, María");
+    expect(screen.queryByTitle("Eliminar")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Eliminar/ })).toBeNull();
   });
 
   it("Intro en la tarjeta también navega a la ficha /app/pacientes/<id>", async () => {
@@ -397,7 +406,7 @@ describe("avisos en franja y parámetros de URL", () => {
   const renderConSonda = (url: string) =>
     render(
       <MemoryRouter initialEntries={[url]}>
-        <Patients onResume={onResume} onPlanCase={onPlanCase} onOpenStudy={noop} onOpenOrders={noop}
+        <Patients onResume={onResume} onPlanCase={onPlanCase}
                   onStartWithoutPatient={noop} />
         <Sonda />
       </MemoryRouter>,

@@ -270,8 +270,6 @@ function Router() {
         onResume={resumeSession}
         onPlanCase={planCase}
         onStartWithoutPatient={startWithoutPatient}
-        onOpenStudy={(s) => void openStudy(s)}
-        onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}
       />
     );
   else if (effective === "patient" && patientId !== null)

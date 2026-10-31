@@ -16,6 +16,7 @@ import { Button } from "../components/Button";
 import { CaptureGallery } from "../components/CaptureGallery";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DiscardChanges } from "../components/DiscardChanges";
+import { DeleteConfirm } from "../components/ficha/ColumnaDatos";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -759,42 +760,3 @@ export function PatientSheet({
   );
 }
 
-function DeleteConfirm({
-  patient,
-  onCancel,
-  onConfirm,
-}: {
-  patient: PatientSummary;
-  onCancel: () => void;
-  onConfirm: () => Promise<void>;
-}) {
-  const [busy, setBusy] = useState(false);
-  // F1-58: el diálogo no decía cuánto se borraba. Los casos vienen en la fila;
-  // las sesiones se piden al abrirlo. Si la cuenta falla, se dice sin número.
-  const [nSessions, setNSessions] = useState<number | null>(null);
-  useEffect(() => {
-    let alive = true;
-    api.patientSessions(patient.id)
-      .then((s) => { if (alive) setNSessions(s.length); })
-      .catch(() => { /* sin cifra: el texto general sigue siendo verdad */ });
-    return () => { alive = false; };
-  }, [patient.id]);
-  const casos = `${patient.study_count} ${patient.study_count === 1 ? "caso" : "casos"}`;
-  const sesiones = nSessions === null
-    ? "sus sesiones de planificación"
-    : `${nSessions} ${nSessions === 1 ? "sesión" : "sesiones"} de planificación`;
-  return (
-    <ConfirmDialog
-      open
-      title="Eliminar paciente"
-      destructive
-      busy={busy}
-      confirmLabel={busy ? "Eliminando…" : "Eliminar"}
-      onCancel={onCancel}
-      onConfirm={async () => { setBusy(true); await onConfirm(); setBusy(false); }}
-    >
-      ¿Seguro que quieres eliminar a <b style={{ color: "var(--foreground)" }}>{patient.full_name}</b>? Se
-      borrarán también sus {casos} y {sesiones}. Esta acción no se puede deshacer.
-    </ConfirmDialog>
-  );
-}

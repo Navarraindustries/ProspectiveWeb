@@ -23,7 +23,12 @@ globalThis.Request = class extends RequestNode {
 const getPatient = vi.fn();
 let usuario: Record<string, unknown> | null = { id: 1, username: "a", full_name: "A", role: "medico", institution: "" };
 vi.mock("./api/client", () => ({
-  api: { getPatient: (id: number) => getPatient(id) },
+  api: {
+    getPatient: (id: number) => getPatient(id),
+    listPatients: () => Promise.resolve([]),
+    patientShares: () => Promise.resolve([]),
+    listCaptures: () => Promise.resolve([]),
+  },
   ApiError: class extends Error {},
   onServerDown: () => () => {},
   retryLastFailed: vi.fn(),
@@ -72,7 +77,7 @@ beforeEach(() => {
 describe("App · ficha /app/pacientes/:id", () => {
   it("conserva la URL de la ficha y la enseña", async () => {
     const router = montar("/app/pacientes/42");
-    expect(await screen.findByText("Zenodo, Caso 002")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Zenodo, Caso 002" })).toBeTruthy();
     await waitFor(() => expect(router.state.location.pathname).toBe("/app/pacientes/42"));
     expect(getPatient).toHaveBeenCalledWith(42);
     expect(screen.queryByText("lista de pacientes")).toBeNull();
@@ -80,7 +85,7 @@ describe("App · ficha /app/pacientes/:id", () => {
 
   it("con barra final corrige la URL a /app/pacientes/42 y enseña la ficha", async () => {
     const router = montar("/app/pacientes/42/");
-    expect(await screen.findByText("Zenodo, Caso 002")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Zenodo, Caso 002" })).toBeTruthy();
     await waitFor(() => expect(router.state.location.pathname).toBe("/app/pacientes/42"));
   });
 
@@ -101,7 +106,7 @@ describe("App · ficha /app/pacientes/:id", () => {
 
   it("en la ficha, «Pacientes» de la barra lateral es el enlace activo", async () => {
     montar("/app/pacientes/42");
-    await screen.findByText("Zenodo, Caso 002");
+    await screen.findByRole("heading", { name: "Zenodo, Caso 002" });
     const activos = screen.getAllByRole("link", { current: "page" });
     expect(activos.map((a) => a.getAttribute("href"))).toEqual(["/app/pacientes"]);
     expect(activos[0].textContent).toContain("Pacientes");

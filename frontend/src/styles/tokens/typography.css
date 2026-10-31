@@ -1,15 +1,16 @@
 /* ============================================================================
    PROSPECTIVE — Typography tokens
-   Familia: Geist (autoalojada). Mono: Geist Mono para cifras, HUD, hashes y códigos.
+   Familia: Inter (autoalojada). Mono: JetBrains Mono para cifras, HUD, hashes y códigos.
    La jerarquía se expresa con tamaño y peso, nunca con color. Pesos 400/500/600.
-   Escala: 12 / 13 / 14 (cuerpo), 16 / 20 (títulos de sección), 28 (título de página).
+   Escala D: 11 (eyebrow) / 12 / 13 / 14 (cuerpo) / 15 (lectura) / 16 / 17 (subtítulo) /
+   20 (título de sección) / 26 (título de ventana) / 28 (título de página) / 40 (display).
    La etiqueta de campo va a 13 px con peso 500 (--text-label, --weight-label).
    ============================================================================ */
 
 :root {
   /* ---- Families ---- */
-  --font-sans: "Geist", system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
   /* La landing ya no tiene tipografía de titulares propia: alias de la sans. */
   --font-display: var(--font-sans);
 
@@ -23,6 +24,11 @@
   --weight-extra:    600;
 
   /* ---- Type scale (px) ---- */
+  --text-display: 40px;  /* cifra o titular de portada */
+  --text-window:  26px;  /* título de ventana */
+  --text-subtitle: 17px; /* subtítulo */
+  --text-reading: 15px;  /* texto de lectura */
+  --text-eyebrow: 11px;  /* sobretítulo en caja alta */
   --text-hero:    28px;  /* título de página, peso 600 */
   --text-page:    28px;
   --text-title:   20px;  /* título de sección, peso 600 */
@@ -36,8 +42,11 @@
   --leading-tight:  1.15;
   --leading-normal: 1.45;
   --leading-relaxed: 1.6;
+  --leading-reading: 1.53;
 
   /* ---- Letter spacing ---- */
+  --tracking-display: -0.035em; /* display 40 px */
+  --tracking-eyebrow: 0.14em;   /* eyebrow 11 px en caja alta */
   --tracking-title:  -0.02em;  /* tight tracking on titles */
   --tracking-normal:  0;
   --tracking-label:   0.08em;  /* uppercase small labels */

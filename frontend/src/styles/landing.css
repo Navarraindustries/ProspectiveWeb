@@ -53,7 +53,7 @@
 
 /* ---- Rótulos y métricas monoespaciadas ----------------------------------
    La identidad exige que toda etiqueta de estado y toda métrica caiga en
-   Geist Mono con caja alta: es lo que da la lectura de instrumental. */
+   JetBrains Mono con caja alta: es lo que da la lectura de instrumental. */
 .landing-stitch .stitch-label {
   font-family: var(--font-mono);
   font-size: 11px;

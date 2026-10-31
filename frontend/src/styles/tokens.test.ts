@@ -41,11 +41,19 @@ describe("tokens de la identidad A", () => {
     expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-primary:\s*0 8px 24px rgba\(59, ?139, ?255, ?0?\.30?\)/);
     expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-sheet:\s*-30px 0 80px rgba\(0, ?0, ?0, ?0?\.50?\)/);
   });
-  it("las fuentes son Geist y Geist Mono, autoalojadas", () => {
+  it("las fuentes son Inter y JetBrains Mono, autoalojadas", () => {
     const fonts = readFileSync(join(__dirname, "tokens/fonts.css"), "utf8");
-    expect(fonts).toMatch(/font-family:\s*"Geist"/);
-    expect(fonts).toMatch(/font-family:\s*"Geist Mono"/);
-    expect(fonts).not.toMatch(/googleapis|Inter|JetBrains|Space Grotesk|Plus Jakarta/);
+    expect(fonts).toMatch(/font-family:\s*"Inter"/);
+    expect(fonts).toMatch(/font-family:\s*"JetBrains Mono"/);
+    expect(fonts).toMatch(/InterVariable-latin\.woff2/);
+    expect(fonts).toMatch(/unicode-range:/);
+    expect(fonts).not.toMatch(/googleapis|Geist/);
+    const typo = readFileSync(join(__dirname, "tokens/typography.css"), "utf8");
+    expect(typo).toMatch(/--font-sans:\s*"Inter"/);
+    expect(typo).toMatch(/--font-mono:\s*"JetBrains Mono"/);
+    expect(typo).toMatch(/--text-eyebrow:\s*11px/);
+    expect(typo).toMatch(/--tracking-eyebrow:\s*0\.14em/);
+    expect(typo).toMatch(/--text-display:\s*40px/);
   });
   it("los tokens nuevos existen en los dos temas con los valores de la dirección A", () => {
     const dark = block(DARK), light = block('[data-theme="light"]');

@@ -5,6 +5,7 @@
    escena había dos bolas y nada decía cuál era cuál. Importar Viewer.tsx desde
    el panel arrastraría vtk.js entero. */
 export type Rgb = [number, number, number];
+import { hexToRgb01 } from "./planeColors";
 
 export const NECK_ORIGIN_COLOR: Rgb = [0.85, 0.35, 0.85]; // magenta — punto del plano de cuello
 export const NECK_DOME_COLOR: Rgb = [0.36, 0.85, 0.86];   // cian — ápice del domo
@@ -14,3 +15,12 @@ export const NECK_RIM_COLOR: Rgb = [0.90, 0.45, 0.95];    // violeta — borde d
 export function rgbCss([r, g, b]: Rgb): string {
   return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
 }
+
+/* Candidatos de la detección: azul vivo para el seleccionado y el mismo azul
+   al 40 % hacia el negro para el resto. */
+export const CANDIDATE_COLOR: Rgb = hexToRgb01("#3B8BFF");
+export const CANDIDATE_DIM_COLOR: Rgb = [
+  CANDIDATE_COLOR[0] * 0.4,
+  CANDIDATE_COLOR[1] * 0.4,
+  CANDIDATE_COLOR[2] * 0.4,
+];

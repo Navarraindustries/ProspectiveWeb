@@ -57,6 +57,8 @@ import { useAnnotationDelete } from "../components/annotations/useAnnotationDele
 import { cameraMayMove, focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
 import { hudCandidateLine, hudManualTag } from "./hudCandidate";
 // Cuello, ápice y borde: el panel de Morfometría pinta la misma muestra (F1-153).
+import { candidateMarkers, litSequence } from "./candidateMarkers";
+import { markerRadiusMm } from "./markerSize";
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, NECK_RIM_COLOR } from "./markerColors";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
@@ -1146,6 +1148,32 @@ export function ViewerWorkspace({ step }: { step: string }) {
     [onPlaneDrag, onHandleDrag],
   );
 
+  // Encendido de los candidatos tras la detección: una vez por identidad de la
+  // lista (no por selección), con la secuencia de `litSequence`; con movimiento
+  // reducido se enciende todo de golpe. El rAF se cancela al limpiar.
+  const [lit, setLit] = useState(0);
+  useEffect(() => {
+    const n = allCandidates.length;
+    if (step !== "detect" || n === 0) { setLit(0); return; }
+    const reduce = typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setLit(n); return; }
+    setLit(0);
+    const instantes = litSequence(n);
+    let t0: number | null = null;
+    let raf = 0;
+    const tick = (now: number) => {
+      if (t0 === null) t0 = now;
+      const t = now - t0;
+      let k = 0;
+      while (k < n && t >= instantes[k]) k++;
+      setLit(k);
+      if (k < n) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [allCandidates, step]);
+
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
     if (clSource) out.push({ pos: clSource, color: SOURCE_COLOR });
@@ -1164,6 +1192,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (trajEntry) out.push({ pos: trajEntry, color: TRAJ_ENTRY_COLOR });
     if (trajTarget) out.push({ pos: trajTarget, color: TRAJ_TARGET_COLOR });
     if (overlay) out.push(...overlay.markers);
+    // Candidatos encendiéndose (solo en Detección). El radio compartido que
+    // usará MeshView es markerRadiusMm(referenceDiameterMm, ·); con diámetro de
+    // referencia la diagonal de la escena no interviene, así que se pasa 0.
+    if (step === "detect") {
+      out.push(...candidateMarkers(allCandidates, selectedCandidate, lit, markerRadiusMm(referenceDiameterMm, 0)));
+    }
     // Where each perforator actually is — but only the ones switched on in the
     // list. The panel gave distances with nothing to say WHICH vessel a row
     // meant; the marker answers that, one at a time, on request.
@@ -1176,7 +1210,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators, step, allCandidates, selectedCandidate, lit, referenceDiameterMm]);
 
   // El punto compartido de los cortes, con radio fijo en mm (no depende de la
   // escena). Va aparte de `markers`: MeshView lo dibuja encima de la malla.

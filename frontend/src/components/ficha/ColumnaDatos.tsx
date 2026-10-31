@@ -76,7 +76,8 @@ export function ColumnaDatos({
   summary: PatientSummary | null;
   /** Si la cuenta cambia los datos del paciente («Editar datos») o solo los consulta («Ver datos»). */
   puedeEditar: boolean;
-  seccion: SeccionFicha;
+  /** La sección abierta a la derecha; null = ninguna (las migas la cerraron). */
+  seccion: SeccionFicha | null;
   onSeccion: (s: SeccionFicha) => void;
   /** Abre la hoja de los datos (editable o de solo lectura según `puedeEditar`). */
   onEditar: () => void;

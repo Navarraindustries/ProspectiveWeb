@@ -2,13 +2,17 @@
    está con la miga «Pacientes › nombre» y, si el servidor la niega o falla,
    avisa con una salida a la lista. */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 const getPatient = vi.fn();
 const listPatients = vi.fn();
 const deletePatient = vi.fn();
+const patientStudies = vi.fn();
+const patientSessions = vi.fn();
+const listStudies = vi.fn();
+const deleteSavedSession = vi.fn();
 const user = { id: 1, role: "medico" as string };
 
 vi.mock("../api/client", () => {
@@ -22,7 +26,11 @@ vi.mock("../api/client", () => {
       getPatient: (id: number) => getPatient(id),
       listPatients: () => listPatients(),
       patientShares: () => Promise.resolve([]),
-      patientSessions: () => Promise.resolve([]),
+      patientSessions: (id: number) => patientSessions(id),
+      patientStudies: (id: number) => patientStudies(id),
+      listStudies: (q: string, patientId?: number, caseId?: number) => listStudies(q, patientId, caseId),
+      studyThumbnailObjectUrl: () => Promise.resolve("blob:miniatura"),
+      deleteSavedSession: (sid: string) => deleteSavedSession(sid),
       listCaptures: () => Promise.resolve([]),
       deletePatient: (id: number) => deletePatient(id),
     },
@@ -49,14 +57,17 @@ vi.mock("../components/shell/AppShell", () => ({
 
 import { ApiError } from "../api/client";
 import { PatientPage } from "./PatientPage";
-import type { PatientSummary } from "../api/types";
+import type { PatientSessionInfo, PatientSummary, StudyCard, StudySummary } from "../api/types";
 
+const onResume = vi.fn();
+const onPlanCase = vi.fn();
+const onOpenStudy = vi.fn();
 const miga = () => screen.getByRole("navigation", { name: "Miga de pan" });
 const Sonda = () =><output data-testid="ruta">{useLocation().pathname}</output>;
 const renderPage = () =>
   render(
     <MemoryRouter initialEntries={["/app/pacientes/42"]}>
-      <PatientPage patientId={42} onResume={() => {}} onPlanCase={() => {}} />
+      <PatientPage patientId={42} onResume={onResume} onPlanCase={onPlanCase} onOpenStudy={onOpenStudy} />
       <Sonda />
     </MemoryRouter>,
   );
@@ -73,6 +84,11 @@ beforeEach(() => {
   getPatient.mockReset();
   listPatients.mockReset().mockResolvedValue([fila()]);
   deletePatient.mockReset();
+  patientStudies.mockReset().mockResolvedValue([]);
+  patientSessions.mockReset().mockResolvedValue([]);
+  listStudies.mockReset().mockResolvedValue([]);
+  deleteSavedSession.mockReset();
+  for (const f of [onResume, onPlanCase, onOpenStudy]) f.mockReset();
   user.id = 1;
   user.role = "medico";
 });
@@ -207,5 +223,208 @@ describe("PatientPage · columna Datos", () => {
     fireEvent.click(within(screen.getByRole("alertdialog", { name: "Eliminar paciente" })).getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(deletePatient).toHaveBeenCalledWith(42));
     await waitFor(() => expect(screen.getByTestId("ruta").textContent).toBe("/app/pacientes"));
+  });
+});
+
+/* Casos → Estudios de imagen → Sesiones guardadas → Vista previa. Dos casos:
+   ACM (id 9) con el estudio «Angio 3D» (7), y ACoA (id 4) con «TAC control» (8).
+   s-1 es del estudio 7, s-2 del caso ACM sin estudio archivado y s-3 del 8. */
+describe("PatientPage · casos, estudios y sesiones en cascada", () => {
+  const PACIENTE = { id: 42, surname: "Zenodo", given_name: "Caso 002", hospital_id: "HC-42", sex: "F" };
+  const caso = (o: Partial<StudySummary> & { id: number }): StudySummary => ({
+    patient_id: 42, dicom_path: "", modality: "", description: "", acquired_at: "", session_count: 0,
+    sintomas_positivos: "", dx_principal: "", dx_secundario: "", tipo_aneurisma: "", tratamiento_propuesto: "",
+    region_anatomica: "", lateralidad: "", angiographer: "", mod_tac: false, mod_angio: false, mod_rm: false,
+    mod_pangio: false, ...o,
+  });
+  const estudio = (o: Partial<StudyCard> & { id: number; case_id: number }): StudyCard => ({
+    patient_id: 42, owner_id: 1, patient_name: "Zenodo, Caso 002", hospital_id: "HC-42", description: "",
+    modality: "XA", acquired_at: "2026-10-01", dx_principal: "", created_at: "2026-10-01T00:00:00",
+    archived: true, has_thumbnail: false, n_files: 120, n_slices: 120, size_mb: 50, session_count: 0, last_step: null,
+    max_diameter_mm: null, rupture_risk_label: null, resumable_session_id: null, ...o,
+  });
+  const guardada = (o: Partial<PatientSessionInfo> & { session_id: string }): PatientSessionInfo => ({
+    label: "", current_step: 2, max_diameter_mm: null, rupture_risk_label: null,
+    created_at: "2026-10-11T05:00:00", updated_at: "2026-10-11T05:05:09", size_bytes: 1024, case_id: null, imaging_study_id: null, ...o,
+  });
+  const CASOS = [caso({ id: 4, dx_principal: "Aneurisma ACoA" }), caso({ id: 9, dx_principal: "Aneurisma ACM" })];
+  const SESIONES = [
+    guardada({ session_id: "s-1", label: "Antes de medir", case_id: 9, imaging_study_id: 7 }),
+    guardada({ session_id: "s-2", label: "Sin archivar", case_id: 9, imaging_study_id: null }),
+    guardada({ session_id: "s-3", label: "Control", case_id: 4, imaging_study_id: 8 }),
+  ];
+
+  beforeEach(() => {
+    getPatient.mockResolvedValue(PACIENTE);
+    patientStudies.mockResolvedValue(CASOS);
+    patientSessions.mockResolvedValue(SESIONES);
+    listStudies.mockImplementation((_q: string, _p?: number, caseId?: number) =>
+      Promise.resolve(caseId === 9
+        ? [estudio({ id: 7, case_id: 9, description: "Angio 3D" })]
+        : [estudio({ id: 8, case_id: 4, description: "TAC control" })]));
+  });
+
+  const region = (nombre: string | RegExp) => screen.getByRole("region", { name: nombre });
+  const abrirHastaLaVista = async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /^Aneurisma ACM/ }));
+    fireEvent.click(await within(region("Estudios de imagen")).findByRole("button", { name: /^Angio 3D/ }));
+    fireEvent.click(within(region(/^Sesiones guardadas/)).getByRole("button", { name: /^Antes de medir/ }));
+    return region("Vista previa");
+  };
+
+  it("la columna Casos se abre a la derecha de Datos con los casos del paciente", async () => {
+    renderPage();
+    const casos = await screen.findByRole("region", { name: "Casos" });
+    expect(await within(casos).findByText("Aneurisma ACM")).toBeTruthy();
+    expect(within(casos).getByText("Aneurisma ACoA")).toBeTruthy();
+    expect(patientStudies).toHaveBeenCalledWith(42);
+  });
+
+  it("una sesión del caso sin estudio de imagen aparece al elegir «Sesiones sin estudio archivado»", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /^Aneurisma ACM/ }));
+    const estudios = region("Estudios de imagen");
+    await within(estudios).findByText("Angio 3D");
+    fireEvent.click(within(estudios).getByRole("button", { name: "Sesiones sin estudio archivado · 1" }));
+    const sesiones = region("Sesiones guardadas · 1");
+    expect(within(sesiones).getByText("Sin archivar")).toBeTruthy();
+    expect(within(sesiones).queryByText("Antes de medir")).toBeNull();
+    expect(within(sesiones).queryByText("Control")).toBeNull();
+  });
+
+  it("elegir un estudio enseña solo sus sesiones, y una sesión abre la vista previa", async () => {
+    const vista = await abrirHastaLaVista();
+    const sesiones = region("Sesiones guardadas · 1");
+    expect(within(sesiones).getByText("Antes de medir")).toBeTruthy();
+    expect(within(sesiones).queryByText("Sin archivar")).toBeNull();
+    expect(within(vista).getByRole("heading", { name: "Antes de medir" })).toBeTruthy();
+  });
+
+  it("con el estudio y una sesión abiertos, elegir otro caso deja Sesiones y Vista previa sin pintar", async () => {
+    await abrirHastaLaVista();
+    fireEvent.click(within(region("Casos")).getByRole("button", { name: /^Aneurisma ACoA/ }));
+    expect(screen.queryByRole("region", { name: /^Sesiones guardadas/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+    const estudios = region("Estudios de imagen");
+    expect(await within(estudios).findByText("TAC control")).toBeTruthy();
+    expect(within(estudios).queryByText("Angio 3D")).toBeNull();
+    expect(screen.queryByText("Antes de medir")).toBeNull();
+  });
+
+  it("cambiar de estudio cierra la vista previa de la sesión anterior", async () => {
+    await abrirHastaLaVista();
+    fireEvent.click(within(region("Estudios de imagen")).getByRole("button", { name: "Sesiones sin estudio archivado · 1" }));
+    expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+    expect(within(region("Sesiones guardadas · 1")).getByText("Sin archivar")).toBeTruthy();
+  });
+
+  it("«Reanudar» en la vista previa llama onResume con la sesión y la fila del paciente", async () => {
+    const vista = await abrirHastaLaVista();
+    fireEvent.click(within(vista).getByRole("button", { name: "Reanudar" }));
+    expect(onResume).toHaveBeenCalledWith("s-1", expect.objectContaining({ id: 42, full_name: "Zenodo, Caso 002" }));
+  });
+
+  it("«Abrir estudio» lo abre en el flujo", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /^Aneurisma ACM/ }));
+    fireEvent.click(await within(region("Estudios de imagen")).findByRole("button", { name: "Abrir estudio" }));
+    expect(onOpenStudy).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
+  });
+
+  /* «salir de la ficha con cambios sin guardar» en lo que toca a planificar:
+     los datos se editan en su hoja, así que planificar desde la columna no
+     tiene nada escrito que perder y va directo (el aviso de descartar vive en
+     PatientFormSheet). */
+  it("«Planificar este caso» entra al flujo con el caso más reciente y la fila del paciente", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Planificar este caso" }));
+    expect(onPlanCase).toHaveBeenCalledWith(expect.objectContaining({ id: 9 }), expect.objectContaining({ id: 42 }));
+  });
+
+  it("sin la fila de la lista no salen «Planificar» ni «Subir DICOM»", async () => {
+    listPatients.mockRejectedValue(new Error("caído"));
+    renderPage();
+    expect(await screen.findByText("Aneurisma ACM")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Planificar este caso" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Subir DICOM de este paciente" })).toBeNull();
+  });
+
+  it("borrar una sesión recarga las sesiones y cierra su vista previa", async () => {
+    deleteSavedSession.mockResolvedValue(undefined);
+    await abrirHastaLaVista();
+    patientSessions.mockResolvedValueOnce(SESIONES.filter((s) => s.session_id !== "s-1"));
+    fireEvent.click(screen.getByRole("button", { name: "Borrar «Antes de medir»" }));
+    fireEvent.click(within(screen.getByRole("alertdialog", { name: "Borrar la sesión guardada" })).getByRole("button", { name: "Borrar" }));
+    await waitFor(() => expect(deleteSavedSession).toHaveBeenCalledWith("s-1"));
+    expect(await screen.findByRole("region", { name: "Sesiones guardadas · 0" })).toBeTruthy();
+    expect(patientSessions).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+  });
+
+  it("una cuenta compartida no ve lápiz, «Borrar», «Eliminar caso» ni «Borrar estudio» en ninguna columna", async () => {
+    user.id = 3;
+    listPatients.mockResolvedValue([fila({ owner_id: 1, is_shared_with_me: true })]);
+    const vista = await abrirHastaLaVista();
+    expect(within(vista).getByRole("button", { name: "Reanudar" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Editar caso «Aneurisma ACM»" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Renombrar|Borrar|Eliminar caso|Editar datos|Eliminar paciente/ })).toBeNull();
+  });
+
+  // Patients.test › el glosario en «Pacientes»: «Casos (0)» es ahora «Casos · 0»
+  // y «Sesiones guardadas (n)» el título de su columna.
+  it("el glosario: «Casos · 0», «Nuevo caso», el vacío nuevo y «Sesiones guardadas · 2»", async () => {
+    listPatients.mockResolvedValue([fila({ study_count: 0 })]);
+    patientStudies.mockResolvedValue([]);
+    patientSessions.mockResolvedValue([guardada({ session_id: "a" }), guardada({ session_id: "b" })]);
+    renderPage();
+    expect(await screen.findByRole("button", { name: "Casos · 0" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Nuevo caso" })).toBeTruthy();
+    expect(await screen.findByText("Sin casos. Crea uno con «Nuevo caso» para archivar el DICOM y las capturas de este paciente.")).toBeTruthy();
+    // Las sesiones que no cuelgan de ningún caso no se pierden: tienen su entrada.
+    fireEvent.click(await screen.findByRole("button", { name: "Sesiones sin caso · 2" }));
+    expect(screen.getByRole("region", { name: "Sesiones guardadas · 2" })).toBeTruthy();
+    expect(screen.queryByText(/Casos \/ estudios|Nuevo estudio|Sesiones de estudio/)).toBeNull();
+  });
+
+  describe("en pantalla estrecha (≤ 1280 px)", () => {
+    let original: typeof window.matchMedia;
+    beforeEach(() => {
+      original = window.matchMedia;
+      window.matchMedia = ((q: string) => ({
+        matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+      })) as unknown as typeof window.matchMedia;
+    });
+    afterEach(() => { window.matchMedia = original; });
+    // La columna Datos vuelve a montarse al salir de las migas: que terminen sus cargas.
+    const esperaColumnaDatos = async () => {
+      await within(region("Paciente")).findByText("No está compartido con ninguna cuenta.");
+      await within(region("Paciente")).findByRole("button", { name: "Capturas · 0" });
+    };
+
+    it("una miga cierra las columnas que hay después de ella", async () => {
+      await abrirHastaLaVista();
+      // Solo las dos últimas: Sesiones y Vista previa; las demás son migas.
+      expect(screen.queryByRole("region", { name: "Casos" })).toBeNull();
+      const migas = screen.getByRole("navigation", { name: "Volver a una columna anterior" });
+      fireEvent.click(within(migas).getByRole("button", { name: "Casos" }));
+      expect(region("Casos")).toBeTruthy();
+      expect(region("Paciente")).toBeTruthy();
+      expect(screen.queryByRole("region", { name: "Estudios de imagen" })).toBeNull();
+      expect(screen.queryByRole("region", { name: /^Sesiones guardadas/ })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+      await esperaColumnaDatos();
+    });
+
+    it("la miga «Paciente» deja solo la columna Datos", async () => {
+      renderPage();
+      fireEvent.click(await screen.findByRole("button", { name: /^Aneurisma ACM/ }));
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Paciente" }));
+      expect(region("Paciente")).toBeTruthy();
+      expect(screen.queryByRole("region", { name: "Casos" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Estudios de imagen" })).toBeNull();
+      expect(within(region("Paciente")).getByRole("button", { name: "Casos · 3" }).getAttribute("aria-pressed")).toBe("false");
+      await esperaColumnaDatos();
+    });
   });
 });

@@ -54,3 +54,39 @@
   padding: 10px 12px; border: 1px solid var(--glass-border); border-radius: var(--radius-md);
   background: var(--glass); font-size: 12px; line-height: 1.5; color: var(--muted-foreground);
 }
+
+/* Columnas Casos, Estudios de imagen, Sesiones guardadas y Vista previa */
+.fc-col { display: flex; flex-direction: column; gap: 14px; }
+.fc-barra { display: flex; gap: 8px; flex-wrap: wrap; }
+.fc-lista { display: flex; flex-direction: column; gap: 8px; }
+.fc-vacio { font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
+.fc-fila {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: var(--glass);
+}
+.fc-fila[data-elegida="true"] { background: var(--glass-hover); border-color: var(--ring); }
+.fc-fila-cabeza { display: flex; align-items: flex-start; gap: 6px; }
+.fc-fila-boton {
+  flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px;
+  padding: 4px; border: none; border-radius: var(--radius-md); background: transparent;
+  color: var(--foreground); font: inherit; text-align: left; cursor: pointer;
+}
+.fc-fila-boton:hover { background: var(--glass-hover); }
+.fc-fila-boton:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.fc-fila-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fc-fila-titulo { font-size: 13px; font-weight: 600; color: var(--foreground); overflow-wrap: anywhere; }
+.fc-fila-meta { font-size: 11px; line-height: 1.5; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.fc-fila-mono { font-family: var(--font-mono); }
+.fc-fila-iconos { display: inline-flex; gap: 4px; flex-shrink: 0; align-items: center; }
+.fc-fila-acciones { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 4px; }
+.fc-miniatura {
+  flex-shrink: 0; width: 64px; height: 64px; border-radius: var(--radius-md); overflow: hidden;
+  background: var(--viewer-bg); color: var(--muted-foreground);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 10px; text-align: center;
+}
+.fc-miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fc-miniatura[data-grande="true"] { width: 100%; height: 200px; font-size: 12px; border-radius: var(--radius-lg); }
+.fc-vista { display: flex; flex-direction: column; gap: 12px; }
+.fc-vista-nombre { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--foreground); overflow-wrap: anywhere; }
+.fc-vista-datos { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--foreground); }

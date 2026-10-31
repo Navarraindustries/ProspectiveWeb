@@ -28,6 +28,8 @@ vi.mock("./api/client", () => ({
     listPatients: () => Promise.resolve([]),
     patientShares: () => Promise.resolve([]),
     listCaptures: () => Promise.resolve([]),
+    patientStudies: () => Promise.resolve([]),
+    patientSessions: () => Promise.resolve([]),
   },
   ApiError: class extends Error {},
   onServerDown: () => () => {},

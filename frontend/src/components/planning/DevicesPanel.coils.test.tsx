@@ -63,7 +63,7 @@ function montar() {
 
 async function abrirCoils() {
   montar();
-  fireEvent.click(await screen.findByRole("button", { name: "Coils" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "Coils" }));
   await screen.findByLabelText("Modelo (fila 1)");
 }
 
@@ -152,7 +152,7 @@ describe("una sola vía de coils (decisión nº 24)", () => {
       note: "Hace falta la morfometría",
     });
     montar();
-    fireEvent.click(await screen.findByRole("button", { name: "Coils" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Coils" }));
     await waitFor(() => expect(api.listCoils).toHaveBeenCalled());
     fireEvent.click(await screen.findByRole("button", { name: "Añadir coil" }));
     expect(modelo(1).value).toBe("enmarcado-10");

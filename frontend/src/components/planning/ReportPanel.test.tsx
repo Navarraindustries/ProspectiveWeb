@@ -246,3 +246,31 @@ describe("la captura 3D del informe", () => {
     });
   });
 });
+
+describe("vista previa del PDF", () => {
+  function montarConPdf(urls: { pdf_url?: string | null; pdf_current?: boolean } | null) {
+    function Seed({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        if (!p.sessionId) { p.setSession("s1"); p.setReportUrls(urls); }
+      }, [p]);
+      return p.sessionId ? <>{children}</> : null;
+    }
+    return render(<PlanningProvider><Seed><ReportPanel onFinish={() => {}} /></Seed></PlanningProvider>);
+  }
+
+  it("con PDF en disco lo embebe y mantiene el enlace de descarga", async () => {
+    montarConPdf({ pdf_url: "/data/sessions/s1/reports/vieja_report.pdf?v=1", pdf_current: true });
+    const enlace = await screen.findByText(/Descargar PDF/);
+    const objeto = document.querySelector('object[type="application/pdf"]');
+    expect(objeto).not.toBeNull();
+    expect(objeto).toHaveAttribute("data", "/data/sessions/s1/reports/vieja_report.pdf?v=1");
+    expect(enlace.closest("a")).toHaveAttribute("href", "/data/sessions/s1/reports/vieja_report.pdf?v=1");
+  });
+
+  it("sin PDF no hay objeto embebido", async () => {
+    montarConPdf(null);
+    await screen.findByText("Generar informe PDF");
+    expect(document.querySelector('object[type="application/pdf"]')).toBeNull();
+  });
+});

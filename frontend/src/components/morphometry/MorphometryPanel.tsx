@@ -11,6 +11,7 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, ErrorNote, Collapsible } from "../PanelHead";
+import { PanelFooter } from "../PanelFooter";
 import { ProgressBar } from "../ProgressBar";
 import { Select } from "../Select";
 import { Tabs } from "../Tabs";
@@ -596,23 +597,20 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
         </>
       )}
 
-      <Button
-        style={{ marginTop: 18, width: "100%" }}
-        onClick={onNext}
-        disabled={!m}
-        trailingIcon={<Icon name="STEP_PLAN" />}
-      >
-        {/* Glosario: todo botón de avance dice «Continuar a …». */}
-        Continuar a decisión
-      </Button>
       {/* F1-171: se podía pasar a Decisión con «Medición no fiable» arriba y
           nada junto al botón. Sigue encendido (el carril deja pasar), pero dice
-          qué falta. */}
-      {m && !m.reliable && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
-          La medida no es fiable: marca cuello y ápice antes de decidir
-        </div>
-      )}
+          qué falta: la nota va encima del botón, en el pie. */}
+      <PanelFooter note={m && !m.reliable ? "La medida no es fiable: marca cuello y ápice antes de decidir" : undefined}>
+        <Button
+          style={{ width: "100%" }}
+          onClick={onNext}
+          disabled={!m}
+          trailingIcon={<Icon name="STEP_PLAN" />}
+        >
+          {/* Glosario: todo botón de avance dice «Continuar a …». */}
+          Continuar a decisión
+        </Button>
+      </PanelFooter>
     </div>
   );
 }

@@ -40,6 +40,8 @@ import { VERDICT_LABEL } from "./approachSummary";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
+import { Badge } from "../Badge";
+import { PanelFooter } from "../PanelFooter";
 import { Select } from "../Select";
 import { Slider } from "../Slider";
 import { Tabs } from "../Tabs";
@@ -2044,15 +2046,7 @@ function PlacedDevicesBar() {
       {placed.length > 0 && (<>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
         {placed.map((k) => (
-          <span
-            key={k}
-            style={{
-              fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999,
-              background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)",
-            }}
-          >
-            {KIND_LABEL[k]}
-          </span>
+          <Badge key={k} variant="data">{KIND_LABEL[k]}</Badge>
         ))}
       </div>
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
@@ -2138,9 +2132,11 @@ export function DevicesPanel({ onNext }: { onNext: () => void }) {
       {tab === TAB_STENT && <StentsTab />}
       {tab === TAB_STENT_CL && <ClStentTab />}
       {tab === "WEB" && sessionId && <WebSizing sessionId={sessionId} />}
-      <Button variant="outline" style={{ marginTop: 18, width: "100%" }} onClick={onNext} trailingIcon={<Icon name="SETTINGS" />}>
-        Continuar a fabricación
-      </Button>
+      <PanelFooter>
+        <Button variant="outline" style={{ width: "100%" }} onClick={onNext} trailingIcon={<Icon name="SETTINGS" />}>
+          Continuar a fabricación
+        </Button>
+      </PanelFooter>
     </div>
   );
 }

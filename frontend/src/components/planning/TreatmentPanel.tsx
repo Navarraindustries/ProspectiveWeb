@@ -12,6 +12,8 @@ import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Input } from "../Input";
+import { Metric } from "../Metric";
+import { PanelFooter } from "../PanelFooter";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
@@ -121,6 +123,14 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
   };
 
   const t = treatment;
+
+  // Geometría que el panel ya tiene (morfometría): solo lo que se midió.
+  const m = planning.morphometry;
+  const geometria: [string, string, string?][] = [];
+  if (m && Number.isFinite(m.neck_mm)) geometria.push(["Cuello", m.neck_mm.toFixed(1), " mm"]);
+  if (m && Number.isFinite(m.dnr)) geometria.push(["Relación domo-cuello", m.dnr.toFixed(2)]);
+  if (m && Number.isFinite(m.dome_height_mm)) geometria.push(["Altura del domo", m.dome_height_mm.toFixed(1), " mm"]);
+  if (m && Number.isFinite(m.max_diameter_mm)) geometria.push(["Ø máximo", m.max_diameter_mm.toFixed(1), " mm"]);
 
   return (
     <div className="fade-rise">
@@ -307,6 +317,10 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
             </div>
           )}
 
+          {/* Resultado en dos columnas (en el panel ancho): a la izquierda el
+              riesgo, a la derecha la geometría; la vía va debajo, a todo el ancho. */}
+          <div className="panel-dos-columnas">
+          <div>
           {/* El único modelo ajustado del paso, y por eso va ANTES del
               sumatorio heurístico. Dos puntuaciones separadas, no una resta:
               es lo único aquí que puede decir «las dos vías van mal». */}
@@ -424,7 +438,19 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
             </div>
           )}
 
-          <TeamDecisionCard />
+          </div>
+          <div>
+          {/* Lo que la morfometría ya midió, a mano para decidir la vía. */}
+          {geometria.length > 0 && (
+            <>
+              <SectionLabel style={{ marginTop: 16 }}>Geometría</SectionLabel>
+              <Card>
+                {geometria.map(([label, value, unit]) => (
+                  <Metric key={label} label={label} value={value} unit={unit} />
+                ))}
+              </Card>
+            </>
+          )}
 
           {/* Lo que la imagen no puede dar. Una perforante mide 0,1–0,5 mm y el
               vóxel de una angio-TC ronda 0,5–1,0 mm: no llega a la malla, así
@@ -463,6 +489,10 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               </Card>
             </>
           )}
+          </div>
+          </div>
+
+          <TeamDecisionCard />
 
           {/* La otra opción, descrita gane o no. Es donde la morfología sí tiene
               respaldo publicado: la definición de cuello ancho predice si hará
@@ -501,14 +531,11 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
       {/* F1-183: se apagaba sin recomendación, aunque el carril deja entrar en
           Dispositivos con la morfometría (Workspace.tsx, missingFor): el
           equipo puede decidir sin el motor. Misma regla y mismo motivo. */}
-      <Button style={{ marginTop: 18, width: "100%" }} onClick={onNext} disabled={!planning.morphometry} trailingIcon={<Icon name="CLIPS" />}>
-        Continuar a dispositivos
-      </Button>
-      {!planning.morphometry && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, textAlign: "center" }}>
-          {NEEDS_MORPHOMETRY}
-        </div>
-      )}
+      <PanelFooter note={!planning.morphometry ? NEEDS_MORPHOMETRY : undefined}>
+        <Button style={{ width: "100%" }} onClick={onNext} disabled={!planning.morphometry} trailingIcon={<Icon name="CLIPS" />}>
+          Continuar a dispositivos
+        </Button>
+      </PanelFooter>
     </div>
   );
 }

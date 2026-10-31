@@ -481,3 +481,28 @@ describe("F1-178: los factores que votan, primero", () => {
     expect(vota.compareDocumentPosition(grupo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe("el resultado en dos columnas", () => {
+  it("riesgo y geometría en columnas y la vía debajo, a todo el ancho", () => {
+    morpho = { max_diameter_mm: 7, neck_mm: 4.1, dome_height_mm: 6, dnr: 1.5 };
+    stored = {
+      ...RESULT,
+      jsdb: {
+        clip: ARM("clip", ["Edad ≥ 72 años (75)"]), coil: ARM("coil", ["WFNS V"]),
+        favours: "clip", both_poor: false, known_pct: 100, missing: [],
+        verdict: "Clipaje quirúrgico sale menos penalizado.", source: "",
+      },
+    };
+    const { container } = render(<TreatmentPanel onNext={() => {}} />);
+    morpho = { max_diameter_mm: 7 };
+    const cols = container.querySelector(".panel-dos-columnas") as HTMLElement;
+    expect(cols).not.toBeNull();
+    expect(cols).toHaveTextContent("Riesgo estimado por cada vía · Japan Stroke Data Bank");
+    expect(cols).toHaveTextContent("Factores contribuyentes");
+    expect(cols).toHaveTextContent("Geometría");
+    expect(cols).toHaveTextContent("Cuello");
+    expect(cols).toHaveTextContent("Perforantes que esperar aquí");
+    const via = screen.getByText(/¿Qué vía decide el equipo\?|Decisión del equipo/i);
+    expect(cols.contains(via)).toBe(false);
+  });
+});

@@ -16,6 +16,7 @@ import type { ClipOrderPrefill, ClipSelectionResult, ManufactureSpecOut } from "
 import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
+import { PanelFooter } from "../PanelFooter";
 import { usePlanning } from "../../store/planning";
 import { useNav } from "../../store/nav";
 import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
@@ -323,14 +324,16 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
         </>
       )}
 
-      <Button
-        variant="outline"
-        style={{ marginTop: 18, width: "100%" }}
-        onClick={onNext}
-        trailingIcon={<Icon name="STEP_EXPORT" />}
-      >
-        Continuar al informe
-      </Button>
+      <PanelFooter>
+        <Button
+          variant="outline"
+          style={{ width: "100%" }}
+          onClick={onNext}
+          trailingIcon={<Icon name="STEP_EXPORT" />}
+        >
+          Continuar al informe
+        </Button>
+      </PanelFooter>
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { CapturePicker } from "./CapturePicker";
 import { Input } from "../Input";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
-import { Separator } from "../Separator";
+import { PanelFooter } from "../PanelFooter";
 import { PrintPrepPanel } from "./PrintPrepPanel";
 import { useAuth } from "../../store/auth";
 import { usePlanning } from "../../store/planning";
@@ -320,9 +320,16 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
           </div>
         )}
         {pdfUrl && (
-          <OutputLink href={pdfUrl} stale={stale("pdf")}>
-            Descargar PDF {report?.page_count ? `(${report.page_count} páginas)` : ""} →
-          </OutputLink>
+          <>
+            {/* Vista previa del informe en el propio panel; sin visor PDF en el
+                navegador, el enlace de descarga hace de contenido alternativo. */}
+            <object data={pdfUrl} type="application/pdf" aria-label="Vista previa del informe"
+              style={{ width: "100%", height: 520, borderRadius: 12 }}>
+              <OutputLink href={pdfUrl} stale={stale("pdf")}>
+                Descargar PDF {report?.page_count ? `(${report.page_count} páginas)` : ""} →
+              </OutputLink>
+            </object>
+          </>
         )}
         <Button variant="outline" leadingIcon={<Icon name="SAVE" />} onClick={() => void genStl()} disabled={busy !== null}>
           {busy === "stl" ? "Exportando…" : stale("stl") ? "Volver a exportar STL" : "Exportar malla STL"}
@@ -361,12 +368,6 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
             Descargar segmentación DICOM ({seg.segments.join(" + ")}) →
           </OutputLink>
         )}
-        <Separator style={{ margin: "6px 0" }} />
-        <Button variant="secondary" leadingIcon={<Icon name="SAVE" />} onClick={() => void save()} disabled={busy !== null}>
-          {/* Guarda Y sale del caso (llama a onFinish): «Guardar sesión»
-              prometía lo primero y hacía también lo segundo (F1-239). */}
-          {busy === "save" ? "Guardando…" : "Guardar y cerrar"}
-        </Button>
       </div>
 
       <ErrorNote>{error}</ErrorNote>
@@ -382,6 +383,13 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
           ? "La sesión se vincula al paciente y estudio en la base de datos."
           : "Sin caso, la sesión se guarda suelta: con «Adjuntar a un caso» queda ligada al paciente"}
       </div>
+      <PanelFooter>
+        <Button variant="secondary" style={{ width: "100%" }} leadingIcon={<Icon name="SAVE" />} onClick={() => void save()} disabled={busy !== null}>
+          {/* Guarda Y sale del caso (llama a onFinish): «Guardar sesión»
+              prometía lo primero y hacía también lo segundo (F1-239). */}
+          {busy === "save" ? "Guardando…" : "Guardar y cerrar"}
+        </Button>
+      </PanelFooter>
     </div>
   );
 }

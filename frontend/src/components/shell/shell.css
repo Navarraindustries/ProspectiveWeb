@@ -99,8 +99,9 @@
   overflow-y: auto;
 }
 
-/* El icono queda en el mismo sitio plegada y expandida: 4 px de margen, 8 px
-   de relleno, 16 px de icono, centrado en los 40 px del carril. */
+/* El icono queda en el mismo sitio plegada y expandida. Plegada (carril de
+   40 px): 4 px de margen, 8 px de relleno y 16 px de icono, centrado. Expandida
+   (220 px): 8 px de margen y 10 px de relleno, que es la geometría nueva. */
 .shell-nav-link {
   position: relative;
   display: flex;
@@ -116,6 +117,10 @@
   white-space: nowrap;
   text-decoration: none;
   transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.shell-nav[data-expanded="false"] .shell-nav-link {
+  margin: 2px 4px;
+  padding: 0 8px;
 }
 .shell-nav-link:hover {
   background: var(--accent);

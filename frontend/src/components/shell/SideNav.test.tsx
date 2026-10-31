@@ -35,7 +35,10 @@ beforeEach(() => {
   nav.screen = "studies";
   nav.go.mockReset();
 });
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => {
+  vi.useRealTimers();
+  Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true });
+});
 
 describe("SideNav", () => {
   it("la sección activa lleva aria-current=page y las demás no", () => {
@@ -132,6 +135,7 @@ describe("SideNav", () => {
   it("el pie lleva nombre, rol y «Cerrar sesión»", () => {
     renderNav();
     expect(screen.getByText("Administrador", { selector: ".shell-nav-user-name" })).toBeInTheDocument();
+    expect(document.querySelector(".shell-nav-user-role")).toHaveTextContent("Administrador");
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
 });

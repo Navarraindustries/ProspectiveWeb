@@ -502,6 +502,8 @@ export function Workspace({
           collapsed={columnCollapsed}
           onToggle={() => setPanelCollapsed(false)}
           stepLabel={STEPS[stepIdx].label}
+          stepKey={step}
+          wide={step === "treatment" || step === "report"}
           badge={sessionId && annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
         >
           {panel}

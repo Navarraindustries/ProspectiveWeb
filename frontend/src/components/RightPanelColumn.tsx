@@ -6,6 +6,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { Icon } from "./Icon";
+import { AnimatePresence, motion, panelSwap, panelTransition } from "../motion";
 
 /** Plegado o no es una manera de trabajar de quien mira, como el nivel del HUD. */
 export const PREF_PANEL_COLLAPSED = "ws.panelCollapsed";
@@ -32,12 +33,18 @@ export function RightPanelColumn({
   collapsed,
   onToggle,
   stepLabel,
+  stepKey,
+  wide,
   badge,
   children,
 }: {
   collapsed: boolean;
   onToggle: () => void;
   stepLabel: string;
+  /** Identifica el paso: al cambiar, el cuerpo cruza en fundido. */
+  stepKey: string;
+  /** Pasos con tablas o informe: 520 px en vez de 380. */
+  wide: boolean;
   /** Algo que avisar aun plegado (p. ej. cuántas anotaciones hay). */
   badge?: ReactNode;
   children: ReactNode;
@@ -46,9 +53,11 @@ export function RightPanelColumn({
     <>
       <div
         data-panel-column
+        data-panel-wide={wide ? "true" : "false"}
         style={{
           display: collapsed ? "none" : "flex",
-          position: "relative", width: "clamp(300px, 27vw, 384px)", flexShrink: 0,
+          position: "relative", width: wide ? 520 : 380, flexShrink: 0,
+          transition: "width var(--dur-2) var(--ease-out)",
         }}
       >
         {/* Pestaña pegada al borde izquierdo del panel: pliega sin buscar la tecla P. */}
@@ -59,10 +68,23 @@ export function RightPanelColumn({
         <div
           style={{
             flex: 1, minWidth: 0, background: "var(--background)",
-            borderLeft: "1px solid var(--border)", overflowY: "auto", padding: "20px 18px 40px",
+            borderLeft: "1px solid var(--border)", overflowY: "auto",
           }}
         >
-          {children}
+          {/* Cruce en fundido entre pasos; el primer pintado no anima. */}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={stepKey}
+              className="ws-panel-body"
+              variants={panelSwap}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={panelTransition}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
       {collapsed && (

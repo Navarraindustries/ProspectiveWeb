@@ -7,10 +7,10 @@ export function PanelHead({ title, desc, right }: { title: string; desc?: string
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
+        <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--foreground)" }}>
           {title}
         </div>
-        {desc && <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 3 }}>{desc}</div>}
+        {desc && <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 3 }}>{desc}</div>}
       </div>
       {right}
     </div>

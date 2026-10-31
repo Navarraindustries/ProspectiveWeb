@@ -1,7 +1,6 @@
-/* Sheet — hoja lateral derecha, sólida, que entra deslizando desde el borde.
+/* Sheet — hoja lateral derecha, de cristal denso, que entra deslizando desde el borde.
 
-   Panel opaco (`--card`) con sombra de hoja y un velo del color del lienzo
-   detrás. Al abrir enfoca el primer campo del contenido (o el panel); el pie
+   Panel de cristal denso con sombra de hoja y un velo (`--scrim`) detrás. Al abrir enfoca el primer campo del contenido (o el panel); el pie
    opcional queda fijo abajo y el cuerpo es lo que desplaza.
 
    Se pinta en un portal sobre <body>: `position: fixed` se resuelve contra el
@@ -14,6 +13,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion, scrimFade, sheetSlide, sheetTransition, useReducedMotion } from "../motion";
+import { glass } from "../styles/glass";
 import { Icon } from "./Icon";
 
 /** Las fichas abiertas, de abajo arriba. La ficha del paciente abre encima la
@@ -87,7 +87,7 @@ export function Sheet({
             exit="exit"
             transition={transition}
             onClick={() => { if (openRef.current) onClose(); }}
-            style={{ position: "absolute", inset: 0, background: "color-mix(in srgb, var(--canvas) 55%, transparent)" }}
+            style={{ position: "absolute", inset: 0, background: "var(--scrim)" }}
           />
           <motion.div
             ref={panelRef}
@@ -100,7 +100,9 @@ export function Sheet({
             aria-modal="true"
             aria-label={title}
             tabIndex={-1}
+            data-glass
             style={{
+              ...glass("dense"),
               outline: "none",
               position: "absolute",
               top: 0,
@@ -108,9 +110,7 @@ export function Sheet({
               bottom: 0,
               width,
               maxWidth: "94vw",
-              background: "var(--card)",
-              borderLeft: "1px solid var(--border)",
-              borderRadius: 0,
+              borderRadius: "var(--radius-xl) 0 0 var(--radius-xl)",
               boxShadow: "var(--shadow-sheet)",
               display: "flex",
               flexDirection: "column",
@@ -119,18 +119,18 @@ export function Sheet({
             <div style={{ display: "flex", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
               <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
                 {eyebrow && (
-                  <span style={{ fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-eyebrow)", textTransform: "uppercase", letterSpacing: "var(--tracking-eyebrow)", color: "var(--muted-foreground)" }}>
                     {eyebrow}
                   </span>
                 )}
-                <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
+                <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
                   {title}
                 </span>
               </span>
               <button
                 onClick={onClose}
                 aria-label="Cerrar"
-                style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--muted-foreground)", padding: 6 }}
+                style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-full)", border: "none", background: "transparent", cursor: "pointer", color: "var(--muted-foreground)", flexShrink: 0 }}
               >
                 <Icon name="STATUS_FAIL" size={15} />
               </button>

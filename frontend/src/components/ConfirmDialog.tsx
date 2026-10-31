@@ -7,6 +7,8 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import { glide, glideTransition, motion, useReducedMotion } from "../motion";
+import { glass } from "../styles/glass";
 import { Button } from "./Button";
 
 /* Cuántos diálogos de confirmación hay abiertos ahora mismo. Los atajos del
@@ -50,6 +52,7 @@ export function ConfirmDialog({
   onExtra?: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
   // Los manejadores van por ref: quien llama los pasa en línea y cambian en cada
   // render. Si el efecto dependiera de ellos, cada letra tecleada en un campo
   // del diálogo lo reejecutaba y devolvía el foco al panel.
@@ -107,16 +110,21 @@ export function ConfirmDialog({
   return createPortal(
     <div
       onClick={onCancel}
-      style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, zIndex: 400, background: "var(--scrim-dense)", display: "flex", alignItems: "center", justifyContent: "center" }}
     >
-      <div
+      <motion.div
         ref={panelRef}
+        variants={glide}
+        initial="initial"
+        animate="animate"
+        transition={reduced ? { duration: 0 } : glideTransition}
+        data-glass
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        style={{ outline: "none", width: 420, maxWidth: "90%", background: "var(--glass)", backdropFilter: "blur(var(--glass-blur))", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: "22px 24px" }}
+        style={{ ...glass("dense"), boxShadow: "var(--glass-highlight), var(--shadow-lg)", outline: "none", width: 420, maxWidth: "90%", borderRadius: "var(--radius-xl)", padding: "22px 24px" }}
       >
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--foreground)" }}>{title}</div>
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.55 }}>
@@ -131,7 +139,7 @@ export function ConfirmDialog({
             {confirmLabel}
           </Button>
         </div>
-      </div>
+      </motion.div>
     </div>,
     document.body,
   );

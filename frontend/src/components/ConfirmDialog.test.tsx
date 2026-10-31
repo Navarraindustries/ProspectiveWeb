@@ -12,6 +12,29 @@ import { ConfirmDialog, isConfirmDialogOpen } from "./ConfirmDialog";
 import { Sheet } from "./Sheet";
 
 describe("ConfirmDialog con el teclado", () => {
+  it("es una ventana de cristal de 420 px", () => {
+    render(
+      <ConfirmDialog open title="Salir" confirmLabel="Salir" onCancel={() => {}} onConfirm={() => {}}>
+        cuerpo
+      </ConfirmDialog>,
+    );
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog).toHaveAttribute("data-glass");
+    expect(dialog.style.width).toBe("420px");
+  });
+
+  it("lleva velo denso (--scrim-dense) y sombra de ventana", () => {
+    render(
+      <ConfirmDialog open title="Salir" confirmLabel="Salir" onCancel={() => {}} onConfirm={() => {}}>
+        cuerpo
+      </ConfirmDialog>,
+    );
+    const dialog = screen.getByRole("alertdialog");
+    expect((dialog.parentElement as HTMLElement).style.background).toContain("--scrim-dense");
+    expect(dialog.style.boxShadow).toContain("--shadow-lg");
+    expect(dialog.style.boxShadow).toContain("--glass-highlight");
+  });
+
   it("Intro no confirma un borrado", () => {
     const onConfirm = vi.fn();
     render(

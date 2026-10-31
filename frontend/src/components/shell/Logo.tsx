@@ -1,4 +1,4 @@
-/* Logotipo de PROSPECTIVE: marca «P» blanca sobre cuadrado redondeado del color
+/* Logotipo de PROSPECTIVE: marca «P» (color --primary-foreground) sobre cuadrado redondeado del color
    primario. El modo compacto (solo marca) es para la barra lateral plegada. */
 
 export interface LogoProps {

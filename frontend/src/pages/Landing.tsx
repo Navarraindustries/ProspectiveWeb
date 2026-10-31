@@ -3,7 +3,7 @@
    how it works → technology → security → team → disclaimer → CTA.
    "Entrar" routes to the app (/app).
 
-   Desde F2 usa la identidad de la aplicación (grafito y azul eléctrico, Geist):
+   Desde F2 usa la identidad de la aplicación (grafito y azul eléctrico, Inter):
    solo tokens, sin colores escritos a mano; la maquetación y los efectos siguen
    en `styles/landing.css` bajo `.landing-stitch`. Es dark-only: la página fija
    `data-theme="dark"` y no ofrece conmutador de tema. */

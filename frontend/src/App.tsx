@@ -29,6 +29,8 @@ import { rehydrateSession } from "./resume";
 import { restoreFailure } from "./restoreFailure";
 import { ServerDownBanner } from "./components/ServerDownBanner";
 import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
+import { CommandPalette } from "./components/CommandPalette";
+import { useRegisterCommands } from "./lib/commands";
 
 function Router() {
   const { user, ready, expiredNotice } = useAuth();
@@ -91,6 +93,13 @@ function Router() {
       navigate(SCREEN_PATH[effective], { replace: true });
     }
   }, [ready, effective, location.pathname, navigate]);
+
+  // Mandos globales de la paleta ⌘K; los `run` se leen siempre de la última pasada.
+  useRegisterCommands("app", user ? [
+    { id: "nuevo-paciente", group: "acciones", label: "Nuevo paciente", run: () => navigate(`${SCREEN_PATH.patients}?nuevo=paciente`) },
+    { id: "nuevo-caso", group: "acciones", label: "Nuevo caso", run: () => navigate(`${SCREEN_PATH.patients}?nuevo=caso`) },
+    { id: "prueba-rapida", group: "acciones", label: "Prueba rápida sin paciente", run: () => startWithoutPatient() },
+  ] : []);
 
   if (!ready) return null; // restoring stored token
   // Con la contraseña inicial el servidor responde 403 a todo: una sola
@@ -301,6 +310,12 @@ function Router() {
     }}>
     <div style={{ height: "100%", position: "relative" }}>
       {view}
+      {user && (
+        <CommandPalette
+          onOpenPatient={(id) => navigate(`${SCREEN_PATH.patients}?paciente=${id}`)}
+          onResume={(sid, p) => void resumeSession(sid, p)}
+        />
+      )}
       {loadingIn && <LoadingScreen onDone={() => setLoadingIn(false)} />}
       <UnsavedExitDialog
         open={blocker.state === "blocked"}

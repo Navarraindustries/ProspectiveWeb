@@ -1,3 +1,5 @@
+> **SUSTITUIDO (31-10-2026):** este plan pertenece a la dirección A y no se ejecuta. Lo reemplazan los planes del documento `docs/superpowers/specs/2026-10-31-rediseno-cristal-d-design.md` (dirección D, «Quirófano de cristal»).
+
 # Rediseño visual · Fase 6 (pulido, accesibilidad, rendimiento y tests) — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

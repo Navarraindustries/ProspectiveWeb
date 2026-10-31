@@ -2,6 +2,8 @@
 
 Fecha: 30 de octubre de 2026. Estado: aprobado en conversación por el dueño del producto (dirección «A + H + F + D»). Lienzo de referencia con todas las pantallas: https://claude.ai/artifact/SsoRuibugGf6h9mtUWHCF5 (privado; pedir acceso al dueño).
 
+**31-10-2026:** la estética de este documento queda sustituida por la dirección D, «Quirófano de cristal» (`2026-10-31-rediseno-cristal-d-design.md`). Las fases 1–3 de aquí están en `main` y son la base; las fases 4–6 de aquí no se ejecutan.
+
 ## 1. Intención y por qué
 
 Prospective se enseña a un jefe de servicio, a neurocirujanos y, en demos, a comités. El dueño quiere que luzca «top a nivel de efectos y atractividad» en la **entrada** (landing, entrar, pantalla de carga) y que la **herramienta** (panel de pacientes, gestión, pipeline de 8 pasos) sea **sobria pero viva**: botones, hojas laterales, pestañas, rail de pasos y paneles con movimiento que responde a lo que hace el usuario.

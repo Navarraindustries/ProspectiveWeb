@@ -1,4 +1,4 @@
-/* Identidad A (F2): el oscuro vive en :root y el claro bajo [data-theme="light"].
+/* Dirección D (cristal): el oscuro vive en :root y el claro bajo [data-theme="light"].
    Un token que exista solo en un tema deja una superficie transparente en el otro. */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -12,23 +12,35 @@ const block = (sel: string) => {
   return css.slice(i, css.indexOf("}", i));
 };
 const names = (b: string) => new Set([...b.matchAll(/--([a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+// contraste WCAG calculado sobre hex #RRGGBB
+const l = (hex: string) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a: string, b: string) => { const [x, y] = [l(a), l(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 
-describe("tokens de la identidad A", () => {
+describe("tokens de la dirección D", () => {
   it("el claro define exactamente los mismos nombres que el oscuro", () => {
     const dark = names(block(DARK)), light = names(block('[data-theme="light"]'));
     expect([...dark].filter((n) => !light.has(n))).toEqual([]);
     expect([...light].filter((n) => !dark.has(n))).toEqual([]);
   });
-  it("el oscuro es el de la identidad A", () => {
+  it("el oscuro es el de la dirección D", () => {
     const r = block(DARK);
-    expect(r).toMatch(/--canvas:\s*#0B0C0F/i);
-    expect(r).toMatch(/--background:\s*#141519/i);
-    expect(r).toMatch(/--card:\s*#1C1D22/i);
-    expect(r).toMatch(/--foreground:\s*#F2F3F5/i);
-    expect(r).toMatch(/--primary:\s*#3B8BFF/i);
-    expect(r).toMatch(/--success:\s*#2ECC8A/i);
-    expect(r).toMatch(/--destructive:\s*#FF5A5F/i);
-    expect(r).toMatch(/--warning:\s*#F5B942/i);
+    expect(r).toMatch(/--canvas:\s*#050608/i);
+    expect(r).toMatch(/--background:\s*#0B0C0F/i);
+    expect(r).toMatch(/--card:\s*#12141A/i);
+    expect(r).toMatch(/--popover:\s*#12141A/i);
+    expect(r).toMatch(/--foreground:\s*#FFFFFF/i);
+    expect(r).toMatch(/--muted-foreground:\s*#B8C0CC/i);
+    expect(r).toMatch(/--primary:\s*#5AA9FF/i);
+    expect(r).toMatch(/--primary-foreground:\s*#06121F/i);
+    expect(r).toMatch(/--primary-hover:\s*#7DBBFF/i);
+    expect(r).toMatch(/--success:\s*#3DDC97/i);
+    expect(r).toMatch(/--destructive:\s*#FF5A6A/i);
+    expect(r).toMatch(/--destructive-text:\s*#FF8A96/i);
+    expect(r).toMatch(/--warning:\s*#FFC247/i);
+    expect(r).toMatch(/--border:\s*rgba\(255, ?255, ?255, ?0?\.14\)/);
+    expect(r).toMatch(/--input:\s*rgba\(255, ?255, ?255, ?0?\.24\)/);
+    expect(r).toMatch(/--ring:\s*var\(--primary\)/);
+    expect(r).toMatch(/--chart-1:\s*var\(--primary\)/);
   });
   it("el oscuro declara color-scheme: dark y el claro color-scheme: light", () => {
     // Sin esto los controles nativos y las barras de desplazamiento salen con el estilo claro del navegador.
@@ -38,8 +50,9 @@ describe("tokens de la identidad A", () => {
   it("la sombra oscura también se declara bajo data-theme=dark (la landing la fija)", () => {
     const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8").replace(/\r\n/g, "\n");
     expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-lg:/);
-    expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-primary:\s*0 8px 24px rgba\(59, ?139, ?255, ?0?\.30?\)/);
-    expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-sheet:\s*-30px 0 80px rgba\(0, ?0, ?0, ?0?\.50?\)/);
+    expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-lg:\s*0 40px 90px rgba\(0, ?0, ?0, ?0?\.6\)/);
+    expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-primary:\s*inset 0 1px 0 rgba\(255, ?255, ?255, ?0?\.5\), 0 8px 24px rgba\(90, ?169, ?255, ?0?\.28\)/);
+    expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-sheet:\s*-30px 0 80px rgba\(0, ?0, ?0, ?0?\.6\)/);
   });
   it("las fuentes son Inter y JetBrains Mono, autoalojadas", () => {
     const fonts = readFileSync(join(__dirname, "tokens/fonts.css"), "utf8");
@@ -55,27 +68,70 @@ describe("tokens de la identidad A", () => {
     expect(typo).toMatch(/--tracking-eyebrow:\s*0\.14em/);
     expect(typo).toMatch(/--text-display:\s*40px/);
   });
-  it("los tokens nuevos existen en los dos temas con los valores de la dirección A", () => {
+  it("los tokens nuevos existen en los dos temas con los valores de la dirección D", () => {
     const dark = block(DARK), light = block('[data-theme="light"]');
-    expect(dark).toMatch(/--surface-2:\s*#0E1014/i);
+    expect(dark).toMatch(/--surface-2:\s*#0A0B0E/i);
     expect(light).toMatch(/--surface-2:\s*#FFFFFF/i);
-    expect(dark).toMatch(/--data:\s*#8CBBFF/i);
+    expect(dark).toMatch(/--data:\s*#5AA9FF/i);
     expect(light).toMatch(/--data:\s*#1F5FC0/i);
-    expect(light).toMatch(/--canvas:\s*#F6F7F9/i);
+    expect(light).toMatch(/--canvas:\s*#F3F5F8/i);
     expect(light).toMatch(/--primary:\s*#0A66FF/i);
-    expect(light).toMatch(/--muted-foreground:\s*#5B6470/i);
+    expect(light).toMatch(/--muted-foreground:\s*#4A5361/i);
     expect(light).toMatch(/--accent:\s*#EEF4FF/i);
+    expect(light).toMatch(/--destructive-text:\s*#B91C1C/i);
+    expect(dark).toMatch(/--field-bg:\s*rgba\(5, ?6, ?8, ?0?\.5\)/);
+    expect(light).toMatch(/--field-bg:\s*#FFFFFF/i);
+    expect(dark).toMatch(/--veil:\s*rgba\(5, ?6, ?8, ?0?\.55\)/);
+    expect(dark).toMatch(/--veil-dense:\s*rgba\(5, ?6, ?8, ?0?\.72\)/);
+    expect(light).toMatch(/--veil:\s*rgba\(243, ?245, ?248, ?0\)/);
+    expect(light).toMatch(/--veil-dense:\s*rgba\(243, ?245, ?248, ?0\)/);
+    expect(dark).toMatch(/--glass:\s*linear-gradient\(rgba\(5, ?6, ?8, ?0?\.55\), rgba\(5, ?6, ?8, ?0?\.55\)\), rgba\(255, ?255, ?255, ?0?\.08\)/);
+    expect(light).toMatch(/--glass:\s*rgba\(255, ?255, ?255, ?0?\.72\)/);
+    expect(dark).toMatch(/--glass-dense:\s*linear-gradient\(rgba\(8, ?9, ?12, ?0?\.72\)/);
+    expect(light).toMatch(/--glass-dense:\s*rgba\(255, ?255, ?255, ?0?\.86\)/);
+    expect(dark).toMatch(/--glass-border:\s*rgba\(255, ?255, ?255, ?0?\.2\)/);
+    expect(light).toMatch(/--glass-highlight:\s*inset 0 1px 0 rgba\(255, ?255, ?255, ?0?\.9\)/);
+    expect(dark).toMatch(/--glass-hover:\s*rgba\(255, ?255, ?255, ?0?\.14\)/);
+    expect(light).toMatch(/--glass-hover:\s*rgba\(0, ?0, ?0, ?0?\.04\)/);
   });
-  it("radios, sombras y alturas son los de la dirección A", () => {
-    const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8");
-    expect(spacing).toMatch(/--radius-md:\s*11px/);
-    expect(spacing).toMatch(/--radius-lg:\s*12px/);
-    expect(spacing).toMatch(/--radius-xl:\s*12px/);
-    expect(spacing).toMatch(/--shadow-primary:\s*0 8px 24px rgba\(59, ?139, ?255, ?0?\.30?\)/);
-    expect(spacing).toMatch(/--shadow-sheet:\s*-30px 0 80px rgba\(0, ?0, ?0, ?0?\.50?\)/);
-    expect(spacing).toMatch(/--control-sm:\s*34px/);
-    expect(spacing).toMatch(/--control-md:\s*38px/);
-    expect(spacing).toMatch(/--control-lg:\s*44px/);
+  it("el texto secundario aguanta 4,5:1 sobre cristal encima de lo más claro del corte", () => {
+    // peor caso: blanco puro bajo el velo .55 y bajo el cristal .55 + blanco .08
+    const mix = (top: number[], a: number, under: number[]) => under.map((u, i) => u * (1 - a) + top[i] * a);
+    let bg = [255, 255, 255];
+    bg = mix([5, 6, 8], 0.55, bg);          // --veil
+    bg = mix([255, 255, 255], 0.08, bg);    // tinte del cristal
+    bg = mix([5, 6, 8], 0.55, bg);          // velo del propio cristal
+    const hexBg = "#" + bg.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("");
+    expect(ratio("#B8C0CC", hexBg)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio("#FFFFFF", hexBg)).toBeGreaterThanOrEqual(7);
+  });
+  it("el cristal tiene fondo de reserva opaco y desenfoque en los dos temas", () => {
+    for (const b of [block(DARK), block('[data-theme="light"]')]) {
+      expect(b).toMatch(/--glass-solid:\s*#[0-9A-F]{6}/i);
+      expect(b).toMatch(/--glass-blur:\s*30px/);
+      expect(b).toMatch(/--glass-blur-viewer:\s*12px/);
+    }
+  });
+  it("radios, sombras y alturas son los de la dirección D", () => {
+    const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8").replace(/\r\n/g, "\n");
+    expect(spacing).toMatch(/--radius-sm:\s*8px/);
+    expect(spacing).toMatch(/--radius-md:\s*14px/);
+    expect(spacing).toMatch(/--radius-lg:\s*16px/);
+    expect(spacing).toMatch(/--radius-xl:\s*24px/);
+    expect(spacing).toMatch(/--radius-card-lg:\s*20px/);
+    expect(spacing).toMatch(/--radius-full:\s*9999px/);
+    expect(spacing).toMatch(/--shadow-md:\s*0 14px 40px rgba\(0, ?0, ?0, ?0?\.5\)/);
+    expect(spacing).toMatch(/--shadow-lg:\s*0 40px 90px rgba\(0, ?0, ?0, ?0?\.6\)/);
+    expect(spacing).toMatch(/--shadow-primary:\s*inset 0 1px 0 rgba\(255, ?255, ?255, ?0?\.5\), 0 8px 24px rgba\(90, ?169, ?255, ?0?\.28\)/);
+    expect(spacing).toMatch(/--shadow-sheet:\s*-30px 0 80px rgba\(0, ?0, ?0, ?0?\.6\)/);
+    expect(spacing).toMatch(/\[data-theme="light"\]\s*\{[^}]*--shadow-md:\s*0 10px 30px rgba\(11, ?12, ?15, ?0?\.10?\)/);
+    expect(spacing).toMatch(/\[data-theme="light"\]\s*\{[^}]*--shadow-lg:\s*0 30px 60px rgba\(11, ?12, ?15, ?0?\.14\)/);
+    expect(spacing).toMatch(/\[data-theme="light"\]\s*\{[^}]*--shadow-primary:\s*0 8px 22px rgba\(10, ?102, ?255, ?0?\.26\)/);
+    expect(spacing).toMatch(/\[data-theme="light"\]\s*\{[^}]*--shadow-sheet:\s*-30px 0 80px rgba\(11, ?12, ?15, ?0?\.18\)/);
+    expect(spacing).toMatch(/--control-sm:\s*32px/);
+    expect(spacing).toMatch(/--control-md:\s*44px/);
+    expect(spacing).toMatch(/--control-lg:\s*54px/);
+    expect(spacing).toMatch(/--field-h:\s*48px/);
   });
   it("la etiqueta de campo es de 13 px y peso 500", () => {
     const typo = readFileSync(join(__dirname, "tokens/typography.css"), "utf8");
@@ -83,9 +139,6 @@ describe("tokens de la identidad A", () => {
     expect(typo).toMatch(/--weight-label:\s*500/);
   });
   it("el claro cumple 4,5:1 en texto secundario y estados sobre sus fondos", () => {
-    // contraste WCAG calculado sobre los hex del bloque claro
-    const l = (hex: string) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-    const ratio = (a: string, b: string) => { const [x, y] = [l(a), l(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
     // Los hex salen del propio bloque claro de colors.css, no de literales copiados aquí.
     const css = readFileSync(join(__dirname, "tokens/colors.css"), "utf8").replace(/\r\n/g, "\n");
     // Con la llave y al inicio de línea: el comentario de cabecera también nombra el selector.
@@ -103,6 +156,7 @@ describe("tokens de la identidad A", () => {
       ["--destructive", "--destructive-bg"],
       ["--warning", "--warning-bg"],
       ["--accent-foreground", "--accent"],
+      ["--foreground", "--glass-solid"],
     ];
     for (const [fg, bg] of pairs) {
       expect(ratio(hex(fg), hex(bg)), `${fg} sobre ${bg}`).toBeGreaterThanOrEqual(4.5);

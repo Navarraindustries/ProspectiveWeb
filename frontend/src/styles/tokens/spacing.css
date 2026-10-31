@@ -1,6 +1,6 @@
 /* ============================================================================
    PROSPECTIVE — Spacing, radii, shadows, motion
-   Radii de la identidad A: 12 / 11 / 8 (tarjetas / controles / insignias).
+   Dirección D, Quirófano de cristal: radios 8 / 14 / 16 / 20 / 24.
    Source: resources/IDENTIDAD_VISUAL.md §4 + §7
    ============================================================================ */
 
@@ -16,25 +16,27 @@
   --page-padding-x: 16px;
   --content-max:    1280px;
 
-  /* ---- Radii (iOS scale) ---- */
+  /* ---- Radii ---- */
   --radius-sm:   8px;    /* insignias, items de menu, casillas */
-  --radius-md:   11px;   /* botones, campos, combobox, tooltip */
-  --radius-lg:   12px;   /* tarjetas, paneles, listas, tablas */
-  --radius-xl:   12px;   /* hojas y dialogos (alias de lg) */
+  --radius-md:   14px;   /* campos */
+  --radius-lg:   16px;   /* tarjetas */
+  --radius-xl:   24px;   /* ventanas, hojas, inspector */
+  --radius-card-lg: 20px; /* tarjeta de paciente */
   --radius-full: 9999px; /* pill badges / avatars */
 
-  /* ---- Shadows (soft, never harsh) ---- */
+  /* ---- Shadows ---- */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
-  --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.45);   /* hojas y menus */
-  --shadow-primary: 0 8px 24px rgba(59, 139, 255, 0.30);   /* botón principal */
-  --shadow-sheet: -30px 0 80px rgba(0, 0, 0, 0.50);        /* hojas laterales */
+  --shadow-md: 0 14px 40px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 40px 90px rgba(0, 0, 0, 0.6);   /* hojas y menus */
+  --shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 8px 24px rgba(90, 169, 255, 0.28);   /* botón principal */
+  --shadow-sheet: -30px 0 80px rgba(0, 0, 0, 0.6);        /* hojas laterales */
 
   /* ---- Control heights ---- */
-  --control-sm: 34px;
-  --control-md: 38px;
-  --control-lg: 44px;
+  --control-sm: 32px;
+  --control-md: 44px;
+  --control-lg: 54px;
+  --field-h:    48px;
 
   /* ---- Motion ---- */
   /* Escala numerada; los nombres viejos son alias de ella para no tocar los usos. */
@@ -51,14 +53,16 @@
 }
 
 [data-theme="light"] {
-  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 10px 30px rgba(11, 12, 15, 0.10);
+  --shadow-lg: 0 30px 60px rgba(11, 12, 15, 0.14);
   --shadow-primary: 0 8px 22px rgba(10, 102, 255, 0.26);
-  --shadow-sheet: -30px 0 80px rgba(11, 12, 15, 0.22);
+  --shadow-sheet: -30px 0 80px rgba(11, 12, 15, 0.18);
 }
 
 /* La landing fija data-theme="dark" bajo un documento que puede ser claro. */
 [data-theme="dark"] {
-  --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.45);
-  --shadow-primary: 0 8px 24px rgba(59, 139, 255, 0.30);
-  --shadow-sheet: -30px 0 80px rgba(0, 0, 0, 0.50);
+  --shadow-md: 0 14px 40px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 40px 90px rgba(0, 0, 0, 0.6);
+  --shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 8px 24px rgba(90, 169, 255, 0.28);
+  --shadow-sheet: -30px 0 80px rgba(0, 0, 0, 0.6);
 }

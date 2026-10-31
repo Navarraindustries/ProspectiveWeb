@@ -1,5 +1,5 @@
 /* ============================================================================
-   PROSPECTIVE — Color tokens · identidad A (grafito + azul eléctrico)
+   PROSPECTIVE — Color tokens · dirección D, Quirófano de cristal
    El oscuro es el tema por defecto y vive en :root junto a [data-theme="dark"]
    (la landing fija ese atributo en su contenedor y, sin él, heredaría el claro
    elegido para la aplicación; una sola declaración evita que las copias se separen);
@@ -16,56 +16,66 @@
 :root,
 [data-theme="dark"] {
   /* ---- Escala de marca (alias del acento; se conservan por los usos antiguos) ---- */
-  --brand-smoke:        #3B8BFF;
-  --brand-mist:         #8CBBFF;
-  --brand-slate:        #8CBBFF;
-  --brand-steel:        #2F6FD0;
-  --brand-deep:         #8CBBFF;
-  --brand-ink:          #141519;
+  --brand-smoke:        #5AA9FF;
+  --brand-mist:         #8CC4FF;
+  --brand-slate:        #8CC4FF;
+  --brand-steel:        #3B8BFF;
+  --brand-deep:         #8CC4FF;
+  --brand-ink:          #0B0C0F;
 
   /* ---- Superficies ---- */
-  --canvas:             #0B0C0F;   /* lienzo de la aplicación */
-  --background:         #141519;   /* paneles, barra lateral */
-  --foreground:         #F2F3F5;
-  --card:               #1C1D22;   /* tarjetas, hojas */
-  --card-foreground:    #F2F3F5;
-  --popover:            #1C1D22;
-  --popover-foreground: #F2F3F5;
-  --surface-2:          #0E1014;
+  --canvas:             #050608;   /* lienzo de la aplicación */
+  --background:         #0B0C0F;   /* paneles, barra lateral */
+  --foreground:         #FFFFFF;
+  --card:               #12141A;   /* tarjetas, hojas */
+  --card-foreground:    #FFFFFF;
+  --popover:            #12141A;
+  --popover-foreground: #FFFFFF;
+  --surface-2:          #0A0B0E;
 
   /* ---- Acento / interacción ---- */
-  --primary:            #3B8BFF;
-  --primary-foreground: #FFFFFF;
-  --primary-hover:      #5A9DFF;
-  --secondary:          #1C1D22;
-  --secondary-foreground: #F2F3F5;
-  --muted:              #141519;
-  --muted-foreground:   #9AA3AF;
-  --accent:             rgba(59, 139, 255, 0.16);
-  --accent-foreground:  #8CBBFF;
-  --data:               #8CBBFF;
+  --primary:            #5AA9FF;
+  --primary-foreground: #06121F;
+  --primary-hover:      #7DBBFF;
+  --secondary:          #12141A;
+  --secondary-foreground: #FFFFFF;
+  --muted:              #0B0C0F;
+  --muted-foreground:   #B8C0CC;
+  --accent:             rgba(90, 169, 255, 0.16);
+  --accent-foreground:  #8CC4FF;
+  --data:               #5AA9FF;
 
   /* Estado activo / selección */
-  --brand-subtle:       rgba(59, 139, 255, 0.16);
-  --brand-subtle-foreground: #8CBBFF;
+  --brand-subtle:       rgba(90, 169, 255, 0.16);
+  --brand-subtle-foreground: #8CC4FF;
 
   /* ---- Estado clínico ---- */
-  --destructive:        #FF5A5F;
-  --destructive-bg:     rgba(255, 90, 95, 0.16);
-  --destructive-foreground: #0B0C0F;
-  --success:            #2ECC8A;
-  --success-bg:         rgba(46, 204, 138, 0.14);
-  --warning:            #F5B942;
-  --warning-bg:         rgba(245, 185, 66, 0.14);
-  --info:               #9AA3AF;
+  --destructive:        #FF5A6A;
+  --destructive-text:   #FF8A96;   /* texto de error legible sobre cristal */
+  --destructive-bg:     rgba(255, 90, 106, 0.12);
+  --destructive-foreground: #050608;
+  --success:            #3DDC97;
+  --success-bg:         rgba(61, 220, 151, 0.14);
+  --warning:            #FFC247;
+  --warning-bg:         rgba(255, 194, 71, 0.14);
+  --info:               #B8C0CC;
 
   /* ---- Estructura ---- */
-  --border:             rgba(255, 255, 255, 0.08);
-  --input:              rgba(255, 255, 255, 0.08);
-  --ring:               #3B8BFF;
+  --border:             rgba(255, 255, 255, 0.14);
+  --input:              rgba(255, 255, 255, 0.24);
+  --field-bg:           rgba(5, 6, 8, 0.5);
+  --ring:               var(--primary);
 
   /* ---- Cristal: hojas, menús y barra superior ---- */
-  --glass:              rgba(28, 29, 34, 0.72);
+  --glass:              linear-gradient(rgba(5, 6, 8, 0.55), rgba(5, 6, 8, 0.55)), rgba(255, 255, 255, 0.08);
+  --veil:               rgba(5, 6, 8, 0.55);    /* velo sobre la imagen de fondo */
+  --veil-dense:         rgba(5, 6, 8, 0.72);
+  --glass-dense:        linear-gradient(rgba(8, 9, 12, 0.72), rgba(8, 9, 12, 0.72)), rgba(255, 255, 255, 0.08);
+  --glass-solid:        #101217;                /* fondo opaco de reserva */
+  --glass-border:       rgba(255, 255, 255, 0.2);
+  --glass-highlight:    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --glass-hover:        rgba(255, 255, 255, 0.14);
+  --glass-blur-viewer:  12px;
 
   /* Sobre vídeo (panel de marca de «Entrar», transición de carga): el vídeo es
      siempre oscuro, así que estos valen igual en los dos temas. El viñeteado es
@@ -77,14 +87,14 @@
   --media-track:        rgba(255, 255, 255, 0.18);
   --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
   --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
-  --glass-blur:         18px;
+  --glass-blur:         30px;
 
   /* ---- Gráficos: derivados del acento y de los grises ---- */
-  --chart-1:            #3B8BFF;
-  --chart-2:            #8CBBFF;
+  --chart-1:            var(--primary);
+  --chart-2:            #8CC4FF;
   --chart-3:            #9AA3AF;
   --chart-4:            #5B6470;
-  --chart-5:            #2F6FD0;
+  --chart-5:            #3B8BFF;
 
   /* ---- Visor clínico (superficie de imagen médica, siempre oscura) ---- */
   --viewer-bg:          #000000;
@@ -111,14 +121,14 @@
 }
 
 [data-theme="light"] {
-  --brand-smoke:        #3B8BFF;
+  --brand-smoke:        #0A66FF;
   --brand-mist:         #8CBBFF;
-  --brand-slate:        #2F6FD0;
-  --brand-steel:        #2F6FD0;
-  --brand-deep:         #1F5FC0;
+  --brand-slate:        #1F5FC0;
+  --brand-steel:        #1F5FC0;
+  --brand-deep:         #0047B3;
   --brand-ink:          #FFFFFF;
 
-  --canvas:             #F6F7F9;
+  --canvas:             #F3F5F8;
   --background:         #FFFFFF;
   --foreground:         #0B0C0F;
   --card:               #FFFFFF;
@@ -130,10 +140,10 @@
   --primary:            #0A66FF;
   --primary-foreground: #FFFFFF;
   --primary-hover:      #0047B3;
-  --secondary:          #F4F5F7;
+  --secondary:          #F3F5F8;
   --secondary-foreground: #0B0C0F;
-  --muted:              #F4F5F7;
-  --muted-foreground:   #5B6470;
+  --muted:              #F3F5F8;
+  --muted-foreground:   #4A5361;
   --accent:             #EEF4FF;
   --accent-foreground:  #1F5FC0;
   --data:               #1F5FC0;
@@ -142,19 +152,29 @@
   --brand-subtle-foreground: #1F5FC0;
 
   --destructive:        #B91C1C;
+  --destructive-text:   #B91C1C;
   --destructive-bg:     #FEE2E2;
   --destructive-foreground: #FFFFFF;
   --success:            #15803D;
   --success-bg:         #DCFCE7;
   --warning:            #92400E;
   --warning-bg:         #FEF3C7;
-  --info:               #5B6470;
+  --info:               #4A5361;
 
   --border:             rgba(0, 0, 0, 0.08);
-  --input:              rgba(0, 0, 0, 0.08);
-  --ring:               #0A66FF;
+  --input:              rgba(0, 0, 0, 0.14);
+  --field-bg:           #FFFFFF;
+  --ring:               var(--primary);
 
   --glass:              rgba(255, 255, 255, 0.72);
+  --veil:               rgba(243, 245, 248, 0);   /* sin imagen de fondo en el claro */
+  --veil-dense:         rgba(243, 245, 248, 0);
+  --glass-dense:        rgba(255, 255, 255, 0.86);
+  --glass-solid:        #FFFFFF;
+  --glass-border:       rgba(0, 0, 0, 0.08);
+  --glass-highlight:    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-hover:        rgba(0, 0, 0, 0.04);
+  --glass-blur-viewer:  12px;
 
   /* Sobre vídeo (panel de marca de «Entrar», transición de carga): el vídeo es
      siempre oscuro, así que estos valen igual en los dos temas. El viñeteado es
@@ -166,13 +186,13 @@
   --media-track:        rgba(255, 255, 255, 0.18);
   --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
   --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
-  --glass-blur:         18px;
+  --glass-blur:         30px;
 
-  --chart-1:            #3B8BFF;
-  --chart-2:            #2F6FD0;
+  --chart-1:            var(--primary);
+  --chart-2:            #1F5FC0;
   --chart-3:            #5B6470;
   --chart-4:            #9AA3AF;
-  --chart-5:            #1F5FC0;
+  --chart-5:            #0047B3;
 
   --viewer-bg:          #000000;
   --viewer-foreground:  #EBEBEB;

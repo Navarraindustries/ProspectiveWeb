@@ -33,6 +33,7 @@ import { useAuth } from "../store/auth";
 import { NuevoEstudioSheet } from "./NuevoCaso";
 import { modalidadesDe } from "../lib/modalidades";
 import { StudyGallery } from "./Studies";
+import "../styles/office.css";
 
 const BLANK = {
   // F1-62: «Sexo» arrancaba en «F» y un paciente sin el dato se guardaba como
@@ -349,9 +350,29 @@ export function PatientSheet({
 
   const fechaNac = lineaNacimiento(form.dob);
 
+  // Acciones de la ficha en el pie de la hoja (antes, una barra pegajosa dentro
+  // del formulario, F2-31). El botón enlaza con el formulario por su id.
+  const pie = !loading && !denied && !loadError && canEditPatient ? (
+    <>
+      <ErrorNote>{error}</ErrorNote>
+      {!form.surname && (
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8 }}>
+          Escribe los apellidos para guardar.
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 10 }}>
+        <Button type="submit" form="ficha-paciente" style={{ flex: 1 }} disabled={busy || !form.surname}>
+          {busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear paciente"}
+        </Button>
+        <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
+      </div>
+    </>
+  ) : undefined;
+
   return (
     <>
-    <Sheet open={open} onClose={requestClose} title={title} eyebrow={eyebrow} width={520}>
+    <Sheet open={open} onClose={requestClose} title={title} eyebrow={eyebrow} width={editing ? 620 : 460}
+           footer={pie}>
       {loading ? (
         <LoadState state="cargando" />
       ) : denied ? (
@@ -396,7 +417,9 @@ export function PatientSheet({
             </div>
           )}
 
-          <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className={editing ? "hoja-dos-columnas" : undefined} style={{ alignItems: "start" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+          <form id="ficha-paciente" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {editing && <SectionLabel style={{ marginBottom: 0 }}>Datos del paciente</SectionLabel>}
             {!canEditPatient && (
               <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
@@ -432,29 +455,22 @@ export function PatientSheet({
             {/* F2-26: una nota clínica de varias frases no cabía en una línea. */}
             <Input {...ro} label="Notas" placeholder="Notas clínicas libres…" multiline value={form.notes} onChange={set("notes")} />
 
-            {/* F2-31: «Guardar cambios» estaba al final de un panel de casi dos
-                pantallas, debajo de sesiones y capturas. Ahora se pega al pie
-                visible mientras se editan los datos y se queda al final del
-                bloque, antes de las secciones que tienen sus propios botones. */}
-            {canEditPatient && <div style={{
-              position: "sticky", bottom: 0, zIndex: 1, margin: "0 -22px", padding: "12px 22px",
-              background: "var(--card)", borderTop: "1px solid var(--border)",
-            }}>
-              <ErrorNote>{error}</ErrorNote>
-              {!form.surname && (
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8 }}>
-                  Escribe los apellidos para guardar.
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button type="submit" style={{ flex: 1 }} disabled={busy || !form.surname}>
-                  {busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear paciente"}
-                </Button>
-                <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
-              </div>
-            </div>}
           </form>
 
+          {ready && canDelete && (
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+              <Button type="button" size="sm" variant="ghost" leadingIcon={<Icon name="DELETE" />}
+                      style={{ color: "var(--destructive)" }}
+                      onClick={() => { setDeleteError(null); setAskDelete(true); }}>
+                Eliminar paciente
+              </Button>
+              <ErrorNote>{deleteError}</ErrorNote>
+            </div>
+          )}
+          </div>
+
+          {editing && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
           {ready && (
             <section>
               <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
@@ -648,16 +664,9 @@ export function PatientSheet({
               cuello», sin acordarse de en qué adquisición fue. */}
           {ready && patientId != null && <CaptureGallery patientId={patientId} />}
 
-          {ready && canDelete && (
-            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
-              <Button type="button" size="sm" variant="ghost" leadingIcon={<Icon name="DELETE" />}
-                      style={{ color: "var(--destructive)" }}
-                      onClick={() => { setDeleteError(null); setAskDelete(true); }}>
-                Eliminar paciente
-              </Button>
-              <ErrorNote>{deleteError}</ErrorNote>
-            </div>
+          </div>
           )}
+          </div>
         </div>
       )}
     </Sheet>

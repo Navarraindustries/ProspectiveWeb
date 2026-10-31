@@ -1,7 +1,7 @@
 /* La ficha del paciente (F2-25…F2-31, F2-72…F2-74, F2-T1, F2-T5, fusión nº 9). */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const getPatient = vi.fn();
 const patientSessions = vi.fn();
@@ -395,5 +395,32 @@ describe("imágenes diagnósticas del caso (F2-40)", () => {
     patientStudies.mockResolvedValue([caso({ id: 9, dx_principal: "A", mod_pangio: true })]);
     abrir();
     expect(await screen.findByText(/Imágenes: Angiografía por catéter/)).toBeTruthy();
+  });
+});
+
+describe("ficha en dos columnas con pie fijo (rediseño fase 2)", () => {
+  const renderSheet = ({ patientId }: { patientId: number | null }) =>
+    render(
+      <PatientSheet open patientId={patientId} summary={patientId === null ? null : resumen({ id: patientId })}
+                    onClose={onClose} onSaved={vi.fn()} />,
+    );
+
+  it("la ficha abre a 620 px en dos columnas y el alta a 460 en una", async () => {
+    renderSheet({ patientId: 7 });
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.style.width).toBe("620px");
+    expect(dialog.querySelector(".hoja-dos-columnas")).not.toBeNull();
+    cleanup();
+    renderSheet({ patientId: null });
+    expect((await screen.findByRole("dialog")).style.width).toBe("460px");
+    expect(screen.getByRole("dialog").querySelector(".hoja-dos-columnas")).toBeNull();
+  });
+
+  it("«Guardar cambios» y «Cancelar» viven en el pie de la hoja, no en una barra pegajosa", async () => {
+    renderSheet({ patientId: 7 });
+    const dialog = await screen.findByRole("dialog");
+    const guardar = await within(dialog).findByRole("button", { name: /Guardar cambios/ });
+    expect(guardar.closest("[data-sheet-footer]")).not.toBeNull();
+    expect(dialog.querySelector('[style*="sticky"]')).toBeNull();
   });
 });

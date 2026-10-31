@@ -201,4 +201,10 @@ describe("tokens de la dirección D", () => {
     expect(base).toMatch(/@supports not \(scrollbar-color: auto\)\s*\{[\s\S]*::-webkit-scrollbar-thumb/);
     expect(base).toMatch(/::-webkit-scrollbar-thumb\s*\{[^}]*border-radius:\s*var\(--radius-full\)/);
   });
+  it("el cristal tiene reserva opaca sin desenfoque o con transparencia reducida", () => {
+    const base = readFileSync(join(__dirname, "base.css"), "utf8");
+    expect(base).toContain("@media (prefers-reduced-transparency: reduce)");
+    expect(base).toContain("@supports not ((backdrop-filter: blur(1px))");
+    expect(base).toMatch(/\[data-glass\]\s*\{[^}]*background:\s*var\(--glass-solid\) !important/);
+  });
 });

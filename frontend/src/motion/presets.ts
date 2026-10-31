@@ -31,3 +31,21 @@ export const scrimFade: Variants = {
   animate: { opacity: 1 },
   exit: { opacity: 0 },
 };
+
+// Planeo de superficies de cristal: entran desde abajo con un ligero escalado.
+export const glide: Variants = {
+  initial: { opacity: 0, scale: 0.96, y: 14 },
+  animate: { opacity: 1, scale: 1, y: 0 },
+  exit: { opacity: 0, scale: 0.98, y: 8 },
+};
+export const glideTransition = { duration: DUR.panel, ease: EASE };
+
+// Lente: el elemento crece al pasar el cursor.
+export const lens = {
+  whileHover: { scale: 1.06 },
+  transition: { duration: DUR.estado, ease: EASE },
+};
+export const lensCard = {
+  whileHover: { scale: 1.02 },
+  transition: { duration: DUR.estado, ease: EASE },
+};

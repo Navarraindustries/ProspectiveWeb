@@ -1,10 +1,28 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ProgressState } from "../../api/types";
 import { Icon } from "../Icon";
 import { ProgressBar } from "../ProgressBar";
 
 /** Redondeo del tiempo restante a múltiplos de 5 s: más fino sería falsa precisión. */
 const round5 = (s: number) => Math.round(s / 5) * 5;
+
+type Track = { rows: { phase: string; message: string }[]; startedAt: number | null; lastPct: number };
+const EMPTY_TRACK: Track = { rows: [], startedAt: null, lastPct: 0 };
+
+/** Siguiente seguimiento a partir del estado. Sin estado, o con un porcentaje
+ *  que baja (pasada nueva), se parte de cero. Devuelve el mismo objeto si nada cambia. */
+function advance(track: Track, state: ProgressState | null): Track {
+  if (!state) return track === EMPTY_TRACK ? track : EMPTY_TRACK;
+  const base = state.pct < track.lastPct ? EMPTY_TRACK : track;
+  const startedAt = base.startedAt ?? Date.now();
+  const known = base.rows.some((r) => r.phase === state.phase);
+  const rows = known
+    ? base.rows.map((r) => (r.phase === state.phase ? { ...r, message: state.message } : r))
+    : [...base.rows, { phase: state.phase, message: state.message }];
+  const same = base === track && startedAt === track.startedAt && state.pct === track.lastPct
+    && rows.every((r, i) => r.message === track.rows[i]?.message) && rows.length === track.rows.length;
+  return same ? track : { rows, startedAt, lastPct: state.pct };
+}
 
 /** Fase y porcentaje de la segmentación, con aviso cuando el servidor va lento. */
 export function SegmentProgress({
@@ -25,26 +43,21 @@ export function SegmentProgress({
     const t = setTimeout(() => setSlow(true), 10_000);
     return () => clearTimeout(t);
   }, [state?.phase]);
-  // Fases vistas, en orden, con su último mensaje. Se acumula en render (es
-  // idempotente: repetir el mismo estado no cambia nada).
-  const phases = useRef<{ phase: string; message: string }[]>([]);
-  const startedAt = useRef<number | null>(null);
-  if (state) {
-    if (startedAt.current === null) startedAt.current = Date.now();
-    const last = phases.current[phases.current.length - 1];
-    if (!last || last.phase !== state.phase) {
-      phases.current.push({ phase: state.phase, message: state.message });
-    } else {
-      last.message = state.message;
-    }
-  }
+  // Fases vistas, en orden, con su último mensaje, y cuándo empezó la pasada.
+  // Se derivan en render con el patrón de «estado derivado» (setState durante
+  // el render contra el estado previo): es puro y no le afecta el doble
+  // render de StrictMode, y la lista sale al día en el mismo commit.
+  const [track, setTrack] = useState<Track>(EMPTY_TRACK);
+  const next = advance(track, state);
+  if (next !== track) setTrack(next);
   const pct = state ? Math.round(state.pct) : 0;
-  const elapsedS = startedAt.current === null ? 0 : (Date.now() - startedAt.current) / 1000;
+  const elapsedS = next.startedAt === null ? 0 : (Date.now() - next.startedAt) / 1000;
   // Solo con un porcentaje que ya dice algo (≥ 5 %) y algo de historia (≥ 3 s).
   const remainingS = state && state.pct >= 5 && elapsedS >= 3
     ? round5((elapsedS / state.pct) * (100 - state.pct))
     : null;
-  const rows = phases.current.length > 0 ? phases.current : [{ phase: "preparando", message: "" }];
+  const rows = next.rows.length > 0 ? next.rows : [{ phase: "preparando", message: "" }];
+  const currentPhase = state ? state.phase : "preparando";
   return (
     <div style={{ marginTop: 18 }}>
       {/* F1-136: el rótulo era la fase interna («TUBULARIDAD 3/6»), que no le
@@ -65,7 +78,7 @@ export function SegmentProgress({
         style={{ listStyle: "none", margin: "10px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 4 }}
       >
         {rows.map((r, i) => {
-          const current = i === rows.length - 1;
+          const current = r.phase === currentPhase;
           return (
             <li key={`${i}-${r.phase}`} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 11 }}>
               <span aria-hidden style={{ width: 14, display: "inline-flex", justifyContent: "center", flexShrink: 0 }}>

@@ -91,4 +91,19 @@ describe("lista de fases y tiempo estimado", () => {
     expect(screen.getByText(/≈ 30 s restantes/)).toBeInTheDocument();
     vi.useRealTimers();
   });
+  it("una pasada nueva (tras un estado nulo) no arrastra las fases de la anterior", () => {
+    const { rerender } = render(<SegmentProgress state={{ phase: "umbral", pct: 10, running: true, ok: true, message: "" }} />);
+    rerender(<SegmentProgress state={null} />);
+    rerender(<SegmentProgress state={{ phase: "tubularidad", pct: 20, running: true, ok: true, message: "" }} />);
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent("tubularidad");
+  });
+  it("una fase que vuelve actualiza su fila en lugar de añadir otra", () => {
+    const st = (phase: string, pct: number, message: string): ProgressState => ({ phase, pct, running: true, ok: true, message });
+    const { rerender } = render(<SegmentProgress state={st("a", 10, "uno")} />);
+    rerender(<SegmentProgress state={st("b", 20, "")} />);
+    rerender(<SegmentProgress state={st("a", 30, "dos")} />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
 });

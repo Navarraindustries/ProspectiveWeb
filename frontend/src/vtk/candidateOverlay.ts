@@ -1,49 +1,39 @@
 /* Todos los candidatos a la vez en el 3D (paso Detección).
  *
- * El visor dibujaba solo el candidato elegido y el panel listaba los demás:
- * para ver dónde había mirado el detector había que recorrerlos uno a uno. Con
- * todos marcados a la vez, el profesional ve de un vistazo los sitios que el
- * detector consideró y le salta cualquier lesión que no tenía contemplada. Los
- * descartados por los vetos también se dibujan, más tenues: son justo los
- * sitios donde podría esconderse algo que nadie miró.
+ * El visor pintaba solo la zona del candidato elegido y el panel listaba los
+ * demás: para ver dónde había mirado el detector había que recorrerlos uno a
+ * uno. Ahora la zona detectada de CADA candidato (su malla «dónde mirar») se
+ * pinta a la vez: la del elegido en el azul de siempre, las demás en un gris
+ * neutro, y las de los descartados por los vetos más tenues aún (son justo
+ * los sitios donde podría esconderse una lesión que nadie contempló). Un
+ * número junto a cada zona la casa con la fila del panel.
  *
- * Son balizas de la capa superior de MeshView (como el punto de foco), no
- * marcadores normales: el centro de un candidato está DENTRO del saco o del
- * vaso y una esfera con prueba de profundidad quedaba tapada por la malla.
+ * El dueño descartó marcarlos con esferas: lo que quiere ver coloreado es la
+ * zona misma, «todo lo de ese color es el candidato».
  *
  * Función pura, aparte de Viewer y de vtk.js para poder probarla. */
 
 import type { AneurysmCandidate } from "../api/types";
 import { isManual } from "../components/planning/detectCopy";
-import { HUD_HEX, hexToRgb01 } from "./planeColors";
-import type { MeshFocus, MeshLabel } from "./MeshView";
+import { hexToRgb01 } from "./planeColors";
+import type { MeshLabel, MeshLayer } from "./MeshView";
 
-/** Elegido: el acento del visor (el mismo verde del HUD y del foco). */
-export const CANDIDATE_SELECTED_HEX = HUD_HEX;
-/** Aceptados sin elegir: gris claro neutro, que no compite con el elegido. */
-export const CANDIDATE_HEX = "#D8DCE2";
-/** Descartados: gris oscuro, tenue. */
-export const CANDIDATE_REJECTED_HEX = "#7A7F88";
-export const CANDIDATE_SELECTED_SCALE = 1.3;
-export const CANDIDATE_REJECTED_SCALE = 0.7;
-export const CANDIDATE_REJECTED_OPACITY = 0.55;
-/** Radio de la baliza: una fracción del saco, acotada para que se vea en un
- *  árbol entero y no tape un saco pequeño. */
-export const BEACON_FROM_DIAMETER = 0.22;
-export const BEACON_MIN_MM = 1.0;
-export const BEACON_MAX_MM = 3.0;
-/** Margen alrededor del saco, en mm, para que una baliza pequeña se pueda pulsar. */
+/** Elegido: el azul «dónde mirar» que el panel explica (no es el saco). */
+export const CANDIDATE_SELECTED_HEX = "#528CBF";
+/** Aceptados sin elegir: ámbar apagado. Un gris se perdía sobre el árbol, que
+ *  también es gris; el ámbar se distingue del azul del elegido y del vaso. */
+export const CANDIDATE_HEX = "#E0B35A";
+/** Descartados: el mismo ámbar, oscurecido y tenue. */
+export const CANDIDATE_REJECTED_HEX = "#9A7A3C";
+/** Opacidad de las zonas no elegidas, relativa a la del resalte del elegido. */
+export const CANDIDATE_OTHER_OPACITY = 0.55;
+export const CANDIDATE_REJECTED_OPACITY = 0.35;
+/** Margen alrededor del saco, en mm, para elegir un candidato pulsando cerca. */
 export const PICK_MARGIN_MM = 1.0;
 
 type Vec3 = [number, number, number];
 
 const pos = (c: AneurysmCandidate): Vec3 => [c.center_mm.x, c.center_mm.y, c.center_mm.z];
-
-export function beaconRadiusMm(diameterMm: number): number {
-  const raw = Math.max(0, diameterMm) * BEACON_FROM_DIAMETER;
-  if (!Number.isFinite(raw)) return BEACON_MIN_MM;
-  return Math.min(BEACON_MAX_MM, Math.max(BEACON_MIN_MM, raw));
-}
 
 /** El texto de la etiqueta: el puesto del aceptado, «D» + orden del descartado,
  *  «M» para un punto marcado a mano (sin puesto). */
@@ -60,18 +50,20 @@ export function candidateOverlay(args: {
   selected: number;
   showRejected: boolean;
   step: string;
-}): { beacons: MeshFocus[]; labels: MeshLabel[] } {
-  const beacons: MeshFocus[] = [];
+  /** Opacidad del resalte del elegido en este momento (el visor la baja
+   *  mientras se marca sobre la superficie). */
+  resalte: number;
+}): { layers: MeshLayer[]; labels: MeshLabel[] } {
+  const layers: MeshLayer[] = [];
   const labels: MeshLabel[] = [];
-  if (args.step !== "detect") return { beacons, labels };
+  if (args.step !== "detect") return { layers, labels };
   const push = (c: AneurysmCandidate, idx: number, rejected: boolean, i: number) => {
     const on = idx === args.selected;
     const hex = on ? CANDIDATE_SELECTED_HEX : rejected ? CANDIDATE_REJECTED_HEX : CANDIDATE_HEX;
-    const scale = on ? CANDIDATE_SELECTED_SCALE : rejected ? CANDIDATE_REJECTED_SCALE : 1;
-    const radiusMm = beaconRadiusMm(c.max_diameter_mm) * scale;
-    beacons.push({ pos: pos(c), color: hexToRgb01(hex), radiusMm, opacity: rejected && !on ? CANDIDATE_REJECTED_OPACITY : 1 });
-    // El número se aparta al borde de la baliza: dentro no se leería.
-    labels.push({ pos: pos(c), text: candidateLabel(c, i, rejected), color: hex, clearMm: radiusMm });
+    const opacity = on ? args.resalte : args.resalte * (rejected ? CANDIDATE_REJECTED_OPACITY : CANDIDATE_OTHER_OPACITY);
+    // Un punto marcado a mano no tiene malla: solo su número.
+    if (c.dome_mesh_url) layers.push({ url: c.dome_mesh_url, color: hexToRgb01(hex), opacity, id: `cand:${c.id}` });
+    labels.push({ pos: pos(c), text: candidateLabel(c, i, rejected), color: hex });
   };
   args.candidates.forEach((c, i) => push(c, i, false, i));
   args.rejected.forEach((c, i) => {
@@ -80,7 +72,7 @@ export function candidateOverlay(args: {
     // lo que la persona está mirando en el panel.
     if (args.showRejected || idx === args.selected) push(c, idx, true, i);
   });
-  return { beacons, labels };
+  return { layers, labels };
 }
 
 /** El candidato cuyo saco (más un margen) contiene el punto pulsado sobre la

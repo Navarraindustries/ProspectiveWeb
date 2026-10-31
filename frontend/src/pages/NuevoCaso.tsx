@@ -156,9 +156,15 @@ export function NuevoEstudioSheet({
 
   return (
     <>
-    <Sheet open={open} onClose={requestClose} title={editing ? "Editar caso" : "Nuevo caso"} width={520}>
+    <Sheet open={open} onClose={requestClose} title={editing ? "Editar caso" : "Nuevo caso"} width={460}
+      footer={
+        <>
+          <Button type="submit" form="form-nuevo-caso" disabled={busy}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear caso"}</Button>
+          <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
+        </>
+      }>
       {patientName && <div style={{ ...SUBTLE, marginBottom: 12 }}>Paciente: <b style={{ color: "var(--foreground)" }}>{patientName}</b></div>}
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <form id="form-nuevo-caso" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <Input label="Fecha del caso" hint="Fecha del diagnóstico" type="date" value={f.study_date} onChange={set("study_date")} />
 
         <div style={SECTION}>Datos clínicos</div>
@@ -204,10 +210,6 @@ export function NuevoEstudioSheet({
 
         <div style={{ height: 14 }} />
         <ErrorNote>{error}</ErrorNote>
-        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          <Button type="submit" style={{ flex: 1 }} disabled={busy}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear caso"}</Button>
-          <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
-        </div>
       </form>
     </Sheet>
     <DiscardChanges

@@ -17,16 +17,14 @@ export function PanelHead({ title, desc, right }: { title: string; desc?: string
   );
 }
 
-/* SectionLabel — small uppercase tracking label (CANDIDATOS, SERIE DETECTADA…) */
+/* SectionLabel — rótulo de sección en minúscula (Candidatos, Serie detectada…) */
 export function SectionLabel({ children, style, className }: { children: ReactNode; style?: React.CSSProperties; className?: string }) {
   return (
     <div
       className={className}
       style={{
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: "var(--tracking-label)",
-        textTransform: "uppercase",
+        fontSize: "var(--text-label)",
+        fontWeight: "var(--weight-label)",
         color: "var(--muted-foreground)",
         marginBottom: 8,
         ...style,

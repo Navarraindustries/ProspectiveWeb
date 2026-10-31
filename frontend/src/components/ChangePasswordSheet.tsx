@@ -51,7 +51,19 @@ export function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose:
   };
 
   return (
-    <Sheet open={open} onClose={close} title="Cambiar contraseña" width={400}>
+    <Sheet open={open} onClose={close} title="Cambiar contraseña" width={400}
+      footer={done ? undefined : (
+        <>
+          <Button
+            onClick={() => void submit()}
+            disabled={!canSubmit}
+            leadingIcon={<Icon name="LOCK" size={14} />}
+          >
+            {busy ? "Guardando…" : "Cambiar"}
+          </Button>
+          <Button variant="outline" onClick={close}>Cancelar</Button>
+        </>
+      )}>
       {done ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--success)", fontSize: 13, fontWeight: 600 }}>
           <Icon name="STATUS_OK" size={16} color="var(--success)" />
@@ -98,18 +110,6 @@ export function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose:
           )}
 
           <ErrorNote>{error}</ErrorNote>
-
-          <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-            <Button variant="ghost" onClick={close} style={{ flex: 1 }}>Cancelar</Button>
-            <Button
-              onClick={() => void submit()}
-              disabled={!canSubmit}
-              style={{ flex: 1 }}
-              leadingIcon={<Icon name="LOCK" size={14} />}
-            >
-              {busy ? "Guardando…" : "Cambiar"}
-            </Button>
-          </div>
         </>
       )}
     </Sheet>

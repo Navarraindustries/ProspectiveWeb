@@ -163,3 +163,12 @@ describe("al desmarcar la angiografía de un caso antiguo", () => {
     expect(p.mod_pangio).toBe(false);
   });
 });
+
+/* Rediseño fase 2: la acción principal vive en el pie fijo de la hoja. */
+describe("pie de la hoja del caso", () => {
+  it("el botón de crear el caso está en el pie de la hoja", () => {
+    montar();
+    const boton = screen.getByRole("button", { name: "Crear caso" });
+    expect(boton.closest("[data-sheet-footer]")).not.toBeNull();
+  });
+});

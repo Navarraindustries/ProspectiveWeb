@@ -102,7 +102,15 @@ export function AttachCaseSheet({
   const hayCabecera = !!s && !!(s.surname || s.given_name || s.hospital_id);
 
   return (
-    <Sheet open={open} onClose={onClose} title="Adjuntar a un caso" width={460}>
+    <Sheet open={open} onClose={onClose} title="Adjuntar a un caso" width={460}
+      footer={
+        <>
+          <Button disabled={!listo || busy} onClick={() => void adjuntar()}>
+            {busy ? "Archivando el estudio…" : "Adjuntar y archivar el estudio"}
+          </Button>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+        </>
+      }>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 14 }}>
         Liga lo que has hecho a un paciente y un caso. El DICOM ya subido se archiva
         como estudio del caso, sin volver a subirlo, y desde ahí «Guardar progreso»,
@@ -186,9 +194,6 @@ export function AttachCaseSheet({
       )}
 
       <ErrorNote>{error}</ErrorNote>
-      <Button style={{ width: "100%", marginTop: 18 }} disabled={!listo || busy} onClick={() => void adjuntar()}>
-        {busy ? "Archivando el estudio…" : "Adjuntar y archivar el estudio"}
-      </Button>
     </Sheet>
   );
 }

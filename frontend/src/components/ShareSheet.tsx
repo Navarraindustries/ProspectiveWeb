@@ -121,7 +121,15 @@ export function ShareSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Compartir con…" eyebrow={patientName} width={440}>
+    <Sheet open={open} onClose={onClose} title="Compartir con…" eyebrow={patientName} width={440}
+      footer={
+        <>
+          <Button onClick={save} disabled={busy || loading || !!loadError}>
+            {busy ? "Guardando…" : "Guardar"}
+          </Button>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+        </>
+      }>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
           Las cuentas marcadas ven a este paciente, con sus casos y sus sesiones guardadas, y pueden
@@ -177,12 +185,6 @@ export function ShareSheet({
           </div>
         )}
         <div role={error ? "alert" : undefined}><ErrorNote>{error}</ErrorNote></div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Button style={{ flex: 1 }} onClick={save} disabled={busy || loading || !!loadError}>
-            {busy ? "Guardando…" : "Guardar"}
-          </Button>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-        </div>
       </div>
     </Sheet>
   );

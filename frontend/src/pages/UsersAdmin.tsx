@@ -126,7 +126,13 @@ function EditUserSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Editar usuario" width={440}>
+    <Sheet open={open} onClose={onClose} title="Editar usuario" width={460}
+      footer={user ? (
+        <>
+          <Button disabled={busy} onClick={submit}>{busy ? "Guardando…" : "Guardar cambios"}</Button>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+        </>
+      ) : undefined}>
       {user && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
@@ -145,10 +151,6 @@ function EditUserSheet({
             Cuenta activa (puede iniciar sesión)
           </label>
           <ErrorNote>{error}</ErrorNote>
-          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-            <Button style={{ flex: 1 }} disabled={busy} onClick={submit}>{busy ? "Guardando…" : "Guardar cambios"}</Button>
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          </div>
         </div>
       )}
     </Sheet>
@@ -215,7 +217,13 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Nuevo usuario" width={480}>
+    <Sheet open={open} onClose={onClose} title="Nuevo usuario" width={460}
+      footer={
+        <>
+          <Button disabled={busy} onClick={submit}>{busy ? "Creando…" : "Crear usuario"}</Button>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+        </>
+      }>
       <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 12 }}>
         La cuenta se crea <b style={{ color: "var(--foreground)" }}>activa</b> (sin aprobación) y podrá iniciar sesión de inmediato.
       </div>
@@ -250,10 +258,6 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
       </div>
 
       <ErrorNote>{error}</ErrorNote>
-      <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-        <Button style={{ flex: 1 }} disabled={busy} onClick={submit}>{busy ? "Creando…" : "Crear usuario"}</Button>
-        <Button variant="outline" onClick={onClose}>Cancelar</Button>
-      </div>
     </Sheet>
   );
 }

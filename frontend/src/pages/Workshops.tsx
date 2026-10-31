@@ -93,7 +93,15 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
       open={open}
       onClose={onClose}
       title={workshop ? "Editar taller" : "Nuevo taller"}
-      width={480}
+      width={460}
+      footer={
+        <>
+          <Button onClick={save} disabled={busy}>
+            {busy ? "Guardando…" : workshop ? "Guardar cambios" : "Registrar taller"}
+          </Button>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+        </>
+      }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Input label="Nombre" value={form.name}
@@ -124,13 +132,6 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
                hint="Plazos habituales, capacidades, lo que convenga recordar." />
 
         <ErrorNote>{error}</ErrorNote>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
-          <Button onClick={save} disabled={busy} style={{ flex: 1 }}>
-            {busy ? "Guardando…" : workshop ? "Guardar cambios" : "Registrar taller"}
-          </Button>
-        </div>
       </div>
     </Sheet>
   );

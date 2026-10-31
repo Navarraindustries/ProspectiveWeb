@@ -15,3 +15,7 @@
 
 .hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
 @media (max-width: 760px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
+
+/* Tarjeta punteada «Subir un estudio nuevo»: se enciende al apuntarla o enfocarla. */
+.tarjeta-nueva { transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.tarjeta-nueva:hover, .tarjeta-nueva:focus-visible { border-color: var(--data); background: color-mix(in srgb, var(--data) 8%, transparent); }

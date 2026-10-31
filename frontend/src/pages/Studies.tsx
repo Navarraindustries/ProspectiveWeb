@@ -362,16 +362,12 @@ export function Studies({
   return (
     <AppShell
       crumbs={[{ label: "Estudios" }]}
-      subtitle={count == null ? "Cargando…" : `${count} estudios de imagen archivados`}
+      subtitle={`${count == null
+        ? "Cargando…"
+        : `${count} ${count === 1 ? "estudio" : "estudios"} de imagen ${count === 1 ? "archivado" : "archivados"}`} · pulsa uno para reanudarlo o abrirlo`}
     >
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 24px 40px" }}>
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--foreground)" }}>Estudios</div>
-            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
-              Estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo
-            </div>
-          </div>
           <StudyGallery
             onOpen={(s) => conTransicion(() => onOpen(s))}
             onResume={(s) => conTransicion(() => onResume(s))}

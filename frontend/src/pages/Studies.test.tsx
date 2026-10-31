@@ -4,7 +4,7 @@
    con el servidor caído parecía que el archivo se había borrado. */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listStudies = vi.fn();
 const deleteImagingStudy = vi.fn();
@@ -21,7 +21,7 @@ vi.mock("../api/client", () => ({
 // acciones: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", () => ({
   AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) =>
-    <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
+    <><header role="banner">{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
 }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
@@ -176,13 +176,19 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
   it("el subtítulo de la barra cuenta los estudios cargados", async () => {
     listStudies.mockResolvedValue([study({}), study({ id: 6 })]);
     render(<Studies {...props} />);
-    expect(await screen.findByText("2 estudios de imagen archivados")).toBeInTheDocument();
+    expect(await screen.findByText("2 estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo")).toBeInTheDocument();
+  });
+
+  it("el subtítulo, con un solo estudio, va en singular", async () => {
+    listStudies.mockResolvedValue([study({})]);
+    render(<Studies {...props} />);
+    expect(await screen.findByText("1 estudio de imagen archivado · pulsa uno para reanudarlo o abrirlo")).toBeInTheDocument();
   });
 
   it("los textos de F1-73 y F1-74", async () => {
     listStudies.mockResolvedValue([]);
     render(<Studies {...props} />);
-    expect(await screen.findByText(/Estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo/)).toBeTruthy();
+    expect(await within(screen.getByRole("banner")).findByText("0 estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo")).toBeTruthy();
     expect(await screen.findByText(/Abre un caso con «Planificar este caso», carga el DICOM y pulsa «Guardar estudio» en el Paso 1/)).toBeTruthy();
     expect(screen.queryByText(/pipeline/)).toBeNull();
   });

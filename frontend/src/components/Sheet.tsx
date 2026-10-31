@@ -1,13 +1,19 @@
-/* Sheet — right-side drawer with translucent blur panel and 40% scrim.
+/* Sheet — hoja lateral derecha, sólida, que entra deslizando desde el borde.
 
-   Rendered through a portal on <body>: `position: fixed` is resolved against
-   the nearest ancestor with a transform, filter or backdrop-filter, not the
-   viewport. The topbar is a glass bar (backdrop-filter), so a sheet opened from
-   the user menu collapsed to the topbar's 66 px and clipped its own form. */
+   Panel opaco (`--card`) con sombra de hoja y un velo del color del lienzo
+   detrás. Al abrir enfoca el primer campo del contenido (o el panel); el pie
+   opcional queda fijo abajo y el cuerpo es lo que desplaza.
+
+   Se pinta en un portal sobre <body>: `position: fixed` se resuelve contra el
+   ancestro más cercano con transform, filter o backdrop-filter, no contra el
+   viewport. La barra superior es de cristal (backdrop-filter), así que una hoja
+   abierta desde el menú de usuario se encogía a los 66 px de la barra y
+   recortaba su propio formulario. */
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import { AnimatePresence, motion, scrimFade, sheetSlide, sheetTransition, useReducedMotion } from "../motion";
 import { Icon } from "./Icon";
 
 /** Las fichas abiertas, de abajo arriba. La ficha del paciente abre encima la
@@ -21,7 +27,8 @@ export function Sheet({
   onClose,
   title,
   eyebrow,
-  width = 420,
+  width = 460,
+  footer,
   children,
 }: {
   open: boolean;
@@ -31,9 +38,13 @@ export function Sheet({
    *  paciente») cuando el título es el nombre de lo abierto. */
   eyebrow?: string;
   width?: number;
+  /** Pie fijo bajo el cuerpo desplazable (acciones de la hoja). */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
+  const transition = reduced ? { duration: 0 } : sheetTransition;
 
   // Escape closed the user menu but not this, so the only ways out were the ✕
   // and the scrim — and keyboard focus stayed behind on the page underneath.
@@ -51,7 +62,10 @@ export function Sheet({
     };
     document.addEventListener("keydown", onKey);
     const previous = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
+    const first = panelRef.current?.querySelector<HTMLElement>(
+      'input, textarea, select, button:not([aria-label="Cerrar"])',
+    );
+    (first ?? panelRef.current)?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
       openSheets.splice(openSheets.indexOf(token), 1);
@@ -59,59 +73,73 @@ export function Sheet({
     };
   }, [open]);
 
-  if (!open) return null;
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 100 }}>
-      <div
-        onClick={onClose}
-        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }}
-      />
-      <div
-        className="fade-rise"
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-        style={{
-          outline: "none",
-          position: "absolute",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width,
-          maxWidth: "94vw",
-          background: "var(--glass)",
-          backdropFilter: "blur(var(--glass-blur))",
-          borderLeft: "1px solid var(--border)",
-          borderRadius: "var(--radius-xl) 0 0 var(--radius-xl)",
-          boxShadow: "var(--shadow-lg)",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
-          <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
-            {eyebrow && (
-              <span style={{ fontSize: "var(--text-label)", fontWeight: 600, letterSpacing: "var(--tracking-label)", textTransform: "uppercase", color: "var(--muted-foreground)" }}>
-                {eyebrow}
-              </span>
-            )}
-            <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
-              {title}
-            </span>
-          </span>
-          <button
+    <AnimatePresence>
+      {open && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100 }}>
+          <motion.div
+            variants={scrimFade}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={transition}
             onClick={onClose}
-            aria-label="Cerrar"
-            style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--muted-foreground)", padding: 6 }}
+            style={{ position: "absolute", inset: 0, background: "color-mix(in srgb, var(--canvas) 55%, transparent)" }}
+          />
+          <motion.div
+            ref={panelRef}
+            variants={sheetSlide}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={transition}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+            tabIndex={-1}
+            style={{
+              outline: "none",
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width,
+              maxWidth: "94vw",
+              background: "var(--card)",
+              borderLeft: "1px solid var(--border)",
+              borderRadius: 0,
+              boxShadow: "var(--shadow-sheet)",
+              display: "flex",
+              flexDirection: "column",
+            }}
           >
-            <Icon name="STATUS_FAIL" size={15} />
-          </button>
+            <div style={{ display: "flex", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
+              <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+                {eyebrow && (
+                  <span style={{ fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" }}>
+                    {eyebrow}
+                  </span>
+                )}
+                <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
+                  {title}
+                </span>
+              </span>
+              <button
+                onClick={onClose}
+                aria-label="Cerrar"
+                style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--muted-foreground)", padding: 6 }}
+              >
+                <Icon name="STATUS_FAIL" size={15} />
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>{children}</div>
+            {footer && (
+              <div style={{ padding: "14px 22px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>{footer}</div>
+            )}
+          </motion.div>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>{children}</div>
-      </div>
-    </div>,
+      )}
+    </AnimatePresence>,
     document.body,
   );
 }

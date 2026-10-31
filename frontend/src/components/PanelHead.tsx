@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { glass } from "../styles/glass";
 
 export function PanelHead({ title, desc, right }: { title: string; desc?: string; right?: ReactNode }) {
   return (
@@ -23,8 +24,10 @@ export function SectionLabel({ children, style, className }: { children: ReactNo
     <div
       className={className}
       style={{
-        fontSize: "var(--text-label)",
-        fontWeight: "var(--weight-label)",
+        fontFamily: "var(--font-mono)",
+        fontSize: "var(--text-eyebrow)",
+        textTransform: "uppercase",
+        letterSpacing: "var(--tracking-eyebrow)",
         color: "var(--muted-foreground)",
         marginBottom: 8,
         ...style,
@@ -80,7 +83,7 @@ export function Collapsible({
   };
 
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", background: "var(--background)", overflow: "hidden" }}>
+    <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", background: "transparent", overflow: "hidden" }}>
       <button
         type="button"
         onClick={toggle}
@@ -92,7 +95,7 @@ export function Collapsible({
         }}
       >
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>{title}</span>
+          <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{title}</span>
           {subtitle && (
             <span className="truncate" style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
               {subtitle}
@@ -100,7 +103,15 @@ export function Collapsible({
           )}
         </span>
         {badge}
-        <span style={{ color: "var(--muted-foreground)", fontSize: 12, flexShrink: 0 }}>{open ? "▾" : "▸"}</span>
+        <span
+          data-chevron
+          aria-hidden="true"
+          style={{
+            color: "var(--muted-foreground)", fontSize: 12, flexShrink: 0, display: "inline-block",
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform var(--dur-2) var(--ease-out, ease)",
+          }}
+        >▸</span>
       </button>
       {open && <div style={{ padding: "0 14px 16px", borderTop: "1px solid var(--border)" }}>
         <div style={{ paddingTop: 14 }}>{children}</div>
@@ -118,9 +129,9 @@ export function ErrorNote({ children }: { children: ReactNode }) {
         marginTop: 12,
         padding: "10px 14px",
         borderRadius: "var(--radius-md)",
-        background: "color-mix(in srgb, var(--destructive) 10%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--destructive) 35%, transparent)",
-        color: "var(--destructive)",
+        background: "var(--destructive-bg)",
+        border: "1px solid var(--destructive-text)",
+        color: "var(--destructive-text)",
         fontSize: 12,
       }}
     >
@@ -129,7 +140,7 @@ export function ErrorNote({ children }: { children: ReactNode }) {
   );
 }
 
-/* Card — standard elevated surface (radius 14, shadow sm, border 1px). */
+/* Card — superficie de cristal (radio lg); el style del llamador manda. */
 export function Card({ children, style, className, onClick }: {
   children: ReactNode;
   style?: React.CSSProperties;
@@ -141,11 +152,10 @@ export function Card({ children, style, className, onClick }: {
     <div
       className={className}
       onClick={onClick}
+      data-glass
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
+        ...glass("normal"),
         borderRadius: "var(--radius-lg)",
-        boxShadow: "var(--shadow-sm)",
         padding: "14px 16px",
         ...style,
       }}

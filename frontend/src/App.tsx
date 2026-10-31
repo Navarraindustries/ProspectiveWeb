@@ -4,6 +4,8 @@
 
 import { ForcePasswordChange } from "./components/ForcePasswordChange";
 import { useCallback, useEffect, useState } from "react";
+import { glide, glideTransition, motion, useReducedMotion } from "./motion";
+import { glass } from "./styles/glass";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api/client";
 import type { PatientSummary, StudyCard, StudySummary } from "./api/types";
@@ -43,6 +45,7 @@ function Router() {
   const [patient, setPatient] = useState<PatientSummary | null>(null);
   // Paciente por el que se abre el registro de pedidos, cuando se llega desde su ficha.
   const [ordersPatient, setOrdersPatient] = useState<PatientSummary | null>(null);
+  const reduced = useReducedMotion();
   const [toast, setToast] = useState<string | null>(null);
   // «Reintentar» del aviso de una restauración fallida (F1-25): el aviso se
   // queda hasta que se pulse, en vez de borrarse a los tres segundos.
@@ -309,19 +312,22 @@ function Router() {
       />
       <ServerDownBanner />
       {toast && (
-        <div
+        <motion.div
           role={retryHere ? "alert" : undefined}
+          data-glass
+          variants={glide}
+          initial="initial"
+          animate="animate"
+          transition={reduced ? { duration: 0 } : glideTransition}
           style={{
+            ...glass("dense"),
             position: "fixed",
-            top: 76,
-            left: "50%",
-            transform: "translateX(-50%)",
+            bottom: 24,
+            right: 24,
             zIndex: 200,
-            background: "var(--foreground)",
-            color: "var(--background)",
+            color: "var(--foreground)",
             padding: "12px 22px",
-            borderRadius: "var(--radius-md)",
-            boxShadow: "var(--shadow-lg)",
+            borderRadius: "var(--radius-full)",
             fontSize: 13,
             fontWeight: 600,
           }}
@@ -346,7 +352,7 @@ function Router() {
               </button>
             </>
           )}
-        </div>
+        </motion.div>
       )}
     </div>
     </NavProvider>

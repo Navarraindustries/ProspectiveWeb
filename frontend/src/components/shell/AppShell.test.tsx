@@ -15,13 +15,14 @@ vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedVal
 
 import { ENTORNO_SRC } from "../Entorno";
 import { AppShell } from "./AppShell";
+import { resetSessionPinned } from "./useShellState";
 
 /** Pinta el shell con un hijo mínimo; las props son las del propio AppShell. */
 function renderShell(props: Omit<ComponentProps<typeof AppShell>, "children">) {
   return render(<AppShell {...props}><p>contenido</p></AppShell>);
 }
 
-beforeEach(() => { localStorage.clear(); localStorage.setItem("shell.sidebar", "collapsed"); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
+beforeEach(() => { resetSessionPinned(); localStorage.clear(); localStorage.setItem("shell.sidebar", "collapsed"); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
 
 describe("AppShell", () => {
   it("el administrador ve Administración con la insignia de pendientes", async () => {

@@ -14,7 +14,7 @@ vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedVal
 import { api } from "../../api/client";
 import { SECTIONS } from "./sections";
 import { SideNav } from "./SideNav";
-import { useShellState } from "./useShellState";
+import { resetSessionPinned, useShellState } from "./useShellState";
 
 /* La barra recibe su estado del shell; aquí lo pone el mismo gancho real. */
 function Host() {
@@ -31,6 +31,7 @@ function renderNav(opts: { screen?: string } = {}) {
 }
 
 beforeEach(() => {
+  resetSessionPinned();
   localStorage.clear();
   localStorage.setItem("shell.sidebar", "collapsed");
   nav.screen = "studies";
@@ -90,6 +91,30 @@ describe("SideNav", () => {
     fireEvent.click(screen.getByRole("button", { name: "Soltar la barra lateral" }));
     expect(localStorage.getItem("shell.sidebar")).toBe("collapsed");
     expect(barra().getAttribute("data-expanded")).toBe("false");
+  });
+
+  it("a 1280 px o menos, la barra fijada sigue fijada al cambiar de pantalla (desmontar y montar)", () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ ...original(q), matches: q === "(max-width: 1280px)" })) as typeof window.matchMedia;
+    try {
+      const { unmount } = render(<Host />);
+      expect(barra().getAttribute("data-expanded")).toBe("false");
+      fireEvent.click(screen.getByRole("button", { name: "Fijar la barra lateral" }));
+      expect(barra().getAttribute("data-expanded")).toBe("true");
+      unmount();
+      render(<Host />);
+      expect(barra().getAttribute("data-expanded")).toBe("true");
+      expect(screen.getByRole("button", { name: "Soltar la barra lateral" })).toBeTruthy();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it("con contador, el nombre accesible de Cuentas pendientes lo incluye", async () => {
+    vi.mocked(api.listPending).mockResolvedValueOnce([{ id: 1 }, { id: 2 }] as never);
+    render(<Host />);
+    expect(await screen.findByRole("link", { name: "Cuentas pendientes, 2 pendientes" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Usuarios" })).toBeTruthy();
   });
 
   it("el grupo Administración solo se nombra expandida", () => {

@@ -36,7 +36,18 @@ function isNarrow(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia(NARROW_QUERY)?.matches === true;
 }
+/* Lo elegido con la chincheta en esta carga de la página. Cada pantalla monta
+   su propio shell: sin esto, a 1280 px o menos `isNarrow()` volvía a plegar la
+   barra en cada cambio de pantalla aunque el usuario acabara de fijarla. */
+let sessionPinned: boolean | null = null;
+
+/** Olvida la elección de esta carga (para los tests, que montan shells limpios). */
+export function resetSessionPinned(): void {
+  sessionPinned = null;
+}
+
 function readPinned(): boolean {
+  if (sessionPinned !== null) return sessionPinned;
   if (isNarrow()) return false;
   const wide = typeof window !== "undefined" && window.innerWidth >= WIDE_WINDOW_PX;
   try {
@@ -87,6 +98,7 @@ export function useShellState(): ShellState {
 
   const setPinned = useCallback((next: boolean) => {
     setPinnedState(next);
+    sessionPinned = next;
     writePinned(next);
     if (!next) setOpened(false);
   }, []);

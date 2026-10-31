@@ -75,7 +75,7 @@ function SectionLink({ section, active, expanded, badge, onGo }: {
         href={SCREEN_PATH[section.key]}
         className="shell-nav-link"
         aria-current={active ? "page" : undefined}
-        aria-label={section.label}
+        aria-label={badge ? `${section.label}, ${badge} pendientes` : section.label}
         title={expanded ? undefined : section.label}
         onClick={onClick}
       >

@@ -14,8 +14,8 @@ import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
 import {
-  ALL_REJECTED, DETECT_LINES, DETECT_MORE, MANUAL_BADGE, MORPHO_INVALIDATED, isManual,
-  rankLabel, rejectedSummary, thicknessLabel, vetoHint,
+  ALL_REJECTED, DETECT_LINES, DETECT_MORE, MANUAL_BADGE, MORPHO_INVALIDATED, SMALL_SAC_CHANNEL,
+  channelLabel, channelTitle, isManual, rankLabel, rejectedSummary, thicknessLabel, vetoHint,
 } from "./detectCopy";
 import { canAdvanceFromDetect } from "./detectGate";
 
@@ -182,22 +182,11 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         </div>
       )}
 
-      {/* A media resolución el orden de la lista empeora de forma medida: en
-          Case 3 la lesión pasa del 1.º-3.º puesto al 5.º. Lo decía el README,
-          que nadie lee delante del caso; aquí se ve donde importa. */}
-      {(planning.segmentation?.downsample_factor ?? 1) > 1 && (
-        <div role="note" style={{
-          fontSize: 11, lineHeight: 1.5, marginBottom: 10, padding: "8px 10px",
-          borderRadius: "var(--radius-md)",
-          background: "color-mix(in srgb, var(--warning) 12%, transparent)", color: "var(--warning)",
-        }}>
-          <b>La malla está a media resolución</b>
-          {planning.segmentation?.fallback_note ? ` (${planning.segmentation.fallback_note.replace(/\.$/, "")})` : ""}.
-          Así el orden de candidatos es menos fiable: en un caso con diagnóstico, la
-          lesión bajó al 5.º puesto. Recorre la lista entera, o segmenta a resolución
-          completa en un equipo con más memoria.
-        </div>
-      )}
+      {/* Hubo aquí un aviso naranja «La malla está a media resolución… la lesión
+          bajó al 5.º puesto» (Case 3, antes de la banda a resolución nativa). Desde
+          que el árbol se vuelve a segmentar a resolución nativa en su banda
+          (fallback_note lo cuenta en Segmentación), la cifra ya no era cierta y
+          sembraba una duda delante del caso: fuera (30-10). */}
 
       {/* F1-142: tres párrafos delante de la lista, con una cifra fija («los
           dos casos con diagnóstico») que ya no era verdad. Tres líneas y el
@@ -249,9 +238,13 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                 {manual
                   ? <Badge variant="subtle">{MANUAL_BADGE}</Badge>
                   : (c.channels ?? []).map((ch) => (
-                    <Badge key={ch} variant={ch === "curvatura" ? "subtle" : "success"}>
-                      {ch}
-                    </Badge>
+                    // El canal de la cuota («saco pequeño») va en gris y con su
+                    // explicación al pasar el ratón: no es un voto más (30-10).
+                    <span key={ch} title={channelTitle(ch)}>
+                      <Badge variant={ch === "curvatura" || ch === SMALL_SAC_CHANNEL ? "subtle" : "success"}>
+                        {channelLabel(ch)}
+                      </Badge>
+                    </span>
                   ))}
                 {/* Decisión nº 20 (F1-144): sin «Puesto bajo». «Puesto #4» ya
                     dice el orden, y la marca juzgaba con un orden que no está

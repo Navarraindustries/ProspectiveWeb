@@ -4,8 +4,8 @@
    - una barra muda durante medio minuto: ahora se ve la fase (curvatura,
      calibre y cociente, regiones) del mismo registro de progreso que la
      segmentación;
-   - que la malla está a media resolución, con lo que el orden de candidatos
-     empeora de forma medida. Solo lo decía el README. */
+   - que la malla está a media resolución: avisaba aquí hasta el 30-10; ya no
+     (la cifra que daba dejó de ser cierta con la banda a resolución nativa). */
 
 import { render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
@@ -66,9 +66,14 @@ describe("mientras detecta", () => {
 });
 
 describe("malla a media resolución", () => {
-  it("avisa de que el orden de candidatos es menos fiable", async () => {
+  // El aviso naranja («la lesión bajó al 5.º puesto», medido en Case 3 antes de
+  // la banda a resolución nativa) se quitó el 30-10: la cifra ya no era cierta
+  // y sembraba una duda delante del caso. Lo que se hizo distinto lo cuenta
+  // Segmentación (fallback_note).
+  it("ya no avisa, ni a media resolución", async () => {
     conMalla(malla(2));
-    expect(await screen.findByText("La malla está a media resolución")).toBeInTheDocument();
+    await screen.findByText("calibre y cociente");
+    expect(screen.queryByText("La malla está a media resolución")).toBeNull();
   });
 
   it("no dice nada a resolución completa", async () => {

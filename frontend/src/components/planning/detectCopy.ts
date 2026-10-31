@@ -39,6 +39,7 @@ export const DETECT_LINES: readonly string[] = [
 /** Lo que se despliega con «Más». */
 export const DETECT_MORE: readonly string[] = [
   "Curvatura: la superficie se abomba. Calibre: más gruesa que el resto de la vasculatura. Cociente: más gruesa que el vaso de al lado.",
+  "«Saco pequeño» es una cuota, no un cuarto voto: si ninguno de los 5 primeros es un saco de 3 – 5 mm con forma de esfera, el mejor de ellos ocupa el 5.º puesto. No mueve a los otros cuatro.",
   "Cuando lo encontró la curvatura, el azul es la región detectada; cuando lo encontró el calibre, es una bola alrededor del punto que incluye pared de vaso. El grosor es una estimación local.",
   "La medida real la da Morfometría, marcando el cuello y el ápice: se vuelve a aislar el saco desde el volumen, así que nada de esto altera los números.",
 ];
@@ -49,6 +50,23 @@ export const DETECT_MORE: readonly string[] = [
 export function thicknessLabel(mm: number): string {
   const n = mm.toLocaleString("es", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return `≈${n} mm de grosor local`;
+}
+
+/** Canal del saco pequeño (30-10, informe §4.20): el consenso le reserva el
+ *  5.º puesto si ningún candidato anterior lleva su etiqueta. No vota. */
+export const SMALL_SAC_CHANNEL = "saco";
+
+/** Nombre del canal en la insignia: el canal de la cuota se llama «saco» en la
+ *  API y «saco pequeño» delante del clínico; los demás, tal cual. */
+export function channelLabel(ch: string): string {
+  return ch === SMALL_SAC_CHANNEL ? "saco pequeño" : ch;
+}
+
+/** Explicación al pasar el ratón: solo el canal de la cuota necesita una. */
+export function channelTitle(ch: string): string | undefined {
+  return ch === SMALL_SAC_CHANNEL
+    ? "Cuota del 5.º puesto: el mejor saco de 3 – 5 mm con forma de esfera cuando ninguno estaba entre los 5. No vota ni mueve a los demás."
+    : undefined;
 }
 
 /** Canal (y `patch_kind`) de un candidato que viene de un punto marcado a

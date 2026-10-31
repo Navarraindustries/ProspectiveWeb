@@ -48,6 +48,10 @@ type Aviso =
   | { tipo: "caso"; paciente: PatientSummary; caso: StudySummary };
 
 const COLUMNAS = ["Paciente", "HC", "Edad", "Institución", "Último caso", "Última sesión", "Acciones"];
+// Anchos fijos (en % de la tabla): con el reparto automático una HC o una
+// institución largas, todas en una línea, empujaban «Acciones» fuera de la
+// tarjeta, que recorta; «Acciones» necesita sitio para dos botones (30-10).
+const ANCHOS = ["18%", "11%", "5%", "12%", "15%", "13%", "26%"];
 const celda: React.CSSProperties = { padding: "12px 16px" };
 
 export function Patients({
@@ -219,13 +223,18 @@ export function Patients({
                        value={q} onChange={(e) => setQ(e.target.value)} />
               </div>
             </div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            {/* La tarjeta recorta (overflow hidden) y una HC larga o una institución
+                larga empujaban «Acciones» fuera del borde derecho: la tabla se
+                desplaza en horizontal si no cabe y las celdas largas se acortan con
+                puntos suspensivos (30-10). */}
+            <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", minWidth: 980, tableLayout: "fixed", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
                   {COLUMNAS.map((h, i) => (
                     <th
                       key={h}
-                      style={{ textAlign: i === COLUMNAS.length - 1 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "var(--tracking-label)", borderBottom: "1px solid var(--border)" }}
+                      style={{ width: ANCHOS[i], textAlign: i === COLUMNAS.length - 1 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "var(--tracking-label)", borderBottom: "1px solid var(--border)" }}
                     >
                       {h}
                     </th>
@@ -266,7 +275,8 @@ export function Patients({
                     onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
-                    <td style={{ ...celda, fontWeight: 600, color: "var(--foreground)" }}>
+                    <td style={{ ...celda, fontWeight: 600, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        title={p.full_name}>
                       <span data-nombre>{p.full_name}</span>
                       {p.is_shared_with_me && (
                         <span style={{ marginLeft: 8 }}><Badge variant="brand">Compartido</Badge></span>
@@ -275,17 +285,27 @@ export function Patients({
                         <span style={{ marginLeft: 8 }}><Badge variant="muted">{`Compartido con ${p.shared_with_count}`}</Badge></span>
                       )}
                     </td>
-                    <td style={{ ...celda, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{p.hospital_id || "—"}</td>
+                    <td style={{ ...celda, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        title={p.hospital_id || undefined}>
+                      {p.hospital_id || "—"}
+                    </td>
                     {/* F2-24: la edad, que el especialista usa para el riesgo de rotura. */}
                     <td style={{ ...celda, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{ageFromDob(p.dob) || "—"}</td>
-                    <td style={{ ...celda, color: "var(--foreground)" }}>{p.institution || "—"}</td>
+                    <td style={{ ...celda, color: "var(--foreground)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        title={p.institution || undefined}>
+                      {p.institution || "—"}
+                    </td>
                     <td style={{ ...celda, color: "var(--foreground)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                         title={p.last_case_label || undefined}>
                       {p.last_case_label || "—"}
                     </td>
-                    <td style={{ ...celda, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{ultimaSesion(p)}</td>
-                    <td style={{ padding: "8px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      <span style={{ display: "inline-flex", gap: 6 }}>
+                    <td style={{ ...celda, color: "var(--muted-foreground)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                        title={ultimaSesion(p)}>
+                      {ultimaSesion(p)}
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                      {/* Si la tarjeta es estrecha, los botones pasan a dos líneas en vez de salirse. */}
+                      <span style={{ display: "inline-flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6 }}>
                         {p.last_session_id && (
                           // F2-24: reanudar en un clic, sin abrir la ficha.
                           <Button size="sm" leadingIcon={<Icon name="RESUME" />}
@@ -303,6 +323,7 @@ export function Patients({
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>

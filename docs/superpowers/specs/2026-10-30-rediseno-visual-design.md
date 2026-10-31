@@ -135,6 +135,8 @@ Herramientas: **Motion** (`motion`, antes Framer Motion) para entradas, FLIP y g
 
 Orden alternativo si el dueño quiere enseñar algo pronto: 1 → 5 → 4 → 2 → 3.
 
+Fase 1 completada el 2026-10-31: tokens, movimiento y componentes base (Button, Badge, Input, Select, Tabs, Sheet); ver plan `docs/superpowers/plans/2026-10-30-rediseno-fase1-tokens-movimiento.md`.
+
 ## 8. Decisiones tras la revisión del constructor (30-10, noche)
 
 Un revisor independiente leyó este documento como si tuviera que construirlo sin preguntar. De sus once dudas, diez se resuelven aquí como decisiones del diseñador (marcadas «mi decisión»); la primera la decide el dueño.

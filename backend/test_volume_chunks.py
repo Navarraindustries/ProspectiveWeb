@@ -282,7 +282,9 @@ class TestSegmentThreshold:
         # El MIP «Vasos» del cliente arranca en el umbral con el que se hizo la
         # malla: el endpoint tiene que devolverlo, no solo usarlo.
         sid = create_session()
-        _write_classic_ct_series(sid, nz=12, size=16, bright_cube=800)
+        # 600 HU, no 800: el botón va por el método tubular, que en TC aplica
+        # un techo de 700 HU (paso 2 Zenodo) y trata lo que pasa de ahí como hueso.
+        _write_classic_ct_series(sid, nz=12, size=16, bright_cube=600)
         r = client.post("/api/segment", json={
             "session_id": sid, "series_id": "", "lower": 300, "upper": 0,
             "smoothing": 0, "cleanup": 0, "full_resolution": True, "main_tree_only": False,

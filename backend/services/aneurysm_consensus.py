@@ -77,7 +77,7 @@ from scipy import ndimage, spatial
 from services.aneurysm_detector import (AneurysmCandidate, AneurysmDetector,
                                        DetectionResult)
 from services.branch_origins import _fit_voxel_size, _rasterise
-from services.mesh_components import describe_components, looks_like_tree
+from services.mesh_components import MIN_TREE_EXTENT_MM, describe_components
 
 logger = logging.getLogger(__name__)
 
@@ -115,16 +115,19 @@ PEAKS_PER_CHANNEL: int = 6
 BORDER_TOL_MM: float = 1.0
 
 #: El 4.º desempate de `order_hits`: el canal más prioritario que encuentra el sitio.
-_CHANNEL_ORDER = {"curvatura": 0, "calibre": 1, "cociente": 2}
+_CHANNEL_ORDER = {"curvatura": 0, "calibre": 1, "cociente": 2, "saco": 3}
 
 #: Por encima de esto los canales geométricos no se ejecutan. En una malla de
-#: 79 000 vértices tardaban 52 s, y ese tamaño solo lo alcanza una angio-TC —
-#: donde además no significan nada, porque la malla es la cabeza entera.
+#: 79 000 vértices tardaban 52 s; `routers.detect` les pasa una copia decimada
+#: por debajo de este tope cuando la malla es mayor (angio-TC).
 MAX_VERTS_GEOMETRIC: int = 40_000
 
 CH_CURVATURE = "curvatura"
 CH_CALIBRE = "calibre"
 CH_RATIO = "cociente"
+#: Canal de «saco pequeño» (29-10): no vota. Sus puestos no entran en `best_rank`
+#: ni cuentan como familia; solo sirven para la cuota (`_apply_small_sac_quota`).
+CH_SACO = "saco"
 
 
 @dataclass
@@ -147,12 +150,19 @@ class ConsensusHit:
         return sorted(self.ranks)
 
     @property
+    def voting_ranks(self) -> dict[str, int]:
+        """Los puestos que ordenan: todos menos el canal de saco, que no vota."""
+        return {ch: r for ch, r in self.ranks.items() if ch != CH_SACO}
+
+    @property
     def best_rank(self) -> int:
-        return min(self.ranks.values()) if self.ranks else 10_000
+        v = self.voting_ranks
+        return min(v.values()) if v else 10_000
 
     @property
     def rank_sum(self) -> int:
-        return sum(self.ranks.values()) if self.ranks else 10_000
+        v = self.voting_ranks
+        return sum(v.values()) if v else 10_000
 
 
 def local_calibre(poly: vtk.vtkPolyData,
@@ -244,7 +254,8 @@ def _peaks(pts: np.ndarray, value: np.ndarray, radius: np.ndarray,
 def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
               top: int = 5, *,
               geometric_poly: vtk.vtkPolyData | None = None,
-              curvature_result: "DetectionResult | None" = None) -> list[ConsensusHit]:
+              curvature_result: "DetectionResult | None" = None,
+              tree_poly: vtk.vtkPolyData | None = None) -> list[ConsensusHit]:
     """Los `top` sitios mejor puntuados por el consenso de los tres canales.
 
     La curvatura se busca sobre `poly`. Calibre y cociente, sobre
@@ -259,6 +270,12 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
     `curvature_result`, si se da, es `detector.detect(poly)` ya calculado:
     quien necesita también los diagnósticos no tiene por qué pagar la
     curvatura dos veces.
+
+    `tree_poly`, si se da, es la malla COMPLETA sobre la que se decide si hay
+    algo que medir (una pieza mayor de al menos 20 mm). Sin ella se decide
+    sobre `geometric_poly`, y una copia decimada a 40 000 vértices de una
+    malla grande se fragmenta (Zenodo 026): la pieza mayor de la copia no es
+    la de la malla entera.
     """
     hits: list[ConsensusHit] = []
     geo = poly if geometric_poly is None else geometric_poly
@@ -279,16 +296,37 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
                                  ranks={CH_CURVATURE: rank}, candidate=c,
                                  on_border=borde[k]))
 
+    # ── Canal de saco pequeño (no vota: ver `_apply_small_sac_quota`) ─── #
+    for rank, c in enumerate(det.small_sacs, start=1):
+        pt = np.asarray(c.centroid, dtype=float)
+        best, best_d = None, None
+        for h in hits:
+            d = float(np.linalg.norm(pt - np.asarray(h.position)))
+            if d <= AGREE_MM and (best is None or d < best_d):
+                best, best_d = h, d
+        if best is not None:
+            best.ranks[CH_SACO] = min(rank, best.ranks.get(CH_SACO, rank))
+        else:
+            hits.append(ConsensusHit(position=tuple(float(v) for v in c.centroid),
+                                     ranks={CH_SACO: rank}, candidate=c,
+                                     on_border=region_on_border(c.poly_data, bounds)))
+
     # ── Canales 2 y 3: calibre y cociente ─────────────────────────────── #
     #
-    # Solo si la malla es un árbol vascular. En angio-TC el contraste toca el
-    # hueso y la malla es la cabeza entera: allí «lo más grueso» son 12,6 mm de
-    # radio de cráneo, no un saco. Y encima tarda 52 s.
-    if _geometric_channels_apply(geo):
+    # Hasta 2026-10-19 solo corrían si la malla pasaba la prueba de árbol de
+    # `mesh_components` (≤ 100 cm³ y ≤ 3 mm): en angio-TC con el cráneo dentro
+    # de la máscara, «lo más grueso» eran 12,6 mm de radio de cráneo. Con el
+    # hueso fuera de la máscara (paso 2 del plan Zenodo) ya no: en los 132
+    # estudios de Zenodo que no pasan la prueba, encenderlos subió las lesiones
+    # entre los 5 de 5 a 13 (de 73) y bajó el hueso en controles de 112 a 79
+    # candidatos de 415, a un 35 % más de tiempo. Lo que sigue apagándolos es
+    # el tamaño de la copia y una pieza mayor demasiado pequeña.
+    if _geometric_channels_apply(geo, tree_poly):
         try:
             pts, rad = local_calibre(geo)
         except Exception as exc:  # noqa: BLE001 — sin calibre queda la curvatura
             logger.warning("Canal de calibre no disponible: %s", exc)
+            det.geometric_error = f"{type(exc).__name__}: {exc}"
             pts = rad = None
 
         if pts is not None and len(pts):
@@ -301,7 +339,31 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
                     _merge(hits, tuple(float(v) for v in pts[i]), channel, rank,
                            float(rad[i]), float(ratio[i]))
 
-    return order_hits(hits)[:top]
+    ordered = order_hits(hits)
+    if getattr(detector, "small_sac_channel", False):
+        ordered = _apply_small_sac_quota(ordered, int(getattr(detector, "small_sac_quota", 0)))
+    return ordered[:top]
+
+
+def _apply_small_sac_quota(ordered: list[ConsensusHit], quota: int) -> list[ConsensusHit]:
+    """Si entre los `quota` primeros no hay ningún sitio del canal de saco pequeño,
+    el mejor de ellos pasa al puesto `quota` (los de detrás bajan uno).
+
+    Es una cuota, no un voto: el canal ordena por forma (esfericidad × pgf) sacos
+    de ≤ 3,5 mm de radio que el orden por área del canal de curvatura deja en los
+    puestos 11–40 o fuera del tope. Medido sobre los 172 de Zenodo (29-10): con
+    puestos propios o como familia reparte (quita primeros puestos a 105, 108,
+    126, 154); como cuota del 5.º, entre 5 63 → 65 y entre 10 70 → 74 sin bajar
+    ninguna banda, a cambio de cuatro lesiones que pasan del 5.º al 6.º.
+    """
+    if quota <= 0:
+        return ordered
+    k = next((i for i, h in enumerate(ordered) if CH_SACO in h.ranks), None)
+    if k is None or k < quota:
+        return ordered
+    out = list(ordered)
+    out.insert(quota - 1, out.pop(k))
+    return out
 
 
 def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
@@ -340,13 +402,19 @@ def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
 
 
 #: Qué mide cada canal. Dos canales de la misma familia no son dos opiniones.
-_FAMILY = {CH_CURVATURE: "forma", CH_CALIBRE: "grosor", CH_RATIO: "grosor"}
+_FAMILY = {CH_CURVATURE: "forma", CH_CALIBRE: "grosor", CH_RATIO: "grosor", CH_SACO: "saco"}
 
 
 def _family_ranks(hit: ConsensusHit) -> dict[str, int]:
-    """Familia → mejor puesto que el sitio consigue en alguno de sus canales."""
+    """Familia → mejor puesto que el sitio consigue en alguno de sus canales.
+
+    El canal de saco pequeño no cuenta como familia salvo que sea el único:
+    fundido con un sitio de solo calibre le daba una segunda familia y ese sitio
+    adelantaba a la lesión (29-10: 126 y 154 perdían el primer puesto).
+    """
     out: dict[str, int] = {}
-    for ch, rank in hit.ranks.items():
+    ranks = hit.voting_ranks or hit.ranks
+    for ch, rank in ranks.items():
         fam = _FAMILY.get(ch, ch)
         out[fam] = min(rank, out.get(fam, rank))
     return out
@@ -373,24 +441,34 @@ def region_on_border(region: vtk.vtkPolyData, mesh_bounds,
                for k in range(3))
 
 
-def _geometric_channels_apply(poly: vtk.vtkPolyData) -> bool:
+def _geometric_channels_apply(poly: vtk.vtkPolyData,
+                              tree_poly: vtk.vtkPolyData | None = None) -> bool:
     """¿Tiene sentido medir calibre en esta malla?
 
-    Dos motivos para que no: que sea enorme (una angio-TC, donde tarda casi un
-    minuto) o que no sea un árbol vascular (la misma angio-TC, donde la malla
-    es un bloque de cabeza y el calibre mide cráneo).
+    Dos motivos para que no: que sea enorme (en 79 000 vértices tardaba casi
+    un minuto) o que su pieza mayor sea demasiado pequeña para ser un vaso
+    (menos de `MIN_TREE_EXTENT_MM` de diagonal). El tamaño se mira en `poly`
+    (donde correrá el calibre); la pieza mayor, en `tree_poly`, la malla
+    completa, porque la copia decimada se fragmenta (ver consensus).
+
+    El volumen y el espesor de la pieza mayor (la prueba de árbol de
+    `mesh_components`, que sigue mandando en «quedarse con el árbol») ya no
+    apagan los canales: medido en los 132 estudios de Zenodo que no la pasan,
+    con el hueso fuera de la máscara, calibre y cociente encuentran los sacos
+    grandes que la curvatura no ve y no añaden hueso (ver `consensus`).
     """
     n = poly.GetNumberOfPoints()
     if n == 0 or n > MAX_VERTS_GEOMETRIC:
         logger.info("Canales geométricos omitidos: %d vértices", n)
         return False
-    comps = describe_components(poly)
+    comps = describe_components(poly if tree_poly is None else tree_poly)
     if not comps:
         return False
-    ok, motivo = looks_like_tree(comps[0])
-    if not ok:
-        logger.info("Canales geométricos omitidos: %s", motivo)
-    return ok
+    if comps[0].extent_mm < MIN_TREE_EXTENT_MM:
+        logger.info("Canales geométricos omitidos: la pieza mayor mide %.0f mm",
+                    comps[0].extent_mm)
+        return False
+    return True
 
 
 def _merge(hits: list[ConsensusHit], position, channel: str, rank: int,
@@ -555,7 +633,10 @@ def hit_confidence(hit: ConsensusHit) -> float:
     falsos positivos con 0,69 y 1,0. El acuerdo suma por familia, como en
     `order_hits`.
     """
-    base = 1.0 / (1.0 + 0.45 * (hit.best_rank - 1))
+    # Un sitio que solo ve el canal de saco no vota: su barra sale de su puesto en
+    # ese canal contado desde la cuota (el 1.º del canal vale como un 5.º).
+    rank = hit.best_rank if hit.voting_ranks else hit.ranks.get(CH_SACO, 10_000) + 4
+    base = 1.0 / (1.0 + 0.45 * (rank - 1))
     acuerdo = 0.10 * (len(_family_ranks(hit)) - 1)
     if hit.on_border:
         # Una tapa de borde va al final de la lista: que la barra no diga otra cosa.

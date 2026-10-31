@@ -403,6 +403,8 @@ export interface SuggestedBand {
   upper: number;
   vmin: number;
   vmax: number;
+  /** Techo de HU que aplicará el método tubular (0 = ninguno): 700 en TC, ninguno en 3DRA. */
+  tubular_upper?: number;
 }
 
 export interface PreviewRequest {

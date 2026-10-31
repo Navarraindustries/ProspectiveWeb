@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Prospective y el dataset Zenodo: informe ejecutivo (20 de octubre)</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  :root { --fg: #141a24; --fg2: #4f5b6b; --line: #d9dfe8; --accent: #184a8c; --soft: #e8eff9; --ok: #0f7a4a; --bad: #b3261e; --warn: #9a6a00; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: var(--fg); font-family: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif; font-size: 10.6pt; line-height: 1.42; }
+  .eyebrow { font-size: 8.5pt; letter-spacing: .08em; text-transform: uppercase; color: var(--fg2); font-weight: 600; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: 23pt; line-height: 1.12; margin: 4pt 0 8pt; }
+  h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: 15pt; margin: 18pt 0 6pt; color: var(--accent); break-after: avoid; }
+  h3 { font-size: 10.8pt; font-weight: 600; margin: 10pt 0 3pt; break-after: avoid; }
+  p { margin: 0 0 6pt; }
+  .lead { font-size: 11.6pt; }
+  .muted { color: var(--fg2); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin: 10pt 0 4pt; }
+  .kpi { border: 1px solid var(--line); border-radius: 6pt; padding: 8pt 10pt; }
+  .kpi .n { font-family: Georgia, serif; font-size: 20pt; font-weight: 600; line-height: 1.05; }
+  .kpi .n small { font-size: 10pt; color: var(--fg2); font-family: "Segoe UI", sans-serif; font-weight: 500; }
+  .kpi .l { font-size: 8.6pt; color: var(--fg2); margin-top: 3pt; }
+  .kpi.good .n { color: var(--ok); } .kpi.bad .n { color: var(--bad); }
+  table { border-collapse: collapse; width: 100%; font-size: 9.4pt; margin: 4pt 0 8pt; }
+  th, td { text-align: left; padding: 4pt 6pt; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 8.2pt; letter-spacing: .04em; text-transform: uppercase; color: var(--fg2); font-weight: 600; background: #f6f8fb; }
+  td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tr { break-inside: avoid; }
+  .fig { margin: 6pt 0 8pt; break-inside: avoid; }
+  .fig img { width: 100%; display: block; }
+  .fig .cap { font-size: 8.6pt; color: var(--fg2); margin: 3pt 0 0; }
+  .callout { border-left: 3pt solid var(--accent); background: var(--soft); padding: 7pt 10pt; margin: 8pt 0; break-inside: avoid; }
+  .callout p { margin: 0 0 4pt; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8pt; margin: 6pt 0; }
+  .card { border: 1px solid var(--line); border-radius: 6pt; padding: 7pt 9pt; break-inside: avoid; }
+  .card .t { font-weight: 600; margin-bottom: 2pt; }
+  .card .big { font-family: Georgia, serif; font-size: 16pt; font-weight: 600; color: var(--accent); line-height: 1.1; margin-bottom: 3pt; }
+  .card p { font-size: 9.2pt; color: var(--fg2); margin: 0; }
+  .pill { display: inline-block; font-size: 8pt; font-weight: 600; padding: 1pt 6pt; border-radius: 999px; border: 1px solid var(--line); color: var(--fg2); white-space: nowrap; }
+  .pill.done { color: var(--ok); border-color: #9fd3b8; } .pill.run { color: var(--warn); border-color: #e6cd8a; } .pill.todo { color: var(--accent); border-color: #a9c3e8; }
+  ul { margin: 2pt 0 6pt 16pt; padding: 0; } li { margin: 0 0 3pt; }
+  code { font-family: Consolas, "IBM Plex Mono", monospace; font-size: 8.8pt; background: var(--soft); padding: 0 3pt; border-radius: 3pt; }
+  .page { break-before: page; }
+  footer { margin-top: 14pt; padding-top: 6pt; border-top: 1px solid var(--line); font-size: 8.6pt; color: var(--fg2); }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">Informe ejecutivo · Prospective · 8 – 20 de octubre de 2026</div>
+<h1>Prospective ante el dataset Zenodo: de 4 a 44 aneurismas detectados de 122</h1>
+<p class="lead">En doce días se ha incorporado el primer dataset público con verdad de terreno (172 angio-TC de cabeza con 122 aneurismas segmentados a mano), se ha medido el detector de Prospective sobre él tres veces de principio a fin y, entre pasada y pasada, se han identificado y corregido las causas del fallo una a una. Las lesiones que la aplicación coloca entre sus 5 candidatos pasan de 4 a 44; los estudios con aneurisma en los que la lesión está en la lista corta, de 3 a 36 de 82. Todo está medido sobre los 172 estudios, comprobado contra los casos de referencia de 3DRA y commiteado en el repositorio. Lo que queda está identificado y acotado.</p>
+
+<div class="kpis">
+  <div class="kpi"><div class="n">172 × 3</div><div class="l">angio-TC evaluadas tres veces de principio a fin (82 con aneurisma, 122 lesiones; 90 controles)</div></div>
+  <div class="kpi good"><div class="n">4 → 44 <small>de 122</small></div><div class="l">lesiones entre los 5 candidatos (23 el 18 de octubre); estudios con la lesión entre los 5: 3 → 36 de 82</div></div>
+  <div class="kpi good"><div class="n">66 % → 28 %</div><div class="l">candidatos sobre hueso en los controles; 1 control con los 5 sobre hueso (antes 20)</div></div>
+  <div class="kpi"><div class="n">86 h</div><div class="l">de cómputo registradas en un portátil (i7-8550U, 16 GB); la última pasada completa, 2,4 h de detección</div></div>
+</div>
+
+<h2>1. Qué se ha hecho y cuándo</h2>
+<table>
+  <thead><tr><th style="width:62pt">Fecha</th><th>Trabajo</th><th>Resultado</th><th style="width:60pt">Estado</th></tr></thead>
+  <tbody>
+    <tr><td>8 oct</td><td>Auditoría de seguridad de la API y el acceso; búsqueda de datasets DICOM con verdad de terreno</td><td>7 hallazgos corregidos el mismo día. Elegido Zenodo 15697196 (CC-BY): el único con DICOM + segmentación manual del aneurisma</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>9 oct</td><td>Ingesta de 44 estudios por la API, como un usuario, y banco de medida del detector</td><td>Primer dato real: 2 aciertos de 34 aneurismas en angio-TC</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>12 oct</td><td>Evaluación de los 172 estudios con el software tal cual, ajustes del detector y un oráculo de resolución</td><td>4 de 122 lesiones entre los 5; tres causas medidas</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>13 – 14 oct</td><td>Medidas 0 – 3: red de seguridad 3DRA, resolución nativa donde importa, hueso fuera de la máscara en TC, detector sobre la malla limpia</td><td>Diseñadas y medidas sobre 16 estudios; 3DRA sin cambios</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>14 – 18 oct</td><td>Primera pasada completa de los 172 con las medidas 1 – 3 (48 h de máquina)</td><td>23 de 122 entre los 5; dos poblaciones de estudios identificadas</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>18 – 19 oct</td><td>Experimento: canales de grosor encendidos en los 132 estudios de cabeza y cuello (7,6 h)</td><td>Entre los 5 de 5 a 13 en esos estudios; regla cambiada. Criterio absoluto en controles: medido, no existe</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>19 – 20 oct</td><td>Recorte a la región intracraneal antes de detectar; segunda pasada completa de los 172 (2,4 h de detección)</td><td><strong>44 de 122 entre los 5</strong>, 36 de 82 estudios</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>20 oct</td><td>Suelo de densidad (un candidato en aire no es un aneurisma); diagnóstico de los sacos gigantes; limpieza de avisos</td><td>Simulado 44 → 45 entre los 5 y 6 → 8 en primer puesto sin perder ninguno; cuatro commits</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>pendiente</td><td>Comprobación de la pantalla con un estudio del dataset</td><td>Requiere entrar en la aplicación; la lógica es la misma función en la API y en el banco, cubierta por tests</td><td><span class="pill todo">pendiente</span></td></tr>
+  </tbody>
+</table>
+
+<h2>2. El dataset y el criterio</h2>
+<p>Zenodo 15697196: 172 angio-TC de cabeza (145 de ellas incluyen el cuello), 82 con aneurisma y 90 controles, con cada aneurisma segmentado a mano en un fichero STL. Son 122 lesiones: la mitad miden 5 mm o menos, 39 son «blister» de 1,3 – 3,6 mm, 16 son gigantes, 20 están calcificadas y 22 trombosadas. Es un conjunto difícil a propósito, y es el tipo de examen (TC de cabeza entera, con el hueso tocando los vasos con contraste) para el que Prospective no se había medido nunca: su detector se había calibrado sobre dos casos de angiografía rotacional 3D (3DRA), donde no hay hueso.</p>
+<p>Criterio de acierto, el mismo en todas las medidas: la lesión cuenta como detectada si uno de los candidatos que la aplicación enseña está a menos de 5 mm o de su diámetro. «Entre los 5» es la lista que ve el clínico; «entre los 40» es la lista larga del banco, que dice si la lesión existe para el detector aunque quede atrás.</p>
+
+<h2>3. Las medidas, en el orden en que se tomaron</h2>
+<table>
+  <thead><tr><th style="width:18pt">#</th><th style="width:150pt">Medida</th><th>Qué hace</th><th>Qué se midió</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td><strong>Red de seguridad 3DRA</strong></td><td>Regresión automática sobre los dos casos de referencia de 3DRA (lesión en el primer puesto en ambos), ejecutada tras cada cambio.</td><td>«Sin diferencias» tras cada una de las medidas siguientes, incluidas las del 20 de octubre.</td></tr>
+    <tr><td>1</td><td><strong>Resolución nativa donde importa</strong></td><td>La pasada reducida localiza el árbol vascular; después se vuelve a segmentar a la resolución del DICOM en una banda de 5 mm alrededor, por baldosas.</td><td>Lesiones fuera de la malla: de 31 a 16. Coste: 11 min de segmentación por estudio en vez de 1.</td></tr>
+    <tr><td>2</td><td><strong>Hueso fuera de la máscara en TC</strong></td><td>Lo que supera 700 HU se quita antes de rellenar, con 1,5 mm de margen. En 3DRA no se aplica.</td><td>Candidatos sobre hueso: de 560 a 206 de 860. Pieza mayor de la malla: de 760 a 196 cm³.</td></tr>
+    <tr><td>3</td><td><strong>El detector sobre la malla limpia</strong></td><td>Regla absoluta de curvatura en lugar del percentil y «la región convexa más grande primero».</td><td>Más lesiones entre los 5 y los 10 sin aumentar el hueso; seis variantes descartadas tras medirlas.</td></tr>
+    <tr><td>4</td><td><strong>Canales de grosor también en cabeza y cuello</strong></td><td>Los dos canales que miden el calibre del vaso solo corrían si la malla parecía un «árbol» pequeño; ahora corren siempre que la pieza mayor mida más de 20 mm.</td><td>En los 132 estudios de cabeza y cuello: entre los 5 de 5 a 13 de 73; hueso en controles de 112 a 79 de 415.</td></tr>
+    <tr><td>5</td><td><strong>Recorte a la región intracraneal</strong></td><td>Las 122 lesiones están a menos de 121 mm del techo de la malla; los candidatos de los controles, a 284 mm (cuello y cayado). La malla se queda con sus 140 mm altos antes de detectar.</td><td>Entre los 5 de 31 a 44 de 122; ganan 17 lesiones, pierden 4. Detección 3 veces más rápida.</td></tr>
+    <tr><td>6</td><td><strong>Suelo de densidad</strong></td><td>Ningún acierto está por debajo de −74 HU de media ni de 251 HU de máximo; 65 candidatos falsos sí (aire de los senos, grasa, partes blandas). Se quitan de la lista antes de elegir los 5.</td><td>Simulado sobre los mismos volúmenes: 44 → 45 entre los 5, 6 → 8 en primer puesto, ninguno perdido.</td></tr>
+  </tbody>
+</table>
+<p class="muted">Herramientas que quedan: evaluación de los 172 fuera del servidor por el mismo camino que la API (reanudable, con lista larga y traza por región), banco del detector, análisis por lesión a partir de los registros, y 105 tests nuevos. Suite del backend: 1 707 tests. Todo commiteado en cuatro commits (sin publicar todavía).</p>
+
+<h2>4. Resultados contrastados sobre los 172 estudios</h2>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-20/fig_antes_despues.png" alt="Tres pasadas"><p class="cap">Las mismas 122 lesiones, el mismo criterio y la misma herramienta de medida en las tres pasadas; solo cambia el software. La del 20 de octubre reutiliza las mallas del 18 (solo detección), porque ninguna de las medidas 4 – 6 toca la segmentación.</p></div>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-20/fig_tamano_tipo.png" alt="Por tamaño y tipo"><p class="cap">Los sacos medianos, grandes y gigantes han aparecido: 19 de 56, 15 de 20 y 8 de 16. Los miliares (2 de 30) y los blister (4 de 39) siguen casi sin verse: no es un umbral, es que los canales actuales no tienen con qué verlos.</p></div>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-20/fig_hueso.png" alt="Tejido alrededor de los candidatos"><p class="cap">Los candidatos han dejado de apuntar al cráneo, pero no a cero: la aplicación sigue devolviendo 5 candidatos en todos los estudios, incluidos los sanos, y con el cuello fuera los rellena con lo que queda de cabeza. El criterio para decir «ninguno» se buscó el 19 de octubre y no existe con las señales actuales (sección 5).</p></div>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-20/fig_dos_poblaciones.png" alt="Dos poblaciones"><p class="cap">El 18 de octubre había dos poblaciones: los estudios de cabeza sola (malla «árbol») y los de cabeza y cuello, donde el cuello y las venas competían con las lesiones en la lista. Con los canales de grosor y el recorte, los de cabeza y cuello pasan de 5 a 24 lesiones entre los 5 y ya no son la población mala.</p></div>
+
+<h2>5. Lo que se midió y no se adoptó</h2>
+<ul>
+  <li><strong>Un criterio para decir «aquí no hay nada».</strong> Ningún umbral de diámetro, densidad, tejido ni puntuación separa los aciertos de los candidatos de los 90 controles. Lo único que separa es que dos canales coincidan (61 % de los aciertos frente a 12 % en controles), y no sirve como veredicto por estudio: 47 de los 82 estudios con aneurisma tienen alguna coincidencia y solo en 16 es la lesión. La pantalla sigue dando 5 candidatos; la coincidencia ya cuenta en la confianza.</li>
+  <li><strong>Bajar la puerta de curvatura para los sacos gigantes.</strong> Se comprobó por qué el canal de curvatura no los ve: no es un error de signo ni de orientación de la malla, es de escala (la puerta solo deja pasar formas de unos 2 mm de radio; una cúpula de 10 mm queda treinta veces por debajo). Abrirla deja entrar todo el vaso. Esos sacos son de los canales de grosor, que ya los dan: 8 de 16 gigantes entre los 5.</li>
+  <li><strong>No rellenar la lista tras el suelo de densidad.</strong> Dejaría a 30 controles con menos de 5 candidatos, pero sería un artefacto de la lista, no una señal de ausencia.</li>
+</ul>
+
+<h2>6. Horas de cómputo</h2>
+<p>Todo se ha ejecutado en un portátil (Intel i7-8550U de 4 núcleos, 16 GB de RAM), un solo proceso a la vez porque dos procesos de VTK simultáneos agotan la memoria. La primera pasada completa tardó 48 h de reloj repartidas en cinco días; las dos siguientes reutilizan sus mallas y volúmenes guardados (12 GB) y solo detectan: 7,6 h y 2,4 h. Las 86 h del gráfico son horas de máquina registradas en los ficheros de resultados, no horas de persona.</p>
+<p><strong>Coste por estudio con todas las medidas: unos 12 min de mediana</strong> (11 de segmentación y 44 s de detección, antes 2 min; hasta 47 min en los volúmenes de 1 100 cortes de cabeza y cuello). Con un servidor de 8 núcleos y 64 GB bajaría a la mitad o menos: las baldosas de la banda nativa se pueden paralelizar y el tope de memoria dejaría de reducir la resolución.</p>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-20/fig_horas.png" alt="Horas de cómputo"></div>
+
+<h2>7. Pasos a seguir</h2>
+<table>
+  <thead><tr><th style="width:18pt">#</th><th style="width:170pt">Qué</th><th>Por qué y qué decide</th><th style="width:70pt">Esfuerzo</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><strong>Publicar los commits</strong></td><td>Cuatro commits en la rama principal, por lista explícita de ficheros, sin datos de pacientes ni del dataset. El repositorio es público: el push es una decisión.</td><td>Decisión</td></tr>
+    <tr><td>2</td><td><strong>Comprobación en la aplicación</strong></td><td>Entrar, reanudar un estudio del dataset y verificar que la pantalla cuenta lo mismo que el banco (puestos, confianza, tejido). La función de detección es la misma en la API y en el banco y está cubierta por tests; falta verlo en pantalla.</td><td>Media jornada</td></tr>
+    <tr><td>3</td><td><strong>Pasada completa con el suelo de densidad</strong></td><td>La cifra de 45 es una simulación exacta sobre los mismos volúmenes y listas; una pasada de 3 h la convierte en medida y deja los registros con el detalle del suelo.</td><td>3 h de máquina</td></tr>
+    <tr><td>4</td><td><strong>Honestidad de la pantalla</strong></td><td>Mostrar el tejido alrededor de cada candidato y el vóxel efectivo de la malla; decir que la lista siempre tiene 5 y que no hay veredicto de ausencia.</td><td>Días</td></tr>
+    <tr><td>5</td><td><strong>Rendimiento</strong></td><td>Paralelizar las baldosas de la banda nativa y revisar el tope de memoria en un servidor con más RAM: de 12 min por estudio a menos de 6.</td><td>1 semana</td></tr>
+    <tr><td>6</td><td><strong>Blister y miliares</strong></td><td>Un canal nuevo (calibre a lo largo de la línea central, o detección sobre el volumen). Es investigación; mientras tanto, documentar que no se detectan.</td><td>Alto</td></tr>
+    <tr><td>7</td><td><strong>Las 16 lesiones fuera de la malla</strong></td><td>Dos gigantes de basilar y una calcificada (coste conocido de quitar el hueso) y 12 medianas o miliares de estudios muy reducidos; mirarlas una a una.</td><td>Días</td></tr>
+  </tbody>
+</table>
+
+<h2>8. Lo que conviene saber antes de presentarlo</h2>
+<ul>
+  <li><strong>Las cifras son de un solo dataset</strong>, de un solo centro. Las medidas 1 – 3 se diseñaron sobre 16 estudios y se confirmaron sobre los 172; las medidas 4 – 6 se diseñaron sobre los registros de los 172 y se confirmaron con otra pasada de los 172. No hay un segundo conjunto independiente todavía.</li>
+  <li><strong>El primer puesto no se puede prometer.</strong> El orden entre candidatos es sensible a unos pocos vértices de la malla; lo defendible es «entre los 5» (36 de 82 estudios).</li>
+  <li><strong>Sin veredicto de ausencia.</strong> La aplicación devuelve 5 candidatos siempre, también en un control sano, y se ha medido que con las señales actuales no hay criterio para dejar de hacerlo. La especificidad real no se puede dar.</li>
+  <li><strong>Miliares y blister no se detectan</strong> (2 de 30 y 4 de 39), y son la mitad de las lesiones del dataset.</li>
+  <li><strong>El coste por estudio ha subido</strong> de 1 – 2 min a unos 12 min en un portátil. Es el precio de la resolución nativa; se reduce con hardware y paralelización, no con menos resolución.</li>
+  <li><strong>3DRA no ha cambiado</strong>: los dos casos de referencia siguen con la lesión en el primer puesto, comprobado tras cada medida.</li>
+  <li><strong>El código está commiteado y no publicado</strong>: cuatro commits en la copia local, a la espera de la decisión de push.</li>
+</ul>
+
+<footer>
+  Detalle técnico, método y reproducción: <code>docs/Informe-Zenodo-2026-10-12.md</code> (punto de partida), <code>docs/Informe-Pasos-0-1-2-2026-10-13.md</code> y <code>docs/Informe-Paso-3-2026-10-13.md</code> (medidas 0 – 3), <code>docs/Informe-Zenodo-Completa-2026-10-18.md</code> (pasadas completas; §4.1 – 4.7 las medidas 4 – 6 y lo descartado). Registros en <code>backend/data/zenodo_eval*</code>; dataset en <code>Archivos DICOM/</code> (Zenodo 15697196, CC-BY). Elaborado el 20 de octubre de 2026.
+</footer>
+
+</body>
+</html>

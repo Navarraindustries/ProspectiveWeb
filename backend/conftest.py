@@ -26,6 +26,10 @@ os.environ["PROSPECTIVE_DB_URL"] = f"sqlite:///{_TEST_DB}"
 # Los tests arrancan la app muchas veces, a veces en procesos paralelos: el
 # cerrojo de un solo proceso (services/single_process.py) no va con ellos.
 os.environ["PROSPECTIVE_ALLOW_MULTI_PROCESS"] = "1"
+# Las sesiones de los tests, en un temporal: no en data/sessions ni en
+# data/session_saves, donde viven las del usuario.
+os.environ.setdefault("PROSPECTIVE_SESSIONS_ROOT", tempfile.mkdtemp(prefix="prospective_sessions_"))
+os.environ.setdefault("PROSPECTIVE_SAVES_ROOT", tempfile.mkdtemp(prefix="prospective_saves_"))
 # Los tests actúan como `admin` / `admin123` sin pasar por el cambio de
 # contraseña inicial que la app exige (test_auth_hardening lo comprueba aparte).
 os.environ["PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD"] = "1"

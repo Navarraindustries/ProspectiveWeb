@@ -64,6 +64,57 @@ _FULL_RES_MAX_VOXELS = 120_000_000
 # encima se fuerza media resolución en vez de rechazar la petición.
 _TUBULAR_MAX_VOXELS = 90_000_000
 
+#: Techo de HU del método tubular en TC. El contraste arterial de una angio-TC
+#: queda entre 200 y 500 HU y el hueso cortical por encima de 700; la máscara
+#: aplica el techo DESPUÉS del relleno (vascular_mask, fase 1), así que un vaso
+#: cuyo centro lo supere sigue macizo y solo se va lo que asoma al exterior: la
+#: superficie del cráneo. Medido en Zenodo (172 angio-TC): sin techo la pieza
+#: mayor de la malla es la cabeza entera (mediana 761 cm³, 66 % de los
+#: candidatos en hueso) y los canales de calibre se apagan en 171 de 172; con
+#: 700 HU, en el oráculo de recorte, la pieza mayor baja a 28 cm³ y los canales
+#: vuelven en 68 de 82.
+CT_TUBULAR_CEILING_HU = 700.0
+
+#: Por encima de esto, en TC, un componente grande es hueso y se quita de la
+#: máscara con su margen (`services.vascular_mask.MaskParams.bone_hu`). Medido
+#: en Zenodo 027: con el techo solo, 4 de 5 candidatos en hueso y la lesión
+#: fuera; con la máscara de hueso (margen 1,5 mm) ningún candidato en hueso,
+#: los tres canales encendidos y la lesión 2.ª. Con 1,0 mm vuelve el hueso.
+CT_BONE_HU = 700.0
+#: Umbral de hueso de la pasada GRUESA (reducida), donde el vóxel mezcla vaso
+#: y hueso: con 700 la carótida en el canal petroso se iba con el cráneo
+#: (Zenodo 016, factor 3); con 1 200 y sin margen se queda y el cráneo sigue
+#: fuera. Las baldosas nativas usan CT_BONE_HU con su margen.
+CT_BONE_HU_COARSE = 1200.0
+#: Erosión de la máscara de hueso (mm), apagada. Medido (scripts/exp_hueso_ct.py,
+#: tanda 2): con 1 mm la pared calcificada del saco trombosado de Zenodo 096
+#: (21 mm, pegada al cráneo) se conserva (recall 0 → 0,99), pero en 027 a
+#: resolución nativa vuelve el cráneo fino como «sin núcleo» (máscara 25 →
+#: 101 cm³, 3 de 5 candidatos en hueso, lesión fuera por curvatura media).
+#: Un saco calcificado pegado al hueso es, hoy, un fallo conocido de la
+#: máscara de hueso; el parámetro queda (`MaskParams.bone_erode_mm`) por si
+#: una regla mejor lo rescata sin ese coste.
+CT_BONE_ERODE_MM = 0.0
+
+
+def tubular_ceiling(modality: str, requested: float, lower: float) -> float:
+    """Techo de HU efectivo del método tubular (0 = sin techo).
+
+    · XA/3DRA (y cualquier modalidad que no sea TC): ninguno. En Case 3 el
+      techo automático vaciaba un tercio del tubo y lo partía en piezas, porque
+      el centro de los vasos más llenos lo supera y no hay hueso que quitar
+      (la sustracción ya lo dejó fuera).
+    · TC: `CT_TUBULAR_CEILING_HU`, o el que pida el usuario si es más bajo (y
+      sigue por encima del suelo). «Sin techo» (0) en TC también se corrige a
+      700: el método tubular nunca había respetado el techo pedido, y con el
+      cráneo dentro la malla no sirve para detectar.
+    """
+    if (modality or "").upper() != "CT":
+        return 0.0
+    if lower < requested < CT_TUBULAR_CEILING_HU:
+        return float(requested)
+    return CT_TUBULAR_CEILING_HU
+
 # Bytes por vóxel que reserva el método tubular en su pico, con margen. Por qué
 # una guarda de memoria además del tope de vóxeles: medido en Case 3 (56,6 M
 # vóxeles) el pico fue 1,86 GB, ≈ 33 B/vóxel — el volumen float32, las dos
@@ -138,12 +189,19 @@ def _memory_budget_bytes() -> int:
     return _MEM_BUDGET_FALLBACK_MB * 1024 ** 2
 
 
-def _tubular_guard(n_voxels: int) -> str:
-    """Por qué el método tubular no puede ir a resolución nativa, o "" si puede."""
+def _tubular_guard(n_voxels: int, memory: bool = True) -> str:
+    """Por qué el método tubular no puede ir a resolución nativa, o "" si puede.
+
+    `memory=False` mira solo el tope de vóxeles y no la memoria libre: es la
+    decisión reproducible, la que usa el banco de Zenodo (la de la API depende
+    de cuánta RAM quede en ese momento).
+    """
     if n_voxels > _TUBULAR_MAX_VOXELS:
         return (f"Volumen de {n_voxels / 1e6:.0f} millones de vóxeles (el tope son "
                 f"{_TUBULAR_MAX_VOXELS / 1e6:.0f} millones): se segmenta a media "
                 f"resolución para no agotar la memoria del servidor.")
+    if not memory:
+        return ""
     need = n_voxels * _TUBULAR_BYTES_PER_VOXEL
     budget = _memory_budget_bytes()
     if need > budget:
@@ -221,6 +279,239 @@ def _downsample_by(
         volume.shape, ds.shape, factor,
     )
     return ds, sp, factor
+
+
+def segment_tubular(
+    dcm: DicomLoadResult,
+    *,
+    lower: float | None,
+    upper: float,
+    strategy: str | None = None,
+    reclaim_mm: float = 3.0,
+    smooth_iters: int = 40,
+    half_resolution: bool = False,
+    memory_guard: bool = True,
+    keep_volume: bool = False,
+    band_refine: bool = True,
+    say=None,
+) -> tuple[object, dict]:
+    """La receta tubular del servidor, de volumen a malla (vtkPolyData), en un solo sitio.
+
+    La usan `_run_segmentation_sync` (la API), `scripts/eval_zenodo.py` (el
+    banco de angio-TC) y `scripts/regresion_xa.py` (la línea base de 3DRA):
+    si la receta cambia, cambia para los tres a la vez, que es lo que hace
+    comparable la medida con lo que ve el usuario.
+
+    `lower=None` toma el umbral automático; `strategy` se calcula si no se
+    da. `memory_guard=False` decide la resolución solo por el tope de vóxeles,
+    sin mirar la memoria libre: es lo reproducible. `say(fase, pct)` publica
+    el progreso con las mismas fases que la interfaz. Devuelve (malla, info);
+    `info["seg_volume"]` —el volumen reducido con el que se hizo la máscara—
+    solo si `keep_volume`.
+
+    El techo lo decide `tubular_ceiling` por modalidad: ninguno en XA/3DRA
+    (en Case 3 vaciaba el tubo) y 700 HU en TC (el cráneo fuera). Se fija
+    aquí, antes de la fracción de vóxeles, para que voxel_fraction y
+    seg.threshold_upper describan la misma banda que hizo la malla.
+
+    Cuando el volumen se reduce (factor > 1), la máscara reducida solo
+    LOCALIZA el árbol: con `band_refine` se vuelve a segmentar a resolución
+    nativa en una banda a su alrededor (`services.band_refine`), y la malla
+    sale de esa máscara nativa. A factor 1 no cambia nada: la malla es la de
+    siempre, por el mismo camino (Case 3, IM_0055).
+
+    En TC se segmenta solo la banda de la cabeza (`services.head_band`: 150 mm
+    bajo el techo del cráneo). El cuello no tiene nada que buscar y era lo que
+    obligaba a reducir por 5 ó 6 en cabeza y cuello. La malla vuelve al marco
+    del volumen entero (traslación en z): el visor, la morfometría y el suelo
+    de HU ven lo de siempre; `info["head_band"]` dice qué se recortó y, con
+    `keep_volume`, `info["seg_origin_mm"]` es el origen del volumen reducido
+    en ese marco.
+    """
+    from services.segmentation import mask_to_surface, surface_quality
+    from services.vascular_mask import MaskParams, build_vascular_mask
+
+    def _say(phase: str, pct: float) -> None:
+        if say is not None:
+            say(phase, pct)
+
+    if lower is None or strategy is None:
+        auto_lower, _auto_upper, auto_strategy = compute_auto_thresholds(
+            volume=dcm.volume, modality=dcm.modality,
+            window_center=dcm.window_center, window_width=dcm.window_width)
+        lower = auto_lower if lower is None else lower
+        strategy = auto_strategy if strategy is None else strategy
+    upper = tubular_ceiling(dcm.modality, upper, lower)
+
+    # ── Banda de la cabeza ─────────────────────────────────────────────────── #
+    from services.head_band import head_band
+    band = head_band(dcm.volume, dcm.spacing, dcm.modality)
+    volume = dcm.volume[band.z0:] if band.applied else dcm.volume
+    if band.applied:
+        logger.info("Banda de la cabeza: %d de %d cortes (techo del cráneo a %.0f mm, "
+                    "fuera %.0f mm por abajo)", band.slices_kept, band.slices_total,
+                    band.top_mm, band.cut_mm)
+    # ── Envolvente de la cabeza ────────────────────────────────────────────── #
+    # Lo que no está dentro de la cabeza no es vaso (services.head_mask): el
+    # soporte del escáner entraba en la malla y en 1 de cada 4 estudios de
+    # Zenodo era la pieza mayor. Se calcula aquí, sobre la banda; la máscara
+    # vascular (gruesa y cada baldosa nativa) restringe su M0 a ella. El volumen
+    # no se toca: poner aire fuera creaba un borde al que Frangi respondía y
+    # vaciaba las semillas (004: 146 → 3 cm³).
+    from services.head_mask import head_mask
+    head = head_mask(volume, dcm.spacing, dcm.modality)
+    if head.applied:
+        logger.info("Envolvente de la cabeza: %.0f cm³; fuera de ella %.0f cm³ de tejido",
+                    head.head_cm3, head.removed_cm3)
+
+    # ── Resolución ─────────────────────────────────────────────────────────── #
+    # El método tubular no rechaza un volumen grande: lo baja a media
+    # resolución y lo dice, porque una malla algo más tosca sirve y un
+    # proceso muerto por falta de memoria no (ver _tubular_guard).
+    t_start = time.perf_counter()
+    n_voxels = int(np.prod(volume.shape))
+    fallback_note = ""
+    if not half_resolution:
+        fallback_note = _tubular_guard(n_voxels, memory=memory_guard)
+        half_resolution = bool(fallback_note)
+    if half_resolution:
+        seg_volume, seg_spacing, factor = _downsample_by(
+            volume, dcm.spacing, _half_factor(volume.shape))
+    else:
+        seg_volume = np.ascontiguousarray(volume, dtype=np.float32)
+        seg_spacing, factor = tuple(dcm.spacing), 1
+    within = head.inside(seg_volume.shape, factor) if head.applied else None
+    logger.info("Segmenting (tubular): lower=%.0f upper=%.0f smooth=%d shape=%s (ds=%d)",
+                lower, upper, smooth_iters, seg_volume.shape, factor)
+
+    # ── Máscara ────────────────────────────────────────────────────────────── #
+    # «hecho» y «superficie lista» son finales internos de cada etapa, no
+    # fases de la interfaz: la fase siguiente ya los sustituye.
+    # El hueso, en TC, lo quita la máscara de hueso (MaskParams.bone_hu), no el
+    # techo: el techo tras rellenar conserva el cortical envuelto por su cáscara
+    # de volumen parcial. En XA/3DRA no hay hueso y queda apagada.
+    bone_hu = CT_BONE_HU if (dcm.modality or "").upper() == "CT" else 0.0
+    params = MaskParams(lower=lower, upper=upper, reclaim_mm=reclaim_mm,
+                        bone_hu=bone_hu, bone_erode_mm=CT_BONE_ERODE_MM)
+    # Con pasada nativa después, la máscara gruesa ocupa la mitad de la barra.
+    refine = band_refine and factor > 1
+    span = 0.4 if refine else 0.8
+    native_params = params
+    if refine:
+        # La pasada gruesa solo LOCALIZA, y a su resolución (1,4–2,3 mm de
+        # vóxel) el vóxel mezcla vaso y hueso: la carótida en el canal petroso
+        # supera 700 HU y con el umbral nativo se iba con el cráneo, dejando
+        # la circulación anterior sin semillas (Zenodo 016: las dos lesiones
+        # de la ACM fuera de la máscara gruesa, y por tanto de la banda).
+        # Medido en 016 a factor 3: con 1 200 HU y sin margen las dos vuelven
+        # (igual que sin máscara de hueso) y el cráneo sigue fuera (136 cm³
+        # frente a 582). El 700 con 1,5 mm se aplica en las baldosas nativas.
+        # Tampoco lleva techo: con el hueso quitado, el borde del hueco pasa a
+        # ser «exterior» y el techo de 700 se lleva los vóxeles mezclados del
+        # vaso que lo tocan (016 con techo: 0/0; sin techo: 0,39/0,41).
+        params = MaskParams(lower=lower, upper=0.0, reclaim_mm=reclaim_mm,
+                            bone_hu=CT_BONE_HU_COARSE if bone_hu else 0.0,
+                            bone_margin_mm=0.0, bone_erode_mm=0.0)
+    mr = build_vascular_mask(
+        seg_volume, seg_spacing, params, within=within,
+        on_progress=lambda f, p: None if f == "hecho" else _say(f, 5 + span * p))
+    del within
+    if mr.stats.get("m0_vox", 1) == 0:
+        # Lo mismo que dice el umbral clásico: «la máscara no contiene
+        # ninguna superficie» no le decía al usuario qué tocar.
+        vmax = float(seg_volume.max())
+        if vmax >= lower and upper > 0:
+            # Había vóxeles por encima del suelo: lo que vació la máscara fue
+            # el techo (todo lo brillante se trató como hueso), no el umbral
+            # inferior. Decir «baja el umbral» sería mentir.
+            raise ValueError(
+                f"Ningún vóxel queda entre {lower:.0f} y {upper:.0f} HU: todo lo "
+                f"que supera {lower:.0f} HU pasa también del techo de {upper:.0f} HU "
+                f"(intensidad máxima del volumen = {vmax:.0f}) y se ha tratado como "
+                "hueso. Revisa el contraste de la serie o usa el método clásico."
+            )
+        raise ValueError(
+            f"Ningún vóxel supera el umbral inferior de {lower:.0f} HU "
+            f"(intensidad máxima del volumen = {vmax:.0f}). "
+            "Baja el umbral inferior."
+        )
+    t_mask = time.perf_counter() - t_start
+    if not keep_volume:
+        del seg_volume
+    if mr.fallback:
+        fallback_note = (fallback_note + " " if fallback_note else "") + (
+            "No se encontró ninguna semilla vascular ≥ 50 mm³ con este umbral: se usó la máscara de umbral "
+            "rellena, sin filtrar por tubularidad. Baja el umbral inferior si falta contraste.")
+    vox_mm3 = float(np.prod(seg_spacing))
+    mask_mm3 = float(mr.stats.get("final_vox", mr.stats.get("m0_vox", 0))) * vox_mm3
+
+    # ── Resolución nativa en la banda del árbol ───────────────────────────── #
+    # La máscara reducida localiza el árbol; la malla sale de la máscara
+    # nativa de la banda (services.band_refine). Sin semillas no hay árbol
+    # que seguir, y entonces se queda la máscara reducida, como antes.
+    mesh_mask, mesh_spacing, mesh_offset, band_stats = mr.mask, seg_spacing, (0, 0, 0), None
+    if refine and not mr.fallback:
+        from services.band_refine import refine_in_band
+        native_spacing = tuple(float(v) for v in dcm.spacing)
+        rr = refine_in_band(volume, native_spacing, mr.mask, factor, native_params,
+                            inside=head.inside_box if head.applied else None,
+                            on_progress=lambda f, p: _say(f, 45 + 0.4 * p))
+        band_stats = rr.stats
+        if rr.stats["mask_vox"] > 0:
+            mesh_mask, mesh_spacing, mesh_offset = rr.mask, native_spacing, rr.offset
+            mask_mm3 = rr.stats["mask_vox"] * float(np.prod(native_spacing))
+            fallback_note = (fallback_note + " " if fallback_note else "") + (
+                f"El árbol localizado así se ha vuelto a segmentar a resolución nativa "
+                f"(vóxel de {max(native_spacing):.2f} mm) en una banda de {rr.stats['band_mm']:.0f} mm "
+                f"a su alrededor: la malla tiene el detalle del estudio donde hay vaso.")
+        del rr
+    mr.mask = None      # la máscara ya no hace falta; que no ocupe durante el guardado
+
+    # ── Superficie ─────────────────────────────────────────────────────────── #
+    # Al menos 40 iteraciones con banda 0,05 (lo que fija el diseño): con
+    # las 20 del nivel 3 del umbral clásico, Case 3 salía con 9 piezas y 39
+    # aristas de borde en vez de 6 y 65 (Task 4), porque el suavizado corto
+    # deja piezas pequeñas por encima del umbral de islas.
+    poly = mask_to_surface(
+        mesh_mask, mesh_spacing, smooth_iters=max(40, smooth_iters), pass_band=0.05,
+        on_progress=lambda f, p: None if f == "superficie lista" else _say(f, 85 + 0.12 * p))
+    del mesh_mask
+    if mesh_offset != (0, 0, 0):
+        from services.band_refine import translate_poly
+        z0, y0, x0 = mesh_offset
+        poly = translate_poly(poly, (x0 * mesh_spacing[2], y0 * mesh_spacing[1], z0 * mesh_spacing[0]))
+    if band.applied:
+        # De la banda al volumen entero: el marco de la malla sigue siendo
+        # índice × espaciado del volumen cargado.
+        from services.band_refine import translate_poly
+        poly = translate_poly(poly, (0.0, 0.0, band.cut_mm))
+    q = surface_quality(poly)
+    info = {
+        "thresholds": {"lower": float(lower), "upper": float(upper), "strategy": strategy},
+        "voxels": n_voxels, "downsample_factor": int(factor), "fallback_note": fallback_note,
+        "head_band": band.as_dict(),
+        "head_mask": head.as_dict(),
+        "shape": [int(v) for v in dcm.volume.shape],
+        "spacing_mm": [round(float(v), 4) for v in dcm.spacing],
+        "seg_spacing": tuple(float(v) for v in seg_spacing),
+        "seg_spacing_mm": [round(float(v), 4) for v in seg_spacing],
+        "mesh_spacing_mm": [round(float(v), 4) for v in mesh_spacing],
+        "band": band_stats,
+        "vertices": int(q["n_vertices"]), "faces": int(q["n_triangles"]),
+        "components": int(q["components"]), "boundary_edges": int(q["boundary_edges"]),
+        "seeds": int(mr.stats.get("seeds", 0)), "fallback_mask": bool(mr.fallback),
+        "kept_fraction": float(mr.stats.get("kept_fraction", 1.0)),
+        "mask_mm3": round(mask_mm3, 1),
+        "reclaimed_mm3": round(mr.stats.get("reclaimed_vox", 0) * vox_mm3, 1),
+        "vetoed_mm3": round(mr.stats.get("vetoed_vox", 0) * vox_mm3, 1),
+        "mask_stats": {k: v for k, v in mr.stats.items() if k != "thresholds"},
+        "seconds_mask": round(t_mask, 1),
+        "seconds_total": round(time.perf_counter() - t_start, 1),
+    }
+    if keep_volume:
+        info["seg_volume"] = seg_volume
+        info["seg_origin_mm"] = (0.0, 0.0, float(band.cut_mm) if band.applied else 0.0)
+    return poly, info
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────── #
@@ -583,6 +874,7 @@ async def suggested_band(session_id: str) -> SuggestedBand:
     return SuggestedBand(
         lower=round(lower, 1), upper=round(upper, 1),
         vmin=round(vmin, 1), vmax=round(vmax, 1),
+        tubular_upper=tubular_ceiling(modality, upper, lower),
     )
 
 
@@ -795,116 +1087,72 @@ def _run_segmentation_sync(
     )
     is_dsa = strategy == "dsa"
 
-    # Sin techo en el método tubular, pida lo que pida la petición. El techo es
-    # una herramienta del umbral clásico para dejar fuera el hueso; aquí el
-    # hueso lo quitan la puerta de tubularidad y el veto de lámina, y con el
-    # techo automático el tubo de Case 3 perdía un tercio de sus vóxeles y se
-    # partía en piezas (el centro de los vasos más llenos lo supera). Se fija
-    # aquí, antes de la fracción de vóxeles, para que voxel_fraction y
-    # seg.threshold_upper describan la misma banda que hizo la malla.
-    if method == "tubular":
-        upper = 0.0
-
-    # Compute what fraction of voxels falls in the user-requested threshold band
-    vf = seg_voxel_fraction(dcm.volume, lower, upper)
-
-    # ── Build pipeline parameters ─────────────────────────────────────────── #
-    # Cleanup discards connected components below a physical volume. See
-    # _CLEANUP_MM3 for why this replaced "keep the N largest".
-    pipeline = SegmentationPipeline(
-        threshold_hu=        lower,
-        threshold_max_hu=    upper if upper > lower else 0.0,
-        smooth_iterations=   smooth_iters,
-        smooth_pass_band=    0.06,
-        target_reduction=    0.70,
-        gaussian_sigma=      0.5,
-        morpho_closing_mm=   closing_mm,
-        min_component_mm3=   min_mm3,
-        keep_top_n=          top_n,
-        # One of min_component_mm3 / keep_top_n is active per level; the pipeline
-        # default of 100 vertices must not filter on top of them (nor at level 0).
-        min_component_verts= 0,
-    )
-
-    # ── Resolución ─────────────────────────────────────────────────────────── #
     fallback_note = ""
     n_voxels = int(np.prod(dcm.volume.shape))
     if method == "tubular":
-        # El método tubular no rechaza un volumen grande: lo baja a media
-        # resolución y lo dice, porque una malla algo más tosca sirve y un
-        # proceso muerto por falta de memoria no (ver _tubular_guard).
+        # La receta entera vive en segment_tubular, compartida con el banco de
+        # Zenodo y la línea base XA. El techo efectivo (0 = sin techo) vuelve en
+        # info["thresholds"]: voxel_fraction y seg.threshold_upper describen la
+        # misma banda que hizo la malla.
+        poly, info = segment_tubular(
+            dcm, lower=lower, upper=upper, strategy=strategy, reclaim_mm=reclaim_mm,
+            smooth_iters=smooth_iters, half_resolution=half_resolution, say=clock.say)
+        upper = info["thresholds"]["upper"]
+        ds_factor = info["downsample_factor"]
+        half_resolution = ds_factor > 1
+        fallback_note = info["fallback_note"]
+        vf = seg_voxel_fraction(dcm.volume, lower, upper)
+        seg_result = SegmentationResult(
+            poly_data=poly, n_vertices=info["vertices"], n_triangles=info["faces"],
+            threshold_hu=lower, reduction_pct=45.0, n_fragments_removed=0,   # decimación nominal de mask_to_surface
+            kept_fraction=info["kept_fraction"], largest_removed_mm3=0.0)
+        extra = dict(method="tubular",
+                     reclaimed_mm3=info["reclaimed_mm3"], vetoed_mm3=info["vetoed_mm3"],
+                     boundary_edges=info["boundary_edges"], components=info["components"],
+                     seeds=info["seeds"])
+        logger.info("Máscara tubular: %s", info["mask_stats"])
+    else:
+        # Compute what fraction of voxels falls in the user-requested threshold band
+        vf = seg_voxel_fraction(dcm.volume, lower, upper)
+
+        # ── Build pipeline parameters ─────────────────────────────────────── #
+        # Cleanup discards connected components below a physical volume. See
+        # _CLEANUP_MM3 for why this replaced "keep the N largest".
+        pipeline = SegmentationPipeline(
+            threshold_hu=        lower,
+            threshold_max_hu=    upper if upper > lower else 0.0,
+            smooth_iterations=   smooth_iters,
+            smooth_pass_band=    0.06,
+            target_reduction=    0.70,
+            gaussian_sigma=      0.5,
+            morpho_closing_mm=   closing_mm,
+            min_component_mm3=   min_mm3,
+            keep_top_n=          top_n,
+            # One of min_component_mm3 / keep_top_n is active per level; the pipeline
+            # default of 100 vertices must not filter on top of them (nor at level 0).
+            min_component_verts= 0,
+        )
+
+        # ── Resolución ─────────────────────────────────────────────────────── #
         if not half_resolution:
-            fallback_note = _tubular_guard(n_voxels)
-            half_resolution = bool(fallback_note)
-        if half_resolution:
-            seg_volume, seg_spacing, ds_factor = _downsample_by(
-                dcm.volume, dcm.spacing, _half_factor(dcm.volume.shape))
-        else:
+            # Umbral clásico a resolución nativa: el antiguo full_resolution=True.
+            if n_voxels > _FULL_RES_MAX_VOXELS:
+                raise ValueError(
+                    f"Este volumen tiene {n_voxels / 1e6:.0f} millones de vóxeles; a "
+                    f"resolución completa la segmentación agotaría la memoria del "
+                    f"servidor (el límite son {_FULL_RES_MAX_VOXELS / 1e6:.0f} millones). "
+                    f"Segmenta a media resolución, o recorta el volumen antes."
+                )
             seg_volume = np.ascontiguousarray(dcm.volume, dtype=np.float32)
             seg_spacing, ds_factor = tuple(dcm.spacing), 1
-    elif not half_resolution:
-        # Umbral clásico a resolución nativa: el antiguo full_resolution=True.
-        if n_voxels > _FULL_RES_MAX_VOXELS:
-            raise ValueError(
-                f"Este volumen tiene {n_voxels / 1e6:.0f} millones de vóxeles; a "
-                f"resolución completa la segmentación agotaría la memoria del "
-                f"servidor (el límite son {_FULL_RES_MAX_VOXELS / 1e6:.0f} millones). "
-                f"Segmenta a media resolución, o recorta el volumen antes."
-            )
-        seg_volume = np.ascontiguousarray(dcm.volume, dtype=np.float32)
-        seg_spacing, ds_factor = tuple(dcm.spacing), 1
-    else:
-        # Umbral clásico a media resolución: la regla de 256 de siempre.
-        seg_volume, seg_spacing, ds_factor = _maybe_downsample(dcm.volume, dcm.spacing)
+        else:
+            # Umbral clásico a media resolución: la regla de 256 de siempre.
+            seg_volume, seg_spacing, ds_factor = _maybe_downsample(dcm.volume, dcm.spacing)
 
-    logger.info(
-        "Segmenting (%s): lower=%.0f upper=%.0f smooth=%d min_mm3=%.1f top_n=%d shape=%s (ds=%d)",
-        method, lower, upper, smooth_iters, min_mm3, top_n, seg_volume.shape, ds_factor,
-    )
-
-    if method == "tubular":
-        from services.vascular_mask import MaskParams, build_vascular_mask
-        from services.segmentation import mask_to_surface, surface_quality
-        params = MaskParams(lower=lower, upper=0.0, reclaim_mm=reclaim_mm)   # sin techo: ver arriba
-        # «hecho» y «superficie lista» son finales internos de cada etapa, no
-        # fases de la interfaz: la fase siguiente ya los sustituye.
-        mr = build_vascular_mask(
-            seg_volume, seg_spacing, params,
-            on_progress=lambda f, p: None if f == "hecho" else clock.say(f, 5 + 0.8 * p))
-        if mr.stats.get("m0_vox", 1) == 0:
-            # Lo mismo que dice el umbral clásico: «la máscara no contiene
-            # ninguna superficie» no le decía al usuario qué tocar.
-            raise ValueError(
-                f"Ningún vóxel supera el umbral inferior de {lower:.0f} HU "
-                f"(intensidad máxima del volumen = {float(seg_volume.max()):.0f}). "
-                "Baja el umbral inferior."
-            )
-        del seg_volume
-        if mr.fallback:
-            fallback_note = (fallback_note + " " if fallback_note else "") + (
-                "No se encontró ninguna semilla vascular ≥ 50 mm³ con este umbral: se usó la máscara de umbral "
-                "rellena, sin filtrar por tubularidad. Baja el umbral inferior si falta contraste.")
-        # Al menos 40 iteraciones con banda 0,05 (lo que fija el diseño): con
-        # las 20 del nivel 3 del umbral clásico, Case 3 salía con 9 piezas y 39
-        # aristas de borde en vez de 6 y 65 (Task 4), porque el suavizado corto
-        # deja piezas pequeñas por encima del umbral de islas.
-        poly = mask_to_surface(
-            mr.mask, seg_spacing, smooth_iters=max(40, smooth_iters), pass_band=0.05,
-            on_progress=lambda f, p: None if f == "superficie lista" else clock.say(f, 85 + 0.12 * p))
-        mr.mask = None      # la máscara ya no hace falta; que no ocupe durante el guardado
-        vox_mm3 = float(np.prod(seg_spacing))
-        q = surface_quality(poly)
-        seg_result = SegmentationResult(
-            poly_data=poly, n_vertices=q["n_vertices"], n_triangles=q["n_triangles"],
-            threshold_hu=lower, reduction_pct=45.0, n_fragments_removed=0,   # decimación nominal de mask_to_surface
-            kept_fraction=float(mr.stats.get("kept_fraction", 1.0)), largest_removed_mm3=0.0)
-        extra = dict(method="tubular",
-                     reclaimed_mm3=round(mr.stats.get("reclaimed_vox", 0) * vox_mm3, 1),
-                     vetoed_mm3=round(mr.stats.get("vetoed_vox", 0) * vox_mm3, 1),
-                     boundary_edges=q["boundary_edges"], components=q["components"],
-                     seeds=int(mr.stats.get("seeds", 0)))
-        logger.info("Máscara tubular: %s", {k: v for k, v in mr.stats.items() if k != "thresholds"})
-    else:
+        logger.info(
+            "Segmenting (%s): lower=%.0f upper=%.0f smooth=%d min_mm3=%.1f top_n=%d shape=%s (ds=%d)",
+            method, lower, upper, smooth_iters, min_mm3, top_n, seg_volume.shape, ds_factor,
+        )
         clock.say("marching cubes", 20)
         seg_result = pipeline.run(seg_volume, seg_spacing)
         extra = dict(method="threshold")

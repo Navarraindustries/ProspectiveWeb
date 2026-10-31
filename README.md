@@ -3298,6 +3298,242 @@ cd ../frontend && npm run gen:api
 A backend test fails if the saved schema is stale, and CI fails if the
 generated types are.
 
+**Feeding the detector with a public dataset.** `backend/scripts/ingest_zenodo.py`
+pushes the Zenodo 15697196 head-CTA dataset (CC-BY: `Studies/<id>/*.dcm` plus
+`Annotations/an_<id>[_n].stl` for the aneurysm cases) through the API exactly as
+a user would: upload → attach to a new patient `ZENODO <id>` (hospital id
+`ZENODO-15697196-<id>`) → auto thresholds → tubular segmentation in the
+background → detection → ground truth (`marked` at the centroid of the largest
+STL, converted from patient to mesh coordinates, or `no_lesion` for controls) →
+save the session at the detection step. One JSON record per study lands in
+`backend/data/ingest_zenodo.json` (gitignored) and the run resumes where it
+stopped; an existing hospital id is skipped, not duplicated. Measured on a
+621-slice CTA: upload 12 s, segmentation 55 s (downsampled ×3 by the memory
+budget), detection 25 s.
+
+```bash
+cd backend && .venv/Scripts/python scripts/ingest_zenodo.py            # all studies, local server
+.venv/Scripts/python scripts/ingest_zenodo.py --studies 002,008 --redo  # just these, again
+```
+
+Without `--user`/`--token` it signs an admin token with the server's own secret,
+so it only works on the machine that runs the backend.
+
+**Measuring the detector against those lesions.** `backend/scripts/bench_detector.py`
+reads the ingest report, loads each saved mesh and runs the same path as
+`POST /detect` with the detector's optional per-region trace switched on
+(`AneurysmDetector.trace_regions`, which does not change the result). Per lesion
+it reports the rank in the consensus list, the rank in each channel and, when
+the lesion is missing, the gate that rejected the nearest curvature region
+(`size`, `mean_curv`, `pgf`, `compactness`, `sphericity`, `merged`, `cap`) or
+`sin_region` when no high-curvature region came within the lesion's diameter.
+`--set key=value` overrides a detector parameter for the run, `--roi-mm R` crops
+an oracle sphere around each lesion to measure the ceiling of a region-of-interest
+approach, and `--top` lengthens the list. Output goes to
+`backend/data/bench_detector.json` (gitignored).
+
+```bash
+cd backend && .venv/Scripts/python scripts/bench_detector.py                     # the 46 lesions, current preset
+.venv/Scripts/python scripts/bench_detector.py --set min_positive_gauss_frac=0.3  # try a gate
+.venv/Scripts/python scripts/bench_detector.py --roi-mm 40                        # ROI ceiling
+```
+
+**Evaluating the whole dataset without the server.** `backend/scripts/eval_zenodo.py`
+covers all 172 studies (82 with aneurysm, 122 STL; 90 controls) where the
+ingest cannot: a study ingested through the API leaves 1.8 GB on disk (live
+session, saved snapshot with `_volume.npy`, DICOM archive) and the full set
+does not fit. The evaluator walks the same path as `_run_segmentation_sync`
+(tubular method, auto thresholds, the same downsampling rule: a volume over
+90 M voxels is subsampled so its longest axis fits in 256, which for a
+1 171-slice CTA means a factor of 5 on every axis) and `_detect_hits`, with
+the same functions and defaults, but keeps only the mesh and a reduced int16
+volume per study under `backend/data/zenodo_eval/` (gitignored). Meshes the
+server already produced during the ingest are reused as they are. Per study it
+records the segmentation (factor, vertices, pieces, volume of the largest
+piece, which is what switches the calibre channels off), per lesion the rank
+in the official list and in a list of 40, the channel, the rejecting gate and
+the fraction of the STL surface the mesh recovers, and per candidate the mean
+and maximum HU around it (bone / vessel / other) and the distance to the
+nearest lesion. `Metadata.csv` (size class, type, artery, neck, thrombus,
+calcification, slice thickness) is joined to every lesion. A second pass with
+`--set key=value --meshes-from data/zenodo_eval --out data/zenodo_eval_v1`
+reuses the meshes and volumes, so trying a detector setting costs detection
+only (about a minute per study).
+
+```bash
+cd backend && .venv/Scripts/python -u scripts/eval_zenodo.py --shard 0/2   # half the studies (run two)
+.venv/Scripts/python scripts/eval_zenodo.py --summary                      # tables from what is done
+.venv/Scripts/python scripts/eval_zenodo.py --set min_mean_curv_radius=0.7 --meshes-from data/zenodo_eval --out data/zenodo_eval_v1
+```
+
+**One recipe for the API, the bench and the regression.** The tubular path of
+`POST /segment` lives in `routers.segment.segment_tubular(dcm, …)`; `eval_zenodo.py`
+and `scripts/regresion_xa.py` call the same function, so a change in the recipe is
+measured exactly as the user will get it. Two things in that recipe are routed by
+modality or by volume size, after the Zenodo evaluation showed that the pipeline had
+been calibrated on one 3DRA (Case 3) and measured on 172 CTAs:
+
+- Bone out, on CT only. `MaskParams.bone_hu` (700 HU via `CT_BONE_HU`, 0 on XA)
+  removes from the mask the components above that value of at least 500 mm³ (the
+  skull, never a calcified sac wall), dilated 1.5 mm to take their partial-volume
+  shell with them. The HU ceiling (`tubular_ceiling`: none on XA/3DRA, where a
+  ceiling hollowed Case 3's vessels; `CT_TUBULAR_CEILING_HU` = 700 on CT) stays, and
+  `GET /segment/suggested-band` returns it as `tubular_upper` so the panel says which
+  band the preview and the mesh use. Why both and in that order, measured on Zenodo 027
+  with `scripts/exp_hueso_ct.py`: the post-fill ceiling alone leaves 200 cm³ of mask
+  (cortical bone is wrapped in its own 150–700 HU shell and is kept as if it were a
+  vessel core), 4 of 5 candidates on bone and the lesion out; the bone mask leaves
+  20.7 cm³, a 16 cm³ tree with calibre and ratio back on, no candidate on bone and the
+  lesion 2nd. A 1.0 mm margin brings the bone back (4 of 5), the ceiling on top changes
+  nothing. Known cost: a calcified sac wall that touches the skull goes with it (096,
+  a 21 mm thrombosed sac whose only bright part is that wall: recall 1.0 → 0). Eroding
+  the bone mask 1 mm before dilating keeps that wall but also keeps every thin bone as
+  "no core" (027 native: mask 25 → 101 cm³, 3 of 5 on bone), so `MaskParams.bone_erode_mm`
+  exists but ships at 0.
+- `services/band_refine.py`: when the volume is above `_TUBULAR_MAX_VOXELS` and is
+  segmented reduced (factor 2–6 on 157 of 172 Zenodo studies), the reduced mask only
+  locates the tree; `refine_in_band` re-segments a 5 mm band around it at native
+  resolution, tile by tile (128³ + 12 halo, ~140 MB peak per tile whatever the volume
+  size), seeding each tile with the coarse tube (`build_vascular_mask(seed_mask=)`).
+  The mesh comes from that native mask, in whole-volume coordinates. At factor 1
+  (every 3DRA so far) nothing changes. `eval_zenodo.py --no-band` turns it off.
+  The coarse pass uses its own bone rule (`CT_BONE_HU_COARSE` = 1200 HU, no margin, and
+  no HU ceiling, because once the bone core is gone the hole's edge counts as "outside"
+  and the 700 HU ceiling took the mixed vessel voxels touching it):
+  at 1.4–2.3 mm per voxel the carotid in the petrous canal mixes with bone and exceeds
+  700 HU, so the native rule cut it and left the anterior circulation without seeds
+  (Zenodo 016: both MCA lesions out of the coarse mask and therefore out of the band;
+  with 1200 HU they are back and the skull still goes, 136 cm³ instead of 582).
+- `consensus(..., tree_poly=)`: whether the mesh is a vascular tree (which switches
+  the calibre and ratio channels on) is decided on the full mesh, not on the 40 000
+  vertex copy, which fragments on a whole head (Zenodo 026 turned the channels on
+  over skull).
+
+The XA safety net is `scripts/regresion_xa.py` (Case 3 and IM_0055 through that
+recipe, baseline in `backend/data/regresion_xa/base.json`: lesion 1st in both) and
+`test_regresion_xa.py` (slow; lesion among the 5 and in the top 3). Run
+`regresion_xa.py --label <name> --compare base` after touching the recipe; it exits 1
+if a lesion drops rank. `--set key=value` overrides a detector parameter for that run,
+to measure a detector variant against the baseline without touching the code.
+
+**The detector on the clean mesh (step 3).** On that bone-free tree the CT preset
+(`routers.detect._detector_for_modality`) changes two things, both measured on the same
+16 studies with `scripts/exp_p3_detector.py` (`dump` decimates each mesh once and dumps
+every curvature region with its metrics; `eval` replays gates, order and consensus as
+pure rules in seconds, and its `v1` variant reproduces the bench's ranks):
+
+- `min_mean_curv_radius=0.7`, the absolute mean-curvature gate XA already used. The
+  percentile-75 gate moved with the mesh: once the skull was out it rose and rejected 8
+  of 13 lesions with H·r between 0.81 and 1.22.
+- `order_by="area"`: the curvature channel ranks its regions by surface area (largest
+  convex patch first) instead of the composite score, whose size term peaks at a 4 mm
+  radius and buried 5 mm sacs with perfect regions (106: H·r 1.0, compactness 0.6,
+  sphericity 0.98, 14th). On a vascular tree the other convex patches are bifurcation
+  bumps and bends, small. Lesions in the top 5 went 2 → 4, top 10 6 → 8, in the list of
+  40 9 → 10, bone in controls unchanged (8/30). Rejected after measuring: compactness
+  0.10/0.15 (worse order), Gauss percentile 75 (large sacs appear whole but the 5 mm
+  ones merge with the neighbouring vessel and fail the Gauss+ gate), dropping
+  calibre-only sites (the only channel that sees sacs ≥ 10 mm), ratio ring scaled by
+  radius (neutral). Known limit: the Gauss percentile gate is blind to large sacs (p85 on
+  027 is K ≥ 0.58 mm⁻², a radius ≤ 1.3 mm; a 12–21 mm sac is flat for it), which calibre
+  and ratio place 2nd–5th behind the carotid. XA keeps `order_by="score"`: with "area"
+  the lesion stays 1st in Case 3 and IM_0055 but the other four places move.
+
+**The full pass (172 studies, 2026-10-18;
+`docs/Informe-Zenodo-Completa-2026-10-18.md`).** Steps 1–3 on the whole dataset
+(`backend/data/run_full_p3.ps1` → `zenodo_eval_full_p3`): lesions in the top 5 went from
+4 to 23 of 122 (first place 0 → 4), in the list of 40 from 17 to 43, studies with a lesion
+in the top 5 from 3 to 22 of 82, candidates on bone from 560 to 206 of 860 (no control
+with all five on bone any more), lesions missing from the mesh from 31 to 16. Two
+populations remain: the 40 studies whose mesh passes the tree test (49 lesions, 18 in the
+top 5) and the 132 that do not (126 of them head-and-neck CTA, 73 lesions, 5 in the top
+5), where only curvature runs. Large sacs now appear, always through calibre or ratio;
+blister and miliary lesions still do not (1 of 39 and 0 of 30 in the top 5). The next
+measurement, `scripts/exp_tree_gate.py` on the saved meshes, turns calibre and ratio on
+in those 132 studies to tell whether the tree cap or the whole-neck mesh is the cause.
+
+**Tree gate experiment (2026-10-19; §4.1 of the same report).** The 132 studies whose
+largest piece fails the tree test (≤ 100 cm³, ≤ 3 mm) were re-detected on the saved meshes
+with calibre and ratio switched on (`backend/scripts/exp_tree_gate.py` →
+`zenodo_eval_full_p3_tree`, 7.6 h): lesions in the top 5 went from 5 to 13 of 73, in the
+list from 15 to 24, bone candidates in controls from 112 to 79 of 415, detection ~35 %
+slower on controls. The gains are large and fusiform sacs the curvature never saw (025,
+088, 095, 099, 116, 154 enter 2nd–3rd); the losses are small curvature-only lesions that now
+share the five places (089 leaves the top 5). Applied: `_geometric_channels_apply` in
+`services/aneurysm_consensus.py` no longer switches the geometric channels off by volume or
+thickness of the largest piece, only by vertex count (40 000 on the decimated copy) and a
+largest piece under 20 mm; the tree test still governs "keep main tree" in the mesh editor.
+With the 40 tree studies unchanged the whole pass sums to 31 of 122 in the top 5, 52 in the
+list and 163 bone candidates of 860. XA regression unchanged.
+
+**Intracranial crop (2026-10-20; §4.4 of the same report).** Measured on the saved results,
+all 122 lesions sit 9–121 mm below the top of the mesh while the control candidates sit
+284 mm below it (neck and arch). `backend/services/head_crop.py` now keeps the top 140 mm
+of the mesh (measured from the 99.5th percentile of z) before detection, in the API and in
+the bench alike; a mesh shorter than that (3DRA, head-only) is returned untouched. The
+measured pass of the 172 (`zenodo_eval_full_p3_crop`, detection 44 s median instead of
+132) gives **44 of 122 lesions in the top 5** (from 31), 53 in the top 10, 70 in the list,
+36 of 82 aneurysm studies with the lesion in the top 5; 17 lesions gain, 4 lose (the
+curvature copy is decimated from a smaller mesh, so its percentiles move). Controls still
+get 5 candidates each, now filled with head bone (126 of 450): the crop improves rank, not
+the "nothing here" verdict.
+
+**HU floor (2026-10-20; §4.5 of the same report).** Of the 860 candidates of that pass, no
+hit has a mean HU under −74 or a max HU under 251 in a 2 mm ball of the segmentation
+volume, while 50 false candidates sit under −100 mean (sinus air, orbital fat) and 15 more
+under 200 max (soft tissue without contrast). `backend/services/hu_floor.py` drops those
+from the consensus list before the top 5 are taken (`_detect_hits` asks for twice as many
+sites and refills), using the session's cached volume in the API and the segmentation
+volume in the bench; CT only. Measured on the full pass over the saved meshes and volumes
+(`backend/data/zenodo_eval_full_p3_hu`, 172/172): 44 → 45 lesions in the top 5, 6 → 8 in
+first place, 70 → 71 in the list of 40, 36 → 37 of 82 studies, and no lesion moves down;
+the floor checked 7 647 sites and dropped 1 148 (median −212 HU). Controls still get 5
+candidates, so this is a cleaner list, not a per-study verdict. XA regression unchanged.
+
+**Head band before segmenting (2026-10-20; §4.8 of the same report).** 145 of the 172
+studies are head-and-neck CTAs 350 mm tall, 157 exceed the 90 M voxel cap and are
+segmented downsampled by 2–6 (the factor is the tallest axis / 256), and 16 lesions never
+reach the mesh. All 122 lesions lie 54–120 mm below the skull top. `backend/services/head_band.py`
+keeps the 150 mm below the first slice (from the top) with ≥ 2 cm² of bone (> 200 HU), CT
+only; `segment_tubular` segments that band and translates the mesh back to the full
+volume frame, so the viewer, morphometry and HU floor see what they always did
+(`info["head_band"]` records it). Measured on the saved records: 48 % of the voxels, the
+factor distribution goes from {1: 15, 2: 28, 3: 29, 4: 16, 5: 68, 6: 16} to {1: 54, 2: 97,
+3: 21}, and 13 of the 16 missing lesions are in studies that gain resolution.
+
+**Measured (2026-10-22, `backend/data/zenodo_eval_full_p4_band`, 172/172):** the factor
+distribution is {1: 54, 2: 103, 3: 15}, segmentation drops from 661 to 320 s per study,
+and lesions out of the mesh go from 16 to 8 (11 recovered; 024, 093_1 and 093_2 newly
+lost, 5 unchanged). Against the HU-floor pass: 45 → **52** lesions in the top 5, 53 → 61 in
+the top 10, 71 → 75 in the list, 8 → **12** in first place, 37 → **45** of 82 studies; 30
+lesions move up, 22 down. Thrombus explains the mesh (a thick thrombus hides the annotated
+wall; the coarse passes only "recovered" it through blur) but not the rank: the 12
+thrombosed lesions in the top 5 are the same in both passes. The lesions that drop
+(004, 019, 028, 030, 035, 083, 087, 098, 013) keep their surface recall; their curvature
+region shrinks because the head mesh now has 133 k–650 k vertices against the 80 k cap of
+the curvature copy (`_CURVATURE_MAX_VERTS`), which was then measured on the saved
+meshes (next paragraph). Controls still get 5 candidates (88 of 450 on bone, from 131). Study 093 loses two
+11–15 mm sacs at the tubularity gate (9–11 % of their points pass V ≥ p40, none reach
+the tube, so the 3 mm reclaim never starts; `scratchpad diag_mask.py`); the coarse pass
+only had them because its 373 cm³ mask wrapped the skull base. A sac-reclaim rule for core
+components attached to the tube by the neck is step 2 of the plan.
+
+**Measured (2026-10-22/23, `zenodo_eval_curv_160000` and `_240000`, 172/172 each, same meshes):** raising `_CURVATURE_MAX_VERTS` to 160 k / 240 k (and `_CHAIN_DECIMATION_FROM` with it) gives **44 / 46** lesions in the top 5 against 52, 67 / 69 in the list, 9 / 12 in first place, 40 / 41 studies; 16 up / 28 down and 21 up / 30 down; detection 44 → 104 / 146 s per study. Segmentation and controls are identical by construction. The gains are the big thrombosed sacs (004, 020, 086, 116_1) and they come through the calibre/ratio channels, because the calibre copy stops being chained from the curvature copy for meshes under 2 × cap; the losses (< 10 mm: 5 → 1 / 4 under 5 mm, 12 → 9 / 8 at 5–10 mm) come from both channels, and a lesion's curvature region does not grow with the cap (018: 79 → 8 → 23 points; 089: 16 → 123 merged → 72). The cap stays at 80 k; next experiment on the saved meshes is the calibre copy from the full mesh with the curvature cap untouched (report §4.9).
+
+**Measured (2026-10-23, `zenodo_eval_calibre_full`, 172/172, same meshes):** the calibre copy taken from the full mesh with the curvature cap at 80 k (`_CHAIN_DECIMATION_FROM` out of reach) gives **51** lesions in the top 5 against 52, the same list (75) and top 10 (61), 12 in first place, 46 studies against 45; 9 up / 17 down, 3 enter / 4 leave; detection 49 → 65 s per study. It confirms §4.9: the big thrombosed sacs enter through the calibre channel (004 out → 4th, 086 7 → 5, 116_1 out → 8, 161 5 → 4; thrombosed 12 → 14, ≥ 25 mm 10 → 12), but the new calibre regions also move lesions that were fine (116_2 and 144 leave the list, 018/109/185 drop out of the top 5; < 5 mm 5 → 3). A redistribution, not an improvement: not adopted on its own; kept as a candidate for the gate bench (merge the candidates of both calibre copies). Report §4.10 (a).
+
+**Sac rule in the vascular mask (2026-10-23, phase 7 of `build_vascular_mask`):** blobs of M0 left outside the mask are opened 1.5 mm per axis, cores with an equivalent diameter ≥ 5 mm are rebuilt inside the rest and glued when they lie within 5 mm of the mask and less than half of their voxels score as plate (`MaskParams.sac_*`, 0 switches it off; stats `sac_blobs`, `sac_vox`; phase «sacos»). Measured at native resolution on the saved masks: 026 (50 mm giant, 3.1 mm from the mask) 0 → 49 % of its points, 024 (20 mm, thrombosed) 4 → 35 %, 093 and 121 unchanged (partial shells; 121 already has 46 % at native, its loss is the bench's factor 2), controls 001/003/045 admit no blob. With the head band (factor > 1) the coarse pass decides the blobs on the whole volume and the native tiles only look at cores touching their seeds (`_sac_blobs(..., within=seed_mask)`): running the full phase per tile cost 286 → 802 s on Zenodo 010 (41 tiles) for an identical mask. The opening is a 1.5 mm half-side box, which takes about 2.6 mm of radius off a sphere, so the rule sees sacs from about 11 mm up. Tests in `backend/test_sacos_mascara.py`. **Measured on the full 172 (2026-10-24, `zenodo_eval_full_p5_sacos`, segmentation from DICOM, 20.9 h):** lesions outside the mesh **8 → 5** (026 giant 0.02 → 0.91, 121 thrombosed 0.01 → 1.00, 024 thrombosed 0.33 → 0.74; no lesion loses coverage; 093 unchanged, partial shells), top 5 **52 → 52**, top 10 61 → 64, list 75 → 78, first place 12 → 13, studies 45 → 46 of 82; controls 90/90 with 5 candidates; bone candidates 167 → 159 of 860. Enter the top 5: 026 (out → 1st), 121 (out → 2nd), 019 (37 → 4); leave: 027 (5 → 10), 033_2 (2 → 8), 088_2 (1 → 4), 109_2 (5 → 8), where the mask grows 0.6–3 cm³ and new 8–10 mm calibre regions win. The mask is identical in 79 studies, grows a median 0.12 cm³, > 5 cm³ in 6. Cost +6 % segmentation (320 → 339 s), +8 s detection. **Adopted**: first measure since the band that moves segmentation, no aggregate figure drops. Report §4.10 (b).
+
+**Absolute Gauss floor in the CT preset (2026-10-25, `min_gauss_curvature=0.028`):** the detector grew its curvature regions from the 85th percentile of Gaussian curvature of each mesh, a relative threshold that on a whole-head CT full of thin vessels left a 10–40 point, 7 mm² patch on 10–30 mm sacs instead of the sac. The gate bench (`backend/scripts/gate_bench.py`: one dump of every region of the 172 saved meshes at two Gauss scales with all gates open, then any gate/order/merge/cap/consensus variant evaluated in about a minute; the `actual` variant reproduces the 122 ranks of the sac pass) measured 20 variants: none of the step-3 gates moves more than one lesion, whereas an absolute floor K ≥ 0.028 mm⁻² (the Gaussian curvature of a 6 mm sphere) gives 61 in the top 5. **Confirmed with a real detection pass on the same meshes (`zenodo_eval_k6`, 172/172, 3.2 h, 121 of 122 ranks equal to the bench):** top 5 **52 → 61**, top 10 64 → 68, first place 13 → 28, list 78 → 81, studies 46 → 54 of 82; controls 90/90 with 5 candidates; bone candidates 159 → 156 of 860 (controls 86 → 94 of 450, lesion studies 73 → 62 of 410); detection 57 → 52 s per study. With the floor the region on a large sac is the whole sac (100–500 points, 50–200 mm², 0.3 mm from the lesion) and the three channels agree on it: 004 (28 mm, thrombosed) enters 5th, 020 (25 mm, thrombosed) 3rd, 086_1 (30 mm, thrombosed) 7 → 1, 027 10 → 1, and 14 lesions already in the top 5 move to first place. Sixteen 3–7 mm lesions drop (four leave the top 5: 163, 126_1, 017_2, 099_3), because their small region now merges with the neighbouring vessel region within 10 mm or stops being compact; ten k6 combinations (merge 5/7 mm, cap 60, H·r 0.6, compactness 0.15, 4 points, radius ring, p85 as a second channel, score order) recover some of them only at the cost of first place and studies, so the floor goes in alone. The XA preset keeps the percentile. Sweep on the same bench, 172 studies: 7 mm sphere (K ≥ 0.020) 58 in the top 5, 66 in the top 10, 32 first, 80 listed, 50 studies; 5 mm (K ≥ 0.040) 58 / 66 / 22 / 82 / 50; both drop the big thrombosed 004 and 019 that 6 mm keeps, so **0.028 stays** and is now the CT preset in `routers/detect.py::_detector_for_modality` (test in `test_paso3_detector.py`). Report §4.12. Size-proportional duplicate merge measured on the same bench (2026-10-25 evening, `gate_bench.py` field `merge`): of the 16 small lesions that drop with the floor only 4 drop through the fixed 10 mm merge (3 pass but rank late, 4 have 4–5-point regions, 2 fail compactness because sac and vessel form one region at the threshold, 3 fail mean curvature). Merging when the two regions' bounding-box half-extents overlap (floor 3 mm) keeps 61 in the top 5, moves 2 lesions to first place (28 → 30), adds 2 at the end of the list (81 → 83) and loses nothing (controls 90/90 with 5); summing fitted radii loses 185, the largest-extent rule loses 019 (21 mm, thrombosed). Measured, **not adopted**: it does not move the main figure and would need the step-7 dedup in `aneurysm_detector.py` changed plus a 3 h confirmation pass; to be bundled with the next measure if taken. Output `backend/data/exp_gates_eval_merge.out`. **Curvature-mesh resolution re-measured with the absolute floor (2026-10-26, bench only, report §4.13):** `gate_bench.py dump --curv-cap 160000 --reuse data/exp_gates --only-ia` dumps the 82 lesion studies with the curvature mesh at 160 000 vertices reusing geometry, tree and calibre (2 min/study). 160 000 alone loses (61 → 57: big thrombosed 004/019/086_1 lose region or rank); the two resolutions as separate channels gain top 5 (63) but split one site's evidence between two candidates (first place 28 → 23); the union of both resolutions in one curvature channel (same gates, area order, dedup by bounding-box half-extents) gives 62 / 70 / first 34 / list 81 / studies 54 but drops 019 (21 mm, thrombosed) from 3rd to 8th and three small lesions from the list, raises bone among lesion-study candidates (62 → 67 of 410) and would double detection time. **Not adopted** (a +1 trade-off, not a lever); it confirms that small lesions want 160 000 and big thrombosed ones 80 000, i.e. a piece-size-dependent cap (§4.9). That cap was then simulated from the two dumps' per-lesion rows (choose 80 000 or 160 000 per study by cropped-mesh vertex count, 100 000–800 000, both directions): no threshold beats 61, and even the per-study oracle tops at 64 — the resolution that helps depends on the lesion, not on the piece, so the rule is discarded without a dump. **HU ceiling on candidates (report §4.14):** HU mean/max of all 6 450 long-list candidates of k6 measured in 2 and 4 mm balls; dropping everything labelled bone (max ≥ 700 HU) leaves the top 5 bone-free but raises no lesion into the top 5 (the lesions that are missing have no candidate at all, 41 of 61) and drops 020 (thrombosed, calcified wall, 3rd), 033_2 and 163; the only free ceiling (max ≥ 1 200) removes 9 + 9 bone candidates, cosmetic. **Not adopted.** Lever remains the threshold that forms the regions, not the list. **Second, finer Gauss floor on the same mesh (report §4.15):** regions at K ≥ 0.045 (4.7 mm sphere) and K ≥ 0.06 (4.1 mm) dumped for the 172 and merged with the 6 mm regions in one curvature channel (`Variant.gauss_union`); 6 mm ∪ 4.1 mm + bounding-box merge is the first bench variant that loses no lesion: top 5 and studies unchanged (61 / 54), first place 28 → 30, list 81 → 89, bone in controls 94 → 89; the fine cores of the sac-plus-vessel regions enter the list from rank 13 on, not the top 5, because order is by area. 4.7 mm raises them further but drops 004 from the top 5. Costs seconds (a second threshold on the same mesh). **Measured, not adopted as a lever**; a free, non-losing candidate to bundle with the bounding-box merge if the curvature channel is ever changed. **Curvature-channel order area × pgf (2026-10-26, report §4.16):** lesion regions differ from the vessel regions ranked above them mainly in positive-Gauss fraction (median 0.70 vs 0.62) and sphericity (0.77 vs 0.65); of twelve order keys, area × pgf is the first that gains without losing on the bench: top 5 61 → 63, first 28 → 30, studies 54 → 56, no lesion drops, controls unchanged; with the bounding-box merge and the 4.1 mm union on top, 63 / first 31 / list 88. `order_by="area_pgf"` added to `AneurysmDetector._order_key` and **confirmed with a real detection pass on the 172 (`zenodo_eval_apgf`, 2026-10-26 evening, order change only): 63 / 69 / first 30 / list 82 / studies 56, no lesion drops, controls 90/90 with 5 and bone unchanged, 121 of 122 ranks equal to the bench prediction.** It is now the CT preset (`routers/detect.py::_detector_for_modality`, test in `test_paso3_detector.py`, 83 green; XA keeps `score`, regression green). Official figure: **63 of 122 in the top 5, 30 first, 56 of 82 studies, 5 outside the mesh.** Report §4.16; executive report `docs/Informe-Ejecutivo-Zenodo-2026-10-26.pdf`.
+
+**Bounding-box merge and second Gauss floor in the CT preset (2026-10-26/27, report §4.17):** adopted together on the user's decision after the bench showed neither loses a lesion (§4.12, §4.15). Duplicate candidates now merge when they lie closer than the mean of their two bounding boxes' largest side (`merge_by="extent"`, floor `merge_min_mm=3.0`; XA keeps the fixed 10 mm), and a second absolute floor `gauss_floor_2=0.06` (4.1 mm sphere) grows its regions behind the 6 mm ones in the same pool, through the same gates, order (`area_pgf`) and dedup (`AneurysmCandidate.extent_mm`; `n_regions_total` counts both floors; ignored with the percentile). Tests `TestFusionPorCajasYSegundaEscala` in `test_paso3_detector.py` (86 green, 1 skipped). **Confirmed with a real detection pass on the 172 (`zenodo_eval_fusion`, 2026-10-27, same meshes, 5.5 h):** top 5 **63 → 63**, top 10 69 → 69, first place 30 → 31, list **82 → 88**, studies 56 → 56; 5 outside the mesh; controls 90/90 with 5 (bone 94 → 92 of 450; lesion studies 64 → 68 of 410); 121 of 122 ranks equal to the bench. Seven lesions of 3–8 mm enter the list through the fine regions (017_2 to 10th), 012_2 and 107 move to first place; ten drop, eight by one rank inside their bracket (163 1st → 2nd) and two at the edge (111 10 → 11; 082_2 40 → out while 082_1 and 082_3 enter). Detection 65 → 97 s per study (median 55 → 94: a second threshold pass on the curvature copy and more regions through the gates). Official figure: **63 of 122 in the top 5, 31 first, 69 in the top 10, 88 listed, 56 of 82 studies, 5 outside the mesh.** XA regression: green, no differences against the 26-10 baseline (XA keeps the fixed merge and no second floor). Executive report `docs/Informe-Ejecutivo-Zenodo-2026-10-27.pdf`. Next front is segmentation, not detection: the saved meshes are not clean trees (median 66 pieces; the scanner's head holder is the largest piece in 016 and 017), so a contact sheet of the 172 meshes and a head-mask rule come next.
+
+**Head hull in the segmentation recipe (2026-10-27, `services/head_mask.py`, report §4.18):** the contact sheet of the 172 saved meshes (`render_meshes.py`, off-screen VTK, 3 views per study) shows the scanner's head holder (a curved cradle or two lateral plates, 2–5 mm thick, above the 150 HU threshold) inside most meshes and as the LARGEST piece in about one study in four (004, 005, 011, 015, 016, 017, 025, 039, 041…), connected to the vessel tree itself in 016 and 017; median 66 pieces per mesh, largest piece under half the vertices in 57 studies, 46 flagged «not a tree». The detector's pre-filter (pieces < 5 % of the largest) then drops real branches. Rule, no weights: head = everything that is not air (> −300 HU) → 4 mm opening (detaches a sheet from a block) → largest component → per-slice CONVEX hull (sinuses, mastoid cells and orbits are air open to the outside, which hole filling does not close; thin bony septa inside them were also polluting the largest piece, 10 % of it in 036). Computed at ~3 mm voxel in tenths of a second in `segment_tubular` right after the head band; the vascular mask is RESTRICTED to it (`build_vascular_mask(within=…)`: M0 ∧ inside, also in every native tile through `refine_in_band(inside=…)`) **after** the tubularity percentiles are taken over the whole M0; CT only, skipped if the «head» is under 400 cm³; `info["head_mask"]` records head and outside tissue in cm³, `stats["outside_vox"]` what M0 loses. Two ways of applying it do NOT work and were measured on 004: setting −1 024 HU outside in the volume, and restricting M0 before the percentiles; both leave 004 at 2.9 cm³ with 4 seeds (146 cm³ and 52 before) and the lesion outside the mesh, because the seed (p90) and growth (p40) thresholds are percentiles of tubularity inside M0 and the holder (112 of 146 cm³, low tubularity) was holding them down: the recipe was partly calibrated by the contamination. With the usual percentiles and the restriction afterwards, 004 gives 30.7 cm³, 47 seeds, a 17.6 cm³ tree as largest piece and the lesion in the mesh (4th; it was out of the list). Tests `test_head_mask.py` (5) and the 8 suites of the recipe (97 green, XA regression included). Measured on the saved meshes with the hull computed from the saved volumes (7 studies): all 12 lesion surfaces 100 % inside. Segmented from DICOM with the rule: 016 mask 112.8 → 18.3 cm³, largest piece 57.7 cm³ (not a tree) → 6.4 cm³ (tree), vertices 422 k → 150 k, lesion recall 0.99 / 0.98; 017 mask 150.2 → 31.1 cm³, pieces 32 → 15, largest 114.4 → 27.4 cm³ (tree), recall 1.00 / 0.98; ranks reshuffle (1/2 → 2/3 and 1/3 → 4/1), which only the full pass can judge. **Full segmentation pass measured (2026-10-27 14:37 → 28 13:36, `zenodo_eval_full_p6_head`, 172/172; per-study table in `docs/zenodo-envolvente-volumenes-2026-10-28.csv`).** Segmentation, sacs → hull: mask median 111 → 34 cm³ (80 studies in 20–40 cm³, were 16; 15 above 60, were 128; none rises), largest piece median 39 → 22 cm³ (> 60 cm³: 51 → 8), «looks like a tree» 126 → 169, vertices median 387 k → 167 k, no lesion surface recall drops by more than 5 %, 5 lesions outside the mesh (same), segmentation 339 → 211 s. The 4 masks that collapse (078, 141, 181, 188) are low-contrast controls whose old «tree» was holder plus skull-base septa (reproduced on 181: 16 of 18 seeds were in the holder); the 15 still above 60 cm³ are skull inside the head (084, 123, 180: a 129–152 cm³ block = the whole skull the bone mask does not remove), the next front. Detection on these meshes, against the fusion pass: **67 of 122 in the top 5** (were 63), 73 in the top 10, **21 first** (were 31), 94 listed, 56 of 82 studies, controls 90/90 with 5 (bone in controls 92 → 115 of 450), detection 94 → 60 s. The first-place loss is the detector, not the mesh: in 10 of the 12 lesions that lose it the new first is a curvature region on a vessel 31–86 mm away, and in 6 (14–30 mm lesions) the dome is split into 2–3 candidates; the curvature copy is decimated to 80 000 vertices and the meshes now have half the vertices, so the decimation is half as strong (the §4.9 cap experiment in reverse). Measured on the hull meshes without re-segmenting, on the 28 studies that move (`data/run_head_cap.ps1` → `zenodo_eval_head_cap_40000` / `_60000`): cap 40 000 gives the 13 first places back and detection in 37 s, but the small and thrombosed lesions the clean model had brought lose their region (3 fewer in the top 5, 4 fewer listed); 60 000 loses on both sides and ranks jump without order between caps. The cap stays at 80 000. **The hull ENTERS; new detection reference 67 / 73 / 21 / 94 / 56, 5 outside the mesh**, the first place (31 → 21) being the declared cost; XA regression unchanged.
+
+**Two conditional gates in the curvature channel (2026-10-29, report §4.19):** with the hull adopted, 55 lesions were still outside the top 5 and the first place had dropped from 31 to 21. The gate bench (§4.12) was dumped over the hull meshes (`data/run_gates.ps1`, three Gauss scales, 172 studies) so that a rule is measured in minutes; its «real» variant reproduces 89 of the 122 ranks of the pass (the rest is the non-deterministic decimation of the two copies), so every rule is measured against the bench's own reference and then with a real pass. The morning hypothesis (the consensus agreement radius, split domes) was measured and moves nothing. What actually drops the big domes is seen region by region: the dome of a 14–25 mm sac comes out with compactness 0.10–0.19 (038: 124 points, pgf 0.81, H·r 1.00, compactness 0.18) and the fixed gate of 0.2 removes it; in the thrombosed 037 the region is the inner lumen, a CONCAVE dome (H·r −1.34, 30 % of the normals pointing inwards). Relaxing compactness unconditionally spreads (vessel regions of 100–230 mm² with pgf 0.58–0.69 overtake lesions; with pgf ≥ 0.8 alone, thick vessel stretches with H·r 2.0–2.2 still enter in 085), so the rules are conditional: **compactness ≥ 0.10 is enough when pgf ≥ 0.75 and H·r ≤ 1.5** (`compactness_lax`, `compactness_lax_pgf`, `compactness_lax_hr_max`), and **the mean-curvature gate uses |H·r| when pgf ≥ 0.75** (`mean_curv_abs_pgf`; without the pgf condition concave bifurcation saddles enter and a 3 mm lesion leaves the list). CT preset only; XA and the default detector unchanged; 3 tests in `test_paso3_detector.py`. Bench on the 172 against its reference 62 / 69 / 17 / 91: both gates 63 / 70 / 25 / 93, no band drops (pgf 0.70 in compactness gives 27 first places but pushes a 3 mm lesion out of the list: rejected). **Real pass (`data/run_puertas.ps1` → `zenodo_eval_puertas`, detection on the saved hull meshes; per-lesion table in `docs/zenodo-puertas-lesiones-2026-10-29.csv`): 68 of 122 in the top 5 (were 67), 74 in the top 10, 24 first (were 21), 96 listed, 57 of 82 studies, 5 outside the mesh, controls 90/90 with 5, bone in controls 115 → 117 of 450, no band drops, no time cost.** Up: 008_2 (out of list → 1st), 037 (3rd → 1st), 038 (2nd → 1st), 091 (3rd → 1st), 086_1 (9th → 2nd). Down, neither through the gates: 025 (1st → 2nd: the three first sites are all on the 25 mm sac and the matching picks the second) and 115_1 (3rd → 10th: its CALIBRE rank goes from 2 to 6, a channel the gates do not touch — the geometric copy is re-decimated in this mode). New detection reference **68 / 74 / 24 / 96 / 57**; XA regression unchanged. Next, from the same bench: the consensus merges a calibre peak with the FIRST site within 8 mm instead of the nearest one, and small sacs that form their own region at the 4 mm scale are cut by the channel cap of 40 (029_1, 098, 101, 154_2) — a channel of their own rather than another gate.
+
+**Small-sac channel with a 5th-place quota (2026-10-30, report §4.20):** the §4.19 breakdown left 23 lesions listed at ranks 11–40 (almost all < 10 mm, curvature channel) and 4 small sacs with a region of their own at the 4 mm scale cut by the channel cap of 40. Same cause: the curvature channel orders by area × pgf and a 3–5 mm dome has 10–30 mm² against 100–200 mm² of a convex vessel region; changing the channel order spreads (§4.16), so it is a channel of its own. Among the regions that already pass the gates, «small sac» = fitted radius ≤ 3.5 mm, sphere curvature (0.7 ≤ H·r ≤ 1.3), sphericity ≥ 0.6, compactness ≥ 0.3, pgf ≥ 0.7, ordered by sphericity × pgf, merged with the box rule, top 10 (`small_sac_*` parameters, `DetectionResult.small_sacs`). **The channel does not vote**: it is left out of the order, is not a family unless it is the only channel of the site, and only applies a quota — if none of the first 5 sites carries the label, the best one moves to 5th (`_apply_small_sac_quota`, CT preset only). Measured in the bench against the two-gates reference 63 / 70 / 25 / 93: with ranks and a family of its own 68 / 77 / 22 / 94 (105, 107, 108, 126 lose the first place: spread), quota at 5th voting 65 / 74 / 23 (126 loses the first), **quota at 5th without vote 65 / 74 / 25 / 93, no band drops**; quota at 4th and sphericity 0.7 rejected (one rank lost each). **Real pass (`zenodo_eval_saco`, detection on the saved hull meshes; per-lesion table in `docs/zenodo-saco-lesiones-2026-10-30.csv`): 71 of 122 in the top 5 (were 68), 80 in the top 10 (were 74), 24 first, 96 listed, 59 of 82 studies, 5 outside the mesh, controls 90/90 with 5, bone in controls 117 → 111 of 450, no size band drops, no time cost.** By clinical group the cost is one place: 121 (23 mm, thrombosed, untyped) and the untyped 017_1 and 051 go from 5th to 6th (large 19 → 18, thrombosed 17 → 16, kind «other» 14 → 11 in the top 5; all three stay in the top 10). Up, all through the quota: 011_1 (11th → 4th), 022 (17th → 5th), 034 (10th → 5th), 083 (34th → 4th), 106_1/2 (22nd → 5th), 113 (17th → 5th), 115_1 (10th → 4th). Down one place: 004 (4th → 5th) and 017_1, 051, 118, 121, 185 (5th → 6th), none out of the top 10. The 5th site carries the label in 113 of the 172 studies; only 8 of the 168 labelled sites in the top 5 are channel-only sites (the rest were curvature sites further back), tissue vessel 113 / bone 40 / other 15, which is why bone in controls drops. New detection reference **71 / 80 / 24 / 96 / 59**; XA regression unchanged; 5 tests in `test_saco_pequeno.py`. In the UI the 5th candidate may be the quota site and must be labelled «small sac». Merging consensus peaks with the nearest site instead of the first was measured here and spreads: rejected. What remains is segmentation, not order: the 15 pieces > 60 cm³ with skull inside the model and the 5 lesions outside the mesh.
+
 ---
 
 ## Relationship to the Desktop App

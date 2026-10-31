@@ -19,7 +19,7 @@ client = TestClient(app, raise_server_exceptions=True)
 
 # Las fases que publica el método tubular, en su orden (contrato con la interfaz).
 FASES = ["carga", "núcleo", "tubularidad", "semillas", "crecimiento", "recuperación",
-         "laminaridad", "cierre", "superficie", "suavizado", "decimación", "normales",
+         "laminaridad", "cierre", "sacos", "superficie", "suavizado", "decimación", "normales",
          "islas", "guardado"]
 
 
@@ -38,7 +38,10 @@ def _tube_series(sid: str, nz=80, size=48, radius_mm=3.0, core=0.0, margin=4):
     """
     z, y, x = np.mgrid[0:nz, 0:size, 0:size].astype(np.float32)
     d2 = (y - size / 2) ** 2 + (x - size / 2) ** 2         # spacing 1 mm (pixel_spacing=1.0)
-    vol = np.where(d2 <= radius_mm ** 2, 800.0, 0.0)
+    # 600 HU: un vaso con contraste denso. No más de 700, porque en TC el método
+    # quita como hueso los componentes > 700 HU de ≥ 500 mm³ (paso 2 del plan
+    # Zenodo), y un tubo de 2 cm³ a 800 HU sería, para una TC, hueso.
+    vol = np.where(d2 <= radius_mm ** 2, 600.0, 0.0)
     if core:
         vol = np.where(d2 <= (radius_mm / 3) ** 2, core, vol)
     if margin:
@@ -221,7 +224,7 @@ class TestGuardasYContrato:
         # El mismo mensaje accionable que el umbral clásico, no «la máscara no
         # contiene ninguna superficie».
         assert "Ningún vóxel supera el umbral inferior de 5000" in r.json()["detail"]
-        assert "máxima del volumen = 800" in r.json()["detail"]
+        assert "máxima del volumen = 600" in r.json()["detail"]
         assert "Baja el umbral inferior" in r.json()["detail"]
         p = progress.get(sid)
         assert p["running"] is False and p["ok"] is False and p["message"]
@@ -244,7 +247,7 @@ def _two_tubes_series(sid: str, nz=80, size=48):
     z, y, x = np.mgrid[0:nz, 0:size, 0:size].astype(np.float32)
     a = (y - 16) ** 2 + (x - 16) ** 2 <= 3.0 ** 2
     b = ((y - 34) ** 2 + (x - 34) ** 2 <= 3.0 ** 2) & (z >= 10) & (z < 72)
-    vol = np.where(a | b, 800.0, 0.0)
+    vol = np.where(a | b, 600.0, 0.0)      # < 700: que la TC no lo tome por hueso
     vol[:4] = 0.0
     vol[-4:] = 0.0
     _write_classic_ct_series(sid, nz=nz, size=size, values=vol.astype(np.int16),

@@ -88,6 +88,11 @@ _DETECT_TARGET_VERTS = int(_DETECT_MAX_VERTS * 0.95)
 #: del tope no se toca: `decimate_to` devuelve la misma malla.
 _CURVATURE_MAX_VERTS = 80_000
 
+#: Por encima de este número de vértices la copia de calibre se decima desde la
+#: copia de curvatura y no desde la malla completa (ver `_detect_hits`). El
+#: doble del tope de curvatura: Case 3 e IM_0055 (104 000–107 000) quedan
+#: debajo y su resultado es el de siempre.
+_CHAIN_DECIMATION_FROM = 2 * _CURVATURE_MAX_VERTS
 #: Cuántos sitios se piden al consenso antes de vetar. Los vetos se aplican
 #: ANTES del tope de 5: si se cortara primero, cada descartado dejaría un hueco
 #: en la lista corta en vez de dar paso al siguiente sitio. 30 es el margen
@@ -167,6 +172,19 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         )
     return AneurysmDetector(
         gauss_percentile          = 85.0,
+        # Suelo absoluto de curvatura gaussiana en lugar del percentil (que
+        # queda como respaldo si el suelo se pone a None). El percentil 85 es
+        # relativo a la malla: en una cabeza entera llena de vasos finos sube
+        # tanto que sobre un saco de 10–30 mm solo forma un parche de 10–40
+        # puntos y 7 mm², y el canal de curvatura no lo ve. Con K ≥ 0.028 mm⁻²
+        # (la curvatura gaussiana de una esfera de 6 mm) la región es el
+        # saco entero y los tres canales coinciden en él. Medido con el banco
+        # de puertas sobre las 172 angio-TC de Zenodo y confirmado con una
+        # pasada real (2026-10-25): lesiones entre los 5 candidatos 52 → 61,
+        # en primer puesto 13 → 28, estudios 46 → 54 de 82; los 90 controles
+        # siguen con 5 candidatos. Las puertas de abajo no movían nada. XA se
+        # queda con su percentil (otra escala de malla, sin hueso).
+        min_gauss_curvature       = 0.028,
         mean_curv_gate_percentile = 75.0,
         min_radius_mm             = 1.0,
         max_radius_mm             = 20.0,
@@ -176,6 +194,57 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         min_positive_gauss_frac   = 0.50,
         min_sphericity            = 0.35,
         pre_smooth_iterations     = 10,
+        # La misma puerta absoluta que XA (ver arriba). Con el cráneo fuera de
+        # la malla (paso 2) el percentil 75 de la curvatura media sube y
+        # tiraba 8 de 13 lesiones con H·r entre 0,81 y 1,22; con 0,7 vuelven
+        # (en lista 4 → 9 sobre las mismas mallas).
+        min_mean_curv_radius      = 0.7,
+        # Paso 3 Zenodo, medido sobre las mallas limpias de los pasos 1 y 2
+        # (13 lesiones en 10 angio-TC, mismas mallas): la puntuación compuesta
+        # prima un radio de 4 mm y dejaba 14.ª un par de sacos de 5 mm con
+        # regiones perfectas (106). Con «la región convexa más grande
+        # primero» las lesiones entre los 5 pasan de 2 a 4 y entre los 10 de
+        # 6 a 8. En 3DRA el mismo orden deja la lesión 1.ª en Case 3 e
+        # IM_0055, pero mueve a los otros cuatro: XA se queda como estaba.
+        # 26-10: área × fracción de curvatura gaussiana positiva. Con el suelo
+        # absoluto las regiones son sacos enteros y las de vaso que iban por
+        # delante de una lesión tienen menos pgf (0,62 frente a 0,70): la
+        # cúpula de un saco es casi toda convexa. Banco de puertas y pasada
+        # real sobre los 172 de Zenodo: entre 5 61 → 63, en 1.º 28 → 30,
+        # estudios 54 → 56, ninguna lesión baja, controles 90/90 con 5.
+        order_by                  = "area_pgf",
+        # 26-10, adoptadas juntas sobre el orden anterior (banco sobre los 172
+        # y pasada real): fusión de duplicados por el lado mayor de las cajas
+        # (media de los dos, mínimo 3 mm) en vez de 10 mm fijos, y una segunda
+        # escala del suelo (esfera de 4 mm) cuyas regiones van detrás de las
+        # de 6 mm. Dos sacos vecinos (016, 050, 090) ya no se comen entre sí y
+        # un saco de 3–4 mm pegado a su vaso sale como región propia. Entre 5
+        # 63 = 63, en 1.º 30 → 31, en lista 82 → 88; ninguna lesión baja de
+        # tramo (163 pasa de 1.º a 2.º y 012 y 107 suben a 1.º).
+        merge_by                  = "extent",
+        merge_min_mm              = 3.0,
+        gauss_floor_2             = 0.06,
+        # 29-10, banco de puertas sobre las mallas limpias (envolvente) de
+        # los 172 y pasada real: dos puertas que devuelven cúpulas grandes.
+        # La compacidad fija de 0,2 tiraba la cúpula de sacos de 14–25 mm
+        # (038: 0,18 con pgf 0,81 y H·r 1,0); a una región muy convexa y
+        # con curvatura de esfera le basta 0,10. Y la luz interior de un
+        # saco trombosado es cóncava (037: H·r −1,34, pgf 0,75): la puerta
+        # de curvatura media va en valor absoluto cuando pgf ≥ 0,75. Las
+        # versiones sin condición repartían (compacidad 0,15 a secas: 018
+        # 3.º → 9.º; signo sin pgf: 109_2 fuera de la lista).
+        compactness_lax           = 0.10,
+        compactness_lax_pgf       = 0.75,
+        compactness_lax_hr_max    = 1.5,
+        mean_curv_abs_pgf         = 0.75,
+        # 29-10 (noche), banco sobre los modelos limpios y pasada real: canal de
+        # «saco pequeño» como cuota del 5.º puesto. Los sacos de 3–5 mm forman
+        # región propia con la curvatura de una esfera pero el orden por área los
+        # deja detrás; el canal no vota (con puestos propios repartía) y solo
+        # garantiza al mejor el 5.º si no hay ninguno entre los 5. Entre 5 63 → 65,
+        # entre 10 70 → 74, estudios 53 → 55 en el banco; ninguna banda baja.
+        small_sac_channel         = True,
+        small_sac_quota           = 5,
     )
 
 
@@ -382,8 +451,15 @@ async def detect_aneurysm(
 def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
                  detector: AneurysmDetector | None = None,
                  session_id: str | None = None,
-                 top: int = _MAX_CANDIDATES):
+                 top: int = _MAX_CANDIDATES,
+                 volume: "tuple[np.ndarray, tuple[float, float, float]] | None" = None):
     """Los candidatos: curvatura sobre ≤ 80 000 vértices, calibre sobre ≤ 40 000.
+
+    *volume*, si se da, es ``(volumen (z, y, x), espaciado[, origen])`` con el
+    que se segmentó, en el marco de la malla: el suelo de HU (`services.hu_floor`)
+    quita de la lista los candidatos en aire o sin contraste. Sin él, y con
+    `session_id`, se toma el volumen cacheado de la sesión; en 3DRA no se
+    mira (los valores no son HU).
 
     La malla completa (107 000 vértices en Case 3 a resolución nativa) hace que
     `consensus` apague sus canales de calibre por encima de 40 000; decimarla
@@ -405,23 +481,38 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     los vetos antes de cortar.
     """
     from services.aneurysm_consensus import consensus
+    from services.head_crop import crop_to_head
+    from services.hu_floor import HuFloor, drop_air
     from services.segmentation import decimate_to
 
     if detector is None:
         detector = _detector_for_modality(modality)
+    # Lo alto de la malla: en una angio-TC de cabeza y cuello el cuello y el
+    # cayado daban 424 de los 450 candidatos de los controles de Zenodo y
+    # ninguna de las 122 lesiones (services/head_crop.py). En 3DRA y cabeza
+    # sola la malla no llega a los 140 mm y es el mismo objeto.
+    poly, crop = crop_to_head(poly)
+    n = poly.GetNumberOfPoints()
+    curv = decimate_to(poly, _CURVATURE_MAX_VERTS)
     # Por debajo del tope no se toca: la copia ES la malla (mismo objeto), y el
     # resultado es exactamente el de antes de existir esta función.
-    if poly.GetNumberOfPoints() <= _DETECT_MAX_VERTS:
+    if n <= _DETECT_MAX_VERTS:
         small = poly
     else:
-        small = decimate_to(poly, _DETECT_TARGET_VERTS)
+        # La copia de calibre sale de la malla completa salvo cuando esta es
+        # mucho mayor que la de curvatura (`_CHAIN_DECIMATION_FROM`): entonces
+        # sale de la copia de curvatura. Decimar dos veces una malla de 2 M de
+        # vértices (angio-TC con banda nativa) costaba 200 s por copia y era
+        # casi toda la detección; de 80 000 a 38 000 son segundos. Las mallas
+        # de 3DRA (≈ 105 000 vértices) quedan por debajo y no cambian.
+        src = curv if n > _CHAIN_DECIMATION_FROM else poly
+        small = decimate_to(src, _DETECT_TARGET_VERTS)
         if small.GetNumberOfPoints() > _DETECT_MAX_VERTS:
             # El margen no bastó: otra pasada, ya sobre la copia, antes que
             # dejar que el consenso apague calibre y cociente sin decir nada.
             logger.warning("Decimated copy overshot the cap (%d > %d) — decimating again",
                            small.GetNumberOfPoints(), _DETECT_MAX_VERTS)
             small = decimate_to(small, int(_DETECT_TARGET_VERTS * 0.9))
-    curv = decimate_to(poly, _CURVATURE_MAX_VERTS)
     logger.info("Detection mesh: %d vertices for curvature, %d for calibre/ratio",
                 curv.GetNumberOfPoints(), small.GetNumberOfPoints())
     if session_id:
@@ -429,9 +520,40 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     det_result = detector.detect(curv)
     if session_id:
         progress.update(session_id, "calibre y cociente", 45)
-    hits = consensus(curv, detector, top=top,
-                     geometric_poly=small, curvature_result=det_result)
+    # tree_poly=poly: la pieza mayor se mide sobre la malla completa, no
+    # sobre la copia de 40 000, que en una cabeza entera se fragmenta
+    # (Zenodo 026).
+    # Se piden el doble de sitios de los que se dan: el suelo de HU quita los
+    # que están en aire y los siguientes de la misma lista ordenada ocupan su
+    # sitio. Recortar la lista ya ordenada no cambia el puesto de nadie.
+    hits = consensus(curv, detector, top=2 * top,
+                     geometric_poly=small, curvature_result=det_result, tree_poly=poly)
+    floor = HuFloor(applied=False)
+    if modality.upper().startswith("CT"):
+        if volume is None and session_id:
+            volume = _session_volume(session_id)
+        if volume is not None:
+            hits, floor = drop_air(hits, *volume)
+    hits = hits[:top]
+    # Para el registro del banco y el diagnóstico, como `geometric_error`.
+    det_result.head_crop = crop.as_dict()
+    det_result.hu_floor = floor.as_dict()
     return hits, det_result
+
+
+def _session_volume(session_id: str):
+    """``(volumen, espaciado)`` cacheado de la sesión, o None si no lo hay.
+
+    Es el mismo volumen (y el mismo marco: índice × espaciado) con el que la
+    morfometría aísla el saco (`_SacInputs`).
+    """
+    try:
+        from services.mpr import _get_volume, ensure_volume_cached
+        meta = ensure_volume_cached(session_id)
+        return _get_volume(session_id), tuple(float(v) for v in meta["spacing"])
+    except Exception as exc:
+        logger.warning("Suelo de HU sin volumen para la sesión %s: %s", session_id, exc)
+        return None
 
 
 def _previous_choice(session_id: str) -> tuple[str, np.ndarray | None] | None:

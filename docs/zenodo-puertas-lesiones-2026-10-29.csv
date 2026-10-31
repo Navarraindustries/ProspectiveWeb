@@ -1,0 +1,295 @@
+study,file,mm,band,rank_a,rank_b,channels_a,channels_b
+001,,,,,,n_cand=5 s=52.8,n_cand=5 s=54.9
+002,an_002.stl,10.95,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+002,,,,,,n_cand=5 s=58.9,n_cand=5 s=85.4
+003,,,,,,n_cand=5 s=54.3,n_cand=5 s=75.3
+004,an_004.stl,28.48,≥ 10 mm,4,4,calibre,calibre
+004,,,,,,n_cand=5 s=45.0,n_cand=5 s=61.6
+005,,,,,,n_cand=5 s=30.5,n_cand=5 s=41.8
+006,an_006.stl,21.01,≥ 10 mm,2,2,calibre+cociente,calibre+cociente
+006,,,,,,n_cand=5 s=63.2,n_cand=5 s=91.7
+007,,,,,,n_cand=5 s=51.2,n_cand=5 s=100.4
+008,an_008_1.stl,18.54,≥ 10 mm,2,2,calibre+cociente,calibre+cociente
+008,an_008_2.stl,9.11,5–10 mm,,1,,curvatura
+008,,,,,,n_cand=5 s=49.7,n_cand=5 s=97.4
+010,an_010.stl,5.02,5–10 mm,,,,
+010,,,,,,n_cand=5 s=48.7,n_cand=5 s=93.2
+011,an_011_2.stl,5.02,5–10 mm,,,,
+011,an_011_3.stl,4.4,< 5 mm,13,13,lista larga,lista larga
+011,an_011_1.stl,3.02,< 5 mm,11,11,lista larga,lista larga
+011,,,,,,n_cand=5 s=28.5,n_cand=5 s=52.7
+012,an_012_2.stl,6.13,5–10 mm,1,1,calibre+curvatura,calibre+curvatura
+012,an_012_1.stl,4.09,< 5 mm,,,,
+012,,,,,,n_cand=5 s=29.9,n_cand=5 s=58.7
+013,an_013.stl,6.95,5–10 mm,1,1,cociente+curvatura,cociente+curvatura
+013,,,,,,n_cand=5 s=27.2,n_cand=5 s=60.9
+014,an_014.stl,9.15,5–10 mm,1,1,calibre+curvatura,calibre+curvatura
+014,,,,,,n_cand=5 s=53.5,n_cand=5 s=77.9
+015,an_015.stl,12.95,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+015,,,,,,n_cand=5 s=38.5,n_cand=5 s=49.7
+016,an_016_1.stl,8.41,5–10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+016,an_016_2.stl,7.81,5–10 mm,4,4,calibre+cociente+curvatura,calibre+cociente+curvatura
+016,,,,,,n_cand=5 s=45.8,n_cand=5 s=67.4
+017,an_017_1.stl,8.17,5–10 mm,5,5,cociente,cociente
+017,an_017_2.stl,3.45,< 5 mm,3,3,curvatura,curvatura
+017,,,,,,n_cand=5 s=55.6,n_cand=5 s=81.3
+018,an_018.stl,9.62,5–10 mm,3,3,curvatura,curvatura
+018,,,,,,n_cand=5 s=67.7,n_cand=5 s=104.2
+019,an_019.stl,21.01,≥ 10 mm,,,,
+019,,,,,,n_cand=5 s=79.1,n_cand=5 s=101.8
+020,an_020.stl,24.55,≥ 10 mm,4,4,calibre,calibre
+020,,,,,,n_cand=5 s=42.4,n_cand=5 s=70.0
+021,an_021.stl,18.36,≥ 10 mm,2,2,calibre+cociente,calibre+cociente
+021,,,,,,n_cand=5 s=56.7,n_cand=5 s=94.3
+022,an_022.stl,9.81,5–10 mm,17,17,lista larga,lista larga
+022,,,,,,n_cand=5 s=66.6,n_cand=5 s=112.9
+023,an_023.stl,16.51,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+023,,,,,,n_cand=5 s=47.6,n_cand=5 s=73.0
+024,an_024.stl,20.41,≥ 10 mm,4,4,curvatura,curvatura
+024,,,,,,n_cand=5 s=72.0,n_cand=5 s=108.3
+025,an_025.stl,25.47,≥ 10 mm,1,2,calibre+cociente,cociente+curvatura
+025,,,,,,n_cand=5 s=57.3,n_cand=5 s=87.1
+026,an_026.stl,50.31,≥ 10 mm,2,2,calibre,calibre
+026,,,,,,n_cand=5 s=34.2,n_cand=5 s=36.0
+027,an_027.stl,11.91,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+027,,,,,,n_cand=5 s=58.8,n_cand=5 s=66.4
+028,an_028.stl,3.61,< 5 mm,1,1,curvatura,curvatura
+028,,,,,,n_cand=5 s=56.6,n_cand=5 s=61.2
+029,an_029_2.stl,5.61,5–10 mm,,,,
+029,an_029_1.stl,4.01,< 5 mm,,,,
+029,,,,,,n_cand=5 s=69.2,n_cand=5 s=71.1
+030,an_030_1.stl,20.41,≥ 10 mm,4,4,calibre,calibre
+030,an_030_2.stl,11.94,≥ 10 mm,4,4,calibre,calibre
+030,,,,,,n_cand=5 s=67.1,n_cand=5 s=68.1
+031,an_031.stl,27.62,≥ 10 mm,3,3,calibre,calibre
+031,,,,,,n_cand=5 s=80.1,n_cand=5 s=82.6
+032,an_032.stl,4.77,< 5 mm,,,,
+032,,,,,,n_cand=5 s=56.8,n_cand=5 s=88.5
+033,an_033_2.stl,12.01,≥ 10 mm,4,4,calibre+cociente+curvatura,calibre+cociente+curvatura
+033,an_033_1.stl,5.45,5–10 mm,29,29,lista larga,lista larga
+033,,,,,,n_cand=5 s=63.0,n_cand=5 s=98.2
+034,an_034.stl,3.05,< 5 mm,10,10,lista larga,lista larga
+034,,,,,,n_cand=5 s=53.5,n_cand=5 s=74.3
+035,an_035_1.stl,17.41,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+035,an_035_3.stl,3.91,< 5 mm,26,28,lista larga,lista larga
+035,an_035_2.stl,3.55,< 5 mm,26,28,lista larga,lista larga
+035,an_035_4.stl,3.05,< 5 mm,4,4,curvatura,curvatura
+035,,,,,,n_cand=5 s=61.3,n_cand=5 s=83.5
+036,an_036.stl,13.34,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+036,,,,,,n_cand=5 s=63.8,n_cand=5 s=84.5
+037,an_037.stl,21.46,≥ 10 mm,3,1,calibre+cociente,calibre+cociente+curvatura
+037,,,,,,n_cand=5 s=144.1,n_cand=5 s=99.6
+038,an_038.stl,14.32,≥ 10 mm,2,1,calibre+cociente,calibre+cociente+curvatura
+038,,,,,,n_cand=5 s=62.2,n_cand=5 s=38.7
+039,,,,,,n_cand=5 s=80.2,n_cand=5 s=58.5
+040,,,,,,n_cand=5 s=60.1,n_cand=5 s=58.5
+041,,,,,,n_cand=5 s=48.0,n_cand=5 s=44.4
+042,,,,,,n_cand=5 s=93.3,n_cand=5 s=71.4
+044,,,,,,n_cand=5 s=83.4,n_cand=5 s=58.5
+045,,,,,,n_cand=5 s=72.1,n_cand=5 s=75.7
+049,an_049.stl,4.51,< 5 mm,21,22,lista larga,lista larga
+049,,,,,,n_cand=5 s=44.2,n_cand=5 s=62.3
+050,an_050_1.stl,13.29,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+050,an_050_2.stl,6.26,5–10 mm,2,2,cociente+curvatura,cociente+curvatura
+050,,,,,,n_cand=5 s=25.9,n_cand=5 s=39.5
+051,an_051.stl,7.65,5–10 mm,5,5,cociente+curvatura,cociente+curvatura
+051,,,,,,n_cand=5 s=55.0,n_cand=5 s=76.8
+052,,,,,,n_cand=5 s=59.5,n_cand=5 s=81.3
+053,,,,,,n_cand=5 s=47.2,n_cand=5 s=65.3
+055,,,,,,n_cand=5 s=56.9,n_cand=5 s=68.0
+056,,,,,,n_cand=5 s=52.6,n_cand=5 s=59.7
+057,,,,,,n_cand=5 s=54.2,n_cand=5 s=61.5
+058,,,,,,n_cand=5 s=52.6,n_cand=5 s=60.3
+060,,,,,,n_cand=5 s=53.4,n_cand=5 s=59.9
+061,,,,,,n_cand=5 s=74.6,n_cand=5 s=79.8
+062,,,,,,n_cand=5 s=106.4,n_cand=5 s=118.7
+064,,,,,,n_cand=5 s=67.2,n_cand=5 s=80.1
+065,,,,,,n_cand=5 s=83.6,n_cand=5 s=99.5
+066,,,,,,n_cand=5 s=106.1,n_cand=5 s=129.5
+067,,,,,,n_cand=5 s=56.7,n_cand=5 s=79.0
+068,,,,,,n_cand=5 s=91.0,n_cand=5 s=75.8
+069,,,,,,n_cand=5 s=54.3,n_cand=5 s=60.9
+071,,,,,,n_cand=5 s=37.7,n_cand=5 s=44.6
+072,,,,,,n_cand=5 s=84.3,n_cand=5 s=97.3
+073,,,,,,n_cand=5 s=72.7,n_cand=5 s=83.3
+075,,,,,,n_cand=5 s=49.8,n_cand=5 s=58.3
+077,,,,,,n_cand=5 s=71.5,n_cand=5 s=76.7
+078,,,,,,n_cand=5 s=28.1,n_cand=5 s=33.9
+079,,,,,,n_cand=5 s=70.4,n_cand=5 s=102.0
+080,,,,,,n_cand=5 s=48.2,n_cand=5 s=71.0
+082,an_082_1.stl,7.73,5–10 mm,3,3,curvatura,curvatura
+082,an_082_3.stl,5.16,5–10 mm,,17,,lista larga
+082,an_082_4.stl,5.16,5–10 mm,,,,
+082,an_082_2.stl,4.73,< 5 mm,3,3,curvatura,curvatura
+082,,,,,,n_cand=5 s=86.2,n_cand=5 s=121.6
+083,an_083.stl,11.67,≥ 10 mm,34,34,lista larga,lista larga
+083,,,,,,n_cand=5 s=74.0,n_cand=5 s=86.1
+084,an_084.stl,16.56,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+084,,,,,,n_cand=5 s=141.4,n_cand=5 s=83.0
+085,an_085_2.stl,4.95,< 5 mm,36,39,lista larga,lista larga
+085,an_085_1.stl,3.72,< 5 mm,18,18,lista larga,lista larga
+085,an_085_3.stl,3.31,< 5 mm,,,,
+085,,,,,,n_cand=5 s=78.8,n_cand=5 s=88.4
+086,an_086_1.stl,30.01,≥ 10 mm,9,2,lista larga,calibre+cociente+curvatura
+086,an_086_2.stl,3.01,< 5 mm,6,7,lista larga,lista larga
+086,,,,,,n_cand=5 s=39.3,n_cand=5 s=48.1
+087,an_087.stl,7.5,5–10 mm,3,3,curvatura,curvatura
+087,,,,,,n_cand=5 s=57.4,n_cand=5 s=67.6
+088,an_088_1.stl,20.11,≥ 10 mm,2,2,calibre+cociente,calibre+cociente
+088,an_088_2.stl,4.06,< 5 mm,2,2,calibre+cociente,calibre+cociente
+088,,,,,,n_cand=5 s=51.2,n_cand=5 s=58.9
+089,an_089.stl,7.68,5–10 mm,2,2,calibre+cociente,calibre+cociente
+089,,,,,,n_cand=5 s=54.2,n_cand=5 s=62.2
+090,an_090_1.stl,7.0,5–10 mm,11,11,lista larga,lista larga
+090,an_090_5.stl,6.0,5–10 mm,37,37,lista larga,lista larga
+090,an_090_3.stl,4.28,< 5 mm,30,30,lista larga,lista larga
+090,an_090_2.stl,3.11,< 5 mm,,,,
+090,an_090_4.stl,2.72,< 5 mm,18,18,lista larga,lista larga
+090,,,,,,n_cand=5 s=93.0,n_cand=5 s=106.9
+091,an_091.stl,30.13,≥ 10 mm,3,1,calibre+cociente,calibre+curvatura
+091,,,,,,n_cand=5 s=47.3,n_cand=5 s=74.0
+092,an_092.stl,4.03,< 5 mm,,,,
+092,,,,,,n_cand=5 s=53.0,n_cand=5 s=85.7
+093,an_093_1.stl,14.46,≥ 10 mm,,,,
+093,an_093_3.stl,13.21,≥ 10 mm,1,1,calibre+curvatura,calibre+curvatura
+093,an_093_2.stl,11.34,≥ 10 mm,,,,
+093,an_093_4.stl,5.09,5–10 mm,,,,
+093,an_093_5.stl,3.61,< 5 mm,,,,
+093,,,,,,n_cand=5 s=45.0,n_cand=5 s=74.0
+095,an_095.stl,14.51,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+095,,,,,,n_cand=5 s=21.3,n_cand=5 s=38.3
+096,an_096.stl,21.27,≥ 10 mm,1,1,calibre+curvatura,calibre+curvatura
+096,,,,,,n_cand=5 s=50.0,n_cand=5 s=73.5
+097,an_097.stl,3.4,< 5 mm,7,7,lista larga,lista larga
+097,,,,,,n_cand=5 s=54.3,n_cand=5 s=45.8
+098,an_098.stl,3.1,< 5 mm,,,,
+098,,,,,,n_cand=5 s=52.0,n_cand=5 s=58.2
+099,an_099_2.stl,20.03,≥ 10 mm,3,3,calibre,calibre
+099,an_099_1.stl,8.31,5–10 mm,9,9,lista larga,lista larga
+099,an_099_3.stl,7.33,5–10 mm,3,3,calibre,calibre
+099,,,,,,n_cand=5 s=60.5,n_cand=5 s=68.9
+100,an_100.stl,42.31,≥ 10 mm,,,,
+100,,,,,,n_cand=5 s=62.0,n_cand=5 s=54.4
+101,an_101.stl,4.15,< 5 mm,,,,
+101,,,,,,n_cand=5 s=70.3,n_cand=5 s=63.0
+102,an_102.stl,20.76,≥ 10 mm,2,2,calibre+cociente,calibre+cociente
+102,,,,,,n_cand=5 s=64.6,n_cand=5 s=54.3
+103,an_103.stl,34.92,≥ 10 mm,,,,
+103,,,,,,n_cand=5 s=80.9,n_cand=5 s=72.5
+104,an_104.stl,8.44,5–10 mm,,,,
+104,,,,,,n_cand=5 s=63.2,n_cand=5 s=80.1
+105,an_105.stl,29.74,≥ 10 mm,2,2,calibre,calibre
+105,,,,,,n_cand=5 s=42.9,n_cand=5 s=60.6
+106,an_106_1.stl,5.17,5–10 mm,21,22,lista larga,lista larga
+106,an_106_2.stl,5.17,5–10 mm,21,22,lista larga,lista larga
+106,,,,,,n_cand=5 s=91.4,n_cand=5 s=124.6
+107,an_107.stl,3.76,< 5 mm,1,1,curvatura,curvatura
+107,,,,,,n_cand=5 s=39.1,n_cand=5 s=56.4
+108,an_108.stl,16.77,≥ 10 mm,1,1,calibre+cociente+curvatura,calibre+cociente+curvatura
+108,,,,,,n_cand=5 s=80.4,n_cand=5 s=90.9
+109,an_109_1.stl,24.98,≥ 10 mm,2,2,calibre+cociente,calibre+cociente
+109,an_109_2.stl,3.64,< 5 mm,,,,
+109,,,,,,n_cand=5 s=101.5,n_cand=5 s=65.4
+110,an_110.stl,25.25,≥ 10 mm,2,2,calibre+cociente,calibre+cociente+curvatura
+110,,,,,,n_cand=5 s=76.0,n_cand=5 s=62.4
+111,an_111.stl,5.59,5–10 mm,15,15,lista larga,lista larga
+111,,,,,,n_cand=5 s=40.8,n_cand=5 s=36.7
+112,an_112.stl,26.61,≥ 10 mm,1,1,cociente+curvatura,cociente+curvatura
+112,,,,,,n_cand=5 s=69.3,n_cand=5 s=72.9
+113,an_113.stl,4.56,< 5 mm,18,17,lista larga,lista larga
+113,,,,,,n_cand=5 s=62.9,n_cand=5 s=63.8
+114,an_114.stl,3.01,< 5 mm,,,,
+114,,,,,,n_cand=5 s=68.8,n_cand=5 s=64.1
+115,an_115_1.stl,9.91,5–10 mm,3,10,calibre+cociente+curvatura,lista larga
+115,an_115_2.stl,2.88,< 5 mm,2,2,calibre+cociente+curvatura,calibre+cociente+curvatura
+115,,,,,,n_cand=5 s=87.4,n_cand=5 s=59.9
+116,an_116_4.stl,32.82,≥ 10 mm,15,16,lista larga,lista larga
+116,an_116_1.stl,28.14,≥ 10 mm,2,2,calibre,calibre
+116,an_116_3.stl,24.02,≥ 10 mm,3,3,calibre+cociente,calibre+cociente
+116,an_116_2.stl,20.01,≥ 10 mm,7,8,lista larga,lista larga
+116,,,,,,n_cand=5 s=90.7,n_cand=5 s=97.5
+117,an_117_2.stl,4.59,< 5 mm,33,33,lista larga,lista larga
+117,an_117_1.stl,3.94,< 5 mm,,,,
+117,,,,,,n_cand=5 s=101.5,n_cand=5 s=92.0
+118,an_118.stl,4.51,< 5 mm,5,5,curvatura,curvatura
+118,,,,,,n_cand=5 s=50.9,n_cand=5 s=73.5
+119,,,,,,n_cand=5 s=157.9,n_cand=5 s=107.1
+120,an_120.stl,5.72,5–10 mm,2,2,curvatura,curvatura
+120,,,,,,n_cand=5 s=92.8,n_cand=5 s=78.4
+121,an_121.stl,23.11,≥ 10 mm,5,5,calibre,calibre
+121,,,,,,n_cand=5 s=73.9,n_cand=5 s=47.0
+123,,,,,,n_cand=5 s=88.1,n_cand=5 s=97.3
+124,,,,,,n_cand=5 s=42.9,n_cand=5 s=50.0
+125,,,,,,n_cand=5 s=59.5,n_cand=5 s=71.1
+126,an_126_1.stl,6.61,5–10 mm,15,15,lista larga,lista larga
+126,an_126_2.stl,2.16,< 5 mm,2,2,curvatura,curvatura
+126,an_126_3.stl,2.16,< 5 mm,2,2,curvatura,curvatura
+126,,,,,,n_cand=5 s=48.0,n_cand=5 s=57.9
+127,,,,,,n_cand=5 s=92.1,n_cand=5 s=102.3
+128,,,,,,n_cand=5 s=52.7,n_cand=5 s=56.6
+130,an_130.stl,26.65,≥ 10 mm,2,2,calibre+cociente,calibre+cociente
+130,,,,,,n_cand=5 s=68.1,n_cand=5 s=80.7
+131,,,,,,n_cand=5 s=76.7,n_cand=5 s=105.6
+134,,,,,,n_cand=5 s=62.6,n_cand=5 s=72.8
+135,,,,,,n_cand=5 s=83.5,n_cand=5 s=83.7
+136,,,,,,n_cand=5 s=71.2,n_cand=5 s=99.9
+137,,,,,,n_cand=5 s=42.6,n_cand=5 s=35.3
+138,,,,,,n_cand=5 s=101.3,n_cand=5 s=83.9
+139,,,,,,n_cand=5 s=67.0,n_cand=5 s=69.3
+140,,,,,,n_cand=5 s=62.3,n_cand=5 s=63.3
+141,,,,,,n_cand=5 s=47.5,n_cand=5 s=45.5
+143,,,,,,n_cand=5 s=109.9,n_cand=5 s=78.6
+144,an_144.stl,4.89,< 5 mm,,,,
+144,,,,,,n_cand=5 s=72.2,n_cand=5 s=76.8
+146,,,,,,n_cand=5 s=60.5,n_cand=5 s=82.3
+147,,,,,,n_cand=5 s=75.4,n_cand=5 s=106.6
+148,,,,,,n_cand=5 s=69.9,n_cand=5 s=85.1
+149,,,,,,n_cand=5 s=71.9,n_cand=5 s=115.0
+150,,,,,,n_cand=5 s=95.2,n_cand=5 s=155.6
+152,,,,,,n_cand=5 s=76.6,n_cand=5 s=80.5
+153,,,,,,n_cand=5 s=68.9,n_cand=5 s=64.6
+154,an_154_1.stl,29.75,≥ 10 mm,2,2,calibre+cociente,calibre+cociente
+154,an_154_2.stl,4.26,< 5 mm,,,,
+154,,,,,,n_cand=5 s=75.6,n_cand=5 s=72.2
+155,,,,,,n_cand=5 s=110.1,n_cand=5 s=87.3
+156,,,,,,n_cand=5 s=174.7,n_cand=5 s=141.0
+157,,,,,,n_cand=5 s=125.6,n_cand=5 s=126.6
+158,,,,,,n_cand=5 s=56.3,n_cand=5 s=95.2
+159,,,,,,n_cand=5 s=81.3,n_cand=5 s=122.5
+160,,,,,,n_cand=5 s=79.2,n_cand=5 s=115.5
+161,an_161.stl,27.26,≥ 10 mm,4,4,cociente,cociente
+161,,,,,,n_cand=5 s=39.2,n_cand=5 s=53.2
+162,,,,,,n_cand=5 s=91.9,n_cand=5 s=132.5
+163,an_163.stl,2.54,< 5 mm,1,1,curvatura,curvatura
+163,,,,,,n_cand=5 s=77.6,n_cand=5 s=101.5
+164,,,,,,n_cand=5 s=54.6,n_cand=5 s=74.6
+165,,,,,,n_cand=5 s=64.8,n_cand=5 s=176.2
+166,,,,,,n_cand=5 s=50.9,n_cand=5 s=162.9
+167,,,,,,n_cand=5 s=80.9,n_cand=5 s=202.8
+168,,,,,,n_cand=5 s=79.4,n_cand=5 s=215.7
+169,,,,,,n_cand=5 s=66.0,n_cand=5 s=140.9
+170,,,,,,n_cand=5 s=41.2,n_cand=5 s=158.1
+172,,,,,,n_cand=5 s=53.0,n_cand=5 s=125.2
+173,,,,,,n_cand=5 s=61.6,n_cand=5 s=164.6
+174,,,,,,n_cand=5 s=65.7,n_cand=5 s=180.8
+176,,,,,,n_cand=5 s=55.7,n_cand=5 s=147.2
+179,,,,,,n_cand=5 s=44.3,n_cand=5 s=126.2
+180,,,,,,n_cand=5 s=86.1,n_cand=5 s=153.1
+181,,,,,,n_cand=5 s=0.6,n_cand=5 s=1.2
+182,,,,,,n_cand=5 s=57.3,n_cand=5 s=102.7
+184,an_184.stl,2.11,< 5 mm,,,,
+184,,,,,,n_cand=5 s=54.3,n_cand=5 s=101.1
+185,an_185.stl,4.21,< 5 mm,5,5,calibre+curvatura,calibre+curvatura
+185,,,,,,n_cand=5 s=36.1,n_cand=5 s=66.4
+186,,,,,,n_cand=5 s=67.6,n_cand=5 s=126.9
+187,,,,,,n_cand=5 s=24.6,n_cand=5 s=54.7
+188,,,,,,n_cand=5 s=2.3,n_cand=5 s=4.0
+189,,,,,,n_cand=5 s=19.0,n_cand=5 s=43.1
+190,,,,,,n_cand=5 s=44.6,n_cand=5 s=96.3
+191,,,,,,n_cand=5 s=48.9,n_cand=5 s=85.5
+192,,,,,,n_cand=5 s=53.7,n_cand=5 s=111.6
+193,,,,,,n_cand=5 s=50.0,n_cand=5 s=75.3
+194,,,,,,n_cand=5 s=55.8,n_cand=5 s=83.3
+195,,,,,,n_cand=5 s=31.0,n_cand=5 s=47.3
+196,,,,,,n_cand=5 s=60.3,n_cand=5 s=120.1
+197,,,,,,n_cand=5 s=65.0,n_cand=5 s=141.3

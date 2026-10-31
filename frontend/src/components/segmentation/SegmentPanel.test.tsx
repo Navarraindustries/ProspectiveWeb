@@ -868,6 +868,31 @@ describe("método tubular", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
     expect(await screen.findByText(/Ya hay una segmentación tubular en curso/)).toBeInTheDocument();
   });
+
+  describe("el techo del método tubular lo dice el backend por modalidad", () => {
+  // Paso 2 del plan Zenodo: en TC el método tubular aplica 700 HU para dejar
+  // el hueso fuera. Decir «nunca usa el límite superior» sería falso allí, y
+  // la vista previa tiene que enseñar la misma banda que hará la malla.
+  it("en TC enseña el techo de 700 HU y la previa lo usa", async () => {
+    const { mockApi } = await mocks();
+    mockApi.suggestedBand.mockResolvedValue({ lower: 150, upper: 1500, vmin: -500, vmax: 2000, tubular_upper: 700 });
+    renderPanel();
+    expect(await screen.findByText(/techo de 700 HU para dejar el hueso fuera/)).toBeInTheDocument();
+    await waitFor(() => expect(mockApi.segmentPreview).toHaveBeenCalled());
+    const ultima = mockApi.segmentPreview.mock.calls.at(-1)?.[1] as { upper: number };
+    expect(ultima.upper).toBe(700);
+  });
+
+  it("en 3DRA sigue sin techo", async () => {
+    const { mockApi } = await mocks();
+    mockApi.suggestedBand.mockResolvedValue({ lower: 1470, upper: 4717, vmin: -1000, vmax: 5000, tubular_upper: 0 });
+    renderPanel();
+    expect(await screen.findByText(/no usa el límite superior en esta modalidad/)).toBeInTheDocument();
+    await waitFor(() => expect(mockApi.segmentPreview).toHaveBeenCalled());
+    const ultima = mockApi.segmentPreview.mock.calls.at(-1)?.[1] as { upper: number };
+    expect(ultima.upper).toBe(0);
+  });
+  });
 });
 
 /* La unidad del umbral depende de la modalidad: HU solo en TC; en el resto es

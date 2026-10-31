@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Prospective y el dataset Zenodo: informe ejecutivo (24 de octubre)</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  :root { --fg: #141a24; --fg2: #4f5b6b; --line: #d9dfe8; --accent: #184a8c; --soft: #e8eff9; --ok: #0f7a4a; --bad: #b3261e; --warn: #9a6a00; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: var(--fg); font-family: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif; font-size: 10.6pt; line-height: 1.42; }
+  .eyebrow { font-size: 8.5pt; letter-spacing: .08em; text-transform: uppercase; color: var(--fg2); font-weight: 600; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: 23pt; line-height: 1.12; margin: 4pt 0 8pt; }
+  h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: 15pt; margin: 18pt 0 6pt; color: var(--accent); break-after: avoid; }
+  h3 { font-size: 10.8pt; font-weight: 600; margin: 10pt 0 3pt; break-after: avoid; }
+  p { margin: 0 0 6pt; }
+  .lead { font-size: 11.6pt; }
+  .muted { color: var(--fg2); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin: 10pt 0 4pt; }
+  .kpi { border: 1px solid var(--line); border-radius: 6pt; padding: 8pt 10pt; }
+  .kpi .n { font-family: Georgia, serif; font-size: 20pt; font-weight: 600; line-height: 1.05; }
+  .kpi .n small { font-size: 10pt; color: var(--fg2); font-family: "Segoe UI", sans-serif; font-weight: 500; }
+  .kpi .l { font-size: 8.6pt; color: var(--fg2); margin-top: 3pt; }
+  .kpi.good .n { color: var(--ok); } .kpi.bad .n { color: var(--bad); }
+  table { border-collapse: collapse; width: 100%; font-size: 9.4pt; margin: 4pt 0 8pt; }
+  th, td { text-align: left; padding: 4pt 6pt; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 8.2pt; letter-spacing: .04em; text-transform: uppercase; color: var(--fg2); font-weight: 600; background: #f6f8fb; }
+  td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.seg { background: #f3f7fd; } td.det { background: #eef7f2; }
+  th.seg { background: #e3ecf9; color: #184a8c; } th.det { background: #dff0e6; color: #0f7a4a; }
+  tr.off td { color: var(--fg2); } tr.off td.seg, tr.off td.det { background: #f4f4f4; }
+  tr.new td { background: #f4fbf6; } tr.new td.seg { background: #e9f3ee; } tr.new td.det { background: #e2f2e8; }
+  tr { break-inside: avoid; }
+  table.measures tr { break-inside: auto; }
+  table.measures td { font-size: 9.1pt; }
+  .fig { margin: 6pt 0 8pt; break-inside: avoid; }
+  .fig img { width: 86%; display: block; margin: 0 auto; }
+  .fig.wide img { width: 100%; }
+  .fig .cap { font-size: 8.6pt; color: var(--fg2); margin: 3pt 0 0; }
+  .callout { border-left: 3pt solid var(--accent); background: var(--soft); padding: 7pt 10pt; margin: 8pt 0; break-inside: avoid; }
+  .callout p { margin: 0 0 4pt; }
+  .pill { display: inline-block; font-size: 8pt; font-weight: 600; padding: 1pt 6pt; border-radius: 999px; border: 1px solid var(--line); color: var(--fg2); white-space: nowrap; }
+  .pill.done { color: var(--ok); border-color: #9fd3b8; } .pill.run { color: var(--warn); border-color: #e6cd8a; } .pill.todo { color: var(--accent); border-color: #a9c3e8; } .pill.off { color: var(--bad); border-color: #e6b3af; }
+  ul { margin: 2pt 0 6pt 16pt; padding: 0; } li { margin: 0 0 3pt; }
+  code { font-family: Consolas, "IBM Plex Mono", monospace; font-size: 8.8pt; background: var(--soft); padding: 0 3pt; border-radius: 3pt; }
+  .page { break-before: page; }
+  footer { margin-top: 14pt; padding-top: 6pt; border-top: 1px solid var(--line); font-size: 8.6pt; color: var(--fg2); }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">Informe ejecutivo · Prospective · 8 – 24 de octubre de 2026</div>
+<h1>Prospective ante el dataset Zenodo: 52 de 122 aneurismas detectados, 5 fuera del modelo (eran 31), y dos vías medidas y descartadas</h1>
+<p class="lead">En dos semanas y media se ha incorporado el primer dataset público con verdad de terreno (172 angio-TC de cabeza con 122 aneurismas segmentados a mano), se ha medido el detector de Prospective sobre él ocho veces de principio a fin y, entre pasada y pasada, se han identificado y corregido las causas del fallo una a una, separando siempre lo que falla en la <strong>segmentación</strong> (la lesión no llega al modelo 3D) de lo que falla en la <strong>detección</strong> (está en el modelo y el detector no la coloca). Las lesiones que la aplicación pone entre sus 5 candidatos pasan de 4 a 52; las que no llegan al modelo, de 31 a 5. Lo nuevo desde el día 23 son tres medidas más, las tres juzgadas sobre los 172 estudios: dos de detección que se descartan con cifras (subir el detalle de la curvatura y aislar la pieza del calibre) y una de segmentación que entra: una regla que recupera en el modelo los sacos grandes que se quedaban fuera por su cuello estrecho o su trombo. Con ella, el gigante de 50 mm que nunca había llegado al modelo sale en primer puesto, y el de 23 mm con trombo, en segundo.</p>
+
+<div class="kpis">
+  <div class="kpi"><div class="n">172 × 8</div><div class="l">angio-TC evaluadas de principio a fin: cinco pasadas completas y tres experimentos de detección (82 con aneurisma, 122 lesiones; 90 controles)</div></div>
+  <div class="kpi good"><div class="n">4 → 52 <small>de 122</small></div><div class="l">lesiones entre los 5 candidatos; 13 en primer puesto (eran 0); estudios con la lesión entre los 5: 3 → 46 de 82</div></div>
+  <div class="kpi good"><div class="n">31 → 5</div><div class="l">lesiones que no llegan al modelo 3D; la regla de sacos del 24 recupera 3 de las 8 que quedaban, las tres grandes y trombosadas</div></div>
+  <div class="kpi bad"><div class="n" style="font-size:17pt; white-space:nowrap">52 → 44 / 46 / 51</div><div class="l">entre los 5 con las dos vías de detección descartadas: el tope de curvatura al doble y al triple, y la pieza del calibre sola</div></div>
+</div>
+
+<h2>1. Qué se ha hecho y cuándo</h2>
+<table>
+  <thead><tr><th style="width:62pt">Fecha</th><th>Trabajo</th><th>Resultado</th><th style="width:60pt">Estado</th></tr></thead>
+  <tbody>
+    <tr><td>8 oct</td><td>Auditoría de seguridad de la API y el acceso; búsqueda de datasets DICOM con verdad de terreno</td><td>7 hallazgos corregidos el mismo día. Elegido Zenodo 15697196 (CC-BY): el único con DICOM + segmentación manual del aneurisma</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>9 oct</td><td>Ingesta de 44 estudios por la API, como un usuario, y banco de medida del detector</td><td>Primer dato real: 2 aciertos de 34 aneurismas en angio-TC</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>12 oct</td><td>Evaluación de los 172 estudios con el software tal cual, ajustes del detector y un oráculo de resolución</td><td>4 de 122 lesiones entre los 5; 31 fuera del modelo; tres causas medidas</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>13 – 14 oct</td><td>Medidas 0 – 3: red de seguridad 3DRA, resolución nativa donde importa, hueso fuera de la máscara en TC, detector sobre la malla limpia</td><td>Diseñadas y medidas sobre 16 estudios; 3DRA sin cambios</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>14 – 18 oct</td><td>Primera pasada completa de los 172 con las medidas 1 – 3 (48 h de máquina)</td><td>23 de 122 entre los 5; 16 fuera del modelo; dos poblaciones de estudios identificadas</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>18 – 19 oct</td><td>Canales de grosor en los 132 estudios de cabeza y cuello (7,6 h); criterio absoluto en controles</td><td>Entre los 5 de 5 a 13 en esos estudios; regla cambiada. El criterio absoluto se midió y no existe</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>19 – 20 oct</td><td>Recorte a la región intracraneal antes de detectar; suelo de densidad; dos pasadas de detección de los 172 sobre las mallas guardadas</td><td>44 y después <strong>45 de 122 entre los 5</strong>, 8 en primer puesto, ninguna lesión baja</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>20 – 22 oct</td><td>Banda de la cabeza antes de segmentar; cuarta pasada completa de los 172 desde el DICOM (19,7 h); fusión con los 321 cambios del compañero y publicación en <code>master</code></td><td><strong>52 de 122 entre los 5</strong>, 12 en primer puesto, 45 de 82 estudios, 8 fuera del modelo, 5,7 min por estudio</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>22 – 23 oct</td><td>Experimento del tope de curvatura: detección de los 172 sobre las mallas guardadas con el tope al doble y al triple (14 h)</td><td><strong>44 y 46 de 122 entre los 5, frente a 52.</strong> Recupera 3 sacos grandes y pierde de 5 a 7 de menos de 10 mm. No se adopta</td><td><span class="pill off">descartado</span></td></tr>
+    <tr><td>23 oct</td><td>La pieza del calibre aislada: lo único que el experimento anterior enseñó que ganaba, probado solo sobre las mallas guardadas (3,9 h)</td><td><strong>51 de 122 entre los 5, frente a 52</strong>; entran 3 grandes y trombosados, salen 4 pequeños y medianos. Un reparto, no una mejora. No se adopta sola</td><td><span class="pill off">descartado</span></td></tr>
+    <tr><td>23 – 24 oct</td><td>Regla de sacos en la máscara vascular: diagnóstico en 7 estudios, programada con tests, y quinta pasada completa de los 172 desde el DICOM (20,9 h)</td><td><strong>Fuera del modelo 8 → 5; 52 entre los 5, 13 en primer puesto, 78 en la lista, 46 de 82 estudios.</strong> Los tres que entran son los grandes trombosados señalados el día 22. Entra</td><td><span class="pill done">hecho</span></td></tr>
+    <tr><td>pendiente</td><td>Comprobación de la pantalla con un estudio del dataset</td><td>Requiere entrar en la aplicación; la lógica es la misma función en la API y en el banco, cubierta por tests</td><td><span class="pill todo">pendiente</span></td></tr>
+  </tbody>
+</table>
+
+<h2>2. El dataset y el criterio</h2>
+<p>Zenodo 15697196: 172 angio-TC de cabeza (145 de ellas incluyen el cuello), 82 con aneurisma y 90 controles, con cada aneurisma segmentado a mano en un fichero STL. Son 122 lesiones: la mitad miden 5 mm o menos, 39 son «blister» de 1,3 – 3,6 mm, 16 son gigantes, 20 están calcificadas y 22 trombosadas. Es un conjunto difícil a propósito, y es el tipo de examen (TC de cabeza entera, con el hueso tocando los vasos con contraste) para el que Prospective no se había medido nunca: su detector se había calibrado sobre dos casos de angiografía rotacional 3D (3DRA), donde no hay hueso.</p>
+<p>Dos medidas distintas, siempre separadas. <strong>Segmentación:</strong> la lesión «llega al modelo» si más de la mitad de la superficie que el radiólogo dibujó está a menos de 1 mm del modelo 3D que Prospective construye; si no llega, el detector no puede verla. <strong>Detección:</strong> la lesión cuenta como detectada si uno de los candidatos que la aplicación enseña está a menos de 5 mm o de su diámetro. «Entre los 5» es la lista que ve el clínico; «entre los 40» es la lista larga del banco, que dice si la lesión existe para el detector aunque quede atrás. Una medida entra en el código solo si, medida sobre los 172, no baja la segmentación ni la detección en ningún grupo que importe. Desde el día 22 se han juzgado tres con esa regla: dos no la cumplen y una sí.</p>
+
+<h2>3. Las medidas, en el orden en que se tomaron, y qué cambió cada una</h2>
+<table class="measures">
+  <thead><tr><th style="width:14pt">#</th><th style="width:92pt">Medida</th><th>Qué hace</th><th class="seg" style="width:126pt">Segmentación (antes → después)</th><th class="det" style="width:126pt">Detección (antes → después)</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td><strong>Red de seguridad 3DRA</strong> (13 oct)</td><td>Regresión automática sobre los dos casos de referencia de 3DRA, ejecutada tras cada cambio.</td><td class="seg">Sin cambios en 3DRA tras cada medida.</td><td class="det">Lesión en el primer puesto en ambos, tras cada medida.</td></tr>
+    <tr><td>1</td><td><strong>Resolución nativa donde importa</strong> (13 oct)</td><td>La pasada reducida localiza el árbol; se vuelve a segmentar a la resolución del DICOM en una banda de 5 mm alrededor, por baldosas.</td><td class="seg"><strong>Fuera del modelo: 31 → 16.</strong> Coste: 10 s → 11 min por estudio.</td><td class="det">Con 2 y 3: entre los 5, 4 → 23; en la lista de 40, 17 → 43.</td></tr>
+    <tr><td>2</td><td><strong>Hueso fuera de la máscara en TC</strong> (13 oct)</td><td>Lo que supera 700 HU se quita antes de rellenar, con 1,5 mm de margen. En 3DRA no se aplica.</td><td class="seg"><strong>Pieza mayor del modelo: 760 → 196 cm³.</strong> Coste conocido: una pared calcificada pegada al cráneo se va con él.</td><td class="det">Candidatos sobre hueso: 560 → 206 de 860; en controles, 66 % → 28 %.</td></tr>
+    <tr><td>3</td><td><strong>El detector sobre la malla limpia</strong> (14 oct)</td><td>Regla absoluta de curvatura en lugar del percentil y «la región convexa más grande primero».</td><td class="seg">—</td><td class="det">Más lesiones entre los 5 y los 10 sin aumentar el hueso; seis variantes descartadas tras medirlas.</td></tr>
+    <tr><td>4</td><td><strong>Canales de grosor también en cabeza y cuello</strong> (19 oct)</td><td>Los dos canales que miden el calibre del vaso solo corrían en mallas «árbol» pequeñas; ahora, siempre que la pieza mayor mida más de 20 mm.</td><td class="seg">—</td><td class="det">Entre los 5: 23 → 31; en la lista, 43 → 52. Hueso en controles: 112 → 79 de 415.</td></tr>
+    <tr><td>5</td><td><strong>Recorte a la región intracraneal</strong> (20 oct)</td><td>Las 122 lesiones están a menos de 121 mm del techo del modelo; los candidatos de los controles, a 284 mm. El modelo se queda con sus 140 mm altos antes de detectar.</td><td class="seg">— (el modelo no cambia; el detector mira solo la cabeza)</td><td class="det"><strong>Entre los 5: 31 → 44</strong>; ganan 17, pierden 4. Detección 3 veces más rápida.</td></tr>
+    <tr><td>6</td><td><strong>Suelo de densidad</strong> (20 oct)</td><td>Un candidato en aire o en partes blandas sin contraste (por debajo de −100 HU de media o de 200 de máximo) no es un aneurisma; se quita antes de elegir los 5.</td><td class="seg">—</td><td class="det">Entre los 5: 44 → 45; primer puesto 6 → 8; ninguna lesión baja. 1 148 candidatos quitados de 7 647.</td></tr>
+    <tr><td>7</td><td><strong>Banda de la cabeza antes de segmentar</strong> (20 – 22 oct)</td><td>145 estudios son de cabeza y cuello (350 mm de alto) y se segmentaban reducidos por 2 a 6 por falta de memoria. Las 122 lesiones están a 54 – 120 mm bajo el cráneo: se segmentan solo los 150 mm bajo el techo del cráneo.</td><td class="seg"><strong>Fuera del modelo: 16 → 8</strong> (recupera 11, pierde 3). Reducción: 68 estudios a ×5 y 16 a ×6 → ninguno por encima de ×3; 54 a nativo. 11,4 → 5,7 min por estudio.</td><td class="det"><strong>Entre los 5: 45 → 52</strong>; entre los 10, 53 → 61; primer puesto 8 → 12; estudios 37 → 45 de 82. Suben 30 lesiones, bajan 22.</td></tr>
+    <tr class="off"><td>8</td><td><strong>Tope de la copia de curvatura ×2 y ×3</strong> (22 – 23 oct) <span class="pill off">no adoptada</span></td><td>El detector calcula la curvatura sobre una copia del modelo diezmada a 80 000 vértices; los modelos de la cabeza a resolución nativa tienen de 133 000 a 650 000. Se probó con 160 000 y con 240 000 sobre los mismos modelos del 22.</td><td class="seg">— (mismos modelos: 8 fuera, mismos factores; solo cambia la detección)</td><td class="det"><strong>Entre los 5: 52 → 44 (×2) y 52 → 46 (×3)</strong>; en la lista, 75 → 67 y 69. Gana 1 en ≥ 25 mm; pierde de 5 a 7 de menos de 10 mm. Detección 44 → 104 y 146 s por estudio.</td></tr>
+    <tr class="off"><td>9</td><td><strong>La pieza del calibre, sola</strong> (23 oct) <span class="pill off">no adoptada</span></td><td>La medida 8 enseñó que los sacos grandes ganaban por la pieza que mide el calibre del vaso, no por la curvatura. Se probó esa pieza sola, sobre el modelo completo, con el detalle de curvatura intacto y los mismos modelos del 22.</td><td class="seg">— (mismos modelos)</td><td class="det"><strong>Entre los 5: 52 → 51</strong>; lista y top 10 iguales; estudios 45 → 46. Entran 3 grandes y trombosados (con trombo 12 → 14; ≥ 25 mm 10 → 12), salen 4 pequeños y medianos (&lt; 5 mm 5 → 3). Detección 49 → 65 s.</td></tr>
+    <tr class="new"><td>10</td><td><strong>Regla de sacos en la máscara vascular</strong> (23 – 24 oct) <span class="pill done">adoptada</span></td><td>Un aneurisma es una bola, no un tubo. La máscara seguía el árbol tubular y recuperaba lo que estaba a 3 mm; un saco grande de cuello estrecho, o con trombo, quedaba fuera. Ahora las bolas de 11 mm o más que están a 5 mm del árbol y no son hueso se pegan al modelo. En 7 estudios a mano: el gigante de 50 mm pasa del 0 al 49 %; tres sanos no admiten nada.</td><td class="seg"><strong>Fuera del modelo: 8 → 5.</strong> Entran 026 (50 mm, gigante: 2 → 91 % de su superficie), 121 (23 mm, trombo: 1 → 100 %) y 024 (20 mm, trombo: 33 → 74 %); ninguna lesión pierde cobertura. El modelo no cambia en 79 estudios y crece 0,1 cm³ de mediana. +6 % de tiempo.</td><td class="det"><strong>Entre los 5: 52 → 52</strong>; entre los 10, 61 → 64; lista 75 → 78; primer puesto 12 → 13; estudios 45 → 46. Entran 026 (1.º), 121 (2.º) y 019 (21 mm, trombo: del 37.º al 4.º); salen 027, 033, 088 y 109 por candidatos nuevos de calibre. Controles iguales: 90 de 90 con 5.</td></tr>
+  </tbody>
+</table>
+<p class="muted">Herramientas que quedan: evaluación de los 172 fuera del servidor por el mismo camino que la API (reanudable, con lista larga y traza por región), banco del detector, análisis por lesión a partir de los registros, diagnóstico de la máscara fase a fase, comparación lesión a lesión entre dos pasadas, y la suite del backend: 2 300 tests (9 nuevos para la regla de sacos). Código publicado en <code>master</code> el 20 de octubre; la regla de sacos y los informes del 22 al 24, en local a la espera del commit y del push.</p>
+
+<h2>4. Resultados contrastados sobre los 172 estudios</h2>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-24/fig_deteccion.png" alt="Cinco pasadas"><p class="cap">Detección. Las mismas 122 lesiones, el mismo criterio y la misma herramienta de medida en las cinco pasadas completas; solo cambia el software. Las pasadas del 20 de octubre reutilizan los modelos del 18 (solo detección); las del 22 y del 24 vuelven a segmentar desde el DICOM. La del 24 empata entre los 5 y sube en todo lo demás: 64 entre los 10, 78 en la lista, 13 en primer puesto, 46 estudios.</p></div>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-24/fig_segmentacion.png" alt="Segmentación por pasada"><p class="cap">Segmentación. Izquierda: lesiones que no llegan al modelo, de 31 a 5. Centro: cuántos estudios se segmentan reducidos y por cuánto (×5 y ×6 eran 84 estudios; desde el 22 el peor es ×3 y 54 van a resolución nativa; la regla de sacos no toca la reducción). Derecha: minutos de segmentación por estudio (mediana); la regla añade 19 s a los 5,7 min.</p></div>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-24/fig_sacos.png" alt="La regla de sacos"><p class="cap">La medida del 24, en sus dos mitades. Izquierda: las tres lesiones cuyo modelo cambia, todas grandes y dos trombosadas; el gigante de 50 mm y el de 23 mm con trombo pasan de no existir en el modelo a estar casi enteros, y ninguna otra lesión pierde. Derecha: en detección gana en los grupos a los que apuntaba (con trombo 12 → 14, ≥ 25 mm 10 → 11) y cede una lesión en los de menos de 5 mm y dos medianas, por candidatos nuevos que se cuelan en la copia de calibre. Los controles no admiten ninguna bola.</p></div>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-24/fig_experimentos.png" alt="Banda frente a calibre y sacos"><p class="cap">Las dos medidas juzgadas desde el día 23 frente a la pasada del 22, misma herramienta. La pieza del calibre sola (23 oct) baja una lesión entre los 5 y reparte: gana grandes y trombosados, pierde pequeños. La regla de sacos (24 oct) gana en los mismos grupos sin bajar ninguna cifra agregada, porque lo hace desde la segmentación. Por eso una no entra y la otra sí.</p></div>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-24/fig_tamano_tipo.png" alt="Por tamaño y tipo"><p class="cap">Los sacos grandes y gigantes han aparecido: 19 de 20 y 10 de 16 entre los 5 (eran 1 y 0 el día 12). Los medianos se quedan en 20 de 56, los miliares en 3 de 30 y los blister en 4 de 39: no es un umbral, es que los canales actuales no tienen con qué verlos. Los fusiformes suben a 17 de 26 con la regla de sacos.</p></div>
+<div class="fig"><img src="informe-ejecutivo-figuras-2026-10-24/fig_hueso.png" alt="Tejido alrededor de los candidatos"><p class="cap">Los candidatos han dejado de apuntar al cráneo (19 % en controles, de 66 %), pero no a cero: la aplicación sigue devolviendo 5 candidatos en todos los estudios, incluidos los 90 sanos. El criterio para decir «ninguno» se buscó el 19 de octubre y no existe con las señales actuales. La regla de sacos no mete hueso: 167 → 159 candidatos sobre hueso de 860.</p></div>
+
+<h2>5. Lo que enseñan las tres medidas de esta semana, lesión a lesión</h2>
+<div class="callout">
+<p><strong>Las tres atacan el mismo síntoma por caminos distintos, y solo la que corrige la causa entra.</strong> El día 22 quedaban 8 lesiones fuera del modelo y 9 que bajaban de puesto. Las dos vías de detección (más detalle de curvatura; la pieza del calibre sola) recuperan los sacos grandes a costa de los pequeños, porque mueven el orden de los candidatos sin cambiar lo que el detector tiene delante. La regla de sacos cambia lo que tiene delante: el saco entra en el modelo, y los canales lo encuentran solos.</p>
+</div>
+<ul>
+  <li><strong>Lo que la regla recupera.</strong> El estudio 026 es un aneurisma gigante de 50 mm de la basilar, macizo, con el cuello a 3 mm del árbol: la máscara tubular lo veía como «otra cosa» y lo dejaba fuera (2 % de su superficie en el modelo). Con la regla entra al 91 % y el detector lo pone en primer puesto por el canal de calibre. El 121 (23 mm, trombosado) pasa del 1 % al 100 % y sale segundo. El 024 (20 mm, trombosado) pasa del 33 al 74 % y ya existe para el detector, pero su región cae en la puerta de curvatura media: es un asunto del paso 3. El 019 (21 mm, trombosado, ya en el modelo) sube del puesto 37 al 4 porque el modelo a su alrededor cambia. Con trombo entre los 5: 12 → 14 de 22.</li>
+  <li><strong>Lo que cuesta.</strong> Cuatro lesiones salen de los 5: 027 (12 mm, 5.º → 10.º), 033 (12 mm, 2.º → 8.º), 088 (4 mm, 1.º → 4.º) y 109 (3,6 mm, 5.º → 8.º). En las cuatro la lesión sigue entera en el modelo; lo que pasa es que la regla añade en ese estudio entre 0,6 y 3 cm³ de bolas (una confluencia venosa, un bulbo carotídeo) que ganan la copia de calibre con candidatos de 8 – 10 mm. Es el mismo reparto grandes ↔ pequeños que enseñó la pieza del calibre sola, pero aquí viene con la segmentación a favor y sin bajar ninguna cifra agregada; y, a diferencia de un ajuste de detección, lo que entra en el modelo es verdad anatómica. Los cuatro son candidatos para el banco de puertas del paso 3.</li>
+  <li><strong>Lo que no recupera.</strong> El estudio 093 pierde dos sacos de 11 y 15 mm (uno trombosado) y la regla no cambia su modelo ni un vóxel: lo que queda de esos sacos en la imagen son cáscaras parciales, no bolas, y la apertura de 1,5 mm las borra. Quedan 5 lesiones fuera del modelo: 092 (4 mm), las dos de 093, 100 (42 mm, trombo grueso: el 0 % de su pared supera el umbral de contraste) y 104 (8 mm). Dos son límite de la imagen (trombo), tres piden otra regla (cáscaras). La regla ve bolas de 11 mm en adelante por construcción; está medido en fantasmas y documentado.</li>
+  <li><strong>Por qué la pieza del calibre no entró sola.</strong> Medida sobre los mismos modelos del 22: 52 → 51 entre los 5, misma lista, 46 estudios. Entran los mismos grandes y trombosados que con el tope de curvatura (004, 086, 116) y salen pequeños y medianos (116_2 y 144 fuera de la lista; 018, 109 y 185 fuera de los 5). Confirma el diagnóstico del día 23 (los grandes ganan por el calibre, no por la curvatura) y queda como pieza para combinar en el banco del paso 3, no como medida.</li>
+</ul>
+<h3>Lo que se midió y no se adoptó (acumulado)</h3>
+<ul>
+  <li><strong>Subir el tope de la copia de curvatura</strong> (23 oct). Al doble y al triple: 52 → 44 y 46 entre los 5, detección 2 y 3 veces más lenta. Gana 3 sacos grandes y pierde de 5 a 7 de menos de 10 mm.</li>
+  <li><strong>La pieza del calibre sola</strong> (23 oct). 52 → 51; reparto grandes ↔ pequeños. Queda para combinar.</li>
+  <li><strong>Un criterio para decir «aquí no hay nada».</strong> Ningún umbral de diámetro, densidad, tejido ni puntuación separa los aciertos de los candidatos de los 90 controles. La pantalla sigue dando 5 candidatos.</li>
+  <li><strong>Bajar la puerta de curvatura para los sacos gigantes.</strong> Es de escala, no de signo; abrirla deja entrar todo el vaso. Los gigantes los dan ahora los canales de grosor y el modelo: 10 de 16 entre los 5.</li>
+  <li><strong>No rellenar la lista tras el suelo de densidad.</strong> Sería un artefacto de la lista, no una señal de ausencia.</li>
+</ul>
+
+<h2>6. Horas de cómputo</h2>
+<p>Todo se ha ejecutado en un portátil (Intel i7-8550U de 4 núcleos, 16 GB de RAM), un solo proceso a la vez porque dos procesos de VTK simultáneos agotan la memoria. La primera pasada completa tardó 48 h de reloj; las dos del 20 de octubre reutilizan sus modelos y solo detectan (2,4 y 6,8 h); las del 22 y del 24 vuelven a segmentar desde el DICOM y tardan 19,7 y 20,9 h. Los tres experimentos de detección descartados costaron 5,9, 8,2 y 3,9 h. Las 151 h del gráfico son horas de máquina registradas en los ficheros de resultados, no horas de persona. La pasada del 24 se interrumpió una vez por la suspensión del portátil y se reanudó donde iba.</p>
+<p><strong>Coste por estudio con todas las medidas adoptadas: unos 6 min y medio de mediana</strong> (5,7 de segmentación, a los que la regla de sacos añade 19 s, y 45 s de detección; el 20 de octubre eran 12). Con un servidor de 8 núcleos y 64 GB bajaría a la mitad o menos: las baldosas de la banda nativa se pueden paralelizar y los 15 estudios que aún se reducen a un tercio dejarían de hacerlo.</p>
+<div class="fig wide"><img src="informe-ejecutivo-figuras-2026-10-24/fig_horas.png" alt="Horas de cómputo"></div>
+
+<h2>7. Pasos a seguir</h2>
+<table>
+  <thead><tr><th style="width:18pt">#</th><th style="width:170pt">Qué</th><th>Por qué y qué decide</th><th style="width:70pt">Esfuerzo</th></tr></thead>
+  <tbody>
+    <tr><td>—</td><td><strong>Regla de sacos</strong> <span class="pill done">hecha y medida</span></td><td>Entra en el código: fuera del modelo 8 → 5, ninguna cifra agregada baja. Pendiente de commit y push a la rama principal.</td><td>Hecho (20,9 h de máquina)</td></tr>
+    <tr><td>—</td><td><strong>Tope de curvatura y pieza del calibre sola</strong> <span class="pill off">descartados</span></td><td>Medidos sobre los 172: reparten, no mejoran. El código se queda con 80 000 vértices y la copia de calibre de siempre.</td><td>18 h de máquina, hecho</td></tr>
+    <tr><td>1</td><td><strong>Puertas de región del detector con el banco</strong></td><td>Los motivos de fallo que quedan (compacidad 11, curvatura media 8, fusión 7, puntos 6, tope 6) se miden uno a uno con la traza por región sobre los modelos guardados, sin volver a segmentar. Aquí se juega 024 (en el modelo, cae por curvatura media), las cuatro lesiones que salieron con la regla de sacos, y la combinación de las dos copias de calibre. Cada ajuste se acepta solo si no baja ninguna lesión ni sube el hueso.</td><td>Días, sin segmentar</td></tr>
+    <tr><td>2</td><td><strong>Cáscaras parciales (093)</strong></td><td>Los dos sacos de 093 no son bolas sino cáscaras: la regla de sacos no los ve por construcción. Pide una regla distinta (cerrar la cáscara antes de abrir) y hay que medir primero cuántas lesiones del dataset son así: hoy se sabe de 2.</td><td>Días + 20 h si exige pasada</td></tr>
+    <tr><td>3</td><td><strong>Comprobación en la aplicación</strong></td><td>Entrar, reanudar un estudio del dataset y verificar que la pantalla cuenta lo mismo que el banco (puestos, confianza, tejido). La función de detección es la misma en la API y en el banco y está cubierta por tests; falta verlo en pantalla.</td><td>Media jornada</td></tr>
+    <tr><td>4</td><td><strong>Honestidad de la pantalla</strong></td><td>Mostrar el tejido alrededor de cada candidato y el vóxel efectivo del modelo; decir que la lista siempre tiene 5, que no hay veredicto de ausencia y que una lesión trombosada se ve por su luz.</td><td>Días</td></tr>
+    <tr><td>5</td><td><strong>Rendimiento</strong></td><td>Paralelizar las baldosas de la banda nativa y revisar el tope de memoria en un servidor con más RAM: de 6,5 min por estudio a 3 o menos.</td><td>1 semana</td></tr>
+    <tr><td>6</td><td><strong>Blister y miliares</strong></td><td>Un canal nuevo (calibre a lo largo de la línea central, o detección sobre el volumen). Es investigación; mientras tanto, documentar que no se detectan.</td><td>Alto</td></tr>
+  </tbody>
+</table>
+
+<h2>8. Lo que conviene saber antes de presentarlo</h2>
+<ul>
+  <li><strong>Las cifras son de un solo dataset</strong>, de un solo centro. Las medidas 1 – 3 se diseñaron sobre 16 estudios y se confirmaron sobre los 172; las medidas 4 – 7 y la 10 se diseñaron sobre los registros o sobre 7 estudios y se confirmaron con otra pasada de los 172. No hay un segundo conjunto independiente todavía.</li>
+  <li><strong>El primer puesto no se puede prometer.</strong> El orden entre candidatos es sensible a unos pocos vértices del modelo: la pasada del 24 lo vuelve a enseñar (18 lesiones cambian de puesto con el modelo casi igual). Lo defendible es «entre los 5» (46 de 82 estudios).</li>
+  <li><strong>Una medida que parece obvia puede empeorar el conjunto, y una que corrige la causa puede no mover la cifra principal.</strong> La regla de sacos deja el «entre los 5» en 52 y aun así entra, porque arregla la segmentación (8 → 5 fuera) y sube todo lo demás. Las dos vías de detección descartadas costaron 18 h de máquina y ninguna de persona segmentando.</li>
+  <li><strong>Sin veredicto de ausencia.</strong> La aplicación devuelve 5 candidatos siempre, también en un control sano. La especificidad real no se puede dar.</li>
+  <li><strong>Miliares y blister no se detectan</strong> (3 de 30 y 4 de 39), y son la mitad de las lesiones del dataset.</li>
+  <li><strong>Las lesiones trombosadas se ven por su luz.</strong> 22 de 122 lo son; con la regla de sacos 14 están entre los 5 y 2 siguen fuera del modelo (093_1 y 100, de trombo grueso). Es el límite de la angio-TC.</li>
+  <li><strong>El coste por estudio es de unos 6,5 min</strong> en un portátil (era 12 el día 20 y 1 – 2 antes de la resolución nativa). Se reduce con hardware y paralelización, no con menos resolución.</li>
+  <li><strong>3DRA no ha cambiado</strong>: la banda, el hueso y la regla de sacos actúan sobre la máscara, y los dos casos de referencia siguen con la lesión en el primer puesto (regresión XA verde).</li>
+  <li><strong>El código está publicado</strong> en la rama principal desde el 20 de octubre; la regla de sacos, sus 9 tests y los informes del 22 al 24 están en local, a la espera del commit y del push.</li>
+</ul>
+
+<footer>
+  Detalle técnico, método y reproducción: <code>docs/Informe-Zenodo-2026-10-12.md</code> (punto de partida), <code>docs/Informe-Pasos-0-1-2-2026-10-13.md</code> y <code>docs/Informe-Paso-3-2026-10-13.md</code> (medidas 0 – 3), <code>docs/Informe-Zenodo-Completa-2026-10-18.md</code> (pasadas completas; §4.1 – 4.7 las medidas 4 – 6 y lo descartado; §4.8 la banda; §4.9 el tope de curvatura; §4.10 la pieza del calibre y la regla de sacos con la pasada del 24). Registros en <code>backend/data/zenodo_eval*</code>; dataset en <code>Archivos DICOM/</code> (Zenodo 15697196, CC-BY). Elaborado el 24 de octubre de 2026.
+</footer>
+
+</body>
+</html>

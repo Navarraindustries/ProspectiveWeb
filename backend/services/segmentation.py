@@ -37,6 +37,12 @@ from pathlib import Path
 import numpy as np
 import vtk
 
+from services.vtk_output import quiet_vtk_output_window
+
+# Primer módulo que trae VTK en la API y en los scripts: desde aquí los avisos
+# van a stderr y no a la ventana «vtkOutputWindow» de Windows.
+quiet_vtk_output_window()
+
 try:
     from vtkmodules.util import numpy_support as ns
 except ImportError:

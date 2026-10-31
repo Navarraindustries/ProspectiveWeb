@@ -120,6 +120,15 @@ class SuggestedBand(BaseModel):
     upper: float = Field(..., description="Suggested upper threshold (starting band)")
     vmin: float = Field(..., description="Robust minimum for the slider range (p0.5)")
     vmax: float = Field(..., description="Robust maximum for the slider range (p99.9)")
+    tubular_upper: float = Field(
+        0.0,
+        description=(
+            "Techo de HU que aplicará el método tubular (0 = ninguno). Lo decide la "
+            "modalidad (routers.segment.tubular_ceiling): 700 HU en TC para dejar el "
+            "hueso fuera, ninguno en XA/3DRA. La interfaz lo enseña y la vista "
+            "previa lo usa, para que la previa y la malla describan la misma banda."
+        ),
+    )
 
 
 class PreviewRequest(BaseModel):

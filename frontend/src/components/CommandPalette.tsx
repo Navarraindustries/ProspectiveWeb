@@ -59,15 +59,23 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
   const commands = useSyncExternalStore(subscribeCommands, getCommands);
   const isAdmin = user?.role === "admin";
 
+  // Síncrono, para que dos eventos seguidos no abran dos veces.
+  const openRef = useRef(false);
+
   const show = useCallback(() => {
+    if (openRef.current) return;
+    openRef.current = true;
     const el = document.activeElement;
     previous.current = el instanceof HTMLElement && el !== document.body ? el : null;
     setQuery("");
     setActive(0);
+    // Un fallo anterior se reintenta en esta apertura.
+    setPatients((s) => (s.status === "error" ? { status: "idle" } : s));
     setOpen(true);
   }, []);
 
   const close = useCallback(() => {
+    openRef.current = false;
     setOpen(false);
     const el = previous.current;
     previous.current = null;
@@ -78,7 +86,8 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        show();
+        if (openRef.current) close();
+        else show();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -87,7 +96,7 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener(OPEN_PALETTE_EVENT, show);
     };
-  }, [show]);
+  }, [show, close]);
 
   useEffect(() => {
     if (open) searchRef.current?.focus();
@@ -155,7 +164,11 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
+    if (e.key === "Tab") {
+      // Dentro del diálogo solo hay un campo: el foco no sale de él.
+      e.preventDefault();
+      searchRef.current?.focus();
+    } else if (e.key === "Escape") {
       e.preventDefault();
       close();
     } else if (e.key === "ArrowDown") {
@@ -186,7 +199,14 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
         initial="initial"
         animate="animate"
         transition={reduced ? { duration: 0 } : glideTransition}
+        tabIndex={-1}
         onKeyDown={onKeyDown}
+        onMouseDown={(e) => {
+          if (e.target !== searchRef.current) {
+            e.preventDefault();
+            searchRef.current?.focus();
+          }
+        }}
         style={{
           ...glass("dense"), width: 640, maxWidth: "calc(100vw - 32px)", maxHeight: "min(560px, 72vh)",
           display: "flex", flexDirection: "column", borderRadius: "var(--radius-xl)", overflow: "hidden",

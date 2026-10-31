@@ -10,7 +10,7 @@ vi.mock("../store/auth", () => ({
   useAuth: () => ({ user: { id: 1, username: "a", full_name: "A", role, institution: "" } }),
 }));
 
-import { registerCommands } from "../lib/commands";
+import { OPEN_PALETTE_EVENT, registerCommands } from "../lib/commands";
 import { CommandPalette } from "./CommandPalette";
 
 const patient = (id: number, name: string, hc: string, extra: Partial<PatientSummary> = {}): PatientSummary => ({
@@ -64,6 +64,55 @@ describe("CommandPalette", () => {
     fireEvent.keyDown(search, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(field);
+  });
+
+  it("Ctrl+K con la paleta abierta la cierra y devuelve el foco al campo", async () => {
+    setup();
+    const field = open();
+    const search = await screen.findByLabelText("Buscar en la paleta");
+    fireEvent.keyDown(search, { key: "k", ctrlKey: true });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("el evento de abrir con la paleta abierta no cambia a quién se devuelve el foco", async () => {
+    setup();
+    const field = open();
+    const search = await screen.findByLabelText("Buscar en la paleta");
+    act(() => { window.dispatchEvent(new Event(OPEN_PALETTE_EVENT)); });
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("con el foco fuera del buscador, Esc sigue cerrando", async () => {
+    setup();
+    open();
+    fireEvent.mouseDown(await screen.findByText("Ir a"));
+    expect(document.activeElement).toBe(screen.getByLabelText("Buscar en la paleta"));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Tab no saca el foco del diálogo", async () => {
+    setup();
+    open();
+    const search = await screen.findByLabelText("Buscar en la paleta");
+    fireEvent.keyDown(search, { key: "Tab" });
+    expect(document.activeElement).toBe(search);
+  });
+
+  it("un fallo al cargar pacientes se reintenta al reabrir", async () => {
+    listPatients.mockReset();
+    listPatients.mockRejectedValueOnce(new Error("x")).mockResolvedValue([P96, P2, P3]);
+    setup();
+    open();
+    expect(await screen.findByText("No se pudo cargar la lista de pacientes")).toBeTruthy();
+    fireEvent.keyDown(screen.getByLabelText("Buscar en la paleta"), { key: "Escape" });
+    await act(async () => { fireEvent.keyDown(window, { key: "k", ctrlKey: true }); });
+    fireEvent.change(screen.getByLabelText("Buscar en la paleta"), { target: { value: "096" } });
+    expect(await screen.findByText("Zenodo, Caso 096")).toBeTruthy();
+    expect(listPatients).toHaveBeenCalledTimes(2);
   });
 
   it("Meta+K también abre", async () => {

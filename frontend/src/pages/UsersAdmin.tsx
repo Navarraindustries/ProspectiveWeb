@@ -3,7 +3,7 @@
    Backed by GET/PUT/DELETE /api/auth/users. Al borrar una cuenta sus pacientes
    pasan a la cuenta que se elige (por defecto, quien borra). */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { UserAdminInfo, UserBrief } from "../api/types";
 import { Badge } from "../components/Badge";
@@ -59,9 +59,23 @@ function estadoCuenta(u: Pick<UserAdminInfo, "status" | "is_active" | "rejected_
   return u.is_active ? "Activo" : "Desactivada";
 }
 
+/* El estado va como punto de 7 px y texto, no como insignia. */
 function EstadoCuenta({ u }: { u: UserAdminInfo }) {
   const t = estadoCuenta(u);
-  return <Badge variant={t === "Activo" ? "success" : t === "Pendiente" ? "warning" : "muted"}>{t}</Badge>;
+  const color = t === "Activo" ? "var(--success)" : t === "Pendiente" ? "var(--warning)" : "var(--muted-foreground)";
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+      <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
+      {t}
+    </span>
+  );
+}
+
+/* Iniciales del avatar: primeras letras de las dos primeras palabras del nombre
+   (o del usuario si no hay nombre), como máximo 2. */
+function iniciales(u: Pick<UserAdminInfo, "full_name" | "username">): string {
+  const palabras = (u.full_name || u.username).trim().split(/\s+/).filter(Boolean);
+  return palabras.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
 
 type CampoAlta = "full_name" | "username" | "password" | "confirm";
@@ -320,18 +334,30 @@ function UsersAdminPage() {
     }
   };
 
-  const load = () => {
+  // Ids ya vistos y fila recién creada (se ilumina 1,2 s en la tabla).
+  const vistos = useRef<Set<number> | null>(null);
+  const [nuevaId, setNuevaId] = useState<number | null>(null);
+
+  const load = (marcarNueva = false) => {
     setLoading(true);
     setLoadError(null);
     api
       .listUsers()
-      .then(setUsers)
+      .then((l) => {
+        const antes = vistos.current;
+        if (marcarNueva && antes) {
+          const nueva = l.find((x) => !antes.has(x.id));
+          if (nueva) { setNuevaId(nueva.id); setTimeout(() => setNuevaId(null), 1200); }
+        }
+        vistos.current = new Set(l.map((x) => x.id));
+        setUsers(l);
+      })
       // F1-88: el error salía junto a «No hay usuarios que coincidan con la
       // búsqueda» y «0 usuarios», como si la búsqueda no encontrara a nadie.
       .catch((e) => setLoadError(loadErrorText(e)))
       .finally(() => setLoading(false));
   };
-  useEffect(load, []);
+  useEffect(() => load(), []);
 
   const rows = users.filter(
     (u) =>
@@ -364,41 +390,30 @@ function UsersAdminPage() {
     }
   };
 
-  const iconBtn: React.CSSProperties = {
-    display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
-    borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer",
-  };
+  const activos = rows.filter((u) => estadoCuenta(u) === "Activo").length;
+  const subtitulo = loading ? "Cargando…" : loadError ? "No se pudo cargar la lista"
+    : `${rows.length} usuario${rows.length === 1 ? "" : "s"} · ${activos} activo${activos === 1 ? "" : "s"}`;
 
   return (
     <AppShell
       crumbs={USERS_CRUMBS}
+      subtitle={subtitulo}
       actions={
-        <div style={{ width: 220 }}>
-          <Input icon={<Icon name="SEARCH" />} placeholder="Buscar usuario…" value={q} onChange={(e) => setQ(e.target.value)} />
-        </div>
+        <>
+          <div style={{ width: 220 }}>
+            <Input icon={<Icon name="SEARCH" />} placeholder="Buscar usuario…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <Button size="sm" onClick={() => setNewOpen(true)}>Nuevo usuario</Button>
+        </>
       }
     >
 
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }} className="fade-rise">
-          <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 22 }}>
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--foreground)" }}>
-                Gestión de usuarios
-              </div>
-              <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
-                {loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${rows.length} usuario${rows.length === 1 ? "" : "s"}`}
-              </div>
-            </div>
-            <div style={{ flex: 1 }} />
-            <Button variant="outline" leadingIcon={<Icon name="REFRESH" />} onClick={load} style={{ marginRight: 10 }}>Actualizar</Button>
-            <Button leadingIcon={<Icon name="USERS" />} onClick={() => setNewOpen(true)}>Nuevo usuario</Button>
-          </div>
-
           <ErrorNote>{error}</ErrorNote>
 
           <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table className="tabla-oficina" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
                   {["Usuario", "Rol", "Especialidad / Hospital", "Estado", "Creado", "Acciones"].map((h, i) => (
@@ -418,7 +433,7 @@ function UsersAdminPage() {
                       <LoadState
                         state={loadError ? "error" : loading ? "cargando" : "vacio"}
                         mensaje={loadError ?? "No hay usuarios que coincidan con la búsqueda."}
-                        onRetry={load}
+                        onRetry={() => load()}
                       />
                     </td>
                   </tr>
@@ -426,13 +441,20 @@ function UsersAdminPage() {
                 {!loadError && rows.map((u, i) => {
                   const isMe = me?.id === u.id;
                   return (
-                    <tr key={u.id} style={{ borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : "none" }}>
+                    <tr key={u.id} className={u.id === nuevaId ? "fila-nueva" : undefined} style={{ borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : "none" }}>
                       <td style={{ padding: "12px 16px" }}>
-                        <div style={{ fontWeight: 600, color: "var(--foreground)" }}>
-                          {u.full_name || u.username}
-                          {isMe && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--muted-foreground)" }}>(tú)</span>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span aria-hidden style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-subtle)", color: "var(--brand-deep)", fontSize: 12, fontWeight: 700 }}>
+                            {iniciales(u)}
+                          </span>
+                          <div>
+                            <div style={{ fontWeight: 600, color: "var(--foreground)" }}>
+                              {u.full_name || u.username}
+                              {isMe && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 400, color: "var(--muted-foreground)" }}>(tú)</span>}
+                            </div>
+                            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</div>
+                          </div>
                         </div>
-                        <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</div>
                       </td>
                       <td style={{ padding: "12px 16px" }}>
                         <Badge variant={roleVariant(u.role)}>{ROLE_LABEL[u.role] || u.role}</Badge>
@@ -447,31 +469,15 @@ function UsersAdminPage() {
                         {fechaHora(u.created_at)}
                       </td>
                       <td style={{ padding: "8px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <span style={{ display: "inline-flex", gap: 6 }}>
-                          <button
-                            title="Editar" style={iconBtn}
-                            onClick={() => { setEditUser(u); setEditOpen(true); }}
-                            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--brand-deep)")}
-                            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-                          >
-                            <Icon name="EDIT" size={14} color="var(--muted-foreground)" />
-                          </button>
-                          <button
-                            title="Restablecer contraseña" style={iconBtn}
-                            onClick={() => { setToReset(u); setResetPw(""); setResetErr(null); setResetTried(false); }}
-                            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--brand-deep)")}
-                            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-                          >
-                            <Icon name="LOCK" size={14} color="var(--muted-foreground)" />
-                          </button>
-                          <button
-                            title={isMe ? "No puedes eliminar tu propia cuenta" : "Eliminar"}
-                            style={{ ...iconBtn, opacity: isMe ? 0.4 : 1, cursor: isMe ? "not-allowed" : "pointer" }}
+                        <span className="fila-acciones" style={{ display: "inline-flex", gap: 6 }}>
+                          <Button size="sm" variant="outline" onClick={() => { setEditUser(u); setEditOpen(true); }}>Editar</Button>
+                          <Button size="sm" variant="outline" onClick={() => { setToReset(u); setResetPw(""); setResetErr(null); setResetTried(false); }}>Restablecer contraseña</Button>
+                          <Button
+                            size="sm" variant="destructive"
+                            title={isMe ? "No puedes eliminar tu propia cuenta" : undefined}
                             disabled={isMe}
                             onClick={() => !isMe && setToDelete(u)}
-                          >
-                            <Icon name="DELETE" size={14} color="var(--destructive)" />
-                          </button>
+                          >Eliminar</Button>
                         </span>
                       </td>
                     </tr>
@@ -483,8 +489,8 @@ function UsersAdminPage() {
         </div>
       </div>
 
-      <EditUserSheet open={editOpen} user={editUser} onClose={() => { setEditOpen(false); setEditUser(null); }} onSaved={load} />
-      <NewUserSheet open={newOpen} onClose={() => setNewOpen(false)} onCreated={load} />
+      <EditUserSheet open={editOpen} user={editUser} onClose={() => { setEditOpen(false); setEditUser(null); }} onSaved={() => load()} />
+      <NewUserSheet open={newOpen} onClose={() => setNewOpen(false)} onCreated={() => load(true)} />
 
       <ConfirmDialog
         open={toDelete !== null}

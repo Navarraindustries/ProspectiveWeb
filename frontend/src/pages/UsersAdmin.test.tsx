@@ -26,7 +26,7 @@ vi.mock("../api/client", () => ({
 // El shell (barra lateral y superior) se sustituye por su contenido y sus
 // acciones: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
 }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { id: 1, role: "admin", username: "admin" } }) }));
@@ -113,7 +113,7 @@ describe("«Editar usuario» (F2-45, F1-84)", () => {
   it("muestra los campos del alta y guarda lo cambiado sin enviar is_active si no cambió", async () => {
     listUsers.mockResolvedValue([cuenta()]);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByTitle("Editar"));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
     for (const l of ["Nombre completo", "Rol", "Especialidad", "Hospital / Centro", "Universidad", "Cargo"]) {
       expect(screen.getByLabelText(l)).toBeTruthy();
     }
@@ -131,7 +131,7 @@ describe("«Editar usuario» (F2-45, F1-84)", () => {
   it("envía is_active cuando la casilla cambia", async () => {
     listUsers.mockResolvedValue([cuenta()]);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByTitle("Editar"));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
     fireEvent.click(screen.getByLabelText(/Cuenta activa/));
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     await waitFor(() => expect(updateUser).toHaveBeenCalled());
@@ -142,7 +142,7 @@ describe("«Editar usuario» (F2-45, F1-84)", () => {
   it.each(["admin", "medico", "residente", "viewer"])("la línea del rol %s sale en la hoja", async (rol) => {
     listUsers.mockResolvedValue([cuenta({ role: rol })]);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByTitle("Editar"));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
     expect(screen.getByText(ROLE_PERMITE[rol])).toBeTruthy();
   });
 });
@@ -198,7 +198,7 @@ describe("«Eliminar usuario» (F2-46)", () => {
     listUsers.mockResolvedValue([cuenta()]);
     usersBrief.mockResolvedValue(brief);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByTitle("Eliminar"));
+    fireEvent.click(await screen.findByRole("button", { name: "Eliminar" }));
     return (await screen.findByLabelText("Reasignar sus pacientes a…")) as HTMLSelectElement;
   };
 
@@ -240,7 +240,7 @@ describe("«Restablecer contraseña»", () => {
   it("el campo conserva el foco al teclear y pulsar con el campo vacío dice el mínimo", async () => {
     listUsers.mockResolvedValue([cuenta()]);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByTitle("Restablecer contraseña"));
+    fireEvent.click(await screen.findByRole("button", { name: "Restablecer contraseña" }));
     const dialogo = screen.getByRole("alertdialog");
     fireEvent.click(within(dialogo).getByRole("button", { name: "Restablecer" }));
     expect(within(dialogo).getByText("Mínimo 8 caracteres.")).toBeTruthy();
@@ -248,5 +248,28 @@ describe("«Restablecer contraseña»", () => {
     campo.focus();
     fireEvent.change(campo, { target: { value: "abc" } });
     expect(document.activeElement).toBe(campo);
+  });
+});
+
+describe("la fila de «Usuarios» en la oficina", () => {
+  const renderUsers = () => {
+    listUsers.mockResolvedValue([cuenta(), cuenta({ id: 3, username: "b", full_name: "Cuenta B", status: "pending", is_active: false })]);
+    render(<UsersAdmin onBack={() => {}} />);
+  };
+
+  it("cada acción de fila lleva palabra: Editar, Restablecer contraseña y Eliminar", async () => {
+    renderUsers();
+    await screen.findByText("María Restrepo");
+    const fila = screen.getAllByRole("row")[1];
+    expect(within(fila).getByRole("button", { name: "Editar" })).toBeInTheDocument();
+    expect(within(fila).getByRole("button", { name: "Restablecer contraseña" })).toBeInTheDocument();
+    expect(within(fila).getByRole("button", { name: "Eliminar" })).toHaveAttribute("data-variant", "destructive");
+  });
+
+  it("el estado va con punto y texto, y el subtítulo cuenta usuarios y activos", async () => {
+    renderUsers();
+    expect(await screen.findByText("Activo")).toBeInTheDocument();
+    expect(within(screen.getByRole("banner")).getByText(/\d+ usuarios? · \d+ activos?/)).toBeInTheDocument();
+    expect(screen.queryByText("Gestión de usuarios")).toBeNull();
   });
 });

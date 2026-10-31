@@ -309,6 +309,16 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             <span aria-hidden style={{ display: "inline-block", width: 10 }}>{showRejected ? "▾" : "▸"}</span>
             {rejectedSummary(rejectedCandidates.length)}
           </button>
+          {/* Todos los candidatos se dibujan a la vez en el 3D; los descartados,
+              tenues, se pueden apagar si estorban en un caso con muchos. */}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--muted-foreground)", padding: "2px 0 2px 16px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={planning.showRejectedIn3d}
+              onChange={(e) => planning.setShowRejectedIn3d(e.target.checked)}
+            />
+            Ver los descartados en el 3D
+          </label>
           {showRejected && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
               <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>

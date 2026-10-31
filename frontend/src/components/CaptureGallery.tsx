@@ -198,7 +198,7 @@ export function CaptureGallery({
                             disabled={cargandoVideo === c.id}
                             title="Reproducir la grabación"
                             style={{ all: "unset", cursor: "pointer", width: "100%", height: "100%", display: "grid", placeItems: "center",
-                                     fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--hud, #8CFF9E)" }}>
+                                     fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--data)" }}>
                       {cargandoVideo === c.id ? "CARGANDO…" : `▶ ${formatDuration(c.duration_s ?? 0)}`}
                     </button>
                   )}

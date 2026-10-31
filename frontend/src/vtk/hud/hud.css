@@ -1,13 +1,13 @@
 /* Capa HUD del visor. Trazo fino, mono, sin rellenos; nada toca la imagen. */
-.hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--font-mono); color: var(--hud); }
+.hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--font-mono); color: var(--hud-text); }
 .hud * { box-sizing: border-box; }
-.hud-corner { position: absolute; width: 12px; height: 12px; border-color: var(--hud-dim); border-style: solid; border-width: 0; }
+.hud-corner { position: absolute; width: 12px; height: 12px; border-color: var(--hud-text-dim); border-style: solid; border-width: 0; }
 .hud-corner.tl { top: 6px; left: 6px; border-top-width: var(--hud-line); border-left-width: var(--hud-line); }
 .hud-corner.tr { top: 6px; right: 6px; border-top-width: var(--hud-line); border-right-width: var(--hud-line); }
 .hud-corner.bl { bottom: 6px; left: 6px; border-bottom-width: var(--hud-line); border-left-width: var(--hud-line); }
 .hud-corner.br { bottom: 6px; right: 6px; border-bottom-width: var(--hud-line); border-right-width: var(--hud-line); }
-.hud.active .hud-corner { border-color: var(--hud); }
-.hud-label { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-dim); }
+.hud.active .hud-corner { border-color: var(--hud-text); }
+.hud-label { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-text-dim); }
 .hud-label[data-plane="axial"] { color: var(--plane-axial); }
 .hud-label[data-plane="coronal"] { color: var(--plane-coronal); }
 .hud-label[data-plane="sagital"] { color: var(--plane-sagital); }
@@ -17,37 +17,37 @@
 /* Lectura W/L: botón (doble clic restablece) que se ve como las demás
    lecturas; los niveles del HUD la tratan como `.hud-readout`. */
 .hud-wl { pointer-events: auto; background: none; border: none; padding: 0; margin: 0; font: inherit; font-size: 10.5px; color: inherit; cursor: pointer; }
-.hud-wl:hover { color: var(--hud); text-decoration: underline dotted; }
-.hud-wl:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
+.hud-wl:hover { color: var(--hud-text); text-decoration: underline dotted; }
+.hud-wl:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
 /* Preajustes bajo la lectura W/L de cada celda, entre ella y la escuadra de la
    esquina (más arriba pisaban la escala de 10 mm); transparente para no tapar la imagen. */
-.hud-wl-presets { position: absolute; bottom: 3px; right: 24px; z-index: 6; width: 96px; background: transparent; border: none; color: var(--hud-dim); font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; text-align: right; cursor: pointer; }
+.hud-wl-presets { position: absolute; bottom: 3px; right: 24px; z-index: 6; width: 96px; background: transparent; border: none; color: var(--hud-text-dim); font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; text-align: right; cursor: pointer; }
 .hud-toggle { display: inline-flex; gap: 10px; pointer-events: auto; }
-.hud-toggle button { background: none; border: none; padding: 2px 0; font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-dim); cursor: pointer; }
-.hud-toggle button[aria-pressed="true"] { color: var(--hud); border-bottom: var(--hud-line) solid var(--hud); }
-.hud-toggle button:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
+.hud-toggle button { background: none; border: none; padding: 2px 0; font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-text-dim); cursor: pointer; }
+.hud-toggle button[aria-pressed="true"] { color: var(--hud-text); border-bottom: var(--hud-line) solid var(--hud-text); }
+.hud-toggle button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
 /* Cine de la celda: encima de la lectura de abajo a la izquierda. Sin
    `hud-decor`: es un control y se ve en esencial; en limpio, solo reproduciendo. */
-.hud-cine { position: absolute; left: 14px; bottom: 40px; z-index: 6; display: inline-flex; align-items: center; gap: 8px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-dim); white-space: nowrap; }
-.hud-cine button { background: none; border: none; padding: 1px 2px; font: inherit; font-size: 11px; color: var(--hud-dim); cursor: pointer; }
-.hud-cine button:hover:not(:disabled), .hud-cine .hud-cine-play { color: var(--hud); }
+.hud-cine { position: absolute; left: 14px; bottom: 40px; z-index: 6; display: inline-flex; align-items: center; gap: 8px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-text-dim); white-space: nowrap; }
+.hud-cine button { background: none; border: none; padding: 1px 2px; font: inherit; font-size: 11px; color: var(--hud-text-dim); cursor: pointer; }
+.hud-cine button:hover:not(:disabled), .hud-cine .hud-cine-play { color: var(--hud-text); }
 .hud-cine button:disabled { opacity: .4; cursor: default; }
-.hud-cine button:focus-visible { outline: var(--hud-line) dashed var(--hud); outline-offset: 2px; }
-.hud-cine .hud-cine-pos { color: var(--hud); }
+.hud-cine button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+.hud-cine .hud-cine-pos { color: var(--hud-text); }
 /* Dentro de una columna apilada (VOLUMEN) la barra sigue al flujo: la columna
    ya la coloca encima de la fila de preajustes. */
 .hud-stack > .hud-cine { position: static; }
-.hud-edge { position: absolute; font-size: 10px; letter-spacing: .08em; color: var(--hud-dim); }
+.hud-edge { position: absolute; font-size: 10px; letter-spacing: .08em; color: var(--hud-text-dim); }
 .hud-edge.top { top: 22px; left: 50%; transform: translateX(-50%); } .hud-edge.bottom { bottom: 8px; left: 50%; transform: translateX(-50%); }
 .hud-edge.left { left: 8px; top: 50%; transform: translateY(-50%); } .hud-edge.right { right: 8px; top: 50%; transform: translateY(-50%); }
 /* Con la escalera de cortes (44 px en el borde derecho, índice centrado y
    opaco) la etiqueta derecha quedaba debajo del índice: va a su izquierda. */
 .hud-edge.right.beside-ladder { right: 48px; }
-.hud-warn { color: var(--hud-amber); } .hud-err { color: var(--hud-red); }
+.hud-warn { color: var(--warning); } .hud-err { color: var(--destructive); }
 /* Arriba y sin recibir clics: abajo tapaba la barra de cine y los botones.
    top 36 y no 24: a 24 pisaba la cinta de rumbo de VOLUMEN (top 22) y la
    letra de borde superior («INF»). */
-.hud-hint { position: absolute; top: 36px; bottom: auto; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .06em; color: var(--hud-dim); pointer-events: none; animation: hud-hint-fade 3s forwards; }
+.hud-hint { position: absolute; top: 36px; bottom: auto; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .06em; color: var(--hud-text-dim); pointer-events: none; animation: hud-hint-fade 3s forwards; }
 @keyframes hud-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 /* La pista del cambio de nivel («HUD esencial»): arriba y breve. No es la
    pista de la vista, así que los niveles no la esconden (si no, al pulsar H
@@ -98,8 +98,8 @@
 /* Rejilla del visor (ViewerGrid). Una vista oculta en «sola» sigue montada a
    1×1 px: vtk se queja de un lienzo de 0 px y remontarla perdería la cámara. */
 .viewer-cell--hidden { width: 1px !important; height: 1px !important; opacity: 0; pointer-events: none; left: 0; top: 0; }
-.viewer-cell--over { outline: 1px solid var(--hud); outline-offset: -1px; }
+.viewer-cell--over { outline: 1px solid var(--primary); outline-offset: -1px; }
 .viewer-handle { position: absolute; top: 0; left: 0; right: 0; height: 14px; cursor: grab; touch-action: none; z-index: 7; }
 .viewer-handle:active { cursor: grabbing; }
-.viewer-splitter { background: var(--hud-dim); }
-.viewer-splitter:hover { background: var(--hud); opacity: .6; }
+.viewer-splitter { background: var(--primary); }
+.viewer-splitter:hover { background: var(--primary); opacity: .6; }

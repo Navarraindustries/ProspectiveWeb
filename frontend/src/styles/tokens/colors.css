@@ -103,6 +103,9 @@
   --plane-libre:   #c77dff;
   --hud-red:    #FF5A5A;
   --hud-line:   1px;
+  /* Texto DOM del HUD: mono sobre tokens de datos; --hud* de arriba siguen para actores y captura */
+  --hud-text:     var(--data);
+  --hud-text-dim: var(--muted-foreground);
 
   color-scheme: dark;
 }
@@ -183,6 +186,9 @@
   --plane-libre:   #c77dff;
   --hud-red:    #FF5A5A;
   --hud-line:   1px;
+  /* Texto DOM del HUD: mono sobre tokens de datos; --hud* de arriba siguen para actores y captura */
+  --hud-text:     var(--data);
+  --hud-text-dim: var(--muted-foreground);
 
   color-scheme: light;
 }

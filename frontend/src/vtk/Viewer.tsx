@@ -12,7 +12,7 @@ import { ANNOTATION_MODES, kindOfMode, usePlanning, type PickMode, type PlacedCl
 import { ANNOTATIONS_MAX, centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import { mainHintKind, shouldShowHint, type HintKind } from "./hint";
-import type { AnnotationPlane } from "../api/types";
+import type { AneurysmCandidate, AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
 import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
@@ -57,7 +57,7 @@ import { useAnnotationDelete } from "../components/annotations/useAnnotationDele
 import { cameraMayMove, focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
 import { hudCandidateLine, hudManualTag } from "./hudCandidate";
 // Cuello, ápice y borde: el panel de Morfometría pinta la misma muestra (F1-153).
-import { candidateMarkers, litSequence } from "./candidateMarkers";
+import { candidateMarkers, litSequence, shouldReplay } from "./candidateMarkers";
 import { markerRadiusMm } from "./markerSize";
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, NECK_RIM_COLOR } from "./markerColors";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
@@ -1151,13 +1151,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // Encendido de los candidatos tras la detección: una vez por identidad de la
   // lista (no por selección), con la secuencia de `litSequence`; con movimiento
   // reducido se enciende todo de golpe. El rAF se cancela al limpiar.
+  // La secuencia corre una vez por lista: volver al paso con la misma lista
+  // la deja encendida del todo (`litListRef` recuerda la última lista completada).
   const [lit, setLit] = useState(0);
+  const litListRef = useRef<AneurysmCandidate[] | null>(null);
   useEffect(() => {
     const n = allCandidates.length;
-    if (step !== "detect" || n === 0) { setLit(0); return; }
+    // Fuera de Detección los marcadores no se añaden, no hace falta tocar `lit`.
+    if (step !== "detect" || n === 0) return;
+    if (!shouldReplay(litListRef.current, allCandidates)) { setLit(n); return; }
     const reduce = typeof window.matchMedia === "function"
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { setLit(n); return; }
+    if (reduce) { setLit(n); litListRef.current = allCandidates; return; }
     setLit(0);
     const instantes = litSequence(n);
     let t0: number | null = null;
@@ -1169,6 +1174,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       while (k < n && t >= instantes[k]) k++;
       setLit(k);
       if (k < n) raf = requestAnimationFrame(tick);
+      else litListRef.current = allCandidates;
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -1193,10 +1199,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (trajTarget) out.push({ pos: trajTarget, color: TRAJ_TARGET_COLOR });
     if (overlay) out.push(...overlay.markers);
     // Candidatos encendiéndose (solo en Detección). El radio compartido que
-    // usará MeshView es markerRadiusMm(referenceDiameterMm, ·); con diámetro de
-    // referencia la diagonal de la escena no interviene, así que se pasa 0.
+    // usará MeshView es markerRadiusMm(referenceDiameterMm, diagonal); con
+    // diámetro de referencia la diagonal no interviene. Sin él (MeshView usaría
+    // la diagonal de la escena, que aquí no se conoce) se deja la escala en 1
+    // en vez de adivinar un radio equivocado.
     if (step === "detect") {
-      out.push(...candidateMarkers(allCandidates, selectedCandidate, lit, markerRadiusMm(referenceDiameterMm, 0)));
+      const shared = referenceDiameterMm ? markerRadiusMm(referenceDiameterMm, 0) : 1;
+      out.push(...candidateMarkers(allCandidates, selectedCandidate, lit, shared));
     }
     // Where each perforator actually is — but only the ones switched on in the
     // list. The panel gave distances with nothing to say WHICH vessel a row

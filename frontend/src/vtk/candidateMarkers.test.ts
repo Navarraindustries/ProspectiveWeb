@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AneurysmCandidate } from "../api/types";
-import { candidateMarkers, litSequence } from "./candidateMarkers";
+import { candidateMarkers, litSequence, shouldReplay } from "./candidateMarkers";
 import { CANDIDATE_COLOR, CANDIDATE_DIM_COLOR } from "./markerColors";
 
 function c(x: number, y: number, z: number): AneurysmCandidate {
@@ -36,6 +36,13 @@ describe("candidateMarkers", () => {
   it("el radio de 1 mm se expresa como escala sobre el radio compartido", () => {
     const out = candidateMarkers([c(0, 0, 0)], 0, 1, 0.5);
     expect(out[0].scale).toBeCloseTo(2);
+  });
+
+  it("shouldReplay: misma lista no, lista nueva o ninguna previa sí", () => {
+    const l: unknown[] = [];
+    expect(shouldReplay(l, l)).toBe(false);
+    expect(shouldReplay(l, [])).toBe(true);
+    expect(shouldReplay(null, l)).toBe(true);
   });
 
   it("lit mayor que la lista no inventa marcadores", () => {

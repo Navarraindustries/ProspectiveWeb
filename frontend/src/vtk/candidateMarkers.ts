@@ -26,6 +26,12 @@ export function candidateMarkers(
   }));
 }
 
+/** ¿Hay que reproducir el encendido? Sí si aún no se completó ninguno
+ *  (`prev === null`) o la lista es otra (otra identidad). */
+export function shouldReplay(prev: unknown, list: unknown): boolean {
+  return prev === null || prev !== list;
+}
+
 /** Instantes (ms) en que se enciende cada uno de los `n` marcadores: reparte
  *  `totalMs` entre ellos; con uno solo, en 0. */
 export function litSequence(n: number, totalMs = 1000): number[] {

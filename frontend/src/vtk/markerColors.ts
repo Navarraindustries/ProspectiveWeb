@@ -4,8 +4,9 @@
    junto a «Marcar cuello» y «Marcar ápice del domo» (F1-153): sin ella, en la
    escena había dos bolas y nada decía cuál era cuál. Importar Viewer.tsx desde
    el panel arrastraría vtk.js entero. */
-export type Rgb = [number, number, number];
 import { hexToRgb01 } from "./planeColors";
+
+export type Rgb = [number, number, number];
 
 export const NECK_ORIGIN_COLOR: Rgb = [0.85, 0.35, 0.85]; // magenta — punto del plano de cuello
 export const NECK_DOME_COLOR: Rgb = [0.36, 0.85, 0.86];   // cian — ápice del domo
@@ -18,6 +19,7 @@ export function rgbCss([r, g, b]: Rgb): string {
 
 /* Candidatos de la detección: azul vivo para el seleccionado y el mismo azul
    al 40 % hacia el negro para el resto. */
+/* Espejo del token --primary. */
 export const CANDIDATE_COLOR: Rgb = hexToRgb01("#3B8BFF");
 export const CANDIDATE_DIM_COLOR: Rgb = [
   CANDIDATE_COLOR[0] * 0.4,

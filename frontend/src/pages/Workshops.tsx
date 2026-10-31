@@ -22,7 +22,7 @@ import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
-import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
+import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -176,23 +176,20 @@ export function WorkshopsPage() {
   };
 
   return (
-    <AppShell crumbs={[{ label: "Talleres" }]}>
+    <AppShell
+      crumbs={[{ label: "Talleres" }]}
+      subtitle="Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido."
+      actions={
+        <Button
+          size="sm"
+          leadingIcon={<Icon name="STEP_PLAN" size={13} />}
+          onClick={() => { setEditing(null); setSheetOpen(true); }}
+        >
+          Nuevo taller
+        </Button>
+      }
+    >
       <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <PanelHead
-              title="Talleres"
-              desc="Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido."
-            />
-          </div>
-          <Button
-            leadingIcon={<Icon name="STEP_PLAN" size={13} />}
-            onClick={() => { setEditing(null); setSheetOpen(true); }}
-          >
-            Nuevo taller
-          </Button>
-        </div>
-
         <ErrorNote>{error}</ErrorNote>
 
         {loadError && (

@@ -10,7 +10,7 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { AppShell } from "../components/shell/AppShell";
-import { PanelHead, SectionLabel, Card, ErrorNote } from "../components/PanelHead";
+import { SectionLabel, Card, ErrorNote } from "../components/PanelHead";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
@@ -32,6 +32,12 @@ export function AuditTrail({ onBack }: { onBack: () => void }) {
 /* Solo lo que existe: «Administración» no es un destino (vive en el grupo de
    la barra lateral). */
 const AUDIT_CRUMBS = [{ label: "Auditoría" }];
+
+/* Cabecera de tabla de la oficina: 11 px, 600, mayúsculas. */
+const ENCABEZADO: React.CSSProperties = {
+  padding: "8px 14px", fontSize: 11, fontWeight: 600, textTransform: "uppercase",
+  letterSpacing: "0.06em", color: "var(--muted-foreground)",
+};
 
 function AuditTrailPage() {
   const [blocks, setBlocks] = useState<AuditBlock[]>([]);
@@ -118,24 +124,24 @@ function AuditTrailPage() {
   useEffect(() => setShown(PAGE), [q, action]);
 
   return (
-    <AppShell crumbs={AUDIT_CRUMBS} actions={
-      // F2-58: exportar no depende de haber verificado antes.
-      <a href="/api/audit/export" target="_blank" rel="noreferrer"
-         style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600 }}>
-        <Icon name="EXPORT" size={16} />Exportar
-      </a>
-    }>
+    <AppShell
+      crumbs={AUDIT_CRUMBS}
+      subtitle="Cadena de bloques con firma; alterar un bloque invalida todos los siguientes."
+      actions={
+        <>
+          {/* F2-58: exportar no depende de haber verificado antes. Es un enlace
+              (descarga) con el aspecto de un botón secundario pequeño. */}
+          <a href="/api/audit/export" target="_blank" rel="noreferrer"
+             style={{ display: "inline-flex", alignItems: "center", gap: 6, height: "var(--control-sm)", padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--radius)", fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+            <Icon name="EXPORT" size={14} />Exportar
+          </a>
+          <Button size="sm" onClick={() => void runVerify()} disabled={busy} leadingIcon={<Icon name="SHIELD" size={13} />}>
+            {busy ? "Verificando…" : "Verificar integridad"}
+          </Button>
+        </>
+      }
+    >
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", maxWidth: 1100, width: "100%", margin: "0 auto" }}>
-        <PanelHead
-          title="Registro de auditoría"
-          desc="Cadena de bloques con firma; alterar un bloque invalida todos los siguientes."
-          right={
-            <Button onClick={() => void runVerify()} disabled={busy} leadingIcon={<Icon name="SHIELD" />}>
-              {busy ? "Verificando…" : "Verificar integridad"}
-            </Button>
-          }
-        />
-
         {verify && (
           <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 14, borderColor: verify.ok ? "var(--success)" : "var(--destructive)" }}>
             <Icon name={verify.ok ? "STATUS_OK" : "STATUS_WARN"} size={22} color={verify.ok ? "var(--success)" : "var(--destructive)"} />
@@ -189,13 +195,12 @@ function AuditTrailPage() {
           Bloques ({rows.length}{rows.length !== blocks.length ? ` de ${blocks.length}` : ""})
         </SectionLabel>
         <div className="table-scroll" style={{ marginTop: 8 }}>
-          <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 12 }}>
+          <table className="tabla-oficina" style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
-              <tr style={{ textAlign: "left", color: "var(--muted-foreground)" }}>
-                <th style={{ padding: "6px 8px" }}>Fecha y hora</th>
-                <th style={{ padding: "6px 8px" }}>Usuario</th>
-                <th style={{ padding: "6px 8px" }}>Acción</th>
-                <th style={{ padding: "6px 8px" }}>Paciente</th>
+              <tr style={{ textAlign: "left" }}>
+                {["Fecha y hora", "Usuario", "Acción", "Paciente"].map((h) => (
+                  <th key={h} style={ENCABEZADO}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -207,9 +212,9 @@ function AuditTrailPage() {
                   <Fragment key={b.id}>
                     <tr style={{ borderTop: "1px solid var(--border)" }}>
                       {/* Hora local para leer; la UTC original, que es la que firma la cadena, queda en el tooltip. */}
-                      <td style={{ padding: "6px 8px", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }} title={`UTC: ${b.iso_ts}`}>{fechaHora(b.iso_ts)}</td>
-                      <td style={{ padding: "6px 8px" }}>{b.username || "—"}</td>
-                      <td style={{ padding: "6px 8px" }}>
+                      <td style={{ padding: "13px 14px", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }} title={`UTC: ${b.iso_ts}`}>{fechaHora(b.iso_ts)}</td>
+                      <td style={{ padding: "13px 14px" }}>{b.username || "—"}</td>
+                      <td style={{ padding: "13px 14px" }}>
                         {/* La acción es el control que abre la fila: un botón real, no un clic en la celda. */}
                         <button
                           type="button"
@@ -224,7 +229,7 @@ function AuditTrailPage() {
                           <span style={{ marginLeft: 8, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{b.action}</span>
                         )}
                       </td>
-                      <td style={{ padding: "6px 8px" }}>
+                      <td style={{ padding: "13px 14px" }}>
                         {!b.patient_hash ? "—" : paciente ? paciente.full_name : (
                           <span style={{ color: "var(--muted-foreground)" }} title="Huella del paciente; filtra por paciente para verlo">paciente</span>
                         )}

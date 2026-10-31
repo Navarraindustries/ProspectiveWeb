@@ -4,7 +4,7 @@
    pendientes»: el administrador creía no tener nada que revisar. */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listPending = vi.fn();
 const rejectPending = vi.fn();
@@ -24,7 +24,7 @@ vi.mock("../api/client", () => ({
 // El shell (barra lateral y superior) se sustituye por su contenido y sus
 // acciones: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
 }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 // La página es solo de administradores; quien no lo es ve la tarjeta (AdminOnly.test).
@@ -94,7 +94,8 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
     render(<PendingRequests onBack={() => {}} />);
     for (const t of ["Pendientes", "Aprobadas", "Rechazadas"]) expect(screen.getByRole("tab", { name: t })).toBeTruthy();
     expect(await screen.findByText("Nuevo Residente")).toBeTruthy();
-    expect(screen.getByText("1 pendiente de aprobación")).toBeTruthy();
+    // El recuento es el subtítulo de la barra.
+    expect(within(screen.getByRole("banner")).getByText("1 pendiente de aprobación")).toBeTruthy();
   });
 
   it("cada pestaña vacía dice lo suyo", async () => {
@@ -222,5 +223,23 @@ describe("«Rechazadas» (nota)", () => {
     await Promise.resolve();
     expect(screen.queryByText("Cuenta Tardía")).toBeNull();
     expect(screen.getByText("Ninguna cuenta rechazada.")).toBeTruthy();
+  });
+});
+
+describe("la cabecera de «Cuentas pendientes» en la oficina", () => {
+  it("el título está en la miga y el subtítulo en la barra", async () => {
+    listPending.mockResolvedValue([solicitud]);
+    render(<PendingRequests onBack={() => {}} />);
+    await screen.findByText("Nuevo Residente");
+    const barra = within(screen.getByRole("banner"));
+    expect(barra.getByText("1 pendiente de aprobación")).toBeInTheDocument();
+    // «Actualizar» es una acción de la barra, solo en Pendientes.
+    expect(barra.getByRole("button", { name: "Actualizar" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.queryByText("Cuentas pendientes")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Aprobadas" }));
+    await screen.findByText("Ninguna cuenta aprobada todavía.");
+    expect(within(screen.getByRole("banner")).getByText("Cuentas que ya pueden entrar")).toBeInTheDocument();
+    expect(within(screen.getByRole("banner")).queryByRole("button", { name: "Actualizar" })).toBeNull();
   });
 });

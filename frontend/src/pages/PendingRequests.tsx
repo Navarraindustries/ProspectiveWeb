@@ -172,7 +172,19 @@ function PendingRequestsPage() {
   };
 
   return (
-    <AppShell crumbs={PENDING_CRUMBS}>
+    <AppShell
+      crumbs={PENDING_CRUMBS}
+      subtitle={
+        tab !== "Pendientes"
+          ? (tab === "Aprobadas" ? "Cuentas que ya pueden entrar" : "Solicitudes que no se aceptaron")
+          : loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`
+      }
+      actions={tab === "Pendientes" ? (
+        <Button size="sm" variant="outline" leadingIcon={<Icon name="REFRESH" size={13} />} onClick={load}>
+          Actualizar
+        </Button>
+      ) : undefined}
+    >
       <ConfirmDialog
         open={toReject !== null}
         title="¿Rechazar la solicitud?"
@@ -186,25 +198,6 @@ function PendingRequestsPage() {
       </ConfirmDialog>
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }} className="fade-rise">
-          <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 22 }}>
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--foreground)" }}>
-                Cuentas pendientes
-              </div>
-              <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
-                {tab !== "Pendientes"
-                  ? (tab === "Aprobadas" ? "Cuentas que ya pueden entrar" : "Solicitudes que no se aceptaron")
-                  : loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`}
-              </div>
-            </div>
-            <div style={{ flex: 1 }} />
-            {tab === "Pendientes" && (
-              <Button variant="outline" leadingIcon={<Icon name="REFRESH" />} onClick={load}>
-                Actualizar
-              </Button>
-            )}
-          </div>
-
           <div style={{ marginBottom: 18 }}>
             <Tabs tabs={TABS} value={tab} onChange={(t) => setTab(t as Pestana)} />
           </div>

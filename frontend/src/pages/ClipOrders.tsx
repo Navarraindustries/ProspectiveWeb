@@ -22,7 +22,7 @@ import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
-import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
+import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { daysSince, isStale } from "../lib/pedidosParados";
@@ -71,15 +71,17 @@ function attention(o: ClipOrder): { label: string; variant: Variant } | null {
   return null;
 }
 
+/* Ritmo de la tabla de la oficina: cabecera 11 px / 600 / mayúsculas y filas
+   de 13 px × 14 px. */
 const cellHead: React.CSSProperties = {
-  fontSize: "var(--text-label)", fontWeight: "var(--weight-semibold)",
-  letterSpacing: "var(--tracking-label)", textTransform: "uppercase",
-  color: "var(--muted-foreground)", textAlign: "left", padding: "0 10px 8px 0",
+  fontSize: 11, fontWeight: 600,
+  letterSpacing: "0.06em", textTransform: "uppercase",
+  color: "var(--muted-foreground)", textAlign: "left", padding: "8px 14px",
   whiteSpace: "nowrap",
 };
 
 const cell: React.CSSProperties = {
-  fontSize: 12, padding: "10px 10px 10px 0", verticalAlign: "top",
+  fontSize: 12, padding: "13px 14px", verticalAlign: "top",
   borderTop: "1px solid var(--border)",
 };
 
@@ -432,7 +434,8 @@ export function ClipOrdersPage({
           { label: patientFilter.full_name, onClick: onBackToPatient },
           { label: "Pedidos" },
         ]
-      : [{ label: "Pedidos de clips" }]}>
+      : [{ label: "Pedidos de clips" }]}
+      subtitle="Todos los pedidos de fabricación, con su estado y lo que falta por hacer.">
       <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
         {/* F2-27: «Pedidos» cerraba la ficha y esta pantalla no tenía camino de
             vuelta al paciente; solo «Ver todos», que tampoco lleva a él. */}
@@ -441,11 +444,6 @@ export function ClipOrdersPage({
             <Button size="sm" variant="ghost" onClick={onBackToPatient}>← Volver a la ficha</Button>
           </div>
         )}
-        <PanelHead
-          title="Pedidos de clips"
-          desc="Todos los pedidos de fabricación, con su estado y lo que falta por hacer."
-        />
-
         {patientFilter && (
           <div style={{
             display: "flex", alignItems: "center", gap: 8, marginBottom: 12,
@@ -522,8 +520,8 @@ export function ClipOrdersPage({
               </Card>
             )}
             {!error && sorted.length > 0 && (
-              <Card style={{ padding: "14px 16px 4px" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <Card style={{ padding: "4px 2px 0" }}>
+                <table className="tabla-oficina" style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
                       <th style={cellHead}>Nº de pieza</th>

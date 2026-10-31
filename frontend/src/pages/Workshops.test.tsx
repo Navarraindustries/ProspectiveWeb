@@ -6,7 +6,7 @@
    no había ninguna puerta al taller. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listWorkshops = vi.fn();
 const addWorkshop = vi.fn();
@@ -27,7 +27,7 @@ vi.mock("../api/client", () => ({
 // El shell (barra lateral y superior) se sustituye por su contenido y sus
 // acciones: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
 }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
@@ -149,5 +149,19 @@ describe("con el API fallando (F1-104)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByText("Taller Mecánico Sur")).toBeTruthy();
     expect(listWorkshops).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("la cabecera de «Talleres» en la oficina", () => {
+  it("el título está en la miga y el subtítulo en la barra", async () => {
+    listWorkshops.mockResolvedValue([]);
+    render(<WorkshopsPage />);
+    await screen.findByText(/Todavía no hay talleres/);
+    const barra = within(screen.getByRole("banner"));
+    expect(barra.getByText("Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido.")).toBeInTheDocument();
+    // «Nuevo taller» vive en la barra, no en el cuerpo.
+    expect(barra.getByRole("button", { name: /Nuevo taller/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.getAllByText(/Quién fabrica las piezas/)).toHaveLength(1);
   });
 });

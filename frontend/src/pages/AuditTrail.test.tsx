@@ -2,7 +2,7 @@
    título, «Exportar» siempre, filtro por paciente, filas desplegables. */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const auditBlocks = vi.fn();
 const listPatients = vi.fn();
@@ -16,7 +16,7 @@ vi.mock("../api/client", () => ({
   ApiError: class ApiError extends Error {},
 }));
 vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
 }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { id: 1, role: "admin", username: "admin" } }) }));
@@ -76,8 +76,9 @@ describe("F2 (16)", () => {
   it("título sin «SkullChain» y «Exportar» visible antes de verificar", async () => {
     auditBlocks.mockResolvedValueOnce([bloque()]);
     const { container } = render(<AuditTrail onBack={() => {}} />);
-    expect(await screen.findByText("Registro de auditoría")).toBeTruthy();
-    expect(screen.getByText("Cadena de bloques con firma; alterar un bloque invalida todos los siguientes.")).toBeTruthy();
+    // El título es la miga de la barra; la descripción, su subtítulo.
+    await screen.findByText("Inicio de sesión");
+    expect(within(screen.getByRole("banner")).getByText("Cadena de bloques con firma; alterar un bloque invalida todos los siguientes.")).toBeTruthy();
     expect(container.textContent).not.toMatch(/SkullChain|SHA-256/);
     const link = screen.getByRole("link", { name: /Exportar/ });
     expect(link.getAttribute("href")).toBe("/api/audit/export");
@@ -141,5 +142,20 @@ describe("F2 (16)", () => {
     render(<AuditTrail onBack={() => {}} />);
     expect(await screen.findByText("Cambio de contraseña")).toBeTruthy();
     expect(screen.getByText("password_change")).toBeTruthy();
+  });
+});
+
+describe("la cabecera de «Auditoría» en la oficina", () => {
+  it("el título está en la miga y el subtítulo en la barra", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    await screen.findByText("Inicio de sesión");
+    const barra = within(screen.getByRole("banner"));
+    expect(barra.getByText("Cadena de bloques con firma; alterar un bloque invalida todos los siguientes.")).toBeInTheDocument();
+    // Las dos acciones principales viven en la barra.
+    expect(barra.getByRole("button", { name: "Verificar integridad" })).toBeInTheDocument();
+    expect(barra.getByRole("link", { name: /Exportar/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.queryByText("Registro de auditoría")).toBeNull();
   });
 });

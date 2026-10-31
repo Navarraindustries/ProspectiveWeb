@@ -29,6 +29,7 @@ vi.mock("../api/client", () => ({
 // acciones: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", () => ({
   AppShell: (p: {
+    subtitle?: import("react").ReactNode; status?: import("react").ReactNode;
     actions?: import("react").ReactNode; children?: import("react").ReactNode;
     crumbs?: { label: string; onClick?: () => void }[];
   }) => (
@@ -38,7 +39,7 @@ vi.mock("../components/shell/AppShell", () => ({
           ? <button key={c.label} onClick={c.onClick}>{c.label}</button>
           : <span key={c.label}>{c.label}</span>)}
       </nav>
-      {p.actions}{p.children}
+      <header>{p.subtitle}{p.status}{p.actions}</header>{p.children}
     </>
   ),
 }));
@@ -341,8 +342,19 @@ describe("el glosario de pedidos (F1-93)", () => {
     listClipOrders.mockResolvedValue([order()]);
     const { container } = render(<ClipOrdersPage />);
     await waitFor(() => expect(rows()).toHaveLength(1));
-    expect(screen.getByText("Todos los pedidos de fabricación, con su estado y lo que falta por hacer.")).toBeInTheDocument();
+    expect(within(screen.getByRole("banner")).getByText("Todos los pedidos de fabricación, con su estado y lo que falta por hacer.")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/solicitud|encargad/i);
+  });
+
+  it("el título está en la miga y el subtítulo en la barra", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(within(screen.getByRole("banner")).getByText("Todos los pedidos de fabricación, con su estado y lo que falta por hacer.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    // «Pedidos de clips» solo sale una vez: en la miga, no repetido en el cuerpo.
+    expect(screen.getAllByText("Pedidos de clips")).toHaveLength(1);
+    expect(within(screen.getByRole("navigation", { name: "Miga" })).getByText("Pedidos de clips")).toBeInTheDocument();
   });
 });
 

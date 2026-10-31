@@ -240,6 +240,10 @@
 
 /* ── Barra superior ──────────────────────────────────────────────────────── */
 .shell-top {
+  /* Por encima de .shell-main (para que el menú del avatar no quede tapado) y
+     por debajo de .shell-nav, que tiene 20. */
+  position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -292,6 +296,9 @@
   color: var(--muted-foreground);
   font-size: 13px;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .shell-crumb-link {
   padding: 0;

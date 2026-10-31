@@ -28,6 +28,7 @@ import { LoadState, loadErrorText } from "../components/LoadState";
 import { daysSince, isStale } from "../lib/pedidosParados";
 import { shapeLabel } from "../components/planning/clipShape";
 import { useAuth } from "../store/auth";
+import "../styles/office.css";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
 

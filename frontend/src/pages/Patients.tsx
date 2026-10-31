@@ -155,7 +155,7 @@ export function Patients({
 
   // F1-252: un Médico no ve la base entera, sino los suyos y los que le han
   // compartido (F2-75); «en la base de datos» le hacía creer que estaba vacía.
-  const subtitulo = loading ? "Cargando…" : loadError ? "No se pudo cargar la lista"
+  const subtitulo = loading && patients.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista"
     : `${recuentoPacientes(patients.length)} · ${isAdmin ? "en la base de datos" : "tuyos o compartidos contigo"}`;
 
   const iconBtn: React.CSSProperties = {
@@ -269,7 +269,7 @@ export function Patients({
                   {COLUMNAS.map((h, i) => (
                     <th
                       key={h}
-                      style={{ width: ANCHOS[i], textAlign: i === COLUMNAS.length - 1 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "var(--tracking-label)", borderBottom: "1px solid var(--border)" }}
+                      style={{ width: ANCHOS[i], textAlign: i === COLUMNAS.length - 1 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}
                     >
                       {h}
                     </th>

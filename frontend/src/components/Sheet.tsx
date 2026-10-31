@@ -137,7 +137,7 @@ export function Sheet({
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>{children}</div>
             {footer && (
-              <div data-sheet-footer style={{ padding: "14px 22px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>{footer}</div>
+              <div data-sheet-footer style={{ padding: "14px 22px", borderTop: "1px solid var(--border)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>{footer}</div>
             )}
           </motion.div>
         </div>

@@ -354,18 +354,22 @@ export function PatientSheet({
   // del formulario, F2-31). El botón enlaza con el formulario por su id.
   const pie = !loading && !denied && !loadError && canEditPatient ? (
     <>
-      <ErrorNote>{error}</ErrorNote>
-      {!form.surname && (
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8 }}>
-          Escribe los apellidos para guardar.
+      {error && (
+        <div style={{ flexBasis: "100%" }}>
+          <ErrorNote>{error}</ErrorNote>
         </div>
       )}
-      <div style={{ display: "flex", gap: 10 }}>
-        <Button type="submit" form="ficha-paciente" style={{ flex: 1 }} disabled={busy || !form.surname}>
-          {busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear paciente"}
-        </Button>
-        <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
-      </div>
+      {!form.surname && (
+        <div style={{ flexBasis: "100%" }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            Escribe los apellidos para guardar.
+          </div>
+        </div>
+      )}
+      <Button type="submit" form="ficha-paciente" disabled={busy || !form.surname}>
+        {busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear paciente"}
+      </Button>
+      <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
     </>
   ) : undefined;
 

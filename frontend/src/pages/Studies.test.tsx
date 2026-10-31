@@ -188,7 +188,7 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
   it("los textos de F1-73 y F1-74", async () => {
     listStudies.mockResolvedValue([]);
     render(<Studies {...props} />);
-    expect(await within(screen.getByRole("banner")).findByText("0 estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo")).toBeTruthy();
+    expect(await within(screen.getByRole("banner")).findByText("0 estudios de imagen archivados")).toBeTruthy();
     expect(await screen.findByText(/Abre un caso con «Planificar este caso», carga el DICOM y pulsa «Guardar estudio» en el Paso 1/)).toBeTruthy();
     expect(screen.queryByText(/pipeline/)).toBeNull();
   });

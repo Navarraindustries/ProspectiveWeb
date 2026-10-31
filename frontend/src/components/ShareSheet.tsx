@@ -124,6 +124,11 @@ export function ShareSheet({
     <Sheet open={open} onClose={onClose} title="Compartir con…" eyebrow={patientName} width={440}
       footer={
         <>
+          {error && (
+            <div style={{ flexBasis: "100%" }}>
+              <div role="alert"><ErrorNote>{error}</ErrorNote></div>
+            </div>
+          )}
           <Button onClick={save} disabled={busy || loading || !!loadError}>
             {busy ? "Guardando…" : "Guardar"}
           </Button>
@@ -184,7 +189,6 @@ export function ShareSheet({
             </ul>
           </div>
         )}
-        <div role={error ? "alert" : undefined}><ErrorNote>{error}</ErrorNote></div>
       </div>
     </Sheet>
   );

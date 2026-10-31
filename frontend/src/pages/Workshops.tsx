@@ -96,6 +96,11 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
       width={460}
       footer={
         <>
+          {error && (
+            <div style={{ flexBasis: "100%" }}>
+              <ErrorNote>{error}</ErrorNote>
+            </div>
+          )}
           <Button onClick={save} disabled={busy}>
             {busy ? "Guardando…" : workshop ? "Guardar cambios" : "Registrar taller"}
           </Button>
@@ -131,7 +136,6 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
         <Input label="Notas" value={form.notes} onChange={set("notes")}
                hint="Plazos habituales, capacidades, lo que convenga recordar." />
 
-        <ErrorNote>{error}</ErrorNote>
       </div>
     </Sheet>
   );

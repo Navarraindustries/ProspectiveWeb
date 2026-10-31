@@ -16,6 +16,7 @@ import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
 import { fechaHora } from "../lib/fecha";
 import { detalleDelBloque, etiquetaAccion } from "../lib/auditoria";
+import "../styles/office.css";
 
 /** Rows added per «Mostrar más». The chain is append-only and unbounded. */
 const PAGE = 50;
@@ -132,7 +133,7 @@ function AuditTrailPage() {
           {/* F2-58: exportar no depende de haber verificado antes. Es un enlace
               (descarga) con el aspecto de un botón secundario pequeño. */}
           <a href="/api/audit/export" target="_blank" rel="noreferrer"
-             style={{ display: "inline-flex", alignItems: "center", gap: 6, height: "var(--control-sm)", padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--radius)", fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+             style={{ display: "inline-flex", alignItems: "center", gap: 6, height: "var(--control-sm)", padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
             <Icon name="EXPORT" size={14} />Exportar
           </a>
           <Button size="sm" onClick={() => void runVerify()} disabled={busy} leadingIcon={<Icon name="SHIELD" size={13} />}>
@@ -237,7 +238,7 @@ function AuditTrailPage() {
                     </tr>
                     {abierto && (
                       <tr>
-                        <td colSpan={4} style={{ padding: "6px 8px 12px 28px", background: "var(--muted)" }}>
+                        <td colSpan={4} style={{ padding: "6px 14px 12px 38px", background: "var(--muted)" }}>
                           <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 14px", margin: 0 }}>
                             {detalle.map(([k, v]) => (
                               <Fragment key={k}>

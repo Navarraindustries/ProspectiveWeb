@@ -105,6 +105,11 @@ export function AttachCaseSheet({
     <Sheet open={open} onClose={onClose} title="Adjuntar a un caso" width={460}
       footer={
         <>
+          {error && (
+            <div style={{ flexBasis: "100%" }}>
+              <ErrorNote>{error}</ErrorNote>
+            </div>
+          )}
           <Button disabled={!listo || busy} onClick={() => void adjuntar()}>
             {busy ? "Archivando el estudio…" : "Adjuntar y archivar el estudio"}
           </Button>
@@ -192,8 +197,6 @@ export function AttachCaseSheet({
           <Input label="Fecha del estudio" type="date" value={studyDate} onChange={(e) => setStudyDate(e.target.value)} />
         </div>
       )}
-
-      <ErrorNote>{error}</ErrorNote>
     </Sheet>
   );
 }

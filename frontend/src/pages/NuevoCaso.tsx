@@ -159,6 +159,11 @@ export function NuevoEstudioSheet({
     <Sheet open={open} onClose={requestClose} title={editing ? "Editar caso" : "Nuevo caso"} width={460}
       footer={
         <>
+          {error && (
+            <div style={{ flexBasis: "100%" }}>
+              <ErrorNote>{error}</ErrorNote>
+            </div>
+          )}
           <Button type="submit" form="form-nuevo-caso" disabled={busy}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear caso"}</Button>
           <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
         </>
@@ -208,8 +213,6 @@ export function NuevoEstudioSheet({
           <Select label="Tipo" options={ANGIO_TIPO.map((t) => t || "Tipo")} value={f.angio_tipo || "Tipo"} onChange={(e) => setF((s) => ({ ...s, angio_tipo: e.target.value === "Tipo" ? "" : e.target.value }))} />
         </div>
 
-        <div style={{ height: 14 }} />
-        <ErrorNote>{error}</ErrorNote>
       </form>
     </Sheet>
     <DiscardChanges

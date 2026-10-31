@@ -21,6 +21,7 @@ import { useAuth } from "../store/auth";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { fechaHora } from "../lib/fecha";
 import { ROLE_LABEL, ROLE_OPTS, ROLE_PERMITE } from "../lib/roles";
+import "../styles/office.css";
 
 /** Qué permite el rol elegido (F1-86): el nombre solo no dice si el Observador puede editar. */
 function RolePermite({ role }: { role: string }) {
@@ -143,6 +144,11 @@ function EditUserSheet({
     <Sheet open={open} onClose={onClose} title="Editar usuario" width={460}
       footer={user ? (
         <>
+          {error && (
+            <div style={{ flexBasis: "100%" }}>
+              <ErrorNote>{error}</ErrorNote>
+            </div>
+          )}
           <Button disabled={busy} onClick={submit}>{busy ? "Guardando…" : "Guardar cambios"}</Button>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
         </>
@@ -164,7 +170,6 @@ function EditUserSheet({
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
             Cuenta activa (puede iniciar sesión)
           </label>
-          <ErrorNote>{error}</ErrorNote>
         </div>
       )}
     </Sheet>
@@ -234,6 +239,11 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
     <Sheet open={open} onClose={onClose} title="Nuevo usuario" width={460}
       footer={
         <>
+          {error && (
+            <div style={{ flexBasis: "100%" }}>
+              <ErrorNote>{error}</ErrorNote>
+            </div>
+          )}
           <Button disabled={busy} onClick={submit}>{busy ? "Creando…" : "Crear usuario"}</Button>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
         </>
@@ -270,8 +280,6 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
           </div>
         </Collapsible>
       </div>
-
-      <ErrorNote>{error}</ErrorNote>
     </Sheet>
   );
 }
@@ -391,7 +399,7 @@ function UsersAdminPage() {
   };
 
   const activos = rows.filter((u) => estadoCuenta(u) === "Activo").length;
-  const subtitulo = loading ? "Cargando…" : loadError ? "No se pudo cargar la lista"
+  const subtitulo = loading && users.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista"
     : `${rows.length} usuario${rows.length === 1 ? "" : "s"} · ${activos} activo${activos === 1 ? "" : "s"}`;
 
   return (
@@ -413,13 +421,14 @@ function UsersAdminPage() {
           <ErrorNote>{error}</ErrorNote>
 
           <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
+            <div style={{ overflowX: "auto" }}>
             <table className="tabla-oficina" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
                   {["Usuario", "Rol", "Especialidad / Hospital", "Estado", "Creado", "Acciones"].map((h, i) => (
                     <th
                       key={i}
-                      style={{ textAlign: i === 5 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", borderBottom: "1px solid var(--border)" }}
+                      style={{ textAlign: i === 5 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}
                     >
                       {h}
                     </th>
@@ -485,6 +494,7 @@ function UsersAdminPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>

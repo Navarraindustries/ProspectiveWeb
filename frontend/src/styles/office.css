@@ -4,11 +4,13 @@
 .tabla-oficina tbody tr .fila-acciones { opacity: .6; transition: opacity var(--dur-1) var(--ease-out); }
 .tabla-oficina tbody tr:hover .fila-acciones,
 .tabla-oficina tbody tr:focus-within .fila-acciones { opacity: 1; }
+/* Sin puntero (táctil) no hay hover: las acciones de fila quedan a plena opacidad. */
+@media (hover: none) { .tabla-oficina tbody tr .fila-acciones { opacity: 1; } }
 
 @keyframes fila-nueva { from { background: var(--brand-subtle); } to { background: transparent; } }
 .fila-nueva { animation: fila-nueva 1.2s var(--ease-out) 1; }
 
-.tarjeta-estudio { transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
+.tarjeta-estudio { box-shadow: var(--shadow-sm); transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
 .tarjeta-estudio:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .tarjeta-estudio img { transition: transform var(--dur-3) var(--ease-out); }
 .tarjeta-estudio:hover img { transform: scale(1.03); }
@@ -17,5 +19,5 @@
 @media (max-width: 760px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
 
 /* Tarjeta punteada «Subir un estudio nuevo»: se enciende al apuntarla o enfocarla. */
-.tarjeta-nueva { transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.tarjeta-nueva { border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
 .tarjeta-nueva:hover, .tarjeta-nueva:focus-visible { border-color: var(--data); background: color-mix(in srgb, var(--data) 8%, transparent); }

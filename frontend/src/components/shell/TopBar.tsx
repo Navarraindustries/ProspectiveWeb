@@ -53,7 +53,7 @@ export function TopBar({ crumbs, subtitle, status, actions }: {
           </ol>
         </nav>
       )}
-      {subtitle && <span className="shell-subtitle">{subtitle}</span>}
+      {subtitle && <span className="shell-subtitle" title={typeof subtitle === "string" ? subtitle : undefined}>{subtitle}</span>}
       <div className="shell-actions">
         {status}
         {actions}

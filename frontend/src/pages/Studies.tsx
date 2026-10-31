@@ -20,6 +20,7 @@ import { LoadState, loadErrorText } from "../components/LoadState";
 
 import { STEP_LABELS } from "../pipeline/steps";
 import { conTransicion } from "../lib/viewTransition";
+import "../styles/office.css";
 
 /** Preview image of a study — fetched with the JWT, so it goes through a blob. */
 function Thumbnail({ study }: { study: StudyCard }) {
@@ -52,7 +53,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
       {chipTexto && (
         <span style={{
           position: "absolute", top: 8, left: 8, fontSize: 11, padding: "2px 7px", borderRadius: 6,
-          background: "rgba(0,0,0,.6)", color: "var(--data)", fontFamily: "var(--font-mono)",
+          background: "color-mix(in srgb, var(--viewer-bg) 60%, transparent)", color: "var(--data)", fontFamily: "var(--font-mono)",
         }}>
           {chipTexto}
         </span>
@@ -97,7 +98,7 @@ export function StudyGallery({
   /** Pinta al final de la rejilla la tarjeta punteada «Subir un estudio nuevo». */
   onNew?: () => void;
   /** Avisa del número de estudios cargados (null mientras carga). */
-  onCount?: (n: number | null) => void;
+  onCount?: (n: number | "error" | null) => void;
   /** Restrict to one patient (used inside the patient sheet). */
   patientId?: number;
   /** Restrict to one clinical case — a case can hold several acquisitions. */
@@ -163,7 +164,7 @@ export function StudyGallery({
 
   const rows = studies;
 
-  useEffect(() => { onCount?.(loading || error ? null : studies.length); }, [onCount, loading, error, studies.length]);
+  useEffect(() => { onCount?.(loading ? null : error ? "error" : studies.length); }, [onCount, loading, error, studies.length]);
 
   return (
     <div>
@@ -210,7 +211,7 @@ export function StudyGallery({
                 display: "flex", flexDirection: "column", textAlign: "left", padding: 0,
                 background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: "var(--radius-lg)", overflow: "hidden",
-                fontFamily: "var(--font-sans)", boxShadow: "var(--shadow-sm)",
+                fontFamily: "var(--font-sans)",
               }}
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--brand-deep)")}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -307,8 +308,7 @@ export function StudyGallery({
               onClick={onNew}
               style={{
                 minHeight: 300, display: "flex", flexDirection: "column", alignItems: "center",
-                justifyContent: "center", gap: 8, background: "transparent", cursor: "pointer",
-                border: "1px dashed color-mix(in srgb, var(--foreground) 18%, transparent)",
+                justifyContent: "center", gap: 8, cursor: "pointer",
                 borderRadius: 12, color: "var(--data)", fontFamily: "var(--font-sans)", fontSize: 14,
               }}
             >
@@ -357,14 +357,16 @@ export function Studies({
   onOpenPatient: (patientId: number) => void;
   onNew: () => void;
 }) {
-  const [count, setCount] = useState<number | null>(null);
+  const [count, setCount] = useState<number | "error" | null>(null);
   // Sección de primer nivel, como Pacientes: la miga es solo ella.
   return (
     <AppShell
       crumbs={[{ label: "Estudios" }]}
-      subtitle={`${count == null
+      subtitle={count == null
         ? "Cargando…"
-        : `${count} ${count === 1 ? "estudio" : "estudios"} de imagen ${count === 1 ? "archivado" : "archivados"}`} · pulsa uno para reanudarlo o abrirlo`}
+        : count === "error"
+          ? "No se pudo cargar la lista"
+          : `${count} ${count === 1 ? "estudio" : "estudios"} de imagen ${count === 1 ? "archivado" : "archivados"}${count > 0 ? " · pulsa uno para reanudarlo o abrirlo" : ""}`}
     >
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 24px 40px" }}>

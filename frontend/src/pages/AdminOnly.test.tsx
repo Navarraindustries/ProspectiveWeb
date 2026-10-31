@@ -6,7 +6,7 @@
    más, y la página no llega a pedir nada al servidor. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 const listUsers = vi.fn();
 const auditBlocks = vi.fn();
@@ -69,7 +69,10 @@ describe("rutas de administración para un Médico", () => {
   it("el administrador sigue viendo «Cuentas pendientes»", async () => {
     user.role = "admin";
     render(<PendingRequests onBack={() => {}} />);
-    expect(await screen.findByText("Cuentas pendientes", { selector: "div" })).toBeTruthy();
+    expect(
+      within(await screen.findByRole("navigation", { name: "Miga de pan" })).getByText("Cuentas pendientes"),
+    ).toHaveAttribute("aria-current", "page");
+    expect(await screen.findByRole("tab", { name: "Pendientes" })).toBeTruthy();
     expect(listPending).toHaveBeenCalled();
     expect(screen.queryByText("Solo para administradores")).toBeNull();
   });

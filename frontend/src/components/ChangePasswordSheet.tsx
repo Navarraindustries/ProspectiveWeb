@@ -54,6 +54,11 @@ export function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose:
     <Sheet open={open} onClose={close} title="Cambiar contraseña" width={400}
       footer={done ? undefined : (
         <>
+          {error && (
+            <div style={{ flexBasis: "100%" }}>
+              <ErrorNote>{error}</ErrorNote>
+            </div>
+          )}
           <Button
             onClick={() => void submit()}
             disabled={!canSubmit}
@@ -108,8 +113,6 @@ export function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose:
               {!tooShort && !mismatch && sameAsOld && "La nueva contraseña debe ser distinta de la actual."}
             </div>
           )}
-
-          <ErrorNote>{error}</ErrorNote>
         </>
       )}
     </Sheet>

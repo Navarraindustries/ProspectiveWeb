@@ -105,3 +105,32 @@
 .pt-side-activity-time { flex-shrink: 0; color: var(--muted-foreground); font-size: 11px; }
 
 .pt-side-links { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
+
+/* La página (spec §4.1): rejilla de tarjetas y panel lateral de 320 px.
+   Tres columnas desde 1400 px, dos entre 1100 y 1400; por debajo una sola y el
+   panel pasa debajo de la lista. */
+.pt-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.pt-search { width: 280px; max-width: 100%; }
+
+.pt-tabs { display: inline-flex; gap: 2px; padding: 3px; background: var(--muted); border-radius: var(--radius-md); }
+.pt-tab {
+  padding: 5px 12px; border: 0; border-radius: var(--radius-sm); background: transparent;
+  color: var(--muted-foreground); font: inherit; font-size: 13px; cursor: pointer;
+}
+.pt-tab:hover { color: var(--foreground); }
+.pt-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.pt-tab--on { background: var(--card); color: var(--foreground); box-shadow: var(--shadow-sm); }
+
+.pt-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.pt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 1399px) { .pt-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1099px) {
+  .pt-layout { grid-template-columns: 1fr; }
+  .pt-grid { grid-template-columns: 1fr; }
+}
+
+/* Esqueleto mientras carga: la altura de una tarjeta, sin texto. */
+.pt-card--skeleton { min-height: 280px; cursor: default; background: var(--muted); border-color: var(--border); animation: pt-pulse 1.4s ease-in-out infinite; }
+.pt-card--skeleton:hover { border-color: var(--border); box-shadow: none; }
+@keyframes pt-pulse { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .pt-card--skeleton { animation: none; } }

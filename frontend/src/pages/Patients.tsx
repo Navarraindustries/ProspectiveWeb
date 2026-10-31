@@ -1,32 +1,38 @@
-/* Pacientes — contadores y tabla de pacientes por última actividad (GET
-   /api/patients); crear, abrir la ficha y reanudar la última sesión. Borrar
+/* Pacientes — panel de tarjetas por última actividad (GET /api/patients) con
+   panel lateral; crear, abrir la ficha y reanudar la última sesión. Borrar
    un paciente está al pie de su ficha (PatientSheet.tsx). */
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { PatientSummary, StudyCard, StudySummary } from "../api/types";
-import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { AppShell } from "../components/shell/AppShell";
-import { Card, PanelHead } from "../components/PanelHead";
+import { PanelHead } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
+import { PatientCard } from "../components/patients/PatientCard";
+import { PatientsSidePanel } from "../components/patients/PatientsSidePanel";
+import "../components/patients/patients.css";
 import { useAuth } from "../store/auth";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { PatientSheet } from "./PatientSheet";
 
-import { recuentoPacientes, ultimaActividad, ultimaSesion } from "../lib/pacientes";
-import { ageFromDob } from "../components/patientAge";
+import { filtraPestana, hayCompartidos, recuentoPacientes, ultimaActividad, type PestanaPacientes } from "../lib/pacientes";
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
 type Aviso =
   | { tipo: "paciente"; paciente: PatientSummary }
   | { tipo: "caso"; paciente: PatientSummary; caso: StudySummary };
 
-const COLUMNAS = ["Paciente", "HC", "Edad", "Institución", "Último caso", "Última sesión", "Acciones"];
-const celda: React.CSSProperties = { padding: "12px 16px" };
+const PESTANAS: { id: PestanaPacientes; texto: string }[] = [
+  { id: "todos", texto: "Todos" },
+  { id: "mios", texto: "Míos" },
+  { id: "compartidos", texto: "Compartidos conmigo" },
+];
+// Cuántos esqueletos mientras carga: llenan la rejilla de tres columnas en dos filas.
+const ESQUELETOS = 6;
 
 export function Patients({
   onResume,
@@ -89,22 +95,25 @@ export function Patients({
   // una edición; ahora la abren el clic en la fila y «Abrir ficha».
   const openSheet = (id: number) => { setSheetPatientId(id); setSheetOpen(true); };
 
+  const [pestana, setPestana] = useState<PestanaPacientes>("todos");
+
+  // La pestaña filtra antes que la búsqueda: «Míos» + «segura» busca dentro de los míos.
+  const conCompartidos = hayCompartidos(patients);
+  // Si lo compartido desaparece mientras se mira su pestaña, la fila de pestañas
+  // se oculta: se vuelve a «Todos» para no quedar con una lista vacía sin salida.
+  const pestanaActiva: PestanaPacientes = conCompartidos ? pestana : "todos";
   const rows = useMemo(() => {
     const t = q.toLowerCase();
-    return patients
+    return filtraPestana(patients, pestanaActiva, user?.id ?? null)
       .filter((p) => p.full_name.toLowerCase().includes(t) || p.hospital_id.toLowerCase().includes(t))
       .sort((a, b) => ultimaActividad(b) - ultimaActividad(a));
-  }, [patients, q]);
+  }, [patients, q, pestanaActiva, user?.id]);
 
-  const totalStudies = patients.reduce((acc, p) => acc + p.study_count, 0);
-  const tiles: { k: string; v: string; s?: string; icon: React.ComponentProps<typeof Icon>["name"] }[] = [
-    // F1-252: un Médico no ve la base entera, sino los suyos y los que le han
-    // compartido (F2-75); «en la base de datos» le hacía creer que estaba vacía.
-    { k: "Pacientes", v: String(patients.length), s: isAdmin ? "en la base de datos" : "tuyos o compartidos contigo", icon: "PATIENTS" },
-    { k: "Casos", v: String(totalStudies), icon: "FOLDER" },
-    { k: "Con caso", v: String(patients.filter((p) => p.study_count > 0).length), icon: "STATUS_OK" },
-    { k: "Sin caso", v: String(patients.filter((p) => p.study_count === 0).length), icon: "WAIT" },
-  ];
+  // F1-253: para un Médico la lista vacía no significa que no haya pacientes en
+  // el sistema, sino que no tiene ninguno suyo ni compartido con él.
+  const vacioDelRol = isAdmin
+    ? "No hay pacientes registrados. Crea el primero para comenzar."
+    : "Solo ves tus pacientes y los que te han compartido. Crea el primero para comenzar.";
 
   const iconBtn: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
@@ -135,28 +144,12 @@ export function Patients({
     >
 
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }} className="fade-rise">
+        {/* 1440: tres columnas de tarjetas más el panel lateral caben sin apretar. */}
+        <div style={{ maxWidth: 1440, margin: "0 auto" }} className="fade-rise">
           <PanelHead
             title="Pacientes"
             desc={loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : recuentoPacientes(patients.length)}
           />
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-            {tiles.map((t) => (
-              <Card key={t.k} style={{ padding: "16px 18px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "var(--tracking-label)", textTransform: "uppercase", color: "var(--muted-foreground)" }}>{t.k}</div>
-                  <span style={{ width: 30, height: 30, borderRadius: "var(--radius-md)", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Icon name={t.icon} size={15} />
-                  </span>
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: "var(--foreground)", marginTop: 6, fontFamily: "var(--font-mono)" }}>
-                  {loading || loadError ? "—" : t.v}
-                </div>
-                {t.s && <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t.s}</div>}
-              </Card>
-            ))}
-          </div>
 
           {aviso && (
             // F2-22 y spec §5: quien acaba de crear un paciente o un caso espera
@@ -189,99 +182,53 @@ export function Patients({
             </div>
           )}
 
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-            {/* F2-18: la búsqueda estaba en la barra superior, lejos de la tabla que filtra. */}
-            <div style={{ display: "flex", alignItems: "center", padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ width: 280 }}>
-                <Input icon={<Icon name="SEARCH" />} placeholder="Buscar paciente o HC…" aria-label="Buscar paciente o HC"
-                       value={q} onChange={(e) => setQ(e.target.value)} />
-              </div>
+          <div className="pt-toolbar">
+            {/* F2-18: la búsqueda junto a la lista que filtra. */}
+            <div className="pt-search">
+              <Input icon={<Icon name="SEARCH" />} placeholder="Buscar paciente o HC…" aria-label="Buscar paciente o HC"
+                     value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  {COLUMNAS.map((h, i) => (
-                    <th
-                      key={h}
-                      style={{ textAlign: i === COLUMNAS.length - 1 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "var(--tracking-label)", borderBottom: "1px solid var(--border)" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(loadError || (loading && patients.length === 0) || (!loading && rows.length === 0)) && (
-                  <tr>
-                    <td colSpan={COLUMNAS.length}>
-                      <LoadState
-                        state={loadError ? "error" : loading ? "cargando" : "vacio"}
-                        // F1-253: para un Médico la lista vacía no significa que no
-                        // haya pacientes en el sistema, sino que no tiene ninguno suyo
-                        // ni compartido con él.
-                        mensaje={loadError ?? (patients.length === 0
-                          ? (isAdmin
-                            ? "No hay pacientes registrados. Crea el primero para comenzar."
-                            : "Solo ves tus pacientes y los que te han compartido. Crea el primero para comenzar.")
-                          : "Ningún paciente coincide con la búsqueda.")}
-                        onRetry={load}
-                      />
-                    </td>
-                  </tr>
-                )}
-                {!loadError && rows.map((p, i) => (
-                  <tr
-                    key={p.id}
-                    // F1-56: la fila abre la ficha también con el teclado.
-                    tabIndex={0}
-                    onClick={() => openSheet(p.id)}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
-                      e.preventDefault();
-                      openSheet(p.id);
-                    }}
-                    style={{ cursor: "pointer", borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : "none" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <td style={{ ...celda, fontWeight: 600, color: "var(--foreground)" }}>
-                      <span data-nombre>{p.full_name}</span>
-                      {p.is_shared_with_me && (
-                        <span style={{ marginLeft: 8 }}><Badge variant="brand">Compartido</Badge></span>
-                      )}
-                      {p.shared_with_count > 0 && (
-                        <span style={{ marginLeft: 8 }}><Badge variant="muted">{`Compartido con ${p.shared_with_count}`}</Badge></span>
-                      )}
-                    </td>
-                    <td style={{ ...celda, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{p.hospital_id || "—"}</td>
-                    {/* F2-24: la edad, que el especialista usa para el riesgo de rotura. */}
-                    <td style={{ ...celda, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{ageFromDob(p.dob) || "—"}</td>
-                    <td style={{ ...celda, color: "var(--foreground)" }}>{p.institution || "—"}</td>
-                    <td style={{ ...celda, color: "var(--foreground)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                        title={p.last_case_label || undefined}>
-                      {p.last_case_label || "—"}
-                    </td>
-                    <td style={{ ...celda, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{ultimaSesion(p)}</td>
-                    <td style={{ padding: "8px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      <span style={{ display: "inline-flex", gap: 6 }}>
-                        {p.last_session_id && (
-                          // F2-24: reanudar en un clic, sin abrir la ficha.
-                          <Button size="sm" leadingIcon={<Icon name="RESUME" />}
-                                  onClick={(e) => { e.stopPropagation(); onResume(p.last_session_id!, p); }}>
-                            Reanudar
-                          </Button>
-                        )}
-                        <Button size="sm" variant="outline" leadingIcon={<Icon name="OPEN" />}
-                                onClick={(e) => { e.stopPropagation(); openSheet(p.id); }}>
-                          Abrir ficha
-                        </Button>
-                      </span>
-                    </td>
-                  </tr>
+            {conCompartidos && (
+              <div role="tablist" aria-label="Qué pacientes ver" className="pt-tabs">
+                {PESTANAS.map((t) => (
+                  <button key={t.id} type="button" role="tab" aria-selected={pestanaActiva === t.id}
+                          className={`pt-tab${pestanaActiva === t.id ? " pt-tab--on" : ""}`}
+                          onClick={() => setPestana(t.id)}>
+                    {t.texto}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
+
+          <section className="pt-layout">
+            <div>
+              {loadError ? (
+                <LoadState state="error" mensaje={loadError} onRetry={load} />
+              ) : loading && patients.length === 0 ? (
+                // Esqueletos, no texto: la rejilla ya tiene su forma antes de llegar los datos.
+                <div className="pt-grid" aria-busy="true">
+                  {Array.from({ length: ESQUELETOS }, (_, i) => <div key={i} className="pt-card pt-card--skeleton" />)}
+                </div>
+              ) : patients.length === 0 ? (
+                <LoadState state="vacio" mensaje={vacioDelRol} onRetry={load} />
+              ) : rows.length === 0 ? (
+                <LoadState state="vacio" mensaje="Ningún paciente coincide con la búsqueda." onRetry={load} />
+              ) : (
+                <div className="pt-grid" data-testid="pacientes-rejilla">
+                  {rows.map((p) => (
+                    <PatientCard key={p.id} patient={p}
+                                 onOpen={(x) => openSheet(x.id)}
+                                 onResume={onResume}
+                                 // La tarjeta no conoce el caso; la ficha tiene «Planificar este caso» y «Nuevo caso».
+                                 onPlan={(x) => openSheet(x.id)} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <PatientsSidePanel patients={patients} loading={loading}
+                               onOpenPatient={openSheet} onNewPatient={openCreate} />
+          </section>
         </div>
       </div>
 

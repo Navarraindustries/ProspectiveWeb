@@ -67,17 +67,17 @@ beforeEach(() => {
 describe("las pestañas de stent (F1-189)", () => {
   it("se llaman «Stent recto» y «Stent sobre la línea central»", async () => {
     montar();
-    expect(await screen.findByRole("button", { name: "Stent recto" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Stent sobre la línea central" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Stents" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Stent CL" })).toBeNull();
+    expect(await screen.findByRole("tab", { name: "Stent recto" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Stent sobre la línea central" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Stents" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Stent CL" })).toBeNull();
   });
 
   it("las dos avisan de que hay un solo stent por sesión", async () => {
     montar();
-    fireEvent.click(await screen.findByRole("button", { name: "Stent recto" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Stent recto" }));
     expect(await screen.findByText(UN_SOLO_STENT)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Stent sobre la línea central" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Stent sobre la línea central" }));
     expect(await screen.findByText(UN_SOLO_STENT)).toBeInTheDocument();
   });
 
@@ -93,7 +93,7 @@ describe("las pestañas de stent (F1-189)", () => {
 describe("stent recto", () => {
   async function abrir(morfo?: MorphometryResult) {
     montar({ morfo });
-    fireEvent.click(await screen.findByRole("button", { name: "Stent recto" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Stent recto" }));
     await screen.findByLabelText("Diámetro nominal");
   }
   const diametro = () => screen.getByLabelText("Diámetro nominal") as HTMLInputElement;
@@ -150,7 +150,7 @@ describe("stent sobre la línea central (F1-208)", () => {
     };
     vi.mocked(api.deployClStent).mockResolvedValue(res);
     montar({ conLineaCentral: true });
-    fireEvent.click(await screen.findByRole("button", { name: "Stent sobre la línea central" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Stent sobre la línea central" }));
     fireEvent.click(await screen.findByRole("button", { name: "Desplegar sobre la línea central" }));
     expect(await screen.findByText("Ø medio del tramo cubierto")).toBeInTheDocument();
     expect(screen.queryByText("Ø vaso medio")).toBeNull();

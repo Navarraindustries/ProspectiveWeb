@@ -1,6 +1,6 @@
 /* A drawer that renders inside a glass surface silently collapses. */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Sheet } from "./Sheet";
 
@@ -42,5 +42,33 @@ describe("Sheet", () => {
     );
     expect(screen.getByText("Editar paciente")).toBeInTheDocument();
     expect(screen.getByLabelText("Cerrar")).toBeInTheDocument();
+  });
+
+  it("enfoca el primer campo al abrir", () => {
+    render(<Sheet open onClose={() => {}} title="Nuevo paciente"><input aria-label="Apellidos" /><input aria-label="Nombre" /></Sheet>);
+    expect(document.activeElement).toBe(screen.getByLabelText("Apellidos"));
+  });
+
+  it("pinta el pie fijo cuando se le pasa", () => {
+    render(<Sheet open onClose={() => {}} title="Nuevo paciente" footer={<button>Crear paciente</button>}><p>campos</p></Sheet>);
+    expect(screen.getByRole("button", { name: "Crear paciente" })).toBeInTheDocument();
+  });
+
+  it("la superficie es sólida y la sombra tiene desplazamiento", () => {
+    render(<Sheet open onClose={() => {}} title="Ficha"><p>x</p></Sheet>);
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.background).toContain("--card");
+    expect(panel.style.backdropFilter ?? "").toBe(""); // jsdom no declara la propiedad: undefined
+    expect(panel.style.boxShadow).toContain("--shadow-sheet");
+  });
+
+  it("con dos hojas abiertas, Escape cierra solo la de encima", () => {
+    const closed: string[] = [];
+    render(<>
+      <Sheet open onClose={() => closed.push("abajo")} title="Abajo"><p>a</p></Sheet>
+      <Sheet open onClose={() => closed.push("arriba")} title="Arriba"><p>b</p></Sheet>
+    </>);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(closed).toEqual(["arriba"]);
   });
 });

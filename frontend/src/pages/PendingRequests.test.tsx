@@ -92,7 +92,7 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
   it("hay tres pestañas y arranca en Pendientes", async () => {
     listPending.mockResolvedValue([solicitud]);
     render(<PendingRequests onBack={() => {}} />);
-    for (const t of ["Pendientes", "Aprobadas", "Rechazadas"]) expect(screen.getByRole("button", { name: t })).toBeTruthy();
+    for (const t of ["Pendientes", "Aprobadas", "Rechazadas"]) expect(screen.getByRole("tab", { name: t })).toBeTruthy();
     expect(await screen.findByText("Nuevo Residente")).toBeTruthy();
     expect(screen.getByText("1 pendiente de aprobación")).toBeTruthy();
   });
@@ -101,10 +101,10 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
     listPending.mockResolvedValue([]);
     render(<PendingRequests onBack={() => {}} />);
     expect(await screen.findByText("No hay cuentas pendientes.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Aprobadas" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Aprobadas" }));
     expect(await screen.findByText("Ninguna cuenta aprobada todavía.")).toBeTruthy();
     expect(listUsers).toHaveBeenCalledWith("approved");
-    fireEvent.click(screen.getByRole("button", { name: "Rechazadas" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Rechazadas" }));
     expect(await screen.findByText("Ninguna cuenta rechazada.")).toBeTruthy();
     expect(listUsers).toHaveBeenCalledWith("rejected");
   });
@@ -116,7 +116,7 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
       specialty: "", hospital: "", created_at: "2026-10-01T00:00:00+00:00", rejected_at: "2026-10-03T15:30:00+00:00",
     }] : []));
     render(<PendingRequests onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Rechazadas" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Rechazadas" }));
     expect(await screen.findByText("Rita Rechazada")).toBeTruthy();
     expect(screen.getByText(new RegExp(`Rechazada: ${fechaHora("2026-10-03T15:30:00+00:00")}`))).toBeTruthy();
   });
@@ -128,7 +128,7 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
       { id: 8, username: "apro", full_name: "Aitor Aprobado", role: "medico", status: "active", is_active: true, specialty: "", hospital: "", created_at: "2026-10-02T09:00:00+00:00", rejected_at: null },
     ]);
     render(<PendingRequests onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Aprobadas" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Aprobadas" }));
     expect(await screen.findByText("Aitor Aprobado")).toBeTruthy();
     expect(screen.queryByText("Admin")).toBeNull();
     expect(screen.getByText(/no distingue/)).toBeTruthy();
@@ -138,7 +138,7 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
     listPending.mockResolvedValue([]);
     listUsers.mockRejectedValueOnce(Object.assign(new Error("El servidor no responde"), { status: 0, fromServer: false }));
     render(<PendingRequests onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Rechazadas" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Rechazadas" }));
     expect(await screen.findByText("El servidor no responde")).toBeTruthy();
     expect(screen.queryByText("Ninguna cuenta rechazada.")).toBeNull();
   });
@@ -193,18 +193,18 @@ describe("«Rechazadas» (nota)", () => {
   it("avisa de que las rechazadas antes de esta versión no se listan", async () => {
     listPending.mockResolvedValue([]);
     render(<PendingRequests onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Rechazadas" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Rechazadas" }));
     // Con lista vacía sale el vacío; con filas, la nota.
     listUsers.mockResolvedValue([{ id: 9, username: "r", full_name: "R R", role: "medico", status: "rejected", is_active: false, specialty: "", hospital: "", created_at: "2026-10-01T00:00:00+00:00", rejected_at: "2026-10-03T15:30:00+00:00" }]);
-    fireEvent.click(screen.getByRole("button", { name: "Pendientes" }));
-    fireEvent.click(screen.getByRole("button", { name: "Rechazadas" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Pendientes" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Rechazadas" }));
     expect(await screen.findByText(/las anteriores no tenían fecha/)).toBeTruthy();
   });
 
   it("la nota también sale con la lista vacía", async () => {
     listPending.mockResolvedValue([]);
     render(<PendingRequests onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Rechazadas" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Rechazadas" }));
     expect(await screen.findByText("Ninguna cuenta rechazada.")).toBeTruthy();
     expect(screen.getByText(/las anteriores no tenían fecha/)).toBeTruthy();
   });
@@ -215,8 +215,8 @@ describe("«Rechazadas» (nota)", () => {
     listUsers.mockImplementation((st: string) =>
       st === "approved" ? new Promise((r) => { soltar = r; }) : Promise.resolve([]));
     render(<PendingRequests onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Aprobadas" }));
-    fireEvent.click(screen.getByRole("button", { name: "Rechazadas" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Aprobadas" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Rechazadas" }));
     expect(await screen.findByText("Ninguna cuenta rechazada.")).toBeTruthy();
     soltar([{ id: 5, username: "tarde", full_name: "Cuenta Tardía", role: "medico", status: "approved", is_active: true, specialty: "", hospital: "", created_at: "2026-10-01T00:00:00+00:00", rejected_at: null }]);
     await Promise.resolve();

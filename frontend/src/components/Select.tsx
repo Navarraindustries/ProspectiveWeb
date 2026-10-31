@@ -1,4 +1,4 @@
-/* Select — styled native combobox with the small uppercase label. */
+/* Select — combobox nativo con la misma etiqueta que Input (minúscula, 13 px, 500). */
 
 import { useId } from "react";
 import type { SelectHTMLAttributes } from "react";
@@ -19,7 +19,7 @@ export function Select({ label, options, style, ...rest }: SelectProps) {
       {label && (
         <label
           htmlFor={id}
-          style={{ fontSize: "var(--text-label)", fontWeight: 600, letterSpacing: "var(--tracking-label)", textTransform: "uppercase", color: "var(--muted-foreground)" }}
+          style={{ fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" }}
         >
           {label}
         </label>
@@ -31,12 +31,12 @@ export function Select({ label, options, style, ...rest }: SelectProps) {
           height: "var(--control-md)",
           padding: "0 10px",
           borderRadius: "var(--radius-md)",
-          background: "var(--background)",
+          background: "var(--canvas)",
           border: "1px solid var(--input)",
           boxShadow: "var(--shadow-xs)",
           color: "var(--foreground)",
           fontFamily: "var(--font-sans)",
-          fontSize: 13,
+          fontSize: 14,
           cursor: "pointer",
           ...style,
         }}

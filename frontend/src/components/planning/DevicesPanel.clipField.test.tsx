@@ -154,14 +154,14 @@ describe("DevicesPanel · campo del clip", () => {
     fireEvent.click(screen.getByRole("button", { name: /Colocar 1 y verificar/ }));
     await screen.findByText(/Estimación geométrica/);
     expect(store!.clipsTabActive).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Coils" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Coils" }));
     expect(store!.clipsTabActive).toBe(false);
     // Sin pestaña de clips nadie recoloca (y el 3D esconde las asas). Si aun
     // así la lista cambia, volver a Clips tiene que recolocar la pose pendiente.
     act(() => store!.setPlacedClips((p) => p.map((c) => ({ ...c, position: [4, 2, 3] }))));
     act(() => { vi.advanceTimersByTime(400); });
     expect(api.planClips).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "Clips" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Clips" }));
     expect(store!.clipsTabActive).toBe(true);
     act(() => { vi.advanceTimersByTime(260); });
     await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(2));
@@ -171,8 +171,8 @@ describe("DevicesPanel · campo del clip", () => {
   it("volver a la pestaña de clips sin nada movido no recoloca", async () => {
     await colocar();
     await screen.findByText(/Estimación geométrica/);
-    fireEvent.click(screen.getByRole("button", { name: "Coils" }));
-    fireEvent.click(screen.getByRole("button", { name: "Clips" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Coils" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Clips" }));
     act(() => { vi.advanceTimersByTime(400); });
     expect(api.planClips).toHaveBeenCalledTimes(1);
   });

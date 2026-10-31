@@ -24,9 +24,36 @@ body {
   box-sizing: border-box;
 }
 
+/* Selección, caret y barras de desplazamiento: todos salen de la paleta. */
 ::selection {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+input, textarea {
+  caret-color: var(--primary);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 45%, transparent) transparent;
+}
+
+/* En Chromium manda scrollbar-color; el bloque webkit queda para Safari. */
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+    border-radius: var(--radius-full);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
 a {
@@ -104,5 +131,19 @@ code, kbd, samp, .mono {
       animation-timeline: view();
       animation-range: entry 0% entry 55%;
     }
+  }
+}
+
+/* Movimiento reducido (§4.7): con esta preferencia solo sobreviven las
+   transiciones de opacidad, color y fondo; el resto se corta. La duración
+   no puede ser 0 para que los eventos transitionend/animationend sigan
+   disparándose. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-property: opacity, color, background-color !important;
+    scroll-behavior: auto !important;
   }
 }

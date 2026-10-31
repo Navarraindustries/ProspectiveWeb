@@ -3,6 +3,7 @@
    Familia: Geist (autoalojada). Mono: Geist Mono para cifras, HUD, hashes y códigos.
    La jerarquía se expresa con tamaño y peso, nunca con color. Pesos 400/500/600.
    Escala: 12 / 13 / 14 (cuerpo), 16 / 20 (títulos de sección), 28 (título de página).
+   La etiqueta de campo va a 13 px con peso 500 (--text-label, --weight-label).
    ============================================================================ */
 
 :root {
@@ -16,6 +17,7 @@
   --weight-regular:  400;
   --weight-medium:   500;
   --weight-semibold: 600;
+  --weight-label:    500;  /* etiquetas de campo */
   /* Los usos antiguos de 700/800 se pliegan al más pesado de la identidad. */
   --weight-bold:     600;
   --weight-extra:    600;
@@ -27,7 +29,7 @@
   --text-section: 16px;  /* subsección, peso 600 */
   --text-body:    14px;  /* cuerpo / interfaz, peso 400 */
   --text-desc:    13px;  /* descripción, apagada */
-  --text-label:   12px;  /* etiqueta pequeña, peso 500 */
+  --text-label:   13px;  /* etiqueta de campo, peso 500 */
   --text-micro:   12px;  /* insignias y metadatos: el suelo de la escala es 12 */
 
   /* ---- Line heights ---- */

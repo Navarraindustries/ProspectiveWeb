@@ -135,6 +135,8 @@ Herramientas: **Motion** (`motion`, antes Framer Motion) para entradas, FLIP y g
 
 Orden alternativo si el dueño quiere enseñar algo pronto: 1 → 5 → 4 → 2 → 3.
 
+Fase 1 completada el 2026-10-31: tokens, movimiento y componentes base (Button, Badge, Input, Select, Tabs, Sheet); ver plan `docs/superpowers/plans/2026-10-30-rediseno-fase1-tokens-movimiento.md`.
+
 ## 8. Decisiones tras la revisión del constructor (30-10, noche)
 
 Un revisor independiente leyó este documento como si tuviera que construirlo sin preguntar. De sus once dudas, diez se resuelven aquí como decisiones del diseñador (marcadas «mi decisión»); la primera la decide el dueño.
@@ -150,6 +152,7 @@ Un revisor independiente leyó este documento como si tuviera que construirlo si
 9. **Barra lateral** — mi decisión: solo cambia el valor por defecto a fijada (220 px); se conservan plegado, hover, Alt+B, chincheta y sus tests.
 10. **Calculadoras de riesgo** — mi decisión: PHASES, ELAPSS y UIATS siguen editándose en Morfometría (pestañas). Decisión los muestra en tarjetas de solo lectura con «Cambiar en Morfometría», como hoy; sin duplicar estado.
 11. **Nombres de tokens** — mi decisión: se conservan los nombres actuales (`--background`, `--card`, `--muted`, `--muted-foreground`, `--destructive`, `--success`, `--warning`, `--primary`) y se ajustan valores solo donde §4.1 lo pide; se añaden `--surface-2` (#0E1014), `--data` (#8CBBFF) y los tokens de movimiento. La tabla de §4.1 se lee así: lienzo → `--canvas`, superficie → `--card`, rails → `--surface-2`, cuerpo secundario → `--muted-foreground`, lesión → `--destructive` (se mantiene #FF5A5F), hecho → `--success`, aviso → `--warning`. `tokens.test.ts` se actualiza en la fase 1 con los valores finales.
+12. **Oscuro: `--card` y `--muted-foreground` se quedan** — mi decisión (revisión final de la fase 1): en oscuro `--card` se queda en #1C1D22 porque `--background` ya es #141519 y, con un valor más próximo, tarjetas y paneles se fundirían; `--muted-foreground` se queda en #9AA3AF. El contraste del tema oscuro se revisa en la fase 6.
 
 ## Anexo A. Inventario del panel derecho por paso (sesión «Cerón, Cesar», 30-10) y revisión
 

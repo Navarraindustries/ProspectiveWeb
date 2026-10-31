@@ -18,7 +18,7 @@ export function PanelHead({ title, desc, right }: { title: string; desc?: string
   );
 }
 
-/* SectionLabel — rótulo de sección en minúscula (Candidatos, Serie detectada…) */
+/* SectionLabel — rótulo de sección en mayúsculas mono (CANDIDATOS, SERIE DETECTADA…) */
 export function SectionLabel({ children, style, className }: { children: ReactNode; style?: React.CSSProperties; className?: string }) {
   return (
     <div
@@ -154,7 +154,7 @@ export function Card({ children, style, className, onClick }: {
       onClick={onClick}
       data-glass
       style={{
-        ...glass("normal"),
+        ...glass("flat"),
         borderRadius: "var(--radius-lg)",
         padding: "14px 16px",
         ...style,

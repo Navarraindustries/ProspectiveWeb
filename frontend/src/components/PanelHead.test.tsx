@@ -22,6 +22,13 @@ describe("Card", () => {
     expect(el.style.borderRadius).toContain("--radius-lg");
   });
 
+  it("no lleva desenfoque propio (el cristal se desenfoca una sola vez)", () => {
+    render(<Card>plana</Card>);
+    const el = screen.getByText("plana");
+    expect(el.style.backdropFilter || "").toBe("");
+    expect(el.style.boxShadow).toContain("--glass-highlight");
+  });
+
   it("el estilo del llamador manda sobre el del cristal", () => {
     render(<Card style={{ padding: 3 }}>x</Card>);
     expect(screen.getByText("x").style.padding).toBe("3px");

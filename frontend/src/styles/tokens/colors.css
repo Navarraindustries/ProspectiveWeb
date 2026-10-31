@@ -9,6 +9,8 @@
    superficie transparente en el otro.
    El azul es solo de interacción (foco, botón principal, enlace, activo): ningún
    estado clínico lo usa, y los estados clínicos no usan el acento.
+   --data es el azul de cifras y enlaces: en el oscuro es más claro que el acento
+   para leerse sobre la superficie; en el claro es más oscuro para el contraste.
    ============================================================================ */
 
 :root,
@@ -29,6 +31,7 @@
   --card-foreground:    #F2F3F5;
   --popover:            #1C1D22;
   --popover-foreground: #F2F3F5;
+  --surface-2:          #0E1014;
 
   /* ---- Acento / interacción ---- */
   --primary:            #3B8BFF;
@@ -40,6 +43,7 @@
   --muted-foreground:   #9AA3AF;
   --accent:             rgba(59, 139, 255, 0.16);
   --accent-foreground:  #8CBBFF;
+  --data:               #8CBBFF;
 
   /* Estado activo / selección */
   --brand-subtle:       rgba(59, 139, 255, 0.16);
@@ -47,7 +51,7 @@
 
   /* ---- Estado clínico ---- */
   --destructive:        #FF5A5F;
-  --destructive-bg:     rgba(255, 90, 95, 0.14);
+  --destructive-bg:     rgba(255, 90, 95, 0.16);
   --destructive-foreground: #0B0C0F;
   --success:            #2ECC8A;
   --success-bg:         rgba(46, 204, 138, 0.14);
@@ -111,28 +115,30 @@
   --brand-deep:         #1F5FC0;
   --brand-ink:          #FFFFFF;
 
-  --canvas:             #F4F5F7;
+  --canvas:             #F6F7F9;
   --background:         #FFFFFF;
   --foreground:         #0B0C0F;
   --card:               #FFFFFF;
   --card-foreground:    #0B0C0F;
   --popover:            #FFFFFF;
   --popover-foreground: #0B0C0F;
+  --surface-2:          #FFFFFF;
 
-  --primary:            #3B8BFF;
+  --primary:            #0A66FF;
   --primary-foreground: #FFFFFF;
-  --primary-hover:      #2F6FD0;
+  --primary-hover:      #0047B3;
   --secondary:          #F4F5F7;
   --secondary-foreground: #0B0C0F;
   --muted:              #F4F5F7;
   --muted-foreground:   #5B6470;
-  --accent:             rgba(59, 139, 255, 0.12);
-  --accent-foreground:  #1F5FC0;
+  --accent:             #EEF4FF;
+  --accent-foreground:  #0A66FF;
+  --data:               #1F5FC0;
 
-  --brand-subtle:       rgba(59, 139, 255, 0.12);
-  --brand-subtle-foreground: #1F5FC0;
+  --brand-subtle:       #EEF4FF;
+  --brand-subtle-foreground: #0A66FF;
 
-  --destructive:        #D7263D;
+  --destructive:        #B91C1C;
   --destructive-bg:     #FEE2E2;
   --destructive-foreground: #FFFFFF;
   --success:            #15803D;
@@ -143,7 +149,7 @@
 
   --border:             rgba(0, 0, 0, 0.08);
   --input:              rgba(0, 0, 0, 0.08);
-  --ring:               #3B8BFF;
+  --ring:               #0A66FF;
 
   --glass:              rgba(255, 255, 255, 0.72);
 

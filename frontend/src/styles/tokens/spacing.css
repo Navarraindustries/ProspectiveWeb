@@ -1,6 +1,6 @@
 /* ============================================================================
    PROSPECTIVE — Spacing, radii, shadows, motion
-   Radii de la identidad A: 16 / 10 / 8 (tarjetas / controles / insignias).
+   Radii de la identidad A: 12 / 11 / 8 (tarjetas / controles / insignias).
    Source: resources/IDENTIDAD_VISUAL.md §4 + §7
    ============================================================================ */
 
@@ -18,9 +18,9 @@
 
   /* ---- Radii (iOS scale) ---- */
   --radius-sm:   8px;    /* insignias, items de menu, casillas */
-  --radius-md:   10px;   /* botones, campos, combobox, tooltip */
-  --radius-lg:   16px;   /* tarjetas, paneles, listas, tablas */
-  --radius-xl:   16px;   /* hojas y dialogos (alias de lg) */
+  --radius-md:   11px;   /* botones, campos, combobox, tooltip */
+  --radius-lg:   12px;   /* tarjetas, paneles, listas, tablas */
+  --radius-xl:   12px;   /* hojas y dialogos (alias de lg) */
   --radius-full: 9999px; /* pill badges / avatars */
 
   /* ---- Shadows (soft, never harsh) ---- */
@@ -28,11 +28,13 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
   --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.45);   /* hojas y menus */
+  --shadow-primary: 0 8px 24px rgba(59, 139, 255, 0.30);   /* botón principal */
+  --shadow-sheet: -30px 0 80px rgba(0, 0, 0, 0.50);        /* hojas laterales */
 
   /* ---- Control heights ---- */
-  --control-sm: 32px;
-  --control-md: 36px;
-  --control-lg: 40px;
+  --control-sm: 34px;
+  --control-md: 38px;
+  --control-lg: 44px;
 
   /* ---- Motion ---- */
   --dur-fast:    120ms;
@@ -45,6 +47,8 @@
 
 [data-theme="light"] {
   --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.12);
+  --shadow-primary: 0 8px 22px rgba(10, 102, 255, 0.26);
+  --shadow-sheet: -30px 0 80px rgba(11, 12, 15, 0.22);
 }
 
 /* La landing fija data-theme="dark" bajo un documento que puede ser claro. */

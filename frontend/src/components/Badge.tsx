@@ -1,12 +1,13 @@
 /* Badge — status / risk pill. Variants map to the clinical color convention:
-   destructive = high risk, warning = moderate, success = low/OK. */
+   destructive = high risk, warning = moderate, success = low/OK; data = ranking/measured values (--data on --accent). */
 
 import type { CSSProperties, ReactNode } from "react";
 
-type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive" | "muted" | "brand";
+type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive" | "muted" | "brand" | "data";
 
 const STYLES: Record<Variant, CSSProperties> = {
   default: { background: "var(--primary)", color: "var(--primary-foreground)" },
+  data: { background: "var(--accent)", color: "var(--data)" },
   secondary: { background: "var(--secondary)", color: "var(--secondary-foreground)" },
   outline: { background: "transparent", color: "var(--foreground)", border: "1px solid var(--border)" },
   subtle: { background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)" },
@@ -28,10 +29,10 @@ export function Badge({ variant = "default", children, style, title }: { variant
         display: "inline-flex",
         alignItems: "center",
         gap: 4,
-        padding: "2px 9px",
+        padding: "3px 8px",
         borderRadius: "var(--radius-full)",
         fontSize: 11,
-        fontWeight: 700,
+        fontWeight: 600,
         whiteSpace: "nowrap",
         ...STYLES[variant],
         ...style,

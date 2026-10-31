@@ -95,6 +95,9 @@ html, body, #root {
 /* El cuerpo lleva el padding; el pie lo compensa con márgenes negativos para
    ocupar todo el ancho y quedarse sticky al fondo del panel que desplaza. */
 .ws-panel-body {
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
   height: 100%;
   overflow-y: auto;
   padding: 20px 18px 24px;

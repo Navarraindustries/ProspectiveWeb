@@ -497,7 +497,7 @@ export function Workspace({
           <ViewerWorkspace step={step} />
         </div>
 
-        {/* Panel del paso — ancho fluido con mínimo legible; plegable con P. */}
+        {/* Panel del paso — 380 px; 520 en Decisión e Informe; plegable con P. */}
         <RightPanelColumn
           collapsed={columnCollapsed}
           onToggle={() => setPanelCollapsed(false)}

@@ -68,7 +68,8 @@ export function RightPanelColumn({
         <div
           style={{
             flex: 1, minWidth: 0, background: "var(--background)",
-            borderLeft: "1px solid var(--border)", overflowY: "auto",
+            borderLeft: "1px solid var(--border)", overflow: "hidden", minHeight: 0,
+            display: "flex", flexDirection: "column",
           }}
         >
           {/* Cruce en fundido entre pasos; el primer pintado no anima. */}

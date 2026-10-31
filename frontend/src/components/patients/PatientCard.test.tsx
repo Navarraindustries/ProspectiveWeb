@@ -68,6 +68,11 @@ describe("PatientCard", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it("la raíz de la tarjeta lleva data-glass", () => {
+    montar(paciente());
+    expect(screen.getByRole("article", { name: "Ana Pérez, HC-100" }).hasAttribute("data-glass")).toBe(true);
+  });
+
   it("la tarjeta lleva la clase pt-card (cristal) y conserva rol y nombre", () => {
     montar(paciente());
     expect(screen.getByRole("article", { name: "Ana Pérez, HC-100" }).classList.contains("pt-card")).toBe(true);

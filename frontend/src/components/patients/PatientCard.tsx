@@ -104,6 +104,7 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
       tabIndex={0}
       aria-label={`${p.full_name}, ${hc}`}
       className="pt-card"
+      data-glass
       onClick={() => onOpen(p)}
       onKeyDown={alTeclear}
     >

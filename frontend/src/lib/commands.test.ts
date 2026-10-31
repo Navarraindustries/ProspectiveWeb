@@ -1,5 +1,6 @@
+import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OPEN_PALETTE_EVENT, getCommands, openCommandPalette, registerCommands, subscribeCommands, type Command } from "./commands";
+import { OPEN_PALETTE_EVENT, getCommands, openCommandPalette, registerCommands, subscribeCommands, useRegisterCommands, type Command } from "./commands";
 
 const cmd = (id: string): Command => ({ id, group: "ir", label: id, run: () => {} });
 const undo: Array<() => void> = [];
@@ -33,5 +34,34 @@ describe("registro de mandos", () => {
     openCommandPalette();
     window.removeEventListener(OPEN_PALETTE_EVENT, fn);
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getCommands", () => {
+  it("devuelve la misma referencia mientras no cambie el registro", () => {
+    undo.push(registerCommands("s", [cmd("s1")]));
+    expect(getCommands()).toBe(getCommands());
+  });
+});
+
+describe("useRegisterCommands", () => {
+  it("no vuelve a registrar si solo cambia run, y run llama al cierre nuevo", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const mk = (run: () => void, disabled = false): Command[] => [{ id: "h1", group: "acciones", label: "H", run, disabled }];
+    const { rerender, unmount } = renderHook(({ c }) => useRegisterCommands("h", c), { initialProps: { c: mk(first) } });
+    const fn = vi.fn();
+    const off = subscribeCommands(fn);
+    undo.push(off);
+    rerender({ c: mk(second) });
+    expect(fn).not.toHaveBeenCalled();
+    getCommands().find((c) => c.id === "h1")!.run();
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
+    rerender({ c: mk(second, true) });
+    expect(fn).toHaveBeenCalledTimes(2); // desregistro + registro del efecto
+    expect(getCommands().find((c) => c.id === "h1")!.disabled).toBe(true);
+    unmount();
+    expect(getCommands().find((c) => c.id === "h1")).toBeUndefined();
   });
 });

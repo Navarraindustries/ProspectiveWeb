@@ -12,6 +12,7 @@ export function openCommandPalette(): void {
   window.dispatchEvent(new Event(OPEN_PALETTE_EVENT));
 }
 
+/** Los `id` deben ser únicos dentro de cada dueño. */
 export interface Command {
   id: string;
   group: "ir" | "acciones" | "pasos";
@@ -25,11 +26,15 @@ export interface Command {
 const owners = new Map<string, Command[]>();
 const listeners = new Set<() => void>();
 
+let snapshot: Command[] = [];
+
 function notify() {
+  snapshot = [...owners.values()].flat();
   listeners.forEach((fn) => fn());
 }
 
-/** Sustituye los mandos del dueño `owner`; devuelve el desregistro. */
+/** Sustituye los mandos del dueño `owner`; devuelve el desregistro. Los `id`
+    deben ser únicos dentro de cada dueño. */
 export function registerCommands(owner: string, cmds: Command[]): () => void {
   owners.set(owner, cmds);
   notify();
@@ -42,7 +47,7 @@ export function registerCommands(owner: string, cmds: Command[]): () => void {
 }
 
 export function getCommands(): Command[] {
-  return [...owners.values()].flat();
+  return snapshot;
 }
 
 export function subscribeCommands(fn: () => void): () => void {

@@ -12,6 +12,10 @@ describe("TopBar", () => {
     const { container } = render(<TopBar />);
     expect(container.querySelector("header.shell-top")?.hasAttribute("data-glass")).toBe(true);
   });
+  it("lleva solo el borde inferior", () => {
+    const { container } = render(<TopBar />);
+    expect((container.querySelector("header.shell-top") as HTMLElement).style.borderWidth).toBe("0px 0px 1px");
+  });
   it("el botón ⌘K abre la paleta", () => {
     const fn = vi.fn();
     window.addEventListener(OPEN_PALETTE_EVENT, fn);

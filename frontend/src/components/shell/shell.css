@@ -241,8 +241,7 @@
   flex-shrink: 0;
   padding: 0 24px;
   /* El material (fondo, desenfoque, borde) lo pone glass("normal") en línea;
-     aquí solo se deja el borde en la arista inferior. */
-  border-width: 0 0 1px;
+     TopBar lo deja en la arista inferior (borderWidth y sombra en línea). */
 }
 
 .shell-cmdk {

@@ -31,7 +31,7 @@ export function TopBar({ brand = false, crumbs, subtitle, status, actions }: {
   actions?: ReactNode;
 }) {
   return (
-    <header className="shell-top" style={glass("normal")} data-glass>
+    <header className="shell-top" style={{ ...glass("normal"), borderWidth: "0 0 1px", boxShadow: "var(--glass-highlight)" }} data-glass>
       {brand && (
         <span className="shell-brand">
           <Logo compact size={24} />

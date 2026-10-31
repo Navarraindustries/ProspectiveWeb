@@ -61,6 +61,7 @@ import { candidateMarkers, litSequence, shouldReplay } from "./candidateMarkers"
 import { markerRadiusMm } from "./markerSize";
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, NECK_RIM_COLOR } from "./markerColors";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
+import { measureDial } from "./measureDial";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
 import { clampOffsetToBox, planeFromNormal, sliceSegment, type FreePlane } from "./freePlane";
@@ -293,7 +294,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   cineRef.current = cine;
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
-  const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[] } | null>(() => {
+  const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[]; dial: { center: V3; axis: V3; radius: number } } | null>(() => {
     if (!morphoOverlay || !morphometry) return null;
     const c = morphometry.centroid;
     const ax = morphometry.principal_axis;
@@ -339,7 +340,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       }
       for (let k = 0; k < N; k++) lines.push({ a: ring[k], b: ring[(k + 1) % N], color: MO_NECK_COLOR });
     }
-    return { markers, lines };
+    // Dial de medida: centrado en el centroide, radio del Ø máximo + 1 mm.
+    return { markers, lines, dial: { center: centroid, axis, radius: maxR + 1 } };
   }, [morphoOverlay, morphometry]);
   // mesh_url carries a generation token (?v=…) from the backend, so it changes
   // on every re-segmentation and vtk.js refetches instead of serving the cache.
@@ -1180,6 +1182,31 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return () => cancelAnimationFrame(raf);
   }, [allCandidates, step]);
 
+  // Dial de medida en Morfometría: el progreso 0→1 corre en 800 ms con rAF,
+  // una vez por identidad de la medida (`dialDoneRef`); con movimiento reducido,
+  // entero de golpe. El rAF se cancela al limpiar.
+  const [dialProgress, setDialProgress] = useState(0);
+  const dialDoneRef = useRef<typeof morphometry>(null);
+  useEffect(() => {
+    if (step !== "morpho" || !morphometry) return;
+    if (dialDoneRef.current === morphometry) { setDialProgress(1); return; }
+    const reduce = typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setDialProgress(1); dialDoneRef.current = morphometry; return; }
+    setDialProgress(0);
+    let t0: number | null = null;
+    let raf = 0;
+    const tick = (now: number) => {
+      if (t0 === null) t0 = now;
+      const k = Math.min((now - t0) / 800, 1);
+      setDialProgress(k);
+      if (k < 1) raf = requestAnimationFrame(tick);
+      else dialDoneRef.current = morphometry;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [morphometry, step]);
+
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
     if (clSource) out.push({ pos: clSource, color: SOURCE_COLOR });
@@ -1262,8 +1289,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
                  radiusMm: CORRIDOR_RADIUS_MM, opacity: 0.22 });
     }
     if (overlay) out.push(...overlay.lines);
+    if (overlay && step === "morpho") {
+      out.push(...measureDial(overlay.dial.center, overlay.dial.axis, overlay.dial.radius, dialProgress));
+    }
     return out;
-  }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay]);
+  }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay, step, dialProgress]);
 
   // Rótulos del 3D: nombre y valor siempre, que en la escena no hay celda estrecha.
   const meshLabels = useMemo<MeshLabel[]>(

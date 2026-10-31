@@ -1,5 +1,6 @@
 /* Metric — one clinical metric row: label · mono value · optional risk badge. */
 
+import type { ReactNode } from "react";
 import { Badge } from "./Badge";
 
 type BadgeVariant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
@@ -12,7 +13,7 @@ export function Metric({
   wrapLabel = false,
 }: {
   label: string;
-  value: string | number;
+  value: ReactNode;
   unit?: string;
   badge?: [string, BadgeVariant];
   /** Para rótulos largos: el rótulo parte en líneas y la cifra se queda entera.
@@ -24,7 +25,7 @@ export function Metric({
   // era al revés, y «27.3 %» o «0.84 mm» salían con un carácter por línea en
   // cuanto la etiqueta era larga y había una insignia al lado. Un valor largo
   // (una descripción, un nombre de fichero) sí se sigue partiendo.
-  const corto = String(value).length <= 14;
+  const corto = typeof value !== "string" && typeof value !== "number" ? true : String(value).length <= 14;
   // `wrapLabel` lo pide quien sabe que su rótulo es largo aunque la cifra también lo sea.
   const entera = wrapLabel || corto;
   return (

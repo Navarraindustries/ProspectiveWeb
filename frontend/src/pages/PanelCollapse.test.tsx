@@ -21,7 +21,7 @@ function Harness() {
   }, [collapsed, setCollapsed]);
   return (
     <RightPanelColumn collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)}
-                      stepLabel="Detección" badge={<span>3</span>}>
+                      stepLabel="Detección" stepKey="detect" wide={false} badge={<span>3</span>}>
       <input aria-label="nota" defaultValue="" />
     </RightPanelColumn>
   );
@@ -97,7 +97,7 @@ function NoteHarness() {
   const [collapsed, setCollapsed] = useStoredFlag(PREF_PANEL_COLLAPSED);
   const columnCollapsed = useUnfoldForNote(collapsed, setCollapsed, p.noteFocusRequest);
   return (
-    <RightPanelColumn collapsed={columnCollapsed} onToggle={() => setCollapsed(false)} stepLabel="Detección">
+    <RightPanelColumn collapsed={columnCollapsed} onToggle={() => setCollapsed(false)} stepLabel="Detección" stepKey="detect" wide={false}>
       <AnnotationsPanel />
     </RightPanelColumn>
   );

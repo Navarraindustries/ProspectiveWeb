@@ -133,7 +133,9 @@ def _family_ranks(hit):
         if not ranks:
             return {"saco": hit.ranks[CH_SACO]}
         from types import SimpleNamespace
-        return _orig_family_ranks(SimpleNamespace(ranks=ranks))
+        # 30-10: el consenso real ya excluye el canal de saco (`voting_ranks`); el doble
+        # lleva ambos atributos para seguir valiendo con la versión nueva.
+        return _orig_family_ranks(SimpleNamespace(ranks=ranks, voting_ranks=ranks))
     return _orig_family_ranks(hit)
 
 

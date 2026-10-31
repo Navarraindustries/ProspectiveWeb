@@ -12,10 +12,12 @@ describe("Tabs", () => {
     expect(screen.getByRole("tab", { name: "Índices" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Índices" }).style.fontWeight).toBe("600");
   });
-  it("el subrayado es un solo elemento que vive bajo la pestaña activa", () => {
+  it("el indicador es un solo elemento que vive bajo la pestaña activa", () => {
     render(<Tabs tabs={["A", "B", "C"]} value="B" onChange={() => {}} />);
-    const under = document.querySelectorAll("[data-tab-underline]");
-    expect(under).toHaveLength(1);
-    expect(screen.getByRole("tab", { name: "B" }).contains(under[0])).toBe(true);
+    const ind = document.querySelectorAll("[data-tab-indicator]");
+    expect(ind).toHaveLength(1);
+    const active = screen.getByRole("tab", { name: "B" });
+    expect(active).toHaveAttribute("aria-selected", "true");
+    expect(active.contains(ind[0])).toBe(true);
   });
 });

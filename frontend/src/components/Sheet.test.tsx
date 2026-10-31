@@ -25,6 +25,18 @@ describe("Sheet", () => {
     expect(document.body.contains(field)).toBe(true);
   });
 
+  it("es de cristal denso con esquinas redondeadas a la izquierda y un rótulo mono", () => {
+    render(
+      <Sheet open onClose={() => {}} title="Ficha" eyebrow="Ficha de paciente">
+        <p>x</p>
+      </Sheet>,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("data-glass");
+    expect(dialog.style.borderRadius).toContain("var(--radius-xl)");
+    expect(screen.getByText("Ficha de paciente").style.fontFamily).toContain("var(--font-mono)");
+  });
+
   it("renders nothing while closed", () => {
     render(
       <Sheet open={false} onClose={() => {}} title="Oculto">
@@ -54,11 +66,10 @@ describe("Sheet", () => {
     expect(screen.getByRole("button", { name: "Crear paciente" })).toBeInTheDocument();
   });
 
-  it("la superficie es sólida y la sombra tiene desplazamiento", () => {
+  it("la superficie es de cristal denso y la sombra tiene desplazamiento", () => {
     render(<Sheet open onClose={() => {}} title="Ficha"><p>x</p></Sheet>);
     const panel = screen.getByRole("dialog");
-    expect(panel.style.background).toContain("--card");
-    expect(panel.style.backdropFilter ?? "").toBe(""); // jsdom no declara la propiedad: undefined
+    expect(panel.style.background).toContain("--glass-dense");
     expect(panel.style.boxShadow).toContain("--shadow-sheet");
   });
 

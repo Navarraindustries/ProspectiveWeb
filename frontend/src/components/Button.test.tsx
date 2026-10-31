@@ -48,12 +48,17 @@ describe("Button", () => {
     expect(screen.getByRole("button").style.height).toContain("--control-lg");
   });
 
-  it("no pisa el anillo de foco global con un outline o sombra propios", () => {
+  it("no pone outline ni sombra de foco propios (queda el anillo global)", () => {
     render(<ThemeProvider><Button>Foco</Button></ThemeProvider>);
     const b = screen.getByRole("button", { name: "Foco" });
     fireEvent.focus(b);
     expect(b.style.outline).toBe("");
     // La sombra del primario es de desplazamiento, no un anillo de foco.
     expect(b.style.boxShadow).toBe("var(--shadow-primary)");
+  });
+
+  it("el primario deshabilitado no lleva sombra", () => {
+    render(<ThemeProvider><Button disabled>Off</Button></ThemeProvider>);
+    expect(screen.getByRole("button", { name: "Off" }).style.boxShadow).toBe("");
   });
 });

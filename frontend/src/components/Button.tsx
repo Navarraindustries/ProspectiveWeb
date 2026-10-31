@@ -42,7 +42,7 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
         ...base,
         background: on ? "var(--primary-hover)" : "var(--primary)",
         color: "var(--primary-foreground)",
-        boxShadow: "var(--shadow-primary)",
+        boxShadow: disabled ? undefined : "var(--shadow-primary)",
         transform: on ? "translateY(-1px)" : undefined,
       };
     case "outline":
@@ -77,7 +77,7 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
         ...base,
         background: "transparent",
         color: "var(--data)",
-        textDecoration: hover ? "underline" : "none",
+        textDecoration: on ? "underline" : "none",
         height: "auto",
         padding: 0,
         // El contorno de foco sigue el radio del elemento; sin él, el del enlace sería recto.

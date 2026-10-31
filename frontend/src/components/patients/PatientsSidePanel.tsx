@@ -3,7 +3,7 @@
    últimas acciones de los pacientes visibles y «Accesos» lleva a las demás
    pantallas sin pasar por la barra lateral. */
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { PatientActivity, PatientSummary } from "../../api/types";
 import { fechaHora } from "../../lib/fecha";
@@ -44,19 +44,28 @@ export function PatientsSidePanel({ patients, loading, onOpenPatient, onNewPatie
   // porque la cifra es un atajo y no la única vía a las cuentas pendientes.
   const [pendientes, setPendientes] = useState<number | null>(null);
 
+  // Cancelador de la petición en vuelo. Vive en una ref para que «Reintentar»
+  // anule la anterior y el desmontaje anule la que esté pendiente: una respuesta
+  // tardía no debe pisar a una más nueva ni tocar un panel ya desmontado.
+  const cancelarActividad = useRef<(() => void) | null>(null);
+
   const pedirActividad = useCallback(() => {
+    cancelarActividad.current?.();
     setActividad({ fase: "cargando" });
     let vigente = true;
+    cancelarActividad.current = () => { vigente = false; };
     api.patientsActivity(LIMITE_ACTIVIDAD).then(
       (items) => { if (vigente) setActividad({ fase: "lista", items }); },
       () => { if (vigente) setActividad({ fase: "error" }); },
     );
-    return () => { vigente = false; };
   }, []);
 
   // Al montar: el panel no depende de la lista de tarjetas, así que sus cifras
   // siguen aunque la actividad falle.
-  useEffect(() => pedirActividad(), [pedirActividad]);
+  useEffect(() => {
+    pedirActividad();
+    return () => cancelarActividad.current?.();
+  }, [pedirActividad]);
 
   // Solo el administrador puede listar cuentas: pedirlas a otro rol daría 403.
   useEffect(() => {
@@ -73,7 +82,7 @@ export function PatientsSidePanel({ patients, loading, onOpenPatient, onNewPatie
   const cifra = (n: number) => (loading ? "—" : String(n));
 
   const acceso = (icono: IconName, texto: string, alPulsar: () => void) => (
-    <Button variant="ghost" size="sm" className="pt-side-link" leadingIcon={<Icon name={icono} size={14} />} onClick={alPulsar}>
+    <Button variant="ghost" size="sm" style={{ justifyContent: "flex-start" }} leadingIcon={<Icon name={icono} size={14} />} onClick={alPulsar}>
       {texto}
     </Button>
   );

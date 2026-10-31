@@ -147,6 +147,21 @@ describe("PatientsSidePanel", () => {
     expect(screen.queryByText("No se pudo cargar la actividad")).toBeNull();
   });
 
+  it("Actividad: desmontar con un «Reintentar» en vuelo descarta la respuesta tardía", async () => {
+    let resolver!: (v: PatientActivity[]) => void;
+    patientsActivity.mockRejectedValueOnce(new Error("x"))
+      .mockImplementationOnce(() => new Promise<PatientActivity[]>((r) => { resolver = r; }));
+    const errores = vi.spyOn(console, "error").mockImplementation(() => {});
+    montar();
+    fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
+    expect(patientsActivity).toHaveBeenCalledTimes(2);
+    cleanup();
+    resolver(actividad(1));
+    await Promise.resolve();
+    expect(errores).not.toHaveBeenCalled();
+    errores.mockRestore();
+  });
+
   it("Accesos: Nuevo paciente, Estudios, Pedidos de clips; Usuarios y Auditoría solo al administrador; cada uno navega", async () => {
     const { onNewPatient } = montar();
     const accesos = screen.getByRole("region", { name: "Accesos" });

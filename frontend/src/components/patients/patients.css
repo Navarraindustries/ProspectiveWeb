@@ -105,4 +105,3 @@
 .pt-side-activity-time { flex-shrink: 0; color: var(--muted-foreground); font-size: 11px; }
 
 .pt-side-links { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
-.pt-side-links .pt-side-link { justify-content: flex-start; }

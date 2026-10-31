@@ -38,6 +38,8 @@ describe("tokens de la identidad A", () => {
   it("la sombra oscura también se declara bajo data-theme=dark (la landing la fija)", () => {
     const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8").replace(/\r\n/g, "\n");
     expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-lg:/);
+    expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-primary:\s*0 8px 24px rgba\(59, ?139, ?255, ?0?\.30?\)/);
+    expect(spacing).toMatch(/\[data-theme="dark"\]\s*\{[^}]*--shadow-sheet:\s*-30px 0 80px rgba\(0, ?0, ?0, ?0?\.50?\)/);
   });
   it("las fuentes son Geist y Geist Mono, autoalojadas", () => {
     const fonts = readFileSync(join(__dirname, "tokens/fonts.css"), "utf8");

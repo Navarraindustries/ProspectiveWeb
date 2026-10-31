@@ -48,6 +48,22 @@ describe("Button", () => {
     expect(screen.getByRole("button").style.height).toContain("--control-lg");
   });
 
+  it("el botón de icono es de 40 px (token --control-icon)", () => {
+    render(<ThemeProvider><Button size="icon" aria-label="x">i</Button></ThemeProvider>);
+    const b = screen.getByRole("button");
+    expect(b.style.height).toContain("--control-icon");
+    expect(b.style.width).toContain("--control-icon");
+  });
+
+  it("el destructivo se intensifica al pasar el ratón", () => {
+    render(<ThemeProvider><Button variant="destructive">Borrar</Button></ThemeProvider>);
+    const b = screen.getByRole("button", { name: "Borrar" });
+    const rest = b.style.background;
+    fireEvent.mouseEnter(b);
+    expect(b.style.background).not.toBe(rest);
+    expect(b.style.background).toContain("24%");
+  });
+
   it("no pone outline ni sombra de foco propios (queda el anillo global)", () => {
     render(<ThemeProvider><Button>Foco</Button></ThemeProvider>);
     const b = screen.getByRole("button", { name: "Foco" });

@@ -37,6 +37,17 @@ describe("Sheet", () => {
     expect(screen.getByText("Ficha de paciente").style.fontFamily).toContain("var(--font-mono)");
   });
 
+  it("el velo de detrás usa --scrim (visible también en el tema claro)", () => {
+    render(
+      <Sheet open onClose={() => {}} title="Ficha">
+        <p>x</p>
+      </Sheet>,
+    );
+    const scrim = screen.getByRole("dialog").previousElementSibling as HTMLElement;
+    expect(scrim.style.background).toContain("--scrim");
+    expect(scrim.style.background).not.toContain("--veil");
+  });
+
   it("renders nothing while closed", () => {
     render(
       <Sheet open={false} onClose={() => {}} title="Oculto">

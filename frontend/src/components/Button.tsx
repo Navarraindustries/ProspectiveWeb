@@ -33,7 +33,7 @@ const HEIGHTS: Record<Size, string> = {
   sm: "var(--control-sm)",
   md: "var(--control-md)",
   lg: "var(--control-lg)",
-  icon: "var(--control-sm)",
+  icon: "var(--control-icon)",
 };
 
 function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSProperties {
@@ -64,7 +64,7 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
     case "destructive":
       return {
         ...base,
-        background: "var(--destructive-bg)",
+        background: on ? "color-mix(in srgb, var(--destructive) 24%, transparent)" : "var(--destructive-bg)",
         color: "var(--destructive)",
         border: "1px solid var(--destructive)",
       };

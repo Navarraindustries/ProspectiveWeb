@@ -1,6 +1,6 @@
 /* Sheet — hoja lateral derecha, de cristal denso, que entra deslizando desde el borde.
 
-   Panel de cristal denso con sombra de hoja y un velo (`--veil`) detrás. Al abrir enfoca el primer campo del contenido (o el panel); el pie
+   Panel de cristal denso con sombra de hoja y un velo (`--scrim`) detrás. Al abrir enfoca el primer campo del contenido (o el panel); el pie
    opcional queda fijo abajo y el cuerpo es lo que desplaza.
 
    Se pinta en un portal sobre <body>: `position: fixed` se resuelve contra el
@@ -87,7 +87,7 @@ export function Sheet({
             exit="exit"
             transition={transition}
             onClick={() => { if (openRef.current) onClose(); }}
-            style={{ position: "absolute", inset: 0, background: "var(--veil)" }}
+            style={{ position: "absolute", inset: 0, background: "var(--scrim)" }}
           />
           <motion.div
             ref={panelRef}

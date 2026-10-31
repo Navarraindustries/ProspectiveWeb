@@ -112,6 +112,15 @@ describe("tokens de la dirección D", () => {
       expect(b).toMatch(/--glass-blur-viewer:\s*12px/);
     }
   });
+  it("los velos de hojas y diálogos existen en los dos temas y en el claro no son transparentes", () => {
+    const dark = block(DARK), light = block('[data-theme="light"]');
+    for (const n of ["scrim", "scrim-dense"]) {
+      expect(dark).toMatch(new RegExp("--" + n + ":"));
+      const m = light.match(new RegExp("--" + n + ":\\s*rgba\\([^)]*?,\\s*([0-9.]+)\\)"));
+      expect(m, n).not.toBeNull();
+      expect(Number(m![1])).toBeGreaterThan(0);
+    }
+  });
   it("radios, sombras y alturas son los de la dirección D", () => {
     const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8").replace(/\r\n/g, "\n");
     expect(spacing).toMatch(/--radius-sm:\s*8px/);
@@ -132,6 +141,7 @@ describe("tokens de la dirección D", () => {
     expect(spacing).toMatch(/--control-md:\s*44px/);
     expect(spacing).toMatch(/--control-lg:\s*54px/);
     expect(spacing).toMatch(/--field-h:\s*48px/);
+    expect(spacing).toMatch(/--control-icon:\s*40px/);
   });
   it("la etiqueta de campo es de 13 px y peso 500", () => {
     const typo = readFileSync(join(__dirname, "tokens/typography.css"), "utf8");

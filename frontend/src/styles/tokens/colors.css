@@ -70,6 +70,8 @@
   --glass:              linear-gradient(rgba(5, 6, 8, 0.55), rgba(5, 6, 8, 0.55)), rgba(255, 255, 255, 0.08);
   --veil:               rgba(5, 6, 8, 0.55);    /* velo sobre la imagen de fondo */
   --veil-dense:         rgba(5, 6, 8, 0.72);
+  --scrim:              rgba(5, 6, 8, 0.55);    /* velo de hojas y diálogos */
+  --scrim-dense:        rgba(5, 6, 8, 0.72);
   --glass-dense:        linear-gradient(rgba(8, 9, 12, 0.72), rgba(8, 9, 12, 0.72)), rgba(255, 255, 255, 0.08);
   --glass-solid:        #101217;                /* fondo opaco de reserva */
   --glass-border:       rgba(255, 255, 255, 0.2);
@@ -169,6 +171,8 @@
   --glass:              rgba(255, 255, 255, 0.72);
   --veil:               rgba(243, 245, 248, 0);   /* sin imagen de fondo en el claro */
   --veil-dense:         rgba(243, 245, 248, 0);
+  --scrim:              rgba(11, 12, 15, 0.24);   /* las hojas sí necesitan velo en el claro */
+  --scrim-dense:        rgba(11, 12, 15, 0.32);
   --glass-dense:        rgba(255, 255, 255, 0.86);
   --glass-solid:        #FFFFFF;
   --glass-border:       rgba(0, 0, 0, 0.08);

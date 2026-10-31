@@ -110,7 +110,7 @@ export function ConfirmDialog({
   return createPortal(
     <div
       onClick={onCancel}
-      style={{ position: "fixed", inset: 0, zIndex: 400, background: "var(--veil-dense)", display: "flex", alignItems: "center", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, zIndex: 400, background: "var(--scrim-dense)", display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <motion.div
         ref={panelRef}
@@ -124,7 +124,7 @@ export function ConfirmDialog({
         aria-label={title}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        style={{ ...glass("dense"), outline: "none", width: 420, maxWidth: "90%", borderRadius: "var(--radius-xl)", padding: "22px 24px" }}
+        style={{ ...glass("dense"), boxShadow: "var(--glass-highlight), var(--shadow-lg)", outline: "none", width: 420, maxWidth: "90%", borderRadius: "var(--radius-xl)", padding: "22px 24px" }}
       >
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--foreground)" }}>{title}</div>
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.55 }}>

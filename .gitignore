@@ -145,3 +145,5 @@ backend/db_backups/
 .superpowers/
 
 PROSPECTIVE-brochure.pdf
+# Worktrees de Claude Code (copias enlazadas del repositorio)
+.claude/worktrees/

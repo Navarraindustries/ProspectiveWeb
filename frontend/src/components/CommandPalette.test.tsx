@@ -1,4 +1,4 @@
-import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PatientSummary } from "../api/types";
 
@@ -12,6 +12,8 @@ vi.mock("../store/auth", () => ({
 
 import { OPEN_PALETTE_EVENT, registerCommands } from "../lib/commands";
 import { CommandPalette } from "./CommandPalette";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { Sheet } from "./Sheet";
 
 const patient = (id: number, name: string, hc: string, extra: Partial<PatientSummary> = {}): PatientSummary => ({
   id, full_name: name, hospital_id: hc, dob: "1970-01-01", sex: "F", institution: "", study_count: 1,
@@ -225,6 +227,78 @@ describe("CommandPalette", () => {
     expect(run).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeTruthy();
     act(() => off());
+  });
+
+  it("con «reanudarBloqueado», Recientes se ve deshabilitado con la pista y Enter no reanuda", async () => {
+    const onResume = vi.fn();
+    render(<CommandPalette onOpenPatient={vi.fn()} onResume={onResume} reanudarBloqueado="Guarda o descarta los cambios del análisis antes" />);
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const search = screen.getByLabelText("Buscar en la paleta");
+    fireEvent.change(search, { target: { value: "reanudar" } });
+    const rows = await screen.findAllByRole("option");
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.getAttribute("aria-disabled")).toBe("true");
+      expect(r.textContent).toContain("Guarda o descarta los cambios del análisis antes");
+    }
+    fireEvent.keyDown(search, { key: "Enter" });
+    fireEvent.click(rows[1]);
+    expect(onResume).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("la lista de pacientes se vuelve a pedir en cada apertura", async () => {
+    setup();
+    open();
+    await waitFor(() => expect(listPatients).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(screen.getByLabelText("Buscar en la paleta"), { key: "Escape" });
+    listPatients.mockResolvedValue([P96, P2, P3, patient(7, "Nuevo, Paciente", "HC-7")]);
+    await act(async () => { fireEvent.keyDown(window, { key: "k", ctrlKey: true }); });
+    fireEvent.change(screen.getByLabelText("Buscar en la paleta"), { target: { value: "nuevo, paciente" } });
+    expect(await screen.findByText("Nuevo, Paciente")).toBeTruthy();
+    expect(listPatients).toHaveBeenCalledTimes(2);
+  });
+
+  it("con una hoja abierta, ni Ctrl+K ni el evento abren la paleta", async () => {
+    setup();
+    const { unmount } = render(<Sheet open onClose={vi.fn()} title="Ficha"><p>cuerpo</p></Sheet>);
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    act(() => { window.dispatchEvent(new Event(OPEN_PALETTE_EVENT)); });
+    expect(screen.queryByRole("dialog", { name: "Paleta de mandos" })).toBeNull();
+    unmount();
+  });
+
+  it("con un diálogo de confirmación abierto, Ctrl+K no abre la paleta", async () => {
+    setup();
+    const { unmount } = render(
+      <ConfirmDialog open title="¿Borrar?" confirmLabel="Borrar" onCancel={vi.fn()} onConfirm={vi.fn()}>x</ConfirmDialog>,
+    );
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    act(() => { window.dispatchEvent(new Event(OPEN_PALETTE_EVENT)); });
+    expect(screen.queryByRole("dialog", { name: "Paleta de mandos" })).toBeNull();
+    unmount();
+  });
+
+  it("el Escape de la paleta no llega a las capas de debajo", async () => {
+    const enDocumento = vi.fn();
+    document.addEventListener("keydown", enDocumento);
+    try {
+      setup();
+      open();
+      enDocumento.mockClear();
+      fireEvent.keyDown(screen.getByLabelText("Buscar en la paleta"), { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(enDocumento).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("keydown", enDocumento);
+    }
+  });
+
+  it("cada grupo es un role=group nombrado por su rótulo, con sus opciones dentro", async () => {
+    setup();
+    open();
+    const grupo = await screen.findByRole("group", { name: "Ir a" });
+    expect(within(grupo).getAllByRole("option").map((o) => o.textContent)).toContain("Estudios");
   });
 
   it("↑/↓ mueven la selección y sin resultados lo dice", async () => {

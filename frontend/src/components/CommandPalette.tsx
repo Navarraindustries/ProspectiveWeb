@@ -10,11 +10,16 @@ import { glide, glideTransition, motion, useReducedMotion } from "../motion";
 import { useAuth } from "../store/auth";
 import { useNav } from "../store/nav";
 import { glass } from "../styles/glass";
+import { isConfirmDialogOpen } from "./ConfirmDialog";
+import { isSheetOpen } from "./Sheet";
 import { ADMIN_GROUP_LABEL, SECTIONS } from "./shell/sections";
 
 interface Props {
   onOpenPatient: (id: number) => void;
   onResume: (sessionId: string, p: PatientSummary) => void;
+  /** Si viene, «Recientes» se ve deshabilitado con este texto como pista: con
+      el análisis sin guardar, reanudar otra sesión lo tiraría sin preguntar. */
+  reanudarBloqueado?: string;
 }
 
 interface Row {
@@ -30,6 +35,7 @@ const GROUPS = ["Ir a", "Pasos", "Acciones", "Pacientes", "Recientes"] as const;
 const MAX_PATIENTS = 8;
 const MAX_RECENT = 5;
 
+// Diacríticos combinantes (U+0300–U+036F), escritos con escapes para que se vean.
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 function matches(query: string, ...parts: (string | undefined)[]): boolean {
@@ -45,7 +51,7 @@ const eyebrow = {
   letterSpacing: "var(--tracking-eyebrow)", color: "var(--muted-foreground)", padding: "10px 16px 4px",
 } as const;
 
-export function CommandPalette({ onOpenPatient, onResume }: Props) {
+export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: Props) {
   const { user } = useAuth();
   const nav = useNav();
   const reduced = useReducedMotion();
@@ -64,13 +70,15 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
 
   const show = useCallback(() => {
     if (openRef.current) return;
+    // Con una hoja o una confirmación delante, la paleta quedaría debajo de su
+    // velo o encima de sus cambios sin guardar: no se abre (ni por atajo, ni
+    // por el evento del botón).
+    if (isSheetOpen() || isConfirmDialogOpen()) return;
     openRef.current = true;
     const el = document.activeElement;
     previous.current = el instanceof HTMLElement && el !== document.body ? el : null;
     setQuery("");
     setActive(0);
-    // Un fallo anterior se reintenta en esta apertura.
-    setPatients((s) => (s.status === "error" ? { status: "idle" } : s));
     setOpen(true);
   }, []);
 
@@ -102,15 +110,18 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
     if (open) searchRef.current?.focus();
   }, [open]);
 
-  // La lista se pide la primera vez que se abre y se guarda mientras viva el componente.
+  // La lista se pide en cada apertura (un paciente creado o una sesión guardada
+  // desde la última vez tienen que salir); mientras llega se enseña la anterior.
   useEffect(() => {
-    if (!open || patients.status !== "idle") return;
-    setPatients({ status: "loading" });
+    if (!open) return;
+    let vigente = true;
+    setPatients((s) => (s.status === "ok" ? s : { status: "loading" }));
     api.listPatients().then(
-      (list) => setPatients({ status: "ok", list }),
-      () => setPatients({ status: "error" }),
+      (list) => { if (vigente) setPatients({ status: "ok", list }); },
+      () => { if (vigente) setPatients({ status: "error" }); },
     );
-  }, [open, patients.status]);
+    return () => { vigente = false; };
+  }, [open]);
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
@@ -142,13 +153,14 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
         .slice(0, MAX_RECENT)
         .filter((p) => matches(query, "Reanudar", p.full_name, p.hospital_id))
         .forEach((p) => out.push({
-          key: `rec:${p.id}`, group: "Recientes", label: `Reanudar · ${p.full_name}`, hint: p.hospital_id,
+          key: `rec:${p.id}`, group: "Recientes", label: `Reanudar · ${p.full_name}`,
+          hint: reanudarBloqueado ?? p.hospital_id, disabled: !!reanudarBloqueado,
           run: () => onResume(p.last_session_id!, p),
         }));
     }
     // Orden de grupos fijo; dentro de cada uno, el de llegada.
     return GROUPS.flatMap((g) => out.filter((r) => r.group === g));
-  }, [query, commands, patients, isAdmin, nav, onOpenPatient, onResume]);
+  }, [query, commands, patients, isAdmin, nav, onOpenPatient, onResume, reanudarBloqueado]);
 
   const current = Math.min(active, Math.max(rows.length - 1, 0));
 
@@ -169,7 +181,9 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
       e.preventDefault();
       searchRef.current?.focus();
     } else if (e.key === "Escape") {
+      // Solo la paleta: los oyentes de Escape en `document` (hojas, menús) no lo reciben.
       e.preventDefault();
+      e.stopPropagation();
       close();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -186,7 +200,11 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
   if (!open) return null;
 
   const variants = reduced ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } : glide;
-  let lastGroup = "";
+  // Cada grupo es un role=group nombrado por su rótulo; el índice de cada fila
+  // sigue siendo el global (el de ↑/↓ y aria-activedescendant).
+  const groups = GROUPS
+    .map((g) => ({ g, items: rows.flatMap((r, i) => (r.group === g ? [{ r, i }] : [])) }))
+    .filter((x) => x.items.length > 0);
 
   return (
     <div style={veil} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
@@ -240,13 +258,12 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
               Nada coincide con «{query}»
             </div>
           )}
-          {rows.map((r, i) => {
-            const header = r.group !== lastGroup;
-            lastGroup = r.group;
-            return (
-              <div key={r.key} role="presentation">
-                {header && <div style={eyebrow}>{r.group}</div>}
+          {groups.map(({ g, items }, gi) => (
+            <div key={g} role="group" aria-labelledby={`${listId}-g${gi}`}>
+              <div id={`${listId}-g${gi}`} style={eyebrow}>{g}</div>
+              {items.map(({ r, i }) => (
                 <div
+                  key={r.key}
                   id={`${listId}-${i}`}
                   role="option"
                   aria-selected={i === current}
@@ -265,9 +282,9 @@ export function CommandPalette({ onOpenPatient, onResume }: Props) {
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{r.hint}</span>
                   )}
                 </div>
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          ))}
         </div>
       </motion.div>
     </div>

@@ -14,6 +14,7 @@ const patientSessions = vi.fn();
 const patientStudies = vi.fn();
 const deletePatient = vi.fn();
 const createPatient = vi.fn();
+const listClipOrders = vi.fn();
 const user = { id: 1, role: "medico" as string };
 
 vi.mock("../api/client", () => {
@@ -32,13 +33,15 @@ vi.mock("../api/client", () => {
       patientShares: () => Promise.resolve([]),
       deletePatient: (id: number) => deletePatient(id),
       createPatient: (body: unknown) => createPatient(body),
+      listClipOrders: (opts: unknown) => listClipOrders(opts),
     },
   };
 });
 // El shell (barra lateral y superior) se sustituye por su contenido y sus
 // acciones: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <>{p.actions}{p.children}</>,
+  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) =>
+    <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
 }));
 vi.mock("../components/CaptureGallery", () => ({ CaptureGallery: () => null }));
 // «Nuevo caso» se sustituye por botones que eligen el paciente y crean el caso:
@@ -94,6 +97,7 @@ beforeEach(() => {
   patientStudies.mockReset();
   deletePatient.mockReset().mockResolvedValue(undefined);
   createPatient.mockReset();
+  listClipOrders.mockReset().mockResolvedValue([]);
   onResume.mockReset();
   onPlanCase.mockReset();
   user.id = 1;
@@ -129,17 +133,21 @@ describe("la ficha de un paciente ajeno", () => {
 
 describe("la lista de «Pacientes»", () => {
   it("al Médico el contador le dice que ve los suyos y los compartidos", async () => {
+    listPatients.mockResolvedValue(Array.from({ length: 7 }, (_, i) => fila({ id: i + 1, full_name: `P${i}, X` })));
     renderAt("/app/pacientes");
-    expect(await screen.findByText("tuyos o compartidos contigo")).toBeTruthy();
+    await screen.findByText("P0, X");
+    expect(screen.getByRole("banner").textContent).toContain("7 pacientes · tuyos o compartidos contigo");
     // Con lo compartido (F2-75) ya no es verdad que solo vea los que creó.
     expect(screen.queryByText("Ves los pacientes que creaste")).toBeNull();
   });
 
   it("el administrador ve «en la base de datos»: los ve todos", async () => {
     user.role = "admin";
+    listPatients.mockResolvedValue(Array.from({ length: 7 }, (_, i) => fila({ id: i + 1, full_name: `P${i}, X` })));
     renderAt("/app/pacientes");
-    expect(await screen.findByText("en la base de datos")).toBeTruthy();
-    expect(screen.queryByText("tuyos o compartidos contigo")).toBeNull();
+    await screen.findByText("P0, X");
+    expect(screen.getByRole("banner").textContent).toContain("7 pacientes · en la base de datos");
+    expect(screen.queryByText(/tuyos o compartidos contigo/)).toBeNull();
   });
 });
 
@@ -148,10 +156,12 @@ describe("la lista de «Pacientes»", () => {
    pacientes propios parecía que la base de datos estaba vacía o perdida. */
 describe("usuario no administrador (F1-252, F1-253)", () => {
   it("el contador dice «Pacientes · tuyos o compartidos contigo»", async () => {
+    listPatients.mockResolvedValue(Array.from({ length: 7 }, (_, i) => fila({ id: i + 1, full_name: `P${i}, X` })));
     renderAt("/app/pacientes");
-    expect(await screen.findByText("tuyos o compartidos contigo")).toBeTruthy();
+    await screen.findByText("P0, X");
+    expect(screen.getByRole("banner").textContent).toContain("7 pacientes · tuyos o compartidos contigo");
     expect(screen.queryByText("Pacientes registrados")).toBeNull();
-    expect(screen.queryByText("en la base de datos")).toBeNull();
+    expect(screen.queryByText(/en la base de datos/)).toBeNull();
   });
 
   it("la lista vacía dice que solo ve los suyos y los compartidos", async () => {
@@ -164,8 +174,8 @@ describe("usuario no administrador (F1-252, F1-253)", () => {
     user.role = "admin";
     renderAt("/app/pacientes");
     expect(await screen.findByText("No hay pacientes registrados. Crea el primero para comenzar.")).toBeTruthy();
-    expect(screen.getByText("en la base de datos")).toBeTruthy();
-    expect(screen.queryByText("tuyos o compartidos contigo")).toBeNull();
+    expect(screen.getByRole("banner").textContent).toContain("Ningún paciente · en la base de datos");
+    expect(screen.queryByText(/tuyos o compartidos contigo/)).toBeNull();
   });
 });
 
@@ -306,13 +316,14 @@ describe("el glosario en «Pacientes» (familia V, W, X)", () => {
     institution: "", study_count: 2, created_at: "2026-10-01T00:00:00Z",
   };
 
-  it("los contadores cuentan casos, sin subtítulo de «carga»", async () => {
+  it("ya no hay contadores de casos, ni subtítulo de «carga»", async () => {
     listPatients.mockResolvedValue([maria]);
     renderAt("/app/pacientes");
     await screen.findByText("Restrepo, María");
-    expect(screen.getByText("Casos")).toBeTruthy();
-    expect(screen.getByText("Con caso")).toBeTruthy();
-    expect(screen.getByText("Sin caso")).toBeTruthy();
+    expect(screen.getByRole("banner").textContent).toContain("1 paciente · tuyos o compartidos contigo");
+    expect(screen.queryByText("Casos")).toBeNull();
+    expect(screen.queryByText("Con caso")).toBeNull();
+    expect(screen.queryByText("Sin caso")).toBeNull();
     expect(screen.queryByText(/Estudios DICOM|Con estudios|Sin estudios|pendientes de carga|vinculados a pacientes|listos para planificar/)).toBeNull();
   });
 
@@ -340,17 +351,17 @@ describe("la lista de pacientes (F2)", () => {
 
   it("el recuento concuerda: «Ningún paciente», «1 paciente», «7 pacientes»", async () => {
     const r1 = renderAt("/app/pacientes");
-    expect(await screen.findByText("Ningún paciente")).toBeTruthy();
+    expect(await screen.findByText(/^Ningún paciente · /)).toBeTruthy();
     r1.unmount();
 
     listPatients.mockResolvedValue([fila({ id: 1, full_name: "Uno" })]);
     const r2 = renderAt("/app/pacientes");
-    expect(await screen.findByText("1 paciente")).toBeTruthy();
+    expect(await screen.findByText(/^1 paciente · /)).toBeTruthy();
     r2.unmount();
 
     listPatients.mockResolvedValue(Array.from({ length: 7 }, (_, i) => fila({ id: i + 1, full_name: `P${i}` })));
     renderAt("/app/pacientes");
-    expect(await screen.findByText("7 pacientes")).toBeTruthy();
+    expect(await screen.findByText(/^7 pacientes · /)).toBeTruthy();
     expect(screen.queryByText(/registros|ordenados por fecha de creación/)).toBeNull();
   });
 
@@ -372,12 +383,12 @@ describe("la lista de pacientes (F2)", () => {
       last_case_label: "Aneurisma ACoA", last_session_at: "2026-10-11T05:05:09", last_session_step: 3, last_session_id: "s7",
     })]);
     renderAt("/app/pacientes");
-    await screen.findByText("Restrepo, María");
+    await screen.findAllByText("Restrepo, María");
     const cabecera = screen.getAllByRole("columnheader").map((h) => h.textContent);
     expect(cabecera).toEqual(["Paciente", "HC", "Edad", "Institución", "Último caso", "Última sesión", "Acciones"]);
-    expect(screen.getByText(ageFromDob("1970-05-01"))).toBeTruthy();
-    expect(screen.getByText("Aneurisma ACoA")).toBeTruthy();
-    expect(screen.getByText(`${STEP_LABELS[3]} · ${fechaHora("2026-10-11T05:05:09")}`)).toBeTruthy();
+    expect(within(screen.getByRole("table")).getByText(ageFromDob("1970-05-01"))).toBeTruthy();
+    expect(within(screen.getByRole("table")).getByText("Aneurisma ACoA")).toBeTruthy();
+    expect(within(screen.getByRole("table")).getByText(`${STEP_LABELS[3]} · ${fechaHora("2026-10-11T05:05:09")}`)).toBeTruthy();
   });
 
   it("«Reanudar» solo sale con una sesión, y reanuda esa sesión sin abrir la ficha", async () => {
@@ -387,7 +398,7 @@ describe("la lista de pacientes (F2)", () => {
     await screen.findByText("Sin sesión");
     const botones = screen.getAllByRole("button", { name: "Reanudar" });
     expect(botones).toHaveLength(1);
-    expect(screen.getByText("Con sesión").closest("tr")?.contains(botones[0])).toBe(true);
+    expect(within(screen.getByRole("table")).getByText("Con sesión").closest("tr")?.contains(botones[0])).toBe(true);
     fireEvent.click(botones[0]);
     expect(onResume).toHaveBeenCalledWith("s1", conSesion);
     expect(getPatient).not.toHaveBeenCalled();
@@ -444,7 +455,7 @@ describe("la lista de pacientes (F2)", () => {
     expect(screen.queryByRole("button", { name: "Estudios" })).toBeNull();
     expect(screen.getByRole("button", { name: /Nuevo paciente/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Nuevo caso/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Empezar sin paciente/ }).getAttribute("title"))
+    expect(screen.getByRole("button", { name: /Prueba rápida sin paciente/ }).getAttribute("title"))
       .toBe("Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.");
   });
 
@@ -470,7 +481,7 @@ describe("la lista de pacientes (F2)", () => {
     const nuevo = fila({ id: 7, full_name: "Restrepo, María" });
     createPatient.mockResolvedValue(nuevo);
     renderAt("/app/pacientes");
-    await screen.findByText("Ningún paciente");
+    await screen.findByText(/^Ningún paciente · /);
     listPatients.mockResolvedValue([nuevo]);
     fireEvent.click(screen.getByRole("button", { name: /Nuevo paciente/ }));
     fireEvent.change(screen.getByLabelText("Apellidos"), { target: { value: "Restrepo" } });
@@ -490,5 +501,42 @@ describe("la lista de pacientes (F2)", () => {
     fireEvent.click(screen.getByRole("button", { name: "guardar el caso" }));
     fireEvent.click(await screen.findByRole("button", { name: "Planificar este caso" }));
     expect(onPlanCase).toHaveBeenCalledWith(expect.objectContaining({ id: 41 }), maria);
+  });
+});
+
+describe("avisos clínicos, acciones de fila y barra (fase 2)", () => {
+  const props = { onResume, onPlanCase, onOpenStudy: noop, onOpenOrders: noop };
+  const p = fila;
+
+  it("muestra los avisos clínicos en vez de las métricas, y oculta el de pedidos si fallan", async () => {
+    listPatients.mockResolvedValue([p({ id: 1, full_name: "Segura, Prueba", last_session_at: "2026-10-10T10:00:00", last_session_step: 2 })]);
+    listClipOrders.mockRejectedValue(new ApiError(403, "no"));
+    render(<MemoryRouter><Patients {...props} /></MemoryRouter>);
+    expect(await screen.findByText(/1 caso parado antes del informe/)).toBeInTheDocument();
+    expect(screen.queryByText(/pedidos de clip parados/)).toBeNull();
+    expect(screen.queryByText("Con caso")).toBeNull();
+  });
+
+  it("«Reanudar» primario solo en la fila de la sesión más reciente, aunque se filtre", async () => {
+    listPatients.mockResolvedValue([
+      p({ id: 1, full_name: "Antiguo, A", last_session_id: "s1", last_session_at: "2026-10-01T10:00:00", last_session_step: 2 }),
+      p({ id: 2, full_name: "Reciente, R", last_session_id: "s2", last_session_at: "2026-10-30T10:00:00", last_session_step: 2 }),
+    ]);
+    render(<MemoryRouter><Patients {...props} /></MemoryRouter>);
+    const botones = await screen.findAllByRole("button", { name: "Reanudar" });
+    expect(botones[0]).toHaveAttribute("data-variant", "default"); // Reciente va primero
+    expect(botones[1]).toHaveAttribute("data-variant", "outline");
+    fireEvent.change(screen.getByLabelText("Buscar paciente o HC"), { target: { value: "antiguo" } });
+    expect(screen.getByRole("button", { name: "Reanudar" })).toHaveAttribute("data-variant", "outline");
+  });
+
+  it("las acciones de arriba: «Nuevo paciente», «Nuevo caso» y, la última, «Prueba rápida sin paciente»", async () => {
+    render(<MemoryRouter><Patients {...props} onStartWithoutPatient={() => {}} /></MemoryRouter>);
+    await screen.findByText(/^Ningún paciente · /);
+    const header = screen.getByRole("banner");
+    const nombres = within(header).getAllByRole("button").map((b) => b.textContent);
+    expect(nombres.indexOf("Nuevo paciente")).toBeLessThan(nombres.indexOf("Nuevo caso"));
+    expect(nombres.indexOf("Nuevo caso")).toBeLessThan(nombres.indexOf("Prueba rápida sin paciente"));
+    expect(within(header).queryByText("Empezar sin paciente")).toBeNull();
   });
 });

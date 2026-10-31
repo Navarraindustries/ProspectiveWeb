@@ -1,25 +1,28 @@
-/* Pacientes — contadores y tabla de pacientes por última actividad (GET
+/* Pacientes — avisos clínicos y tabla de pacientes por última actividad (GET
    /api/patients); crear, abrir la ficha y reanudar la última sesión. Borrar
    un paciente está al pie de su ficha (PatientSheet.tsx). */
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { PatientSummary, StudyCard, StudySummary } from "../api/types";
+import type { ClipOrder, PatientSummary, StudyCard, StudySummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { AppShell } from "../components/shell/AppShell";
-import { Card, PanelHead } from "../components/PanelHead";
+import { Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
+import { useNav } from "../store/nav";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { PatientSheet } from "./PatientSheet";
 
 import { STEP_LABELS, clampStep } from "../pipeline/steps";
 import { desdeServidor, fechaHora } from "../lib/fecha";
 import { ageFromDob } from "../components/patientAge";
+import { avisosOficina } from "../lib/avisosOficina";
+import "../styles/office.css";
 
 /** «Ningún paciente», «1 paciente», «7 pacientes»: decía «1 registros» (F2-19). */
 function recuentoPacientes(n: number): string {
@@ -43,7 +46,7 @@ function ultimaSesion(p: PatientSummary): string {
 }
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
-type Aviso =
+type AvisoCreado =
   | { tipo: "paciente"; paciente: PatientSummary }
   | { tipo: "caso"; paciente: PatientSummary; caso: StudySummary };
 
@@ -80,7 +83,12 @@ export function Patients({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [caseSheet, setCaseSheet] = useState(false);
   const [casePatient, setCasePatient] = useState<PatientSummary | null>(null);
-  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [aviso, setAviso] = useState<AvisoCreado | null>(null);
+  // Pedidos de clip abiertos para el aviso de parados; null = sin acceso o fallo.
+  const [orders, setOrders] = useState<ClipOrder[] | null>(null);
+  // Paciente recién creado: su fila se enciende 1,2 s.
+  const [nuevaId, setNuevaId] = useState<number | null>(null);
+  const nav = useNav();
   const [q, setQ] = useState("");
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -96,8 +104,17 @@ export function Patients({
       // haber perdido a sus pacientes.
       .catch((e) => setLoadError(loadErrorText(e)))
       .finally(() => setLoading(false));
+    // Los avisos de pedidos son accesorios: si fallan (403 de un Médico sin
+    // acceso, servidor caído), simplemente no hay aviso de pedidos.
+    api.listClipOrders({ openOnly: true }).then(setOrders).catch(() => setOrders(null));
   };
   useEffect(load, []);
+
+  useEffect(() => {
+    if (nuevaId === null) return;
+    const t = setTimeout(() => setNuevaId(null), 1200);
+    return () => clearTimeout(t);
+  }, [nuevaId]);
 
   // ?paciente=<id> opens that patient's sheet on arrival, so the breadcrumb in
   // the workspace can lead back to the case instead of just the list.
@@ -122,15 +139,21 @@ export function Patients({
       .sort((a, b) => ultimaActividad(b) - ultimaActividad(a));
   }, [patients, q]);
 
-  const totalStudies = patients.reduce((acc, p) => acc + p.study_count, 0);
-  const tiles: { k: string; v: string; s?: string; icon: React.ComponentProps<typeof Icon>["name"] }[] = [
-    // F1-252: un Médico no ve la base entera, sino los suyos y los que le han
-    // compartido (F2-75); «en la base de datos» le hacía creer que estaba vacía.
-    { k: "Pacientes", v: String(patients.length), s: isAdmin ? "en la base de datos" : "tuyos o compartidos contigo", icon: "PATIENTS" },
-    { k: "Casos", v: String(totalStudies), icon: "FOLDER" },
-    { k: "Con caso", v: String(patients.filter((p) => p.study_count > 0).length), icon: "STATUS_OK" },
-    { k: "Sin caso", v: String(patients.filter((p) => p.study_count === 0).length), icon: "WAIT" },
-  ];
+  // «Reanudar» es el primario solo en la sesión más reciente de toda la lista
+  // (no de las filas filtradas): un único siguiente paso evidente.
+  const masReciente = useMemo(
+    () => [...patients].sort((x, y) => ultimaActividad(y) - ultimaActividad(x)).find((p) => p.last_session_id),
+    [patients],
+  );
+  const avisos = useMemo(
+    () => avisosOficina({ patients, orders, ahora: new Date() }),
+    [patients, orders],
+  );
+
+  // F1-252: un Médico no ve la base entera, sino los suyos y los que le han
+  // compartido (F2-75); «en la base de datos» le hacía creer que estaba vacía.
+  const subtitulo = loading ? "Cargando…" : loadError ? "No se pudo cargar la lista"
+    : `${recuentoPacientes(patients.length)} · ${isAdmin ? "en la base de datos" : "tuyos o compartidos contigo"}`;
 
   const iconBtn: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
@@ -140,49 +163,58 @@ export function Patients({
   return (
     <AppShell
       crumbs={[{ label: "Pacientes" }]}
+      subtitle={subtitulo}
       // F2-20, F2-21: «Usuarios», «Cuentas pendientes» y «Estudios» están en la
       // barra lateral; aquí quedan solo las acciones clínicas.
       actions={
         <span style={{ display: "inline-flex", gap: 8 }}>
-          {onStartWithoutPatient && (
-            <Button variant="outline" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
-                    title="Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.">
-              Empezar sin paciente
-            </Button>
-          )}
           <Button variant="outline" size="sm" leadingIcon={<Icon name="PLUS" />} onClick={openCreate}>
             Nuevo paciente
           </Button>
           <Button size="sm" leadingIcon={<Icon name="PLUS" />} onClick={() => setCaseSheet(true)}>
             Nuevo caso
           </Button>
+          {onStartWithoutPatient && (
+            <Button variant="outline" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
+                    title="Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.">
+              Prueba rápida sin paciente
+            </Button>
+          )}
         </span>
       }
     >
 
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }} className="fade-rise">
-          <PanelHead
-            title="Pacientes"
-            desc={loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : recuentoPacientes(patients.length)}
-          />
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-            {tiles.map((t) => (
-              <Card key={t.k} style={{ padding: "16px 18px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "var(--tracking-label)", textTransform: "uppercase", color: "var(--muted-foreground)" }}>{t.k}</div>
-                  <span style={{ width: 30, height: 30, borderRadius: "var(--radius-md)", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Icon name={t.icon} size={15} />
-                  </span>
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: "var(--foreground)", marginTop: 6, fontFamily: "var(--font-mono)" }}>
-                  {loading || loadError ? "—" : t.v}
-                </div>
-                {t.s && <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t.s}</div>}
-              </Card>
-            ))}
-          </div>
+          {avisos.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
+              {avisos.map((av) => (
+                <Card key={av.titulo} style={{ padding: "14px 16px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <span style={{
+                      width: 36, height: 36, borderRadius: "var(--radius-md)", flexShrink: 0,
+                      background: `color-mix(in srgb, var(--${av.tono}) 14%, transparent)`, color: `var(--${av.tono})`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <Icon name={av.tono === "success" ? "STATUS_OK" : av.destino === "orders" ? "CLIPS" : "WAIT"} size={16} />
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{av.titulo}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={av.detalle}>
+                        {av.detalle}
+                      </div>
+                    </div>
+                    {av.destino !== null && (
+                      <button type="button" onClick={() => nav.go(av.destino!)}
+                              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--data)" }}>
+                        Ver
+                      </button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {aviso && (
             // F2-22 y spec §5: quien acaba de crear un paciente o un caso espera
@@ -228,7 +260,7 @@ export function Patients({
                 desplaza en horizontal si no cabe y las celdas largas se acortan con
                 puntos suspensivos (30-10). */}
             <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", minWidth: 980, tableLayout: "fixed", borderCollapse: "collapse", fontSize: 13 }}>
+            <table className="tabla-oficina" style={{ width: "100%", minWidth: 980, tableLayout: "fixed", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
                   {COLUMNAS.map((h, i) => (
@@ -263,6 +295,7 @@ export function Patients({
                 {!loadError && rows.map((p, i) => (
                   <tr
                     key={p.id}
+                    className={p.id === nuevaId ? "fila-nueva" : undefined}
                     // F1-56: la fila abre la ficha también con el teclado.
                     tabIndex={0}
                     onClick={() => openSheet(p.id)}
@@ -305,10 +338,10 @@ export function Patients({
                     </td>
                     <td style={{ padding: "8px 12px", textAlign: "right" }}>
                       {/* Si la tarjeta es estrecha, los botones pasan a dos líneas en vez de salirse. */}
-                      <span style={{ display: "inline-flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6 }}>
+                      <span className="fila-acciones" style={{ display: "inline-flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6 }}>
                         {p.last_session_id && (
                           // F2-24: reanudar en un clic, sin abrir la ficha.
-                          <Button size="sm" leadingIcon={<Icon name="RESUME" />}
+                          <Button size="sm" variant={p.id === masReciente?.id ? "default" : "outline"} leadingIcon={<Icon name="RESUME" />}
                                   onClick={(e) => { e.stopPropagation(); onResume(p.last_session_id!, p); }}>
                             Reanudar
                           </Button>
@@ -337,7 +370,7 @@ export function Patients({
         onSaved={(creado) => {
           load();
           // Spec §5: «Nuevo paciente» termina ofreciendo el caso de ese paciente.
-          if (creado) setAviso({ tipo: "paciente", paciente: creado });
+          if (creado) { setAviso({ tipo: "paciente", paciente: creado }); setNuevaId(creado.id); }
         }}
         onResume={(sid) => {
           const p = patients.find((x) => x.id === sheetPatientId);

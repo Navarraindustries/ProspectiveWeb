@@ -25,6 +25,7 @@ import { Input } from "../components/Input";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../components/PanelHead";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
+import { daysSince, isStale } from "../lib/pedidosParados";
 import { shapeLabel } from "../components/planning/clipShape";
 import { useAuth } from "../store/auth";
 
@@ -57,22 +58,6 @@ const ADVANCE_LABEL: Partial<Record<OrderStatus, string>> = {
   en_fabricacion: "En fabricación",
   recibida: "Registrar recepción",
 };
-
-/** Días a partir de los cuales un pedido parado empieza a pintarse en ámbar.
-    No es una promesa del taller: es cuándo conviene preguntar. */
-const STALE_DAYS: Partial<Record<OrderStatus, number>> = {
-  firmado: 3,          // firmado y sin enviar
-  enviado: 21,         // enviado y sin noticias
-  en_fabricacion: 45,
-  recibida: 7,         // recibida y sin aceptar ni rechazar
-};
-
-const daysSince = (ts: number) => Math.floor((Date.now() / 1000 - ts) / 86400);
-
-function isStale(o: ClipOrder): boolean {
-  const limit = STALE_DAYS[o.status];
-  return limit != null && daysSince(o.updated_at) >= limit;
-}
 
 function isOutOfSpec(o: ClipOrder): boolean {
   return o.status === "recibida"

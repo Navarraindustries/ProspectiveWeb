@@ -1,0 +1,17 @@
+/* Oficina (Pacientes y estudios): acciones de fila atenuadas, fila recién
+   creada, tarjetas de estudio con elevación y hoja a dos columnas. */
+
+.tabla-oficina tbody tr .fila-acciones { opacity: .6; transition: opacity var(--dur-1) var(--ease-out); }
+.tabla-oficina tbody tr:hover .fila-acciones,
+.tabla-oficina tbody tr:focus-within .fila-acciones { opacity: 1; }
+
+@keyframes fila-nueva { from { background: var(--brand-subtle); } to { background: transparent; } }
+.fila-nueva { animation: fila-nueva 1.2s var(--ease-out) 1; }
+
+.tarjeta-estudio { transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
+.tarjeta-estudio:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.tarjeta-estudio img { transition: transform var(--dur-3) var(--ease-out); }
+.tarjeta-estudio:hover img { transform: scale(1.03); }
+
+.hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+@media (max-width: 760px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }

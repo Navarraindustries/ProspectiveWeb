@@ -44,6 +44,9 @@ ACT_ANNOTATIONS_DELETED = "ANNOTATIONS_DELETED"
 ACT_PATIENT_SHARED     = "PATIENT_SHARED"
 # Borrar una sesión guardada no se deshace; renombrarla cambia cómo se la
 # reconoce en la ficha. Ambas dejan bloque.
+# Guardar una sesión también deja bloque: el panel de pacientes enseña
+# «guardé y aparece arriba» y la cadena solo recogía renombrar y borrar.
+ACT_SESSION_SAVED = "SESSION_SAVED"
 ACT_SAVED_SESSION_DELETED = "SAVED_SESSION_DELETED"
 ACT_SAVED_SESSION_RENAMED = "SAVED_SESSION_RENAMED"
 # Borrar una cuenta traspasa sus pacientes a otra: quién, a quién y cuántos.

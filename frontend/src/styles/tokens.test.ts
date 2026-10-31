@@ -83,6 +83,22 @@ describe("tokens de la identidad A", () => {
     expect(ratio("#B91C1C", "#FEE2E2")).toBeGreaterThanOrEqual(4.5);
     expect(ratio("#92400E", "#FEF3C7")).toBeGreaterThanOrEqual(4.5);
   });
+  it("las duraciones son 120/240/480/900 y los nombres viejos son alias", () => {
+    const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8");
+    expect(spacing).toMatch(/--dur-1:\s*120ms/); expect(spacing).toMatch(/--dur-2:\s*240ms/);
+    expect(spacing).toMatch(/--dur-3:\s*480ms/); expect(spacing).toMatch(/--dur-4:\s*900ms/);
+    expect(spacing).toMatch(/--dur-base:\s*var\(--dur-2\)/);
+    expect(spacing).toMatch(/--ease-out:\s*cubic-bezier\(0\.16, 1, 0\.3, 1\)/);
+  });
+  it("con prefers-reduced-motion solo queda la opacidad", () => {
+    const base = readFileSync(join(__dirname, "base.css"), "utf8").replace(/\r\n/g, "\n");
+    const i = base.indexOf("@media (prefers-reduced-motion: reduce)");
+    expect(i).toBeGreaterThan(-1);
+    const rule = base.slice(i, base.indexOf("\n}\n", i));
+    expect(rule).toMatch(/animation-duration:\s*0\.01ms !important/);
+    expect(rule).toMatch(/transition-property:\s*opacity, color, background-color !important/);
+    expect(rule).toMatch(/scroll-behavior:\s*auto !important/);
+  });
   it("ninguna pantalla de gestión ni el shell usa un color literal", () => {
     /* Workspace.tsx no es una pantalla de gestión: es el visor, que pertenece a F3
        y conserva sus colores por ahora. */

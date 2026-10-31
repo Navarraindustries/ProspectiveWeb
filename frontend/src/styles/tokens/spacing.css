@@ -37,10 +37,15 @@
   --control-lg: 44px;
 
   /* ---- Motion ---- */
-  --dur-fast:    120ms;
-  --dur-base:    300ms;
-  --dur-slow:    500ms;
-  --dur-slowest: 700ms;
+  /* Escala numerada; los nombres viejos son alias de ella para no tocar los usos. */
+  --dur-1: 120ms;
+  --dur-2: 240ms;
+  --dur-3: 480ms;
+  --dur-4: 900ms;
+  --dur-fast:    var(--dur-1);
+  --dur-base:    var(--dur-2);
+  --dur-slow:    var(--dur-3);
+  --dur-slowest: var(--dur-4);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }

@@ -106,3 +106,17 @@ code, kbd, samp, .mono {
     }
   }
 }
+
+/* Movimiento reducido (§4.7): con esta preferencia solo sobreviven las
+   transiciones de opacidad, color y fondo; el resto se corta. La duración
+   no puede ser 0 para que los eventos transitionend/animationend sigan
+   disparándose. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-property: opacity, color, background-color !important;
+    scroll-behavior: auto !important;
+  }
+}

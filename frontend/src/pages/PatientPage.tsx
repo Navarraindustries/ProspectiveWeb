@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { PatientDetail, PatientSessionInfo, PatientSummary, StudyCard, StudySummary } from "../api/types";
 import { Button } from "../components/Button";
+import { CaptureGallery } from "../components/CaptureGallery";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { PatientFormSheet } from "../components/PatientFormSheet";
 import { Cascada, type ColumnaCascada } from "../components/ficha/Cascada";
@@ -221,6 +222,14 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
         ),
       },
       cerrar: () => {},
+    });
+  }
+  if (patient && seccion === "capturas") {
+    // Las capturas son de todo el paciente: una sola columna ancha (la última
+    // sin ancho fijo ocupa lo que sobra).
+    entradas.push({
+      col: { key: "capturas", titulo: "Capturas", contenido: <CaptureGallery patientId={patient.id} /> },
+      cerrar: () => elegirSeccion(null),
     });
   }
   if (patient && seccion === "casos") {

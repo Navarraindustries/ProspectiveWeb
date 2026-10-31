@@ -165,6 +165,7 @@ describe("PatientPage · columna Datos", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Editar datos" }));
     const hoja = await screen.findByRole("dialog", { name: "Zenodo, Caso 002" });
+    expect(within(hoja).getByText("Datos del paciente")).toBeTruthy();
     expect((within(hoja).getByLabelText("Apellidos") as HTMLInputElement).value).toBe("Zenodo");
     expect(within(hoja).getByRole("button", { name: "Guardar cambios" })).toBeTruthy();
   });
@@ -407,6 +408,30 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     expect(await within(casos).findByRole("button", { name: "Sesiones sin caso · 2" })).toBeTruthy();
     expect(patientSessions).toHaveBeenCalledTimes(2);
     expect(within(casos).queryByText("No se pudieron leer las sesiones")).toBeNull();
+  });
+
+  it("«Capturas · n» enseña la galería del paciente a la derecha de Datos y oculta Casos; «Casos · n» la recupera", async () => {
+    renderPage();
+    await screen.findByRole("region", { name: "Casos" });
+    fireEvent.click(await screen.findByRole("button", { name: "Capturas · 0" }));
+    const galeria = await screen.findByRole("region", { name: "Capturas" });
+    expect(await within(galeria).findByText(/Todavía no hay capturas/)).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Casos" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Capturas · 0" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Casos · 3" }));
+    expect(await screen.findByRole("region", { name: "Casos" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Capturas" })).toBeNull();
+  });
+
+  it("«Pedidos de clip» llama onOpenOrders con la fila del paciente", async () => {
+    const onOpenOrders = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/app/pacientes/42"]}>
+        <PatientPage patientId={42} onResume={onResume} onPlanCase={onPlanCase} onOpenOrders={onOpenOrders} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Pedidos de clip" }));
+    expect(onOpenOrders).toHaveBeenCalledWith(expect.objectContaining({ id: 42, full_name: "Zenodo, Caso 002" }));
   });
 
   /* Respuestas que llegan desordenadas para el mismo paciente: gana la última

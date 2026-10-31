@@ -88,3 +88,18 @@ def test_el_administrador_ve_la_de_todos():
 
 def test_anonimo_401():
     assert anonymous_client(app).get("/api/patients/activity").status_code == 401
+
+
+def test_dos_fichas_con_el_mismo_hash_dan_siempre_el_mismo_nombre():
+    # La historia clínica no es única en BD: con dos fichas iguales gana la más
+    # antigua (id menor) en cada petición, no la que devuelva antes la base.
+    a_id, a = _medico()
+    hc = f"HC-{uuid.uuid4().hex[:6]}"
+    db = SessionLocal()
+    p1 = Patient(surname="PrimeraDuplicada", hospital_id=hc, created_by=a_id)
+    p2 = Patient(surname="SegundaDuplicada", hospital_id=hc, created_by=a_id)
+    db.add_all([p1, p2]); db.commit(); db.refresh(p1); db.refresh(p2); db.close()
+    _bloque("SESSION_SAVED", p2)
+    for _ in range(3):
+        fila = a.get("/api/patients/activity").json()[0]
+        assert (fila["patient_id"], fila["patient_name"]) == (p1.id, p1.full_name)

@@ -144,12 +144,16 @@ async def patients_activity(
     # fecha de nacimiento, el mismo con que escriben los routers. Se invierte
     # construyendo el hash de cada paciente visible. Límite aceptado (spec §4.4):
     # si se edita la historia o la fecha, los bloques anteriores dejan de casar.
+    # Dos fichas con la misma historia y fecha comparten hash (la HC no es única
+    # en BD si viene vacía o de datos antiguos). Se recorre por id y gana la
+    # primera, la más antigua: así el nombre de la actividad no cambia de una
+    # petición a otra según el orden en que devuelva las filas la base.
     por_hash = {}
-    for p in query.all():
+    for p in query.order_by(Patient.id).all():
         args = audit_patient(p)
         h = patient_hash_for(args["patient_id"], args["patient_dob"])
         if h:
-            por_hash[h] = p
+            por_hash.setdefault(h, p)
     bloques = SkullChain.instance().get_recent(set(por_hash), limit, _ACCIONES_FUERA_DE_ACTIVIDAD)
     return [PatientActivity(patient_id=por_hash[b["patient_hash"]].id,
                             patient_name=por_hash[b["patient_hash"]].full_name,
@@ -212,7 +216,7 @@ async def list_patients(
                .filter(CaseCapture.patient_id.isnot(None), CaseCapture.media_type == "image/png"))
     ult_img = (db.query(ImagingStudy.patient_id.label("pid"),
                         func.max(ImagingStudy.created_at).label("at"))
-               .filter(ImagingStudy.thumb_key != ""))
+               .filter(ImagingStudy.patient_id.isnot(None), ImagingStudy.thumb_key != ""))
     if visibles is not None:
         ult_cap = ult_cap.filter(CaseCapture.patient_id.in_(visibles))
         ult_img = ult_img.filter(ImagingStudy.patient_id.in_(visibles))

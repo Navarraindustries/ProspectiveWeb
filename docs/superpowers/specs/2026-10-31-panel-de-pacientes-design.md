@@ -50,12 +50,12 @@ Los estados de la pantalla se conservan: cargando (esqueletos de tarjeta, no tex
 
 De arriba abajo:
 - **Captura**: imagen 16:9 con esquinas redondeadas. Fuente, por este orden: la última captura de imagen (no vídeo) de cualquier caso del paciente; si no hay, la vista previa de su último estudio de imagen archivado; si no hay, un fondo neutro del token `--muted` con el icono del paso. Encima, abajo a la izquierda, una píldora en vidrio con «Paso N · Nombre» (o «Sin sesión»). N y el nombre salen de `frontend/src/pipeline/steps.ts` (`last_session_step` es el índice); un índice fuera de la lista se acota al último paso.
-- **Nombre** (Geist 600, 15 px) y debajo «HC · sexo · edad» con la insignia de riesgo del último guardado (`rupture_risk_label` de la sesión: «Riesgo bajo / moderado / alto» con `--success` / `--warning` / `--destructive`; sin insignia si no hay) y, si procede, «Compartido con N» o «Compartido por {nombre}».
+- **Nombre** (Geist 600, 15 px) y debajo «HC · sexo · edad» con la insignia de riesgo del último guardado (`rupture_risk_label` de la sesión: «Riesgo bajo / moderado / alto» con `--success` / `--warning` / `--destructive`; sin insignia si no hay) y, si procede, «Compartido con N» o «Compartido contigo» (la fila no trae quién lo compartió; ruling P1 del plan).
 - **Barra de progreso** del paso (N de 8; la 8 llena en `--success`).
 - **Pie**: a la izquierda «Última sesión hace 2 d» (relativo, con la fecha exacta en `title`) o «Alta hace 1 semana»; a la derecha la **acción principal**, un solo botón:
   - «Reanudar» si hay sesión guardada y el paso no es Informe → reanuda esa sesión (lo que hoy hace «Reanudar» de la lista).
   - «Abrir informe» si la última sesión quedó en Informe → reanuda igual (la sesión abre en el paso 8).
-  - «Planificar» si no hay sesión → exactamente lo que hoy hace «Planificar este caso» del aviso de la lista (misma función de navegación; no se inventa otra ruta ni ancla).
+  - «Planificar» si no hay sesión → abre la ficha del paciente, donde están «Planificar este caso» (por caso) y «Nuevo caso». Decisión del constructor: la tarjeta no conoce el caso, y «Planificar este caso» necesita uno.
 - Toda la tarjeta es un enlace a la ficha (clic, Intro con foco); el botón de acción detiene la propagación. La tarjeta tiene `role="article"` con `aria-label` «{nombre}, HC {hc}».
 - Una tarjeta en «Sin sesión» o compartida se dibuja igual, con la captura atenuada si no la hay.
 

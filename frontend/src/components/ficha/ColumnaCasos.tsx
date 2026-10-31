@@ -39,6 +39,8 @@ export function ColumnaCasos({
   puedePlanificar,
   puedeEliminar,
   nSesionesSinCaso,
+  sesionesError,
+  onReintentarSesiones,
   onPlanificar,
   onCambio,
 }: {
@@ -56,6 +58,10 @@ export function ColumnaCasos({
   /** «Eliminar caso»: quien creó al paciente o un administrador (T7-rights). */
   puedeEliminar: boolean;
   nSesionesSinCaso: number;
+  /** Si las sesiones no cargaron, no se sabe si hay sueltas: se dice aquí, con
+   *  su «Reintentar», en vez de esconder la entrada (también sin casos). */
+  sesionesError: string | null;
+  onReintentarSesiones: () => void;
   /** Entra al flujo con este caso fijado; empieza en el paso 1. */
   onPlanificar: (st: StudySummary) => void;
   /** Un caso se creó, editó o eliminó (con su id si se eliminó): que se recarguen. */
@@ -166,7 +172,9 @@ export function ColumnaCasos({
         </div>
       )}
 
-      {nSesionesSinCaso > 0 && (
+      {sesionesError ? (
+        <LoadState state="error" mensaje={sesionesError} onRetry={onReintentarSesiones} />
+      ) : nSesionesSinCaso > 0 && (
         <button type="button" className="fc-entrada" aria-pressed={seleccionado === "sin-caso"} onClick={() => onSeleccionar("sin-caso")}>
           <span>{`Sesiones sin caso · ${nSesionesSinCaso}`}</span>
           <Icon name="CHEVRON_RIGHT" size={14} />

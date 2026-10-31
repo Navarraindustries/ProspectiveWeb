@@ -3,7 +3,7 @@
    avisa con una salida a la lista. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 const getPatient = vi.fn();
@@ -38,8 +38,15 @@ vi.mock("../api/client", () => {
 });
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 vi.mock("./NuevoCaso", () => ({
-  NuevoEstudioSheet: (p: { open: boolean; patientName?: string }) =>
-    p.open ? <span>formulario del caso de {p.patientName}</span> : null,
+  NuevoEstudioSheet: (p: { open: boolean; patientName?: string; onCreated: (s?: unknown) => void; onClose: () => void }) =>
+    p.open ? (
+      <div>
+        <span>formulario del caso de {p.patientName}</span>
+        <button type="button" onClick={() => { p.onCreated({ id: 77, patient_id: 42, dx_principal: "Aneurisma nuevo" }); p.onClose(); }}>
+          guardar el caso
+        </button>
+      </div>
+    ) : null,
 }));
 // El shell se sustituye por sus migas y su contenido: se prueba la página.
 vi.mock("../components/shell/AppShell", () => ({
@@ -385,6 +392,69 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Sesiones sin caso · 2" }));
     expect(screen.getByRole("region", { name: "Sesiones guardadas · 2" })).toBeTruthy();
     expect(screen.queryByText(/Casos \/ estudios|Nuevo estudio|Sesiones de estudio/)).toBeNull();
+  });
+
+  it("si las sesiones no cargan, la columna Casos lo dice aunque no haya casos, y «Reintentar» las trae", async () => {
+    listPatients.mockResolvedValue([fila({ study_count: 0 })]);
+    patientStudies.mockResolvedValue([]);
+    patientSessions.mockReset()
+      .mockRejectedValueOnce(new Error("No se pudieron leer las sesiones"))
+      .mockResolvedValueOnce([guardada({ session_id: "a" }), guardada({ session_id: "b" })]);
+    renderPage();
+    const casos = await screen.findByRole("region", { name: "Casos" });
+    expect(await within(casos).findByText("No se pudieron leer las sesiones")).toBeTruthy();
+    fireEvent.click(within(casos).getByRole("button", { name: "Reintentar" }));
+    expect(await within(casos).findByRole("button", { name: "Sesiones sin caso · 2" })).toBeTruthy();
+    expect(patientSessions).toHaveBeenCalledTimes(2);
+    expect(within(casos).queryByText("No se pudieron leer las sesiones")).toBeNull();
+  });
+
+  /* Respuestas que llegan desordenadas para el mismo paciente: gana la última
+     petición, no la última respuesta. */
+  const diferida = <T,>() => {
+    let resolver!: (v: T) => void;
+    const promesa = new Promise<T>((r) => { resolver = r; });
+    return { promesa, resolver };
+  };
+
+  it("dos recargas de casos que responden al revés dejan pintada la lista más nueva", async () => {
+    const vieja = diferida<StudySummary[]>();
+    const nueva = diferida<StudySummary[]>();
+    patientStudies.mockReset().mockReturnValueOnce(vieja.promesa).mockReturnValueOnce(nueva.promesa);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Nuevo caso" }));
+    fireEvent.click(screen.getByRole("button", { name: "guardar el caso" }));
+    await waitFor(() => expect(patientStudies).toHaveBeenCalledTimes(2));
+    await act(async () => { nueva.resolver([...CASOS, caso({ id: 77, dx_principal: "Aneurisma nuevo" })]); });
+    expect(await screen.findByText("Aneurisma nuevo")).toBeTruthy();
+    await act(async () => { vieja.resolver(CASOS); });
+    expect(screen.getByText("Aneurisma nuevo")).toBeTruthy();
+    // Que terminen las cargas de la columna Datos antes de desmontar.
+    await screen.findByText("No está compartido con ninguna cuenta.");
+  });
+
+  it("dos recargas de sesiones que responden al revés dejan pintada la lista más nueva", async () => {
+    const huerfanas = [guardada({ session_id: "a", label: "Primera" }), guardada({ session_id: "b", label: "Segunda" })];
+    const trasA = diferida<PatientSessionInfo[]>();
+    const trasB = diferida<PatientSessionInfo[]>();
+    patientSessions.mockReset().mockResolvedValueOnce(huerfanas)
+      .mockReturnValueOnce(trasA.promesa).mockReturnValueOnce(trasB.promesa);
+    deleteSavedSession.mockResolvedValue(undefined);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Sesiones sin caso · 2" }));
+    const borrar = async (nombre: string) => {
+      fireEvent.click(screen.getByRole("button", { name: `Borrar «${nombre}»` }));
+      fireEvent.click(within(screen.getByRole("alertdialog", { name: "Borrar la sesión guardada" })).getByRole("button", { name: "Borrar" }));
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    };
+    await borrar("Primera");
+    await borrar("Segunda");
+    expect(patientSessions).toHaveBeenCalledTimes(3);
+    await act(async () => { trasB.resolver([]); });
+    expect(await screen.findByRole("region", { name: "Sesiones guardadas · 0" })).toBeTruthy();
+    await act(async () => { trasA.resolver([huerfanas[1]]); });
+    expect(screen.getByRole("region", { name: "Sesiones guardadas · 0" })).toBeTruthy();
+    expect(screen.queryByText("Segunda")).toBeNull();
   });
 
   describe("en pantalla estrecha (≤ 1280 px)", () => {

@@ -99,22 +99,31 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
     return () => { vigente = false; };
   }, [patientId, attempt]);
 
+  // Cada recarga lleva su número: si dos se cruzan, solo pinta la última
+  // pedida, aunque la anterior responda después (p. ej. dos borrados seguidos).
+  const pedidoCasos = useRef(0);
+  const pedidoSesiones = useRef(0);
+
   const recargarCasos = useCallback(() => {
     const id = patientId;
+    const n = ++pedidoCasos.current;
+    const vigente = () => pacienteActual.current === id && pedidoCasos.current === n;
     setCasosError(null);
     Promise.resolve()
       .then(() => api.patientStudies(id))
-      .then((c) => { if (pacienteActual.current === id) setCasos(c); })
-      .catch((e) => { if (pacienteActual.current === id) setCasosError(loadErrorText(e)); });
+      .then((c) => { if (vigente()) setCasos(c); })
+      .catch((e) => { if (vigente()) setCasosError(loadErrorText(e)); });
   }, [patientId]);
 
   const recargarSesiones = useCallback(() => {
     const id = patientId;
+    const n = ++pedidoSesiones.current;
+    const vigente = () => pacienteActual.current === id && pedidoSesiones.current === n;
     setSesionesError(null);
     Promise.resolve()
       .then(() => api.patientSessions(id))
-      .then((s) => { if (pacienteActual.current === id) setSesiones(s); })
-      .catch((e) => { if (pacienteActual.current === id) setSesionesError(loadErrorText(e)); });
+      .then((s) => { if (vigente()) setSesiones(s); })
+      .catch((e) => { if (vigente()) setSesionesError(loadErrorText(e)); });
   }, [patientId]);
 
   // Casos y sesiones, una vez que el servidor ha dejado ver al paciente (con
@@ -231,6 +240,8 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
             puedePlanificar={!!summary}
             puedeEliminar={creadorOAdmin}
             nSesionesSinCaso={sesionesSinCaso.length}
+            sesionesError={sesionesError}
+            onReintentarSesiones={recargarSesiones}
             onPlanificar={(st) => { if (summary) onPlanCase(st, summary); }}
             onCambio={(eliminado) => {
               recargarCasos();

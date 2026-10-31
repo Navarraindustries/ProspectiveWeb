@@ -40,10 +40,12 @@ const onPlanificar = vi.fn();
 const onCambio = vi.fn();
 const onSeleccionar = vi.fn();
 const onReintentar = vi.fn();
+const onReintentarSesiones = vi.fn();
 
 /** La columna con la selección viva, como la monta la página. */
-function Arnes({ casos, puedePlanificar = true, puedeEliminar = true, nSesionesSinCaso = 0, error = null }: {
+function Arnes({ casos, puedePlanificar = true, puedeEliminar = true, nSesionesSinCaso = 0, error = null, sesionesError = null }: {
   casos: StudySummary[] | null; puedePlanificar?: boolean; puedeEliminar?: boolean; nSesionesSinCaso?: number; error?: string | null;
+  sesionesError?: string | null;
 }) {
   const [sel, setSel] = useState<SeleccionCaso | null>(null);
   return (
@@ -51,13 +53,14 @@ function Arnes({ casos, puedePlanificar = true, puedeEliminar = true, nSesionesS
       patientId={2} patientName="Segura, Juan" casos={casos} error={error} onReintentar={onReintentar}
       seleccionado={sel} onSeleccionar={(s) => { onSeleccionar(s); setSel(s); }}
       puedePlanificar={puedePlanificar} puedeEliminar={puedeEliminar} nSesionesSinCaso={nSesionesSinCaso}
+      sesionesError={sesionesError} onReintentarSesiones={onReintentarSesiones}
       onPlanificar={onPlanificar} onCambio={onCambio}
     />
   );
 }
 
 beforeEach(() => {
-  for (const f of [deleteStudy, onPlanificar, onCambio, onSeleccionar, onReintentar]) f.mockReset();
+  for (const f of [deleteStudy, onPlanificar, onCambio, onSeleccionar, onReintentar, onReintentarSesiones]) f.mockReset();
 });
 
 describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
@@ -197,6 +200,14 @@ describe("vacío, carga y sesiones sin caso", () => {
     render(<Arnes casos={[caso({ id: 9, dx_principal: "Aneurisma ACM" })]} nSesionesSinCaso={2} />);
     fireEvent.click(screen.getByRole("button", { name: "Sesiones sin caso · 2" }));
     expect(onSeleccionar).toHaveBeenCalledWith("sin-caso");
+  });
+
+  it("si las sesiones no cargaron, lo dice donde iría su entrada, también sin casos", () => {
+    render(<Arnes casos={[]} nSesionesSinCaso={0} sesionesError="No se pudieron leer las sesiones" />);
+    expect(screen.getByText("No se pudieron leer las sesiones")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(onReintentarSesiones).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Sesiones sin caso/ })).toBeNull();
   });
 
   it("sin sesiones sueltas no hay entrada", () => {

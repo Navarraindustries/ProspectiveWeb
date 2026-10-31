@@ -68,9 +68,9 @@ describe("PatientCard", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("la tarjeta abre la ficha con clic y con Intro; tiene role article y aria-label «{nombre}, HC {hc}»", () => {
+  it("la tarjeta abre la ficha con clic y con Intro; tiene role article y aria-label «{nombre}, {hc}»", () => {
     const { onOpen } = montar(paciente());
-    const tarjeta = screen.getByRole("article", { name: "Ana Pérez, HC HC-100" });
+    const tarjeta = screen.getByRole("article", { name: "Ana Pérez, HC-100" });
     fireEvent.click(tarjeta);
     fireEvent.keyDown(tarjeta, { key: "Enter" });
     fireEvent.keyDown(tarjeta, { key: " " });
@@ -119,9 +119,37 @@ describe("PatientCard", () => {
 
   it("insignias: riesgo con texto, «Compartido contigo» y «Compartido con N»", () => {
     montar(paciente({ last_risk_label: "Alto", is_shared_with_me: true, shared_with_count: 2 }));
-    expect(screen.getByText("Alto")).toBeTruthy();
+    expect(screen.getByText("Riesgo alto")).toBeTruthy();
     expect(screen.getByText("Compartido contigo")).toBeTruthy();
     expect(screen.getByText("Compartido con 2")).toBeTruthy();
+  });
+
+  it("línea de datos «HC · sexo · edad» sin repetir el prefijo del número", () => {
+    const { container } = montar(paciente({ hospital_id: "HC234523" }));
+    const meta = container.querySelector(".pt-card-meta")!.textContent!;
+    expect(meta).toMatch(/^HC234523 · F · \d+ años$/);
+    expect(meta).not.toContain("HC HC");
+  });
+
+  it("sin historia clínica: «—» en la línea de datos y en el aria-label", () => {
+    const { container } = montar(paciente({ hospital_id: "" }));
+    expect(container.querySelector(".pt-card-meta")!.textContent).toMatch(/^— · F/);
+    expect(screen.getByRole("article", { name: "Ana Pérez, —" })).toBeTruthy();
+  });
+
+  it("si cambia la captura, la tarjeta pide la nueva y no enseña el blob revocado", async () => {
+    captureObjectUrl.mockResolvedValueOnce("blob:viejo");
+    const p1 = paciente({ last_capture_id: 5 });
+    const { container, rerender } = montar(p1);
+    await waitFor(() => expect(container.querySelector("img")?.getAttribute("src")).toBe("blob:viejo"));
+    let resolver!: (u: string) => void;
+    captureObjectUrl.mockImplementationOnce(() => new Promise<string>((r) => { resolver = r; }));
+    rerender(<PatientCard patient={paciente({ last_capture_id: 6 })} onOpen={vi.fn()} onResume={vi.fn()} onPlan={vi.fn()} />);
+    await waitFor(() => expect(captureObjectUrl).toHaveBeenCalledWith(6));
+    expect(revoke).toHaveBeenCalledWith("blob:viejo");
+    expect(container.querySelector("img")?.getAttribute("src") ?? null).not.toBe("blob:viejo");
+    resolver("blob:nuevo");
+    await waitFor(() => expect(container.querySelector("img")?.getAttribute("src")).toBe("blob:nuevo"));
   });
 
   it("sin compartir ni riesgo no pinta insignias", () => {

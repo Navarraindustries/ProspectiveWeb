@@ -14,11 +14,16 @@ import { useNav } from "../../store/nav";
 import { Button } from "../Button";
 import { Icon, type IconName } from "../Icon";
 import { SectionLabel } from "../PanelHead";
+import { useEstrecho } from "./useEstrecho";
 import "./patients.css";
 
 interface Props {
   patients: PatientSummary[];
   loading: boolean;
+  /** La lista falló: las cifras no son ceros sino «sin dato» (F1-2, F1-29). */
+  error?: boolean;
+  /** Sube cada vez que la página recarga la lista; vuelve a pedir la actividad. */
+  version?: number;
   onOpenPatient: (id: number) => void;
   onNewPatient: () => void;
 }
@@ -31,13 +36,18 @@ type EstadoActividad =
   | { fase: "error" }
   | { fase: "lista"; items: PatientActivity[] };
 
-export function PatientsSidePanel({ patients, loading, onOpenPatient, onNewPatient }: Props) {
+export function PatientsSidePanel({ patients, loading, error = false, version = 0, onOpenPatient, onNewPatient }: Props) {
   const { user } = useAuth();
   const { go } = useNav();
   const esAdmin = user?.role === "admin";
   const idHoy = useId();
   const idActividad = useId();
   const idAccesos = useId();
+  const idLista = useId();
+  const estrecho = useEstrecho();
+  // Plegada solo en la disposición estrecha; en la ancha siempre a la vista.
+  const [verActividad, setVerActividad] = useState(false);
+  const actividadVisible = !estrecho || verActividad;
 
   const [actividad, setActividad] = useState<EstadoActividad>({ fase: "cargando" });
   // null = sin dato (aún no llega o falló): se pinta «—», sin texto de error,
@@ -60,12 +70,14 @@ export function PatientsSidePanel({ patients, loading, onOpenPatient, onNewPatie
     );
   }, []);
 
-  // Al montar: el panel no depende de la lista de tarjetas, así que sus cifras
-  // siguen aunque la actividad falle.
+  // Al montar y cada vez que la página recarga la lista (`version`): guardar,
+  // borrar o crear deja bloques nuevos y la actividad debe enseñarlos. El panel
+  // no depende de la lista de tarjetas, así que sus cifras siguen aunque la
+  // actividad falle.
   useEffect(() => {
     pedirActividad();
     return () => cancelarActividad.current?.();
-  }, [pedirActividad]);
+  }, [pedirActividad, version]);
 
   // Solo el administrador puede listar cuentas: pedirlas a otro rol daría 403.
   useEffect(() => {
@@ -79,7 +91,10 @@ export function PatientsSidePanel({ patients, loading, onOpenPatient, onNewPatie
   }, [esAdmin]);
 
   const r = resumenHoy(patients);
-  const cifra = (n: number) => (loading ? "—" : String(n));
+    // Con la lista en error `patients` está vacío: un 0 diría «has perdido a tus
+  // pacientes». Cargando y error comparten el «—».
+  const sinDato = loading || error;
+  const cifra = (n: number) => (sinDato ? "—" : String(n));
 
   const acceso = (icono: IconName, texto: string, alPulsar: () => void) => (
     <Button variant="ghost" size="sm" style={{ justifyContent: "flex-start" }} leadingIcon={<Icon name={icono} size={14} />} onClick={alPulsar}>
@@ -93,12 +108,12 @@ export function PatientsSidePanel({ patients, loading, onOpenPatient, onNewPatie
         <SectionLabel>
           <span id={idHoy}>Hoy</span>
         </SectionLabel>
-        <dl className="pt-side-stats">
+        <dl className={`pt-side-stats${estrecho ? " pt-side-stats--fila" : ""}`}>
           <Fila rotulo="Pacientes" valor={cifra(r.pacientes)} />
           <Fila rotulo="En curso" valor={cifra(r.enCurso)} />
           <Fila rotulo="Con informe" valor={cifra(r.conInforme)} />
           <Fila rotulo="Sesiones esta semana" valor={cifra(r.semana)} />
-          {r.compartidos > 0 && !loading && <Fila rotulo="Compartidos contigo" valor={String(r.compartidos)} />}
+          {r.compartidos > 0 && !sinDato && <Fila rotulo="Compartidos contigo" valor={String(r.compartidos)} />}
         </dl>
         {esAdmin && (
           <button
@@ -116,6 +131,16 @@ export function PatientsSidePanel({ patients, loading, onOpenPatient, onNewPatie
         <SectionLabel>
           <span id={idActividad}>Actividad reciente</span>
         </SectionLabel>
+        {estrecho && (
+          <button type="button" className="pt-side-toggle" aria-expanded={verActividad} aria-controls={idLista}
+                  onClick={() => setVerActividad((v) => !v)}>
+            {/* El rótulo no cambia: aria-expanded ya dice el estado. */}
+            <Icon name={verActividad ? "CHEVRON_DOWN" : "CHEVRON_RIGHT"} size={14} />
+            Ver actividad
+          </button>
+        )}
+        <div id={idLista} hidden={!actividadVisible}>
+        {actividadVisible && <>
         {actividad.fase === "cargando" && <p className="pt-side-note">Cargando…</p>}
         {actividad.fase === "error" && (
           <div className="pt-side-error">
@@ -138,6 +163,8 @@ export function PatientsSidePanel({ patients, loading, onOpenPatient, onNewPatie
             ))}
           </ul>
         )}
+        </>}
+        </div>
       </section>
 
       <section className="pt-side-block" aria-labelledby={idAccesos}>

@@ -28,8 +28,14 @@ type Fuente = "captura" | "vista" | "ninguna";
  *  silencio: una tarjeta con un aviso de error por imagen asusta más de lo que
  *  informa, y el icono del paso ya cubre el hueco. */
 function useImagen(p: PatientSummary, activo: boolean): string | null {
-  const [url, setUrl] = useState<string | null>(null);
-  const [fallidas, setFallidas] = useState<Fuente[]>([]);
+  // La URL y las fuentes fallidas llevan la clave de los ids con que se pidieron:
+  // tras guardar, borrar o crear un caso `load()` trae otros ids con la tarjeta
+  // ya montada, y sin la clave se enseñaría el blob revocado de la captura
+  // anterior y una fuente que falló antes seguiría descartada.
+  const clave = `${p.last_capture_id ?? ""}|${p.last_imaging_study_id ?? ""}`;
+  const [cargada, setCargada] = useState<{ clave: string; url: string } | null>(null);
+  const [fallo, setFallo] = useState<{ clave: string; fuentes: Fuente[] }>({ clave, fuentes: [] });
+  const fallidas = fallo.clave === clave ? fallo.fuentes : [];
 
   const fuente: Fuente =
     p.last_capture_id !== null && !fallidas.includes("captura") ? "captura"
@@ -44,12 +50,14 @@ function useImagen(p: PatientSummary, activo: boolean): string | null {
       ? api.captureObjectUrl(p.last_capture_id as number)
       : api.studyThumbnailObjectUrl(p.last_imaging_study_id as number);
     pedir
-      .then((u) => { if (vivo) { creada = u; setUrl(u); } else URL.revokeObjectURL(u); })
-      .catch(() => { if (vivo) setFallidas((f) => [...f, fuente]); });
+      .then((u) => { if (vivo) { creada = u; setCargada({ clave, url: u }); } else URL.revokeObjectURL(u); })
+      .catch(() => {
+        if (vivo) setFallo((f) => ({ clave, fuentes: [...(f.clave === clave ? f.fuentes : []), fuente] }));
+      });
     return () => { vivo = false; if (creada) URL.revokeObjectURL(creada); };
-  }, [activo, fuente, p.last_capture_id, p.last_imaging_study_id]);
+  }, [activo, fuente, clave, p.last_capture_id, p.last_imaging_study_id]);
 
-  return fuente === "ninguna" ? null : url;
+  return fuente === "ninguna" || cargada?.clave !== clave ? null : cargada.url;
 }
 
 export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
@@ -60,6 +68,8 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
   const paso = pasoDeTarjeta(p.last_session_step);
   const accion = accionPrincipal(p);
   const edad = ageFromDob(p.dob);
+  // El número del dueño ya trae su prefijo («HC234523»): se muestra tal cual.
+  const hc = p.hospital_id || "—";
   const fraccion = paso ? paso.n / STEPS.length : 0;
   const icono = STEPS[clampStep(p.last_session_step ?? 0)].icon;
   const ultimo = paso?.n === STEPS.length;
@@ -92,12 +102,13 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
       ref={raiz}
       role="article"
       tabIndex={0}
-      aria-label={`${p.full_name}, HC ${p.hospital_id}`}
+      aria-label={`${p.full_name}, ${hc}`}
       className="pt-card"
       onClick={() => onOpen(p)}
       onKeyDown={alTeclear}
     >
-      <div className="pt-card-media">
+      {/* Sin captura o sin sesión el bloque va atenuado (spec §4.2): el icono es un hueco, no un dato. */}
+      <div className={`pt-card-media${imagen && paso ? "" : " pt-card-media--tenue"}`}>
         {imagen ? <img src={imagen} alt="" /> : <Icon name={icono} size={32} />}
         <span className="pt-card-pill">{paso ? `Paso ${paso.n} · ${paso.label}` : "Sin sesión"}</span>
       </div>
@@ -105,11 +116,11 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
       <div className="pt-card-body">
         <h3 className="pt-card-name">{p.full_name}</h3>
         <p className="pt-card-meta">
-          HC {p.hospital_id}{edad ? ` · ${edad} años` : ""}{p.sex ? ` · ${p.sex}` : ""}
+          {hc}{p.sex ? ` · ${p.sex}` : ""}{edad ? ` · ${edad} años` : ""}
         </p>
 
         <div className="pt-card-badges">
-          {p.last_risk_label && <Badge variant={riskVariant(p.last_risk_label)}>{p.last_risk_label}</Badge>}
+          {p.last_risk_label && <Badge variant={riskVariant(p.last_risk_label)}>{`Riesgo ${p.last_risk_label.toLowerCase()}`}</Badge>}
           {p.is_shared_with_me && <Badge variant="muted">Compartido contigo</Badge>}
           {p.shared_with_count > 0 && <Badge variant="muted">{`Compartido con ${p.shared_with_count}`}</Badge>}
         </div>

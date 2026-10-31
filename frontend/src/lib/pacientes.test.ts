@@ -13,7 +13,8 @@ import {
   ultimaSesion,
 } from "./pacientes";
 
-const AHORA = new Date("2026-10-31T12:00:00Z");
+// Mediodía LOCAL: con UTC fijo la fecha de hace 45 días cambia de día en husos como UTC+12.
+const AHORA = new Date(2026, 9, 31, 12);
 const ULTIMO = STEPS.length - 1;
 
 /** Un paciente con todos los campos; cada prueba cambia solo lo que mira. */

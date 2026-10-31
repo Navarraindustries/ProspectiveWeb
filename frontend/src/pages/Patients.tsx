@@ -2,7 +2,7 @@
    panel lateral; crear, abrir la ficha y reanudar la última sesión. Borrar
    un paciente está al pie de su ficha (PatientSheet.tsx). */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { PatientSummary, StudyCard, StudySummary } from "../api/types";
@@ -53,6 +53,11 @@ export function Patients({
 }) {
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  // Cuenta las cargas de la lista: el panel lateral pide su actividad de nuevo
+  // con cada una, porque guardar, borrar o crear deja bloques nuevos.
+  const [version, setVersion] = useState(0);
+  // La primera carga no cuenta: el panel ya pide su actividad al montarse.
+  const primeraCarga = useRef(true);
   // El fallo de la carga sustituye a la lista: con él no hay contadores ni
   // «Ningún paciente».
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -66,6 +71,8 @@ export function Patients({
   const isAdmin = user?.role === "admin";
 
   const load = () => {
+    if (primeraCarga.current) primeraCarga.current = false;
+    else setVersion((v) => v + 1);
     setLoading(true);
     setLoadError(null);
     api
@@ -226,7 +233,7 @@ export function Patients({
                 </div>
               )}
             </div>
-            <PatientsSidePanel patients={patients} loading={loading}
+            <PatientsSidePanel patients={patients} loading={loading} error={!!loadError} version={version}
                                onOpenPatient={openSheet} onNewPatient={openCreate} />
           </section>
         </div>

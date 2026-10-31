@@ -153,6 +153,10 @@ describe("con el API fallando (F1-2, F1-29)", () => {
     expect(await screen.findByText("Sin conexión con el servidor")).toBeTruthy();
     expect(screen.queryByText(/No hay pacientes registrados/)).toBeNull();
     expect(screen.queryByText(/0 registros/)).toBeNull();
+    // «Hoy» tampoco puede decir 0 pacientes: con el servidor caído parecería una pérdida.
+    const hoy = screen.getByRole("region", { name: "Hoy" });
+    expect(within(hoy).getByText("Pacientes").parentElement!.textContent).toContain("—");
+    expect(hoy.textContent).not.toMatch(/0/);
 
     listPatients.mockResolvedValueOnce([fila({ id: 7, full_name: "Restrepo, María" })]);
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));

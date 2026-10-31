@@ -17,7 +17,7 @@
 
 .pt-card-media {
   position: relative;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -25,6 +25,7 @@
   color: var(--muted-foreground);
   overflow: hidden;
 }
+.pt-card-media--tenue > :not(.pt-card-pill) { opacity: 0.55; }
 .pt-card-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .pt-card-pill {
@@ -101,14 +102,16 @@
   font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
 }
 .pt-side-activity:hover { background: var(--muted); }
-.pt-side-activity-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Dos líneas como máximo y sin puntos suspensivos sueltos: «Paciente · acción» cortado no se entiende. */
+.pt-side-activity-text { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pt-side-activity-time { flex-shrink: 0; color: var(--muted-foreground); font-size: 11px; }
 
 .pt-side-links { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
 
 /* La página (spec §4.1): rejilla de tarjetas y panel lateral de 320 px.
-   Tres columnas desde 1400 px, dos entre 1100 y 1400; por debajo una sola y el
-   panel pasa debajo de la lista. */
+   Tres columnas desde 1400 px, dos por debajo; una sola bajo 760 px. Bajo
+   1100 px el panel pasa debajo de la lista, «Hoy» en fila y la actividad plegada
+   (useEstrecho; el umbral de aquí y el del hook deben coincidir). */
 .pt-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .pt-search { width: 280px; max-width: 100%; }
 
@@ -124,10 +127,18 @@
 .pt-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
 .pt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 @media (max-width: 1399px) { .pt-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 1099px) {
-  .pt-layout { grid-template-columns: 1fr; }
-  .pt-grid { grid-template-columns: 1fr; }
+@media (max-width: 1099px) { .pt-layout { grid-template-columns: 1fr; } }
+@media (max-width: 759px) { .pt-grid { grid-template-columns: 1fr; } }
+
+/* Disposición estrecha: las cifras de «Hoy» en una fila con envoltura. */
+.pt-side-stats--fila { flex-direction: row; flex-wrap: wrap; gap: 8px 24px; }
+.pt-side-stats--fila .pt-side-stat { flex-direction: column; align-items: flex-start; gap: 2px; }
+.pt-side-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 0;
+  border: 0; background: transparent; color: var(--foreground);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
+.pt-side-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* Esqueleto mientras carga: la altura de una tarjeta, sin texto. */
 .pt-card--skeleton { min-height: 280px; cursor: default; background: var(--muted); border-color: var(--border); animation: pt-pulse 1.4s ease-in-out infinite; }

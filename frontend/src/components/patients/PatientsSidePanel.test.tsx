@@ -37,11 +37,20 @@ function actividad(n: number): PatientActivity[] {
   }));
 }
 
-function montar(over: { patients?: PatientSummary[]; loading?: boolean } = {}) {
+function montar(over: { patients?: PatientSummary[]; loading?: boolean; error?: boolean; version?: number } = {}) {
   const onOpenPatient = vi.fn(), onNewPatient = vi.fn();
-  render(<PatientsSidePanel patients={over.patients ?? []} loading={over.loading ?? false}
-    onOpenPatient={onOpenPatient} onNewPatient={onNewPatient} />);
-  return { onOpenPatient, onNewPatient };
+  const props = { loading: over.loading ?? false, error: over.error, onOpenPatient, onNewPatient };
+  const r = render(<PatientsSidePanel patients={over.patients ?? []} version={over.version} {...props} />);
+  const recargar = (version: number) =>
+    r.rerender(<PatientsSidePanel patients={over.patients ?? []} version={version} {...props} />);
+  return { onOpenPatient, onNewPatient, recargar };
+}
+
+/** matchMedia simulado: jsdom no lo trae, y sin él el panel va en disposición ancha. */
+function simulaEstrecho(estrecho: boolean) {
+  window.matchMedia = ((q: string) => ({
+    matches: estrecho, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia;
 }
 
 /** La fila de «Hoy» con ese rótulo (rótulo y cifra comparten contenedor). */
@@ -53,7 +62,7 @@ beforeEach(() => {
   patientsActivity.mockReset().mockResolvedValue([]);
   listUsers.mockReset().mockResolvedValue([]);
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); delete (window as { matchMedia?: unknown }).matchMedia; });
 
 describe("PatientsSidePanel", () => {
   it("Hoy: pacientes, en curso, con informe, semana; «Compartidos contigo» solo si hay", async () => {
@@ -83,6 +92,42 @@ describe("PatientsSidePanel", () => {
     expect(fila("Pacientes").textContent).toContain("—");
     expect(fila("En curso").textContent).toContain("—");
     await waitFor(() => expect(patientsActivity).toHaveBeenCalled());
+  });
+
+  it("Hoy: con la lista en error las cifras muestran «—», no ceros", async () => {
+    montar({ error: true, patients: [] });
+    expect(fila("Pacientes").textContent).toContain("—");
+    expect(fila("En curso").textContent).toContain("—");
+    expect(fila("Sesiones esta semana").textContent).toContain("—");
+    await waitFor(() => expect(patientsActivity).toHaveBeenCalled());
+  });
+
+  it("Actividad: al cambiar «version» (la página recargó) vuelve a pedirla", async () => {
+    const { recargar } = montar({ version: 0 });
+    await waitFor(() => expect(patientsActivity).toHaveBeenCalledTimes(1));
+    recargar(1);
+    await waitFor(() => expect(patientsActivity).toHaveBeenCalledTimes(2));
+  });
+
+  it("estrecho: la actividad queda plegada hasta pulsar «Ver actividad»; las cifras siguen", async () => {
+    simulaEstrecho(true);
+    patientsActivity.mockResolvedValue(actividad(2));
+    montar({ patients: [paciente(1)] });
+    await waitFor(() => expect(patientsActivity).toHaveBeenCalled());
+    expect(fila("Pacientes").textContent).toContain("1");
+    expect(screen.queryByRole("button", { name: /Persona 0 · / })).toBeNull();
+    const ver = screen.getByRole("button", { name: "Ver actividad" });
+    expect(ver.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(ver);
+    expect(ver.getAttribute("aria-expanded")).toBe("true");
+    expect(await screen.findByRole("button", { name: /Persona 0 · / })).toBeTruthy();
+  });
+
+  it("ancho: la actividad se ve sin botón «Ver actividad»", async () => {
+    patientsActivity.mockResolvedValue(actividad(1));
+    montar();
+    expect(await screen.findByRole("button", { name: /Persona 0 · / })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ver actividad" })).toBeNull();
   });
 
   it("Hoy: «Cuentas pendientes» solo para administradores, en aviso si > 0, y lleva a cuentas pendientes", async () => {

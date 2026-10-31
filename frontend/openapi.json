@@ -6586,6 +6586,45 @@
     "title": "OrderOut",
     "type": "object"
    },
+   "PatientActivity": {
+    "description": "Un evento reciente de un paciente visible, para el panel lateral.",
+    "properties": {
+     "action": {
+      "description": "Acción de la cadena de auditoría; el cliente la traduce",
+      "title": "Action",
+      "type": "string"
+     },
+     "at": {
+      "description": "Instante del bloque, tal como lo guarda la cadena (ISO 8601, UTC)",
+      "title": "At",
+      "type": "string"
+     },
+     "patient_id": {
+      "description": "Paciente al que se refiere el evento",
+      "title": "Patient Id",
+      "type": "integer"
+     },
+     "patient_name": {
+      "description": "Nombre completo del paciente",
+      "title": "Patient Name",
+      "type": "string"
+     },
+     "username": {
+      "description": "Cuenta que hizo la acción",
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "patient_id",
+     "patient_name",
+     "action",
+     "at",
+     "username"
+    ],
+    "title": "PatientActivity",
+    "type": "object"
+   },
    "PatientCreate": {
     "description": "Fields required to register a new patient.",
     "properties": {
@@ -16924,6 +16963,61 @@
      }
     ],
     "summary": "Register a new patient",
+    "tags": [
+     "patients"
+    ]
+   }
+  },
+  "/api/patients/activity": {
+   "get": {
+    "description": "Los últimos eventos de la cadena de auditoría de los pacientes que la cuenta puede ver (todos, para un administrador), el más reciente primero. No incluye eventos de cuentas ni de inicio de sesión.",
+    "operationId": "patients_activity_api_patients_activity_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 8,
+       "maximum": 50,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/PatientActivity"
+         },
+         "title": "Response Patients Activity Api Patients Activity Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Actividad reciente de los pacientes visibles",
     "tags": [
      "patients"
     ]

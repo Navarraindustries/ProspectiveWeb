@@ -223,6 +223,35 @@ class SkullChain:
         rows = self._conn.execute(sql + " ORDER BY id ASC", args).fetchall()
         return [dict(r) for r in rows]
 
+    def get_recent(self, patient_hashes: set[str], limit: int,
+                   exclude_actions: set[str] = frozenset()) -> list[dict]:
+        """Los `limit` bloques más recientes de esos pacientes, el último primero.
+
+        Las acciones excluidas se descartan en SQL, antes del LIMIT: si se
+        filtraran después, un puñado de LOGIN recientes dejaría la lista corta
+        aunque hubiera actividad de sobra. `USER_*` se excluye por prefijo."""
+        hashes = [h for h in patient_hashes if h]  # el hash vacío es «sin paciente»
+        if not hashes or limit <= 0:
+            return []
+        excluidas = sorted(exclude_actions)
+        out: list[dict] = []
+        # SQLite admite ~900 variables por consulta; se trocea el IN y se
+        # recortan al final los trozos unidos, que ya vienen ordenados por trozo.
+        for i in range(0, len(hashes), 500):
+            trozo = hashes[i:i + 500]
+            sql = ("SELECT id, iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash"
+                   f" FROM blocks WHERE patient_hash IN ({','.join('?' * len(trozo))})"
+                   " AND substr(action, 1, 5) != 'USER_'")
+            args: list = list(trozo)
+            if excluidas:
+                sql += f" AND action NOT IN ({','.join('?' * len(excluidas))})"
+                args += excluidas
+            sql += " ORDER BY id DESC LIMIT ?"
+            args.append(limit)
+            out += [dict(r) for r in self._conn.execute(sql, args).fetchall()]
+        out.sort(key=lambda b: b["id"], reverse=True)
+        return out[:limit]
+
     def get_all_blocks(self) -> list[dict]:
         return self.get_blocks()
 

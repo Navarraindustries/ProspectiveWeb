@@ -247,6 +247,18 @@ export interface PatientShareOut {
   shared_at: string;
 }
 
+/** Un evento reciente de un paciente visible (panel lateral de Pacientes). */
+export interface PatientActivity {
+  patient_id: number;
+  patient_name: string;
+  /** Acción de la cadena de auditoría; el rótulo en español lo pone `etiquetaAccion`. */
+  action: string;
+  /** Instante del bloque tal como lo guarda la cadena (ISO 8601, UTC). */
+  at: string;
+  /** Cuenta que hizo la acción. */
+  username: string;
+}
+
 /** La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior). */
 export interface PatientSharesIn {
   user_ids: number[];

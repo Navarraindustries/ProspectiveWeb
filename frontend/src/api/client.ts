@@ -77,6 +77,7 @@ import type {
   PatientCreate,
   PatientDetail,
   PatientSessionInfo,
+  PatientActivity,
   PatientShareOut,
   PatientSharesIn,
   PatientSummary,
@@ -456,6 +457,8 @@ export const api = {
 
   /* patients */
   listPatients: () => get<PatientSummary[]>("/api/patients"),
+  /** Últimos eventos de los pacientes visibles, el más reciente primero (`limit` 1–50). */
+  patientsActivity: (limit = 8) => get<PatientActivity[]>(`/api/patients/activity?limit=${limit}`),
   /** Lo que propone la cabecera DICOM de la sesión y si ese paciente ya existe. */
   sessionIdentity: (sessionId: string) => get<SessionIdentity>(`/api/sessions/${sessionId}/identity`),
   /** Liga la sesión a un paciente y un caso (nuevos o existentes) y archiva su DICOM. */

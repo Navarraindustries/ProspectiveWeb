@@ -76,6 +76,16 @@ class PatientShareOut(BaseModel):
     shared_at: datetime
 
 
+class PatientActivity(BaseModel):
+    """Un evento reciente de un paciente visible, para el panel lateral."""
+
+    patient_id: int = Field(description="Paciente al que se refiere el evento")
+    patient_name: str = Field(description="Nombre completo del paciente")
+    action: str = Field(description="Acción de la cadena de auditoría; el cliente la traduce")
+    at: str = Field(description="Instante del bloque, tal como lo guarda la cadena (ISO 8601, UTC)")
+    username: str = Field(description="Cuenta que hizo la acción")
+
+
 class PatientSharesIn(BaseModel):
     """La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior)."""
 

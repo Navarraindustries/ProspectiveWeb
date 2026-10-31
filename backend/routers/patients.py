@@ -4,12 +4,12 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from models import (CaseCreate, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut,
+from models import (CaseCreate, PatientActivity, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut,
                     PatientSharesIn, PatientSummary, StudyCreate, StudySummary)
 
 # Study clinical-case fields copied from a CaseCreate payload.
@@ -22,7 +22,7 @@ from services.database import get_db
 from services.access import own_patient_ids, require_patient, require_share_right
 from services.auth_service import get_current_user
 from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, ACT_PATIENT_SHARED,
-                            audit_append, audit_patient)
+                            SkullChain, audit_append, audit_patient, patient_hash_for)
 from services.sessions import size_of_row
 from services.db_models import (CaseCapture, ImagingStudy, Patient, PatientShare,
                                 PlanningSession, Study, User)
@@ -113,6 +113,48 @@ def _study_to_summary(s: Study) -> StudySummary:
         mod_rm=s.mod_rm,
         mod_pangio=s.mod_pangio,
     )
+
+
+# Acciones que no cuentan como «actividad del paciente» (además de todo USER_*,
+# que el SQL excluye por prefijo): son de la cuenta o de la cadena, no clínicas.
+_ACCIONES_FUERA_DE_ACTIVIDAD = {"LOGIN", "INTEGRITY_CHECK", "GENESIS", "password_change", "password_reset"}
+
+
+# Va ANTES de las rutas /{patient_id}: si no, FastAPI tomaría «activity» por un id.
+@router.get(
+    "/activity",
+    response_model=list[PatientActivity],
+    summary="Actividad reciente de los pacientes visibles",
+    description=(
+        "Los últimos eventos de la cadena de auditoría de los pacientes que la "
+        "cuenta puede ver (todos, para un administrador), el más reciente primero. "
+        "No incluye eventos de cuentas ni de inicio de sesión."
+    ),
+)
+async def patients_activity(
+    db:           Annotated[Session,    Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+    limit:        Annotated[int, Query(ge=1, le=50)] = 8,
+) -> list[PatientActivity]:
+    visibles = own_patient_ids(db, current_user)
+    query = db.query(Patient)
+    if visibles is not None:
+        query = query.filter(Patient.id.in_(visibles))
+    # La cadena no guarda el id del paciente sino un hash de historia clínica y
+    # fecha de nacimiento, el mismo con que escriben los routers. Se invierte
+    # construyendo el hash de cada paciente visible. Límite aceptado (spec §4.4):
+    # si se edita la historia o la fecha, los bloques anteriores dejan de casar.
+    por_hash = {}
+    for p in query.all():
+        args = audit_patient(p)
+        h = patient_hash_for(args["patient_id"], args["patient_dob"])
+        if h:
+            por_hash[h] = p
+    bloques = SkullChain.instance().get_recent(set(por_hash), limit, _ACCIONES_FUERA_DE_ACTIVIDAD)
+    return [PatientActivity(patient_id=por_hash[b["patient_hash"]].id,
+                            patient_name=por_hash[b["patient_hash"]].full_name,
+                            action=b["action"], at=b["iso_ts"], username=b["username"])
+            for b in bloques]
 
 
 # ── GET /patients ──────────────────────────────────────────────────────────── #

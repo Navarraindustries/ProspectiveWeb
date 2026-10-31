@@ -37,10 +37,10 @@ describe("Button", () => {
     expect(b.style.marginTop).toBe("6px");
   });
 
-  it("el enlace usa el color de dato y el destructivo no va relleno en reposo", () => {
+  it("el enlace usa el color de dato y el destructivo va sobre --destructive-bg", () => {
     render(<ThemeProvider><Button variant="link">Ver</Button><Button variant="destructive">Borrar</Button></ThemeProvider>);
     expect(screen.getByRole("button", { name: "Ver" }).style.color).toContain("--data");
-    expect(screen.getByRole("button", { name: "Borrar" }).style.background).toBe("transparent");
+    expect(screen.getByRole("button", { name: "Borrar" }).style.background).toContain("--destructive-bg");
   });
 
   it("las alturas salen de los tokens de control", () => {
@@ -60,5 +60,16 @@ describe("Button", () => {
   it("el primario deshabilitado no lleva sombra", () => {
     render(<ThemeProvider><Button disabled>Off</Button></ThemeProvider>);
     expect(screen.getByRole("button", { name: "Off" }).style.boxShadow).toBe("");
+  });
+
+  it("la pastilla: default en radio completo y el enlace no", () => {
+    render(<ThemeProvider><Button>Pastilla</Button><Button variant="link">Enlace</Button></ThemeProvider>);
+    expect(screen.getByRole("button", { name: "Pastilla" }).style.borderRadius).toBe("var(--radius-full)");
+    expect(screen.getByRole("button", { name: "Enlace" }).style.borderRadius).not.toContain("--radius-full");
+  });
+
+  it("outline deshabilitado baja a opacity 0.4", () => {
+    render(<ThemeProvider><Button variant="outline" disabled>Off</Button></ThemeProvider>);
+    expect(screen.getByRole("button", { name: "Off" }).style.opacity).toBe("0.4");
   });
 });

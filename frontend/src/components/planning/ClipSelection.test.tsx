@@ -498,7 +498,7 @@ describe("sin clips de inventario cargados", () => {
     render(<ClipSelectionPanel sessionId="s1" />);
     const badge = await screen.findByText("Pieza a medida: se pide en Fabricación");
     const style = badge.getAttribute("style") ?? "";
-    expect(style).toMatch(/brand-subtle/);
+    expect(style).toMatch(/brand-subtle-foreground/);
     expect(style).not.toMatch(/destructive/);
   });
 

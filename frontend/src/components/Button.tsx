@@ -1,4 +1,4 @@
-/* Button — 6 variantes (default, outline, secondary, ghost, destructive, link),
+/* Button — pastilla de cristal, 6 variantes (default, outline, secondary, ghost, destructive, link),
    tamaños sm/md/lg/icon con alturas de los tokens de control.
 
    El primario lleva una sombra con desplazamiento (--shadow-primary), no un
@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
-import { motion, pressable } from "../motion";
+import { lens, motion, pressable } from "../motion";
 
 type Variant = "default" | "outline" | "secondary" | "ghost" | "destructive" | "link";
 type Size = "sm" | "md" | "lg" | "icon";
@@ -26,11 +26,14 @@ export interface ButtonProps extends NativeButtonProps {
   trailingIcon?: ReactNode;
 }
 
+const REST = "color-mix(in srgb, var(--foreground) 8%, transparent)";
+const EDGE = "1px solid color-mix(in srgb, var(--foreground) 30%, transparent)";
+
 const HEIGHTS: Record<Size, string> = {
   sm: "var(--control-sm)",
   md: "var(--control-md)",
   lg: "var(--control-lg)",
-  icon: "var(--control-md)",
+  icon: "var(--control-sm)",
 };
 
 function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSProperties {
@@ -45,31 +48,25 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
         boxShadow: disabled ? undefined : "var(--shadow-primary)",
       };
     case "outline":
-      return {
-        ...base,
-        background: on ? "var(--accent)" : "transparent",
-        color: on ? "var(--accent-foreground)" : "var(--foreground)",
-        border: "1px solid var(--border)",
-      };
     case "secondary":
       return {
         ...base,
-        background: on ? "var(--accent)" : "var(--card)",
+        background: on ? "var(--glass-hover)" : REST,
         color: "var(--foreground)",
-        border: "1px solid var(--border)",
+        border: EDGE,
       };
     case "ghost":
       return {
         ...base,
-        background: on ? "var(--accent)" : "transparent",
-        color: on ? "var(--accent-foreground)" : "var(--foreground)",
+        background: on ? "var(--glass-hover)" : "transparent",
+        color: "var(--foreground)",
       };
     case "destructive":
       return {
         ...base,
-        background: on ? "var(--destructive)" : "transparent",
-        color: on ? "var(--destructive-foreground)" : "var(--destructive)",
-        border: "1px solid color-mix(in srgb, var(--destructive) 35%, transparent)",
+        background: "var(--destructive-bg)",
+        color: "var(--destructive)",
+        border: "1px solid var(--destructive)",
       };
     case "link":
       return {
@@ -79,8 +76,6 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
         textDecoration: on ? "underline" : "none",
         height: "auto",
         padding: 0,
-        // El contorno de foco sigue el radio del elemento; sin él, el del enlace sería recto.
-        borderRadius: "var(--radius-sm)",
       };
   }
 }
@@ -96,12 +91,17 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const [hover, setHover] = useState(false);
+  // Lente al pasar solo en las variantes de cristal; el prensado (pressable) manda en la transición.
+  const glass = variant === "outline" || variant === "secondary" || variant === "ghost";
+  const hoverMotion = disabled
+    ? undefined
+    : glass ? lens.whileHover : variant === "default" ? { y: -1 } : undefined;
 
   return (
     <motion.button
       {...(disabled ? {} : pressable)}
       {...rest}
-      whileHover={variant === "default" && !disabled ? { y: -1 } : undefined}
+      whileHover={hoverMotion}
       data-variant={variant}
       data-size={size}
       disabled={disabled}
@@ -115,12 +115,12 @@ export function Button({
         height: HEIGHTS[size],
         padding: size === "icon" ? 0 : size === "sm" ? "0 12px" : size === "lg" ? "0 22px" : "0 16px",
         width: size === "icon" ? HEIGHTS[size] : undefined,
-        borderRadius: "var(--radius-md)",
+        borderRadius: variant === "link" ? "var(--radius-sm)" : "var(--radius-full)",
         fontFamily: "var(--font-sans)",
         fontSize: size === "sm" ? 13 : 14,
         fontWeight: variant === "default" || variant === "destructive" ? 600 : 500,
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.55 : 1,
+        opacity: disabled ? 0.4 : 1,
         transition:
           "background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out)",
         ...variantStyle(variant, hover, !!disabled),

@@ -124,13 +124,15 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
 
   const t = treatment;
 
+  // Coma decimal, como el resto del panel.
+  const n1 = (v: number, d = 1) => v.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
   // Geometría que el panel ya tiene (morfometría): solo lo que se midió.
   const m = planning.morphometry;
   const geometria: [string, string, string?][] = [];
-  if (m && Number.isFinite(m.neck_mm)) geometria.push(["Cuello", m.neck_mm.toFixed(1), " mm"]);
-  if (m && Number.isFinite(m.dnr)) geometria.push(["Relación domo-cuello", m.dnr.toFixed(2)]);
-  if (m && Number.isFinite(m.dome_height_mm)) geometria.push(["Altura del domo", m.dome_height_mm.toFixed(1), " mm"]);
-  if (m && Number.isFinite(m.max_diameter_mm)) geometria.push(["Ø máximo", m.max_diameter_mm.toFixed(1), " mm"]);
+  if (m && Number.isFinite(m.neck_mm)) geometria.push(["Cuello", n1(m.neck_mm), " mm"]);
+  if (m && Number.isFinite(m.dnr)) geometria.push(["Relación domo-cuello", n1(m.dnr, 2)]);
+  if (m && Number.isFinite(m.dome_height_mm)) geometria.push(["Altura del domo", n1(m.dome_height_mm), " mm"]);
+  if (m && Number.isFinite(m.max_diameter_mm)) geometria.push(["Ø máximo", n1(m.max_diameter_mm), " mm"]);
 
   return (
     <div className="fade-rise">

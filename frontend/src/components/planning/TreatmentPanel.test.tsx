@@ -10,7 +10,7 @@
       se pliega: sigue estando, ya no grita. */
 
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const treatmentDecision = vi.fn();
 const clearTreatmentDecision = vi.fn(async () => {});
@@ -483,6 +483,8 @@ describe("F1-178: los factores que votan, primero", () => {
 });
 
 describe("el resultado en dos columnas", () => {
+  afterEach(() => { morpho = { max_diameter_mm: 7 }; });
+
   it("riesgo y geometría en columnas y la vía debajo, a todo el ancho", () => {
     morpho = { max_diameter_mm: 7, neck_mm: 4.1, dome_height_mm: 6, dnr: 1.5 };
     stored = {
@@ -494,15 +496,15 @@ describe("el resultado en dos columnas", () => {
       },
     };
     const { container } = render(<TreatmentPanel onNext={() => {}} />);
-    morpho = { max_diameter_mm: 7 };
     const cols = container.querySelector(".panel-dos-columnas") as HTMLElement;
     expect(cols).not.toBeNull();
     expect(cols).toHaveTextContent("Riesgo estimado por cada vía · Japan Stroke Data Bank");
     expect(cols).toHaveTextContent("Factores contribuyentes");
     expect(cols).toHaveTextContent("Geometría");
     expect(cols).toHaveTextContent("Cuello");
+    expect(cols).toHaveTextContent("4,1");
     expect(cols).toHaveTextContent("Perforantes que esperar aquí");
-    const via = screen.getByText(/¿Qué vía decide el equipo\?|Decisión del equipo/i);
+    const via = screen.getByLabelText("Decisión del equipo");
     expect(cols.contains(via)).toBe(false);
   });
 });

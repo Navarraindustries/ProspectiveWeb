@@ -325,10 +325,11 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
                 navegador, el enlace de descarga hace de contenido alternativo. */}
             <object data={pdfUrl} type="application/pdf" aria-label="Vista previa del informe"
               style={{ width: "100%", height: 520, borderRadius: 12 }}>
-              <OutputLink href={pdfUrl} stale={stale("pdf")}>
-                Descargar PDF {report?.page_count ? `(${report.page_count} páginas)` : ""} →
-              </OutputLink>
+              <a href={pdfUrl}>Tu navegador no muestra PDF: descárgalo →</a>
             </object>
+            <OutputLink href={pdfUrl} stale={stale("pdf")}>
+              Descargar PDF {report?.page_count ? `(${report.page_count} páginas)` : ""} →
+            </OutputLink>
           </>
         )}
         <Button variant="outline" leadingIcon={<Icon name="SAVE" />} onClick={() => void genStl()} disabled={busy !== null}>

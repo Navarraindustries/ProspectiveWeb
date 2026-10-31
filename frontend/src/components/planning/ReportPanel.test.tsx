@@ -261,7 +261,7 @@ describe("vista previa del PDF", () => {
 
   it("con PDF en disco lo embebe y mantiene el enlace de descarga", async () => {
     montarConPdf({ pdf_url: "/data/sessions/s1/reports/vieja_report.pdf?v=1", pdf_current: true });
-    const enlace = await screen.findByText(/Descargar PDF/);
+    const enlace = await screen.findByText("Descargar PDF →");
     const objeto = document.querySelector('object[type="application/pdf"]');
     expect(objeto).not.toBeNull();
     expect(objeto).toHaveAttribute("data", "/data/sessions/s1/reports/vieja_report.pdf?v=1");

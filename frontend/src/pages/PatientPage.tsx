@@ -29,8 +29,8 @@ export interface PatientPageProps {
 }
 
 /** La fila de la lista de este paciente: trae quién lo creó (derechos) y
- *  cuántos casos tiene, que el detalle no trae. Si la lista falla, null: la
- *  ficha se abre igual y el servidor decide lo que se puede hacer. */
+ *  cuántos casos tiene, que el detalle no trae. Si la lista falla o no lo trae,
+ *  null: la ficha se abre igual, de solo lectura y con aviso. */
 const resumenDe = (patientId: number) =>
   Promise.resolve()
     .then(() => api.listPatients())
@@ -78,6 +78,12 @@ export function PatientPage({ patientId, onOpenOrders }: PatientPageProps) {
     resumenDe(patientId).then((s) => { if (s) setSummary(s); });
   }, [patientId]);
 
+  // Sin la fila no se sabe quién lo creó y la ficha queda de solo lectura;
+  // «Reintentar» del aviso vuelve a pedirla.
+  const reintentarPermisos = useCallback(() => {
+    resumenDe(patientId).then(setSummary);
+  }, [patientId]);
+
   const volver = () => navigate(SCREEN_PATH.patients);
   const nombre = (patient ? nombrePaciente(patient) : "") || summary?.full_name || "";
   const crumbs = [
@@ -101,6 +107,7 @@ export function PatientPage({ patientId, onOpenOrders }: PatientPageProps) {
             onNuevoCaso={() => setCasoOpen(true)}
             onEliminado={volver}
             onOpenOrders={onOpenOrders && summary ? () => onOpenOrders(summary) : undefined}
+            onReintentarPermisos={reintentarPermisos}
           />
         ),
       }]

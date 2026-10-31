@@ -25,7 +25,7 @@ vi.mock("../../api/client", () => ({
 }));
 vi.mock("../../store/auth", () => ({ useAuth: () => ({ user }) }));
 
-import { ColumnaDatos, type SeccionFicha } from "./ColumnaDatos";
+import { ColumnaDatos, derechosPaciente, type SeccionFicha } from "./ColumnaDatos";
 import { ageFromDob } from "../patientAge";
 import type { PatientDetail, PatientSummary } from "../../api/types";
 
@@ -192,6 +192,33 @@ describe("derechos sobre los datos del paciente (T7-rights)", () => {
     expect(screen.getByText(/puedes trabajar con él y crear o editar casos, pero no cambiar sus datos, borrar casos ni compartirlo/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Ver datos" }));
     expect(onEditar).toHaveBeenCalled();
+  });
+});
+
+describe("sin la fila de la lista (derechos sin comprobar)", () => {
+  it("falla cerrado: sin «Compartir con…» ni «Eliminar paciente», con el aviso y «Reintentar»", async () => {
+    const onReintentarPermisos = vi.fn();
+    render(
+      <ColumnaDatos patient={detalle()} summary={null} puedeEditar={derechosPaciente({ id: 1, role: "medico" } as never, null).puedeEditar}
+                    seccion="casos" onSeccion={onSeccion} onEditar={onEditar} onNuevoCaso={onNuevoCaso}
+                    onEliminado={onEliminado} onReintentarPermisos={onReintentarPermisos} />,
+    );
+    await screen.findByText("No está compartido con ninguna cuenta.");
+    expect(screen.getByRole("button", { name: "Ver datos" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Editar datos" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Compartir con…" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Eliminar paciente" })).toBeNull();
+    expect(screen.getByText("No se pudieron comprobar tus permisos sobre este paciente; los datos se muestran de solo lectura.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(onReintentarPermisos).toHaveBeenCalled();
+  });
+
+  it("derechosPaciente: sin fila nadie edita, ni el administrador", () => {
+    expect(derechosPaciente({ id: 1, role: "medico" } as never, null)).toEqual({ creadorOAdmin: false, puedeEditar: false });
+    expect(derechosPaciente({ id: 9, role: "admin" } as never, null).puedeEditar).toBe(false);
+    expect(derechosPaciente({ id: 1, role: "medico" } as never, resumen()).puedeEditar).toBe(true);
+    expect(derechosPaciente({ id: 9, role: "admin" } as never, resumen()).puedeEditar).toBe(true);
+    expect(derechosPaciente({ id: 3, role: "medico" } as never, resumen({ is_shared_with_me: true })).puedeEditar).toBe(false);
   });
 });
 

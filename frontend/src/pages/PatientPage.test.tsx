@@ -159,11 +159,44 @@ describe("PatientPage · columna Datos", () => {
     expect(within(hoja).queryByRole("button", { name: "Guardar cambios" })).toBeNull();
   });
 
+  /* Los derechos fallan cerrados: sin la fila de la lista no se sabe quién lo
+     creó, así que nadie edita hasta comprobarlo. */
+  it("si la lista falla, los datos son de solo lectura, lo dice y «Reintentar» la vuelve a pedir", async () => {
+    listPatients.mockRejectedValueOnce(new Error("caído"));
+    getPatient.mockResolvedValue(PACIENTE);
+    renderPage();
+    expect(await screen.findByRole("button", { name: "Ver datos" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Editar datos" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Eliminar paciente" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Compartir con…" })).toBeNull();
+    expect(screen.getByText("No se pudieron comprobar tus permisos sobre este paciente; los datos se muestran de solo lectura.")).toBeTruthy();
+    expect(listPatients).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(listPatients).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("button", { name: "Editar datos" })).toBeTruthy();
+    expect(screen.queryByText(/No se pudieron comprobar tus permisos/)).toBeNull();
+  });
+
+  it("si la lista no trae a este paciente, también solo lectura con el aviso", async () => {
+    listPatients.mockResolvedValue([fila({ id: 7 })]);
+    getPatient.mockResolvedValue(PACIENTE);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Ver datos" }));
+    expect(screen.queryByRole("button", { name: "Editar datos" })).toBeNull();
+    expect(screen.getByText("No se pudieron comprobar tus permisos sobre este paciente; los datos se muestran de solo lectura.")).toBeTruthy();
+    const hoja = await screen.findByRole("dialog", { name: "Zenodo, Caso 002" });
+    expect((within(hoja).getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(true);
+    expect(within(hoja).queryByRole("button", { name: "Guardar cambios" })).toBeNull();
+  });
+
   it("«Nuevo caso» abre el formulario del caso para este paciente", async () => {
     getPatient.mockResolvedValue(PACIENTE);
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Nuevo caso" }));
     expect(screen.getByText("formulario del caso de Zenodo, Caso 002")).toBeTruthy();
+    // Que terminen las cargas de la columna antes de desmontar.
+    await screen.findByText("No está compartido con ninguna cuenta.");
   });
 
   it("eliminar el paciente vuelve a la lista", async () => {

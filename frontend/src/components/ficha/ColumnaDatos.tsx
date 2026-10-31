@@ -26,10 +26,11 @@ export type SeccionFicha = "casos" | "capturas";
 /** Derechos sobre el paciente (spec §6.1, T7-rights). Compartir y eliminar es
  *  de quien lo creó o de un administrador; quien lo tiene compartido trabaja
  *  en sus casos pero no cambia sus datos. Sin la fila de la lista no se sabe
- *  quién lo creó: se deja editar y decide el servidor, para no bloquear al dueño. */
+ *  quién lo creó: falla cerrado (solo lectura, sin compartir ni eliminar) hasta
+ *  comprobarlo; antes dejaba editar a una cuenta compartida si la lista fallaba. */
 export function derechosPaciente(user: UserInfo | null, summary: PatientSummary | null) {
-  const creadorOAdmin = user?.role === "admin" || (!!user && !!summary && summary.owner_id === user.id);
-  return { creadorOAdmin, puedeEditar: !summary || creadorOAdmin };
+  const creadorOAdmin = !!user && !!summary && (user.role === "admin" || summary.owner_id === user.id);
+  return { creadorOAdmin, puedeEditar: creadorOAdmin };
 }
 
 /** «Segura, Juan», como lo escribe la lista; "" sin apellidos ni nombre. */
@@ -67,9 +68,11 @@ export function ColumnaDatos({
   onNuevoCaso,
   onEliminado,
   onOpenOrders,
+  onReintentarPermisos,
 }: {
   patient: PatientDetail;
-  /** La fila de la lista: trae quién lo creó y cuántos casos tiene. */
+  /** La fila de la lista: trae quién lo creó y cuántos casos tiene. null = no
+   *  se pudo comprobar (la lista falló o no lo trae): solo lectura con aviso. */
   summary: PatientSummary | null;
   /** Si la cuenta cambia los datos del paciente («Editar datos») o solo los consulta («Ver datos»). */
   puedeEditar: boolean;
@@ -82,6 +85,8 @@ export function ColumnaDatos({
   onEliminado: () => void;
   /** Abre el registro de pedidos de clip filtrado por este paciente. */
   onOpenOrders?: () => void;
+  /** Vuelve a pedir la fila de la lista para comprobar los derechos. */
+  onReintentarPermisos?: () => void;
 }) {
   const { user } = useAuth();
   const { creadorOAdmin } = derechosPaciente(user, summary);
@@ -132,6 +137,15 @@ export function ColumnaDatos({
           {antecedentes || "Sin antecedentes anotados."}
         </div>
       </div>
+
+      {!summary && (
+        <div role="status" className="fc-datos-aviso">
+          <span>No se pudieron comprobar tus permisos sobre este paciente; los datos se muestran de solo lectura.</span>
+          {onReintentarPermisos && (
+            <Button type="button" size="sm" variant="outline" onClick={onReintentarPermisos}>Reintentar</Button>
+          )}
+        </div>
+      )}
 
       <div className="fc-datos-acciones">
         <Button size="sm" variant="outline" leadingIcon={<Icon name={puedeEditar ? "EDIT" : "USER"} />} onClick={onEditar}>

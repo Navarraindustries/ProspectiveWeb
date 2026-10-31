@@ -110,15 +110,20 @@ export function PatientFormSheet({
     if (soloLectura) return;
     setBusy(true);
     setError(null);
+    let creado: PatientSummary | undefined;
     try {
-      if (patient) { await api.updatePatient(patient.id, form); onSaved(); }
-      else onSaved(await api.createPatient(form));
-      onClose();
+      if (patient) await api.updatePatient(patient.id, form);
+      else creado = await api.createPatient(form);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar el paciente");
+      return;
     } finally {
       setBusy(false);
     }
+    // Fuera del try: un fallo de quien recibe el aviso no es un fallo al guardar.
+    if (creado) onSaved(creado);
+    else onSaved();
+    onClose();
   };
 
   // F2-T1, F1-59: el título es el nombre, con «Datos del paciente» como rótulo.

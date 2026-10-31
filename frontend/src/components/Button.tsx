@@ -1,45 +1,29 @@
-/* Button — 6 variants (default, outline, secondary, ghost, destructive, link),
-   sizes sm/md/lg/icon. Hover darkens ~10%; press fills steel/primary.
+/* Button — 6 variantes (default, outline, secondary, ghost, destructive, link),
+   tamaños sm/md/lg/icon con alturas de los tokens de control.
 
-   Los botones primarios llevan un halo animado (border-beam). Como el efecto
-   envuelve el botón en un contenedor, las propiedades de layout que pase el
-   llamador (flex, width, márgenes…) se trasladan al wrapper y el botón se
-   estira dentro — si no, un `style={{ flex: 1 }}` dejaría de funcionar. */
+   El primario lleva una sombra con desplazamiento (--shadow-primary), no un
+   halo; el prensado (escala 0.98) viene del módulo de movimiento. Las
+   propiedades de layout del llamador se aplican al propio botón. */
 
 import { useState } from "react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
-import { BorderBeam } from "border-beam";
-import { useThemeContext } from "../store/theme";
+import { motion, pressable } from "../motion";
 
 type Variant = "default" | "outline" | "secondary" | "ghost" | "destructive" | "link";
 type Size = "sm" | "md" | "lg" | "icon";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+/* motion.button define sus propios tipos para arrastre y animación; se quitan
+   de los atributos HTML para que el esparcido de `rest` no choque. */
+type NativeButtonProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "onAnimationStart" | "onDragStart" | "onDragEnd" | "onDrag"
+>;
+
+export interface ButtonProps extends NativeButtonProps {
   variant?: Variant;
   size?: Size;
   leadingIcon?: ReactNode;
   trailingIcon?: ReactNode;
-  /** Halo animado. Por defecto solo en el botón primario ("default"). */
-  beam?: boolean;
-}
-
-/* Propiedades que colocan el botón dentro de su contenedor: van al wrapper. */
-const LAYOUT_KEYS = [
-  "flex", "flexGrow", "flexShrink", "flexBasis", "width", "minWidth", "maxWidth",
-  "alignSelf", "justifySelf", "gridColumn", "gridRow", "order",
-  "margin", "marginTop", "marginRight", "marginBottom", "marginLeft", "position", "zIndex",
-] as const;
-
-function splitLayout(style?: CSSProperties): { outer: CSSProperties; inner: CSSProperties } {
-  const outer: CSSProperties = {};
-  const inner: CSSProperties = { ...style };
-  for (const k of LAYOUT_KEYS) {
-    if (inner[k] !== undefined) {
-      (outer as Record<string, unknown>)[k] = inner[k];
-      delete inner[k];
-    }
-  }
-  return { outer, inner };
 }
 
 const HEIGHTS: Record<Size, string> = {
@@ -51,46 +35,48 @@ const HEIGHTS: Record<Size, string> = {
 
 function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSProperties {
   const base: CSSProperties = { border: "1px solid transparent" };
+  const on = hover && !disabled;
   switch (v) {
     case "default":
       return {
         ...base,
-        background: hover && !disabled ? "var(--primary-hover)" : "var(--primary)",
+        background: on ? "var(--primary-hover)" : "var(--primary)",
         color: "var(--primary-foreground)",
+        boxShadow: "var(--shadow-primary)",
+        transform: on ? "translateY(-1px)" : undefined,
       };
     case "outline":
       return {
         ...base,
-        background: hover && !disabled ? "var(--accent)" : "transparent",
-        color: hover && !disabled ? "var(--accent-foreground)" : "var(--foreground)",
+        background: on ? "var(--accent)" : "transparent",
+        color: on ? "var(--accent-foreground)" : "var(--foreground)",
         border: "1px solid var(--border)",
       };
     case "secondary":
       return {
         ...base,
-        background: hover && !disabled ? "var(--accent)" : "var(--glass)",
-        backdropFilter: "blur(var(--glass-blur))",
+        background: on ? "var(--accent)" : "var(--card)",
         color: "var(--foreground)",
         border: "1px solid var(--border)",
       };
     case "ghost":
       return {
         ...base,
-        background: hover && !disabled ? "var(--accent)" : "transparent",
-        color: hover && !disabled ? "var(--accent-foreground)" : "var(--foreground)",
+        background: on ? "var(--accent)" : "transparent",
+        color: on ? "var(--accent-foreground)" : "var(--foreground)",
       };
     case "destructive":
       return {
         ...base,
-        background: "var(--destructive)",
-        color: "var(--destructive-foreground)",
-        filter: hover && !disabled ? "brightness(0.9)" : undefined,
+        background: on ? "var(--destructive)" : "transparent",
+        color: on ? "var(--destructive-foreground)" : "var(--destructive)",
+        border: "1px solid color-mix(in srgb, var(--destructive) 35%, transparent)",
       };
     case "link":
       return {
         ...base,
         background: "transparent",
-        color: "var(--brand-deep)",
+        color: "var(--data)",
         textDecoration: hover ? "underline" : "none",
         height: "auto",
         padding: 0,
@@ -108,19 +94,13 @@ export function Button({
   children,
   style,
   disabled,
-  beam,
   ...rest
 }: ButtonProps) {
   const [hover, setHover] = useState(false);
-  const { theme } = useThemeContext();
 
-  // Halo solo en el botón primario y cuando está habilitado (un botón
-  // deshabilitado brillando invita a pulsarlo).
-  const withBeam = (beam ?? variant === "default") && !disabled;
-  const { outer, inner } = withBeam ? splitLayout(style) : { outer: {}, inner: style ?? {} };
-
-  const btn = (
-    <button
+  return (
+    <motion.button
+      {...(disabled ? {} : pressable)}
       {...rest}
       data-variant={variant}
       data-size={size}
@@ -134,34 +114,22 @@ export function Button({
         gap: 8,
         height: HEIGHTS[size],
         padding: size === "icon" ? 0 : size === "sm" ? "0 12px" : size === "lg" ? "0 22px" : "0 16px",
-        width: size === "icon" ? HEIGHTS[size] : withBeam ? "100%" : undefined,
+        width: size === "icon" ? HEIGHTS[size] : undefined,
         borderRadius: "var(--radius-md)",
         fontFamily: "var(--font-sans)",
         fontSize: size === "sm" ? 13 : 14,
-        fontWeight: 600,
+        fontWeight: variant === "default" || variant === "destructive" ? 600 : 500,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.55 : 1,
-        transition: "background 120ms var(--ease-out), color 120ms var(--ease-out), filter 120ms var(--ease-out), box-shadow 120ms var(--ease-out)",
+        transition:
+          "transform var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out)",
         ...variantStyle(variant, hover, !!disabled),
-        ...inner,
+        ...style,
       }}
     >
       {leadingIcon}
       {children}
       {trailingIcon}
-    </button>
-  );
-
-  if (!withBeam) return btn;
-
-  return (
-    <BorderBeam
-      size="sm"
-      colorVariant="ocean"
-      theme={theme}
-      style={{ display: "inline-flex", ...outer }}
-    >
-      {btn}
-    </BorderBeam>
+    </motion.button>
   );
 }

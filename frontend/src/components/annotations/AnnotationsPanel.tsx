@@ -130,7 +130,6 @@ export function AnnotationsPanel() {
               key={t.kind}
               variant={active ? "secondary" : "outline"}
               size="sm"
-              beam={false}
               title={`${t.label} (${t.key})`}
               aria-pressed={active}
               disabled={full && !active}
@@ -221,16 +220,16 @@ export function AnnotationsPanel() {
                   <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
                     <span style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{origin(a)}</span>
                     {/* stopPropagation: los botones no deben cambiar la fila elegida dos veces. */}
-                    <Button variant="ghost" size="sm" beam={false} title={a.visible ? "Ocultar" : "Mostrar"}
+                    <Button variant="ghost" size="sm" title={a.visible ? "Ocultar" : "Mostrar"}
                             aria-label={a.visible ? "Ocultar" : "Mostrar"}
                             onClick={(e) => { e.stopPropagation(); patch(a.id, { visible: !a.visible }); }} style={smallBtn}>
                       <Icon name={a.visible ? "EYE" : "EYE_HIDDEN"} size={13} />
                     </Button>
-                    <Button variant="ghost" size="sm" beam={false} title="Ir a la anotación en el visor"
+                    <Button variant="ghost" size="sm" title="Ir a la anotación en el visor"
                             onClick={(e) => { e.stopPropagation(); goTo(a); }} style={smallBtn}>
                       Ir
                     </Button>
-                    <Button variant="ghost" size="sm" beam={false} title="Borrar (Supr)" aria-label="Borrar (Supr)"
+                    <Button variant="ghost" size="sm" title="Borrar (Supr)" aria-label="Borrar (Supr)"
                             onClick={(e) => { e.stopPropagation(); remove(a.id); }} style={{ ...smallBtn, color: "var(--destructive)" }}>
                       <Icon name="CLEAR" size={13} />
                     </Button>
@@ -240,9 +239,9 @@ export function AnnotationsPanel() {
             })}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            <Button variant="outline" size="sm" beam={false} onClick={() => setAllVisible(false)} style={smallBtn}>Ocultar todas</Button>
-            <Button variant="outline" size="sm" beam={false} onClick={() => setAllVisible(true)} style={smallBtn}>Mostrar todas</Button>
-            <Button variant="outline" size="sm" beam={false} onClick={exportCsv} style={{ ...smallBtn, marginLeft: "auto" }}>Exportar CSV</Button>
+            <Button variant="outline" size="sm" onClick={() => setAllVisible(false)} style={smallBtn}>Ocultar todas</Button>
+            <Button variant="outline" size="sm" onClick={() => setAllVisible(true)} style={smallBtn}>Mostrar todas</Button>
+            <Button variant="outline" size="sm" onClick={exportCsv} style={{ ...smallBtn, marginLeft: "auto" }}>Exportar CSV</Button>
           </div>
         </>
       )}

@@ -263,6 +263,8 @@ interface PlanningState {
   setReportUrls: (u: ReportUrls | null) => void;
   /** Show the 3D morphometric overlay (neck disc, dome/max-diameter lines, labels). */
   morphoOverlay: boolean;
+  /** Detección: dibujar también los candidatos descartados en el 3D (tenues). */
+  showRejectedIn3d: boolean;
   /** Capture the live 3D viewport as a PNG data URL (set by MeshView while mounted). */
   captureViewport: (() => Promise<string | null>) | null;
   /** Guarda la vista actual del visor como captura del caso. La publica el
@@ -436,6 +438,7 @@ interface PlanningState {
   setTrajEntry: (p: Vec3 | null) => void;
   setTrajTarget: (p: Vec3 | null) => void;
   setMorphoOverlay: (v: boolean) => void;
+  setShowRejectedIn3d: (v: boolean) => void;
   setCaptureViewport: (fn: (() => Promise<string | null>) | null) => void;
   setCenterOnLesion: (fn: (() => void) | null) => void;
   registerSceneFramer: (fn: SceneFramer | null) => void;
@@ -608,6 +611,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [trajEntry, setTrajEntry] = useState<Vec3 | null>(null);
   const [trajTarget, setTrajTarget] = useState<Vec3 | null>(null);
   const [morphoOverlay, setMorphoOverlay] = useState(false);
+  // Encendido por defecto: los descartados son justo los sitios donde podría
+  // esconderse algo que nadie miró. Se apaga si estorban en un caso con muchos.
+  const [showRejectedIn3d, setShowRejectedIn3d] = useState(true);
   const [captureViewport, _setCaptureViewport] = useState<(() => Promise<string | null>) | null>(null);
   const [captureCase, _setCaptureCase] = useState<(() => Promise<"saved" | "downloaded">) | null>(null);
   // Guardar una función en useState la INVOCA si se pasa directa; va envuelta.
@@ -862,7 +868,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
         centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
-        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, sceneFramer, dirty,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, showRejectedIn3d, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, sceneFramer, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
@@ -871,7 +877,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setDeviceMesh, clearDeviceMeshes, restoreDeviceMesh, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
         setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
-        setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay,
+        setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay, setShowRejectedIn3d,
         setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, registerSaver, saveNow,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setMipLocal, setCine, setFocusedPane,

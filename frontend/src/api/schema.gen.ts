@@ -1899,6 +1899,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/patients/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Actividad reciente de los pacientes visibles
+         * @description Los últimos eventos de la cadena de auditoría de los pacientes que la cuenta puede ver (todos, para un administrador), el más reciente primero. No incluye eventos de cuentas ni de inicio de sesión.
+         */
+        get: operations["patients_activity_api_patients_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patients/case": {
         parameters: {
             query?: never;
@@ -7192,6 +7212,37 @@ export interface components {
             workshop_name: string;
         };
         /**
+         * PatientActivity
+         * @description Un evento reciente de un paciente visible, para el panel lateral.
+         */
+        PatientActivity: {
+            /**
+             * Action
+             * @description Acción de la cadena de auditoría; el cliente la traduce
+             */
+            action: string;
+            /**
+             * At
+             * @description Instante del bloque, tal como lo guarda la cadena (ISO 8601, UTC)
+             */
+            at: string;
+            /**
+             * Patient Id
+             * @description Paciente al que se refiere el evento
+             */
+            patient_id: number;
+            /**
+             * Patient Name
+             * @description Nombre completo del paciente
+             */
+            patient_name: string;
+            /**
+             * Username
+             * @description Cuenta que hizo la acción
+             */
+            username: string;
+        };
+        /**
          * PatientCreate
          * @description Fields required to register a new patient.
          */
@@ -7495,11 +7546,26 @@ export interface components {
              */
             is_shared_with_me: boolean;
             /**
+             * Last Capture Id
+             * @description Captura PNG más reciente del paciente, de cualquier caso
+             */
+            last_capture_id?: number | null;
+            /**
              * Last Case Label
              * @description Diagnóstico del caso más reciente; vacío si no hay casos
              * @default
              */
             last_case_label: string;
+            /**
+             * Last Imaging Study Id
+             * @description Estudio de imagen más reciente con miniatura, para la vista previa
+             */
+            last_imaging_study_id?: number | null;
+            /**
+             * Last Risk Label
+             * @description Riesgo de rotura de la última sesión; vacío si esa sesión no lo calculó
+             */
+            last_risk_label?: string | null;
             /**
              * Last Session At
              * @description Última vez que se guardó una sesión del paciente
@@ -13772,6 +13838,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PatientSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patients_activity_api_patients_activity_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientActivity"][];
                 };
             };
             /** @description Validation Error */

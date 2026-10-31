@@ -23,6 +23,7 @@ from services.database import get_db
 from services.isolated import CalculoCaido, run_isolated
 from services.access import ORIGIN_KEY, can_share_patient, is_admin, own_patient_ids, require_patient, session_row
 from services.audit import (ACT_SAVED_SESSION_DELETED, ACT_SAVED_SESSION_RENAMED,
+                            ACT_SESSION_SAVED,
                             audit_append, audit_patient)
 from services.auth_service import get_current_user
 from services.db_models import LesionConfirmation, PlanningSession, Patient, User
@@ -266,6 +267,11 @@ async def save_session(
         "Session saved — id=%s  label=%r  step=%d  patient_id=%s",
         req.session_id, ps.label, ps.current_step, ps.patient_id,
     )
+    # Sin paciente no hay hash (la cadena guarda «» para «sin paciente»).
+    audit_append(ACT_SESSION_SAVED,
+                 {"session_id": req.session_id, "label": ps.label, "current_step": ps.current_step},
+                 username=current_user.username if current_user else "",
+                 **(audit_patient(db.get(Patient, ps.patient_id)) if ps.patient_id else {}))
 
     download_url = f"/data/sessions/{req.session_id}"
     return SessionSaveResult(

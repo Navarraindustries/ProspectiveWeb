@@ -266,3 +266,26 @@ def test_guardar_progreso_refresca_la_etiqueta_automatica():
     uid, m = _medico(); pid = _paciente_de(uid); sid = _guardada(m, pid, "Juan · Detección")
     _reanudar_y_guardar(m, sid, pid, "Juan · Morfometría")
     assert [s["label"] for s in _lista(m, pid)] == ["Juan · Morfometría"]
+
+
+def test_guardar_deja_un_bloque_session_saved_con_el_paciente():
+    from services.audit import SkullChain, patient_hash_for
+    uid, m = _medico(); pid = _paciente_de(uid)
+    db = SessionLocal(); p = db.get(Patient, pid)
+    hospital_id, dob = p.hospital_id, p.dob or ""; db.close()
+    sid = create_session()
+    r = m.post("/api/sessions/save",
+               json={"session_id": sid, "current_step": 3, "label": "Para el panel", "patient_id": pid})
+    assert r.status_code == 200, r.text
+    bloques = SkullChain.instance().get_blocks(patient_hash_for(hospital_id, dob))
+    ultimo = [b for b in bloques if b["action"] == "SESSION_SAVED"][-1]
+    payload = json.loads(ultimo["payload_json"])
+    assert payload == {"session_id": sid, "label": "Para el panel", "current_step": 3}
+
+
+def test_guardar_sin_paciente_deja_bloque_sin_hash():
+    from services.audit import SkullChain, patient_hash_for
+    sid = _guardada(admin, None)  # sin paciente
+    ultimo = [b for b in SkullChain.instance().get_all_blocks() if b["action"] == "SESSION_SAVED"][-1]
+    assert json.loads(ultimo["payload_json"])["session_id"] == sid
+    assert ultimo["patient_hash"] == patient_hash_for("", "") == ""

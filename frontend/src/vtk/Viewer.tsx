@@ -67,6 +67,7 @@ import { screenToAxis } from "./dragController";
 import { clampOffsetToBox, planeFromNormal, sliceSegment, type FreePlane } from "./freePlane";
 import { approachDirection } from "./approachView";
 import { ANNOTATION_HEX, HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
+import { candidateOverlay, nearestCandidate } from "./candidateOverlay";
 import { captureFileName } from "./viewerRecorder";
 import { readHeading, readPaneHud } from "./readHud";
 import { readPaneShapes } from "./readShapes";
@@ -234,6 +235,7 @@ function ViewerLoading({ label }: { label: string }) {
 export function ViewerWorkspace({ step }: { step: string }) {
   const {
     sessionId, segmentation, allCandidates, selectedCandidate, series, deviceMeshes, stentMap,
+    candidates, rejectedCandidates, showRejectedIn3d, setSelectedCandidate,
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
@@ -704,9 +706,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // silent and the tool feels broken. En el store: el panel de abordaje lo
   // repite junto a «Entrada»/«Diana», donde la persona está mirando (F1-185).
   const onPickMiss = useCallback(() => {
+    // Sin herramienta armada (clic para elegir candidato) fallar la malla no es un error.
+    if (pickMode === null) return;
     setPickMiss(true);
     setTimeout(() => setPickMiss(false), 1800);
-  }, [setPickMiss]);
+  }, [pickMode, setPickMiss]);
   useEffect(() => { if (!pickMode) setPickMiss(false); }, [pickMode, setPickMiss]);
   // Every placed device is drawn, each in its own colour: planning a stent after
   // a clip leaves both in the plan, and a viewer showing only the last one placed
@@ -842,6 +846,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // deja ver el relieve por debajo.
     const marcando = step === "morpho" || pickMode !== null;
     const resalte = showDevice ? 0.5 : marcando ? 0.35 : 1;
+    // Todos los candidatos a la vez en Detección: la zona de cada uno
+    // coloreada, la del elegido en azul (ver candidateOverlay.ts).
+    const candidateLayers = step === "detect"
+      ? candidateOverlay({ candidates, rejected: rejectedCandidates, selected: selectedCandidate, showRejected: showRejectedIn3d, step, resalte }).layers
+      : [];
 
     // El saco cerrado manda sobre el localizador: en cuanto está marcado el
     // cuello hay una malla que SÍ es el cuerpo del aneurisma, y enseñar las
@@ -861,6 +870,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     } else if (sacUrl && step !== "segment" && step !== "upload") {
       // Con contorno: translúcido sobre el árbol, su borde se perdía.
       out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true, frame: step === "morpho" });
+    } else if (step === "detect" && candidateLayers.length > 0) {
+      out.push(...candidateLayers);
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
       out.push({ url: candidate.dome_mesh_url, color: DOME_COLOR, opacity: resalte });
     }
@@ -900,7 +911,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
     }
     return out;
-  }, [followup, stentMap, displayMeshUrl, candidate?.dome_mesh_url, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
+  }, [followup, stentMap, displayMeshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
 
   // Los tres cortes de Cortes 3D sobre el volumen del cliente, con la ventana
   // de los cortes. Sin volumen en el cliente (sin WebGL2 o aún cargando) no
@@ -1305,10 +1316,17 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay, step, dialProgress, morphometry?.reliable]);
 
   // Rótulos del 3D: nombre y valor siempre, que en la escena no hay celda estrecha.
+  const candidateLabels = useMemo(
+    () => candidateOverlay({ candidates, rejected: rejectedCandidates, selected: selectedCandidate, showRejected: showRejectedIn3d, step, resalte: 1 }).labels,
+    [candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, step],
+  );
   const meshLabels = useMemo<MeshLabel[]>(
-    () => annotations.filter((a) => a.visible && a.points.length > 0)
-      .map((a) => ({ pos: labelAnchor(a), text: labelFor(a, false), color: ANNOTATION_HEX[a.kind] })),
-    [annotations],
+    () => [
+      ...candidateLabels,
+      ...annotations.filter((a) => a.visible && a.points.length > 0)
+        .map((a) => ({ pos: labelAnchor(a), text: labelFor(a, false), color: ANNOTATION_HEX[a.kind] })),
+    ],
+    [candidateLabels, annotations],
   );
 
   // Translucent preview of the crop ROI so the user SEES what will be kept
@@ -1370,7 +1388,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   // Candidato elegido en Detección → foco. Con la meta en las dependencias:
   // al reanudar una sesión el candidato llega antes que el volumen.
+  // Si la elección vino de un clic sobre el propio 3D, la vista general se
+  // queda como está: saltar al candidato haría perder lo que se estaba mirando.
+  const candidateFromScene = useRef(false);
   useEffect(() => {
+    if (candidateFromScene.current) { candidateFromScene.current = false; return; }
     const c = allCandidates[selectedCandidate];
     if (c && syncViews && meta && step === "detect") setFocusMm([c.center_mm.x, c.center_mm.y, c.center_mm.z], meta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1543,8 +1565,17 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (points && draftPlaneRef.current) finishAnnotation(points, draftPlaneRef.current);
   }, [pickMode, annotationDraft, finishAnnotation, setAnnotationDraft, setPickMode]);
 
+  // En Detección, sin herramienta armada, un clic sobre la malla elige el
+  // candidato cuyo saco contiene el punto (aceptado o descartado visible).
+  const candidatePick = step === "detect" && pickMode === null && allCandidates.length > 0;
   const onPick = useCallback(
     (xyz: [number, number, number]) => {
+      if (pickMode === null) {
+        if (!candidatePick) return;
+        const i = nearestCandidate(xyz, allCandidates, showRejectedIn3d, candidates.length);
+        if (i !== null && i !== selectedCandidate) { candidateFromScene.current = true; setSelectedCandidate(i); }
+        return;
+      }
       // Cualquier punto marcado en el 3D es también el nuevo foco común: los
       // cortes van a él; la cámara 3D no se mueve (ver focusFromPick).
       focusFromPick.current = syncViews && !!meta;
@@ -1889,7 +1920,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
           <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} labels={meshLabels} cropPreview={cropPreview}
-            boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
+            boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null || candidatePick} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices" || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}
             handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}

@@ -59,6 +59,11 @@ class PatientSummary(BaseModel):
     last_session_step: int | None = Field(None, description="Paso en que quedó esa sesión")
     last_session_id: str | None = Field(None, description="Sesión guardada más reciente, para reanudarla")
     last_case_label: str = Field("", description="Diagnóstico del caso más reciente; vacío si no hay casos")
+    # Panel de pacientes: la tarjeta enseña el riesgo, una captura y una vista
+    # previa. Solo la lista los rellena, igual que los last_session_*.
+    last_risk_label: str | None = Field(None, description="Riesgo de rotura de la última sesión; vacío si esa sesión no lo calculó")
+    last_capture_id: int | None = Field(None, description="Captura PNG más reciente del paciente, de cualquier caso")
+    last_imaging_study_id: int | None = Field(None, description="Estudio de imagen más reciente con miniatura, para la vista previa")
 
 
 class PatientShareOut(BaseModel):
@@ -69,6 +74,16 @@ class PatientShareOut(BaseModel):
     full_name: str
     role: str
     shared_at: datetime
+
+
+class PatientActivity(BaseModel):
+    """Un evento reciente de un paciente visible, para el panel lateral."""
+
+    patient_id: int = Field(description="Paciente al que se refiere el evento")
+    patient_name: str = Field(description="Nombre completo del paciente")
+    action: str = Field(description="Acción de la cadena de auditoría; el cliente la traduce")
+    at: str = Field(description="Instante del bloque, tal como lo guarda la cadena (ISO 8601, UTC)")
+    username: str = Field(description="Cuenta que hizo la acción")
 
 
 class PatientSharesIn(BaseModel):

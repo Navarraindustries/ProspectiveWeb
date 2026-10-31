@@ -230,6 +230,12 @@ export interface PatientSummary {
   last_session_id: string | null;
   /** Diagnóstico del caso más reciente; "" si no tiene casos. */
   last_case_label: string;
+  /** Riesgo de rotura de esa misma sesión; null si no lo calculó. Solo la lista lo rellena. */
+  last_risk_label: string | null;
+  /** Captura PNG más reciente del paciente, de cualquier caso; null si no hay. */
+  last_capture_id: number | null;
+  /** Estudio de imagen más reciente con miniatura, para la vista previa; null si no hay. */
+  last_imaging_study_id: number | null;
 }
 
 /** Una cuenta con la que está compartido un paciente. */
@@ -239,6 +245,18 @@ export interface PatientShareOut {
   full_name: string;
   role: string;
   shared_at: string;
+}
+
+/** Un evento reciente de un paciente visible (panel lateral de Pacientes). */
+export interface PatientActivity {
+  patient_id: number;
+  patient_name: string;
+  /** Acción de la cadena de auditoría; el rótulo en español lo pone `etiquetaAccion`. */
+  action: string;
+  /** Instante del bloque tal como lo guarda la cadena (ISO 8601, UTC). */
+  at: string;
+  /** Cuenta que hizo la acción. */
+  username: string;
 }
 
 /** La lista ENTERA de cuentas con las que queda compartido (sustituye a la anterior). */

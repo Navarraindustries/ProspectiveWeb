@@ -4,12 +4,12 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from models import (CaseCreate, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut,
+from models import (CaseCreate, PatientActivity, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut,
                     PatientSharesIn, PatientSummary, StudyCreate, StudySummary)
 
 # Study clinical-case fields copied from a CaseCreate payload.
@@ -22,10 +22,10 @@ from services.database import get_db
 from services.access import own_patient_ids, require_patient, require_share_right
 from services.auth_service import get_current_user
 from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, ACT_PATIENT_SHARED,
-                            audit_append, audit_patient)
+                            SkullChain, audit_append, audit_patient, patient_hash_for)
 from services.sessions import size_of_row
-from services.db_models import (LesionConfirmation, Patient, PatientShare, PlanningSession,
-                                Study, User)
+from services.db_models import (CaseCapture, ImagingStudy, LesionConfirmation, Patient,
+                                PatientShare, PlanningSession, Study, User)
 
 # Patient demographic + history fields copied on create / update.
 _PATIENT_FIELDS = (
@@ -56,7 +56,9 @@ router = APIRouter(prefix="/api/patients", tags=["patients"])
 def _patient_to_summary(p: Patient, shared_with_count: int | None = None,
                         is_shared_with_me: bool = False, study_count: int | None = None,
                         last_session: PlanningSession | None = None,
-                        last_case_label: str = "") -> PatientSummary:
+                        last_case_label: str = "",
+                        last_capture_id: int | None = None,
+                        last_imaging_study_id: int | None = None) -> PatientSummary:
     # La lista pasa los recuentos y la última actividad ya calculados (consultas
     # agrupadas, no una por paciente); crear, editar o adjuntar devuelven UN
     # paciente, lo cuentan aquí y dejan vacía la última actividad, que solo
@@ -82,6 +84,10 @@ def _patient_to_summary(p: Patient, shared_with_count: int | None = None,
         last_session_step=last_session.current_step if last_session else None,
         last_session_id=last_session.session_id if last_session else None,
         last_case_label=last_case_label,
+        # El riesgo es el de la misma sesión que el paso: no se hereda de otra anterior.
+        last_risk_label=last_session.rupture_risk_label if last_session else None,
+        last_capture_id=last_capture_id,
+        last_imaging_study_id=last_imaging_study_id,
     )
 
 
@@ -107,6 +113,52 @@ def _study_to_summary(s: Study) -> StudySummary:
         mod_rm=s.mod_rm,
         mod_pangio=s.mod_pangio,
     )
+
+
+# Acciones que no cuentan como «actividad del paciente» (además de todo USER_*,
+# que el SQL excluye por prefijo): son de la cuenta o de la cadena, no clínicas.
+_ACCIONES_FUERA_DE_ACTIVIDAD = {"LOGIN", "INTEGRITY_CHECK", "GENESIS", "password_change", "password_reset"}
+
+
+# Va ANTES de las rutas /{patient_id}: si no, FastAPI tomaría «activity» por un id.
+@router.get(
+    "/activity",
+    response_model=list[PatientActivity],
+    summary="Actividad reciente de los pacientes visibles",
+    description=(
+        "Los últimos eventos de la cadena de auditoría de los pacientes que la "
+        "cuenta puede ver (todos, para un administrador), el más reciente primero. "
+        "No incluye eventos de cuentas ni de inicio de sesión."
+    ),
+)
+async def patients_activity(
+    db:           Annotated[Session,    Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+    limit:        Annotated[int, Query(ge=1, le=50)] = 8,
+) -> list[PatientActivity]:
+    visibles = own_patient_ids(db, current_user)
+    query = db.query(Patient)
+    if visibles is not None:
+        query = query.filter(Patient.id.in_(visibles))
+    # La cadena no guarda el id del paciente sino un hash de historia clínica y
+    # fecha de nacimiento, el mismo con que escriben los routers. Se invierte
+    # construyendo el hash de cada paciente visible. Límite aceptado (spec §4.4):
+    # si se edita la historia o la fecha, los bloques anteriores dejan de casar.
+    # Dos fichas con la misma historia y fecha comparten hash (la HC no es única
+    # en BD si viene vacía o de datos antiguos). Se recorre por id y gana la
+    # primera, la más antigua: así el nombre de la actividad no cambia de una
+    # petición a otra según el orden en que devuelva las filas la base.
+    por_hash = {}
+    for p in query.order_by(Patient.id).all():
+        args = audit_patient(p)
+        h = patient_hash_for(args["patient_id"], args["patient_dob"])
+        if h:
+            por_hash.setdefault(h, p)
+    bloques = SkullChain.instance().get_recent(set(por_hash), limit, _ACCIONES_FUERA_DE_ACTIVIDAD)
+    return [PatientActivity(patient_id=por_hash[b["patient_hash"]].id,
+                            patient_name=por_hash[b["patient_hash"]].full_name,
+                            action=b["action"], at=b["iso_ts"], username=b["username"])
+            for b in bloques]
 
 
 # ── GET /patients ──────────────────────────────────────────────────────────── #
@@ -157,6 +209,19 @@ async def list_patients(
         n_casos = n_casos.filter(Study.patient_id.in_(visibles))
         ult_ses = ult_ses.filter(PlanningSession.patient_id.in_(visibles))
         ult_caso = ult_caso.filter(Study.patient_id.in_(visibles))
+    # Captura PNG (no vídeo) y estudio con miniatura más recientes, de cualquier
+    # caso: la tarjeta del panel los enseña sin abrir la ficha.
+    ult_cap = (db.query(CaseCapture.patient_id.label("pid"),
+                        func.max(CaseCapture.created_at).label("at"))
+               .filter(CaseCapture.patient_id.isnot(None), CaseCapture.media_type == "image/png"))
+    ult_img = (db.query(ImagingStudy.patient_id.label("pid"),
+                        func.max(ImagingStudy.created_at).label("at"))
+               .filter(ImagingStudy.patient_id.isnot(None), ImagingStudy.thumb_key != ""))
+    if visibles is not None:
+        ult_cap = ult_cap.filter(CaseCapture.patient_id.in_(visibles))
+        ult_img = ult_img.filter(ImagingStudy.patient_id.in_(visibles))
+    ult_cap = ult_cap.group_by(CaseCapture.patient_id).subquery()
+    ult_img = ult_img.group_by(ImagingStudy.patient_id).subquery()
     studies_by_patient = dict(n_casos.group_by(Study.patient_id).all())
     ult_ses = ult_ses.group_by(PlanningSession.patient_id).subquery()
     ult_caso = ult_caso.group_by(Study.patient_id).subquery()
@@ -175,6 +240,20 @@ async def list_patients(
                           & (Study.created_at == ult_caso.c.at))
                     .order_by(Study.id)):
         last_case[pid] = dx or ""
+    last_capture: dict[int, int] = {}
+    for pid, cid in (db.query(CaseCapture.patient_id, CaseCapture.id)
+                     .join(ult_cap, (CaseCapture.patient_id == ult_cap.c.pid)
+                           & (CaseCapture.created_at == ult_cap.c.at)
+                           & (CaseCapture.media_type == "image/png"))
+                     .order_by(CaseCapture.id)):
+        last_capture[pid] = cid
+    last_image: dict[int, int] = {}
+    for pid, iid in (db.query(ImagingStudy.patient_id, ImagingStudy.id)
+                     .join(ult_img, (ImagingStudy.patient_id == ult_img.c.pid)
+                           & (ImagingStudy.created_at == ult_img.c.at)
+                           & (ImagingStudy.thumb_key != ""))
+                     .order_by(ImagingStudy.id)):
+        last_image[pid] = iid
 
     return [
         _patient_to_summary(
@@ -185,6 +264,8 @@ async def list_patients(
             study_count=studies_by_patient.get(p.id, 0),
             last_session=last_session.get(p.id),
             last_case_label=last_case.get(p.id, ""),
+            last_capture_id=last_capture.get(p.id),
+            last_imaging_study_id=last_image.get(p.id),
         )
         for p in patients
     ]

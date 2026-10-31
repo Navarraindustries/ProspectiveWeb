@@ -1,61 +1,38 @@
-/* Pacientes — avisos clínicos y tabla de pacientes por última actividad (GET
-   /api/patients); crear, abrir la ficha y reanudar la última sesión. Borrar
+/* Pacientes — panel de tarjetas por última actividad (GET /api/patients) con
+   panel lateral; crear, abrir la ficha y reanudar la última sesión. Borrar
    un paciente está al pie de su ficha (PatientSheet.tsx). */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { ClipOrder, PatientSummary, StudyCard, StudySummary } from "../api/types";
-import { Badge } from "../components/Badge";
+import type { PatientSummary, StudyCard, StudySummary } from "../api/types";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { AppShell } from "../components/shell/AppShell";
-import { Card } from "../components/PanelHead";
+import { PanelHead } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
+import { PatientCard } from "../components/patients/PatientCard";
+import { PatientsSidePanel } from "../components/patients/PatientsSidePanel";
+import "../components/patients/patients.css";
 import { useAuth } from "../store/auth";
-import { useNav } from "../store/nav";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { PatientSheet } from "./PatientSheet";
 
-import { STEP_LABELS, clampStep } from "../pipeline/steps";
-import { desdeServidor, fechaHora } from "../lib/fecha";
-import { ageFromDob } from "../components/patientAge";
-import { avisosOficina } from "../lib/avisosOficina";
-import "../styles/office.css";
-
-/** «Ningún paciente», «1 paciente», «7 pacientes»: decía «1 registros» (F2-19). */
-function recuentoPacientes(n: number): string {
-  if (n === 0) return "Ningún paciente";
-  return n === 1 ? "1 paciente" : `${n} pacientes`;
-}
-
-/** Última actividad: la última sesión guardada o, si no hay, el alta. Quien
- *  vuelve cada día espera arriba al paciente con el que trabajó por última
- *  vez, no al último dado de alta (F2-19). */
-function ultimaActividad(p: PatientSummary): number {
-  const alta = desdeServidor(p.created_at).getTime();
-  const sesion = p.last_session_at ? desdeServidor(p.last_session_at).getTime() : NaN;
-  return Math.max(Number.isNaN(alta) ? 0 : alta, Number.isNaN(sesion) ? 0 : sesion);
-}
-
-/** «Segmentación · 11/10/26, 0:05»: dónde quedó y cuándo, en hora local. */
-function ultimaSesion(p: PatientSummary): string {
-  if (!p.last_session_at || p.last_session_step === null) return "—";
-  return `${STEP_LABELS[clampStep(p.last_session_step)]} · ${fechaHora(p.last_session_at)}`;
-}
+import { filtraPestana, hayCompartidos, recuentoPacientes, ultimaActividad, type PestanaPacientes } from "../lib/pacientes";
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
-type AvisoCreado =
+type Aviso =
   | { tipo: "paciente"; paciente: PatientSummary }
   | { tipo: "caso"; paciente: PatientSummary; caso: StudySummary };
 
-const COLUMNAS = ["Paciente", "HC", "Edad", "Institución", "Último caso", "Última sesión", "Acciones"];
-// Anchos fijos (en % de la tabla): con el reparto automático una HC o una
-// institución largas, todas en una línea, empujaban «Acciones» fuera de la
-// tarjeta, que recorta; «Acciones» necesita sitio para dos botones (30-10).
-const ANCHOS = ["18%", "11%", "5%", "12%", "15%", "13%", "26%"];
-const celda: React.CSSProperties = { padding: "12px 16px" };
+const PESTANAS: { id: PestanaPacientes; texto: string }[] = [
+  { id: "todos", texto: "Todos" },
+  { id: "mios", texto: "Míos" },
+  { id: "compartidos", texto: "Compartidos conmigo" },
+];
+// Cuántos esqueletos mientras carga: llenan la rejilla de tres columnas en dos filas.
+const ESQUELETOS = 6;
 
 export function Patients({
   onResume,
@@ -76,6 +53,11 @@ export function Patients({
 }) {
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  // Cuenta las cargas de la lista: el panel lateral pide su actividad de nuevo
+  // con cada una, porque guardar, borrar o crear deja bloques nuevos.
+  const [version, setVersion] = useState(0);
+  // La primera carga no cuenta: el panel ya pide su actividad al montarse.
+  const primeraCarga = useRef(true);
   // El fallo de la carga sustituye a la lista: con él no hay contadores ni
   // «Ningún paciente».
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -83,17 +65,14 @@ export function Patients({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [caseSheet, setCaseSheet] = useState(false);
   const [casePatient, setCasePatient] = useState<PatientSummary | null>(null);
-  const [aviso, setAviso] = useState<AvisoCreado | null>(null);
-  // Pedidos de clip abiertos para el aviso de parados; null = sin acceso o fallo.
-  const [orders, setOrders] = useState<ClipOrder[] | null>(null);
-  // Paciente recién creado: su fila se enciende 1,2 s.
-  const [nuevaId, setNuevaId] = useState<number | null>(null);
-  const nav = useNav();
+  const [aviso, setAviso] = useState<Aviso | null>(null);
   const [q, setQ] = useState("");
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
   const load = () => {
+    if (primeraCarga.current) primeraCarga.current = false;
+    else setVersion((v) => v + 1);
     setLoading(true);
     setLoadError(null);
     api
@@ -104,20 +83,8 @@ export function Patients({
       // haber perdido a sus pacientes.
       .catch((e) => setLoadError(loadErrorText(e)))
       .finally(() => setLoading(false));
-    // Los avisos de pedidos son accesorios: si fallan (403 de un Médico sin
-    // acceso, servidor caído), simplemente no hay aviso de pedidos.
-    api.listClipOrders({ openOnly: true }).then(setOrders).catch(() => setOrders(null));
   };
   useEffect(load, []);
-
-  // El temporizador de la fila nueva arranca cuando la fila ya está montada
-  // (tras la recarga), no al crear: con una recarga lenta se apagaba antes.
-  const nuevaMontada = nuevaId !== null && patients.some((x) => x.id === nuevaId);
-  useEffect(() => {
-    if (!nuevaMontada) return;
-    const t = setTimeout(() => setNuevaId(null), 1200);
-    return () => clearTimeout(t);
-  }, [nuevaMontada]);
 
   // ?paciente=<id> opens that patient's sheet on arrival, so the breadcrumb in
   // the workspace can lead back to the case instead of just the list.
@@ -132,31 +99,28 @@ export function Patients({
 
   const openCreate = () => { setSheetPatientId(null); setSheetOpen(true); };
   // Fusión nº 8: «Editar» era la única puerta a la ficha y se anunciaba como
-  // una edición; ahora la abren el clic en la fila y «Abrir ficha».
+  // una edición; ahora la abren el clic en la tarjeta y su Intro.
   const openSheet = (id: number) => { setSheetPatientId(id); setSheetOpen(true); };
 
+  const [pestana, setPestana] = useState<PestanaPacientes>("todos");
+
+  // La pestaña filtra antes que la búsqueda: «Míos» + «segura» busca dentro de los míos.
+  const conCompartidos = hayCompartidos(patients);
+  // Si lo compartido desaparece mientras se mira su pestaña, la fila de pestañas
+  // se oculta: se vuelve a «Todos» para no quedar con una lista vacía sin salida.
+  const pestanaActiva: PestanaPacientes = conCompartidos ? pestana : "todos";
   const rows = useMemo(() => {
     const t = q.toLowerCase();
-    return patients
+    return filtraPestana(patients, pestanaActiva, user?.id ?? null)
       .filter((p) => p.full_name.toLowerCase().includes(t) || p.hospital_id.toLowerCase().includes(t))
       .sort((a, b) => ultimaActividad(b) - ultimaActividad(a));
-  }, [patients, q]);
+  }, [patients, q, pestanaActiva, user?.id]);
 
-  // «Reanudar» es el primario solo en la sesión más reciente de toda la lista
-  // (no de las filas filtradas): un único siguiente paso evidente.
-  const masReciente = useMemo(
-    () => [...patients].sort((x, y) => ultimaActividad(y) - ultimaActividad(x)).find((p) => p.last_session_id),
-    [patients],
-  );
-  const avisos = useMemo(
-    () => avisosOficina({ patients, orders, ahora: new Date() }),
-    [patients, orders],
-  );
-
-  // F1-252: un Médico no ve la base entera, sino los suyos y los que le han
-  // compartido (F2-75); «en la base de datos» le hacía creer que estaba vacía.
-  const subtitulo = loading && patients.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista"
-    : `${recuentoPacientes(patients.length)} · ${isAdmin ? "en la base de datos" : "tuyos o compartidos contigo"}`;
+  // F1-253: para un Médico la lista vacía no significa que no haya pacientes en
+  // el sistema, sino que no tiene ninguno suyo ni compartido con él.
+  const vacioDelRol = isAdmin
+    ? "No hay pacientes registrados. Crea el primero para comenzar."
+    : "Solo ves tus pacientes y los que te han compartido. Crea el primero para comenzar.";
 
   const iconBtn: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
@@ -166,58 +130,33 @@ export function Patients({
   return (
     <AppShell
       crumbs={[{ label: "Pacientes" }]}
-      subtitle={subtitulo}
       // F2-20, F2-21: «Usuarios», «Cuentas pendientes» y «Estudios» están en la
       // barra lateral; aquí quedan solo las acciones clínicas.
       actions={
         <span style={{ display: "inline-flex", gap: 8 }}>
+          {onStartWithoutPatient && (
+            <Button variant="outline" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
+                    title="Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.">
+              Empezar sin paciente
+            </Button>
+          )}
           <Button variant="outline" size="sm" leadingIcon={<Icon name="PLUS" />} onClick={openCreate}>
             Nuevo paciente
           </Button>
           <Button size="sm" leadingIcon={<Icon name="PLUS" />} onClick={() => setCaseSheet(true)}>
             Nuevo caso
           </Button>
-          {onStartWithoutPatient && (
-            <Button variant="outline" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
-                    title="Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.">
-              Prueba rápida sin paciente
-            </Button>
-          )}
         </span>
       }
     >
 
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }} className="fade-rise">
-          {avisos.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
-              {avisos.map((av) => (
-                <Card key={av.titulo} style={{ padding: "14px 16px" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <span style={{
-                      width: 36, height: 36, borderRadius: "var(--radius-md)", flexShrink: 0,
-                      background: `color-mix(in srgb, var(--${av.tono}) 14%, transparent)`, color: `var(--${av.tono})`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      <Icon name={av.tono === "success" ? "STATUS_OK" : av.destino === "orders" ? "CLIPS" : "WAIT"} size={16} />
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{av.titulo}</div>
-                      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={av.detalle}>
-                        {av.detalle}
-                      </div>
-                    </div>
-                    {av.destino !== null && (
-                      <button type="button" onClick={() => nav.go(av.destino!)}
-                              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--data)" }}>
-                        Ver
-                      </button>
-                    )}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
+        {/* 1440: tres columnas de tarjetas más el panel lateral caben sin apretar. */}
+        <div style={{ maxWidth: 1440, margin: "0 auto" }} className="fade-rise">
+          <PanelHead
+            title="Pacientes"
+            desc={loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : recuentoPacientes(patients.length)}
+          />
 
           {aviso && (
             // F2-22 y spec §5: quien acaba de crear un paciente o un caso espera
@@ -250,130 +189,66 @@ export function Patients({
             </div>
           )}
 
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-            {/* F2-18: la búsqueda estaba en la barra superior, lejos de la tabla que filtra. */}
-            <div style={{ display: "flex", alignItems: "center", padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ width: 280 }}>
-                <Input icon={<Icon name="SEARCH" />} placeholder="Buscar paciente o HC…" aria-label="Buscar paciente o HC"
-                       value={q} onChange={(e) => setQ(e.target.value)} />
-              </div>
+          <div className="pt-toolbar">
+            {/* F2-18: la búsqueda junto a la lista que filtra. */}
+            <div className="pt-search">
+              <Input icon={<Icon name="SEARCH" />} placeholder="Buscar paciente o HC…" aria-label="Buscar paciente o HC"
+                     value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
-            {/* La tarjeta recorta (overflow hidden) y una HC larga o una institución
-                larga empujaban «Acciones» fuera del borde derecho: la tabla se
-                desplaza en horizontal si no cabe y las celdas largas se acortan con
-                puntos suspensivos (30-10). */}
-            <div style={{ overflowX: "auto" }}>
-            <table className="tabla-oficina" style={{ width: "100%", minWidth: 980, tableLayout: "fixed", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  {COLUMNAS.map((h, i) => (
-                    <th
-                      key={h}
-                      style={{ width: ANCHOS[i], textAlign: i === COLUMNAS.length - 1 ? "right" : "left", padding: "11px 16px", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(loadError || (loading && patients.length === 0) || (!loading && rows.length === 0)) && (
-                  <tr>
-                    <td colSpan={COLUMNAS.length}>
-                      <LoadState
-                        state={loadError ? "error" : loading ? "cargando" : "vacio"}
-                        // F1-253: para un Médico la lista vacía no significa que no
-                        // haya pacientes en el sistema, sino que no tiene ninguno suyo
-                        // ni compartido con él.
-                        mensaje={loadError ?? (patients.length === 0
-                          ? (isAdmin
-                            ? "No hay pacientes registrados. Crea el primero para comenzar."
-                            : "Solo ves tus pacientes y los que te han compartido. Crea el primero para comenzar.")
-                          : "Ningún paciente coincide con la búsqueda.")}
-                        onRetry={load}
-                      />
-                    </td>
-                  </tr>
-                )}
-                {!loadError && rows.map((p, i) => (
-                  <tr
-                    key={p.id}
-                    className={p.id === nuevaId ? "fila-nueva" : undefined}
-                    // F1-56: la fila abre la ficha también con el teclado.
-                    tabIndex={0}
-                    onClick={() => openSheet(p.id)}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
-                      e.preventDefault();
-                      openSheet(p.id);
-                    }}
-                    style={{ cursor: "pointer", borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : "none" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <td style={{ ...celda, fontWeight: 600, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                        title={p.full_name}>
-                      <span data-nombre>{p.full_name}</span>
-                      {p.is_shared_with_me && (
-                        <span style={{ marginLeft: 8 }}><Badge variant="brand">Compartido</Badge></span>
-                      )}
-                      {p.shared_with_count > 0 && (
-                        <span style={{ marginLeft: 8 }}><Badge variant="muted">{`Compartido con ${p.shared_with_count}`}</Badge></span>
-                      )}
-                    </td>
-                    <td style={{ ...celda, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                        title={p.hospital_id || undefined}>
-                      {p.hospital_id || "—"}
-                    </td>
-                    {/* F2-24: la edad, que el especialista usa para el riesgo de rotura. */}
-                    <td style={{ ...celda, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{ageFromDob(p.dob) || "—"}</td>
-                    <td style={{ ...celda, color: "var(--foreground)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                        title={p.institution || undefined}>
-                      {p.institution || "—"}
-                    </td>
-                    <td style={{ ...celda, color: "var(--foreground)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                        title={p.last_case_label || undefined}>
-                      {p.last_case_label || "—"}
-                    </td>
-                    <td style={{ ...celda, color: "var(--muted-foreground)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                        title={ultimaSesion(p)}>
-                      {ultimaSesion(p)}
-                    </td>
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                      {/* Si la tarjeta es estrecha, los botones pasan a dos líneas en vez de salirse. */}
-                      <span className="fila-acciones" style={{ display: "inline-flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6 }}>
-                        {p.last_session_id && (
-                          // F2-24: reanudar en un clic, sin abrir la ficha.
-                          <Button size="sm" variant={p.id === masReciente?.id ? "default" : "outline"} leadingIcon={<Icon name="RESUME" />}
-                                  onClick={(e) => { e.stopPropagation(); onResume(p.last_session_id!, p); }}>
-                            Reanudar
-                          </Button>
-                        )}
-                        <Button size="sm" variant="outline" leadingIcon={<Icon name="OPEN" />}
-                                onClick={(e) => { e.stopPropagation(); openSheet(p.id); }}>
-                          Abrir ficha
-                        </Button>
-                      </span>
-                    </td>
-                  </tr>
+            {conCompartidos && (
+              <div role="tablist" aria-label="Qué pacientes ver" className="pt-tabs">
+                {PESTANAS.map((t) => (
+                  <button key={t.id} type="button" role="tab" aria-selected={pestanaActiva === t.id}
+                          className={`pt-tab${pestanaActiva === t.id ? " pt-tab--on" : ""}`}
+                          onClick={() => setPestana(t.id)}>
+                    {t.texto}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-            </div>
+              </div>
+            )}
           </div>
+
+          <section className="pt-layout">
+            <div>
+              {loadError ? (
+                <LoadState state="error" mensaje={loadError} onRetry={load} />
+              ) : loading && patients.length === 0 ? (
+                // Esqueletos, no texto: la rejilla ya tiene su forma antes de llegar los datos.
+                <div className="pt-grid" aria-busy="true">
+                  {Array.from({ length: ESQUELETOS }, (_, i) => <div key={i} className="pt-card pt-card--skeleton" />)}
+                </div>
+              ) : patients.length === 0 ? (
+                <LoadState state="vacio" mensaje={vacioDelRol} onRetry={load} />
+              ) : rows.length === 0 ? (
+                <LoadState state="vacio" mensaje="Ningún paciente coincide con la búsqueda." onRetry={load} />
+              ) : (
+                <div className="pt-grid" data-testid="pacientes-rejilla">
+                  {rows.map((p) => (
+                    <PatientCard key={p.id} patient={p}
+                                 onOpen={(x) => openSheet(x.id)}
+                                 onResume={onResume}
+                                 // La tarjeta no conoce el caso; la ficha tiene «Planificar este caso» y «Nuevo caso».
+                                 onPlan={(x) => openSheet(x.id)} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <PatientsSidePanel patients={patients} loading={loading} error={!!loadError} version={version}
+                               onOpenPatient={openSheet} onNewPatient={openCreate} />
+          </section>
         </div>
       </div>
 
       <PatientSheet
         open={sheetOpen}
         patientId={sheetPatientId}
-        // La fila trae quién lo creó: decide «Compartir con…» y «Eliminar paciente».
+        // El resumen trae quién lo creó: decide «Compartir con…» y «Eliminar paciente».
         summary={sheetPatientId === null ? null : patients.find((x) => x.id === sheetPatientId) ?? null}
         onClose={() => setSheetOpen(false)}
         onSaved={(creado) => {
           load();
           // Spec §5: «Nuevo paciente» termina ofreciendo el caso de ese paciente.
-          if (creado) { setAviso({ tipo: "paciente", paciente: creado }); setNuevaId(creado.id); }
+          if (creado) setAviso({ tipo: "paciente", paciente: creado });
         }}
         onResume={(sid) => {
           const p = patients.find((x) => x.id === sheetPatientId);

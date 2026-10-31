@@ -9,6 +9,7 @@ describe("etiquetaAccion", () => {
     expect(etiquetaAccion("INTEGRITY_CHECK")).toBe("Verificación de integridad");
     expect(etiquetaAccion("USER_ROLE_CHANGED")).toBe("Rol cambiado");
     expect(etiquetaAccion("USER_APPROVED")).toBe("Cuenta aprobada");
+    expect(etiquetaAccion("SESSION_SAVED")).toBe("Sesión guardada");
   });
   it("deja tal cual un código desconocido", () => {
     expect(etiquetaAccion("ALGO_NUEVO")).toBe("ALGO_NUEVO");

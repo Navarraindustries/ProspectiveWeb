@@ -46,7 +46,7 @@ from .detection import (
 )
 from .dicom import SeriesInfo, SpacingXYZ, UploadResult
 from .longitudinal import LongitudinalDelta, LongitudinalEntry, LongitudinalResult
-from .patient import CaseCreate, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut, PatientSharesIn, PatientSummary, PlanningSessionSummary, StudyCreate, StudySummary
+from .patient import CaseCreate, PatientActivity, PatientCreate, PatientDetail, PatientSessionInfo, PatientShareOut, PatientSharesIn, PatientSummary, PlanningSessionSummary, StudyCreate, StudySummary
 from .perforators import PerforatorCandidate, PerforatorsResult, RiskLevel
 from .plan import PlanRequest, PlanResult, StentLibraryItem, StentParams
 from .report import ExportRequest, ReportRequest, ReportResult
@@ -95,7 +95,7 @@ __all__ = [
     # longitudinal
     "LongitudinalDelta", "LongitudinalEntry", "LongitudinalResult",
     # patient
-    "CaseCreate", "PatientCreate", "PatientDetail", "PatientSessionInfo", "PatientShareOut", "PatientSharesIn", "PatientSummary", "PlanningSessionSummary", "StudyCreate", "StudySummary",
+    "CaseCreate", "PatientActivity", "PatientCreate", "PatientDetail", "PatientSessionInfo", "PatientShareOut", "PatientSharesIn", "PatientSummary", "PlanningSessionSummary", "StudyCreate", "StudySummary",
     # perforators
     "PerforatorCandidate", "PerforatorsResult", "RiskLevel",
     # plan (stent)

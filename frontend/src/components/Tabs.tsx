@@ -42,7 +42,7 @@ export function Tabs({
               fontSize: sm ? 12 : 13,
               fontWeight: active ? 600 : 500,
               color: active ? "var(--primary-foreground)" : "var(--muted-foreground)",
-              transition: "color var(--dur-1) var(--ease-out)",
+              transition: "color var(--dur-2) var(--ease-out)",
             }}
           >
             {t}

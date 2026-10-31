@@ -312,6 +312,21 @@ function Router() {
       />
       <ServerDownBanner />
       {toast && (
+        // Contenedor fijo que centra (o alinea) el aviso: así el transform del glide no pelea con el centrado.
+        // En el pipeline va arriba al centro para no tapar el pie del panel derecho.
+        <div
+          style={{
+            position: "fixed",
+            zIndex: 200,
+            pointerEvents: "none",
+            display: "flex",
+            left: 0,
+            right: 0,
+            ...(effective === "workspace"
+              ? { top: 72, justifyContent: "center" }
+              : { bottom: 24, paddingRight: 24, justifyContent: "flex-end" }),
+          }}
+        >
         <motion.div
           role={retryHere ? "alert" : undefined}
           data-glass
@@ -321,10 +336,8 @@ function Router() {
           transition={reduced ? { duration: 0 } : glideTransition}
           style={{
             ...glass("dense"),
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            zIndex: 200,
+            pointerEvents: "auto",
+            maxWidth: "min(480px, calc(100vw - 48px))",
             color: "var(--foreground)",
             padding: "12px 22px",
             borderRadius: "var(--radius-full)",
@@ -353,6 +366,7 @@ function Router() {
             </>
           )}
         </motion.div>
+        </div>
       )}
     </div>
     </NavProvider>

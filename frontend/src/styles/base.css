@@ -153,6 +153,12 @@ code, kbd, samp, .mono {
   }
 }
 
+/* Las opciones de un <select> se pintan fuera del cristal: fondo opaco propio. */
+select option {
+  background: var(--glass-solid);
+  color: var(--foreground);
+}
+
 /* Reserva opaca del cristal: sin backdrop-filter o con transparencia reducida. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   [data-glass] {

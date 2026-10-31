@@ -12,6 +12,10 @@ describe("Tabs", () => {
     expect(screen.getByRole("tab", { name: "Índices" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Índices" }).style.fontWeight).toBe("600");
   });
+  it("el color del rótulo transiciona con la duración de estado (--dur-2)", () => {
+    render(<Tabs tabs={["A", "B"]} value="A" onChange={() => {}} />);
+    expect(screen.getByRole("tab", { name: "A" }).style.transition).toContain("color var(--dur-2)");
+  });
   it("el indicador es un solo elemento que vive bajo la pestaña activa", () => {
     render(<Tabs tabs={["A", "B", "C"]} value="B" onChange={() => {}} />);
     const ind = document.querySelectorAll("[data-tab-indicator]");

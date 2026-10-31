@@ -204,6 +204,7 @@ describe("tokens de la dirección D", () => {
   });
   it("las superficies del navegador salen de la paleta", () => {
     const base = readFileSync(join(__dirname, "base.css"), "utf8");
+    expect(base).toMatch(/select option\s*\{[^}]*background:\s*var\(--glass-solid\)/);
     expect(base).toMatch(/::selection\s*\{[^}]*background:\s*var\(--accent\)/);
     expect(base).toMatch(/::selection\s*\{[^}]*color:\s*var\(--foreground\)/);
     expect(base).toMatch(/input, textarea\s*\{[^}]*caret-color:\s*var\(--primary\)/);

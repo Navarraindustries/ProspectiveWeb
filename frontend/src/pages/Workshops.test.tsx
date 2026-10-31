@@ -165,3 +165,15 @@ describe("la cabecera de «Talleres» en la oficina", () => {
     expect(screen.getAllByText(/Quién fabrica las piezas/)).toHaveLength(1);
   });
 });
+
+describe("cristal (fase 2)", () => {
+  it("la lista de talleres está dentro de un panel de cristal", async () => {
+    listWorkshops.mockResolvedValue([shop()]);
+    render(<WorkshopsPage />);
+    const nombre = await screen.findByText("Taller Mecánico Sur");
+    const panel = nombre.closest("[data-glass]");
+    expect(panel).not.toBeNull();
+    // Panel denso: una sola superficie desenfocada por tabla, filas sin fondo propio.
+    expect(panel!.getAttribute("style")).toContain("--glass-dense");
+  });
+});

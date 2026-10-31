@@ -23,6 +23,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
+import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { daysSince, isStale } from "../lib/pedidosParados";
@@ -72,18 +73,12 @@ function attention(o: ClipOrder): { label: string; variant: Variant } | null {
   return null;
 }
 
-/* Ritmo de la tabla de la oficina: cabecera 11 px / 600 / mayúsculas y filas
-   de 13 px × 14 px. */
-const cellHead: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600,
-  letterSpacing: "0.06em", textTransform: "uppercase",
-  color: "var(--muted-foreground)", textAlign: "left", padding: "8px 14px",
-  whiteSpace: "nowrap",
-};
+/* Ritmo de la tabla de la oficina: la cabecera (rótulo mono) la da office.css;
+   aquí solo el relleno. Filas de 13 px × 14 px. */
+const cellHead: React.CSSProperties = { padding: "10px 14px" };
 
 const cell: React.CSSProperties = {
   fontSize: 12, padding: "13px 14px", verticalAlign: "top",
-  borderTop: "1px solid var(--border)",
 };
 
 function Row({ order, onOpen, selected }: {
@@ -521,7 +516,7 @@ export function ClipOrdersPage({
               </Card>
             )}
             {!error && sorted.length > 0 && (
-              <Card style={{ padding: "4px 2px 0" }}>
+              <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", padding: "4px 2px 0", overflowX: "auto" }}>
                 <table className="tabla-oficina" style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
@@ -543,7 +538,7 @@ export function ClipOrdersPage({
                     ))}
                   </tbody>
                 </table>
-              </Card>
+              </div>
             )}
           </div>
 

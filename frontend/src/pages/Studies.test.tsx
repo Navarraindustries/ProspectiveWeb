@@ -193,3 +193,14 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
     expect(screen.queryByText(/pipeline/)).toBeNull();
   });
 });
+
+describe("«Estudios»: cristal (fase 2)", () => {
+  it("cada tarjeta de estudio es una superficie de cristal", async () => {
+    listStudies.mockResolvedValue([tarjeta()]);
+    const { container } = render(<Studies {...props} />);
+    await screen.findByText("Restrepo, María");
+    const t = container.querySelector(".tarjeta-estudio");
+    expect(t).not.toBeNull();
+    expect(t!.hasAttribute("data-glass")).toBe(true);
+  });
+});

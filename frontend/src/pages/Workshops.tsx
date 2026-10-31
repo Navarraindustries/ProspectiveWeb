@@ -24,6 +24,7 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
+import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
@@ -215,9 +216,10 @@ export function WorkshopsPage() {
           </Card>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {!loadError && workshops.map((w) => (
-            <Card key={w.id}>
+        {!loadError && workshops.length > 0 && (
+        <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", display: "flex", flexDirection: "column" }}>
+          {workshops.map((w, i) => (
+            <div key={w.id} style={{ padding: "16px 18px", borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
@@ -262,9 +264,10 @@ export function WorkshopsPage() {
                   )}
                 </div>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
+        )}
 
         {workshops.length > 0 && !isAdmin && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 12 }}>

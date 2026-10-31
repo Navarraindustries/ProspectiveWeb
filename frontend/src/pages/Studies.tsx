@@ -40,7 +40,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
   const box: React.CSSProperties = {
     width: "100%", height: 170, background: "var(--viewer-bg)",
     display: "flex", alignItems: "center", justifyContent: "center",
-    borderTopLeftRadius: "var(--radius-lg)", borderTopRightRadius: "var(--radius-lg)",
+    borderTopLeftRadius: "var(--radius-card-lg)", borderTopRightRadius: "var(--radius-card-lg)",
     overflow: "hidden", position: "relative",
   };
 
@@ -206,15 +206,13 @@ export function StudyGallery({
             <div
               key={s.id}
               className="tarjeta-estudio"
+              data-glass
               title={`${s.patient_name} · ${s.description}`}
               style={{
                 display: "flex", flexDirection: "column", textAlign: "left", padding: 0,
-                background: "var(--card)", border: "1px solid var(--border)",
-                borderRadius: "var(--radius-lg)", overflow: "hidden",
+                borderRadius: "var(--radius-card-lg)", overflow: "hidden",
                 fontFamily: "var(--font-sans)",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--brand-deep)")}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
             >
               <button
                 type="button"
@@ -309,7 +307,7 @@ export function StudyGallery({
               style={{
                 minHeight: 300, display: "flex", flexDirection: "column", alignItems: "center",
                 justifyContent: "center", gap: 8, cursor: "pointer",
-                borderRadius: 12, color: "var(--data)", fontFamily: "var(--font-sans)", fontSize: 14,
+                color: "var(--data)", fontFamily: "var(--font-sans)", fontSize: 14,
               }}
             >
               <Icon name="UPLOAD" size={22} />

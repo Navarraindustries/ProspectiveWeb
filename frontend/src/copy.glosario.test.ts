@@ -112,7 +112,7 @@ describe("la regla de «Solicitudes» suelto", () => {
 describe("el glosario en las pantallas", () => {
   it("recorre las pantallas, el formulario de pedido y el menú", () => {
     expect(archivos.length).toBeGreaterThan(10);
-    expect(archivos.some((a) => a.endsWith("Topbar.tsx"))).toBe(true);
+    expect(archivos.some((a) => a.endsWith("TopBar.tsx"))).toBe(true);
     expect(archivos.some((a) => a.endsWith("roles.ts") && a.includes("lib"))).toBe(true);
     expect(archivos.some((a) => a.endsWith("SideNav.tsx"))).toBe(true);
   });

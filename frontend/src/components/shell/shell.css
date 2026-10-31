@@ -459,3 +459,64 @@
   color: var(--destructive);
   border-color: color-mix(in srgb, var(--destructive) 40%, var(--border));
 }
+
+/* ── Marca en la barra superior (pantallas sin barra lateral) ───────────── */
+.shell-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+.shell-brand-name {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--foreground);
+}
+
+/* ── Estado del guardado ────────────────────────────────────────────────── */
+.ws-save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.ws-save-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+}
+.ws-save-status[data-state="dirty"] .ws-save-dot { background: var(--warning); }
+.ws-save-status[data-state="saved"] .ws-save-dot { background: var(--success); }
+.ws-save-status[data-state="saving"] .ws-save-dot { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Pestaña de plegado en el borde del panel del paso ──────────────────── */
+.ws-panel-fold {
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 56px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: var(--background);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  z-index: 2;
+}
+.ws-panel-fold:hover,
+.ws-panel-fold:focus-visible { color: var(--foreground); background: var(--muted); }

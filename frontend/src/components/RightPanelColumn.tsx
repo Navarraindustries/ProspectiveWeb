@@ -5,6 +5,7 @@
    desmontarla los perdería sin aviso. */
 
 import { useEffect, type ReactNode } from "react";
+import { Icon } from "./Icon";
 
 /** Plegado o no es una manera de trabajar de quien mira, como el nivel del HUD. */
 export const PREF_PANEL_COLLAPSED = "ws.panelCollapsed";
@@ -46,12 +47,23 @@ export function RightPanelColumn({
       <div
         data-panel-column
         style={{
-          display: collapsed ? "none" : undefined,
-          width: "clamp(300px, 27vw, 384px)", flexShrink: 0, background: "var(--background)",
-          borderLeft: "1px solid var(--border)", overflowY: "auto", padding: "20px 18px 40px",
+          display: collapsed ? "none" : "flex",
+          position: "relative", width: "clamp(300px, 27vw, 384px)", flexShrink: 0,
         }}
       >
-        {children}
+        {/* Pestaña pegada al borde izquierdo del panel: pliega sin buscar la tecla P. */}
+        <button type="button" className="ws-panel-fold" onClick={onToggle}
+                aria-label="Plegar el panel del paso (P)" title="Plegar el panel del paso (P)">
+          <Icon name="CHEVRON_RIGHT" size={14} />
+        </button>
+        <div
+          style={{
+            flex: 1, minWidth: 0, background: "var(--background)",
+            borderLeft: "1px solid var(--border)", overflowY: "auto", padding: "20px 18px 40px",
+          }}
+        >
+          {children}
+        </div>
       </div>
       {collapsed && (
         <aside className="ws-panel-strip" aria-label="Panel del paso plegado">

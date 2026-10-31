@@ -69,6 +69,14 @@ describe("panel del paso plegable", () => {
     expect(window.localStorage.getItem(PREF_PANEL_COLLAPSED)).toBe("0");
   });
 
+  it("la pestaña del borde pliega el panel", () => {
+    render(<Harness />);
+    const col = screen.getByLabelText("nota").closest("[data-panel-column]") as HTMLElement;
+    fireEvent.click(screen.getByRole("button", { name: "Plegar el panel del paso (P)" }));
+    expect(col.style.display).toBe("none");
+    expect(document.querySelector("aside.ws-panel-strip")).toBeTruthy();
+  });
+
   it("P con el foco en un campo de texto no hace nada", () => {
     render(<Harness />);
     const input = screen.getByLabelText("nota");

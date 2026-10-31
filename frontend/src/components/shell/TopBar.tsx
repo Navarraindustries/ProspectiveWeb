@@ -9,6 +9,7 @@
 
 import type { ReactNode } from "react";
 import { Icon } from "../Icon";
+import { Logo } from "./Logo";
 import { ThemeToggle } from "../ThemeToggle";
 import { UserMenu } from "./UserMenu";
 
@@ -18,7 +19,9 @@ export interface Crumb {
   onClick?: () => void;
 }
 
-export function TopBar({ crumbs, subtitle, status, actions }: {
+export function TopBar({ brand = false, crumbs, subtitle, status, actions }: {
+  /** Marca a la izquierda de la miga, para pantallas sin barra lateral (el pipeline). */
+  brand?: boolean;
   crumbs?: Crumb[];
   subtitle?: ReactNode;
   status?: ReactNode;
@@ -26,6 +29,12 @@ export function TopBar({ crumbs, subtitle, status, actions }: {
 }) {
   return (
     <header className="shell-top">
+      {brand && (
+        <span className="shell-brand">
+          <Logo compact size={24} />
+          <span className="shell-brand-name">PROSPECTIVE</span>
+        </span>
+      )}
       {crumbs && crumbs.length > 0 && (
         <nav aria-label="Miga de pan" className="shell-crumbs">
           <ol>

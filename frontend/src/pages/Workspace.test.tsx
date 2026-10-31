@@ -15,6 +15,10 @@ const { saveSession, markSaved, captureCase, registerSaver, estado, Nada } = vi.
 }));
 vi.mock("../api/client", () => ({ api: { saveSession: (...a: unknown[]) => saveSession(...a) } }));
 
+vi.mock("../store/auth", () => ({ useAuth: () => ({ user: null, logout: vi.fn() }) }));
+vi.mock("../store/nav", () => ({ useNav: () => ({ go: vi.fn() }) }));
+vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "dark", toggle: vi.fn() }) }));
+
 vi.mock("../store/planning", () => ({
   usePlanning: () => ({
     morphometry: null, sessionId: "vivo-1", caseId: 7, caseLabel: "Caso", imagingStudyId: 9,
@@ -46,7 +50,6 @@ vi.mock("../components/AttachCaseSheet", () => ({ AttachCaseSheet: Nada }));
 vi.mock("../components/RecordButton", () => ({ RecordButton: Nada }));
 
 import { Workspace } from "./Workspace";
-import { hora } from "../lib/fecha";
 import type { PatientSummary } from "../api/types";
 
 const montar = () => render(
@@ -82,7 +85,8 @@ describe("captura sin estudio archivado (F1-122)", () => {
     captureCase.mockReset().mockResolvedValue("downloaded");
     montar();
     fireEvent.click(screen.getByRole("button", { name: /Captura/ }));
-    const aviso = await screen.findByRole("status");
+    // El estado del guardado también es un `status`: se busca el de la captura.
+    const aviso = await screen.findByText(/Captura descargada en la carpeta/);
     expect(aviso.textContent).toContain("Captura descargada en la carpeta de descargas. No queda en la ficha porque la sesión no tiene caso: «Archivar en un caso».");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(aviso.getAttribute("style") ?? "").not.toContain("var(--destructive)");
@@ -119,30 +123,39 @@ describe("estado del guardado en el botón", () => {
     saveSession.mockReset(); saveSession.mockResolvedValue({});
   });
 
-  it("tocar el estado muestra el punto; guardar muestra la hora", async () => {
+  it("tocar el estado muestra «Cambios sin guardar»; guardar muestra la hora", async () => {
     estado.dirty = true;
     const { rerender } = montar();
-    expect(screen.getByRole("button", { name: /Guardar progreso/ }).textContent).toContain("Guardar progreso •");
-    const antes = new Date();
-    fireEvent.click(screen.getByRole("button", { name: /Guardar progreso/ }));
+    expect(screen.getByRole("status")).toHaveTextContent("Cambios sin guardar");
+    // El botón dice siempre lo mismo y es el primario de la barra.
+    const boton = screen.getByRole("button", { name: /Guardar progreso/ });
+    expect(boton.textContent).toContain("Guardar progreso");
+    expect(boton.getAttribute("data-variant")).toBe("default");
+    fireEvent.click(boton);
     await waitFor(() => expect(markSaved).toHaveBeenCalled());
     // El store limpia `dirty` en markSaved: aquí se hace a mano.
     estado.dirty = false;
     rerender(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
-    const boton = await screen.findByRole("button", { name: /Guardado \d{2}:\d{2}$/ });
-    // El texto lleva delante el glifo del icono.
-    expect([hora(antes), hora(new Date())].some((h) => boton.textContent?.endsWith(`Guardado ${h}`))).toBe(true);
-    // Volver a tocar algo devuelve el punto, sin esperar a ningún temporizador.
+    await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/^Guardado \d{2}:\d{2}$/));
+    // Volver a tocar algo devuelve el aviso, sin esperar a ningún temporizador.
     estado.dirty = true;
     rerender(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
-    expect(screen.getByRole("button", { name: /Guardar progreso •/ })).toBeTruthy();
+    expect(screen.getByRole("status")).toHaveTextContent("Cambios sin guardar");
   });
 
-  it("sin cambios ni guardado en esta pantalla, «Guardar progreso» a secas", () => {
+  it("sin cambios ni guardado en esta pantalla: «Sin guardar»", () => {
     montar();
-    const t = screen.getByRole("button", { name: /Guardar progreso/ }).textContent ?? "";
-    expect(t.endsWith("Guardar progreso")).toBe(true);
-    expect(t).not.toContain("•");
+    expect(screen.getByRole("status")).toHaveTextContent("Sin guardar");
+    expect(screen.getByRole("button", { name: /Guardar progreso/ }).textContent).not.toContain("•");
+  });
+
+  it("si el guardado falla, el estado vuelve a «Cambios sin guardar» y sale el aviso rojo", async () => {
+    estado.dirty = true;
+    saveSession.mockRejectedValue(new Error("caído"));
+    montar();
+    fireEvent.click(screen.getByRole("button", { name: /Guardar progreso/ }));
+    expect((await screen.findByRole("alert")).textContent).toContain("No se pudo guardar el progreso");
+    expect(screen.getByRole("status")).toHaveTextContent("Cambios sin guardar");
   });
 });
 

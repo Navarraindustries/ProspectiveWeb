@@ -9,7 +9,8 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
-import { Topbar } from "../components/Topbar";
+import { TopBar } from "../components/shell/TopBar";
+import { SaveStatus } from "../components/stepper/SaveStatus";
 import { StepRail } from "../components/stepper/StepRail";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -28,7 +29,6 @@ import { ViewerWorkspace } from "../vtk/Viewer";
 import { matchShortcut } from "../vtk/shortcuts";
 import { RecordButton } from "../components/RecordButton";
 import { ARCHIVAR_EN_CASO, sinCasoAviso } from "../lib/textos";
-import { hora } from "../lib/fecha";
 import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { usePlanning } from "../store/planning";
@@ -203,10 +203,11 @@ export function Workspace({
     registerSaver(() => saveRef.current());
     return () => registerSaver(null);
   }, [registerSaver]);
-  const saveLabel = saving === "saving" ? "Guardando…"
-    : dirty ? "Guardar progreso •"
-    : savedAt ? `Guardado ${hora(savedAt)}`
-    : "Guardar progreso";
+  // Prioridad: guardando > cambios sin guardar > guardado > nada guardado aún.
+  const saveState = saving === "saving" ? "saving"
+    : dirty ? "dirty"
+    : savedAt ? "saved"
+    : "clean";
 
   const go = (i: number) => {
     // Cancel any active 3D/MPR pick mode so a tool armed on one step (e.g. the
@@ -300,7 +301,8 @@ export function Workspace({
     // el estado del panel tenga que pasar por el store.
     <div data-panel-collapsed={columnCollapsed ? "true" : "false"}
          style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
-      <Topbar
+      <TopBar
+        brand
         crumbs={[
           { label: "Pacientes", onClick: onBack },
           // The patient and the case both lead back to the patient sheet, which
@@ -310,7 +312,8 @@ export function Workspace({
           { label: patient ? patient.full_name : "Sesión", onClick: patient ? onOpenPatient : undefined },
           ...(caseLabel ? [{ label: caseLabel, onClick: patient ? onOpenPatient : undefined }] : []),
         ]}
-      >
+        status={<SaveStatus state={saveState} savedAt={savedAt} />}
+        actions={<>
         {/* Sin estudio archivado la captura se descarga en vez de guardarse en
             el caso, como la grabación; el tooltip lo dice antes de pulsar. */}
         <Button
@@ -326,7 +329,6 @@ export function Workspace({
                 : "Guarda una imagen de lo que se ve ahora, adjunta al caso"
           }
           leadingIcon={<Icon name={shot === "ok" ? "STATUS_OK" : "CAMERA"} />}
-          style={{ marginRight: 8 }}
         >
           {shot === "busy" ? "Capturando…"
             : shot === "ok" ? (imagingStudyId ? "Captura guardada ✓" : "Captura descargada ✓")
@@ -341,8 +343,7 @@ export function Workspace({
             size="sm"
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
-            style={{ marginRight: 8 }}
-            title={patient
+              title={patient
               ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos"
               : "Liga esta sesión a un paciente y un caso y archiva su DICOM"}
           >
@@ -350,30 +351,16 @@ export function Workspace({
           </Button>
         )}
         <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setPanelCollapsed(!panelCollapsed)}
-          aria-pressed={!panelCollapsed}
-          title="Ocultar o mostrar el panel del paso (P)"
-          style={{ marginRight: 8 }}
-        >
-          ◧ Panel
-        </Button>
-        <Button
-          variant="outline"
           size="sm"
           onClick={() => void saveProgress()}
           disabled={!sessionId || saving === "saving"}
           title="Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión"
-          leadingIcon={<Icon name={!dirty && savedAt && saving !== "saving" ? "STATUS_OK" : "SAVE"} />}
-          style={{ marginRight: 8 }}
+          leadingIcon={<Icon name="SAVE" />}
         >
-          {saveLabel}
+          Guardar progreso
         </Button>
-        <Button variant="ghost" size="sm" onClick={onBack} leadingIcon={<Icon name="HOME" />}>
-          Pacientes
-        </Button>
-      </Topbar>
+        </>}
+      />
 
       {sessionId && (
         <AttachCaseSheet open={attachOpen} onClose={() => setAttachOpen(false)}

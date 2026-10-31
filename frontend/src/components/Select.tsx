@@ -51,7 +51,7 @@ export function Select({ label, options, invalid, style, ...rest }: SelectProps)
             background: "var(--field-bg)",
             border: `1px solid ${invalid ? "var(--destructive)" : focused ? "var(--primary)" : "var(--input)"}`,
             boxShadow: invalid
-              ? "0 0 0 3px color-mix(in srgb, var(--destructive) 22%, transparent)"
+              ? `0 0 0 3px color-mix(in srgb, var(--destructive) ${focused ? 45 : 22}%, transparent)`
               : focused
                 ? "0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent)"
                 : "none",
@@ -61,6 +61,7 @@ export function Select({ label, options, invalid, style, ...rest }: SelectProps)
             fontFamily: "var(--font-sans)",
             fontSize: 14,
             cursor: "pointer",
+            opacity: rest.disabled ? 0.4 : 1,
             ...style,
           }}
         >

@@ -78,6 +78,21 @@ describe("Input", () => {
     expect(wrapper.style.boxShadow).toContain("--destructive");
   });
 
+  it("un campo inválido con foco usa un anillo distinto al de sin foco", () => {
+    render(<Input label="Nombre" invalid />);
+    const field = screen.getByLabelText("Nombre");
+    const wrapper = field.parentElement as HTMLElement;
+    const rest = wrapper.style.boxShadow;
+    fireEvent.focus(field);
+    expect(wrapper.style.boxShadow).not.toBe(rest);
+    expect(wrapper.style.boxShadow).toContain("--destructive");
+  });
+
+  it("deshabilitado, el campo va al 40 % de opacidad", () => {
+    render(<Input label="Nombre" disabled />);
+    expect((screen.getByLabelText("Nombre").parentElement as HTMLElement).style.opacity).toBe("0.4");
+  });
+
   it("encadena los onFocus y onBlur del llamador", () => {
     const calls: string[] = [];
     render(<Input label="Nombre" onFocus={() => calls.push("f")} onBlur={() => calls.push("b")} />);

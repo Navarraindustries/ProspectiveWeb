@@ -13,6 +13,20 @@ describe("Select", () => {
     expect(screen.getByLabelText("Sexo").tagName).toBe("SELECT");
   });
 
+  it("inválido con foco usa un anillo distinto al de sin foco", () => {
+    render(<Select label="Sexo" invalid options={["Mujer", "Hombre"]} />);
+    const select = screen.getByLabelText("Sexo");
+    const rest = select.style.boxShadow;
+    fireEvent.focus(select);
+    expect(select.style.boxShadow).not.toBe(rest);
+    expect(select.style.boxShadow).toContain("--destructive");
+  });
+
+  it("deshabilitado, el campo va al 40 % de opacidad", () => {
+    render(<Select label="Sexo" disabled options={["Mujer", "Hombre"]} />);
+    expect(screen.getByLabelText("Sexo").style.opacity).toBe("0.4");
+  });
+
   it("usa appearance none y un chevron propio aria-hidden hermano", () => {
     render(<Select label="Sexo" options={["Mujer", "Hombre"]} />);
     const select = screen.getByLabelText("Sexo");

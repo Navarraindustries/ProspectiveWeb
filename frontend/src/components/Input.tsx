@@ -63,10 +63,11 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
           gap: 8,
           ...(multiline ? { minHeight: "calc(var(--field-h) * 2)", padding: "8px 12px", alignItems: "flex-start" } : { height: "var(--field-h)", padding: "0 14px", alignItems: "center" }),
           borderRadius: "var(--radius-md)",
+          opacity: rest.disabled ? 0.4 : 1,
           background: "var(--field-bg)",
           border: `1px solid ${invalid ? "var(--destructive)" : focused ? "var(--primary)" : "var(--input)"}`,
           boxShadow: invalid
-            ? "0 0 0 3px color-mix(in srgb, var(--destructive) 22%, transparent)"
+            ? `0 0 0 3px color-mix(in srgb, var(--destructive) ${focused ? 45 : 22}%, transparent)`
             : focused
               ? "0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent)"
               : "none",

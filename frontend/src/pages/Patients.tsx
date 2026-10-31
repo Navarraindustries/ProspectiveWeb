@@ -17,30 +17,8 @@ import { useAuth } from "../store/auth";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { PatientSheet } from "./PatientSheet";
 
-import { STEP_LABELS, clampStep } from "../pipeline/steps";
-import { desdeServidor, fechaHora } from "../lib/fecha";
+import { recuentoPacientes, ultimaActividad, ultimaSesion } from "../lib/pacientes";
 import { ageFromDob } from "../components/patientAge";
-
-/** «Ningún paciente», «1 paciente», «7 pacientes»: decía «1 registros» (F2-19). */
-function recuentoPacientes(n: number): string {
-  if (n === 0) return "Ningún paciente";
-  return n === 1 ? "1 paciente" : `${n} pacientes`;
-}
-
-/** Última actividad: la última sesión guardada o, si no hay, el alta. Quien
- *  vuelve cada día espera arriba al paciente con el que trabajó por última
- *  vez, no al último dado de alta (F2-19). */
-function ultimaActividad(p: PatientSummary): number {
-  const alta = desdeServidor(p.created_at).getTime();
-  const sesion = p.last_session_at ? desdeServidor(p.last_session_at).getTime() : NaN;
-  return Math.max(Number.isNaN(alta) ? 0 : alta, Number.isNaN(sesion) ? 0 : sesion);
-}
-
-/** «Segmentación · 11/10/26, 0:05»: dónde quedó y cuándo, en hora local. */
-function ultimaSesion(p: PatientSummary): string {
-  if (!p.last_session_at || p.last_session_step === null) return "—";
-  return `${STEP_LABELS[clampStep(p.last_session_step)]} · ${fechaHora(p.last_session_at)}`;
-}
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
 type Aviso =

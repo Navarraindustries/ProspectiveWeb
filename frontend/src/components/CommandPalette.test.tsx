@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PatientSummary } from "../api/types";
 
@@ -75,6 +75,17 @@ describe("CommandPalette", () => {
     expect(document.activeElement).toBe(field);
   });
 
+  it("Meta+K con la paleta abierta la cierra y devuelve el foco al campo", async () => {
+    setup();
+    const field = screen.getByLabelText("Campo previo");
+    field.focus();
+    fireEvent.keyDown(field, { key: "k", metaKey: true });
+    const search = await screen.findByLabelText("Buscar en la paleta");
+    fireEvent.keyDown(search, { key: "k", metaKey: true });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(field);
+  });
+
   it("el evento de abrir con la paleta abierta no cambia a quién se devuelve el foco", async () => {
     setup();
     const field = open();
@@ -88,9 +99,15 @@ describe("CommandPalette", () => {
   it("con el foco fuera del buscador, Esc sigue cerrando", async () => {
     setup();
     open();
-    fireEvent.mouseDown(await screen.findByText("Ir a"));
-    expect(document.activeElement).toBe(screen.getByLabelText("Buscar en la paleta"));
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    const dialog = await screen.findByRole("dialog");
+    const search = screen.getByLabelText("Buscar en la paleta");
+    dialog.focus();
+    expect(document.activeElement).toBe(dialog);
+    const down = createEvent.mouseDown(await screen.findByText("Ir a"));
+    fireEvent(screen.getByText("Ir a"), down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(search);
+    fireEvent.keyDown(dialog, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -98,7 +115,11 @@ describe("CommandPalette", () => {
     setup();
     open();
     const search = await screen.findByLabelText("Buscar en la paleta");
-    fireEvent.keyDown(search, { key: "Tab" });
+    for (const shiftKey of [false, true]) {
+      const ev = createEvent.keyDown(search, { key: "Tab", shiftKey });
+      fireEvent(search, ev);
+      expect(ev.defaultPrevented).toBe(true);
+    }
     expect(document.activeElement).toBe(search);
   });
 

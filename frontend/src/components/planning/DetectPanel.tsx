@@ -7,6 +7,7 @@ import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
+import { PanelFooter } from "../PanelFooter";
 import { ProgressBar } from "../ProgressBar";
 import { LesionConfirm } from "./LesionConfirm";
 import { SegmentProgress } from "../segmentation/SegmentProgress";
@@ -403,23 +404,10 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         );
       })()}
 
-      <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-        <Button variant="outline" onClick={() => void run()} disabled={busy || clearing || !sessionId} leadingIcon={<Icon name="REFRESH" />}>
-          Re-detectar
-        </Button>
-        <Button
-          style={{ flex: 1 }}
-          onClick={onNext}
-          disabled={!canAdvanceFromDetect(candidates, rejectedCandidates)}
-          trailingIcon={<Icon name="STEP_MORPHO" />}
-        >
-          Analizar morfometría
-        </Button>
-      </div>
       {(allCandidates.length > 0 || ran) && (
         <Button
           variant="ghost"
-          style={{ marginTop: 8, width: "100%" }}
+          style={{ marginTop: 18, width: "100%" }}
           disabled={busy || clearing || !sessionId}
           onClick={() => setAskingClear(true)}
           leadingIcon={<Icon name="CLEAR" size={14} />}
@@ -427,6 +415,21 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           {clearing ? "Limpiando…" : "Limpiar candidatos y morfometría"}
         </Button>
       )}
+      <PanelFooter>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Button variant="outline" onClick={() => void run()} disabled={busy || clearing || !sessionId} leadingIcon={<Icon name="REFRESH" />}>
+            Re-detectar
+          </Button>
+          <Button
+            style={{ flex: 1 }}
+            onClick={onNext}
+            disabled={!canAdvanceFromDetect(candidates, rejectedCandidates)}
+            trailingIcon={<Icon name="STEP_MORPHO" />}
+          >
+            Analizar morfometría
+          </Button>
+        </div>
+      </PanelFooter>
       {/* F1-12: limpiar se llevaba la medida, el cuello marcado a mano y la
           recomendación al primer clic, sin forma de recuperarlos. */}
       <ConfirmDialog

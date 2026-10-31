@@ -12,6 +12,7 @@ import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
+import { PanelFooter } from "../PanelFooter";
 import { usePlanning } from "../../store/planning";
 
 /* Recorre recursivamente las entradas de un drop (FileSystemEntry API) para
@@ -440,19 +441,20 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
 
       {/* F1-130: se encendía con la serie, antes de que el volumen estuviera
           en el visor, y apagado no decía por qué. */}
-      <Button
-        style={{ marginTop: 18, width: "100%" }}
-        onClick={onNext}
-        disabled={!series || !planning.volumeReady}
-        trailingIcon={<Icon name="STEP_SEGMENT" />}
+      <PanelFooter
+        note={(!series || !planning.volumeReady)
+          ? (!series ? "Carga una serie para continuar" : "Cargando el volumen…")
+          : undefined}
       >
-        Continuar a segmentación
-      </Button>
-      {(!series || !planning.volumeReady) && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, textAlign: "center" }}>
-          {!series ? "Carga una serie para continuar" : "Cargando el volumen…"}
-        </div>
-      )}
+        <Button
+          style={{ width: "100%" }}
+          onClick={onNext}
+          disabled={!series || !planning.volumeReady}
+          trailingIcon={<Icon name="STEP_SEGMENT" />}
+        >
+          Continuar a segmentación
+        </Button>
+      </PanelFooter>
     </div>
   );
 }

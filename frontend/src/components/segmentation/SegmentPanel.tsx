@@ -15,6 +15,7 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
+import { PanelFooter } from "../PanelFooter";
 import { ProgressBar } from "../ProgressBar";
 import { Slider } from "../Slider";
 import { MeshEditTools } from "./MeshEditTools";
@@ -692,28 +693,10 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
       <MeshEditTools />
 
-      <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-        <Button
-          variant={segmentation ? "outline" : "default"}
-          // La primera segmentación no pierde nada; re-segmentar sí.
-          onClick={() => (segmentation ? setAsking("resegmentar") : void run())}
-          disabled={busy || discarding || !sessionId}
-          leadingIcon={<Icon name="GROWTH" />}
-          style={{ flex: 1 }}
-        >
-          {segmentation ? "Re-segmentar" : "Segmentar"}
-        </Button>
-        {segmentation && (
-          // F1-140: glosario, todo botón de avance dice «Continuar a …».
-          <Button onClick={onNext} trailingIcon={<Icon name="STEP_DETECT" />}>
-            Continuar a detección
-          </Button>
-        )}
-      </div>
       {segmentation && (
         <Button
           variant="ghost"
-          style={{ marginTop: 8, width: "100%" }}
+          style={{ marginTop: 18, width: "100%" }}
           disabled={busy || discarding}
           // Sin detección hecha solo se pierde la malla, que se rehace igual.
           onClick={() => (planning.candidates.length > 0 || planning.morphometry ? setAsking("descartar") : void discard())}
@@ -722,6 +705,26 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {discarding ? "Descartando…" : "Descartar malla y volver a los umbrales"}
         </Button>
       )}
+      <PanelFooter>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Button
+            variant={segmentation ? "outline" : "default"}
+            // La primera segmentación no pierde nada; re-segmentar sí.
+            onClick={() => (segmentation ? setAsking("resegmentar") : void run())}
+            disabled={busy || discarding || !sessionId}
+            leadingIcon={<Icon name="GROWTH" />}
+            style={{ flex: 1 }}
+          >
+            {segmentation ? "Re-segmentar" : "Segmentar"}
+          </Button>
+          {segmentation && (
+            // F1-140: glosario, todo botón de avance dice «Continuar a …».
+            <Button onClick={onNext} trailingIcon={<Icon name="STEP_DETECT" />}>
+              Continuar a detección
+            </Button>
+          )}
+        </div>
+      </PanelFooter>
       <ConfirmDialog
         open={asking === "resegmentar"}
         title="¿Re-segmentar?"

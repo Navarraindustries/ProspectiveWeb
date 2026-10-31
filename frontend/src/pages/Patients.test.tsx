@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 const listPatients = vi.fn();
 const getPatient = vi.fn();
@@ -462,6 +462,9 @@ describe("la lista de pacientes (F2)", () => {
     const header = screen.getByRole("banner");
     const nombres = within(header).getAllByRole("button").map((b) => b.textContent);
     expect(nombres).toEqual(["Nuevo paciente", "Nuevo caso", "Prueba rápida sin paciente"]);
+    // Peso: el primario es «Nuevo paciente»; «Nuevo caso» contorno y la prueba rápida, fantasma.
+    const botones = within(header).getAllByRole("button");
+    expect(botones.map((b) => b.getAttribute("data-variant"))).toEqual(["default", "outline", "ghost"]);
     expect(within(header).queryByText("Empezar sin paciente")).toBeNull();
   });
 
@@ -531,5 +534,51 @@ describe("avisos clínicos sobre el panel de tarjetas", () => {
     expect(screen.getByText("PR-2026-0002")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Ver" }));
     expect(go).toHaveBeenCalledWith("orders");
+  });
+});
+
+/* Oficina L1: los avisos son una franja de chips y la paleta ⌘K llega por la URL. */
+describe("avisos en franja y parámetros de URL", () => {
+  const Sonda = () => <output data-testid="busqueda">{useLocation().search}</output>;
+  const renderConSonda = (url: string) =>
+    render(
+      <MemoryRouter initialEntries={[url]}>
+        <Patients onResume={onResume} onPlanCase={onPlanCase} onOpenStudy={noop} onOpenOrders={noop}
+                  onStartWithoutPatient={noop} />
+        <Sonda />
+      </MemoryRouter>,
+    );
+
+  it("los avisos son pastillas data-aviso dentro de una lista «Avisos clínicos»", async () => {
+    listPatients.mockResolvedValue([fila({ id: 1, full_name: "Segura, Prueba", last_session_at: "2026-10-10T10:00:00", last_session_step: 2 })]);
+    renderAt("/app/pacientes");
+    await screen.findByText(/1 caso parado antes del informe/);
+    const lista = screen.getByRole("list", { name: "Avisos clínicos" });
+    const chips = lista.querySelectorAll("[data-aviso]");
+    expect(chips.length).toBeGreaterThan(0);
+    chips.forEach((c) => expect(c.getAttribute("role")).toBe("listitem"));
+  });
+
+  it("?nuevo=paciente abre la hoja de nuevo paciente una vez y borra el parámetro", async () => {
+    renderConSonda("/app/pacientes?nuevo=paciente");
+    expect(await screen.findByLabelText("Apellidos")).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("busqueda").textContent).toBe(""));
+  });
+
+  it("?nuevo=caso abre el selector de caso y borra el parámetro", async () => {
+    listPatients.mockResolvedValue([fila({ id: 7, full_name: "Restrepo, María" })]);
+    renderConSonda("/app/pacientes?nuevo=caso");
+    expect(await screen.findByRole("button", { name: "elegir el primero" })).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("busqueda").textContent).toBe(""));
+  });
+
+  it("?paciente=7 abre la ficha de ese paciente y borra el parámetro", async () => {
+    getPatient.mockResolvedValue({ id: 7, surname: "Siete", given_name: "", hospital_id: "HC-7", sex: "F" });
+    patientSessions.mockResolvedValue([]);
+    patientStudies.mockResolvedValue([]);
+    renderConSonda("/app/pacientes?paciente=7");
+    expect(await screen.findByText("Guardar cambios")).toBeTruthy();
+    expect(getPatient).toHaveBeenCalledWith(7);
+    await waitFor(() => expect(screen.getByTestId("busqueda").textContent).toBe(""));
   });
 });

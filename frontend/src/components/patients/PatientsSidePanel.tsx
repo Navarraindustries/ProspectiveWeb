@@ -14,6 +14,7 @@ import { useNav } from "../../store/nav";
 import { Button } from "../Button";
 import { Icon, type IconName } from "../Icon";
 import { SectionLabel } from "../PanelHead";
+import { glass } from "../../styles/glass";
 import { useEstrecho } from "./useEstrecho";
 import "./patients.css";
 
@@ -103,7 +104,7 @@ export function PatientsSidePanel({ patients, loading, error = false, version = 
   );
 
   return (
-    <aside className="pt-side" aria-label="Resumen y accesos">
+    <aside className="pt-side" aria-label="Resumen y accesos" data-glass style={glass("dense")}>
       <section className="pt-side-block" aria-labelledby={idHoy}>
         <SectionLabel>
           <span id={idHoy}>Hoy</span>

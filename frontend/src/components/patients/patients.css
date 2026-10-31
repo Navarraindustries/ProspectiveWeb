@@ -3,16 +3,19 @@
 .pt-card {
   display: flex;
   flex-direction: column;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(130%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(130%);
+  border-radius: var(--radius-card-lg);
   overflow: hidden;
   cursor: pointer;
   font-family: var(--font-sans);
   color: var(--foreground);
-  transition: border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+  transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
-.pt-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); }
+.pt-card:hover { border-color: var(--primary); box-shadow: var(--glass-highlight), var(--shadow-md); transform: scale(1.02); }
 .pt-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .pt-card-media {
@@ -68,12 +71,14 @@
 }
 
 /* Panel lateral (spec §4.3): tres bloques apilados, solo tokens. */
-.pt-side { display: flex; flex-direction: column; gap: 14px; font-family: var(--font-sans); color: var(--foreground); }
+.pt-side { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: var(--radius-xl); position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; font-family: var(--font-sans); color: var(--foreground); }
+.pt-side-block:first-child { border-top: 0; padding-top: 0; }
 .pt-side-block {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 14px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--glass-border);
+  border-radius: 0;
+  padding: 14px 0 0;
 }
 .pt-side-stats { margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .pt-side-stat { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
@@ -110,7 +115,7 @@
 
 /* La página (spec §4.1): rejilla de tarjetas y panel lateral de 320 px.
    Tres columnas desde 1400 px, dos por debajo; una sola bajo 760 px. Bajo
-   1100 px el panel pasa debajo de la lista, «Hoy» en fila y la actividad plegada
+   1280 px el panel pasa debajo de la lista, «Hoy» en fila y la actividad plegada
    (useEstrecho; el umbral de aquí y el del hook deben coincidir). */
 .pt-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .pt-search { width: 280px; max-width: 100%; }
@@ -124,11 +129,9 @@
 .pt-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .pt-tab--on { background: var(--card); color: var(--foreground); box-shadow: var(--shadow-sm); }
 
-.pt-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
-.pt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media (max-width: 1399px) { .pt-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 1099px) { .pt-layout { grid-template-columns: 1fr; } }
-@media (max-width: 759px) { .pt-grid { grid-template-columns: 1fr; } }
+.pt-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
+.pt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+@media (max-width: 1280px) { .pt-layout { grid-template-columns: 1fr; } .pt-side { position: static; max-height: none; overflow: visible; } }
 
 /* Disposición estrecha: las cifras de «Hoy» en una fila con envoltura. */
 .pt-side-stats--fila { flex-direction: row; flex-wrap: wrap; gap: 8px 24px; }
@@ -145,3 +148,26 @@
 .pt-card--skeleton:hover { border-color: var(--border); box-shadow: none; }
 @keyframes pt-pulse { 50% { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) { .pt-card--skeleton { animation: none; } }
+
+/* Franja de avisos bajo la barra: pastillas de cristal, una al lado de otra. */
+.pt-avisos { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.pt-aviso {
+  display: inline-flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%;
+  padding: 6px 8px 6px 6px; border-radius: var(--radius-full);
+  font-family: var(--font-sans); font-size: 13px; color: var(--foreground);
+}
+.pt-aviso-icono {
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center;
+}
+.pt-aviso-titulo { font-weight: 600; white-space: nowrap; }
+.pt-aviso-detalle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
+.pt-aviso-ver {
+  flex-shrink: 0; padding: 4px 10px; border: 0; border-radius: var(--radius-full); background: transparent;
+  color: var(--data); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.pt-aviso-ver:hover { background: var(--glass-hover); }
+.pt-aviso-ver:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Sin lente con movimiento reducido. */
+@media (prefers-reduced-motion: reduce) { .pt-card:hover { transform: none; } }

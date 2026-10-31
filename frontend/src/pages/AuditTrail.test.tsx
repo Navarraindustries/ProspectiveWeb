@@ -1,6 +1,8 @@
 /* «Auditoría»: error de carga (F1-103), hora local (F1-101) y F2 (16):
    título, «Exportar» siempre, filtro por paciente, filas desplegables. */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -168,5 +170,17 @@ describe("cristal (fase 2)", () => {
     const panel = screen.getByRole("table").closest("[data-glass]");
     expect(panel).not.toBeNull();
     expect(panel!.getAttribute("style")).toContain("--glass-dense");
+  });
+
+  it("la fila de detalle desplegada va sin línea arriba y con fondo --muted", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Inicio de sesión/ }));
+    expect(screen.getByText("Hash anterior").closest("tr")).toHaveClass("fila-detalle");
+    const css = readFileSync(join(__dirname, "..", "styles", "office.css"), "utf8");
+    const regla = css.match(/\.tabla-oficina tbody tr\.fila-detalle td\s*\{([^}]*)\}/);
+    expect(regla).not.toBeNull();
+    expect(regla![1]).toMatch(/border-top:\s*0/);
+    expect(regla![1]).toMatch(/background:\s*var\(--muted\)/);
   });
 });

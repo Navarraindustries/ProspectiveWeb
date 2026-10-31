@@ -424,7 +424,7 @@ function UsersAdminPage() {
                   {["Usuario", "Rol", "Especialidad / Hospital", "Estado", "Creado", "Acciones"].map((h, i) => (
                     <th
                       key={i}
-                      style={{ textAlign: i === 5 ? "right" : "left", padding: "12px 16px", borderBottom: "1px solid var(--border)" }}
+                      style={{ textAlign: i === 5 ? "right" : "left", padding: "12px 16px" }}
                     >
                       {h}
                     </th>

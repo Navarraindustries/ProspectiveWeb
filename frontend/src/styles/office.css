@@ -10,6 +10,9 @@
 }
 .tabla-oficina tbody tr { background: transparent; }
 .tabla-oficina tbody td { border-top: 1px solid var(--border); }
+/* El detalle desplegado de una fila (Auditoría) es parte de ella: sin línea
+   que lo separe y sobre un fondo apagado que lo distingue. */
+.tabla-oficina tbody tr.fila-detalle td { border-top: 0; background: var(--muted); }
 
 .tabla-oficina tbody tr .fila-acciones { opacity: .6; transition: opacity var(--dur-1) var(--ease-out); }
 .tabla-oficina tbody tr:hover .fila-acciones,

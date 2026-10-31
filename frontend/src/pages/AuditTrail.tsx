@@ -235,7 +235,7 @@ function AuditTrailPage() {
                       </td>
                     </tr>
                     {abierto && (
-                      <tr>
+                      <tr className="fila-detalle">
                         <td colSpan={4} style={{ padding: "6px 14px 12px 38px" }}>
                           <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 14px", margin: 0 }}>
                             {detalle.map(([k, v]) => (

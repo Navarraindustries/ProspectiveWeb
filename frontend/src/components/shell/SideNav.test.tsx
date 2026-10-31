@@ -22,7 +22,19 @@ function Host() {
 
 const barra = () => screen.getByRole("navigation", { name: "Secciones" });
 
-beforeEach(() => { localStorage.clear(); nav.go.mockReset(); });
+/* Los tests de plegado parten de la barra suelta: con la ventana ancha (jsdom
+   mide 1024) la barra arranca fijada. */
+function renderNav(opts: { screen?: string } = {}) {
+  nav.screen = opts.screen ?? "studies";
+  return render(<Host />);
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem("shell.sidebar", "collapsed");
+  nav.screen = "studies";
+  nav.go.mockReset();
+});
 afterEach(() => { vi.useRealTimers(); });
 
 describe("SideNav", () => {
@@ -94,5 +106,32 @@ describe("SideNav", () => {
     lista.mockResolvedValueOnce([{ id: 1 }, { id: 2 }] as never);
     await act(async () => { window.dispatchEvent(new Event("prospective:pending-changed")); });
     expect(await screen.findByText("2")).toBeTruthy();
+  });
+
+  it("sin valor guardado y con ventana ancha arranca fijada", () => {
+    localStorage.removeItem("shell.sidebar");
+    Object.defineProperty(window, "innerWidth", { value: 1280, configurable: true });
+    renderNav();
+    expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-expanded", "true");
+  });
+
+  it("sin valor guardado y con ventana estrecha arranca plegada", () => {
+    localStorage.removeItem("shell.sidebar");
+    Object.defineProperty(window, "innerWidth", { value: 900, configurable: true });
+    renderNav();
+    expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-expanded", "false");
+  });
+
+  it("la barra activa es un solo elemento y vive en el enlace activo", () => {
+    renderNav({ screen: "studies" });
+    const bars = document.querySelectorAll("[data-nav-bar]");
+    expect(bars).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /Estudios/ }).contains(bars[0])).toBe(true);
+  });
+
+  it("el pie lleva nombre, rol y «Cerrar sesión»", () => {
+    renderNav();
+    expect(screen.getByText("Administrador", { selector: ".shell-nav-user-name" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
 });

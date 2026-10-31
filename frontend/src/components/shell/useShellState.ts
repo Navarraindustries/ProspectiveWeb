@@ -1,4 +1,5 @@
-/* Estado de la barra lateral (shell C, F2): plegada a 40 px por defecto, se
+/* Estado de la barra lateral (shell C, F2): fijada a 220 px por defecto en
+   ventanas anchas (>= 1024 px) y plegada a 40 px en las estrechas; plegada se
    expande al pasar el ratón, con Alt+B o dejándola fija con la chincheta.
 
    Solo lo fijo se recuerda (`localStorage`, clave `shell.sidebar`): el paso del
@@ -24,13 +25,19 @@ export interface ShellState {
   hoverOut: () => void;
 }
 
-/* localStorage puede no existir o estar vetado (modo privado, iframe): la
-   barra arranca plegada y no se rompe nada. */
+/* Sin valor guardado manda el ancho de la ventana; lo que el usuario eligió
+   («pinned» o «collapsed») manda siempre. localStorage puede no existir o estar
+   vetado (modo privado, iframe): entonces también decide el ancho. */
+const WIDE_WINDOW_PX = 1024;
 function readPinned(): boolean {
+  const wide = typeof window !== "undefined" && window.innerWidth >= WIDE_WINDOW_PX;
   try {
-    return localStorage.getItem(SIDEBAR_KEY) === "pinned";
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    if (saved === "pinned") return true;
+    if (saved === "collapsed") return false;
+    return wide;
   } catch {
-    return false;
+    return wide;
   }
 }
 

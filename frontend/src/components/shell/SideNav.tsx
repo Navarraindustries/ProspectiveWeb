@@ -11,14 +11,15 @@ import { useEffect, useState } from "react";
 import type { MouseEvent } from "react";
 import { Badge } from "../Badge";
 import { Icon } from "../Icon";
-import { ThemeToggle } from "../ThemeToggle";
 import { api } from "../../api/client";
+import { ROLE_LABEL } from "../../lib/roles";
+import { DUR, EASE, motion } from "../../motion";
 import { useAuth } from "../../store/auth";
 import { SCREEN_PATH, useNav } from "../../store/nav";
 import type { Screen } from "../../store/nav";
 import { Logo } from "./Logo";
 import { PENDING_CHANGED_EVENT } from "./pendingEvents";
-import { UserMenu } from "./UserMenu";
+import { LogoutButton } from "./LogoutButton";
 import { ADMIN_GROUP_LABEL, SECTIONS } from "./sections";
 import type { Section } from "./sections";
 import type { ShellState } from "./useShellState";
@@ -76,6 +77,16 @@ function SectionLink({ section, active, expanded, badge, onGo }: {
         title={expanded ? undefined : section.label}
         onClick={onClick}
       >
+        {/* Una sola barra para toda la lista: al cambiar de sección se desliza
+            de un enlace al otro en lugar de apagarse y encenderse. */}
+        {active && (
+          <motion.span
+            data-nav-bar
+            layoutId="shell-nav-bar"
+            className="shell-nav-bar"
+            transition={{ duration: DUR.estado, ease: EASE }}
+          />
+        )}
         <Icon name={section.icon} size={16} />
         <span className="shell-nav-label">{section.label}</span>
         {badge !== undefined && badge > 0 && (
@@ -146,8 +157,18 @@ export function SideNav({ state }: { state: ShellState }) {
       </ul>
 
       <div className="shell-nav-foot">
-        <ThemeToggle size="sm" />
-        <UserMenu />
+        {user && (
+          <div className="shell-nav-user">
+            <span className="shell-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+              {user.avatar_initials ?? ""}
+            </span>
+            <span className="shell-nav-user-text">
+              <span className="shell-nav-user-name">{user.full_name || user.username}</span>
+              <span className="shell-nav-user-role">{ROLE_LABEL[user.role] ?? user.role}</span>
+            </span>
+            <LogoutButton compact={!expanded} />
+          </div>
+        )}
       </div>
     </nav>
   );

@@ -12,7 +12,7 @@ vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedVal
 
 import { AppShell } from "./AppShell";
 
-beforeEach(() => { localStorage.clear(); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
+beforeEach(() => { localStorage.clear(); localStorage.setItem("shell.sidebar", "collapsed"); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
 
 describe("AppShell", () => {
   it("el administrador ve Administración con la insignia de pendientes", async () => {

@@ -1,13 +1,13 @@
-/* «Cerrar sesión» a la vista, en la barra superior del shell. El menú del
-   avatar (abajo en la barra lateral) ya lo lleva, pero en un rail de 40 px el
-   avatar no se reconoce como menú y el dueño no encontraba cómo salir. Hace lo
-   mismo que la entrada del menú: cierra la sesión y vuelve a «Entrar». */
+/* «Cerrar sesión» a la vista, en el pie de la barra lateral. El menú del
+   avatar ya lo lleva, pero no se reconocía como menú y el dueño no encontraba
+   cómo salir. Hace lo mismo que la entrada del menú: cierra la sesión y vuelve
+   a «Entrar». Con la barra plegada (`compact`) queda solo el icono. */
 
 import { Icon } from "../Icon";
 import { useAuth } from "../../store/auth";
 import { useNav } from "../../store/nav";
 
-export function LogoutButton() {
+export function LogoutButton({ compact = false }: { compact?: boolean }) {
   const { user, logout } = useAuth();
   const nav = useNav();
   if (!user) return null;
@@ -16,10 +16,11 @@ export function LogoutButton() {
       type="button"
       className="shell-logout"
       title="Cerrar la sesión y volver a «Entrar»"
+      aria-label={compact ? "Cerrar sesión" : undefined}
       onClick={() => { logout(); nav.go("login"); }}
     >
       <Icon name="LOGOUT" size={14} />
-      <span>Cerrar sesión</span>
+      {!compact && <span>Cerrar sesión</span>}
     </button>
   );
 }

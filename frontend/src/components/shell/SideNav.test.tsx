@@ -12,6 +12,7 @@ vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "dark", t
 vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([]) } }));
 
 import { api } from "../../api/client";
+import { SECTIONS } from "./sections";
 import { SideNav } from "./SideNav";
 import { useShellState } from "./useShellState";
 
@@ -123,6 +124,14 @@ describe("SideNav", () => {
     Object.defineProperty(window, "innerWidth", { value: 900, configurable: true });
     renderNav();
     expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-expanded", "false");
+  });
+
+  it("plegada, cada enlace de sección conserva su nombre accesible y la barra es de cristal", () => {
+    renderNav();
+    expect(barra().getAttribute("data-expanded")).toBe("false");
+    expect(barra()).toHaveAttribute("data-glass");
+    const enlaces = [...document.querySelectorAll("a.shell-nav-link")];
+    expect(enlaces.map((a) => a.getAttribute("aria-label"))).toEqual(SECTIONS.map((s) => s.label));
   });
 
   it("la barra activa es un solo elemento y vive en el enlace activo", () => {

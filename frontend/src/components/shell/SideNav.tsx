@@ -1,4 +1,4 @@
-/* Barra lateral de iconos (shell C, F2): 40 px plegada, 220 px expandida.
+/* Barra lateral de iconos (shell C, F2): 64 px plegada, 240 px expandida.
 
    Un solo acceso a cada sección, también a las de administración: antes había
    menú de usuario, botón de casa, acceso a «Solicitudes» desde pacientes y otro
@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import type { MouseEvent } from "react";
 import { Badge } from "../Badge";
 import { Icon } from "../Icon";
+import { glass } from "../../styles/glass";
 import { api } from "../../api/client";
 import { ROLE_LABEL } from "../../lib/roles";
 import { DUR, EASE, motion } from "../../motion";
@@ -74,6 +75,7 @@ function SectionLink({ section, active, expanded, badge, onGo }: {
         href={SCREEN_PATH[section.key]}
         className="shell-nav-link"
         aria-current={active ? "page" : undefined}
+        aria-label={section.label}
         title={expanded ? undefined : section.label}
         onClick={onClick}
       >
@@ -110,6 +112,8 @@ export function SideNav({ state }: { state: ShellState }) {
   return (
     <nav
       className="shell-nav"
+      data-glass
+      style={{ ...glass("normal"), border: "none", borderRight: "1px solid var(--glass-border)", borderRadius: 0 }}
       aria-label="Secciones"
       data-expanded={expanded ? "true" : "false"}
       onMouseEnter={hoverIn}

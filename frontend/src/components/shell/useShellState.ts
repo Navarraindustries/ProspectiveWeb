@@ -1,5 +1,5 @@
-/* Estado de la barra lateral (shell C, F2): fijada a 220 px por defecto en
-   ventanas anchas (>= 1024 px) y plegada a 40 px en las estrechas; plegada se
+/* Estado de la barra lateral (shell C, F2): fijada a 240 px por defecto en
+   ventanas anchas (>= 1024 px) y plegada a 64 px en las estrechas; plegada se
    expande al pasar el ratón, con Alt+B o dejándola fija con la chincheta.
 
    Solo lo fijo se recuerda (`localStorage`, clave `shell.sidebar`): el paso del
@@ -29,7 +29,15 @@ export interface ShellState {
    («pinned» o «collapsed») manda siempre. localStorage puede no existir o estar
    vetado (modo privado, iframe): entonces también decide el ancho. */
 const WIDE_WINDOW_PX = 1024;
+/** A 1280 px o menos la barra arranca plegada aunque la preferencia diga
+    «fijada»: el contenido necesita el sitio. No se toca lo guardado. */
+const NARROW_QUERY = "(max-width: 1280px)";
+function isNarrow(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia(NARROW_QUERY)?.matches === true;
+}
 function readPinned(): boolean {
+  if (isNarrow()) return false;
   const wide = typeof window !== "undefined" && window.innerWidth >= WIDE_WINDOW_PX;
   try {
     const saved = localStorage.getItem(SIDEBAR_KEY);

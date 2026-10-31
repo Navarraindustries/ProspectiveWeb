@@ -1159,7 +1159,6 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
-    out.push(...candidateScene.markers);
     if (clSource) out.push({ pos: clSource, color: SOURCE_COLOR });
     if (clTarget) out.push({ pos: clTarget, color: TARGET_COLOR });
     for (const p of annotationDraft) out.push({ pos: p, color: PENDING_COLOR });
@@ -1834,7 +1833,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // marcado armado o una medida a mano en Morfometría se conserva la cámara.
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
-          <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} labels={meshLabels} cropPreview={cropPreview}
+          <MeshView layers={layers} markers={markers} focus={focusMarker} beacons={candidateScene.beacons} planes={planes} lines={lines} labels={meshLabels} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null || candidatePick} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices" || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}
             handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}

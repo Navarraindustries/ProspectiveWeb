@@ -69,6 +69,7 @@ export interface HandleDragEvent {
 
 const NO_HANDLES: Handle[] = [];
 const NO_LABELS: MeshLabel[] = [];
+const NO_BEACONS: MeshFocus[] = [];
 
 /** Los tres cortes de índice en gris dentro de la escena (modo «Cortes 3D»):
  *  dónde va cada uno, el volumen que remuestrean y la ventana de los cortes. */
@@ -147,6 +148,8 @@ export interface MeshFocus {
   pos: Vec3;
   color: Vector3;
   radiusMm: number;
+  /** 1 si se omite. Las balizas de candidatos descartados van tenues. */
+  opacity?: number;
 }
 
 export interface MeshLine {
@@ -165,7 +168,14 @@ export interface MeshLine {
 }
 
 /** Rótulo en pantalla anclado a un punto de la escena (mm). */
-export interface MeshLabel { pos: Vec3; text: string; color: string }
+export interface MeshLabel {
+  pos: Vec3;
+  text: string;
+  color: string;
+  /** Radio en mm de la esfera que rotula: el texto se aparta a su borde en
+   *  vez de caer dentro (las balizas de candidatos). */
+  clearMm?: number;
+}
 
 /** Standard viewpoints, named for the MPR planes the rest of the app uses.
  *  They are defined in patient (LPS) terms and mapped into mesh coordinates
@@ -212,6 +222,8 @@ interface Handles {
   overlay: vtkRenderer;
   focusActor: vtkActor;
   focusSphere: ReturnType<typeof vtkSphereSource.newInstance>;
+  /** Balizas (candidatos a la vez): esferas en la misma capa superior, una por entrada. */
+  beaconActors: { actor: vtkActor; sphere: ReturnType<typeof vtkSphereSource.newInstance> }[];
   /** Copia la cámara principal a la de la capa y ajusta su recorte al punto. */
   syncOverlay: () => void;
   renderWindow: ReturnType<vtkFullScreenRenderWindow["getRenderWindow"]>;
@@ -233,6 +245,7 @@ export function MeshView({
   layers,
   markers = [],
   focus = null,
+  beacons = NO_BEACONS,
   planes = [],
   lines = [],
   labels = NO_LABELS,
@@ -261,6 +274,10 @@ export function MeshView({
   markers?: MeshMarker[];
   /** El punto compartido de los cortes, visible siempre encima de la malla. */
   focus?: MeshFocus | null;
+  /** Esferas en la capa superior, como el foco, con radio en mm: señalan
+   *  puntos que suelen estar DENTRO del vaso (los candidatos) y por eso un
+   *  marcador normal quedaría tapado por la malla. */
+  beacons?: MeshFocus[];
   lines?: MeshLine[];
   /** Rótulos de las anotaciones: texto HTML/SVG encima del lienzo, no actores,
    *  para que se lean igual a cualquier zoom. Se recolocan con cada cambio de cámara. */
@@ -408,8 +425,17 @@ export function MeshView({
       // Fuera de [0, 1] en profundidad: detrás de la cámara (o fuera de su recorte).
       if (!(d[2] >= 0 && d[2] <= 1)) { t.setAttribute("display", "none"); return; }
       const p = toPixels([d[0], d[1]], w, ht);
-      t.setAttribute("x", (p.x + 6).toFixed(1));
-      t.setAttribute("y", (p.y - 6).toFixed(1));
+      // Si rotula una esfera, se aparta su radio en píxeles (proyectando el
+      // radio a lo largo del «arriba» de la cámara) hacia la esquina superior derecha.
+      let clear = 0;
+      if (l.clearMm) {
+        const up = h.renderer.getActiveCamera().getViewUp();
+        const d2 = h.renderer.worldToNormalizedDisplay(l.pos[0] + up[0] * l.clearMm, l.pos[1] + up[1] * l.clearMm, l.pos[2] + up[2] * l.clearMm, w / ht);
+        const p2 = toPixels([d2[0], d2[1]], w, ht);
+        clear = Math.hypot(p2.x - p.x, p2.y - p.y) * 0.72;
+      }
+      t.setAttribute("x", (p.x + 6 + clear).toFixed(1));
+      t.setAttribute("y", (p.y - 6 - clear).toFixed(1));
       t.removeAttribute("display");
     });
   }).current;
@@ -438,6 +464,7 @@ export function MeshView({
   const appearanceKey = layers.map((l) => `${l.id ?? l.url}|${l.color.join(",")}|${l.opacity ?? 1}`).join(";");
   const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}`).join(";");
   const focusKey = focus ? `${focus.pos.join(",")}|${focus.color.join(",")}|${focus.radiusMm}` : "";
+  const beaconsKey = beacons.map((b) => `${b.pos.join(",")}|${b.color.join(",")}|${b.radiusMm}|${b.opacity ?? 1}`).join(";");
   const planeKey = planes.map((p) => p.corners.flat().join(",") + "|" + p.color.join(",")).join(";");
   const lineKey = lines
     .map((l) => `${l.a.join(",")}-${l.b.join(",")}|${l.color.join(",")}|${l.radiusMm ?? ""}|${l.opacity ?? ""}|${l.scale ?? 1}`)
@@ -505,6 +532,13 @@ export function MeshView({
       // recortada, y tampoco se podría pinchar (el rayo del picker va del
       // plano cercano al lejano). Sin nada visible el recorte queda como esté.
       let b: Bounds | null = focusActor.getVisibility() ? [...focusActor.getBounds()] as Bounds : null;
+      for (const bc of handles.current?.beaconActors ?? []) {
+        if (!bc.actor.getVisibility()) continue;
+        const ab = bc.actor.getBounds();
+        b = b
+          ? [Math.min(b[0], ab[0]), Math.max(b[1], ab[1]), Math.min(b[2], ab[2]), Math.max(b[3], ab[3]), Math.min(b[4], ab[4]), Math.max(b[5], ab[5])]
+          : [...ab] as Bounds;
+      }
       const hb = handleBounds.current;
       if (hb) {
         b = b
@@ -519,7 +553,7 @@ export function MeshView({
 
     handles.current = {
       fsrw, renderer, renderWindow, actors: [], actorByUrl: new Map(),
-      overlay, focusActor, focusSphere, syncOverlay,
+      overlay, focusActor, focusSphere, syncOverlay, beaconActors: [],
     };
     // La rejilla del visor mueve la escena entre la principal y una celda
     // lateral sin remontarla, así que el lienzo tiene que seguir a su celda
@@ -1096,6 +1130,37 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, focusKey]);
+
+  // Balizas: igual que el foco pero varias. El pool de actores crece cuando
+  // hacen falta más y los sobrantes se ocultan: elegir otro candidato no
+  // rehace esferas, solo cambia color, radio y opacidad.
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    while (h.beaconActors.length < beacons.length) {
+      const sphere = vtkSphereSource.newInstance({ radius: 1, thetaResolution: 16, phiResolution: 16 });
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(sphere.getOutputPort());
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+      actor.getProperty().setLighting(false);
+      actor.setPickable(false);
+      h.overlay.addActor(actor);
+      h.beaconActors.push({ actor, sphere });
+    }
+    h.beaconActors.forEach((bc, i) => {
+      const b = beacons[i];
+      if (!b) { bc.actor.setVisibility(false); return; }
+      bc.sphere.setRadius(b.radiusMm);
+      bc.actor.setPosition(b.pos[0], b.pos[1], b.pos[2]);
+      bc.actor.getProperty().setColor(...b.color);
+      bc.actor.getProperty().setOpacity(b.opacity ?? 1);
+      bc.actor.setVisibility(true);
+    });
+    h.syncOverlay();
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, beaconsKey]);
 
   // ── Cortes 3D: los tres cortes de índice en gris en su posición real ──── #
   //

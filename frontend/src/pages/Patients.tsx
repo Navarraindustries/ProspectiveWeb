@@ -92,7 +92,7 @@ export function Patients({
 
   const openCreate = () => { setSheetPatientId(null); setSheetOpen(true); };
   // Fusión nº 8: «Editar» era la única puerta a la ficha y se anunciaba como
-  // una edición; ahora la abren el clic en la fila y «Abrir ficha».
+  // una edición; ahora la abren el clic en la tarjeta y su Intro.
   const openSheet = (id: number) => { setSheetPatientId(id); setSheetOpen(true); };
 
   const [pestana, setPestana] = useState<PestanaPacientes>("todos");
@@ -235,7 +235,7 @@ export function Patients({
       <PatientSheet
         open={sheetOpen}
         patientId={sheetPatientId}
-        // La fila trae quién lo creó: decide «Compartir con…» y «Eliminar paciente».
+        // El resumen trae quién lo creó: decide «Compartir con…» y «Eliminar paciente».
         summary={sheetPatientId === null ? null : patients.find((x) => x.id === sheetPatientId) ?? null}
         onClose={() => setSheetOpen(false)}
         onSaved={(creado) => {

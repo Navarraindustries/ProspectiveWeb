@@ -111,8 +111,8 @@ describe("la ficha de un paciente ajeno", () => {
     expect(await screen.findByText("No autorizado sobre este paciente.")).toBeTruthy();
     expect(screen.queryByText("Guardar cambios")).toBeNull();
     expect(screen.queryByText(/Casos \(/)).toBeNull();
-    // «Pedidos de clips» es un acceso del panel lateral, no de la ficha.
-    expect(screen.queryByText(/^Pedidos(?! de clips)/)).toBeNull();
+    // «Pedidos de clips» sigue siendo un acceso del panel lateral: se mira solo la ficha.
+    expect(within(screen.getByRole("dialog")).queryByText(/Pedidos/)).toBeNull();
     expect(screen.queryByText(/Reanudar en/)).toBeNull();
     expect(screen.queryByLabelText("Apellidos")).toBeNull();
   });
@@ -404,14 +404,25 @@ describe("la lista de pacientes (F2)", () => {
     expect(screen.getByText("Accesos")).toBeTruthy();
   });
 
-  it("la cabecera lleva solo las acciones clínicas; Usuarios y Estudios son accesos del panel lateral", async () => {
+  it("las acciones de la cabecera son solo las clínicas; Usuarios y Estudios son accesos del panel lateral", async () => {
     user.role = "admin";
     listPatients.mockResolvedValue([fila({ id: 1, full_name: "Uno" })]);
     renderAt("/app/pacientes");
     await screen.findByText("Uno");
+    // Fuera del panel lateral no hay «Usuarios», «Cuentas pendientes» ni «Estudios» (F2-20, F2-21).
+    const panel = screen.getByRole("complementary", { name: "Resumen y accesos" });
+    const fuera = (re: RegExp) =>
+      screen.queryAllByText(re).filter((el) => !panel.contains(el));
+    expect(fuera(/Usuarios/)).toHaveLength(0);
+    expect(fuera(/Cuentas pendientes|Solicitudes/)).toHaveLength(0);
+    expect(fuera(/^Estudios$/)).toHaveLength(0);
+    // Y dentro, cada acceso una sola vez.
     const accesos = within(screen.getByText("Accesos").closest("section")!);
-    expect(accesos.getByRole("button", { name: "Usuarios" })).toBeTruthy();
-    expect(accesos.getByRole("button", { name: "Estudios" })).toBeTruthy();
+    expect(accesos.getAllByRole("button", { name: "Usuarios" })).toHaveLength(1);
+    expect(accesos.getAllByRole("button", { name: "Estudios" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Usuarios" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Estudios" })).toHaveLength(1);
+    // Las tres acciones clínicas de la cabecera.
     expect(screen.getAllByRole("button", { name: /Nuevo paciente/ }).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Nuevo caso/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Empezar sin paciente/ }).getAttribute("title"))

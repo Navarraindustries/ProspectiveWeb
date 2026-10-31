@@ -137,6 +137,8 @@ Orden alternativo si el dueño quiere enseñar algo pronto: 1 → 5 → 4 → 2 
 
 Fase 1 completada el 2026-10-31: tokens, movimiento y componentes base (Button, Badge, Input, Select, Tabs, Sheet); ver plan `docs/superpowers/plans/2026-10-30-rediseno-fase1-tokens-movimiento.md`.
 
+Fase 2 completada el 2026-10-31: shell de la oficina (barra lateral fijada con barra deslizante, barra superior de 56 px con subtítulo y avatar-menú, Pacientes con avisos clínicos, hojas con pie fijo y ficha de 620 px, Estudios con tarjetas, Usuarios y administración con la cabecera única); ver plan `docs/superpowers/plans/2026-10-31-rediseno-fase2-shell-oficina.md`.
+
 ## 8. Decisiones tras la revisión del constructor (30-10, noche)
 
 Un revisor independiente leyó este documento como si tuviera que construirlo sin preguntar. De sus once dudas, diez se resuelven aquí como decisiones del diseñador (marcadas «mi decisión»); la primera la decide el dueño.

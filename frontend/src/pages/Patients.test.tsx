@@ -60,7 +60,8 @@ vi.mock("./NuevoCaso", () => ({
     ) : null,
 }));
 vi.mock("./Studies", () => ({ StudyGallery: () => null }));
-vi.mock("../store/nav", () => ({ useNav: () => ({ go: vi.fn() }) }));
+const go = vi.fn();
+vi.mock("../store/nav", () => ({ useNav: () => ({ go }) }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 
@@ -98,6 +99,7 @@ beforeEach(() => {
   deletePatient.mockReset().mockResolvedValue(undefined);
   createPatient.mockReset();
   listClipOrders.mockReset().mockResolvedValue([]);
+  go.mockReset();
   onResume.mockReset();
   onPlanCase.mockReset();
   user.id = 1;
@@ -538,5 +540,16 @@ describe("avisos clínicos, acciones de fila y barra (fase 2)", () => {
     expect(nombres.indexOf("Nuevo paciente")).toBeLessThan(nombres.indexOf("Nuevo caso"));
     expect(nombres.indexOf("Nuevo caso")).toBeLessThan(nombres.indexOf("Prueba rápida sin paciente"));
     expect(within(header).queryByText("Empezar sin paciente")).toBeNull();
+  });
+
+  it("muestra el aviso de pedidos parados y «Ver» lleva a los pedidos", async () => {
+    listClipOrders.mockResolvedValue([
+      { part_no: "PR-2026-0002", status: "enviado", updated_at: Date.now() / 1000 - 60 * 86400 },
+    ]);
+    render(<MemoryRouter><Patients {...props} /></MemoryRouter>);
+    expect(await screen.findByText("1 pedido de clip parado")).toBeInTheDocument();
+    expect(screen.getByText("PR-2026-0002")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ver" }));
+    expect(go).toHaveBeenCalledWith("orders");
   });
 });

@@ -110,11 +110,14 @@ export function Patients({
   };
   useEffect(load, []);
 
+  // El temporizador de la fila nueva arranca cuando la fila ya está montada
+  // (tras la recarga), no al crear: con una recarga lenta se apagaba antes.
+  const nuevaMontada = nuevaId !== null && patients.some((x) => x.id === nuevaId);
   useEffect(() => {
-    if (nuevaId === null) return;
+    if (!nuevaMontada) return;
     const t = setTimeout(() => setNuevaId(null), 1200);
     return () => clearTimeout(t);
-  }, [nuevaId]);
+  }, [nuevaMontada]);
 
   // ?paciente=<id> opens that patient's sheet on arrival, so the breadcrumb in
   // the workspace can lead back to the case instead of just the list.
@@ -187,7 +190,7 @@ export function Patients({
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }} className="fade-rise">
           {avisos.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
               {avisos.map((av) => (
                 <Card key={av.titulo} style={{ padding: "14px 16px" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>

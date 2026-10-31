@@ -48,15 +48,15 @@ export type Aviso = {
 const tres = (xs: string[]) => xs.slice(0, 3).join(" · ");
 
 export function avisosOficina(
-  { patients, orders, ahora }: { patients: PatientSummary[]; orders: ClipOrder[] | null; ahora: Date },
+  { patients, orders, ahora, dias = 7 }: { patients: PatientSummary[]; orders: ClipOrder[] | null; ahora: Date; dias?: number },
 ): Aviso[] {
   const avisos: Aviso[] = [];
 
-  const parados = casosParados(patients, ahora);
+  const parados = casosParados(patients, ahora, dias);
   if (parados.length > 0) {
     avisos.push({
       tono: "warning",
-      titulo: `${parados.length} ${parados.length === 1 ? "caso parado" : "casos parados"} antes del informe más de 7 días`,
+      titulo: `${parados.length} ${parados.length === 1 ? "caso parado" : "casos parados"} antes del informe más de ${dias} días`,
       detalle: tres(parados.map((p) => p.full_name)),
       destino: null,
     });

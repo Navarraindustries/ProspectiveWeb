@@ -43,7 +43,6 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
         background: on ? "var(--primary-hover)" : "var(--primary)",
         color: "var(--primary-foreground)",
         boxShadow: disabled ? undefined : "var(--shadow-primary)",
-        transform: on ? "translateY(-1px)" : undefined,
       };
     case "outline":
       return {
@@ -102,6 +101,7 @@ export function Button({
     <motion.button
       {...(disabled ? {} : pressable)}
       {...rest}
+      whileHover={variant === "default" && !disabled ? { y: -1 } : undefined}
       data-variant={variant}
       data-size={size}
       disabled={disabled}
@@ -122,7 +122,7 @@ export function Button({
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.55 : 1,
         transition:
-          "transform var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out)",
+          "background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out)",
         ...variantStyle(variant, hover, !!disabled),
         ...style,
       }}

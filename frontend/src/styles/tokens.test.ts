@@ -78,10 +78,27 @@ describe("tokens de la identidad A", () => {
     // contraste WCAG calculado sobre los hex del bloque claro
     const l = (hex: string) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
     const ratio = (a: string, b: string) => { const [x, y] = [l(a), l(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-    expect(ratio("#5B6470", "#F6F7F9")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("#15803D", "#DCFCE7")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("#B91C1C", "#FEE2E2")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("#92400E", "#FEF3C7")).toBeGreaterThanOrEqual(4.5);
+    // Los hex salen del propio bloque claro de colors.css, no de literales copiados aquí.
+    const css = readFileSync(join(__dirname, "tokens/colors.css"), "utf8").replace(/\r\n/g, "\n");
+    // Con la llave y al inicio de línea: el comentario de cabecera también nombra el selector.
+    const start = css.indexOf('\n[data-theme="light"] {');
+    expect(start).toBeGreaterThan(-1);
+    const light = css.slice(start, css.indexOf("\n}", start));
+    const hex = (name: string) => {
+      const m = light.match(new RegExp(`${name}:\\s*(#[0-9A-Fa-f]{6})\\b`));
+      expect(m, `${name} no es un #RRGGBB en el bloque claro`).not.toBeNull();
+      return m![1];
+    };
+    const pairs: [string, string][] = [
+      ["--muted-foreground", "--canvas"],
+      ["--success", "--success-bg"],
+      ["--destructive", "--destructive-bg"],
+      ["--warning", "--warning-bg"],
+      ["--accent-foreground", "--accent"],
+    ];
+    for (const [fg, bg] of pairs) {
+      expect(ratio(hex(fg), hex(bg)), `${fg} sobre ${bg}`).toBeGreaterThanOrEqual(4.5);
+    }
   });
   it("las duraciones son 120/240/480/900 y los nombres viejos son alias", () => {
     const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8");
@@ -118,7 +135,7 @@ describe("tokens de la identidad A", () => {
     expect(base).toMatch(/::selection\s*\{[^}]*background:\s*var\(--accent\)/);
     expect(base).toMatch(/::selection\s*\{[^}]*color:\s*var\(--foreground\)/);
     expect(base).toMatch(/input, textarea\s*\{[^}]*caret-color:\s*var\(--primary\)/);
-    expect(base).toMatch(/\*\s*\{[^}]*scrollbar-color:\s*var\(--border\) transparent/);
+    expect(base).toMatch(/\*\s*\{[^}]*scrollbar-color:\s*color-mix\(in srgb, var\(--muted-foreground\) 45%, transparent\) transparent/);
     expect(base).toMatch(/@supports not \(scrollbar-color: auto\)\s*\{[\s\S]*::-webkit-scrollbar-thumb/);
     expect(base).toMatch(/::-webkit-scrollbar-thumb\s*\{[^}]*border-radius:\s*var\(--radius-full\)/);
   });

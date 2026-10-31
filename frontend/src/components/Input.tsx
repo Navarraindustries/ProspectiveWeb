@@ -39,6 +39,9 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
       color: "var(--foreground)",
       fontFamily: "var(--font-sans)",
       fontSize: 14,
+      // Chromium aplica :focus-visible a los campos de texto también con ratón y con focus():
+      // sin esto salía un doble anillo (el global de --ring sobre el campo + el del contorno).
+      outline: "none",
       ...(multiline ? { resize: "vertical" as const, minHeight: "calc(var(--control-md) * 2)", lineHeight: 1.45 } : {}),
       ...style,
     },
@@ -61,7 +64,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
           borderRadius: "var(--radius-md)",
           background: "var(--canvas)",
           border: `1px solid ${invalid ? "var(--destructive)" : focused ? "var(--primary)" : "var(--input)"}`,
-          boxShadow: focused ? "0 0 0 4px var(--accent)" : "var(--shadow-xs)",
+          boxShadow: focused ? "0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent)" : "var(--shadow-xs)",
         }}
       >
         {icon && <span style={{ color: "var(--muted-foreground)", display: "flex" }}>{icon}</span>}

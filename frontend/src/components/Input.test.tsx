@@ -36,14 +36,17 @@ describe("Input", () => {
     expect(seen).toEqual(["hola"]);
   });
 
-  // El anillo lo pone el :focus-visible global sobre el propio campo: nada en línea lo anula ni lo duplica.
-  it.each([false, true])("leaves the focus ring to the global rule (multiline=%s)", (multiline) => {
+  // Un solo anillo: el del contorno. El campo anula el :focus-visible global (que Chromium aplica
+  // también con ratón y con focus()) y el contorno dibuja el halo con --primary, no con --ring.
+  it.each([false, true])("un solo anillo de foco, el del contorno (multiline=%s)", (multiline) => {
     render(<Input label="Nombre" multiline={multiline} />);
     const field = screen.getByLabelText("Nombre");
     const wrapper = field.parentElement as HTMLElement;
+    expect(field.style.outline).toBe("none");
     fireEvent.focus(field);
-    expect(field.style.outline).toBe("");
+    expect(field.style.outline).toBe("none");
     expect(field.style.boxShadow).toBe("");
+    expect(wrapper.style.boxShadow).toContain("--primary");
     expect(wrapper.style.boxShadow).not.toContain("--ring");
   });
 
@@ -55,13 +58,13 @@ describe("Input", () => {
     expect(label.style.fontWeight).toContain("--weight-label");
   });
 
-  it("al enfocar, el contorno toma el borde primario y el anillo de acento", () => {
+  it("al enfocar, el contorno toma el borde primario y el halo primario", () => {
     render(<Input label="Nombre" />);
     const field = screen.getByLabelText("Nombre");
     const wrapper = field.parentElement as HTMLElement;
     fireEvent.focus(field);
     expect(wrapper.style.border).toContain("--primary");
-    expect(wrapper.style.boxShadow).toContain("--accent");
+    expect(wrapper.style.boxShadow).toContain("--primary");
     fireEvent.blur(field);
     expect(wrapper.style.border).toContain("--input");
   });
@@ -72,7 +75,7 @@ describe("Input", () => {
     const wrapper = field.parentElement as HTMLElement;
     fireEvent.focus(field);
     expect(wrapper.style.border).toContain("--destructive");
-    expect(wrapper.style.boxShadow).toContain("--accent");
+    expect(wrapper.style.boxShadow).toContain("--primary");
   });
 
   it("encadena los onFocus y onBlur del llamador", () => {

@@ -36,7 +36,7 @@ input, textarea {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 45%, transparent) transparent;
 }
 
 /* En Chromium manda scrollbar-color; el bloque webkit queda para Safari. */
@@ -46,7 +46,7 @@ input, textarea {
     height: 10px;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--border);
+    background: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
     border-radius: var(--radius-full);
     border: 2px solid transparent;
     background-clip: padding-box;

@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App";
+import { MotionConfig } from "./motion";
 import { Landing } from "./pages/Landing";
 import { ThemeProvider } from "./store/theme";
 import "./styles/index.css";
@@ -18,7 +19,10 @@ const router = createBrowserRouter([
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
-      <RouterProvider router={router} />
+      {/* La regla global de base.css solo frena CSS; esto frena también el movimiento de JS. */}
+      <MotionConfig reducedMotion="user">
+        <RouterProvider router={router} />
+      </MotionConfig>
     </ThemeProvider>
   </StrictMode>
 );

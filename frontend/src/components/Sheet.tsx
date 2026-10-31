@@ -53,6 +53,9 @@ export function Sheet({
   // y la ficha de debajo pasaba a ser la de encima.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // El velo sigue en pantalla los 480 ms de la salida: un clic ahí no debe cerrar otra vez.
+  const openRef = useRef(open);
+  openRef.current = open;
   useEffect(() => {
     if (!open) return;
     const token = {};
@@ -63,9 +66,9 @@ export function Sheet({
     document.addEventListener("keydown", onKey);
     const previous = document.activeElement as HTMLElement | null;
     const first = panelRef.current?.querySelector<HTMLElement>(
-      'input, textarea, select, button:not([aria-label="Cerrar"])',
+      'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([aria-label="Cerrar"])',
     );
-    (first ?? panelRef.current)?.focus();
+    (first ?? panelRef.current)?.focus({ preventScroll: true });
     return () => {
       document.removeEventListener("keydown", onKey);
       openSheets.splice(openSheets.indexOf(token), 1);
@@ -83,7 +86,7 @@ export function Sheet({
             animate="animate"
             exit="exit"
             transition={transition}
-            onClick={onClose}
+            onClick={() => { if (openRef.current) onClose(); }}
             style={{ position: "absolute", inset: 0, background: "color-mix(in srgb, var(--canvas) 55%, transparent)" }}
           />
           <motion.div

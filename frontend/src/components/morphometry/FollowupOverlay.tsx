@@ -13,7 +13,6 @@ import { ErrorNote, SectionLabel } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
 import { cifra, mm } from "../../lib/numero";
 
-
 export function FollowupOverlay({ sessionId }: { sessionId: string }) {
   const { followup, setFollowup } = usePlanning();
   const [studies, setStudies] = useState<FollowupStudy[] | null>(null);

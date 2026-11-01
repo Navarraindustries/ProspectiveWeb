@@ -73,6 +73,10 @@
   --scrim:              rgba(5, 6, 8, 0.55);    /* velo de hojas y diálogos */
   --scrim-dense:        rgba(5, 6, 8, 0.72);
   --glass-dense:        linear-gradient(rgba(8, 9, 12, 0.72), rgba(8, 9, 12, 0.72)), rgba(255, 255, 255, 0.08);
+  /* Cristal que flota sobre la imagen (dock y hoja inferior, glass("viewer")): sin
+     --veil debajo, su peor fondo es una zona blanca del corte; 0,80 es lo justo
+     para que --data y --destructive-text lleguen a 4,5:1 ahí (cristal.audit.test.ts). */
+  --glass-viewer:       linear-gradient(rgba(8, 9, 12, 0.80), rgba(8, 9, 12, 0.80)), rgba(255, 255, 255, 0.08);
   --glass-solid:        #101217;                /* fondo opaco de reserva */
   --glass-border:       rgba(255, 255, 255, 0.2);
   --glass-highlight:    inset 0 1px 0 rgba(255, 255, 255, 0.35);
@@ -157,7 +161,7 @@
   --destructive-text:   #B91C1C;
   --destructive-bg:     #FEE2E2;
   --destructive-foreground: #FFFFFF;
-  --success:            #15803D;
+  --success:            #147A3A;   /* un punto más oscuro que #15803D: 4,5:1 sobre el cristal encima del visor */
   --success-bg:         #DCFCE7;
   --warning:            #92400E;
   --warning-bg:         #FEF3C7;
@@ -168,12 +172,17 @@
   --field-bg:           #FFFFFF;
   --ring:               var(--primary);
 
-  --glass:              rgba(255, 255, 255, 0.72);
+  /* En el claro el peor fondo del cristal es el negro del quirófano (--viewer-bg):
+     pastillas (--glass), inspector (--glass-dense), dock y hoja inferior
+     (--glass-viewer) flotan sobre él. Con 0,92 el fondo queda en #EBEBEB y el texto
+     llega a 4,5:1 (cristal.audit.test.ts); sobre el lienzo claro no se nota. */
+  --glass:              rgba(255, 255, 255, 0.92);
   --veil:               rgba(243, 245, 248, 0);   /* sin imagen de fondo en el claro */
   --veil-dense:         rgba(243, 245, 248, 0);
   --scrim:              rgba(11, 12, 15, 0.24);   /* las hojas sí necesitan velo en el claro */
   --scrim-dense:        rgba(11, 12, 15, 0.32);
-  --glass-dense:        rgba(255, 255, 255, 0.86);
+  --glass-dense:        rgba(255, 255, 255, 0.92);
+  --glass-viewer:       rgba(255, 255, 255, 0.92);
   --glass-solid:        #FFFFFF;
   --glass-border:       rgba(0, 0, 0, 0.08);
   --glass-highlight:    inset 0 1px 0 rgba(255, 255, 255, 0.9);

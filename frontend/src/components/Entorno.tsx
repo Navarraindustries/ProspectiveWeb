@@ -6,7 +6,6 @@ import { useThemeContext } from "../store/theme";
 
 export const ENTORNO_SRC = "/media/entorno/corte-036.webp";
 
-
 export function Entorno({ dense = false, children }: { dense?: boolean; children?: ReactNode }) {
   const { theme } = useThemeContext();
   const sinTransparencia = useMediaQuery("(prefers-reduced-transparency: reduce)");

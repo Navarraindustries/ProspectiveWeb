@@ -36,13 +36,30 @@ function openingTagEnd(src: string, start: number): number {
   return src.length;
 }
 
+/* Contenido de un botón que es solo un <Icon …/> (con llaves anidadas en las props):
+   suelto, {cond && <Icon/>}, {cond ? <Icon/> : null} o {cond ? null : <Icon/>}. */
+function esSoloIcono(c: string): boolean {
+  let x = c.startsWith("{") && c.endsWith("}") ? c.slice(1, -1).trim() : c;
+  if (x !== c) {
+    const ternario = x.match(/^([^<]*?)\?\s*null\s*:\s*(<Icon[\s\S]*)$/);
+    if (ternario) x = ternario[1] + ternario[2];
+    else x = x.replace(/\s*:\s*null$/, "");
+  }
+  const i = x.indexOf("<Icon");
+  if (i < 0 || x.slice(0, i).includes("<")) return false;
+  const fin = openingTagEnd(x, i);
+  return x[fin - 1] === "/" && x.slice(fin + 1).trim() === "";
+}
+/* Botones de solo icono que el recorrido reconoce hoy (todos con aria-label). */
+const SUELO_SOLO_ICONO = 11;
+
 /* Falsos positivos de (a): fichero → motivo. */
 const GLASS_PERMITIDO: Record<string, string> = {
   "components/BottomSheet.tsx": "el hook devuelve el estilo; data-glass lo pone el consumidor (RightPanelColumn) en el mismo JSX",
 };
-/* Reglas CSS con backdrop-filter que no llevan [data-glass] en el selector: selector → motivo. */
+/* Reglas CSS con backdrop-filter que no llevan [data-glass] en el selector: «fichero selector» → motivo. */
 const CSS_PERMITIDO: Record<string, string> = {
-  ".pt-card-pill": "la pastilla lleva data-glass en su JSX (PatientCard.tsx); la reserva opaca sale de base.css",
+  "components/patients/patients.css .pt-card-pill": "la pastilla lleva data-glass en su JSX (PatientCard.tsx); la reserva opaca sale de base.css",
 };
 /* Falsos positivos de (b): fichero → motivo. */
 const ICONO_PERMITIDO: Record<string, string> = {
@@ -54,7 +71,8 @@ const HUD_PERMITIDO: string[] = [];
 describe("auditoría del cristal", () => {
   it("todo glass() con desenfoque y todo backdropFilter va en un elemento con data-glass", () => {
     const fallos: string[] = [];
-    const pat = /glass\(\s*["'](normal|dense|viewer)["']\s*\)|backdropFilter/g;
+    // glass() sin argumento es «normal», que también desenfoca.
+    const pat = /\bglass\(\s*(?:["'](normal|dense|viewer)["']\s*)?\)|backdropFilter/g;
     for (const f of tsx) {
       if (GLASS_PERMITIDO[rel(f)]) continue;
       const src = read(f);
@@ -75,18 +93,21 @@ describe("auditoría del cristal", () => {
     expect(fallos).toEqual([]);
   });
 
+  it("esSoloIcono reconoce el icono suelto, el condicional y el ternario con null", () => {
+    expect(esSoloIcono('<Icon name="x" size={14} />')).toBe(true);
+    expect(esSoloIcono('{abierto && <Icon name="x" />}')).toBe(true);
+    expect(esSoloIcono('{abierto ? <Icon name="x" /> : null}')).toBe(true);
+    expect(esSoloIcono('{abierto ? null : <Icon name="x" />}')).toBe(true);
+    expect(esSoloIcono('<Icon name="x" /> Cerrar')).toBe(false);
+    expect(esSoloIcono('{abierto ? <Icon name="x" /> : "Cerrar"}')).toBe(false);
+    expect(esSoloIcono("Cerrar")).toBe(false);
+  });
+
   it("un <button> cuyo contenido es solo un <Icon> lleva aria-label", () => {
     const fallos: string[] = [];
     const pat = /<(button|Button|motion\.button)\b/g;
-    // <Icon …/> (con llaves anidadas en las props) o {cond && <Icon …/>} como único contenido
-    const esSoloIcono = (c: string) => {
-      const x = c.startsWith("{") && c.endsWith("}") ? c.slice(1, -1).trim() : c;
-      const i = x.indexOf("<Icon");
-      if (i < 0 || x.slice(0, i).includes("<")) return false;
-      const fin = openingTagEnd(x, i);
-      return x[fin - 1] === "/" && x.slice(fin + 1).trim() === "";
-    };
     let botones = 0;
+    let soloIconos = 0;
     for (const f of tsx) {
       if (ICONO_PERMITIDO[rel(f)]) continue;
       const src = read(f);
@@ -98,6 +119,7 @@ describe("auditoría del cristal", () => {
         if (close < 0) continue;
         const contenido = src.slice(end + 1, close).trim();
         const soloIcono = esSoloIcono(contenido);
+        if (soloIcono) soloIconos++;
         const tag = src.slice(m.index!, end);
         if (soloIcono && !/\baria-label(ledby)?=/.test(tag)) {
           fallos.push(`${rel(f)}:${src.slice(0, m.index).split("\n").length} <${m[1]}> de solo icono sin aria-label`);
@@ -105,6 +127,9 @@ describe("auditoría del cristal", () => {
       }
     }
     expect(botones, "el recorrido de botones no encontró casi nada").toBeGreaterThan(150);
+    // Suelo de detecciones: los botones de solo icono (con aria-label) que ya existen.
+    // Si esSoloIcono dejara de reconocerlos, la regla pasaría en vacío.
+    expect(soloIconos, "la regla no reconoce los botones de solo icono que ya existen").toBeGreaterThanOrEqual(SUELO_SOLO_ICONO);
     expect(fallos).toEqual([]);
   });
 
@@ -117,7 +142,7 @@ describe("auditoría del cristal", () => {
         if (!/(^|[\s;])(-webkit-)?backdrop-filter:\s*(?!none)/.test(m[2])) continue;
         reglas++;
         const sel = m[1].trim();
-        if (sel.includes("[data-glass]") || CSS_PERMITIDO[sel]) continue;
+        if (sel.includes("[data-glass]") || CSS_PERMITIDO[`${rel(f)} ${sel}`]) continue;
         fallos.push(`${rel(f)}: ${sel} usa backdrop-filter sin [data-glass]`);
       }
     }
@@ -147,31 +172,67 @@ const bloque = (sel: string) => { const i = css.indexOf("\n" + sel + " {"); cons
 const oscuro = bloque(':root,\n[data-theme="dark"]');
 const claro = bloque('[data-theme="light"]');
 const hexDe = (b: string, name: string) => { const m = b.match(new RegExp(`${name}:\\s*(#[0-9A-Fa-f]{6})\\b`)); expect(m, `${name} no es #RRGGBB`).not.toBeNull(); return m![1]; };
-const rgba = (b: string, name: string) => { const m = b.match(new RegExp(`${name}:\\s*(?:linear-gradient\\(rgba\\([^)]*\\), rgba\\([^)]*\\)\\), )?rgba\\((\\d+), ?(\\d+), ?(\\d+), ?([0-9.]+)\\)`)); expect(m, `${name} no es rgba()`).not.toBeNull(); return { rgb: [+m![1], +m![2], +m![3]], a: +m![4] }; };
-const veloDeGlass = (b: string, name: string) => { const m = b.match(new RegExp(`${name}:\\s*linear-gradient\\(rgba\\((\\d+), ?(\\d+), ?(\\d+), ?([0-9.]+)\\)`)); expect(m, name).not.toBeNull(); return { rgb: [+m![1], +m![2], +m![3]], a: +m![4] }; };
 const mix = (top: number[], a: number, under: number[]) => under.map((u, i) => u * (1 - a) + top[i] * a);
 const aHex = (c: number[]) => "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+const deHex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+
+type Capa = { rgb: number[]; a: number };
+/** Capas de un token de fondo, de abajo arriba. Formas que hay en colors.css:
+ *  `#RRGGBB`, `rgba(…)` y `linear-gradient(rgba(A), rgba(A)), rgba(B)` (B debajo, A encima). */
+function capas(b: string, name: string): Capa[] {
+  const m = b.match(new RegExp(`\\n\\s*${name}:\\s*([^;]+);`));
+  expect(m, `${name} no está en el bloque`).not.toBeNull();
+  const v = m![1].trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(v)) return [{ rgb: deHex(v), a: 1 }];
+  const rgbas = [...v.matchAll(/rgba\((\d+), ?(\d+), ?(\d+), ?([0-9.]+)\)/g)].map((x) => ({ rgb: [+x[1], +x[2], +x[3]], a: +x[4] }));
+  if (v.startsWith("linear-gradient(")) {
+    expect(rgbas.length, `${name}: forma de cristal desconocida`).toBe(3);
+    expect(rgbas[1], `${name}: el degradado no es liso`).toEqual(rgbas[0]);
+    return [rgbas[2], rgbas[0]];
+  }
+  expect(rgbas.length, `${name}: forma de cristal desconocida`).toBe(1);
+  return rgbas;
+}
+/** Color resultante de apilar los tokens `encima` (de abajo arriba) sobre `fondo`. */
+const apilar = (b: string, encima: string[], fondo: number[]) =>
+  aHex(encima.reduce((bg, n) => capas(b, n).reduce((acc, c) => mix(c.rgb, c.a, acc), bg), fondo));
+
+const NEGRO = [0, 0, 0];
+const BLANCO = [255, 255, 255];
+const TEXTOS = ["--foreground", "--muted-foreground", "--data", "--destructive-text", "--warning", "--success"];
+
+/* Cada superficie de cristal con lo que de verdad tiene detrás. Para el visor se toma
+   el píxel sin desenfocar (con data-blur="bajo" el desenfoque del visor es 0) y los dos
+   extremos de la imagen: negro (el fondo del visor) y blanco (hueso en el MIP). */
+const superficies = (b: string): { donde: string; fondo: string }[] => {
+  const visor = deHex(hexDe(b, "--viewer-bg"));
+  return [
+    { donde: "cristal sobre Entorno (blanco bajo --veil)", fondo: apilar(b, ["--veil", "--glass"], BLANCO) },
+    { donde: "cristal denso sobre Entorno (blanco bajo --veil-dense)", fondo: apilar(b, ["--veil-dense", "--glass-dense"], BLANCO) },
+    { donde: "hoja o diálogo (--glass-dense) sobre el lienzo bajo --scrim-dense", fondo: apilar(b, ["--scrim-dense", "--glass-dense"], deHex(hexDe(b, "--canvas"))) },
+    { donde: "pastillas del quirófano (--glass) sobre --viewer-bg", fondo: apilar(b, ["--glass"], visor) },
+    { donde: "inspector (--glass-dense) sobre --viewer-bg", fondo: apilar(b, ["--glass-dense"], visor) },
+    { donde: "dock y hoja inferior (--glass-viewer) sobre negro", fondo: apilar(b, ["--glass-viewer"], NEGRO) },
+    { donde: "dock y hoja inferior (--glass-viewer) sobre blanco", fondo: apilar(b, ["--glass-viewer"], BLANCO) },
+    { donde: "reserva opaca (--glass-solid)", fondo: hexDe(b, "--glass-solid") },
+  ];
+};
 
 describe("contraste sobre cristal", () => {
-  it("en oscuro, el texto aguanta 4,5:1 sobre el cristal encima de lo más claro del corte", () => {
-    // peor caso: blanco puro bajo el velo, el tinte y el velo propio del cristal (alfas leídos de colors.css)
-    const velo = rgba(oscuro, "--veil");
-    const tinte = rgba(oscuro, "--glass(?:-dense)?");
-    const veloCristal = veloDeGlass(oscuro, "--glass");
-    let bg = [255, 255, 255];
-    bg = mix(velo.rgb, velo.a, bg);
-    bg = mix([255, 255, 255], tinte.a, bg);
-    bg = mix(veloCristal.rgb, veloCristal.a, bg);
-    const peor = aHex(bg);
-    for (const n of ["--muted-foreground", "--data", "--destructive-text", "--warning", "--success"]) {
-      expect(ratio(hexDe(oscuro, n), peor), `${n} sobre ${peor}`).toBeGreaterThanOrEqual(4.5);
-    }
+  it("el modelo de capas reproduce el peor fondo ya medido (--glass-dense oscuro sobre blanco = #4D4E50)", () => {
+    expect(apilar(oscuro, ["--glass-dense"], BLANCO).toUpperCase()).toBe("#4D4E50");
   });
 
-  it("en claro, el texto aguanta 4,5:1 sobre --glass-solid", () => {
-    const solido = hexDe(claro, "--glass-solid");
-    for (const n of ["--muted-foreground", "--data", "--destructive-text", "--warning", "--success"]) {
-      expect(ratio(hexDe(claro, n), solido), `${n} sobre ${solido}`).toBeGreaterThanOrEqual(4.5);
-    }
-  });
+  for (const [tema, b] of [["oscuro", oscuro], ["claro", claro]] as const) {
+    it(`en ${tema}, el texto aguanta 4,5:1 sobre el peor fondo de cada superficie de cristal`, () => {
+      const fallos: string[] = [];
+      for (const { donde, fondo } of superficies(b)) {
+        for (const n of TEXTOS) {
+          const r = ratio(hexDe(b, n), fondo);
+          if (r < 4.5) fallos.push(`${n} sobre ${donde} (${fondo}): ${r.toFixed(2)}:1`);
+        }
+      }
+      expect(fallos).toEqual([]);
+    });
+  }
 });

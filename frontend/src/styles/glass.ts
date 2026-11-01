@@ -16,8 +16,9 @@ export function glass(kind: GlassKind = "normal"): CSSProperties {
   }
   const blur = kind === "viewer" ? "var(--glass-blur-viewer)" : "var(--glass-blur)";
   const filter = `blur(${blur}) saturate(130%)`;
+  const fondo = { normal: "var(--glass)", dense: "var(--glass-dense)", viewer: "var(--glass-viewer)" }[kind];
   return {
-    background: kind === "normal" ? "var(--glass)" : "var(--glass-dense)",
+    background: fondo,
     backdropFilter: filter,
     WebkitBackdropFilter: filter,
     border: "1px solid var(--glass-border)",

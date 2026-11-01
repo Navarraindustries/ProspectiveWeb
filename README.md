@@ -305,23 +305,36 @@ accent) and one shell around every screen after sign-in.
 - **Dark by default.** The dark theme is the `:root` block; the light theme is
   `[data-theme="light"]` and must define exactly the same names. The choice is
   stored per browser. The public landing is always dark.
-- **Geist, self-hosted.** Geist and Geist Mono are served from
-  `frontend/src/assets/fonts/` (with their licence). Nothing is fetched from a
+- **Inter and JetBrains Mono, self-hosted.** Both (Latin and Latin Extended
+  subsets) are served from `frontend/src/assets/fonts/` (with their licences). Nothing is fetched from a
   font CDN, so the app looks the same offline and on a hospital network.
 - **Shell.** A sidebar (sections by role), a top bar and a user menu. **Alt+B**
   folds and unfolds the sidebar without taking focus from a field. The pin
   button keeps it open; that choice is stored in `localStorage` under
   `shell.sidebar` (`pinned` or `collapsed`).
 - **Interfaz: dirección D, Quirófano de cristal.** The last redesign (spec
-  `docs/superpowers/specs/2026-10-31-rediseno-cristal-d-design.md`) puts every
-  screen on the `Entorno` backdrop, with surfaces of glass.
-  - Glass comes from the `--glass*` tokens and the `glass()` helper, which sets
-    `data-glass`. Without `backdrop-filter`, or with reduced transparency, the
-    opaque fallback in `[data-glass]` takes over and the blur is zero.
-    `html[data-blur="bajo"]` does the same on a laptop without a GPU.
-  - `Entorno` mounts once, draws the backdrop and listens to the motion and
-    transparency preferences, so they apply without a reload. With reduced
-    motion, transitions become opacity fades (`fundido`).
+  `docs/superpowers/specs/2026-10-31-rediseno-cristal-d-design.md`) puts the
+  office, the patient sheet and the sign-in screens on the `Entorno` backdrop,
+  with surfaces of glass. The landing has its own hero and the operating-room
+  view floats its glass over the black viewer.
+  - Glass comes from the `--glass*` tokens and the `glass()` helper. The helper
+    does **not** set `data-glass`: the element that spreads `glass()` must
+    carry the attribute itself, and `styles/cristal.audit.test.ts` fails if it
+    does not. Without `backdrop-filter`, the opaque fallback in `[data-glass]`
+    takes over. With reduced transparency the glass tokens themselves turn
+    into `--glass-solid` and the blur is zero, so even glass without
+    `data-glass` (flat cards, CSS rules using `var(--glass)`) becomes opaque.
+  - The dock and the narrow-screen bottom sheet use `glass("viewer")` and their
+    own token, `--glass-viewer`, which is more opaque because nothing veils the
+    image under them.
+  - `html[data-blur="bajo"]` is prepared but has no UI yet: nothing sets it, so
+    it is switched on by hand. It only lowers the blur (0 on the viewer glass,
+    12 px elsewhere); it does not make the glass opaque. Reduced transparency
+    wins when both apply.
+  - `Entorno` draws the backdrop and listens live to the reduced-transparency
+    preference, dropping the image without a reload. Reduced motion is handled
+    by `MotionConfig reducedMotion="user"` and a rule in `base.css`: sheets,
+    dialogs and the palette fade (`fundido`) and the dock stops magnifying.
   - Ctrl/⌘+K opens the command palette. Mandos are registered in
     `lib/commands.ts`; a screen adds its own with `useRegisterCommands`.
   - Breakpoints: 1280 px (the sidebar starts folded and the planning panel

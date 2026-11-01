@@ -17,6 +17,7 @@ import { NavPildora } from "../components/landing/NavPildora";
 import { useVisible } from "../components/patients/useVisible";
 import { Logo } from "../components/shell/Logo";
 import { CONTACTO_ADMIN } from "../lib/contacto";
+import { cifra } from "../lib/numero";
 /* Los cortes de los índices se importan, no se copian: la portada no puede
    volver a decir un umbral distinto del que aplica la aplicación. */
 import {
@@ -144,20 +145,18 @@ function Funcionalidades() {
 }
 
 /* ── Índices morfométricos ──────────────────────────────────────────────── */
-/** Un número con coma decimal y los decimales del corte (2,0 y no 2). */
-const es = (n: number, d: number): string => n.toFixed(d).replace(".", ",");
-
+// Cada corte con coma decimal y sus decimales (2,0 y no 2), vía lib/numero.
 function Indices() {
   // El texto del BF estaba invertido (F1-162): un BF alto es un cuello
   // relativamente estrecho, nunca lo contrario. El NSI no tiene corte.
   const metricas: [string, string, string][] = [
-    ["DNR", "Relación domo-cuello (DNR)", `Ø máx / cuello · riesgo ↑ si ≥ ${es(DNR_HIGH, 1)}`],
-    ["AR", "Relación de aspecto (AR)", `altura de domo / cuello · riesgo ↑ si ≥ ${es(AR_HIGH, 1)}`],
-    ["BF", "Factor de cuello (BF)", `Ø domo / cuello · cuello estrecho si > ${es(BF_WIDE, 1)}`],
-    ["UI", "Índice de ondulación (UI)", `irregularidad del domo · alto si ≥ ${es(UI_HIGH, 2)}`],
-    ["EI", "Índice de elipticidad (EI)", `desviación elíptica · alto si ≥ ${es(EI_MOD, 2)}`],
+    ["DNR", "Relación domo-cuello (DNR)", `Ø máx / cuello · riesgo ↑ si ≥ ${cifra(DNR_HIGH, 1)}`],
+    ["AR", "Relación de aspecto (AR)", `altura de domo / cuello · riesgo ↑ si ≥ ${cifra(AR_HIGH, 1)}`],
+    ["BF", "Factor de cuello (BF)", `Ø domo / cuello · cuello estrecho si > ${cifra(BF_WIDE, 1)}`],
+    ["UI", "Índice de ondulación (UI)", `irregularidad del domo · alto si ≥ ${cifra(UI_HIGH, 2)}`],
+    ["EI", "Índice de elipticidad (EI)", `desviación elíptica · alto si ≥ ${cifra(EI_MOD, 2)}`],
     ["NSI", "Índice de no esfericidad (NSI)", "1 − esfericidad de Wadell · sin corte"],
-    ["SR", "Relación de tamaño (SR)", `Ø máx / arteria madre · alto si ≥ ${es(SR_HIGH, 1)}`],
+    ["SR", "Relación de tamaño (SR)", `Ø máx / arteria madre · alto si ≥ ${cifra(SR_HIGH, 1)}`],
     ["PHASES", "Riesgo en aneurismas no rotos", "escala de Greving et al., Lancet Neurology 2014"],
   ];
   return (

@@ -60,7 +60,8 @@ function seriesLabel(s: SeriesInfo): string {
 
 /* F1-128: 24 → «24», 1.5 → «1,5»; el plazo es el del barrido del servidor. */
 function hoursEs(h: number): string {
-  return Number.isInteger(h) ? String(h) : String(Math.round(h * 10) / 10).replace(".", ",");
+  const r = Math.round(h * 10) / 10;
+  return cifra(r, Number.isInteger(r) ? 0 : 1);
 }
 
 export function UploadPanel({ onNext }: { onNext: () => void }) {

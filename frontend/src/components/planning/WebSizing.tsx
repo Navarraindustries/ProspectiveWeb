@@ -10,7 +10,6 @@ import { Button } from "../Button";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { cifra, mm } from "../../lib/numero";
 
-
 /** F1-209: el rango aprobado con el que se decide la línea de indicación. Es
  *  el de backend/services/web_sizing.py (DOME_RANGE_MM, la regla de cuello
  *  ancho y la localización de bifurcación), que lo cita de la PMA de la FDA. */

@@ -11,6 +11,7 @@ import { useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { PatientSessionInfo } from "../../api/types";
 import { fecha, fechaHora } from "../../lib/fecha";
+import { mm } from "../../lib/numero";
 import { formatBytes } from "../../lib/tamano";
 import { STEP_LABELS, clampStep } from "../../pipeline/steps";
 import { Button } from "../Button";
@@ -21,7 +22,6 @@ import { LoadState } from "../LoadState";
 import { ErrorNote } from "../PanelHead";
 import { MorphoRiskBadge } from "../morphometry/MorphoRiskBadge";
 import "./ficha.css";
-import { mm } from "../../lib/numero";
 
 /** F2-30: la etiqueta que pone el servidor empieza por el nombre del paciente,
  *  que en su ficha ya se sabe («Segura, Juan · Detección»). */
@@ -31,8 +31,6 @@ export function etiquetaGuardada(s: PatientSessionInfo, paciente: string): strin
   if (prefijo && label.startsWith(prefijo)) label = label.slice(prefijo.length).trim();
   return label || `Sesión del ${fecha(s.updated_at)}`;
 }
-
-/** «7,4 mm», con coma decimal. */
 
 export function ColumnaSesiones({
   sesiones,

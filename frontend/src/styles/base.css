@@ -168,27 +168,41 @@ select option {
   }
 }
 
+/* Coste del desenfoque ajustable (§4.7). Preparado para un interruptor de
+   rendimiento: con <html data-blur="bajo"> el cristal que flota sobre la imagen
+   (glass("viewer"): dock y hoja inferior) no desenfoca nada (0px, es lo caro: se
+   recalcula en cada fotograma del visor) y el resto de superficies baja de 30px
+   a 12px. Solo baja el desenfoque: el cristal sigue translúcido. Sin tocar
+   ningún componente. Aún sin interfaz: nadie pone el atributo; se activa a mano
+   (p. ej. desde la consola o un futuro ajuste). Va antes de la transparencia
+   reducida para que, con las dos, mande esta última. */
+html[data-blur="bajo"] {
+  --glass-blur: 12px;
+  --glass-blur-viewer: 0px;
+}
+
 @media (prefers-reduced-transparency: reduce) {
   [data-glass] {
     background: var(--glass-solid) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
-  /* Los tokens viven en [data-theme="…"] (0,1,0): html[data-theme] (0,1,1) gana. */
-  html[data-theme] {
+  /* Los tokens de cristal pasan a opacos y sin desenfoque, así que también se
+     vuelve opaco lo que no lleva data-glass (las tarjetas planas, glass("flat"),
+     y las reglas CSS con var(--glass)). Selectores:
+     - :root cubre <html> sin data-theme (gana a colors.css por ir después);
+     - [data-theme] (0,1,0) gana a [data-theme="…"] de colors.css por ir después,
+       también en los contenedores con tema propio (landing, carga), que
+       redeclaran los tokens;
+     - html[data-blur] (0,1,1) empata con la regla de data-blur de arriba y gana
+       por ir después: la transparencia reducida manda. */
+  :root,
+  [data-theme],
+  html[data-blur] {
+    --glass: var(--glass-solid);
+    --glass-dense: var(--glass-solid);
+    --glass-viewer: var(--glass-solid);
     --glass-blur: 0px;
     --glass-blur-viewer: 0px;
   }
-}
-
-/* Coste del desenfoque ajustable (§4.7). Preparado para un interruptor de
-   rendimiento: con <html data-blur="bajo"> el cristal que flota sobre el visor
-   3D (dock, barra, inspector) no desenfoca nada (0px, es lo caro: se recalcula
-   en cada fotograma del visor) y el resto de superficies baja de 30px a 12px.
-   Mismo mecanismo que la transparencia reducida, sin tocar ningún componente.
-   Aún sin interfaz: se activa poniendo el atributo (p. ej. desde la consola
-   o un futuro ajuste). */
-html[data-blur="bajo"] {
-  --glass-blur: 12px;
-  --glass-blur-viewer: 0px;
 }

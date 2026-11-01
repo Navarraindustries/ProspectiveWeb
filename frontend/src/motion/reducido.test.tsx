@@ -66,6 +66,15 @@ describe("movimiento reducido", () => {
     expect(d.style.transform).not.toMatch(/scale|translate/);
   });
 
+  it("CommandPalette: sin movimiento reducido entra escalada", async () => {
+    reducida.valor = false;
+    render(<><input aria-label="Campo previo" /><CommandPalette onOpenPatient={() => {}} onResume={() => {}} /></>);
+    fireEvent.keyDown(screen.getByLabelText("Campo previo"), { key: "k", ctrlKey: true });
+    // Control de la prueba anterior: con «glide» el panel arranca con escala (0,96) y desplazamiento.
+    const d = await screen.findByRole("dialog", { name: "Paleta de mandos" });
+    expect(d.style.transform).toMatch(/scale/);
+  });
+
   it("StepDock: el puntero no escala ningún paso", () => {
     render(<StepDock steps={STEPS} activeIndex={0} missingFor={() => null} onGo={() => {}} />);
     fireEvent.pointerMove(screen.getByRole("navigation", { name: "Flujo de planificación" }), { clientX: 10 });

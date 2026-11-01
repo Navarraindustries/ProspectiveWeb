@@ -1,10 +1,11 @@
-import { cifra } from "../../lib/numero";
 /* El Ø que entra en PHASES, ELAPSS y UIATS, y lo cerca que está de un corte.
 
    Case 3 mide 10,9 mm de Ø máximo y 9,5 de cuerpo: con uno el PHASES suma 10
    puntos y con el otro 7, y la pantalla daba la cifra sin decir cuál tomaba ni
    que a menos de 1 mm de un corte un error de medida cambia el tramo (F1-13,
    F1-14, F1-15). */
+
+import { cifra } from "../../lib/numero";
 
 /* Todas las tablas de puntos y cortes viven aquí y solo aquí: el aviso de corte
    se da ANTES de «Calcular», así que si estas cifras se separan de las del

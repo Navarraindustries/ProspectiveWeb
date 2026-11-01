@@ -14,6 +14,7 @@ import { HeroCortes } from "../components/landing/HeroCortes";
 import { ListaConReglas } from "../components/landing/ListaConReglas";
 import { NavPildora } from "../components/landing/NavPildora";
 import { Revelar, Seccion } from "../components/landing/Seccion";
+import { ComoFunciona } from "../components/landing/SeccionComoFunciona";
 import { QueEs } from "../components/landing/SeccionQueEs";
 import { Logo } from "../components/shell/Logo";
 import { useTramo } from "../hooks/useEstrecho";
@@ -26,44 +27,6 @@ import {
 } from "../components/morphometry/thresholds";
 import { STEPS } from "../pipeline/steps";
 /* El lema único del producto vive en el titular de HeroCortes: una sola vez. */
-
-/* ── Cómo funciona ──────────────────────────────────────────────────────── */
-/* La portada decía «siete pasos» sobre una lista que ya tenía ocho: los
-   rótulos salen de `STEPS` y el número se deletrea desde la misma lista. */
-const NUM_WORD = ["cero", "uno", "dos", "tres", "cuatro", "cinco",
-                  "seis", "siete", "ocho", "nueve", "diez", "once", "doce"];
-const spell = (n: number): string => NUM_WORD[n] ?? String(n);
-
-const LINEA_PASO: Record<string, string> = {
-  upload: "Estudio del paciente",
-  segment: "Árbol vascular 3D",
-  detect: "Candidatos numerados",
-  morpho: "Cuello, domo, Ø máximo",
-  treatment: "Clip o endovascular",
-  devices: "Clips, coils, stents",
-  manufacture: "Clip a medida",
-  report: "Documento clínico",
-};
-
-function ComoFunciona() {
-  return (
-    <Seccion
-      id="como-funciona"
-      rotulo="Cómo funciona"
-      titulo={`Del estudio al plan, en ${spell(STEPS.length)} pasos y en el orden de la cirugía`}
-    >
-      <ol className="pasos">
-        {STEPS.map((s, i) => (
-          <li key={s.key} className="pasos__paso" data-glass>
-            <div className="pasos__num">{String(i + 1).padStart(2, "0")}</div>
-            <div className="pasos__nombre">{s.label}</div>
-            <div className="pasos__linea">{LINEA_PASO[s.key] ?? ""}</div>
-          </li>
-        ))}
-      </ol>
-    </Seccion>
-  );
-}
 
 /* ── Funcionalidades ────────────────────────────────────────────────────── */
 const FUNCIONALIDADES = [

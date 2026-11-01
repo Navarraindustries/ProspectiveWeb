@@ -37,6 +37,13 @@ describe("landing.css, base responsive", () => {
   });
 });
 
+describe("landing.css, riel de «Cómo funciona»", () => {
+  it("horizontal en 8 columnas y vertical con nodo de 44 px", () => {
+    expect(tieneDeclaracion(css, '.landing-stitch .riel[data-disposicion="horizontal"]', "grid-template-columns: repeat(8, minmax(0, 1fr))")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch .riel[data-disposicion="vertical"] .riel__paso', "grid-template-columns: 44px minmax(0, 1fr)")).toBe(true);
+  });
+});
+
 describe("landing.css, anclas", () => {
   it("las secciones con id dejan sitio a la nav al caer en un enlace profundo", () => {
     expect(tieneDeclaracion(css, ".landing-stitch section[id]", `scroll-margin-top: ${DESFASE_NAV}px`)).toBe(true);

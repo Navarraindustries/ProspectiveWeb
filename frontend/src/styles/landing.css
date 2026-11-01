@@ -551,37 +551,116 @@
   color: var(--foreground);
 }
 
-/* Los ocho pasos */
-.landing-stitch .pasos {
+/* «Cómo funciona»: riel de pasos con la línea que se enciende al avanzar */
+.landing-stitch .riel {
   list-style: none;
   margin: 0;
   padding: 0;
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
 }
-.landing-stitch .pasos__paso {
-  padding: 20px 18px;
-  border-radius: var(--radius-card-lg);
-  background: var(--glass);
+.landing-stitch .riel__pista {
+  position: absolute;
+  background: var(--border);
+  overflow: hidden;
+}
+.landing-stitch .riel__relleno {
+  width: 100%;
+  height: 100%;
+  background: var(--data);
+}
+.landing-stitch .riel__paso {
+  position: relative;
+  display: grid;
+}
+.landing-stitch .riel__nodo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-highlight);
+  background: var(--background);
+  color: var(--muted-foreground);
+  transition: color var(--dur-2), border-color var(--dur-2), background-color var(--dur-2);
 }
-.landing-stitch .pasos__num {
+.landing-stitch .riel__paso[data-encendido="true"] .riel__nodo {
+  border-color: var(--data);
+  color: var(--data);
+  background: color-mix(in srgb, var(--data) 14%, var(--background));
+}
+.landing-stitch .riel__num {
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--muted-foreground);
 }
-.landing-stitch .pasos__nombre {
-  margin-top: 14px;
-  font-size: 17px;
+.landing-stitch .riel__nombre {
   font-weight: 600;
   color: var(--foreground);
 }
-.landing-stitch .pasos__linea {
-  margin-top: 4px;
-  font-size: 14px;
+.landing-stitch .riel__linea {
   color: var(--muted-foreground);
+}
+.landing-stitch .riel[data-disposicion="horizontal"] {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+  text-align: center;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__pista {
+  top: 22px;
+  left: calc(100% / 16);
+  right: calc(100% / 16);
+  height: 2px;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__relleno {
+  transform-origin: left center;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__paso {
+  justify-items: center;
+  align-content: start;
+  row-gap: 6px;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__num {
+  margin-top: 8px;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__nombre {
+  font-size: 15px;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__linea {
+  font-size: 13px;
+}
+.landing-stitch .riel[data-disposicion="vertical"] {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 20px;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__pista {
+  left: 22px;
+  top: 22px;
+  bottom: 22px;
+  width: 2px;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__relleno {
+  transform-origin: center top;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__paso {
+  grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: center;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__nodo {
+  grid-row: 1 / span 3;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__num {
+  grid-column: 2;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__nombre {
+  grid-column: 2;
+  font-size: 17px;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__linea {
+  grid-column: 2;
+  font-size: 14px;
 }
 
 /* Las cuatro series NAVARRO */
@@ -736,12 +815,10 @@
   font-size: 30px;
 }
 .landing-stitch[data-tramo="movil"] .sec__dos,
-.landing-stitch[data-tramo="movil"] .pasos,
 .landing-stitch[data-tramo="movil"] .series {
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
-.landing-stitch[data-tramo="movil"] .pasos,
 .landing-stitch[data-tramo="movil"] .series {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

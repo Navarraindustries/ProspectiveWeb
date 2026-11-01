@@ -62,7 +62,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
           className="es-insignia"
           data-insignia="modalidad"
           style={{
-            position: "absolute", top: 8, left: 8, fontSize: 12, padding: "2px 8px", borderRadius: 6,
+            position: "absolute", top: 8, left: 8, padding: "2px 8px", borderRadius: 6,
             background: "var(--glass-solid)", color: "var(--foreground)", border: "1px solid var(--glass-border)",
             fontFamily: "var(--font-mono)",
           }}
@@ -266,7 +266,7 @@ export function StudyGallery({
                 <div className="truncate" style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)" }}>
                   {est.patient_name || "—"}
                 </div>
-                <div className="truncate" style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                <div className="truncate meta-mono" style={{ color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                   {est.hospital_id || "sin HC"}
                 </div>
                 <div className="truncate" style={{ fontSize: 13, color: "var(--muted-foreground)" }}>

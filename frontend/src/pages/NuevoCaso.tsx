@@ -17,6 +17,7 @@ import { EstadoVacio } from "../components/EstadoVacio";
 import { Switch } from "../components/Switch";
 import { Sheet } from "../components/Sheet";
 import { ErrorNote } from "../components/PanelHead";
+import "../styles/office.css";
 import { hoyLocal } from "../lib/fecha";
 import { MORFOLOGIAS, TAMANOS, joinTipo, splitTipo } from "../lib/tipoAneurisma";
 
@@ -262,7 +263,7 @@ export function CasePatientPicker({
               <button key={p.id} type="button" onClick={() => onPick(p)} className="nc-fila">
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{p.full_name}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                  <div className="meta-mono" style={{ color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                     {p.hospital_id || "sin HC"} · {p.sex || "—"} · {p.study_count} {p.study_count === 1 ? "caso" : "casos"}
                   </div>
                 </div>

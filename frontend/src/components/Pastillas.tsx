@@ -22,7 +22,7 @@ export function Pastillas({
 }) {
   const tableta = useTableta();
   return (
-    <div role="group" aria-label={rotulo} style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+    <div role="group" aria-label={rotulo} className="pastillas" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
       {opciones.map((o) => {
         const activa = o.id === valor;
         return (

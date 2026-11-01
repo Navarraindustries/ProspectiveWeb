@@ -101,7 +101,17 @@
 
 /* Tarjeta punteada «Subir un estudio nuevo»: se enciende al apuntarla o enfocarla. */
 .tarjeta-nueva { min-height: 120px; border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; border-radius: var(--radius-card-lg); transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
-.es-insignia { line-height: 1.3; pointer-events: none; }
+.es-insignia { line-height: 1.3; pointer-events: none; font-family: var(--font-mono); font-size: 12px; }
+/* R21: metadatos en monoespaciada (HC, sexo, nº de cortes): 13 px en tableta y móvil. */
+.meta-mono { font-family: var(--font-mono); font-size: 12px; }
+@media (max-width: 1024px) { .es-insignia, .meta-mono { font-size: 13px; } }
+
+/* R25: los chips de estado de Pedidos, en móvil, una fila con desplazamiento propio. */
+@media (max-width: 640px) {
+  .pastillas { flex-wrap: nowrap; overflow: auto hidden; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .pastillas::-webkit-scrollbar { display: none; }
+  .pastillas > button { flex-shrink: 0; scroll-snap-align: start; }
+}
 .tarjeta-nueva:hover, .tarjeta-nueva:focus-visible { border-color: var(--data); background: color-mix(in srgb, var(--data) 8%, transparent); }
 
 /* Detalle del pedido de clip (A43, A44): sans en los textos, mono solo en nº de pieza y medidas. */

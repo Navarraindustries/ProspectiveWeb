@@ -27,3 +27,11 @@ describe("entradaPara", () => {
     expect(entradaPara("candidatos", [], [], "x", t)).toBeNull();
   });
 });
+
+describe("entradaPara sin la cifra", () => {
+  it("no imprime «undefined»", () => {
+    expect(entradaPara("serie", null, {}, "x", t)).toBeNull();
+    expect(entradaPara("segmentacion", null, {}, "x", t)).toBeNull();
+    expect(entradaPara("morfometria", null, {}, "x", t)).toBeNull();
+  });
+});

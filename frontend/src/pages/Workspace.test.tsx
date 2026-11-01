@@ -254,11 +254,14 @@ describe("avisos del pipeline como toasts", () => {
 });
 
 describe("Registro de la sesión", () => {
-  beforeEach(() => { for (const k of Object.keys(estado)) delete estado[k]; });
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin persistencia */ }
+  });
 
   it("va bajo «Anotaciones», plegado, con sesión", () => {
     montar();
-    const titulos = screen.getAllByRole("button", { hidden: true }).map((b) => b.textContent ?? "");
+    const titulos = screen.getAllByRole("button").map((b) => b.textContent ?? "");
     const a = titulos.findIndex((t) => t.includes("Anotaciones"));
     const r = titulos.findIndex((t) => t.includes("Registro"));
     expect(a).toBeGreaterThanOrEqual(0);

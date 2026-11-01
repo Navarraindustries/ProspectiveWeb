@@ -39,6 +39,7 @@ import { ARCHIVAR_EN_CASO, sinCasoAviso } from "../lib/textos";
 import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { useRegisterCommands } from "../lib/commands";
+import { useThemeContext } from "../store/theme";
 import { usePlanning } from "../store/planning";
 import { useSessionLog } from "../pipeline/sessionLog";
 import { SessionLog } from "../components/planning/SessionLog";
@@ -97,6 +98,11 @@ export function Workspace({
   const soloIcono = useMediaQuery(CONSULTA_SOLO_ICONO);
   const movil = useMediaQuery(MQ_MOVIL);
   const tactil = useMediaQuery(MQ_TACTIL);
+  const modoBarra = movil ? "movil" : tactil ? "tactil" : "ancho";
+  const tamAccion = modoBarra === "ancho" ? "sm" : "md";
+  // Icono solo a 44 px: el relleno de «md» lo haría más ancho que alto.
+  const estiloAccion: CSSProperties | undefined = tamAccion === "md" && soloIcono ? { padding: 0, width: 44 } : undefined;
+  const { theme, toggle: alternarTema } = useThemeContext();
   const modoDock = movil ? "mini" : tactil ? "tactil" : estrecho ? "compacto" : "completo";
   const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
   const [estrechoVisto, setEstrechoVisto] = useState(estrecho);
@@ -257,6 +263,14 @@ export function Workspace({
       disabled: !sessionId || saving === "saving", run: () => void saveProgress() },
     { id: "captura", group: "acciones" as const, label: "Captura",
       disabled: !captureCase || shot === "busy", run: () => void tomarCaptura() },
+    { id: "tema", group: "acciones" as const,
+      label: theme === "light" ? "Cambiar a tema oscuro" : "Cambiar a tema claro",
+      run: alternarTema },
+    ...(sessionId && !imagingStudyId ? [{
+      id: "archivar", group: "acciones" as const,
+      label: patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso",
+      run: () => setAttachOpen(true),
+    }] : []),
     { id: "plegar-panel", group: "acciones" as const,
       label: panelPlegado ? "Mostrar el panel del paso" : "Plegar el panel del paso",
       run: alternarPanel },
@@ -400,6 +414,7 @@ export function Workspace({
       <div data-banda-superior
            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 0, zIndex: estrecho ? Z_SOBRE_HOJA : 3 }}>
       <QuirofanoBar
+        modo={modoBarra}
         onBack={onBack}
         riskLabel={morphometry?.rupture_risk_label ?? null}
         crumbs={[
@@ -412,13 +427,14 @@ export function Workspace({
             detail: patient?.hospital_id?.trim() || undefined },
           ...(caseLabel ? [{ label: caseLabel, onClick: patient ? onOpenPatient : undefined }] : []),
         ]}
-        status={<SaveStatus state={saveState} savedAt={savedAt} />}
+        status={<SaveStatus state={saveState} savedAt={savedAt} compacta={modoBarra !== "ancho"} />}
         actions={<>
         {/* Sin estudio archivado la captura se descarga en vez de guardarse en
             el caso, como la grabación; el tooltip lo dice antes de pulsar. */}
         <Button
           variant="outline"
-          size="sm"
+          size={tamAccion}
+          style={estiloAccion}
           onClick={() => void tomarCaptura()}
           disabled={!captureCase || shot === "busy"}
           {...rotuloAccion(soloIcono,
@@ -432,13 +448,14 @@ export function Workspace({
                 : "Guarda una imagen de lo que se ve ahora, adjunta al caso")}
           leadingIcon={<Icon name={shot === "ok" ? "STATUS_OK" : "CAMERA"} />}
         />
-        <RecordButton step={step} onMessage={setRecMessage} soloIcono={soloIcono} />
+        {!movil && <RecordButton step={step} onMessage={setRecMessage} soloIcono={soloIcono} size={tamAccion} />}
         {/* Sin estudio archivado: la sesión aún no es de nadie. Con el
             paciente ya fijado, «Adjuntar a un caso» sonaba a elegir paciente
             otra vez; lo que falta es el caso donde archivar (F1-107). */}
-        {sessionId && !imagingStudyId && (
+        {sessionId && !imagingStudyId && !movil && (
           <Button
-            size="sm"
+            size={tamAccion}
+            style={estiloAccion}
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
             {...rotuloAccion(soloIcono, patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso", patient
@@ -447,7 +464,8 @@ export function Workspace({
           />
         )}
         <Button
-          size="sm"
+          size={tamAccion}
+          style={estiloAccion}
           onClick={() => void saveProgress()}
           disabled={!sessionId || saving === "saving"}
           {...rotuloAccion(soloIcono, "Guardar progreso",

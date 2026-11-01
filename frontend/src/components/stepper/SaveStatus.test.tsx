@@ -12,6 +12,13 @@ describe("SaveStatus", () => {
     expect(screen.getByRole("status")).toHaveTextContent(text);
   });
 
+  it("compacta: solo el punto a la vista, el texto accesible y en title", () => {
+    render(<SaveStatus state="dirty" compacta />);
+    const s = screen.getByRole("status");
+    expect(s).toHaveTextContent("Cambios sin guardar");
+    expect(s.getAttribute("title")).toBe("Cambios sin guardar");
+  });
+
   it("saved muestra la hora local", () => {
     render(<SaveStatus state="saved" savedAt={new Date(2026, 9, 31, 12, 3)} />);
     expect(screen.getByRole("status")).toHaveTextContent(/^Guardado 12:03$/);

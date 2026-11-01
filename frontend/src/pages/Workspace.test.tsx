@@ -47,7 +47,7 @@ vi.mock("../components/planning/ManufacturePanel", () => ({ ManufacturePanel: Na
 vi.mock("../components/planning/ReportPanel", () => ({ ReportPanel: Nada }));
 vi.mock("../components/annotations/AnnotationsPanel", () => ({ AnnotationsPanel: Nada }));
 vi.mock("../components/AttachCaseSheet", () => ({ AttachCaseSheet: Nada }));
-vi.mock("../components/RecordButton", () => ({ RecordButton: Nada }));
+vi.mock("../components/RecordButton", () => ({ RecordButton: () => <button type="button">Grabar</button> }));
 
 import { Workspace } from "./Workspace";
 import { MATRIZ_ALTOS, MATRIZ_ANCHOS, simularPantalla } from "../test/pantalla";
@@ -377,6 +377,34 @@ describe("Mandos del pipeline en la paleta", () => {
     expect(mios().length).toBeGreaterThan(0);
     unmount();
     expect(mios()).toHaveLength(0);
+  });
+});
+
+describe("barra del quirófano por tamaño de pantalla", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it.each(MATRIZ_ANCHOS)("a %i px la barra va en su modo y sus acciones", (w) => {
+    simularPantalla(w);
+    montar();
+    const modo = w <= 640 ? "movil" : w <= 1024 ? "tactil" : "ancho";
+    expect(document.querySelector("[data-banda-superior] [data-modo]")).toHaveAttribute("data-modo", modo);
+    expect(!!screen.queryByRole("button", { name: /Grabar/ })).toBe(modo !== "movil");
+    expect(!!screen.queryByRole("button", { name: "Más acciones" })).toBe(modo !== "ancho");
+    if (modo !== "ancho") expect(screen.getByRole("button", { name: "Guardar progreso" }).style.height).toBe("var(--control-md)");
+  });
+  it("la paleta ofrece el tema y, sin estudio archivado, archivar", () => {
+    estado.imagingStudyId = null;
+    const { unmount } = render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    expect(getCommands().find((c) => c.label === "Cambiar a tema claro")?.group).toBe("acciones");
+    expect(getCommands().find((c) => c.label === "Archivar en un caso")?.group).toBe("acciones");
+    unmount();
+    estado.imagingStudyId = 9;
+    montar();
+    expect(getCommands().find((c) => c.label === "Cambiar a tema claro")).toBeTruthy();
+    expect(getCommands().find((c) => /Archivar|Adjuntar/.test(c.label))).toBeUndefined();
   });
 });
 

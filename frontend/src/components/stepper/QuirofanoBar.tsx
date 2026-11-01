@@ -14,6 +14,7 @@ import { UserMenu } from "../shell/UserMenu";
 import type { Crumb } from "../shell/TopBar";
 import { glass } from "../../styles/glass";
 import { openCommandPalette } from "../../lib/commands";
+import { OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
 import "../shell/shell.css";
 
 /** Hasta este ancho los botones de acción de la píldora derecha enseñan solo el icono. */
@@ -50,31 +51,44 @@ const PASTILLA: CSSProperties = {
   pointerEvents: "auto",
 };
 
-export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions }: {
+/** Tamaño de pantalla de la barra: ancho (≥ 1025), táctil (641–1024), móvil (≤ 640). */
+export type ModoBarra = "ancho" | "tactil" | "movil";
+
+const OCULTO: CSSProperties = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" };
+
+export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo = "ancho" }: {
   crumbs: Crumb[];
   onBack: () => void;
   riskLabel?: string | null;
   status?: ReactNode;
   actions?: ReactNode;
+  modo?: ModoBarra;
 }) {
+  const movil = modo === "movil";
+  const tactil = modo !== "ancho";
+  const migas = movil ? crumbs.slice(-1) : crumbs;
+  const pastilla: CSSProperties = movil ? { ...PASTILLA, gap: 6, padding: "0 6px" } : PASTILLA;
+  const fila: CSSProperties = movil ? { ...FILA, left: 12, right: 12, gap: 8 } : FILA;
   return (
-    <div style={FILA}>
-      <div style={{ ...glass("normal"), ...PASTILLA, flex: "0 1 auto", minWidth: 0 }} data-glass>
+    <div style={fila} data-modo={modo}>
+      <div style={{ ...glass("normal"), ...pastilla, flex: "0 1 auto", minWidth: 0 }} data-glass>
         <button
           type="button"
           aria-label="Volver a Pacientes"
           title="Volver a Pacientes"
           onClick={onBack}
           className="shell-cmdk"
-          style={{ width: "var(--control-sm)", padding: 0, flexShrink: 0 }}
+          style={tactil
+            ? { width: OBJETIVO_TACTIL_PX, height: OBJETIVO_TACTIL_PX, padding: 0, flexShrink: 0 }
+            : { width: "var(--control-sm)", padding: 0, flexShrink: 0 }}
         >
           <Icon name="BACK" size={14} />
         </button>
-        {crumbs.length > 0 && (
+        {migas.length > 0 && (
           <nav aria-label="Miga de pan" className="shell-crumbs">
             <ol>
-              {crumbs.map((c, i) => {
-                const last = i === crumbs.length - 1;
+              {migas.map((c, i) => {
+                const last = i === migas.length - 1;
                 return (
                   <li key={i}>
                     {i > 0 && (
@@ -91,9 +105,9 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions }: {
                         {c.label}
                       </span>
                     )}
-                    {c.detail && (
+                    {c.detail && !movil && (
                       <span className="shell-crumb-detail" title={`HC ${c.detail}`}>
-                        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>HC </span>
+                        <span style={OCULTO}>HC </span>
                         {c.detail}
                       </span>
                     )}
@@ -103,15 +117,24 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions }: {
             </ol>
           </nav>
         )}
-        {riskLabel && <Badge variant={riskVariant(riskLabel)}>{riskLabel}</Badge>}
+        {riskLabel && !movil && <Badge variant={riskVariant(riskLabel)}>{riskLabel}</Badge>}
       </div>
-      <div style={{ ...glass("normal"), ...PASTILLA, flex: "none" }} data-glass>
+      <div style={{ ...glass("normal"), ...pastilla, flex: "none" }} data-glass>
         {status}
         {actions}
-        <button type="button" className="shell-cmdk" aria-label="Abrir la paleta de mandos (Ctrl+K)" title="Paleta de mandos (Ctrl+K)" onClick={openCommandPalette}>
-          ⌘K
-        </button>
-        <ThemeToggle size="sm" />
+        {tactil ? (
+          <button type="button" className="shell-cmdk" aria-label="Más acciones" title="Más acciones: paleta de mandos" onClick={openCommandPalette}
+                  style={{ width: OBJETIVO_TACTIL_PX, height: OBJETIVO_TACTIL_PX, padding: 0 }}>
+            <Icon name="MENU" size={OBJETIVO_TACTIL_PX / 2} />
+          </button>
+        ) : (
+          <>
+            <button type="button" className="shell-cmdk" aria-label="Abrir la paleta de mandos (Ctrl+K)" title="Paleta de mandos (Ctrl+K)" onClick={openCommandPalette}>
+              ⌘K
+            </button>
+            <ThemeToggle size="sm" />
+          </>
+        )}
         <UserMenu />
       </div>
     </div>

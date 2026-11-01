@@ -179,7 +179,6 @@ export function Patients({
     >
 
       <PageBody className="fade-rise">
-        {/* 1440: tres columnas de tarjetas más el panel lateral caben sin apretar. */}
           {avisos.length > 0 && (
             // Franja de chips: cada aviso es una pastilla de cristal, no una tarjeta de la rejilla.
             <div role="list" aria-label="Avisos clínicos" className="pt-avisos">

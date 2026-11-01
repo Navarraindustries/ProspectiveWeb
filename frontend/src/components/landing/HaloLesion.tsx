@@ -1,8 +1,10 @@
 /* Halo que late sobre la lesión: un punto fijo y un anillo que se expande y se
-   apaga. `x`, `y` son porcentajes de la caja padre (que debe ser `position:
-   relative`). Con movimiento reducido el anillo queda quieto. */
+   apaga (preset `halo`). `x`, `y` son porcentajes de la caja padre (que debe
+   ser `position: relative`). Solo late mientras está en pantalla
+   (`whileInView`): fuera de ella el bucle se para. Con movimiento reducido el
+   anillo queda quieto. */
 
-import { motion, useReducedMotion } from "../../motion";
+import { halo, motion, useReducedMotion } from "../../motion";
 
 export function HaloLesion({ x, y }: { x: number; y: number }) {
   const reducido = useReducedMotion() ?? false;
@@ -18,8 +20,9 @@ export function HaloLesion({ x, y }: { x: number; y: number }) {
       ) : (
         <motion.span
           className="halo-lesion__anillo"
-          animate={{ scale: [1, 2.4], opacity: [0.6, 0] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
+          // Sin IntersectionObserver (navegadores viejos, jsdom) late siempre, como antes.
+          {...(typeof IntersectionObserver === "undefined" ? { animate: halo.animate } : { whileInView: halo.animate })}
+          transition={halo.transition}
         />
       )}
       <span className="halo-lesion__punto" />

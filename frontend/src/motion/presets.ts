@@ -69,3 +69,8 @@ export const revelarTransition = { duration: DUR.panel, ease: EASE };
 export const ESCALONADO = 0.06;
 // Desplazamiento animado a una sección de la landing.
 export const DUR_DESPLAZAMIENTO = 0.6;
+// Latido del halo de la lesión: el anillo crece a 2,4 veces y se apaga, en bucle.
+export const halo = {
+  animate: { scale: [1, 2.4], opacity: [0.6, 0] },
+  transition: { duration: 2.4, repeat: Infinity, ease: "easeOut" as const },
+};

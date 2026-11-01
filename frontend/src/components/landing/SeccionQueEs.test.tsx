@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 
 import { HaloLesion } from "./HaloLesion";
 import { QueEs } from "./SeccionQueEs";
@@ -33,6 +33,23 @@ describe("QueEs", () => {
     expect(img.closest("[data-glass]")).not.toBeNull();
     expect(screen.getByText("Case 3 · 3DRA · malla de la segmentación automática")).toBeInTheDocument();
     expect(container.querySelector('[data-pulso="true"]')).not.toBeNull();
+  });
+
+  it("HaloLesion solo late en pantalla: fuera de ella el anillo no se mueve", async () => {
+    const avisos: ((e: { isIntersecting: boolean; target: Element }[]) => void)[] = [];
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(cb: (e: { isIntersecting: boolean; target: Element }[]) => void) { avisos.push(cb); }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    const { container } = render(<HaloLesion x={60} y={40} />);
+    const anillo = container.querySelector<HTMLElement>(".halo-lesion__anillo")!;
+    await act(() => new Promise((r) => setTimeout(r, 120)));
+    expect(anillo.style.transform).toBe("");
+    act(() => { for (const cb of avisos) cb([{ isIntersecting: true, target: anillo }]); });
+    await act(() => new Promise((r) => setTimeout(r, 120)));
+    expect(anillo.style.transform).toMatch(/scale\(/);
   });
 
   it("HaloLesion late con movimiento y queda quieto con movimiento reducido", () => {

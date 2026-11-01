@@ -23,7 +23,7 @@
 - Sin scroll horizontal; nada se corta ni se pisa en la matriz de anchos 360, 390, 768, 1024, 1280, 1366, 1440, 1707, 1920, 2560 y altos 600, 768, 900, 1080.
 - Puntos de corte solo de `styles/puntosCorte.ts` (640 / 1024 / 1280 / 1920). `landing.css` no lleva ninguna consulta de anchura; de alto solo 600/768/900/1080.
 - Tramos: `movil` ≤ 640 < `tableta` ≤ 1024 < `estrecho` ≤ 1280 < `ancho` < 1920 ≤ `grande`. Selectores CSS: `.landing-stitch[data-tramo="movil"]`, `.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"])` (≤ 1024), `.landing-stitch[data-tramo="grande"]`. Escritos siempre así (los tests los buscan literalmente).
-- La landing sigue anclada en oscuro (`data-theme="dark"`). En los `.tsx` de `components/landing/` y en `pages/Landing.tsx` no hay colores escritos a mano (ni `#hex` ni `rgb(`): solo tokens.
+- La landing sigue el tema de la app (pedido del dueño 01-11; Tarea 12): hasta la Tarea 12 sigue anclada en oscuro, pero todo lo nuevo usa tokens de tema para funcionar en los dos. En los `.tsx` de `components/landing/` y en `pages/Landing.tsx` no hay colores escritos a mano (ni `#hex` ni `rgb(`): solo tokens.
 - Imágenes bajo el hero: `loading="lazy"`, `decoding="async"`, `width` y `height` explícitos. El hero sigue cargando en el acto. Sin librerías nuevas. `pipeline-hf.mp4` no se usa (5 MB).
 - No tocar el quirófano, las páginas de gestión ni `components/Icon.tsx` (el glifo de `STEP_PATIENT` es de la fase 9; la landing usa `UPLOAD` para el paso de carga).
 - Case 3 es publicable (confirmado por el dueño). En esta fase no se regenera ningún asset ni se ejecuta ningún script VTK.
@@ -727,3 +727,33 @@ git commit -m "Fase 11: renders de los clips T1–T4 con nombres en masculino (A
 - [ ] **Step 4: Movimiento reducido** (DevTools → Rendering → `prefers-reduced-motion: reduce`): saltos directos, nada se revela, riel lleno, halo quieto, hero quieto.
 - [ ] **Step 5: Hero de Case 3.** Los 60 fotogramas 3DRA bajan hasta el corte de la lesión y se funden en el render con la baliza sobre el saco; la ventana lista los cinco candidatos con el pie dentro del cristal (A11); rótulo `W 3000 · L 1800 · MIP 4,2 mm · corte n/384`.
 - [ ] **Step 6:** Red: ninguna imagen de sección se pide antes de acercarse; sin saltos de maquetación al cargar. Guardar capturas y anotar hallazgos; si todo pasa, fusionar `--no-ff` en `main` (sin push).
+
+---
+
+### Task 12: Tema claro de la landing (pedido del dueño, 01-11) — se ejecuta ANTES de la Tarea 11
+
+**Files:**
+- Modify: `frontend/src/pages/Landing.tsx` (quitar `data-theme="dark"` de la raíz y su comentario)
+- Modify: `frontend/src/styles/landing.css` (cabecera «dark-only»; todo color por token; reglas propias de claro donde haga falta)
+- Modify: `frontend/src/styles/tokens/colors.css` (solo si faltan tokens `--landing-*` para los dos temas)
+- Modify: `frontend/src/components/landing/NavPildora.tsx` (conmutador de tema)
+- Modify: `frontend/src/components/landing/HeroCortes.tsx`, `VentanaDeteccion.tsx`, `FranjaCasos.tsx` (escenarios oscuros acotados)
+- Test: `frontend/src/pages/Landing.test.tsx`, `frontend/src/components/landing/NavPildora.test.tsx`, `frontend/src/styles/landing.tema.test.ts` (nuevo)
+
+**Interfaces:**
+- Consumes: `ThemeToggle` (`components/ThemeToggle.tsx`, `size` "md"/"lg"), `useThemeContext` (`store/theme`), `useTableta`, `simularPantalla`, `styles/contraste.ts`.
+- Produces: atributo `data-escenario="oscuro"` + `data-theme="dark"` SOLO en los contenedores de imagen radiológica (escenario del hero con cortes/render y su ventana de detección; figura de la franja de casos si su imagen es oscura).
+
+**Decisiones:**
+- La landing sigue el tema global (`ThemeProvider`; la primera vez, el del sistema, como el resto de la app). Conmutador de tema en la nav pill (a la derecha de «Entrar»; 44 px a ≤ 1024; en móvil dentro del panel del menú).
+- Escenario del hero: fondo `--viewer-bg` (negro) en los dos temas, con `data-theme="dark"` acotado a ese contenedor para que la ventana de detección y los rótulos sobre la imagen sigan claros sobre negro. En claro, el escenario es una «pantalla» con radio `--radius-xl` y margen lateral (no a sangre) por encima de 1024; a ≤ 1024 a sangre.
+- Resto de secciones: tokens (`--canvas`, `--foreground`, `--muted-foreground`, `--glass*`, `--border`, `--data`). Renders con fondo transparente (secciones/, clips/) se ven sobre claro sin marco extra; si un render pierde contraste en claro, va dentro de una tarjeta de cristal con fondo `--viewer-bg`.
+- Velo/viñeteado del vídeo y degradados que suponían fondo negro: por token, con variante clara.
+
+- [ ] **Step 1: Tests que fallan**
+  - Landing sin `data-theme` en la raíz; con tema claro la raíz hereda `light`; el escenario del hero conserva `data-theme="dark"` y `data-escenario="oscuro"` en los dos temas.
+  - NavPildora: hay botón de tema (nombre accesible del ThemeToggle) y mide 44 px a ≤ 1024 (`simularPantalla(1024)`), en móvil dentro del panel.
+  - `landing.tema.test.ts`: `landing.css` sin `#hex`/`rgb(` fuera de `:root`/bloques de tokens (o lista de permitidos comentada); contraste ≥ 4,5:1 de `--foreground`, `--muted-foreground` y `--data` sobre `--canvas` y sobre el cristal de la landing en CLARO y en OSCURO (`styles/contraste.ts`).
+- [ ] **Step 2:** ver fallar. **Step 3:** implementar. **Step 4:** `npx vitest run src/pages/Landing.test.tsx src/components/landing src/styles` y `npx tsc -b` en verde.
+- [ ] **Step 5: Commit** con lista explícita: «Fase 11: tema claro de la landing (sigue el tema de la app; escenario radiológico oscuro)».
+

@@ -156,7 +156,14 @@ tooltip/rótulo, sin cambiar el comportamiento).
   con render de los clips; Próximamente (A10) en tarjetas. Las imágenes nuevas
   son renders propios (malla de Case 3, clips NAVARRO de los STL del repo) o
   capturas de la propia app; nada de stock.
-- A7, A11, A12 tal cual. La landing sigue anclada en oscuro.
+- A7, A11, A12 tal cual.
+- **Tema claro (pedido del dueño, 01-11):** la landing deja de estar anclada en
+  oscuro y sigue el tema de la app (la primera vez, el del sistema; conmutador
+  de tema en la nav, 44 px en táctil). El escenario del hero (cortes y render
+  3D) conserva el fondo negro en los dos temas, como el visor del quirófano
+  (`--viewer-bg`); en claro se presenta como una pantalla dentro de la página.
+  Todo lo demás pasa a tokens de tema, con cristal claro y contraste 4,5:1
+  medido en los dos temas.
 
 ## Fases
 

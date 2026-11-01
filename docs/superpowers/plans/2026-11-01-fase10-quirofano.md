@@ -4,7 +4,7 @@
 
 **Goal:** Que nada del quirófano se pise, se parta ni enseñe códigos internos a ningún tamaño de pantalla (A63–A70 y la banda del visor a ancho estrecho), y que el quirófano sirva para revisar un caso en móvil y tableta (visor + hoja inferior L5 + dock).
 
-**Architecture:** La banda del visor elige un **nivel** por el ancho que mide (`ancho` · `medio` · `estrecho` · `iconos`) y, en pantallas táctiles, siempre `iconos`; su estructura (`flex-wrap`, grupo izquierdo rígido, derecho elástico) hace imposible el solape aunque una cifra falle. El dock, la barra superior y la hoja de atajos eligen **modo** por `matchMedia` con dos consultas nuevas centralizadas en `pipeline/puntosCorte.ts` (móvil ≤ 640, táctil ≤ 1023) más la ya existente de L5 (`useEstrecho`, ≤ 1280). La cinta de rumbo se coloca con una función pura que lee las lecturas de las esquinas. Cada comportamiento por punto de corte se fija con un test que simula la pantalla (`src/test/pantalla.ts`), porque jsdom no maqueta.
+**Architecture:** La banda del visor elige un **nivel** por el ancho que mide (`ancho` · `medio` · `estrecho` · `iconos`) y, en pantallas táctiles, siempre `iconos`; su estructura (`flex-wrap`, grupo izquierdo rígido, derecho elástico) hace imposible el solape aunque una cifra falle. El dock, la barra superior y la hoja de atajos eligen **modo** por `matchMedia` con dos consultas nuevas centralizadas en `pipeline/puntosCorte.ts` (móvil ≤ 640, táctil ≤ 1024) más la ya existente de L5 (`useEstrecho`, ≤ 1280). La cinta de rumbo se coloca con una función pura que lee las lecturas de las esquinas. Cada comportamiento por punto de corte se fija con un test que simula la pantalla (`src/test/pantalla.ts`), porque jsdom no maqueta.
 
 **Tech Stack:** React 19, Vite 7, TypeScript, vitest + Testing Library (jsdom), `motion` vía `src/motion`.
 
@@ -21,7 +21,7 @@
 - Esta fase NO toca Entorno/fondos, marca ni páginas de gestión (fases 8 y 9 van en paralelo en otras ramas). No editar `components/shell/*`, `components/Sheet.tsx`, `components/Button.tsx`, `styles/tokens/*`. Ninguna tarea de este plan los necesita.
 - **Matriz de pantalla** (CSS px): anchos 360, 390, 768, 1024, 1280, 1366, 1440, 1920, 2560; altos 600, 768, 900, 1080. El portátil del dueño es 1707×743 CSS (Chrome al 80 %): se añade 1707 a toda matriz de test.
 - **Criterios en todos los anchos:** nada se corta ni se pisa; sin scroll horizontal de página; objetivos táctiles ≥ 44 px por debajo de 1024; textos de control ≥ 13 px por debajo de 1024 (excepción declarada: las lecturas del HUD sobre la imagen siguen a 10,5–11 px, ver decisiones); el visor aprovecha el ancho a ≥ 1920.
-- **Puntos de corte:** solo los de `pipeline/puntosCorte.ts` (`MQ_MOVIL` 640, `MQ_TACTIL` 1023) y `hooks/useEstrecho` (1280); umbrales de la banda (que se miden sobre la banda, no sobre la ventana) solo en `vtk/mainOptions.ts`. Nada de números sueltos nuevos en componentes. Al fusionar con la fase 8 se alinean con su token/hook (ver nota en `puntosCorte.ts`).
+- **Puntos de corte:** solo los de `pipeline/puntosCorte.ts` (`MQ_MOVIL` 640, `MQ_TACTIL` 1024) y `hooks/useEstrecho` (1280); umbrales de la banda (que se miden sobre la banda, no sobre la ventana) solo en `vtk/mainOptions.ts`. Nada de números sueltos nuevos en componentes. Al fusionar con la fase 8 se alinean con su token/hook (ver nota en `puntosCorte.ts`).
 - Cada vista tocada lleva un test que recorre la matriz con `simularPantalla(ancho, alto)` y fija clases/atributos por punto de corte; los altos se recorren para fijar que no cambian el modo salvo donde el plan lo diga.
 - Fases: worktree propio (rama `fase10-quirofano`), SDD, fusión local `--no-ff`, sin push.
 
@@ -45,7 +45,7 @@
 **Interfaces:**
 - Consumes: `zonaLibre` de `frontend/src/pipeline/zonaLibre.ts`.
 - Produces:
-  - `puntosCorte.ts`: `export const MQ_MOVIL = "(max-width: 640px)"`, `export const MQ_TACTIL = "(max-width: 1023px)"`, `export const OBJETIVO_TACTIL_PX = 44`. Comentario de cabecera: «L5 (≤ 1280) sigue en `hooks/useEstrecho`. Alinear con el token/hook de puntos de corte de la fase 8 al fusionar.»
+  - `puntosCorte.ts`: `export const MQ_MOVIL = "(max-width: 640px)"`, `export const MQ_TACTIL = "(max-width: 1024px)"`, `export const OBJETIVO_TACTIL_PX = 44`. Comentario de cabecera: «L5 (≤ 1280) sigue en `hooks/useEstrecho`. Alinear con el token/hook de puntos de corte de la fase 8 al fusionar.»
   - `pantalla.ts`: `MATRIZ_ANCHOS = [360, 390, 768, 1024, 1280, 1366, 1440, 1707, 1920, 2560] as const`, `MATRIZ_ALTOS = [600, 768, 900, 1080] as const`, `cumpleConsulta(q: string, ancho: number, alto: number): boolean`, `simularPantalla(ancho: number, alto?: number): void` (alto por defecto 900; `vi.stubGlobal("matchMedia", …)` con objetos `MediaQueryList` completos y `innerWidth`/`innerHeight`; quien la usa llama a `vi.unstubAllGlobals()` en `afterEach`), `anchoBanda(ancho: number, o?: { ancho520?: boolean; plegado?: boolean }): number` = `ancho − zonaLibre({ estrecho: ancho <= 1280, plegado, ancho: ancho520 }).right`.
 
 - [ ] **Step 1: Write the failing test** (`pantalla.test.ts`)
@@ -216,7 +216,7 @@ git commit -m "Banda del visor: niveles por ancho, aviso como ⚠ desplegable y 
 
 **Interfaces:**
 - Consumes: `bandTier`, `mainOptions()`, `presetOptions(Infinity)` (nombres enteros en las opciones), `HUD_LEVELS`, `MQ_MOVIL`, `MQ_TACTIL`; `Icon` `MPR_VIEW`, `LINK`, `STATUS_WARN`.
-- Produces: `ViewerHeaderIconos(props: ViewerHeaderProps & { movil: boolean; noteOpen: boolean; onToggleNote: () => void })`; la raíz de la banda lleva además `data-tactil="true"` (≤ 1023) y `data-movil="true"` (≤ 640).
+- Produces: `ViewerHeaderIconos(props: ViewerHeaderProps & { movil: boolean; noteOpen: boolean; onToggleNote: () => void })`; la raíz de la banda lleva además `data-tactil="true"` (≤ 1024) y `data-movil="true"` (≤ 640).
 
 Contenido en `iconos`, de izquierda a derecha (≈ 350 px a 44 px por objetivo, cabe en 360):
 - `<select aria-label="Vista principal" className="viewer-band-select">` con 3D, AX, COR, SAG, VOLUMEN; valor `layout.main`; `onChange` → `promote`.
@@ -607,7 +607,7 @@ git commit -m "Dock: marca hechos los pasos con resultado aunque vayan después;
 | pantalla | modo | qué se ve |
 |---|---|---|
 | ≤ 640 (360, 390) | `mini` | `‹` paso anterior (44×44, `Icon BACK`, `aria-label="Paso anterior: <rótulo>"`), píldora `N/8 · Rótulo` (alto 44, 13 px, peso 600, elipsis a 180 px, `aria-label="Paso N de 8, <rótulo>. Ver todos los pasos"`, abre la paleta de mandos), `›` paso siguiente (`Icon ARROW_RIGHT`; `aria-disabled` y `title` con el motivo si está bloqueado; con aviso de la tarea 8, el aviso va en su nombre). Sin ⌘K. `left: 12`. |
-| 641–1023 (768) | `tactil` | los 8 botones a 44 px con número/✓, sin ampliación ni rótulo flotante; ⌘K con alto 44. `left: 24`. |
+| 641–1024 (768) | `tactil` | los 8 botones a 44 px con número/✓, sin ampliación ni rótulo flotante; ⌘K con alto 44. `left: 24`. |
 | 1024–1280 (1024, 1280) | `compacto` | como hoy en estrecho: 36 px, sin ampliación. |
 | ≥ 1281 (1366 … 2560, 1707) | `completo` | como hoy: 44 px, activo 60, ampliación bajo el puntero, rótulo flotante. |
 
@@ -675,7 +675,7 @@ git commit -m "Dock por pantalla: mínimo en móvil, 44 px en tableta, compacto 
 | pantalla | modo | barra |
 |---|---|---|
 | ≥ 1024 | `ancho` | como hoy (≤ 1366 solo iconos en las acciones, ya existente). |
-| 641–1023 | `tactil` | volver 44×44; acciones `size="md"` (44); Grabar `size="md"`; `SaveStatus compacta`; ⌘K sustituido por «⋯» (`Icon MENU`, 44, `aria-label="Más acciones"`, `title="Más acciones: paleta de mandos"`, abre la paleta); sin `ThemeToggle` (el tema va a la paleta). |
+| 641–1024 | `tactil` | volver 44×44; acciones `size="md"` (44); Grabar `size="md"`; `SaveStatus compacta`; ⌘K sustituido por «⋯» (`Icon MENU`, 44, `aria-label="Más acciones"`, `title="Más acciones: paleta de mandos"`, abre la paleta); sin `ThemeToggle` (el tema va a la paleta). |
 | ≤ 640 | `movil` | lo de `tactil` y además: fila con `left/right: 12` y `gap: 8`; solo la última miga (con elipsis y `title`); sin insignia de riesgo (está en Morfometría); acciones solo Captura y Guardar progreso (Grabar y Archivar fuera; Archivar va a la paleta; grabar vídeo no se ofrece en móvil). |
 
 El menú de usuario (`shell/UserMenu`) no se toca: su objetivo táctil es de la fase 8 (ver decisiones). El alto de pantalla no cambia el modo.
@@ -692,7 +692,7 @@ El menú de usuario (`shell/UserMenu`) no se toca: su objetivo táctil es de la 
 it.each(MATRIZ_ANCHOS)("a %i px la barra va en su modo y sus acciones", (w) => {
   simularPantalla(w);
   montar();
-  const modo = w <= 640 ? "movil" : w <= 1023 ? "tactil" : "ancho";
+  const modo = w <= 640 ? "movil" : w <= 1024 ? "tactil" : "ancho";
   expect(document.querySelector("[data-banda-superior] [data-modo]")).toHaveAttribute("data-modo", modo);
   expect(!!screen.queryByRole("button", { name: /Grabar/ })).toBe(modo !== "movil");
   expect(!!screen.queryByRole("button", { name: "Más acciones" })).toBe(modo !== "ancho");
@@ -736,7 +736,7 @@ Comportamiento:
 - Rejilla de secciones: `gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))"` → 2×2 (Visor | Celda, Flujo | Ratón) a partir de una tarjeta de ≈ 744 px (pantallas ≥ 1024 con el tope de 920), una columna por debajo.
 - Cada `<dl>`: `gridTemplateColumns: "minmax(0, 22ch) minmax(0, 1fr)"`; `<dt>` sin `nowrap` (parte solo por espacios: «Mayús+arrastrar o botón central» en dos líneas; «Ctrl+rueda» entera). La descripción tiene el resto de la columna: «Corte siguiente o anterior» en una línea a ≥ 1024.
 - ≤ 640: el fondo pierde el `padding`, la tarjeta ocupa `width: 100%`, `height: 100%`, sin `maxWidth` ni borde.
-- ≤ 1023: tamaño de letra 13 px en la tarjeta y botón «Cerrar» de 44×44; desde 1024, 11 px y «Cerrar» de 24×24.
+- ≤ 1024: tamaño de letra 13 px en la tarjeta y botón «Cerrar» de 44×44; desde 1025, 11 px y «Cerrar» de 24×24.
 - Todos los altos: `maxHeight: 100%` y `overflow: auto` (la hoja no puede crecer más que la pantalla; a 600 de alto desplaza dentro).
 
 - [ ] **Step 1: Write the failing tests**
@@ -750,7 +750,7 @@ it.each(MATRIZ_ANCHOS)("a %i px la hoja toma su forma, a cualquier alto", (w) =>
     expect(card.style.overflow).toBe("auto");
     if (w <= 640) { expect(card).toHaveAttribute("data-movil", "true"); expect(card.style.height).toBe("100%"); }
     else expect(card.style.maxWidth).toBe("920px");
-    expect(screen.getByRole("button", { name: "Cerrar" }).style.width).toBe(w <= 1023 ? "44px" : "24px");
+    expect(screen.getByRole("button", { name: "Cerrar" }).style.width).toBe(w <= 1024 ? "44px" : "24px");
     unmount();
   }
 });
@@ -826,7 +826,7 @@ Cada desviación: test que la fije en la tarea correspondiente + arreglo + commi
 
 ## Decisiones tomadas en este plan
 
-- **Banda en táctil = siempre modo iconos**, aunque la banda mida más de 800 px (tableta 800–1023): a 44 px y 13 px los rótulos de `estrecho` ya no caben en una fila.
+- **Banda en táctil = siempre modo iconos**, aunque la banda mida más de 800 px (tableta 800–1024): a 44 px y 13 px los rótulos de `estrecho` ya no caben en una fila.
 - **Desplegables nativos con estilo HUD** en el modo iconos (no el `Select` D): la banda es HUD mono y el selector nativo es el mejor en el móvil.
 - **El aviso de nivel ya no tiene forma corta**: o texto entero (≥ 1400) o ⚠ que se despliega con un toque. Se retira `levelNoteShort` de la banda (la función `levelNoteFor(…, true)` y su test se quedan).
 - **Cinta de rumbo: a la derecha del rótulo o nada**; sin colocación apilada (la columna de conmutadores de la izquierda no tiene ancho conocido).

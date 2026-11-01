@@ -79,4 +79,12 @@ describe("de dónde viene la contraseña que hay que cambiar (F1b-4)", () => {
     expect(screen.getByText(/no eligió y que conoce otra persona/)).toBeInTheDocument();
     expect(screen.queryByText(/se creó/)).toBeNull();
   });
+
+  it("el formulario está en una ventana de cristal sobre el Entorno", () => {
+    const { container } = render(<ForcePasswordChange />);
+    const ventana = screen.getByRole("region", { name: "Cambia la contraseña asignada" });
+    expect(ventana).toHaveAttribute("data-glass");
+    expect(ventana).toContainElement(screen.getByLabelText("Contraseña actual"));
+    expect(container.querySelector("img[aria-hidden='true']")).not.toBeNull();
+  });
 });

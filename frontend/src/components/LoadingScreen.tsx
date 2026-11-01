@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { Logo } from "./shell/Logo";
+import { glass } from "../styles/glass";
 
 export const SHOW_MS = 2200;
 export const FADE_MS = 450;
@@ -52,7 +53,20 @@ export function LoadingScreen({ onDone, label = "Preparando el espacio de trabaj
       />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "var(--media-vignette-centro)" }} />
 
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+      <div
+        data-glass
+        style={{
+          ...glass("dense"),
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 20,
+          padding: "32px 44px",
+          borderRadius: "var(--radius-xl)",
+          color: "var(--on-media)",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Logo compact size={34} />
           <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 26, letterSpacing: "0.04em", textShadow: "var(--on-media-shadow)" }}>
@@ -61,14 +75,14 @@ export function LoadingScreen({ onDone, label = "Preparando el espacio de trabaj
         </div>
 
         {/* Barra indeterminada: barre con el azul de identidad. */}
-        <div style={{ position: "relative", width: 220, height: 4, borderRadius: 2, background: "var(--media-track)", overflow: "hidden" }}>
+        <div style={{ position: "relative", width: 220, height: 4, borderRadius: "var(--radius-full)", background: "var(--media-track)", overflow: "hidden" }}>
           <div
             style={{
               position: "absolute",
               top: 0,
               bottom: 0,
               width: "35%",
-              borderRadius: 2,
+              borderRadius: "var(--radius-full)",
               background: "linear-gradient(90deg, transparent, var(--primary), transparent)",
               animation: "progress-sweep 1.1s ease-in-out infinite",
             }}

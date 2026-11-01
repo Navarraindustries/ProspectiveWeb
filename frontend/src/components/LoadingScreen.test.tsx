@@ -40,4 +40,11 @@ describe("LoadingScreen", () => {
     act(() => { vi.advanceTimersByTime(SHOW_MS + FADE_MS + 100); });
     expect(onDone).not.toHaveBeenCalled();
   });
+
+  it("logotipo, barra y texto van en una pastilla de cristal", () => {
+    render(<LoadingScreen onDone={() => {}} />);
+    const pastilla = screen.getByText("Preparando el espacio de trabajo…").closest("[data-glass]");
+    expect(pastilla).not.toBeNull();
+    expect(pastilla).toContainElement(screen.getByText("PROSPECTIVE"));
+  });
 });

@@ -33,6 +33,8 @@ import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
 import { CommandPalette } from "./components/CommandPalette";
 import { useRegisterCommands } from "./lib/commands";
 
+const SOLO_OPACIDAD = { initial: { opacity: 0 }, animate: { opacity: 1 } };
+
 function Router() {
   const { user, ready, expiredNotice } = useAuth();
   const planning = usePlanning();
@@ -335,7 +337,20 @@ function Router() {
       go: (s) => { if (s === "orders") setOrdersPatient(null); setScreen(s); },
     }}>
     <div style={{ height: "100%", position: "relative" }}>
-      {view}
+      {/* Mientras dura la carga la oficina espera oculta bajo ella; al acabar entra
+          una vez con «glide» (solo opacidad con movimiento reducido). `initial={false}`:
+          quien recarga con la sesión abierta no ve ninguna entrada. En reposo el
+          transform es «none», así que los elementos fixed de dentro no cambian. */}
+      <motion.div
+        key="oficina"
+        variants={reduced ? SOLO_OPACIDAD : glide}
+        initial={false}
+        animate={loadingIn ? "initial" : "animate"}
+        transition={reduced ? { duration: 0.15 } : glideTransition}
+        style={{ height: "100%" }}
+      >
+        {view}
+      </motion.div>
       {user && (
         <CommandPalette
           onOpenPatient={(id) => navigate(patientPath(id))}

@@ -127,7 +127,7 @@ const FUNCIONALIDADES = [
   "Prueba de clips, coils y stents",
   "Clip a medida para fabricar",
   "Informe clínico",
-  "Sesiones de estudio reanudables",
+  "Sesiones guardadas",
   "Pacientes, casos y estudios",
 ];
 

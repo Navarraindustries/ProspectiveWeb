@@ -471,11 +471,11 @@ export function Workspace({
       </div>
 
       {/* Panel del paso — 380 px; 520 en Decisión e Informe; plegable con P. */}
-      <div style={{ position: "absolute", top: BANDA_SUPERIOR, right: 0, bottom: 0, zIndex: 2, display: "flex" }}>
-        <RightPanelColumn
+      <RightPanelColumn
           collapsed={columnCollapsed}
           onToggle={() => setPanelCollapsed(!columnCollapsed)}
           stepLabel={STEPS[stepIdx].label}
+          stepIndex={stepIdx}
           stepKey={step}
           wide={step === "treatment" || step === "report"}
           badge={sessionId && annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
@@ -499,7 +499,6 @@ export function Workspace({
             </div>
           )}
         </RightPanelColumn>
-      </div>
     </div>
   );
 }

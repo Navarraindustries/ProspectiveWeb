@@ -1,4 +1,4 @@
-/* La columna del panel del paso, plegable a una tira de 28 px.
+/* El inspector flotante del paso: cristal sobre la imagen, plegable a una pastilla.
 
    Plegada no se desmonta: solo se oculta. Una nota a medio escribir, un
    desplegable abierto o el scroll del panel siguen donde estaban al volver;
@@ -7,6 +7,8 @@
 import { useEffect, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { AnimatePresence, motion, panelSwap, panelTransition } from "../motion";
+import { glass } from "../styles/glass";
+import { BANDA_SUPERIOR, MARGEN_INSPECTOR } from "../pipeline/zonaLibre";
 
 /** Plegado o no es una manera de trabajar de quien mira, como el nivel del HUD. */
 export const PREF_PANEL_COLLAPSED = "ws.panelCollapsed";
@@ -33,6 +35,7 @@ export function RightPanelColumn({
   collapsed,
   onToggle,
   stepLabel,
+  stepIndex,
   stepKey,
   wide,
   badge,
@@ -41,6 +44,8 @@ export function RightPanelColumn({
   collapsed: boolean;
   onToggle: () => void;
   stepLabel: string;
+  /** Posición del paso (desde 0) para el rótulo «PASO n». */
+  stepIndex: number;
   /** Identifica el paso: al cambiar, el cuerpo cruza en fundido. */
   stepKey: string;
   /** Pasos con tablas o informe: 520 px en vez de 380. */
@@ -56,7 +61,8 @@ export function RightPanelColumn({
         data-panel-wide={wide ? "true" : "false"}
         style={{
           display: collapsed ? "none" : "flex",
-          position: "relative", width: wide ? 520 : 380, flexShrink: 0,
+          position: "absolute", top: BANDA_SUPERIOR, right: MARGEN_INSPECTOR, bottom: MARGEN_INSPECTOR,
+          width: wide ? 520 : 380, zIndex: 2,
           transition: "width var(--dur-2) var(--ease-out)",
         }}
       >
@@ -66,12 +72,22 @@ export function RightPanelColumn({
           <Icon name="CHEVRON_RIGHT" size={14} />
         </button>
         <div
+          data-glass
           style={{
-            flex: 1, minWidth: 0, background: "var(--background)",
-            borderLeft: "1px solid var(--border)", overflow: "hidden", minHeight: 0,
+            ...glass("dense"),
+            flex: 1, minWidth: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", minHeight: 0,
             display: "flex", flexDirection: "column",
           }}
         >
+          <div
+            style={{
+              flex: "none", padding: "14px 18px 0", fontFamily: "var(--font-mono)",
+              fontSize: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            {`Paso ${stepIndex + 1} · ${stepLabel}`.toLocaleUpperCase("es")}
+          </div>
           {/* Cruce en fundido entre pasos; el primer pintado no anima. */}
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -89,7 +105,8 @@ export function RightPanelColumn({
         </div>
       </div>
       {collapsed && (
-        <aside className="ws-panel-strip" aria-label="Panel del paso plegado">
+        <aside className="ws-panel-strip" aria-label="Panel del paso plegado" data-glass
+               style={{ ...glass("dense"), top: BANDA_SUPERIOR, right: MARGEN_INSPECTOR }}>
           <button
             type="button"
             className="ws-panel-strip-btn"

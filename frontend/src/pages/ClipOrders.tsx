@@ -36,8 +36,8 @@ import { shapeLabel } from "../components/planning/clipShape";
 import { useAuth } from "../store/auth";
 import "../styles/office.css";
 import { cifra } from "../lib/numero";
-import { fechaDia } from "../lib/fecha";
-import { useEstrecho } from "../hooks/useEstrecho";
+import { ESTILO_FECHA, fechaDia } from "../lib/fecha";
+import { useEstrecho, useMovil, useTableta } from "../hooks/useEstrecho";
 import { PageBody } from "../components/shell/PageBody";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
@@ -97,8 +97,16 @@ export function useDetalleLateral(): boolean {
 const MONO: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 13 };
 const ATENUADO: React.CSSProperties = { fontSize: 13, color: "var(--muted-foreground)" };
 const ELIPSIS: React.CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 };
+/** Hasta 1024 px (tableta y táctil) el texto largo se parte en vez de
+    recortarse: no hay ancho para 220 px fijos ni ratón para leer el title. */
+const PARTIDO: React.CSSProperties = { overflowWrap: "anywhere" };
 
-function columnasPedido(conTaller: boolean): ColumnaTabla<ClipOrder>[] {
+/** `conTaller`: la columna Taller (se quita con el detalle al lado y en
+    641–1024 px). `partir`: ≤ 1024 px, las celdas de texto parten en líneas. */
+function columnasPedido(conTaller: boolean, partir = false): ColumnaTabla<ClipOrder>[] {
+  const recorte = partir ? PARTIDO : ELIPSIS;
+  // Una insignia larga («Enviado al taller», «fuera de especificación») también parte.
+  const insignia: React.CSSProperties | undefined = partir ? { whiteSpace: "normal" } : undefined;
   const cols: ColumnaTabla<ClipOrder>[] = [
     {
       id: "pieza_no", titulo: "Nº de pieza", enTarjeta: "titulo", sinPartir: true,
@@ -110,10 +118,10 @@ function columnasPedido(conTaller: boolean): ColumnaTabla<ClipOrder>[] {
         const flag = attention(o);
         return (
           <>
-            <Badge variant={STATUS_VARIANT[o.status]}>{o.status_label}</Badge>
+            <Badge variant={STATUS_VARIANT[o.status]} style={insignia}>{o.status_label}</Badge>
             {flag && (
               <div style={{ marginTop: 4 }}>
-                <Badge variant={flag.variant}>{flag.label}</Badge>
+                <Badge variant={flag.variant} style={insignia}>{flag.label}</Badge>
               </div>
             )}
           </>
@@ -124,8 +132,8 @@ function columnasPedido(conTaller: boolean): ColumnaTabla<ClipOrder>[] {
       id: "paciente", titulo: "Paciente y caso",
       celda: (o) => (
         <>
-          <div title={o.patient || undefined} style={{ ...ELIPSIS, fontSize: 13 }}>{o.patient || "—"}</div>
-          <div title={o.case_label || undefined} style={{ ...ELIPSIS, ...ATENUADO }}>{o.case_label}</div>
+          <div title={o.patient || undefined} style={{ ...recorte, fontSize: 13 }}>{o.patient || "—"}</div>
+          <div title={o.case_label || undefined} style={{ ...recorte, ...ATENUADO }}>{o.case_label}</div>
         </>
       ),
     },
@@ -147,8 +155,8 @@ function columnasPedido(conTaller: boolean): ColumnaTabla<ClipOrder>[] {
       id: "taller", titulo: "Taller",
       celda: (o) => (
         <>
-          <div title={o.workshop_name || undefined} style={{ ...ELIPSIS, fontSize: 13 }}>{o.workshop_name || "—"}</div>
-          {o.needed_by && <div style={ATENUADO}>para <span style={MONO}>{fechaDia(o.needed_by)}</span></div>}
+          <div title={o.workshop_name || undefined} style={{ ...recorte, fontSize: 13 }}>{o.workshop_name || "—"}</div>
+          {o.needed_by && <div style={ATENUADO}>para <span style={ESTILO_FECHA}>{fechaDia(o.needed_by)}</span></div>}
         </>
       ),
     });
@@ -157,6 +165,11 @@ function columnasPedido(conTaller: boolean): ColumnaTabla<ClipOrder>[] {
 }
 
 /* ── Detalle ─────────────────────────────────────────────────────────────── */
+
+/** Una cifra dentro de un texto en sans: la única parte en mono. */
+function Cifra({ children }: { children: React.ReactNode }) {
+  return <span data-mono style={{ fontFamily: "var(--font-mono)" }}>{children}</span>;
+}
 
 function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
   order: ClipOrder; onChanged: () => void; onClose: () => void;
@@ -207,19 +220,19 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
 
       <dl className="po-datos">
         {([
-          ["Paciente", order.patient || "—", false],
-          ["Caso", order.case_label || "—", false],
-          ["Pieza", `${order.series} ${shapeLabel(order.shape, order.angle_deg, order.window_mm)} · mordaza ${cifra(order.jaw_mm, 1)} mm`, true],
-          ["Piezas", String(order.total_pieces), true],
-          ["Cirujano", order.surgeon || "sin firmar", false],
-          ["Taller", order.workshop_name || "por asignar", false],
-          ["Fecha necesaria", order.needed_by ? fechaDia(order.needed_by) : "sin comprometer", false],
-          ["Uso previsto", order.intended_use, false],
-        ] as [string, string, boolean][]).map(([k, v, mono]) => (
+          ["Paciente", order.patient || "—"],
+          ["Caso", order.case_label || "—"],
+          // El nombre de la pieza en sans («T1 recto»); mono solo en la cifra.
+          ["Pieza", <>{nombrePieza(order)} · mordaza <Cifra>{cifra(order.jaw_mm, 1)}</Cifra> mm</>],
+          ["Piezas", <Cifra>{order.total_pieces}</Cifra>],
+          ["Cirujano", order.surgeon || "sin firmar"],
+          ["Taller", order.workshop_name || "por asignar"],
+          ["Fecha necesaria", order.needed_by ? <span style={ESTILO_FECHA}>{fechaDia(order.needed_by)}</span> : "sin comprometer"],
+          ["Uso previsto", order.intended_use],
+        ] as [string, React.ReactNode][]).map(([k, v]) => (
           <div key={k} style={{ display: "contents" }}>
             <dt>{k}</dt>
-            <dd {...(mono ? { "data-mono": true } : {})}
-                style={mono ? { fontFamily: "var(--font-mono)" } : undefined}>{v}</dd>
+            <dd>{v}</dd>
           </div>
         ))}
       </dl>
@@ -231,11 +244,11 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
       )}
 
       {order.status === "recibida" && (
-        <div style={{
-          fontSize: 13, marginTop: 10, fontFamily: "var(--font-mono)", lineHeight: 1.5,
+        <div data-testid="po-medido" style={{
+          fontSize: 13, marginTop: 10, lineHeight: 1.5,
           color: outOfSpec ? "var(--destructive)" : "var(--success)",
         }}>
-          Medido: mordaza {cifra(r.measured_jaw_mm, 2)} mm · fuerza {cifra(r.measured_force_g, 0)} g
+          Medido: mordaza <Cifra>{cifra(r.measured_jaw_mm, 2)}</Cifra> mm · fuerza <Cifra>{cifra(r.measured_force_g, 0)}</Cifra> g
           {outOfSpec ? " — fuera de especificación" : " — dentro de especificación"}
         </div>
       )}
@@ -448,6 +461,10 @@ export function ClipOrdersPage({
   for (const o of base) counts[o.status] = (counts[o.status] ?? 0) + 1;
   const todosCount = openOnly ? base.filter((o) => !CLOSED.includes(o.status)).length : base.length;
   const lateral = useDetalleLateral();
+  // 641–1024 px: sin la columna Taller y con las celdas de texto partidas, para
+  // que la tabla quepa sin scroll horizontal; ≤ 640 son tarjetas y partidas.
+  const movil = useMovil();
+  const tableta = useTableta();
   // La hoja conserva el último pedido mientras se cierra (la salida dura unos ms).
   const ultimo = useRef<ClipOrder | null>(null);
   if (selected) ultimo.current = selected;
@@ -535,7 +552,7 @@ export function ClipOrdersPage({
             <TablaTarjetas
               rotulo="Pedidos de clips"
               filas={error ? [] : sorted}
-              columnas={columnasPedido(!(lateral && selected))}
+              columnas={columnasPedido(!(lateral && selected) && !(tableta && !movil), tableta)}
               clave={(o) => o.part_no}
               onFila={(o) => setSel(o.part_no === sel ? null : o.part_no)}
               seleccionada={(o) => o.part_no === sel}
@@ -558,14 +575,16 @@ export function ClipOrdersPage({
               aria-label={`Detalle del pedido ${selected.part_no}`}
               style={{ position: "sticky", top: 16, minWidth: 0 }}
             >
-              <Detail order={selected} onChanged={load} onClose={() => setSel(null)}
+              {/* La clave rehace el detalle al cambiar de pedido: lo tecleado
+                  (justificación, medidas) no pasa de uno a otro. */}
+              <Detail key={selected.part_no} order={selected} onChanged={load} onClose={() => setSel(null)}
                       onOpenSession={onOpenSession} />
             </aside>
           )}
         </div>
         {!lateral && ultimo.current && (
           <Sheet open={!!selected} title={`Pedido ${ultimo.current.part_no}`} width={460} onClose={() => setSel(null)}>
-            <Detail order={selected ?? ultimo.current} enHoja onChanged={load} onClose={() => setSel(null)}
+            <Detail key={(selected ?? ultimo.current).part_no} order={selected ?? ultimo.current} enHoja onChanged={load} onClose={() => setSel(null)}
                     onOpenSession={onOpenSession} />
           </Sheet>
         )}

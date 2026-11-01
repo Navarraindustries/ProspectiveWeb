@@ -574,6 +574,45 @@ describe("la lista con el estilo D (A42, A45, A46, A13)", () => {
     expect(screen.queryByRole("table")).toBeNull();
   });
 
+  it("641–1024: sin columna Taller y con el texto partido, sin anchos fijos (I3)", async () => {
+    simularPantalla(1024);
+    listClipOrders.mockResolvedValue([order({
+      part_no: "PR-TAB", patient: "Fernández de la Peña Iturralde, María Concepción",
+      reception: { jaw_within_tolerance: true, force_within_band: false }, status: "recibida", status_label: "Recibida",
+    })]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.queryByRole("columnheader", { name: "Taller" })).toBeNull();
+    const nombre = screen.getByText("Fernández de la Peña Iturralde, María Concepción");
+    expect(nombre.style.whiteSpace).toBe("");
+    expect(nombre.style.maxWidth).toBe("");
+    expect(nombre).toHaveStyle({ overflowWrap: "anywhere" });
+    // Las insignias largas también pueden partir.
+    expect(screen.getByText("fuera de especificación")).toHaveStyle({ whiteSpace: "normal" });
+  });
+
+  it("> 1024: con Taller y el nombre recortado con su title", async () => {
+    simularPantalla(1280);
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-ANCHO" })]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.getByRole("columnheader", { name: "Taller" })).toBeInTheDocument();
+    expect(screen.getByText("Navarro, Ana")).toHaveStyle({ whiteSpace: "nowrap" });
+    expect(within(rows()[0]).getByText("Enviado al taller")).toHaveStyle({ whiteSpace: "nowrap" });
+  });
+
+  it("≤ 640: el nombre del paciente se lee entero en la tarjeta (M7)", async () => {
+    simularPantalla(390);
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-M7", patient: "Fernández de la Peña Iturralde, María Concepción" })]);
+    render(<ClipOrdersPage />);
+    const nombre = await screen.findByText("Fernández de la Peña Iturralde, María Concepción");
+    expect(nombre.style.textOverflow).toBe("");
+    expect(nombre.style.whiteSpace).toBe("");
+    expect(nombre).toHaveStyle({ overflowWrap: "anywhere" });
+    // La tarjeta conserva el Taller como dato.
+    expect(screen.getByText("Taller").tagName).toBe("DT");
+  });
+
   it("a 1707 la tabla oculta «Taller» mientras hay un pedido abierto al lado", async () => {
     simularPantalla(1707);
     listClipOrders.mockResolvedValue([order({ part_no: "PR-LAT" })]);
@@ -599,11 +638,48 @@ describe("el detalle con el estilo D (A43, A44)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /P-1/ }));
   };
 
-  it("textos en sans; mono solo en nº de pieza y medidas (A43)", async () => {
+  it("textos en sans; mono solo en nº de pieza y medidas (A43, M1)", async () => {
     await abrir();
     expect(screen.getByText("Administrador")).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
     expect(screen.getByText("sin comprometer")).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
-    expect(screen.getByText(/mordaza 10,0 mm/).closest("[data-mono]")).not.toBeNull();
+    // «Pieza»: el nombre de la lista («T1 recto») en sans y solo la cifra en mono.
+    const pieza = within(document.querySelector<HTMLElement>(".po-datos")!).getByText("Pieza").nextElementSibling as HTMLElement;
+    expect(pieza).toHaveTextContent("T1 recto · mordaza 10,0 mm");
+    expect(pieza).not.toHaveAttribute("data-mono");
+    expect(pieza).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
+    expect([...pieza.querySelectorAll("[data-mono]")].map((e) => e.textContent)).toEqual(["10,0"]);
+  });
+
+  it("«Medido…» en sans con mono solo en las medidas (M1)", async () => {
+    await abrir({
+      status: "recibida", status_label: "Recibida", next_states: [],
+      reception: { measured_jaw_mm: 10, measured_force_g: 150.4, jaw_within_tolerance: true, force_within_band: true },
+    });
+    const medido = await screen.findByTestId("po-medido");
+    expect(medido).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
+    expect([...medido.querySelectorAll("[data-mono]")].map((e) => e.textContent)).toEqual(["10,00", "150"]);
+  });
+
+  it("la fecha necesaria va en sans con cifras tabulares (M2)", async () => {
+    await abrir({ needed_by: "2026-11-20" });
+    const f = await screen.findByText("20/11/26");
+    expect(f).toHaveStyle({ fontFamily: "var(--font-sans)", fontVariantNumeric: "tabular-nums" });
+  });
+
+  it("lo tecleado en un pedido no pasa a otro (M10)", async () => {
+    const fuera = (part_no: string) => order({
+      part_no, status: "recibida", status_label: "Recibida", next_states: [],
+      reception: { measured_jaw_mm: 10, measured_force_g: 90, jaw_within_tolerance: true, force_within_band: false },
+    });
+    listClipOrders.mockResolvedValue([fuera("P-A"), fuera("P-B")]);
+    render(<ClipOrdersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /P-A/ }));
+    const just = await screen.findByLabelText("Justificación para aceptar la desviación");
+    fireEvent.change(just, { target: { value: "Aceptada por el cirujano" } });
+    expect(just).toHaveValue("Aceptada por el cirujano");
+    fireEvent.click(screen.getByRole("button", { name: /P-B/ }));
+    expect(await screen.findByRole("complementary", { name: "Detalle del pedido P-B" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Justificación para aceptar la desviación")).toHaveValue("");
   });
 
   it("descargas con icono y «Marcar enviado» como principal junto a «Abrir el caso» (A44)", async () => {
@@ -625,7 +701,7 @@ describe("el detalle con el estilo D (A43, A44)", () => {
       reception: { measured_jaw_mm: 10, measured_force_g: 150.4, jaw_within_tolerance: true, force_within_band: true },
     });
     expect(await screen.findByText("20/11/26")).toBeInTheDocument();
-    expect(screen.getByText(/fuerza 150 g/)).toBeInTheDocument();
+    expect(screen.getByTestId("po-medido")).toHaveTextContent(/fuerza 150 g/);
   });
 
   it("a 1280 el detalle es una hoja; a 1707 va al lado; el pedido sigue elegido al cambiar", async () => {

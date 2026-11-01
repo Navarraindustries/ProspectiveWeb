@@ -87,3 +87,8 @@ export function selloArchivo(iso: string, o?: OpcionesFecha): string {
   return d.toLocaleDateString("sv-SE", zona).replace(/-/g, "")
     + "-" + d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", hour12: false, ...zona }).replace(/:/g, "");
 }
+
+/** Cómo se pinta una fecha en las páginas de gestión: un solo criterio, en sans
+ *  (no en mono, que queda para cifras y códigos) con cifras tabulares para que
+ *  las columnas de fechas alineen. */
+export const ESTILO_FECHA = { fontFamily: "var(--font-sans)", fontVariantNumeric: "tabular-nums" } as const;

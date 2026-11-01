@@ -312,9 +312,11 @@
   background: color-mix(in srgb, var(--canvas) 85%, transparent);
   border: 1.5px solid var(--foreground);
 }
+/* El «1» de la lesión va en oscuro sobre el rojo: en blanco no llega a 4,5:1. */
 .landing-stitch .hero-ventana__num--lesion {
   background: var(--destructive);
   border-color: var(--destructive);
+  color: var(--destructive-foreground);
 }
 .landing-stitch .hero-ventana__insignia {
   padding: 1px 8px;
@@ -383,6 +385,7 @@
   width: 44px;
   height: 44px;
   font-size: 15px;
+  color: var(--destructive-foreground);
   background: var(--destructive);
   border-color: var(--destructive);
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--destructive) 35%, transparent),

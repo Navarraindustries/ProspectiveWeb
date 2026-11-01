@@ -121,6 +121,18 @@ describe("contraste de la landing en los dos temas", () => {
     });
   }
 
+  /* El «1» de la lesión (ventana y baliza) es texto sobre el rojo: oscuro, no blanco. */
+  it("el número de la lesión aguanta 4,5:1 sobre el rojo en los dos temas", () => {
+    for (const sel of [".landing-stitch .hero-ventana__num--lesion", ".landing-stitch .hero-baliza--lesion"]) {
+      expect(tieneDeclaracion(landing, sel, "background: var(--destructive)"), sel).toBe(true);
+      expect(tieneDeclaracion(landing, sel, "color: var(--destructive-foreground)"), sel).toBe(true);
+    }
+    for (const [tema, b] of TEMAS) {
+      const r = ratio(hexDe(b, "--destructive-foreground"), hexDe(b, "--destructive"));
+      expect(r, `${tema}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   /* Dentro de los escenarios (data-theme="dark") mandan los tokens oscuros en los dos
      temas: el texto del hero y la ventana de detección van sobre el negro del visor. */
   it("en el escenario oscuro, el texto aguanta 4,5:1 sobre el visor y sobre la ventana", () => {

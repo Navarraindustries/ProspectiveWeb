@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { Logo } from "./Logo";
 
 const LEMA = "Planificación neurovascular con datos";
+const FRASE = "Del DICOM al clip, en un solo espacio de trabajo.";
 export const VIDEO_MARCA = "/media/intro.mp4";
 
 export function AuthBrand({ flex }: { flex: string }) {
@@ -65,12 +66,20 @@ export function AuthBrand({ flex }: { flex: string }) {
         type="button"
         onClick={() => navigate("/")}
         title="Ir a la página principal"
-        style={{ position: "relative", alignSelf: "flex-start", background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--on-media)" }}
+        style={{ position: "relative", alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 12, background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--on-media)" }}
       >
-        <Logo size={32} />
+        <Logo compact size={32} />
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-eyebrow)", fontWeight: 600, letterSpacing: "var(--tracking-eyebrow)", textShadow: "var(--on-media-shadow)" }}>
+          PROSPECTIVE
+        </span>
       </button>
-      <div style={{ position: "relative", margin: "auto 0", color: "var(--on-media)", fontSize: 38, fontWeight: 700, letterSpacing: "var(--tracking-title)", lineHeight: 1.1, maxWidth: 460, textShadow: "var(--on-media-shadow)" }}>
-        {LEMA}
+      <div style={{ position: "relative", margin: "auto 0", maxWidth: 460 }}>
+        <div style={{ color: "var(--on-media)", fontSize: 38, fontWeight: 700, letterSpacing: "var(--tracking-title)", lineHeight: 1.1, textShadow: "var(--on-media-shadow)" }}>
+          {LEMA}
+        </div>
+        <p style={{ margin: "16px 0 0", color: "var(--on-media-muted)", fontSize: 16, lineHeight: 1.45, textShadow: "var(--on-media-shadow)" }}>
+          {FRASE}
+        </p>
       </div>
     </div>
   );

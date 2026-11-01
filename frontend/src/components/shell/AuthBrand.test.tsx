@@ -27,4 +27,10 @@ describe("AuthBrand", () => {
     expect(container.textContent).not.toMatch(/VTK|SimpleITK|SKULLAPP/);
     expect(container.querySelector(".login-media")).not.toBeNull();
   });
+
+  it("lleva la frase secundaria bajo el lema, en gris sobre el vídeo", () => {
+    montar();
+    const frase = screen.getByText("Del DICOM al clip, en un solo espacio de trabajo.");
+    expect(frase.style.color).toBe("var(--on-media-muted)");
+  });
 });

@@ -169,6 +169,21 @@ describe("AppShell", () => {
     expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
     s.restaurar();
   });
+  it("a 390: con el cajón abierto el fondo es inert y el cajón es un diálogo modal", () => {
+    const s = simularPantalla({ ancho: 390 });
+    const { container } = renderShell({});
+    const fondo = container.querySelector(".shell-body")!;
+    expect(fondo).not.toHaveAttribute("inert");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    expect(fondo).toHaveAttribute("inert");
+    const dialogo = screen.getByRole("dialog", { name: "Secciones" });
+    expect(dialogo).toHaveAttribute("aria-modal", "true");
+    expect(dialogo.contains(screen.getByRole("navigation", { name: "Secciones" }))).toBe(true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(fondo).not.toHaveAttribute("inert");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    s.restaurar();
+  });
   it("si la ventana pasa de 640 con el cajón abierto, vuelve el carril", () => {
     const s = simularPantalla({ ancho: 390 });
     renderShell({});

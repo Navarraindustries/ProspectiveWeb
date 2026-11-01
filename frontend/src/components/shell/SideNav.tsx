@@ -234,9 +234,9 @@ export function SideNav({ state, modo = "carril", abierto = false, onCerrar }: {
   );
   if (!cajon) return marco;
   return (
-    <>
+    <div className="shell-cajon" role="dialog" aria-modal="true" aria-label="Secciones">
       <div className="shell-nav-velo" data-velo aria-hidden onClick={onCerrar} />
       {marco}
-    </>
+    </div>
   );
 }

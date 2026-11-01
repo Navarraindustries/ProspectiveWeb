@@ -40,7 +40,7 @@ export function AppShell({ crumbs, subtitle, status, actions, children }: {
         {movil && (
           <SideNav state={state} modo="cajon" abierto={cajonAbierto} onCerrar={() => setCajonAbierto(false)} />
         )}
-        <div className="shell-body">
+        <div className="shell-body" inert={cajonAbierto || undefined}>
           <TopBar
             crumbs={crumbs}
             subtitle={subtitle}

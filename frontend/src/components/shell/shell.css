@@ -565,6 +565,13 @@
   width: min(280px, 86vw);
   z-index: 200;
 }
+.shell-cajon {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+  pointer-events: none;
+}
+.shell-cajon > * { pointer-events: auto; }
 .shell-nav-velo {
   position: fixed;
   inset: 0;

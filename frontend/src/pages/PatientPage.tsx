@@ -26,6 +26,7 @@ import { useAuth } from "../store/auth";
 import { SCREEN_PATH } from "../store/nav";
 import { NuevoEstudioSheet } from "./NuevoCaso";
 import { PageBody } from "../components/shell/PageBody";
+import { useTramo } from "../hooks/useEstrecho";
 
 export interface PatientPageProps {
   patientId: number;
@@ -51,6 +52,8 @@ type EstudioElegido = StudyCard | "sin-estudio";
 export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOpenOrders }: PatientPageProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  // Móvil: la página desplaza entera. ≥ 1920: la ficha sale de --content-max (A37).
+  const tramo = useTramo();
   const [patient, setPatient] = useState<PatientDetail | null>(null);
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -345,7 +348,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
 
   return (
     <AppShell crumbs={crumbs}>
-      <PageBody modo="pantalla">
+      <PageBody modo={tramo === "movil" ? "lista" : "pantalla"} lienzo={tramo === "grande"}>
         {loading ? (
           <LoadState state="cargando" />
         ) : denied ? (

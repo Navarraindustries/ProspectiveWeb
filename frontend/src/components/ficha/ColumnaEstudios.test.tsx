@@ -65,10 +65,12 @@ describe("estudios de imagen del caso", () => {
     expect(screen.getByText("2 sesiones guardadas")).toBeTruthy();
   });
 
-  it("sin miniatura dice «Sin vista previa»; con ella, la enseña", async () => {
+  it("sin miniatura, un icono que se llama «Sin vista previa» (sin texto en la fila); con ella, la enseña", async () => {
     listStudies.mockResolvedValue([estudio({ id: 7 }), estudio({ id: 8, description: "TAC", has_thumbnail: true })]);
     abrir();
-    expect(await screen.findByText("Sin vista previa")).toBeTruthy();
+    const sin = await screen.findByRole("img", { name: "Sin vista previa" });
+    expect(sin).toHaveAttribute("title", "Sin vista previa");
+    expect(screen.queryByText("Sin vista previa")).toBeNull();
     expect(((await screen.findByAltText("Vista previa de TAC")) as HTMLImageElement).src).toBe("blob:miniatura");
     expect(studyThumbnailObjectUrl).toHaveBeenCalledWith(8);
     expect(studyThumbnailObjectUrl).toHaveBeenCalledTimes(1);

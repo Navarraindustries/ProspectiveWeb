@@ -22,7 +22,8 @@ const sesionesTexto = (n: number) =>
   n === 0 ? "Sin sesiones guardadas" : `${n} ${n === 1 ? "sesión guardada" : "sesiones guardadas"}`;
 
 /** La imagen de vista previa de un estudio. Va con el token, así que pasa por
- *  un blob; sin miniatura (o si falla) dice «Sin vista previa». */
+ *  un blob; sin miniatura (o si falla) dice «Sin vista previa»: la grande con
+ *  texto; la pequeña de la fila, solo el icono con ese nombre accesible. */
 export function MiniaturaEstudio({ estudio, grande = false }: { estudio: StudyCard | null; grande?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   const [fallo, setFallo] = useState(false);
@@ -41,14 +42,18 @@ export function MiniaturaEstudio({ estudio, grande = false }: { estudio: StudyCa
     return () => { vigente = false; if (creada) URL.revokeObjectURL(creada); };
   }, [id, conMiniatura]);
 
+  const conImagen = !!(url && estudio);
+  const texto = conMiniatura && !fallo ? "Cargando…" : "Sin vista previa";
+  const soloIcono = !conImagen && !grande;
   return (
-    <span className="fc-miniatura" data-grande={grande}>
-      {url && estudio ? (
-        <img src={url} alt={`Vista previa de ${estudio.description || estudio.modality || "estudio"}`} />
+    <span className="fc-miniatura" data-grande={grande}
+          {...(soloIcono ? { role: "img", "aria-label": texto, title: texto } : {})}>
+      {conImagen && estudio ? (
+        <img src={url!} alt={`Vista previa de ${estudio.description || estudio.modality || "estudio"}`} />
       ) : (
         <>
           <Icon name="FOLDER" size={grande ? 22 : 16} />
-          {conMiniatura && !fallo ? "Cargando…" : "Sin vista previa"}
+          {grande && texto}
         </>
       )}
     </span>

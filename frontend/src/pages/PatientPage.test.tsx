@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { simularPantalla } from "../test/pantalla";
 
 const getPatient = vi.fn();
 const listPatients = vi.fn();
@@ -98,7 +99,10 @@ beforeEach(() => {
   for (const f of [onResume, onPlanCase, onOpenStudy]) f.mockReset();
   user.id = 1;
   user.role = "medico";
+  // Pantalla grande por defecto: caben las cinco columnas de la cascada.
+  simularPantalla(1920);
 });
+afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("PatientPage", () => {
   it("la miga dice «Pacientes» y el nombre del paciente", async () => {
@@ -144,6 +148,24 @@ describe("PatientPage", () => {
     renderPage();
     await screen.findByText("Paciente no autorizado");
     expect(screen.queryByRole("button", { name: /Editar datos|Ver datos|Nuevo caso|Compartir con|Eliminar paciente/ })).toBeNull();
+  });
+
+  it("modo de la ficha por tramo: lista en móvil, pantalla y lienzo a ≥ 1920", async () => {
+    getPatient.mockResolvedValue({ id: 42, surname: "Zenodo", given_name: "Caso 002", hospital_id: "HC-42", sex: "F" });
+    const ctl = simularPantalla(390);
+    const { container } = renderPage();
+    // En móvil se ve solo la última columna (Casos); Paciente es una miga.
+    await screen.findByRole("region", { name: "Casos" });
+    expect(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Paciente" })).toBeTruthy();
+    const cuerpo = () => container.querySelector(".page-body")!;
+    expect(cuerpo()).toHaveAttribute("data-modo", "lista");
+    expect(cuerpo()).not.toHaveAttribute("data-lienzo");
+    act(() => ctl.cambiar({ ancho: 1280 }));
+    expect(cuerpo()).toHaveAttribute("data-modo", "pantalla");
+    expect(cuerpo()).not.toHaveAttribute("data-lienzo");
+    act(() => ctl.cambiar({ ancho: 1920 }));
+    expect(cuerpo()).toHaveAttribute("data-modo", "pantalla");
+    expect(cuerpo()).toHaveAttribute("data-lienzo", "true");
   });
 });
 
@@ -483,14 +505,7 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
   });
 
   describe("en pantalla estrecha (≤ 1280 px)", () => {
-    let original: typeof window.matchMedia;
-    beforeEach(() => {
-      original = window.matchMedia;
-      window.matchMedia = ((q: string) => ({
-        matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
-      })) as unknown as typeof window.matchMedia;
-    });
-    afterEach(() => { window.matchMedia = original; });
+    beforeEach(() => { simularPantalla(1280); });
     // La columna Datos vuelve a montarse al salir de las migas: que terminen sus cargas.
     const esperaColumnaDatos = async () => {
       await within(region("Paciente")).findByText("No está compartido con ninguna cuenta.");

@@ -359,3 +359,28 @@ describe("tokens de la dirección D", () => {
     }
   });
 });
+
+describe("Sora autoalojada para la marca", () => {
+  const leer = (r: string) => readFileSync(join(__dirname, r), "utf8").replace(/\r\n/g, "\n");
+  it("fonts.css declara los dos subconjuntos de Sora 500-600", () => {
+    const fonts = leer("tokens/fonts.css");
+    expect(fonts).toContain('font-family: "Sora"');
+    expect(fonts).toContain("font-weight: 500 600");
+    expect(fonts).toContain("Sora-latin.woff2");
+    expect(fonts).toContain("Sora-latin-ext.woff2");
+  });
+  it("--font-brand apunta a Sora", () => {
+    expect(leer("tokens/typography.css")).toMatch(/--font-brand:\s*"Sora"/);
+  });
+  it("los ficheros existen, pesan poco y llevan su licencia", () => {
+    const dir = join(__dirname, "../assets/fonts");
+    for (const f of ["Sora-latin.woff2", "Sora-latin-ext.woff2"]) {
+      expect(statSync(join(dir, f)).size, f).toBeLessThan(60 * 1024);
+    }
+    expect(statSync(join(dir, "OFL-Sora.txt")).size).toBeGreaterThan(0);
+  });
+  it("--logo-dot es blanco en los dos temas", () => {
+    expect(block(DARK)).toContain("--logo-dot:           #FFFFFF");
+    expect(block('[data-theme="light"]')).toContain("--logo-dot:           #FFFFFF");
+  });
+});

@@ -11,14 +11,18 @@
 
 import { useState } from "react";
 import { api } from "../../api/client";
-import type { StudySummary } from "../../api/types";
+import type { PatientSessionInfo, StudySummary } from "../../api/types";
+import { fechaDia } from "../../lib/fecha";
 import { modalidadesDe } from "../../lib/modalidades";
 import { NuevoEstudioSheet } from "../../pages/NuevoCaso";
+import { STEP_LABELS, clampStep } from "../../pipeline/steps";
+import { Badge, riskVariant } from "../Badge";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { LoadState } from "../LoadState";
 import { ErrorNote } from "../PanelHead";
+import { BotonReanudar, MiniaturaEstudio } from "./ColumnaEstudios";
 import "./ficha.css";
 
 /** F2-T5: un caso sin diagnóstico se llamaba «Estudio», que es otra cosa. */
@@ -28,10 +32,28 @@ export const nombreCaso = (st: StudySummary) => st.dx_principal || CASO_SIN_DX;
 /** Lo elegido en la columna: un caso por su id, o las sesiones sin caso. */
 export type SeleccionCaso = number | "sin-caso";
 
+/** El caso elegido o, sin elegir, el más reciente (id más alto). */
+export function casoEnFoco(casos: readonly StudySummary[], sel: SeleccionCaso | null): StudySummary | null {
+  const recientes = [...casos].sort((a, b) => b.id - a.id);
+  return recientes.find((c) => c.id === sel) ?? recientes[0] ?? null;
+}
+
+/** La sesión guardada más reciente (updated_at) de un caso, o null. */
+export function ultimaSesionDelCaso(sesiones: readonly PatientSessionInfo[], casoId: number): PatientSessionInfo | null {
+  let mejor: PatientSessionInfo | null = null;
+  for (const s of sesiones) {
+    if (s.case_id !== casoId) continue;
+    if (!mejor || s.updated_at > mejor.updated_at) mejor = s;
+  }
+  return mejor;
+}
+
 export function ColumnaCasos({
   patientId,
   patientName,
   casos,
+  sesiones,
+  onResume,
   error,
   onReintentar,
   seleccionado,
@@ -48,6 +70,10 @@ export function ColumnaCasos({
   patientName?: string;
   /** null mientras cargan. */
   casos: StudySummary[] | null;
+  /** Todas las sesiones guardadas del paciente: de ellas salen la miniatura, el paso y el riesgo de cada caso. */
+  sesiones: PatientSessionInfo[];
+  /** «Reanudar» la última sesión de un caso; la promesa dura lo que tarda en abrirse. */
+  onResume?: (sessionId: string) => void | Promise<unknown>;
   error: string | null;
   onReintentar: () => void;
   seleccionado: SeleccionCaso | null;
@@ -78,8 +104,7 @@ export function ColumnaCasos({
 
   const lista = casos ?? [];
   // Arriba va el caso elegido o, sin elegir, el más reciente (el id más alto).
-  const recientes = [...lista].sort((a, b) => b.id - a.id);
-  const enFoco = recientes.find((c) => c.id === seleccionado) ?? recientes[0] ?? null;
+  const enFoco = casoEnFoco(lista, seleccionado);
 
   const subirDicom = () => {
     if (enFoco) return onPlanificar(enFoco);
@@ -136,6 +161,7 @@ export function ColumnaCasos({
           {lista.map((st) => {
             const mods = modalidadesDe(st);
             const elegido = seleccionado === st.id;
+            const ultima = ultimaSesionDelCaso(sesiones, st.id);
             const tipoRegion = [
               st.tipo_aneurisma && `Tipo: ${st.tipo_aneurisma}`,
               [st.region_anatomica, st.lateralidad && `(${st.lateralidad})`].filter(Boolean).join(" "),
@@ -144,9 +170,10 @@ export function ColumnaCasos({
               <div key={st.id} className="fc-fila" data-elegida={elegido}>
                 <div className="fc-fila-cabeza">
                   <button type="button" className="fc-fila-boton" aria-pressed={elegido} onClick={() => onSeleccionar(st.id)}>
+                    <MiniaturaEstudio estudio={null} estudioId={ultima?.imaging_study_id ?? null} decorativa />
                     <span className="fc-fila-texto">
                       <span className="fc-fila-titulo">{nombreCaso(st)}</span>
-                      {st.acquired_at && <span className="fc-fila-meta">Fecha: {st.acquired_at}</span>}
+                      {st.acquired_at && <span className="fc-fila-meta">Fecha: {fechaDia(st.acquired_at)}</span>}
                       {tipoRegion && <span className="fc-fila-meta">{tipoRegion}</span>}
                       {st.tratamiento_propuesto && <span className="fc-fila-meta">Tratamiento: {st.tratamiento_propuesto}</span>}
                       {mods && <span className="fc-fila-meta">Imágenes: {mods}</span>}
@@ -159,13 +186,22 @@ export function ColumnaCasos({
                       <Icon name="EDIT" size={13} />
                     </Button>
                     {puedeEliminar && (
-                      <Button type="button" size="icon" variant="ghost" title="Eliminar caso" aria-label={`Eliminar caso «${nombreCaso(st)}»`}
+                      <Button type="button" size="icon" variant="destructive-ghost" title="Eliminar caso" aria-label={`Eliminar caso «${nombreCaso(st)}»`}
                               onClick={() => { setDelError(null); setDelCaso(st); }}>
-                        <Icon name="DELETE" size={13} color="var(--destructive)" />
+                        <Icon name="DELETE" size={13} />
                       </Button>
                     )}
                   </span>
                 </div>
+                {ultima && (
+                  <div className="fc-fila-acciones" style={{ alignItems: "center" }}>
+                    <Badge variant="data">{`Paso ${clampStep(ultima.current_step) + 1} · ${STEP_LABELS[clampStep(ultima.current_step)]}`}</Badge>
+                    {ultima.rupture_risk_label && (
+                      <Badge variant={riskVariant(ultima.rupture_risk_label)}>{`Riesgo ${ultima.rupture_risk_label.toLowerCase()}`}</Badge>
+                    )}
+                    {onResume && <BotonReanudar onResume={onResume} sessionId={ultima.session_id} />}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -205,7 +241,8 @@ export function ColumnaCasos({
         onConfirm={eliminar}
       >
         ¿Seguro que quieres eliminar el caso <b style={{ color: "var(--foreground)" }}>{delCaso ? nombreCaso(delCaso) : ""}</b>?
-        {(delCaso?.session_count ?? 0) > 0 && <> Sus {delCaso?.session_count} sesión(es) de planificación se conservarán pero quedarán desvinculadas.</>} Esta acción no se puede deshacer.
+        {(delCaso?.session_count ?? 0) === 1 && <> Su sesión de planificación se conservará pero quedará desvinculada.</>}
+        {(delCaso?.session_count ?? 0) > 1 && <> Sus {delCaso?.session_count} sesiones de planificación se conservarán pero quedarán desvinculadas.</>} Esta acción no se puede deshacer.
       </ConfirmDialog>
     </div>
   );

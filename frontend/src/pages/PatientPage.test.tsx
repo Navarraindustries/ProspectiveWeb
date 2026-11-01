@@ -154,9 +154,10 @@ describe("PatientPage", () => {
     getPatient.mockResolvedValue({ id: 42, surname: "Zenodo", given_name: "Caso 002", hospital_id: "HC-42", sex: "F" });
     const ctl = simularPantalla(390);
     const { container } = renderPage();
-    // En móvil se ve solo la última columna (Casos); Paciente es una miga.
-    await screen.findByRole("region", { name: "Casos" });
-    expect(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Paciente" })).toBeTruthy();
+    // En móvil la ficha abre con la columna Paciente a la vista (los datos del paciente).
+    await screen.findByRole("region", { name: "Paciente" });
+    expect(screen.queryByRole("region", { name: "Casos" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Volver a una columna anterior" })).toBeNull();
     const cuerpo = () => container.querySelector(".page-body")!;
     expect(cuerpo()).toHaveAttribute("data-modo", "lista");
     expect(cuerpo()).not.toHaveAttribute("data-lienzo");
@@ -303,6 +304,44 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     return region("Vista previa");
   };
 
+  it("en móvil la ficha abre con Paciente a la vista y Casos es su siguiente columna, desde su entrada", async () => {
+    simularPantalla(390);
+    renderPage();
+    const datos = await screen.findByRole("region", { name: "Paciente" });
+    expect(within(datos).getByRole("heading", { name: "Zenodo, Caso 002" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Casos" })).toBeNull();
+    fireEvent.click(within(datos).getByRole("button", { name: /^Casos/ }));
+    expect(await screen.findByRole("region", { name: "Vista previa" })).toBeTruthy();
+    expect(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Casos" })).toBeTruthy();
+  });
+
+  it("sin caso elegido: Casos a 380 px y una vista previa del caso más reciente", async () => {
+    renderPage();
+    const vista = await screen.findByRole("region", { name: "Vista previa" });
+    expect(screen.getByRole("region", { name: "Casos" }).style.flex).toBe("0 1 380px");
+    expect(within(vista).getByRole("heading", { name: "Antes de medir" })).toBeTruthy();
+    expect(within(vista).getByRole("button", { name: "Reanudar" })).toBeTruthy();
+    // Elegir un caso la sustituye por sus estudios.
+    fireEvent.click(await screen.findByRole("button", { name: /^Aneurisma ACoA/ }));
+    expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+  });
+
+  it("sin sesiones, la vista previa explica qué elegir", async () => {
+    patientSessions.mockResolvedValue([]);
+    renderPage();
+    expect(await screen.findByText("Elige un caso para ver sus estudios de imagen y sus sesiones guardadas.")).toBeTruthy();
+    expect(screen.getByText("Sin sesiones guardadas")).toBeTruthy();
+  });
+
+  it("Reanudar desde la ficha enseña «Abriendo…» mientras dura", async () => {
+    onResume.mockImplementation(() => new Promise(() => {}));
+    renderPage();
+    const vista = await screen.findByRole("region", { name: "Vista previa" });
+    fireEvent.click(await within(vista).findByRole("button", { name: "Reanudar" }));
+    const abriendo = await within(vista).findByRole("button", { name: "Abriendo…" });
+    expect(abriendo).toBeDisabled();
+  });
+
   it("la columna Casos se abre a la derecha de Datos con los casos del paciente", async () => {
     renderPage();
     const casos = await screen.findByRole("region", { name: "Casos" });
@@ -358,7 +397,8 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
   it("«Abrir estudio» lo abre en el flujo", async () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /^Aneurisma ACM/ }));
-    fireEvent.click(await within(region("Estudios de imagen")).findByRole("button", { name: "Abrir estudio" }));
+    fireEvent.click(await within(region("Estudios de imagen")).findByRole("button", { name: /Más acciones del estudio/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Abrir estudio" }));
     expect(onOpenStudy).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
   });
 
@@ -519,11 +559,11 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
       const migas = screen.getByRole("navigation", { name: "Volver a una columna anterior" });
       fireEvent.click(within(migas).getByRole("button", { name: "Casos" }));
       expect(region("Casos")).toBeTruthy();
-      expect(region("Paciente")).toBeTruthy();
+      // Sin caso elegido vuelve la vista previa por defecto; Paciente es ya una miga.
+      expect(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Paciente" })).toBeTruthy();
       expect(screen.queryByRole("region", { name: "Estudios de imagen" })).toBeNull();
       expect(screen.queryByRole("region", { name: /^Sesiones guardadas/ })).toBeNull();
-      expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
-      await esperaColumnaDatos();
+      expect(await screen.findByRole("region", { name: "Vista previa" })).toBeTruthy();
     });
 
     it("la miga «Paciente» deja solo la columna Datos", async () => {

@@ -12,11 +12,12 @@ import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { PatientDetail, PatientSessionInfo, PatientSummary, StudyCard, StudySummary } from "../api/types";
 import { Button } from "../components/Button";
+import { EstadoVacio } from "../components/EstadoVacio";
 import { CaptureGallery } from "../components/CaptureGallery";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { PatientFormSheet } from "../components/PatientFormSheet";
 import { Cascada, type ColumnaCascada } from "../components/ficha/Cascada";
-import { ColumnaCasos, type SeleccionCaso } from "../components/ficha/ColumnaCasos";
+import { ColumnaCasos, casoEnFoco, ultimaSesionDelCaso, type SeleccionCaso } from "../components/ficha/ColumnaCasos";
 import { ColumnaDatos, derechosPaciente, nombrePaciente, type SeccionFicha } from "../components/ficha/ColumnaDatos";
 import { ColumnaEstudios } from "../components/ficha/ColumnaEstudios";
 import { ColumnaSesiones } from "../components/ficha/ColumnaSesiones";
@@ -30,7 +31,7 @@ import { useTramo } from "../hooks/useEstrecho";
 
 export interface PatientPageProps {
   patientId: number;
-  onResume: (sessionId: string, p: PatientSummary) => void;
+  onResume: (sessionId: string, p: PatientSummary) => void | Promise<unknown>;
   onPlanCase: (st: StudySummary, p: PatientSummary) => void;
   onOpenStudy?: (img: StudyCard) => void;
   onOpenOrders?: (p: PatientSummary) => void;
@@ -54,6 +55,10 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
   const { user } = useAuth();
   // Móvil: la página desplaza entera. ≥ 1920: la ficha sale de --content-max (A37).
   const tramo = useTramo();
+  // En móvil solo cabe una columna: la ficha abre con los datos del paciente y
+  // Casos queda como su siguiente columna (se abre desde su entrada).
+  const seccionInicial = useRef<SeccionFicha | null>(tramo === "movil" ? null : "casos");
+  seccionInicial.current = tramo === "movil" ? null : "casos";
   const [patient, setPatient] = useState<PatientDetail | null>(null);
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,7 +66,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
   const [denied, setDenied] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [seccion, setSeccion] = useState<SeccionFicha | null>("casos");
+  const [seccion, setSeccion] = useState<SeccionFicha | null>(seccionInicial.current);
   const [formOpen, setFormOpen] = useState(false);
   const [casoOpen, setCasoOpen] = useState(false);
   // Lo que cuelga del paciente: sus casos (null mientras cargan) y todas sus
@@ -85,7 +90,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
     setSummary(null);
     setDenied(null);
     setLoadError(null);
-    setSeccion("casos");
+    setSeccion(seccionInicial.current);
     setCasos(null);
     setCasosError(null);
     setSesiones([]);
@@ -242,11 +247,14 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
       col: {
         key: "casos",
         titulo: "Casos",
+        ancho: 380,
         contenido: (
           <ColumnaCasos
             patientId={patient.id}
             patientName={nombre || undefined}
             casos={casos}
+            sesiones={sesiones}
+            onResume={summary ? (sid) => onResume(sid, summary) : undefined}
             error={casosError}
             onReintentar={recargarCasos}
             seleccionado={casoSel}
@@ -271,6 +279,32 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
       },
       cerrar: () => elegirSeccion(null),
     });
+    if (casoSel === null && casos && casos.length > 0) {
+      // Sin caso elegido: la última sesión del más reciente, para no dejar el
+      // hueco de la derecha vacío.
+      const foco = casoEnFoco(casos, null);
+      const ultima = foco ? ultimaSesionDelCaso(sesiones, foco.id) : null;
+      entradas.push({
+        col: {
+          key: "vista-caso",
+          titulo: "Vista previa",
+          contenido: ultima ? (
+            <VistaPrevia
+              sesion={ultima}
+              estudio={null}
+              estudioId={ultima.imaging_study_id}
+              nombrePaciente={nombreEtiquetas}
+              onResume={summary ? (sid) => onResume(sid, summary) : undefined}
+            />
+          ) : (
+            <EstadoVacio icono="STUDIES" titulo="Sin sesiones guardadas">
+              Elige un caso para ver sus estudios de imagen y sus sesiones guardadas.
+            </EstadoVacio>
+          ),
+        },
+        cerrar: () => {},
+      });
+    }
     if (caso) {
       entradas.push({
         col: {
@@ -285,6 +319,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
               seleccionado={tarjeta ? tarjeta.id : estudio === "sin-estudio" ? "sin-estudio" : null}
               onSeleccionar={elegirEstudio}
               onOpenStudy={onOpenStudy}
+              onResume={summary ? (sid) => onResume(sid, summary) : undefined}
               puedeBorrar={creadorOAdmin}
               onEstudioBorrado={(id) => {
                 // Sus sesiones se quedan sin estudio archivado.

@@ -40,18 +40,22 @@ const guardada = (o: Partial<PatientSessionInfo> & { session_id: string }): Pati
 
 const onSeleccionar = vi.fn();
 const onOpenStudy = vi.fn();
+const onResume = vi.fn();
+const menuDe = async () => {
+  fireEvent.click(await screen.findByRole("button", { name: /Más acciones del estudio/ }));
+};
 const onEstudioBorrado = vi.fn();
 const onReintentarSesiones = vi.fn();
 const abrir = ({ sesiones = [] as PatientSessionInfo[], puedeBorrar = true, seleccionado = null as number | "sin-estudio" | null, sesionesError = null as string | null } = {}) =>
   render(
     <ColumnaEstudios caso={caso({ id: 9 })} sesiones={sesiones} sesionesError={sesionesError}
                      onReintentarSesiones={onReintentarSesiones} seleccionado={seleccionado}
-                     onSeleccionar={onSeleccionar} onOpenStudy={onOpenStudy} puedeBorrar={puedeBorrar}
+                     onSeleccionar={onSeleccionar} onOpenStudy={onOpenStudy} onResume={onResume} puedeBorrar={puedeBorrar}
                      onEstudioBorrado={onEstudioBorrado} />,
   );
 
 beforeEach(() => {
-  for (const f of [listStudies, deleteImagingStudy, studyThumbnailObjectUrl, onSeleccionar, onOpenStudy, onEstudioBorrado, onReintentarSesiones]) f.mockReset();
+  for (const f of [listStudies, deleteImagingStudy, studyThumbnailObjectUrl, onSeleccionar, onOpenStudy, onResume, onEstudioBorrado, onReintentarSesiones]) f.mockReset();
   listStudies.mockResolvedValue([estudio({ id: 7 })]);
   studyThumbnailObjectUrl.mockResolvedValue("blob:miniatura");
 });
@@ -61,7 +65,7 @@ describe("estudios de imagen del caso", () => {
     abrir({ sesiones: [guardada({ session_id: "a", imaging_study_id: 7 }), guardada({ session_id: "b", imaging_study_id: 7 }), guardada({ session_id: "c", imaging_study_id: 8 })] });
     expect(await screen.findByText("Angio 3D")).toBeTruthy();
     expect(listStudies).toHaveBeenCalledWith("", undefined, 9);
-    expect(screen.getByText("XA · 2026-10-01 · 120 cortes")).toBeTruthy();
+    expect(screen.getByText("XA · 1/10/26 · 120 cortes")).toBeTruthy();
     expect(screen.getByText("2 sesiones guardadas")).toBeTruthy();
   });
 
@@ -86,8 +90,26 @@ describe("estudios de imagen del caso", () => {
 
   it("«Abrir estudio» lo abre en el flujo", async () => {
     abrir();
-    fireEvent.click(await screen.findByRole("button", { name: "Abrir estudio" }));
+    await menuDe();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Abrir estudio" }));
     expect(onOpenStudy).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
+  });
+
+  it("fecha dd/mm/aa, «1 sesión guardada ›» y Reanudar directo (A38, A39)", async () => {
+    listStudies.mockResolvedValue([estudio({ id: 40, acquired_at: "20261030", resumable_session_id: "s1" })]);
+    abrir({ sesiones: [guardada({ session_id: "s1", imaging_study_id: 40 })] });
+    expect(await screen.findByText(/30\/10\/26/)).toBeInTheDocument();
+    expect(screen.getByText(/1 sesión guardada/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reanudar" }));
+    expect(onResume).toHaveBeenCalledWith("s1");
+    fireEvent.click(screen.getByRole("button", { name: /Más acciones del estudio/ }));
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Abrir estudio", "Borrar estudio"]);
+  });
+
+  it("sin sesión reanudable no hay Reanudar", async () => {
+    abrir();
+    await screen.findByText("Angio 3D");
+    expect(screen.queryByRole("button", { name: "Reanudar" })).toBeNull();
   });
 
   it("sin estudios archivados lo dice", async () => {
@@ -133,7 +155,8 @@ describe("borrar un estudio archivado (derechos)", () => {
   it("quien lo creó lo borra tras confirmar y la fila se va", async () => {
     deleteImagingStudy.mockResolvedValue(undefined);
     abrir();
-    fireEvent.click(await screen.findByRole("button", { name: "Borrar estudio" }));
+    await menuDe();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Borrar estudio" }));
     const dialogo = screen.getByRole("alertdialog", { name: "¿Borrar el estudio archivado?" });
     expect(dialogo.textContent).toContain("Se borra el DICOM archivado de este estudio.");
     fireEvent.click(within(dialogo).getByRole("button", { name: "Borrar estudio" }));
@@ -145,7 +168,8 @@ describe("borrar un estudio archivado (derechos)", () => {
   it("si el servidor lo impide (capturas), el motivo se lee y la fila se queda", async () => {
     deleteImagingStudy.mockRejectedValue(new Error("Este estudio tiene capturas guardadas. Bórralas desde la ficha del paciente antes de borrar el estudio."));
     abrir();
-    fireEvent.click(await screen.findByRole("button", { name: "Borrar estudio" }));
+    await menuDe();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Borrar estudio" }));
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Borrar estudio" }));
     expect(await screen.findByText(/Este estudio tiene capturas guardadas/)).toBeTruthy();
     expect(screen.getByText("Angio 3D")).toBeTruthy();
@@ -155,7 +179,8 @@ describe("borrar un estudio archivado (derechos)", () => {
   it("una cuenta compartida no ve «Borrar estudio»", async () => {
     abrir({ puedeBorrar: false });
     await screen.findByText("Angio 3D");
-    expect(screen.queryByRole("button", { name: /Borrar/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "Abrir estudio" })).toBeTruthy();
+    await menuDe();
+    expect(screen.queryByRole("menuitem", { name: /Borrar/ })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Abrir estudio" })).toBeTruthy();
   });
 });

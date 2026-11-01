@@ -13,7 +13,8 @@ import sys, json, argparse
 from pathlib import Path
 import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rutas import BACKEND, WORK, MEDIA, CASE3, PW
+from rutas import BACKEND, WORK, asegurar_work, MEDIA, CASE3, PW
+asegurar_work()
 sys.path.insert(0, str(BACKEND))
 from services.vtk_output import quiet_vtk_output_window
 quiet_vtk_output_window()

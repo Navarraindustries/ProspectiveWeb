@@ -97,8 +97,6 @@ def render_rgba(ren, size, ss=2):
     alpha = 1.0 - (wht - blk).mean(axis=2) / 255.0
     alpha = np.clip(alpha, 0, 1)
     # premultiplicado = blk; reducir en premultiplicado y dividir al final
-    pm = np.dstack([blk, alpha * 255.0])
-    im = Image.fromarray(np.clip(pm, 0, 255).astype(np.uint8), "RGBA")
     if ss != 1:
         # reduccion en premultiplicado: canales RGB = color*alpha ya
         r = np.asarray(Image.fromarray(np.clip(blk, 0, 255).astype(np.uint8)).resize((w, h), Image.LANCZOS), np.float32)

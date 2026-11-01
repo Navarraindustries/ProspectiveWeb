@@ -33,7 +33,8 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rutas import WORK, MEDIA
+from rutas import WORK, asegurar_work, MEDIA
+asegurar_work()
 ap = argparse.ArgumentParser()
 ap.add_argument("--half", type=int, default=6)
 ap.add_argument("--l", type=float, default=1800)

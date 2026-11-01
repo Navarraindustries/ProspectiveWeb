@@ -99,3 +99,11 @@
 .po-datos dt { color: var(--muted-foreground); }
 .po-datos dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .po-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+/* Talleres: rejilla de tarjetas de cristal (una columna en móvil, sin scroll
+   horizontal) y pista «Cómo se usa». */
+.tl-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 12px; }
+.tl-tarjeta { padding: 16px 18px; border-radius: var(--radius-card-lg); display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.tl-pie { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pista { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--muted-foreground); background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius-card-lg); }
+.pista > svg, .pista > span:first-child { flex-shrink: 0; margin-top: 2px; }

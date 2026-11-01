@@ -45,14 +45,14 @@ describe("la misma numeración en panel, HUD, registro y etiqueta 3D (A65)", () 
 
   it("un aceptado sin rank se numera por su posición, no por su id", () => {
     expect(candidateName(acc[1]!, false, 1)).toBe("Candidato 2");
-    expect(hudCandidateLine(acc[1]!, null, false, 1)).toBe("Candidato 2 · Ø 4,0 mm est.");
+    expect(hudCandidateLine(acc[1]!, null, candidateNameAt(acc, rej, 1))).toBe("Candidato 2 · Ø 4,0 mm est.");
     expect(candidateNameAt(acc, rej, 1)).toBe("Candidato 2");
     expect(candidateLabel(acc[1]!, 1, false)).toBe("2");
   });
   it("un descartado sin rank lleva D{posición+1}, igual que la etiqueta 3D", () => {
     expect(candidateNameAt(acc, rej, 3)).toBe("Descartado D2");
     expect(candidateLabel(rej[1]!, 1, true)).toBe("D2");
-    expect(hudCandidateLine(rej[1]!, null, true, 1)).toBe("Descartado D2 · Ø 4,0 mm est.");
+    expect(hudCandidateLine(rej[1]!, null, candidateNameAt(acc, rej, 3))).toBe("Descartado D2 · Ø 4,0 mm est.");
     expect(candidateName(rej[1]!, true)).toBe("Candidato descartado");
   });
   it("sin candidato en esa posición, null", () => {

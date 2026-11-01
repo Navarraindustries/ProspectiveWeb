@@ -15,23 +15,30 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { usePlanning } from "../../store/planning";
 import { MANUAL_CHANNEL, MANUAL_HINT, UNARCHIVED_NOTE, candidateName, candidateNameAt, isManual } from "./detectCopy";
 
-/** *cands*: la lista entera del panel, para nombrar lo que no tiene puesto
- *  (un descartado o un marcado a mano, F1-145/F1-146). */
+/** *accepted* y *rejected*: las dos listas del panel, para nombrar el
+ *  candidato como lo nombran el panel, el visor y el registro
+ *  (`candidateNameAt`), con puesto o sin él (F1-145/F1-146, A65). */
 function describe(
-  c: LesionConfirmation, cands: readonly AneurysmCandidate[], rejected: readonly AneurysmCandidate[],
+  c: LesionConfirmation, accepted: readonly AneurysmCandidate[], rejected: readonly AneurysmCandidate[],
 ): string {
   if (c.source === "no_lesion") return "Sin aneurisma en este estudio.";
-  const cand = c.candidate_id ? cands.find((x) => x.id === c.candidate_id) : undefined;
-  const nameRej = (x: AneurysmCandidate) => candidateName(x, true, rejected.findIndex((r) => r.id === x.id));
+  const cands = [...accepted, ...rejected];
+  const idx = c.candidate_id ? cands.findIndex((x) => x.id === c.candidate_id) : -1;
+  const cand = idx >= 0 ? cands[idx] : undefined;
+  // Solo se dice «descartó» de lo que está en la lista de descartados: un
+  // aceptado de una sesión antigua (sin rank ni candidate_rank) no lo es.
+  const descartado = !!cand && rejected.some((r) => r.id === cand.id);
+  const nombre = cand
+    ? (candidateNameAt(accepted, rejected, idx) ?? candidateName(cand, descartado))
+    : c.candidate_rank != null ? candidateName({ id: c.candidate_id ?? "", rank: c.candidate_rank }) : null;
+  const coletilla = descartado ? ", que el detector descartó" : "";
   if (c.source === "candidate") {
-    if (c.candidate_rank != null) return `La lesión es «Candidato ${c.candidate_rank}».`;
     if (cand && isManual(cand)) return "La lesión es un punto marcado a mano.";
-    if (cand) return `La lesión es «${nameRej(cand)}», que el detector descartó.`;
-    if (c.candidate_id) return "La lesión es un candidato que el detector descartó.";
+    if (nombre) return `La lesión es «${nombre}»${coletilla}.`;
     return "La lesión es un candidato de una detección anterior.";
   }
-  if (c.candidate_rank != null) return `Marcada a mano; coincide con «Candidato ${c.candidate_rank}».`;
-  if (cand && !isManual(cand)) return `Marcada a mano; coincide con «${nameRej(cand)}», que el detector descartó.`;
+  if (cand && !isManual(cand) && nombre) return `Marcada a mano; coincide con «${nombre}»${coletilla}.`;
+  if (!cand && nombre) return `Marcada a mano; coincide con «${nombre}».`;
   return `Marcada a mano; no estaba entre los ${c.n_candidates} candidatos.`;
 }
 
@@ -148,7 +155,7 @@ export function LesionConfirm() {
           background: "var(--brand-subtle)", display: "flex", alignItems: "center", gap: 8,
         }}>
           <span style={{ flex: 1 }}>
-            <b>Confirmado:</b> {describe(current, allCandidates, rejectedCandidates)}
+            <b>Confirmado:</b> {describe(current, candidates, rejectedCandidates)}
             {current.created_by ? <span style={{ color: "var(--muted-foreground)" }}> · {current.created_by}</span> : null}
           </span>
           <Button size="sm" variant="ghost" onClick={() => void retract()} disabled={busy}>Retirar</Button>

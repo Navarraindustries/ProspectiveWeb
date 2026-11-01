@@ -255,9 +255,9 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                       </Badge>
                     </span>
                   ))}
-                {/* Decisión nº 20 (F1-144): sin «Puesto bajo». «Puesto #4» ya
-                    dice el orden, y la marca juzgaba con un orden que no está
-                    validado. */}
+                {/* Decisión nº 20 (F1-144): sin «Puesto bajo». El nombre
+                    («Candidato 4») ya dice el orden, y la marca juzgaba con un
+                    orden que no está validado. */}
                 <div style={{ flex: 1 }} />
                 {on && <Icon name="STATUS_OK" size={15} color="var(--brand-deep)" />}
               </div>

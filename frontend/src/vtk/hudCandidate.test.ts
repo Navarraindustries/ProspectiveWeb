@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hudCandidateLine } from "./hudCandidate";
+import { candidateName } from "../components/planning/detectCopy";
 
 const c = { id: "cand-001", max_diameter_mm: 3.7, patch_kind: "region" as const, rank: 1, channels: ["curvatura"] };
 
@@ -14,6 +15,6 @@ describe("hudCandidateLine (A65)", () => {
     expect(hudCandidateLine({ ...c, id: "cand-005", rank: 0, patch_kind: "manual" as const }, null)).toBe("Marcado a mano");
   });
   it("descartado", () => {
-    expect(hudCandidateLine({ ...c, rank: 2 }, null, true)).toBe("Descartado D2 · Ø 3,7 mm est.");
+    expect(hudCandidateLine({ ...c, rank: 2 }, null, candidateName({ ...c, rank: 2 }, true))).toBe("Descartado D2 · Ø 3,7 mm est.");
   });
 });

@@ -56,6 +56,7 @@ import { ShortcutsSheet } from "./hud/ShortcutsSheet";
 import { useAnnotationDelete } from "../components/annotations/useAnnotationDelete";
 import { cameraMayMove, focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
 import { hudCandidateLine, hudManualTag } from "./hudCandidate";
+import { candidateNameAt } from "../components/planning/detectCopy";
 // Cuello, ápice y borde: el panel de Morfometría pinta la misma muestra (F1-153).
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, NECK_RIM_COLOR } from "./markerColors";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
@@ -1905,8 +1906,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const tl: string[] = [STEP_SCENE[step]?.toUpperCase() ?? ""];
     if (candidate && (step === "detect" || (isMesh && focusUrl))) {
       // F1-158: el Ø medido si lo hay; si no, la estimación del detector con «est.».
-      tl.push(hudCandidateLine(candidate, morphometry, selectedCandidate >= candidates.length,
-        selectedCandidate >= candidates.length ? selectedCandidate - candidates.length : selectedCandidate));
+      tl.push(hudCandidateLine(candidate, morphometry, candidateNameAt(candidates, rejectedCandidates, selectedCandidate)));
       // F1-156: dice que la medida salió de las marcas, no del saco automático.
       const manualTag = hudManualTag(morphometry);
       if (manualTag) tl.push(manualTag);

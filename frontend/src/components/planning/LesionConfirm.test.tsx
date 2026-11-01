@@ -116,6 +116,27 @@ describe("lo que enseña", () => {
     expect(api.currentLesion).toHaveBeenCalledWith("s1", 3);
   });
 
+  /* Sesión antigua: candidatos sin rank y confirmación sin candidate_rank. Un
+     aceptado no se describe como descartado. */
+  it("un aceptado de una sesión antigua se nombra por su posición y no se dice descartado", async () => {
+    vi.mocked(api.currentLesion).mockResolvedValue(confirmacion({ candidate_rank: null, candidate_id: "cand-002", source: "candidate" }));
+    montar({ study: 3 });
+    expect(await screen.findByText(/La lesión es «Candidato 2»\./)).toBeInTheDocument();
+    expect(screen.queryByText(/descartó/)).toBeNull();
+  });
+
+  it("un descartado se nombra como en el panel y sí se dice descartado", async () => {
+    vi.mocked(api.currentLesion).mockResolvedValue(confirmacion({ candidate_rank: null, candidate_id: "cand-004", source: "candidate" }));
+    montar({ study: 3, rejected: [{ ...cand(4), id: "cand-004" } as unknown as AneurysmCandidate] });
+    expect(await screen.findByText(/La lesión es «Descartado D1», que el detector descartó\./)).toBeInTheDocument();
+  });
+
+  it("con puesto, el nombre sale del mismo sitio que en el panel", async () => {
+    vi.mocked(api.currentLesion).mockResolvedValue(confirmacion({ candidate_rank: 3, candidate_id: "cand-003", source: "candidate" }));
+    montar({ study: 3 });
+    expect(await screen.findByText(/La lesión es «Candidato 3»\./)).toBeInTheDocument();
+  });
+
   /* F1-148: «no se podrá volver a pasar el detector» no decía qué se pierde. */
   it("avisa cuando el estudio no está archivado", async () => {
     montar();

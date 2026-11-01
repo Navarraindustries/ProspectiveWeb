@@ -76,9 +76,8 @@ export function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose:
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5 }}>
-            Tu sesión seguirá abierta: el token va firmado sobre tu usuario, no sobre
-            la contraseña.
+          <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5 }}>
+            Tu sesión seguirá abierta en este equipo.
           </div>
 
           <Input
@@ -107,7 +106,7 @@ export function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose:
           />
 
           {(tooShort || mismatch || sameAsOld) && (
-            <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 13, color: "var(--warning)", marginTop: 8, lineHeight: 1.45 }}>
               {tooShort && `La nueva contraseña debe tener al menos ${MIN_LEN} caracteres.`}
               {!tooShort && mismatch && "Las dos contraseñas nuevas no coinciden."}
               {!tooShort && !mismatch && sameAsOld && "La nueva contraseña debe ser distinta de la actual."}

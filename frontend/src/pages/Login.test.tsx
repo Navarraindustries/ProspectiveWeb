@@ -5,8 +5,8 @@
    contraseña demasiado corta, un 500) se anunciaba como «¿Está el backend en
    marcha?». El servidor estaba en marcha: era él quien contestaba. */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const { login, ApiError } = vi.hoisted(() => {
@@ -24,11 +24,12 @@ const { login, ApiError } = vi.hoisted(() => {
 
 vi.mock("../api/client", () => ({ ApiError }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ login }) }));
-vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
+vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: ({ size = "md" }: { size?: string }) => <span data-testid="tema" data-size={size} /> }));
 
 import { Login } from "./Login";
+import { simularPantalla } from "../test/pantalla";
 
-/** Ningún contenedor de la ventana pinta un fondo opaco: la imagen del Entorno debe verse. */
+/** Ningún contenedor de la ventana pinta un fondo opaco: el Ambiente debe verse. */
 function sinFondoOpaco(ventana: HTMLElement) {
   for (let el = ventana.parentElement; el && el !== document.body; el = el.parentElement) {
     expect(el.style.background).toBe("");
@@ -163,7 +164,7 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
   it("el panel de marca lleva el logotipo y el lema único, sin nombres de librerías (F2-10)", () => {
     const { container } = montar();
     expect(screen.getByText("Planificación neurovascular con datos")).toBeInTheDocument();
-    expect(screen.getByText("PROSPECTIVE")).toBeInTheDocument();
+    expect(screen.getByText("Prospective")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/VTK|SimpleITK/);
     expect(container.textContent).not.toMatch(/SKULLAPP/);
   });
@@ -204,13 +205,76 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
     expect(screen.getByText("Accede con tu cuenta de Prospective.")).toBeInTheDocument();
   });
 
-  it("el velo del Entorno es el denso (el texto apagado fuera de la ventana llega a 4,5:1)", () => {
+  it("la pantalla va sobre el Ambiente", () => {
     const { container } = montar();
-    expect(container.querySelector<HTMLElement>("[data-entorno] > div")!.style.background).toBe("var(--veil-dense)");
+    expect(container.querySelector("[data-ambiente]")).not.toBeNull();
+    expect(container.querySelector("img[aria-hidden]")).toBeNull();
   });
 
-  it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
+  it("los contenedores de la ventana no tapan el Ambiente", () => {
     montar();
     sinFondoOpaco(screen.getByRole("region", { name: "Iniciar sesión" }));
   });
+});
+
+describe("tramos de pantalla (fase 8, tarea 12)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const montar = () => render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+
+  it("a 1707 el panel de marca ocupa el 62%", () => {
+    simularPantalla({ ancho: 1707 });
+    const { container } = montar();
+    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 62%");
+    expect(container.querySelector<HTMLElement>(".login-form")!.style.minWidth).toBe("320px");
+  });
+
+  it("a 1280 cede al 45 %", () => {
+    simularPantalla({ ancho: 1280 });
+    const { container } = montar();
+    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 45%");
+  });
+
+  it.each([1024, 768, 390, 360])("a %i px no hay panel de vídeo: el logotipo va sobre la ventana y nada fuerza ancho mínimo", (ancho) => {
+    simularPantalla({ ancho });
+    const { container } = montar();
+    expect(container.querySelector(".login-media")).toBeNull();
+    expect(container.querySelector("video")).toBeNull();
+    const zona = container.querySelector<HTMLElement>(".login-form")!;
+    expect(within(zona).getByText("Prospective")).toBeInTheDocument();
+    expect(zona.style.minWidth).toBe("0px");
+    expect(zona.style.flex).toBe("1 1 100%");
+  });
+
+  it("por debajo de 1024 el botón de volver mide 44 px", () => {
+    simularPantalla({ ancho: 768 });
+    montar();
+    expect(screen.getByRole("button", { name: /Página principal/ })).toHaveAttribute("data-size", "md");
+  });
+
+  it.each([1024, 768, 390])("a %i px el conmutador de tema mide 44 px (lg)", (ancho) => {
+    simularPantalla({ ancho });
+    montar();
+    expect(screen.getByTestId("tema")).toHaveAttribute("data-size", "lg");
+  });
+
+  it("a 1707 el conmutador de tema vuelve a md", () => {
+    simularPantalla({ ancho: 1707 });
+    montar();
+    expect(screen.getByTestId("tema")).toHaveAttribute("data-size", "md");
+  });
+
+  it("ningún texto de la pantalla baja de 13 px (salvo rótulos mono y la marca)", () => {
+    const { container } = montar();
+    for (const el of container.querySelectorAll<HTMLElement>("p, div, span, a, button, label")) {
+      const fs = parseFloat(el.style.fontSize);
+      if (Number.isNaN(fs) || el.closest("[data-logo]") || el.style.fontFamily.includes("--font-mono")) continue;
+      if (el.style.textTransform === "uppercase") continue;
+      expect(fs, el.textContent ?? "").toBeGreaterThanOrEqual(13);
+    }
+  });
+});
+
+it("«Crear cuenta» es un botón de enlace del sistema", () => {
+  render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+  expect(screen.getByRole("button", { name: "Crear cuenta" })).toHaveAttribute("data-variant", "link");
 });

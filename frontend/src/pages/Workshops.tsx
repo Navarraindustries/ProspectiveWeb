@@ -20,7 +20,6 @@ import type { Workshop, WorkshopIn } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
@@ -28,6 +27,7 @@ import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
+import { PageBody } from "../components/shell/PageBody";
 
 const BLANK: WorkshopIn = {
   name: "", contact_name: "", email: "", phone: "", address: "", tax_id: "", notes: "",
@@ -184,17 +184,9 @@ export function WorkshopsPage() {
     <AppShell
       crumbs={[{ label: "Talleres" }]}
       subtitle="Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido."
-      actions={
-        <Button
-          size="sm"
-          leadingIcon={<Icon name="STEP_PLAN" size={13} />}
-          onClick={() => { setEditing(null); setSheetOpen(true); }}
-        >
-          Nuevo taller
-        </Button>
-      }
+      acciones={[{ id: "nuevo-taller", label: "Nuevo taller", icon: "PLUS", principal: true, abreDialogo: true, onClick: () => { setEditing(null); setSheetOpen(true); } }]}
     >
-      <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+      <PageBody className="fade-rise">
         <ErrorNote>{error}</ErrorNote>
 
         {loadError && (
@@ -286,7 +278,7 @@ export function WorkshopsPage() {
             </div>
           </Card>
         </div>
-      </div>
+      </PageBody>
 
       <WorkshopSheet
         open={sheetOpen}

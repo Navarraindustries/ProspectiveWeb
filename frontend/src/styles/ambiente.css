@@ -1,0 +1,15 @@
+/* Fondo ambiente: --canvas con dos brillos de la marca y grano fino. Quieto; los tamaños
+   en vmax escalan con la pantalla sin @media de anchura. Con transparencia reducida, plano. */
+.ambiente {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(60vmax 60vmax at 8% 0%, var(--ambient-glow-1), transparent 70%),
+    radial-gradient(40vmax 40vmax at 100% 100%, var(--ambient-glow-2), transparent 70%),
+    var(--canvas);
+}
+.ambiente::after { content: ""; position: absolute; inset: 0; opacity: var(--ambient-grain-opacity);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>"); }
+@media (prefers-reduced-transparency: reduce) {
+  .ambiente { background: var(--canvas); }
+  .ambiente::after { display: none; }
+}

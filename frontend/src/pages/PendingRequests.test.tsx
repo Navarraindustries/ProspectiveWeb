@@ -23,9 +23,7 @@ vi.mock("../api/client", () => ({
 }));
 // El shell (barra lateral y superior) se sustituye por su contenido y sus
 // acciones: lo que se prueba aquí es la página.
-vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
-}));
+vi.mock("../components/shell/AppShell", async () => ({ AppShell: (await import("../test/shellMock")).ShellMock }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 // La página es solo de administradores; quien no lo es ve la tarjeta (AdminOnly.test).
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { role: "admin" } }) }));

@@ -26,9 +26,6 @@ export interface ButtonProps extends NativeButtonProps {
   trailingIcon?: ReactNode;
 }
 
-const REST = "color-mix(in srgb, var(--foreground) 8%, transparent)";
-const EDGE = "1px solid color-mix(in srgb, var(--foreground) 30%, transparent)";
-
 const HEIGHTS: Record<Size, string> = {
   sm: "var(--control-sm)",
   md: "var(--control-md)",
@@ -51,9 +48,9 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
     case "secondary":
       return {
         ...base,
-        background: on ? "var(--glass-hover)" : REST,
+        background: on ? "var(--glass-hover)" : "var(--btn-outline-bg)",
         color: "var(--foreground)",
-        border: EDGE,
+        border: "1px solid var(--btn-outline-border)",
       };
     case "ghost":
       return {

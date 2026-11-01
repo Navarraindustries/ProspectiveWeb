@@ -31,6 +31,7 @@ import { shapeLabel } from "../components/planning/clipShape";
 import { useAuth } from "../store/auth";
 import "../styles/office.css";
 import { cifra } from "../lib/numero";
+import { PageBody } from "../components/shell/PageBody";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
 
@@ -433,7 +434,7 @@ export function ClipOrdersPage({
         ]
       : [{ label: "Pedidos de clips" }]}
       subtitle="Todos los pedidos de fabricación, con su estado y lo que falta por hacer.">
-      <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+      <PageBody className="fade-rise">
         {/* F2-27: «Pedidos» cerraba la ficha y esta pantalla no tenía camino de
             vuelta al paciente; solo «Ver todos», que tampoco lleva a él. */}
         {onBackToPatient && (
@@ -551,7 +552,7 @@ export function ClipOrdersPage({
             </div>
           )}
         </div>
-      </div>
+      </PageBody>
     </AppShell>
   );
 }

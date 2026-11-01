@@ -4,8 +4,7 @@
    con el @media de patients.css. */
 
 import { useEffect, useState } from "react";
-
-const CONSULTA = "(max-width: 1280px)";
+import { CONSULTA, type Tramo } from "../styles/puntosCorte";
 
 const lista = (q: string): MediaQueryList | null =>
   typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(q) : null;
@@ -29,5 +28,26 @@ export function useMediaQuery(q: string): boolean {
 }
 
 export function useEstrecho(): boolean {
-  return useMediaQuery(CONSULTA);
+  return useMediaQuery(CONSULTA.estrecho);
+}
+
+export function useMovil(): boolean {
+  return useMediaQuery(CONSULTA.movil);
+}
+
+/** Hasta 1024 px: incluye el móvil. */
+export function useTableta(): boolean {
+  return useMediaQuery(CONSULTA.tableta);
+}
+
+export function useGrande(): boolean {
+  return useMediaQuery(CONSULTA.grande);
+}
+
+export function useTramo(): Tramo {
+  const movil = useMovil(), tableta = useTableta(), estrecho = useEstrecho(), grande = useGrande();
+  if (movil) return "movil";
+  if (tableta) return "tableta";
+  if (estrecho) return "estrecho";
+  return grande ? "grande" : "ancho";
 }

@@ -67,7 +67,7 @@ describe("NavPildora", () => {
     montar();
     expect(screen.queryByText("por SkullApp")).toBeNull();
     // El nombre sigue ahí para los lectores de pantalla.
-    expect(screen.getByText("PROSPECTIVE")).toHaveClass("landing-sr");
+    expect(screen.getByRole("img", { name: "Prospective" })).toBeInTheDocument();
   });
 
   it("el botón «Menú» controla el panel, y Escape lo cierra devolviendo el foco al botón", () => {

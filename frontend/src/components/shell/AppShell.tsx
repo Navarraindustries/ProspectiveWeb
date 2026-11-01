@@ -1,41 +1,64 @@
 /* AppShell (shell C, F2): la única carcasa de las pantallas de gestión.
 
    Barra lateral de cristal a la izquierda, barra superior de 56 px con la miga
-   y las acciones del contexto, y el contenido transparente sobre el `Entorno`. Cada pantalla
-   se envuelve a sí misma (`<AppShell crumbs actions>…</AppShell>`) para que la
+   y las acciones del contexto, y el contenido transparente sobre el `Ambiente`. Cada pantalla
+   se envuelve a sí misma (`<AppShell crumbs acciones>…</AppShell>`) para que la
    acción viva junto al estado que la habilita. El espacio de trabajo no la usa
    en F2: conserva su barra superior y su carril. */
 
+import { useState } from "react";
 import type { ReactNode } from "react";
-import { Entorno } from "../Entorno";
+import { Ambiente } from "../Ambiente";
 import { SideNav } from "./SideNav";
 import { TopBar } from "./TopBar";
-import type { Crumb } from "./TopBar";
+import type { AccionBarra, Crumb } from "./TopBar";
 import { useShellState } from "./useShellState";
+import { useMovil } from "../../hooks/useEstrecho";
 import "./shell.css";
 
-export function AppShell({ crumbs, subtitle, status, actions, children }: {
+export function AppShell({ crumbs, subtitle, status, acciones, extra, children }: {
   crumbs?: Crumb[];
   subtitle?: ReactNode;
   /** Hueco antes de las acciones (estado de guardado del pipeline, fase 3). */
   status?: ReactNode;
-  actions?: ReactNode;
+  /** Acciones del contexto; la barra decide cómo pintarlas según el tramo. */
+  acciones?: AccionBarra[];
+  /** Control propio de la pantalla (p. ej. un buscador), antes de las acciones. */
+  extra?: ReactNode;
   children: ReactNode;
 }) {
   const state = useShellState();
+  const movil = useMovil();
+  const [cajonAbierto, setCajonAbierto] = useState(false);
+  // El cajón solo existe en móvil: por encima de 640 vuelve el carril en el mismo
+  // render. El estado se suelta también (durante el render, sin efecto) para que
+  // volver a estrechar la ventana no lo reabra.
+  if (!movil && cajonAbierto) setCajonAbierto(false);
+  const abierto = movil && cajonAbierto;
   // Fija, la barra ocupa su columna (240 px) y el contenido se reparte el
   // resto; expandida solo por el ratón o Alt+B se superpone al contenido, para
   // que cruzarla no mueva la tabla que hay debajo. Por eso la rejilla mira
   // `pinned` y el ancho de la barra mira `expanded`.
   return (
-    <Entorno dense>
-      <div className="shell" data-pinned={state.pinned ? "true" : "false"}>
-        <SideNav state={state} />
-        <div className="shell-body">
-          <TopBar crumbs={crumbs} subtitle={subtitle} status={status} actions={actions} />
+    <Ambiente>
+      <div className="shell" data-pinned={state.pinned ? "true" : "false"} data-movil={movil ? "true" : undefined}>
+        {!movil && <SideNav state={state} />}
+        {movil && (
+          <SideNav state={state} modo="cajon" abierto={abierto} onCerrar={() => setCajonAbierto(false)} />
+        )}
+        <div className="shell-body" inert={abierto || undefined}>
+          <TopBar
+            crumbs={crumbs}
+            subtitle={subtitle}
+            status={status}
+            acciones={acciones}
+            extra={extra}
+            onAbrirSecciones={movil ? () => setCajonAbierto(true) : undefined}
+            seccionesAbiertas={abierto}
+          />
           <main className="shell-main">{children}</main>
         </div>
       </div>
-    </Entorno>
+    </Ambiente>
   );
 }

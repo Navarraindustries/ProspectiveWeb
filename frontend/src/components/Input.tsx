@@ -90,13 +90,13 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
       {hint && invalid && (
         <span
           role="alert"
-          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--destructive-text)" }}
+          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--destructive-text)" }}
         >
           <Icon name="STATUS_WARN" size={14} />
           {hint}
         </span>
       )}
-      {hint && !invalid && <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{hint}</span>}
+      {hint && !invalid && <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{hint}</span>}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 /* La barra lateral (F2, shell C): la sección activa se marca para el lector de
    pantalla, se expande al pasar el ratón 150 ms y la chincheta la deja fija
    entre sesiones. */
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = { user: { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" } as { role: string; [k: string]: unknown } | null };
@@ -15,6 +15,7 @@ import { api } from "../../api/client";
 import { SECTIONS } from "./sections";
 import { SideNav } from "./SideNav";
 import { resetSessionPinned, useShellState } from "./useShellState";
+import { simularPantalla } from "../../test/pantalla";
 
 /* La barra recibe su estado del shell; aquí lo pone el mismo gancho real. */
 function Host() {
@@ -23,8 +24,8 @@ function Host() {
 
 const barra = () => screen.getByRole("navigation", { name: "Secciones" });
 
-/* Los tests de plegado parten de la barra suelta: con la ventana ancha (jsdom
-   mide 1024) la barra arranca fijada. */
+/* Los tests de plegado parten de la barra suelta (beforeEach guarda
+   «collapsed»): sin valor guardado y por encima de 1280 arrancaría fijada. */
 function renderNav(opts: { screen?: string } = {}) {
   nav.screen = opts.screen ?? "studies";
   return render(<Host />);
@@ -39,10 +40,24 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
-  Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true });
+  vi.unstubAllGlobals();
 });
 
 describe("SideNav", () => {
+  it("la cabecera lleva el icono de marca de 32 px y, expandida, el nombre", () => {
+    const { container } = render(<Host />);
+    const svg = container.querySelector(".shell-nav-head svg")!;
+    expect(svg.getAttribute("width")).toBe("32");
+    expect(svg.querySelector('rect[fill="var(--primary)"]')).not.toBeNull();
+    expect(screen.queryByText("Prospective")).toBeNull();
+    // Plegada no hay texto, pero el icono dice la marca.
+    expect(screen.getByRole("img", { name: "Prospective" })).toBe(svg);
+    cleanup();
+    localStorage.setItem("shell.sidebar", "pinned");
+    render(<Host />);
+    expect(screen.getByText("Prospective")).toBeInTheDocument();
+  });
+
   it("la sección activa lleva aria-current=page y las demás no", () => {
     render(<Host />);
     expect(screen.getByRole("link", { name: /Estudios/ }).getAttribute("aria-current")).toBe("page");
@@ -139,14 +154,14 @@ describe("SideNav", () => {
 
   it("sin valor guardado y con ventana ancha arranca fijada", () => {
     localStorage.removeItem("shell.sidebar");
-    Object.defineProperty(window, "innerWidth", { value: 1280, configurable: true });
+    simularPantalla({ ancho: 1707 });
     renderNav();
     expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-expanded", "true");
   });
 
   it("sin valor guardado y con ventana estrecha arranca plegada", () => {
     localStorage.removeItem("shell.sidebar");
-    Object.defineProperty(window, "innerWidth", { value: 900, configurable: true });
+    simularPantalla({ ancho: 900 });
     renderNav();
     expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-expanded", "false");
   });

@@ -7,17 +7,19 @@
    ruta real en `href` —se puede abrir en otra pestaña o copiar— pero el clic
    normal navega por el router, que es quien sabe de trabajo sin guardar. */
 
-import { useEffect, useState } from "react";
-import type { MouseEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { MouseEvent, RefObject } from "react";
 import { Badge } from "../Badge";
 import { Icon } from "../Icon";
 import { glass } from "../../styles/glass";
 import { api } from "../../api/client";
 import { ROLE_LABEL } from "../../lib/roles";
-import { DUR, EASE, motion } from "../../motion";
+import { DUR, EASE, fundido, fundidoTransition, motion, useReducedMotion } from "../../motion";
 import { useAuth } from "../../store/auth";
 import { SCREEN_PATH, useNav } from "../../store/nav";
 import type { Screen } from "../../store/nav";
+import { isConfirmDialogOpen } from "../ConfirmDialog";
+import { isSheetOpen } from "../Sheet";
 import { Logo } from "./Logo";
 import { PENDING_CHANGED_EVENT } from "./pendingEvents";
 import { LogoutButton } from "./LogoutButton";
@@ -99,8 +101,64 @@ function SectionLink({ section, active, expanded, badge, onGo }: {
   );
 }
 
-export function SideNav({ state }: { state: ShellState }) {
-  const { expanded, pinned, setPinned, hoverIn, hoverOut } = state;
+/** Hay otra capa encima del cajón (paleta, hoja, confirmación) que atiende sus
+    propias teclas: el foco está en otro diálogo modal, o hay una hoja o una
+    confirmación abiertas. */
+function otraCapaEncima(cajon: HTMLElement | null): boolean {
+  if (isSheetOpen() || isConfirmDialogOpen()) return true;
+  const activo = document.activeElement;
+  const modal = activo instanceof HTMLElement ? activo.closest('[aria-modal="true"]') : null;
+  return modal !== null && !(cajon && modal.contains(cajon));
+}
+
+/** Foco atrapado, Escape y vuelta del foco al botón mientras el cajón está abierto. */
+function useCajon(abierto: boolean, ref: RefObject<HTMLElement | null>, onCerrar?: () => void) {
+  const cerrar = useRef(onCerrar);
+  cerrar.current = onCerrar;
+  useEffect(() => {
+    if (!abierto) return;
+    // El botón que lo abrió: al cerrar vuelve a él solo si sigue en la página
+    // (al pasar de 640 con el cajón abierto, la barra ya no lo pinta).
+    const disparador = document.querySelector<HTMLElement>("[data-abrir-secciones]");
+    const enfocables = () => Array.from(
+      ref.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled])") ?? [],
+    );
+    enfocables()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" && e.key !== "Tab") return;
+      // La tecla ya la atendió otra capa (la paleta cancela su Tab) o hay una encima.
+      if (e.defaultPrevented || otraCapaEncima(ref.current)) return;
+      if (e.key === "Escape") { e.preventDefault(); cerrar.current?.(); return; }
+      const lista = enfocables();
+      if (lista.length === 0) return;
+      const primero = lista[0], ultimo = lista[lista.length - 1];
+      const activo = document.activeElement;
+      if (!ref.current?.contains(activo)) { e.preventDefault(); primero.focus(); }
+      else if (e.shiftKey && activo === primero) { e.preventDefault(); ultimo.focus(); }
+      else if (!e.shiftKey && activo === ultimo) { e.preventDefault(); primero.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (disparador?.isConnected) disparador.focus();
+    };
+  }, [abierto, ref]);
+}
+
+export function SideNav({ state, modo = "carril", abierto = false, onCerrar }: {
+  state: ShellState;
+  modo?: "carril" | "cajon";
+  abierto?: boolean;
+  onCerrar?: () => void;
+}) {
+  const cajon = modo === "cajon";
+  const { pinned, setPinned } = state;
+  const expanded = cajon ? true : state.expanded;
+  const hoverIn = cajon ? undefined : state.hoverIn;
+  const hoverOut = cajon ? undefined : state.hoverOut;
+  const navRef = useRef<HTMLElement>(null);
+  const reducido = useReducedMotion();
+  useCajon(cajon && abierto, navRef, onCerrar);
   const { user } = useAuth();
   const nav = useNav();
   const isAdmin = user?.role === "admin";
@@ -108,22 +166,38 @@ export function SideNav({ state }: { state: ShellState }) {
 
   const clinica = SECTIONS.filter((s) => s.group === "clinica");
   const admin = SECTIONS.filter((s) => s.group === "admin");
+  const ir = (key: Screen) => { nav.go(key); if (cajon) onCerrar?.(); };
 
-  return (
-    <nav
+  if (cajon && !abierto) return null;
+
+  // El cajón solo anima la entrada: al cerrarse se desmonta de golpe y no
+  // deja una capa que capture el puntero mientras sale.
+  const Marco = cajon ? motion.nav : "nav";
+  const entrada = cajon
+    ? reducido
+      ? { variants: fundido, initial: "initial", animate: "animate", transition: fundidoTransition }
+      : { initial: { x: "-100%" }, animate: { x: 0 }, transition: { duration: DUR.panel, ease: EASE } }
+    : {};
+  const marco = (
+    <Marco
+      ref={navRef as never}
+      id={cajon ? "shell-cajon" : undefined}
+      {...entrada}
       className="shell-nav"
+      data-modo={cajon ? "cajon" : "carril"}
       data-glass
       style={{ ...glass("normal"), border: "none", borderRight: "1px solid var(--glass-border)", borderRadius: 0 }}
-      aria-label="Secciones"
+      // En el cajón el nombre lo lleva el diálogo que lo envuelve.
+      aria-label={cajon ? undefined : "Secciones"}
       data-expanded={expanded ? "true" : "false"}
       onMouseEnter={hoverIn}
       onMouseLeave={hoverOut}
     >
       <div className="shell-nav-head">
-        <Logo compact={!expanded} size={24} />
+        <Logo compact={!expanded} size={32} />
         {/* La chincheta solo se ve expandida (shell.css); plegada no hay sitio
             y el gesto para llegar a ella es expandir. */}
-        <button
+        {!cajon && <button
           type="button"
           className="shell-nav-pin"
           aria-pressed={pinned}
@@ -132,12 +206,12 @@ export function SideNav({ state }: { state: ShellState }) {
           onClick={() => setPinned(!pinned)}
         >
           <Icon name="PIN" size={14} />
-        </button>
+        </button>}
       </div>
 
       <ul className="shell-nav-list">
         {clinica.map((s) => (
-          <SectionLink key={s.key} section={s} active={nav.screen === s.key} expanded={expanded} onGo={nav.go} />
+          <SectionLink key={s.key} section={s} active={nav.screen === s.key} expanded={expanded} onGo={ir} />
         ))}
         {isAdmin && (
           <>
@@ -153,7 +227,7 @@ export function SideNav({ state }: { state: ShellState }) {
                 active={nav.screen === s.key}
                 expanded={expanded}
                 badge={s.key === "pending" ? pending : undefined}
-                onGo={nav.go}
+                onGo={ir}
               />
             ))}
           </>
@@ -174,6 +248,13 @@ export function SideNav({ state }: { state: ShellState }) {
           </div>
         )}
       </div>
-    </nav>
+    </Marco>
+  );
+  if (!cajon) return marco;
+  return (
+    <div className="shell-cajon" role="dialog" aria-modal="true" aria-label="Secciones">
+      <div className="shell-nav-velo" data-velo aria-hidden onClick={onCerrar} />
+      {marco}
+    </div>
   );
 }

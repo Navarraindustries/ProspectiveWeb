@@ -1,0 +1,9 @@
+/* Puntos de corte de pantalla. Las variables documentan y sirven a JS
+   (styles/puntosCorte.ts); en @media se escribe el número, porque var() no
+   se admite en las consultas de medios. */
+:root {
+  --bp-movil: 640px;
+  --bp-tableta: 1024px;
+  --bp-estrecho: 1280px;
+  --bp-grande: 1920px;
+}

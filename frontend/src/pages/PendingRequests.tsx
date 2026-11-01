@@ -19,6 +19,7 @@ import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { fechaHora } from "../lib/fecha";
 import { ROLE_LABEL } from "../lib/roles";
+import { PageBody } from "../components/shell/PageBody";
 
 const TABS = ["Pendientes", "Aprobadas", "Rechazadas"] as const;
 type Pestana = (typeof TABS)[number];
@@ -182,11 +183,7 @@ function PendingRequestsPage() {
           ? (tab === "Aprobadas" ? "Cuentas que ya pueden entrar" : "Solicitudes que no se aceptaron")
           : loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`
       }
-      actions={tab === "Pendientes" ? (
-        <Button size="sm" variant="outline" leadingIcon={<Icon name="REFRESH" size={13} />} onClick={load}>
-          Actualizar
-        </Button>
-      ) : undefined}
+      acciones={tab === "Pendientes" ? [{ id: "actualizar", label: "Actualizar", icon: "REFRESH", onClick: load }] : undefined}
     >
       <ConfirmDialog
         open={toReject !== null}
@@ -199,8 +196,7 @@ function PendingRequestsPage() {
         La solicitud de <b style={{ color: "var(--foreground)" }}>{toReject?.full_name || toReject?.username}</b> se
         rechaza y pasa a «Rechazadas»; no podrá entrar con esa cuenta.
       </ConfirmDialog>
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto" }} className="fade-rise">
+      <PageBody className="fade-rise">
           <div style={{ marginBottom: 18 }}>
             <Tabs tabs={TABS} value={tab} onChange={(t) => setTab(t as Pestana)} />
           </div>
@@ -296,8 +292,7 @@ function PendingRequestsPage() {
               </Card>
             ))}
           </div>
-        </div>
-      </div>
+      </PageBody>
     </AppShell>
   );
 }

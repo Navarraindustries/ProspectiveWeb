@@ -3,9 +3,9 @@
 import { Icon } from "./Icon";
 import { useThemeContext } from "../store/theme";
 
-export function ThemeToggle({ size = "md" }: { size?: "sm" | "md" }) {
+export function ThemeToggle({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const { theme, toggle } = useThemeContext();
-  const px = size === "sm" ? 30 : 36;
+  const px = size === "sm" ? 30 : size === "lg" ? 44 : 36;
   return (
     <button
       onClick={toggle}
@@ -27,7 +27,7 @@ export function ThemeToggle({ size = "md" }: { size?: "sm" | "md" }) {
       onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
       onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
     >
-      <Icon name={theme === "light" ? "THEME_DARK" : "THEME_LIGHT"} size={size === "sm" ? 14 : 16} />
+      <Icon name={theme === "light" ? "THEME_DARK" : "THEME_LIGHT"} size={size === "sm" ? 14 : size === "lg" ? 18 : 16} />
     </button>
   );
 }

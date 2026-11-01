@@ -22,6 +22,7 @@ import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 
 import { avisosOficina } from "../lib/avisosOficina";
 import { filtraPestana, hayCompartidos, recuentoPacientes, ultimaActividad, type PestanaPacientes } from "../lib/pacientes";
+import { PageBody } from "../components/shell/PageBody";
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
 type Aviso =
@@ -159,27 +160,18 @@ export function Patients({
       subtitle={subtitulo}
       // F2-20, F2-21: «Usuarios», «Cuentas pendientes» y «Estudios» están en el
       // panel lateral; aquí quedan solo las acciones clínicas, la prueba rápida la última.
-      actions={
-        <span style={{ display: "inline-flex", gap: 8 }}>
-          <Button size="sm" leadingIcon={<Icon name="PLUS" />} onClick={openCreate}>
-            Nuevo paciente
-          </Button>
-          <Button variant="outline" size="sm" leadingIcon={<Icon name="PLUS" />} onClick={() => setCaseSheet(true)}>
-            Nuevo caso
-          </Button>
-          {onStartWithoutPatient && (
-            <Button variant="ghost" size="sm" leadingIcon={<Icon name="STEP_SEGMENT" />} onClick={onStartWithoutPatient}
-                    title="Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.">
-              Prueba rápida sin paciente
-            </Button>
-          )}
-        </span>
-      }
+      acciones={[
+        { id: "nuevo-paciente", label: "Nuevo paciente", icon: "PLUS", principal: true, abreDialogo: true, onClick: openCreate },
+        { id: "nuevo-caso", label: "Nuevo caso", icon: "FOLDER", abreDialogo: true, onClick: () => setCaseSheet(true) },
+        ...(onStartWithoutPatient ? [{
+          id: "prueba-rapida", label: "Prueba rápida sin paciente", icon: "STEP_SEGMENT" as const,
+          title: "Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.",
+          onClick: onStartWithoutPatient,
+        }] : []),
+      ]}
     >
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
-        {/* 1440: tres columnas de tarjetas más el panel lateral caben sin apretar. */}
-        <div style={{ maxWidth: 1440, margin: "0 auto" }} className="fade-rise">
+      <PageBody className="fade-rise">
           {avisos.length > 0 && (
             // Franja de chips: cada aviso es una pastilla de cristal, no una tarjeta de la rejilla.
             <div role="list" aria-label="Avisos clínicos" className="pt-avisos">
@@ -280,8 +272,7 @@ export function Patients({
             <PatientsSidePanel patients={patients} loading={loading} error={!!loadError} version={version}
                                onOpenPatient={openSheet} onNewPatient={openCreate} />
           </section>
-        </div>
-      </div>
+      </PageBody>
 
       <PatientFormSheet
         open={sheetOpen}

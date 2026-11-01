@@ -151,16 +151,14 @@ describe("tokens de la dirección D", () => {
     expect(dark).toMatch(/--glass-hover:\s*rgba\(255, ?255, ?255, ?0?\.14\)/);
     expect(light).toMatch(/--glass-hover:\s*rgba\(0, ?0, ?0, ?0?\.04\)/);
   });
-  it("el texto secundario aguanta 4,5:1 sobre cristal encima de lo más claro del corte", () => {
-    // peor caso: blanco puro bajo el velo .55 y bajo el cristal .55 + blanco .08
-    const mix = (top: number[], a: number, under: number[]) => under.map((u, i) => u * (1 - a) + top[i] * a);
-    let bg = [255, 255, 255];
-    bg = mix([5, 6, 8], 0.55, bg);          // --veil
-    bg = mix([255, 255, 255], 0.08, bg);    // tinte del cristal
-    bg = mix([5, 6, 8], 0.55, bg);          // velo del propio cristal
-    const hexBg = "#" + bg.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("");
-    expect(ratio("#B8C0CC", hexBg)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("#FFFFFF", hexBg)).toBeGreaterThanOrEqual(7);
+  it("el fondo ambiente tiene sus tokens en los dos temas", () => {
+    const dark = block(DARK), light = block('[data-theme="light"]');
+    expect(dark).toMatch(/--ambient-glow-1:\s*rgba\(96, ?173, ?255, ?0?\.12\)/);
+    expect(dark).toMatch(/--ambient-glow-2:\s*rgba\(96, ?173, ?255, ?0?\.08\)/);
+    expect(dark).toMatch(/--ambient-grain-opacity:\s*0?\.04\b/);
+    expect(light).toMatch(/--ambient-glow-1:\s*rgba\(10, ?102, ?255, ?0?\.08\)/);
+    expect(light).toMatch(/--ambient-glow-2:\s*rgba\(10, ?102, ?255, ?0?\.06\)/);
+    expect(light).toMatch(/--ambient-grain-opacity:\s*0?\.03\b/);
   });
   it("el cristal tiene fondo de reserva opaco y desenfoque en los dos temas", () => {
     for (const b of [block(DARK), block('[data-theme="light"]')]) {
@@ -357,5 +355,40 @@ describe("tokens de la dirección D", () => {
     for (const valores of Object.values(DINAMICAS)) {
       for (const v of valores) expect(definidas.has("--" + v), `--${v}`).toBe(true);
     }
+  });
+});
+
+describe("Sora autoalojada para la marca", () => {
+  const leer = (r: string) => readFileSync(join(__dirname, r), "utf8").replace(/\r\n/g, "\n");
+  it("fonts.css declara los dos subconjuntos de Sora 500-600", () => {
+    const fonts = leer("tokens/fonts.css");
+    expect(fonts).toContain('font-family: "Sora"');
+    expect(fonts).toContain("font-weight: 500 600");
+    expect(fonts).toContain("Sora-latin.woff2");
+    expect(fonts).toContain("Sora-latin-ext.woff2");
+  });
+  it("--font-brand apunta a Sora", () => {
+    expect(leer("tokens/typography.css")).toMatch(/--font-brand:\s*"Sora"/);
+  });
+  it("los ficheros existen, pesan poco y llevan su licencia", () => {
+    const dir = join(__dirname, "../assets/fonts");
+    for (const f of ["Sora-latin.woff2", "Sora-latin-ext.woff2"]) {
+      expect(statSync(join(dir, f)).size, f).toBeLessThan(60 * 1024);
+    }
+    expect(statSync(join(dir, "OFL-Sora.txt")).size).toBeGreaterThan(0);
+  });
+  it("--logo-dot es blanco en los dos temas", () => {
+    expect(block(DARK)).toContain("--logo-dot:           #FFFFFF");
+    expect(block('[data-theme="light"]')).toContain("--logo-dot:           #FFFFFF");
+  });
+});
+
+describe("botón de contorno (A21)", () => {
+  it("el botón de contorno es transparente en claro y conserva el cristal en oscuro (A21)", () => {
+    const dark = block(DARK), light = block('[data-theme="light"]');
+    expect(dark).toMatch(/--btn-outline-bg:\s*rgba\(255, ?255, ?255, ?0?\.08\)/);
+    expect(dark).toMatch(/--btn-outline-border:\s*rgba\(255, ?255, ?255, ?0?\.3\)/);
+    expect(light).toMatch(/--btn-outline-bg:\s*transparent/);
+    expect(light).toMatch(/--btn-outline-border:\s*rgba\(0, ?0, ?0, ?0?\.14\)/);
   });
 });

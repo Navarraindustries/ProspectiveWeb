@@ -6,9 +6,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Icon } from "../components/Icon";
+import { Logo } from "../components/shell/Logo";
+import { useTableta, useEstrecho } from "../hooks/useEstrecho";
 import { AuthBrand } from "../components/shell/AuthBrand";
 import { AuthWindow } from "../components/shell/AuthWindow";
-import { Entorno } from "../components/Entorno";
+import { Ambiente } from "../components/Ambiente";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../store/auth";
 import { ApiError } from "../api/client";
@@ -44,6 +46,8 @@ export function loginErrorMessage(err: unknown): string {
 
 export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSignup: () => void; notice?: string | null }) {
   const { login } = useAuth();
+  const tableta = useTableta();
+  const estrecho = useEstrecho();
   const navigate = useNavigate();
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -76,26 +80,28 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
   };
 
   return (
-    <Entorno dense>
+    <Ambiente>
       <div style={{ display: "flex", minHeight: "100dvh" }}>
-        <AuthBrand flex="1 1 62%" />
+        {!tableta && <AuthBrand flex={estrecho ? "1 1 45%" : "1 1 62%"} />}
 
-        {/* Zona del formulario: la ventana de cristal, centrada sobre el Entorno. */}
-        <div className="login-form" style={{ flex: "1 1 38%", display: "flex", flexDirection: "column", padding: "0 16px", minWidth: 320 }}>
+        {/* Zona del formulario: la ventana de cristal, centrada sobre el Ambiente. */}
+        <div className="login-form" style={{ flex: tableta ? "1 1 100%" : "1 1 38%", display: "flex", flexDirection: "column", padding: "0 16px", minWidth: tableta ? "0px" : 320 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24 }}>
-            <button
-              onClick={() => navigate("/")}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)", padding: 0 }}
-            >
-              ← Página principal
-            </button>
-            <ThemeToggle />
+            <Button variant="ghost" size={tableta ? "md" : "sm"} leadingIcon={<Icon name="BACK" />} onClick={() => navigate("/")}>
+              Página principal
+            </Button>
+            <ThemeToggle size={tableta ? "lg" : "md"} />
           </div>
+          {tableta && (
+            <div style={{ display: "flex", justifyContent: "center", paddingTop: 16 }}>
+              <Logo variante="linea" size={32} />
+            </div>
+          )}
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 0" }}>
             <div className={shake ? "shake" : undefined} style={{ width: "100%", maxWidth: 440 }}>
               <AuthWindow titulo="Iniciar sesión" subtitulo="Accede con tu cuenta de Prospective.">
                 {notice && (
-                  <div style={{ marginBottom: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--success-bg)", border: "1px solid color-mix(in srgb, var(--success) 40%, transparent)", color: "var(--success)", fontSize: 12 }}>
+                  <div style={{ marginBottom: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--success-bg)", border: "1px solid color-mix(in srgb, var(--success) 40%, transparent)", color: "var(--success)", fontSize: 13 }}>
                     {notice}
                   </div>
                 )}
@@ -126,33 +132,27 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
                 </form>
                 {/* F1-1: no hay recuperación automática de contraseña; sin esta línea
                     quien la olvida no sabe que existe un camino ni cuál. */}
-                <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
+                <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
                   ¿Olvidaste la contraseña? Un administrador puede restablecerla: escribe a{" "}
                   <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "var(--brand-deep)", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
                 </p>
                 {/* F2-11: la misma frase, literal, en «Entrar» y tras «Crear cuenta»; el
                     servidor no envía notificaciones, así que se dice con claridad. */}
-                <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
+                <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
                   Si tu cuenta aún no está aprobada, no recibirás ningún aviso: vuelve a intentar entrar más tarde.
                 </p>
                 <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
                   ¿No tienes cuenta?{" "}
-                  <button
-                    type="button"
-                    onClick={onSignup}
-                    style={{ background: "transparent", border: "none", color: "var(--brand-deep)", fontWeight: 700, cursor: "pointer", fontSize: 13, padding: 0 }}
-                  >
-                    Crear cuenta
-                  </button>
+                  <Button type="button" variant="link" onClick={onSignup}>Crear cuenta</Button>
                 </div>
               </AuthWindow>
             </div>
           </div>
-          <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 11, color: "var(--muted-foreground)" }}>
-            PROSPECTIVE™ Web — Laboratorio de Imagen Médica
+          <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 13, color: "var(--muted-foreground)" }}>
+            Prospective™ Web — Laboratorio de Imagen Médica
           </div>
         </div>
       </div>
-    </Entorno>
+    </Ambiente>
   );
 }

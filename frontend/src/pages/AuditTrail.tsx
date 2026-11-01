@@ -18,6 +18,7 @@ import { useAuth } from "../store/auth";
 import { fechaHora } from "../lib/fecha";
 import { detalleDelBloque, etiquetaAccion } from "../lib/auditoria";
 import "../styles/office.css";
+import { PageBody } from "../components/shell/PageBody";
 
 /** Rows added per «Mostrar más». The chain is append-only and unbounded. */
 const PAGE = 50;
@@ -126,21 +127,13 @@ function AuditTrailPage() {
     <AppShell
       crumbs={AUDIT_CRUMBS}
       subtitle="Cadena de bloques con firma; alterar un bloque invalida todos los siguientes."
-      actions={
-        <>
-          {/* F2-58: exportar no depende de haber verificado antes. Es un enlace
-              (descarga) con el aspecto de un botón secundario pequeño. */}
-          <a href="/api/audit/export" target="_blank" rel="noreferrer"
-             style={{ display: "inline-flex", alignItems: "center", gap: 6, height: "var(--control-sm)", padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-            <Icon name="EXPORT" size={14} />Exportar
-          </a>
-          <Button size="sm" onClick={() => void runVerify()} disabled={busy} leadingIcon={<Icon name="SHIELD" size={13} />}>
-            {busy ? "Verificando…" : "Verificar integridad"}
-          </Button>
-        </>
-      }
+      acciones={[
+        // F2-58: exportar no depende de haber verificado antes; es un enlace (descarga).
+        { id: "exportar", label: "Exportar", icon: "EXPORT", href: "/api/audit/export" },
+        { id: "verificar", label: busy ? "Verificando…" : "Verificar integridad", icon: "SHIELD", principal: true, disabled: busy, onClick: () => void runVerify() },
+      ]}
     >
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", maxWidth: 1100, width: "100%", margin: "0 auto" }}>
+      <PageBody className="fade-rise">
         {verify && (
           <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 14, borderColor: verify.ok ? "var(--success)" : "var(--destructive)" }}>
             <Icon name={verify.ok ? "STATUS_OK" : "STATUS_WARN"} size={22} color={verify.ok ? "var(--success)" : "var(--destructive)"} />
@@ -279,7 +272,7 @@ function AuditTrailPage() {
             </Button>
           </div>
         )}
-      </div>
+      </PageBody>
     </AppShell>
   );
 }

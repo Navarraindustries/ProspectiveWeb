@@ -27,7 +27,8 @@ export function AuthBrand({ flex }: { flex: string }) {
   const navigate = useNavigate();
   return (
     <div
-      // `login-media` es el gancho de responsive.css: cede espacio y se oculta en pantallas estrechas.
+      // `login-media` solo marca el panel (lo buscan los tests): su parte del ancho la
+      // fija la página con `flex` según el tramo, y en tableta y móvil ni se pinta.
       className="login-media"
       style={{
         flex,
@@ -70,14 +71,7 @@ export function AuthBrand({ flex }: { flex: string }) {
         title="Ir a la página principal"
         style={{ position: "relative", alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 12, background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--on-media)" }}
       >
-        <Logo compact size={32} />
-        <span style={{ display: "inline-flex", flexDirection: "column", gap: 2, textAlign: "left", textShadow: "var(--on-media-shadow)" }}>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-eyebrow)", fontWeight: 600, letterSpacing: "var(--tracking-eyebrow)" }}>
-            PROSPECTIVE
-          </span>
-          {/* Color propio en vez de heredar --muted-foreground: sobre el vídeo tiene que ser claro aunque el tema sea el claro. */}
-          <span style={{ fontSize: 11, color: "var(--on-media-muted)" }}>por SkullApp</span>
-        </span>
+        <Logo variante="linea" size={38} tono="media" />
       </button>
       <div style={{ position: "relative", margin: "auto 0", maxWidth: 460 }}>
         <div style={{ color: "var(--on-media)", fontSize: 38, fontWeight: 700, letterSpacing: "var(--tracking-title)", lineHeight: 1.1, textShadow: "var(--on-media-shadow)" }}>

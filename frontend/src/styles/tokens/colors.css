@@ -64,12 +64,17 @@
   --border:             rgba(255, 255, 255, 0.14);
   --input:              rgba(255, 255, 255, 0.24);
   --field-bg:           rgba(5, 6, 8, 0.5);
+  --btn-outline-bg:     rgba(255, 255, 255, 0.08);
+  --btn-outline-border: rgba(255, 255, 255, 0.3);
   --ring:               var(--primary);
 
   /* ---- Cristal: hojas, menús y barra superior ---- */
   --glass:              linear-gradient(rgba(5, 6, 8, 0.55), rgba(5, 6, 8, 0.55)), rgba(255, 255, 255, 0.08);
-  --veil:               rgba(5, 6, 8, 0.55);    /* velo sobre la imagen de fondo */
+  --veil:               rgba(5, 6, 8, 0.55);    /* velo sobre el vídeo de la landing */
   --veil-dense:         rgba(5, 6, 8, 0.72);
+  --ambient-glow-1:     rgba(96, 173, 255, 0.12);   /* brillo arriba a la izquierda */
+  --ambient-glow-2:     rgba(96, 173, 255, 0.08);   /* brillo abajo a la derecha */
+  --ambient-grain-opacity: 0.04;
   --scrim:              rgba(5, 6, 8, 0.55);    /* velo de hojas y diálogos */
   --scrim-dense:        rgba(5, 6, 8, 0.72);
   --glass-dense:        linear-gradient(rgba(8, 9, 12, 0.72), rgba(8, 9, 12, 0.72)), rgba(255, 255, 255, 0.08);
@@ -91,6 +96,7 @@
   --on-media-muted:     rgba(255, 255, 255, 0.72);
   --on-media-shadow:    0 2px 18px rgba(0, 0, 0, 0.5);
   --media-track:        rgba(255, 255, 255, 0.18);
+  --logo-dot:           #FFFFFF;   /* punto del icono «app» sobre el cuadrado primario */
   --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
   --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
   --glass-blur:         30px;
@@ -170,6 +176,8 @@
   --border:             rgba(0, 0, 0, 0.08);
   --input:              rgba(0, 0, 0, 0.14);
   --field-bg:           #FFFFFF;
+  --btn-outline-bg:     transparent;
+  --btn-outline-border: rgba(0, 0, 0, 0.14);
   --ring:               var(--primary);
 
   /* En el claro el peor fondo del cristal es el negro del quirófano (--viewer-bg):
@@ -179,6 +187,9 @@
   --glass:              rgba(255, 255, 255, 0.92);
   --veil:               rgba(243, 245, 248, 0);   /* sin imagen de fondo en el claro */
   --veil-dense:         rgba(243, 245, 248, 0);
+  --ambient-glow-1:     rgba(10, 102, 255, 0.08);
+  --ambient-glow-2:     rgba(10, 102, 255, 0.06);
+  --ambient-grain-opacity: 0.03;
   --scrim:              rgba(11, 12, 15, 0.24);   /* las hojas sí necesitan velo en el claro */
   --scrim-dense:        rgba(11, 12, 15, 0.32);
   --glass-dense:        rgba(255, 255, 255, 0.92);
@@ -197,6 +208,7 @@
   --on-media-muted:     rgba(255, 255, 255, 0.72);
   --on-media-shadow:    0 2px 18px rgba(0, 0, 0, 0.5);
   --media-track:        rgba(255, 255, 255, 0.18);
+  --logo-dot:           #FFFFFF;   /* punto del icono «app» sobre el cuadrado primario */
   --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
   --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
   --glass-blur:         30px;

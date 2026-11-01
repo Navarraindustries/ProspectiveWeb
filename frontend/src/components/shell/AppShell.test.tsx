@@ -3,19 +3,27 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ComponentProps } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { simularPantalla } from "../../test/pantalla";
 
 const auth = { user: { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" } as { role: string; [k: string]: unknown } | null };
 const nav = { screen: "patients", go: vi.fn() };
 vi.mock("../../store/auth", () => ({ useAuth: () => ({ user: auth.user, logout: vi.fn() }) }));
 vi.mock("../../store/nav", async (orig) => ({ ...(await orig<object>()), useNav: () => nav }));
 vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "dark", toggle: vi.fn() }) }));
-vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([{ id: 9 }, { id: 10 }]) } }));
+vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([{ id: 9 }, { id: 10 }]), listPatients: vi.fn().mockResolvedValue([]) } }));
 
-import { ENTORNO_SRC } from "../Entorno";
+import { CommandPalette } from "../CommandPalette";
+import { openCommandPalette } from "../../lib/commands";
 import { AppShell } from "./AppShell";
 import { resetSessionPinned } from "./useShellState";
+
+/** shell.css con saltos de línea normalizados (el repositorio puede traerlo en CRLF). */
+const cssShell = () => readFileSync(resolve(__dirname, "shell.css"), "utf8").replace(/\r\n/g, "\n");
+
+/** La navegación del cajón: sin nombre propio, dentro del diálogo «Secciones». */
+const navCajon = () => within(screen.getByRole("dialog", { name: "Secciones" })).getByRole("navigation");
 
 /** Pinta el shell con un hijo mínimo; las props son las del propio AppShell. */
 function renderShell(props: Omit<ComponentProps<typeof AppShell>, "children">) {
@@ -23,6 +31,8 @@ function renderShell(props: Omit<ComponentProps<typeof AppShell>, "children">) {
 }
 
 beforeEach(() => { resetSessionPinned(); localStorage.clear(); localStorage.setItem("shell.sidebar", "collapsed"); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
+
+afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("AppShell", () => {
   it("el administrador ve Administración con la insignia de pendientes", async () => {
@@ -61,13 +71,13 @@ describe("AppShell", () => {
     expect(errores).toEqual([]);
   });
   it("la miga solo lleva lo que existe y las acciones del contexto", () => {
-    render(<AppShell crumbs={[{ label: "Pacientes", onClick: () => {} }, { label: "segura, Juan" }]} actions={<button>Nuevo caso</button>}><p>x</p></AppShell>);
+    render(<AppShell crumbs={[{ label: "Pacientes", onClick: () => {} }, { label: "segura, Juan" }]} acciones={[{ id: "nc", label: "Nuevo caso", icon: "PLUS", onClick: () => {} }]}><p>x</p></AppShell>);
     expect(screen.getByText("segura, Juan")).toBeTruthy();
     expect(screen.queryByText("Administración")).toBeNull();
     expect(screen.getByRole("button", { name: "Nuevo caso" })).toBeTruthy();
   });
   it("la barra superior lleva subtítulo, acciones, tema y avatar, y no «Cerrar sesión»", () => {
-    renderShell({ crumbs: [{ label: "Pacientes" }], subtitle: "14 pacientes", actions: <button>Nuevo caso</button> });
+    renderShell({ crumbs: [{ label: "Pacientes" }], subtitle: "14 pacientes", acciones: [{ id: "nc", label: "Nuevo caso", icon: "PLUS", onClick: () => {} }] });
     const header = screen.getByRole("banner");
     expect(within(header).getByText("14 pacientes")).toBeInTheDocument();
     expect(within(header).getByRole("button", { name: "Nuevo caso" })).toBeInTheDocument();
@@ -75,18 +85,19 @@ describe("AppShell", () => {
     expect(within(header).getByRole("button", { name: "Menú de usuario" })).toBeInTheDocument();
     expect(within(header).queryByText("Cerrar sesión")).toBeNull();
   });
-  it("se pinta sobre el Entorno: la imagen de fondo está en el árbol", () => {
+  it("se pinta sobre el Ambiente", () => {
     const { container } = renderShell({});
-    expect(container.querySelector("[data-entorno] img")?.getAttribute("src")).toBe(ENTORNO_SRC);
+    expect(container.querySelector("[data-ambiente]")).not.toBeNull();
+    expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector(".shell")).toBeTruthy();
   });
   it("fijada, la rejilla es de 240px y plegada de 64px", () => {
     localStorage.setItem("shell.sidebar", "pinned");
     const { container } = renderShell({});
     expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "true");
-    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
-    expect(css).toMatch(/\.shell\[data-pinned="true"\]\s*\{[^}]*grid-template-columns:\s*240px 1fr/);
-    expect(css).toMatch(/\.shell\s*\{[^}]*grid-template-columns:\s*64px 1fr/);
+    const css = cssShell();
+    expect(css).toMatch(/\.shell\[data-pinned="true"\]\s*\{[^}]*grid-template-columns:\s*240px\s+1fr/);
+    expect(css).toMatch(/\.shell\s*\{[^}]*grid-template-columns:\s*64px\s+1fr/);
   });
   it("a 1280 px o menos arranca plegada aunque la preferencia diga fijada, sin pisarla", () => {
     localStorage.setItem("shell.sidebar", "pinned");
@@ -103,7 +114,109 @@ describe("AppShell", () => {
   it("la altura de la barra sale del CSS: la clase es shell-top y mide 56 px", () => {
     renderShell({ crumbs: [{ label: "Pacientes" }] });
     expect(screen.getByRole("banner")).toHaveClass("shell-top");
-    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
-    expect(css).toMatch(/\.shell-top\s*\{[^}]*height:\s*56px/);
+    expect(cssShell()).toMatch(/\.shell-top\s*\{[^}]*height:\s*56px/);
+  });
+
+  it("> 1280 con la preferencia «fijada»: carril fijado a 240", () => {
+    const s = simularPantalla({ ancho: 1707 }); localStorage.setItem("shell.sidebar", "pinned");
+    const { container } = renderShell({});
+    expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "true");
+    expect(screen.queryByRole("button", { name: "Abrir las secciones" })).toBeNull();
+    s.restaurar();
+  });
+  it("a 1024: carril plegado, sin botón de cajón; enlaces de 44 px por CSS", () => {
+    const s = simularPantalla({ ancho: 1024 });
+    const { container } = renderShell({});
+    expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-modo", "carril");
+    expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "false");
+    expect(cssShell()).toMatch(/@media\s*\(\s*max-width:\s*1024px\s*\)\s*\{[^}]*\.shell-nav-link\s*\{\s*height:\s*44px/);
+    s.restaurar();
+  });
+  it("a 390: sin carril; el botón abre el cajón con el foco en el primer enlace y Escape lo cierra devolviendo el foco", () => {
+    const s = simularPantalla({ ancho: 390 });
+    const { container } = renderShell({ crumbs: [{ label: "Pacientes" }] });
+    expect(container.querySelector(".shell")).toHaveAttribute("data-movil", "true");
+    expect(container.querySelector(".shell-nav")).toBeNull();
+    const boton = screen.getByRole("button", { name: "Abrir las secciones" });
+    fireEvent.click(boton);
+    const cajon = navCajon();
+    expect(cajon).toHaveAttribute("data-modo", "cajon");
+    expect(cajon).toHaveAttribute("data-expanded", "true");
+    expect(boton).toHaveAttribute("aria-expanded", "true");
+    expect(document.activeElement).toBe(within(cajon).getAllByRole("link")[0]);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Secciones" })).toBeNull();
+    expect(document.activeElement).toBe(boton);
+    s.restaurar();
+  });
+  it("a 390: el Tab no sale del cajón (foco atrapado)", () => {
+    const s = simularPantalla({ ancho: 390 });
+    renderShell({});
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    const cajon = navCajon();
+    const foco = Array.from(cajon.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"));
+    foco[foco.length - 1].focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(foco[0]);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(foco[foco.length - 1]);
+    s.restaurar();
+  });
+  it("a 390: elegir una sección navega y cierra; el velo también cierra", () => {
+    const s = simularPantalla({ ancho: 390 });
+    const { container } = renderShell({});
+    nav.go.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    fireEvent.click(within(navCajon()).getByRole("link", { name: "Estudios" }));
+    expect(nav.go).toHaveBeenCalledWith("studies");
+    expect(screen.queryByRole("dialog", { name: "Secciones" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    fireEvent.click(container.querySelector(".shell-nav-velo")!);
+    expect(screen.queryByRole("dialog", { name: "Secciones" })).toBeNull();
+    s.restaurar();
+  });
+  it("a 390: con el cajón abierto el fondo es inert y el cajón es un diálogo modal", () => {
+    const s = simularPantalla({ ancho: 390 });
+    const { container } = renderShell({});
+    const fondo = container.querySelector(".shell-body")!;
+    expect(fondo).not.toHaveAttribute("inert");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    expect(fondo).toHaveAttribute("inert");
+    const dialogo = screen.getByRole("dialog", { name: "Secciones" });
+    expect(dialogo).toHaveAttribute("aria-modal", "true");
+    expect(dialogo.contains(navCajon())).toBe(true);
+    // El nombre lo lleva el diálogo; la navegación de dentro no lo repite.
+    expect(navCajon()).not.toHaveAttribute("aria-label");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(fondo).not.toHaveAttribute("inert");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    s.restaurar();
+  });
+  it("a 390: con la paleta abierta sobre el cajón, Tab y Escape son de la paleta", async () => {
+    const s = simularPantalla({ ancho: 390 });
+    render(<><AppShell><p>x</p></AppShell><CommandPalette onOpenPatient={() => {}} onResume={() => {}} /></>);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    const primero = within(navCajon()).getAllByRole("link")[0];
+    expect(document.activeElement).toBe(primero);
+    act(() => openCommandPalette());
+    const buscar = screen.getByRole("combobox", { name: "Buscar en la paleta" });
+    expect(document.activeElement).toBe(buscar);
+    fireEvent.keyDown(buscar, { key: "Tab" });
+    expect(document.activeElement).toBe(buscar);
+    fireEvent.keyDown(buscar, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Paleta de mandos" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Secciones" })).toBeInTheDocument();
+    expect(document.activeElement).toBe(primero);
+    await act(async () => {});
+    s.restaurar();
+  });
+  it("si la ventana pasa de 640 con el cajón abierto, vuelve el carril", () => {
+    const s = simularPantalla({ ancho: 390 });
+    renderShell({});
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    act(() => s.cambiar({ ancho: 1024 }));
+    expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-modo", "carril");
+    expect(screen.queryByRole("button", { name: "Abrir las secciones" })).toBeNull();
+    s.restaurar();
   });
 });

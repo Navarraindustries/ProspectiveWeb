@@ -1,10 +1,44 @@
 /* A drawer that renders inside a glass surface silently collapses. */
 
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { simularPantalla } from "../test/pantalla";
 import { Sheet } from "./Sheet";
 
 describe("Sheet", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("al cerrarse, la capa deja de capturar el puntero durante la salida (A18)", () => {
+    const { rerender } = render(<Sheet open onClose={() => {}} title="Nuevo taller"><p>x</p></Sheet>);
+    expect(screen.getByRole("dialog").parentElement!.style.pointerEvents).toBe("auto");
+    rerender(<Sheet open={false} onClose={() => {}} title="Nuevo taller"><p>x</p></Sheet>);
+    const saliendo = screen.getByRole("dialog");
+    expect(saliendo.parentElement!.style.pointerEvents).toBe("none");
+  });
+
+  it("en móvil ocupa la pantalla entera", () => {
+    simularPantalla({ ancho: 390 });
+    render(<Sheet open onClose={() => {}} title="Ficha" width={560}><p>x</p></Sheet>);
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.width).toBe("100%");
+    expect(panel.style.maxWidth).toBe("100vw");
+    expect(panel.style.borderRadius).toBe("0px");
+  });
+
+  it("en tableta conserva el ancho pedido con tope 94vw y «Cerrar» de 44 px", () => {
+    simularPantalla({ ancho: 768 });
+    render(<Sheet open onClose={() => {}} title="Ficha" width={560}><p>x</p></Sheet>);
+    expect(screen.getByRole("dialog").style.width).toBe("560px");
+    expect(screen.getByRole("dialog").style.maxWidth).toBe("94vw");
+    expect(screen.getByRole("button", { name: "Cerrar" }).style.width).toBe("44px");
+  });
+
+  it("en escritorio, como hasta ahora", () => {
+    simularPantalla({ ancho: 1707 });
+    render(<Sheet open onClose={() => {}} title="Ficha"><p>x</p></Sheet>);
+    expect(screen.getByRole("dialog").style.width).toBe("460px");
+    expect(screen.getByRole("button", { name: "Cerrar" }).style.width).toBe("40px");
+  });
   it("escapes an ancestor that captures fixed positioning", () => {
     // Regression: the topbar has backdrop-filter, which makes it the containing
     // block for `position: fixed`. A sheet opened from the user menu therefore

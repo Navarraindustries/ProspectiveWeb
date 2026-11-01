@@ -88,4 +88,11 @@ describe("Button", () => {
     render(<ThemeProvider><Button variant="outline" disabled>Off</Button></ThemeProvider>);
     expect(screen.getByRole("button", { name: "Off" }).style.opacity).toBe("0.4");
   });
+
+  it.each(["outline", "secondary"] as const)("%s usa los tokens de contorno (transparente en claro)", (variant) => {
+    render(<ThemeProvider><Button variant={variant}>Editar</Button></ThemeProvider>);
+    const b = screen.getByRole("button", { name: "Editar" });
+    expect(b.style.background).toBe("var(--btn-outline-bg)");
+    expect(b.style.border).toBe("1px solid var(--btn-outline-border)");
+  });
 });

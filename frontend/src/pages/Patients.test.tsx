@@ -39,10 +39,7 @@ vi.mock("../api/client", () => {
 });
 // El shell (barra lateral y superior) se sustituye por su cabecera (subtítulo,
 // estado y acciones) y su contenido: lo que se prueba aquí es la página.
-vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) =>
-    <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
-}));
+vi.mock("../components/shell/AppShell", async () => ({ AppShell: (await import("../test/shellMock")).ShellMock }));
 vi.mock("../components/CaptureGallery", () => ({ CaptureGallery: () => null }));
 // «Nuevo caso» se sustituye por botones que eligen el paciente y crean el caso:
 // aquí se prueba lo que la lista hace antes y después, no el formulario.
@@ -322,9 +319,9 @@ describe("la lista de pacientes (F2)", () => {
     const header = screen.getByRole("banner");
     const nombres = within(header).getAllByRole("button").map((b) => b.textContent);
     expect(nombres).toEqual(["Nuevo paciente", "Nuevo caso", "Prueba rápida sin paciente"]);
-    // Peso: el primario es «Nuevo paciente»; «Nuevo caso» contorno y la prueba rápida, fantasma.
+    // Peso: el primario es «Nuevo paciente»; «Nuevo caso» y la prueba rápida, contorno.
     const botones = within(header).getAllByRole("button");
-    expect(botones.map((b) => b.getAttribute("data-variant"))).toEqual(["default", "outline", "ghost"]);
+    expect(botones.map((b) => b.getAttribute("data-variant"))).toEqual(["default", "outline", "outline"]);
     expect(within(header).queryByText("Empezar sin paciente")).toBeNull();
   });
 

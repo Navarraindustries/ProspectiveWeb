@@ -9,6 +9,7 @@ import type { ClipOrder, PatientSummary, StudySummary } from "../api/types";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
+import { Tabs } from "../components/Tabs";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { PatientFormSheet } from "../components/PatientFormSheet";
@@ -42,7 +43,7 @@ export function Patients({
   onPlanCase,
   onStartWithoutPatient,
 }: {
-  onResume: (sessionId: string, patient: PatientSummary) => void;
+  onResume: (sessionId: string, patient: PatientSummary) => void | Promise<unknown>;
   /** Enter the pipeline for a clinical case (patient + case known upfront). */
   onPlanCase: (study: StudySummary, patient: PatientSummary) => void;
   /** Al pipeline sin paciente ni caso; se adjuntan después. */
@@ -149,11 +150,6 @@ export function Patients({
   const subtitulo = loading && patients.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista"
     : `${recuentoPacientes(patients.length)} · ${isAdmin ? "en la base de datos" : "tuyos o compartidos contigo"}`;
 
-  const iconBtn: React.CSSProperties = {
-    display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
-    borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer",
-  };
-
   return (
     <AppShell
       crumbs={[{ label: "Pacientes" }]}
@@ -183,7 +179,7 @@ export function Patients({
                     <Icon name={av.tono === "success" ? "STATUS_OK" : av.destino === "orders" ? "CLIPS" : "WAIT"} size={14} />
                   </span>
                   <span className="pt-aviso-titulo">{av.titulo}</span>
-                  <span className="pt-aviso-detalle" title={av.detalle}>{av.detalle}</span>
+                  <span className="pt-aviso-detalle" title={av.completo}>{av.detalle}</span>
                   {av.destino !== null && (
                     <button type="button" className="pt-aviso-ver" onClick={() => nav.go(av.destino!)}>
                       Ver
@@ -197,10 +193,10 @@ export function Patients({
           {aviso && (
             // F2-22 y spec §5: quien acaba de crear un paciente o un caso espera
             // seguir con él; antes volvía a la lista y había que buscarlo.
-            <div role="status" style={{
-              display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", marginBottom: 16,
-              background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)",
-              border: "1px solid var(--border)", borderRadius: "var(--radius-md)", fontSize: 13,
+            <div role="status" data-glass style={{
+              ...glass("normal"),
+              display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "8px 10px 8px 16px", marginBottom: 16,
+              color: "var(--foreground)", borderRadius: "var(--radius-xl)", fontSize: 13,
             }}>
               <span style={{ flex: 1 }}>
                 {aviso.tipo === "paciente"
@@ -218,10 +214,9 @@ export function Patients({
                   Planificar este caso
                 </Button>
               )}
-              <button type="button" aria-label="Cerrar aviso" title="Cerrar aviso" style={{ ...iconBtn, background: "transparent", border: "none" }}
-                      onClick={() => setAviso(null)}>
+              <Button size="icon" variant="ghost" aria-label="Cerrar aviso" title="Cerrar aviso" onClick={() => setAviso(null)}>
                 <Icon name="CLOSE" size={14} />
-              </button>
+              </Button>
             </div>
           )}
 
@@ -232,15 +227,9 @@ export function Patients({
                      value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
             {conCompartidos && (
-              <div role="tablist" aria-label="Qué pacientes ver" className="pt-tabs">
-                {PESTANAS.map((t) => (
-                  <button key={t.id} type="button" role="tab" aria-selected={pestanaActiva === t.id}
-                          className={`pt-tab${pestanaActiva === t.id ? " pt-tab--on" : ""}`}
-                          onClick={() => setPestana(t.id)}>
-                    {t.texto}
-                  </button>
-                ))}
-              </div>
+              <Tabs tabs={PESTANAS.map((t) => t.texto)}
+                    value={PESTANAS.find((t) => t.id === pestanaActiva)!.texto}
+                    onChange={(texto) => setPestana(PESTANAS.find((t) => t.texto === texto)!.id)} />
             )}
           </div>
 

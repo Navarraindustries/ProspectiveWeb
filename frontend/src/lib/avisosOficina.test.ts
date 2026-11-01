@@ -22,10 +22,17 @@ describe("avisos de la oficina", () => {
     const a = avisosOficina({ patients: [], orders: null, ahora });
     expect(a).toEqual([]);
   });
-  it("avisosOficina nombra hasta tres y cuenta todos", () => {
-    const ps = [1, 2, 3, 4].map((i) => p({ id: i, full_name: `P${i}, X`, last_session_at: "2026-10-10T10:00:00", last_session_step: 2 }));
+  it("el detalle resume en dos nombres y +N; completo lleva todos", () => {
+    const ps = [1, 2, 3, 4].map((i) => p({ id: i, full_name: `P${i}`, last_session_at: "2026-10-10T10:00:00", last_session_step: 2 }));
     const [a] = avisosOficina({ patients: ps, orders: [], ahora });
     expect(a.titulo).toBe("4 casos parados antes del informe más de 7 días");
-    expect(a.detalle).toBe("P1, X · P2, X · P3, X");
+    expect(a.detalle).toBe("P1 · P2 +2");
+    expect(a.completo).toBe("P1 · P2 · P3 · P4");
+  });
+  it("con dos nombres o menos no hay +N", () => {
+    const ps = [1, 2].map((i) => p({ id: i, full_name: `P${i}`, last_session_at: "2026-10-10T10:00:00", last_session_step: 2 }));
+    const [a] = avisosOficina({ patients: ps, orders: [], ahora });
+    expect(a.detalle).toBe("P1 · P2");
+    expect(a.completo).toBe("P1 · P2");
   });
 });

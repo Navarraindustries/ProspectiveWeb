@@ -38,14 +38,15 @@
   background: var(--glass);
   color: var(--foreground);
   border: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   backdrop-filter: blur(8px);
 }
 
 .pt-card-body { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 8px; }
 .pt-card-name { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; }
-.pt-card-meta { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); }
+/* La HC larga no parte la tarjeta: una línea con elipsis (el valor completo va en el title). */
+.pt-card-meta { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pt-card-badges { display: flex; flex-wrap: wrap; gap: 6px; min-height: 0; }
 
 .pt-card-bar { height: 4px; border-radius: var(--radius-sm); background: var(--muted); overflow: hidden; }
@@ -64,12 +65,14 @@
   gap: 8px;
   padding: 8px 14px 12px;
   margin-top: auto;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted-foreground);
 }
+.pt-card-foot > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-card-foot button { flex-shrink: 0; white-space: nowrap; }
 
 /* Panel lateral (spec §4.3): tres bloques apilados, solo tokens. */
-.pt-side { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: var(--radius-xl); position: sticky; top: 24px; max-height: calc(100dvh - 56px - 48px); overflow-y: auto; font-family: var(--font-sans); color: var(--foreground); }
+.pt-side { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: var(--radius-xl); position: sticky; top: 24px; font-family: var(--font-sans); color: var(--foreground); }
 .pt-side-block:first-child { border-top: 0; padding-top: 0; }
 .pt-side-block {
   background: transparent;
@@ -95,19 +98,19 @@
 .pt-side-pending:focus-visible, .pt-side-activity:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .pt-side-alert { border-color: var(--warning); color: var(--warning); }
 
-.pt-side-note { margin: 0; font-size: 12px; color: var(--muted-foreground); }
+.pt-side-note { margin: 0; font-size: 13px; color: var(--muted-foreground); }
 .pt-side-error { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .pt-side-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .pt-side-activity {
   display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
   width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-md);
   background: transparent; color: var(--foreground);
-  font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+  font: inherit; font-size: 13px; text-align: left; cursor: pointer;
 }
 .pt-side-activity:hover { background: var(--muted); }
 /* Dos líneas como máximo y sin puntos suspensivos sueltos: «Paciente · acción» cortado no se entiende. */
 .pt-side-activity-text { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.pt-side-activity-time { flex-shrink: 0; color: var(--muted-foreground); font-size: 11px; }
+.pt-side-activity-time { flex-shrink: 0; color: var(--muted-foreground); font-family: var(--font-mono); font-size: 12px; }
 
 .pt-side-links { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
 
@@ -118,18 +121,9 @@
 .pt-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .pt-search { width: 280px; max-width: 100%; }
 
-.pt-tabs { display: inline-flex; gap: 2px; padding: 3px; background: var(--muted); border-radius: var(--radius-md); }
-.pt-tab {
-  padding: 5px 12px; border: 0; border-radius: var(--radius-sm); background: transparent;
-  color: var(--muted-foreground); font: inherit; font-size: 13px; cursor: pointer;
-}
-.pt-tab:hover { color: var(--foreground); }
-.pt-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.pt-tab--on { background: var(--card); color: var(--foreground); box-shadow: var(--shadow-sm); }
-
 .pt-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
 .pt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
-@media (max-width: 1280px) { .pt-layout { grid-template-columns: 1fr; } .pt-side { position: static; max-height: none; overflow: visible; } }
+@media (max-width: 1280px) { .pt-layout { grid-template-columns: 1fr; } .pt-side { position: static; } }
 
 /* Disposición estrecha: las cifras de «Hoy» en una fila con envoltura. */
 .pt-side-stats--fila { flex-direction: row; flex-wrap: wrap; gap: 8px 24px; }
@@ -159,13 +153,28 @@
   display: flex; align-items: center; justify-content: center;
 }
 .pt-aviso-titulo { font-weight: 600; white-space: nowrap; }
-.pt-aviso-detalle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
+.pt-aviso-detalle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: 13px; }
 .pt-aviso-ver {
   flex-shrink: 0; padding: 4px 10px; border: 0; border-radius: var(--radius-full); background: transparent;
-  color: var(--data); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--data); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .pt-aviso-ver:hover { background: var(--glass-hover); }
 .pt-aviso-ver:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* Sin lente con movimiento reducido. */
 @media (prefers-reduced-motion: reduce) { .pt-card:hover { transform: none; } }
+
+/* Sin imagen ni sesión: las iniciales, no un icono que parece un cuadrado vacío. */
+.pt-card-media--vacia { flex-direction: column; gap: 4px; }
+.pt-card-iniciales { font-size: 28px; font-weight: 600; line-height: 1; color: var(--muted-foreground); }
+.pt-card-sin { font-size: 13px; color: var(--muted-foreground); }
+.pt-card[data-abriendo] { cursor: progress; }
+.pt-side-mas { align-self: flex-start; margin-top: 4px; }
+
+/* Móvil: una columna y la búsqueda a todo el ancho. */
+@media (max-width: 640px) { .pt-grid { grid-template-columns: 1fr; } .pt-search { width: 100%; } }
+
+/* Objetivos táctiles de 44 px hasta 1024 px. */
+@media (max-width: 1024px) {
+  .pt-aviso-ver, .pt-side-activity, .pt-side-pending, .pt-side-toggle { min-height: 44px; }
+}

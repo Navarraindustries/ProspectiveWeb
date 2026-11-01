@@ -19,7 +19,15 @@ describe("contrato CSS de las tarjetas de paciente", () => {
   it("la rejilla admite tarjetas de 220px (tres columnas a 1440 px con el inspector)", () => {
     expect(regla(".pt-grid")).toMatch(/grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(220px,\s*1fr\)\)/);
   });
-  it("el inspector descuenta la barra superior de 56 px y usa la altura dinámica", () => {
-    expect(regla(".pt-side")).toMatch(/max-height:\s*calc\(100dvh - 56px - 48px\)/);
+  it("el panel lateral crece con la página: sticky sin alto máximo ni scroll propio", () => {
+    expect(regla(".pt-side")).toMatch(/position:\s*sticky/);
+    expect(regla(".pt-side")).not.toMatch(/max-height|overflow-y/);
+  });
+  it("la HC va en una línea con elipsis", () => {
+    expect(regla(".pt-card-meta")).toMatch(/white-space:\s*nowrap/);
+    expect(regla(".pt-card-meta")).toMatch(/text-overflow:\s*ellipsis/);
+  });
+  it("a ≤ 640 px la rejilla es de una columna", () => {
+    expect(css).toMatch(/@media \(max-width: 640px\) \{ \.pt-grid \{ grid-template-columns: 1fr; \}/);
   });
 });

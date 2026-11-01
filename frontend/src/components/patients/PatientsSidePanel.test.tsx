@@ -173,12 +173,31 @@ describe("PatientsSidePanel", () => {
     const { onOpenPatient } = montar();
     const bloque = screen.getByRole("region", { name: "Actividad reciente" });
     const filas = await within(bloque).findAllByRole("button", { name: /Persona \d · / });
-    expect(filas).toHaveLength(8);
+    expect(filas).toHaveLength(5);
     expect(patientsActivity).toHaveBeenCalledWith(8);
     expect(filas[0].textContent).toContain("Persona 0 · ");
     expect(filas[0].textContent).toContain("hace 5 min");
     fireEvent.click(filas[2]);
     expect(onOpenPatient).toHaveBeenCalledWith(102);
+  });
+
+  it("Actividad reciente enseña 5 y «Ver más» el resto", async () => {
+    patientsActivity.mockResolvedValue(actividad(8));
+    montar();
+    const bloque = screen.getByRole("region", { name: "Actividad reciente" });
+    await within(bloque).findAllByRole("button", { name: /Persona \d · / });
+    expect(bloque.querySelectorAll(".pt-side-activity")).toHaveLength(5);
+    fireEvent.click(within(bloque).getByRole("button", { name: "Ver más" }));
+    expect(bloque.querySelectorAll(".pt-side-activity")).toHaveLength(8);
+    fireEvent.click(within(bloque).getByRole("button", { name: "Ver menos" }));
+    expect(bloque.querySelectorAll(".pt-side-activity")).toHaveLength(5);
+  });
+
+  it("con 5 o menos entradas no hay «Ver más»", async () => {
+    patientsActivity.mockResolvedValue(actividad(5));
+    montar();
+    await screen.findAllByRole("button", { name: /Persona \d · / });
+    expect(screen.queryByRole("button", { name: "Ver más" })).toBeNull();
   });
 
   it("Actividad vacía: «Aún no hay actividad en tus pacientes.»", async () => {

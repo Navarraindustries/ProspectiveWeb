@@ -211,7 +211,9 @@ describe("AnnotationsPanel", () => {
     const nuevo = { ...marcador, id: "m2", label: "M2", note: "" };
     act(() => { visto?.setAnnotations((p) => [...p, nuevo]); visto?.setNoteFocusRequest("m2"); });
     await waitFor(() => expect(screen.getByLabelText("Nota de M2")).toHaveFocus());
-    expect(visto?.noteFocusRequest).toBeNull();
+    // El foco llega en un fotograma y la petición se suelta con un setState que
+    // React pinta después: comprobarlo en el acto era una carrera bajo carga.
+    await waitFor(() => expect(visto?.noteFocusRequest).toBeNull());
   });
 
   // Los fotogramas a mano: cada `frame()` corre lo que se pidió con
@@ -249,6 +251,10 @@ describe("AnnotationsPanel", () => {
 
   it("si el campo tarda más de cinco fotogramas en poder recibir el foco, lo recibe igual", async () => {
     const frame = fotogramas();
+    // Reloj simulado, 16 ms por fotograma: con el real, una carga lenta de la
+    // suite agotaba los NOTE_FOCUS_MS antes del fotograma 13.
+    let ahora = 1000;
+    vi.spyOn(performance, "now").mockImplementation(() => ahora);
     // Un despliegue lento de la columna: focus() no hace nada durante 12 fotogramas.
     const real = HTMLElement.prototype.focus;
     let fotograma = 0;
@@ -258,6 +264,7 @@ describe("AnnotationsPanel", () => {
     });
     const nota = await marcadorNuevo();
     for (fotograma = 1; fotograma <= 12; fotograma++) {
+      ahora += 16;
       frame();
       expect(nota).not.toHaveFocus();
       expect(visto?.noteFocusRequest, `fotograma ${fotograma}`).toBe("m2");

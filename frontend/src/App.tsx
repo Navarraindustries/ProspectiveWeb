@@ -275,6 +275,7 @@ function Router() {
   else if (effective === "patient" && patientId !== null)
     view = (
       <PatientPage
+        key={patientId}
         patientId={patientId}
         onResume={resumeSession}
         onPlanCase={planCase}

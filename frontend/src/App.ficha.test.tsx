@@ -1,7 +1,7 @@
 /* La ficha con URL propia dentro del Router de App: la URL /app/pacientes/:id
    se conserva al cargar y recargar, un id malo cae en la lista y sin sesión se
    va a la entrada. */
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,11 +21,12 @@ globalThis.Request = class extends RequestNode {
 } as typeof Request;
 
 const getPatient = vi.fn();
+const listPatients = vi.fn();
 let usuario: Record<string, unknown> | null = { id: 1, username: "a", full_name: "A", role: "medico", institution: "" };
 vi.mock("./api/client", () => ({
   api: {
     getPatient: (id: number) => getPatient(id),
-    listPatients: () => Promise.resolve([]),
+    listPatients: () => listPatients(),
     patientShares: () => Promise.resolve([]),
     listCaptures: () => Promise.resolve([]),
     patientStudies: () => Promise.resolve([]),
@@ -73,6 +74,7 @@ function montar(path: string) {
 
 beforeEach(() => {
   getPatient.mockReset().mockResolvedValue(PACIENTE);
+  listPatients.mockReset().mockResolvedValue([]);
   usuario = { id: 1, username: "a", full_name: "A", role: "medico", institution: "" };
 });
 
@@ -112,5 +114,29 @@ describe("App · ficha /app/pacientes/:id", () => {
     const activos = screen.getAllByRole("link", { current: "page" });
     expect(activos.map((a) => a.getAttribute("href"))).toEqual(["/app/pacientes"]);
     expect(activos[0].textContent).toContain("Pacientes");
+  });
+
+  it("una respuesta tardía del paciente anterior no pisa la ficha del actual", async () => {
+    getPatient.mockImplementation((id: number) =>
+      Promise.resolve(id === 42 ? PACIENTE : { ...PACIENTE, id: 43, surname: "Otro", given_name: "Paciente 43", hospital_id: "HC-43" }),
+    );
+    const router = montar("/app/pacientes/42");
+    // La fila de la lista no llega: la ficha del 42 pide «Reintentar» y su
+    // respuesta queda pendiente mientras se navega al 43.
+    const reintentar = await screen.findByRole("button", { name: "Reintentar" });
+    let resolver42: (v: unknown) => void = () => {};
+    listPatients.mockReset().mockImplementationOnce(() => new Promise((r) => { resolver42 = r; })).mockResolvedValue([]);
+    fireEvent.click(reintentar);
+    await act(async () => { await router.navigate("/app/pacientes/43"); });
+    expect(await screen.findByRole("heading", { name: "Otro, Paciente 43" })).toBeTruthy();
+    await act(async () => {
+      resolver42([{ id: 42, full_name: "Zenodo, Caso 002", hospital_id: "HC-42", dob: null, sex: "F", institution: "",
+        study_count: 7, created_at: "2026-10-01T00:00:00", owner_id: 1, shared_with_count: 0, is_shared_with_me: false,
+        last_session_at: null, last_session_step: null, last_session_id: null, last_case_label: "", last_risk_label: null,
+        last_capture_id: null, last_imaging_study_id: null }]);
+    });
+    expect(screen.getByRole("heading", { name: "Otro, Paciente 43" })).toBeTruthy();
+    expect(screen.queryByText("Casos · 7")).toBeNull();
+    expect(screen.queryByText("Zenodo, Caso 002")).toBeNull();
   });
 });
